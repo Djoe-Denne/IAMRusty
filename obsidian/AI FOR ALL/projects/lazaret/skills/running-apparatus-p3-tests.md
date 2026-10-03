@@ -6,15 +6,15 @@ tags: [testing, rust, components]
 sources:
   - docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md
   - docs/apparatus-p3-implementation-prompt.md
-  - Lazaret/tests/apparatus_p3_t3_identity.rs
-  - Lazaret/tests/apparatus_p3_t7_invoke.rs
-  - Lazaret/tests/apparatus_p3_t11b_session_mtls.rs
-  - Lazaret/tests/apparatus_p3_t12_openbao.rs
-  - Lazaret/tests/apparatus_p3_t13_ca_persist.rs
-  - Hive/tests/https_mesh_optional_mtls.rs
-  - Lazaret/tests/common.rs
+  - services/Lazaret/tests/apparatus_p3_t3_identity.rs
+  - services/Lazaret/tests/apparatus_p3_t7_invoke.rs
+  - services/Lazaret/tests/apparatus_p3_t11b_session_mtls.rs
+  - services/Lazaret/tests/apparatus_p3_t12_openbao.rs
+  - services/Lazaret/tests/apparatus_p3_t13_ca_persist.rs
+  - services/Hive/tests/https_mesh_optional_mtls.rs
+  - services/Lazaret/tests/common.rs
 summary: >-
-  Preuves P3 T3–T13 sous Lazaret/tests ; T14b https_mesh_optional_mtls
+  Preuves P3 T3–T13 sous services/Lazaret/tests ; T14b https_mesh_optional_mtls
   Hive/IAM/Telegraph. ADR-0007 Accepted / Partial.
 provenance:
   extracted: 0.92
@@ -52,7 +52,7 @@ cargo test -p manifesto-service --test sqs_event_routing_tests -- --test-threads
 cargo test -p lazaret-service --test health
 ```
 
-Fixtures : snapshot de binding (WireMock Manifesto), Redis, Vault/OpenBao. T6 KV **reste** wiremock (preuve protocole). T12 OpenBao = testcontainer `lazaret_test-openbao` (preuve produit). T14b = `https_mesh_optional_mtls` sur Hive, IAMRusty, Telegraph. Harness `Lazaret/tests/common.rs`. Prefer `--test-threads=1` dès qu’il y a Postgres / Redis / Vault / OpenBao / LocalStack.
+Fixtures : snapshot de binding (WireMock Manifesto), Redis, Vault/OpenBao. T6 KV **reste** wiremock (preuve protocole). T12 OpenBao = testcontainer `lazaret_test-openbao` (preuve produit). T14b = `https_mesh_optional_mtls` sur Hive, IAMRusty, Telegraph. Harness `services/Lazaret/tests/common.rs`. Prefer `--test-threads=1` dès qu’il y a Postgres / Redis / Vault / OpenBao / LocalStack.
 
 IT SQS Manifesto : retry `CreateQueue` LocalStack (flake hyper dispatch, pas une régression `src`). Voir [[concepts/integration-testing-with-real-infrastructure]].
 

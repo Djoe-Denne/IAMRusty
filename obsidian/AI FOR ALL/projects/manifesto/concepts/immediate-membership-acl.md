@@ -4,9 +4,9 @@ title: >-
 category: concepts
 tags: [authorization, membership, manifesto, visibility/internal]
 sources:
-  - Manifesto/application/src/usecase/world_read.rs
-  - Manifesto/application/src/usecase/member.rs
-  - Manifesto/application/src/usecase/project.rs
+  - services/Manifesto/application/src/usecase/world_read.rs
+  - services/Manifesto/application/src/usecase/member.rs
+  - services/Manifesto/application/src/usecase/project.rs
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/11c01523-bb74-444a-ac31-44384d63de7d/11c01523-bb74-444a-ac31-44384d63de7d.jsonl
 summary: >-
   Project mutations need an active DB membership or org admin. Leftover OpenFGA tuples do not authorize. Suspended is owner/admin only.

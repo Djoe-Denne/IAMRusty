@@ -27,14 +27,14 @@ Documenter l’architecture hexagonale **déjà en place** pour IAMRusty, Hive, 
 
 ## Sources à lire (code + handbook + wiki — pas les archives `_archives` comme preuve)
 
-- `Manifesto/docs/rustycog-hexagonal-web-service-guide.md`
-- `Manifesto/docs/rustycog-service-build-guide.md`
-- `Manifesto/docs/rustycog-implementation-and-usage-guide.md`
+- `services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md`
+- `services/Manifesto/docs/rustycog-service-build-guide.md`
+- `services/Manifesto/docs/rustycog-implementation-and-usage-guide.md`
 - `docs/guides/nouveau-service.md`
 - `obsidian/AI FOR ALL/concepts/architecture-coherence-across-services.md`
 - `obsidian/AI FOR ALL/projects/iamrusty/concepts/hexagonal-architecture.md`
 - `obsidian/AI FOR ALL/skills/building-rustycog-services.md` (si présent)
-- `Cargo.toml` workspace ; crates `IAMRusty/*`, `Hive/*`, `Telegraph/*`, `Manifesto/*`
+- `Cargo.toml` workspace ; crates `services/IAMRusty/*`, `services/Hive/*`, `services/Telegraph/*`, `services/Manifesto/*`
 - `rustycog/Cargo.toml` (features : command, db, events, http, outbox, permission, testing, logger, config, core, server)
 - QMD collection `aiforall-wiki` via CLI `qmd` (jamais MCP QMD)
 - GrepAI pour ports (`domain/**/port`), factories, `GenericCommandService`

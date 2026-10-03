@@ -3,12 +3,12 @@ title: Sentinel Sync Worker
 category: reference
 tags: [reference, sentinel-sync, authorization, openfga, events]
 sources:
-  - sentinel-sync/src/main.rs
-  - sentinel-sync/src/handler.rs
-  - sentinel-sync/src/fga_client.rs
-  - sentinel-sync/src/translator/mod.rs
-  - sentinel-sync/src/idempotency.rs
-  - sentinel-sync/src/config.rs
+  - workers/sentinel-sync/src/main.rs
+  - workers/sentinel-sync/src/handler.rs
+  - workers/sentinel-sync/src/fga_client.rs
+  - workers/sentinel-sync/src/translator/mod.rs
+  - workers/sentinel-sync/src/idempotency.rs
+  - workers/sentinel-sync/src/config.rs
   - rustycog/rustycog-config/src/lib.rs
 summary: >-
   sentinel-sync consumes per-service events, canonicalizes envelopes, applies
@@ -22,7 +22,7 @@ updated: 2026-09-09T16:45:00Z
 
 # Sentinel Sync Worker
 
-`sentinel-sync` is a Rust binary (crate `sentinel-sync/`) that bridges the existing event bus to the centralized OpenFGA store.
+`sentinel-sync` is a Rust binary (crate `workers/sentinel-sync/`) that bridges the existing event bus to the centralized OpenFGA store.
 
 ## Layout
 
@@ -65,7 +65,7 @@ kind = "kafka"                       # shared RustyCog QueueConfig
 # ...
 ```
 
-Sample file: [sentinel-sync/config/sentinel-sync.toml.example](../../../../sentinel-sync/config/sentinel-sync.toml.example).
+Sample file: [workers/sentinel-sync/config/sentinel-sync.toml.example](../../../../sentinel-sync/config/sentinel-sync.toml.example).
 
 The split `scheme` / `host` / `port` shape mirrors service OpenFGA config and supports `port = 0` for testcontainer-backed runs. When tests boot `sentinel-sync` beside [[projects/rustycog/references/openfga-real-testcontainer-fixture]], the fixture publishes `SENTINEL_SYNC_OPENFGA__SCHEME`, `HOST`, `PORT`, `STORE_ID`, and `AUTHORIZATION_MODEL_ID` so the worker writes tuples into the same fresh OpenFGA store as the service under test.
 

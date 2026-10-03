@@ -18,7 +18,7 @@ pub struct ResourceRef {
 }
 ```
 
-`object_type` must match a type defined in [openfga/model.fga](../../openfga/model.fga). Typical values:
+`object_type` must match a type defined in [ops/openfga/model.fga](../../openfga/model.fga). Typical values:
 
 - `"organization"`
 - `"project"`

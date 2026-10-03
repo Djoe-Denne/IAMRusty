@@ -47,12 +47,12 @@ T2–T12 + chaîne Kind M1–M6 sont livrés. Kind = **l’environnement V1**. L
 
 | Jalon | Preuve | Hole fermé |
 |---|---|---|
-| M1 | `apparatus-operator/tests/apparatus_m1_reference_kv_pin.rs` | Pin descripteur 0002 (64 hex, jamais `latest`) ; CRI ≠ enveloppe OCI |
-| M2 | `apparatus-operator/tests/apparatus_m2_valid_persist.rs` | Adm-A seule écriture VALID ; store JSON produit |
-| M3 | `apparatus-operator/tests/apparatus_m3_install_fail_closed.rs` | Install fail-closed si non-VALID |
-| M4 | `apparatus-operator/tests/apparatus_m4_desired_state_bridge.rs` | Pont Manifesto HTTP 5 routes ; ticker P2 inchangé |
-| M5 | `apparatus-operator/tests/apparatus_m5_invoke_isolated.rs` | Invoke Lazaret → Pod isolé ; T11 canary bloqué |
-| M6 | `apparatus-operator/tests/apparatus_m6_e2e_chain.rs` (`m6_e2e_0002_0008_chain`) | Chaîne unique Kind bout en bout |
+| M1 | `workers/apparatus-operator/tests/apparatus_m1_reference_kv_pin.rs` | Pin descripteur 0002 (64 hex, jamais `latest`) ; CRI ≠ enveloppe OCI |
+| M2 | `workers/apparatus-operator/tests/apparatus_m2_valid_persist.rs` | Adm-A seule écriture VALID ; store JSON produit |
+| M3 | `workers/apparatus-operator/tests/apparatus_m3_install_fail_closed.rs` | Install fail-closed si non-VALID |
+| M4 | `workers/apparatus-operator/tests/apparatus_m4_desired_state_bridge.rs` | Pont Manifesto HTTP 5 routes ; ticker P2 inchangé |
+| M5 | `workers/apparatus-operator/tests/apparatus_m5_invoke_isolated.rs` | Invoke Lazaret → Pod isolé ; T11 canary bloqué |
+| M6 | `workers/apparatus-operator/tests/apparatus_m6_e2e_chain.rs` (`m6_e2e_0002_0008_chain`) | Chaîne unique Kind bout en bout |
 
 Usine déjà livrée (ne pas relivrer) : P4 T1–T12 ; Calico v3.29.7 ; Cosign fail-closed. Contrat : `docs/apparatus-0002-0008-next-milestones.md` (photo pré-flip **historique** pour la section B TCB).
 
@@ -102,4 +102,4 @@ Hors-jalon déjà (rester) : K8s-as-P3 ; 2e protocole. **Après** 0002–0008 : 
 - Canon : `docs/adr/0001` … `0008` ; closeout historique `docs/adr/0007-closeout.md`
 - Méthode (non canon) : `docs/adr/0008-app01-reconciliation.md`
 - Contrat jalons : `docs/apparatus-0002-0008-next-milestones.md` (preuves M1–M6 ; section B TCB = photo pré-A-DEC)
-- IT : `apparatus-operator/tests/apparatus_m6_e2e_chain.rs`
+- IT : `workers/apparatus-operator/tests/apparatus_m6_e2e_chain.rs`

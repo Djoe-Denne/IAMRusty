@@ -3,13 +3,13 @@ title: External Provider Sync Jobs
 category: concepts
 tags: [integrations, sync, organizations, visibility/internal]
 sources:
-  - Hive/application/src/usecase/sync_job.rs
-  - Hive/domain/src/service/sync_service.rs
-  - Hive/domain/src/service/external_provider_service.rs
-  - Hive/infra/src/external_provider/external_provider_client.rs
-  - Hive/config/default.toml
-  - hive-events/README.md
-  - Hive/openspecs.yaml
+  - services/Hive/application/src/usecase/sync_job.rs
+  - services/Hive/domain/src/service/sync_service.rs
+  - services/Hive/domain/src/service/external_provider_service.rs
+  - services/Hive/infra/src/external_provider/external_provider_client.rs
+  - services/Hive/config/default.toml
+  - crates/hive-events/README.md
+  - services/Hive/openspecs.yaml
 summary: Hive links organizations to external providers, validates configurations over HTTP, and starts sync jobs that publish HiveDomainEvent updates.
 provenance:
   extracted: 0.77

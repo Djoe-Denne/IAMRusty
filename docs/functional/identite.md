@@ -1,6 +1,6 @@
 # Parcours identité (IAMRusty)
 
-IAM est le seul émetteur de JWT et le compte utilisateur unique. Les scénarios exécutables vivent dans [`IAMRusty/qa/scenarii/`](../../IAMRusty/qa/scenarii/) — cette page les indexe.
+IAM est le seul émetteur de JWT et le compte utilisateur unique. Les scénarios exécutables vivent dans [`services/IAMRusty/qa/scenarii/`](../../services/IAMRusty/qa/scenarii/) — cette page les indexe.
 
 Préfixe : `/iam`. Compose : port 8080.
 

@@ -7,10 +7,10 @@ sources:
   - rustycog/rustycog-permission/src/checker.rs
   - rustycog/rustycog-http/src/middleware_permission.rs
   - rustycog/rustycog-testing/src/permission/service.rs
-  - openfga/model.fga
-  - sentinel-sync/src/translator/manifesto.rs
-  - manifesto-events/src/project.rs
-  - Manifesto/application/src/usecase/project.rs
+  - ops/openfga/model.fga
+  - workers/sentinel-sync/src/translator/manifesto.rs
+  - crates/manifesto-events/src/project.rs
+  - services/Manifesto/application/src/usecase/project.rs
 summary: How anonymous read of public projects flows through OpenFGA `user:*` — middleware, create-as-public, and ProjectVisibilityChanged writes are live; publish is lifecycle only.
 provenance:
   extracted: 0.78
@@ -97,7 +97,7 @@ Shipped: `ProjectVisibilityChangedEvent`, `update_project` emit-on-flip, transla
 
 Still needed for correct public-read:
 
-1. **Revert remaining Phase 1 test authentications** in `Manifesto/tests/project_api_tests.rs` back to anonymous where the scenario is public-read, and arrange `openfga.mock_check_allow_wildcard(Permission::Read, project_resource)`.
+1. **Revert remaining Phase 1 test authentications** in `services/Manifesto/tests/project_api_tests.rs` back to anonymous where the scenario is public-read, and arrange `openfga.mock_check_allow_wildcard(Permission::Read, project_resource)`.
 2. **Add a true end-to-end public-read test** that creates a public project, asserts the `viewer@user:*` tuple gets written, then issues an anonymous GET and asserts `200`. Also cover publish-must-not-grant-wildcard on a private project.
 3. **Production data backfill** for leftover wildcards written by historical `ProjectPublished` on private projects.
 

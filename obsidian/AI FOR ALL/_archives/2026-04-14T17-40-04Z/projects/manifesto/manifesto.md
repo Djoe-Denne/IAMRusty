@@ -1,15 +1,15 @@
-﻿---
+---
 title: >-
   Manifesto
 category: project
 tags: [projects, orchestration, blueprint, visibility/internal]
 sources:
-  - Manifesto/README.md
-  - Manifesto/SETUP.md
+  - services/Manifesto/README.md
+  - services/Manifesto/SETUP.md
   - docs/project/Archi.md
-  - Manifesto/docs/rustycog-service-build-guide.md
-  - Manifesto/docs/rustycog-hexagonal-web-service-guide.md
-  - Manifesto/docs/rustycog-implementation-and-usage-guide.md
+  - services/Manifesto/docs/rustycog-service-build-guide.md
+  - services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md
+  - services/Manifesto/docs/rustycog-implementation-and-usage-guide.md
 summary: >-
   Manifesto manages projects and components while also serving as the clearest blueprint for building RustyCog-based services.
 provenance:

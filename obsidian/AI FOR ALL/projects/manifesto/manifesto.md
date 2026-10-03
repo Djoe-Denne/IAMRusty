@@ -5,18 +5,18 @@ category: project
 tags: [projects, orchestration, blueprint, visibility/internal]
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
-  - Manifesto/README.md
-  - Manifesto/SETUP.md
-  - Manifesto/IMPLEMENTATION_STATUS.md
-  - Manifesto/src/main.rs
-  - Manifesto/setup/src/app.rs
-  - Manifesto/http/src/lib.rs
-  - Manifesto/application/src/command/factory.rs
-  - Manifesto/configuration/src/lib.rs
-  - Manifesto/tests/common.rs
-  - Manifesto/docs/rustycog-service-build-guide.md
-  - Manifesto/docs/rustycog-hexagonal-web-service-guide.md
-  - Manifesto/docs/rustycog-implementation-and-usage-guide.md
+  - services/Manifesto/README.md
+  - services/Manifesto/SETUP.md
+  - services/Manifesto/IMPLEMENTATION_STATUS.md
+  - services/Manifesto/src/main.rs
+  - services/Manifesto/setup/src/app.rs
+  - services/Manifesto/http/src/lib.rs
+  - services/Manifesto/application/src/command/factory.rs
+  - services/Manifesto/configuration/src/lib.rs
+  - services/Manifesto/tests/common.rs
+  - services/Manifesto/docs/rustycog-service-build-guide.md
+  - services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md
+  - services/Manifesto/docs/rustycog-implementation-and-usage-guide.md
   - docs/adr/0401-manifesto-projets-composants-acl-cas.md
   - docs/adr/0007-closeout.md
   - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
@@ -64,7 +64,7 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 
 ## Apparatus
 
-Le rationnel reste [[projects/manifesto/concepts/apparatus-platform]]. **P0** : [[projects/manifesto/concepts/apparatus-p0-contracts]]. **P1** persistance : [[projects/manifesto/concepts/apparatus-p1-persistence]]. **P2** réconciliation in-process (**Implemented**) : [[projects/manifesto/concepts/apparatus-p2-reconciliation]]. **P3** frontière = [[projects/lazaret/lazaret]] (**Implemented**, A-DEC 2026-09-20). Moteur P4 = [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (**Accepted / Implemented**, Kind V1, crate [[projects/manifesto/concepts/apparatus-p4-operator]]). Gates préprod : [[projects/manifesto/decisions/0009-0011-gates-preprod]]. Factory / host restent hors livré (ADR 0406). Zéro token `k8s` sous `Manifesto/*/src`.
+Le rationnel reste [[projects/manifesto/concepts/apparatus-platform]]. **P0** : [[projects/manifesto/concepts/apparatus-p0-contracts]]. **P1** persistance : [[projects/manifesto/concepts/apparatus-p1-persistence]]. **P2** réconciliation in-process (**Implemented**) : [[projects/manifesto/concepts/apparatus-p2-reconciliation]]. **P3** frontière = [[projects/lazaret/lazaret]] (**Implemented**, A-DEC 2026-09-20). Moteur P4 = [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (**Accepted / Implemented**, Kind V1, crate [[projects/manifesto/concepts/apparatus-p4-operator]]). Gates préprod : [[projects/manifesto/decisions/0009-0011-gates-preprod]]. Factory / host restent hors livré (ADR 0406). Zéro token `k8s` sous `services/Manifesto/*/src`.
 
 Les ADR vague 1 0001–0008 sont **Accepted** ([[projects/manifesto/decisions/index]]). Réalité : 0002–0008 Implemented sauf **0001 Partial**. 0009–0011 sont Proposed / Unimplemented. Photographie service : ADR 0401 — [[projects/aiforall/decisions/0400-services-runtime]].
 

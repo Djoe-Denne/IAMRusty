@@ -3,14 +3,14 @@ title: IAMRusty Entity Model
 category: references
 tags: [reference, entities, iam, visibility/internal]
 sources:
-  - IAMRusty/domain/src/entity/user.rs
-  - IAMRusty/domain/src/entity/user_email.rs
-  - IAMRusty/domain/src/entity/provider.rs
-  - IAMRusty/domain/src/entity/provider_link.rs
-  - IAMRusty/domain/src/entity/password_reset_token.rs
-  - IAMRusty/domain/src/entity/email_verification.rs
-  - IAMRusty/domain/src/entity/registration_token.rs
-  - IAMRusty/domain/src/entity/token.rs
+  - services/IAMRusty/domain/src/entity/user.rs
+  - services/IAMRusty/domain/src/entity/user_email.rs
+  - services/IAMRusty/domain/src/entity/provider.rs
+  - services/IAMRusty/domain/src/entity/provider_link.rs
+  - services/IAMRusty/domain/src/entity/password_reset_token.rs
+  - services/IAMRusty/domain/src/entity/email_verification.rs
+  - services/IAMRusty/domain/src/entity/registration_token.rs
+  - services/IAMRusty/domain/src/entity/token.rs
 summary: Inventory of IAMRusty's identity-side entities, from the canonical user record to email, provider, verification, and token artifacts.
 provenance:
   extracted: 0.86

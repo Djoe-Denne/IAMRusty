@@ -4,18 +4,18 @@ title: >-
 category: references
 tags: [reference, testing, fixtures, visibility/internal]
 sources:
-  - Manifesto/tests/common.rs
-  - Manifesto/tests/public_acl_api_tests.rs
-  - Manifesto/tests/component_acl_consistency_tests.rs
-  - Manifesto/tests/component_service_client_tests.rs
-  - Manifesto/tests/event_runtime_tests.rs
-  - Manifesto/tests/project_api_tests.rs
-  - Manifesto/tests/component_api_tests.rs
-  - Manifesto/tests/member_api_tests.rs
-  - Manifesto/tests/fixtures/db/mod.rs
-  - Manifesto/setup/src/app.rs
+  - services/Manifesto/tests/common.rs
+  - services/Manifesto/tests/public_acl_api_tests.rs
+  - services/Manifesto/tests/component_acl_consistency_tests.rs
+  - services/Manifesto/tests/component_service_client_tests.rs
+  - services/Manifesto/tests/event_runtime_tests.rs
+  - services/Manifesto/tests/project_api_tests.rs
+  - services/Manifesto/tests/component_api_tests.rs
+  - services/Manifesto/tests/member_api_tests.rs
+  - services/Manifesto/tests/fixtures/db/mod.rs
+  - services/Manifesto/setup/src/app.rs
   - rustycog/rustycog-http/tests/permission_middleware_tests.rs
-  - Manifesto/config/test.toml
+  - services/Manifesto/config/test.toml
   - rustycog/rustycog-testing/src/permission/service.rs
 summary: >-
   Manifesto HTTP ITs use TestOpenFga, not shared WireMock Check. Component-catalog stubs use MockServerFixture::isolated(). Leftover FGA without a DB member is 403.
@@ -54,7 +54,7 @@ This page narrows `[[projects/rustycog/references/rustycog-testing]]` to the way
 
 ## OpenFGA in HTTP ITs
 
-Use `TestOpenFga` (`allow` / `deny`). `OpenFgaMockService` remains crate-level only. `cache_ttl_seconds = 0` in `Manifesto/config/test.toml` still applies if a cached checker is ever wired.
+Use `TestOpenFga` (`allow` / `deny`). `OpenFgaMockService` remains crate-level only. `cache_ttl_seconds = 0` in `services/Manifesto/config/test.toml` still applies if a cached checker is ever wired.
 
 Component-catalog stubs: `MockServerFixture::isolated()` — [[projects/rustycog/references/isolated-wiremock-fixture]].
 

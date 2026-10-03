@@ -13,7 +13,7 @@ updated: 2026-09-09T16:45:00Z
 
 # OpenFGA Model
 
-Source of truth: [openfga/model.fga](../../../../openfga/model.fga).
+Source of truth: [ops/openfga/model.fga](../../../../openfga/model.fga).
 
 ## Types
 

@@ -9,7 +9,7 @@ description: Governs on-demand Docker Desktop, Kind and WSL startup and session-
 
 Apply the short canonical rule [local-runtime-lifecycle.mdc](../../../.cursor/rules/local-runtime-lifecycle.mdc) and [AGENTS.md](../../../AGENTS.md); [infra-safety.mdc](../../../.cursor/rules/infra-safety.mdc) remains mandatory. Never operate on `kind-apparatus-p4-it`, `rancher-desktop`, or production. A prior one-off authorization for a protected cluster does not grant future permission.
 
-- Local deployment conventions: [deploy/README.md](../../../deploy/README.md), [Kind config](../../../deploy/kind/cluster.yaml). Do not execute their delete/recreate suggestions automatically.
+- Local deployment conventions: [ops/deploy/README.md](../../../ops/deploy/README.md), [Kind config](../../../ops/deploy/kind/cluster.yaml). Do not execute their delete/recreate suggestions automatically.
 - IT contract: [ADR 0200](../../../docs/adr/0200-it-infra-reelle-rustycog-testing.md), [testcontainer fixtures](../creating-testcontainer-fixtures/SKILL.md), [outbound HTTP fixtures](../creating-wiremock-fixtures/SKILL.md).
 - Docker operations: [Compose](../docker-compose-patterns/SKILL.md), [builds](../docker-build-strategies/SKILL.md), [destructive guardrails](../docker-destructive-guardrails/SKILL.md). Fixture runbook cleanup/removal examples do not authorize deleting unknown/old resources or `rm -f`.
 

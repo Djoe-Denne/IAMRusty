@@ -4,9 +4,9 @@ title: >-
 category: skills
 tags: [skill, hive, postgres, migration, visibility/internal]
 sources:
-  - Hive/migration/src/m20261003_000014_role_permission_organization_scope.rs
-  - Hive/migration/src/lib.rs
-  - Hive/tests/organization_api_tests.rs
+  - services/Hive/migration/src/m20261003_000014_role_permission_organization_scope.rs
+  - services/Hive/migration/src/lib.rs
+  - services/Hive/tests/organization_api_tests.rs
   - conversation opencode 2026-10-03 (clôture 0308)
 summary: >-
   Migration qui remplace l'unicité globale (permission, resource) par
@@ -35,7 +35,7 @@ Correctif de bug préexistant découvert le 2026-10-03 pendant l'e2e Kind ([[pro
 
 `RolePermission` est le rôle/template : `id` sert de `role_id`. resource_id est NOT NULL (catalogue) — pas de sémantique « NULL = global ». Ne pas aligner silencieusement sur `hive_database_schema.sql` (descriptif, périmé : il décrit encore une jonction `organization_role_id`).
 
-## Tests de conservation (Hive/tests/organization_api_tests.rs)
+## Tests de conservation (services/Hive/tests/organization_api_tests.rs)
 
 - `create_two_organizations_preserves_scoped_default_role_permissions`
 - `role_permission_scope_migration_round_trip_preserves_populated_rows` — upgrade depuis l'ancien schéma peuplé conserve IDs + grants owner

@@ -26,13 +26,13 @@ Source : `docs/apparatus-p4-implementation-prompt.md` et `docs/apparatus-p4-core
 ## État
 
 - **APP-01 tranché.** ADR-0008 **Accepted** / Réalité **Implemented** (A-DEC 2026-09-22). La consigne « ne pas flipper » du lot est close. Dette restante : D-TRANSIT-TCB, D-ADMB, D-PROD — pas un retour à Partial.
-- Phase 0 **faite**. T1 absence (`Manifesto/tests/apparatus_p4_t1_absence.rs`) **déjà livrée** — ne pas relivrer.
+- Phase 0 **faite**. T1 absence (`services/Manifesto/tests/apparatus_p4_t1_absence.rs`) **déjà livrée** — ne pas relivrer.
 - T2–T12 **P4-core livrés** dans [[projects/manifesto/concepts/apparatus-p4-operator]] (2026-09-21/22).
 - 0002 / 0003 / 0005 sont **Implemented** depuis le même A-DEC. Interdit SuperSède 0003/0005. Gates suivantes : [[projects/manifesto/decisions/0009-0011-gates-preprod]].
 
 ## Gel A-DEC (ne pas rouvrir)
 
-[[projects/manifesto/references/0007-closeout]] : APP-05 ouvert ; G/E restent ; K8s-**as-P3** interdit ; pas de 2ᵉ protocole ; `invoke` = Lazaret. Gates Manifesto (`k8s`/`kubernetes` sous `Manifesto/*/src`) **non retargetées**.
+[[projects/manifesto/references/0007-closeout]] : APP-05 ouvert ; G/E restent ; K8s-**as-P3** interdit ; pas de 2ᵉ protocole ; `invoke` = Lazaret. Gates Manifesto (`k8s`/`kubernetes` sous `services/Manifesto/*/src`) **non retargetées**.
 
 Skill `aiforall-new-service` **non** (BC-A, pas un 6ᵉ hexagone HTTP). Pas de répertoire `Factory/`. Pas de `KubernetesAdapter` dans Manifesto.
 

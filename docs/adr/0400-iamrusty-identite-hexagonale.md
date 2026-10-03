@@ -51,5 +51,5 @@ Préfixe runtime : `/iam` (compose 8080). JWT émetteur : `[jwt]` + `[jwt.secret
 
 - Wiki : `projects/iamrusty/concepts/hexagonal-architecture.md`, `projects/iamrusty/concepts/oauth-provider-linking.md`, `projects/iamrusty/references/iamrusty-api-and-auth-flows.md`
 - Handbook : `docs/services/iamrusty.md`, `docs/platform/authn-jwt.md`, `docs/functional/identite.md`, `docs/reviews/iam-rusty-architecture.md`
-- Code : `IAMRusty/http/src/lib.rs` (`oauth_login_start` vs `oauth_link_start`), `IAMRusty/application/src/command/oauth_login.rs`, `IAMRusty/application/src/usecase/oauth.rs`, `iam-events/`
+- Code : `services/IAMRusty/http/src/lib.rs` (`oauth_login_start` vs `oauth_link_start`), `services/IAMRusty/application/src/command/oauth_login.rs`, `services/IAMRusty/application/src/usecase/oauth.rs`, `crates/iam-events/`
 - Preuve : routes login/link distinctes ; aucun client OpenFGA dans IAM ; events IAM → Telegraph

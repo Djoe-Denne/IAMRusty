@@ -5,7 +5,7 @@ category: decisions
 tags: [architecture, security, visibility/internal]
 sources:
   - docs/adr/0003-apparatus-untrusted-plugin.md
-  - apparatus-contracts/src/harness.rs
+  - crates/apparatus-contracts/src/harness.rs
 summary: >-
   Plugin = processus OS et identité workload distincts ; managed-only V1 ; harness = double de test. Implemented (A-DEC 2026-09-22).
 provenance:

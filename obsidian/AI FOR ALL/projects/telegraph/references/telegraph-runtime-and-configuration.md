@@ -4,12 +4,12 @@ category: references
 tags: [reference, configuration, events, visibility/internal]
 sources:
   - README.md
-  - Telegraph/config/default.toml
-  - Telegraph/config/development.toml
-  - Telegraph/config/test.toml
-  - Telegraph/configuration/src/lib.rs
-  - Telegraph/setup/src/app.rs
-  - Telegraph/docker-compose.yml
+  - services/Telegraph/config/default.toml
+  - services/Telegraph/config/development.toml
+  - services/Telegraph/config/test.toml
+  - services/Telegraph/configuration/src/lib.rs
+  - services/Telegraph/setup/src/app.rs
+  - services/Telegraph/docker-compose.yml
 summary: Telegraph-specific configuration notes layered on top of RustyCog's shared config model, especially its queue-routing, communication, and local delivery settings.
 provenance:
   extracted: 0.75
@@ -36,7 +36,7 @@ This page narrows `[[projects/rustycog/references/rustycog-config]]` to the sett
 - Development config points at `localstack:4566` and real SMTP infrastructure, while test config uses random DB and SQS ports plus local SMTP on port `1025`.
 - `TemplateConfig` is fully configurable and points at `resources/templates` in live TOML files, but `setup/src/app.rs` still hardcodes `resources/communication_descriptor` for descriptor loading instead of treating it as configuration.
 - The default config advertises `[communication.sms]`, but the current `CommunicationConfig` struct only includes `email`, `notification`, and `template`. ^[ambiguous]
-- The root README says Telegraph runs on port `8081` in the shared stack, while `Telegraph/docker-compose.yml` exposes `8080:8080` for the service's local compose workflow. ^[ambiguous]
+- The root README says Telegraph runs on port `8081` in the shared stack, while `services/Telegraph/docker-compose.yml` exposes `8080:8080` for the service's local compose workflow. ^[ambiguous]
 
 ## Open Questions
 

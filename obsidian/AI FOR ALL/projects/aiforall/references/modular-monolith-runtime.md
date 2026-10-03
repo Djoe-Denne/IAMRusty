@@ -6,14 +6,14 @@ tags: [reference, platform, architecture, rust, visibility/internal]
 sources:
   - Cargo.toml
   - README.md
-  - monolith/Cargo.toml
-  - monolith/src/runtime.rs
-  - monolith/src/routes.rs
+  - runtime/monolith/Cargo.toml
+  - runtime/monolith/src/runtime.rs
+  - runtime/monolith/src/routes.rs
   - rustycog/rustycog-http/src/builder.rs
-  - IAMRusty/http/src/lib.rs
-  - Telegraph/setup/src/app.rs
-  - Hive/setup/src/app.rs
-  - Manifesto/setup/src/app.rs
+  - services/IAMRusty/http/src/lib.rs
+  - services/Telegraph/setup/src/app.rs
+  - services/Hive/setup/src/app.rs
+  - services/Manifesto/setup/src/app.rs
   - docs/adr/0404-runtime-microservices-et-monolithe.md
 summary: >-
   Dual runtime (ADR 0404): standalones and oodhive-monolith share SERVICE_PREFIX. sentinel-sync is outside both.
@@ -30,7 +30,7 @@ updated: 2026-09-12T10:20:00Z
 AIForAll now has two supported runtime shapes (ADR 0404 — [[projects/aiforall/decisions/0400-services-runtime]]):
 
 - Standalone microservices remain available through packages such as `iam-service`, `telegraph-service`, `hive-service`, and `manifesto-service`, and each standalone route surface is mounted under its bounded-context prefix.
-- The modular monolith is a separate workspace package currently named `oodhive-monolith`, built from the `monolith/` crate.
+- The modular monolith is a separate workspace package currently named `oodhive-monolith`, built from the `runtime/monolith/` crate.
 
 ## Monolith Composition
 

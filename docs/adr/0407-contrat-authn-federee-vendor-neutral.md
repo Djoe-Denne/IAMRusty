@@ -12,9 +12,9 @@
 
 ## Contexte
 
-IAMRusty est l’IdP **plateforme** (JWT `iss=iamrusty`, comptes, linking) — [0400](0400-iamrusty-identite-hexagonale.md), [0302](0302-authn-jwt-authz-openfga.md). Les clients OAuth GitHub/GitLab sont des adapters **in-process** (`IAMRusty/infra/src/auth/github.rs`, `gitlab.rs`) derrière le port `ProviderOAuth2Client` (`IAMRusty/domain/src/port/service.rs`) et la façade application `OAuthService` (`IAMRusty/application/src/auth.rs`).
+IAMRusty est l’IdP **plateforme** (JWT `iss=iamrusty`, comptes, linking) — [0400](0400-iamrusty-identite-hexagonale.md), [0302](0302-authn-jwt-authz-openfga.md). Les clients OAuth GitHub/GitLab sont des adapters **in-process** (`IAMRusty/infra/src/auth/github.rs`, `gitlab.rs`) derrière le port `ProviderOAuth2Client` (`services/IAMRusty/domain/src/port/service.rs`) et la façade application `OAuthService` (`services/IAMRusty/application/src/auth.rs`).
 
-Le handbook `IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md` et le skill wiki `extending-iamrusty-with-oauth-providers` enseignent d’ajouter Google **dans IAM** (enum + client + factory + `ProviderPath`). 0400 a laissé ouvert le catalogue au-delà de GitHub/GitLab.
+Le handbook `services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md` et le skill wiki `extending-iamrusty-with-oauth-providers` enseignent d’ajouter Google **dans IAM** (enum + client + factory + `ProviderPath`). 0400 a laissé ouvert le catalogue au-delà de GitHub/GitLab.
 
 Tentation : étendre l’enum et la factory. Ça fige chaque vendor dans le binaire IdP.
 
@@ -28,7 +28,7 @@ Tentation : étendre l’enum et la factory. Ça fige chaque vendor dans le bina
    - helpers HMAC (spec [0409](0409-confiance-callback-oauth-idp-connect.md)) **sans** Axum dans le default ;
    - feature Cargo **optionnelle** `server` : middleware Axum HMAC + **3 handlers** wrapping `Arc<dyn FederatedOAuthClient>` — pour ne pas dupliquer le S2S HMAC/handlers entre GitHub Connect et GitLab Connect. Default (sans feature) = DTOs + trait + helpers HMAC, **pas** d’axum.
 3. **Transport IAM ↔ connecteur** = **HTTP JSON synchrone** documenté par le crate (chemins `/v1/authorize`, `/v1/token`, `/v1/profile`). Pas gRPC. Pas d’events (0300 = faits métier, pas un aller-retour OAuth). Hexagone [0100](0100-services-metier-hexagonaux-rustycog.md) / [0103](0103-ports-adapters-command-factory.md) : le domaine IAM dépend du trait ; l’I/O est un adapter outbound.
-4. **On n’élève pas** `OAuthService` (login vs relink, `redirect_uri` applicatif par requête). Il reste dans `IAMRusty/application`.
+4. **On n’élève pas** `OAuthService` (login vs relink, `redirect_uri` applicatif par requête). Il reste dans `services/IAMRusty/application`.
 5. **On remplace** `ProviderOAuth2Client` comme port public long terme. Le trait actuel omet `state` et `redirect_uri` (baked dans le client `oauth2::BasicClient`). Le successeur les **exige** :
 
    | Méthode | Entrée | Sortie |
@@ -71,6 +71,6 @@ Hors décision : topologie processus ([0408](0408-connecteurs-idp-services-http.
 ## Références
 
 - Wiki : `projects/iamrusty/concepts/oauth-provider-linking.md`, `projects/iamrusty/skills/extending-iamrusty-with-oauth-providers.md`
-- Code : `IAMRusty/domain/src/port/service.rs`, `IAMRusty/domain/src/entity/provider.rs`, `IAMRusty/application/src/auth.rs`, `IAMRusty/domain/src/service/oauth_service.rs`
+- Code : `services/IAMRusty/domain/src/port/service.rs`, `services/IAMRusty/domain/src/entity/provider.rs`, `services/IAMRusty/application/src/auth.rs`, `services/IAMRusty/domain/src/service/oauth_service.rs`
 - ADR : 0100, 0103, 0302, 0400
-- Preuve d’implémentation : `idp-connect-contract`, `IAMRusty/infra/src/auth/http_connector.rs`, `GitHubConnect/`, `GitLabConnect/`, IT `IAMRusty/tests/fixtures/idp_connect/`
+- Preuve d’implémentation : `idp-connect-contract`, `services/IAMRusty/infra/src/auth/http_connector.rs`, `services/GitHubConnect/`, `services/GitLabConnect/`, IT `services/IAMRusty/tests/fixtures/idp_connect/`

@@ -56,27 +56,27 @@ Pas de big-bang : un bascule unique casserait login OAuth et les fixtures.
 ### Slices ordonnés
 
 **S1 — Crate contrat**  
-Ajouter `idp-connect-contract/` (member workspace) : `FederatedOAuthClient`, DTOs, erreurs, constantes de chemins `/v1/authorize|token|profile`, helpers HMAC (spec [0409](0409-confiance-callback-oauth-idp-connect.md) : chaîne `METHOD\nPATH\nTIMESTAMP\nBODY`, `PATH` **avec** préfixe service, fenêtre **30 s**, compare constant-time `hmac` + `subtle`). Feature Cargo **optionnelle** `server` : middleware Axum HMAC + 3 handlers wrapping `Arc<dyn FederatedOAuthClient>` (partagé GitHub/GitLab Connect). Default (sans feature) : DTOs + trait + helpers HMAC, **pas** d’axum. Pas de reqwest GitHub.
+Ajouter `crates/idp-connect-contract/` (member workspace) : `FederatedOAuthClient`, DTOs, erreurs, constantes de chemins `/v1/authorize|token|profile`, helpers HMAC (spec [0409](0409-confiance-callback-oauth-idp-connect.md) : chaîne `METHOD\nPATH\nTIMESTAMP\nBODY`, `PATH` **avec** préfixe service, fenêtre **30 s**, compare constant-time `hmac` + `subtle`). Feature Cargo **optionnelle** `server` : middleware Axum HMAC + 3 handlers wrapping `Arc<dyn FederatedOAuthClient>` (partagé GitHub/GitLab Connect). Default (sans feature) : DTOs + trait + helpers HMAC, **pas** d’axum. Pas de reqwest GitHub.
 
 **S2 — Adapter IAM HTTP** (feature/config `idp.mode=http` possible en parallèle de l’in-process)  
-- `IAMRusty/infra/src/auth/http_connector.rs` implémentant le port 0407.  
+- `services/IAMRusty/infra/src/auth/http_connector.rs` implémentant le port 0407.  
 - Config `[[idp.connectors]]` (id, base_url, hmac_secret, **`redirect_uris`**).  
 - Handler : `redirect_uris` **depuis** le registry (callback **et** relink-callback) ; supprimer les littéraux `127.0.0.1:8081`.  
 - `OAuthService` / commandes inchangés.  
 - IT IAM : nouvelle fixture WireMock **connecteur** ; les tests `auth_oauth_start` / `auth_oauth_callback` passent sans stub GitHub.
 
 **S3 — GitHub Connect**  
-Service `GitHubConnect/` (hexagone mince 0408). Déplacer `IAMRusty/infra/src/auth/github.rs` + config vendor. Compose `github-connect-service` :8085/:8446. HTTP S2S via `idp-connect-contract` feature `server` (HMAC PATH préfixé, 30 s). IT connecteur : fixtures GitHub déplacées depuis IAM. Pas de JWT user, pas de DB, pas d’OpenFGA.
+Service `services/GitHubConnect/` (hexagone mince 0408). Déplacer `IAMRusty/infra/src/auth/github.rs` + config vendor. Compose `github-connect-service` :8085/:8446. HTTP S2S via `idp-connect-contract` feature `server` (HMAC PATH préfixé, 30 s). IT connecteur : fixtures GitHub déplacées depuis IAM. Pas de JWT user, pas de DB, pas d’OpenFGA.
 
 **S4 — GitLab Connect**  
-Idem `GitLabConnect/`, ports 8086/8447, fixtures GitLab. Même feature `server` (pas de duplication HMAC/handlers).
+Idem `services/GitLabConnect/`, ports 8086/8447, fixtures GitLab. Même feature `server` (pas de duplication HMAC/handlers).
 
 **S5 — Retrait in-process IAM**  
 - Supprimer `OAuthProviderFactory<GH, GL>`, `infra/src/auth/github.rs` + `gitlab.rs`, `OAuthConfig.github/gitlab`.  
 - `setup/src/app.rs` : uniquement adapters HTTP + `register_provider_client`.  
   Post-0411 : la map est injectée à `OAuthService::new` (plus de `register_provider_client`).  
 - Retirer `idp.mode=in_process`.  
-- Mettre à jour `IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md` (cible = nouveau connecteur, pas l’enum IAM).  
+- Mettre à jour `services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md` (cible = nouveau connecteur, pas l’enum IAM).  
 - Fiches `docs/services/github-connect.md`, `gitlab-connect.md`.
 
 **S6 — Docs wiki skill**  
@@ -86,11 +86,11 @@ Réécrire `extending-iamrusty-with-oauth-providers` : « ajouter un IdP = servi
 
 | Ajouter | Modifier | Retirer (S5) |
 |---|---|---|
-| `idp-connect-contract/**` | `Cargo.toml` (members) | `IAMRusty/infra/src/auth/github.rs` |
-| `GitHubConnect/**`, `GitLabConnect/**` | `IAMRusty/setup/src/app.rs`, `configuration`, `http/src/handlers/auth.rs` | `IAMRusty/infra/src/auth/gitlab.rs` |
-| `IAMRusty/infra/src/auth/http_connector.rs` | `IAMRusty/application/.../oauth_provider.rs` → registry | factory générique GH/GL |
-| `IAMRusty/tests/fixtures/idp_connect/` | `docker-compose.yml`, `docs/adr/README.md` déjà à jour | fixtures GitHub/GitLab **IAM** (après move) |
-| `docs/services/github-connect.md`, `gitlab-connect.md` | `IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md` | secrets vendor dans TOML IAM |
+| `crates/idp-connect-contract/**` | `Cargo.toml` (members) | `IAMRusty/infra/src/auth/github.rs` |
+| `services/GitHubConnect/**`, `services/GitLabConnect/**` | `services/IAMRusty/setup/src/app.rs`, `configuration`, `http/src/handlers/auth.rs` | `IAMRusty/infra/src/auth/gitlab.rs` |
+| `services/IAMRusty/infra/src/auth/http_connector.rs` | `services/IAMRusty/application/.../oauth_provider.rs` → registry | factory générique GH/GL |
+| `services/IAMRusty/tests/fixtures/idp_connect/` | `docker-compose.yml`, `docs/adr/README.md` déjà à jour | fixtures GitHub/GitLab **IAM** (après move) |
+| `docs/services/github-connect.md`, `gitlab-connect.md` | `services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md` | secrets vendor dans TOML IAM |
 
 `ProviderLinkService`, users, emails, JWT, refresh, registration, password, store `provider_tokens` : **ne pas toucher** sauf wiring du port.
 
@@ -102,7 +102,7 @@ Réécrire `extending-iamrusty-with-oauth-providers` : « ajouter un IdP = servi
 4. Login `GET /iam/api/auth/github/login` → 303, `state` décodable par `OAuthState::inspect`, `redirect_uri` login = entrée `.../callback` de `redirect_uris` (pas 8081 hardcodé).
 5. Link authentifié inchangé fonctionnellement (0400 login ≠ link).
 6. Aucun `client_secret` GitHub/GitLab dans les TOML IAM de prod/dev.
-7. `rg GitHubOAuth2Client IAMRusty/` vide après S5.
+7. `rg GitHubOAuth2Client services/IAMRusty/` vide après S5.
 8. Connecteur : requête sans HMAC → 401 ; bearer JWT IAM ignoré/rejeté.
 9. `oodhive-monolith` **non** modifié v1.
 10. Clippy/fmt du dépôt sur les crates touchées (`aiforall-sonar-policy`).
@@ -117,6 +117,6 @@ Réécrire `extending-iamrusty-with-oauth-providers` : « ajouter un IdP = servi
 ## Références
 
 - ADR 0200, 0201, 0400, 0407, 0408, 0409
-- Code : `IAMRusty/tests/auth_oauth_start.rs`, `IAMRusty/tests/auth_oauth_callback.rs`, `IAMRusty/tests/fixtures/github`, `gitlab`
+- Code : `services/IAMRusty/tests/auth_oauth_start.rs`, `services/IAMRusty/tests/auth_oauth_callback.rs`, `IAMRusty/tests/fixtures/github`, `gitlab`
 - Skill : `.cursor/skills/creating-wiremock-fixtures/SKILL.md`, `docs/guides/nouveau-service.md`
 - Preuve : `aucune`

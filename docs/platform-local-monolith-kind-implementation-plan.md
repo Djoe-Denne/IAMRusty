@@ -17,13 +17,13 @@ Ce n’est pas un feature Cargo `monolith` vs `micro`. Ce sont **deux graphes de
 | Plaque | Binaire | Contenu HTTP |
 |---|---|---|
 | Standalone | `iam-service`, `telegraph-service`, `hive-service`, `manifesto-service`, `lazaret-service` | Un process par slice (`just up`) |
-| Monolithe | `oodhive-monolith` (`monolith/`) | Un listener : nests `/iam` `/telegraph` `/hive` `/manifesto` **`/lazaret`** |
+| Monolithe | `oodhive-monolith` (`runtime/monolith/`) | Un listener : nests `/iam` `/telegraph` `/hive` `/manifesto` **`/lazaret`** |
 
-Le monolithe compose les **setup** (`monolith/src/runtime.rs`) et `compose_routes` (`monolith/src/routes.rs`). Il n’appelle jamais `run()` standalone. **Lazaret est déjà dans le monolithe** ; `docs/services/monolith.md` et ADR-0404 (texte « quatre » préfixes) sont en retard — le code prime.
+Le monolithe compose les **setup** (`runtime/monolith/src/runtime.rs`) et `compose_routes` (`runtime/monolith/src/routes.rs`). Il n’appelle jamais `run()` standalone. **Lazaret est déjà dans le monolithe** ; `docs/services/monolith.md` et ADR-0404 (texte « quatre » préfixes) sont en retard — le code prime.
 
 **Structurellement hors monolithe** : `apparatus-operator` (client kube, bins `apparatus-controller` / `apparatus-admit` / `apparatus-build`, « jamais dans Manifesto/Lazaret ») ; pods plugins ; `sentinel-sync` ; GitHubConnect / GitLabConnect.
 
-`deploy/` 0603 est livré en **stubs** (nginx Lazaret, pause operator). kind `aiforall-local` ≠ IT `apparatus-p4-it`.
+`ops/deploy/` 0603 est livré en **stubs** (nginx Lazaret, pause operator). kind `aiforall-local` ≠ IT `apparatus-p4-it`.
 
 ---
 
@@ -33,7 +33,7 @@ Le monolithe compose les **setup** (`monolith/src/runtime.rs`) et `compose_route
 
 Lazaret **reste dans le monolithe** pour ce premier lancement : c’est déjà la plaque, et Lazaret n’a pas de client Kubernetes. Extraire Lazaret serait la plaque standalone, pas « tester en monolithe ».
 
-L’operator **n’entre pas** dans le monolithe : CRD, informers, SA `controller` / `admit-sign` / `build`, `deploy/p4/` inchangé dans l’esprit (jamais fusion Manifesto).
+L’operator **n’entre pas** dans le monolithe : CRD, informers, SA `controller` / `admit-sign` / `build`, `ops/deploy/p4/` inchangé dans l’esprit (jamais fusion Manifesto).
 
 Factory / host UI (P5/P6) : absents, hors plan.
 
@@ -44,7 +44,7 @@ Factory / host UI (P5/P6) : absents, hors plan.
 **Reformulée, pas ignorée.**
 
 - « Vrai Lazaret » = le nest `/lazaret` **dans** `oodhive-monolith` (preuve host d’abord), plus un Deployment `lazaret` nginx à remplacer en premier.
-- « Vrai operator » = images des bins `apparatus-operator` sur `aiforall-local` via `deploy/p4/` + `kind load` (remplace pause).
+- « Vrai operator » = images des bins `apparatus-operator` sur `aiforall-local` via `ops/deploy/p4/` + `kind load` (remplace pause).
 - Le couple « image standalone Lazaret + operator tous deux réels sur kind » est **reporté** à la plaque 4+1 (cible 0601), après ce plan.
 
 ---
@@ -65,7 +65,7 @@ Factory / host UI (P5/P6) : absents, hors plan.
 
 **Valeur.** Le control plane Apparatus n’est plus `pause`.
 
-**Contenu.** Image(s) `apparatus-controller` (et admit si VALID est requis pour J3). `kind load docker-image … --name aiforall-local`. Overlay Kustomize `images:` sur `deploy/p4/` uniquement. Tags **non-`latest`**, `imagePullPolicy: IfNotPresent` ou `Never`.
+**Contenu.** Image(s) `apparatus-controller` (et admit si VALID est requis pour J3). `kind load docker-image … --name aiforall-local`. Overlay Kustomize `images:` sur `ops/deploy/p4/` uniquement. Tags **non-`latest`**, `imagePullPolicy: IfNotPresent` ou `Never`.
 
 **Preuve.** Pod Ready, logs de reconcile, pas de crash-loop. Ne pas retarget `apparatus-p4-it`.
 
@@ -110,7 +110,7 @@ Remplacer le Deployment monolithe kind par 4+1. Pas bloquant pour « tester en m
 
 ## Hors scope (premier lancement)
 
-0602 / `deploy/obs` / `aiforall-obs` · GKE / OpenTofu apply · Flux live · Factory · Calico sur `aiforall-local` · casser `apparatus-p4-it` · fusion `deploy/p4/` × Manifesto · dossier `infra/` · sentinel-sync et IdP Connect dans le monolithe · images Rust « prod » digest Cosign · SuperSéde 0601.
+0602 / `deploy/obs` / `aiforall-obs` · GKE / OpenTofu apply · Flux live · Factory · Calico sur `aiforall-local` · casser `apparatus-p4-it` · fusion `ops/deploy/p4/` × Manifesto · dossier `infra/` · sentinel-sync et IdP Connect dans le monolithe · images Rust « prod » digest Cosign · SuperSéde 0601.
 
 Non bloquant : aucun de ces trous n’empêche J1 (Lazaret réel en process) ni J2 (operator réel).
 
@@ -120,7 +120,7 @@ Non bloquant : aucun de ces trous n’empêche J1 (Lazaret réel en process) ni 
 
 Trois agents `architecte` (même briefing, web autorisé, lenses différentes).
 
-| Question | A (plaques / 0404) | B (industrie K8s) | C (jalons depuis deploy/) | Décision orchestre |
+| Question | A (plaques / 0404) | B (industrie K8s) | C (jalons depuis ops/deploy/) | Décision orchestre |
 |---|---|---|---|---|
 | Lazaret in/out monolithe | In | In | In | **In** — code déjà nesté |
 | Operator séparable | Oui, toujours | Oui, toujours | Oui, toujours | **Oui** — kube hors HTTP |
@@ -137,6 +137,6 @@ Risque réseau retenu (C) : ne pas vendre un extraPortMapping kind→localhost c
 
 ## Ce que ce plan n’autorise pas tout de suite
 
-Pas d’édition `deploy/`, justfile, crates Rust, ni création de cluster dans le tour qui a produit ce document. Accept humain 0600/0601/0603 inchangé.
+Pas d’édition `ops/deploy/`, justfile, crates Rust, ni création de cluster dans le tour qui a produit ce document. Accept humain 0600/0601/0603 inchangé.
 
 Suite cas classique (signup → projet → KV → pod, sans seed SQL) : [platform-local-gold-case-implementation-guide.md](platform-local-gold-case-implementation-guide.md) + [ADR-0605](adr/0605-gold-path-kind-j3-dns-attach.md) (gold path Kind J3 / DNS / attach) — le guide n’est pas une ADR ; ne SuperSède pas ce plan ni 0604.

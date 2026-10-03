@@ -59,7 +59,7 @@ Workers cannot spawn further subagents, except the authorized `emergency-thinker
 - **Correctness review** → `correctness-reviewer`, read-only functional review with fresh context after implementation (pass the diff, not worker reasoning).
 - **Test coverage review** → `test-reviewer`, launched alongside `correctness-reviewer` when behavior changed, not for mechanical edits.
 - **Rust performance review** → `rust-perf-reviewer` when the diff touches an identified hot path (KV, invoke, outbox), an ownership/API/trait boundary, allocations in loops, async state machines, or binary size. Skip trivial diffs, migrations, setup, tests.
-- **Security review** → `security-reviewer` when the security surface is touched (auth/permissions/grants/consents, new endpoints, Lazaret invoke/KV/secrets/connectors, JWT/config, openfga/model.fga, new dependencies, CI workflows, Dockerfile/compose, any `unsafe`).
+- **Security review** → `security-reviewer` when the security surface is touched (auth/permissions/grants/consents, new endpoints, Lazaret invoke/KV/secrets/connectors, JWT/config, ops/openfga/model.fga, new dependencies, CI workflows, Dockerfile/compose, any `unsafe`).
 
 ### Review team routing
 

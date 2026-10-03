@@ -19,7 +19,7 @@ Audits défensifs (classes d’attaque + hardening, aucun exploit). Sources :
 ## Motifs transverses (une cause, plusieurs services)
 
 1. **Dernier UUID du path** — `rustycog-http/src/middleware_permission.rs` : le `Check` OpenFGA porte sur le UUID le plus profond, typé comme la ressource métier. Hive mute `organization_id` mais checke `user_id`/`role_id`. Manifesto mute le projet mais checke `user_id`/`component_id`. **Un correctif rustycog, deux services.**
-2. **Tests qui sanctifient le défaut** — `Hive/tests/members_api_tests.rs`, `Manifesto/tests/member_api_tests.rs`, tests OAuth IAM. La CI valide le contrat dangereux.
+2. **Tests qui sanctifient le défaut** — `services/Hive/tests/members_api_tests.rs`, `services/Manifesto/tests/member_api_tests.rs`, tests OAuth IAM. La CI valide le contrat dangereux.
 3. **JWT sans `iss`/`aud`** — issuer IAM + consumers Hive/Manifesto (HS256, `exp` seul). Commentaire Hive : pas de JWKS, secret plat ; IAM parle RS256 côté issuer vs HS256 côté rustycog. Replay / confusion inter-services si le secret est partagé.
 4. **Secrets dans les TOML trackés** — HMAC, OAuth, `postgres:postgres`, secret démo rustycog. Rotation + sortie de Git.
 5. **sentinel-sync = confused deputy** — Hive : rôle `Admin` local → tuple FGA `admin`. Manifesto : `owner_id` org cru → héritage admin/viewer ; delete/replace permissions / visibilité = no-op FGA.

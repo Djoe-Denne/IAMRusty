@@ -6,10 +6,10 @@ tags: [reference, mesh, jwt, docker, kind, visibility/internal]
 sources:
   - conversation opencode 2026-10-03 (clôture 0308)
   - docs/adr/0308-mesh-authn-jwt.md
-  - scripts/mesh-authn-kind-e2e.sh
-  - scripts/mesh-authn-kind-e2e-cases.sh
-  - ext-authz/src/config.rs
-  - deploy/apps/overlays/kind-mesh/platform-services.yaml
+  - ops/scripts/mesh-authn-kind-e2e.sh
+  - ops/scripts/mesh-authn-kind-e2e-cases.sh
+  - workers/ext-authz/src/config.rs
+  - ops/deploy/apps/overlays/kind-mesh/platform-services.yaml
 summary: >-
   Distillat de la session d'orchestration corrigée : S2S 0308 vert,
   polling 60/2 s, IT Docker durcies, migration role_permissions Hive,
@@ -31,7 +31,7 @@ Journal : [[journal/2026-10-03]]. Canon : [[projects/aiforall/decisions/0308-mes
 1. L'orchestration OpenCode ( GLM Flash + agents `.opencode/` ) a tenu son contrat sans re-dérivation d'architecture : le checkpoint routage a fait implémenter par hard-implementer, corriger par implementer/mechanical-worker, valider par correctness/test/security/rust-perf reviewers, exécuter par container-runtime-debugger et k8s-operator. Les revues sont restées au courant du diff via `.cursor/review-briefings/*.md` et INDEX.md à jour.
 2. E2E `exit 0` 35 OK — 4 cas positifs S2S `token`/`revoke` gateway cert sans JWT (200), Bearer sans principal refusé, gate interne 403, `mesh-client` et 4 certs applicatives 401, token post-révoke 404, hive `create_organization` + owner avec `issuer` (bloc prioritaire monitoré).
 3. IT Docker durcies : IAM 13 + 10 OK ; ext-authz 12/12 ; rustycog 4/4 ; hooks `docker friendly` jamais fait `rm -f`.
-4. Polling JWKS confirmé : défaut binaire **60 s**, overlay Kind **2 s**, `staleness` de révocation 60 s plafond. L'ancien 300 s a disparu de `ext-authz/src/config.rs`; les reviews l'ont attrapé (bloc Rust-Perf).
+4. Polling JWKS confirmé : défaut binaire **60 s**, overlay Kind **2 s**, `staleness` de révocation 60 s plafond. L'ancien 300 s a disparu de `workers/ext-authz/src/config.rs`; les reviews l'ont attrapé (bloc Rust-Perf).
 5. Migration Hive `m20261003_000014_role_permission_organization_scope` : unicité `(organization_id, permission_id, resource_id)` ; `down` restaure l'ancien index (peut échouer sans perte de données) ; tests : deux organisations, dup intra-org refusée, round-trip up/down avec conservation des IDs, downgrade sous collision refusé WITHOUT loss. 19/19 validés en Docker, migration appliquée au pod de la couche.
 6. **Delta rustycog (3 fichiers) toujours dans le working tree ; pas de push ni bump de gitlink à la fin de session.**
 
@@ -39,7 +39,7 @@ Journal : [[journal/2026-10-03]]. Canon : [[projects/aiforall/decisions/0308-mes
 
 1. Revue initiale et mise à jour INDEX.md **avant** exécution (pas après).
 2. Builds images et IT en Docker bustés (un cargo à la fois, cache Linux volume) → `kind load docker-image` → `rollout restart hive`.
-3. E2E wrapper `bash scripts/mesh-authn-kind-e2e.sh` depuis Git for Windows bash.
+3. E2E wrapper `bash ops/scripts/mesh-authn-kind-e2e.sh` depuis Git for Windows bash.
 4. Arrêt runtime : fixtures propres d'abord, puis nœuds Kind, puis Docker Desktop, puis `wsl --shutdown` avec mesure avant/après.
 
 ## Leçons et pièges (nouveaux)

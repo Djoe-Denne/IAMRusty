@@ -40,5 +40,5 @@ Pour un email **sans** compte encore :
 
 ## Références code
 
-- Routes : [`Hive/http/src/lib.rs`](../../Hive/http/src/lib.rs)
+- Routes : [`services/Hive/http/src/lib.rs`](../../services/Hive/http/src/lib.rs)
 - Wiki : `projects/hive/concepts/invitation-driven-membership`, `organization-resource-authorization`

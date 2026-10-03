@@ -4,14 +4,14 @@ title: >-
 category: concepts
 tags: [security, jwt, auth, testing, feature-flags, visibility/internal]
 sources:
-  - IAMRusty/infra/src/token/registration_token_service.rs
-  - IAMRusty/infra/src/token/jwt_encoder.rs
-  - IAMRusty/infra/Cargo.toml
-  - IAMRusty/Cargo.toml
-  - IAMRusty/setup/src/app.rs
-  - IAMRusty/config/test.toml
-  - IAMRusty/tests/utils/jwt.rs
-  - IAMRusty/tests/auth_username_flow_part2.rs
+  - services/IAMRusty/infra/src/token/registration_token_service.rs
+  - services/IAMRusty/infra/src/token/jwt_encoder.rs
+  - services/IAMRusty/infra/Cargo.toml
+  - services/IAMRusty/Cargo.toml
+  - services/IAMRusty/setup/src/app.rs
+  - services/IAMRusty/config/test.toml
+  - services/IAMRusty/tests/utils/jwt.rs
+  - services/IAMRusty/tests/auth_username_flow_part2.rs
   - rustycog/rustycog-http/src/middleware_user_id.rs
 summary: >-
   IAMRusty enforces RS256 on its registration and access-token services in production but
@@ -54,7 +54,7 @@ Cargo feature]].
 
 ## How the relaxation is wired
 
-`IAMRusty/Cargo.toml` activates the feature only in the dev-dependency
+`services/IAMRusty/Cargo.toml` activates the feature only in the dev-dependency
 entry on `iam-infra`:
 
 ```toml
@@ -71,7 +71,7 @@ generically in [[concepts/test-only-cargo-feature-relaxation]].
 
 ## What that lets the test config do
 
-`IAMRusty/config/test.toml` ships a plain HS256 secret:
+`services/IAMRusty/config/test.toml` ships a plain HS256 secret:
 
 ```toml
 [jwt.secret]
@@ -112,7 +112,7 @@ for the Phase B problem.
 
 ## Implications for other code
 
-- Test utilities (`IAMRusty/tests/utils/jwt.rs`) used to duplicate the
+- Test utilities (`services/IAMRusty/tests/utils/jwt.rs`) used to duplicate the
   RS256-only check; that duplicate has been removed because the feature
   flag puts the only authoritative check inside the production constructor.
 - `iamrusty-runtime-and-security` previously asserted that "current config

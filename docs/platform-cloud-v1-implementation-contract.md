@@ -1,6 +1,6 @@
 # Contrat d’implémentation — plateforme cloud portable V1
 
-> **Tranche locale 0603** : contrat [platform-local-v1-implementation-contract.md](platform-local-v1-implementation-contract.md) — scaffolding couches A+B (`deploy/` + `cloud/opentofu/`) autorisé sans Accept GKE. **0602**, `deploy/obs/`, et couche **C** (GKE / live) restent **hors tranche** et sous ce document cloud.
+> **Tranche locale 0603** : contrat [platform-local-v1-implementation-contract.md](platform-local-v1-implementation-contract.md) — scaffolding couches A+B (`ops/deploy/` + `ops/cloud/opentofu/`) autorisé sans Accept GKE. **0602**, `deploy/obs/`, et couche **C** (GKE / live) restent **hors tranche** et sous ce document cloud.
 
 Canon : [ADR-0600](adr/0600-cloud-portable-opentofu-k8s-gitops.md), [ADR-0601](adr/0601-cluster-trust-namespaces-standalones.md), [ADR-0602](adr/0602-observabilite-portable-otlp-lgtm.md). Statut ADR : **Proposed** / **Unimplemented**. Ne pas coder tant que l’Accept humain n’est pas donné, sauf scaffolding explicitement demandé après Accept — **exception locale** : voir encadré 0603 ci-dessus.
 
@@ -21,15 +21,15 @@ Commun : **même image digest** / service ; `RUN_ENV` + TOML + préfixes HTTP ; 
 ## Répertoires (à créer — absents du dépôt)
 
 ```
-cloud/opentofu/modules/          # modules HCL réutilisables
+ops/cloud/opentofu/modules/          # modules HCL réutilisables
 cloud/opentofu/modules/cluster/gcp/         # V1 : GKE seulement
 cloud/opentofu/live/.../gcp/     # stacks dossiers (pas Terragrunt/Atmos/workspaces)
 cloud/opentofu/envs/             # tfvars / backends par env — pas de secrets
-deploy/apps/base/                # Kustomize first-party — SANS annotation GCP/GKE/GCE
-deploy/apps/overlays/kind/
+ops/deploy/apps/base/                # Kustomize first-party — SANS annotation GCP/GKE/GCE
+ops/deploy/apps/overlays/kind/
 deploy/apps/overlays/staging/
 deploy/apps/overlays/prod/
-deploy/p4/                       # operator P4 — Kustomization Flux SÉPARÉE
+ops/deploy/p4/                       # operator P4 — Kustomization Flux SÉPARÉE
 deploy/obs/                      # collector + LGTM (HelmRelease) — APRÈS Accept, work plateforme 0602
 ```
 
@@ -77,7 +77,7 @@ SA k8s (4, conceptuels) : `build`, `admit-sign`, `controller`, `gateway`. Coloca
 | OTLP rustycog (plan A) + collector/Alloy + LGTM/Tempo (plan B, **pas** dans Rust) — [0602](adr/0602-observabilite-portable-otlp-lgtm.md) ; W3C `traceparent` | Mimir HA ; tail sampling ; spans SQL/queues ; Meter HTTP rustycog ; OTel Logs | Datadog/Cockpit/APM natif **cœur** ; Grafana Cloud V1 ; collector-only *cible plateforme* V1 ; Prometheus+Grafana sans Tempo ; Grafana dans le SDK ; pin OTel 0.33 aveugle ; `scaleway-loki` = traces |
 | OpenBao SoT ; ESO → Secret DSN/HMAC ; SOPS seulement bootstrap GitOps | | Transit = KV plugin ; ESO dans `aiforall-plugins` |
 | NetworkPolicy default-deny ; Kyverno digest/sign staging/prod | Velero ; SPIRE | Kyverno émet `VALID` ; ns-per-tenant ; monolithe=Deployment prod |
-| `deploy/p4/` Flux séparé | | Fusion P4 × Manifesto ; tokens k8s sous `Manifesto/*/src` |
+| `ops/deploy/p4/` Flux séparé | | Fusion P4 × Manifesto ; tokens k8s sous `services/Manifesto/*/src` |
 | 4+1 Deployments ; tenancy Hive+FGA | Host P5 dans le dual (0404) | 1 Deployment cluster ; nest HTTP operator |
 
 Lock-in : **pas** Scaleway. `ScalewayConfig` / `scaleway-loki` = adaptateurs **app**. Premier adaptateur cluster V1 = **GKE** (`gcp`). GitOps V1 = **Flux**. Observabilité V1 = **tracing métier + OTLP rustycog (plan A) ; LGTM/Tempo derrière collector/Alloy (plan B)** — [ADR-0602](adr/0602-observabilite-portable-otlp-lgtm.md). Pédagogie (pas canon) : [docs/platform-otlp-grafana-oss-explained.md](platform-otlp-grafana-oss-explained.md).
@@ -88,7 +88,7 @@ Lock-in : **pas** Scaleway. `ScalewayConfig` / `scaleway-loki` = adaptateurs **a
 |---|---|
 | Reg-A+D Cosign + Transit + registry portable | CI publish+Cosign ; Transit isolé du KV ; pas KMS cloud V1 |
 | Adm-A seule source `VALID` | Kyverno / admission k8s ≠ Adm-A |
-| BC-A operator+Jobs ; pas Factory ; pas new-service | `aiforall-apparatus` + `deploy/p4/` |
+| BC-A operator+Jobs ; pas Factory ; pas new-service | `aiforall-apparatus` + `ops/deploy/p4/` |
 | Pkg-B enveloppe ≠ CRI | kubelet = `image@sha256` admis seulement |
 | Run-A 4 SA ; plugins autre ns | SA + `aiforall-plugins` |
 | Kind pas prérequis T2 unitaire | kind = couche B seulement |
@@ -99,11 +99,11 @@ Lock-in : **pas** Scaleway. `ScalewayConfig` / `scaleway-loki` = adaptateurs **a
 Preuves **cloud**, pas `cargo` plateforme :
 
 ```text
-tofu fmt -check -recursive cloud/opentofu
+tofu fmt -check -recursive ops/cloud/opentofu
 tofu validate                          # dans chaque stack live/ après init
-kustomize build deploy/apps/overlays/kind
+kustomize build ops/deploy/apps/overlays/kind
 kustomize build deploy/apps/overlays/staging
-kustomize build deploy/p4
+kustomize build ops/deploy/p4
 kustomize build deploy/obs          # après scaffold plateforme 0602
 ```
 
@@ -111,7 +111,7 @@ Compléments acceptables plus tard : `kubeconform` / `kyverno apply --dry-run` s
 
 ## Secrets
 
-Aucun secret dans `cloud/` / `deploy/` / git. Exemples = placeholders. OpenBao pour kubeconfig et SoT. Compose `-dev` inchangé.
+Aucun secret dans `ops/cloud/` / `ops/deploy/` / git. Exemples = placeholders. OpenBao pour kubeconfig et SoT. Compose `-dev` inchangé.
 
 ## Escalade humaine
 

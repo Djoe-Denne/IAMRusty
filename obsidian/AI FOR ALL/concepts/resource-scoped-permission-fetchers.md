@@ -6,11 +6,11 @@ status: deprecated
 replaced_by: concepts/centralized-authorization-service.md
 sources:
   - Manifesto/domain/src/service/permission_fetcher_service.rs
-  - Manifesto/http/src/lib.rs
+  - services/Manifesto/http/src/lib.rs
   - Hive/domain/src/service/permission_service.rs
-  - Hive/http/src/lib.rs
+  - services/Hive/http/src/lib.rs
   - Telegraph/domain/src/service/permission_service.rs
-  - Telegraph/http/src/lib.rs
+  - services/Telegraph/http/src/lib.rs
   - rustycog/rustycog-http/src/builder.rs
   - rustycog/rustycog-http/src/middleware_permission.rs
 summary: RustyCog services pair RouteBuilder resource guards with domain-backed PermissionsFetcher implementations that translate path resource IDs into effective permissions.

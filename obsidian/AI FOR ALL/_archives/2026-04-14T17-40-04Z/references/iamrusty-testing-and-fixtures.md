@@ -1,11 +1,11 @@
-﻿---
+---
 title: >-
   IAMRusty Testing and Fixtures Guides
 category: references
 tags: [reference, testing, fixtures, visibility/internal]
 sources:
-  - IAMRusty/docs/TESTING_GUIDE.md
-  - IAMRusty/docs/FIXTURES_GUIDE.md
+  - services/IAMRusty/docs/TESTING_GUIDE.md
+  - services/IAMRusty/docs/FIXTURES_GUIDE.md
 summary: >-
   Source summary for IAMRusty's integration-test harness, fixture system, and real-infrastructure testing patterns.
 provenance:

@@ -5,13 +5,13 @@ category: concepts
 tags: [architecture, components, visibility/internal]
 sources:
   - docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md
-  - Lazaret/domain/src/grants.rs
-  - Lazaret/domain/src/secrets.rs
-  - Lazaret/domain/src/connectors.rs
-  - Lazaret/domain/src/kv.rs
-  - Lazaret/infra/src/secrets_deny.rs
-  - Lazaret/infra/src/vault.rs
-  - Lazaret/tests/apparatus_p3_t12_openbao.rs
+  - services/Lazaret/domain/src/grants.rs
+  - services/Lazaret/domain/src/secrets.rs
+  - services/Lazaret/domain/src/connectors.rs
+  - services/Lazaret/domain/src/kv.rs
+  - services/Lazaret/infra/src/secrets_deny.rs
+  - services/Lazaret/infra/src/vault.rs
+  - services/Lazaret/tests/apparatus_p3_t12_openbao.rs
 summary: >-
   Grant = intersection live Manifesto. T12 : OpenBao produit pin 2.6.2 +
   testcontainer ; T6 IT reste wiremock (preuve protocole ≠ produit).
@@ -47,7 +47,7 @@ Si `[vault]` est vide : `DeniedSecretResolver` échoue toujours (`ResolveFailed`
 
 ### T12 — OpenBao produit (`4e645d5`)
 
-Trou OpenBao **produit hors compose** **fermé**. Image pin `openbao/openbao:2.6.2` dans docker-compose **et** testcontainer service-local `lazaret_test-openbao`. KV v2 `secret/`. Mode `-dev` écoute `0.0.0.0:8200`. Services compose `openbao` + `openbao-seed`. Preuve : `Lazaret/tests/apparatus_p3_t12_openbao.rs`.
+Trou OpenBao **produit hors compose** **fermé**. Image pin `openbao/openbao:2.6.2` dans docker-compose **et** testcontainer service-local `lazaret_test-openbao`. KV v2 `secret/`. Mode `-dev` écoute `0.0.0.0:8200`. Services compose `openbao` + `openbao-seed`. Preuve : `services/Lazaret/tests/apparatus_p3_t12_openbao.rs`.
 
 T6 IT **reste wiremock**. Preuve protocole (forme `secret:path#field`, deny, adaptateur HTTP) ≠ preuve produit (image pin + seed + KV v2 réel). Les deux couches doivent rester distinctes. ^[inferred]
 

@@ -3,10 +3,10 @@ title: OAuth Provider Linking
 category: concepts
 tags: [iam, oauth, authentication, visibility/internal]
 sources:
-  - IAMRusty/README.md
-  - IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
-  - IAMRusty/http/src/handlers/auth.rs
-  - IAMRusty/domain/src/service/provider_link_service.rs
+  - services/IAMRusty/README.md
+  - services/IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
+  - services/IAMRusty/http/src/handlers/auth.rs
+  - services/IAMRusty/domain/src/service/provider_link_service.rs
 summary: IAMRusty lets authenticated users attach additional OAuth providers to one account while enforcing provider uniqueness and safe email handling.
 provenance:
   extracted: 0.78

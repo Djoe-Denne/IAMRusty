@@ -21,7 +21,7 @@ Conduis la tâche de bout en bout : exploration, choix d’emplacement minimal, 
    - `projects/manifesto/references/apparatus-implementation-plan.md`
    - `projects/manifesto/references/apparatus-factory-and-distribution.md`
    - `projects/manifesto/references/apparatus-ui-and-protocol.md`
-5. Le workspace `Cargo.toml`, la structure multi-crates de `Manifesto/` et les conventions de tests existantes.
+5. Le workspace `Cargo.toml`, la structure multi-crates de `services/Manifesto/` et les conventions de tests existantes.
 
 Si tu touches une API RustyCog, lis `.agents/skills/rustycog/SKILL.md` et uniquement ses références pertinentes. P0 ne nécessite normalement ni nouveau service ni composition root RustyCog.
 

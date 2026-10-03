@@ -32,7 +32,7 @@ Use this guide when wiring [[projects/rustycog/references/rustycog-http]].
 
 - Putting `with_permission_on` before the route's auth mode — the optional/required mode must be set first so the middleware knows whether to reject anonymous callers.
 - Using a non-UUID path parameter for the resource id — the middleware only binds the deepest UUID-shaped segment into `ResourceRef`.
-- Naming an `object_type` that is not defined in [openfga/model.fga](../../../openfga/model.fga) — every check returns 403 with an upstream error logged.
+- Naming an `object_type` that is not defined in [ops/openfga/model.fga](../../../ops/openfga/model.fga) — every check returns 403 with an upstream error logged.
 - Trying to wire a per-route checker. The single composition-root checker on `AppState` is shared across every request.
 - In mesh mode, a non-empty `auth.mesh.trusted_gateway_san` makes rustycog trust `x-principal-iss`/`sub` from the gateway SAN only and skip in-process JWT. Empty SAN keeps [[projects/aiforall/concepts/jwt-issuer-vs-consumer]]. See [[projects/aiforall/concepts/mesh-gateway-principal-trust]].
 

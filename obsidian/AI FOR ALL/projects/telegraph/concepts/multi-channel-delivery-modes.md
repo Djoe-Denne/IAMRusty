@@ -3,13 +3,13 @@ title: Multi-Channel Delivery Modes
 category: concepts
 tags: [communication, notifications, sms, visibility/internal]
 sources:
-  - Telegraph/config/default.toml
-  - Telegraph/config/development.toml
-  - Telegraph/configuration/src/lib.rs
-  - Telegraph/domain/src/entity/communication.rs
-  - Telegraph/infra/src/event/processors/mod.rs
-  - Telegraph/http/src/handlers/communication.rs
-  - Telegraph/migration/src/m20250201_000001_create_notification_tables.rs
+  - services/Telegraph/config/default.toml
+  - services/Telegraph/config/development.toml
+  - services/Telegraph/configuration/src/lib.rs
+  - services/Telegraph/domain/src/entity/communication.rs
+  - services/Telegraph/infra/src/event/processors/mod.rs
+  - services/Telegraph/http/src/handlers/communication.rs
+  - services/Telegraph/migration/src/m20250201_000001_create_notification_tables.rs
 summary: Telegraph’s config and storage model describe multiple delivery channels, but the active runtime currently wires email and in-app notifications more fully than SMS.
 provenance:
   extracted: 0.74

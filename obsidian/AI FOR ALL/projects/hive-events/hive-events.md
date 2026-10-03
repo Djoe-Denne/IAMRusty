@@ -4,7 +4,7 @@ title: >-
 category: project
 tags: [events, sqs, integration, visibility/internal]
 sources:
-  - hive-events/README.md
+  - crates/hive-events/README.md
 summary: >-
   Hive Events is a shared crate of organization-domain event contracts and queue names used for inter-service communication between Hive and downstream consumers.
 provenance:

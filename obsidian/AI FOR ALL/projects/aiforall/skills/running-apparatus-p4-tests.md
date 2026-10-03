@@ -4,8 +4,8 @@ category: skills
 tags: [testing, rust, kubernetes]
 sources:
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733.jsonl
-  - apparatus-operator/Cargo.toml
-  - apparatus-operator/tests/fixtures/kind/mod.rs
+  - workers/apparatus-operator/Cargo.toml
+  - workers/apparatus-operator/tests/fixtures/kind/mod.rs
 summary: >-
   IT operator : features admit,controller obligatoires pour T6/T10/T11 ;
   --test-threads=1 ; Docker + Kind fail-loud. Kind Calico v3.29.7

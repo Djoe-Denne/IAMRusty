@@ -4,12 +4,12 @@ title: >-
 category: project
 tags: [iam, oauth, security, visibility/internal]
 sources:
-  - IAMRusty/README.md
-  - IAMRusty/docs/ARCHITECTURE.md
-  - IAMRusty/docs/API_REFERENCE.md
-  - IAMRusty/domain/src/entity/events.rs
-  - IAMRusty/setup/src/app.rs
-  - IAMRusty/http/src/lib.rs
+  - services/IAMRusty/README.md
+  - services/IAMRusty/docs/ARCHITECTURE.md
+  - services/IAMRusty/docs/API_REFERENCE.md
+  - services/IAMRusty/domain/src/entity/events.rs
+  - services/IAMRusty/setup/src/app.rs
+  - services/IAMRusty/http/src/lib.rs
 summary: >-
   IAMRusty : IAM, OAuth, JWT RS256 (0304 Partial). IdP via GitHubConnect
   et GitLabConnect. HTTPS compose port 8444.
@@ -48,7 +48,7 @@ updated: 2026-09-27T09:20:00Z
 - The service relies on `[[concepts/integration-testing-with-real-infrastructure]]` for end-to-end confidence, using real databases, HTTP servers, fixtures, provider mocks, and optional queue-backed checks.
 - IAMRusty uses `iam-events` as its domain-event contract surface, while `[[projects/rustycog/references/rustycog-events]]` provides the queue transport and publisher runtime.
 - The published API and the current implementation are close but not identical: the docs still describe some older route names and payload shapes, while the live route table in `http/src/lib.rs` exposes separate login, link, and relink endpoints. ^[ambiguous]
-- T14b (HEAD `a27ea5b`) : HTTPS compose via dual-bind rustycog, hôte **8444**, CA mesh distincte de Lazaret, client cert **optionnel**. Preuve `IAMRusty/tests/https_mesh_optional_mtls.rs`. Concept : [[projects/aiforall/concepts/https-platform-mesh]].
+- T14b (HEAD `a27ea5b`) : HTTPS compose via dual-bind rustycog, hôte **8444**, CA mesh distincte de Lazaret, client cert **optionnel**. Preuve `services/IAMRusty/tests/https_mesh_optional_mtls.rs`. Concept : [[projects/aiforall/concepts/https-platform-mesh]].
 
 ## Related
 

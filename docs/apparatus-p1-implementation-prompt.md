@@ -18,7 +18,7 @@ Conduis la tâche de bout en bout : exploration, migration additive, backfill, t
    - `projects/manifesto/references/apparatus-implementation-plan.md` (P1)
    - `projects/manifesto/concepts/apparatus-bindings-and-lifecycle.md`
    - `projects/manifesto/concepts/apparatus-capabilities-and-isolation.md`
-6. Code réel : workspace `Cargo.toml`, `Manifesto/` (entité `project_component`, migration, routes `/components`, `openfga/model.fga`, `apparatus-events/`), crates P0 `apparatus-contracts` / `apparatus-reference-kv`, `Manifesto/tests/common.rs`.
+6. Code réel : workspace `Cargo.toml`, `services/Manifesto/` (entité `project_component`, migration, routes `/components`, `ops/openfga/model.fga`, `crates/apparatus-events/`), crates P0 `apparatus-contracts` / `apparatus-reference-kv`, `services/Manifesto/tests/common.rs`.
 
 `Accepted` = cible ratifiée. `Réalité` = code présent. Ne prétends jamais que contrôleur, polling, lease/fencing, Factory, gateway, runtime ou host existent. Ne préempte ni `APP-01`..`APP-07`, ni l'ADR future P2 (génération/lease/fencing).
 
@@ -40,7 +40,7 @@ Invariants globaux P1 (ADR-0001..0005) : extension **1:1 additive et réversible
 
 ### Tranche 1 — Migration additive réversible
 
-- RED (intégration DB, PostgreSQL testcontainer réel via `Manifesto/tests/common.rs`) : `up` crée l'extension 1:1 (FK vers `project_components.id`, digest nullable, `source`, consentement/génération si prévu), `down` la retire proprement ; unicité existante par projet intacte ; migration idempotente sur base legacy.
+- RED (intégration DB, PostgreSQL testcontainer réel via `services/Manifesto/tests/common.rs`) : `up` crée l'extension 1:1 (FK vers `project_components.id`, digest nullable, `source`, consentement/génération si prévu), `down` la retire proprement ; unicité existante par projet intacte ; migration idempotente sur base legacy.
 - GREEN : migration minimale, réversible, sans réécriture de données existantes.
 - Sortie : up/down verts sur Postgres réel, rollback testé.
 
@@ -84,11 +84,11 @@ Invariants globaux P1 (ADR-0001..0005) : extension **1:1 additive et réversible
 
 - **Unitaires** (chaque tranche, rapides, sans infra) : mapping injectif, validation, conversions, erreurs versionnées.
 - **Contract tests** (sans infra) : DTO/manifeste/protocole wire, compatibilité sérialisée `/components` et alias binding gelée.
-- **Intégration DB** (PostgreSQL testcontainer réel, via `Manifesto/tests/common.rs` et le skill testcontainers) : uniquement tranches 1-4 (migration, backfill, concurrence, rollback/outbox).
+- **Intégration DB** (PostgreSQL testcontainer réel, via `services/Manifesto/tests/common.rs` et le skill testcontainers) : uniquement tranches 1-4 (migration, backfill, concurrence, rollback/outbox).
 - **Intégration AuthZ** (OpenFGA réel en testcontainer) : uniquement tranche 5, parce que tuples/grants/suspension sont touchés.
 - **Intégration HTTP** (serveur live + wiremock typée, skill wiremock) : uniquement tranche 6.
 - **E2E contrôleur/workload/gateway/Factory** : **hors P1** (P2-P6). Ne pas les construire.
-- Ne crée aucun harness parallèle : réutilise `Manifesto/tests/common.rs`, les fixtures existantes et les skills. Les `tests/` Cargo in-memory restent des tests Cargo, pas des preuves système.
+- Ne crée aucun harness parallèle : réutilise `services/Manifesto/tests/common.rs`, les fixtures existantes et les skills. Les `tests/` Cargo in-memory restent des tests Cargo, pas des preuves système.
 
 ## Hors périmètre strict
 

@@ -3,15 +3,15 @@ title: Telegraph Testing and SMTP Fixtures
 category: references
 tags: [reference, testing, fixtures, visibility/internal]
 sources:
-  - Telegraph/config/test.toml
-  - Telegraph/tests/common.rs
-  - Telegraph/tests/notification_http_endpoints_test.rs
-  - Telegraph/tests/user_signup_event_test.rs
-  - Telegraph/tests/user_email_verified_event_test.rs
-  - Telegraph/tests/fixtures/smtp/mod.rs
-  - Telegraph/tests/fixtures/smtp/service.rs
-  - Telegraph/tests/fixtures/smtp/resources.rs
-  - Telegraph/tests/fixtures/smtp/testcontainer.rs
+  - services/Telegraph/config/test.toml
+  - services/Telegraph/tests/common.rs
+  - services/Telegraph/tests/notification_http_endpoints_test.rs
+  - services/Telegraph/tests/user_signup_event_test.rs
+  - services/Telegraph/tests/user_email_verified_event_test.rs
+  - services/Telegraph/tests/fixtures/smtp/mod.rs
+  - services/Telegraph/tests/fixtures/smtp/service.rs
+  - services/Telegraph/tests/fixtures/smtp/resources.rs
+  - services/Telegraph/tests/fixtures/smtp/testcontainer.rs
 summary: Telegraph-specific testing notes layered on top of RustyCog's shared harness, including the wiremock-backed SmtpService fake, the MailHog testcontainer for protocol-level checks, and the end-to-end SQS + notification flows.
 provenance:
   extracted: 0.78
@@ -44,12 +44,12 @@ This page narrows `[[projects/rustycog/references/rustycog-testing]]` to the way
 
 Telegraph keeps **two parallel SMTP fixtures** and chooses between them per test:
 
-- **`SmtpService`** (`Telegraph/tests/fixtures/smtp/service.rs`) wraps the shared [[projects/rustycog/references/wiremock-mock-server-fixture]] to fake SMTP as HTTP. Each SMTP verb is modeled as `POST /smtp/<verb>` against the wiremock server: `mock_greeting`, `mock_ehlo`, `mock_auth`, `mock_mail_from`, `mock_rcpt_to`, `mock_data`, `mock_quit`. ^[inferred]
+- **`SmtpService`** (`services/Telegraph/tests/fixtures/smtp/service.rs`) wraps the shared [[projects/rustycog/references/wiremock-mock-server-fixture]] to fake SMTP as HTTP. Each SMTP verb is modeled as `POST /smtp/<verb>` against the wiremock server: `mock_greeting`, `mock_ehlo`, `mock_auth`, `mock_mail_from`, `mock_rcpt_to`, `mock_data`, `mock_quit`. ^[inferred]
 - High-level scenario helpers compose those primitives: `mock_successful_email_send(expected_email)`, `mock_authenticated_email_send(auth, email)`, `mock_auth_failure(auth)`, `mock_recipient_rejection(to_email)`. A `SmtpScenarioBuilder` (returned from `mock_custom_scenario()`) lets tests assemble ad-hoc multi-step flows fluently.
 - `mock_data` matches body content adaptively: it always asserts the `subject` and every recipient address are present in the request body, then adds one `body_string_contains` matcher per word from the first three significant words (>2 chars) of the expected text body so template variation does not break the stub.
 - Inspection helpers `received_requests`, `verify_email_sent(subject, recipient)`, and `email_count` read from `MockServer::received_requests` so tests can assert on what the service actually sent.
 - Typed `SmtpResponse`/`SmtpAuthRequest`/`SmtpEmail`/`SmtpCapabilities` DTOs in `resources.rs` provide ready-made SMTP response codes (`service_ready`, `ok`, `auth_success`, `auth_failed`, `mailbox_unavailable`, `closing`) and pre-built emails (`user_signup_welcome`, `password_reset_request`, `email_verification`).
-- **`TestSmtp`** (`Telegraph/tests/fixtures/smtp/testcontainer.rs`) is the heavier path: a real MailHog container started via `testcontainers` with the test-config SMTP port mapped through to MailHog's 1025, plus the API port pinned at 8025. It exposes `get_emails`, `email_count`, `has_email(subject, recipient)`, and `clear_emails` by calling MailHog's HTTP API at `/api/v1/messages`, parsing the MIME structure into `TestEmail` values.
+- **`TestSmtp`** (`services/Telegraph/tests/fixtures/smtp/testcontainer.rs`) is the heavier path: a real MailHog container started via `testcontainers` with the test-config SMTP port mapped through to MailHog's 1025, plus the API port pinned at 8025. It exposes `get_emails`, `email_count`, `has_email(subject, recipient)`, and `clear_emails` by calling MailHog's HTTP API at `/api/v1/messages`, parsing the MIME structure into `TestEmail` values.
 - `TestSmtpContainer` and the global `OnceLock<Mutex<Option<Arc<TestSmtpContainer>>>>` keep the container singleton across the suite; `cleanup_existing_smtp_container` shells out to `docker stop`/`docker rm -f telegraph_test-smtp` as a fallback to avoid leaked containers between runs.
 - The choice between the two: use `SmtpService` when the test asserts on what Telegraph would send under controlled response shapes; use `TestSmtp` when the test needs a real SMTP listener and round-trip parsing of the wire-level output. Follow [[skills/stubbing-http-with-wiremock]] for the wiremock side.
 

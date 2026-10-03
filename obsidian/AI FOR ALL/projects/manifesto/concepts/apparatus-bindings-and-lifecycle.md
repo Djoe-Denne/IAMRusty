@@ -6,10 +6,10 @@ status: proposed
 feature_status: future
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
-  - Manifesto/domain/src/entity/project_component.rs
-  - Manifesto/infra/src/transaction.rs
-  - Manifesto/infra/src/event/processors/component_processor.rs
-  - sentinel-sync/src/translator/manifesto.rs
+  - services/Manifesto/domain/src/entity/project_component.rs
+  - services/Manifesto/infra/src/transaction.rs
+  - services/Manifesto/infra/src/event/processors/component_processor.rs
+  - workers/sentinel-sync/src/translator/manifesto.rs
 summary: "Modèle futur du binding, conservation des ACL component, réconciliation idempotente, upgrades, désinstallation et migration de ProjectComponent."
 provenance:
   extracted: 0.2

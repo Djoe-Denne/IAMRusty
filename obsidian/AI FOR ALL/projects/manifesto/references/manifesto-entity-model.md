@@ -4,13 +4,13 @@ category: references
 tags: [reference, entities, projects, visibility/internal]
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
-  - Manifesto/domain/src/entity/project.rs
-  - Manifesto/domain/src/entity/project_component.rs
-  - Manifesto/domain/src/entity/project_member.rs
-  - Manifesto/domain/src/entity/permission.rs
-  - Manifesto/domain/src/entity/resource.rs
-  - Manifesto/domain/src/entity/role_permission.rs
-  - Manifesto/domain/src/entity/project_member_role_permission.rs
+  - services/Manifesto/domain/src/entity/project.rs
+  - services/Manifesto/domain/src/entity/project_component.rs
+  - services/Manifesto/domain/src/entity/project_member.rs
+  - services/Manifesto/domain/src/entity/permission.rs
+  - services/Manifesto/domain/src/entity/resource.rs
+  - services/Manifesto/domain/src/entity/role_permission.rs
+  - services/Manifesto/domain/src/entity/project_member_role_permission.rs
 summary: "Entités actuelles de Manifesto et distinction avec les futurs Apparatus, releases, bindings 1:1, opérations et instances runtime."
 provenance:
   extracted: 0.75

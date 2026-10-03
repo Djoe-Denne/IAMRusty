@@ -4,9 +4,9 @@ title: >-
 category: concepts
 tags: [membership, transactions, manifesto, visibility/internal]
 sources:
-  - Manifesto/infra/src/transaction.rs
-  - Manifesto/application/src/usecase/member.rs
-  - Manifesto/migration/src/m20260909_000011_member_owner_and_soft_delete.rs
+  - services/Manifesto/infra/src/transaction.rs
+  - services/Manifesto/application/src/usecase/member.rs
+  - services/Manifesto/migration/src/m20260909_000011_member_owner_and_soft_delete.rs
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/3c82c7d9-a42d-448f-8573-90ed739ba6b6/3c82c7d9-a42d-448f-8573-90ed739ba6b6.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/11c01523-bb74-444a-ac31-44384d63de7d/11c01523-bb74-444a-ac31-44384d63de7d.jsonl
 summary: >-

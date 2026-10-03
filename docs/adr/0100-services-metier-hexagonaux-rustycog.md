@@ -50,6 +50,6 @@ Les divergences JWT, mapping d’erreurs, fidélité OpenAPI Hive et les quatre 
 ## Références
 
 - Wiki : `obsidian/AI FOR ALL/concepts/architecture-coherence-across-services.md`, `projects/iamrusty/concepts/hexagonal-architecture.md`, `skills/building-rustycog-services.md`
-- Handbook : `Manifesto/docs/rustycog-hexagonal-web-service-guide.md`, `docs/guides/nouveau-service.md`, `docs/reviews/iam-architecture-comparison.md`
-- Code : `IAMRusty/`, `Hive/`, `Telegraph/`, `Manifesto/` (crates de couche + `src/main.rs`) ; hors slice : `sentinel-sync/`, `monolith/`, `readiness/`
+- Handbook : `services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md`, `docs/guides/nouveau-service.md`, `docs/reviews/iam-architecture-comparison.md`
+- Code : `services/IAMRusty/`, `services/Hive/`, `services/Telegraph/`, `services/Manifesto/` (crates de couche + `src/main.rs`) ; hors slice : `workers/sentinel-sync/`, `runtime/monolith/`, `crates/readiness/`
 - Preuve : les 4 ont `setup/src/app.rs`, `http/src/lib.rs` (`RouteBuilder`, `SERVICE_PREFIX`), `tests/` ; layout conforme revue 2026-08-29

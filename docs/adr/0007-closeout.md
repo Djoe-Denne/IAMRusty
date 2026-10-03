@@ -2,7 +2,7 @@
 
 - **Rôle :** inventaire actionnable. **Ne remplace pas** [0007-apparatus-p3-capability-boundary-after-accept.md](0007-apparatus-p3-capability-boundary-after-accept.md).
 - **Date :** 2026-09-20
-- **HEAD photographié :** `a27ea5b` (arbre sale : `IAMRusty/docker-compose.yml`, `Telegraph/docker-compose.yml`)
+- **HEAD photographié :** `a27ea5b` (arbre sale : `services/IAMRusty/docker-compose.yml`, `services/Telegraph/docker-compose.yml`)
 - **Convention :** `docs/adr/README.md` — `Accepted` = cible ; `Réalité` = ce que le dépôt réalise.
 - **Ce tour :** A-DEC Done (2026-09-20). Flip Réalité 0004 et 0007 → Implemented. Pas de commit. Pas de SuperSède. `APP-05` reste ouvert.
 
@@ -51,22 +51,22 @@ Autre ADR citée (P3) : [0406](0406-crates-apparatus-p0-pas-le-host.md) Accepted
 
 | Tranche | Preuve | Hole fermé |
 |---|---|---|
-| T1 | `Manifesto/tests/apparatus_p3_t1_absence.rs` | Pas d’`invoke` sur `ApparatusRuntime` ; 0 `gateway` Manifesto src |
-| T2 | `Manifesto/tests/apparatus_p3_t2_gate.rs`, `apparatus_p3_t2_migration.rs` | Gate Lazaret P4+ ; `grant_revision` + `apparatus_capability_consents` |
-| T3 | `Manifesto/tests/apparatus_p3_t3_identity.rs`, `Lazaret/tests/apparatus_p3_t3_identity.rs` | Identité hybride CSR → cert → session `iss`/`aud`=`lazaret` |
-| T4 | `Manifesto/tests/apparatus_p3_t4_gateway.rs`, `Lazaret/tests/apparatus_p3_t4_grants.rs` | Consult live + intersection |
-| T5 | `Manifesto/tests/apparatus_p3_t5_consent.rs`, `Lazaret/tests/apparatus_p3_t5_consent.rs` | Consent write ; close-at-commit |
-| T6 | `Manifesto/tests/apparatus_p3_t6_kv.rs`, `Lazaret/tests/apparatus_p3_t6_kv.rs` | KV PG+Redis ; secrets-by-ref **wiremock** (volontaire) |
-| T7 | `Manifesto/tests/apparatus_p3_t7_invoke.rs`, `Lazaret/tests/apparatus_p3_t7_invoke.rs` | `POST /invoke` ; proxy nommé ; `t7_public_project_without_consent_does_not_open_call` |
-| T8 | `Lazaret/tests/apparatus_p3_t8_kv_purge.rs` | `kv_purge` ← `component_removed` / `lazaret-kv-events` |
-| T9 | `Lazaret/tests/apparatus_p3_t9_invoke_prefix.rs` | `POST /lazaret/invoke` sur `prefixed_router` |
-| T10 | `Lazaret/tests/apparatus_p3_t10_enrollment_persist.rs` | `apparatus_enrollments` ; revoke sur `component_removed` |
-| T11b | `Lazaret/tests/apparatus_p3_t11b_session_mtls.rs` | `/session` HTTPS + client CA optionnelle |
-| T12 | `Lazaret/tests/apparatus_p3_t12_openbao.rs` ; `docker-compose.yml` `openbao/openbao:2.6.2` | OpenBao **produit** ; T6 reste wiremock |
-| T13 | `Lazaret/tests/apparatus_p3_t13_ca_persist.rs` | CA persist + TLS compose Lazaret |
-| T14b | `Hive|IAMRusty|Telegraph/tests/https_mesh_optional_mtls.rs` ; compose racine `8443/8444/8445` | Mesh HTTPS + CA optionnelle, **pas** rustls required |
+| T1 | `services/Manifesto/tests/apparatus_p3_t1_absence.rs` | Pas d’`invoke` sur `ApparatusRuntime` ; 0 `gateway` Manifesto src |
+| T2 | `services/Manifesto/tests/apparatus_p3_t2_gate.rs`, `apparatus_p3_t2_migration.rs` | Gate Lazaret P4+ ; `grant_revision` + `apparatus_capability_consents` |
+| T3 | `services/Manifesto/tests/apparatus_p3_t3_identity.rs`, `services/Lazaret/tests/apparatus_p3_t3_identity.rs` | Identité hybride CSR → cert → session `iss`/`aud`=`lazaret` |
+| T4 | `services/Manifesto/tests/apparatus_p3_t4_gateway.rs`, `services/Lazaret/tests/apparatus_p3_t4_grants.rs` | Consult live + intersection |
+| T5 | `services/Manifesto/tests/apparatus_p3_t5_consent.rs`, `services/Lazaret/tests/apparatus_p3_t5_consent.rs` | Consent write ; close-at-commit |
+| T6 | `services/Manifesto/tests/apparatus_p3_t6_kv.rs`, `services/Lazaret/tests/apparatus_p3_t6_kv.rs` | KV PG+Redis ; secrets-by-ref **wiremock** (volontaire) |
+| T7 | `services/Manifesto/tests/apparatus_p3_t7_invoke.rs`, `services/Lazaret/tests/apparatus_p3_t7_invoke.rs` | `POST /invoke` ; proxy nommé ; `t7_public_project_without_consent_does_not_open_call` |
+| T8 | `services/Lazaret/tests/apparatus_p3_t8_kv_purge.rs` | `kv_purge` ← `component_removed` / `lazaret-kv-events` |
+| T9 | `services/Lazaret/tests/apparatus_p3_t9_invoke_prefix.rs` | `POST /lazaret/invoke` sur `prefixed_router` |
+| T10 | `services/Lazaret/tests/apparatus_p3_t10_enrollment_persist.rs` | `apparatus_enrollments` ; revoke sur `component_removed` |
+| T11b | `services/Lazaret/tests/apparatus_p3_t11b_session_mtls.rs` | `/session` HTTPS + client CA optionnelle |
+| T12 | `services/Lazaret/tests/apparatus_p3_t12_openbao.rs` ; `docker-compose.yml` `openbao/openbao:2.6.2` | OpenBao **produit** ; T6 reste wiremock |
+| T13 | `services/Lazaret/tests/apparatus_p3_t13_ca_persist.rs` | CA persist + TLS compose Lazaret |
+| T14b | `Hive|IAMRusty|services/Telegraph/tests/https_mesh_optional_mtls.rs` ; compose racine `8443/8444/8445` | Mesh HTTPS + CA optionnelle, **pas** rustls required |
 
-Artefacts : `Lazaret/migration` (`apparatus_kv_entries`, `apparatus_enrollments`) ; `Manifesto/migration` `m20260913_000014_apparatus_p3_grants.rs` ; `Lazaret/http` `POST /invoke` ; `apparatus-contracts` `KvStore::kv_put(..., expected_cas)`.
+Artefacts : `services/Lazaret/migration` (`apparatus_kv_entries`, `apparatus_enrollments`) ; `services/Manifesto/migration` `m20260913_000014_apparatus_p3_grants.rs` ; `services/Lazaret/http` `POST /invoke` ; `apparatus-contracts` `KvStore::kv_put(..., expected_cas)`.
 
 ---
 
@@ -109,11 +109,11 @@ Artefacts : `Lazaret/migration` (`apparatus_kv_entries`, `apparatus_enrollments`
 | Gravité | **LEFTOVER** (T14b C-1) — pas un T15 |
 | Preuve | Briefing `.cursor/review-briefings/20260920T1009Z-correctness-t14b-https-mesh-a27ea5b.md` ; `*/config/development.toml` `tls_enabled` ; diffs sales compose. Racine OK : IAM `8443:8443`, Telegraph `8444:8443`, Hive `8445:8443`. Hive **n’a pas** de `Hive/docker-compose.yml`. Diff Telegraph locale `8443:8443` = **collision**. |
 | Action | Répliquer `platform-mesh-certs` + volume `../certs/platform-mesh:/app/certs` **sans** collision ports racine, **ou** documenter « unsupported — stack racine only ». Ne pas désactiver TLS du profil racine. |
-| Done | `docker compose -f IAMRusty/docker-compose.yml` (et Telegraph) boot **ou** handbook explicite ; diffs commitées ou abandonnées |
+| Done | `docker compose -f services/IAMRusty/docker-compose.yml` (et Telegraph) boot **ou** handbook explicite ; diffs commitées ou abandonnées |
 | Dépend | — (peut précéder A-DEC) |
 | Tests | `cargo test -p iamrusty-service --test https_mesh_optional_mtls` (+ Telegraph, Hive) ; smoke compose si réparation |
 
-### A-LAZ-README — `Lazaret/README.md`
+### A-LAZ-README — `services/Lazaret/README.md`
 
 | | |
 |---|---|

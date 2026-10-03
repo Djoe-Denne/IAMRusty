@@ -19,7 +19,7 @@ RustyCog est le SDK hexagonal (config, HTTP, DB, events, outbox, tests). Le trai
 1. **`rustycog/`** est un **git submodule** (`Djoe-Denne/rustycog`), crate **`rustycog-framework`** 0.1.1, **feature-gated**. Défaut : `core` + `config`. Features : `command`, `db`, `events`, `kafka`, `http`, `logger`, `outbox`, `permission`, `server`, `testing`, `test-utils`, `scaleway-loki`, `full`. Kafka est **séparé** de `events` / `full` sur ce pin local.
 2. **Pas un workspace member.** `Cargo.toml` du monorepo déclare `rustycog-framework = { path = "rustycog" }` sous `[workspace.dependencies]` seulement. `members` = events, readiness, IAMRusty, Telegraph, Hive, Manifesto, monolith, sentinel-sync, apparatus-contracts, apparatus-reference-kv.
 3. **`rustycog-macros` est ABSENT** (pas de crate, pas de membre, pas de path).
-4. **Logging** : les 4 services métier réexportent `rustycog::logger::setup_logging` (IAMRusty, Hive, Telegraph, Manifesto — `configuration` → `main`). **`sentinel-sync`** et **`monolith`** initialisent `tracing_subscriber::fmt` eux-mêmes (`sentinel-sync/src/main.rs`, `monolith/src/runtime.rs`).
+4. **Logging** : les 4 services métier réexportent `rustycog::logger::setup_logging` (IAMRusty, Hive, Telegraph, Manifesto — `configuration` → `main`). **`sentinel-sync`** et **`monolith`** initialisent `tracing_subscriber::fmt` eux-mêmes (`workers/sentinel-sync/src/main.rs`, `runtime/monolith/src/runtime.rs`).
 
 ## Conséquences
 
@@ -47,5 +47,5 @@ RustyCog est le SDK hexagonal (config, HTTP, DB, events, outbox, tests). Le trai
 - Crate : `rustycog/Cargo.toml` (`[features]`)
 - Workspace : `Cargo.toml` (`members` sans rustycog ; `workspace.dependencies.rustycog-framework`)
 - Logging métier : `*/configuration/src/lib.rs` + `*/src/main.rs` (4 slices)
-- Logging hors slice : `sentinel-sync/src/main.rs`, `monolith/src/runtime.rs`
+- Logging hors slice : `workers/sentinel-sync/src/main.rs`, `runtime/monolith/src/runtime.rs`
 - Preuve : path dep feature-gated ; macros absentes ; 4 × `setup_logging` vs 2 × `tracing_subscriber::fmt`

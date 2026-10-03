@@ -44,8 +44,8 @@ Si les handlers construisent des pools SQL ou si le domaine reçoit des `Arc` co
 
 ## Références
 
-- `Manifesto/setup/src/app.rs` (`GenericCommandService::new`, `AppState::new`)
-- `Hive/setup/src/app.rs`, `Telegraph/setup/src/app.rs`, `IAMRusty/setup/src/app.rs`
-- `Manifesto/http/src/lib.rs` (`RouteBuilder::new(state)`), `Manifesto/http/src/handlers/members.rs`
-- `Manifesto/src/main.rs` ; skill wiki `building-rustycog-services`
+- `services/Manifesto/setup/src/app.rs` (`GenericCommandService::new`, `AppState::new`)
+- `services/Hive/setup/src/app.rs`, `services/Telegraph/setup/src/app.rs`, `services/IAMRusty/setup/src/app.rs`
+- `services/Manifesto/http/src/lib.rs` (`RouteBuilder::new(state)`), `services/Manifesto/http/src/handlers/members.rs`
+- `services/Manifesto/src/main.rs` ; skill wiki `building-rustycog-services`
 - Preuve : les 4 `setup` créent `GenericCommandService` ; les 4 `http` exposent `RouteBuilder` + `SERVICE_PREFIX`

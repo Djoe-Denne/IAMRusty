@@ -4,7 +4,7 @@ title: >-
 category: concepts
 tags: [events, readiness, rustycog, visibility/internal]
 sources:
-  - readiness/src/factory.rs
+  - crates/readiness/src/factory.rs
   - docs/reviews/iam-architecture-comparison.md
   - cursor-conversation/ready-queue-factories-2026-08-29
 summary: >-

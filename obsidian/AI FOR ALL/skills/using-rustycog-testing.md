@@ -8,13 +8,13 @@ sources:
   - rustycog/rustycog-testing/src/common/kafka_testcontainer.rs
   - rustycog/rustycog-testing/src/common/sqs_testcontainer.rs
   - rustycog/rustycog-testing/src/wiremock/mod.rs
-  - IAMRusty/tests/common.rs
-  - IAMRusty/tests/sqs_event_routing_tests.rs
-  - Telegraph/tests/common.rs
-  - Hive/tests/common.rs
-  - Hive/tests/sqs_event_routing_tests.rs
-  - Manifesto/tests/common.rs
-  - Manifesto/tests/sqs_event_routing_tests.rs
+  - services/IAMRusty/tests/common.rs
+  - services/IAMRusty/tests/sqs_event_routing_tests.rs
+  - services/Telegraph/tests/common.rs
+  - services/Hive/tests/common.rs
+  - services/Hive/tests/sqs_event_routing_tests.rs
+  - services/Manifesto/tests/common.rs
+  - services/Manifesto/tests/sqs_event_routing_tests.rs
   - docs/adr/0200-it-infra-reelle-rustycog-testing.md
   - docs/adr/0201-mocks-http-sortant-seulement.md
   - docs/adr/0202-transport-opt-in-queues-desactivees.md
@@ -42,7 +42,7 @@ Use this guide when setting up integration tests with `<!-- [[projects/rustycog/
 - For SQS fanout tests, configure all destination queues in `SqsConfig`; the LocalStack fixture creates every configured physical queue and named-queue helpers let tests assert each destination independently.
 - For producer-side SQS routing tests, use a distinct `default_queues` fallback plus explicit `[queue.queues]` mappings. Drain every relevant queue before the action, then assert the event appears via `wait_for_messages_from_queue(mapped_queue, ...)` and does **not** appear via `get_all_messages_from_queue(default_queue, ...)`.
 - Prefer a dedicated routing-test descriptor with `has_sqs() == true` and a test-binary env override such as `HIVE_QUEUE__ENABLED=true`, `IAM_QUEUE__ENABLED=true`, or `MANIFESTO_QUEUE__ENABLED=true`. The default descriptor should keep `has_sqs() == false` so normal HTTP/API tests do not pay LocalStack startup cost.
-- Keep named-queue routing tests transport-heavy and `#[serial]`. `Hive/tests/sqs_event_routing_tests.rs`, `IAMRusty/tests/sqs_event_routing_tests.rs`, and `Manifesto/tests/sqs_event_routing_tests.rs` are the reference shapes for HTTP action -> domain event -> mapped LocalStack queue assertions.
+- Keep named-queue routing tests transport-heavy and `#[serial]`. `services/Hive/tests/sqs_event_routing_tests.rs`, `services/IAMRusty/tests/sqs_event_routing_tests.rs`, and `services/Manifesto/tests/sqs_event_routing_tests.rs` are the reference shapes for HTTP action -> domain event -> mapped LocalStack queue assertions.
 - For outbound HTTP collaborators, wrap [[projects/rustycog/references/isolated-wiremock-fixture]] (`new()` singleton or `isolated()`) in a typed `MockService` — see [[skills/stubbing-http-with-wiremock]].
 - Opt in with `has_openfga() == true` and `openfga_authorization_model_json()`. Keep `openfga.cache_ttl_seconds = 0` so grant→revoke is not served from `CachedPermissionChecker`. `OpenFgaMockService` is crate-level only — not for Hive / Telegraph / Manifesto HTTP ITs.
 - Keep transport-heavy tests separate from fast unit tests to preserve local iteration speed.

@@ -1,12 +1,12 @@
-﻿---
+---
 title: >-
   IAMRusty Runtime and Security Guides
 category: references
 tags: [reference, configuration, security, visibility/internal]
 sources:
-  - IAMRusty/docs/DATABASE_CONFIGURATION.md
-  - IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md
-  - IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
+  - services/IAMRusty/docs/DATABASE_CONFIGURATION.md
+  - services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md
+  - services/IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
 summary: >-
   Source summary for IAMRusty configuration, JWT key management, and OAuth hardening practices.
 provenance:

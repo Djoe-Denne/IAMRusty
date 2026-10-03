@@ -53,7 +53,7 @@ Tranche / plans voisins : [platform-local-v1-implementation-contract.md](platfor
 
 | Surface | Rôle |
 |---|---|
-| 0601 + overlay `deploy/apps/overlays/kind` | Canon / stub M2 |
+| 0601 + overlay `ops/deploy/apps/overlays/kind` | Canon / stub M2 |
 | 0604 + `kind-demo-monolith` | Démo J3 (plugin→Lazaret in-cluster) |
 | 0605 | Gold path local Kind (s’appuie sur overlay 0604 sans unité prod) |
 | Monolithe host + Compose | Laptop / cas classique (0404) — **pas** la preuve gold path |
@@ -65,7 +65,7 @@ Tranche / plans voisins : [platform-local-v1-implementation-contract.md](platfor
 
 Préfixe monolithe (`docs/services/monolith.md`) : `/iam` `/hive` `/manifesto` `/telegraph` `/lazaret`. Standalone = même suffixe sans nest.
 
-Chaîne documentée / scriptée (`monolith/prove-e2e-curl.ps1`) :
+Chaîne documentée / scriptée (`runtime/monolith/prove-e2e-curl.ps1`) :
 
 1. `POST /iam/api/auth/signup`
 2. `POST /iam/api/auth/complete-registration`
@@ -91,7 +91,7 @@ Chaîne documentée / scriptée (`monolith/prove-e2e-curl.ps1`) :
 | Consents + `grant_revision` | **T5** `PUT …/consents` (Admin) | INSERT `apparatus_capability_consents` |
 | `AdmissionRecord` VALID | **Adm-A** (`apparatus-admit`) | `admission.json` manuel, Job schedule comme seule source, events→VALID, SQL Manifesto |
 | Enrollment | Workload → `POST /lazaret/enroll` (CSR-from-workload T3/T10) | Job `lazaret-enroll-reference-kv` comme solution produit |
-| Schedule pod plugin | Operator P4 (`deploy/p4`) sur digest **admis** | Contournement VALID ; retarget `apparatus-p4-it` |
+| Schedule pod plugin | Operator P4 (`ops/deploy/p4`) sur digest **admis** | Contournement VALID ; retarget `apparatus-p4-it` |
 
 ---
 

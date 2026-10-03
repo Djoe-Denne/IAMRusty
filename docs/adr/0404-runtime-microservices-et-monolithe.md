@@ -19,7 +19,7 @@ Quatre vertical slices (IAM, Telegraph, Hive, Manifesto) doivent tourner en comp
 ## Décision
 
 1. **Dual runtime** : les **standalones** (`iam-service`, `telegraph-service`, `hive-service`, `manifesto-service`) **et** le package **`oodhive-monolith`** sont tous deux des modes supportés.
-2. Le monolithe **compose** `create_router` + `start_background_tasks` + `compose_routes` (`monolith/src/routes.rs`). Il **n’appelle pas** les `run()` standalone. Il **ne remplace pas** les microservices : le compose par défaut reste les quatre services + infra.
+2. Le monolithe **compose** `create_router` + `start_background_tasks` + `compose_routes` (`runtime/monolith/src/routes.rs`). Il **n’appelle pas** les `run()` standalone. Il **ne remplace pas** les microservices : le compose par défaut reste les quatre services + infra.
 3. **Mêmes contrats de chemins** grâce aux `SERVICE_PREFIX` : `/iam`, `/telegraph`, `/hive`, `/manifesto`. Les IT doivent utiliser une base URL **déjà préfixée**.
 4. Santé : `/health` monolithe + `/ready` (crate `readiness`, 0405) sur le routeur composé.
 5. **`sentinel-sync` est hors dual** : worker événements → tuples (0303), pas un routeur HTTP, **absent** du compose par défaut, **non nesté** dans le monolithe.
@@ -49,5 +49,5 @@ Hors compose par défaut : monolithe et sentinel-sync (`cargo run -p oodhive-mon
 ## Références
 
 - Handbook : `docs/platform/runtime.md`, `docs/services/monolith.md`, `docs/services/sentinel-sync.md`, `README.md`
-- Code : `monolith/src/routes.rs`, `*/http/src/lib.rs` (`SERVICE_PREFIX`, `create_prefixed_router`)
+- Code : `runtime/monolith/src/routes.rs`, `*/http/src/lib.rs` (`SERVICE_PREFIX`, `create_prefixed_router`)
 - Preuve : compose démarre les 4 services ; `oodhive-monolith` hors compose ; sentinel-sync hors les deux

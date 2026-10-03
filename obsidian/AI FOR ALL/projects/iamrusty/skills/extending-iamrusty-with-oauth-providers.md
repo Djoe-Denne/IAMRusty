@@ -3,8 +3,8 @@ title: Extending IAMRusty with OAuth Providers
 category: skills
 tags: [oauth, services, rust, visibility/internal]
 sources:
-  - IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md
-  - IAMRusty/setup/src/app.rs
+  - services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md
+  - services/IAMRusty/setup/src/app.rs
   - docs/adr/0407-contrat-authn-federee-vendor-neutral.md
   - docs/adr/0408-connecteurs-idp-services-http.md
   - docs/adr/0410-migration-iam-connecteurs-idp.md
@@ -25,7 +25,7 @@ updated: 2026-09-22T12:49:00Z
 > [!note] Cible vivante (Implemented)
 > Canon : [[projects/iamrusty/decisions/index]] (ADR-0407–**0411**, Réalité **Implemented**). Ajouter un IdP = **nouveau service connecteur** + ligne `[[idp.connectors]]` **complète**, pas un client in-process dans IAM. Détail slug/registry : [[projects/iamrusty/decisions/0411-slug-registry]].
 
-Adding a provider to `[[projects/iamrusty/iamrusty]]` is no longer a cross-cutting IAM enum + factory change. GitHub and GitLab already live in `GitHubConnect/` and `GitLabConnect/`. IAM talks to them only through `HttpIdpConnector` (HMAC S2S).
+Adding a provider to `[[projects/iamrusty/iamrusty]]` is no longer a cross-cutting IAM enum + factory change. GitHub and GitLab already live in `services/GitHubConnect/` and `services/GitLabConnect/`. IAM talks to them only through `HttpIdpConnector` (HMAC S2S).
 
 ## Key Ideas
 

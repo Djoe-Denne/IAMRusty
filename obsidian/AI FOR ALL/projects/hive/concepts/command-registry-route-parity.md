@@ -4,8 +4,8 @@ title: >-
 category: concepts
 tags: [hive, http, commands, visibility/internal]
 sources:
-  - Hive/application/src/command/factory.rs
-  - Hive/http/src/lib.rs
+  - services/Hive/application/src/command/factory.rs
+  - services/Hive/http/src/lib.rs
   - docs/reviews/iam-architecture-comparison.md
   - cursor-conversation/hive-roles-registry-2026-08-29
   - projects/hive/hive.md

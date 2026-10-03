@@ -7,7 +7,7 @@ project: iamrusty
 
 # Audit Red Team défensif — IAMRusty (IAM)
 
-**Périmètre :** `IAMRusty/` (issuer JWT, auth email/mot de passe, OAuth GitHub/GitLab, refresh, reset, registration) + contrat consommateur `rustycog/rustycog-http` (extracteur / middleware).  
+**Périmètre :** `services/IAMRusty/` (issuer JWT, auth email/mot de passe, OAuth GitHub/GitLab, refresh, reset, registration) + contrat consommateur `rustycog/rustycog-http` (extracteur / middleware).  
 **Méthode :** skills rustycog ; context-mode (`ctx_execute` / `ctx_execute_file`) ; lecture ciblée des surfaces auth. GrepAI embeddings indisponibles (Ollama down), graphe RPG vide, Serena encore en chargement — non utilisés pour le fond.  
 **Contrainte :** classes de défauts et hardening uniquement. Aucune procédure d’exploitation.
 
@@ -21,18 +21,18 @@ Autour : JWT **sans `iss`/`aud`**, secret HMAC **partagé et commité**, refresh
 
 | ID | Sévérité | Localisation | Titre | Classe d’attaque | Impact |
 |----|----------|--------------|-------|------------------|--------|
-| F01 | Critical | `IAMRusty/domain/src/service/auth_service.rs:339-390` | Signup attache un mot de passe aux comptes existants | Account takeover / confusion d’identité | Session attaquant sur compte victime (surtout OAuth complet sans `password_hash`) |
-| F02 | Critical | `IAMRusty/http/src/oauth_state.rs:64-84` ; `handlers/auth.rs:468-493` | State OAuth non authentifié | CSRF OAuth / IDOR linking | Liaison d’un IdP attaquant à n’importe quel `user_id` |
-| F03 | Critical | `IAMRusty/domain/src/service/oauth_service.rs:180-198` ; `infra/src/auth/github.rs:236-249` | Fusion de comptes par email OAuth | Account takeover par collision d’email | Login OAuth = session du compte IAM qui a le même email |
-| F04 | High | `IAMRusty/infra/src/token/jwt_encoder.rs:192-216` ; `rustycog-http/src/jwt_handler.rs:71-75` | JWT sans `iss`/`aud` | Token confusion / replay inter-services | Tout bearer HS256 plateforme authentifie partout |
-| F05 | High | `IAMRusty/infra/src/repository/entity/refresh_tokens.rs:12` ; `domain/src/service/refresh_token_service.rs:97-145` | Refresh en clair, pas de kill-family | Session hijack / reuse | Fuite SQL = sessions longues ; reuse d’un token tourné non détecté |
-| F06 | High | `IAMRusty/application/src/usecase/password_reset.rs:362-447` | Reset/changement MDP sans révocation refresh | Persistence of access | Compromission MDP n’invalide pas les sessions déjà émises |
-| F07 | High | `IAMRusty/http/src/lib.rs:40-55` (absence) | Pas de rate limit auth | Brute force / stuffing | Login, signup, reset, verify, username sans frein |
-| F08 | High | `IAMRusty/http/src/lib.rs:68` ; `handlers/auth.rs:828-867` ; `provider_tokens.rs:12` | Tokens IdP en clair + route « internal » | Credential theft | Tout JWT utilisateur exfiltre le token GitHub/GitLab |
-| F09 | High | `IAMRusty/config/production.toml:12-25,42-44` ; `development.toml:24-25` | Secrets et creds commités | Secret exposure | HMAC, OAuth GitHub, `postgres:postgres` dans le dépôt |
-| F10 | High | `IAMRusty/http/src/handlers/auth.rs:475-479,1123-1127` | Redirect URI OAuth hardcodé | OAuth mix-up / binding cassé | Échange de code hors contrat config / préfixe `/iam` |
-| F11 | High | `IAMRusty/domain/src/service/registration_service.rs:216-327` | Registration complète → session sans email vérifié | AuthZ prématuré | Compte non vérifié obtient access+refresh |
-| F12 | Medium | `IAMRusty/http/src/lib.rs:56-59` ; `handlers/auth.rs:1187-1190` | `relink-start` public | CSRF de démarrage OAuth | URL d’autorisation sans identité |
+| F01 | Critical | `services/IAMRusty/domain/src/service/auth_service.rs:339-390` | Signup attache un mot de passe aux comptes existants | Account takeover / confusion d’identité | Session attaquant sur compte victime (surtout OAuth complet sans `password_hash`) |
+| F02 | Critical | `services/IAMRusty/http/src/oauth_state.rs:64-84` ; `handlers/auth.rs:468-493` | State OAuth non authentifié | CSRF OAuth / IDOR linking | Liaison d’un IdP attaquant à n’importe quel `user_id` |
+| F03 | Critical | `services/IAMRusty/domain/src/service/oauth_service.rs:180-198` ; `infra/src/auth/github.rs:236-249` | Fusion de comptes par email OAuth | Account takeover par collision d’email | Login OAuth = session du compte IAM qui a le même email |
+| F04 | High | `services/IAMRusty/infra/src/token/jwt_encoder.rs:192-216` ; `rustycog-http/src/jwt_handler.rs:71-75` | JWT sans `iss`/`aud` | Token confusion / replay inter-services | Tout bearer HS256 plateforme authentifie partout |
+| F05 | High | `services/IAMRusty/infra/src/repository/entity/refresh_tokens.rs:12` ; `domain/src/service/refresh_token_service.rs:97-145` | Refresh en clair, pas de kill-family | Session hijack / reuse | Fuite SQL = sessions longues ; reuse d’un token tourné non détecté |
+| F06 | High | `services/IAMRusty/application/src/usecase/password_reset.rs:362-447` | Reset/changement MDP sans révocation refresh | Persistence of access | Compromission MDP n’invalide pas les sessions déjà émises |
+| F07 | High | `services/IAMRusty/http/src/lib.rs:40-55` (absence) | Pas de rate limit auth | Brute force / stuffing | Login, signup, reset, verify, username sans frein |
+| F08 | High | `services/IAMRusty/http/src/lib.rs:68` ; `handlers/auth.rs:828-867` ; `provider_tokens.rs:12` | Tokens IdP en clair + route « internal » | Credential theft | Tout JWT utilisateur exfiltre le token GitHub/GitLab |
+| F09 | High | `services/IAMRusty/config/production.toml:12-25,42-44` ; `development.toml:24-25` | Secrets et creds commités | Secret exposure | HMAC, OAuth GitHub, `postgres:postgres` dans le dépôt |
+| F10 | High | `services/IAMRusty/http/src/handlers/auth.rs:475-479,1123-1127` | Redirect URI OAuth hardcodé | OAuth mix-up / binding cassé | Échange de code hors contrat config / préfixe `/iam` |
+| F11 | High | `services/IAMRusty/domain/src/service/registration_service.rs:216-327` | Registration complète → session sans email vérifié | AuthZ prématuré | Compte non vérifié obtient access+refresh |
+| F12 | Medium | `services/IAMRusty/http/src/lib.rs:56-59` ; `handlers/auth.rs:1187-1190` | `relink-start` public | CSRF de démarrage OAuth | URL d’autorisation sans identité |
 | F13 | Medium | `password_reset.rs:135` ; `refresh_token_service.rs:99` | Jetons dans les logs | Secret leakage | Reset/refresh en clair si niveau debug |
 | F14 | Medium | `http/src/error.rs:813-857` ; `auth_service.rs:627-638` | Énumération de comptes | Account enumeration | 409 signup, email non vérifié, verify EmailNotFound |
 | F15 | Medium | `auth_service.rs:468-498` | Pas de hash factice au login | Timing oracle | Distinguer email inconnu vs mauvais mot de passe |
@@ -40,14 +40,14 @@ Autour : JWT **sans `iss`/`aud`**, secret HMAC **partagé et commité**, refresh
 | F17 | Medium | `auth_service.rs:277-287,572-575` | Tokens de vérif. UUID en clair | Token theft (DB) | Lecture table = prise d’email |
 | F18 | Medium | `jwt_encoder.rs:271` ; `jwt_handler.rs:129-137` | `jti` jamais révoqué | Stolen token window | Access 15 min non invalidable |
 | F19 | Medium | `application/src/command/signup.rs:17-27` ; `http/src/error.rs:821-826` | Messages d’erreur trop riches | Error leakage | Détails infra/validation renvoyés au client |
-| F20 | Medium | `IAMRusty/setup/src/app.rs:235-238` | Checker OpenFGA no-op | Missing AuthZ | Routes « internal » = n’importe quel user JWT |
+| F20 | Medium | `services/IAMRusty/setup/src/app.rs:235-238` | Checker OpenFGA no-op | Missing AuthZ | Routes « internal » = n’importe quel user JWT |
 | F21 | Medium | `infra/src/auth/github.rs:191,217` | URLs IdP issues de la config | SSRF (si config compromise) | `user_url`/`auth_url` non allowlistés |
 | F22 | Medium | `tests/utils/oauth.rs:22-31` ; `tests/auth_oauth_callback.rs:81-121` | Tests qui sanctifient le state unsigned | Dangerous-as-intended | Régression de sécu « voulue » |
 | F23 | Medium | `configuration/src/lib.rs:319-326` ; configs `type = "plain"` | HMAC par défaut / fichiers | Weak/hardcoded secrets | Secret placeholder + fichiers trackés |
 | F24 | Medium | `rustycog-http/src/builder.rs:72-76,263-265` | `pending_auth.take()` | Guard mal branchée | Route oubliée = publique (cas F12) |
 | F25 | Low | `registration_token.rs:42` ; `registration_token_service.rs:164-218` | `jti` registration non persisté | Replay jusqu’à complete | Bearer 24 h jusqu’à username choisi |
 | F26 | Low | `rustycog-http/src/middleware_auth.rs:109` | Commentaire « no verification » | Doc mensongère | Risque de « correctif » qui retire la vérif |
-| F27 | Low | `auth_service.rs:281-284` ; `IAMRusty/Cargo.toml:9-12` | `test-mode` / token statique | Test backdoor (hypothèse) | Feature service non câblée au crate domain |
+| F27 | Low | `auth_service.rs:281-284` ; `services/IAMRusty/Cargo.toml:9-12` | `test-mode` / token statique | Test backdoor (hypothèse) | Feature service non câblée au crate domain |
 | F28 | Info | `rustycog-http/src/jwt_handler.rs:16-17,94-97` | `default_user_id` | Auth bypass de labo | IAM n’appelle pas `with_default_user_id` (OK aujourd’hui) |
 | F29 | Info | Absence CORS | Pas de `CorsLayer` | — | Fail-closed navigateur ; pas une faille ouverte |
 | F30 | Info | Pas de tenant | User plat | — | Pas d’isolation multi-tenant à casser |
@@ -262,7 +262,7 @@ Autour : JWT **sans `iss`/`aud`**, secret HMAC **partagé et commité**, refresh
 
 ### F27 — Low — Token de vérif. statique (hypothèse)
 
-**Quoi.** `#[cfg(any(test, feature = "test-mode"))]` → `"VALIDATION_TOKEN"` (`auth_service.rs:281-284`). `iam-service` définit `test-mode` (`IAMRusty/Cargo.toml:11`) mais **iam-domain n’a pas** cette feature. En binaire normal, cfg inactif. **Hypothèse :** risque seulement si quelqu’un câble la feature plus tard sans retirer le token fixe.
+**Quoi.** `#[cfg(any(test, feature = "test-mode"))]` → `"VALIDATION_TOKEN"` (`auth_service.rs:281-284`). `iam-service` définit `test-mode` (`services/IAMRusty/Cargo.toml:11`) mais **iam-domain n’a pas** cette feature. En binaire normal, cfg inactif. **Hypothèse :** risque seulement si quelqu’un câble la feature plus tard sans retirer le token fixe.
 
 **Correction.** Ne jamais compiler de secret statique hors `cfg(test)`.
 

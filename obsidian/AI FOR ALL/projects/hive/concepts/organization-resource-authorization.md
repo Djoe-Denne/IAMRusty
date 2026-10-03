@@ -3,12 +3,12 @@ title: Organization-Resource Authorization
 category: concepts
 tags: [authorization, permissions, organizations, openfga, visibility/internal]
 sources:
-  - Hive/http/src/lib.rs
-  - Hive/setup/src/app.rs
-  - hive-events/src/organization.rs
-  - hive-events/src/member.rs
-  - openfga/model.fga
-  - sentinel-sync/src/translator/hive.rs
+  - services/Hive/http/src/lib.rs
+  - services/Hive/setup/src/app.rs
+  - crates/hive-events/src/organization.rs
+  - crates/hive-events/src/member.rs
+  - ops/openfga/model.fga
+  - workers/sentinel-sync/src/translator/hive.rs
 summary: Hive no longer owns its authorization rules. Organization, member, and external-link permissions are derived from relation tuples in OpenFGA. Hive emits lifecycle events, sentinel-sync translates them into tuples, and the route layer only asks Check.
 updated: 2026-04-20
 ---
@@ -28,7 +28,7 @@ Hive emits domain events that the [[projects/sentinel-sync/sentinel-sync]] worke
 | `MemberRemoved`        | —                                                                                          | every `organization:{id}#{relation}@user:{user_id}` for `owner/admin/member/viewer` |
 | `OrganizationUpdated` / `OrganizationDeleted` / `MemberInvited` / `MemberRolesUpdated` / `ExternalLinkCreated` / `SyncJob*` | see [[projects/sentinel-sync/references/event-to-tuple-mapping]] | ditto |
 
-Role string to OpenFGA relation mapping (from `sentinel-sync/src/translator/hive.rs`):
+Role string to OpenFGA relation mapping (from `workers/sentinel-sync/src/translator/hive.rs`):
 
 | Hive `Role.permission` | OpenFGA relation on `organization` |
 |------------------------|------------------------------------|
@@ -41,7 +41,7 @@ Role string to OpenFGA relation mapping (from `sentinel-sync/src/translator/hive
 
 Every guarded Hive route uses `with_permission_on(Permission::X, "organization")` — `member`, `external_link`, and sync-job routes collapse to organization-level checks because the old `.conf` files already treated sub-resources as unidentified. The deepest UUID in the path is always the resource instance that OpenFGA resolves against.
 
-See [Hive/http/src/lib.rs](../../../../../Hive/http/src/lib.rs) for the full route surface.
+See [services/Hive/http/src/lib.rs](../../../../../services/Hive/http/src/lib.rs) for the full route surface.
 
 ## What went away
 

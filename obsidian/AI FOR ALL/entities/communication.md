@@ -3,9 +3,9 @@ title: Communication
 category: entities
 tags: [communication, notifications, templates, visibility/internal]
 sources:
-  - Telegraph/domain/src/entity/communication.rs
-  - Telegraph/domain/src/entity/delivery.rs
-  - Telegraph/domain/src/entity/template.rs
+  - services/Telegraph/domain/src/entity/communication.rs
+  - services/Telegraph/domain/src/entity/delivery.rs
+  - services/Telegraph/domain/src/entity/template.rs
 summary: Telegraph models communication as a user-facing message domain with communication payloads, templates, and delivery records.
 provenance:
   extracted: 0.84

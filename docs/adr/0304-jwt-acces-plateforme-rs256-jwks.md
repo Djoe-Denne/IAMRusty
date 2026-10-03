@@ -39,7 +39,7 @@
 20. **JWKS unique** acceptable maintenant ; limite ~1000+ à surveiller ; 10000+ ⇒ évolution sharding / JWKS par issuer. Pas de surconception.
 21. **SPIFFE** : pas dépendance obligatoire. Renvoi [0307](0307-workload-identity-port.md). Le domaine dépend d’un port `WorkloadIdentity`.
 22. **Remote signer** : contrat minimal → [0309](0309-remote-signer.md).
-23. **`IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md` n’est pas canon.**
+23. **`services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md` n’est pas canon.**
 
 ## État runtime
 
@@ -84,12 +84,12 @@ Dual-verify bornée (RS256 + `kid` ; HS256 = HMAC migration only dans test.toml)
 - Accepted / Partial : [0307](0307-workload-identity-port.md), [0308](0308-mesh-authn-jwt.md) (mode passerelle §7) ; Accepted / Unimplemented : [0309](0309-remote-signer.md)
 - IdP : [0400](0400-iamrusty-identite-hexagonale.md)
 - Handbook : `docs/platform/authn-jwt.md`
-- Non-canon : `IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md`
+- Non-canon : `services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md`
 - Preuves runtime (Partial — pas Implemented : BYOKMS cloud + remote signer 0309 absents) :
-  - Encodeur RS256 + SigningProvider : `IAMRusty/infra/src/token/jwt_encoder.rs`, `IAMRusty/infra/src/signing/{pem,transit,static_credential}.rs`
-  - JWKS registry : `IAMRusty/infra/src/repository/signing_key_registry.rs` `SeaOrmSigningKeyRegistry::list_jwks_keys` → `TokenUseCaseImpl::get_jwks` → `GET /iam/.well-known/jwks.json`
+  - Encodeur RS256 + SigningProvider : `services/IAMRusty/infra/src/token/jwt_encoder.rs`, `services/IAMRusty/infra/src/signing/{pem,transit,static_credential}.rs`
+  - JWKS registry : `services/IAMRusty/infra/src/repository/signing_key_registry.rs` `SeaOrmSigningKeyRegistry::list_jwks_keys` → `TokenUseCaseImpl::get_jwks` → `GET /iam/.well-known/jwks.json`
   - Extracteur RS256 + JWKS + `JwtPrincipal` : `rustycog/rustycog-http/src/jwt_handler.rs`
-  - Round-trip sans postgres : `IAMRusty/infra/tests/rs256_jwks_roundtrip.rs`
-  - Config `allowed_algorithms=[RS256]` : `IAMRusty/configuration/src/lib.rs` `http_verifier_auth_rs256_only_excludes_hs256` ; HS256 seulement via `allowed_algorithms` dans `*/config/test.toml`
-  - Probe test-signer : `IAMRusty/domain/src/port/signing.rs` `OrganizationSignerProbe` ; `IAMRusty/infra/src/signing/probe.rs` ; câblé `IAMRusty/setup/src/app.rs` `SignerRouteContext`
-  - Refresh opaque inchangé : `IAMRusty/domain/src/service/refresh_token_service.rs`
+  - Round-trip sans postgres : `services/IAMRusty/infra/tests/rs256_jwks_roundtrip.rs`
+  - Config `allowed_algorithms=[RS256]` : `services/IAMRusty/configuration/src/lib.rs` `http_verifier_auth_rs256_only_excludes_hs256` ; HS256 seulement via `allowed_algorithms` dans `*/config/test.toml`
+  - Probe test-signer : `services/IAMRusty/domain/src/port/signing.rs` `OrganizationSignerProbe` ; `services/IAMRusty/infra/src/signing/probe.rs` ; câblé `services/IAMRusty/setup/src/app.rs` `SignerRouteContext`
+  - Refresh opaque inchangé : `services/IAMRusty/domain/src/service/refresh_token_service.rs`

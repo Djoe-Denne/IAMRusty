@@ -1,11 +1,11 @@
-﻿---
+---
 title: >-
   Component-Based Project Orchestration
 category: concepts
 tags: [projects, components, orchestration, visibility/internal]
 sources:
-  - Manifesto/README.md
-  - Manifesto/SETUP.md
+  - services/Manifesto/README.md
+  - services/Manifesto/SETUP.md
   - docs/project/Archi.md
 summary: >-
   Projects are modeled as shells that orchestrate independently implemented components through contracts, registries, and lifecycle states.

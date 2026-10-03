@@ -1,12 +1,12 @@
-﻿---
+---
 title: >-
   Command Registry and Retry Policies
 category: concepts
 tags: [commands, reliability, rust, visibility/internal]
 sources:
-  - IAMRusty/docs/COMMAND_PATTERN.md
-  - IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md
-  - Manifesto/docs/rustycog-implementation-and-usage-guide.md
+  - services/IAMRusty/docs/COMMAND_PATTERN.md
+  - services/IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md
+  - services/Manifesto/docs/rustycog-implementation-and-usage-guide.md
   - rustycog/rustycog-command/src/lib.rs
   - rustycog/rustycog-command/src/registry.rs
 summary: >-

@@ -5,8 +5,8 @@ category: decisions
 tags: [architecture, components, visibility/internal]
 sources:
   - docs/adr/0002-apparatus-contract-first.md
-  - apparatus-contracts/src/validation.rs
-  - apparatus-reference-kv/apparatus.toml
+  - crates/apparatus-contracts/src/validation.rs
+  - crates/apparatus-reference-kv/apparatus.toml
 summary: >-
   P0 avant Factory/host : apparatus.toml canonique, validateur unique, digest sha256, KV de référence. Implemented (A-DEC 2026-09-22).
 provenance:

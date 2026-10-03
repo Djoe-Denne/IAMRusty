@@ -49,10 +49,10 @@ Hors members (à vérifier) : `apparatus-events` (crate sur disque). rustycog = 
 - `docs/services/*.md`, `docs/platform/overview.md`, `docs/platform/runtime.md`, `docs/guides/nouveau-service.md`
 - `docs/reviews/iam-*-architecture.md` (écarts — recouper le code, ils datent)
 - Wiki : `projects/*/`, `projects/aiforall/references/modular-monolith-runtime.md`
-- `IAMRusty/setup/src/app.rs`, `Manifesto/setup/src/app.rs`, idem Hive/Telegraph
-- `monolith/src/`, `sentinel-sync/` (sentinel-sync = 0303 ; ici seulement le citer comme non-hexagonal)
-- `Manifesto/infra/src/transaction.rs`, CAS/membership (mémoire Serena : mutation = membership DB ; CAS revision)
-- `apparatus-contracts/`, `apparatus-reference-kv/`
+- `services/IAMRusty/setup/src/app.rs`, `services/Manifesto/setup/src/app.rs`, idem Hive/Telegraph
+- `runtime/monolith/src/`, `workers/sentinel-sync/` (sentinel-sync = 0303 ; ici seulement le citer comme non-hexagonal)
+- `services/Manifesto/infra/src/transaction.rs`, CAS/membership (mémoire Serena : mutation = membership DB ; CAS revision)
+- `crates/apparatus-contracts/`, `crates/apparatus-reference-kv/`
 - QMD ; GrepAI
 
 ## 0401 points sensibles (preuve code)
@@ -66,7 +66,7 @@ Hors members (à vérifier) : `apparatus-events` (crate sur disque). rustycog = 
 
 - Interdiction de réécrire 0001–0005.
 - Dire clairement : P0 Implemented (contrats/KV) vs plateforme Apparatus Unimplemented.
-- UI sous `apparatus-reference-kv/ui` : décrire seulement si le code existe ; ne pas appeler ça le host P5.
+- UI sous `crates/apparatus-reference-kv/ui` : décrire seulement si le code existe ; ne pas appeler ça le host P5.
 
 ## Wiki index
 

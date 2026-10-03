@@ -17,8 +17,8 @@ sources:
   - rustycog/rustycog-permission/src/lib.rs
   - rustycog/rustycog-logger/src/lib.rs
   - rustycog/rustycog-testing/src/lib.rs
-  - Manifesto/docs/rustycog-service-build-guide.md
-  - Manifesto/docs/rustycog-implementation-and-usage-guide.md
+  - services/Manifesto/docs/rustycog-service-build-guide.md
+  - services/Manifesto/docs/rustycog-implementation-and-usage-guide.md
 summary: >-
   RustyCog is the shared SDK stack for platform services, but its umbrella package, workspace membership, and builder-level ergonomics do not all line up perfectly.
 provenance:

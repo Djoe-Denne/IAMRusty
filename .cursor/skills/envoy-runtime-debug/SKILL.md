@@ -22,10 +22,10 @@ Skill **spécifique à ce repo**. Ne pas généraliser à un Envoy tiers.
 
 | Fichier | Bind admin |
 |---|---|
-| `deploy/mesh/envoy.yaml` | `0.0.0.0:9901` (utilisé par Compose mesh) |
-| `deploy/apps/overlays/kind-mesh/envoy-mesh.yaml` | `127.0.0.1:9901` |
+| `ops/deploy/mesh/envoy.yaml` | `0.0.0.0:9901` (utilisé par Compose mesh) |
+| `ops/deploy/apps/overlays/kind-mesh/envoy-mesh.yaml` | `127.0.0.1:9901` |
 
-Compose : service `envoy-mesh` dans `docker-compose.yml` (profil `mesh`), image `envoyproxy/envoy:v1.31-latest`, volume vers `deploy/mesh/envoy.yaml`. Ports publiés : **`10000:10000` seulement**. L'admin écoute `0.0.0.0:9901` **dans** le conteneur (réseau Docker `aiforall-network`) ; ce port **n'est pas** dans `ports:`. Overlay Kind : admin loopback uniquement.
+Compose : service `envoy-mesh` dans `docker-compose.yml` (profil `mesh`), image `envoyproxy/envoy:v1.31-latest`, volume vers `ops/deploy/mesh/envoy.yaml`. Ports publiés : **`10000:10000` seulement**. L'admin écoute `0.0.0.0:9901` **dans** le conteneur (réseau Docker `aiforall-network`) ; ce port **n'est pas** dans `ports:`. Overlay Kind : admin loopback uniquement.
 
 ## Admin API (GET, lecture seule)
 

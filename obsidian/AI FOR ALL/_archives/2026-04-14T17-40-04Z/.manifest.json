@@ -1,4 +1,4 @@
-﻿{
+{
     "version":  1,
     "stats":  {
                   "total_sources_ingested":  38,
@@ -38,7 +38,7 @@
                                                                         "concepts/event-driven-microservice-platform.md"
                                                                     ]
                                               },
-                    "IAMRusty/README.md":  {
+                    "services/IAMRusty/README.md":  {
                                                "ingested_at":  "2026-04-14T16:54:59.5971424Z",
                                                "size_bytes":  15874,
                                                "modified_at":  "2025-07-28T12:35:03.9179655Z",
@@ -55,7 +55,7 @@
                                                                      "concepts/event-driven-microservice-platform.md"
                                                                  ]
                                            },
-                    "IAMRusty/docs/ARCHITECTURE.md":  {
+                    "services/IAMRusty/docs/ARCHITECTURE.md":  {
                                                           "ingested_at":  "2026-04-14T16:54:59.5971424Z",
                                                           "size_bytes":  21318,
                                                           "modified_at":  "2025-07-28T12:35:03.9427504Z",
@@ -72,7 +72,7 @@
                                                                                 "references/iamrusty-service.md"
                                                                             ]
                                                       },
-                    "Manifesto/README.md":  {
+                    "services/Manifesto/README.md":  {
                                                 "ingested_at":  "2026-04-14T16:54:59.5971424Z",
                                                 "size_bytes":  5583,
                                                 "modified_at":  "2026-02-21T22:00:37.2142177Z",
@@ -89,7 +89,7 @@
                                                                       "references/manifesto-service.md"
                                                                   ]
                                             },
-                    "Manifesto/SETUP.md":  {
+                    "services/Manifesto/SETUP.md":  {
                                                "ingested_at":  "2026-04-14T16:54:59.5971424Z",
                                                "size_bytes":  5697,
                                                "modified_at":  "2025-10-19T14:27:42.3942734Z",
@@ -122,7 +122,7 @@
                                                                      "concepts/event-driven-microservice-platform.md"
                                                                  ]
                                            },
-                    "hive-events/README.md":  {
+                    "crates/hive-events/README.md":  {
                                                   "ingested_at":  "2026-04-14T16:54:59.5971424Z",
                                                   "size_bytes":  3065,
                                                   "modified_at":  "2025-07-28T14:52:30.0995181Z",
@@ -138,7 +138,7 @@
                                                                         "references/platform-building-blocks.md"
                                                                     ]
                                               },
-                    "IAMRusty/docs/FIXTURES_GUIDE.md":  {
+                    "services/IAMRusty/docs/FIXTURES_GUIDE.md":  {
                                                             "ingested_at":  "2026-04-14T17:03:47.5107188Z",
                                                             "size_bytes":  9924,
                                                             "modified_at":  "2025-07-28T12:35:03.9463206Z",
@@ -155,7 +155,7 @@
                                                                                   "projects/iamrusty/iamrusty.md"
                                                                               ]
                                                         },
-                    "Manifesto/docs/rustycog-implementation-and-usage-guide.md":  {
+                    "services/Manifesto/docs/rustycog-implementation-and-usage-guide.md":  {
                                                                                       "ingested_at":  "2026-04-14T17:03:47.5107188Z",
                                                                                       "size_bytes":  8388,
                                                                                       "modified_at":  "2026-02-21T22:00:28.7003468Z",
@@ -174,7 +174,7 @@
                                                                                                             "concepts/shared-rust-microservice-sdk.md"
                                                                                                         ]
                                                                                   },
-                    "IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md":  {
+                    "services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md":  {
                                                                      "ingested_at":  "2026-04-14T17:03:47.5107188Z",
                                                                      "size_bytes":  10775,
                                                                      "modified_at":  "2025-07-28T12:35:03.9478847Z",
@@ -189,7 +189,7 @@
                                                                                            "projects/iamrusty/iamrusty.md"
                                                                                        ]
                                                                  },
-                    "IAMRusty/docs/COMMAND_PATTERN.md":  {
+                    "services/IAMRusty/docs/COMMAND_PATTERN.md":  {
                                                              "ingested_at":  "2026-04-14T17:03:47.5107188Z",
                                                              "size_bytes":  27896,
                                                              "modified_at":  "2025-07-28T12:35:03.9438067Z",
@@ -204,7 +204,7 @@
                                                                                    "projects/iamrusty/iamrusty.md"
                                                                                ]
                                                          },
-                    "IAMRusty/docs/TESTING_GUIDE.md":  {
+                    "services/IAMRusty/docs/TESTING_GUIDE.md":  {
                                                            "ingested_at":  "2026-04-14T17:03:47.5107188Z",
                                                            "size_bytes":  12423,
                                                            "modified_at":  "2025-07-28T12:35:03.9519192Z",
@@ -220,7 +220,7 @@
                                                                                  "skills/testing-rust-services-with-fixtures.md"
                                                                              ]
                                                        },
-                    "Manifesto/docs/rustycog-service-build-guide.md":  {
+                    "services/Manifesto/docs/rustycog-service-build-guide.md":  {
                                                                            "ingested_at":  "2026-04-14T17:03:47.5107188Z",
                                                                            "size_bytes":  19263,
                                                                            "modified_at":  "2026-02-21T22:00:16.0259556Z",
@@ -239,7 +239,7 @@
                                                                                                  "concepts/shared-rust-microservice-sdk.md"
                                                                                              ]
                                                                        },
-                    "Manifesto/docs/rustycog-hexagonal-web-service-guide.md":  {
+                    "services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md":  {
                                                                                    "ingested_at":  "2026-04-14T17:03:47.5107188Z",
                                                                                    "size_bytes":  12824,
                                                                                    "modified_at":  "2026-02-21T21:43:14.5534614Z",
@@ -257,7 +257,7 @@
                                                                                                          "concepts/shared-rust-microservice-sdk.md"
                                                                                                      ]
                                                                                },
-                    "IAMRusty/docs/DATABASE_CONFIGURATION.md":  {
+                    "services/IAMRusty/docs/DATABASE_CONFIGURATION.md":  {
                                                                     "ingested_at":  "2026-04-14T17:03:47.5107188Z",
                                                                     "size_bytes":  14660,
                                                                     "modified_at":  "2025-07-28T12:35:03.9438067Z",
@@ -272,7 +272,7 @@
                                                                                           "projects/iamrusty/iamrusty.md"
                                                                                       ]
                                                                 },
-                    "IAMRusty/docs/OAUTH_SECURITY_GUIDE.md":  {
+                    "services/IAMRusty/docs/OAUTH_SECURITY_GUIDE.md":  {
                                                                   "ingested_at":  "2026-04-14T17:03:47.5107188Z",
                                                                   "size_bytes":  21436,
                                                                   "modified_at":  "2025-07-28T12:35:03.9498899Z",
@@ -288,7 +288,7 @@
                                                                                         "projects/iamrusty/iamrusty.md"
                                                                                     ]
                                                               },
-                    "IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md":  {
+                    "services/IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md":  {
                                                                          "ingested_at":  "2026-04-14T17:03:47.5107188Z",
                                                                          "size_bytes":  13681,
                                                                          "modified_at":  "2025-07-28T12:35:03.9438067Z",

@@ -6,10 +6,10 @@ status: proposed
 feature_status: future
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
-  - openfga/model.fga
-  - Manifesto/application/src/usecase/world_read.rs
-  - Manifesto/infra/src/transaction.rs
-  - Manifesto/config/default.toml
+  - ops/openfga/model.fga
+  - services/Manifesto/application/src/usecase/world_read.rs
+  - services/Manifesto/infra/src/transaction.rs
+  - services/Manifesto/config/default.toml
   - https://kubernetes.io/docs/concepts/security/pod-security-standards/
   - https://kubernetes.io/docs/concepts/services-networking/network-policies/
 summary: "Autorisation future par intersection de droits, gateway de capacités, identité de workload dédiée, stockage par binding et limites des sandboxes."

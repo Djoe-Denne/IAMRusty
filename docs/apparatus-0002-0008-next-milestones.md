@@ -36,10 +36,10 @@ Six jalons **séquencés**. Réutiliser T2–T12 / T11 / Cosign ; ne pas les rel
 **But.** L’Apparatus KV de référence (`apparatus-reference-kv`) devient une **enveloppe pinée** : digest descripteur **0002** (64 hex, jamais `latest`) + blob image CRI distinct. C’est le premier artifact de la chaîne, pas un rejeu T3–T6.
 
 - **ADRs :** 0002, 0008 (Pkg-B, Reg-A+D-ACL déjà livrés)
-- **IN :** enchaîner digest / build / sign **existants** (`apparatus-operator/src/digest.rs`, `build.rs`, bins `apparatus-build`) sur le manifeste + image de référence ; identité catalogue = digest descripteur, `spec.image` = `name@sha256` issu de l’enveloppe
+- **IN :** enchaîner digest / build / sign **existants** (`workers/apparatus-operator/src/digest.rs`, `build.rs`, bins `apparatus-build`) sur le manifeste + image de référence ; identité catalogue = digest descripteur, `spec.image` = `name@sha256` issu de l’enveloppe
 - **OUT :** répertoire `Factory/` ; host UI / iframe / CLI ; image auteur P6 ; relivrer T3–T6 ; IAM 0407–0410 ; cloud 0600–0602
-- **Preuves :** un artifact zot dont le descripteur 0002 est 64 hex ; le digest d’enveloppe ≠ identité ; pull `IfNotPresent` déjà vrai — ne pas le réécrire. Test nouveau (pas T3) : `apparatus-operator/tests/` *ou* IT Kind qui nomme **l’Apparatus de référence**, pas seulement `testdata/platform-plugin`
-- **Livré (2026-09-22) :** `m1_reference_kv_pinned_envelope_on_zot` (`apparatus-operator/tests/apparatus_m1_reference_kv_pin.rs`) vert.
+- **Preuves :** un artifact zot dont le descripteur 0002 est 64 hex ; le digest d’enveloppe ≠ identité ; pull `IfNotPresent` déjà vrai — ne pas le réécrire. Test nouveau (pas T3) : `workers/apparatus-operator/tests/` *ou* IT Kind qui nomme **l’Apparatus de référence**, pas seulement `testdata/platform-plugin`
+- **Livré (2026-09-22) :** `m1_reference_kv_pinned_envelope_on_zot` (`workers/apparatus-operator/tests/apparatus_m1_reference_kv_pin.rs`) vert.
 - **Ne flip pas :** 0002, 0008 (reste Partial)
 
 ### M2 — `VALID` persisté hors store Kind (Adm-A seule source)
@@ -47,10 +47,10 @@ Six jalons **séquencés**. Réutiliser T2–T12 / T11 / Cosign ; ne pas les rel
 **But.** Le rapport Adm-A (digest 0002 + version de politique + rapport) devient un **fait catalogue / runtime produit** lisible hors `InMemoryAdmissionStore` et hors une CR Kind éphémère. Avant ce jalon : 0 `VALID`/`VERIFIED` persistés côté produit (0005).
 
 - **ADRs :** 0005, 0008 (Adm-A)
-- **IN :** Adm-A (`apparatus-operator/src/admission.rs`, bin `apparatus-admit`, SA `apparatus-admit`) **seule** source ; persister digest + `policyVersion` + `reportDigest` (forme CR `AdmissionRecord` `apparatus.aiforall.dev` déjà spécifiée) dans un store **produit** que l’install peut lire ; register Manifesto ≠ admit
+- **IN :** Adm-A (`workers/apparatus-operator/src/admission.rs`, bin `apparatus-admit`, SA `apparatus-admit`) **seule** source ; persister digest + `policyVersion` + `reportDigest` (forme CR `AdmissionRecord` `apparatus.aiforall.dev` déjà spécifiée) dans un store **produit** que l’install peut lire ; register Manifesto ≠ admit
 - **OUT :** harness / `apparatus dev` écrivant `VALID` ; `VERIFIED` éditorial ; Adm-B comme source ; `trusted_skip_gateway` ; second protocole ; Manifesto qui auto-admet
 - **Preuves :** après admit réussi, une lecture produit (pas seulement `HashMap` T7) renvoie `VALID` pour ce digest 0002 ; refus Adm-A ⇒ **aucune** ligne `VALID` ; `claimed_verified` ignoré (déjà T7 — ne pas relivrer, étendre au store produit)
-- **Livré (2026-09-22) :** `m2_admit_get_returns_valid_for_m1_digest` (`apparatus-operator/tests/apparatus_m2_valid_persist.rs`) vert.
+- **Livré (2026-09-22) :** `m2_admit_get_returns_valid_for_m1_digest` (`workers/apparatus-operator/tests/apparatus_m2_valid_persist.rs`) vert.
 - **Ne flip pas :** 0005, 0008
 
 ### M3 — Install fail-closed si non-`VALID`
@@ -61,7 +61,7 @@ Six jalons **séquencés**. Réutiliser T2–T12 / T11 / Cosign ; ne pas les rel
 - **IN :** `apparatus-controller` (SA `apparatus-controller`) refuse `NotValid` / `MissingAdmissionRecord` (logique T8/T10 **déjà** là) sur le **chemin produit** ; kubelet n’exécute que `image@sha256` de l’enveloppe **admise** ; plugins ns `apparatus-plugins`
 - **OUT :** relivrer T8/T10 ; PSS ; drain / destruction des bindings `ready` (0005 Non décidé) ; APP-03 / APP-06
 - **Preuves :** digest non admis ⇒ pas de Pod plugin ; digest `VALID` ⇒ Pod piné ; observable CR / events sans `ErrImageNeverPull` (déjà T10 — étendre au digest de référence M1)
-- **Livré (2026-09-22) :** `m3_kind_cr_only_valid_does_not_schedule` (`apparatus-operator/tests/apparatus_m3_install_fail_closed.rs`) vert.
+- **Livré (2026-09-22) :** `m3_kind_cr_only_valid_does_not_schedule` (`workers/apparatus-operator/tests/apparatus_m3_install_fail_closed.rs`) vert.
 - **Ne flip pas :** 0005, 0008
 
 ### M4 — Pont desired_state → operator (sans K8s dans Manifesto)
@@ -69,11 +69,11 @@ Six jalons **séquencés**. Réutiliser T2–T12 / T11 / Cosign ; ne pas les rel
 **But.** Un binding Manifesto `ready` / `desired_state` (ticker P2 **inchangé**) déclenche M3. Manifesto reste ignorant de Kubernetes.
 
 - **ADRs :** 0001 (binding = `ProjectComponent`, **pas** tenants), 0006 (G/E), 0008 (BC-A, contrôleur ≠ ticker)
-- **IN :** l’operator **observe** l’état déjà persisté (P2) depuis **hors** `Manifesto/*/src` — lecture des **5** routes `/components` (`D-0006E`) ou lecture DB hors Manifesto ; 4 SA déjà nommées (`apparatus-build`, `apparatus-admit`, `apparatus-controller`, `apparatus-gateway`)
-- **OUT :** token `k8s` / `kubernetes` sous `Manifesto/*/src` (gates T1/P2 T7/P3 T2 **non retargetés**) ; 6ᵉ route / HTTP 202 ; nest dans le monolithe ; skill `aiforall-new-service` ; nouvel event P2 ; `invoke` sur `ApparatusRuntime` ; backfill 0001
+- **IN :** l’operator **observe** l’état déjà persisté (P2) depuis **hors** `services/Manifesto/*/src` — lecture des **5** routes `/components` (`D-0006E`) ou lecture DB hors Manifesto ; 4 SA déjà nommées (`apparatus-build`, `apparatus-admit`, `apparatus-controller`, `apparatus-gateway`)
+- **OUT :** token `k8s` / `kubernetes` sous `services/Manifesto/*/src` (gates T1/P2 T7/P3 T2 **non retargetés**) ; 6ᵉ route / HTTP 202 ; nest dans le monolithe ; skill `aiforall-new-service` ; nouvel event P2 ; `invoke` sur `ApparatusRuntime` ; backfill 0001
 - **Preuves :** un `ProjectComponent` ready dont le digest est `VALID` ⇒ le contrôleur schedule ; même binding avec digest non `VALID` ⇒ pas de schedule ; `rg` gates Manifesto restent verts
 - **Bloqueur 0001 ?** Non. P1 SQL suffit. Tenants / `D-LEGACY` restent hors chaîne.
-- **Livré (2026-09-22) :** `m4_ready_valid_digest_schedules` (`apparatus-operator/tests/apparatus_m4_desired_state_bridge.rs`) vert.
+- **Livré (2026-09-22) :** `m4_ready_valid_digest_schedules` (`workers/apparatus-operator/tests/apparatus_m4_desired_state_bridge.rs`) vert.
 - **Ne flip pas :** 0001, 0006, 0008
 
 ### M5 — Invoke E2E d’un plugin isolé via Lazaret (ferme T-3)
@@ -84,7 +84,7 @@ Six jalons **séquencés**. Réutiliser T2–T12 / T11 / Cosign ; ne pas les rel
 - **IN :** transport = identité de workload P3 déjà livrée (instance, binding, release, génération, `grant_revision`, audience gateway, session mTLS T11b) ; le plugin **sort** vers Lazaret ; Lazaret **n’est pas** client kube ; plugin hors processus Manifesto / monolithe / operator
 - **OUT :** `invoke` sur `InProcessApparatusRuntime` / `ApparatusRuntime` (`D-0006G`) ; `trusted_skip_gateway` ; 2ᵉ protocole ; K8s dans Lazaret ; relivrer T7 P3 / T11 P4 / T12 P4
 - **Preuves :** nouveau test (pas `apparatus_p4_t12_gate_regression`, pas `apparatus_p3_t7_invoke` seul) : pin M1 + `VALID` M2 + install M3 + `POST /invoke` Lazaret **atteint** le Pod isolé ; T11 reste vrai (plugin n’atteint pas Transit / `apparatus-system`) ; projet public sans consentement n’ouvre pas invoke (T7 0007 — ne pas relivrer)
-- **Livré (2026-09-22) :** `m5_invoke_reaches_isolated_plugin_pod` (`apparatus-operator/tests/apparatus_m5_invoke_isolated.rs`) vert.
+- **Livré (2026-09-22) :** `m5_invoke_reaches_isolated_plugin_pod` (`workers/apparatus-operator/tests/apparatus_m5_invoke_isolated.rs`) vert.
 - **Ne flip pas :** 0003, 0004 (déjà Implemented), 0007 (déjà Implemented), 0008
 
 ### M6 — Chaîne unique de preuve (un seul IT bout en bout)
@@ -95,7 +95,7 @@ Six jalons **séquencés**. Réutiliser T2–T12 / T11 / Cosign ; ne pas les rel
 - **IN :** Kind `apparatus-p4-it` + Calico v3.29.7 déjà exigé ; Lazaret réel ; Manifesto bindings P1 ; Apparatus de référence
 - **OUT :** rejeu T2–T12 ; host P5 ; PSS ; catalogue tiers P6 ; flip Réalité dans les ADR
 - **Preuves :** un test nommé (ex. `tests/apparatus_e2e_0002_0008_invoke.rs` **ou** équivalent IT) vert une fois ; logs / CR / `POST /invoke` observables alignés sur le même digest 0002
-- **Livré (2026-09-22) :** `m6_e2e_0002_0008_chain` (`apparatus-operator/tests/apparatus_m6_e2e_chain.rs`) vert.
+- **Livré (2026-09-22) :** `m6_e2e_0002_0008_chain` (`workers/apparatus-operator/tests/apparatus_m6_e2e_chain.rs`) vert.
 - **Ne flip pas :** aucune ADR (les flips sont la section B, après accord)
 
 ---
@@ -139,7 +139,7 @@ Ces items **ne sont pas des jalons d’implémentation**. Un lot qui les « ferm
 
 ## Invariants (tous les lots)
 
-- K8s-as-P3 interdit ; zéro token `k8s`/`kubernetes` sous `Manifesto/*/src`
+- K8s-as-P3 interdit ; zéro token `k8s`/`kubernetes` sous `services/Manifesto/*/src`
 - Pas de 2ᵉ protocole / `trusted_skip_gateway`
 - Pas de `Factory/` racine ; pas de nest HTTP ; pas de 6ᵉ hexagone
 - `invoke` = Lazaret seulement ; G/E en vigueur

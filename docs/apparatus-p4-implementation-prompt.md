@@ -31,7 +31,7 @@ Le gel « Implémente **P4 — Factory et runtime** » n’est **plus** une miss
 - **ADR-0003** : plugin hors processus privilégiés ; workers Factory, admission/signature, contrôleur et gateway = identités OS distinctes ; harness in-process ≠ production ; moteur = **Kubernetes P4 hors Manifesto** (ADR-0008).
 - **ADR-0002** : Factory = **P4** ; host UI + CLI = **P5** (L19, L35). Les contrats P0 se réutilisent ; pas de second schéma.
 
-**Ancre (2026-09-20)** : ADR-0004 et ADR-0007 **Accepted / Implemented** (A-DEC). T1–T14b = preuve P3. `invoke` = Lazaret `POST /invoke`. 0 identifiant `gateway` sous `Manifesto/*/src`. `/components` = 5. Gate `Manifesto/tests/apparatus_p2_t7_gate.rs` (+ P3 t2) : `k8s`/`kubernetes`, `wasm`/`wasi`/`wasmtime`, `iframe`, `messagechannel`, `apparatus_host`, `ui_host` **restent interdits dans Manifesto** même si 0008 choisit K8s **ailleurs**.
+**Ancre (2026-09-20)** : ADR-0004 et ADR-0007 **Accepted / Implemented** (A-DEC). T1–T14b = preuve P3. `invoke` = Lazaret `POST /invoke`. 0 identifiant `gateway` sous `services/Manifesto/*/src`. `/components` = 5. Gate `services/Manifesto/tests/apparatus_p2_t7_gate.rs` (+ P3 t2) : `k8s`/`kubernetes`, `wasm`/`wasi`/`wasmtime`, `iframe`, `messagechannel`, `apparatus_host`, `ui_host` **restent interdits dans Manifesto** même si 0008 choisit K8s **ailleurs**.
 
 Conduis : Phase 0 **faite** (APP-01 tranché ; 0008 **Accepted**). T1 absence **déjà livrée** (ne pas relivrer). T2–T12 **débloqués par cet Accept** — au tour d’écriture 2026-09-20 **ne pas** les implémenter ; **post-lot**, le mécanisme T2–T12 est livré (0008 **Partial**). N’invente **aucune** décision `Accepted` au-delà de 0008. N’invente **pas** un moteur, un registry ou une signature **autres** que ceux que 0008 nomme.
 
@@ -49,7 +49,7 @@ Accord humain exact (closeout `A-DEC`) : « Implemented autorisé sans fermer AP
 | K8s comme isolation **P3** | **Interdit** (A-DEC + 0007 L211 + closeout `D-K8S`) |
 | Second protocole / `trusted_skip_gateway` | **Interdit** (0005, 0007 L211, `D-PROTO2`) |
 | Invoke | Lazaret `POST /invoke` ; **pas** de méthode `invoke` sur Manifesto `ApparatusRuntime` |
-| `gateway` sous `Manifesto/*/src` | **0** |
+| `gateway` sous `services/Manifesto/*/src` | **0** |
 | Routes `/components` | **5** (gel 0006 E) |
 | Gate Manifesto | `apparatus_p2_t7_gate.rs` **et** `apparatus_p3_t2_gate.rs` : ne **pas** retargeter le gate Manifesto pour **autoriser `k8s`/`kubernetes` dans Manifesto**, même si 0008 nomme K8s dans un autre BC |
 
@@ -85,8 +85,8 @@ Si une contradiction **bloque** le contrat (second protocole, `trusted_skip_gate
    - `obsidian/AI FOR ALL/projects/manifesto/references/apparatus-factory-and-distribution.md` (`status: proposed`) — **pas** un RED
    - `obsidian/AI FOR ALL/projects/manifesto/concepts/apparatus-platform.md`
 7. Code réel P3 à **préserver** (régression, pas à réécrire) :
-   - `Manifesto/tests/apparatus_p2_t7_gate.rs`, `Manifesto/tests/apparatus_p3_t2_gate.rs`
-   - `Manifesto/tests/apparatus_p3_t1_absence.rs` ; Lazaret `Lazaret/tests/apparatus_p3_t7_invoke.rs` (+ t8…t13)
+   - `services/Manifesto/tests/apparatus_p2_t7_gate.rs`, `services/Manifesto/tests/apparatus_p3_t2_gate.rs`
+   - `services/Manifesto/tests/apparatus_p3_t1_absence.rs` ; Lazaret `services/Lazaret/tests/apparatus_p3_t7_invoke.rs` (+ t8…t13)
    - Contrats P0 : `apparatus-contracts` (digest canonique, protocole `manifesto-apparatus/1`, **pas** `trusted_skip_gateway`)
    - Harness `test-harness` : double de test, **jamais** `VALID`/`VERIFIED`
 
@@ -94,7 +94,7 @@ Skills : `.cursor/skills/rustycog/SKILL.md` (et `.agents/skills/rustycog/SKILL.m
 
 ## Périmètre P4 obligatoire (TDD, une tranche après l’autre) — slice-1 P4-core **après Accept 0008**
 
-Invariants **toujours vrais** (sauf ADR Accepted qui les lève — 0008 **ne** lève **pas** G/E, **ne** SuperSède **pas** 0003/0005) : pas de second UUID public ; identité = `project_components.id` ; 1:1 ; `source` ∈ `legacy|managed` ; pas de nouveau type FGA ; `/components` = 5 ; 0 `gateway` sous `Manifesto/*/src` ; `invoke` serveur = Lazaret ; pas de `trusted_skip_gateway` ; un seul protocole ; harness ≠ production ; pas de `VALID`/`VERIFIED` émis par le harness ; register Manifesto ≠ admission ; workers **OS-distincts** (0003) : build / conformance / signer / contrôleur ; sécurité d’abord.
+Invariants **toujours vrais** (sauf ADR Accepted qui les lève — 0008 **ne** lève **pas** G/E, **ne** SuperSède **pas** 0003/0005) : pas de second UUID public ; identité = `project_components.id` ; 1:1 ; `source` ∈ `legacy|managed` ; pas de nouveau type FGA ; `/components` = 5 ; 0 `gateway` sous `services/Manifesto/*/src` ; `invoke` serveur = Lazaret ; pas de `trusted_skip_gateway` ; un seul protocole ; harness ≠ production ; pas de `VALID`/`VERIFIED` émis par le harness ; register Manifesto ≠ admission ; workers **OS-distincts** (0003) : build / conformance / signer / contrôleur ; sécurité d’abord.
 
 **IN slice-1 (après Accept 0008)** : Git → digest **canonique** (0002) → package → conformance → signature → registry → **admission indépendante**. Refus 0005 (digest altéré, manifeste non conforme, signature inattendue, politique runtime manquante). Image de test **plateforme** avant soumissions tierces. Worker **malveillant** sans clés ni accès plateforme. Adaptateur de runtime **seulement si 0008 le nomme**. En fin de slice-1 : 0002/0003/0005 **restent Partial**.
 
@@ -138,7 +138,7 @@ Checklist Phase 0 (**tranchée** sauf mentions) :
 
 Autorisé **uniquement** par ADR **déjà Accepted** : 0005 (pas d’auto-admission, pas de `VALID`/`VERIFIED` harness, pas de `trusted_skip_gateway`) + 0003 (harness ≠ production, pas de plugin in-process) + 0002 (Factory absente) + gates P2/P3.
 
-- RED : `Manifesto/tests/apparatus_p4_t1_absence.rs` : pas de pipeline Git→package→admission en prod ; harness sans `VALID`/`VERIFIED` ; DTO sans `trusted_skip_gateway` ; 0 `gateway` Manifesto src ; `/components` = 5 ; `ApparatusRuntime` sans `invoke` ; tokens `k8s`/`kubernetes`/`wasm`/`iframe`/`messagechannel`/`apparatus_host`/`ui_host` toujours interdits **dans Manifesto** ; **ne pas** créer `Factory/` ; **ne pas** retargeter les gates. **Ne pas** ajouter de SQL.
+- RED : `services/Manifesto/tests/apparatus_p4_t1_absence.rs` : pas de pipeline Git→package→admission en prod ; harness sans `VALID`/`VERIFIED` ; DTO sans `trusted_skip_gateway` ; 0 `gateway` Manifesto src ; `/components` = 5 ; `ApparatusRuntime` sans `invoke` ; tokens `k8s`/`kubernetes`/`wasm`/`iframe`/`messagechannel`/`apparatus_host`/`ui_host` toujours interdits **dans Manifesto** ; **ne pas** créer `Factory/` ; **ne pas** retargeter les gates. **Ne pas** ajouter de SQL.
 - GREEN : caractérisation seulement.
 - Sortie : baseline verte. Interdit : workers, registry, signature, adaptateur, scaffold BC.
 

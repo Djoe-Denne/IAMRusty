@@ -3,10 +3,10 @@ title: Hive Data Model and Schema
 category: references
 tags: [reference, schema, organizations, visibility/internal]
 sources:
-  - Hive/infra/src/repository/entity/hive_database_schema.sql
+  - services/Hive/infra/src/repository/entity/hive_database_schema.sql
   - Hive/domain/src/service/permission_service.rs
-  - Hive/domain/src/service/external_provider_service.rs
-  - Hive/domain/src/service/sync_service.rs
+  - services/Hive/domain/src/service/external_provider_service.rs
+  - services/Hive/domain/src/service/sync_service.rs
 summary: Hive persists organizations, members, invitations, external links, sync jobs, and permission resources in a schema that mirrors its service boundaries.
 provenance:
   extracted: 0.81

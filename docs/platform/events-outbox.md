@@ -11,7 +11,7 @@ Les services publient des événements domaine (crates `*-events`). Le routage S
 | Manifesto | `project_created`, `project_visibility_changed`, `project_published`, `project_archived`, `component_*`, `member_*`, `permission_*` | `sentinel-sync-events` ; **`component_removed` fan-out aussi vers `lazaret-kv-events`** |
 | Telegraph | `notification_created` | `sentinel-sync-events` |
 
-Tests : mêmes clés, préfixe `test-` (`test-telegraph-events`, `test-sentinel-sync-events`, `test-lazaret-kv-events`). `queue.enabled = false` dans les TOML test/dev par défaut — activer explicitement (`HIVE_QUEUE__ENABLED=true`, etc.) pour les suites transport. Exception : `Lazaret/config/development.toml` a `queue.enabled = true` (consommateur `lazaret-kv-events`).
+Tests : mêmes clés, préfixe `test-` (`test-telegraph-events`, `test-sentinel-sync-events`, `test-lazaret-kv-events`). `queue.enabled = false` dans les TOML test/dev par défaut — activer explicitement (`HIVE_QUEUE__ENABLED=true`, etc.) pour les suites transport. Exception : `services/Lazaret/config/development.toml` a `queue.enabled = true` (consommateur `lazaret-kv-events`).
 
 ## Consommateurs
 
@@ -20,7 +20,7 @@ Tests : mêmes clés, préfixe `test-` (`test-telegraph-events`, `test-sentinel-
 - **Manifesto** peut aussi *consommer* `component_status_changed` (apparatus) si la queue est réellement résolue.
 - **Lazaret** lit `lazaret-kv-events` (tests : `test-lazaret-kv-events`) et purge le namespace KV du binding sur `component_removed` seulement.
 
-Un événement sans bras translator : `None` — pas d’erreur, **pas de tuple**. Ajouter un event AuthZ-relevant sans mettre à jour `sentinel-sync/src/translator/` = store FGA à la dérive.
+Un événement sans bras translator : `None` — pas d’erreur, **pas de tuple**. Ajouter un event AuthZ-relevant sans mettre à jour `workers/sentinel-sync/src/translator/` = store FGA à la dérive.
 
 ## Traductions FGA (essentiel)
 

@@ -5,35 +5,35 @@
   "rule": "8 lanes disjointes — inventaire 446 OPEN",
   "lockedLanes": [
     "Telegraph#tests",
-    "IAMRusty/http#src",
+    "services/IAMRusty/http#src",
     "readiness#src",
-    "Telegraph/application#src",
-    "Hive/domain#src",
-    "Hive/infra#src",
+    "services/Telegraph/application#src",
+    "services/Hive/domain#src",
+    "services/Hive/infra#src",
     "sentinel-sync#src",
-    "IAMRusty/setup#src",
-    "Hive/setup#src",
-    "Hive/migration#src",
-    "Telegraph/setup#src",
-    "IAMRusty/infra#src"
+    "services/IAMRusty/setup#src",
+    "services/Hive/setup#src",
+    "services/Hive/migration#src",
+    "services/Telegraph/setup#src",
+    "services/IAMRusty/infra#src"
   ],
   "self": {
     "batches": ["B001", "B002", "B003", "B005", "B008", "B009", "B013", "B014"],
     "lanes": [
       "Telegraph#tests",
-      "Hive/domain#src",
-      "Hive/infra#src",
-      "IAMRusty/http#src",
-      "Telegraph/application#src",
+      "services/Hive/domain#src",
+      "services/Hive/infra#src",
+      "services/IAMRusty/http#src",
+      "services/Telegraph/application#src",
       "readiness#src"
     ]
   },
   "agents": [
     { "batch": "B004", "lane": "sentinel-sync#src", "id": "04e11019-43a4-465e-9491-7ea9c2ec30af" },
-    { "batch": "B006", "lane": "IAMRusty/setup#src", "id": "a65c9826-8496-4043-ae23-760e1fac6628" },
-    { "batch": "B007", "lane": "Hive/setup#src", "id": "1b7873c8-e177-4c5f-aec7-b78bc560da34" },
-    { "batch": "B010", "lane": "Hive/migration#src", "id": "2b443bc0-767c-420f-bee0-45f7703214c9" },
-    { "batch": "B011", "lane": "Telegraph/setup#src", "id": "ab398108-c6f3-47b8-a49d-7fc899d8d8dd" },
-    { "batch": "B015", "lane": "IAMRusty/infra#src", "id": "0c30c512-ce44-4147-b1a7-8445caaa0c3c" }
+    { "batch": "B006", "lane": "services/IAMRusty/setup#src", "id": "a65c9826-8496-4043-ae23-760e1fac6628" },
+    { "batch": "B007", "lane": "services/Hive/setup#src", "id": "1b7873c8-e177-4c5f-aec7-b78bc560da34" },
+    { "batch": "B010", "lane": "services/Hive/migration#src", "id": "2b443bc0-767c-420f-bee0-45f7703214c9" },
+    { "batch": "B011", "lane": "services/Telegraph/setup#src", "id": "ab398108-c6f3-47b8-a49d-7fc899d8d8dd" },
+    { "batch": "B015", "lane": "services/IAMRusty/infra#src", "id": "0c30c512-ce44-4147-b1a7-8445caaa0c3c" }
   ]
 }

@@ -1,0 +1,42 @@
+[package]
+name = "manifesto-http_server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Manifesto HTTP server and REST API"
+license.workspace = true
+
+[dependencies]
+# Internal dependencies
+manifesto-domain = { path = "../domain" }
+manifesto-application = { path = "../application" }
+manifesto-infra = { path = "../infra" }
+manifesto-configuration = { path = "../configuration" }
+
+# Shared crates
+readiness = { path = "../../../crates/readiness" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+
+# Web framework
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+
+# Utilities
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+anyhow = { workspace = true }
+validator = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+
+

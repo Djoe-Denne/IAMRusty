@@ -169,7 +169,7 @@
     "projects/lazaret/lazaret.md"
    ]
   },
-  "Lazaret/README.md": {
+  "services/Lazaret/README.md": {
    "ingested_at": "2026-09-17T10:55:00Z",
    "size_bytes": 660,
    "modified_at": "2026-09-13T17:24:42.585Z",
@@ -372,7 +372,7 @@
     "projects/manifesto/concepts/apparatus-p2-reconciliation.md"
    ]
   },
-  "Manifesto/migration/src/m20260912_000013_apparatus_p2_runtime.rs": {
+  "services/Manifesto/migration/src/m20260912_000013_apparatus_p2_runtime.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 9180,
    "modified_at": "2026-09-13T09:58:37.750Z",
@@ -384,7 +384,7 @@
     "projects/manifesto/concepts/apparatus-p2-reconciliation.md"
    ]
   },
-  "Manifesto/infra/src/apparatus_outbox.rs": {
+  "services/Manifesto/infra/src/apparatus_outbox.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 6632,
    "modified_at": "2026-09-12T12:21:32.310Z",
@@ -396,7 +396,7 @@
     "projects/manifesto/concepts/apparatus-p2-reconciliation.md"
    ]
   },
-  "Manifesto/infra/src/apparatus_runtime/mod.rs": {
+  "services/Manifesto/infra/src/apparatus_runtime/mod.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 1266,
    "modified_at": "2026-09-12T12:48:22.992Z",
@@ -408,7 +408,7 @@
     "projects/manifesto/concepts/apparatus-p2-reconciliation.md"
    ]
   },
-  "Manifesto/infra/src/apparatus_runtime/cas.rs": {
+  "services/Manifesto/infra/src/apparatus_runtime/cas.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 2764,
    "modified_at": "2026-09-12T12:42:04.783Z",
@@ -420,7 +420,7 @@
     "projects/manifesto/concepts/apparatus-p2-reconciliation.md"
    ]
   },
-  "Manifesto/infra/src/apparatus_runtime/tick.rs": {
+  "services/Manifesto/infra/src/apparatus_runtime/tick.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 6430,
    "modified_at": "2026-09-13T09:58:45.771Z",
@@ -432,7 +432,7 @@
     "projects/manifesto/concepts/apparatus-p2-reconciliation.md"
    ]
   },
-  "Manifesto/infra/src/apparatus_runtime/cleanup.rs": {
+  "services/Manifesto/infra/src/apparatus_runtime/cleanup.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 2437,
    "modified_at": "2026-09-13T09:58:46.264Z",
@@ -444,7 +444,7 @@
     "projects/manifesto/concepts/apparatus-p2-reconciliation.md"
    ]
   },
-  "Manifesto/infra/src/apparatus_runtime/in_process.rs": {
+  "services/Manifesto/infra/src/apparatus_runtime/in_process.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 5548,
    "modified_at": "2026-09-12T12:49:18.292Z",
@@ -456,7 +456,7 @@
     "projects/manifesto/concepts/apparatus-p2-reconciliation.md"
    ]
   },
-  "Manifesto/setup/src/apparatus_runtime.rs": {
+  "services/Manifesto/setup/src/apparatus_runtime.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 1330,
    "modified_at": "2026-09-12T12:44:55.031Z",
@@ -468,7 +468,7 @@
     "projects/manifesto/concepts/apparatus-p2-reconciliation.md"
    ]
   },
-  "Manifesto/infra/src/event/processors/component_processor.rs": {
+  "services/Manifesto/infra/src/event/processors/component_processor.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 5782,
    "modified_at": "2026-09-12T11:36:10.566Z",
@@ -480,7 +480,7 @@
     "projects/manifesto/concepts/apparatus-p2-reconciliation.md"
    ]
   },
-  "Manifesto/infra/src/transaction.rs": {
+  "services/Manifesto/infra/src/transaction.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 34389,
    "modified_at": "2026-09-12T12:23:55.584Z",
@@ -492,7 +492,7 @@
     "projects/manifesto/concepts/apparatus-p2-reconciliation.md"
    ]
   },
-  "Manifesto/tests/apparatus_p2_t1_events.rs": {
+  "services/Manifesto/tests/apparatus_p2_t1_events.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 8282,
    "modified_at": "2026-09-12T11:36:10.693Z",
@@ -504,7 +504,7 @@
     "projects/aiforall/skills/running-apparatus-p2-tests.md"
    ]
   },
-  "Manifesto/tests/apparatus_p2_t1_lookup.rs": {
+  "services/Manifesto/tests/apparatus_p2_t1_lookup.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 2237,
    "modified_at": "2026-09-12T11:36:10.697Z",
@@ -516,7 +516,7 @@
     "projects/aiforall/skills/running-apparatus-p2-tests.md"
    ]
   },
-  "Manifesto/tests/apparatus_p2_t2_migration.rs": {
+  "services/Manifesto/tests/apparatus_p2_t2_migration.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 14460,
    "modified_at": "2026-09-12T12:08:23.339Z",
@@ -528,7 +528,7 @@
     "projects/aiforall/skills/running-apparatus-p2-tests.md"
    ]
   },
-  "Manifesto/tests/apparatus_p2_t3_persist.rs": {
+  "services/Manifesto/tests/apparatus_p2_t3_persist.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 11389,
    "modified_at": "2026-09-12T12:23:55.714Z",
@@ -540,7 +540,7 @@
     "projects/aiforall/skills/running-apparatus-p2-tests.md"
    ]
   },
-  "Manifesto/tests/apparatus_p2_t4_resume.rs": {
+  "services/Manifesto/tests/apparatus_p2_t4_resume.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 6719,
    "modified_at": "2026-09-12T12:49:18.471Z",
@@ -552,7 +552,7 @@
     "projects/aiforall/skills/running-apparatus-p2-tests.md"
    ]
   },
-  "Manifesto/tests/apparatus_p2_t5_tick.rs": {
+  "services/Manifesto/tests/apparatus_p2_t5_tick.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 12653,
    "modified_at": "2026-09-13T09:59:04.017Z",
@@ -564,7 +564,7 @@
     "projects/aiforall/skills/running-apparatus-p2-tests.md"
    ]
   },
-  "Manifesto/tests/apparatus_p2_t6_runtime.rs": {
+  "services/Manifesto/tests/apparatus_p2_t6_runtime.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 5090,
    "modified_at": "2026-09-12T12:49:18.488Z",
@@ -576,7 +576,7 @@
     "projects/aiforall/skills/running-apparatus-p2-tests.md"
    ]
   },
-  "Manifesto/tests/apparatus_p2_t7_cleanup.rs": {
+  "services/Manifesto/tests/apparatus_p2_t7_cleanup.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 4614,
    "modified_at": "2026-09-12T12:49:18.492Z",
@@ -588,7 +588,7 @@
     "projects/aiforall/skills/running-apparatus-p2-tests.md"
    ]
   },
-  "Manifesto/tests/apparatus_p2_t7_gate.rs": {
+  "services/Manifesto/tests/apparatus_p2_t7_gate.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 5056,
    "modified_at": "2026-09-12T12:47:38.859Z",
@@ -1142,7 +1142,7 @@
     "projects/manifesto/references/manifesto-runtime-and-configuration.md"
    ]
   },
-  "IAMRusty/README.md": {
+  "services/IAMRusty/README.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 15874,
    "modified_at": "2025-07-28T12:35:03.9179655Z",
@@ -1159,7 +1159,7 @@
     "concepts/event-driven-microservice-platform.md"
    ]
   },
-  "IAMRusty/docs/ARCHITECTURE.md": {
+  "services/IAMRusty/docs/ARCHITECTURE.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 21318,
    "modified_at": "2025-07-28T12:35:03.9427504Z",
@@ -1176,7 +1176,7 @@
     "references/iamrusty-service.md"
    ]
   },
-  "IAMRusty/docs/API_REFERENCE.md": {
+  "services/IAMRusty/docs/API_REFERENCE.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 17663,
    "modified_at": "2025-07-28T12:35:03.9417434Z",
@@ -1190,7 +1190,7 @@
     "projects/iamrusty/iamrusty.md"
    ]
   },
-  "IAMRusty/docs/DATABASE_CONFIGURATION.md": {
+  "services/IAMRusty/docs/DATABASE_CONFIGURATION.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 14660,
    "modified_at": "2025-07-28T12:35:03.9438067Z",
@@ -1205,7 +1205,7 @@
     "projects/iamrusty/iamrusty.md"
    ]
   },
-  "IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md": {
+  "services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 10775,
    "modified_at": "2025-07-28T12:35:03.9478847Z",
@@ -1220,7 +1220,7 @@
     "references/iamrusty-runtime-and-security.md"
    ]
   },
-  "IAMRusty/docs/OAUTH_SECURITY_GUIDE.md": {
+  "services/IAMRusty/docs/OAUTH_SECURITY_GUIDE.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 21436,
    "modified_at": "2025-07-28T12:35:03.9498899Z",
@@ -1236,7 +1236,7 @@
     "references/iamrusty-runtime-and-security.md"
    ]
   },
-  "IAMRusty/docs/COMMAND_PATTERN.md": {
+  "services/IAMRusty/docs/COMMAND_PATTERN.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 27896,
    "modified_at": "2025-07-28T12:35:03.9438067Z",
@@ -1251,7 +1251,7 @@
     "projects/iamrusty/iamrusty.md"
    ]
   },
-  "IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md": {
+  "services/IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 13681,
    "modified_at": "2025-07-28T12:35:03.9438067Z",
@@ -1265,7 +1265,7 @@
     "references/iamrusty-command-execution.md"
    ]
   },
-  "IAMRusty/docs/TESTING_GUIDE.md": {
+  "services/IAMRusty/docs/TESTING_GUIDE.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 12423,
    "modified_at": "2025-07-28T12:35:03.9519192Z",
@@ -1282,7 +1282,7 @@
     "skills/testing-rust-services-with-fixtures.md"
    ]
   },
-  "IAMRusty/docs/FIXTURES_GUIDE.md": {
+  "services/IAMRusty/docs/FIXTURES_GUIDE.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 9924,
    "modified_at": "2025-07-28T12:35:03.9463206Z",
@@ -1297,7 +1297,7 @@
     "skills/testing-rust-services-with-fixtures.md"
    ]
   },
-  "IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md": {
+  "services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 12518,
    "modified_at": "2025-07-28T12:35:03.9508899Z",
@@ -1309,7 +1309,7 @@
    ],
    "pages_updated": []
   },
-  "IAMRusty/docs/EMAIL_PASSWORD_AUTH_GUIDE.md": {
+  "services/IAMRusty/docs/EMAIL_PASSWORD_AUTH_GUIDE.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 22851,
    "modified_at": "2025-07-28T12:35:03.9453143Z",
@@ -1321,7 +1321,7 @@
     "references/iamrusty-api-and-auth-flows.md"
    ]
   },
-  "IAMRusty/docs/ERROR_HANDLING_GUIDE.md": {
+  "services/IAMRusty/docs/ERROR_HANDLING_GUIDE.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 22966,
    "modified_at": "2025-07-28T12:35:03.9463206Z",
@@ -1333,7 +1333,7 @@
     "references/iamrusty-api-and-auth-flows.md"
    ]
   },
-  "IAMRusty/docs/INPUT_VALIDATION_GUIDE.md": {
+  "services/IAMRusty/docs/INPUT_VALIDATION_GUIDE.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 20998,
    "modified_at": "2025-07-28T12:35:03.9478847Z",
@@ -1345,7 +1345,7 @@
     "references/iamrusty-api-and-auth-flows.md"
    ]
   },
-  "IAMRusty/docs/KAFKA_INTEGRATION.md": {
+  "services/IAMRusty/docs/KAFKA_INTEGRATION.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 9648,
    "modified_at": "2025-07-28T12:35:03.9488911Z",
@@ -1357,7 +1357,7 @@
     "references/iamrusty-runtime-and-security.md"
    ]
   },
-  "IAMRusty/docs/KAFKA_EVENT_TESTING_GUIDE.md": {
+  "services/IAMRusty/docs/KAFKA_EVENT_TESTING_GUIDE.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 8153,
    "modified_at": "2025-07-28T12:35:03.9488911Z",
@@ -1370,7 +1370,7 @@
     "references/iamrusty-testing-and-fixtures.md"
    ]
   },
-  "IAMRusty/docs/DEPLOYMENT_GUIDE.md": {
+  "services/IAMRusty/docs/DEPLOYMENT_GUIDE.md": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 12841,
    "modified_at": "2025-07-28T12:35:03.9453143Z",
@@ -1382,7 +1382,7 @@
     "references/iamrusty-runtime-and-security.md"
    ]
   },
-  "IAMRusty/setup/src/app.rs": {
+  "services/IAMRusty/setup/src/app.rs": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 16833,
    "modified_at": "2025-09-19T08:58:42.4814028Z",
@@ -1398,7 +1398,7 @@
     "skills/extending-iamrusty-with-oauth-providers.md"
    ]
   },
-  "IAMRusty/http/src/lib.rs": {
+  "services/IAMRusty/http/src/lib.rs": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 2833,
    "modified_at": "2025-09-19T08:57:54.6159485Z",
@@ -1413,7 +1413,7 @@
     "references/iamrusty-service.md"
    ]
   },
-  "IAMRusty/http/src/handlers/auth.rs": {
+  "services/IAMRusty/http/src/handlers/auth.rs": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 38451,
    "modified_at": "2025-07-29T09:44:47.0936148Z",
@@ -1428,7 +1428,7 @@
     "skills/extending-iamrusty-with-oauth-providers.md"
    ]
   },
-  "IAMRusty/http/src/oauth_state.rs": {
+  "services/IAMRusty/http/src/oauth_state.rs": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 3573,
    "modified_at": "2025-07-28T12:35:03.9730731Z",
@@ -1441,7 +1441,7 @@
     "references/iamrusty-runtime-and-security.md"
    ]
   },
-  "IAMRusty/domain/src/service/oauth_service.rs": {
+  "services/IAMRusty/domain/src/service/oauth_service.rs": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 8933,
    "modified_at": "2025-07-28T12:35:03.9639536Z",
@@ -1453,7 +1453,7 @@
     "references/iamrusty-api-and-auth-flows.md"
    ]
   },
-  "IAMRusty/domain/src/service/provider_link_service.rs": {
+  "services/IAMRusty/domain/src/service/provider_link_service.rs": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 10435,
    "modified_at": "2025-07-29T09:44:47.0682265Z",
@@ -1465,7 +1465,7 @@
     "concepts/oauth-provider-linking.md"
    ]
   },
-  "IAMRusty/domain/src/service/auth_service.rs": {
+  "services/IAMRusty/domain/src/service/auth_service.rs": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 23965,
    "modified_at": "2025-07-29T09:44:47.0616175Z",
@@ -1477,7 +1477,7 @@
     "references/iamrusty-api-and-auth-flows.md"
    ]
   },
-  "IAMRusty/application/src/command/factory.rs": {
+  "services/IAMRusty/application/src/command/factory.rs": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 20263,
    "modified_at": "2025-07-29T09:44:47.0269173Z",
@@ -1490,7 +1490,7 @@
     "references/iamrusty-command-execution.md"
    ]
   },
-  "IAMRusty/application/src/usecase/password_reset.rs": {
+  "services/IAMRusty/application/src/usecase/password_reset.rs": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 13013,
    "modified_at": "2025-07-29T09:44:47.0381626Z",
@@ -1502,7 +1502,7 @@
     "references/iamrusty-api-and-auth-flows.md"
    ]
   },
-  "IAMRusty/configuration/src/lib.rs": {
+  "services/IAMRusty/configuration/src/lib.rs": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 19355,
    "modified_at": "2025-10-07T12:33:58.3375831Z",
@@ -1516,7 +1516,7 @@
     "references/iamrusty-runtime-and-security.md"
    ]
   },
-  "IAMRusty/config/default.toml": {
+  "services/IAMRusty/config/default.toml": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 1787,
    "modified_at": "2025-07-28T12:35:03.9354899Z",
@@ -1529,7 +1529,7 @@
     "references/iamrusty-runtime-and-security.md"
    ]
   },
-  "IAMRusty/config/test.toml": {
+  "services/IAMRusty/config/test.toml": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 2254,
    "modified_at": "2025-09-19T08:58:54.2856177Z",
@@ -1544,7 +1544,7 @@
     "references/iamrusty-runtime-and-security.md"
    ]
   },
-  "IAMRusty/tests/fixtures/db/mod.rs": {
+  "services/IAMRusty/tests/fixtures/db/mod.rs": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 4570,
    "modified_at": "2025-07-29T09:44:47.1564719Z",
@@ -1558,7 +1558,7 @@
     "skills/testing-rust-services-with-fixtures.md"
    ]
   },
-  "IAMRusty/tests/signup_kafka.rs": {
+  "services/IAMRusty/tests/signup_kafka.rs": {
    "ingested_at": "2026-04-14T17:46:37.6929647Z",
    "size_bytes": 7587,
    "modified_at": "2025-07-29T09:44:47.6016181Z",
@@ -1590,7 +1590,7 @@
     "references/telegraph-service.md"
    ]
   },
-  "Telegraph/openspecs.yaml": {
+  "services/Telegraph/openspecs.yaml": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 11329,
    "modified_at": "2025-07-28T12:35:04.1040415Z",
@@ -1604,7 +1604,7 @@
     "projects/telegraph/telegraph.md"
    ]
   },
-  "Telegraph/config/default.toml": {
+  "services/Telegraph/config/default.toml": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 1669,
    "modified_at": "2025-07-28T12:35:04.0681614Z",
@@ -1619,7 +1619,7 @@
     "references/telegraph-runtime-and-configuration.md"
    ]
   },
-  "Telegraph/config/development.toml": {
+  "services/Telegraph/config/development.toml": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 1854,
    "modified_at": "2025-07-28T12:35:04.0691624Z",
@@ -1635,7 +1635,7 @@
     "skills/building-event-driven-notification-services.md"
    ]
   },
-  "Telegraph/config/test.toml": {
+  "services/Telegraph/config/test.toml": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 1794,
    "modified_at": "2025-09-18T10:18:58.3515260Z",
@@ -1650,7 +1650,7 @@
     "references/telegraph-testing-and-smtp-fixtures.md"
    ]
   },
-  "Telegraph/configuration/src/lib.rs": {
+  "services/Telegraph/configuration/src/lib.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 10792,
    "modified_at": "2025-10-07T08:07:12.2392386Z",
@@ -1666,7 +1666,7 @@
     "references/telegraph-service.md"
    ]
   },
-  "Telegraph/setup/src/app.rs": {
+  "services/Telegraph/setup/src/app.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 10665,
    "modified_at": "2025-09-18T10:08:36.3993875Z",
@@ -1685,7 +1685,7 @@
     "references/telegraph-runtime-and-configuration.md"
    ]
   },
-  "Telegraph/http/src/lib.rs": {
+  "services/Telegraph/http/src/lib.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 1436,
    "modified_at": "2025-09-18T10:19:41.0876986Z",
@@ -1700,7 +1700,7 @@
     "concepts/resource-scoped-permission-fetchers.md"
    ]
   },
-  "Telegraph/http/src/handlers/notification.rs": {
+  "services/Telegraph/http/src/handlers/notification.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 5745,
    "modified_at": "2025-07-29T09:44:47.7534537Z",
@@ -1712,7 +1712,7 @@
     "references/telegraph-http-and-notification-api.md"
    ]
   },
-  "Telegraph/http/src/handlers/communication.rs": {
+  "services/Telegraph/http/src/handlers/communication.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 1697,
    "modified_at": "2025-07-29T09:44:47.7514529Z",
@@ -1737,7 +1737,7 @@
     "references/telegraph-http-and-notification-api.md"
    ]
   },
-  "Telegraph/application/src/command/factory.rs": {
+  "services/Telegraph/application/src/command/factory.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 4147,
    "modified_at": "2025-07-29T09:44:47.7227579Z",
@@ -1750,7 +1750,7 @@
     "concepts/queue-driven-command-processing.md"
    ]
   },
-  "Telegraph/application/src/usecase/event_processing.rs": {
+  "services/Telegraph/application/src/usecase/event_processing.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 2641,
    "modified_at": "2025-07-29T09:44:47.7272198Z",
@@ -1763,7 +1763,7 @@
     "references/telegraph-event-processing.md"
    ]
   },
-  "Telegraph/domain/src/service/notification_service.rs": {
+  "services/Telegraph/domain/src/service/notification_service.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 3787,
    "modified_at": "2025-09-18T10:05:50.6473817Z",
@@ -1788,7 +1788,7 @@
     "concepts/resource-scoped-permission-fetchers.md"
    ]
   },
-  "Telegraph/domain/src/service/communication_factory.rs": {
+  "services/Telegraph/domain/src/service/communication_factory.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 9287,
    "modified_at": "2025-07-29T09:44:47.7469341Z",
@@ -1803,7 +1803,7 @@
     "skills/building-event-driven-notification-services.md"
    ]
   },
-  "Telegraph/domain/src/entity/communication.rs": {
+  "services/Telegraph/domain/src/entity/communication.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 2890,
    "modified_at": "2025-07-29T09:44:47.7368513Z",
@@ -1816,7 +1816,7 @@
     "projects/telegraph/references/telegraph-entity-model.md"
    ]
   },
-  "Telegraph/infra/src/event/consumer.rs": {
+  "services/Telegraph/infra/src/event/consumer.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 6134,
    "modified_at": "2025-07-29T09:44:47.7656905Z",
@@ -1833,7 +1833,7 @@
     "skills/building-event-driven-notification-services.md"
    ]
   },
-  "Telegraph/infra/src/event/processors/mod.rs": {
+  "services/Telegraph/infra/src/event/processors/mod.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 5711,
    "modified_at": "2025-09-18T09:43:11.3041415Z",
@@ -1846,7 +1846,7 @@
     "references/telegraph-event-processing.md"
    ]
   },
-  "Telegraph/infra/src/event/processors/email.rs": {
+  "services/Telegraph/infra/src/event/processors/email.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 2236,
    "modified_at": "2025-07-29T09:44:47.7681887Z",
@@ -1858,7 +1858,7 @@
     "references/telegraph-event-processing.md"
    ]
   },
-  "Telegraph/infra/src/event/processors/notification.rs": {
+  "services/Telegraph/infra/src/event/processors/notification.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 3055,
    "modified_at": "2025-09-18T09:43:02.2375737Z",
@@ -1870,7 +1870,7 @@
     "references/telegraph-event-processing.md"
    ]
   },
-  "Telegraph/infra/src/template/tera_service.rs": {
+  "services/Telegraph/infra/src/template/tera_service.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 10968,
    "modified_at": "2025-09-18T11:38:52.5987293Z",
@@ -1882,7 +1882,7 @@
     "concepts/descriptor-driven-communications.md"
    ]
   },
-  "Telegraph/migration/src/m20250201_000001_create_notification_tables.rs": {
+  "services/Telegraph/migration/src/m20250201_000001_create_notification_tables.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 9054,
    "modified_at": "2025-07-29T09:44:47.7849842Z",
@@ -1894,7 +1894,7 @@
     "concepts/multi-channel-delivery-modes.md"
    ]
   },
-  "Telegraph/resources/communication_descriptor/user_signed_up.toml": {
+  "services/Telegraph/resources/communication_descriptor/user_signed_up.toml": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 186,
    "modified_at": "2025-07-28T12:35:04.1065551Z",
@@ -1906,7 +1906,7 @@
     "concepts/descriptor-driven-communications.md"
    ]
   },
-  "Telegraph/resources/communication_descriptor/password_reset_requested.toml": {
+  "services/Telegraph/resources/communication_descriptor/password_reset_requested.toml": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 186,
    "modified_at": "2025-07-28T12:35:04.1055494Z",
@@ -1918,7 +1918,7 @@
     "concepts/descriptor-driven-communications.md"
    ]
   },
-  "Telegraph/resources/communication_descriptor/user_email_verified.toml": {
+  "services/Telegraph/resources/communication_descriptor/user_email_verified.toml": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 86,
    "modified_at": "2025-07-28T12:35:04.1055494Z",
@@ -1930,7 +1930,7 @@
     "concepts/descriptor-driven-communications.md"
    ]
   },
-  "Telegraph/resources/templates/user_signed_up_email.txt": {
+  "services/Telegraph/resources/templates/user_signed_up_email.txt": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 793,
    "modified_at": "2025-09-18T11:33:35.6725187Z",
@@ -1942,7 +1942,7 @@
     "concepts/descriptor-driven-communications.md"
    ]
   },
-  "Telegraph/resources/templates/user_email_verified_notification.txt": {
+  "services/Telegraph/resources/templates/user_email_verified_notification.txt": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 161,
    "modified_at": "2025-07-28T12:35:04.1100658Z",
@@ -1954,7 +1954,7 @@
     "concepts/descriptor-driven-communications.md"
    ]
   },
-  "Telegraph/resources/templates/password_reset_requested_email.html": {
+  "services/Telegraph/resources/templates/password_reset_requested_email.html": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 3079,
    "modified_at": "2025-07-28T12:35:04.1075559Z",
@@ -1966,7 +1966,7 @@
     "concepts/descriptor-driven-communications.md"
    ]
   },
-  "Telegraph/tests/common.rs": {
+  "services/Telegraph/tests/common.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 3713,
    "modified_at": "2025-09-18T10:09:07.4942543Z",
@@ -1981,7 +1981,7 @@
     "skills/building-event-driven-notification-services.md"
    ]
   },
-  "Telegraph/tests/notification_http_endpoints_test.rs": {
+  "services/Telegraph/tests/notification_http_endpoints_test.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 25374,
    "modified_at": "2025-09-18T10:51:58.5987138Z",
@@ -1994,7 +1994,7 @@
     "references/telegraph-testing-and-smtp-fixtures.md"
    ]
   },
-  "Telegraph/tests/user_signup_event_test.rs": {
+  "services/Telegraph/tests/user_signup_event_test.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 10720,
    "modified_at": "2025-09-18T11:38:39.6807036Z",
@@ -2008,7 +2008,7 @@
     "references/telegraph-testing-and-smtp-fixtures.md"
    ]
   },
-  "Telegraph/tests/user_email_verified_event_test.rs": {
+  "services/Telegraph/tests/user_email_verified_event_test.rs": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 12115,
    "modified_at": "2025-07-29T09:44:47.9651533Z",
@@ -2022,7 +2022,7 @@
     "references/telegraph-testing-and-smtp-fixtures.md"
    ]
   },
-  "Telegraph/docker-compose.yml": {
+  "services/Telegraph/docker-compose.yml": {
    "ingested_at": "2026-04-14T18:18:24.0602572Z",
    "size_bytes": 791,
    "modified_at": "2025-07-28T12:35:04.0716712Z",
@@ -2048,7 +2048,7 @@
     "projects/manifesto/references/manifesto-service.md"
    ]
   },
-  "Manifesto/README.md": {
+  "services/Manifesto/README.md": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 5583,
    "modified_at": "2026-02-21T22:00:37.2142177Z",
@@ -2064,7 +2064,7 @@
     "projects/manifesto/references/manifesto-service.md"
    ]
   },
-  "Manifesto/SETUP.md": {
+  "services/Manifesto/SETUP.md": {
    "ingested_at": "2026-04-14T20:08:52.0803248Z",
    "size_bytes": 5697,
    "modified_at": "2025-10-19T14:27:42.3942734Z",
@@ -2078,7 +2078,7 @@
     "projects/manifesto/references/manifesto-service.md"
    ]
   },
-  "Manifesto/application/src/usecase/project.rs": {
+  "services/Manifesto/application/src/usecase/project.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 15122,
    "modified_at": "2026-04-12T14:45:52.8812021Z",
@@ -2092,7 +2092,7 @@
     "projects/manifesto/references/manifesto-event-model.md"
    ]
   },
-  "Manifesto/application/src/usecase/component.rs": {
+  "services/Manifesto/application/src/usecase/component.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 9019,
    "modified_at": "2025-12-10T09:51:05.7595714Z",
@@ -2107,7 +2107,7 @@
     "projects/manifesto/references/manifesto-event-model.md"
    ]
   },
-  "Manifesto/application/src/usecase/member.rs": {
+  "services/Manifesto/application/src/usecase/member.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 16209,
    "modified_at": "2025-12-10T09:51:10.2008962Z",
@@ -2121,7 +2121,7 @@
     "projects/manifesto/references/manifesto-event-model.md"
    ]
   },
-  "Manifesto/domain/src/service/permission_service.rs": {
+  "services/Manifesto/domain/src/service/permission_service.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 7941,
    "modified_at": "2025-12-10T09:51:10.2018968Z",
@@ -2160,7 +2160,7 @@
     "projects/manifesto/references/manifesto-event-model.md"
    ]
   },
-  "Manifesto/infra/src/adapters/component_service_client.rs": {
+  "services/Manifesto/infra/src/adapters/component_service_client.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 3362,
    "modified_at": "2025-10-15T14:11:32.6619591Z",
@@ -2191,7 +2191,7 @@
     "concepts/shared-rust-microservice-sdk.md"
    ]
   },
-  "hive-events/README.md": {
+  "crates/hive-events/README.md": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 3065,
    "modified_at": "2025-07-28T14:52:30.0995181Z",
@@ -2209,7 +2209,7 @@
     "references/platform-building-blocks.md"
    ]
   },
-  "Manifesto/docs/rustycog-implementation-and-usage-guide.md": {
+  "services/Manifesto/docs/rustycog-implementation-and-usage-guide.md": {
    "ingested_at": "2026-04-14T20:08:52.0803248Z",
    "size_bytes": 8388,
    "modified_at": "2026-02-21T22:00:28.7003468Z",
@@ -2228,7 +2228,7 @@
     "concepts/shared-rust-microservice-sdk.md"
    ]
   },
-  "Manifesto/docs/rustycog-service-build-guide.md": {
+  "services/Manifesto/docs/rustycog-service-build-guide.md": {
    "ingested_at": "2026-04-14T20:08:52.0803248Z",
    "size_bytes": 19263,
    "modified_at": "2026-02-21T22:00:16.0259556Z",
@@ -2246,7 +2246,7 @@
     "projects/rustycog/rustycog.md"
    ]
   },
-  "Manifesto/docs/rustycog-hexagonal-web-service-guide.md": {
+  "services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md": {
    "ingested_at": "2026-04-14T20:08:52.0803248Z",
    "size_bytes": 12824,
    "modified_at": "2026-02-21T21:43:14.5534614Z",
@@ -2260,7 +2260,7 @@
     "skills/building-rustycog-services.md"
    ]
   },
-  "Manifesto/IMPLEMENTATION_STATUS.md": {
+  "services/Manifesto/IMPLEMENTATION_STATUS.md": {
    "ingested_at": "2026-04-14T20:08:52.0803248Z",
    "size_bytes": 22134,
    "modified_at": "2025-12-04T20:32:11.4333629Z",
@@ -2274,7 +2274,7 @@
     "projects/manifesto/references/manifesto-service.md"
    ]
   },
-  "Manifesto/src/main.rs": {
+  "services/Manifesto/src/main.rs": {
    "ingested_at": "2026-04-14T20:08:52.0803248Z",
    "size_bytes": 962,
    "modified_at": "2025-12-05T12:09:16.5148773Z",
@@ -2289,7 +2289,7 @@
     "skills/building-rustycog-services.md"
    ]
   },
-  "Manifesto/configuration/src/lib.rs": {
+  "services/Manifesto/configuration/src/lib.rs": {
    "ingested_at": "2026-04-14T20:08:52.0803248Z",
    "size_bytes": 7389,
    "modified_at": "2025-12-04T21:14:33.5582219Z",
@@ -2305,7 +2305,7 @@
     "skills/building-rustycog-services.md"
    ]
   },
-  "Manifesto/setup/src/app.rs": {
+  "services/Manifesto/setup/src/app.rs": {
    "ingested_at": "2026-09-13T10:25:00Z",
    "size_bytes": 21889,
    "modified_at": "2026-09-12T12:49:18.361Z",
@@ -2325,7 +2325,7 @@
     "skills/using-rustycog-testing.md"
    ]
   },
-  "Manifesto/http/src/lib.rs": {
+  "services/Manifesto/http/src/lib.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 4997,
    "modified_at": "2026-04-12T13:45:10.2820342Z",
@@ -2341,7 +2341,7 @@
     "concepts/resource-scoped-permission-fetchers.md"
    ]
   },
-  "Manifesto/application/src/command/factory.rs": {
+  "services/Manifesto/application/src/command/factory.rs": {
    "ingested_at": "2026-04-14T20:08:52.0803248Z",
    "size_bytes": 8625,
    "modified_at": "2025-12-07T07:51:39.1461668Z",
@@ -2355,7 +2355,7 @@
     "concepts/command-registry-and-retry-policies.md"
    ]
   },
-  "Manifesto/tests/common.rs": {
+  "services/Manifesto/tests/common.rs": {
    "ingested_at": "2026-04-22T17:30:00Z",
    "size_bytes": 4592,
    "modified_at": "2026-04-22T16:46:10.7690278Z",
@@ -2770,7 +2770,7 @@
     "references/rustycog-service-construction.md"
    ]
   },
-  "Hive/Cargo.toml": {
+  "services/Hive/Cargo.toml": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 2337,
    "modified_at": "2025-07-28T15:01:57.0492556Z",
@@ -2784,7 +2784,7 @@
     "references/hive-service.md"
    ]
   },
-  "Hive/openspecs.yaml": {
+  "services/Hive/openspecs.yaml": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 35524,
    "modified_at": "2025-07-28T13:51:21.6364538Z",
@@ -2800,7 +2800,7 @@
     "projects/hive/hive.md"
    ]
   },
-  "Hive/config/default.toml": {
+  "services/Hive/config/default.toml": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 915,
    "modified_at": "2025-08-24T14:49:27.7198161Z",
@@ -2815,7 +2815,7 @@
     "references/hive-runtime-and-configuration.md"
    ]
   },
-  "Hive/config/development.toml": {
+  "services/Hive/config/development.toml": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 948,
    "modified_at": "2025-08-24T14:49:28.6804354Z",
@@ -2828,7 +2828,7 @@
     "references/hive-runtime-and-configuration.md"
    ]
   },
-  "Hive/config/test.toml": {
+  "services/Hive/config/test.toml": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 820,
    "modified_at": "2025-09-18T13:53:46.6591836Z",
@@ -2843,7 +2843,7 @@
     "references/hive-testing-and-api-fixtures.md"
    ]
   },
-  "Hive/configuration/src/lib.rs": {
+  "services/Hive/configuration/src/lib.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 4229,
    "modified_at": "2025-10-07T12:36:49.3653696Z",
@@ -2858,7 +2858,7 @@
     "references/hive-service.md"
    ]
   },
-  "Hive/setup/src/app.rs": {
+  "services/Hive/setup/src/app.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 15654,
    "modified_at": "2025-09-08T07:11:59.7493693Z",
@@ -2876,7 +2876,7 @@
     "references/hive-runtime-and-configuration.md"
    ]
   },
-  "Hive/http/src/lib.rs": {
+  "services/Hive/http/src/lib.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 3569,
    "modified_at": "2025-08-18T08:03:01.7279134Z",
@@ -2892,7 +2892,7 @@
     "concepts/resource-scoped-permission-fetchers.md"
    ]
   },
-  "Hive/http/src/error.rs": {
+  "services/Hive/http/src/error.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 7623,
    "modified_at": "2025-09-03T11:00:43.7644756Z",
@@ -2904,7 +2904,7 @@
     "references/hive-http-api-and-openapi-drift.md"
    ]
   },
-  "Hive/http/src/handlers/invitations.rs": {
+  "services/Hive/http/src/handlers/invitations.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 4889,
    "modified_at": "2025-08-09T12:50:34.6794060Z",
@@ -2916,7 +2916,7 @@
     "concepts/invitation-driven-membership.md"
    ]
   },
-  "Hive/application/src/command/factory.rs": {
+  "services/Hive/application/src/command/factory.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 14391,
    "modified_at": "2025-07-29T09:44:46.9174268Z",
@@ -2934,7 +2934,7 @@
     "skills/building-organization-management-services.md"
    ]
   },
-  "Hive/application/src/dto/common.rs": {
+  "services/Hive/application/src/dto/common.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 6959,
    "modified_at": "2025-08-11T07:17:24.1928555Z",
@@ -2946,7 +2946,7 @@
     "references/hive-http-api-and-openapi-drift.md"
    ]
   },
-  "Hive/application/src/usecase/organization.rs": {
+  "services/Hive/application/src/usecase/organization.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 12878,
    "modified_at": "2025-08-09T13:53:52.8572649Z",
@@ -2960,7 +2960,7 @@
     "skills/building-organization-management-services.md"
    ]
   },
-  "Hive/application/src/usecase/invitation.rs": {
+  "services/Hive/application/src/usecase/invitation.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 5198,
    "modified_at": "2025-08-11T07:05:40.3920579Z",
@@ -2976,7 +2976,7 @@
     "skills/building-organization-management-services.md"
    ]
   },
-  "Hive/application/src/usecase/external_link.rs": {
+  "services/Hive/application/src/usecase/external_link.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 5073,
    "modified_at": "2025-09-08T09:35:57.5288846Z",
@@ -2990,7 +2990,7 @@
     "skills/building-organization-management-services.md"
    ]
   },
-  "Hive/application/src/usecase/sync_job.rs": {
+  "services/Hive/application/src/usecase/sync_job.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 2941,
    "modified_at": "2025-08-12T07:53:36.7421953Z",
@@ -3020,7 +3020,7 @@
     "concepts/resource-scoped-permission-fetchers.md"
    ]
   },
-  "Hive/domain/src/service/sync_service.rs": {
+  "services/Hive/domain/src/service/sync_service.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 11045,
    "modified_at": "2025-08-12T07:43:53.4909897Z",
@@ -3034,7 +3034,7 @@
     "references/hive-data-model-and-schema.md"
    ]
   },
-  "Hive/domain/src/service/external_provider_service.rs": {
+  "services/Hive/domain/src/service/external_provider_service.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 8084,
    "modified_at": "2025-09-08T09:39:52.9989810Z",
@@ -3047,7 +3047,7 @@
     "references/hive-data-model-and-schema.md"
    ]
   },
-  "Hive/infra/src/external_provider/external_provider_client.rs": {
+  "services/Hive/infra/src/external_provider/external_provider_client.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 8848,
    "modified_at": "2025-08-10T06:56:31.6568023Z",
@@ -3059,7 +3059,7 @@
     "concepts/external-provider-sync-jobs.md"
    ]
   },
-  "Hive/infra/src/event/event_adapter.rs": {
+  "services/Hive/infra/src/event/event_adapter.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 6936,
    "modified_at": "2025-08-10T06:57:26.4958150Z",
@@ -3071,7 +3071,7 @@
     "references/hive-runtime-and-configuration.md"
    ]
   },
-  "Hive/infra/src/repository/entity/hive_database_schema.sql": {
+  "services/Hive/infra/src/repository/entity/hive_database_schema.sql": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 5013,
    "modified_at": "2025-07-29T09:18:32.0206669Z",
@@ -3097,7 +3097,7 @@
     "concepts/organization-resource-authorization.md"
    ]
   },
-  "Hive/tests/common.rs": {
+  "services/Hive/tests/common.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 2917,
    "modified_at": "2025-08-18T07:26:35.1851970Z",
@@ -3112,7 +3112,7 @@
     "skills/building-organization-management-services.md"
    ]
   },
-  "Hive/tests/organization_api_tests.rs": {
+  "services/Hive/tests/organization_api_tests.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 12309,
    "modified_at": "2025-09-08T09:01:48.6310465Z",
@@ -3127,7 +3127,7 @@
     "references/hive-testing-and-api-fixtures.md"
    ]
   },
-  "Hive/tests/members_api_tests.rs": {
+  "services/Hive/tests/members_api_tests.rs": {
    "ingested_at": "2026-04-14T18:56:22.3888182Z",
    "size_bytes": 8786,
    "modified_at": "2025-09-08T09:24:47.1373714Z",
@@ -3142,7 +3142,7 @@
     "references/hive-testing-and-api-fixtures.md"
    ]
   },
-  "Hive/tests/external_link_api_tests.rs": {
+  "services/Hive/tests/external_link_api_tests.rs": {
    "ingested_at": "2026-04-22T16:20:59Z",
    "size_bytes": 3483,
    "modified_at": "2025-09-08T09:28:19.9855819Z",
@@ -3164,7 +3164,7 @@
     "skills/stubbing-http-with-wiremock.md"
    ]
   },
-  "Hive/tests/fixtures/external_provider/service.rs": {
+  "services/Hive/tests/fixtures/external_provider/service.rs": {
    "ingested_at": "2026-04-22T16:20:59Z",
    "size_bytes": 2688,
    "modified_at": "2025-09-08T09:22:32.1045346Z",
@@ -3185,7 +3185,7 @@
     "skills/stubbing-http-with-wiremock.md"
    ]
   },
-  "IAMRusty/domain/src/entity/user.rs": {
+  "services/IAMRusty/domain/src/entity/user.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 3807,
    "modified_at": "2025-07-28T12:35:03.9584302Z",
@@ -3198,7 +3198,7 @@
    ],
    "pages_updated": []
   },
-  "IAMRusty/domain/src/entity/user_email.rs": {
+  "services/IAMRusty/domain/src/entity/user_email.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 1986,
    "modified_at": "2025-07-28T12:35:03.9584302Z",
@@ -3211,7 +3211,7 @@
    ],
    "pages_updated": []
   },
-  "IAMRusty/domain/src/entity/provider.rs": {
+  "services/IAMRusty/domain/src/entity/provider.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 1490,
    "modified_at": "2025-07-28T12:35:03.9564293Z",
@@ -3223,7 +3223,7 @@
    ],
    "pages_updated": []
   },
-  "IAMRusty/domain/src/entity/provider_link.rs": {
+  "services/IAMRusty/domain/src/entity/provider_link.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 1003,
    "modified_at": "2025-07-28T12:35:03.9574294Z",
@@ -3236,7 +3236,7 @@
    ],
    "pages_updated": []
   },
-  "IAMRusty/domain/src/entity/password_reset_token.rs": {
+  "services/IAMRusty/domain/src/entity/password_reset_token.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 4480,
    "modified_at": "2025-07-29T09:44:47.0581126Z",
@@ -3248,7 +3248,7 @@
    ],
    "pages_updated": []
   },
-  "IAMRusty/domain/src/entity/email_verification.rs": {
+  "services/IAMRusty/domain/src/entity/email_verification.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 1321,
    "modified_at": "2025-07-28T12:35:03.9539192Z",
@@ -3260,7 +3260,7 @@
    ],
    "pages_updated": []
   },
-  "IAMRusty/domain/src/entity/registration_token.rs": {
+  "services/IAMRusty/domain/src/entity/registration_token.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 3223,
    "modified_at": "2025-07-28T12:35:03.9574294Z",
@@ -3272,7 +3272,7 @@
    ],
    "pages_updated": []
   },
-  "IAMRusty/domain/src/entity/token.rs": {
+  "services/IAMRusty/domain/src/entity/token.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 2300,
    "modified_at": "2025-07-28T12:35:03.9584302Z",
@@ -3284,7 +3284,7 @@
    ],
    "pages_updated": []
   },
-  "Hive/domain/src/entity/organization.rs": {
+  "services/Hive/domain/src/entity/organization.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 6020,
    "modified_at": "2025-08-09T13:50:28.8309005Z",
@@ -3297,7 +3297,7 @@
    ],
    "pages_updated": []
   },
-  "Hive/domain/src/entity/organization_member.rs": {
+  "services/Hive/domain/src/entity/organization_member.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 4381,
    "modified_at": "2025-08-18T08:54:02.8858659Z",
@@ -3311,7 +3311,7 @@
    ],
    "pages_updated": []
   },
-  "Hive/domain/src/entity/organization_invitation.rs": {
+  "services/Hive/domain/src/entity/organization_invitation.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 5294,
    "modified_at": "2025-08-09T13:51:32.6214402Z",
@@ -3325,7 +3325,7 @@
    ],
    "pages_updated": []
   },
-  "Hive/domain/src/entity/permission.rs": {
+  "services/Hive/domain/src/entity/permission.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 2472,
    "modified_at": "2025-08-10T07:00:23.4850817Z",
@@ -3337,7 +3337,7 @@
    ],
    "pages_updated": []
   },
-  "Hive/domain/src/entity/resource.rs": {
+  "services/Hive/domain/src/entity/resource.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 730,
    "modified_at": "2025-08-09T13:49:44.2288373Z",
@@ -3349,7 +3349,7 @@
    ],
    "pages_updated": []
   },
-  "Hive/domain/src/entity/role_permission.rs": {
+  "services/Hive/domain/src/entity/role_permission.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 1658,
    "modified_at": "2025-08-10T07:00:47.2046005Z",
@@ -3361,7 +3361,7 @@
    ],
    "pages_updated": []
   },
-  "Hive/domain/src/entity/organization_member_role_permission.rs": {
+  "services/Hive/domain/src/entity/organization_member_role_permission.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 1061,
    "modified_at": "2025-08-18T08:59:53.8329243Z",
@@ -3373,7 +3373,7 @@
    ],
    "pages_updated": []
   },
-  "Hive/domain/src/entity/external_provider.rs": {
+  "services/Hive/domain/src/entity/external_provider.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 1930,
    "modified_at": "2025-08-09T13:51:50.4758165Z",
@@ -3385,7 +3385,7 @@
    ],
    "pages_updated": []
   },
-  "Hive/domain/src/entity/external_link.rs": {
+  "services/Hive/domain/src/entity/external_link.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 5903,
    "modified_at": "2025-08-09T13:51:57.3765586Z",
@@ -3397,7 +3397,7 @@
    ],
    "pages_updated": []
   },
-  "Hive/domain/src/entity/sync_job.rs": {
+  "services/Hive/domain/src/entity/sync_job.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 12000,
    "modified_at": "2025-08-09T13:50:18.6396153Z",
@@ -3409,7 +3409,7 @@
    ],
    "pages_updated": []
   },
-  "Manifesto/domain/src/entity/project.rs": {
+  "services/Manifesto/domain/src/entity/project.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 6776,
    "modified_at": "2025-12-04T21:24:49.9262769Z",
@@ -3422,7 +3422,7 @@
    ],
    "pages_updated": []
   },
-  "Manifesto/domain/src/entity/project_component.rs": {
+  "services/Manifesto/domain/src/entity/project_component.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 2865,
    "modified_at": "2025-12-04T21:24:49.9262769Z",
@@ -3435,7 +3435,7 @@
    ],
    "pages_updated": []
   },
-  "Manifesto/domain/src/entity/project_member.rs": {
+  "services/Manifesto/domain/src/entity/project_member.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 4218,
    "modified_at": "2025-12-08T13:16:36.6625794Z",
@@ -3449,7 +3449,7 @@
    ],
    "pages_updated": []
   },
-  "Manifesto/domain/src/entity/permission.rs": {
+  "services/Manifesto/domain/src/entity/permission.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 818,
    "modified_at": "2025-10-19T14:42:15.3730926Z",
@@ -3461,7 +3461,7 @@
    ],
    "pages_updated": []
   },
-  "Manifesto/domain/src/entity/resource.rs": {
+  "services/Manifesto/domain/src/entity/resource.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 670,
    "modified_at": "2025-10-19T14:42:15.3730926Z",
@@ -3473,7 +3473,7 @@
    ],
    "pages_updated": []
   },
-  "Manifesto/domain/src/entity/role_permission.rs": {
+  "services/Manifesto/domain/src/entity/role_permission.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 1586,
    "modified_at": "2025-10-19T14:42:15.3740908Z",
@@ -3485,7 +3485,7 @@
    ],
    "pages_updated": []
   },
-  "Manifesto/domain/src/entity/project_member_role_permission.rs": {
+  "services/Manifesto/domain/src/entity/project_member_role_permission.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 867,
    "modified_at": "2025-10-19T14:42:15.3750918Z",
@@ -3497,7 +3497,7 @@
    ],
    "pages_updated": []
   },
-  "Telegraph/domain/src/entity/delivery.rs": {
+  "services/Telegraph/domain/src/entity/delivery.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 7617,
    "modified_at": "2025-07-29T09:44:47.7378867Z",
@@ -3510,7 +3510,7 @@
    ],
    "pages_updated": []
   },
-  "Telegraph/domain/src/entity/template.rs": {
+  "services/Telegraph/domain/src/entity/template.rs": {
    "ingested_at": "2026-04-14T20:28:20.9129598Z",
    "size_bytes": 7121,
    "modified_at": "2025-07-29T09:44:47.7388863Z",
@@ -3744,7 +3744,7 @@
     "skills/using-rustycog-testing.md"
    ]
   },
-  "Hive/tests/fixtures/external_provider/mod.rs": {
+  "services/Hive/tests/fixtures/external_provider/mod.rs": {
    "ingested_at": "2026-04-22T16:20:59Z",
    "size_bytes": 244,
    "modified_at": "2025-09-08T09:22:32.1045346Z",
@@ -3765,7 +3765,7 @@
     "skills/using-rustycog-testing.md"
    ]
   },
-  "Hive/tests/fixtures/external_provider/resources.rs": {
+  "services/Hive/tests/fixtures/external_provider/resources.rs": {
    "ingested_at": "2026-04-22T16:20:59Z",
    "size_bytes": 728,
    "modified_at": "2025-09-08T09:22:32.1045346Z",
@@ -3786,7 +3786,7 @@
     "skills/using-rustycog-testing.md"
    ]
   },
-  "Telegraph/tests/fixtures/smtp/mod.rs": {
+  "services/Telegraph/tests/fixtures/smtp/mod.rs": {
    "ingested_at": "2026-04-22T16:20:59Z",
    "size_bytes": 311,
    "modified_at": "2025-07-29T09:44:47.8001210Z",
@@ -3807,7 +3807,7 @@
     "skills/using-rustycog-testing.md"
    ]
   },
-  "Telegraph/tests/fixtures/smtp/service.rs": {
+  "services/Telegraph/tests/fixtures/smtp/service.rs": {
    "ingested_at": "2026-04-22T16:20:59Z",
    "size_bytes": 11492,
    "modified_at": "2025-07-29T09:44:47.8043486Z",
@@ -3828,7 +3828,7 @@
     "skills/using-rustycog-testing.md"
    ]
   },
-  "Telegraph/tests/fixtures/smtp/resources.rs": {
+  "services/Telegraph/tests/fixtures/smtp/resources.rs": {
    "ingested_at": "2026-04-22T16:20:59Z",
    "size_bytes": 9384,
    "modified_at": "2025-07-29T09:44:47.8021212Z",
@@ -3849,7 +3849,7 @@
     "skills/using-rustycog-testing.md"
    ]
   },
-  "Telegraph/tests/fixtures/smtp/testcontainer.rs": {
+  "services/Telegraph/tests/fixtures/smtp/testcontainer.rs": {
    "ingested_at": "2026-04-22T16:20:59Z",
    "size_bytes": 13023,
    "modified_at": "2025-07-29T09:44:47.8083492Z",
@@ -3948,7 +3948,7 @@
     "concepts/integration-testing-with-real-infrastructure.md"
    ]
   },
-  "Manifesto/config/test.toml": {
+  "services/Manifesto/config/test.toml": {
    "ingested_at": "2026-04-22T17:30:00Z",
    "size_bytes": 1393,
    "modified_at": "2026-04-22T17:19:20.9377975Z",
@@ -3970,7 +3970,7 @@
     "skills/using-rustycog-testing.md"
    ]
   },
-  "Manifesto/tests/component_api_tests.rs": {
+  "services/Manifesto/tests/component_api_tests.rs": {
    "ingested_at": "2026-04-22T17:30:00Z",
    "size_bytes": 34288,
    "modified_at": "2026-04-22T17:21:16.9251282Z",
@@ -4011,7 +4011,7 @@
     "concepts/integration-testing-with-real-infrastructure.md"
    ]
   },
-  "openfga/model.fga": {
+  "ops/openfga/model.fga": {
    "ingested_at": "2026-04-22T18:30:00Z",
    "size_bytes": 1408,
    "modified_at": "2026-04-22T18:19:01.7995781Z",
@@ -4030,7 +4030,7 @@
     "concepts/integration-testing-with-real-infrastructure.md"
    ]
   },
-  "Manifesto/tests/project_api_tests.rs": {
+  "services/Manifesto/tests/project_api_tests.rs": {
    "ingested_at": "2026-04-22T18:30:00Z",
    "size_bytes": 18700,
    "modified_at": "2026-04-22T18:30:30.1451184Z",
@@ -4192,7 +4192,7 @@
     "projects/telegraph/telegraph.md"
    ]
   },
-  "Manifesto/domain/src/value_objects/field_update.rs": {
+  "services/Manifesto/domain/src/value_objects/field_update.rs": {
    "ingested_at": "2026-08-31T13:30:00Z",
    "size_bytes": 199,
    "modified_at": "2026-08-31T00:00:00Z",
@@ -4206,7 +4206,7 @@
     "projects/manifesto/manifesto.md"
    ]
   },
-  "readiness/src/factory.rs": {
+  "crates/readiness/src/factory.rs": {
    "ingested_at": "2026-08-31T13:30:00Z",
    "size_bytes": 3423,
    "modified_at": "2026-08-31T00:00:00Z",
@@ -4247,7 +4247,7 @@
     "projects/aiforall/skills/fixing-sonar-clippy-in-services.md"
    ]
   },
-  "sentinel-sync/src/idempotency.rs": {
+  "workers/sentinel-sync/src/idempotency.rs": {
    "ingested_at": "2026-08-31T13:30:00Z",
    "size_bytes": 6651,
    "modified_at": "2026-08-31T00:00:00Z",

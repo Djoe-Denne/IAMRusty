@@ -44,9 +44,9 @@ Documentation d’implémentation et de parcours métier pour ce workspace. Le v
 ## Déjà ailleurs (ne pas dupliquer)
 
 - Guides crates RustyCog : [`.agents/skills/rustycog/`](../.agents/skills/rustycog/)
-- Guides IAM détaillés : [`IAMRusty/docs/`](../IAMRusty/docs/)
-- Guides Manifesto hexagonaux : [`Manifesto/docs/`](../Manifesto/docs/)
-- Scénarios QA identité : [`IAMRusty/qa/scenarii/`](../IAMRusty/qa/scenarii/)
+- Guides IAM détaillés : [`services/IAMRusty/docs/`](../services/IAMRusty/docs/)
+- Guides Manifesto hexagonaux : [`services/Manifesto/docs/`](../services/Manifesto/docs/)
+- Scénarios QA identité : [`services/IAMRusty/qa/scenarii/`](../services/IAMRusty/qa/scenarii/)
 - Reviews d’architecture août 2026 : [`docs/reviews/`](reviews/)
 - ADR Project Service (historique) : [`docs/project/Archi.md`](project/Archi.md)
 - ADR Apparatus (Accepted ; implémentation future) : [`docs/adr/README.md`](adr/README.md)

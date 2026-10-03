@@ -51,7 +51,7 @@ services:
 
   # OpenFGA — the centralized authorization engine. Client services call its
   # HTTP API to perform Check; sentinel-sync calls its Write endpoint.
-  # See openfga/model.fga for the authorization model.
+  # See ops/openfga/model.fga for the authorization model.
   openfga:
     image: openfga/openfga:latest
     ports:
@@ -88,7 +88,7 @@ services:
       - EAGER_SERVICE_LOADING=1
       - DATA_DIR=/var/lib/localstack
     volumes:
-      - ./IAMRusty/scripts/localstack-init.sh:/etc/localstack/init/ready.d/init-aws.sh
+      - ./services/IAMRusty/scripts/localstack-init.sh:/etc/localstack/init/ready.d/init-aws.sh
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
       interval: 10s
@@ -148,7 +148,7 @@ services:
       openbao:
         condition: service_healthy
     volumes:
-      - ./scripts/openbao-gold-seed.sh:/seed.sh:ro
+      - ./ops/scripts/openbao-gold-seed.sh:/seed.sh:ro
     entrypoint: ["/bin/sh", "/seed.sh"]
     networks:
       - aiforall-network
@@ -157,8 +157,8 @@ services:
   platform-mesh-certs:
     image: alpine:3.20
     volumes:
-      - ./certs/platform-mesh:/certs
-      - ./scripts/generate-platform-mesh-certs.sh:/generate-platform-mesh-certs.sh:ro
+      - ./ops/certs/platform-mesh:/certs
+      - ./ops/scripts/generate-platform-mesh-certs.sh:/generate-platform-mesh-certs.sh:ro
     command: ["sh", "-c", "apk add --no-cache openssl && sh /generate-platform-mesh-certs.sh"]
     networks:
       - aiforall-network
@@ -170,12 +170,12 @@ services:
   iam-service:
     build:
       context: .
-      dockerfile: IAMRusty/Dockerfile
+      dockerfile: services/IAMRusty/Dockerfile
     ports:
       - "8080:8080"   # HTTP port
       - "8443:8443"   # HTTPS
     env_file:
-      - path: IAMRusty/.env
+      - path: services/IAMRusty/.env
         required: false
     environment:
       - RUST_ENVIRONMENT=development
@@ -186,8 +186,8 @@ services:
       # Dev-only shared secret for Hive → IAM internal routes (Hive refuses to boot when empty).
       - IAM_INTERNAL_SERVICE_TOKEN=iam-internal-dev-token
     volumes:
-      - ./IAMRusty/config:/app/config
-      - ./certs/platform-mesh:/app/certs
+      - ./services/IAMRusty/config:/app/config
+      - ./ops/certs/platform-mesh:/app/certs
     depends_on:
       postgres:
         condition: service_healthy
@@ -212,20 +212,20 @@ services:
   telegraph-service:
     build:
       context: .
-      dockerfile: Telegraph/Dockerfile
+      dockerfile: services/Telegraph/Dockerfile
     ports:
       - "8081:8080"   # HTTP port (different from IAM to avoid conflicts)
       - "8444:8443"   # HTTPS
     env_file:
-      - path: Telegraph/.env
+      - path: services/Telegraph/.env
         required: false
     environment:
       - RUST_ENVIRONMENT=development
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/telegraph_dev
       - TELEGRAPH_AUTH__JWT__JWKS_URL=http://iam-service:8080/iam/.well-known/jwks.json
     volumes:
-      - ./Telegraph/config:/app/config
-      - ./certs/platform-mesh:/app/certs
+      - ./services/Telegraph/config:/app/config
+      - ./ops/certs/platform-mesh:/app/certs
     depends_on:
       localstack:
         condition: service_healthy
@@ -244,7 +244,7 @@ services:
   hive-service:
     build:
       context: .
-      dockerfile: Hive/Dockerfile
+      dockerfile: services/Hive/Dockerfile
     ports:
       - "8082:8080"   # HTTP port
       - "8445:8443"   # HTTPS
@@ -254,8 +254,8 @@ services:
       - HIVE_IAM_SERVICE__API_KEY=iam-internal-dev-token
       - HIVE_AUTH__JWT__JWKS_URL=http://iam-service:8080/iam/.well-known/jwks.json
     volumes:
-      - ./Hive/config:/app/config
-      - ./certs/platform-mesh:/app/certs
+      - ./services/Hive/config:/app/config
+      - ./ops/certs/platform-mesh:/app/certs
     depends_on:
       postgres:
         condition: service_healthy
@@ -276,7 +276,7 @@ services:
   manifesto-service:
     build:
       context: .
-      dockerfile: Manifesto/Dockerfile
+      dockerfile: services/Manifesto/Dockerfile
     ports:
       - "8083:8080"   # HTTP port
       - "8448:8443"   # HTTPS
@@ -286,8 +286,8 @@ services:
       - MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__HS256_SECRET=manifesto-grant-snapshot-dev-hs256
       - MANIFESTO_AUTH__JWT__JWKS_URL=http://iam-service:8080/iam/.well-known/jwks.json
     volumes:
-      - ./Manifesto/config:/app/config
-      - ./certs/platform-mesh:/app/certs
+      - ./services/Manifesto/config:/app/config
+      - ./ops/certs/platform-mesh:/app/certs
     depends_on:
       platform-mesh-certs:
         condition: service_completed_successfully
@@ -308,7 +308,7 @@ services:
   lazaret-service:
     build:
       context: .
-      dockerfile: Lazaret/Dockerfile
+      dockerfile: services/Lazaret/Dockerfile
     ports:
       - "8084:8080"   # HTTPS (tls_port 8080)
     environment:
@@ -316,8 +316,8 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/lazaret_dev
       - LAZARET_MANIFESTO_SERVICE__HS256_SECRET=manifesto-grant-snapshot-dev-hs256
     volumes:
-      - ./Lazaret/config:/app/config
-      - ./Lazaret/certs:/app/certs
+      - ./services/Lazaret/config:/app/config
+      - ./services/Lazaret/certs:/app/certs
     depends_on:
       postgres:
         condition: service_healthy
@@ -341,15 +341,15 @@ services:
   github-connect-service:
     build:
       context: .
-      dockerfile: GitHubConnect/Dockerfile
+      dockerfile: services/GitHubConnect/Dockerfile
     ports:
       - "8085:8080"   # HTTP
       - "8446:8443"   # HTTPS
     environment:
       - RUST_ENVIRONMENT=development
     volumes:
-      - ./GitHubConnect/config:/app/config
-      - ./certs/platform-mesh:/app/certs
+      - ./services/GitHubConnect/config:/app/config
+      - ./ops/certs/platform-mesh:/app/certs
     depends_on:
       build-artifacts:
         condition: service_completed_successfully
@@ -363,15 +363,15 @@ services:
   gitlab-connect-service:
     build:
       context: .
-      dockerfile: GitLabConnect/Dockerfile
+      dockerfile: services/GitLabConnect/Dockerfile
     ports:
       - "8086:8080"   # HTTP
       - "8447:8443"   # HTTPS
     environment:
       - RUST_ENVIRONMENT=development
     volumes:
-      - ./GitLabConnect/config:/app/config
-      - ./certs/platform-mesh:/app/certs
+      - ./services/GitLabConnect/config:/app/config
+      - ./ops/certs/platform-mesh:/app/certs
     depends_on:
       build-artifacts:
         condition: service_completed_successfully
@@ -452,15 +452,15 @@ services:
 
   # Mesh AuthN opt-in (ADR-0308 Partial). Not started by plain `docker compose up`.
   # Launch with the overlay that requires service client certs and trusts the gateway principal:
-  #   docker compose -f docker-compose.yml -f deploy/mesh/compose.yaml --profile mesh up
-  # Replayable e2e: bash scripts/mesh-authn-e2e.sh
+  #   docker compose -f docker-compose.yml -f ops/deploy/mesh/compose.yaml --profile mesh up
+  # Replayable e2e: bash ops/scripts/mesh-authn-e2e.sh
   # Envoy HTTP ext_authz → ext-authz Check. JWT in-process remains the service default.
   ext-authz:
     profiles: ["mesh"]
     image: aiforall-ext-authz:local
     build:
       context: .
-      dockerfile: ext-authz/Dockerfile
+      dockerfile: workers/ext-authz/Dockerfile
     ports:
       # Host 8090 is OpenFGA HTTP; keep Check internal-first, publish 8092 if needed.
       - "8092:8090"
@@ -472,7 +472,7 @@ services:
       - EXT_AUTHZ_TLS_KEY=/app/certs/ext-authz.key
       - EXT_AUTHZ_TLS_CA=/app/certs/ca.crt
     volumes:
-      - ./certs/platform-mesh:/app/certs:ro
+      - ./ops/certs/platform-mesh:/app/certs:ro
     depends_on:
       platform-mesh-certs:
         condition: service_completed_successfully
@@ -487,8 +487,8 @@ services:
     ports:
       - "10000:10000"
     volumes:
-      - ./deploy/mesh/envoy.yaml:/etc/envoy/envoy.yaml:ro
-      - ./certs/platform-mesh:/etc/envoy/certs:ro
+      - ./ops/deploy/mesh/envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - ./ops/certs/platform-mesh:/etc/envoy/certs:ro
     command: ["-c", "/etc/envoy/envoy.yaml", "--log-level", "info"]
     depends_on:
       platform-mesh-certs:

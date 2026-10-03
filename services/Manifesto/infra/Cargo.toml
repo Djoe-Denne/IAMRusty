@@ -1,0 +1,48 @@
+[package]
+name = "manifesto-infra"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Manifesto infrastructure layer"
+license.workspace = true
+
+[features]
+test-utils = []
+
+[dependencies]
+# Internal dependencies
+manifesto-domain = { path = "../domain" }
+manifesto-application = { path = "../application" }
+manifesto-events = { path = "../../../crates/manifesto-events" }
+
+# Event crates
+apparatus-events = { path = "../../../crates/apparatus-events" }
+apparatus-contracts = { path = "../../../crates/apparatus-contracts" }
+
+# Shared crates
+readiness = { path = "../../../crates/readiness" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+
+# Database
+sea-orm = { workspace = true }
+
+# HTTP client
+reqwest = { workspace = true }
+
+# Utilities
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Async
+async-trait = { workspace = true }
+tokio = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+

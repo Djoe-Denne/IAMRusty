@@ -12,7 +12,7 @@ updated: 2026-08-31
 
 # Audit Red Team défensif — Manifesto (2026-08-31)
 
-Périmètre : crate `Manifesto/` (HTTP, application, domain, infra, setup, tests, config) plus les contrats partagés réellement consommés (`rustycog-http`, `rustycog-permission`, `rustycog-config`, `openfga/model.fga`, `sentinel-sync` translator Manifesto, claims IAM). Aucun exploit, payload, ni procédure d’attaque.
+Périmètre : crate `services/Manifesto/` (HTTP, application, domain, infra, setup, tests, config) plus les contrats partagés réellement consommés (`rustycog-http`, `rustycog-permission`, `rustycog-config`, `ops/openfga/model.fga`, `sentinel-sync` translator Manifesto, claims IAM). Aucun exploit, payload, ni procédure d’attaque.
 
 Méthode : skill rustycog, context-mode (analyse en code), lecture ciblée des sources. GrepAI embeddings indisponibles (Ollama refusé) ; Serena encore en chargement. Les constats ci-dessous viennent du code, pas d’une exécution offensive.
 
@@ -22,7 +22,7 @@ Le soupçon de gros problèmes de sécurité est **fondé**. Manifesto a une coq
 
 **Verdict : non prêt production / risque élevé.** Les priorités sont (1) lier les guards au `project_id` (pas au dernier UUID), (2) interdire la création de projet organisation sans appartenance Hive/OpenFGA, (3) durcir le consommateur JWT (`iss`/`aud`, secret hors dépôt), (4) resynchroniser sentinel-sync (delete, replace permissions, visibilité).
 
-Hypothèse de gravité max : un appelant authentifié peut rattacher un projet à **n’importe quelle** organisation (`owner_id` client). Sentinel-sync écrit alors `project#organization@organization:{owner_id}` : les admins/membres de cette org héritent `administer` / `viewer` via `openfga/model.fga`. En parallèle, les tests d’API membres **enseignent** au framework de checker `project:{user_id}` au lieu de `project:{project_id}`.
+Hypothèse de gravité max : un appelant authentifié peut rattacher un projet à **n’importe quelle** organisation (`owner_id` client). Sentinel-sync écrit alors `project#organization@organization:{owner_id}` : les admins/membres de cette org héritent `administer` / `viewer` via `ops/openfga/model.fga`. En parallèle, les tests d’API membres **enseignent** au framework de checker `project:{user_id}` au lieu de `project:{project_id}`.
 
 ---
 
@@ -30,23 +30,23 @@ Hypothèse de gravité max : un appelant authentifié peut rattacher un projet �
 
 | Sévérité | `file:line` | Titre | Classe | Impact |
 |---|---|---|---|---|
-| Critique | `Manifesto/application/src/usecase/project.rs:285` + `sentinel-sync/src/translator/manifesto.rs:68` | Création org sans preuve d’appartenance | Confusion tenant / association non autorisée | Projet rattaché à une org tierce ; héritage OpenFGA admin/viewer |
-| Critique | `rustycog/rustycog-http/src/middleware_permission.rs:33` + `Manifesto/http/src/lib.rs:83` | Guard OpenFGA sur le UUID le plus profond | AuthZ cassée / IDOR de ressource | Check sur `project:{user_id}` ou `project:{component_id}`, pas le projet |
-| Haute | `Manifesto/tests/member_api_tests.rs:157` | Tests qui seedent le mauvais objet | Tests qui normalisent un défaut | CI verte alors que la prod (tuples sur `project_id`) 403 ou autorise le mauvais objet |
-| Haute | `Manifesto/application/src/usecase/member.rs:409` | `remove_member` sans contrôle domaine | AuthZ service absente | Si le middleware est contourné ou mal lié, suppression sans rôle métier |
-| Haute | `Manifesto/application/src/usecase/member.rs:545` | `revoke_permission` ignore le requester | AuthZ service absente | Révoque dès que le middleware passe |
-| Haute | `Manifesto/application/src/usecase/project.rs:381` | `get_project` ignore `user_id` | Défense en profondeur absente | Fuite si le guard est bypass / mauvais objet |
+| Critique | `services/Manifesto/application/src/usecase/project.rs:285` + `workers/sentinel-sync/src/translator/manifesto.rs:68` | Création org sans preuve d’appartenance | Confusion tenant / association non autorisée | Projet rattaché à une org tierce ; héritage OpenFGA admin/viewer |
+| Critique | `rustycog/rustycog-http/src/middleware_permission.rs:33` + `services/Manifesto/http/src/lib.rs:83` | Guard OpenFGA sur le UUID le plus profond | AuthZ cassée / IDOR de ressource | Check sur `project:{user_id}` ou `project:{component_id}`, pas le projet |
+| Haute | `services/Manifesto/tests/member_api_tests.rs:157` | Tests qui seedent le mauvais objet | Tests qui normalisent un défaut | CI verte alors que la prod (tuples sur `project_id`) 403 ou autorise le mauvais objet |
+| Haute | `services/Manifesto/application/src/usecase/member.rs:409` | `remove_member` sans contrôle domaine | AuthZ service absente | Si le middleware est contourné ou mal lié, suppression sans rôle métier |
+| Haute | `services/Manifesto/application/src/usecase/member.rs:545` | `revoke_permission` ignore le requester | AuthZ service absente | Révoque dès que le middleware passe |
+| Haute | `services/Manifesto/application/src/usecase/project.rs:381` | `get_project` ignore `user_id` | Défense en profondeur absente | Fuite si le guard est bypass / mauvais objet |
 | Haute | `rustycog/rustycog-http/src/jwt_handler.rs:71` + `rustycog-config/.../lib.rs:264` | JWT HS256 sans `iss`/`aud` | JWT mal vérifié (consommateur) | Tout token HS256 signé avec le secret partagé est accepté |
-| Haute | `Manifesto/config/default.toml:9` | Secret HS256 commité | Secrets | Forge de Bearer si le défaut n’est pas overridé |
-| Haute | `sentinel-sync/src/translator/manifesto.rs:170` | `MemberPermissionsUpdated` / `ProjectDeleted` / visibilité = no-op FGA | Dérive ACL / stale allow | Grants OpenFGA orphelins ; PUT permissions ne met pas à jour FGA |
-| Haute | `sentinel-sync/src/translator/manifesto.rs:132` | Grant FGA toujours sur `project_id` | Divergence contrat ACL instance | Permission « composant » écrite sur l’id projet |
-| Moyenne | `Manifesto/application/src/usecase/project.rs:469` | `FieldUpdate::Set(Option)` systématique | Optional-field-update / intégrité | Omettre `description` l’efface |
-| Moyenne | `Manifesto/setup/src/app.rs:190` | Cache OpenFGA 15 s par défaut | Fenêtre revoke | Allow périmé après révocation |
-| Moyenne | `Manifesto/infra/src/event/consumer.rs:158` | Worker queue sans authenticité d’événement | Spoofing / replay (transport) | Statut composant muté si la file est joignable |
-| Moyenne | `Manifesto/http/src/lib.rs:38` | `Write` suffit à changer `visibility` | Élévation de publication | Membre write peut basculer public (liste SQL) |
+| Haute | `services/Manifesto/config/default.toml:9` | Secret HS256 commité | Secrets | Forge de Bearer si le défaut n’est pas overridé |
+| Haute | `workers/sentinel-sync/src/translator/manifesto.rs:170` | `MemberPermissionsUpdated` / `ProjectDeleted` / visibilité = no-op FGA | Dérive ACL / stale allow | Grants OpenFGA orphelins ; PUT permissions ne met pas à jour FGA |
+| Haute | `workers/sentinel-sync/src/translator/manifesto.rs:132` | Grant FGA toujours sur `project_id` | Divergence contrat ACL instance | Permission « composant » écrite sur l’id projet |
+| Moyenne | `services/Manifesto/application/src/usecase/project.rs:469` | `FieldUpdate::Set(Option)` systématique | Optional-field-update / intégrité | Omettre `description` l’efface |
+| Moyenne | `services/Manifesto/setup/src/app.rs:190` | Cache OpenFGA 15 s par défaut | Fenêtre revoke | Allow périmé après révocation |
+| Moyenne | `services/Manifesto/infra/src/event/consumer.rs:158` | Worker queue sans authenticité d’événement | Spoofing / replay (transport) | Statut composant muté si la file est joignable |
+| Moyenne | `services/Manifesto/http/src/lib.rs:38` | `Write` suffit à changer `visibility` | Élévation de publication | Membre write peut basculer public (liste SQL) |
 | Moyenne | `rustycog/rustycog-http/src/middleware_auth.rs:163` | Token invalide → anonyme | Bypass sémantique auth optionnelle | Pas de 401 ; poursuite en `user:*` |
-| Basse | `Manifesto/infra/src/repository/project_repository.rs:153` | `LIKE` avec jokers client | Énumération / injection de motif | Pas d’SQLi (SeaORM) mais `%`/`_` élargissent le filtre |
-| Basse | `Manifesto/infra/src/adapters/component_service_client.rs:26` | reqwest : redirects par défaut | SSRF sortant (config) | URL catalogue uniquement ; redirect non restreint |
+| Basse | `services/Manifesto/infra/src/repository/project_repository.rs:153` | `LIKE` avec jokers client | Énumération / injection de motif | Pas d’SQLi (SeaORM) mais `%`/`_` élargissent le filtre |
+| Basse | `services/Manifesto/infra/src/adapters/component_service_client.rs:26` | reqwest : redirects par défaut | SSRF sortant (config) | URL catalogue uniquement ; redirect non restreint |
 | Info | — | Upload / XXE / SSTI / cookies CSRF | Surface absente | Pas de multipart, templates, ni session cookie |
 
 ---
@@ -55,9 +55,9 @@ Hypothèse de gravité max : un appelant authentifié peut rattacher un projet �
 
 ### 1. Association organisation sans preuve d’appartenance — Critique
 
-`create_project` force `owner_id = user_id` en personnel, mais en `organization` prend `request.owner_id` tel quel (`Manifesto/application/src/usecase/project.rs:285-289`). Aucun check Hive/OpenFGA « caller ∈ org ». La route n’a que `.authenticated()` (`Manifesto/http/src/lib.rs:36-37`).
+`create_project` force `owner_id = user_id` en personnel, mais en `organization` prend `request.owner_id` tel quel (`services/Manifesto/application/src/usecase/project.rs:285-289`). Aucun check Hive/OpenFGA « caller ∈ org ». La route n’a que `.authenticated()` (`services/Manifesto/http/src/lib.rs:36-37`).
 
-Dès `ProjectCreated` avec `owner_type == "organization"`, sentinel-sync écrit le parent org (`sentinel-sync/src/translator/manifesto.rs:68-75`). Le modèle FGA donne alors `admin: ... or admin from organization` et `viewer: ... or viewer from organization` (`openfga/model.fga:21-28`).
+Dès `ProjectCreated` avec `owner_type == "organization"`, sentinel-sync écrit le parent org (`workers/sentinel-sync/src/translator/manifesto.rs:68-75`). Le modèle FGA donne alors `admin: ... or admin from organization` et `viewer: ... or viewer from organization` (`ops/openfga/model.fga:21-28`).
 
 **Fix :** avant persist, `Check` OpenFGA (ou API Hive) : le caller a au moins `member`/`admin` sur `organization:{owner_id}`. Rejeter sinon. Ne pas faire confiance au body pour le tenant. Idéalement `owner_id` n’est pas un champ client libre : il vient d’un contexte org déjà autorisé.
 
@@ -65,7 +65,7 @@ Dès `ProjectCreated` avec `owner_type == "organization"`, sentinel-sync écrit 
 
 `extract_deepest_resource_id` prend le dernier segment UUID (`rustycog/rustycog-http/src/middleware_permission.rs:33-38`) et construit `ResourceRef::new(object_type, resource_id)` (`:68`). Manifesto déclare `with_permission_on(..., "project")` sur des routes dont le dernier UUID n’est **pas** le projet :
 
-- `GET/PUT/DELETE .../members/{user_id}` — `Manifesto/http/src/lib.rs:83-100`
+- `GET/PUT/DELETE .../members/{user_id}` — `services/Manifesto/http/src/lib.rs:83-100`
 - `.../permissions/{resource}` — dernier UUID = `user_id` (`:102-113`)
 - `.../permissions/{resource}/{resource_id}` — dernier UUID = `resource_id` (`:114-125`)
 
@@ -86,7 +86,7 @@ Les commentaires dans `lib.rs:50-54` montrent que l’équipe connaît le piège
 
 ### 3. Tests qui normalisent le défaut — Haute
 
-`Manifesto/tests/member_api_tests.rs` documente et seed le mauvais objet :
+`services/Manifesto/tests/member_api_tests.rs` documente et seed le mauvais objet :
 
 - L.157-163 : `GET /members/{user_id}` → `ResourceRef::new("project", owner_id)`
 - L.293-299 : `PUT` → `project:{regular_member_id}`
@@ -119,8 +119,8 @@ Consommateur Manifesto :
 - Claims requis : `exp` (Validation) + `sub`/`iat`/`jti` à la main (`:117-137`)
 - `JwtAuthConfig` n’a que `hs256_secret` (`rustycog-config/.../lib.rs:264-268`) — **pas d’issuer, pas d’audience**
 - `jti` exigé puis **jamais** confronté à une denylist / store de replay
-- Setup : même secret que IAM, pas de JWKS (`Manifesto/setup/src/app.rs:176-179`)
-- IAM `TokenClaims` : `sub`, `username`, `exp`, `iat`, `jti` — pas de `iss`/`aud` (`IAMRusty/domain/src/entity/token.rs:7-21`)
+- Setup : même secret que IAM, pas de JWKS (`services/Manifesto/setup/src/app.rs:176-179`)
+- IAM `TokenClaims` : `sub`, `username`, `exp`, `iat`, `jti` — pas de `iss`/`aud` (`services/IAMRusty/domain/src/entity/token.rs:7-21`)
 - JWKS IAM vide en HS256 (`jwt_encoder.rs:248-250`)
 
 Ce qui est **sain** : `Validation::new(Algorithm::HS256)` refuse les autres `alg` ; `exp` est vérifié ; Manifesto n’active pas `default_user_id` (`UserIdExtractor::new` sans fallback).
@@ -134,13 +134,13 @@ Ce qui est **sain** : `Validation::new(Algorithm::HS256)` refuse les autres `alg
 
 ### 6. Secret HS256 dans le dépôt — Haute
 
-`Manifesto/config/default.toml:9` et `development.toml:13` : `hs256_secret = "rustycog-dev-hs256-secret"`. Le secret de test (`test.toml:9`) est le même que `rustycog-testing` (`TEST_HS256_SECRET`). `.env` est gitignoré ; les TOML **ne le sont pas**.
+`services/Manifesto/config/default.toml:9` et `development.toml:13` : `hs256_secret = "rustycog-dev-hs256-secret"`. Le secret de test (`test.toml:9`) est le même que `rustycog-testing` (`TEST_HS256_SECRET`). `.env` est gitignoré ; les TOML **ne le sont pas**.
 
 **Fix :** default sans secret (fail-boot). Dev : env uniquement. Rotation si ces valeurs ont jamais servi hors local.
 
 ### 7. Dérive OpenFGA / sentinel-sync — Haute
 
-Translator (`sentinel-sync/src/translator/manifesto.rs:161-176`) :
+Translator (`workers/sentinel-sync/src/translator/manifesto.rs:161-176`) :
 
 - **Écrit** : ProjectCreated (owner + org parent), ComponentAdded/Removed, MemberAdded, PermissionGranted/Revoked
 - **No-op** : `ProjectUpdated`, `ProjectDeleted`, `ProjectPublished`, `ProjectArchived`, `MemberPermissionsUpdated`, `ComponentStatusChanged`
@@ -222,7 +222,7 @@ Repositories SeaORM filtrés, pas de SQL interpolé. Le `LIKE` (`project_reposit
 2. **`FieldUpdate` domaine vs `Option` HTTP** — le pattern vault n’est pas appliqué à la frontière.
 3. **Commentaire mensonger** `middleware_auth.rs:109` : « Extract user ID from token (no verification) » alors que `extract_user_id` vérifie la signature.
 4. **Wiki API** (`manifesto-api-and-permission-flows.md`) dit « member routes project-scoped » sans dire que le middleware ne bind pas `project_id`.
-5. **Hive** a son propre registry ; pas d’invocation Manifesto vue dans `Hive/`. Le risque « command bus nu » est surtout **intra-Manifesto** : les handlers passent `user_id` dans la commande, mais les handlers de commandes ne re-vérifient pas l’AuthZ. Un futur adaptateur file/Hive sur ces commandes hériterait du trou.
+5. **Hive** a son propre registry ; pas d’invocation Manifesto vue dans `services/Hive/`. Le risque « command bus nu » est surtout **intra-Manifesto** : les handlers passent `user_id` dans la commande, mais les handlers de commandes ne re-vérifient pas l’AuthZ. Un futur adaptateur file/Hive sur ces commandes hériterait du trou.
 6. **`max_attempts = 0`** dans les TOML : retries coupés (piège rustycog, pas une faille d’auth).
 7. **`Application::router()`** expose `create_router` sans préfixe (`setup/src/app.rs:338-339`) — correct pour monolithe si le nest est ailleurs ; à vérifier à la composition pour éviter un double mount / route nue. *Hypothèse* : le monolithe neste `/manifesto`.
 8. **OpenFGA `store_id = ""`** dans default/dev (`default.toml:45`) : fail-closed ou client cassé au runtime selon l’impl checker — *hypothèse* jusqu’à lecture de `OpenFgaPermissionChecker`.

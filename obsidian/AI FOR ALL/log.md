@@ -5,156 +5,156 @@ title: Wiki Log
 # Wiki Log
 
 - [2026-04-14T17:40:04.0639452Z] REBUILD archived_to="_archives/2026-04-14T17-40-04Z" previous_pages=27
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/README.md" pages_updated=0 pages_created=3 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/ARCHITECTURE.md" pages_updated=2 pages_created=1 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/API_REFERENCE.md" pages_updated=1 pages_created=1 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/DATABASE_CONFIGURATION.md" pages_updated=0 pages_created=2 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md" pages_updated=1 pages_created=1 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/OAUTH_SECURITY_GUIDE.md" pages_updated=2 pages_created=1 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/COMMAND_PATTERN.md" pages_updated=0 pages_created=2 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md" pages_updated=2 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/TESTING_GUIDE.md" pages_updated=0 pages_created=3 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/FIXTURES_GUIDE.md" pages_updated=3 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md" pages_updated=0 pages_created=1 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/EMAIL_PASSWORD_AUTH_GUIDE.md" pages_updated=1 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/ERROR_HANDLING_GUIDE.md" pages_updated=1 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/INPUT_VALIDATION_GUIDE.md" pages_updated=1 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/KAFKA_INTEGRATION.md" pages_updated=1 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/KAFKA_EVENT_TESTING_GUIDE.md" pages_updated=2 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/docs/DEPLOYMENT_GUIDE.md" pages_updated=1 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/setup/src/app.rs" pages_updated=5 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/http/src/lib.rs" pages_updated=4 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/http/src/handlers/auth.rs" pages_updated=4 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/http/src/oauth_state.rs" pages_updated=2 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/domain/src/service/oauth_service.rs" pages_updated=1 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/domain/src/service/provider_link_service.rs" pages_updated=1 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/domain/src/service/auth_service.rs" pages_updated=1 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/application/src/command/factory.rs" pages_updated=2 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/application/src/usecase/password_reset.rs" pages_updated=1 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/configuration/src/lib.rs" pages_updated=3 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/config/default.toml" pages_updated=2 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/config/test.toml" pages_updated=4 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/tests/fixtures/db/mod.rs" pages_updated=3 pages_created=0 mode=full
-- [2026-04-14T17:46:37.6929647Z] INGEST source="IAMRusty/tests/signup_kafka.rs" pages_updated=3 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/README.md" pages_updated=0 pages_created=3 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/ARCHITECTURE.md" pages_updated=2 pages_created=1 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/API_REFERENCE.md" pages_updated=1 pages_created=1 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/DATABASE_CONFIGURATION.md" pages_updated=0 pages_created=2 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md" pages_updated=1 pages_created=1 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/OAUTH_SECURITY_GUIDE.md" pages_updated=2 pages_created=1 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/COMMAND_PATTERN.md" pages_updated=0 pages_created=2 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md" pages_updated=2 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/TESTING_GUIDE.md" pages_updated=0 pages_created=3 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/FIXTURES_GUIDE.md" pages_updated=3 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md" pages_updated=0 pages_created=1 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/EMAIL_PASSWORD_AUTH_GUIDE.md" pages_updated=1 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/ERROR_HANDLING_GUIDE.md" pages_updated=1 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/INPUT_VALIDATION_GUIDE.md" pages_updated=1 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/KAFKA_INTEGRATION.md" pages_updated=1 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/KAFKA_EVENT_TESTING_GUIDE.md" pages_updated=2 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/docs/DEPLOYMENT_GUIDE.md" pages_updated=1 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/setup/src/app.rs" pages_updated=5 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/http/src/lib.rs" pages_updated=4 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/http/src/handlers/auth.rs" pages_updated=4 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/http/src/oauth_state.rs" pages_updated=2 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/domain/src/service/oauth_service.rs" pages_updated=1 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/domain/src/service/provider_link_service.rs" pages_updated=1 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/domain/src/service/auth_service.rs" pages_updated=1 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/application/src/command/factory.rs" pages_updated=2 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/application/src/usecase/password_reset.rs" pages_updated=1 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/configuration/src/lib.rs" pages_updated=3 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/config/default.toml" pages_updated=2 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/config/test.toml" pages_updated=4 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/tests/fixtures/db/mod.rs" pages_updated=3 pages_created=0 mode=full
+- [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/tests/signup_kafka.rs" pages_updated=3 pages_created=0 mode=full
 - [2026-04-14T18:18:24.0602572Z] INGEST source="README.md" pages_updated=2 pages_created=1 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/openspecs.yaml" pages_updated=1 pages_created=1 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/config/default.toml" pages_updated=2 pages_created=1 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/config/development.toml" pages_updated=5 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/config/test.toml" pages_updated=4 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/configuration/src/lib.rs" pages_updated=3 pages_created=1 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/setup/src/app.rs" pages_updated=5 pages_created=2 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/http/src/lib.rs" pages_updated=3 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/http/src/handlers/notification.rs" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/http/src/handlers/communication.rs" pages_updated=2 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/openspecs.yaml" pages_updated=1 pages_created=1 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/config/default.toml" pages_updated=2 pages_created=1 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/config/development.toml" pages_updated=5 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/config/test.toml" pages_updated=4 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/configuration/src/lib.rs" pages_updated=3 pages_created=1 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/setup/src/app.rs" pages_updated=5 pages_created=2 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/http/src/lib.rs" pages_updated=3 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/http/src/handlers/notification.rs" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/http/src/handlers/communication.rs" pages_updated=2 pages_created=0 mode=append
 - [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/resources/permissions/notification.conf" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/application/src/command/factory.rs" pages_updated=2 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/application/src/usecase/event_processing.rs" pages_updated=2 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/domain/src/service/notification_service.rs" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/application/src/command/factory.rs" pages_updated=2 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/application/src/usecase/event_processing.rs" pages_updated=2 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/domain/src/service/notification_service.rs" pages_updated=1 pages_created=0 mode=append
 - [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/domain/src/service/permission_service.rs" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/domain/src/service/communication_factory.rs" pages_updated=2 pages_created=1 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/domain/src/entity/communication.rs" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/infra/src/event/consumer.rs" pages_updated=3 pages_created=2 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/infra/src/event/processors/mod.rs" pages_updated=2 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/infra/src/event/processors/email.rs" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/infra/src/event/processors/notification.rs" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/infra/src/template/tera_service.rs" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/migration/src/m20250201_000001_create_notification_tables.rs" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/resources/communication_descriptor/user_signed_up.toml" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/resources/communication_descriptor/password_reset_requested.toml" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/resources/communication_descriptor/user_email_verified.toml" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/resources/templates/user_signed_up_email.txt" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/resources/templates/user_email_verified_notification.txt" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/resources/templates/password_reset_requested_email.html" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/tests/common.rs" pages_updated=2 pages_created=1 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/tests/notification_http_endpoints_test.rs" pages_updated=2 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/tests/user_signup_event_test.rs" pages_updated=3 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/tests/user_email_verified_event_test.rs" pages_updated=3 pages_created=0 mode=append
-- [2026-04-14T18:18:24.0602572Z] INGEST source="Telegraph/docker-compose.yml" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/domain/src/service/communication_factory.rs" pages_updated=2 pages_created=1 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/domain/src/entity/communication.rs" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/infra/src/event/consumer.rs" pages_updated=3 pages_created=2 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/infra/src/event/processors/mod.rs" pages_updated=2 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/infra/src/event/processors/email.rs" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/infra/src/event/processors/notification.rs" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/infra/src/template/tera_service.rs" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/migration/src/m20250201_000001_create_notification_tables.rs" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/resources/communication_descriptor/user_signed_up.toml" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/resources/communication_descriptor/password_reset_requested.toml" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/resources/communication_descriptor/user_email_verified.toml" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/resources/templates/user_signed_up_email.txt" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/resources/templates/user_email_verified_notification.txt" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/resources/templates/password_reset_requested_email.html" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/tests/common.rs" pages_updated=2 pages_created=1 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/tests/notification_http_endpoints_test.rs" pages_updated=2 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/tests/user_signup_event_test.rs" pages_updated=3 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/tests/user_email_verified_event_test.rs" pages_updated=3 pages_created=0 mode=append
+- [2026-04-14T18:18:24.0602572Z] INGEST source="services/Telegraph/docker-compose.yml" pages_updated=1 pages_created=0 mode=append
 - [2026-04-14T18:43:59.2392590Z] MERGE archive="_archives/2026-04-14T17-40-04Z" restored_pages=14 merged_sources=28 live_preferred=true archive_excluded=true
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/Cargo.toml" pages_updated=1 pages_created=1 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/openspecs.yaml" pages_updated=3 pages_created=1 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/config/default.toml" pages_updated=4 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/config/development.toml" pages_updated=2 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/config/test.toml" pages_updated=4 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/configuration/src/lib.rs" pages_updated=2 pages_created=1 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/setup/src/app.rs" pages_updated=4 pages_created=2 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/http/src/lib.rs" pages_updated=4 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/http/src/error.rs" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/http/src/handlers/invitations.rs" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/application/src/command/factory.rs" pages_updated=5 pages_created=1 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/application/src/dto/common.rs" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/application/src/usecase/organization.rs" pages_updated=3 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/application/src/usecase/invitation.rs" pages_updated=3 pages_created=1 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/application/src/usecase/external_link.rs" pages_updated=3 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/application/src/usecase/sync_job.rs" pages_updated=3 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/Cargo.toml" pages_updated=1 pages_created=1 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/openspecs.yaml" pages_updated=3 pages_created=1 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/config/default.toml" pages_updated=4 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/config/development.toml" pages_updated=2 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/config/test.toml" pages_updated=4 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/configuration/src/lib.rs" pages_updated=2 pages_created=1 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/setup/src/app.rs" pages_updated=4 pages_created=2 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/http/src/lib.rs" pages_updated=4 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/http/src/error.rs" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/http/src/handlers/invitations.rs" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/application/src/command/factory.rs" pages_updated=5 pages_created=1 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/application/src/dto/common.rs" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/application/src/usecase/organization.rs" pages_updated=3 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/application/src/usecase/invitation.rs" pages_updated=3 pages_created=1 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/application/src/usecase/external_link.rs" pages_updated=3 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/application/src/usecase/sync_job.rs" pages_updated=3 pages_created=0 mode=append
 - [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/domain/src/service/permission_service.rs" pages_updated=2 pages_created=1 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/domain/src/service/sync_service.rs" pages_updated=1 pages_created=1 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/domain/src/service/external_provider_service.rs" pages_updated=2 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/infra/src/external_provider/external_provider_client.rs" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/infra/src/event/event_adapter.rs" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/infra/src/repository/entity/hive_database_schema.sql" pages_updated=1 pages_created=1 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/domain/src/service/sync_service.rs" pages_updated=1 pages_created=1 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/domain/src/service/external_provider_service.rs" pages_updated=2 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/infra/src/external_provider/external_provider_client.rs" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/infra/src/event/event_adapter.rs" pages_updated=1 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/infra/src/repository/entity/hive_database_schema.sql" pages_updated=1 pages_created=1 mode=append
 - [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/resources/permissions/organization.conf" pages_updated=1 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/tests/common.rs" pages_updated=2 pages_created=1 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/tests/organization_api_tests.rs" pages_updated=4 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/tests/members_api_tests.rs" pages_updated=4 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/tests/external_link_api_tests.rs" pages_updated=3 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="Hive/tests/fixtures/external_provider/service.rs" pages_updated=2 pages_created=0 mode=append
-- [2026-04-14T18:56:22.3888182Z] INGEST source="hive-events/README.md" pages_updated=4 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/tests/common.rs" pages_updated=2 pages_created=1 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/tests/organization_api_tests.rs" pages_updated=4 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/tests/members_api_tests.rs" pages_updated=4 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/tests/external_link_api_tests.rs" pages_updated=3 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="services/Hive/tests/fixtures/external_provider/service.rs" pages_updated=2 pages_created=0 mode=append
+- [2026-04-14T18:56:22.3888182Z] INGEST source="crates/hive-events/README.md" pages_updated=4 pages_created=0 mode=append
 - [2026-04-14T20:08:52.0803248Z] INGEST source="docs/project/Archi.md" pages_updated=3 pages_created=0 mode=full
-- [2026-04-14T20:08:52.0803248Z] INGEST source="Manifesto/README.md" pages_updated=3 pages_created=0 mode=full
-- [2026-04-14T20:08:52.0803248Z] INGEST source="Manifesto/SETUP.md" pages_updated=3 pages_created=0 mode=full
-- [2026-04-14T20:08:52.0803248Z] INGEST source="Manifesto/docs/rustycog-service-build-guide.md" pages_updated=7 pages_created=0 mode=full
-- [2026-04-14T20:08:52.0803248Z] INGEST source="Manifesto/docs/rustycog-hexagonal-web-service-guide.md" pages_updated=3 pages_created=0 mode=full
-- [2026-04-14T20:08:52.0803248Z] INGEST source="Manifesto/docs/rustycog-implementation-and-usage-guide.md" pages_updated=7 pages_created=0 mode=full
-- [2026-04-14T20:08:52.0803248Z] INGEST source="Manifesto/IMPLEMENTATION_STATUS.md" pages_updated=3 pages_created=0 mode=full
-- [2026-04-14T20:08:52.0803248Z] INGEST source="Manifesto/src/main.rs" pages_updated=4 pages_created=0 mode=full
-- [2026-04-14T20:08:52.0803248Z] INGEST source="Manifesto/configuration/src/lib.rs" pages_updated=5 pages_created=0 mode=full
-- [2026-04-14T20:08:52.0803248Z] INGEST source="Manifesto/setup/src/app.rs" pages_updated=3 pages_created=0 mode=full
-- [2026-04-14T20:08:52.0803248Z] INGEST source="Manifesto/http/src/lib.rs" pages_updated=3 pages_created=0 mode=full
-- [2026-04-14T20:08:52.0803248Z] INGEST source="Manifesto/application/src/command/factory.rs" pages_updated=3 pages_created=0 mode=full
-- [2026-04-14T20:08:52.0803248Z] INGEST source="Manifesto/tests/common.rs" pages_updated=3 pages_created=0 mode=full
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/README.md" pages_updated=4 pages_created=0 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="IAMRusty/domain/src/entity/user.rs" pages_updated=0 pages_created=2 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="IAMRusty/domain/src/entity/user_email.rs" pages_updated=0 pages_created=2 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="IAMRusty/domain/src/entity/provider.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="IAMRusty/domain/src/entity/provider_link.rs" pages_updated=0 pages_created=2 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="IAMRusty/domain/src/entity/password_reset_token.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="IAMRusty/domain/src/entity/email_verification.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="IAMRusty/domain/src/entity/registration_token.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="IAMRusty/domain/src/entity/token.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Hive/domain/src/entity/organization.rs" pages_updated=0 pages_created=2 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Hive/domain/src/entity/organization_member.rs" pages_updated=0 pages_created=3 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Hive/domain/src/entity/organization_invitation.rs" pages_updated=0 pages_created=3 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Hive/domain/src/entity/permission.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Hive/domain/src/entity/resource.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Hive/domain/src/entity/role_permission.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Hive/domain/src/entity/organization_member_role_permission.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Hive/domain/src/entity/external_provider.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Hive/domain/src/entity/external_link.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Hive/domain/src/entity/sync_job.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/domain/src/entity/project.rs" pages_updated=0 pages_created=2 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/domain/src/entity/project_component.rs" pages_updated=0 pages_created=2 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/domain/src/entity/project_member.rs" pages_updated=0 pages_created=3 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/domain/src/entity/permission.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/domain/src/entity/resource.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/domain/src/entity/role_permission.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/domain/src/entity/project_member_role_permission.rs" pages_updated=0 pages_created=1 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Telegraph/domain/src/entity/communication.rs" pages_updated=2 pages_created=0 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Telegraph/domain/src/entity/delivery.rs" pages_updated=0 pages_created=2 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Telegraph/domain/src/entity/template.rs" pages_updated=0 pages_created=2 mode=append
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/README.md" pages_updated=2 pages_created=0 mode=full
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/application/src/usecase/project.rs" pages_updated=3 pages_created=0 mode=full
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/application/src/usecase/component.rs" pages_updated=4 pages_created=0 mode=full
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/application/src/usecase/member.rs" pages_updated=3 pages_created=0 mode=full
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/domain/src/service/permission_service.rs" pages_updated=2 pages_created=0 mode=full
+- [2026-04-14T20:08:52.0803248Z] INGEST source="services/Manifesto/README.md" pages_updated=3 pages_created=0 mode=full
+- [2026-04-14T20:08:52.0803248Z] INGEST source="services/Manifesto/SETUP.md" pages_updated=3 pages_created=0 mode=full
+- [2026-04-14T20:08:52.0803248Z] INGEST source="services/Manifesto/docs/rustycog-service-build-guide.md" pages_updated=7 pages_created=0 mode=full
+- [2026-04-14T20:08:52.0803248Z] INGEST source="services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md" pages_updated=3 pages_created=0 mode=full
+- [2026-04-14T20:08:52.0803248Z] INGEST source="services/Manifesto/docs/rustycog-implementation-and-usage-guide.md" pages_updated=7 pages_created=0 mode=full
+- [2026-04-14T20:08:52.0803248Z] INGEST source="services/Manifesto/IMPLEMENTATION_STATUS.md" pages_updated=3 pages_created=0 mode=full
+- [2026-04-14T20:08:52.0803248Z] INGEST source="services/Manifesto/src/main.rs" pages_updated=4 pages_created=0 mode=full
+- [2026-04-14T20:08:52.0803248Z] INGEST source="services/Manifesto/configuration/src/lib.rs" pages_updated=5 pages_created=0 mode=full
+- [2026-04-14T20:08:52.0803248Z] INGEST source="services/Manifesto/setup/src/app.rs" pages_updated=3 pages_created=0 mode=full
+- [2026-04-14T20:08:52.0803248Z] INGEST source="services/Manifesto/http/src/lib.rs" pages_updated=3 pages_created=0 mode=full
+- [2026-04-14T20:08:52.0803248Z] INGEST source="services/Manifesto/application/src/command/factory.rs" pages_updated=3 pages_created=0 mode=full
+- [2026-04-14T20:08:52.0803248Z] INGEST source="services/Manifesto/tests/common.rs" pages_updated=3 pages_created=0 mode=full
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Manifesto/README.md" pages_updated=4 pages_created=0 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/IAMRusty/domain/src/entity/user.rs" pages_updated=0 pages_created=2 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/IAMRusty/domain/src/entity/user_email.rs" pages_updated=0 pages_created=2 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/IAMRusty/domain/src/entity/provider.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/IAMRusty/domain/src/entity/provider_link.rs" pages_updated=0 pages_created=2 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/IAMRusty/domain/src/entity/password_reset_token.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/IAMRusty/domain/src/entity/email_verification.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/IAMRusty/domain/src/entity/registration_token.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/IAMRusty/domain/src/entity/token.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Hive/domain/src/entity/organization.rs" pages_updated=0 pages_created=2 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Hive/domain/src/entity/organization_member.rs" pages_updated=0 pages_created=3 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Hive/domain/src/entity/organization_invitation.rs" pages_updated=0 pages_created=3 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Hive/domain/src/entity/permission.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Hive/domain/src/entity/resource.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Hive/domain/src/entity/role_permission.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Hive/domain/src/entity/organization_member_role_permission.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Hive/domain/src/entity/external_provider.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Hive/domain/src/entity/external_link.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Hive/domain/src/entity/sync_job.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Manifesto/domain/src/entity/project.rs" pages_updated=0 pages_created=2 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Manifesto/domain/src/entity/project_component.rs" pages_updated=0 pages_created=2 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Manifesto/domain/src/entity/project_member.rs" pages_updated=0 pages_created=3 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Manifesto/domain/src/entity/permission.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Manifesto/domain/src/entity/resource.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Manifesto/domain/src/entity/role_permission.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Manifesto/domain/src/entity/project_member_role_permission.rs" pages_updated=0 pages_created=1 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Telegraph/domain/src/entity/communication.rs" pages_updated=2 pages_created=0 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Telegraph/domain/src/entity/delivery.rs" pages_updated=0 pages_created=2 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Telegraph/domain/src/entity/template.rs" pages_updated=0 pages_created=2 mode=append
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Manifesto/README.md" pages_updated=2 pages_created=0 mode=full
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Manifesto/application/src/usecase/project.rs" pages_updated=3 pages_created=0 mode=full
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Manifesto/application/src/usecase/component.rs" pages_updated=4 pages_created=0 mode=full
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Manifesto/application/src/usecase/member.rs" pages_updated=3 pages_created=0 mode=full
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Manifesto/domain/src/service/permission_service.rs" pages_updated=2 pages_created=0 mode=full
 - [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/domain/src/service/permission_fetcher_service.rs" pages_updated=3 pages_created=0 mode=full
 - [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/infra/src/event/event_adapter.rs" pages_updated=1 pages_created=0 mode=full
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/infra/src/adapters/component_service_client.rs" pages_updated=1 pages_created=0 mode=full
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Manifesto/http/src/lib.rs" pages_updated=2 pages_created=0 mode=full
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Manifesto/infra/src/adapters/component_service_client.rs" pages_updated=1 pages_created=0 mode=full
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Manifesto/http/src/lib.rs" pages_updated=2 pages_created=0 mode=full
 - [2026-04-14T20:28:20.9129598Z] INGEST source="Telegraph/domain/src/service/permission_service.rs" pages_updated=1 pages_created=0 mode=full
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Telegraph/http/src/lib.rs" pages_updated=2 pages_created=0 mode=full
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Telegraph/http/src/lib.rs" pages_updated=2 pages_created=0 mode=full
 - [2026-04-14T20:28:20.9129598Z] INGEST source="Hive/domain/src/service/permission_service.rs" pages_updated=2 pages_created=0 mode=full
-- [2026-04-14T20:28:20.9129598Z] INGEST source="Hive/http/src/lib.rs" pages_updated=2 pages_created=0 mode=full
+- [2026-04-14T20:28:20.9129598Z] INGEST source="services/Hive/http/src/lib.rs" pages_updated=2 pages_created=0 mode=full
 - [2026-04-14T20:28:20.9129598Z] INGEST source="rustycog/rustycog-http/src/builder.rs" pages_updated=1 pages_created=0 mode=full
 - [2026-04-14T20:28:20.9129598Z] INGEST source="rustycog/rustycog-http/src/middleware_permission.rs" pages_updated=1 pages_created=0 mode=full
 
@@ -186,40 +186,40 @@ title: Wiki Log
 - [2026-04-19T12:08:26.9393504Z] WIKI_UPDATE project=manifesto pages_updated=6 pages_created=0 pages_deleted=0 source_cwd=C:/Users/djden/source/repos/AIForAll
 - [2026-04-19T12:08:26.9393504Z] WIKI_UPDATE project=aiforall pages_updated=2 pages_created=0 pages_deleted=0 source_cwd=C:/Users/djden/source/repos/AIForAll
 - [2026-04-22T16:20:59Z] INGEST source="rustycog/rustycog-testing/src/wiremock/mod.rs" pages_updated=7 pages_created=2 mode=append topic=wiremock-usage
-- [2026-04-22T16:20:59Z] INGEST source="Hive/tests/fixtures/external_provider/mod.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
-- [2026-04-22T16:20:59Z] INGEST source="Hive/tests/fixtures/external_provider/service.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
-- [2026-04-22T16:20:59Z] INGEST source="Hive/tests/fixtures/external_provider/resources.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
-- [2026-04-22T16:20:59Z] INGEST source="Hive/tests/external_link_api_tests.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
-- [2026-04-22T16:20:59Z] INGEST source="Telegraph/tests/fixtures/smtp/mod.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
-- [2026-04-22T16:20:59Z] INGEST source="Telegraph/tests/fixtures/smtp/service.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
-- [2026-04-22T16:20:59Z] INGEST source="Telegraph/tests/fixtures/smtp/resources.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
-- [2026-04-22T16:20:59Z] INGEST source="Telegraph/tests/fixtures/smtp/testcontainer.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
+- [2026-04-22T16:20:59Z] INGEST source="services/Hive/tests/fixtures/external_provider/mod.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
+- [2026-04-22T16:20:59Z] INGEST source="services/Hive/tests/fixtures/external_provider/service.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
+- [2026-04-22T16:20:59Z] INGEST source="services/Hive/tests/fixtures/external_provider/resources.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
+- [2026-04-22T16:20:59Z] INGEST source="services/Hive/tests/external_link_api_tests.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
+- [2026-04-22T16:20:59Z] INGEST source="services/Telegraph/tests/fixtures/smtp/mod.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
+- [2026-04-22T16:20:59Z] INGEST source="services/Telegraph/tests/fixtures/smtp/service.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
+- [2026-04-22T16:20:59Z] INGEST source="services/Telegraph/tests/fixtures/smtp/resources.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
+- [2026-04-22T16:20:59Z] INGEST source="services/Telegraph/tests/fixtures/smtp/testcontainer.rs" pages_updated=7 pages_created=0 mode=append topic=wiremock-usage
 - [2026-04-22T17:30:00Z] INGEST source="rustycog/rustycog-testing/src/permission/{mod,service,resources}.rs" pages_updated=9 pages_created=1 mode=append topic=openfga-mock-service
 - [2026-04-22T17:30:00Z] INGEST source="rustycog/rustycog-permission/src/checker.rs" pages_updated=9 pages_created=0 mode=append topic=cache_ttl_seconds-config-field
-- [2026-04-22T17:30:00Z] INGEST source="Manifesto/setup/src/app.rs" pages_updated=9 pages_created=0 mode=append topic=conditional-permission-cache-decoration
-- [2026-04-22T17:30:00Z] INGEST source="Manifesto/config/test.toml" pages_updated=9 pages_created=0 mode=append topic=test-cache-disable
-- [2026-04-22T17:30:00Z] INGEST source="Manifesto/tests/common.rs" pages_updated=9 pages_created=0 mode=append topic=openfga-fake-in-setup_test_server
-- [2026-04-22T17:30:00Z] INGEST source="Manifesto/tests/component_api_tests.rs" pages_updated=9 pages_created=0 mode=append topic=denial-and-phase-flip-test-patterns
+- [2026-04-22T17:30:00Z] INGEST source="services/Manifesto/setup/src/app.rs" pages_updated=9 pages_created=0 mode=append topic=conditional-permission-cache-decoration
+- [2026-04-22T17:30:00Z] INGEST source="services/Manifesto/config/test.toml" pages_updated=9 pages_created=0 mode=append topic=test-cache-disable
+- [2026-04-22T17:30:00Z] INGEST source="services/Manifesto/tests/common.rs" pages_updated=9 pages_created=0 mode=append topic=openfga-fake-in-setup_test_server
+- [2026-04-22T17:30:00Z] INGEST source="services/Manifesto/tests/component_api_tests.rs" pages_updated=9 pages_created=0 mode=append topic=denial-and-phase-flip-test-patterns
 - [2026-04-22T18:30:00Z] INGEST source="rustycog/rustycog-permission/src/lib.rs" pages_updated=6 pages_created=1 mode=append topic=phase-1-wildcard-public-read
 - [2026-04-22T18:30:00Z] INGEST source="rustycog/rustycog-permission/src/checker.rs" pages_updated=6 pages_created=0 mode=append topic=cache-bypass-for-wildcard-subject
 - [2026-04-22T18:30:00Z] INGEST source="rustycog/rustycog-http/src/middleware_permission.rs" pages_updated=6 pages_created=0 mode=append topic=optional-middleware-wildcard-fallback
 - [2026-04-22T18:30:00Z] INGEST source="rustycog/rustycog-http/tests/permission_middleware_tests.rs" pages_updated=6 pages_created=0 mode=append topic=optional-auth-wildcard-tests
 - [2026-04-22T18:30:00Z] INGEST source="rustycog/rustycog-testing/src/permission/service.rs" pages_updated=6 pages_created=0 mode=append topic=mock_check_allow_deny_wildcard-helpers
-- [2026-04-22T18:30:00Z] INGEST source="openfga/model.fga" pages_updated=6 pages_created=0 mode=append topic=project-viewer-user-star-type-restriction
-- [2026-04-22T18:30:00Z] INGEST source="Manifesto/tests/project_api_tests.rs" pages_updated=6 pages_created=0 mode=append topic=phase-1-test-fixes-auth-and-422
+- [2026-04-22T18:30:00Z] INGEST source="ops/openfga/model.fga" pages_updated=6 pages_created=0 mode=append topic=project-viewer-user-star-type-restriction
+- [2026-04-22T18:30:00Z] INGEST source="services/Manifesto/tests/project_api_tests.rs" pages_updated=6 pages_created=0 mode=append topic=phase-1-test-fixes-auth-and-422
 - [2026-04-23T19:10:00Z] WIKI_UPDATE source="cursor-transcript:0b156989-a24f-442c-a7bc-49d7bffe4677" pages_created=2 pages_updated=5 mode=append topic=test-relaxed-jwt-cargo-feature
-- [2026-04-23T19:10:00Z] INGEST source="IAMRusty/infra/Cargo.toml" pages_updated=4 pages_created=2 mode=append topic=test-relaxed-jwt-feature-declaration
-- [2026-04-23T19:10:00Z] INGEST source="IAMRusty/infra/src/token/registration_token_service.rs" pages_updated=4 pages_created=2 mode=append topic=registration-token-rs256-guard-gating
-- [2026-04-23T19:10:00Z] INGEST source="IAMRusty/infra/src/token/jwt_encoder.rs" pages_updated=4 pages_created=2 mode=append topic=jwt-token-service-rs256-assert-and-with-hmac-gating
-- [2026-04-23T19:10:00Z] INGEST source="IAMRusty/Cargo.toml" pages_updated=4 pages_created=2 mode=append topic=dev-dep-feature-activation
-- [2026-04-23T19:10:00Z] INGEST source="IAMRusty/tests/utils/jwt.rs" pages_updated=2 pages_created=0 mode=append topic=remove-duplicate-rs256-guard-in-test-util
-- [2026-04-23T19:10:00Z] INGEST source="IAMRusty/tests/auth_username_flow_part2.rs" pages_updated=2 pages_created=0 mode=append topic=relax-rsa-header-assertion
-- [2026-04-23T19:10:00Z] INGEST source="IAMRusty/config/test.toml" pages_updated=3 pages_created=0 mode=append topic=test-config-uses-hs256-not-pem
+- [2026-04-23T19:10:00Z] INGEST source="services/IAMRusty/infra/Cargo.toml" pages_updated=4 pages_created=2 mode=append topic=test-relaxed-jwt-feature-declaration
+- [2026-04-23T19:10:00Z] INGEST source="services/IAMRusty/infra/src/token/registration_token_service.rs" pages_updated=4 pages_created=2 mode=append topic=registration-token-rs256-guard-gating
+- [2026-04-23T19:10:00Z] INGEST source="services/IAMRusty/infra/src/token/jwt_encoder.rs" pages_updated=4 pages_created=2 mode=append topic=jwt-token-service-rs256-assert-and-with-hmac-gating
+- [2026-04-23T19:10:00Z] INGEST source="services/IAMRusty/Cargo.toml" pages_updated=4 pages_created=2 mode=append topic=dev-dep-feature-activation
+- [2026-04-23T19:10:00Z] INGEST source="services/IAMRusty/tests/utils/jwt.rs" pages_updated=2 pages_created=0 mode=append topic=remove-duplicate-rs256-guard-in-test-util
+- [2026-04-23T19:10:00Z] INGEST source="services/IAMRusty/tests/auth_username_flow_part2.rs" pages_updated=2 pages_created=0 mode=append topic=relax-rsa-header-assertion
+- [2026-04-23T19:10:00Z] INGEST source="services/IAMRusty/config/test.toml" pages_updated=3 pages_created=0 mode=append topic=test-config-uses-hs256-not-pem
 - [2026-04-23T19:30:00Z] WIKI_UPDATE source="cursor-transcript:0b156989-a24f-442c-a7bc-49d7bffe4677" pages_created=1 pages_updated=4 mode=append topic=creating-testcontainer-fixtures-skill
 - [2026-04-23T19:30:00Z] INGEST source="rustycog/rustycog-testing/src/common/sqs_testcontainer.rs" pages_updated=1 pages_created=1 mode=append topic=singleton-and-defensive-cleanup-pattern
 - [2026-04-23T19:30:00Z] INGEST source="rustycog/rustycog-testing/src/common/service_test_descriptor.rs" pages_updated=1 pages_created=1 mode=append topic=non-defaulted-capability-flags
-- [2026-04-23T19:30:00Z] INGEST source="Telegraph/tests/fixtures/smtp/testcontainer.rs" pages_updated=1 pages_created=1 mode=append topic=service-local-mailhog-testcontainer-fixture
-- [2026-04-23T19:30:00Z] INGEST source="Telegraph/config/test.toml" pages_updated=1 pages_created=1 mode=append topic=fixed-mapped-port-vs-port-zero-tradeoff
+- [2026-04-23T19:30:00Z] INGEST source="services/Telegraph/tests/fixtures/smtp/testcontainer.rs" pages_updated=1 pages_created=1 mode=append topic=service-local-mailhog-testcontainer-fixture
+- [2026-04-23T19:30:00Z] INGEST source="services/Telegraph/config/test.toml" pages_updated=1 pages_created=1 mode=append topic=fixed-mapped-port-vs-port-zero-tradeoff
 - [2026-04-24T17:02:25Z] QUERY query="How does the OpenFGA service's stubs are working in integration tests" result_pages=4 mode=normal escalated=false
 - [2026-04-24T19:05:00Z] WIKI_UPDATE project=AIForAll pages_updated=8 pages_created=1 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=openfga-real-testcontainer-and-shared-config
 - [2026-04-25T10:04:00Z] WIKI_UPDATE project=AIForAll pages_updated=5 pages_created=1 source_cwd="c:/Users/djden/source/repos/AIForAll" topic=modular-monolith-runtime-and-oodhive-monolith

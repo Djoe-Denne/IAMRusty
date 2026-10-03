@@ -57,5 +57,5 @@
 ## Références
 
 - Canon voisin : [0003](0003-apparatus-untrusted-plugin.md), [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md), [0011](0011-apparatus-p4-pod-par-binding.md) ; closeout historique [0008-closeout.md](0008-closeout.md) (**non** modifié par cette ADR)
-- Code (dette hors prod, preuve de la limite) : `apparatus-operator/src/controller.rs` — `pod_name_for`, `cr_name_for`, `reconcile_object`, `envelope_to_podspec`
+- Code (dette hors prod, preuve de la limite) : `workers/apparatus-operator/src/controller.rs` — `pod_name_for`, `cr_name_for`, `reconcile_object`, `envelope_to_podspec`
 - Preuve d’implémentation de **cette** cible : **aucune** (`Réalité : Unimplemented`)

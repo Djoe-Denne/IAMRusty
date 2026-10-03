@@ -1,11 +1,11 @@
-﻿---
+---
 title: >-
   JWT Secret Storage Abstraction
 category: concepts
 tags: [security, jwt, auth, visibility/internal]
 sources:
-  - IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md
-  - IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
+  - services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md
+  - services/IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
 summary: >-
   JWT signing is separated from secret storage so services can switch backends and algorithms without rewriting token logic.
 provenance:

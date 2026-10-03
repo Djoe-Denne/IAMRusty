@@ -4,10 +4,10 @@ category: references
 tags: [reference, communication, architecture, visibility/internal]
 sources:
   - README.md
-  - Telegraph/setup/src/app.rs
-  - Telegraph/infra/src/event/consumer.rs
-  - Telegraph/http/src/lib.rs
-  - Telegraph/configuration/src/lib.rs
+  - services/Telegraph/setup/src/app.rs
+  - services/Telegraph/infra/src/event/consumer.rs
+  - services/Telegraph/http/src/lib.rs
+  - services/Telegraph/configuration/src/lib.rs
 summary: Telegraph-specific runtime notes that sit on top of RustyCog's shared service shell, emphasizing its parallel queue plus HTTP design and notification-focused boundaries.
 provenance:
   extracted: 0.81

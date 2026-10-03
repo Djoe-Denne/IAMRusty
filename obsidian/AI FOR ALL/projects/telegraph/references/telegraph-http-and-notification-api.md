@@ -3,14 +3,14 @@ title: Telegraph HTTP and Notification API
 category: references
 tags: [reference, api, notifications, visibility/internal]
 sources:
-  - Telegraph/openspecs.yaml
-  - Telegraph/http/src/lib.rs
-  - Telegraph/http/src/handlers/notification.rs
-  - Telegraph/http/src/handlers/communication.rs
-  - Telegraph/setup/src/app.rs
-  - Telegraph/application/src/usecase/notification.rs
-  - Telegraph/domain/src/service/notification_service.rs
-  - openfga/model.fga
+  - services/Telegraph/openspecs.yaml
+  - services/Telegraph/http/src/lib.rs
+  - services/Telegraph/http/src/handlers/notification.rs
+  - services/Telegraph/http/src/handlers/communication.rs
+  - services/Telegraph/setup/src/app.rs
+  - services/Telegraph/application/src/usecase/notification.rs
+  - services/Telegraph/domain/src/service/notification_service.rs
+  - ops/openfga/model.fga
 summary: Telegraph-specific HTTP behavior layered on top of RustyCog's shared route and permission model, including its notification-only live surface and ownership checks.
 provenance:
   extracted: 0.72

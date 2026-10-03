@@ -16,11 +16,11 @@
 
 [0404](0404-runtime-microservices-et-monolithe.md) (Accepted / Implemented) fige le **dual runtime** : quatre standalones Compose **et** `oodhive-monolith` préfixé laptop. Elle laisse ouvert : « Déploiement Kubernetes / un seul vs quatre Deployments. » `sentinel-sync` est **hors dual**, absent du Compose par défaut ([0303](0303-sentinel-sync-worker-fga.md), 0404).
 
-[0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) fige le moteur P4 : K8s **hors** `Manifesto/*/src` ; 4 SA ; plugins autre namespace ; operator + Jobs ; enveloppe OCI ≠ image CRI ; Cosign + Transit ≠ KV Lazaret ; Adm-A seule source `VALID`. Elle ne fige **pas** la liste des namespaces plateforme ni le nombre de Deployments métier.
+[0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) fige le moteur P4 : K8s **hors** `services/Manifesto/*/src` ; 4 SA ; plugins autre namespace ; operator + Jobs ; enveloppe OCI ≠ image CRI ; Cosign + Transit ≠ KV Lazaret ; Adm-A seule source `VALID`. Elle ne fige **pas** la liste des namespaces plateforme ni le nombre de Deployments métier.
 
 Tenancy actuelle = org Hive + OpenFGA ([0402](0402-hive-organisations.md), [0302](0302-authn-jwt-authz-openfga.md)). La tentation k8s est le ns-per-tenant ou un seul Deployment monolithe « pour simplifier ».
 
-Écart **non corrigé** dans 0500 : photo Compose sans OpenBao / Lazaret / mesh ; fichier réel les contient. 0601 ne réécrit pas 0500. Redis KV Lazaret : présent en config (`Lazaret/config/*/toml` `[redis]`) **et absent** de `docker-compose.yml` (KV compose = postgres). Cluster B/C **embarque** Redis dans `aiforall-data` ; couche A **conserve** le KV postgres actuel.
+Écart **non corrigé** dans 0500 : photo Compose sans OpenBao / Lazaret / mesh ; fichier réel les contient. 0601 ne réécrit pas 0500. Redis KV Lazaret : présent en config (`services/Lazaret/config/*/toml` `[redis]`) **et absent** de `docker-compose.yml` (KV compose = postgres). Cluster B/C **embarque** Redis dans `aiforall-data` ; couche A **conserve** le KV postgres actuel.
 
 ## Décision
 
@@ -82,7 +82,7 @@ Kyverno (0600) enforce digest/signature **staging/prod**. **Kyverno ≠ Adm-A** 
 
 | Invariant 0008 | Placement 0601 / 0600 |
 |---|---|
-| Hors `Manifesto/*/src` ; zéro token `k8s`/`kubernetes` Manifesto | Operator / Jobs dans `aiforall-apparatus` + `deploy/p4/` (Kustomization Flux **séparée**) |
+| Hors `services/Manifesto/*/src` ; zéro token `k8s`/`kubernetes` Manifesto | Operator / Jobs dans `aiforall-apparatus` + `ops/deploy/p4/` (Kustomization Flux **séparée**) |
 | Enveloppe OCI ≠ image CRI | kubelet n’exécute que `image@sha256` issu de l’enveloppe **admise** |
 | Registry portable | Pas de registry cloud obligatoire ; ACL sur le registre |
 | 4 SA ; Job build sans token API ; plugins autre ns | SA ci-dessus ; `aiforall-plugins` |
@@ -101,7 +101,7 @@ K8s-as-P3 reste **interdit**.
 | 4 SA conceptuels ; colocation admit+sign OK | Split admit vs signer **si** 0008 le tranche |
 | 1 Postgres, 6 DB ; queue SQS-like ; Redis KV B/C | Kafka ; Velero (0600) |
 | NetworkPolicy default-deny ; plugins → invoke | SPIRE ; mesh sidecar |
-| P4 dans `aiforall-apparatus` + `deploy/p4/` | Nest HTTP / 6ᵉ hexagone (rejeté 0008) |
+| P4 dans `aiforall-apparatus` + `ops/deploy/p4/` | Nest HTTP / 6ᵉ hexagone (rejeté 0008) |
 
 ## Conséquences
 
@@ -122,7 +122,7 @@ K8s-as-P3 reste **interdit**.
 | SPIRE V1 | 4 SA + 2 CA T14b suffisent |
 | ESO dans `aiforall-plugins` | Refs opaques à l’invoke (0004 / 0007 T12) |
 | OpenBao Transit = KV plugin | 0008 |
-| Fusion `deploy/p4/` × overlays Manifesto | 0008 hors Manifesto |
+| Fusion `ops/deploy/p4/` × overlays Manifesto | 0008 hors Manifesto |
 | Kind obligatoire pour T2 unitaire P4 | 0008 : Kind pas prérequis T2 |
 | 5ᵉ SA « admit » + « signer » anticipé | Split encore ouvert dans 0008 |
 | Plugins dans `aiforall-platform` | 0003 / 0008 Run-A : autre namespace |
@@ -139,7 +139,7 @@ K8s-as-P3 reste **interdit**.
 ## Références
 
 - Wiki : `obsidian/AI FOR ALL/projects/aiforall/decisions/0601-cluster-topology.md` ; 0008 `obsidian/AI FOR ALL/projects/manifesto/decisions/0008-apparatus-p4-k8s.md` ; mesh `obsidian/AI FOR ALL/projects/aiforall/concepts/https-platform-mesh.md`
-- Dépôt : `docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md`, `docs/adr/0404-runtime-microservices-et-monolithe.md`, `docs/adr/0500-config-typee-et-compose-local.md`, `docker-compose.yml` (6 DB `create-databases`), `Lazaret/config/development.toml`
+- Dépôt : `docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md`, `docs/adr/0404-runtime-microservices-et-monolithe.md`, `docs/adr/0500-config-typee-et-compose-local.md`, `docker-compose.yml` (6 DB `create-databases`), `services/Lazaret/config/development.toml`
 - Contrat : `docs/platform-cloud-v1-implementation-contract.md`
 - Web : [kind](https://kind.sigs.k8s.io/), [Gateway API](https://gateway-api.sigs.k8s.io/), [Kubernetes multi-tenancy](https://kubernetes.io/docs/concepts/security/multi-tenancy/), [Flux bootstrap](https://fluxcd.io/flux/installation/bootstrap/), [ESO OpenBao](https://external-secrets.io/latest/provider/openbao/), [Kyverno](https://kyverno.io/docs/policy-types/overview/), [12factor config](https://12factor.net/config)
 - Preuve d’implémentation : `aucune`

@@ -1,4 +1,4 @@
-﻿---
+---
 title: >-
   Event-Driven Microservice Platform
 category: concepts
@@ -6,18 +6,18 @@ tags: [architecture, microservices, events, visibility/internal]
 sources:
   - README.md
   - docs/project/Archi.md
-  - IAMRusty/README.md
-  - Hive/application/src/usecase/organization.rs
-  - Hive/application/src/usecase/invitation.rs
-  - Hive/application/src/usecase/external_link.rs
-  - Hive/application/src/usecase/sync_job.rs
+  - services/IAMRusty/README.md
+  - services/Hive/application/src/usecase/organization.rs
+  - services/Hive/application/src/usecase/invitation.rs
+  - services/Hive/application/src/usecase/external_link.rs
+  - services/Hive/application/src/usecase/sync_job.rs
   - rustycog/README.md
   - rustycog/rustycog-events/src/lib.rs
   - rustycog/rustycog-events/src/event.rs
   - rustycog/rustycog-outbox/src/lib.rs
   - rustycog/rustycog-testing/src/common/kafka_testcontainer.rs
   - rustycog/rustycog-testing/src/common/sqs_testcontainer.rs
-  - hive-events/README.md
+  - crates/hive-events/README.md
 summary: >-
   The platform uses decoupled services plus transport-neutral events, SQS fanout, and a transactional outbox for durable event intent.
 provenance:

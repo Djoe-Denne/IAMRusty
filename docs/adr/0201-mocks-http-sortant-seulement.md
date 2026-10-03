@@ -16,10 +16,10 @@ Les collaborateurs HTTP externes (OAuth GitHub/GitLab, catalogue composants, pro
 
 ## Décision
 
-1. WireMock n’est autorisé que pour l’**HTTP sortant** : catalogue Manifesto (`ComponentServiceMockService`, `isolated()`), OAuth IAM (`tests/fixtures/github|gitlab`, URLs `http://localhost:3000/...` dans `IAMRusty/config/test.toml`), provider Hive (`ExternalProviderMockService`).
+1. WireMock n’est autorisé que pour l’**HTTP sortant** : catalogue Manifesto (`ComponentServiceMockService`, `isolated()`), OAuth IAM (`tests/fixtures/github|gitlab`, URLs `http://localhost:3000/...` dans `services/IAMRusty/config/test.toml`), provider Hive (`ExternalProviderMockService`).
 2. Interdit : mocker le use-case HTTP sous test. Interdit : `OpenFgaMockService` (ou tout fake `Check`) dès que `has_openfga() == true`.
 3. IT OpenFGA = testcontainer réel `openfga/openfga` (`has_openfga() == true`, `openfga_authorization_model_json()`, `cache_ttl_seconds = 0`). Défaut **deny**. Happy path : `openfga.allow(subject, action, resource)`. IAM : `has_openfga() == false` (pas d’OpenFGA).
-4. Telegraph : WireMock `SmtpService` si l’assert porte sur la charge émise ; MailHog `TestSmtp` si l’assert porte sur un listener SMTP réel (les deux coexistent sous `Telegraph/tests/fixtures/smtp/`).
+4. Telegraph : WireMock `SmtpService` si l’assert porte sur la charge émise ; MailHog `TestSmtp` si l’assert porte sur un listener SMTP réel (les deux coexistent sous `services/Telegraph/tests/fixtures/smtp/`).
 5. `#[serial]` dès qu’on touche le singleton WireMock ou `TestOpenFga`.
 
 Le singleton `127.0.0.1:3000` reste le bind de `get_mock_server()`. Ce n’est plus le seul listener : le catalogue Manifesto est isolé.
@@ -47,5 +47,5 @@ Le singleton `127.0.0.1:3000` reste le bind de `get_mock_server()`. Ce n’est p
 
 - Handbook : `docs/guides/tests-integration.md`
 - Skills : `.agents/skills/creating-wiremock-fixtures/SKILL.md`, `creating-testcontainer-fixtures/SKILL.md`
-- Code : `rustycog/rustycog-testing/src/wiremock/mod.rs`, `src/permission/mod.rs`, `src/common/openfga_testcontainer.rs` ; `Manifesto/tests/fixtures/component_service/service.rs` ; `IAMRusty/tests/fixtures/github/service.rs`, `gitlab/service.rs` ; `Hive/tests/fixtures/external_provider/service.rs` ; `Telegraph/tests/fixtures/smtp/service.rs`, `smtp/testcontainer.rs`
+- Code : `rustycog/rustycog-testing/src/wiremock/mod.rs`, `src/permission/mod.rs`, `src/common/openfga_testcontainer.rs` ; `services/Manifesto/tests/fixtures/component_service/service.rs` ; `IAMRusty/tests/fixtures/github/service.rs`, `gitlab/service.rs` ; `services/Hive/tests/fixtures/external_provider/service.rs` ; `services/Telegraph/tests/fixtures/smtp/service.rs`, `smtp/testcontainer.rs`
 - Preuve : aucun usage IT de `OpenFgaMockService` ; Hive/Manifesto/Telegraph `has_openfga() == true` + `TestOpenFga` ; IAM `false`

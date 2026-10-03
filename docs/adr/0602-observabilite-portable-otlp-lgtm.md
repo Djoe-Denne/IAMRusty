@@ -122,7 +122,7 @@ Rétention cluster (plan B, ordre de grandeur) : staging traces 24–72 h / logs
 | `init-tracing-opentelemetry` | Façade |
 | Bridge `metrics-*` MSRV 1.85 | MSRV 1.84 |
 | Réécrire Compose défaut / 0500 | Profil `obs` à part |
-| Scaffolder `cloud/` `deploy/obs/` / Grafana **dans le même work** que le bootstrap logger | Works séparés |
+| Scaffolder `ops/cloud/` `deploy/obs/` / Grafana **dans le même work** que le bootstrap logger | Works séparés |
 
 ## Conséquences
 
@@ -140,7 +140,7 @@ Rétention cluster (plan B, ordre de grandeur) : staging traces 24–72 h / logs
 
 **In scope :** feature `otel` sur `rustycog-framework` ; layers dans `setup_logging` ; extract/inject `traceparent` dans `rustycog-http` ; ensemble de crates ci-dessus ; tests unitaires rustycog.
 
-**Hors scope :** Grafana, Tempo, Alloy, `cloud/`, `deploy/obs/`, profil Compose `obs`, crates `opentelemetry*` dans IAM/Hive/Manifesto/Telegraph/Lazaret/`domain`/`application`, édition 0008 / 0100–0502 / 0003 / 0007, bump gitlink rustycog, commit.
+**Hors scope :** Grafana, Tempo, Alloy, `ops/cloud/`, `deploy/obs/`, profil Compose `obs`, crates `opentelemetry*` dans IAM/Hive/Manifesto/Telegraph/Lazaret/`domain`/`application`, édition 0008 / 0100–0502 / 0003 / 0007, bump gitlink rustycog, commit.
 
 **Tests (pas `cargo test --workspace`) :**
 

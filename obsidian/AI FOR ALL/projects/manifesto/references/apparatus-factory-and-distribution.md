@@ -6,8 +6,8 @@ status: proposed
 feature_status: future
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
-  - Manifesto/Dockerfile
-  - Manifesto/domain/src/port/service.rs
+  - services/Manifesto/Dockerfile
+  - services/Manifesto/domain/src/port/service.rs
   - https://doc.rust-lang.org/cargo/reference/build-scripts.html
   - https://github.com/opencontainers/image-spec/blob/main/manifest.md
 summary: "Contrat TOML proposé, builders contrôlés, pipeline hostile Git vers OCI, conformance, signatures, provenance et admission de releases immuables."

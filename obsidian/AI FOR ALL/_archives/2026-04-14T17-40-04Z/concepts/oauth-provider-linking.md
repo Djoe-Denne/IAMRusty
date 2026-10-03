@@ -1,12 +1,12 @@
-﻿---
+---
 title: >-
   OAuth Provider Linking
 category: concepts
 tags: [iam, oauth, authentication, visibility/internal]
 sources:
-  - IAMRusty/README.md
-  - IAMRusty/docs/ARCHITECTURE.md
-  - IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
+  - services/IAMRusty/README.md
+  - services/IAMRusty/docs/ARCHITECTURE.md
+  - services/IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
 summary: >-
   IAMRusty treats identities as provider-agnostic users and lets authenticated accounts attach additional OAuth providers safely.
 provenance:

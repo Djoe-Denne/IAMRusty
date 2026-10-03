@@ -3,14 +3,14 @@ title: Descriptor-Driven Communications
 category: concepts
 tags: [communication, templates, events, visibility/internal]
 sources:
-  - Telegraph/domain/src/service/communication_factory.rs
-  - Telegraph/infra/src/template/tera_service.rs
-  - Telegraph/resources/communication_descriptor/user_signed_up.toml
-  - Telegraph/resources/communication_descriptor/password_reset_requested.toml
-  - Telegraph/resources/communication_descriptor/user_email_verified.toml
-  - Telegraph/resources/templates/user_signed_up_email.txt
-  - Telegraph/resources/templates/user_email_verified_notification.txt
-  - Telegraph/resources/templates/password_reset_requested_email.html
+  - services/Telegraph/domain/src/service/communication_factory.rs
+  - services/Telegraph/infra/src/template/tera_service.rs
+  - services/Telegraph/resources/communication_descriptor/user_signed_up.toml
+  - services/Telegraph/resources/communication_descriptor/password_reset_requested.toml
+  - services/Telegraph/resources/communication_descriptor/user_email_verified.toml
+  - services/Telegraph/resources/templates/user_signed_up_email.txt
+  - services/Telegraph/resources/templates/user_email_verified_notification.txt
+  - services/Telegraph/resources/templates/password_reset_requested_email.html
 summary: Telegraph builds emails and notifications from event-specific TOML descriptors and Tera templates, with descriptor authoring rules shaping how new event flows are added.
 provenance:
   extracted: 0.79

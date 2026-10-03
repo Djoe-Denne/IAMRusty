@@ -1,0 +1,838 @@
+use std::{collections::HashMap, sync::Arc};
+
+use chrono::Utc;
+use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
+use uuid::Uuid;
+
+use hive_infra::repository::entity::{
+    external_providers, organization_invitations, organization_member_role_permissions,
+    organization_members, organizations, permissions, resources, role_permissions,
+};
+
+/// Platform test issuer, matching `TEST_PLATFORM_ISSUER` in `rustycog-testing`
+/// and `TEST_ISSUER` in `services/Hive/application/tests/command_coverage.rs`.
+const TEST_ISSUER: &str = "http://127.0.0.1/iam";
+
+/// Builder-style DB fixtures for Hive, mirroring the structure used in `services/IAMRusty/tests/fixtures/db`.
+pub struct DbFixtures;
+
+impl DbFixtures {
+    #[must_use]
+    pub fn resource() -> ResourceFixtureBuilder {
+        ResourceFixtureBuilder::new()
+    }
+
+    #[must_use]
+    pub fn permission() -> PermissionFixtureBuilder {
+        PermissionFixtureBuilder::new()
+    }
+
+    #[must_use]
+    pub fn organization() -> OrganizationFixtureBuilder {
+        OrganizationFixtureBuilder::new()
+    }
+
+    #[must_use]
+    pub fn organization_member() -> OrganizationMemberFixtureBuilder {
+        OrganizationMemberFixtureBuilder::new()
+    }
+
+    #[must_use]
+    pub fn organization_invitation() -> OrganizationInvitationFixtureBuilder {
+        OrganizationInvitationFixtureBuilder::new()
+    }
+
+    #[must_use]
+    pub fn role_permission() -> RolePermissionFixtureBuilder {
+        RolePermissionFixtureBuilder::new()
+    }
+
+    #[must_use]
+    pub fn member_role_permission_link() -> MemberRolePermissionLinkBuilder {
+        MemberRolePermissionLinkBuilder::new()
+    }
+
+    #[must_use]
+    pub fn external_provider() -> ExternalProviderFixtureBuilder {
+        ExternalProviderFixtureBuilder::new()
+    }
+
+    /// Convenience method to create minimal RBAC data for an organization and attach the owner as a member with all permissions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if organization, member, or role-permission rows cannot be inserted.
+    pub async fn create_org_with_owner(
+        db: &DatabaseConnection,
+        owner_user_id: Uuid,
+    ) -> anyhow::Result<organizations::Model> {
+        Self::create_org(
+            db,
+            owner_user_id,
+            HashMap::from([(owner_user_id.to_string(), "owner".to_string())]),
+        )
+        .await
+    }
+
+    /// Convenience method to create minimal RBAC data for an organization and attach the owner as a member with all permissions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if organization, member, or role-permission rows cannot be inserted.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a key in `user_rights` is not a valid UUID, or if a member has no matching rights entry.
+    pub async fn create_org(
+        db: &DatabaseConnection,
+        owner_user_id: Uuid,
+        user_rights: HashMap<String, String>,
+    ) -> anyhow::Result<organizations::Model> {
+        // Create organization
+        let org = Self::organization()
+            .owner_user_id(owner_user_id)
+            .name("Test Org")
+            .slug(format!("test-org-{}", &Uuid::new_v4().to_string()[..8]))
+            .description(Some("Seeded org"))
+            .commit(Arc::new(db.clone()))
+            .await?;
+
+        let mut members: Vec<organization_members::Model> = Vec::new();
+
+        for user_id in user_rights.keys() {
+            let member = Self::organization_member()
+                .organization_id(org.id)
+                .user_id(user_id.parse::<Uuid>().unwrap())
+                .status("active")
+                .joined_now()
+                .commit(Arc::new(db.clone()))
+                .await?;
+            members.push(member);
+        }
+
+        // Create role-permissions chain for owner on organization resource and link to member
+        for perm in ["owner", "admin", "write", "read"] {
+            let rp = Self::role_permission()
+                .organization_id(org.id)
+                .permission_id(perm)
+                .resource_id("organization")
+                .name(format!("org_{perm}_role"))
+                .description(Some(&format!("{perm} on organization")))
+                .commit(Arc::new(db.clone()))
+                .await?;
+
+            for member in &members {
+                if user_rights
+                    .get(member.user_id.to_string().as_str())
+                    .unwrap()
+                    == perm
+                {
+                    let _ = Self::member_role_permission_link()
+                        .member_id(member.id)
+                        .role_permission_id(rp.id)
+                        .commit(Arc::new(db.clone()))
+                        .await?;
+                }
+            }
+        }
+
+        Ok(org)
+    }
+}
+
+/// Backward-compat free function delegating to the new builder-style API.
+///
+/// # Errors
+///
+/// Returns an error if organization, member, or role-permission rows cannot be inserted.
+pub async fn seed_org_with_owner(
+    db: &DatabaseConnection,
+    owner_user_id: Uuid,
+) -> anyhow::Result<organizations::Model> {
+    DbFixtures::create_org_with_owner(db, owner_user_id).await
+}
+
+/// Builder for persisted invitations used to arrange HTTP-level acceptance and
+/// cancellation scenarios.
+///
+/// It deliberately writes only test data; production behavior is always
+/// exercised through the live routes.
+pub struct OrganizationInvitationFixtureBuilder {
+    id: Uuid,
+    organization_id: Option<Uuid>,
+    aggregate_id: String,
+    invited_by_user_id: Option<Uuid>,
+    token: String,
+    status: String,
+    expires_at: chrono::DateTime<Utc>,
+    accepted_at: Option<chrono::DateTime<Utc>>,
+    message: Option<String>,
+}
+
+impl Default for OrganizationInvitationFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl OrganizationInvitationFixtureBuilder {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            organization_id: None,
+            aggregate_id: "invitee@example.test".to_string(),
+            invited_by_user_id: None,
+            token: Uuid::new_v4().simple().to_string(),
+            status: "Pending".to_string(),
+            expires_at: Utc::now() + chrono::Duration::days(1),
+            accepted_at: None,
+            message: Some("Seeded invitation".to_string()),
+        }
+    }
+
+    #[must_use]
+    pub const fn organization_id(mut self, organization_id: Uuid) -> Self {
+        self.organization_id = Some(organization_id);
+        self
+    }
+
+    #[must_use]
+    pub const fn invited_by_user_id(mut self, user_id: Uuid) -> Self {
+        self.invited_by_user_id = Some(user_id);
+        self
+    }
+
+    #[must_use]
+    pub fn aggregate_id(mut self, aggregate_id: impl Into<String>) -> Self {
+        self.aggregate_id = aggregate_id.into();
+        self
+    }
+
+    #[must_use]
+    pub fn expired(mut self) -> Self {
+        self.expires_at = Utc::now() - chrono::Duration::seconds(1);
+        self
+    }
+
+    #[must_use]
+    pub fn cancelled(mut self) -> Self {
+        self.status = "Cancelled".to_string();
+        self
+    }
+
+    /// Persist a valid pending invitation with one read role.
+    ///
+    /// The JSON matches the real repository mapper so acceptance reaches the
+    /// member service.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the invitation cannot be inserted.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `organization_id` or `invited_by_user_id` was not set.
+    pub async fn commit(
+        self,
+        db: Arc<DatabaseConnection>,
+    ) -> anyhow::Result<organization_invitations::Model> {
+        let organization_id = self.organization_id.expect("organization_id is required");
+        let invited_by_user_id = self
+            .invited_by_user_id
+            .expect("invited_by_user_id is required");
+        let role_permissions = serde_json::json!([{
+            "id": null,
+            "name": "invitation-read",
+            "organization_id": organization_id,
+            "permission": {"level": "Read", "description": null, "created_at": null},
+            "resource": {"name": "organization", "description": null, "created_at": null},
+            "created_at": null
+        }]);
+        let model = organization_invitations::ActiveModel {
+            id: Set(self.id),
+            organization_id: Set(organization_id),
+            aggregate_id: Set(self.aggregate_id),
+            invited_by_user_id: Set(invited_by_user_id),
+            role_permissions: Set(role_permissions),
+            token: Set(self.token),
+            status: Set(self.status),
+            expires_at: Set(self.expires_at),
+            accepted_at: Set(self.accepted_at),
+            message: Set(self.message),
+            created_at: Set(Utc::now()),
+        }
+        .insert(&*db)
+        .await?;
+        Ok(model)
+    }
+}
+
+// ========================= Builders & Fixtures =========================
+
+pub struct ResourceFixtureBuilder {
+    id: String,
+    resource_type: String,
+    name: String,
+    description: Option<String>,
+}
+
+impl Default for ResourceFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ResourceFixtureBuilder {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            id: "organization".to_string(),
+            resource_type: "domain".to_string(),
+            name: "organization".to_string(),
+            description: Some("Organization resource".to_string()),
+        }
+    }
+
+    #[must_use]
+    pub fn id(mut self, id: impl Into<String>) -> Self {
+        self.id = id.into();
+        self
+    }
+
+    #[must_use]
+    pub fn resource_type(mut self, resource_type: impl Into<String>) -> Self {
+        self.resource_type = resource_type.into();
+        self
+    }
+
+    #[must_use]
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    #[must_use]
+    pub fn description(mut self, description: Option<impl Into<String>>) -> Self {
+        self.description = description.map(std::convert::Into::into);
+        self
+    }
+
+    /// Persist the resource fixture.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the row cannot be inserted.
+    pub async fn commit(self, db: Arc<DatabaseConnection>) -> anyhow::Result<resources::Model> {
+        let model = resources::ActiveModel {
+            id: Set(self.id),
+            resource_type: Set(self.resource_type),
+            name: Set(self.name),
+            description: Set(self.description),
+            created_at: Set(Utc::now()),
+        }
+        .insert(&*db)
+        .await?;
+        Ok(model)
+    }
+}
+
+pub struct PermissionFixtureBuilder {
+    id: String,
+    level: String,
+    description: Option<String>,
+}
+
+impl Default for PermissionFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PermissionFixtureBuilder {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            id: "read".to_string(),
+            level: "read".to_string(),
+            description: Some("read permission".to_string()),
+        }
+    }
+
+    #[must_use]
+    pub fn id(mut self, id: impl Into<String>) -> Self {
+        self.id = id.into();
+        self
+    }
+
+    #[must_use]
+    pub fn level(mut self, level: impl Into<String>) -> Self {
+        self.level = level.into();
+        self
+    }
+
+    #[must_use]
+    pub fn description(mut self, description: Option<impl Into<String>>) -> Self {
+        self.description = description.map(std::convert::Into::into);
+        self
+    }
+
+    /// Persist the permission fixture.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the row cannot be inserted.
+    pub async fn commit(self, db: Arc<DatabaseConnection>) -> anyhow::Result<permissions::Model> {
+        let model = permissions::ActiveModel {
+            id: Set(self.id),
+            level: Set(self.level),
+            description: Set(self.description),
+            created_at: Set(Utc::now()),
+        }
+        .insert(&*db)
+        .await?;
+        Ok(model)
+    }
+}
+
+pub struct OrganizationFixtureBuilder {
+    id: Uuid,
+    name: String,
+    slug: String,
+    description: Option<String>,
+    avatar_url: Option<String>,
+    owner_user_id: Uuid,
+    settings: serde_json::Value,
+}
+
+impl Default for OrganizationFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl OrganizationFixtureBuilder {
+    #[must_use]
+    pub fn new() -> Self {
+        let id = Uuid::new_v4();
+        let slug_suffix = &Uuid::new_v4().to_string()[..8];
+        Self {
+            id,
+            name: "Test Org".to_string(),
+            slug: format!("test-org-{slug_suffix}"),
+            description: Some("Seeded org".to_string()),
+            avatar_url: None,
+            owner_user_id: Uuid::new_v4(),
+            settings: serde_json::json!({}),
+        }
+    }
+
+    #[must_use]
+    pub const fn id(mut self, id: Uuid) -> Self {
+        self.id = id;
+        self
+    }
+
+    #[must_use]
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    #[must_use]
+    pub fn slug(mut self, slug: impl Into<String>) -> Self {
+        self.slug = slug.into();
+        self
+    }
+
+    #[must_use]
+    pub fn description(mut self, description: Option<impl Into<String>>) -> Self {
+        self.description = description.map(std::convert::Into::into);
+        self
+    }
+
+    #[must_use]
+    pub fn avatar_url(mut self, avatar_url: Option<impl Into<String>>) -> Self {
+        self.avatar_url = avatar_url.map(std::convert::Into::into);
+        self
+    }
+
+    #[must_use]
+    pub const fn owner_user_id(mut self, owner_user_id: Uuid) -> Self {
+        self.owner_user_id = owner_user_id;
+        self
+    }
+
+    #[must_use]
+    pub fn settings(mut self, settings: serde_json::Value) -> Self {
+        self.settings = settings;
+        self
+    }
+
+    /// Persist the organization fixture.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the row cannot be inserted.
+    pub async fn commit(self, db: Arc<DatabaseConnection>) -> anyhow::Result<organizations::Model> {
+        let now = Utc::now();
+        let model = organizations::ActiveModel {
+            id: Set(self.id),
+            name: Set(self.name),
+            slug: Set(self.slug),
+            description: Set(self.description),
+            avatar_url: Set(self.avatar_url),
+            owner_user_id: Set(self.owner_user_id),
+            settings: Set(self.settings),
+            signing_profile_id: Set(None),
+            signing_status: Set(None),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
+        .insert(&*db)
+        .await?;
+        Ok(model)
+    }
+}
+
+pub struct OrganizationMemberFixtureBuilder {
+    id: Uuid,
+    organization_id: Option<Uuid>,
+    user_id: Option<Uuid>,
+    status: String,
+    invited_by_user_id: Option<Uuid>,
+    invited_at: Option<chrono::DateTime<Utc>>,
+    joined_at: Option<chrono::DateTime<Utc>>,
+}
+
+impl Default for OrganizationMemberFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl OrganizationMemberFixtureBuilder {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            organization_id: None,
+            user_id: None,
+            status: "active".to_string(),
+            invited_by_user_id: None,
+            invited_at: None,
+            joined_at: None,
+        }
+    }
+
+    #[must_use]
+    pub const fn id(mut self, id: Uuid) -> Self {
+        self.id = id;
+        self
+    }
+
+    #[must_use]
+    pub const fn organization_id(mut self, organization_id: Uuid) -> Self {
+        self.organization_id = Some(organization_id);
+        self
+    }
+
+    #[must_use]
+    pub const fn user_id(mut self, user_id: Uuid) -> Self {
+        self.user_id = Some(user_id);
+        self
+    }
+
+    #[must_use]
+    pub fn status(mut self, status: impl Into<String>) -> Self {
+        self.status = status.into();
+        self
+    }
+
+    #[must_use]
+    pub const fn invited_by_user_id(mut self, invited_by_user_id: Option<Uuid>) -> Self {
+        self.invited_by_user_id = invited_by_user_id;
+        self
+    }
+
+    #[must_use]
+    pub fn invited_now(mut self) -> Self {
+        self.invited_at = Some(Utc::now());
+        self
+    }
+
+    #[must_use]
+    pub fn joined_now(mut self) -> Self {
+        self.joined_at = Some(Utc::now());
+        self
+    }
+
+    /// Persist the organization member fixture.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the row cannot be inserted.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `organization_id` or `user_id` was not set.
+    pub async fn commit(
+        self,
+        db: Arc<DatabaseConnection>,
+    ) -> anyhow::Result<organization_members::Model> {
+        let now = Utc::now();
+        let model = organization_members::ActiveModel {
+            id: Set(self.id),
+            organization_id: Set(self.organization_id.expect("organization_id is required")),
+            user_id: Set(self.user_id.expect("user_id is required")),
+            issuer: Set(TEST_ISSUER.to_string()),
+            status: Set(self.status),
+            invited_by_user_id: Set(self.invited_by_user_id),
+            invited_at: Set(self.invited_at),
+            joined_at: Set(self.joined_at),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
+        .insert(&*db)
+        .await?;
+        Ok(model)
+    }
+}
+
+pub struct RolePermissionFixtureBuilder {
+    id: Uuid,
+    name: String,
+    description: Option<String>,
+    organization_id: Option<Uuid>,
+    permission_id: Option<String>,
+    resource_id: Option<String>,
+}
+
+impl Default for RolePermissionFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl RolePermissionFixtureBuilder {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            name: "role".to_string(),
+            description: None,
+            organization_id: None,
+            permission_id: None,
+            resource_id: None,
+        }
+    }
+
+    #[must_use]
+    pub const fn id(mut self, id: Uuid) -> Self {
+        self.id = id;
+        self
+    }
+
+    #[must_use]
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    #[must_use]
+    pub fn description(mut self, description: Option<impl Into<String>>) -> Self {
+        self.description = description.map(std::convert::Into::into);
+        self
+    }
+
+    #[must_use]
+    pub const fn organization_id(mut self, organization_id: Uuid) -> Self {
+        self.organization_id = Some(organization_id);
+        self
+    }
+
+    #[must_use]
+    pub fn permission_id(mut self, permission_id: impl Into<String>) -> Self {
+        self.permission_id = Some(permission_id.into());
+        self
+    }
+
+    #[must_use]
+    pub fn resource_id(mut self, resource_id: impl Into<String>) -> Self {
+        self.resource_id = Some(resource_id.into());
+        self
+    }
+
+    /// Persist the role-permission fixture.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the row cannot be inserted.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `organization_id`, `permission_id`, or `resource_id` was not set.
+    pub async fn commit(
+        self,
+        db: Arc<DatabaseConnection>,
+    ) -> anyhow::Result<role_permissions::Model> {
+        let model = role_permissions::ActiveModel {
+            id: Set(self.id),
+            name: Set(self.name),
+            description: Set(self.description),
+            organization_id: Set(self.organization_id.expect("organization_id is required")),
+            permission_id: Set(self.permission_id.expect("permission_id is required")),
+            resource_id: Set(self.resource_id.expect("resource_id is required")),
+            created_at: Set(Utc::now()),
+        }
+        .insert(&*db)
+        .await?;
+        Ok(model)
+    }
+}
+
+pub struct MemberRolePermissionLinkBuilder {
+    id: Uuid,
+    member_id: Option<Uuid>,
+    role_permission_id: Option<Uuid>,
+}
+
+impl Default for MemberRolePermissionLinkBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MemberRolePermissionLinkBuilder {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            member_id: None,
+            role_permission_id: None,
+        }
+    }
+
+    #[must_use]
+    pub const fn id(mut self, id: Uuid) -> Self {
+        self.id = id;
+        self
+    }
+
+    #[must_use]
+    pub const fn member_id(mut self, member_id: Uuid) -> Self {
+        self.member_id = Some(member_id);
+        self
+    }
+
+    #[must_use]
+    pub const fn role_permission_id(mut self, role_permission_id: Uuid) -> Self {
+        self.role_permission_id = Some(role_permission_id);
+        self
+    }
+
+    /// Persist the member-role-permission link.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the row cannot be inserted.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `member_id` or `role_permission_id` was not set.
+    pub async fn commit(
+        self,
+        db: Arc<DatabaseConnection>,
+    ) -> anyhow::Result<organization_member_role_permissions::Model> {
+        let model = organization_member_role_permissions::ActiveModel {
+            id: Set(self.id),
+            member_id: Set(self.member_id.expect("member_id is required")),
+            role_permission_id: Set(self
+                .role_permission_id
+                .expect("role_permission_id is required")),
+            created_at: Set(Utc::now()),
+        }
+        .insert(&*db)
+        .await?;
+        Ok(model)
+    }
+}
+
+pub struct ExternalProviderFixtureBuilder {
+    id: Uuid,
+    provider_source: String,
+    name: String,
+    config_schema: Option<serde_json::Value>,
+    is_active: bool,
+}
+
+impl Default for ExternalProviderFixtureBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ExternalProviderFixtureBuilder {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            provider_source: "github".to_string(),
+            name: "GitHub".to_string(),
+            config_schema: None,
+            is_active: true,
+        }
+    }
+
+    #[must_use]
+    pub const fn id(mut self, id: Uuid) -> Self {
+        self.id = id;
+        self
+    }
+
+    #[must_use]
+    pub fn provider_source(mut self, source: impl Into<String>) -> Self {
+        self.provider_source = source.into();
+        self
+    }
+
+    #[must_use]
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    #[must_use]
+    pub fn config_schema(mut self, schema: Option<serde_json::Value>) -> Self {
+        self.config_schema = schema;
+        self
+    }
+
+    #[must_use]
+    pub const fn active(mut self, is_active: bool) -> Self {
+        self.is_active = is_active;
+        self
+    }
+
+    /// Persist the external-provider fixture.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the row cannot be inserted.
+    pub async fn commit(
+        self,
+        db: Arc<DatabaseConnection>,
+    ) -> anyhow::Result<external_providers::Model> {
+        let model = external_providers::ActiveModel {
+            id: Set(self.id),
+            provider_type: Set(self.provider_source),
+            name: Set(self.name),
+            config_schema: Set(self.config_schema),
+            is_active: Set(self.is_active),
+            created_at: Set(Utc::now()),
+        }
+        .insert(&*db)
+        .await?;
+        Ok(model)
+    }
+}

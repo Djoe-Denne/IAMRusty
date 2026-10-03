@@ -5,7 +5,7 @@ category: decisions
 tags: [architecture, components, visibility/internal]
 sources:
   - docs/adr/0001-apparatus-binding-owned-by-manifesto.md
-  - Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs
+  - services/Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs
   - docs/adr/0006-apparatus-p2-reconciliation-in-process.md
 summary: >-
   Binding 1:1 ProjectComponent, propriété Manifesto, zéro type FGA. Réalité

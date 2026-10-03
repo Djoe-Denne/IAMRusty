@@ -5,10 +5,10 @@ category: project
 tags: [communication, events, notifications, visibility/internal]
 sources:
   - README.md
-  - Telegraph/openspecs.yaml
-  - Telegraph/setup/src/app.rs
-  - Telegraph/infra/src/event/consumer.rs
-  - Telegraph/http/src/lib.rs
+  - services/Telegraph/openspecs.yaml
+  - services/Telegraph/setup/src/app.rs
+  - services/Telegraph/infra/src/event/consumer.rs
+  - services/Telegraph/http/src/lib.rs
 summary: >-
   Telegraph : notifications et files. T14b : HTTPS compose port 8445,
   CA mesh optionnelle (pas rustls required).
@@ -47,7 +47,7 @@ updated: 2026-09-20T10:35:00Z
 - Queue command failures still flatten to `ServiceError::infrastructure` — the only **divergent** error verdict in [[concepts/architecture-coherence-across-services]].
 - Queue boot should go through [[projects/aiforall/concepts/queue-readiness-signaling]] so a rustycog no-op is visible on `/ready`.
 - Integration tests: one `#[path = "fixtures/mod.rs"]` in `tests/common.rs` (Sonar `duplicate_mod`). See [[projects/aiforall/skills/fixing-sonar-clippy-in-services]].
-- T14b (HEAD `a27ea5b`) : HTTPS compose via dual-bind rustycog, hôte **8445**, CA mesh distincte de Lazaret, client cert **optionnel**. Preuve `Telegraph/tests/https_mesh_optional_mtls.rs`. Concept : [[projects/aiforall/concepts/https-platform-mesh]].
+- T14b (HEAD `a27ea5b`) : HTTPS compose via dual-bind rustycog, hôte **8445**, CA mesh distincte de Lazaret, client cert **optionnel**. Preuve `services/Telegraph/tests/https_mesh_optional_mtls.rs`. Concept : [[projects/aiforall/concepts/https-platform-mesh]].
 
 ## Related
 
@@ -63,7 +63,7 @@ updated: 2026-09-20T10:35:00Z
 
 ## Open Questions
 
-- The root `README.md` says Telegraph runs on port `8081` in the shared stack, while `Telegraph/docker-compose.yml` exposes `8080:8080`. Conflict to resolve. ^[ambiguous]
+- The root `README.md` says Telegraph runs on port `8081` in the shared stack, while `services/Telegraph/docker-compose.yml` exposes `8080:8080`. Conflict to resolve. ^[ambiguous]
 - The repo overview says IAMRusty publishes to `user-events`, while Telegraph's own queue-routing examples are keyed under `test-user-events`; the naming split needs a single operator-facing story. Conflict to resolve. ^[ambiguous]
 - `http/src/handlers/communication.rs` defines richer send-message DTOs, but the live route table only exposes notification read-model endpoints. ^[ambiguous]
 

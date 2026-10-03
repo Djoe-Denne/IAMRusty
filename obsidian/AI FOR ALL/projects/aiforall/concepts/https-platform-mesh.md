@@ -4,13 +4,13 @@ title: >-
 category: concepts
 tags: [architecture, platform, rust, visibility/internal]
 sources:
-  - Hive/tests/https_mesh_optional_mtls.rs
-  - IAMRusty/tests/https_mesh_optional_mtls.rs
-  - Telegraph/tests/https_mesh_optional_mtls.rs
-  - scripts/generate-platform-mesh-certs.sh
+  - services/Hive/tests/https_mesh_optional_mtls.rs
+  - services/IAMRusty/tests/https_mesh_optional_mtls.rs
+  - services/Telegraph/tests/https_mesh_optional_mtls.rs
+  - ops/scripts/generate-platform-mesh-certs.sh
   - docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md
-  - deploy/mesh/compose.yaml
-  - Manifesto/config/development.toml
+  - ops/deploy/mesh/compose.yaml
+  - services/Manifesto/config/development.toml
 summary: >-
   Mesh HTTPS T14b : dual-bind 8080+8443, CA platform-mesh ≠ Lazaret.
   Hôtes : IAM 8443, Telegraph 8444, Hive 8445, Manifesto 8448.
@@ -32,7 +32,7 @@ Chaque slice mesh écoute HTTP clair **et** TLS : `port` 8080 + `tls_port` 8443 
 
 ## Deux CA, pas une
 
-La CA mesh `generate-if-absent` sous `./certs/platform-mesh` est **distincte** de la CA Lazaret (identité workload, T13). Script `scripts/generate-platform-mesh-certs.sh` ; service compose `platform-mesh-certs`. Mélanger les deux PKI ferait accepter un certificat d’enrollment comme pair mesh, ou l’inverse. ^[inferred]
+La CA mesh `generate-if-absent` sous `./ops/certs/platform-mesh` est **distincte** de la CA Lazaret (identité workload, T13). Script `ops/scripts/generate-platform-mesh-certs.sh` ; service compose `platform-mesh-certs`. Mélanger les deux PKI ferait accepter un certificat d’enrollment comme pair mesh, ou l’inverse. ^[inferred]
 
 Identité workload Lazaret : [[projects/lazaret/concepts/workload-identity]]. Hub frontière : [[projects/lazaret/lazaret]].
 
@@ -40,11 +40,11 @@ Identité workload Lazaret : [[projects/lazaret/concepts/workload-identity]]. Hu
 
 L’authentification client T14b est branchée seulement si une CA client est fournie. Absent de CA client : HTTPS serveur, pas d’exigence de certificat pair. T14b ferme le trou « pas de TLS compose entre les slices », pas une politique mTLS obligatoire.
 
-Le profil `--profile mesh` est autre chose : `deploy/mesh/compose.yaml` pose `TLS_REQUIRE_CLIENT_CERT=true` sur iam/hive/telegraph/manifesto, et `generate-platform-mesh-certs.sh` émet aussi `manifesto-service`. AuthN JWT derrière Envoy : [[projects/aiforall/concepts/mesh-ext-authz-opt-in]].
+Le profil `--profile mesh` est autre chose : `ops/deploy/mesh/compose.yaml` pose `TLS_REQUIRE_CLIENT_CERT=true` sur iam/hive/telegraph/manifesto, et `generate-platform-mesh-certs.sh` émet aussi `manifesto-service`. AuthN JWT derrière Envoy : [[projects/aiforall/concepts/mesh-ext-authz-opt-in]].
 
 ## Preuves
 
-`Hive/tests/https_mesh_optional_mtls.rs`, `IAMRusty/tests/https_mesh_optional_mtls.rs`, `Telegraph/tests/https_mesh_optional_mtls.rs`. Commandes : [[projects/lazaret/skills/running-apparatus-p3-tests]].
+`services/Hive/tests/https_mesh_optional_mtls.rs`, `services/IAMRusty/tests/https_mesh_optional_mtls.rs`, `services/Telegraph/tests/https_mesh_optional_mtls.rs`. Commandes : [[projects/lazaret/skills/running-apparatus-p3-tests]].
 
 ## Related
 

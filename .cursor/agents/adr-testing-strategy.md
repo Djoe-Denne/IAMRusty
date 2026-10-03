@@ -31,7 +31,7 @@ Documenter **comment** ce dépôt teste vraiment : harness partagé, fixtures, m
 - `obsidian/AI FOR ALL/skills/using-rustycog-testing.md`
 - `.agents/skills/creating-testcontainer-fixtures/SKILL.md`
 - `.agents/skills/creating-wiremock-fixtures/SKILL.md`
-- `IAMRusty/docs/TESTING_GUIDE.md`, `FIXTURES_GUIDE.md`, `KAFKA_EVENT_TESTING_GUIDE.md`
+- `services/IAMRusty/docs/TESTING_GUIDE.md`, `FIXTURES_GUIDE.md`, `KAFKA_EVENT_TESTING_GUIDE.md`
 - `*/tests/common.rs`, `*/tests/fixtures/**`, `*/config/test.toml`
 - `rustycog/rustycog-testing/` (`test_server`, kafka/sqs/openfga testcontainers, wiremock)
 - QMD `aiforall-wiki` via `qmd` ; GrepAI

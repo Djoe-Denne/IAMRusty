@@ -4,16 +4,16 @@ title: >-
 category: references
 tags: [reference, projects, components, visibility/internal]
 sources:
-  - Manifesto/README.md
-  - Manifesto/SETUP.md
-  - Manifesto/IMPLEMENTATION_STATUS.md
-  - Manifesto/src/main.rs
-  - Manifesto/setup/src/app.rs
-  - Manifesto/http/src/lib.rs
-  - Manifesto/application/src/command/factory.rs
-  - Manifesto/configuration/src/lib.rs
-  - Manifesto/tests/common.rs
-  - Manifesto/docs/rustycog-implementation-and-usage-guide.md
+  - services/Manifesto/README.md
+  - services/Manifesto/SETUP.md
+  - services/Manifesto/IMPLEMENTATION_STATUS.md
+  - services/Manifesto/src/main.rs
+  - services/Manifesto/setup/src/app.rs
+  - services/Manifesto/http/src/lib.rs
+  - services/Manifesto/application/src/command/factory.rs
+  - services/Manifesto/configuration/src/lib.rs
+  - services/Manifesto/tests/common.rs
+  - services/Manifesto/docs/rustycog-implementation-and-usage-guide.md
 summary: >-
   Manifesto-specific runtime notes that sit on top of the shared RustyCog service shell,
   highlighting project-domain wiring and the current live-runtime boundary.

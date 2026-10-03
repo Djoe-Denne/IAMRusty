@@ -3,16 +3,16 @@ title: Hive Entity Model
 category: references
 tags: [reference, entities, organizations, visibility/internal]
 sources:
-  - Hive/domain/src/entity/organization.rs
-  - Hive/domain/src/entity/organization_member.rs
-  - Hive/domain/src/entity/organization_invitation.rs
-  - Hive/domain/src/entity/permission.rs
-  - Hive/domain/src/entity/resource.rs
-  - Hive/domain/src/entity/role_permission.rs
-  - Hive/domain/src/entity/organization_member_role_permission.rs
-  - Hive/domain/src/entity/external_provider.rs
-  - Hive/domain/src/entity/external_link.rs
-  - Hive/domain/src/entity/sync_job.rs
+  - services/Hive/domain/src/entity/organization.rs
+  - services/Hive/domain/src/entity/organization_member.rs
+  - services/Hive/domain/src/entity/organization_invitation.rs
+  - services/Hive/domain/src/entity/permission.rs
+  - services/Hive/domain/src/entity/resource.rs
+  - services/Hive/domain/src/entity/role_permission.rs
+  - services/Hive/domain/src/entity/organization_member_role_permission.rs
+  - services/Hive/domain/src/entity/external_provider.rs
+  - services/Hive/domain/src/entity/external_link.rs
+  - services/Hive/domain/src/entity/sync_job.rs
 summary: Inventory of Hive's organization, membership, RBAC, and integration entities.
 provenance:
   extracted: 0.85

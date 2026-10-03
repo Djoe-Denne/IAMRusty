@@ -10,7 +10,7 @@ sources:
   - docs/adr/0007-closeout.md
   - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
   - docs/services/lazaret.md
-  - Lazaret/README.md
+  - services/Lazaret/README.md
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/4f3bb8d7-c6d7-4238-a320-445fe479de6b/4f3bb8d7-c6d7-4238-a320-445fe479de6b.jsonl
 summary: >-
   ADR-0007 Accepted 2026-09-13. Réalité Implemented (A-DEC 2026-09-20,

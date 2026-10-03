@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # rustc 1.94 : Cargo.lock (aws-sdk/smithy) exige rustc >= 1.91.1.
-# Même base que monolith/Dockerfile.
+# Même base que runtime/monolith/Dockerfile.
 # Le cache BuildKit (registre Cargo + target/) survit aux relances :
 # un changement de script ne recompile pas tout le workspace.
 FROM rust:1.94-slim-bookworm AS builder

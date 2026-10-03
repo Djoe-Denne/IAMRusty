@@ -3,13 +3,13 @@ title: Hive Service
 category: references
 tags: [reference, organizations, architecture, visibility/internal]
 sources:
-  - Hive/Cargo.toml
-  - Hive/setup/Cargo.toml
-  - hive-events/README.md
-  - Hive/setup/src/app.rs
-  - Hive/http/src/lib.rs
-  - Hive/application/src/command/factory.rs
-  - Hive/configuration/src/lib.rs
+  - services/Hive/Cargo.toml
+  - services/Hive/setup/Cargo.toml
+  - crates/hive-events/README.md
+  - services/Hive/setup/src/app.rs
+  - services/Hive/http/src/lib.rs
+  - services/Hive/application/src/command/factory.rs
+  - services/Hive/configuration/src/lib.rs
   - rustycog/rustycog-http/src/builder.rs
 summary: Code-backed overview of Hive's crate layout, runtime wiring, and the split between hive-events event contracts and RustyCog runtime transport.
 provenance:
@@ -26,14 +26,14 @@ These sources define the overall shape of `[[projects/hive/hive]]`: the crate la
 
 ## Key Ideas
 
-- `Hive/Cargo.toml` describes Hive as the organization management service for AIForAll and wires together domain, application, infra, HTTP, configuration, setup, migration, `[[projects/hive-events/hive-events]]`, and shared `[[projects/rustycog/rustycog]]` crates.
+- `services/Hive/Cargo.toml` describes Hive as the organization management service for AIForAll and wires together domain, application, infra, HTTP, configuration, setup, migration, `[[projects/hive-events/hive-events]]`, and shared `[[projects/rustycog/rustycog]]` crates.
 - `setup/src/app.rs` is the composition root: it creates the DB pool, event publisher, repositories, external provider client, domain services, permission fetchers, use cases, command registry, and final `AppState`.
 - The HTTP server is built through `[[projects/rustycog/references/rustycog-http]]`, while use cases publish outbound `HiveDomainEvent` values through a `MultiQueueEventPublisher` from `[[projects/rustycog/references/rustycog-events]]`, so Hive is both an HTTP service and an event-producing integration point.
 - Hive keeps contract and transport concerns separate: `[[projects/hive-events/hive-events]]` defines event names/payloads, while RustyCog queue publishers move those events across infrastructure boundaries.
 - Live server startup is owned by `RouteBuilder::build` in RustyCog HTTP; `hive-setup` still declares `rustycog-server` as a dependency, but current setup wiring does not import it directly. ^[ambiguous]
 - Hive's route table is smaller than its command registry, and the command registry is smaller than the OpenAPI contract, which makes “what exists in code” depend on whether you ask the router, the handlers, or the spec. ^[ambiguous]
 - Unlike `<!-- [[projects/telegraph/telegraph]] -->`, Hive is HTTP-first at runtime and does not run a queue consumer loop in parallel.
-- Unlike the current `<!-- [[projects/iamrusty/iamrusty]] -->` documentation, Hive's local docs are sparse: there is no service README in the `Hive/` tree, so Cargo metadata, OpenAPI, config, and code are doing most of the documentation work. ^[ambiguous]
+- Unlike the current `<!-- [[projects/iamrusty/iamrusty]] -->` documentation, Hive's local docs are sparse: there is no service README in the `services/Hive/` tree, so Cargo metadata, OpenAPI, config, and code are doing most of the documentation work. ^[ambiguous]
 
 ## Open Questions
 

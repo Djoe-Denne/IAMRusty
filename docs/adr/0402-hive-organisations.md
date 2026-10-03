@@ -52,5 +52,5 @@ Hive expose déjà un hexagone `/hive` : organisations, rôles, membres, invitat
 
 - Wiki : `projects/hive/hive`
 - Handbook : `docs/services/hive.md`, `docs/functional/organisation.md`, `docs/guides/permissions.md`
-- Code : `Hive/http/src/lib.rs`, `Hive/domain/src/service/external_provider_service.rs`, `Hive/infra/src/repository/organization_invitation_repository.rs`
+- Code : `services/Hive/http/src/lib.rs`, `services/Hive/domain/src/service/external_provider_service.rs`, `services/Hive/infra/src/repository/organization_invitation_repository.rs`
 - Preuve : routeur org/membres/invitations/external-links + Check `organization` ; events → sentinel-sync

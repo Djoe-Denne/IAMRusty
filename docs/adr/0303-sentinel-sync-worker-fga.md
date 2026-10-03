@@ -19,7 +19,7 @@ Le handbook le décrit déjà comme worker sans HTTP, hors `docker compose up -d
 ## Décision
 
 1. **`sentinel-sync`** est un **worker** : un consumer `QueueConfig` + handler + client Write OpenFGA. **Pas** une slice hexagonale (pas de `RouteBuilder`, pas de prefix HTTP métier).
-2. Quatre **translators** dans `sentinel-sync/src/translator/` : **Hive**, **Manifesto**, **IAM**, **Telegraph**. Dispatch par préfixe `event_type`. Event inconnu → `None` (no-op, pas d’erreur, pas de tuple).
+2. Quatre **translators** dans `workers/sentinel-sync/src/translator/` : **Hive**, **Manifesto**, **IAM**, **Telegraph**. Dispatch par préfixe `event_type`. Event inconnu → `None` (no-op, pas d’erreur, pas de tuple).
 3. **Hors compose défaut** : absent de `docker-compose.yml` au `up` par défaut. Démarrage : `cargo run -p sentinel-sync` après bootstrap store/modèle. L’infra OpenFGA (migrate + run) est dans le compose ; le worker non.
 
 Le worker n’est pas la vérité métier : il projette des events (0300 / 0301) vers le store FGA.
@@ -48,6 +48,6 @@ Le worker n’est pas la vérité métier : il projette des events (0300 / 0301)
 ## Références
 
 - Handbook : `docs/services/sentinel-sync.md`, `docs/platform/events-outbox.md` (consommateurs, traductions FGA)
-- Code : `sentinel-sync/src/main.rs` (consumer + 4 translators), `sentinel-sync/src/translator/{hive,manifesto,iam,telegraph}.rs`, `sentinel-sync/src/fga_client.rs`
+- Code : `workers/sentinel-sync/src/main.rs` (consumer + 4 translators), `workers/sentinel-sync/src/translator/{hive,manifesto,iam,telegraph}.rs`, `workers/sentinel-sync/src/fga_client.rs`
 - Compose : `docker-compose.yml` (OpenFGA présent ; pas de service `sentinel-sync`)
 - Preuve : crate `sentinel-sync` dans `workspace.members` ; `SentinelSyncConfig` = logging + `QueueConfig` + OpenFGA + ledger ; README racine « hors compose »

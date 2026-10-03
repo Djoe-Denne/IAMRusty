@@ -5,8 +5,8 @@ category: references
 tags: [reference, platform, operations, visibility/internal]
 sources:
   - README.md
-  - monolith/Cargo.toml
-  - monolith/src/routes.rs
+  - runtime/monolith/Cargo.toml
+  - runtime/monolith/src/routes.rs
 summary: >-
   Source summary for the top-level AIForAll README covering repo layout, shared Docker workflow, service communication, and modular monolith commands.
 provenance:

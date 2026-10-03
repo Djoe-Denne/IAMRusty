@@ -3,10 +3,10 @@ title: Testing Rust Services with Fixtures
 category: skills
 tags: [testing, fixtures, rust, visibility/internal]
 sources:
-  - IAMRusty/docs/TESTING_GUIDE.md
-  - IAMRusty/docs/FIXTURES_GUIDE.md
-  - IAMRusty/tests/fixtures/db/mod.rs
-  - IAMRusty/tests/signup_kafka.rs
+  - services/IAMRusty/docs/TESTING_GUIDE.md
+  - services/IAMRusty/docs/FIXTURES_GUIDE.md
+  - services/IAMRusty/tests/fixtures/db/mod.rs
+  - services/IAMRusty/tests/signup_kafka.rs
 summary: Build reliable IAMRusty-style integration tests by combining serial execution, real DB fixtures, provider mocks, and optional queue-backed checks.
 provenance:
   extracted: 0.84

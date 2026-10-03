@@ -23,7 +23,7 @@ The relation graph answers questions like "can Alice write component 789?" by wa
 
 ## Derived relations
 
-The OpenFGA model at [openfga/model.fga](../../openfga/model.fga) derives higher-level relations from lower-level ones. Examples:
+The OpenFGA model at [ops/openfga/model.fga](../../openfga/model.fga) derives higher-level relations from lower-level ones. Examples:
 
 - `admin: [user] or owner` — owners are automatically admins.
 - `viewer: [user] or member or viewer from organization` — org viewers see every project.

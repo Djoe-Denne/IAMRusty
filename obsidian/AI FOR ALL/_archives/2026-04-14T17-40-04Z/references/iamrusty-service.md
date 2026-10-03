@@ -1,11 +1,11 @@
-﻿---
+---
 title: >-
   IAMRusty Service Docs
 category: references
 tags: [reference, iam, oauth, visibility/internal]
 sources:
-  - IAMRusty/README.md
-  - IAMRusty/docs/ARCHITECTURE.md
+  - services/IAMRusty/README.md
+  - services/IAMRusty/docs/ARCHITECTURE.md
 summary: >-
   Combined source summary for IAMRusty capabilities, configuration, runtime concerns, and hexagonal architecture.
 provenance:

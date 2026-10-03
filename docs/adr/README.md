@@ -160,7 +160,7 @@ Contrats : cloud C/0602 = `docs/platform-cloud-v1-implementation-contract.md` ; 
 | [0600](0600-cloud-portable-opentofu-k8s-gitops.md) | Trois couches compose/kind/remote k8s ; OpenTofu jusqu’au cluster ; premier adapter **GKE (`gcp`)** ; **Flux** + Kustomize ; image digest commune | Proposed | Unimplemented |
 | [0601](0601-cluster-trust-namespaces-standalones.md) | Unité cluster = 4+1 Deployments ; namespaces `aiforall-*` identiques ; pas ns-per-tenant | Proposed | Unimplemented |
 | [0602](0602-observabilite-portable-otlp-lgtm.md) | Câble tracing+OTLP rustycog (plan A) ; LGTM/Tempo premier adaptateur cluster derrière collector/Alloy (plan B) ; W3C `traceparent` | Proposed | Unimplemented |
-| [0603](0603-tranche-locale-deploy-kind-apparatus-lazaret.md) | Première tranche livrable = locale A+B (`deploy/` + `cloud/opentofu/`) ; preuve Apparatus↔Lazaret en manifests ; pas GKE ni 0602 | Proposed | Partial |
+| [0603](0603-tranche-locale-deploy-kind-apparatus-lazaret.md) | Première tranche livrable = locale A+B (`ops/deploy/` + `ops/cloud/opentofu/`) ; preuve Apparatus↔Lazaret en manifests ; pas GKE ni 0602 | Proposed | Partial |
 | [0604](0604-j3-overlay-demo-monolith-kind-invoke.md) | Overlay kind démo non canon : `oodhive-monolith` prouve plugins → `/lazaret/invoke` ; pas SuperSéde 0601 (canon = 4+1) | Proposed | Implemented |
 | [0605](0605-gold-path-kind-j3-dns-attach.md) | Gold path Kind = J3 HTTP 200 (monolithe seul Lazaret) ; DNS Service=Pod ; attach digest+declared = writer managed | Proposed | Implemented |
 

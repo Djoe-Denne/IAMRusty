@@ -9,10 +9,10 @@ sources:
   - docs/adr/0006-apparatus-p2-reconciliation-in-process.md
   - docs/apparatus-p2-implementation-prompt.md
   - .serena/memories/architecture/apparatus-p2-adr-0006-accepted.md
-  - Manifesto/migration/src/m20260912_000013_apparatus_p2_runtime.rs
-  - Manifesto/infra/src/apparatus_runtime/tick.rs
-  - Manifesto/infra/src/apparatus_runtime/cas.rs
-  - Manifesto/setup/src/app.rs
+  - services/Manifesto/migration/src/m20260912_000013_apparatus_p2_runtime.rs
+  - services/Manifesto/infra/src/apparatus_runtime/tick.rs
+  - services/Manifesto/infra/src/apparatus_runtime/cas.rs
+  - services/Manifesto/setup/src/app.rs
 summary: >-
   P2 Accepted : contrôleur in-process Manifesto. Réalité Implemented : T1–T7,
   update CAS +1, delete snapshot+cleanup, writer backoff/terminal, `/ready`

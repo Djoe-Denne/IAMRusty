@@ -50,6 +50,6 @@ Collaborateur HTTP : catalogue composants (`ComponentServicePort`). Events méti
 ## Références
 
 - Wiki : `projects/manifesto/manifesto.md`, `projects/manifesto/concepts/component-instance-permissions` (si présent), `docs/functional/projet.md`
-- Handbook : `docs/services/manifesto.md`, `Manifesto/IMPLEMENTATION_STATUS.md`, `Manifesto/docs/`
-- Code : `Manifesto/infra/src/transaction.rs` (`lock_project_revision`, outbox dans la txn), `Manifesto/domain/src/entity/project.rs` (`revision`), `Manifesto/migration/src/m20260905_000010_add_project_revision.rs`, tables `project_members`
-- Preuve : `Manifesto/tests/transaction_readiness_tests.rs` (UoW + outbox + conflit de révision)
+- Handbook : `docs/services/manifesto.md`, `services/Manifesto/IMPLEMENTATION_STATUS.md`, `services/Manifesto/docs/`
+- Code : `services/Manifesto/infra/src/transaction.rs` (`lock_project_revision`, outbox dans la txn), `services/Manifesto/domain/src/entity/project.rs` (`revision`), `services/Manifesto/migration/src/m20260905_000010_add_project_revision.rs`, tables `project_members`
+- Preuve : `services/Manifesto/tests/transaction_readiness_tests.rs` (UoW + outbox + conflit de révision)

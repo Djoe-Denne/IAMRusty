@@ -3,9 +3,9 @@ title: Membership
 category: entities
 tags: [membership, permissions, organizations, visibility/internal]
 sources:
-  - Hive/domain/src/entity/organization_member.rs
-  - Hive/domain/src/entity/organization_invitation.rs
-  - Manifesto/domain/src/entity/project_member.rs
+  - services/Hive/domain/src/entity/organization_member.rs
+  - services/Hive/domain/src/entity/organization_invitation.rs
+  - services/Manifesto/domain/src/entity/project_member.rs
 summary: Membership is modeled separately from the parent organization or project so services can track status, source, and permission assignments explicitly.
 provenance:
   extracted: 0.80

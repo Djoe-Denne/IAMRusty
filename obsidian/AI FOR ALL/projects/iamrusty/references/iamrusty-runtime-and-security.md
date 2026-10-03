@@ -3,16 +3,16 @@ title: IAMRusty Runtime and Security
 category: references
 tags: [reference, configuration, security, visibility/internal]
 sources:
-  - IAMRusty/docs/DATABASE_CONFIGURATION.md
-  - IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md
-  - IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
-  - IAMRusty/docs/KAFKA_INTEGRATION.md
-  - IAMRusty/docs/DEPLOYMENT_GUIDE.md
-  - IAMRusty/configuration/src/lib.rs
-  - IAMRusty/config/default.toml
-  - IAMRusty/config/test.toml
-  - IAMRusty/http/src/oauth_state.rs
-  - IAMRusty/setup/src/app.rs
+  - services/IAMRusty/docs/DATABASE_CONFIGURATION.md
+  - services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md
+  - services/IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
+  - services/IAMRusty/docs/KAFKA_INTEGRATION.md
+  - services/IAMRusty/docs/DEPLOYMENT_GUIDE.md
+  - services/IAMRusty/configuration/src/lib.rs
+  - services/IAMRusty/config/default.toml
+  - services/IAMRusty/config/test.toml
+  - services/IAMRusty/http/src/oauth_state.rs
+  - services/IAMRusty/setup/src/app.rs
 summary: IAMRusty-specific runtime and security notes layered on top of RustyCog's shared config and event model, especially around JWTs, OAuth state, and queue-versus-Kafka drift.
 provenance:
   extracted: 0.72

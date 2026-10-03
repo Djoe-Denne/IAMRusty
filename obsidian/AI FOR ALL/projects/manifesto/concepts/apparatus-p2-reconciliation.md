@@ -10,9 +10,9 @@ sources:
   - docs/apparatus-p2-implementation-prompt.md
   - .serena/memories/architecture/apparatus-p2-t3-persist.md
   - .serena/memories/architecture/apparatus-p2-t4-t7-runtime.md
-  - Manifesto/infra/src/apparatus_runtime/tick.rs
-  - Manifesto/infra/src/apparatus_outbox.rs
-  - Manifesto/tests/apparatus_p2_t5_tick.rs
+  - services/Manifesto/infra/src/apparatus_runtime/tick.rs
+  - services/Manifesto/infra/src/apparatus_outbox.rs
+  - services/Manifesto/tests/apparatus_p2_t5_tick.rs
 summary: >-
   Contrôleur in-process Manifesto (ticker + scan DB). T1–T7 livrés : update
   managed CAS +1 ; delete = snapshot+cleanup ; writer retry/backoff/terminal

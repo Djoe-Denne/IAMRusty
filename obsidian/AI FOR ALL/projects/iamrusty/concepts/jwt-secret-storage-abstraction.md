@@ -3,9 +3,9 @@ title: JWT Secret Storage Abstraction
 category: concepts
 tags: [security, jwt, auth, visibility/internal]
 sources:
-  - IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md
-  - IAMRusty/configuration/src/lib.rs
-  - IAMRusty/setup/src/app.rs
+  - services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md
+  - services/IAMRusty/configuration/src/lib.rs
+  - services/IAMRusty/setup/src/app.rs
 summary: IAMRusty resolves JWT signing material from configurable secret backends before building token services, registration tokens, and JWKS output.
 provenance:
   extracted: 0.78

@@ -43,7 +43,7 @@ Ne SuperSède **pas** 0003 ni 0005. 0004/0006/0007 inchangés (Implemented). **A
 4. **Pkg-B** — enveloppe OCI ≠ image CRI ; kubelet n’exécute que l’image pinée de l’enveloppe admise.
 5. **Run-A** — 4 SA K8s ; Job build sans token API ; plugins autre namespace.
 
-K8s-as-P3 reste **interdit**. Zéro token `k8s`/`kubernetes` sous `Manifesto/*/src`.
+K8s-as-P3 reste **interdit**. Zéro token `k8s`/`kubernetes` sous `services/Manifesto/*/src`.
 
 ## Related
 

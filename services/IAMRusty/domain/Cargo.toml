@@ -1,0 +1,43 @@
+[package]
+name = "iam-domain"
+version.workspace = true
+edition.workspace = true
+
+[features]
+test-mode = []
+
+[dependencies]
+# Events abstraction
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+iam-events = { path = "../../../crates/iam-events" }
+idp-connect-contract = { path = "../../../crates/idp-connect-contract" }
+
+# Utility
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+urlencoding = "2.1"
+
+# Cryptography
+sha2 = "0.10"
+rand = { workspace = true }
+rsa = { version = "0.9", features = ["pem"] }
+base64 = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Async
+async-trait = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "test-util"] }
+# Testing libraries for comprehensive unit testing
+mockall = { workspace = true }
+rstest = { workspace = true }
+tokio-test = { workspace = true }
+claims = { workspace = true } 

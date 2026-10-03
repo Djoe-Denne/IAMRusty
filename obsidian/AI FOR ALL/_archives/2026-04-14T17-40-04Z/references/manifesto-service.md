@@ -1,11 +1,11 @@
-﻿---
+---
 title: >-
   Manifesto Service and Project ADR
 category: references
 tags: [reference, projects, components, visibility/internal]
 sources:
-  - Manifesto/README.md
-  - Manifesto/SETUP.md
+  - services/Manifesto/README.md
+  - services/Manifesto/SETUP.md
   - docs/project/Archi.md
 summary: >-
   Combined source summary for Manifesto's project model, setup workflow, and the wider project-service architecture record.

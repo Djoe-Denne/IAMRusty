@@ -5,15 +5,15 @@ category: references
 tags: [reference, configuration, projects, visibility/internal]
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
-  - Manifesto/src/main.rs
-  - Manifesto/config/default.toml
-  - Manifesto/config/development.toml
-  - Manifesto/config/test.toml
-  - Manifesto/configuration/src/lib.rs
-  - Manifesto/setup/src/app.rs
-  - Manifesto/setup/src/config.rs
-  - Manifesto/application/src/command/factory.rs
-  - Manifesto/docs/rustycog-implementation-and-usage-guide.md
+  - services/Manifesto/src/main.rs
+  - services/Manifesto/config/default.toml
+  - services/Manifesto/config/development.toml
+  - services/Manifesto/config/test.toml
+  - services/Manifesto/configuration/src/lib.rs
+  - services/Manifesto/setup/src/app.rs
+  - services/Manifesto/setup/src/config.rs
+  - services/Manifesto/application/src/command/factory.rs
+  - services/Manifesto/docs/rustycog-implementation-and-usage-guide.md
 summary: "Configuration et queues actuelles de Manifesto ; Factory, contrôle Kubernetes et identité Apparatus restent des travaux futurs."
 provenance:
   extracted: 0.75

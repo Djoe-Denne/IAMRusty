@@ -2,38 +2,39 @@
 resolver = "2"
 members = [
     # Core shared crates
-    "iam-events",
-    "idp-connect-contract",
-    "hive-events",
-    "manifesto-events",
-    "telegraph-events",
-    "readiness",
-    "ext-authz",
+    "crates/iam-events",
+    "crates/idp-connect-contract",
+    "crates/hive-events",
+    "crates/manifesto-events",
+    "crates/telegraph-events",
+    "crates/readiness",
+    "workers/ext-authz",
     
     # IAMRusty service crates
-    "IAMRusty",
+    "services/IAMRusty",
     # Telegraph service crates
-    "Telegraph",
-    "Hive",
+    "services/Telegraph",
+    "services/Hive",
     # Manifesto service
-    "Manifesto",
+    "services/Manifesto",
     # Lazaret capability-boundary service
-    "Lazaret",
+    "services/Lazaret",
     # GitHub IdP Connect (IAM-IdP S3)
-    "GitHubConnect",
+    "services/GitHubConnect",
     # GitLab IdP Connect (IAM-IdP S4)
-    "GitLabConnect",
+    "services/GitLabConnect",
     # Modular monolith binary
-    "monolith",
+    "runtime/monolith",
 
     # Sentinel authorization sync worker
-    "sentinel-sync",
+    "workers/sentinel-sync",
 
     # Apparatus P0 — contrats + backend KV de référence (pur Rust, sans runtime)
-    "apparatus-contracts",
-    "apparatus-reference-kv",
-    "apparatus-operator",
-]
+    "crates/apparatus-contracts",
+    "crates/apparatus-reference-kv",
+    "workers/apparatus-operator",
+
+    "crates/apparatus-events",]
 
 [workspace.package]
 version = "0.1.0"
@@ -133,7 +134,7 @@ rsa = { version = "0.9", features = ["pem"] }
 pem = "3.0"
 # Apparatus P0 : digest SHA-256 déterministe du descripteur canonique (ADR-0002).
 sha2 = "0.10.8"
-# IAM-IdP S1 : HMAC-SHA256 S2S (idp-connect-contract). Aligné IAMRusty/http hmac 0.12.
+# IAM-IdP S1 : HMAC-SHA256 S2S (idp-connect-contract). Aligné services/IAMRusty/http hmac 0.12.
 hmac = "0.12"
 subtle = "2.6"
 hex = "0.4"

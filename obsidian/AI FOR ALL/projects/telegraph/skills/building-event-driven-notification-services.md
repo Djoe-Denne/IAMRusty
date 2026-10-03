@@ -3,11 +3,11 @@ title: Building Event-Driven Notification Services
 category: skills
 tags: [events, services, rust, visibility/internal]
 sources:
-  - Telegraph/config/development.toml
-  - Telegraph/setup/src/app.rs
-  - Telegraph/infra/src/event/consumer.rs
-  - Telegraph/domain/src/service/communication_factory.rs
-  - Telegraph/tests/common.rs
+  - services/Telegraph/config/development.toml
+  - services/Telegraph/setup/src/app.rs
+  - services/Telegraph/infra/src/event/consumer.rs
+  - services/Telegraph/domain/src/service/communication_factory.rs
+  - services/Telegraph/tests/common.rs
 summary: Build or extend a Telegraph-style service by combining queue-driven commands, descriptor-based template rendering, and end-to-end delivery tests.
 provenance:
   extracted: 0.77

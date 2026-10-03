@@ -3,16 +3,16 @@ title: Telegraph Event Processing
 category: references
 tags: [reference, events, communication, visibility/internal]
 sources:
-  - Telegraph/config/development.toml
-  - Telegraph/setup/src/app.rs
-  - Telegraph/infra/src/event/consumer.rs
-  - Telegraph/infra/src/event/processors/mod.rs
-  - Telegraph/infra/src/event/processors/email.rs
-  - Telegraph/infra/src/event/processors/notification.rs
-  - Telegraph/application/src/usecase/event_processing.rs
-  - Telegraph/domain/src/service/communication_factory.rs
-  - Telegraph/tests/user_signup_event_test.rs
-  - Telegraph/tests/user_email_verified_event_test.rs
+  - services/Telegraph/config/development.toml
+  - services/Telegraph/setup/src/app.rs
+  - services/Telegraph/infra/src/event/consumer.rs
+  - services/Telegraph/infra/src/event/processors/mod.rs
+  - services/Telegraph/infra/src/event/processors/email.rs
+  - services/Telegraph/infra/src/event/processors/notification.rs
+  - services/Telegraph/application/src/usecase/event_processing.rs
+  - services/Telegraph/domain/src/service/communication_factory.rs
+  - services/Telegraph/tests/user_signup_event_test.rs
+  - services/Telegraph/tests/user_email_verified_event_test.rs
 summary: Telegraph-specific event processing on top of RustyCog's shared queue and command layers, including config-gated routing, descriptor use, and email versus notification delivery.
 provenance:
   extracted: 0.78

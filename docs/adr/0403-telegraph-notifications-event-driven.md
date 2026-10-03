@@ -53,5 +53,5 @@ Publication : `notification_created` → `telegraph-events` / `sentinel-sync-eve
 ## Références
 
 - Wiki / handbook : `docs/services/telegraph.md`, `docs/functional/notifications.md`, `docs/platform/events-outbox.md`
-- Code : `Telegraph/http/src/lib.rs`, `Telegraph/domain/src/service/communication_factory.rs`, `Telegraph/infra/src/event/processors/`, `Telegraph/setup/src/app.rs`, `iam-events/`
-- Preuve : tests `Telegraph/tests/*iam*` / `password_reset_requested_event_test.rs` ; 3 routes notifications seulement
+- Code : `services/Telegraph/http/src/lib.rs`, `services/Telegraph/domain/src/service/communication_factory.rs`, `services/Telegraph/infra/src/event/processors/`, `services/Telegraph/setup/src/app.rs`, `crates/iam-events/`
+- Preuve : tests `services/Telegraph/tests/*iam*` / `password_reset_requested_event_test.rs` ; 3 routes notifications seulement

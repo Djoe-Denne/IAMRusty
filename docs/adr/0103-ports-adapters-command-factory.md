@@ -15,7 +15,7 @@ Sans ports, le domaine importe SeaORM. Sans factory, une route HTTP peut exister
 ## Décision
 
 1. **Domaine** = ports (`domain/src/port/**`, traits `async_trait`) + services. Aucun client DB/HTTP concret.
-2. **Infra** = adapters de ces ports (`IAMRusty/infra/src/lib.rs` : « implementations of domain ports » ; repos, OAuth/JWT, clients externes).
+2. **Infra** = adapters de ces ports (`services/IAMRusty/infra/src/lib.rs` : « implementations of domain ports » ; repos, OAuth/JWT, clients externes).
 3. **HTTP** = adapter entrant : construit une commande typée, exécute via `GenericCommandService`, mappe `CommandError` → `HttpError` **local** (dette partagée, pas `ServiceError` unifié).
 4. Les commandes sont **enregistrées par clé string** dans une factory application :
    - Manifesto : `ManifestoCommandRegistryFactory::create_manifesto_registry`
@@ -47,7 +47,7 @@ Sans ports, le domaine importe SeaORM. Sans factory, une route HTTP peut exister
 
 ## Références
 
-- `Manifesto/domain/src/port/service.rs` (`ComponentServicePort`)
-- `IAMRusty/domain/src/port/mod.rs`, `Hive/domain/src/port/service.rs`, `Telegraph/domain/src/port/communication.rs`
-- `*/application/src/command/factory.rs` ; `Manifesto/docs/rustycog-implementation-and-usage-guide.md` §1–3
+- `services/Manifesto/domain/src/port/service.rs` (`ComponentServicePort`)
+- `services/IAMRusty/domain/src/port/mod.rs`, `services/Hive/domain/src/port/service.rs`, `services/Telegraph/domain/src/port/communication.rs`
+- `*/application/src/command/factory.rs` ; `services/Manifesto/docs/rustycog-implementation-and-usage-guide.md` §1–3
 - Preuve : clés string dans les 4 factories ; handlers `command_service.execute` sans `sea_orm`

@@ -52,7 +52,7 @@ HOT | WARM | COLD | UNKNOWN (hotness)
 
 Ne charge pas 50 fichiers pour une condition locale. Pour un changement d'ownership, d'API, de trait ou de type partagé : callers, consumers, implémentations avant de conclure. Ne juge pas une signature isolément si elle participe à un contrat transversal.
 
-Cibles HOT connues du repo : KV (`apparatus-reference-kv`, `Lazaret/infra/src/kv_postgres.rs`, `kv_redis.rs`), gateway invoke (`Lazaret/http/src/invoke.rs`, `Lazaret/application/src/invoke.rs`), outbox/transaction (`Manifesto/infra/src/transaction.rs`). COLD : migrations, setup, tests.
+Cibles HOT connues du repo : KV (`apparatus-reference-kv`, `services/Lazaret/infra/src/kv_postgres.rs`, `kv_redis.rs`), gateway invoke (`services/Lazaret/http/src/invoke.rs`, `services/Lazaret/application/src/invoke.rs`), outbox/transaction (`services/Manifesto/infra/src/transaction.rs`). COLD : migrations, setup, tests.
 
 ## Ownership
 

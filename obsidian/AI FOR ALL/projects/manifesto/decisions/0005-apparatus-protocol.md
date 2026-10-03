@@ -5,7 +5,7 @@ category: decisions
 tags: [architecture, components, visibility/internal]
 sources:
   - docs/adr/0005-apparatus-same-protocol-valid-verified.md
-  - apparatus-reference-kv/apparatus.toml
+  - crates/apparatus-reference-kv/apparatus.toml
 summary: >-
   Un seul protocole officiel/communautaire ; admission, VALID, VERIFIED, installabilité = 4 notions distinctes.
 provenance:

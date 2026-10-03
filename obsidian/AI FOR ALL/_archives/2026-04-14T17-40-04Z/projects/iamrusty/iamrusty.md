@@ -1,18 +1,18 @@
-﻿---
+---
 title: >-
   IAMRusty
 category: project
 tags: [iam, oauth, security, visibility/internal]
 sources:
-  - IAMRusty/README.md
-  - IAMRusty/docs/ARCHITECTURE.md
-  - IAMRusty/docs/DATABASE_CONFIGURATION.md
-  - IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md
-  - IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
-  - IAMRusty/docs/TESTING_GUIDE.md
-  - IAMRusty/docs/FIXTURES_GUIDE.md
-  - IAMRusty/docs/COMMAND_PATTERN.md
-  - IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md
+  - services/IAMRusty/README.md
+  - services/IAMRusty/docs/ARCHITECTURE.md
+  - services/IAMRusty/docs/DATABASE_CONFIGURATION.md
+  - services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md
+  - services/IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
+  - services/IAMRusty/docs/TESTING_GUIDE.md
+  - services/IAMRusty/docs/FIXTURES_GUIDE.md
+  - services/IAMRusty/docs/COMMAND_PATTERN.md
+  - services/IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md
 summary: >-
   IAMRusty is the identity service handling OAuth login, provider linking, JWTs, typed config, and real-infrastructure testing in a hexagonal Rust codebase.
 provenance:

@@ -4,12 +4,12 @@ category: references
 tags: [reference, events, projects, visibility/internal]
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
-  - Manifesto/setup/src/app.rs
-  - Manifesto/application/src/usecase/project.rs
-  - Manifesto/application/src/usecase/component.rs
-  - Manifesto/application/src/usecase/member.rs
-  - Manifesto/infra/src/event/consumer.rs
-  - Manifesto/infra/src/event/processors/component_processor.rs
+  - services/Manifesto/setup/src/app.rs
+  - services/Manifesto/application/src/usecase/project.rs
+  - services/Manifesto/application/src/usecase/component.rs
+  - services/Manifesto/application/src/usecase/member.rs
+  - services/Manifesto/infra/src/event/consumer.rs
+  - services/Manifesto/infra/src/event/processors/component_processor.rs
 summary: "Événements/outbox et consumer Apparatus actuels, distincts du futur lifecycle versionné de bindings avec générations et opérations."
 provenance:
   extracted: 0.75

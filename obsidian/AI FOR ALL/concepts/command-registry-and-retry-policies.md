@@ -1,19 +1,19 @@
-﻿---
+---
 title: Command Registry and Retry Policies
 category: concepts
 tags: [commands, reliability, rust, visibility/internal]
 sources:
-  - IAMRusty/docs/COMMAND_PATTERN.md
-  - IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md
-  - IAMRusty/application/src/command/factory.rs
-  - IAMRusty/config/test.toml
-  - Telegraph/application/src/command/factory.rs
-  - Telegraph/setup/src/app.rs
-  - Hive/application/src/command/factory.rs
-  - Hive/setup/src/app.rs
-  - Hive/config/default.toml
-  - Manifesto/application/src/command/factory.rs
-  - Manifesto/docs/rustycog-implementation-and-usage-guide.md
+  - services/IAMRusty/docs/COMMAND_PATTERN.md
+  - services/IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md
+  - services/IAMRusty/application/src/command/factory.rs
+  - services/IAMRusty/config/test.toml
+  - services/Telegraph/application/src/command/factory.rs
+  - services/Telegraph/setup/src/app.rs
+  - services/Hive/application/src/command/factory.rs
+  - services/Hive/setup/src/app.rs
+  - services/Hive/config/default.toml
+  - services/Manifesto/application/src/command/factory.rs
+  - services/Manifesto/docs/rustycog-implementation-and-usage-guide.md
 summary: Repo services use typed command registries to centralize handlers, but IAMRusty, Telegraph, Hive, and Manifesto diverge in retry wiring, registry breadth, and transport entrypoints.
 provenance:
   extracted: 0.69

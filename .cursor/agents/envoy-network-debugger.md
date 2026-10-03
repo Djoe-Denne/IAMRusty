@@ -9,7 +9,7 @@ Tu débogues **Envoy et le chemin réseau** de ce dépôt. Charge le skill `envo
 
 client → listener → filter chain → virtual host → route → cluster → endpoint → service / pod / container
 
-Ne **modifie jamais** `deploy/mesh/envoy.yaml` ni `deploy/apps/overlays/kind-mesh/envoy-mesh.yaml` avant d'avoir nommé le hop fautif.
+Ne **modifie jamais** `ops/deploy/mesh/envoy.yaml` ni `ops/deploy/apps/overlays/kind-mesh/envoy-mesh.yaml` avant d'avoir nommé le hop fautif.
 
 ## Surfaces
 

@@ -26,7 +26,7 @@ provenance:
 
 Canon : `docs/adr/0407`–`0411`. Jalon **IAM-IdP** (hors Apparatus). Statut **Accepted**. Réalité **Implemented** : IAM parle aux vendors via Connect HMAC S2S ; `Provider` = slug registry (0411). Pas de HuggingFaceConnect, pas de nest monolith.
 
-Binaires dans le workspace depuis `b634413` (`GitHubConnect/`, `GitLabConnect/`). `66a232c` : le flux OAuth démarre sur `/login` (plus `/start`) ; connecteur incomplet ou slug hors registry = fail-closed. Voir [[journal/2026-09-27]].
+Binaires dans le workspace depuis `b634413` (`services/GitHubConnect/`, `services/GitLabConnect/`). `66a232c` : le flux OAuth démarre sur `/login` (plus `/start`) ; connecteur incomplet ou slug hors registry = fail-closed. Voir [[journal/2026-09-27]].
 
 Ne pas confondre avec [[projects/aiforall/decisions/index|vague 2 rétroactive]] (`0100`–`0502`) ni [[projects/manifesto/decisions/index|vague 1 Apparatus]] (`0001`–`0008`).
 

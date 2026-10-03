@@ -14,7 +14,7 @@
 
 Chaque process HTTP a un `/health` de liveness rustycog. Les factories de queue peuvent **réussir en no-op** : un boot « OK » ne prouve pas que SQS/Kafka est live. La tentation est de créer un « service readiness » hexagonal, ou de confondre liveness et ready.
 
-La crate `readiness/` expose déjà `GET /ready` et le signalement des queues.
+La crate `crates/readiness/` expose déjà `GET /ready` et le signalement des queues.
 
 ## Décision
 
@@ -48,5 +48,5 @@ Pas de préfixe métier. Consommée par les standalones et `oodhive-monolith` (0
 
 - Wiki : concept `queue-readiness-signaling`
 - Handbook : `docs/platform/runtime.md` (section Readiness), `README.md`
-- Code : `readiness/src/lib.rs`, `attach_ready` dans `IAMRusty/http`, `Hive/http`, `Telegraph/http`, `Manifesto/http`, `monolith`
+- Code : `crates/readiness/src/lib.rs`, `attach_ready` dans `services/IAMRusty/http`, `services/Hive/http`, `services/Telegraph/http`, `services/Manifesto/http`, `monolith`
 - Preuve : crate unique ; `/ready` monté sur standalones et monolithe

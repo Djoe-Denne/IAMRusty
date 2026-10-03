@@ -1,12 +1,12 @@
-﻿---
+---
 title: >-
   RustyCog Service Construction Guides
 category: references
 tags: [reference, rustycog, architecture, visibility/internal]
 sources:
-  - Manifesto/docs/rustycog-service-build-guide.md
-  - Manifesto/docs/rustycog-hexagonal-web-service-guide.md
-  - Manifesto/docs/rustycog-implementation-and-usage-guide.md
+  - services/Manifesto/docs/rustycog-service-build-guide.md
+  - services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md
+  - services/Manifesto/docs/rustycog-implementation-and-usage-guide.md
   - rustycog/rustycog-command/src/registry.rs
   - rustycog/rustycog-config/src/lib.rs
   - rustycog/rustycog-http/src/builder.rs

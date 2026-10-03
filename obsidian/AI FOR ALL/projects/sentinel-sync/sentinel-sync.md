@@ -18,7 +18,7 @@ The `sentinel-sync` project replaces per-service Casbin authorization with a sin
 
 ## Pieces
 
-- **OpenFGA server** — the only authorization engine. Deployed as its own process with its own Postgres store. Model lives at [openfga/model.fga](../../../openfga/model.fga).
+- **OpenFGA server** — the only authorization engine. Deployed as its own process with its own Postgres store. Model lives at [ops/openfga/model.fga](../../../openfga/model.fga).
 - **sentinel-sync worker** — crate `sentinel-sync` (`src/lib.rs` + bin). Consumes events, canonicalizes `{event_type,data}`, translates into OpenFGA Write/Delete, and records `event_id` with begin/complete/fail. Manifesto AuthZ uses a monotonic revision (`revision > last`). Incomplete v1 destructives are no-ops. See [[projects/sentinel-sync/concepts/manifesto-transport-and-ledger]].
 - **Reconcile** — exact DB→OpenFGA delta for `project`/`component` only, no store reset. OpenFGA 1.5 cannot Read with an empty object id. See [[projects/sentinel-sync/concepts/db-to-openfga-reconcile]].
 - **rustycog-permission** — shrunk to a `PermissionChecker` trait plus an `OpenFgaPermissionChecker` client. All Casbin code removed.

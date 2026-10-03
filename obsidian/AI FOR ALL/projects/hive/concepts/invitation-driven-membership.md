@@ -3,11 +3,11 @@ title: Invitation-Driven Membership
 category: concepts
 tags: [organizations, invitations, membership, visibility/internal]
 sources:
-  - Hive/application/src/usecase/invitation.rs
-  - Hive/application/src/command/factory.rs
-  - Hive/http/src/handlers/invitations.rs
-  - Hive/openspecs.yaml
-  - hive-events/README.md
+  - services/Hive/application/src/usecase/invitation.rs
+  - services/Hive/application/src/command/factory.rs
+  - services/Hive/http/src/handlers/invitations.rs
+  - services/Hive/openspecs.yaml
+  - crates/hive-events/README.md
 summary: Hive models invitations as tokenized membership objects with roles, expiry, and event emission for downstream notification flows.
 provenance:
   extracted: 0.74

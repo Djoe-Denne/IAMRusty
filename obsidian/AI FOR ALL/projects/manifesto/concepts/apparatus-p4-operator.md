@@ -7,8 +7,8 @@ sources:
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733.jsonl
   - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
   - docs/apparatus-p4-core-implementation-prompt.md
-  - apparatus-operator/src/controller.rs
-  - apparatus-operator/src/admit.rs
+  - workers/apparatus-operator/src/controller.rs
+  - workers/apparatus-operator/src/admit.rs
 summary: >-
   BC-A hors Manifesto : admit (ORAS+Cosign+Transit fail-closed), controller Kind,
   Calico v3.29.7 IT, T11 vert, pin CRI @sha256 64 hex, pull zot IfNotPresent.
@@ -29,7 +29,7 @@ IT Kind **Calico v3.29.7** (`disableDefaultCNI: true`, kindnet interdit) ; T11 `
 
 ## Frontières
 
-- **Hors** Manifesto / Lazaret : zéro token `k8s`/`kubernetes` sous `Manifesto/*/src`. Pas de `KubernetesAdapter` Manifesto. Pas de répertoire `Factory/`.
+- **Hors** Manifesto / Lazaret : zéro token `k8s`/`kubernetes` sous `services/Manifesto/*/src`. Pas de `KubernetesAdapter` Manifesto. Pas de répertoire `Factory/`.
 - Features Cargo : `admit` (ORAS/Cosign/Transit HTTP) ; `controller` (kube + CR `AdmissionRecord`).
 - Binaires : `apparatus-admit`, `apparatus-controller`, `apparatus-build`.
 - Identité catalogue = digest descripteur 0002. Enveloppe OCI **≠** image CRI. kubelet n’exécute que `name@sha256:<64 hex>`.

@@ -3,9 +3,9 @@ title: OAuth State and CSRF Protection
 category: concepts
 tags: [security, oauth, csrf, visibility/internal]
 sources:
-  - IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
-  - IAMRusty/http/src/oauth_state.rs
-  - IAMRusty/http/src/handlers/auth.rs
+  - services/IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
+  - services/IAMRusty/http/src/oauth_state.rs
+  - services/IAMRusty/http/src/handlers/auth.rs
   - docs/adr/0409-confiance-callback-oauth-idp-connect.md
 summary: >-
   OAuthState carries operation, nonce, provider, exp (TTL 600 s) and HMAC.

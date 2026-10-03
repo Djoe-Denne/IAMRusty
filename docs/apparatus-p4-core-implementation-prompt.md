@@ -31,7 +31,7 @@ TDD strict RED-GREEN-REFACTOR, **une tranche après l’autre** (T2 → T12). Ne
 - **ADR-0005** : un protocole `manifesto-apparatus/1` ; admission / `VALID` / `VERIFIED` / installabilité distincts ; register Manifesto ≠ admit ; harness jamais `VALID`/`VERIFIED` ; pas de `trusted_skip_gateway`.
 - **ADR-0003** : plugin hors processus privilégiés ; quatre identités OS (build, admission/signature, contrôleur, gateway) ; harness ≠ prod ; WASM **pas** premier runtime V1.
 - **ADR-0002** : identité d’installation = digest descripteur (`ReleaseDigest` `sha256:`+hex), jamais `latest` ; Factory = P4 **comme jalon**, **pas** comme répertoire ; host = P5 OUT.
-- **ADR-0004 / 0007** Implemented (A-DEC) : `invoke` = Lazaret `POST /invoke` ; 0 `gateway` sous `Manifesto/*/src` ; `/components` = 5.
+- **ADR-0004 / 0007** Implemented (A-DEC) : `invoke` = Lazaret `POST /invoke` ; 0 `gateway` sous `services/Manifesto/*/src` ; `/components` = 5.
 
 N’invente **aucune** décision `Accepted` au-delà de 0008. Les **choix locaux** ci-dessous sont réversibles P4-core, **pas** une ADR.
 
@@ -60,7 +60,7 @@ Sans T2–T12 **ensemble**, ce scénario est faux : scaffold ≠ cellule ; admis
 | K8s-as-P3 | **Interdit** |
 | Second protocole / `trusted_skip_gateway` | **Interdit** |
 | Invoke | Lazaret `POST /invoke` |
-| `gateway` sous `Manifesto/*/src` | **0** |
+| `gateway` sous `services/Manifesto/*/src` | **0** |
 | Gate Manifesto | `apparatus_p2_t7_gate.rs` + `apparatus_p3_t2_gate.rs` + T1 P4 : **ne pas** retargeter pour autoriser `k8s` **dans Manifesto** |
 | APP-01 | **ADRé (0008)** — ne pas « re-réconcilier » |
 | SuperSède 0003 / 0005 | **Interdit** |
@@ -82,7 +82,7 @@ Les points ci-dessous décrivent l’état **avant** le lot usine ; ce n’est *
 
 1. Wiki QMD `decisions/index` : 0004+0007 encore Partial ; **0008 absent** ; plan L190 APP-01 encore « ouvert » — **photo antérieure**.
 2. Hub wiki `0007-apparatus-p3-lazaret.md` `feature_status: partial` vs ADR Implemented — **photo antérieure**.
-3. Plan L152 « implémenter KubernetesAdapter » vs 0008 : **aucun** type K8s sous `Manifesto/*/src` — toujours vrai.
+3. Plan L152 « implémenter KubernetesAdapter » vs 0008 : **aucun** type K8s sous `services/Manifesto/*/src` — toujours vrai.
 4. Closeout `D-P4` sac « Factory + host UI » vs 0002 : host = **P5 OUT** — toujours vrai.
 5. GrepAI index `last_updated` 2026-08-28, RPG disabled — **ne pas** s’y fier.
 6. QMD collection : 0 hits `0008` — possible décalage d’index, pas une mission de lot.
@@ -95,14 +95,14 @@ Si une contradiction **bloque** (2e proto, bearer IAM, K8s dans Manifesto, nouve
 
 1. `AGENTS.md` et règles workspace.
 2. `docs/adr/README.md` L18 (`APP-01` ADRé ; `APP-02`…`APP-07` ouverts) ; L135–L137.
-3. ADR `0001`–`0008` dans `docs/adr/`. Canon P4 = **0008**. Preuves d’absence : `Manifesto/tests/apparatus_p4_t1_absence.rs`, `apparatus_p2_t7_gate.rs`, `apparatus_p3_t2_gate.rs`.
-4. Contrats P0 : `apparatus-contracts` (`ReleaseDigest`, `digest_manifest`, protocole `manifesto-apparatus/1`, DTO sans `trusted_skip_gateway`). Harness `apparatus-contracts/src/harness.rs` = TEST-ONLY, jamais `VALID`/`VERIFIED`.
-5. Runtime Manifesto **à ne pas élargir** : `Manifesto/infra/src/apparatus_runtime/{mod,in_process,tick,cleanup}.rs` — `bind` / `configure` / `unbind` / `observe` / `teardown` **seulement**. Contrôleur P4 ≠ ticker P2.
-6. Invoke à **préserver** : `Lazaret/application/src/invoke.rs`, `Lazaret/http/src/invoke.rs`, `Lazaret/tests/apparatus_p3_t7_invoke.rs` (+ t8…t13).
-7. OpenBao KV plugin **déjà** : `Lazaret/tests/fixtures/openbao/` (`lazaret_test-openbao`, mount `secret`, image `openbao/openbao:2.6.2`). **Ne pas** réutiliser ce mount / ce token / ce nom de container pour Transit.
+3. ADR `0001`–`0008` dans `docs/adr/`. Canon P4 = **0008**. Preuves d’absence : `services/Manifesto/tests/apparatus_p4_t1_absence.rs`, `apparatus_p2_t7_gate.rs`, `apparatus_p3_t2_gate.rs`.
+4. Contrats P0 : `apparatus-contracts` (`ReleaseDigest`, `digest_manifest`, protocole `manifesto-apparatus/1`, DTO sans `trusted_skip_gateway`). Harness `crates/apparatus-contracts/src/harness.rs` = TEST-ONLY, jamais `VALID`/`VERIFIED`.
+5. Runtime Manifesto **à ne pas élargir** : `services/Manifesto/infra/src/apparatus_runtime/{mod,in_process,tick,cleanup}.rs` — `bind` / `configure` / `unbind` / `observe` / `teardown` **seulement**. Contrôleur P4 ≠ ticker P2.
+6. Invoke à **préserver** : `services/Lazaret/application/src/invoke.rs`, `services/Lazaret/http/src/invoke.rs`, `services/Lazaret/tests/apparatus_p3_t7_invoke.rs` (+ t8…t13).
+7. OpenBao KV plugin **déjà** : `services/Lazaret/tests/fixtures/openbao/` (`lazaret_test-openbao`, mount `secret`, image `openbao/openbao:2.6.2`). **Ne pas** réutiliser ce mount / ce token / ce nom de container pour Transit.
 8. Skills : `.cursor/skills/creating-testcontainer-fixtures/SKILL.md` (fixtures **locales**). Skill **`aiforall-new-service` NON**. RustyCog HTTP / OpenFGA / JWT / nest monolithe **NON**. `ServiceTestDescriptor` : **ne pas** ajouter `has_openbao` / `has_k8s` (casserait tous les services).
 
-`apparatus-events/` existe mais **n’est pas** member workspace — **ne pas** en faire un bus « register → VALID » (Adm-D furtif, 0008 compagnon).
+`crates/apparatus-events/` existe mais **n’est pas** member workspace — **ne pas** en faire un bus « register → VALID » (Adm-D furtif, 0008 compagnon).
 
 ## Choix locaux P4-core (réversibles, **pas** une ADR)
 
@@ -110,7 +110,7 @@ Canon 0008 laisse libres : nom du crate BC-A, produit registry IT, split admit v
 
 | Sujet | Choix local | Pourquoi usine | Interdit |
 |---|---|---|---|
-| Crate BC-A | Member workspace **`apparatus-operator`** à la racine (`apparatus-operator/`). Un crate : lib + bins. | Un îlot ops, pas un 6ᵉ hexagone | `Factory/` ; PascalCase service nest ; skill new-service ; entrée `monolith/Cargo.toml` |
+| Crate BC-A | Member workspace **`apparatus-operator`** à la racine (`workers/apparatus-operator/`). Un crate : lib + bins. | Un îlot ops, pas un 6ᵉ hexagone | `Factory/` ; PascalCase service nest ; skill new-service ; entrée `runtime/monolith/Cargo.toml` |
 | Bins | `apparatus-controller` ; `apparatus-admit` (signe **puis** atteste) ; `apparatus-build` (entrypoint Job) | 3h du matin : trois processus visibles, zéro listener HTTP d’admission | `axum` / `create_router` sur admit ou build |
 | Admit vs signer | **Colocation d’identité** : un SA `apparatus-admit` (libellé 0003 « admission/signature » + Run-A **4** SA). Deux *fonctions* séquentielles dans le même binaire privilégié, **pas** deux HTTP. | 4 SA = quota canon ; 5ᵉ SA = escalade | Split en 5 SA sans ADR ; consumer d’events Manifesto |
 | 4 SA Kind | `apparatus-build` (`automountServiceAccountToken: false`) ; `apparatus-admit` ; `apparatus-controller` ; `apparatus-gateway` | Kill / sign / schedule / invoke = identités séparées | Token API sur le Job build ; Transit sur build ou plugin |
@@ -118,9 +118,9 @@ Canon 0008 laisse libres : nom du crate BC-A, produit registry IT, split admit v
 | Namespaces | `apparatus-system` (privilégié) ; `apparatus-plugins` (workloads) | Tuer un plugin ≠ tuer Manifesto | Plugin dans le ns du contrôleur |
 | Registry IT | **zot** (OCI artifacts **et** pull d’image). Auth : seul le signer pousse ; pull image possible pour kubelet. | `registry:2` image-only **casse** Pkg-B | Prouver T6/T10 avec `registry:2` seul |
 | Kind | **À partir de T10**. T2–T9 = testcontainers Docker (zot + OpenBao Transit) **sans** cluster | β 0008 : pas Kind dès T2 ; usine cellule = T10 | Mock NetworkPolicy ; Kind « pour le scaffold » T2 |
-| OpenBao Transit | Fixture **locale** `apparatus-operator/tests/fixtures/openbao-transit/` ; container ≠ `lazaret_test-openbao` ; engine **Transit** ≠ mount KV `secret` ; token root **distinct** | Forge de signatures si Transit = KV T12 | Partager le fixture Lazaret T12 |
+| OpenBao Transit | Fixture **locale** `workers/apparatus-operator/tests/fixtures/openbao-transit/` ; container ≠ `lazaret_test-openbao` ; engine **Transit** ≠ mount KV `secret` ; token root **distinct** | Forge de signatures si Transit = KV T12 | Partager le fixture Lazaret T12 |
 | `VALID` persisté | CRD **`AdmissionRecord`** (cluster `apparatus-system`), écrite **uniquement** par SA admit. Champs min. : digest descripteur 0002, version de politique, digest du rapport. Contrôleur **refuse** de scheduler sans CR. | Ops : `kubectl get admissionrecords` à 3h ; pas de GET IAM | Colonne SQL Manifesto ; auto-admit sur register ; harness |
-| Adaptateur runtime | Dans **`apparatus-operator`** (ex. `WorkloadReconciler` / `envelope_to_podspec`). **Jamais** de type `KubernetesAdapter` sous `Manifesto/*/src` | Plan L152 = conception | Retargeter les gates Manifesto |
+| Adaptateur runtime | Dans **`apparatus-operator`** (ex. `WorkloadReconciler` / `envelope_to_podspec`). **Jamais** de type `KubernetesAdapter` sous `services/Manifesto/*/src` | Plan L152 = conception | Retargeter les gates Manifesto |
 | Dépendances K8s / Cosign | `kube` / `k8s-openapi` **seulement** dans `apparatus-operator`. Cosign = **CLI** dans l’image admit (`cosign sign` + Transit/Vault API). | Preuve usine = outil nommé 0008 | Dep kube dans Manifesto/Lazaret |
 | Health T2 | **Pas** de HTTP health 0008. Équivalent : bins `--version` / lib compile / CRD apply à T10 | Évite un nest « debug » | Listener HTTP « temporaire » |
 | Invoke → Pod | Lot = Job/Pod isolé **plus** régression Lazaret P3. Mesh Lazaret-in-cluster **hors** lot. IT T12 **peut** prouver qu’un client protocole depuis SA gateway atteint le Service plugin **dans Kind** (même contrat `manifesto-apparatus/1`), sans second proto. | Cellule tuable + invoke historique intact | Bearer IAM ; `trusted_skip_gateway` ; invoke Manifesto |
@@ -134,27 +134,27 @@ Canon 0008 laisse libres : nom du crate BC-A, produit registry IT, split admit v
 ## Invariants à ne pas casser
 
 - Identité = `project_components.id` ; binding 1:1 ; `source` ∈ `legacy|managed` ; pas de 2e UUID public.
-- `/components` = 5 ; 0 `gateway` / 0 `invoke` sous `Manifesto/*/src` ; 0 `fn invoke` sur `ApparatusRuntime`.
-- Tokens `k8s`/`kubernetes`/`wasm`/`wasi`/`wasmtime`/`iframe`/`messagechannel`/`apparatus_host`/`ui_host` **interdits dans Manifesto prod** (gates + T1). **Autorisés** dans `apparatus-operator/`.
+- `/components` = 5 ; 0 `gateway` / 0 `invoke` sous `services/Manifesto/*/src` ; 0 `fn invoke` sur `ApparatusRuntime`.
+- Tokens `k8s`/`kubernetes`/`wasm`/`wasi`/`wasmtime`/`iframe`/`messagechannel`/`apparatus_host`/`ui_host` **interdits dans Manifesto prod** (gates + T1). **Autorisés** dans `workers/apparatus-operator/`.
 - Harness ≠ production ; pas de `VALID`/`VERIFIED` émis par `harness.rs`.
 - Register Manifesto ≠ admit. Kubelet n’exécute que `image@sha256` **issu de l’enveloppe admise**, jamais digest d’enveloppe comme `spec.image`, jamais `latest`.
 - Job build : pas de token API, pas de clés Transit, pas de push registry.
-- Contrôleur P4 ≠ `Manifesto/infra/src/apparatus_runtime/tick.rs` (pas de copie du lease 30s comme moteur d’isolation).
+- Contrôleur P4 ≠ `services/Manifesto/infra/src/apparatus_runtime/tick.rs` (pas de copie du lease 30s comme moteur d’isolation).
 - Isolation : **pas** de mock NetworkPolicy comme preuve (0003).
 - `unsafe_code = forbid` ; Clippy workspace ; pas d’`unwrap` prod non documenté.
 
 ## Tranches T2–T12 (TDD, séquentielles)
 
-Nomme les tests `apparatus_p4_t*.rs`. **Nouveau code de tests T2–T12** : `apparatus-operator/tests/`. Ne **pas** relivrer `Manifesto/tests/apparatus_p4_t1_absence.rs` (sauf si un GREEN T2+ le casse — alors ajuster **allowlists factuelles**, pas relâcher les tokens Manifesto).
+Nomme les tests `apparatus_p4_t*.rs`. **Nouveau code de tests T2–T12** : `workers/apparatus-operator/tests/`. Ne **pas** relivrer `services/Manifesto/tests/apparatus_p4_t1_absence.rs` (sauf si un GREEN T2+ le casse — alors ajuster **allowlists factuelles**, pas relâcher les tokens Manifesto).
 
 RED avant GREEN à chaque tranche. Pas de Kind avant T10.
 
 ### Tranche 2 — Scaffold BC-A
 
-- **RED** : member `apparatus-operator` absent ; bins absents ; `Factory/` toujours absent ; **pas** dans `monolith/Cargo.toml`.
+- **RED** : member `apparatus-operator` absent ; bins absents ; `Factory/` toujours absent ; **pas** dans `runtime/monolith/Cargo.toml`.
 - **GREEN** : `Cargo.toml` workspace + crate ; `src/lib.rs` ; bins `controller` / `admit` / `build` **sans** serveur HTTP ; `--version` ou équivalent.
-- **Fichiers** : `apparatus-operator/Cargo.toml`, `src/lib.rs`, `src/bin/controller.rs`, `src/bin/admit.rs`, `src/bin/build.rs`.
-- **Tests** : `apparatus-operator/tests/apparatus_p4_t2_scaffold.rs` (member présent, pas `Factory/`, pas de listener HTTP, pas de dep kube **dans Manifesto**).
+- **Fichiers** : `workers/apparatus-operator/Cargo.toml`, `src/lib.rs`, `src/bin/controller.rs`, `src/bin/admit.rs`, `src/bin/build.rs`.
+- **Tests** : `workers/apparatus-operator/tests/apparatus_p4_t2_scaffold.rs` (member présent, pas `Factory/`, pas de listener HTTP, pas de dep kube **dans Manifesto**).
 - **Kind** : non.
 - **Sortie** : crate compile (`cargo test -p apparatus-operator --test apparatus_p4_t2_scaffold`).
 
@@ -162,7 +162,7 @@ RED avant GREEN à chaque tranche. Pas de Kind avant T10.
 
 - **RED** : `latest` / branche / tag flottant ≠ identité. Utiliser `apparatus_contracts::{ReleaseDigest, digest_manifest, …}` — **pas** un second schéma.
 - **GREEN** : ref Git mobile → `APPARATUS_FLOATING_REF` / `APPARATUS_INVALID_DIGEST` (codes P0 existants). Le futur contrôleur ne consomme pas de tags.
-- **Fichiers** : `apparatus-operator/src/digest.rs` (ou module lib) — wrapping, pas fork.
+- **Fichiers** : `workers/apparatus-operator/src/digest.rs` (ou module lib) — wrapping, pas fork.
 - **Tests** : `apparatus_p4_t3_digest.rs`.
 - **Kind** : non.
 
@@ -184,7 +184,7 @@ RED avant GREEN à chaque tranche. Pas de Kind avant T10.
 
 - **RED** : fixture zot + OpenBao Transit (testcontainers, skill locale). `apparatus-admit` pousse l’enveloppe **et** signe (Cosign+Transit). Build **ne peut pas** pusher (auth zot). Le signer n’exécute pas le code auteur.
 - **GREEN** : enveloppe ORAS **non** CRI + blob image pinée ; identité catalogue = digest **0002**, pas digest OCI d’enveloppe.
-- **Fixtures** : `apparatus-operator/tests/fixtures/zot/` ; `tests/fixtures/openbao-transit/`.
+- **Fixtures** : `workers/apparatus-operator/tests/fixtures/zot/` ; `tests/fixtures/openbao-transit/`.
 - **Tests** : `apparatus_p4_t6_sign_registry.rs` (**IT Docker**).
 - **Kind** : non.
 
@@ -211,21 +211,21 @@ RED avant GREEN à chaque tranche. Pas de Kind avant T10.
 
 ### Tranche 10 — Git → digest → workload (image plateforme) + Kind
 
-- **RED** : Kind cluster `apparatus-p4-it` ; 4 SA ; 2 ns ; zot joignable depuis le cluster (registry IP Kind) ; image de test **plateforme in-repo** (`apparatus-operator/testdata/platform-plugin/`) **avant** P6 ; soumission → enveloppe → `VALID` → Job/Pod dans `apparatus-plugins` ; profil d’isolation manquant → **refus** (pas « un peu moins isolé ») ; pas de `shared`/`organization`.
+- **RED** : Kind cluster `apparatus-p4-it` ; 4 SA ; 2 ns ; zot joignable depuis le cluster (registry IP Kind) ; image de test **plateforme in-repo** (`workers/apparatus-operator/testdata/platform-plugin/`) **avant** P6 ; soumission → enveloppe → `VALID` → Job/Pod dans `apparatus-plugins` ; profil d’isolation manquant → **refus** (pas « un peu moins isolé ») ; pas de `shared`/`organization`.
 - **GREEN** : `kubectl`/client : Pod Running ; `spec.image` = `image@sha256` CRI ; **pas** tag flottant.
-- **Fichiers** : `apparatus-operator/k8s/*.yaml` (SA, ns, RBAC, CRD, NetworkPolicy) ; fixture `tests/fixtures/kind/`.
+- **Fichiers** : `workers/apparatus-operator/k8s/*.yaml` (SA, ns, RBAC, CRD, NetworkPolicy) ; fixture `tests/fixtures/kind/`.
 - **Tests** : `apparatus_p4_t10_platform_workload.rs` (**IT Kind+Docker**). Fail-loud si Docker/Kind absent (comme les fixtures testcontainers existantes) — **pas** de skip silencieux qui verdit le lot.
 
 ### Tranche 11 — Runtime K8s hors Manifesto
 
-- **RED** : contrôleur crée/tue le workload **seulement** si `AdmissionRecord` existe pour le digest 0002. Isolation **par projet et par binding** (labels). Preuve NetworkPolicy **réelle** : depuis le Pod plugin, échec d’accès Transit / API secrets `apparatus-system` (probe ou exec, pas assert YAML). Tuer le Pod plugin **ne** casse **pas** Manifesto. Zéro token `k8s` ajouté sous `Manifesto/*/src`. WASM pas premier runtime.
+- **RED** : contrôleur crée/tue le workload **seulement** si `AdmissionRecord` existe pour le digest 0002. Isolation **par projet et par binding** (labels). Preuve NetworkPolicy **réelle** : depuis le Pod plugin, échec d’accès Transit / API secrets `apparatus-system` (probe ou exec, pas assert YAML). Tuer le Pod plugin **ne** casse **pas** Manifesto. Zéro token `k8s` ajouté sous `services/Manifesto/*/src`. WASM pas premier runtime.
 - **GREEN** : pas de type `KubernetesAdapter` dans Manifesto (T1 reste rouge si on l’ajoute).
 - **Tests** : `apparatus_p4_t11_runtime.rs` (**IT Kind**).
 - **Contrôleur** ≠ ticker P2.
 
 ### Tranche 12 — Gate P5 + régression Lazaret `invoke`
 
-- **RED** : tokens host/iframe/CLI/`messagechannel`/`ui_host`/`apparatus_host` interdits **dans Manifesto** (gates existants verts). Allowlist K8s **uniquement** sous `apparatus-operator`. Régression : `Lazaret/tests/apparatus_p3_t7_invoke.rs` (et t8–t13 pertinents) ; 0 `gateway` Manifesto src ; `/components` = 5 ; pas d’`invoke` sur `ApparatusRuntime` ; T1 P4 vert.
+- **RED** : tokens host/iframe/CLI/`messagechannel`/`ui_host`/`apparatus_host` interdits **dans Manifesto** (gates existants verts). Allowlist K8s **uniquement** sous `apparatus-operator`. Régression : `services/Lazaret/tests/apparatus_p3_t7_invoke.rs` (et t8–t13 pertinents) ; 0 `gateway` Manifesto src ; `/components` = 5 ; pas d’`invoke` sur `ApparatusRuntime` ; T1 P4 vert.
 - **GREEN** : ne pas ouvrir P5. Ne pas flipper 0005 `Implemented`.
 - **Tests** : `apparatus_p4_t12_gate_regression.rs` **plus** cargo test ciblé P3 Lazaret + gates Manifesto (commandes ci-dessous). Option IT : client `manifesto-apparatus/1` depuis SA gateway → Service plugin (même proto, pas un 2e).
 
@@ -293,4 +293,4 @@ Fournir :
 
 ## Escalade humaine (ne pas inventer)
 
-Second protocole · `trusted_skip_gateway` · bearer IAM · K8s sous `Manifesto/*/src` · nouveau type FGA · SuperSède 0003/0005 · flip 0005 Implemented · clôturer APP-05 · lever G/E · budget/CPU numériques APP-06 · 5ᵉ SA / split admit-signer **contre** Run-A · WASM premier runtime · déployer P3 « en prod » sans isolation.
+Second protocole · `trusted_skip_gateway` · bearer IAM · K8s sous `services/Manifesto/*/src` · nouveau type FGA · SuperSède 0003/0005 · flip 0005 Implemented · clôturer APP-05 · lever G/E · budget/CPU numériques APP-06 · 5ᵉ SA / split admit-signer **contre** Run-A · WASM premier runtime · déployer P3 « en prod » sans isolation.

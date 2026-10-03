@@ -18,7 +18,7 @@ This skill is the **workspace wiring**. Human how-to: `docs/guides/nouveau-servi
 ## When to use
 
 - User asks to add a service beside Hive / Manifesto / Telegraph / IAM.
-- Touching `monolith/src/routes.rs`, root `docker-compose.yml`, `openfga/model.fga`, or `sentinel-sync/src/translator/`.
+- Touching `runtime/monolith/src/routes.rs`, root `docker-compose.yml`, `ops/openfga/model.fga`, or `workers/sentinel-sync/src/translator/`.
 - Adding a `*-events` crate or a new `SERVICE_PREFIX`.
 - Adding a cross-hexagon outbound port (`*OutboundOverrides`, ADR 0104).
 
@@ -26,11 +26,11 @@ This skill is the **workspace wiring**. Human how-to: `docs/guides/nouveau-servi
 
 1. Vertical slice (domain → http → setup) like Manifesto. `SERVICE_PREFIX`, `create_router`, `create_prefixed_router`, `start_background_tasks` / `stop_background_tasks`.
 2. `[auth.jwt]` with `hs256_secret`, `issuer = "iamrusty"`, `audience = "aiforall"`. `UserIdExtractor::new`. See `docs/guides/jwt-consommateur.md`.
-3. New AuthZ type? Edit `openfga/model.fga` + regenerate `openfga/model.json`. Routes: `.authenticated()` then `with_permission_on` / `with_permission_on_param`.
-4. `foo-events` workspace member. If the event changes FGA: translator module + register in `sentinel-sync/src/main.rs`. Unknown events are silent no-ops.
+3. New AuthZ type? Edit `ops/openfga/model.fga` + regenerate `ops/openfga/model.json`. Routes: `.authenticated()` then `with_permission_on` / `with_permission_on_param`.
+4. `foo-events` workspace member. If the event changes FGA: translator module + register in `workers/sentinel-sync/src/main.rs`. Unknown events are silent no-ops.
 5. `[queue.queues]` → physical queues (`sentinel-sync-events` or `telegraph-events`). Default `enabled = false`.
-6. `MonolithRouters` + `.nest(foo_http::SERVICE_PREFIX, …)` in `monolith/src/routes.rs`. Do not call service `run()`.
-7. Cross-hexagon outbound port? Field on the consumer `*OutboundOverrides` bag; InProcess bridge only in `monolith/`. Canonical: `.cursor/skills/rustycog/references/outbound-overrides.md` (ADR 0104). Do not put `EventPublisher` in that bag.
+6. `MonolithRouters` + `.nest(foo_http::SERVICE_PREFIX, …)` in `runtime/monolith/src/routes.rs`. Do not call service `run()`.
+7. Cross-hexagon outbound port? Field on the consumer `*OutboundOverrides` bag; InProcess bridge only in `runtime/monolith/`. Canonical: `.cursor/skills/rustycog/references/outbound-overrides.md` (ADR 0104). Do not put `EventPublisher` in that bag.
 8. Root `Cargo.toml` members, `docker-compose.yml` service + `create-databases` (`foo_dev`), host port ≥ 8084.
 9. `tests/common.rs` returns a **prefixed** base URL. `create_jwt_token` + `TestOpenFga::allow` as needed.
 10. Service README + `docs/services/<name>.md`.

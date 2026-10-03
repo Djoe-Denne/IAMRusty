@@ -3,11 +3,11 @@ title: IAMRusty Service
 category: references
 tags: [reference, iam, architecture, visibility/internal]
 sources:
-  - IAMRusty/README.md
-  - IAMRusty/docs/ARCHITECTURE.md
-  - IAMRusty/domain/src/entity/events.rs
-  - IAMRusty/setup/src/app.rs
-  - IAMRusty/http/src/lib.rs
+  - services/IAMRusty/README.md
+  - services/IAMRusty/docs/ARCHITECTURE.md
+  - services/IAMRusty/domain/src/entity/events.rs
+  - services/IAMRusty/setup/src/app.rs
+  - services/IAMRusty/http/src/lib.rs
 summary: IAMRusty-specific runtime notes layered on top of the shared RustyCog service shell, emphasizing route inventory, security wiring, and the iam-events versus transport split.
 provenance:
   extracted: 0.81

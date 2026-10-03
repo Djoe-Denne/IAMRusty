@@ -4,15 +4,15 @@ category: references
 tags: [reference, api, permissions, openfga, visibility/internal]
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
-  - Manifesto/http/src/lib.rs
-  - Manifesto/setup/src/app.rs
-  - Manifesto/application/src/command/factory.rs
-  - Manifesto/application/src/usecase/project.rs
-  - Manifesto/application/src/usecase/component.rs
-  - Manifesto/application/src/usecase/member.rs
-  - manifesto-events/src/lib.rs
-  - sentinel-sync/src/translator/manifesto.rs
-  - openfga/model.fga
+  - services/Manifesto/http/src/lib.rs
+  - services/Manifesto/setup/src/app.rs
+  - services/Manifesto/application/src/command/factory.rs
+  - services/Manifesto/application/src/usecase/project.rs
+  - services/Manifesto/application/src/usecase/component.rs
+  - services/Manifesto/application/src/usecase/member.rs
+  - crates/manifesto-events/src/lib.rs
+  - workers/sentinel-sync/src/translator/manifesto.rs
+  - ops/openfga/model.fga
 summary: "Routes et ACL Manifesto actuelles ; les API candidates de binding/invoke Apparatus restent futures et gardent le préfixe /manifesto."
 provenance:
   extracted: 0.75
@@ -34,7 +34,7 @@ This page assumes the shared [[projects/rustycog/references/rustycog-http]] and 
 
 ## Service-Specific Differences
 
-- [Manifesto/http/src/lib.rs](../../../../../Manifesto/http/src/lib.rs) registers project, component, and member routes against the same shared `permission_checker` on `AppState`. There is no per-resource fetcher anymore.
+- [services/Manifesto/http/src/lib.rs](../../../../../services/Manifesto/http/src/lib.rs) registers project, component, and member routes against the same shared `permission_checker` on `AppState`. There is no per-resource fetcher anymore.
 - Project get/detail and component list/get routes are `.might_be_authenticated()` plus project `Read`. `optional_permission_middleware` resolves anonymous callers as `Subject::wildcard()`. The use-case world-read gate then requires `visibility=public` and status `draft` or `active`. A leftover `viewer@user:*` after private / internal / archive is ignored on those surfaces. sentinel-sync writes that tuple on **create-as-public** and on a real visibility flip (`ProjectVisibilityChanged`). Manifesto does not write FGA. `ProjectPublished` does not write it. Authenticated reads succeed for owner, project member, or organization `Read` on org-owned projects.
 - Authenticated `GET /api/projects` SQL matches GET for org-inherited access. Anonymous list can show live public rows without the wildcard. See [[projects/manifesto/concepts/org-owned-visibility-and-participation-limits]].
 - `POST /api/projects/{id}/join` is JWT-only. It inserts or restores membership with `project`/`read`. Adding another user is still `Admin` on the project.

@@ -11,4 +11,4 @@ Identité et accès : comptes, OAuth GitHub/GitLab via connecteurs HTTP HMAC, JW
 ## Docs
 
 - Handbook : [../platform/authn-jwt.md](../platform/authn-jwt.md), [../functional/identite.md](../functional/identite.md)
-- [`IAMRusty/README.md`](../../IAMRusty/README.md), [`IAMRusty/docs/`](../../IAMRusty/docs/), QA [`IAMRusty/qa/scenarii/`](../../IAMRusty/qa/scenarii/)
+- [`services/IAMRusty/README.md`](../../services/IAMRusty/README.md), [`services/IAMRusty/docs/`](../../services/IAMRusty/docs/), QA [`services/IAMRusty/qa/scenarii/`](../../services/IAMRusty/qa/scenarii/)

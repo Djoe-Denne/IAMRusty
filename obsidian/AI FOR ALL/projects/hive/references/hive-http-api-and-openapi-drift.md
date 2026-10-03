@@ -3,16 +3,16 @@ title: Hive HTTP API and OpenAPI Drift
 category: references
 tags: [reference, api, organizations, visibility/internal]
 sources:
-  - Hive/openspecs.yaml
-  - Hive/http/src/lib.rs
-  - Hive/http/src/handlers/roles.rs
-  - Hive/http/src/error.rs
-  - Hive/application/src/command/factory.rs
-  - Hive/application/src/command/role.rs
-  - Hive/application/src/dto/common.rs
-  - Hive/tests/organization_api_tests.rs
-  - Hive/tests/members_api_tests.rs
-  - Hive/tests/external_link_api_tests.rs
+  - services/Hive/openspecs.yaml
+  - services/Hive/http/src/lib.rs
+  - services/Hive/http/src/handlers/roles.rs
+  - services/Hive/http/src/error.rs
+  - services/Hive/application/src/command/factory.rs
+  - services/Hive/application/src/command/role.rs
+  - services/Hive/application/src/dto/common.rs
+  - services/Hive/tests/organization_api_tests.rs
+  - services/Hive/tests/members_api_tests.rs
+  - services/Hive/tests/external_link_api_tests.rs
 summary: Source-backed comparison of Hive's live route table, command wiring, and richer custom HTTP error model against a larger OpenAPI contract that is not fully wired today.
 provenance:
   extracted: 0.72

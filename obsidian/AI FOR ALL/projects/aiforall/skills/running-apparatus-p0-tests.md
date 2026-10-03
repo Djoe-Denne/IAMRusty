@@ -3,10 +3,10 @@ title: "Lancer les tests Apparatus P0"
 category: skills
 tags: [testing, rust, components]
 sources:
-  - apparatus-contracts/Cargo.toml
-  - apparatus-reference-kv/Cargo.toml
-  - apparatus-contracts/tests/contracts_p0.rs
-  - apparatus-reference-kv/tests/kv_p0.rs
+  - crates/apparatus-contracts/Cargo.toml
+  - crates/apparatus-reference-kv/Cargo.toml
+  - crates/apparatus-contracts/tests/contracts_p0.rs
+  - crates/apparatus-reference-kv/tests/kv_p0.rs
 summary: >-
   Tests P0/P0.1 déterministes : feature test-harness, 42 tests, CI apparatus-p0, clippy et doc sans warning.
 provenance:
@@ -40,7 +40,7 @@ P0.1 ajoute `apparatus_p01_micro.rs` (3 contrats + 2 KV) : total **42/42**. La C
 
 - `unwrap` / `expect` / `unsafe` dans `src/` (Mutex : `PoisonError::into_inner`).
 - Introduire `axum`, `sea-orm`, `jsonwebtoken`, `openfga`, `reqwest`, `tokio` dans ces crates.
-- Absorber `apparatus-events/` (hors `members`) ou toucher le submodule `rustycog/`.
+- Absorber `crates/apparatus-events/` (hors `members`) ou toucher le submodule `rustycog/`.
 
 ## Related
 

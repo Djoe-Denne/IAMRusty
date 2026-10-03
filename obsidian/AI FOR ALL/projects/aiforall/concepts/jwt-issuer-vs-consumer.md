@@ -6,7 +6,7 @@ tags: [iam, jwt, rustycog, security, visibility/internal]
 sources:
   - docs/platform/authn-jwt.md
   - docs/guides/jwt-consommateur.md
-  - IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md
+  - services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md
   - rustycog/rustycog-http/src/jwt_handler.rs
   - projects/iamrusty/concepts/jwt-algorithm-enforcement-and-test-relaxation.md
   - cursor-conversation/jwt-jwks-unification-2026-08-29

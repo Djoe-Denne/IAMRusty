@@ -4,25 +4,25 @@ title: >-
 category: skills
 tags: [rustycog, scaffolding, services, visibility/internal]
 sources:
-  - Manifesto/docs/rustycog-service-build-guide.md
-  - Manifesto/docs/rustycog-hexagonal-web-service-guide.md
-  - Manifesto/docs/rustycog-implementation-and-usage-guide.md
-  - Manifesto/src/main.rs
-  - Manifesto/configuration/src/lib.rs
-  - Manifesto/setup/src/app.rs
-  - Manifesto/http/src/lib.rs
+  - services/Manifesto/docs/rustycog-service-build-guide.md
+  - services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md
+  - services/Manifesto/docs/rustycog-implementation-and-usage-guide.md
+  - services/Manifesto/src/main.rs
+  - services/Manifesto/configuration/src/lib.rs
+  - services/Manifesto/setup/src/app.rs
+  - services/Manifesto/http/src/lib.rs
   - rustycog/rustycog-command/src/registry.rs
   - rustycog/rustycog-config/src/lib.rs
   - rustycog/rustycog-http/src/builder.rs
   - rustycog/rustycog-http/src/middleware_permission.rs
   - rustycog/rustycog-logger/src/lib.rs
   - rustycog/rustycog-testing/src/common/test_server.rs
-  - IAMRusty/http/src/lib.rs
-  - Telegraph/http/src/lib.rs
-  - Hive/http/src/lib.rs
-  - Manifesto/http/src/lib.rs
-  - monolith/src/routes.rs
-  - monolith/src/runtime.rs
+  - services/IAMRusty/http/src/lib.rs
+  - services/Telegraph/http/src/lib.rs
+  - services/Hive/http/src/lib.rs
+  - services/Manifesto/http/src/lib.rs
+  - runtime/monolith/src/routes.rs
+  - runtime/monolith/src/runtime.rs
   - Cargo.toml
   - rustycog/Cargo.toml
 summary: >-
@@ -50,7 +50,7 @@ Use this page when starting a new service that should look like `<!-- [[projects
 - In the HTTP crate, split reusable route construction from serving: expose `create_router(state) -> axum::Router` for embedding, `SERVICE_PREFIX` for the bounded-context path, and `create_prefixed_router(state)` for standalone microservice mode.
 - Keep `create_app_routes(state, server_config)` as the standalone entrypoint, but have it call `rustycog_http::serve_router(create_prefixed_router(state), server_config)` rather than binding an unprefixed router.
 - In the setup crate, expose an application-level `router()` method that delegates to the HTTP crate's unprefixed `create_router`. If the service owns background consumers, expose `start_background_tasks()` and `stop_background_tasks()` so `[[projects/aiforall/references/modular-monolith-runtime]]` can compose the service without calling its `run()` method.
-- For protected routes call `.with_permission_on(Permission::X, "<openfga_type>")` immediately after `.authenticated()` or `.might_be_authenticated()`. There is no per-route fetcher and no `permissions_dir` chain — `object_type` must match a type defined in [`openfga/model.fga`](../../openfga/model.fga).
+- For protected routes call `.with_permission_on(Permission::X, "<openfga_type>")` immediately after `.authenticated()` or `.might_be_authenticated()`. There is no per-route fetcher and no `permissions_dir` chain — `object_type` must match a type defined in [`ops/openfga/model.fga`](../../openfga/model.fga).
 - If you load one config subsection directly, remember that `load_config_part("server")` reads `SERVER_*`-prefixed overrides rather than your service prefix. Conflict to resolve. ^[ambiguous]
 - Finish the slice with integration tests that exercise auth, permissions, validation, and the happy path, then add Kafka or LocalStack-backed checks only when transport behavior is part of the contract.
 

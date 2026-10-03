@@ -8,8 +8,8 @@ feature_status: partial
 sources:
   - docs/adr/0002-apparatus-contract-first.md
   - docs/apparatus-p0-implementation-prompt.md
-  - apparatus-contracts/src/lib.rs
-  - apparatus-reference-kv/apparatus.toml
+  - crates/apparatus-contracts/src/lib.rs
+  - crates/apparatus-reference-kv/apparatus.toml
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/442685dd-30ba-4a9d-b59b-f8ae6aa47b9a/442685dd-30ba-4a9d-b59b-f8ae6aa47b9a.jsonl
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/688f5240-08ac-4f6e-94ce-323953bc759a/688f5240-08ac-4f6e-94ce-323953bc759a.jsonl
   - C:/Users/djden/.codex/sessions/2026/09/11/rollout-2026-09-11T13-40-54-01a09045-472c-7390-abf3-435e5a6e4c12.jsonl
@@ -37,8 +37,8 @@ Le jalon P0 d’[[projects/manifesto/references/apparatus-implementation-plan]] 
 
 ## Tests
 
-- `apparatus-contracts/tests/contracts_p0.rs` : 27 tests (manifeste, digest, rejets, bornes, UI, DTO `deny_unknown_fields`, harness gaté).
-- `apparatus-reference-kv/tests/kv_p0.rs` : 10 tests (idempotence, isolation, delete, bornes KV, configure/invoke inconnus).
+- `crates/apparatus-contracts/tests/contracts_p0.rs` : 27 tests (manifeste, digest, rejets, bornes, UI, DTO `deny_unknown_fields`, harness gaté).
+- `crates/apparatus-reference-kv/tests/kv_p0.rs` : 10 tests (idempotence, isolation, delete, bornes KV, configure/invoke inconnus).
 - Commande : `cargo test -p apparatus-contracts -p apparatus-reference-kv --features test-harness` (37). Sans feature : 33 (tests harness exclus).
 - P0.1 : + `apparatus_p01_micro.rs` (3 contrats + 2 KV) = **42/42** ; CI exécute les deux crates (job `apparatus-p0`).
 - Déterministes, sans Docker. `list_keys` n’est pas sur le port `KvStore` ; non testé au niveau référence. ^[inferred]

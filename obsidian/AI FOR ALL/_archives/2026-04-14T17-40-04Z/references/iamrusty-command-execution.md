@@ -1,11 +1,11 @@
-﻿---
+---
 title: >-
   IAMRusty Command Execution Guides
 category: references
 tags: [reference, commands, reliability, visibility/internal]
 sources:
-  - IAMRusty/docs/COMMAND_PATTERN.md
-  - IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md
+  - services/IAMRusty/docs/COMMAND_PATTERN.md
+  - services/IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md
 summary: >-
   Source summary for IAMRusty's registry-based command execution model and environment-specific retry tuning.
 provenance:

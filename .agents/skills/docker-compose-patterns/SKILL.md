@@ -164,7 +164,7 @@ If the goal is only to restart services or reclaim containers/networks, use `doc
   ```bash
   bash "<skill-dir>/scripts/verify-compose.sh" [--help]
   ```
-  Replace `<skill-dir>` with the absolute path of the folder that contains this `SKILL.md`; the `scripts/` path is relative to that folder, not to the project. Do not change into the skill directory first: the script validates whatever Compose project is in the current directory. If the skill directory cannot be resolved, run `docker compose config --quiet` directly. Exit status is `0` when the Compose configuration is valid or help is requested, the non-zero status from `docker compose config --quiet` when validation fails, and `2` for invalid arguments. Plain `docker compose config` can expose interpolated and `env_file` credentials in tool output or logs; use quiet validation by default. Compose warnings and errors are still emitted and may contain sensitive details.
+  Replace `<skill-dir>` with the absolute path of the folder that contains this `SKILL.md`; the `ops/scripts/` path is relative to that folder, not to the project. Do not change into the skill directory first: the script validates whatever Compose project is in the current directory. If the skill directory cannot be resolved, run `docker compose config --quiet` directly. Exit status is `0` when the Compose configuration is valid or help is requested, the non-zero status from `docker compose config --quiet` when validation fails, and `2` for invalid arguments. Plain `docker compose config` can expose interpolated and `env_file` credentials in tool output or logs; use quiet validation by default. Compose warnings and errors are still emitted and may contain sensitive details.
 
 ## Checks
 

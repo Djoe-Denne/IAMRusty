@@ -6,13 +6,13 @@ tags: [platform, operations, rust, architecture, visibility/internal]
 sources:
   - README.md
   - Cargo.toml
-  - monolith/Cargo.toml
-  - monolith/src/routes.rs
-  - monolith/src/runtime.rs
-  - IAMRusty/http/src/lib.rs
-  - Telegraph/http/src/lib.rs
-  - Hive/http/src/lib.rs
-  - Manifesto/http/src/lib.rs
+  - runtime/monolith/Cargo.toml
+  - runtime/monolith/src/routes.rs
+  - runtime/monolith/src/runtime.rs
+  - services/IAMRusty/http/src/lib.rs
+  - services/Telegraph/http/src/lib.rs
+  - services/Hive/http/src/lib.rs
+  - services/Manifesto/http/src/lib.rs
 summary: >-
   Operational workflow for choosing, compiling, and smoke-testing AIForAll as standalone microservices or as the oodhive-monolith modular monolith.
 provenance:
@@ -82,7 +82,7 @@ Authenticated routes may return `401` or `403`; for smoke testing, the important
 
 - Do not make `oodhive-monolith` call service `run()` methods. It should build each service via setup, extract routers, start only Telegraph and Manifesto background tasks, then serve one composed Axum router.
 - Keep SQS/event infrastructure unchanged unless explicitly planning a new event-bus design.
-- Keep standalone service prefixes aligned with `monolith/src/routes.rs` and the `SERVICE_PREFIX` constants in each HTTP crate.
+- Keep standalone service prefixes aligned with `runtime/monolith/src/routes.rs` and the `SERVICE_PREFIX` constants in each HTTP crate.
 
 ## Related
 

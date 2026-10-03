@@ -33,7 +33,7 @@ Réalité **Unimplemented**. Ne pas présenter comme Accepted. Ne réécrit pas 
 
 1. Couches **A** laptop-compose (DX + IT 0200), **B** kind (mêmes manifests que staging), **C** remote k8s cluster-par-env.
 2. OpenTofu ≥ 1.10 (cible 1.12) ; modules + stacks dossiers ; **premier adaptateur V1 = GKE (`gcp`)** ; outputs identiques ; state S3-compatible + lockfile + encryption native. Arrêt V1 = existence du cluster. EKS / Kapsule / k3s **rejetés en V1**.
-3. GitOps **Flux** pull (V1 **décidé** ; Argo CD **rejeté V1**, possible plus tard si SuperSède) ; Kustomize first-party `deploy/apps/` (sans annotation GCP/GKE/GCE) ; HelmRelease tiers ; `deploy/p4/` Flux **séparé**.
+3. GitOps **Flux** pull (V1 **décidé** ; Argo CD **rejeté V1**, possible plus tard si SuperSède) ; Kustomize first-party `ops/deploy/apps/` (sans annotation GCP/GKE/GCE) ; HelmRelease tiers ; `ops/deploy/p4/` Flux **séparé**.
 4. Gateway API + Envoy Gateway. Mesh V1 = T14b (pas Istio). kind canon. CI : publish+Cosign ; zéro `kubectl` GHA.
 5. Observabilité : collector OTLP ; backends = adaptateurs. **Q3 fermée** → [[projects/aiforall/decisions/0602-observabilite-portable]] (plan A câble rustycog ; plan B LGTM/Tempo derrière collector/Alloy). Pédagogie : `docs/platform-otlp-grafana-oss-explained.md` (pas une ADR).
 

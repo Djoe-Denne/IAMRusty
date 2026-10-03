@@ -35,7 +35,7 @@ E2E : allow (IAM id=sub, Hive owner=sub, Manifesto 201 owner=sub, Telegraph 200)
 
 ## Fichiers
 
-`deploy/mesh/envoy.yaml`, `deploy/mesh/compose.yaml`, `scripts/mesh-authn-e2e.sh`, `scripts/mesh-authn-e2e-cases.sh`, rustycog `mesh_principal.rs` / `mesh_gateway_auth.rs`, `IAMRusty/setup/src/app.rs`, `Manifesto/config/development.toml`, `Hive/migration` `hivemigration`, `docker-compose.yml` `DROP … WITH (FORCE)`.
+`ops/deploy/mesh/envoy.yaml`, `ops/deploy/mesh/compose.yaml`, `ops/scripts/mesh-authn-e2e.sh`, `ops/scripts/mesh-authn-e2e-cases.sh`, rustycog `mesh_principal.rs` / `mesh_gateway_auth.rs`, `services/IAMRusty/setup/src/app.rs`, `services/Manifesto/config/development.toml`, `services/Hive/migration` `hivemigration`, `docker-compose.yml` `DROP … WITH (FORCE)`.
 
 ## Gaps volontairement ouverts
 

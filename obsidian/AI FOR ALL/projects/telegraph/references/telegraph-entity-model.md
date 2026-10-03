@@ -3,9 +3,9 @@ title: Telegraph Entity Model
 category: references
 tags: [reference, entities, communication, visibility/internal]
 sources:
-  - Telegraph/domain/src/entity/communication.rs
-  - Telegraph/domain/src/entity/delivery.rs
-  - Telegraph/domain/src/entity/template.rs
+  - services/Telegraph/domain/src/entity/communication.rs
+  - services/Telegraph/domain/src/entity/delivery.rs
+  - services/Telegraph/domain/src/entity/template.rs
 summary: Inventory of Telegraph's communication, template, and delivery entities, including the split between user-visible notifications and provider-facing delivery records.
 provenance:
   extracted: 0.87

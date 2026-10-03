@@ -2,7 +2,7 @@
 
 Deux couches. Ne pas s’arrêter à la première.
 
-1. **Forme crate** (Manifesto) — skill [building-rustycog-services.md](../../.agents/skills/rustycog/references/building-rustycog-services.md) + [`Manifesto/docs/`](../../Manifesto/docs/).
+1. **Forme crate** (Manifesto) — skill [building-rustycog-services.md](../../.agents/skills/rustycog/references/building-rustycog-services.md) + [`services/Manifesto/docs/`](../../services/Manifesto/docs/).
 2. **Branchement plateforme** (cette page) — events, OpenFGA, sentinel-sync, compose, monolithe, préfixe.
 
 Skill agent : [`.agents/skills/aiforall-new-service/SKILL.md`](../../.agents/skills/aiforall-new-service/SKILL.md).
@@ -24,15 +24,15 @@ TOML `[auth.jwt]` aligné sur IAM (`hs256_secret`, `issuer = "iamrusty"`, `audie
 
 ## 3. OpenFGA
 
-- Si nouveau type : l’ajouter dans [`openfga/model.fga`](../../openfga/model.fga) **et** republier `model.json`.
+- Si nouveau type : l’ajouter dans [`ops/openfga/model.fga`](../../ops/openfga/model.fga) **et** republier `model.json`.
 - Routes protégées : `.authenticated()` puis `.with_permission_on` / `.with_permission_on_param` ([permissions.md](permissions.md)).
-- Tests : `has_openfga() == true`, `include_str!("../../openfga/model.json")`, `allow` explicite.
+- Tests : `has_openfga() == true`, `include_str!("../../ops/openfga/model.json")`, `allow` explicite.
 
 ## 4. Crate d’événements
 
 Workspace member `foo-events` (comme `hive-events`). Le service publie ; les consommateurs dépendent du crate, pas de l’inverse.
 
-Si l’event change l’AuthZ : bras dans `sentinel-sync/src/translator/` + enregistrement dans `main.rs`. Sans ça, le store FGA ne bouge pas.
+Si l’event change l’AuthZ : bras dans `workers/sentinel-sync/src/translator/` + enregistrement dans `main.rs`. Sans ça, le store FGA ne bouge pas.
 
 ## 5. Outbox / queue
 
@@ -40,7 +40,7 @@ Si l’event change l’AuthZ : bras dans `sentinel-sync/src/translator/` + enre
 
 ## 6. Monolithe
 
-[`monolith/src/routes.rs`](../../monolith/src/routes.rs) + runtime : extraire le router, **ne pas** appeler `run()`. Ajouter le champ dans `MonolithRouters` et `.nest(foo_http::SERVICE_PREFIX, routers.foo)`.
+[`runtime/monolith/src/routes.rs`](../../runtime/monolith/src/routes.rs) + runtime : extraire le router, **ne pas** appeler `run()`. Ajouter le champ dans `MonolithRouters` et `.nest(foo_http::SERVICE_PREFIX, routers.foo)`.
 
 ## 7. Compose et workspace
 

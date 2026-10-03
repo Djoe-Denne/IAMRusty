@@ -7,10 +7,10 @@ sources:
   - docs/apparatus-p1-implementation-prompt.md
   - docs/adr/0001-apparatus-binding-owned-by-manifesto.md
   - docs/services/manifesto.md
-  - Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs
-  - Manifesto/infra/src/apparatus_backfill.rs
-  - Manifesto/infra/src/apparatus_mapping.rs
-  - Manifesto/infra/src/apparatus_outbox.rs
+  - services/Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs
+  - services/Manifesto/infra/src/apparatus_backfill.rs
+  - services/Manifesto/infra/src/apparatus_mapping.rs
+  - services/Manifesto/infra/src/apparatus_outbox.rs
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/f5e5a1e2-20b9-4794-95b0-c75b32a52fb4/f5e5a1e2-20b9-4794-95b0-c75b32a52fb4.jsonl
 summary: >-
   P1 livré 2026-09-12 : extension 1:1 apparatus_bindings, backfill legacy, T1-T7 verts 36 tests, zéro nouveau type FGA.
@@ -31,7 +31,7 @@ P1 implémente la persistance du binding [[projects/manifesto/decisions/index|AD
 - Table `apparatus_bindings` : `id` BIGSERIAL interne, `component_id` UUID UNIQUE FK → `project_components.id` CASCADE, `digest` VARCHAR(128) NULL, `source` CHECK `legacy|managed`.
 - Migration `m20260912_000012` additive réversible (up/down/up verts).
 - `component_type` non réécrit ; mapping legacy → Apparatus **injectif** (`check_pairs_injective`, erreur versionnée `APPARATUS_MAPPING_COLLISION` v1, conflit 23505 → 409).
-- Fichiers : `Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs`, `Manifesto/infra/src/apparatus_backfill.rs`, `apparatus_mapping.rs`, `apparatus_outbox.rs`, `transaction.rs`, `Manifesto/http/src/handlers/components.rs`.
+- Fichiers : `services/Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs`, `services/Manifesto/infra/src/apparatus_backfill.rs`, `apparatus_mapping.rs`, `apparatus_outbox.rs`, `transaction.rs`, `services/Manifesto/http/src/handlers/components.rs`.
 
 ## Tranches et preuves
 
@@ -49,7 +49,7 @@ Total : **P1 36** (T1-T6 28 + mapping 5 + T7 3) + **P0.1 42** = **78**. Voir [[p
 
 ## Conventions figées (résolution unique P1)
 
-- Harness unique `Manifesto/tests/common.rs`, `#[serial]`, `cache_ttl_seconds = 0`, `port = 0` ; pas de harness parallèle.
+- Harness unique `services/Manifesto/tests/common.rs`, `#[serial]`, `cache_ttl_seconds = 0`, `port = 0` ; pas de harness parallèle.
 - OpenFGA réel en testcontainer pour T5 ; arranger `project` uniquement, ne jamais écrire `component:{id}` ad hoc.
 - Consentement et génération **non ajoutés** (sans spec ADR) ; ADR dédiée génération/lease/fencing exigée avant P2.
 - Méthode d'exécution : duel gather (agent + contre-agent isolés) → résolution unique → socle TDD RED → tranches → reviews docs. Voir [[projects/aiforall/concepts/orchestrator-agent-harness]].

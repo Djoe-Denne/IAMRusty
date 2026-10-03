@@ -3,10 +3,10 @@ title: IAMRusty Command Execution
 category: references
 tags: [reference, commands, reliability, visibility/internal]
 sources:
-  - IAMRusty/docs/COMMAND_PATTERN.md
-  - IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md
-  - IAMRusty/application/src/command/factory.rs
-  - IAMRusty/config/test.toml
+  - services/IAMRusty/docs/COMMAND_PATTERN.md
+  - services/IAMRusty/docs/COMMAND_RETRY_CONFIGURATION.md
+  - services/IAMRusty/application/src/command/factory.rs
+  - services/IAMRusty/config/test.toml
 summary: IAMRusty-specific command-execution notes layered on top of RustyCog's shared registry runtime, especially where retry policy is actively wired into the live service.
 provenance:
   extracted: 0.83

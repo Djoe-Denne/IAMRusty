@@ -16,11 +16,11 @@
 
 Le code n’honore pas encore cette cible :
 
-- enum fermé + `FromStr` à deux bras (`IAMRusty/domain/src/entity/provider.rs`) ;
-- HTTP : `PROVIDER_REGEX` = `^[a-zA-Z]+$` **et** liste hardcodée `github`/`gitlab` (`IAMRusty/http/src/validation.rs` `validate_provider_name`) ;
-- boot : slugs hors GH/GL **silencieusement ignorés** (`IAMRusty/setup/src/app.rs` `setup_http_idp_clients`, `_ => continue`) ;
-- `IdpConfig::validate` n’exige ni `base_url` ni les deux `redirect_uris` (`#[serde(default)]` dans `IAMRusty/configuration/src/idp.rs`) ;
-- lecture tokens : `Provider::from_str(&model.provider).unwrap_or(Provider::GitHub)` (`IAMRusty/infra/src/repository/token.rs`, `token_read.rs`).
+- enum fermé + `FromStr` à deux bras (`services/IAMRusty/domain/src/entity/provider.rs`) ;
+- HTTP : `PROVIDER_REGEX` = `^[a-zA-Z]+$` **et** liste hardcodée `github`/`gitlab` (`services/IAMRusty/http/src/validation.rs` `validate_provider_name`) ;
+- boot : slugs hors GH/GL **silencieusement ignorés** (`services/IAMRusty/setup/src/app.rs` `setup_http_idp_clients`, `_ => continue`) ;
+- `IdpConfig::validate` n’exige ni `base_url` ni les deux `redirect_uris` (`#[serde(default)]` dans `services/IAMRusty/configuration/src/idp.rs`) ;
+- lecture tokens : `Provider::from_str(&model.provider).unwrap_or(Provider::GitHub)` (`services/IAMRusty/infra/src/repository/token.rs`, `token_read.rs`).
 
 SQL persisté = déjà le slug minuscule (`as_str`, colonne `String`). Les DTO OAuth HTTP n’exposent pas l’enum serde PascalCase. Le leftover était assumé au closeout S5/S6.
 
@@ -32,7 +32,7 @@ Hors sujet de cette ADR : wasm/plugin, SDK vendor in-process, marketplace, nest 
 2. **Catalogue = `[[idp.connectors]]` au boot.** `setup` construit `HashMap<Provider, Arc<dyn FederatedOAuthClient>>` (pas `HashMap<String, _>`). Toute **ligne complète** est wirée. Un 3ᵉ IdP **ne recompile pas** `iam-domain`.
 3. **Ligne complète** = `id` charset-ok, `base_url` non vide, `hmac_secret` ≥ 16 octets, `redirect_uris` résolvant **Callback et Relink**. Registry vide, id dupliqué (case-fold), ligne incomplète ou id illégal = **échec de boot**. Pas de skip silencieux. Pas de flag `enabled`. Pas d’auto-déclaration Connect.
 4. **Admission requête.** Syntaxe invalide → **400** `invalid_provider`. Slug syntaxiquement ok absent du registry → **422** `connector_not_configured` (0410). Connect down → échec de **requête**, pas de désinscription du slug.
-5. **Onboarding N+1** = copier le gabarit `GitHubConnect/` + service compose + ligne registry + HMAC partagé + dual `redirect_uris` (IAM choisit, Connect refuse si `!=`). Secrets vendor sur Connect. IAM garde routes, CSRF `OAuthState`, linking, JWT `iss=iamrusty`. **Hot-load : non.** Restart IAM pour une ligne registry ; Connect-only si secret vendor et url/hmac IAM inchangés ; rotation HMAC ou `redirect_uris` = les deux process.
+5. **Onboarding N+1** = copier le gabarit `services/GitHubConnect/` + service compose + ligne registry + HMAC partagé + dual `redirect_uris` (IAM choisit, Connect refuse si `!=`). Secrets vendor sur Connect. IAM garde routes, CSRF `OAuthState`, linking, JWT `iss=iamrusty`. **Hot-load : non.** Restart IAM pour une ligne registry ; Connect-only si secret vendor et url/hmac IAM inchangés ; rotation HMAC ou `redirect_uris` = les deux process.
 6. **Inchangé :** forme des routes (0410), colonne SQL string, 0409 (HMAC `METHOD\nPATH\nTIMESTAMP\nBODY`, allowlist exacte, pas de JWT user vers Connect, pas d’OpenFGA au login OAuth).
 
 Hors décision : nest monolith (reste 0408) ; OIDC Id Token (0409) ; Hive org-sync ; élargissement charset.
@@ -93,6 +93,6 @@ Hors décision : nest monolith (reste 0408) ; OIDC Id Token (0409) ; Hive org-sy
 ## Références
 
 - ADR : [0407](0407-contrat-authn-federee-vendor-neutral.md) §8, [0408](0408-connecteurs-idp-services-http.md) (registry + long terme), [0409](0409-confiance-callback-oauth-idp-connect.md), [0410](0410-migration-iam-connecteurs-idp.md) (routes + 422)
-- Code : `IAMRusty/domain/src/entity/provider.rs`, `IAMRusty/configuration/src/idp.rs`, `IAMRusty/setup/src/app.rs` (`setup_http_idp_clients`), `IAMRusty/http/src/validation.rs`, `IAMRusty/http/src/handlers/auth.rs`, `IAMRusty/http/src/idp_registry.rs`, `IAMRusty/infra/src/repository/token.rs`, `token_read.rs`, gabarit `GitHubConnect/`
-- Guide : `IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md`
-- Preuve d’implémentation : `IAMRusty/domain/src/entity/provider.rs` (newtype + tests parse/serde) ; `IAMRusty/configuration/src/idp.rs` (`validate` completitude) ; `IAMRusty/setup/src/app.rs` (`setup_http_idp_clients` sans skip, test `huggingface`) ; `IAMRusty/http/src/handlers/auth.rs` (400/422) ; `IAMRusty/infra/src/repository/token.rs` + `token_read.rs` (plus de `unwrap_or(GitHub)`) ; IT `auth_oauth_start` / `auth_oauth_callback`
+- Code : `services/IAMRusty/domain/src/entity/provider.rs`, `services/IAMRusty/configuration/src/idp.rs`, `services/IAMRusty/setup/src/app.rs` (`setup_http_idp_clients`), `services/IAMRusty/http/src/validation.rs`, `services/IAMRusty/http/src/handlers/auth.rs`, `services/IAMRusty/http/src/idp_registry.rs`, `services/IAMRusty/infra/src/repository/token.rs`, `token_read.rs`, gabarit `services/GitHubConnect/`
+- Guide : `services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md`
+- Preuve d’implémentation : `services/IAMRusty/domain/src/entity/provider.rs` (newtype + tests parse/serde) ; `services/IAMRusty/configuration/src/idp.rs` (`validate` completitude) ; `services/IAMRusty/setup/src/app.rs` (`setup_http_idp_clients` sans skip, test `huggingface`) ; `services/IAMRusty/http/src/handlers/auth.rs` (400/422) ; `services/IAMRusty/infra/src/repository/token.rs` + `token_read.rs` (plus de `unwrap_or(GitHub)`) ; IT `auth_oauth_start` / `auth_oauth_callback`

@@ -43,7 +43,7 @@ workspace Docker pendant que d’autres lots éditent. Check crate-local.
 
 Hive : un rôle invalide fait échouer tout l’add/update (`collect::<Result<_>>()`).
 
-Setup IAM : extraire `setup_*` dans `IAMRusty/setup/src/app.rs`, pas d’`allow` sur `new()`.
+Setup IAM : extraire `setup_*` dans `services/IAMRusty/setup/src/app.rs`, pas d’`allow` sur `new()`.
 
 ## Skips invalidés (opérateur 2026-08-31)
 

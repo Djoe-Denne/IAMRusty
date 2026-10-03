@@ -8,12 +8,12 @@ Plateforme Rust de bounded contexts (identité, organisations, projets, notifica
 
 | Service | Préfixe | Port compose | Rôle |
 |---|---|---|---|
-| [IAMRusty](IAMRusty/README.md) | `/iam` | 8080 | Identité, OAuth, JWT |
-| [Telegraph](Telegraph/README.md) | `/telegraph` | 8081 | Emails et notifications in-app |
-| [Hive](Hive/README.md) | `/hive` | 8082 | Organisations, membres, invitations |
-| [Manifesto](Manifesto/README.md) | `/manifesto` | 8083 | Projets, composants, membership |
-| [sentinel-sync](sentinel-sync/README.md) | — | (hors compose) | Events → tuples OpenFGA |
-| [oodhive-monolith](monolith/README.md) | `/iam`…`/manifesto` | (hors compose) | Un listener, quatre routeurs |
+| [IAMRusty](services/IAMRusty/README.md) | `/iam` | 8080 | Identité, OAuth, JWT |
+| [Telegraph](services/Telegraph/README.md) | `/telegraph` | 8081 | Emails et notifications in-app |
+| [Hive](services/Hive/README.md) | `/hive` | 8082 | Organisations, membres, invitations |
+| [Manifesto](services/Manifesto/README.md) | `/manifesto` | 8083 | Projets, composants, membership |
+| [sentinel-sync](workers/sentinel-sync/README.md) | — | (hors compose) | Events → tuples OpenFGA |
+| [oodhive-monolith](runtime/monolith/README.md) | `/iam`…`/manifesto` | (hors compose) | Un listener, quatre routeurs |
 
 Infra compose : PostgreSQL **5432**, LocalStack SQS **4566**, OpenFGA **8090** (HTTP) / **8091** (gRPC) / **3000** (playground).
 
@@ -50,7 +50,7 @@ JWT local : HMAC partagé, `iss=iamrusty`, `aud=aiforall`. Détail : [`docs/plat
 cargo run -p oodhive-monolith
 ```
 
-Mêmes préfixes qu’en standalone. Voir [`docs/platform/runtime.md`](docs/platform/runtime.md) et [`monolith/README.md`](monolith/README.md).
+Mêmes préfixes qu’en standalone. Voir [`docs/platform/runtime.md`](docs/platform/runtime.md) et [`runtime/monolith/README.md`](runtime/monolith/README.md).
 
 ## Tests et format
 

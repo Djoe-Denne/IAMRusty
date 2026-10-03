@@ -4,10 +4,10 @@ title: >-
 category: concepts
 tags: [sentinel-sync, events, authorization, visibility/internal]
 sources:
-  - sentinel-sync/src/handler.rs
-  - sentinel-sync/src/idempotency.rs
-  - sentinel-sync/src/translator/manifesto.rs
-  - manifesto-events/src/authz.rs
+  - workers/sentinel-sync/src/handler.rs
+  - workers/sentinel-sync/src/idempotency.rs
+  - workers/sentinel-sync/src/translator/manifesto.rs
+  - crates/manifesto-events/src/authz.rs
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/11c01523-bb74-444a-ac31-44384d63de7d/11c01523-bb74-444a-ac31-44384d63de7d.jsonl
 summary: >-
   Sentinel-sync canonicalizes {event_type,data}. Undecodable Manifesto events fail the ledger. v1 incomplete destructives are no-ops. Revisions must be greater than last.

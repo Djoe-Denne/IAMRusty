@@ -24,7 +24,7 @@ Canon : `docs/adr/0408-connecteurs-idp-services-http.md`. Hub : [[projects/iamru
 
 ## Statut : Accepted (2026-09-20)
 
-Réalité **Implemented**. Remplace **comme cible** `IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md` et [[projects/iamrusty/skills/extending-iamrusty-with-oauth-providers]].
+Réalité **Implemented**. Remplace **comme cible** `services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md` et [[projects/iamrusty/skills/extending-iamrusty-with-oauth-providers]].
 
 ## Paquet figé (cible)
 

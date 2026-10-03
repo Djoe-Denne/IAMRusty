@@ -54,12 +54,12 @@ Le port peut avancer avec WIF / static / PEM sans SPIRE. L’évaluation SPIFFE 
 
 - [0304](0304-jwt-acces-plateforme-rs256-jwks.md) §19–§21 ; [0306](0306-hive-iam-configuration-signature.md) ; [0601](0601-cluster-trust-namespaces-standalones.md)
 - Preuves (Implemented — adapters WIF HTTP + factory ; pas SPIFFE ; pas X509 mesh) :
-  - Port IAM : `IAMRusty/domain/src/port/signing.rs` (`WorkloadIdentity`, `WorkloadCredential` + `Debug` rédigé)
-  - Port Hive : `Hive/domain/src/port/service.rs` (`WorkloadIdentity`, `WorkloadCredential` + `Debug` rédigé)
-  - Factory + adapters IAM : `IAMRusty/infra/src/signing/wif/{mod,aws,gcp,azure}.rs` (`compose_workload_identity`) ; static : `IAMRusty/infra/src/signing/static_credential.rs`
-  - Factory + adapters Hive : `Hive/infra/src/iam/wif/{mod,aws,gcp,azure}.rs` (`compose_workload_identity`) ; static : `Hive/infra/src/iam/static_credential.rs`
-  - Composition : `Hive/setup/src/app.rs`, `IAMRusty/setup/src/app.rs`
-  - IT wiremock : `Hive/infra/tests/wif_exchanges.rs` (`http_iam_signer_uses_wif_resolved_token`) ; `IAMRusty/infra/tests/wif_exchanges.rs` (`transit_sign_uses_wif_resolved_token`) ; fixtures `Hive/tests/fixtures/wif/`, `IAMRusty/tests/fixtures/wif/`
+  - Port IAM : `services/IAMRusty/domain/src/port/signing.rs` (`WorkloadIdentity`, `WorkloadCredential` + `Debug` rédigé)
+  - Port Hive : `services/Hive/domain/src/port/service.rs` (`WorkloadIdentity`, `WorkloadCredential` + `Debug` rédigé)
+  - Factory + adapters IAM : `services/IAMRusty/infra/src/signing/wif/{mod,aws,gcp,azure}.rs` (`compose_workload_identity`) ; static : `services/IAMRusty/infra/src/signing/static_credential.rs`
+  - Factory + adapters Hive : `services/Hive/infra/src/iam/wif/{mod,aws,gcp,azure}.rs` (`compose_workload_identity`) ; static : `services/Hive/infra/src/iam/static_credential.rs`
+  - Composition : `services/Hive/setup/src/app.rs`, `services/IAMRusty/setup/src/app.rs`
+  - IT wiremock : `services/Hive/infra/tests/wif_exchanges.rs` (`http_iam_signer_uses_wif_resolved_token`) ; `services/IAMRusty/infra/tests/wif_exchanges.rs` (`transit_sign_uses_wif_resolved_token`) ; fixtures `services/Hive/tests/fixtures/wif/`, `services/IAMRusty/tests/fixtures/wif/`
   - Fail-closed / static : tests unitaires dans `*/wif/mod.rs` (AWS+GCP incomplets, provider unknown, static si absent)
-  - Garde-fou : `IAMRusty/infra/tests/signing_provider_ports.rs` `no_spiffe_spire_binary_in_tree`
+  - Garde-fou : `services/IAMRusty/infra/tests/signing_provider_ports.rs` `no_spiffe_spire_binary_in_tree`
 - Gaps : pas SPIFFE/SPIRE ; pas X509 mesh ([0308](0308-mesh-authn-jwt.md)) ; choix produit SPIRE vs WIF natif non décidé

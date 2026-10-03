@@ -3,9 +3,9 @@ title: Organization
 category: entities
 tags: [organizations, tenants, membership, visibility/internal]
 sources:
-  - Hive/domain/src/entity/organization.rs
-  - Hive/domain/src/entity/organization_member.rs
-  - Hive/domain/src/entity/organization_invitation.rs
+  - services/Hive/domain/src/entity/organization.rs
+  - services/Hive/domain/src/entity/organization_member.rs
+  - services/Hive/domain/src/entity/organization_invitation.rs
 summary: Hive models the organization as the tenant root for membership, invitations, role-permission assignments, and external integrations.
 provenance:
   extracted: 0.81

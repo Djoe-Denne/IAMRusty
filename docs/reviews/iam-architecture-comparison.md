@@ -74,7 +74,7 @@ Leftovers locaux (non structurels) : `domain/src/error.rs` mort (Manifesto, Hive
 | Secrets distants | — | — | Vault / GCP **stubs** | — |
 | Leftover | — | SMS doc ≠ struct ; descriptors hardcodés | `[kafka]` legacy + `APP_`/`IAM_` wiki | `iam_service` mort |
 
-Vérification code (écart QMD vs revue IAMRusty) : `IAMRusty/config/default.toml` et `production.toml` sont **HS256 `type = "plain"`**, pas `pem_file` RS256. Le wiki `iamrusty-runtime-and-security` (l.40) est **stale**. La revue IAMRusty a raison.
+Vérification code (écart QMD vs revue IAMRusty) : `services/IAMRusty/config/default.toml` et `production.toml` sont **HS256 `type = "plain"`**, pas `pem_file` RS256. Le wiki `iamrusty-runtime-and-security` (l.40) est **stale**. La revue IAMRusty a raison.
 
 ---
 
@@ -127,7 +127,7 @@ Les trois autres sont **plus alignés logger** que le gabarit officiel.
 
 Tous câblent `UserIdExtractor::new(config.auth)` (rustycog-http). QMD : l’extracteur **n’accepte que HS256**. IAMRusty **émet** (garde compile-time) RS256 hors `test-relaxed-jwt`. Les 3 consommateurs + le middleware IAM cassent dès que l’émission passe RSA. Wiki : Phase B, `^[ambiguous]`.
 
-Aujourd’hui les TOML (y compris `IAMRusty/config/production.toml` `[auth.jwt]` + `[jwt.secret] type = "plain"`) restent HS256 — d’où le *« prod RS256 non bootable sans PEM »* de la revue IAM.
+Aujourd’hui les TOML (y compris `services/IAMRusty/config/production.toml` `[auth.jwt]` + `[jwt.secret] type = "plain"`) restent HS256 — d’où le *« prod RS256 non bootable sans PEM »* de la revue IAM.
 
 IAMRusty en plus : redirects OAuth hardcodés `127.0.0.1:8081`, state CSRF sans expiry.
 
@@ -208,8 +208,8 @@ IAMRusty  --iam-events--> sentinel-sync       (translator no-op)
 | IAMRusty | oui + outbox | — | producteur | `TupleDelta::default()` sur tous les events |
 | Hive | oui + outbox dispatcher | **non** | — | create/join/remove OK ; **delete/update/roles/invites = no-op** |
 
-Preuve Hive (confirmée) : `sentinel-sync/src/translator/hive.rs` L115–123 (`OrganizationDeleted` → `TupleDelta::default()`).  
-Preuve IAM : `sentinel-sync/src/translator/iam.rs` L32–36.
+Preuve Hive (confirmée) : `workers/sentinel-sync/src/translator/hive.rs` L115–123 (`OrganizationDeleted` → `TupleDelta::default()`).  
+Preuve IAM : `workers/sentinel-sync/src/translator/iam.rs` L32–36.
 
 Consigne rustycog / wiki scaffolding : *« Emitting a domain event that has no matching translator arm — the OpenFGA store falls out of sync silently. »*
 

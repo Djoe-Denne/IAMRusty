@@ -9,11 +9,11 @@
 
 ## 1. Périmètre
 
-Manifesto est le service de référence RustyCog (pas un crate `iam-manifesto`). Il vit sous `Manifesto/` et s’intègre à l’IAM via le contrat d’auth partagé (`AuthConfig` / JWT), OpenFGA, `sentinel-sync`, et les events domaine.
+Manifesto est le service de référence RustyCog (pas un crate `iam-manifesto`). Il vit sous `services/Manifesto/` et s’intègre à l’IAM via le contrat d’auth partagé (`AuthConfig` / JWT), OpenFGA, `sentinel-sync`, et les events domaine.
 
 | Crate | Rôle |
 |---|---|
-| `manifesto-service` (`Manifesto/`) | Binaire + tests d’intégration |
+| `manifesto-service` (`services/Manifesto/`) | Binaire + tests d’intégration |
 | `manifesto-domain` | Entités, ports, VO |
 | `manifesto-application` | Use cases, commandes, DTO |
 | `manifesto-infra` | SeaORM, adapters HTTP, events, outbox UoW |
@@ -23,7 +23,7 @@ Manifesto est le service de référence RustyCog (pas un crate `iam-manifesto`).
 | `manifesto-migration` | Migrations SeaORM |
 | `manifesto-events` | Contrat `ManifestoDomainEvent` |
 
-Dépendances locales liées IAM / plateforme : `iam-events` (déclarée, **non utilisée** dans le Rust Manifesto), `apparatus-events` (consumer), `openfga/model.fga` (types `project` / `component`).
+Dépendances locales liées IAM / plateforme : `iam-events` (déclarée, **non utilisée** dans le Rust Manifesto), `apparatus-events` (consumer), `ops/openfga/model.fga` (types `project` / `component`).
 
 ## 2. Méthode et limites outillage
 
@@ -66,14 +66,14 @@ Manifesto est le **gabarit RustyCog le plus aligné** du monorepo : hexagonale, 
 
 **Preuves**
 
-- Bin : `Manifesto/src/main.rs` → `main` charge config, log, `Application::new`, `run`.
+- Bin : `services/Manifesto/src/main.rs` → `main` charge config, log, `Application::new`, `run`.
 - Libs : `domain` (ports `Project*Repository`, `ComponentServicePort`) / `application` (usecases + `ManifestoCommandRegistryFactory`) / `infra` (adapters, repos, `event`, `transaction`) / `http` / `setup` / `configuration` / `migration`.
 - Hexagonale : handlers → `command_service.execute` → handlers de commande → usecases → ports. Pas d’I/O dans le domain.
 - Monolithe : `Application::router` délègue à `create_router` (non préfixé) ; standalone : `create_prefixed_router` + `serve_router`.
 
 **Écart**
 
-- `Manifesto/domain/src/lib.rs` réexporte `rustycog::core::error::DomainError` ; `Manifesto/domain/src/error.rs` (`ValidationError` / `NotFound` / …) n’a **aucune référence** (code mort).
+- `services/Manifesto/domain/src/lib.rs` réexporte `rustycog::core::error::DomainError` ; `services/Manifesto/domain/src/error.rs` (`ValidationError` / `NotFound` / …) n’a **aucune référence** (code mort).
 - `iam-events` est une path-dep de `manifesto-service` sans usage Rust.
 
 ### 5.2 Config / env / secrets — **partiel**
@@ -87,7 +87,7 @@ Manifesto est le **gabarit RustyCog le plus aligné** du monorepo : hexagonale, 
 
 **Écart**
 
-- `Manifesto/config/default.toml` : `auth.jwt.hs256_secret = "rustycog-dev-hs256-secret"` et `password = "postgres"` versionnés.
+- `services/Manifesto/config/default.toml` : `auth.jwt.hs256_secret = "rustycog-dev-hs256-secret"` et `password = "postgres"` versionnés.
 - Wiki : IAM peut émettre en RS256 ; le vérifieur partagé Manifesto est **HS256-only**.
 - `configuration` réexporte `rustycog::logger::setup_logging` mais le bin appelle `manifesto_setup::setup_logging` (subscriber local). Conflit rustycog `^[ambiguous]`.
 
@@ -126,7 +126,7 @@ Manifesto est le **gabarit RustyCog le plus aligné** du monorepo : hexagonale, 
 - `UserIdExtractor::new(config.auth)` ; `AppState::new(command_service, user_id_extractor, permission_checker)`.
 - Chaîne OpenFGA : `OpenFgaPermissionChecker` → `CachedPermissionChecker` (skip si `cache_ttl_seconds == 0`) → `MetricsPermissionChecker`. Conforme rustycog-permission / tests.
 - `RouteBuilder` : `.authenticated()` / `.might_be_authenticated()` puis `.with_permission_on(Permission::{Read,Write,Admin,Owner}, "project")`.
-- `openfga/model.fga` : types `user`, `organization`, `project`, `component`.
+- `ops/openfga/model.fga` : types `user`, `organization`, `project`, `component`.
 - Tests : JWTs rustycog, `OpenFgaMockService`, `public_acl_api_tests`, `component_acl_consistency_tests`.
 
 **Écart**
@@ -267,7 +267,7 @@ Manifesto est le **gabarit RustyCog le plus aligné** du monorepo : hexagonale, 
 | ID | Écart | Preuve |
 |---|---|---|
 | P2-1 | `domain/src/error.rs` mort | zéro référence Serena |
-| P2-2 | `iam-events` unused | seul `Manifesto/Cargo.toml` |
+| P2-2 | `iam-events` unused | seul `services/Manifesto/Cargo.toml` |
 | P2-3 | OpenAPI sans `GET .../details` | `openspecs.yaml` vs `create_router` |
 | P2-4 | Type FGA `component` non gardé HTTP | routes `"project"` |
 | P2-5 | Pas de `/ready` ; health queue absent | `RouteBuilder.health_check` only |
@@ -292,7 +292,7 @@ Manifesto est le **gabarit RustyCog le plus aligné** du monorepo : hexagonale, 
 | Artefact | Lien Manifesto | Note |
 |---|---|---|
 | `AuthConfig` / JWT rustycog | `UserIdExtractor` | HS256 ; pas le issuer IAM RS256 |
-| `openfga/model.fga` | `with_permission_on(..., "project")` | `component` prévu plus tard |
+| `ops/openfga/model.fga` | `with_permission_on(..., "project")` | `component` prévu plus tard |
 | `sentinel-sync` | consumers d’events Manifesto (hors crate) | critique si P0-2 |
 | `iam-events` | path-dep `manifesto-service` | **morte** |
 | `apparatus-events` | consumer infra | OK |

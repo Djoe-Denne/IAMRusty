@@ -6,13 +6,13 @@ status: proposed
 feature_status: future
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
-  - Manifesto/infra/src/transaction.rs
-  - Manifesto/http/src/lib.rs
-  - openfga/model.fga
-  - sentinel-sync/src/translator/manifesto.rs
+  - services/Manifesto/infra/src/transaction.rs
+  - services/Manifesto/http/src/lib.rs
+  - ops/openfga/model.fga
+  - workers/sentinel-sync/src/translator/manifesto.rs
   - docs/adr/0002-apparatus-contract-first.md
-  - apparatus-contracts/src/lib.rs
-  - apparatus-reference-kv/apparatus.toml
+  - crates/apparatus-contracts/src/lib.rs
+  - crates/apparatus-reference-kv/apparatus.toml
   - docs/apparatus-p1-implementation-prompt.md
   - docs/services/manifesto.md
   - docs/adr/0006-apparatus-p2-reconciliation-in-process.md
@@ -21,7 +21,7 @@ sources:
   - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
   - docs/apparatus-p3-implementation-prompt.md
   - docs/apparatus-p4-implementation-prompt.md
-  - manifesto-events/src/component.rs
+  - crates/manifesto-events/src/component.rs
 summary: >-
   Plan conception P0–P6, photo datée. Canon courant : 0007 et 0008
   Implemented (A-DEC). Le corps reste une photo, pas le contrat.
@@ -96,11 +96,11 @@ Backfill : les composants existants deviennent `source=legacy`, avec identité c
 **Preuve de sortie** : migration réversible avant activation de workloads ; comparaisons avant/après des IDs, permissions et réponses legacy ; rejet d’un double ajout concurrent ; rollback transactionnel si écriture outbox échoue. Aucun backfill ne démarre du code tiers. ^[inferred]
 
 **Preuve P1 livrée (2026-09-12, commit `7455ee5`)** : T1-T6 28/28, mapping 5/5, T7 3/3 = P1 36 ; P0.1 42/42. Synthèse : [[projects/manifesto/concepts/apparatus-p1-persistence]].
-1. Migration réversible — table `apparatus_bindings` (`id` BIGSERIAL interne, `component_id` UUID UNIQUE FK→`project_components.id` CASCADE, `digest` VARCHAR(128) NULL, `source` CHECK legacy|managed), migration `m20260912_000012` additive réversible, up/down/up verts, 8/8. Fichier : `Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs`.
-2. Backfill legacy — `backfill_apparatus_legacy` explicite (`INSERT...SELECT` legacy `ON CONFLICT DO NOTHING`), idempotent 2 runs même état, legacy intact, 5/5. Fichier : `Manifesto/infra/src/apparatus_backfill.rs`.
-3. Collisions rejetées — table injective taskboard/wiki, `check_pairs_injective`, erreur `APPARATUS_MAPPING_COLLISION` v1, `is_unique_violation` 23505→409, `map_unique_conflict` 409, concurrence [201,409] stable, 4/4 + mapping 5/5. Fichiers : `Manifesto/infra/src/apparatus_mapping.rs`, `Manifesto/infra/src/repository/component_repository.rs`.
-4. Rollback atomique — `persist_binding_atomically` (BEGIN→INSERT managed→publish→COMMIT/ROLLBACK), échec→0 ligne, succès→1 ligne managed, faux broker in-memory, 0 polling/worker, 3/3. Fichier : `Manifesto/infra/src/apparatus_outbox.rs`.
-5. ACL/routes/events inchangés — INSERT managed même txn que composant+ACL+outbox (`Manifesto/infra/src/transaction.rs`), grants projet inchangés, revoke→403 TTL0, ownership conservés, `grep apparatus model.fga` 0, zéro nouveau type FGA, 4/4 ; alias `?binding` même `component_id` ou 404, POST 7 clés gelées, GET==POST, list `{data}`, DTO inchangé, catalogue wiremock, 4/4, 5 routes `/components`, FGA 5 types. Fichier : `Manifesto/http/src/handlers/components.rs`.
+1. Migration réversible — table `apparatus_bindings` (`id` BIGSERIAL interne, `component_id` UUID UNIQUE FK→`project_components.id` CASCADE, `digest` VARCHAR(128) NULL, `source` CHECK legacy|managed), migration `m20260912_000012` additive réversible, up/down/up verts, 8/8. Fichier : `services/Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs`.
+2. Backfill legacy — `backfill_apparatus_legacy` explicite (`INSERT...SELECT` legacy `ON CONFLICT DO NOTHING`), idempotent 2 runs même état, legacy intact, 5/5. Fichier : `services/Manifesto/infra/src/apparatus_backfill.rs`.
+3. Collisions rejetées — table injective taskboard/wiki, `check_pairs_injective`, erreur `APPARATUS_MAPPING_COLLISION` v1, `is_unique_violation` 23505→409, `map_unique_conflict` 409, concurrence [201,409] stable, 4/4 + mapping 5/5. Fichiers : `services/Manifesto/infra/src/apparatus_mapping.rs`, `services/Manifesto/infra/src/repository/component_repository.rs`.
+4. Rollback atomique — `persist_binding_atomically` (BEGIN→INSERT managed→publish→COMMIT/ROLLBACK), échec→0 ligne, succès→1 ligne managed, faux broker in-memory, 0 polling/worker, 3/3. Fichier : `services/Manifesto/infra/src/apparatus_outbox.rs`.
+5. ACL/routes/events inchangés — INSERT managed même txn que composant+ACL+outbox (`services/Manifesto/infra/src/transaction.rs`), grants projet inchangés, revoke→403 TTL0, ownership conservés, `grep apparatus model.fga` 0, zéro nouveau type FGA, 4/4 ; alias `?binding` même `component_id` ou 404, POST 7 clés gelées, GET==POST, list `{data}`, DTO inchangé, catalogue wiremock, 4/4, 5 routes `/components`, FGA 5 types. Fichier : `services/Manifesto/http/src/handlers/components.rs`.
 6. Zéro workload — T7 : 0 token P2 dans le prod Manifesto scanné par T7 (7 crates src), 0 `VALID`/`VERIFIED` quotés, 5 routes ; T5 : FGA 5 types ; T3+T6 : 0 second UUID ; pas de seconde ressource, pas de renommage, gate 3/3 vert.
 Consentement/génération non ajoutés (sans spec ADR, ADR dédiée avant P2).
 
@@ -128,7 +128,7 @@ Le mécanisme P3 (identité, grants, consentement, KV, secrets, proxy, invoke) e
 
 **Livré (2026-09-17).** Pas une nouvelle ADR. Canon : [ADR-0007](../../../../../docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md) reste **Accepted / Réalité Partial**. Hub : [[projects/lazaret/lazaret]]. ^[extracted]
 
-Hole `kv_purge` **fermé** : branché sur Manifesto `component_removed` (file dédiée `lazaret-kv-events` / `test-lazaret-kv-events`), **pas** via `ApparatusRuntime::unbind` (0006 G). Preuve : `Lazaret/tests/apparatus_p3_t8_kv_purge.rs` (Postgres + Redis) ; fan-out Manifesto `sqs_event_routing_tests`. Binding voisin intact ; second handle no-op ; autres event types ignorés. Pas de crate `lazaret-events`. 0007 **reste Partial** (mTLS, OpenBao produit, APP-05, G/E). ^[extracted]
+Hole `kv_purge` **fermé** : branché sur Manifesto `component_removed` (file dédiée `lazaret-kv-events` / `test-lazaret-kv-events`), **pas** via `ApparatusRuntime::unbind` (0006 G). Preuve : `services/Lazaret/tests/apparatus_p3_t8_kv_purge.rs` (Postgres + Redis) ; fan-out Manifesto `sqs_event_routing_tests`. Binding voisin intact ; second handle no-op ; autres event types ignorés. Pas de crate `lazaret-events`. 0007 **reste Partial** (mTLS, OpenBao produit, APP-05, G/E). ^[extracted]
 
 **Critères done** (preuves)
 
@@ -145,11 +145,11 @@ Hole `kv_purge` **fermé** : branché sur Manifesto `component_removed` (file d�
 
 #### T9 — chemin public invoke
 
-Hole de chemin **fermé** : `POST /lazaret/invoke` sur `prefixed_router` / `run()` ; `INVOKE_PATH` reste `/invoke` ; `Application::router()` reste non préfixé. Preuve : `Lazaret/tests/apparatus_p3_t9_invoke_prefix.rs`. ADR-0007 **reste Partial**. ^[extracted]
+Hole de chemin **fermé** : `POST /lazaret/invoke` sur `prefixed_router` / `run()` ; `INVOKE_PATH` reste `/invoke` ; `Application::router()` reste non préfixé. Preuve : `services/Lazaret/tests/apparatus_p3_t9_invoke_prefix.rs`. ADR-0007 **reste Partial**. ^[extracted]
 
 #### T10 — enrollment persisté
 
-Hole enrollment T3 in-memory **fermé** : table Lazaret `apparatus_enrollments` (même DB que KV) ; `revoke_binding` sur Manifesto `component_removed` (fail-closed avec le purge KV). InMemory réservé aux tests unitaires. Preuve : `Lazaret/tests/apparatus_p3_t10_enrollment_persist.rs`. ADR-0007 **reste Partial**. ^[extracted]
+Hole enrollment T3 in-memory **fermé** : table Lazaret `apparatus_enrollments` (même DB que KV) ; `revoke_binding` sur Manifesto `component_removed` (fail-closed avec le purge KV). InMemory réservé aux tests unitaires. Preuve : `services/Lazaret/tests/apparatus_p3_t10_enrollment_persist.rs`. ADR-0007 **reste Partial**. ^[extracted]
 
 ### P4 — Factory et runtime de production
 

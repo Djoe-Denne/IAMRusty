@@ -1,11 +1,11 @@
-﻿---
+---
 title: Hexagonal Architecture
 category: concepts
 tags: [architecture, hexagonal, ddd, visibility/internal]
 sources:
-  - IAMRusty/docs/ARCHITECTURE.md
-  - IAMRusty/setup/src/app.rs
-  - IAMRusty/http/src/lib.rs
+  - services/IAMRusty/docs/ARCHITECTURE.md
+  - services/IAMRusty/setup/src/app.rs
+  - services/IAMRusty/http/src/lib.rs
   - docs/adr/0100-services-metier-hexagonaux-rustycog.md
   - docs/adr/0101-crates-par-couche-hexagonale.md
 summary: IAMRusty is a RustyCog vertical slice (ADR 0100–0103): domain ports, setup composition root, IdP not PDP.

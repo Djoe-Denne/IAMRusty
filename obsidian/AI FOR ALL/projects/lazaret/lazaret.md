@@ -4,16 +4,16 @@ title: >-
 category: project
 tags: [platform, rust, components, visibility/internal]
 sources:
-  - Lazaret/README.md
+  - services/Lazaret/README.md
   - docs/services/lazaret.md
   - docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md
   - docs/adr/0007-closeout.md
   - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
-  - Lazaret/src/main.rs
-  - Lazaret/http/src/lib.rs
-  - Lazaret/tests/apparatus_p3_t11b_session_mtls.rs
-  - Lazaret/tests/apparatus_p3_t12_openbao.rs
-  - Lazaret/tests/apparatus_p3_t13_ca_persist.rs
+  - services/Lazaret/src/main.rs
+  - services/Lazaret/http/src/lib.rs
+  - services/Lazaret/tests/apparatus_p3_t11b_session_mtls.rs
+  - services/Lazaret/tests/apparatus_p3_t12_openbao.rs
+  - services/Lazaret/tests/apparatus_p3_t13_ca_persist.rs
 summary: >-
   BC P3 Implemented T1–T14b (A-DEC 2026-09-20). Hors-jalon encore ouverts :
   APP-05, 0006 G/E, pas K8s, pas de 2e protocole.
@@ -38,7 +38,7 @@ Slice hexagonale RustyCog introduite dans `e978cd0` (2026-09-16). Nom Accepted :
 
 Lazaret est la **frontière serveur** visée par ADR-0004 : autorisation à l’appel, identité de **workload**, KV namespacé, secrets opaques, connecteurs nommés, `invoke` HTTP. Ce n’est **pas** Manifesto (propriétaire du binding) et **pas** IAM (émetteur utilisateur). Composition : standalone **et** monolithe, comme Hive / Manifesto, sans fusionner les domaines.
 
-Préfixe HTTP : `/lazaret`. Compose : hôte **8084** (`8084:8080`). TLS compose : `tls_port` 8080, volume `./Lazaret/certs:/app/certs`, HEALTHCHECK `curl -fk https://localhost:8080/lazaret/health` (T13). Base : `lazaret_dev` (Postgres propre au BC). OpenFGA : aucun type ce slice (`InMemoryPermissionChecker`).
+Préfixe HTTP : `/lazaret`. Compose : hôte **8084** (`8084:8080`). TLS compose : `tls_port` 8080, volume `./services/Lazaret/certs:/app/certs`, HEALTHCHECK `curl -fk https://localhost:8080/lazaret/health` (T13). Base : `lazaret_dev` (Postgres propre au BC). OpenFGA : aucun type ce slice (`InMemoryPermissionChecker`).
 
 ## Ce qui est livré (Implemented)
 

@@ -3,9 +3,9 @@ title: User
 category: entities
 tags: [identity, users, auth, visibility/internal]
 sources:
-  - IAMRusty/domain/src/entity/user.rs
-  - IAMRusty/domain/src/entity/user_email.rs
-  - IAMRusty/domain/src/entity/provider_link.rs
+  - services/IAMRusty/domain/src/entity/user.rs
+  - services/IAMRusty/domain/src/entity/user_email.rs
+  - services/IAMRusty/domain/src/entity/provider_link.rs
 summary: IAMRusty models the platform user as one account that can hold profile data, multiple emails, and multiple linked OAuth identities.
 provenance:
   extracted: 0.82

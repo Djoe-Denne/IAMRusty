@@ -1,36 +1,36 @@
-﻿---
+---
 title: >-
   Integration Testing with Real Infrastructure
 category: concepts
 tags: [testing, integration, fixtures, visibility/internal]
 sources:
-  - IAMRusty/docs/TESTING_GUIDE.md
-  - IAMRusty/docs/FIXTURES_GUIDE.md
-  - IAMRusty/docs/KAFKA_EVENT_TESTING_GUIDE.md
-  - IAMRusty/tests/fixtures/db/mod.rs
-  - IAMRusty/tests/signup_kafka.rs
-  - IAMRusty/tests/sqs_event_routing_tests.rs
-  - Telegraph/config/test.toml
-  - Telegraph/tests/common.rs
-  - Telegraph/tests/notification_http_endpoints_test.rs
-  - Telegraph/tests/user_signup_event_test.rs
-  - Telegraph/tests/user_email_verified_event_test.rs
-  - Hive/config/test.toml
-  - Hive/tests/common.rs
-  - Hive/tests/organization_api_tests.rs
-  - Hive/tests/members_api_tests.rs
-  - Hive/tests/sqs_event_routing_tests.rs
-  - Hive/tests/external_link_api_tests.rs
-  - Hive/tests/fixtures/external_provider/service.rs
-  - Hive/tests/fixtures/external_provider/mod.rs
-  - Hive/tests/fixtures/external_provider/resources.rs
-  - Telegraph/tests/fixtures/smtp/service.rs
-  - Telegraph/tests/fixtures/smtp/testcontainer.rs
+  - services/IAMRusty/docs/TESTING_GUIDE.md
+  - services/IAMRusty/docs/FIXTURES_GUIDE.md
+  - services/IAMRusty/docs/KAFKA_EVENT_TESTING_GUIDE.md
+  - services/IAMRusty/tests/fixtures/db/mod.rs
+  - services/IAMRusty/tests/signup_kafka.rs
+  - services/IAMRusty/tests/sqs_event_routing_tests.rs
+  - services/Telegraph/config/test.toml
+  - services/Telegraph/tests/common.rs
+  - services/Telegraph/tests/notification_http_endpoints_test.rs
+  - services/Telegraph/tests/user_signup_event_test.rs
+  - services/Telegraph/tests/user_email_verified_event_test.rs
+  - services/Hive/config/test.toml
+  - services/Hive/tests/common.rs
+  - services/Hive/tests/organization_api_tests.rs
+  - services/Hive/tests/members_api_tests.rs
+  - services/Hive/tests/sqs_event_routing_tests.rs
+  - services/Hive/tests/external_link_api_tests.rs
+  - services/Hive/tests/fixtures/external_provider/service.rs
+  - services/Hive/tests/fixtures/external_provider/mod.rs
+  - services/Hive/tests/fixtures/external_provider/resources.rs
+  - services/Telegraph/tests/fixtures/smtp/service.rs
+  - services/Telegraph/tests/fixtures/smtp/testcontainer.rs
   - rustycog/rustycog-testing/src/wiremock/mod.rs
   - rustycog/rustycog-testing/src/common/openfga_testcontainer.rs
-  - Manifesto/tests/common.rs
-  - Manifesto/tests/sqs_event_routing_tests.rs
-  - Lazaret/tests/apparatus_p3_t12_openbao.rs
+  - services/Manifesto/tests/common.rs
+  - services/Manifesto/tests/sqs_event_routing_tests.rs
+  - services/Lazaret/tests/apparatus_p3_t12_openbao.rs
   - docs/adr/0200-it-infra-reelle-rustycog-testing.md
   - docs/adr/0201-mocks-http-sortant-seulement.md
   - docs/adr/0202-transport-opt-in-queues-desactivees.md
@@ -70,7 +70,7 @@ Décision canonique (12 sept. 2026) : [[projects/aiforall/decisions/0200-strateg
 - Anonymous-public-read tests (`.might_be_authenticated()` routes that should let unauthenticated callers reach a public resource) arrange the wildcard form via `openfga.allow_wildcard(action, resource)` / `deny_wildcard(action, resource)`. The middleware consults the checker with `Subject::wildcard()` instead of failing closed on missing JWT — see [[concepts/anonymous-public-read-via-wildcard-subject]]. The end-to-end production path requires `sentinel-sync` to write the matching tuples on visibility changes.
 - IAMRusty, Hive, and Manifesto now all cover producer-side named-queue SQS routing; Telegraph remains the consumer-side SQS plus SMTP example. All four real-infrastructure variants are first-class in this repo.
 - T12 Lazaret : OpenBao **produit** via testcontainer `lazaret_test-openbao` (image pin `openbao/openbao:2.6.2`, KV v2 `secret/`). T6 IT **reste** wiremock : preuve protocole ≠ preuve produit. [[projects/lazaret/concepts/grants-secrets-and-named-proxy]]
-- IT event-routing Manifesto : retry LocalStack `CreateQueue` (`46fed9b`) — flake **hyper dispatch**, pas une régression `Manifesto/src`. Classification transient vs permanent affinée (`de825b1`) : **timeout retiré** des erreurs transient ; tests isolés. [[journal/2026-09-20]]
+- IT event-routing Manifesto : retry LocalStack `CreateQueue` (`46fed9b`) — flake **hyper dispatch**, pas une régression `services/Manifesto/src`. Classification transient vs permanent affinée (`de825b1`) : **timeout retiré** des erreurs transient ; tests isolés. [[journal/2026-09-20]]
 
 ## Open Questions
 

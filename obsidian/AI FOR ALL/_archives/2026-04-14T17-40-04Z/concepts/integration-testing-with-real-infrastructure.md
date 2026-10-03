@@ -1,12 +1,12 @@
-﻿---
+---
 title: >-
   Integration Testing with Real Infrastructure
 category: concepts
 tags: [testing, integration, fixtures, visibility/internal]
 sources:
-  - IAMRusty/docs/TESTING_GUIDE.md
-  - IAMRusty/docs/FIXTURES_GUIDE.md
-  - Manifesto/docs/rustycog-service-build-guide.md
+  - services/IAMRusty/docs/TESTING_GUIDE.md
+  - services/IAMRusty/docs/FIXTURES_GUIDE.md
+  - services/Manifesto/docs/rustycog-service-build-guide.md
   - rustycog/rustycog-config/src/lib.rs
   - rustycog/rustycog-testing/src/lib.rs
   - rustycog/rustycog-testing/src/common/test_server.rs

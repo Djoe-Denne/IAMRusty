@@ -1,14 +1,14 @@
-﻿---
+---
 title: >-
   Hexagonal Architecture
 category: concepts
 tags: [architecture, hexagonal, ddd, visibility/internal]
 sources:
-  - IAMRusty/README.md
-  - IAMRusty/docs/ARCHITECTURE.md
-  - Manifesto/README.md
+  - services/IAMRusty/README.md
+  - services/IAMRusty/docs/ARCHITECTURE.md
+  - services/Manifesto/README.md
   - rustycog/README.md
-  - Manifesto/docs/rustycog-hexagonal-web-service-guide.md
+  - services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md
 summary: >-
   Several services share a ports-and-adapters structure that keeps domain logic isolated from infrastructure and HTTP concerns.
 provenance:

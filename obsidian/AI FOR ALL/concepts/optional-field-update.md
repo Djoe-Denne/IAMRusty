@@ -4,9 +4,9 @@ title: >-
 category: concepts
 tags: [domain, rust, manifesto, visibility/internal]
 sources:
-  - Manifesto/domain/src/value_objects/field_update.rs
-  - Manifesto/application/src/command/project.rs
-  - Manifesto/application/src/usecase/project.rs
+  - services/Manifesto/domain/src/value_objects/field_update.rs
+  - services/Manifesto/application/src/command/project.rs
+  - services/Manifesto/application/src/usecase/project.rs
   - .agents/skills/aiforall-sonar-policy/SKILL.md
 summary: >-
   FieldUpdate distinguishes leave-unchanged from assign, including assign-None, so PATCH-style updates do not need Option<Option<T>>.

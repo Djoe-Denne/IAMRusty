@@ -10,7 +10,7 @@ Check alert signals, metrics availability, recent logs, and noisy namespaces wit
 kubectl --context <context> get pods -A | grep -Ei 'prometheus|grafana|alertmanager|loki|tempo|metrics' | head -n 80
 kubectl --context <context> top nodes 2>&1 | head -n 80
 kubectl --context <context> top pods -A 2>&1 | head -n 80
-kubectl --context <context> logs -n <namespace> deploy/<app> --since=<timewindow> --tail=120 2>&1 | tail -n 120
+kubectl --context <context> logs -n <namespace> ops/deploy/<app> --since=<timewindow> --tail=120 2>&1 | tail -n 120
 # Use kubernetes-core.md event filtering for the requested time window, then narrow by this area.
 ```
 

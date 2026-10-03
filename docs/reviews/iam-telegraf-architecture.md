@@ -9,11 +9,11 @@
 
 ## 1. Périmètre
 
-Telegraph n’est pas IAMRusty : c’est le service de communication de la plateforme Rusty (emails + notifications in-app) qui **consomme** le contrat `iam-events`. Il vit sous `Telegraph/` et s’intègre à l’IAM via JWT partagé, OpenFGA (`notification`), SQS, et `sentinel-sync` (tuples, **si** Telegraph publie `NotificationCreated`).
+Telegraph n’est pas IAMRusty : c’est le service de communication de la plateforme Rusty (emails + notifications in-app) qui **consomme** le contrat `iam-events`. Il vit sous `services/Telegraph/` et s’intègre à l’IAM via JWT partagé, OpenFGA (`notification`), SQS, et `sentinel-sync` (tuples, **si** Telegraph publie `NotificationCreated`).
 
 | Crate | Rôle |
 |---|---|
-| `telegraph-service` (`Telegraph/`) | Binaire + tests d’intégration |
+| `telegraph-service` (`services/Telegraph/`) | Binaire + tests d’intégration |
 | `telegraph-domain` | Entités, ports, `DomainError` local, services |
 | `telegraph-application` | Use cases, commandes (`ProcessEvent`, notifications) |
 | `telegraph-infra` | SMTP, Tera, SeaORM, consumer SQS, processors |
@@ -23,7 +23,7 @@ Telegraph n’est pas IAMRusty : c’est le service de communication de la plate
 | `telegraph-migration` | Migration SeaORM notifications |
 | `iam-events` | Contrat IAM **utilisé** (`UserSignedUp`, `UserEmailVerified`, `PasswordResetRequested`, `UserLoggedIn`) |
 
-Pas de dépendance crate vers `IAMRusty`. OpenFGA partagé : `openfga/model.fga` type `notification`.
+Pas de dépendance crate vers `IAMRusty`. OpenFGA partagé : `ops/openfga/model.fga` type `notification`.
 
 ## 2. Méthode et limites outillage
 
@@ -66,15 +66,15 @@ Telegraph suit le **gabarit hexagonal RustyCog** (slice verticale, un compositio
 
 **Preuves**
 
-- Bin : `Telegraph/src/main.rs` → `main` : `load_config`, `setup_logging`, `AppBuilder::new(config).build().run(server_config)`.
+- Bin : `services/Telegraph/src/main.rs` → `main` : `load_config`, `setup_logging`, `AppBuilder::new(config).build().run(server_config)`.
 - Libs : `domain` (ports `Notification*Repository`, `TemplateService`, `EventExtractor`, `EventHandler`, communication) / `application` (`TelegraphCommandRegistryFactory`, usecases) / `infra` (email, tera, repos, `EventConsumer`, processors) / `http` / `setup` / `configuration` / `migration`.
 - Hexagonale : HTTP et SQS → `GenericCommandService` → handlers commande → usecases → ports. GrepAI CLI : factory + `command/mod.rs` au centre.
 - HTTP rustycog : `SERVICE_PREFIX = "/telegraph"`, `create_router`, `create_prefixed_router`, `create_app_routes` → `serve_router`. Trace GrepAI : même triangle que Hive / IAMRusty / Manifesto (`create_prefixed_router` L52, `TelegraphApp::router` L286).
-- Monolithe : `monolith/src/runtime.rs` `AppBuilder` + `start_background_tasks` + `router()` ; `routes.rs` nest `SERVICE_PREFIX`.
+- Monolithe : `runtime/monolith/src/runtime.rs` `AppBuilder` + `start_background_tasks` + `router()` ; `routes.rs` nest `SERVICE_PREFIX`.
 
 **Écart**
 
-- `Telegraph/domain/src/lib.rs` : `pub use iam_events::*;` (réexport `rustycog::events::*`) — le domain dépend de `rustycog-framework` `full` + du contrat IAM.
+- `services/Telegraph/domain/src/lib.rs` : `pub use iam_events::*;` (réexport `rustycog::events::*`) — le domain dépend de `rustycog-framework` `full` + du contrat IAM.
 - `http/src/handlers/communication.rs` (`SendMessageRequest`, SMS, email) **non routé** (wiki + `create_router`).
 - SMS : README / TOML historique vs `CommunicationConfig` (email + notification + template seulement).
 
@@ -133,7 +133,7 @@ Telegraph suit le **gabarit hexagonal RustyCog** (slice verticale, un compositio
 - `UserIdExtractor::new(config.auth)` ; `AppState::new(command_service, extractor, permission_checker)`.
 - Chaîne OpenFGA : `OpenFgaPermissionChecker` → skip cache si `cache_ttl_seconds == 0` sinon `CachedPermissionChecker` (défaut 15s) → `MetricsPermissionChecker`. Conforme rustycog-permission.
 - `create_router` : 3 routes `.authenticated()` ; mark-read `.with_permission_on(Permission::Write, "notification")`.
-- `openfga/model.fga` : `type notification` — `recipient: [user]`, `read`/`write`/`administer`/`own` = recipient. UUID `{id}` = plus profond → OK middleware.
+- `ops/openfga/model.fga` : `type notification` — `recipient: [user]`, `read`/`write`/`administer`/`own` = recipient. UUID `{id}` = plus profond → OK middleware.
 - Liste / unread : scoped `auth_user.user_id` dans la commande (pas de check FGA objet).
 - Mark-read domaine : `Unauthorized` si pas owner (double check **si** la requête passe le middleware).
 
@@ -148,7 +148,7 @@ Telegraph suit le **gabarit hexagonal RustyCog** (slice verticale, un compositio
 
 **Preuves**
 
-- HTTP JSON Axum. `Telegraph/openspecs.yaml` OpenAPI **3.1.0** : `GET /api/notifications`, `GET /api/notifications/unread-count`, `PUT /api/notifications/{id}/read`, `GET /health` — aligné `create_router`.
+- HTTP JSON Axum. `services/Telegraph/openspecs.yaml` OpenAPI **3.1.0** : `GET /api/notifications`, `GET /api/notifications/unread-count`, `PUT /api/notifications/{id}/read`, `GET /health` — aligné `create_router`.
 - Prefix `/telegraph` standalone + monolithe.
 
 **Écart**
@@ -183,7 +183,7 @@ Telegraph suit le **gabarit hexagonal RustyCog** (slice verticale, un compositio
 - `supports_event_type` : filtre `queues.*.events` ; sinon discard + log (pas de DLQ dédiée).
 - `CompositeEventProcessor` : mapping config → modes `email` / `notification`. Dev : signup / password_reset → email ; `user_email_verified` → notification.
 - Tests : `user_signup_event_test`, `user_email_verified_event_test` (publish SQS réel).
-- IAMRusty produit ces events (`IAMRusty/infra/src/event_adapter.rs`, tests `signup_sqs`).
+- IAMRusty produit ces events (`services/IAMRusty/infra/src/event_adapter.rs`, tests `signup_sqs`).
 
 **Écart**
 
@@ -322,7 +322,7 @@ Telegraph suit le **gabarit hexagonal RustyCog** (slice verticale, un compositio
 | `iam-events` | `ProcessEventCommand`, consumer, tests | **vivant** (contrairement à Manifesto) |
 | IAMRusty | producteur SQS (hors crate) | `user_signed_up`, `user_email_verified`, `password_reset_requested` |
 | `AuthConfig` / JWT rustycog | `UserIdExtractor` | HS256 ; pas l’issuer IAM RS256 |
-| `openfga/model.fga` | `with_permission_on(..., "notification")` | tuples attendus de sentinel-sync |
+| `ops/openfga/model.fga` | `with_permission_on(..., "notification")` | tuples attendus de sentinel-sync |
 | `sentinel-sync` | sync FGA sur `NotificationCreated` | **bloqué** tant que Telegraph ne publie pas (P0-3) |
 
 IAMRusty n’est pas dans le périmètre d’édition ; cité uniquement comme producteur d’events / tokens.

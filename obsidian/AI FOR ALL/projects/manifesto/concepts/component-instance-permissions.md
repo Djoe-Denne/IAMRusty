@@ -4,12 +4,12 @@ category: concepts
 tags: [permissions, components, projects, openfga, visibility/internal]
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
-  - Manifesto/http/src/lib.rs
-  - Manifesto/application/src/usecase/component.rs
-  - Manifesto/application/src/usecase/member.rs
-  - manifesto-events/src/authz.rs
-  - openfga/model.fga
-  - sentinel-sync/src/translator/manifesto.rs
+  - services/Manifesto/http/src/lib.rs
+  - services/Manifesto/application/src/usecase/component.rs
+  - services/Manifesto/application/src/usecase/member.rs
+  - crates/manifesto-events/src/authz.rs
+  - ops/openfga/model.fga
+  - workers/sentinel-sync/src/translator/manifesto.rs
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/11c01523-bb74-444a-ac31-44384d63de7d/11c01523-bb74-444a-ac31-44384d63de7d.jsonl
 summary: "ACL génériques et par instance component ; la future couche de capacités Apparatus conserve ces identités et ajoute le consentement."
 provenance:
@@ -24,7 +24,7 @@ updated: 2026-09-09T17:50:00Z
 
 Manifesto models components as children of projects in OpenFGA. A project **member** does **not** automatically view every instance.
 
-From [openfga/model.fga](../../../../openfga/model.fga):
+From [ops/openfga/model.fga](../../../../openfga/model.fga):
 
 - `project.component_editor` / `project.component_viewer` — generic grants (admin implies editor; editor implies viewer).
 - `component.editor` = direct user **or** `admin from project` **or** `component_editor from project`.

@@ -5,11 +5,11 @@ category: concepts
 tags: [projects, components, orchestration, visibility/internal]
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
-  - Manifesto/README.md
-  - Manifesto/IMPLEMENTATION_STATUS.md
-  - Manifesto/setup/src/app.rs
-  - Manifesto/application/src/usecase/component.rs
-  - Manifesto/infra/src/adapters/component_service_client.rs
+  - services/Manifesto/README.md
+  - services/Manifesto/IMPLEMENTATION_STATUS.md
+  - services/Manifesto/setup/src/app.rs
+  - services/Manifesto/application/src/usecase/component.rs
+  - services/Manifesto/infra/src/adapters/component_service_client.rs
 summary: "Orchestration actuelle de ProjectComponent, distincte de la future plateforme Apparatus documentée avec bindings, Factory et contrôleur."
 provenance:
   extracted: 0.75

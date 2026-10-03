@@ -18,11 +18,11 @@ SQS/Kafka/SMTP réels sont lents et partagent des singletons Docker. Le handbook
 
 1. Défaut producteur : `[queue] enabled = false` (IAMRusty, Hive, Manifesto). Descripteur HTTP par défaut : `has_sqs() == false`.
 2. Opt-in SQS : binaire dédié (`*/tests/sqs_event_routing_tests.rs`) avec `has_sqs() == true`, env `*_QUEUE__ENABLED=true`, assert file **destination** et fallback vide. `#[serial]`.
-3. Kafka : helper optionnel (`IAMRusty/tests/signup_kafka.rs` / `TestKafkaFixture`), pas le transport IT par défaut.
+3. Kafka : helper optionnel (`services/IAMRusty/tests/signup_kafka.rs` / `TestKafkaFixture`), pas le transport IT par défaut.
 4. Ports d’infra de test : `port = 0` (DB, queue, OpenFGA) + env publiées. **Exception historique** : MailHog / SMTP Telegraph `communication.email.smtp.port = 1025`.
 5. sentinel-sync : `[queue] type = "disabled"` (équivalent « pas de transport »).
 
-Telegraph (consommateur) **n’est pas aligné** : `Telegraph/config/test.toml` a `enabled = true` et `TelegraphTestDescriptor::has_sqs() == true` + `has_smtp() == true`. C’est un écart, pas une seconde règle adoptée ici.
+Telegraph (consommateur) **n’est pas aligné** : `services/Telegraph/config/test.toml` a `enabled = true` et `TelegraphTestDescriptor::has_sqs() == true` + `has_smtp() == true`. C’est un écart, pas une seconde règle adoptée ici.
 
 ## Conséquences
 
@@ -49,5 +49,5 @@ Telegraph (consommateur) **n’est pas aligné** : `Telegraph/config/test.toml` 
 
 - Handbook : `docs/guides/tests-integration.md` (section Transport)
 - Wiki : `skills/using-rustycog-testing`, `concepts/integration-testing-with-real-infrastructure` (Open Questions L65–69)
-- Code : `IAMRusty/Hive/Manifesto/config/test.toml` (`enabled = false`) ; `Telegraph/config/test.toml` (`enabled = true`) ; `sentinel-sync/config/test.toml` (`type = "disabled"`) ; descripteurs SQS dans `*/tests/sqs_event_routing_tests.rs` ; `rustycog/rustycog-testing/src/common/sqs_testcontainer.rs`, `kafka_testcontainer.rs`
+- Code : `IAMRusty/Hive/Manifesto/config/test.toml` (`enabled = false`) ; `services/Telegraph/config/test.toml` (`enabled = true`) ; `workers/sentinel-sync/config/test.toml` (`type = "disabled"`) ; descripteurs SQS dans `*/tests/sqs_event_routing_tests.rs` ; `rustycog/rustycog-testing/src/common/sqs_testcontainer.rs`, `kafka_testcontainer.rs`
 - Preuve Partial : producteurs opt-in attestés ; Telegraph suite-level SQS+SMTP+MailHog 1025 ; Kafka optionnel IAM ; pas de NATS

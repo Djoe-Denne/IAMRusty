@@ -6,7 +6,7 @@ tags: [skill, docker, testcontainers, rust, visibility/internal]
 sources:
   - conversation opencode 2026-10-03 (clôture 0308)
   - AGENTS.md (Compilation locale)
-  - IAMRusty/justfile
+  - services/IAMRusty/justfile
   - rustycog/rustycog-testing/src/common/database.rs
   - rustycog/rustycog-config/src/lib.rs
 summary: >-
@@ -34,7 +34,7 @@ Contexte : [[projects/aiforall/concepts/local-runtime-lifecycle]]. Cycle de vie 
 Le fixtcharge `rustycog-testing` lit `config/test.toml` sous `DATABASE_`, l'app sous son propre préfixe (`IAM_`, `HIVE_`). Le `PORT_CACHE` de `rustycog-config` est indexé `(host, db, user)` : deux préfixes avec des hosts différents → le port random publié par le fixture n'est jamais trouvé par l'app → `connect_timeout` > fenêtre de polling.
 
 - **IAM** (réseau docker par défaut) : `RUN_ENV=test` + `DATABASE_DATABASE__HOST=host.docker.internal` **et** `IAM_DATABASE__HOST=host.docker.internal` dans le même runner.
-- **Hive** : `--network host` + `HIVE_DATABASE__HOST=127.0.0.1` + `DATABASE_DATABASE__HOST=127.0.0.1` + `OPENFGA_OPENFGA__HOST=127.0.0.1` (publish_env OpenFGA force `127.0.0.1` codé en dur). Voir IAMRusty/justfile (`RUN_ENV=test` déjà posé côté hôte).
+- **Hive** : `--network host` + `HIVE_DATABASE__HOST=127.0.0.1` + `DATABASE_DATABASE__HOST=127.0.0.1` + `OPENFGA_OPENFGA__HOST=127.0.0.1` (publish_env OpenFGA force `127.0.0.1` codé en dur). Voir services/IAMRusty/justfile (`RUN_ENV=test` déjà posé côté hôte).
 
 ## Noms fixes et fuite de fixtures
 

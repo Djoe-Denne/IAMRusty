@@ -50,7 +50,7 @@ Commande synchrone HTTP Hive→IAM. Pas de secret dans les domain events. Pas Te
 
 Commandes : `ConfigureOrganizationSigner`, `TestOrganizationSigner`, `RotateOrganizationSigner`, `DisableOrganizationSigner`. Hive ne garde que `signing_profile_id` et `signing_status`. IAM garde `SigningKey` et le secret (OpenBao).
 
-HEAD `2473baa` : commandes Hive `organization_signer` + client `Hive/infra/src/iam/organization_signer_client.rs`. Revue S6–S8 (27 sept.) : correctness PASS ; le HIGH « PEM racine partagée » du 26 sept. est fermé (préfixe `{org_id}/`). Résidu de durcissement FS noté, non bloquant.
+HEAD `2473baa` : commandes Hive `organization_signer` + client `services/Hive/infra/src/iam/organization_signer_client.rs`. Revue S6–S8 (27 sept.) : correctness PASS ; le HIGH « PEM racine partagée » du 26 sept. est fermé (préfixe `{org_id}/`). Résidu de durcissement FS noté, non bloquant.
 
 ## 0307 — Port WorkloadIdentity (Accepted / Implemented)
 

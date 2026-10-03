@@ -10,7 +10,7 @@ Projets, composants, membership projet. Service de référence pour scaffolder.
 
 ## Apparatus P1 — persistance (2026-09-12)
 
-Extension 1:1 `apparatus_bindings` sur `project_components.id` (`component_id` UUID UNIQUE FK CASCADE, `digest` VARCHAR(128) NULL, `source` CHECK legacy|managed). Fichiers : `Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs`, `Manifesto/infra/src/apparatus_backfill.rs`, `apparatus_mapping.rs`, `apparatus_outbox.rs`, `transaction.rs`, `Manifesto/http/src/handlers/components.rs`.
+Extension 1:1 `apparatus_bindings` sur `project_components.id` (`component_id` UUID UNIQUE FK CASCADE, `digest` VARCHAR(128) NULL, `source` CHECK legacy|managed). Fichiers : `services/Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs`, `services/Manifesto/infra/src/apparatus_backfill.rs`, `apparatus_mapping.rs`, `apparatus_outbox.rs`, `transaction.rs`, `services/Manifesto/http/src/handlers/components.rs`.
 
 - up/down : `cargo run -p manifesto-migration -- up` / `cargo run -p manifesto-migration -- down` (migration additive réversible, up/down/up verts, T1 8/8).
 - Backfill explicite : `backfill_apparatus_legacy` (`INSERT...SELECT` legacy `ON CONFLICT DO NOTHING`), idempotent 2 runs, `component_type` non réécrit (T2 5/5). Consentement/génération non ajoutés (ADR dédiée avant P2).
@@ -42,6 +42,6 @@ cargo test -p manifesto-service --test apparatus_p2_t7_gate -- --test-threads=1
 
 ## Docs
 
-- [`Manifesto/README.md`](../../Manifesto/README.md), [`Manifesto/docs/`](../../Manifesto/docs/)
+- [`services/Manifesto/README.md`](../../services/Manifesto/README.md), [`services/Manifesto/docs/`](../../services/Manifesto/docs/)
 - [../functional/projet.md](../functional/projet.md)
 - [../guides/nouveau-service.md](../guides/nouveau-service.md)

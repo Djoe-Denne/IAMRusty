@@ -53,6 +53,6 @@ Publiés vers `sentinel-sync-events`. Manifesto peut **consommer** `component_st
 
 ## Références
 
-- [`Manifesto/README.md`](../../Manifesto/README.md), [`Manifesto/IMPLEMENTATION_STATUS.md`](../../Manifesto/IMPLEMENTATION_STATUS.md), [`Manifesto/http/src/lib.rs`](../../Manifesto/http/src/lib.rs)
+- [`services/Manifesto/README.md`](../../services/Manifesto/README.md), [`services/Manifesto/IMPLEMENTATION_STATUS.md`](../../services/Manifesto/IMPLEMENTATION_STATUS.md), [`services/Manifesto/http/src/lib.rs`](../../services/Manifesto/http/src/lib.rs)
 - Wiki : `obsidian/AI FOR ALL/projects/manifesto/concepts/org-owned-visibility-and-participation-limits.md`
-- Guides : [`Manifesto/docs/`](../../Manifesto/docs/)
+- Guides : [`services/Manifesto/docs/`](../../services/Manifesto/docs/)

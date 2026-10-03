@@ -8,13 +8,13 @@
 - SuperSède : aucune
 - SuperSédée par : —
 
-`Accepted` ratifie une cible. `Réalité` décrit le dépôt. Aujourd’hui : Compose + `just` + IT rustycog ([0200](0200-it-infra-reelle-rustycog-testing.md)) ; scaffolding local `deploy/` + `cloud/opentofu/` (module outputs, pas d’apply GKE) = [0603](0603-tranche-locale-deploy-kind-apparatus-lazaret.md) Réalité Partial ; **aucun** bootstrap OpenTofu GKE / Flux live. Cette ADR **ne SuperSède pas** [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) (Accepted / Implemented) ni [0500](0500-config-typee-et-compose-local.md). Le compagnon `docs/adr/0008-app01-reconciliation.md` reste **méthode**, pas canon.
+`Accepted` ratifie une cible. `Réalité` décrit le dépôt. Aujourd’hui : Compose + `just` + IT rustycog ([0200](0200-it-infra-reelle-rustycog-testing.md)) ; scaffolding local `ops/deploy/` + `ops/cloud/opentofu/` (module outputs, pas d’apply GKE) = [0603](0603-tranche-locale-deploy-kind-apparatus-lazaret.md) Réalité Partial ; **aucun** bootstrap OpenTofu GKE / Flux live. Cette ADR **ne SuperSède pas** [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) (Accepted / Implemented) ni [0500](0500-config-typee-et-compose-local.md). Le compagnon `docs/adr/0008-app01-reconciliation.md` reste **méthode**, pas canon.
 
 Plage **0600–0699** = Cloud / IaC / GitOps / topologie cluster (Vague 4 living). **Interdit** d’utiliser 0009 (collision sémantique P4), 0411 (prochain IAM-IdP), 0503 (mélangerait CI rétro 0500). Première tranche livrable **locale** (A+B, sans GKE ni 0602) : [0603](0603-tranche-locale-deploy-kind-apparatus-lazaret.md).
 
 ## Contexte
 
-Le dépôt livre des standalones hexagonaux ([0404](0404-runtime-microservices-et-monolithe.md)) derrière `docker-compose.yml`, des Dockerfiles (`IAMRusty/Dockerfile`, `Hive/Dockerfile`, `Manifesto/Dockerfile`, `Telegraph/Dockerfile`, `Lazaret/Dockerfile`, `Dockerfile.build`, variantes `Dockerfile.solo-build`) et une CI fmt / build / test / coverage / Sonar (`.github/workflows/ci.yml`, [0501](0501-qualite-fmt-clippy-sonar.md)). Config = `rustycog-config` + `RUN_ENV` + préfixes env ([0500](0500-config-typee-et-compose-local.md)). Mesh applicatif T14b = dual-bind 8080+8443, deux CA (wiki `https-platform-mesh`).
+Le dépôt livre des standalones hexagonaux ([0404](0404-runtime-microservices-et-monolithe.md)) derrière `docker-compose.yml`, des Dockerfiles (`services/IAMRusty/Dockerfile`, `services/Hive/Dockerfile`, `services/Manifesto/Dockerfile`, `services/Telegraph/Dockerfile`, `services/Lazaret/Dockerfile`, `Dockerfile.build`, variantes `Dockerfile.solo-build`) et une CI fmt / build / test / coverage / Sonar (`.github/workflows/ci.yml`, [0501](0501-qualite-fmt-clippy-sonar.md)). Config = `rustycog-config` + `RUN_ENV` + préfixes env ([0500](0500-config-typee-et-compose-local.md)). Mesh applicatif T14b = dual-bind 8080+8443, deux CA (wiki `https-platform-mesh`).
 
 ADR-0008 **Accepted** place le moteur P4 **hors Manifesto** (operator + Jobs, Cosign + Transit, enveloppe ≠ image CRI, 4 SA). Elle ne décide **pas** comment un cluster existe, ni GitOps, ni le lock-in cloud. Sans cette ADR, la tentation est : Scaleway comme cœur, Terraform BSL / HCP, `kubectl` depuis GitHub Actions, Kompose depuis Compose, Istio « pour le mesh », un dossier `infra/` qui collisionne les crates `*/infra`.
 
@@ -50,7 +50,7 @@ Le **monolithe** (`oodhive-monolith`) n’est **pas** le chemin cluster (laptop 
 4. **Un adaptateur** par cloud ; **contrat d’outputs identique** : `cluster_name`, `kubernetes_host`, `cluster_ca`, `oidc_issuer` (nullable), auth **exec**. **V1 livré** = **GKE** (`gcp`). Un 2ᵉ adaptateur (`aws` / `scaleway` / `k3s`) = **copie du contrat**, pas un `if` dans les apps.
 5. **State** : backend `s3` OpenTofu S3-compatible + `use_lockfile=true` + **encryption native** OpenTofu (pas de KMS cloud obligatoire). Le bucket **peut** ≠ cloud du cluster.
 6. **Arrêt V1 à l’existence du cluster.** Providers Terraform/OpenTofu `kubernetes` / `helm` **hors V1**. Kubeconfig **jamais** git → OpenBao.
-7. Arbre : `cloud/opentofu/{modules,live,envs}/`. **Pas** `infra/` (collision crates `*/infra`). Premier overlay cluster : `cloud/opentofu/modules/cluster/gcp/` + `cloud/opentofu/live/.../gcp/`.
+7. Arbre : `ops/cloud/opentofu/{modules,live,envs}/`. **Pas** `infra/` (collision crates `*/infra`). Premier overlay cluster : `cloud/opentofu/modules/cluster/gcp/` + `cloud/opentofu/live/.../gcp/`.
 
 #### Premier adaptateur V1 = GKE (`gcp`)
 
@@ -64,18 +64,18 @@ Le critère n’est **pas** le cloud préféré ni le moins cher : **connu + ass
 
 **k3s VPS rejeté en V1** : docs install k3s excellentes ; chemin OpenTofu = snowflake (Hetzner `identiops/k3s/hcloud`, Proxmox, cloud-init+Ansible) — pas un adapter unique « connu ». `oidc_issuer` souvent nullable (déjà prévu au contrat).
 
-**Portable** : contrat d’outputs **inchangé**. `deploy/apps/base` **sans** annotation GCP/GKE/GCE. GatewayClass cloud = overlay prod MAY plus tard.
+**Portable** : contrat d’outputs **inchangé**. `ops/deploy/apps/base` **sans** annotation GCP/GKE/GCE. GatewayClass cloud = overlay prod MAY plus tard.
 
 **Overlay / adapter** : seulement `cloud/opentofu/modules/cluster/gcp/` + `live/.../gcp/`. Un 2ᵉ adapter = copie du contrat, pas un if dans les apps.
 
 ### Runtime GitOps — Flux V1 + Kustomize first-party, Helm tiers
 
-1. First-party : **Kustomize** `deploy/apps/base` + overlays.
+1. First-party : **Kustomize** `ops/deploy/apps/base` + overlays.
 2. Tiers : **HelmRelease Flux** (cert-manager, Envoy Gateway, OpenFGA, OpenBao).
-3. GitOps V1 : **Flux** pull-based (**décidé**). **Argo CD rejeté pour V1** (pas pour toujours : possible plus tard **si SuperSède**). Interdit V1 : Argo + helm-template comme moteur. Manifests dans **ce** monorepo `deploy/`.
-4. **Gateway API** + **Envoy Gateway** (kind + staging). Overlay prod **MAY** retarget `gatewayClassName` plus tard. Bases **sans** annotation provider (pas GCP/GKE/GCE dans `deploy/apps/base`).
+3. GitOps V1 : **Flux** pull-based (**décidé**). **Argo CD rejeté pour V1** (pas pour toujours : possible plus tard **si SuperSède**). Interdit V1 : Argo + helm-template comme moteur. Manifests dans **ce** monorepo `ops/deploy/`.
+4. **Gateway API** + **Envoy Gateway** (kind + staging). Overlay prod **MAY** retarget `gatewayClassName` plus tard. Bases **sans** annotation provider (pas GCP/GKE/GCE dans `ops/deploy/apps/base`).
 5. Mesh V1 : **aucun Istio / Linkerd**. Continuer mTLS applicatif T14b (2 CA : platform-mesh ≠ Lazaret).
-6. Operator P4 : `deploy/p4/` — **Kustomization Flux séparée**, **jamais** fusionnée aux charts / overlays Manifesto. P4 **n’est pas** cette ADR ; 0008 reste le canon moteur ; 0601 place les namespaces / SA.
+6. Operator P4 : `ops/deploy/p4/` — **Kustomization Flux séparée**, **jamais** fusionnée aux charts / overlays Manifesto. P4 **n’est pas** cette ADR ; 0008 reste le canon moteur ; 0601 place les namespaces / SA.
 
 ### CI, observabilité, secrets, policy, backups
 
@@ -101,11 +101,11 @@ Le critère n’est **pas** le cloud préféré ni le moins cher : **connu + ass
 | OpenBao SoT + ESO | SOPS généralisé, Transit comme KV plugin (interdit) |
 | NetworkPolicy + Kyverno digest/sign | Policy engines supplémentaires ; Adm-B 0008 |
 | Backup Postgres natif prod | Velero |
-| `deploy/p4/` Flux séparé | Fusion avec Manifesto (interdit) |
+| `ops/deploy/p4/` Flux séparé | Fusion avec Manifesto (interdit) |
 
 ## Conséquences
 
-- Premier cluster V1 = **GKE** via `cloud/opentofu/modules/cluster/gcp/` + `live/.../gcp/` seulement. Un nouvel hébergeur = **nouvel adaptateur** au contrat d’outputs, pas un mega-module multi-cloud, pas un if provider dans `deploy/apps/base`.
+- Premier cluster V1 = **GKE** via `cloud/opentofu/modules/cluster/gcp/` + `live/.../gcp/` seulement. Un nouvel hébergeur = **nouvel adaptateur** au contrat d’outputs, pas un mega-module multi-cloud, pas un if provider dans `ops/deploy/apps/base`.
 - `ScalewayConfig` / `scaleway-loki` restent des adaptateurs **app**. Ils ne justifient **pas** un cluster Kapsule V1.
 - GitOps V1 = **Flux**. Ne pas relancer Argo CD sauf SuperSède. Ne pas poser helm-template comme moteur first-party.
 - Ne pas créer `infra/` à la racine. Ne pas commiter de kubeconfig. Ne pas appeler `kubectl` depuis `.github/workflows/`.
@@ -113,7 +113,7 @@ Le critère n’est **pas** le cloud préféré ni le moins cher : **connu + ass
 - 0008 **intacte** : Cosign + Transit, Adm-A worker-only, operator+Jobs hors Manifesto, enveloppe ≠ CRI, 4 SA. Kyverno / Gateway / Flux **n’émettent pas** `VALID`.
 - 0407–0410 **intactes**. 0411 reste le prochain libre IAM-IdP.
 - IT rustycog (0200) restent sur **couche A**. Kind n’est **pas** un prérequis des tests unitaires P4 T2 (0008 / 0601).
-- Travail imposé après Accept : scaffolder `cloud/opentofu/` et `deploy/` ; étendre la CI (publish+Cosign) ; **pas** de `cargo` « plateforme » comme preuve de cette ADR.
+- Travail imposé après Accept : scaffolder `ops/cloud/opentofu/` et `ops/deploy/` ; étendre la CI (publish+Cosign) ; **pas** de `cargo` « plateforme » comme preuve de cette ADR.
 
 ## Alternatives rejetées
 
@@ -135,7 +135,7 @@ Le critère n’est **pas** le cloud préféré ni le moins cher : **connu + ass
 | Secrets dans git | OpenBao SoT ; ESO |
 | Velero = backup Postgres V1 | Postgres natif prod |
 | Mega-module multi-cloud | Un adaptateur / cloud, outputs identiques |
-| Fusion `deploy/p4/` × Manifesto | 0008 : P4 hors `Manifesto/*/src` |
+| Fusion `ops/deploy/p4/` × Manifesto | 0008 : P4 hors `services/Manifesto/*/src` |
 | KMS cloud Cosign V1 | 0008 Reg-B rejeté ; Transit |
 | OpenBao Transit = KV plugin | 0008 : forge de signatures |
 | Datadog / Cockpit / `scaleway-loki` **cœur** | Backends = adaptateurs derrière OTel ; premier adaptateur **cluster** V1 = LGTM+Tempo ([0602](0602-observabilite-portable-otlp-lgtm.md) plan B), pas Loki-cœur ni Grafana-dans-Rust |

@@ -10,9 +10,9 @@
 
 ## Contexte
 
-Flux actuel : le navigateur frappe IAM `/api/auth/{provider}/login|callback|link` (`IAMRusty/http/src/handlers/auth.rs`). `OAuthState` (`IAMRusty/http/src/oauth_state.rs`) porte opération + nonce + `exp` (TTL 600 s), HMAC, anti-rejeu — **le wiki CSRF est périmé** (il dit « pas de timestamp »). Le callback **hardcode** encore `http://127.0.0.1:8081/api/auth/{github|gitlab}/callback` (IAM compose = 8080). `client_secret` vit dans la config IAM.
+Flux actuel : le navigateur frappe IAM `/api/auth/{provider}/login|callback|link` (`services/IAMRusty/http/src/handlers/auth.rs`). `OAuthState` (`services/IAMRusty/http/src/oauth_state.rs`) porte opération + nonce + `exp` (TTL 600 s), HMAC, anti-rejeu — **le wiki CSRF est périmé** (il dit « pas de timestamp »). Le callback **hardcode** encore `http://127.0.0.1:8081/api/auth/{github|gitlab}/callback` (IAM compose = 8080). `client_secret` vit dans la config IAM.
 
-T14b : HTTPS compose, CA mesh, **client cert optionnel** (`IAMRusty/tests/https_mesh_optional_mtls.rs`). 0004 interdit le bearer IAM sur un plugin Apparatus — autre frontière ; ici le risque est d’envoyer un JWT **utilisateur** au connecteur ou de laisser le connecteur mentir l’identité.
+T14b : HTTPS compose, CA mesh, **client cert optionnel** (`services/IAMRusty/tests/https_mesh_optional_mtls.rs`). 0004 interdit le bearer IAM sur un plugin Apparatus — autre frontière ; ici le risque est d’envoyer un JWT **utilisateur** au connecteur ou de laisser le connecteur mentir l’identité.
 
 ## Décision
 
@@ -49,7 +49,7 @@ Prod : HMAC obligatoire, HTTPS obligatoire. IT : HMAC + HTTP loopback acceptable
 
 ### 6. Redirect hardcodé 127.0.0.1:8081
 
-Aujourd’hui `IAMRusty/http/src/handlers/auth.rs` contient encore des littéraux `127.0.0.1:8081` pour `/callback` **et** `/relink-callback`. Cible : champ registry **`redirect_uris`** (tableau, [0408](0408-connecteurs-idp-services-http.md)), **pas** un `redirect_uri` unique. Le tableau **doit** inclure le callback **et** le relink-callback. Ces littéraux disparaissent au slice **S2** ([0410](0410-migration-iam-connecteurs-idp.md)). Pas un breaking d’URL publique si l’OAuth App reste pointée sur les callbacks IAM.
+Aujourd’hui `services/IAMRusty/http/src/handlers/auth.rs` contient encore des littéraux `127.0.0.1:8081` pour `/callback` **et** `/relink-callback`. Cible : champ registry **`redirect_uris`** (tableau, [0408](0408-connecteurs-idp-services-http.md)), **pas** un `redirect_uri` unique. Le tableau **doit** inclure le callback **et** le relink-callback. Ces littéraux disparaissent au slice **S2** ([0410](0410-migration-iam-connecteurs-idp.md)). Pas un breaking d’URL publique si l’OAuth App reste pointée sur les callbacks IAM.
 
 ## Conséquences
 
@@ -75,7 +75,7 @@ Aujourd’hui `IAMRusty/http/src/handlers/auth.rs` contient encore des littérau
 
 ## Références
 
-- Code : `IAMRusty/http/src/oauth_state.rs`, `IAMRusty/http/src/handlers/auth.rs` (callback 127.0.0.1:8081), `IAMRusty/tests/https_mesh_optional_mtls.rs`
+- Code : `services/IAMRusty/http/src/oauth_state.rs`, `services/IAMRusty/http/src/handlers/auth.rs` (callback 127.0.0.1:8081), `services/IAMRusty/tests/https_mesh_optional_mtls.rs`
 - Wiki : `projects/iamrusty/concepts/oauth-state-and-csrf-protection.md` (écart : struct a `exp` + HMAC + replay), `projects/aiforall/concepts/https-platform-mesh.md`
 - ADR : 0400 (login ≠ link), 0302, 0004 (bearer plugin — analogie, pas copie)
-- Preuve : HMAC S2S `idp-connect-contract` + `IAMRusty/infra/src/auth/http_connector.rs` ; CSRF `IAMRusty/http/src/oauth_state.rs` ; IT `IAMRusty/tests/fixtures/idp_connect/` ; `GitHubConnect/` + `GitLabConnect/`
+- Preuve : HMAC S2S `idp-connect-contract` + `services/IAMRusty/infra/src/auth/http_connector.rs` ; CSRF `services/IAMRusty/http/src/oauth_state.rs` ; IT `services/IAMRusty/tests/fixtures/idp_connect/` ; `services/GitHubConnect/` + `services/GitLabConnect/`

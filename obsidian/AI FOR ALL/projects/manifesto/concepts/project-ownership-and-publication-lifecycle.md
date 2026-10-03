@@ -3,8 +3,8 @@ title: Project Ownership and Publication Lifecycle
 category: concepts
 tags: [projects, ownership, lifecycle, visibility/internal]
 sources:
-  - Manifesto/README.md
-  - Manifesto/application/src/usecase/project.rs
+  - services/Manifesto/README.md
+  - services/Manifesto/application/src/usecase/project.rs
 summary: Manifesto ties project creation, ownership, visibility defaults, membership bootstrap, and publish/archive transitions into one lifecycle flow — and publish must not be read as public.
 provenance:
   extracted: 0.80

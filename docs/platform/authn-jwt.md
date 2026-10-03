@@ -36,7 +36,7 @@ key_id = "test-rs256-kid-01"
 - JWKS : `GET /iam/.well-known/jwks.json` construit depuis `SigningKeyRegistry::list_jwks_keys` (pending+active+retiring ; retiring hors fenêtre TTL+60s), fallback cache bootstrap si vide. Jamais HMAC dans le JWKS.
 - Login / refresh appellent `ensure_platform_identity(user_id, platform_issuer)`.
 
-Guide historique (non canon) : [`IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md`](../../IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md). Recette consommateur : [../guides/jwt-consommateur.md](../guides/jwt-consommateur.md).
+Guide historique (non canon) : [`services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md`](../../services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md). Recette consommateur : [../guides/jwt-consommateur.md](../guides/jwt-consommateur.md).
 
 ### Consommateurs (Hive, Manifesto, Telegraph, extractor IAM)
 
@@ -68,7 +68,7 @@ En test HS256 fenêtre : `create_jwt_token(user_id)` pose encore `iss=iamrusty` 
 
 ## Cible (ADR-0304)
 
-Ratifiée : [ADR-0304](../adr/0304-jwt-acces-plateforme-rs256-jwks.md). Identity : [0305](../adr/0305-account-identity-trust-domain.md). Config signer Hive→IAM : [0306](../adr/0306-hive-iam-configuration-signature.md) (transport au composition root : InProcess monolithe / HTTP micro). WorkloadIdentity : [0307](../adr/0307-workload-identity-port.md) (Accepted / Implemented) — adapters OIDC WIF AWS/GCP/Azure sur le chemin HTTP (preuve wiremock `wif_exchanges`) avec fallback `StaticCredential` si provider absent. Mesh AuthN [0308](../adr/0308-mesh-authn-jwt.md) (`ext-authz/` Check HTTP) : profil opt-in (`docker compose --profile mesh`, overlay `kind-mesh/`) ; JWT rustycog in-process reste le défaut ; Accepted / Partial (pas Implemented). Remote signer HTTP [0309](../adr/0309-remote-signer.md) : Accepted / Partial (pas Implemented).
+Ratifiée : [ADR-0304](../adr/0304-jwt-acces-plateforme-rs256-jwks.md). Identity : [0305](../adr/0305-account-identity-trust-domain.md). Config signer Hive→IAM : [0306](../adr/0306-hive-iam-configuration-signature.md) (transport au composition root : InProcess monolithe / HTTP micro). WorkloadIdentity : [0307](../adr/0307-workload-identity-port.md) (Accepted / Implemented) — adapters OIDC WIF AWS/GCP/Azure sur le chemin HTTP (preuve wiremock `wif_exchanges`) avec fallback `StaticCredential` si provider absent. Mesh AuthN [0308](../adr/0308-mesh-authn-jwt.md) (`workers/ext-authz/` Check HTTP) : profil opt-in (`docker compose --profile mesh`, overlay `kind-mesh/`) ; JWT rustycog in-process reste le défaut ; Accepted / Partial (pas Implemented). Remote signer HTTP [0309](../adr/0309-remote-signer.md) : Accepted / Partial (pas Implemented).
 
 ## Suite
 

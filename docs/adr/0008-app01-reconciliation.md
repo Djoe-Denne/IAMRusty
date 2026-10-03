@@ -56,11 +56,11 @@
 
 - Q2 portable + Q5 enveloppe : le registre d’IT doit servir **artifacts et** pull d’image. Ne pas présumer `registry:2` suffisant.
 - Q3 worker + Q4 BC-A : **alignés** (pas de 6ᵉ hexagone).
-- Q4 operator + Q6 Run-A : contrôleur = SA cluster, **hors** `Manifesto/*/src`.
+- Q4 operator + Q6 Run-A : contrôleur = SA cluster, **hors** `services/Manifesto/*/src`.
 - Q2 signer-only + Q6 : seul le SA signer pousse / appelle Transit.
 - Q5 image blob + CRI : compatible moteur K8s ; identité ≠ digest d’image.
 - Adm-B webhook : complément **après** 0008, jamais source `VALID`.
-- Zéro token `k8s`/`kubernetes` sous `Manifesto/*/src` même si l’operator vit ailleurs.
+- Zéro token `k8s`/`kubernetes` sous `services/Manifesto/*/src` même si l’operator vit ailleurs.
 
 ## Gel rappelé (inchangé)
 

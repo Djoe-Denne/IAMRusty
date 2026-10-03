@@ -13,7 +13,7 @@ A relation tuple is Zanzibar's unit of authorization data: a triple of `(object,
 
 ## Shape
 
-`object` and `user` are typed identifiers rendered as `"{type}:{id}"`. `relation` is one of the relations defined on `object`'s type in [openfga/model.fga](../../openfga/model.fga).
+`object` and `user` are typed identifiers rendered as `"{type}:{id}"`. `relation` is one of the relations defined on `object`'s type in [ops/openfga/model.fga](../../openfga/model.fga).
 
 Examples:
 

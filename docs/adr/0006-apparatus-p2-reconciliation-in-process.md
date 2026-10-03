@@ -59,7 +59,7 @@ Lease **par binding**. TTL constante **30 s** (`APPARATUS_LEASE_TTL`, injectable
 | `retry_count` | `INTEGER` | NOT NULL | `0` | CHECK `>= 0` ; plafond `APPARATUS_RETRY_MAX = 8` |
 | `last_error_code` | `VARCHAR(64)` | NULL | NULL | codes stables `bind_failed` / `teardown_failed` ; pas de secrets |
 
-Writer backoff (figé 2026-09-13), dans `Manifesto/infra/src/apparatus_runtime/` : après un échec fencé, `retry_count = retry_count + 1` et `last_error_code` court (jamais `error.to_string()`). Si `retry_count >= 8` : **terminal** — `next_retry_at = NULL` **et** `last_error_code IS NOT NULL`. Sinon `next_retry_at = now + min(30s * 2^retry_count, 5 min)` avec le **nouveau** compteur (`APPARATUS_BACKOFF_BASE` 30 s, `APPARATUS_BACKOFF_CAP` 300 s ; 1→60 s, 2→120 s, 3→240 s, 4–7→300 s). Tick 2 s / lease 30 s inchangés. Scan due bindings : `AND NOT (next_retry_at IS NULL AND last_error_code IS NOT NULL)` — **même prédicat** sur `apparatus_cleanup_jobs`. Writer périmé (CAS 0 ligne) : **pas** d’incrément. Succès `write_observed` : `retry_count = 0`, `last_error_code = NULL`, `next_retry_at = NULL`. Une **commande** update (CAS §A) remet aussi `retry_count = 0`, `last_error_code = NULL`, `next_retry_at = NOW()` (nouveau budget). Cleanup succès : CAS `completed_at` seulement ; échec `teardown` : même backoff via `UPDATE … WHERE id = $id AND completed_at IS NULL` (0 ligne = déjà complété, pas d’incrément).
+Writer backoff (figé 2026-09-13), dans `services/Manifesto/infra/src/apparatus_runtime/` : après un échec fencé, `retry_count = retry_count + 1` et `last_error_code` court (jamais `error.to_string()`). Si `retry_count >= 8` : **terminal** — `next_retry_at = NULL` **et** `last_error_code IS NOT NULL`. Sinon `next_retry_at = now + min(30s * 2^retry_count, 5 min)` avec le **nouveau** compteur (`APPARATUS_BACKOFF_BASE` 30 s, `APPARATUS_BACKOFF_CAP` 300 s ; 1→60 s, 2→120 s, 3→240 s, 4–7→300 s). Tick 2 s / lease 30 s inchangés. Scan due bindings : `AND NOT (next_retry_at IS NULL AND last_error_code IS NOT NULL)` — **même prédicat** sur `apparatus_cleanup_jobs`. Writer périmé (CAS 0 ligne) : **pas** d’incrément. Succès `write_observed` : `retry_count = 0`, `last_error_code = NULL`, `next_retry_at = NULL`. Une **commande** update (CAS §A) remet aussi `retry_count = 0`, `last_error_code = NULL`, `next_retry_at = NOW()` (nouveau budget). Cleanup succès : CAS `completed_at` seulement ; échec `teardown` : même backoff via `UPDATE … WHERE id = $id AND completed_at IS NULL` (0 ligne = déjà complété, pas d’incrément).
 
 CHECK owned : `(lease_owner = '' AND lease_expires_at IS NULL) OR (lease_owner <> '' AND lease_expires_at IS NOT NULL)`.
 
@@ -98,7 +98,7 @@ Index : `uq_apparatus_cleanup_jobs_open` UNIQUE partiel `(component_id) WHERE co
 
 ### G — Ports de test
 
-Trait sync `ApparatusRuntime` dans `apparatus-contracts/src/ports.rs` (comme `KvStore`) :
+Trait sync `ApparatusRuntime` dans `crates/apparatus-contracts/src/ports.rs` (comme `KvStore`) :
 
 1. `bind(&BindRequest) -> BindResponse`
 2. `configure(&ConfigureRequest) -> ConfigureResponse`
@@ -106,7 +106,7 @@ Trait sync `ApparatusRuntime` dans `apparatus-contracts/src/ports.rs` (comme `Kv
 4. `observe(&BindingId) -> RuntimeObservation`
 5. `teardown(&BindingId) -> ()` (idempotent ; **pas** `release`)
 
-Pas d’`invoke` (P3). Pas d’`ensure_instance` / `observe_instance` / `delete_instance`. Double : `InProcessApparatusRuntime` déterministe. `BindingId` wire = `project_components.id`. **Zéro** identifiant `gateway` sous `Manifesto/*/src`.
+Pas d’`invoke` (P3). Pas d’`ensure_instance` / `observe_instance` / `delete_instance`. Double : `InProcessApparatusRuntime` déterministe. `BindingId` wire = `project_components.id`. **Zéro** identifiant `gateway` sous `services/Manifesto/*/src`.
 
 ### H — Events
 
@@ -118,7 +118,7 @@ Ticker in-process + scan DB, standalone **et** monolithe. Broker/queue absente *
 
 ### J — Outbox lifecycle
 
-Desired + (job cleanup si delete) + outbox ownership dans **la même txn**, **sans** nouvel ACL. `ProjectAuthorizationUnitOfWork` uniquement add/remove (P1). `desired_generation` **≠** `grant_revision`. `grep apparatus openfga/model.fga` = 0.
+Desired + (job cleanup si delete) + outbox ownership dans **la même txn**, **sans** nouvel ACL. `ProjectAuthorizationUnitOfWork` uniquement add/remove (P1). `desired_generation` **≠** `grant_revision`. `grep apparatus ops/openfga/model.fga` = 0.
 
 ### K — Cleanup
 
@@ -128,12 +128,12 @@ Insert `apparatus_cleanup_jobs` dans l’UoW **delete** si managed et (`digest I
 
 Tokens P2 (`poll`, `worker`, `lease`, `fencing`, `controller`, `desired_state`) **uniquement** si `allow_path` contient :
 
-- `Manifesto/migration/src/m20260912_000013_apparatus_p2_runtime.rs`
-- `Manifesto/infra/src/apparatus_runtime/`
+- `services/Manifesto/migration/src/m20260912_000013_apparatus_p2_runtime.rs`
+- `services/Manifesto/infra/src/apparatus_runtime/`
 
 P3+ **interdit y compris** dans ces fichiers : `kubernetes`, `k8s`, `wasm`, `wasi`, `wasmtime`, `iframe`, `messagechannel`, `gateway`, `apparatus_host`, `ui_host`. `factory` : allowlist inchangée (`ManifestoCommandRegistryFactory`).
 
-Retargeter `Manifesto/tests/apparatus_p1_t7_gate.rs` **avant** d’introduire ces tokens en prod. En T7, retargeter le gate vers P3+ (ne pas laisser les tokens P2 interdits à jamais) ; le gate P3+ vit aussi dans `Manifesto/tests/apparatus_p2_t7_*.rs`.
+Retargeter `services/Manifesto/tests/apparatus_p1_t7_gate.rs` **avant** d’introduire ces tokens en prod. En T7, retargeter le gate vers P3+ (ne pas laisser les tokens P2 interdits à jamais) ; le gate P3+ vit aussi dans `Manifesto/tests/apparatus_p2_t7_*.rs`.
 
 ### M — Consentement
 
@@ -144,7 +144,7 @@ Hors P2.
 ## Conséquences
 
 - Migration `m20260912_000013_apparatus_p2_runtime` additive réversible.
-- Prod P2 : `Manifesto/infra/src/apparatus_runtime/` ; wiring `start_apparatus_runtime` dans setup (noms hors allowlist **sans** tokens P2).
+- Prod P2 : `services/Manifesto/infra/src/apparatus_runtime/` ; wiring `start_apparatus_runtime` dans setup (noms hors allowlist **sans** tokens P2).
 - Tests `Manifesto/tests/apparatus_p2_t2_*.rs` … `t7_*.rs`. T1 reste vert.
 - T7 P1 retargeté dès T2 selon L.
 - Update managed CAS +1 livré. Delete/remove ne bump pas (snapshot + cleanup) — décision figée 2026-09-13, pas un écart.

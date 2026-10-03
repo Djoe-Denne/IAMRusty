@@ -50,4 +50,4 @@ La file physique (`telegraph-events`, `sentinel-sync-events`, préfixe `test-` e
 - Handbook : `docs/platform/events-outbox.md` (producteurs → files, consommateurs, fan-out)
 - Code : `Cargo.toml` `members` (`iam-events`, `hive-events`, `manifesto-events`, `telegraph-events` ; pas `apparatus-events`)
 - Transport : `rustycog/rustycog-config/src/lib.rs` (`QueueConfig::{Kafka, Sqs, Disabled}`)
-- Preuve : crates events dans le workspace ; `sentinel-sync` consomme via `create_event_consumer_from_queue_config` ; `apparatus-events/` hors members
+- Preuve : crates events dans le workspace ; `sentinel-sync` consomme via `create_event_consumer_from_queue_config` ; `crates/apparatus-events/` hors members

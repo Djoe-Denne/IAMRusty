@@ -51,6 +51,6 @@ Publier directement sur la file après un `COMMIT` métier ouvre « persist OK /
 
 - Handbook : `docs/platform/events-outbox.md` (section Outbox)
 - Wiki rustycog : `projects/rustycog/references/rustycog-outbox`
-- Same-txn : `Hive/infra/src/transaction.rs` (`HiveOutboxUnitOfWorkImpl`), `Manifesto/infra/src/transaction.rs` (`ProjectAuthorizationUnitOfWorkImpl` + `outbox.record(&txn, …)`)
-- Txn séparée : `IAMRusty/infra/src/transaction.rs` (`record_event` → `begin_write_transaction`)
-- Preuve Partial : outbox Hive/Manifesto/IAM + tests `Hive/tests/outbox_tests.rs`, `IAMRusty/tests/outbox_tests.rs`, `Manifesto/tests/apparatus_p1_t4_outbox.rs` ; Telegraph sans crate/outbox
+- Same-txn : `services/Hive/infra/src/transaction.rs` (`HiveOutboxUnitOfWorkImpl`), `services/Manifesto/infra/src/transaction.rs` (`ProjectAuthorizationUnitOfWorkImpl` + `outbox.record(&txn, …)`)
+- Txn séparée : `services/IAMRusty/infra/src/transaction.rs` (`record_event` → `begin_write_transaction`)
+- Preuve Partial : outbox Hive/Manifesto/IAM + tests `services/Hive/tests/outbox_tests.rs`, `services/IAMRusty/tests/outbox_tests.rs`, `services/Manifesto/tests/apparatus_p1_t4_outbox.rs` ; Telegraph sans crate/outbox

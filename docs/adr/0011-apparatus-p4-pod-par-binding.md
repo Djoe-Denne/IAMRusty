@@ -13,7 +13,7 @@
 
 ## Contexte
 
-[0009](0009-gate-preprod-scale-on-demand-isolation-instance.md) est la **gate** (scale on demand + pas de partage silencieux). Elle ne détaille pas le mécanisme ; elle le désigne ici. Le contrôleur actuel `pod_name_for(digest)` / get-or-create par digest est la **dette hors prod** (`apparatus-operator/src/controller.rs`, même constat que 0009). [0003](0003-apparatus-untrusted-plugin.md) V1 isole par projet et par binding. P4-core (moteur K8s hors Manifesto) reste [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) ; cet ADR ne le redécrit pas.
+[0009](0009-gate-preprod-scale-on-demand-isolation-instance.md) est la **gate** (scale on demand + pas de partage silencieux). Elle ne détaille pas le mécanisme ; elle le désigne ici. Le contrôleur actuel `pod_name_for(digest)` / get-or-create par digest est la **dette hors prod** (`workers/apparatus-operator/src/controller.rs`, même constat que 0009). [0003](0003-apparatus-untrusted-plugin.md) V1 isole par projet et par binding. P4-core (moteur K8s hors Manifesto) reste [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) ; cet ADR ne le redécrit pas.
 
 ## Décision
 
@@ -62,5 +62,5 @@
 ## Références
 
 - Canon voisin : [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md), [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md), [0003](0003-apparatus-untrusted-plugin.md), [0004](0004-apparatus-capability-gateway.md), [0007](0007-apparatus-p3-capability-boundary-after-accept.md)
-- Code (dette hors prod, même constat que 0009) : `apparatus-operator/src/controller.rs` — `pod_name_for`
+- Code (dette hors prod, même constat que 0009) : `workers/apparatus-operator/src/controller.rs` — `pod_name_for`
 - Preuve d’implémentation de **cette** cible : **aucune** (`Réalité : Unimplemented`)

@@ -2,7 +2,7 @@
 
 L’identité dit *qui* (`sub` JWT). OpenFGA dit *s’il a le droit* sur *cet objet*. Un seul `Arc<dyn PermissionChecker>` par process, câblé dans `AppState` (souvent `OpenFgaPermissionChecker` + `CachedPermissionChecker` + `MetricsPermissionChecker`).
 
-## Types (`openfga/model.fga`)
+## Types (`ops/openfga/model.fga`)
 
 | Type | Relations utiles | Notes |
 |---|---|---|

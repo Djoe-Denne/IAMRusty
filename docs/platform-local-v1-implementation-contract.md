@@ -10,26 +10,26 @@ Contrat cloud (GKE / 0602 / couche C) : [platform-cloud-v1-implementation-contra
 
 | Autorisé | Interdit |
 |---|---|
-| Créer `deploy/` + `cloud/opentofu/` (pas `infra/` racine) | Secrets, kubeconfig git, credentials cloud |
+| Créer `ops/deploy/` + `ops/cloud/opentofu/` (pas `infra/` racine) | Secrets, kubeconfig git, credentials cloud |
 | Kustomize first-party + NetworkPolicy 0601 (7 ns) | Charts Helm first-party / charts dans crates Rust |
 | HelmRelease **tiers** YAML ou values + `helm lint` local | Terraform BSL ; `live/.../gcp/` appliquable |
 | Kind cluster **`aiforall-local`** | Réutiliser / casser `apparatus-p4-it` |
 | Placeholders images (`pause` / nginx unprivileged) | Build images Rust de prod ; édition crates applicatives |
-| Scripts `deploy/verify-m1` / `m2` + recipes `just` | Fusion `deploy/p4/` × Manifesto ; ns-per-tenant ; Istio ; Argo V1 ; k3d canon |
+| Scripts `deploy/verify-m1` / `m2` + recipes `just` | Fusion `ops/deploy/p4/` × Manifesto ; ns-per-tenant ; Istio ; Argo V1 ; k3d canon |
 | Pont doc IT P4 ↔ ns/SA | Relancer cargo M5/M6 comme **seule** preuve M2 ; Kyverno comme Adm-A |
 
 ## Répertoires à créer
 
 ```
-deploy/README.md
+ops/deploy/README.md
 deploy/verify-m1          # PowerShell-friendly OU just deploy-m1
 deploy/verify-m2
-deploy/apps/base/         # 7 Namespace + 4+1 stubs + NP + Services
-deploy/apps/overlays/kind/
-deploy/p4/                # Kustomize séparé (minimal)
-deploy/kind/cluster.yaml  # cluster name aiforall-local
-cloud/opentofu/README.md
-cloud/opentofu/modules/cluster/   # outputs.tf contrat — tofu validate sans cloud
+ops/deploy/apps/base/         # 7 Namespace + 4+1 stubs + NP + Services
+ops/deploy/apps/overlays/kind/
+ops/deploy/p4/                # Kustomize séparé (minimal)
+ops/deploy/kind/cluster.yaml  # cluster name aiforall-local
+ops/cloud/opentofu/README.md
+ops/cloud/opentofu/modules/cluster/   # outputs.tf contrat — tofu validate sans cloud
 # PAS : cloud/opentofu/live/.../gcp/  |  deploy/obs/  |  infra/
 ```
 
@@ -42,9 +42,9 @@ cloud/opentofu/modules/cluster/   # outputs.tf contrat — tofu validate sans cl
 Livrer :
 - 7 ns (pas obs) ; stubs **4+1** (iam, hive, manifesto, telegraph, lazaret) + operator + plugin.
 - NP default-deny + allow plugins→lazaret invoke (port Service).
-- `deploy/p4/` minimal séparé.
-- Module outputs OpenTofu sous `cloud/opentofu/modules/cluster/` ; README cloud ; **pas** live GKE.
-- `deploy/README.md` : une commande unique pour non-expert.
+- `ops/deploy/p4/` minimal séparé.
+- Module outputs OpenTofu sous `ops/cloud/opentofu/modules/cluster/` ; README cloud ; **pas** live GKE.
+- `ops/deploy/README.md` : une commande unique pour non-expert.
 
 **Acceptation** : `just deploy-m1` (ou équivalent documenté) exit 0 = `kustomize build` / `kubectl kustomize` overlays kind + p4 réussit. Pas de cluster requis.
 
@@ -53,7 +53,7 @@ Livrer :
 **Valeur** : chemin plugins→gateway **démontré** sur cluster local.
 
 Livrer :
-- Overlay kind ; `deploy/kind/cluster.yaml` nom `aiforall-local`.
+- Overlay kind ; `ops/deploy/kind/cluster.yaml` nom `aiforall-local`.
 - Stubs HTTP si besoin ; probe ou Job de preuve.
 - `just deploy-m2` / `deploy/verify-m2`.
 
@@ -83,6 +83,6 @@ Livrer :
 
 ## Ce que l’implementer DOIT / NE DOIT PAS
 
-**DOIT** : suivre 0600 chemins ; 4+1 stubs M1 ; cluster `aiforall-local` ; README une commande ; clarifier Lazaret≠Factory dans les docs `deploy/`.
+**DOIT** : suivre 0600 chemins ; 4+1 stubs M1 ; cluster `aiforall-local` ; README une commande ; clarifier Lazaret≠Factory dans les docs `ops/deploy/`.
 
 **NE DOIT PAS** : secrets ; `infra/` ; Terraform BSL ; live GKE ; 0602 ; fusion p4×Manifesto ; charts first-party ; casser fixture `apparatus-p4-it` ; présenter Factory comme livrée.

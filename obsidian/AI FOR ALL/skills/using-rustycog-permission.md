@@ -6,7 +6,7 @@ sources:
   - rustycog/rustycog-permission/src/lib.rs
   - rustycog/rustycog-permission/src/checker.rs
   - rustycog/rustycog-http/src/middleware_permission.rs
-  - openfga/model.fga
+  - ops/openfga/model.fga
 summary: Wire OpenFgaPermissionChecker into a service. HTTP ITs use TestOpenFga. Manifesto org_scope needs RelationshipTuple and read_tuples on the rustycog pin.
 provenance:
   extracted: 0.80
@@ -38,7 +38,7 @@ Do not point service Check at the WireMock singleton. Collaborator HTTP stubs us
 
 ## Common pitfalls
 
-- Naming `object_type` for something that does not exist in [openfga/model.fga](../../../openfga/model.fga). The check fails closed with a logged 4xx from OpenFGA.
+- Naming `object_type` for something that does not exist in [ops/openfga/model.fga](../../../ops/openfga/model.fga). The check fails closed with a logged 4xx from OpenFGA.
 - Building a fresh checker per request. The composition root must build it once.
 - Assuming an empty `InMemoryPermissionChecker` allows by default — it denies everything until you call `allow`.
 - Forgetting to publish the matching domain event so [[projects/sentinel-sync/sentinel-sync]] can write the corresponding tuple. Routes will silently 403 until the tuple arrives.
@@ -51,7 +51,7 @@ Do not point service Check at the WireMock singleton. Collaborator HTTP stubs us
 - `rustycog/rustycog-permission/src/checker.rs`
 - `rustycog/rustycog-http/src/builder.rs`
 - `rustycog/rustycog-http/src/middleware_permission.rs`
-- `openfga/model.fga`
+- `ops/openfga/model.fga`
 
 ## Key types
 

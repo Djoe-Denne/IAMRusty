@@ -9,11 +9,11 @@
 
 ## 1. Périmètre
 
-Hive n’est pas IAMRusty : c’est le service d’**organisation management** de la plateforme Rusty. Il vit sous `Hive/` et s’intègre à l’IAM via JWT partagé, OpenFGA (`organization`), `hive-events` + `sentinel-sync`, et un publisher multi-queue (outbox).
+Hive n’est pas IAMRusty : c’est le service d’**organisation management** de la plateforme Rusty. Il vit sous `services/Hive/` et s’intègre à l’IAM via JWT partagé, OpenFGA (`organization`), `hive-events` + `sentinel-sync`, et un publisher multi-queue (outbox).
 
 | Crate | Rôle |
 |---|---|
-| `hive-service` (`Hive/`) | Binaire + tests d’intégration |
+| `hive-service` (`services/Hive/`) | Binaire + tests d’intégration |
 | `hive-domain` | Entités, ports R/W, services domaine |
 | `hive-application` | Use cases, commandes, DTO |
 | `hive-infra` | SeaORM, client HTTP providers, outbox, event adapter |
@@ -23,7 +23,7 @@ Hive n’est pas IAMRusty : c’est le service d’**organisation management** d
 | `hive-migration` | 9 migrations SeaORM |
 | `hive-events` | Contrat `HiveDomainEvent` (crate workspace) |
 
-Dépendances locales liées IAM / plateforme : `hive-events` (publié, consommé par `sentinel-sync`), `openfga/model.fga` (type `organization`). Pas de dépendance crate vers `IAMRusty`. `iam_service` est déclaré en config et **jamais lu** hors `AppConfig`.
+Dépendances locales liées IAM / plateforme : `hive-events` (publié, consommé par `sentinel-sync`), `ops/openfga/model.fga` (type `organization`). Pas de dépendance crate vers `IAMRusty`. `iam_service` est déclaré en config et **jamais lu** hors `AppConfig`.
 
 ## 2. Méthode et limites outillage
 
@@ -66,15 +66,15 @@ Hive suit le **gabarit hexagonal RustyCog** (slice verticale, un composition roo
 
 **Preuves**
 
-- Bin : `Hive/src/main.rs` → `main` : `load_config`, `setup_logging`, `AppBuilder::new(config).build().run(server_config)`.
+- Bin : `services/Hive/src/main.rs` → `main` : `load_config`, `setup_logging`, `AppBuilder::new(config).build().run(server_config)`.
 - Libs : `domain` (ports `Organization*Repository`, `OrganizationMember*`, invitations, providers, sync + `ExternalProviderClient`) / `application` (`HiveCommandRegistryFactory`, usecases) / `infra` (repos, `HttpExternalProviderClient`, `HiveOutboxUnitOfWorkImpl`, `HiveErrorMapper`) / `http` / `setup` / `configuration` / `migration`.
 - Hexagonale : handlers → `command_service.execute` → handlers de commande → usecases → ports. Pas d’I/O dans le domain (hors `pub use hive_events::*`).
 - Monolithe : `Application::router` → `create_router` (non préfixé) ; standalone : `create_prefixed_router` + `serve_router`.
 
 **Écart**
 
-- `Hive/domain/src/lib.rs` réexporte `hive_events::*` (et donc `rustycog::events`) — leaky domain, même motif Telegraph/`iam_events`.
-- `Hive/domain/src/error.rs` (`use thiserror::Error` seul) n’est **pas** `mod` dans `lib.rs` — fichier mort.
+- `services/Hive/domain/src/lib.rs` réexporte `hive_events::*` (et donc `rustycog::events`) — leaky domain, même motif services/Telegraph/`iam_events`.
+- `services/Hive/domain/src/error.rs` (`use thiserror::Error` seul) n’est **pas** `mod` dans `lib.rs` — fichier mort.
 - `setup_application` crée `_role_service` et le jette ; pas de crate/usecase `RoleUseCase` branché.
 
 ### 5.2 Config / env / secrets — **partiel**
@@ -88,7 +88,7 @@ Hive suit le **gabarit hexagonal RustyCog** (slice verticale, un composition roo
 
 **Écart**
 
-- `Hive/config/default.toml` : `auth.jwt.hs256_secret = "rustycog-dev-hs256-secret"`, `password = "postgres"`, `secret_access_key = "test"` versionnés.
+- `services/Hive/config/default.toml` : `auth.jwt.hs256_secret = "rustycog-dev-hs256-secret"`, `password = "postgres"`, `secret_access_key = "test"` versionnés.
 - `IamServiceConfig` (`base_url`, `api_key`, `timeout_seconds`) : **zéro lecture runtime** (Serena : seulement `AppConfig` + `Default`).
 - Pas de `HasCommandConfig` ; `[command] max_attempts` n’est pas passé à `CommandRegistryBuilder` (wiki QMD *Command Execution* `^[ambiguous]`).
 - Queue checked-in : `type = "sqs"` (pas `disabled`) — pitfall rustycog : factory peut dégrader en no-op sans health.
@@ -132,7 +132,7 @@ Hive suit le **gabarit hexagonal RustyCog** (slice verticale, un composition roo
 - `UserIdExtractor::new(config.auth)` ; `AppState::new(command_service, user_id_extractor, permission_checker)`.
 - Chaîne OpenFGA : `OpenFgaPermissionChecker` → skip `CachedPermissionChecker` si `cache_ttl_seconds == 0` → `MetricsPermissionChecker`. Conforme rustycog-permission / tests.
 - `RouteBuilder` : `.authenticated()` / `.might_be_authenticated()` puis `.with_permission_on(Permission::{Read,Write,Admin}, "organization")` pour update/delete/members/invitations/links/sync/roles.
-- `openfga/model.fga` : `type organization` (`owner` / `admin` / `member` / `viewer` / `read` / `write` / `administer` / `own`).
+- `ops/openfga/model.fga` : `type organization` (`owner` / `admin` / `member` / `viewer` / `read` / `write` / `administer` / `own`).
 - Tests : JWTs rustycog, **vrai** testcontainer OpenFGA (`TestOpenFga`), tuples arrangés dans `organization_api_tests` / `members_api_tests`.
 - Wiki : plus de `permissions/*.conf` ni `ResourcePermissionFetcher` — AuthZ HTTP = Check OpenFGA uniquement.
 
@@ -141,7 +141,7 @@ Hive suit le **gabarit hexagonal RustyCog** (slice verticale, un composition roo
 - `GET /search` et `GET /{id}` : `might_be_authenticated` **sans** `with_permission_on` — lecture publique (test `search_organizations_is_public_and_returns_results`).
 - `GET /api/organizations` (liste) : authenticated **sans** FGA — pas d’object UUID (middleware skip).
 - `POST /api/organizations` : authenticated seulement (création = premier write) ; l’owner OpenFGA dépend de `OrganizationCreated` + sentinel-sync.
-- `sentinel-sync/src/translator/hive.rs` : seuls `OrganizationCreated`, `MemberJoined`, `MemberRemoved` écrivent/suppriment des tuples. `OrganizationDeleted` / `Updated` / invitations / links / sync / `MemberRolesUpdated` → `TupleDelta::default()` (**no-op**). Pitfall rustycog : event sans bras → OpenFGA silencieux.
+- `workers/sentinel-sync/src/translator/hive.rs` : seuls `OrganizationCreated`, `MemberJoined`, `MemberRemoved` écrivent/suppriment des tuples. `OrganizationDeleted` / `Updated` / invitations / links / sync / `MemberRolesUpdated` → `TupleDelta::default()` (**no-op**). Pitfall rustycog : event sans bras → OpenFGA silencieux.
 - Persistance SQL `permissions` / `role_permissions` / `organization_member_role_permissions` **en plus** d’OpenFGA — RBAC métier SQL vs AuthZ HTTP.
 - AuthN = HS256 partagé, pas le chemin RS256 IAM.
 
@@ -200,7 +200,7 @@ Hive suit le **gabarit hexagonal RustyCog** (slice verticale, un composition roo
 
 **Preuves**
 
-- `HiveTestDescriptor` : `ServiceTestDescriptor`, `build_app` / `run_app`, migrations, `openfga_authorization_model_json` = `openfga/model.json`.
+- `HiveTestDescriptor` : `ServiceTestDescriptor`, `build_app` / `run_app`, migrations, `openfga_authorization_model_json` = `ops/openfga/model.json`.
 - `setup_test_server` → URL suffixée `SERVICE_PREFIX` ; OpenFGA testcontainer **réel** (pas seulement mock).
 - `has_db() == true`, `has_sqs() == false`, `has_openfga() == true` — SQS isolé dans `sqs_event_routing_tests` (mieux que Telegraph `has_sqs==true` partout).
 - Suites : `organization_api_tests`, `members_api_tests`, `external_link_api_tests`, `outbox_tests`, `sqs_event_routing_tests`.
@@ -219,7 +219,7 @@ Hive suit le **gabarit hexagonal RustyCog** (slice verticale, un composition roo
 
 - Un root : `Application::new` — DB, publisher, outbox dispatcher, usecases+UoW, registry, `GenericCommandService`, extractor, checker, `AppState`.
 - `run` : HTTP + outbox `JoinSet` + `ctrl_c` + `stop_background_tasks`.
-- APIs monolithe : `router()`, `start_background_tasks()`, `stop_background_tasks()` — `monolith/src/runtime.rs` compose `hive_setup::AppBuilder` sans `run()`.
+- APIs monolithe : `router()`, `start_background_tasks()`, `stop_background_tasks()` — `runtime/monolith/src/runtime.rs` compose `hive_setup::AppBuilder` sans `run()`.
 
 **Écart**
 
@@ -274,7 +274,7 @@ Hive suit le **gabarit hexagonal RustyCog** (slice verticale, un composition roo
 | ID | Écart | Preuve | Risque |
 |---|---|---|---|
 | P0-1 | Routes `GET …/roles` live, commandes **non** dans `create_hive_registry`, pas d’impl `RoleUseCase` | `http/src/lib.rs` L49–58 ; `command/factory.rs` `create_hive_registry` ; `usecase/mod.rs` sans `role` ; wiki *Command Execution* | **500** sur list/get roles ; CI ne le voit pas (pas de `roles_api_tests`) |
-| P0-2 | `OrganizationDeleted` (et update/roles/invites/links) = `TupleDelta` vide dans sentinel-sync | `sentinel-sync/src/translator/hive.rs` L114–122 ; `openfga/model.fga` | Tuples owner/member **orphelin** après delete/changement de rôle ; AuthZ OpenFGA diverge |
+| P0-2 | `OrganizationDeleted` (et update/roles/invites/links) = `TupleDelta` vide dans sentinel-sync | `workers/sentinel-sync/src/translator/hive.rs` L114–122 ; `ops/openfga/model.fga` | Tuples owner/member **orphelin** après delete/changement de rôle ; AuthZ OpenFGA diverge |
 | P0-3 | Dual-write : persist métier **puis** outbox dans une autre txn | `OrganizationUseCaseImpl::create_organization` ; `HiveOutboxUnitOfWorkImpl::record_event` | Org créée + API 500 + pas d’`OrganizationCreated` → pas de `#owner` → **403** sur toutes les routes Admin/Write |
 
 ### P1
@@ -323,7 +323,7 @@ Hive suit le **gabarit hexagonal RustyCog** (slice verticale, un composition roo
 | Artefact | Lien Hive | Note |
 |---|---|---|
 | `AuthConfig` / JWT rustycog | `UserIdExtractor` | HS256 ; pas l’issuer IAM RS256 |
-| `openfga/model.fga` | `with_permission_on(..., "organization")` | membres / links / sync = relations dérivées sur l’org |
+| `ops/openfga/model.fga` | `with_permission_on(..., "organization")` | membres / links / sync = relations dérivées sur l’org |
 | `sentinel-sync` | `translator/hive.rs` | critique si P0-2 / P0-3 |
 | `hive-events` | usecases + sentinel-sync | contrat **utilisé** |
 | `iam_service` TOML | `AppConfig` | **mort** — pas de client IAMRusty |

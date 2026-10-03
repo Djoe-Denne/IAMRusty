@@ -6,8 +6,8 @@ tags: [testing, rust, components]
 sources:
   - docs/services/manifesto.md
   - docs/apparatus-p1-implementation-prompt.md
-  - Manifesto/tests/apparatus_p1_t1_migration.rs
-  - Manifesto/tests/apparatus_p1_t7_gate.rs
+  - services/Manifesto/tests/apparatus_p1_t1_migration.rs
+  - services/Manifesto/tests/apparatus_p1_t7_gate.rs
 summary: >-
   Tests P1 : unit/contract sans infra, DB/AuthZ/HTTP sur testcontainers avec --test-threads=1, gate T7 anti-P2.
 provenance:
@@ -20,7 +20,7 @@ updated: 2026-09-12T09:30:00Z
 
 # Lancer les tests Apparatus P1
 
-Conventions : harness unique `Manifesto/tests/common.rs`, `#[serial]`, `--test-threads=1` pour tout test live, `cache_ttl_seconds = 0`. Concept : [[projects/manifesto/concepts/apparatus-p1-persistence]].
+Conventions : harness unique `services/Manifesto/tests/common.rs`, `#[serial]`, `--test-threads=1` pour tout test live, `cache_ttl_seconds = 0`. Concept : [[projects/manifesto/concepts/apparatus-p1-persistence]].
 
 ## Commandes
 

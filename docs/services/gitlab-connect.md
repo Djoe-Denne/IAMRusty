@@ -14,4 +14,4 @@ Federated authenticator HTTP : IAM appelle ce service (HMAC S2S) pour OAuth GitL
 ## Docs
 
 - Canon : [ADR-0408](../adr/0408-connecteurs-idp-services-http.md), [0409](../adr/0409-confiance-callback-oauth-idp-connect.md)
-- Extension : [`IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md`](../../IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md)
+- Extension : [`services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md`](../../services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md)

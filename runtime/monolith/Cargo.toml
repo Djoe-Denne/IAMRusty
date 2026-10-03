@@ -1,0 +1,49 @@
+[package]
+name = "oodhive-monolith"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Single-binary modular monolith for AIForAll services"
+license.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+axum = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+
+readiness = { path = "../../crates/readiness" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+
+iam-application = { path = "../../services/IAMRusty/application" }
+iam-configuration = { path = "../../services/IAMRusty/configuration" }
+iam-domain = { path = "../../services/IAMRusty/domain" }
+iam-http_server = { path = "../../services/IAMRusty/http" }
+iam-setup = { path = "../../services/IAMRusty/setup" }
+
+telegraph-configuration = { path = "../../services/Telegraph/configuration" }
+telegraph-http_server = { path = "../../services/Telegraph/http" }
+telegraph-setup = { path = "../../services/Telegraph/setup" }
+
+hive-configuration = { path = "../../services/Hive/configuration" }
+hive-domain = { path = "../../services/Hive/domain" }
+hive-http = { path = "../../services/Hive/http" }
+hive-setup = { path = "../../services/Hive/setup" }
+
+manifesto-application = { path = "../../services/Manifesto/application" }
+manifesto-configuration = { path = "../../services/Manifesto/configuration" }
+manifesto-http_server = { path = "../../services/Manifesto/http" }
+manifesto-setup = { path = "../../services/Manifesto/setup" }
+
+lazaret-configuration = { path = "../../services/Lazaret/configuration" }
+lazaret-domain = { path = "../../services/Lazaret/domain" }
+lazaret-http = { path = "../../services/Lazaret/http" }
+lazaret-setup = { path = "../../services/Lazaret/setup" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+async-trait = { workspace = true }

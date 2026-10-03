@@ -26,7 +26,7 @@ Le tuple `notification:{id}#recipient@user:{user_id}` est écrit par **sentinel-
 
 ## Infra mail
 
-IT : MailHog testcontainer (skill fixtures). Compose local : selon `Telegraph/config/development.toml` (SMTP).
+IT : MailHog testcontainer (skill fixtures). Compose local : selon `services/Telegraph/config/development.toml` (SMTP).
 
 ## Suite
 

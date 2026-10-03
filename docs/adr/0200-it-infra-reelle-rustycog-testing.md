@@ -30,7 +30,7 @@ Hors décision : pyramide unitaire vs IT (non écrite comme norme chiffrée). Le
 - Ne plus pointer un client de test sur l’origin non préfixé (casse le mode monolithe `oodhive-monolith`).
 - IAM n’a pas d’OpenFGA (`has_openfga() == false`) : JWT + DB + parfois OAuth WireMock.
 - Hive / Telegraph / Manifesto retournent aussi `TestOpenFga` (ADR-0201).
-- Écarts mineurs : `[server] port = 8081` (IAM, Telegraph) contre `port = 0` (Hive, Manifesto) ; IAM `common.rs` n’embarque pas `#[path]` (les fixtures sont `mod fixtures` par binaire, ex. SQS) ; Manifesto pointe `fixtures/component_service/mod.rs` ; `IAMRusty/docs/TESTING_GUIDE.md` cite encore des chemins `tests/common/*_testcontainer.rs` déplacés dans rustycog-testing.
+- Écarts mineurs : `[server] port = 8081` (IAM, Telegraph) contre `port = 0` (Hive, Manifesto) ; IAM `common.rs` n’embarque pas `#[path]` (les fixtures sont `mod fixtures` par binaire, ex. SQS) ; Manifesto pointe `fixtures/component_service/mod.rs` ; `services/IAMRusty/docs/TESTING_GUIDE.md` cite encore des chemins `tests/common/*_testcontainer.rs` déplacés dans rustycog-testing.
 
 ## Alternatives rejetées
 
@@ -50,5 +50,5 @@ Hors décision : pyramide unitaire vs IT (non écrite comme norme chiffrée). Le
 
 - Wiki : `concepts/integration-testing-with-real-infrastructure`, `skills/using-rustycog-testing`
 - Handbook : `docs/guides/tests-integration.md`, `docs/guides/jwt-consommateur.md`
-- Code : `*/tests/common.rs`, `Hive/http` `/hive`, `IAMRusty/http` `/iam`, `Telegraph/http` `/telegraph`, `Manifesto/http` `/manifesto` ; `rustycog/rustycog-testing/src/common/test_server.rs`, `src/http/jwt.rs`, `src/common/database.rs`
+- Code : `*/tests/common.rs`, `services/Hive/http` `/hive`, `services/IAMRusty/http` `/iam`, `services/Telegraph/http` `/telegraph`, `services/Manifesto/http` `/manifesto` ; `rustycog/rustycog-testing/src/common/test_server.rs`, `src/http/jwt.rs`, `src/common/database.rs`
 - Preuve : `setup_test_server` + `prefixed_url` + `Migrator` dans les quatre `common.rs` ; `#[serial]` massif sous `*/tests/` ; P1 Partial `apparatus_p1_t6_http.rs` (même JWT + serveur préfixé, pas la politique générale)

@@ -1,12 +1,12 @@
-﻿---
+---
 title: >-
   Structured Service Configuration
 category: concepts
 tags: [configuration, env, rust, visibility/internal]
 sources:
-  - IAMRusty/docs/DATABASE_CONFIGURATION.md
-  - Manifesto/docs/rustycog-service-build-guide.md
-  - Manifesto/docs/rustycog-implementation-and-usage-guide.md
+  - services/IAMRusty/docs/DATABASE_CONFIGURATION.md
+  - services/Manifesto/docs/rustycog-service-build-guide.md
+  - services/Manifesto/docs/rustycog-implementation-and-usage-guide.md
   - rustycog/rustycog-config/src/lib.rs
   - rustycog/rustycog-logger/src/lib.rs
 summary: >-

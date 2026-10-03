@@ -21,7 +21,7 @@ Find the event variant in the producer's `*-events` crate (`hive-events`, `manif
 
 Choose:
 
-- The OpenFGA type (must already exist in [openfga/model.fga](../../../../openfga/model.fga)).
+- The OpenFGA type (must already exist in [ops/openfga/model.fga](../../../../openfga/model.fga)).
 - The relation name (`owner`, `admin`, `member`, `viewer`, `editor`, `recipient`, or a parent relation like `organization`).
 - The subject (usually `user:{uuid}` or a parent object like `project:{uuid}`).
 
@@ -29,7 +29,7 @@ Write the change table row in [[projects/sentinel-sync/references/event-to-tuple
 
 ## 3. Extend the translator
 
-Edit `sentinel-sync/src/translator/{service}.rs` and add the match arm. Example:
+Edit `workers/sentinel-sync/src/translator/{service}.rs` and add the match arm. Example:
 
 ```rust
 ManifestoDomainEvent::ComponentAdded(evt) => Ok(Some(
@@ -58,7 +58,7 @@ For every `*Created` / `*Added` / `*Granted`, pair with the reverse event (`*Del
 
 ## 6. Extend the OpenFGA model if needed
 
-If the event requires a new type or relation, edit [openfga/model.fga](../../../../openfga/model.fga) first and capture the change in [[projects/sentinel-sync/references/openfga-model]] before writing the translator arm. The model must be uploaded (Playground or `fga` CLI) before the new tuples can be written.
+If the event requires a new type or relation, edit [ops/openfga/model.fga](../../../../openfga/model.fga) first and capture the change in [[projects/sentinel-sync/references/openfga-model]] before writing the translator arm. The model must be uploaded (Playground or `fga` CLI) before the new tuples can be written.
 
 ## 7. Idempotency rules
 

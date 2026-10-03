@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Opt-in mesh AuthN (ADR-0308) — séparés de overlays/kind (comme kind-demo-monolith).
+# NE PAS ajouter à ops/deploy/apps/overlays/kind/kustomization.yaml.
+# helmrelease-envoy-gateway.yaml reste commenté / hors resources (Flux hors aiforall-local).
+# Apply manuel: kubectl apply -k ops/deploy/apps/overlays/kind-mesh
+resources:
+  - ../../base/namespaces.yaml
+  - platform-services.yaml
+  - networkpolicy.yaml
+  - ext-authz.yaml
+  - envoy-mesh.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+configMapGenerator:
+  - name: iam-dev-config
+    namespace: aiforall-platform
+    files:
+      - development.toml=../../../../../services/IAMRusty/config/development.toml
+      - test-platform.pem=../../../../../services/IAMRusty/config/keys/test-platform.pem
+      - test-platform.pub=../../../../../services/IAMRusty/config/keys/test-platform.pub
+  - name: hive-dev-config
+    namespace: aiforall-platform
+    files:
+      - development.toml=../../../../../services/Hive/config/development.toml
+  - name: telegraph-dev-config
+    namespace: aiforall-platform
+    files:
+      - development.toml=../../../../../services/Telegraph/config/development.toml
+  - name: manifesto-dev-config
+    namespace: aiforall-platform
+    files:
+      - development.toml=../../../../../services/Manifesto/config/development.toml

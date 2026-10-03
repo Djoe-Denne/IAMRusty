@@ -3,15 +3,15 @@ title: IAMRusty API and Auth Flows
 category: references
 tags: [reference, api, oauth, visibility/internal]
 sources:
-  - IAMRusty/docs/API_REFERENCE.md
-  - IAMRusty/docs/EMAIL_PASSWORD_AUTH_GUIDE.md
-  - IAMRusty/docs/ERROR_HANDLING_GUIDE.md
-  - IAMRusty/docs/INPUT_VALIDATION_GUIDE.md
-  - IAMRusty/http/src/lib.rs
-  - IAMRusty/http/src/handlers/auth.rs
-  - IAMRusty/domain/src/service/oauth_service.rs
-  - IAMRusty/domain/src/service/auth_service.rs
-  - IAMRusty/application/src/usecase/password_reset.rs
+  - services/IAMRusty/docs/API_REFERENCE.md
+  - services/IAMRusty/docs/EMAIL_PASSWORD_AUTH_GUIDE.md
+  - services/IAMRusty/docs/ERROR_HANDLING_GUIDE.md
+  - services/IAMRusty/docs/INPUT_VALIDATION_GUIDE.md
+  - services/IAMRusty/http/src/lib.rs
+  - services/IAMRusty/http/src/handlers/auth.rs
+  - services/IAMRusty/domain/src/service/oauth_service.rs
+  - services/IAMRusty/domain/src/service/auth_service.rs
+  - services/IAMRusty/application/src/usecase/password_reset.rs
 summary: Source-backed view of IAMRusty's route table, validated handler contracts, incomplete-registration flows, and the biggest API doc-code mismatches.
 provenance:
   extracted: 0.69

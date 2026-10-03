@@ -226,7 +226,7 @@ Example shapes that need this:
 
 ### 10. Beware of caches in front of the wiremock-faked path
 
-If the production code wraps the call in a cache (e.g. `CachedPermissionChecker`), the second request for the same key never reaches the wiremock fake — so re-arranging stubs has no effect. Make the cache TTL configurable in the production type and set it to 0 in test configs. The canonical example is the `cache_ttl_seconds` field added to `OpenFgaClientConfig`; `Manifesto/setup/src/app.rs` skips the `CachedPermissionChecker` decoration entirely when the value is 0.
+If the production code wraps the call in a cache (e.g. `CachedPermissionChecker`), the second request for the same key never reaches the wiremock fake — so re-arranging stubs has no effect. Make the cache TTL configurable in the production type and set it to 0 in test configs. The canonical example is the `cache_ttl_seconds` field added to `OpenFgaClientConfig`; `services/Manifesto/setup/src/app.rs` skips the `CachedPermissionChecker` decoration entirely when the value is 0.
 
 ## Matcher cheat sheet
 
@@ -303,11 +303,11 @@ Wrap this in named helpers (`verify_email_sent`, `email_count`, `verify_member_l
 
 Read these only when the situation calls for it — not up-front.
 
-- Hive's external-provider fake: `Hive/tests/fixtures/external_provider/{mod.rs, service.rs, resources.rs}` — small, REST-shaped, one mock method per endpoint.
-- Telegraph's SMTP-as-HTTP fake: `Telegraph/tests/fixtures/smtp/{mod.rs, service.rs, resources.rs}` — protocol-shaped, scenario composition, scenario builder, request inspection.
+- Hive's external-provider fake: `services/Hive/tests/fixtures/external_provider/{mod.rs, service.rs, resources.rs}` — small, REST-shaped, one mock method per endpoint.
+- Telegraph's SMTP-as-HTTP fake: `services/Telegraph/tests/fixtures/smtp/{mod.rs, service.rs, resources.rs}` — protocol-shaped, scenario composition, scenario builder, request inspection.
 - OpenFGA **crate-level** Check fake: `rustycog/rustycog-testing/src/permission/{mod.rs, service.rs, resources.rs}` — still valid inside `rustycog-testing`. Service ITs (Hive / Telegraph / Manifesto) use `TestOpenFga` instead.
 - Shared fixture implementation: `rustycog/rustycog-testing/src/wiremock/mod.rs` — `MockServerFixture` + singleton lifecycle.
-- Canonical consumer wiring: `Manifesto/tests/common.rs`, `Manifesto/setup/src/app.rs`, `Manifesto/config/test.toml`, and `Manifesto/tests/component_api_tests.rs` (read tests 4 / 5 / 6 for the deny / multi-tuple / phase-flip arrangement patterns respectively).
+- Canonical consumer wiring: `services/Manifesto/tests/common.rs`, `services/Manifesto/setup/src/app.rs`, `services/Manifesto/config/test.toml`, and `services/Manifesto/tests/component_api_tests.rs` (read tests 4 / 5 / 6 for the deny / multi-tuple / phase-flip arrangement patterns respectively).
 
 ## Related skills
 

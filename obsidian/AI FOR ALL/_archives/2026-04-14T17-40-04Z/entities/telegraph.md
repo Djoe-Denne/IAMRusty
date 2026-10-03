@@ -1,11 +1,11 @@
-﻿---
+---
 title: >-
   Telegraph
 category: entities
 tags: [service, notifications, messaging, visibility/internal]
 sources:
   - README.md
-  - hive-events/README.md
+  - crates/hive-events/README.md
 summary: >-
   Telegraph is the communication service that turns platform events into email and notification workflows.
 provenance:

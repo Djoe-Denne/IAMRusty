@@ -1,12 +1,12 @@
-﻿---
+---
 title: >-
   Testing Rust Services with Fixtures
 category: skills
 tags: [testing, fixtures, rust, visibility/internal]
 sources:
-  - IAMRusty/docs/TESTING_GUIDE.md
-  - IAMRusty/docs/FIXTURES_GUIDE.md
-  - Manifesto/docs/rustycog-service-build-guide.md
+  - services/IAMRusty/docs/TESTING_GUIDE.md
+  - services/IAMRusty/docs/FIXTURES_GUIDE.md
+  - services/Manifesto/docs/rustycog-service-build-guide.md
 summary: >-
   Practical workflow for testing Rust services with shared containers, typed fixtures, JWT helpers, and selective queue-backed checks.
 provenance:

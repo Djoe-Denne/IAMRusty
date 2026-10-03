@@ -3,7 +3,7 @@
 **Service :** `IAMRusty` (binaire `iam-service`, crates `iam-*`)  
 **Date :** 2026-08-29  
 **Référentiel :** RustyCog (skill `.cursor/skills/rustycog` + wiki QMD `aiforall-wiki/projects/iamrusty`)  
-**Périmètre :** `IAMRusty/**`, `iam-events/**`. Manifesto / Telegraph cités seulement comme consommateurs / consigne partagée.
+**Périmètre :** `services/IAMRusty/**`, `crates/iam-events/**`. Manifesto / Telegraph cités seulement comme consommateurs / consigne partagée.
 
 ## Méthode et limites d’outillage
 
@@ -18,7 +18,7 @@
 
 | Crate | Rôle |
 |---|---|
-| `iam-service` (`IAMRusty/`) | Bin standalone (`src/main.rs`) + tests d’intégration. |
+| `iam-service` (`services/IAMRusty/`) | Bin standalone (`src/main.rs`) + tests d’intégration. |
 | `iam-domain` | Entités, `DomainError`, ports, services métier. |
 | `iam-application` | Use cases + commandes + `CommandRegistryFactory`. |
 | `iam-infra` | Repos SeaORM, OAuth GitHub/GitLab, JWT, outbox UoW, `IAMErrorMapper`. |
@@ -55,7 +55,7 @@ Consommateurs hors périmètre : `monolith` (`iam-setup`, `iam-http_server`, `ia
 
 | Critère rustycog | Preuve | Écart |
 |---|---|---|
-| Slice `domain` / `application` / `infra` / `http` / `setup` / `configuration` / `migration` | Crates ci-dessus ; `IAMRusty/domain/src/lib.rs` (`entity`, `error`, `port`, `service`) | Aucun |
+| Slice `domain` / `application` / `infra` / `http` / `setup` / `configuration` / `migration` | Crates ci-dessus ; `services/IAMRusty/domain/src/lib.rs` (`entity`, `error`, `port`, `service`) | Aucun |
 | Ports vs adapters | Ports `UserRepository`, `JwtTokenEncoder`, `ProviderOAuth2Client`, … dans `domain/src/port/` ; impls `infra/` | Aucun |
 | HTTP : `SERVICE_PREFIX`, `create_router`, `create_prefixed_router` | `iam_http_server::SERVICE_PREFIX = "/iam"` ; nest dans `create_prefixed_router` ; `create_app_routes` → `rustycog::http::serve_router` | Aucun |
 | Setup expose `router()` non préfixé pour le monolith | `IAMRustyApp::router` → `create_router` | Aucun |
@@ -96,7 +96,7 @@ Handlers passent par `CommandError` → `ApiError`. Pas de gRPC.
 
 | Critère | Preuve | Écart |
 |---|---|---|
-| `setup_logging` une fois, tôt | `IAMRusty/src/main.rs` → `config::setup_logging(&config)` | Conforme rustycog-logger |
+| `setup_logging` une fois, tôt | `services/IAMRusty/src/main.rs` → `config::setup_logging(&config)` | Conforme rustycog-logger |
 | Tracing structuré | `tracing::{info,warn,error,debug}` setup / domain / http / infra | Peu d’`#[instrument]` ; logs JWT (longueurs de clés) en `info!` |
 | Metrics | — | Pas de `metrics` / Prometheus / `MetricsPermissionChecker` côté IAM |
 | Health | `RouteBuilder::health_check()` | Pas d’endpoint readiness / live vs ready |
@@ -112,7 +112,7 @@ IAM **est** l’IdP : pas de `with_permission_on` — commenté dans `build_app_
 | AuthN publique | signup, login, verify, OAuth login/callback, refresh, JWKS | Redirects OAuth hardcodés `http://127.0.0.1:8081/...` (`handlers/auth.rs`) |
 | AuthN JWT | `JwtTokenService`, `RegistrationTokenServiceImpl`, `UserIdExtractor` | Wiki : extractor rustycog-http **HS256 only** vs RS256 prod (Phase B) |
 | CSRF OAuth | `OAuthState { operation, nonce }` encode/decode base64 | **Pas d’expiry** (docs : state horodaté) |
-| RS256 prod | `assert!` RS256 si pas `test-relaxed-jwt` (`jwt_encoder.rs`) | Feature activée en tests via `IAMRusty/Cargo.toml` dev-dep |
+| RS256 prod | `assert!` RS256 si pas `test-relaxed-jwt` (`jwt_encoder.rs`) | Feature activée en tests via `services/IAMRusty/Cargo.toml` dev-dep |
 
 **Verdict AuthZ OpenFGA :** **N/A** pour les routes IAM (juste). Le trou réel est **AuthN middleware / déploiement** (HS256 vs RS256, redirects, state).
 
@@ -122,7 +122,7 @@ IAM **est** l’IdP : pas de `with_permission_on` — commenté dans `build_app_
 
 | Critère | Preuve | Écart |
 |---|---|---|
-| OpenAPI | `IAMRusty/openspecs.yaml` OpenAPI 3.1 : signup, login, verify, reset, OAuth, complete-registration, username/check, `/api/me`, refresh, JWKS, `/internal/{provider}/token|revoke` | Server example `https://iam.example.com` ; pas de nest `/iam` dans les paths spec (le prefix est runtime) |
+| OpenAPI | `services/IAMRusty/openspecs.yaml` OpenAPI 3.1 : signup, login, verify, reset, OAuth, complete-registration, username/check, `/api/me`, refresh, JWKS, `/internal/{provider}/token|revoke` | Server example `https://iam.example.com` ; pas de nest `/iam` dans les paths spec (le prefix est runtime) |
 | Proto / gRPC | — | **N/A** (HTTP only) |
 | Versioning | Paths `/api/auth/...` | Pas de `/v1` |
 | Surface live | `create_router` : table ci-dessus + relink | Wiki : drift historique `/start` vs `/login` |
@@ -148,7 +148,7 @@ IAM **est** l’IdP : pas de `with_permission_on` — commenté dans `build_app_
 | Contrat `DomainEvent` | `iam-events` : `UserSignedUp`, `UserEmailVerified`, `UserLoggedIn`, `PasswordResetRequested` | — |
 | Transport rustycog | `create_multi_queue_event_publisher(&config.queue, None, IAMErrorMapper)` | Factories peuvent **no-op** sans health check (consigne rustycog) |
 | Outbox | `OutboxDispatcher` + start/stop sur `IAMRustyApp` | — |
-| Consommation plateforme | `sentinel-sync/src/translator/iam.rs` : match events → `TupleDelta::default()` | **Pas de tuples OpenFGA** (no-op) |
+| Consommation plateforme | `workers/sentinel-sync/src/translator/iam.rs` : match events → `TupleDelta::default()` | **Pas de tuples OpenFGA** (no-op) |
 | Tests transport | `signup_kafka.rs`, `signup_sqs.rs`, `sqs_event_routing_tests.rs` | Kafka souvent `#[ignore]` ; suite HTTP : `has_sqs() -> false` |
 
 ---
@@ -157,7 +157,7 @@ IAM **est** l’IdP : pas de `with_permission_on` — commenté dans `build_app_
 
 | Critère rustycog-testing | Preuve |
 |---|---|
-| `ServiceTestDescriptor` + `setup_test_server` | `IAMRusty/tests/common.rs` : `IAMRustyTestDescriptor`, `IAMRustyTestDescriptorWithMockEvents` |
+| `ServiceTestDescriptor` + `setup_test_server` | `services/IAMRusty/tests/common.rs` : `IAMRustyTestDescriptor`, `IAMRustyTestDescriptorWithMockEvents` |
 | Base URL déjà préfixée `/iam` | `prefixed_url` = `{server_url}{SERVICE_PREFIX}` |
 | Fixtures DB fluides | `tests/fixtures/db/*` |
 | Wiremock collaborateurs | `tests/fixtures/github/service.rs`, `gitlab/service.rs` |
@@ -222,7 +222,7 @@ Instances OAuth / token repos **dupliquées par flux** (login vs link vs provide
    *Preuve :* wiki `iamrusty-runtime-and-security` ; `UserIdExtractor::new(config.auth)` dans `setup/src/app.rs` ; `JwtTokenService::with_refresh_expiration` + `assert!` RS256.
 
 2. **Redirect OAuth hardcodés localhost** — `http://127.0.0.1:8081/api/auth/{github,gitlab}/callback` et relink. Inutilisable hors machine locale.  
-   *Preuve :* `IAMRusty/http/src/handlers/auth.rs` (~459–461, ~1063–1064).
+   *Preuve :* `services/IAMRusty/http/src/handlers/auth.rs` (~459–461, ~1063–1064).
 
 3. **`unwrap` sur `RegistrationTokenServiceImpl::new`** — le constructeur retourne `Result` ; le composition root unwrap. Panic au boot si RS256 manquant (hors `test-relaxed-jwt`).  
    *Preuve :* `setup/src/app.rs` ; `RegistrationTokenServiceImpl::new` → `Result<Self, DomainError>`.
@@ -239,13 +239,13 @@ Instances OAuth / token repos **dupliquées par flux** (login vs link vs provide
    *Preuve :* `SecretStorage::resolve`.
 
 7. **`sentinel-sync` IAM → `TupleDelta` vide** — events IAM n’alimentent pas OpenFGA.  
-   *Preuve :* `sentinel-sync/src/translator/iam.rs`.
+   *Preuve :* `workers/sentinel-sync/src/translator/iam.rs`.
 
 8. **Erreurs hors contrat rustycog-core** — pas de `is_retryable()` unifié sur le chemin HTTP.  
    *Preuve :* `DomainError` + `ApiError::into_response` vs `using-rustycog-core`.
 
 9. **`max_attempts = 0` en development** — retries coupés (même sémantique que `test.toml`).  
-   *Preuve :* `IAMRusty/config/development.toml`.
+   *Preuve :* `services/IAMRusty/config/development.toml`.
 
 ### P2
 

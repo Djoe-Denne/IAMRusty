@@ -8,7 +8,7 @@ feature_status: implemented
 sources:
   - docs/adr/0004-apparatus-capability-gateway.md
   - docs/adr/0007-closeout.md
-  - apparatus-contracts/src/ports.rs
+  - crates/apparatus-contracts/src/ports.rs
 summary: >-
   Toute I/O via gateway ; KV namespacé par binding ; jamais de bearer IAM
   au plugin. Réalité Implemented (A-DEC 2026-09-20) : gateway = Lazaret

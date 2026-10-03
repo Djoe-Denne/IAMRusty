@@ -4,15 +4,15 @@ title: >-
 category: concepts
 tags: [projects, organizations, visibility, authorization, visibility/internal]
 sources:
-  - Manifesto/application/src/usecase/project.rs
-  - Manifesto/application/src/usecase/member.rs
-  - Manifesto/infra/src/repository/project_repository.rs
-  - Manifesto/http/src/lib.rs
-  - Manifesto/domain/src/value_objects/visibility.rs
-  - Manifesto/domain/src/value_objects/member_source.rs
-  - openfga/model.fga
-  - sentinel-sync/src/translator/manifesto.rs
-  - Hive/domain/src/entity/mod.rs
+  - services/Manifesto/application/src/usecase/project.rs
+  - services/Manifesto/application/src/usecase/member.rs
+  - services/Manifesto/infra/src/repository/project_repository.rs
+  - services/Manifesto/http/src/lib.rs
+  - services/Manifesto/domain/src/value_objects/visibility.rs
+  - services/Manifesto/domain/src/value_objects/member_source.rs
+  - ops/openfga/model.fga
+  - workers/sentinel-sync/src/translator/manifesto.rs
+  - services/Hive/domain/src/entity/mod.rs
   - docs/functional/projet.md
 summary: >-
   Internal org-owned read uses organization#member userset; private is
@@ -49,7 +49,7 @@ What the runtime actually does:
 
 - Create a personal or org-owned project. Org-owned requires `owner_id` and OpenFGA write on that organization.
 - OpenFGA on `ProjectCreated`: `project:{id}#owner@user:{created_by}`, plus `project:{id}#organization@organization:{owner_id}` when org-owned. If `visibility == "public"`, sentinel-sync also writes `project:{id}#viewer@user:*`. If org-owned Internal, it writes `project:{id}#viewer@organization:{owner_id}#member`.
-- Model inheritance (`openfga/model.fga`):
+- Model inheritance (`ops/openfga/model.fga`):
   - `project.viewer = [user, user:*, organization#member] or member` (no `viewer from organization`)
   - `project.admin = [user] or owner or admin from organization`
   - `project.write = member`

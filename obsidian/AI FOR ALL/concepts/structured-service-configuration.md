@@ -1,27 +1,27 @@
-﻿---
+---
 title: Structured Service Configuration
 category: concepts
 tags: [configuration, env, rust, visibility/internal]
 sources:
-  - IAMRusty/docs/DATABASE_CONFIGURATION.md
-  - IAMRusty/configuration/src/lib.rs
-  - IAMRusty/config/default.toml
-  - IAMRusty/config/test.toml
-  - Telegraph/configuration/src/lib.rs
-  - Telegraph/config/default.toml
-  - Telegraph/config/development.toml
-  - Telegraph/config/test.toml
-  - Hive/configuration/src/lib.rs
-  - Hive/config/default.toml
-  - Hive/config/development.toml
-  - Hive/config/test.toml
-  - Manifesto/configuration/src/lib.rs
-  - Manifesto/config/default.toml
-  - Manifesto/config/development.toml
-  - Manifesto/config/test.toml
-  - Manifesto/docs/rustycog-service-build-guide.md
-  - Manifesto/docs/rustycog-implementation-and-usage-guide.md
-  - Manifesto/src/main.rs
+  - services/IAMRusty/docs/DATABASE_CONFIGURATION.md
+  - services/IAMRusty/configuration/src/lib.rs
+  - services/IAMRusty/config/default.toml
+  - services/IAMRusty/config/test.toml
+  - services/Telegraph/configuration/src/lib.rs
+  - services/Telegraph/config/default.toml
+  - services/Telegraph/config/development.toml
+  - services/Telegraph/config/test.toml
+  - services/Hive/configuration/src/lib.rs
+  - services/Hive/config/default.toml
+  - services/Hive/config/development.toml
+  - services/Hive/config/test.toml
+  - services/Manifesto/configuration/src/lib.rs
+  - services/Manifesto/config/default.toml
+  - services/Manifesto/config/development.toml
+  - services/Manifesto/config/test.toml
+  - services/Manifesto/docs/rustycog-service-build-guide.md
+  - services/Manifesto/docs/rustycog-implementation-and-usage-guide.md
+  - services/Manifesto/src/main.rs
   - rustycog/rustycog-config/src/lib.rs
 summary: AIForAll services use typed config loaders, but IAMRusty, Telegraph, Hive, and Manifesto diverge in env prefixes, loader behavior, queue models, and service-specific sections.
 provenance:

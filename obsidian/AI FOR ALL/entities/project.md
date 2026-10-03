@@ -3,9 +3,9 @@ title: Project
 category: entities
 tags: [projects, ownership, lifecycle, visibility/internal]
 sources:
-  - Manifesto/domain/src/entity/project.rs
-  - Manifesto/domain/src/entity/project_component.rs
-  - Manifesto/domain/src/entity/project_member.rs
+  - services/Manifesto/domain/src/entity/project.rs
+  - services/Manifesto/domain/src/entity/project_component.rs
+  - services/Manifesto/domain/src/entity/project_member.rs
 summary: Manifesto models a project as the main workspace aggregate, with ownership, visibility, lifecycle state, attached components, and member access.
 provenance:
   extracted: 0.83

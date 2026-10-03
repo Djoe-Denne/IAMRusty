@@ -35,7 +35,7 @@ Migrations : `cargo run -p manifesto-migration -- up` (même schéma pour `iam-m
 
 ## Monolithe modulaire
 
-Package `oodhive-monolith`. Il **ne** appelle **pas** les `run()` des services : setup → extract `create_router(state)` → `start_background_tasks()` → un seul `compose_routes` ([`monolith/src/routes.rs`](../../monolith/src/routes.rs)).
+Package `oodhive-monolith`. Il **ne** appelle **pas** les `run()` des services : setup → extract `create_router(state)` → `start_background_tasks()` → un seul `compose_routes` ([`runtime/monolith/src/routes.rs`](../../runtime/monolith/src/routes.rs)).
 
 Chemins identiques au standalone grâce aux `SERVICE_PREFIX` :
 
@@ -49,14 +49,14 @@ Les tests d’intégration de chaque service doivent renvoyer une base URL **dé
 
 ## Readiness
 
-La crate [`readiness/`](../../readiness/) expose `/ready`. Les factories de queue rustycog peuvent **réussir en no-op** : un boot « OK » ne prouve pas que SQS/Kafka est live. Les probes doivent classer ce cas (voir le concept wiki `queue-readiness-signaling`).
+La crate [`crates/readiness/`](../../crates/readiness/) expose `/ready`. Les factories de queue rustycog peuvent **réussir en no-op** : un boot « OK » ne prouve pas que SQS/Kafka est live. Les probes doivent classer ce cas (voir le concept wiki `queue-readiness-signaling`).
 
 `OpenFgaClientConfig.port = 0` : le client choisit un port libre (fixture test). En compose, OpenFGA écoute 8080 **dans** le réseau ; l’hôte mappe 8090.
 
 ## OpenFGA local
 
 1. Compose démarre migrate puis `openfga run`.
-2. Créer un store et pousser [`openfga/model.fga`](../../openfga/model.fga) (CLI `fga`, ou `openfga/ensure-host-store.ps1` sur la chaîne hôte).
+2. Créer un store et pousser [`ops/openfga/model.fga`](../../ops/openfga/model.fga) (CLI `fga`, ou `ops/openfga/ensure-host-store.ps1` sur la chaîne hôte).
 3. Injecter `HIVE_OPENFGA__STORE_ID`, `HIVE_OPENFGA__AUTHORIZATION_MODEL_ID` (idem `MANIFESTO_`, `TELEGRAPH_`, `SENTINEL_SYNC_`).
 
 Sans store_id, les Check HTTP fail-closed (403 + log upstream).

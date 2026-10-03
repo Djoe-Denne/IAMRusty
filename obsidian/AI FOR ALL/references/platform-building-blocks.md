@@ -12,7 +12,7 @@ sources:
   - rustycog/rustycog-http/src/builder.rs
   - rustycog/rustycog-testing/src/common/kafka_testcontainer.rs
   - rustycog/rustycog-testing/src/common/sqs_testcontainer.rs
-  - hive-events/README.md
+  - crates/hive-events/README.md
 summary: >-
   Source summary for the shared Rust SDK crates and event-contract packages that give services a common runtime, transport, and testing foundation.
 provenance:

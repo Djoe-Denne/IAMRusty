@@ -9,13 +9,13 @@ sources:
   - rustycog/rustycog-testing/src/common/service_test_descriptor.rs
   - rustycog/rustycog-testing/src/common/openfga_testcontainer.rs
   - rustycog/rustycog-config/src/lib.rs
-  - Hive/tests/sqs_event_routing_tests.rs
-  - IAMRusty/tests/sqs_event_routing_tests.rs
-  - Manifesto/tests/sqs_event_routing_tests.rs
-  - Telegraph/tests/fixtures/smtp/testcontainer.rs
-  - Telegraph/config/test.toml
-  - IAMRusty/config/test.toml
-  - Manifesto/config/test.toml
+  - services/Hive/tests/sqs_event_routing_tests.rs
+  - services/IAMRusty/tests/sqs_event_routing_tests.rs
+  - services/Manifesto/tests/sqs_event_routing_tests.rs
+  - services/Telegraph/tests/fixtures/smtp/testcontainer.rs
+  - services/Telegraph/config/test.toml
+  - services/IAMRusty/config/test.toml
+  - services/Manifesto/config/test.toml
 summary: >-
   Recipe for adding a real Docker-backed testcontainer fixture, including shared vs service-local placement, stale-container cleanup, and port = 0 config wiring.
 provenance:
@@ -30,7 +30,7 @@ updated: 2026-08-31T09:45:00Z
 
 Use this recipe when an integration test needs to assert against a **real** protocol — wire-level SMTP, real SQS message dispatch, Kafka ack semantics, Postgres SQL behavior — instead of stubbing the collaborator with [[skills/stubbing-http-with-wiremock|wiremock]]. The shared crate already provides reusable Postgres, LocalStack-SQS, and Kafka fixtures; this page is for adding the *next* one (Redis, Mongo, Vault, Localstack-S3, MinIO, NATS, etc.).
 
-For SQS producer-routing tests, use the fixture as a queue spy, not just a broker bootstrapper: configure all queue names through `SqsConfig`, keep shared `test.toml` queue settings `enabled = false`, then opt in from the routing test binary with `has_sqs() == true` plus a service env override such as `HIVE_QUEUE__ENABLED=true`. Drain every queue involved in the assertion, wait on the mapped queue by name, and verify the fallback queue stayed empty. Current worked examples are `Hive/tests/sqs_event_routing_tests.rs`, `IAMRusty/tests/sqs_event_routing_tests.rs`, and `Manifesto/tests/sqs_event_routing_tests.rs`.
+For SQS producer-routing tests, use the fixture as a queue spy, not just a broker bootstrapper: configure all queue names through `SqsConfig`, keep shared `test.toml` queue settings `enabled = false`, then opt in from the routing test binary with `has_sqs() == true` plus a service env override such as `HIVE_QUEUE__ENABLED=true`. Drain every queue involved in the assertion, wait on the mapped queue by name, and verify the fallback queue stayed empty. Current worked examples are `services/Hive/tests/sqs_event_routing_tests.rs`, `services/IAMRusty/tests/sqs_event_routing_tests.rs`, and `services/Manifesto/tests/sqs_event_routing_tests.rs`.
 
 ## Step 0: Pick where the fixture lives
 
@@ -69,7 +69,7 @@ Skip this step entirely if you're going service-local — there's nothing to ext
 
 ## Step 2: Build the testcontainer wrapper
 
-Both shared and service-local fixtures follow the same scaffold (`sqs_testcontainer.rs`, `kafka_testcontainer.rs`, `Telegraph/tests/fixtures/smtp/testcontainer.rs`). The five non-negotiable pieces:
+Both shared and service-local fixtures follow the same scaffold (`sqs_testcontainer.rs`, `kafka_testcontainer.rs`, `services/Telegraph/tests/fixtures/smtp/testcontainer.rs`). The five non-negotiable pieces:
 
 ### 2a. Process-wide singleton
 
@@ -163,7 +163,7 @@ If the service config currently exposes only a single URL string such as `api_ur
 
 ### Fixed mapped port
 
-This is what MailHog does. `Telegraph/config/test.toml` pins `smtp.port = 1025`, and the container does:
+This is what MailHog does. `services/Telegraph/config/test.toml` pins `smtp.port = 1025`, and the container does:
 
 ```rust
 .with_mapped_port(smtp_config.port, ContainerPort::Tcp(1025))

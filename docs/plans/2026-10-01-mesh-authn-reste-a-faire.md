@@ -11,8 +11,8 @@ Décisions déjà prises : confiance à la passerelle (`trust_envoy`) ; Compose 
 ## Déjà fait
 
 - rustycog `2290d45` (`feat(http): trust gateway principal in mesh mode`) poussé sur `Djoe-Denne/rustycog`. `auth.mesh.trusted_gateway_san` vide = JWT in-process. Tests Docker verts (`mesh_principal`, `mesh_gateway_auth`, mTLS, JWT RS256).
-- AIForAll : gitlink local sur `2290d45a746ce73f5ddb84fde30566f79da2634c`. IAM recopie `auth.mesh`. Manifesto en TLS 8443 (`manifesto-service`, port hôte 8448). Envoy Compose : `/iam/`, `/hive/`, `/telegraph/`, `/manifesto/` en mTLS. Overlay `deploy/mesh/compose.yaml` : certificat client obligatoire et `TRUSTED_GATEWAY_SAN=envoy-mesh` sur les quatre services.
-- `bash scripts/mesh-authn-e2e.sh` : exit 0, 48 OK, 0 FAIL, pile démontée. Les 23 cas gateway d’avant sont dans ce total.
+- AIForAll : gitlink local sur `2290d45a746ce73f5ddb84fde30566f79da2634c`. IAM recopie `auth.mesh`. Manifesto en TLS 8443 (`manifesto-service`, port hôte 8448). Envoy Compose : `/iam/`, `/hive/`, `/telegraph/`, `/manifesto/` en mTLS. Overlay `ops/deploy/mesh/compose.yaml` : certificat client obligatoire et `TRUSTED_GATEWAY_SAN=envoy-mesh` sur les quatre services.
+- `bash ops/scripts/mesh-authn-e2e.sh` : exit 0, 48 OK, 0 FAIL, pile démontée. Les 23 cas gateway d’avant sont dans ce total.
 - ADR 0302, 0304, 0308, 0400–0403 et le vault `obsidian/AI FOR ALL` décrivent §7. QMD `aiforall-wiki` réindexé (7 nouvelles, 12 mises à jour, vecteurs inclus).
 
 Rien de tout ça n’est commité dans AIForAll.
@@ -32,15 +32,15 @@ Le passage Envoy → service authentifié est prouvé. Ces trous empêchent de d
 
 ## 2. Kind — overlay branché (2026-10-02), 0308 reste Partial
 
-`deploy/apps/overlays/kind-mesh` route `/iam/`, `/hive/`, `/telegraph/`, `/manifesto/` et laisse signup/login/JWKS sans Check. `platform-services.yaml` charge les images Docker (`kind load`), pose `TRUSTED_GATEWAY_SAN=envoy-mesh`, et garde Postgres in-cluster sans hostPort 5432. Le HelmRelease Flux reste commenté. Preuve : `bash scripts/mesh-authn-kind-e2e.sh` — exit 0 le 2026-10-02 (signup/login/JWKS, deny sans JWT, `sub`, `user_id`, `issuer`, bypass `mesh-client` 401). Ne pas passer 0308 à Implemented (staleness, mesh non défaut, Flux).
+`ops/deploy/apps/overlays/kind-mesh` route `/iam/`, `/hive/`, `/telegraph/`, `/manifesto/` et laisse signup/login/JWKS sans Check. `platform-services.yaml` charge les images Docker (`kind load`), pose `TRUSTED_GATEWAY_SAN=envoy-mesh`, et garde Postgres in-cluster sans hostPort 5432. Le HelmRelease Flux reste commenté. Preuve : `bash ops/scripts/mesh-authn-kind-e2e.sh` — exit 0 le 2026-10-02 (signup/login/JWKS, deny sans JWT, `sub`, `user_id`, `issuer`, bypass `mesh-client` 401). Ne pas passer 0308 à Implemented (staleness, mesh non défaut, Flux).
 
 ## 2 bis. Kind — état d’origine (avant l’overlay)
 
 Décision `compose_then_kind`. L’objectif « comme en prod, en local, via Kind » n’est pas tenu.
 
-- `deploy/apps/overlays/kind-mesh/envoy-mesh.yaml` route encore `prefix: /` vers le cluster `backend` (IAM seul). Pas de `/hive/`, `/telegraph/`, `/manifesto/`. Pas de §7 sur les workloads Kind.
-- `deploy/apps/overlays/kind-mesh/ext-authz.yaml` indique encore un IAM stub/pause comme source JWKS.
-- `deploy/apps/overlays/kind/helmrelease-envoy-gateway.yaml` reste commenté et hors `resources`.
+- `ops/deploy/apps/overlays/kind-mesh/envoy-mesh.yaml` route encore `prefix: /` vers le cluster `backend` (IAM seul). Pas de `/hive/`, `/telegraph/`, `/manifesto/`. Pas de §7 sur les workloads Kind.
+- `ops/deploy/apps/overlays/kind-mesh/ext-authz.yaml` indique encore un IAM stub/pause comme source JWKS.
+- `ops/deploy/apps/overlays/kind/helmrelease-envoy-gateway.yaml` reste commenté et hors `resources`.
 - Les services Kind ne sont pas les images Linux construites ici. Kind ne compile pas : il faut `kind load` d’images déjà buildées en Docker.
 - Il manque un e2e Kind du même contrat (deny sans JWT, allow avec principal utilisé, contournement refusé).
 
@@ -49,7 +49,7 @@ Décision `compose_then_kind`. L’objectif « comme en prod, en local, via Kind
 Pas une ADR. 0308 reste **Accepted / Partial**. Ne pas passer à Implemented.
 
 1. **Routes `.might_be_authenticated()` en mode mesh** (`trusted_gateway_san` non vide) : anonyme seulement si le certificat client porte le SAN `envoy-mesh`. Sans ce SAN (pas de cert, cert `mesh-client`, HTTP clair) → 401, pas de lecture utile. SAN passerelle + en-têtes principal valides → principal posé. SAN passerelle + en-têtes absents ou invalides → anonyme, sans insérer de `Uuid`. `trusted_gateway_san` vide : inchangé. `.authenticated()` reste 401 si le principal passerelle est refusé (0308 §7).
-2. **Ports hôte** : l’overlay `deploy/mesh/compose.yaml` retire la publication hôte des quatre services (`ports: !override []`). Le `docker-compose.yml` de base garde 8080–8083 et 8443/8444/8445/8448. Envoy `10000` reste publié. Le réseau Compose interne reste ouvert (Hive → `http://iam-service:8080`, ext-authz → JWKS IAM, e2e).
+2. **Ports hôte** : l’overlay `ops/deploy/mesh/compose.yaml` retire la publication hôte des quatre services (`ports: !override []`). Le `docker-compose.yml` de base garde 8080–8083 et 8443/8444/8445/8448. Envoy `10000` reste publié. Le réseau Compose interne reste ouvert (Hive → `http://iam-service:8080`, ext-authz → JWKS IAM, e2e).
 3. **Signup, login, JWKS** : routes Envoy exactes, avant le préfixe `/iam/`, `ExtAuthzPerRoute.disabled: true`. Le filtre ext_authz du listener (et `.fallback(check)` dans `ext-authz`) reste pour le reste. Pas de Check permissif.
 
 Phase D (0306/0307) n’est pas cette phase : ne pas faire passer `/iam/internal/organizations/{id}/signer/*` par un JWT utilisateur.
@@ -67,9 +67,9 @@ Hive HTTP `/hive/api/organizations/{id}/signer/{configure,test,rotate,disable}` 
 
 ## 4. Petites erreurs
 
-1. **Healthcheck Docker au mauvais chemin.** `Hive/Dockerfile`, `Telegraph/Dockerfile`, `Manifesto/Dockerfile` font `curl -f http://localhost:8080/health`. La route réelle est sous le préfixe (`/hive/health`, `/telegraph/health`, `/manifesto/health`) : l’e2e joint `https://{svc}-service:8443/{svc}/health` avec succès, et Telegraph comme Manifesto étaient `(unhealthy)`. `IAMRusty/Dockerfile` n’a pas de `HEALTHCHECK`, donc IAM ne passe pas à unhealthy pour la même raison. Hive a le même `curl` ; on ne l’a pas vu unhealthy seulement parce que le conteneur était déjà sorti, ou la pile déjà démontée.
+1. **Healthcheck Docker au mauvais chemin.** `services/Hive/Dockerfile`, `services/Telegraph/Dockerfile`, `services/Manifesto/Dockerfile` font `curl -f http://localhost:8080/health`. La route réelle est sous le préfixe (`/hive/health`, `/telegraph/health`, `/manifesto/health`) : l’e2e joint `https://{svc}-service:8443/{svc}/health` avec succès, et Telegraph comme Manifesto étaient `(unhealthy)`. `services/IAMRusty/Dockerfile` n’a pas de `HEALTHCHECK`, donc IAM ne passe pas à unhealthy pour la même raison. Hive a le même `curl` ; on ne l’a pas vu unhealthy seulement parce que le conteneur était déjà sorti, ou la pile déjà démontée.
 2. **`jwks_url` vers 127.0.0.1.** `IAMRusty`, `Hive`, `Telegraph` et `Manifesto` `config/development.toml` ont `jwks_url = "http://127.0.0.1:8080/iam/.well-known/jwks.json"`. Dans un conteneur, cette adresse est le conteneur lui-même, pas IAM. Le mode mesh ne va pas chercher le JWKS, donc l’e2e ne le montre pas. Sans l’overlay mesh, Hive, Telegraph et Manifesto ne peuvent pas vérifier un JWT RS256. IAM s’en sort parce qu’il injecte le JWKS en mémoire au démarrage.
-3. **README Kind en avance sur son YAML.** `deploy/apps/overlays/kind-mesh/README.md` décrit mTLS, JWKS IAM et renvoie à l’e2e Compose. Le YAML à côté route encore tout vers `cluster: backend`.
+3. **README Kind en avance sur son YAML.** `ops/deploy/apps/overlays/kind-mesh/README.md` décrit mTLS, JWKS IAM et renvoie à l’e2e Compose. Le YAML à côté route encore tout vers `cluster: backend`.
 4. **Deux dates pour la même décision.** L’ADR §7 et `obsidian/AI FOR ALL/journal/2026-09-30.md` disent 2026-09-30. L’e2e vert et la ligne QMD de `log.md` sont du 2026-10-01.
 5. **Effets de bord sur tout Compose, pas seulement le profil mesh.** `docker-compose.yml` (fichier de base) contient `DROP DATABASE … WITH (FORCE)` et `IAM_INTERNAL_SERVICE_TOKEN` / `HIVE_IAM_SERVICE__API_KEY`. Chaque `docker compose up` coupe les sessions Postgres, y compris le pod Kind `oodhive-monolith` branché sur le port hôte 5432, puis recrée les bases. Le secret de dev est dans le compose par défaut, au même titre que `postgres`/`postgres`.
 6. **Libellé du cas Telegraph.** « Telegraph liste les notifications via Envoy » se lit comme une preuve d’identité. Le corps du test ne regarde pas `sub`. L’ADR, elle, le dit.

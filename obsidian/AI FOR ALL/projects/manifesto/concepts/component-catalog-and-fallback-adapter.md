@@ -4,12 +4,12 @@ category: concepts
 tags: [components, integrations, projects, visibility/internal]
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
-  - Manifesto/README.md
-  - Manifesto/infra/src/adapters/component_service_client.rs
-  - Manifesto/application/src/usecase/component.rs
-  - Manifesto/configuration/src/lib.rs
-  - Manifesto/setup/src/app.rs
-  - Manifesto/tests/component_service_client_tests.rs
+  - services/Manifesto/README.md
+  - services/Manifesto/infra/src/adapters/component_service_client.rs
+  - services/Manifesto/application/src/usecase/component.rs
+  - services/Manifesto/configuration/src/lib.rs
+  - services/Manifesto/setup/src/app.rs
+  - services/Manifesto/tests/component_service_client_tests.rs
 summary: "Client catalogue HTTP actuel, fail-closed ; évolution future vers catalogue de releases immuables, avec résolution runtime séparée."
 provenance:
   extracted: 0.75

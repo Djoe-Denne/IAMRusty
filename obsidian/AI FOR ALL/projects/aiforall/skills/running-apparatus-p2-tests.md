@@ -6,9 +6,9 @@ tags: [testing, rust, components]
 sources:
   - docs/apparatus-p2-implementation-prompt.md
   - docs/adr/0006-apparatus-p2-reconciliation-in-process.md
-  - Manifesto/tests/apparatus_p2_t2_migration.rs
-  - Manifesto/tests/apparatus_p2_t5_tick.rs
-  - Manifesto/tests/apparatus_p2_t7_cleanup.rs
+  - services/Manifesto/tests/apparatus_p2_t2_migration.rs
+  - services/Manifesto/tests/apparatus_p2_t5_tick.rs
+  - services/Manifesto/tests/apparatus_p2_t7_cleanup.rs
 summary: >-
   Tests P2 T1–T7 : unit sans Docker + DB --test-threads=1. Compteurs cités :
   t2 12, t3 7, t4 5, t5 10, t7_cleanup 4, readiness 17. ADR-0006 Accepted /
@@ -23,7 +23,7 @@ updated: 2026-09-13T12:00:00Z
 
 # Lancer les tests Apparatus P2
 
-ADR-0006 Accepted, Réalité Implemented. Harness `Manifesto/tests/common.rs`. Concept : [[projects/manifesto/concepts/apparatus-p2-reconciliation]].
+ADR-0006 Accepted, Réalité Implemented. Harness `services/Manifesto/tests/common.rs`. Concept : [[projects/manifesto/concepts/apparatus-p2-reconciliation]].
 
 T4/T5 **injectent `digest` en SQL** après le create HTTP : le chemin prod ne pose pas le digest, donc un create seul ne suffit pas à exercer `bind`. ^[extracted]
 

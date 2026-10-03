@@ -1,4 +1,4 @@
-﻿---
+---
 title: >-
   Event-Driven Microservice Platform
 category: concepts
@@ -6,13 +6,13 @@ tags: [architecture, microservices, events, visibility/internal]
 sources:
   - README.md
   - docs/project/Archi.md
-  - IAMRusty/README.md
+  - services/IAMRusty/README.md
   - rustycog/README.md
   - rustycog/rustycog-events/src/lib.rs
   - rustycog/rustycog-events/src/event.rs
   - rustycog/rustycog-testing/src/common/kafka_testcontainer.rs
   - rustycog/rustycog-testing/src/common/sqs_testcontainer.rs
-  - hive-events/README.md
+  - crates/hive-events/README.md
 summary: >-
   The platform uses decoupled services plus transport-neutral domain events and queue-backed coordination for non-blocking workflows and integrations.
 provenance:

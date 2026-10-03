@@ -15,19 +15,19 @@
 
 [0601](0601-cluster-trust-namespaces-standalones.md) fige : unité cluster V1 = **4+1** (`iam` `hive` `manifesto` `telegraph` + `lazaret`) ; le monolithe = laptop / démo, **pas** Deployment prod / staging / **kind canon**. [0404](0404-runtime-microservices-et-monolithe.md) (Accepted) garde le dual runtime laptop ; 0601 ferme « 1 vs 4 » **du côté 4+1**.
 
-[0603](0603-tranche-locale-deploy-kind-apparatus-lazaret.md) livre A+B local : overlay `deploy/apps/overlays/kind` ; M2 = stub nginx Lazaret + Job probe → `200` `ok\n` sur GET `/lazaret/invoke`. Ce stub **n’est pas** le nest métier Lazaret du monolithe.
+[0603](0603-tranche-locale-deploy-kind-apparatus-lazaret.md) livre A+B local : overlay `ops/deploy/apps/overlays/kind` ; M2 = stub nginx Lazaret + Job probe → `200` `ok\n` sur GET `/lazaret/invoke`. Ce stub **n’est pas** le nest métier Lazaret du monolithe.
 
-Le plan [platform-local-monolith-kind-implementation-plan.md](../platform-local-monolith-kind-implementation-plan.md) (pas une ADR) ordonne J1 (host) → J2 (operator image sur `deploy/p4`) → **J3** (invoke isolé in-cluster). Un Job kind ne peut pas viser le Lazaret **hôte** (DNS in-cluster ≠ `localhost`). Extra-port kind / hostNetwork / curl localhost hôte = **faux amis** : ils ne prouvent pas plugins → Service cluster.
+Le plan [platform-local-monolith-kind-implementation-plan.md](../platform-local-monolith-kind-implementation-plan.md) (pas une ADR) ordonne J1 (host) → J2 (operator image sur `ops/deploy/p4`) → **J3** (invoke isolé in-cluster). Un Job kind ne peut pas viser le Lazaret **hôte** (DNS in-cluster ≠ `localhost`). Extra-port kind / hostNetwork / curl localhost hôte = **faux amis** : ils ne prouvent pas plugins → Service cluster.
 
-NetworkPolicy base (`deploy/apps/base/networkpolicies.yaml`) : pods `aiforall-plugins` ne peuvent (sur le papier) parler qu’aux pods `app.kubernetes.io/name=lazaret` dans `aiforall-gateway` port **8080**. kindnet **n’enforce pas** ; la carte 0601 reste normative. L’overlay démo doit soit (a) garder un Service / labels joignables depuis plugins **sans** casser la carte 0601, soit (b) patcher la NP **dans l’overlay démo seulement**.
+NetworkPolicy base (`ops/deploy/apps/base/networkpolicies.yaml`) : pods `aiforall-plugins` ne peuvent (sur le papier) parler qu’aux pods `app.kubernetes.io/name=lazaret` dans `aiforall-gateway` port **8080**. kindnet **n’enforce pas** ; la carte 0601 reste normative. L’overlay démo doit soit (a) garder un Service / labels joignables depuis plugins **sans** casser la carte 0601, soit (b) patcher la NP **dans l’overlay démo seulement**.
 
 ## Décision
 
 1. **Canon inchangé.** [0601](0601-cluster-trust-namespaces-standalones.md) reste le canon cluster : 4+1 standalones. Le monolithe n’entre **pas** dans prod / staging / kind **canon**. Cette ADR ne réécrit pas M2 comme preuve monolithe.
-2. **J3 = overlay démo séparé.** Sur kind **`aiforall-local` seulement**, un overlay Kustomize **démo, non canon**, **distinct** de `deploy/apps/overlays/kind` (M2 stub nginx `ok\n` reste la preuve stub 0603). Cet overlay déploie un Deployment nommé **`oodhive-monolith`** + Service, **à la place** du stub nginx Lazaret **pour ce chemin de preuve**. Le stub nginx de **cet** overlay démo ne doit plus pouvoir servir `ok\n` sur le chemin de preuve (sinon le stub n’est pas remplacé).
+2. **J3 = overlay démo séparé.** Sur kind **`aiforall-local` seulement**, un overlay Kustomize **démo, non canon**, **distinct** de `ops/deploy/apps/overlays/kind` (M2 stub nginx `ok\n` reste la preuve stub 0603). Cet overlay déploie un Deployment nommé **`oodhive-monolith`** + Service, **à la place** du stub nginx Lazaret **pour ce chemin de preuve**. Le stub nginx de **cet** overlay démo ne doit plus pouvoir servir `ok\n` sur le chemin de preuve (sinon le stub n’est pas remplacé).
 3. **Preuve J3.** Pod ou Job dans `aiforall-plugins` → **POST** vers le Service du nest monolithe `/lazaret/invoke`. Contrat métier acceptable : réponse **401** JSON unauthorized (authn absente / rejet métier). **Interdit** comme preuve : extraPortMapping kind, hostNetwork, curl vers localhost / IP hôte.
 4. **Config in-cluster (bornes de la tranche J3 livrée).** rustycog a besoin de `config/*.toml`. La démo kind livrée réutilise l’infra Compose (Postgres, OpenFGA, …) via DNS hôte (`host.docker.internal`). **Ne pas** vendre extraPortMapping comme preuve invoke. Amendement 2026-10-02 ([0308](0308-mesh-authn-jwt.md) point 8) : hors tests d’intégration, le local isoprod sert les third parties dans Kind. Le point 4 reste la photo de la tranche J3 telle qu’elle a été codée (`host.docker.internal:5432`). Cet écart n’est pas résorbé ici ; il ne prime pas sur 0308 pour le canal isoprod.
-5. **Hors monolithe / hors cette ADR comme impl.** Operator = `deploy/p4` (J2) ; pas Factory ; pas [0602](0602-observabilite-portable-otlp-lgtm.md) ; pas GKE ; pas Calico sur `aiforall-local` ; pas retarget fixture `apparatus-p4-it`.
+5. **Hors monolithe / hors cette ADR comme impl.** Operator = `ops/deploy/p4` (J2) ; pas Factory ; pas [0602](0602-observabilite-portable-otlp-lgtm.md) ; pas GKE ; pas Calico sur `aiforall-local` ; pas retarget fixture `apparatus-p4-it`.
 6. **J4 (plus tard).** Retirer l’overlay démo et revenir 4+1. **Pas** d’implémentation J4 dans cette ADR ; seule l’intention de séquence est notée.
 
 ## Conséquences
@@ -44,7 +44,7 @@ NetworkPolicy base (`deploy/apps/base/networkpolicies.yaml`) : pods `aiforall-pl
 |---|---|
 | SuperSéder 0601 : monolithe = unité kind/prod | Contredit 0404 + 0601 ; blast IAM/Hive/Manifesto/Telegraph |
 | Extra-port / hostNetwork / localhost hôte comme « preuve invoke » | Faux ami : ne prouve pas plugins → Service in-cluster |
-| Fusionner monolithe dans `deploy/apps/overlays/kind` (M2) | Écrase la preuve stub 0603 ; confond canon et démo |
+| Fusionner monolithe dans `ops/deploy/apps/overlays/kind` (M2) | Écrase la preuve stub 0603 ; confond canon et démo |
 | Poser Postgres/OpenFGA dans kind pour la tranche J3 livrée | Photo de tranche : Compose hôte via DNS hôte. Cible isoprod ultérieure : [0308](0308-mesh-authn-jwt.md) point 8 (2026-10-02), third parties in-kind hors IT |
 | Calico / CNI enforce sur `aiforall-local` | Hors J3 ; kindnet reste le runtime local |
 | Retarget `apparatus-p4-it` ou Factory | Fixture IT P4 et P5/P6 hors scope |
@@ -61,9 +61,9 @@ NetworkPolicy base (`deploy/apps/base/networkpolicies.yaml`) : pods `aiforall-pl
 ## Références
 
 - Canon cluster : `docs/adr/0601-cluster-trust-namespaces-standalones.md` ; dual runtime : `docs/adr/0404-runtime-microservices-et-monolithe.md`
-- Tranche locale A+B : `docs/adr/0603-tranche-locale-deploy-kind-apparatus-lazaret.md` ; preuve M2 stub : `deploy/apps/overlays/kind/`
+- Tranche locale A+B : `docs/adr/0603-tranche-locale-deploy-kind-apparatus-lazaret.md` ; preuve M2 stub : `ops/deploy/apps/overlays/kind/`
 - Plan (ordre, pas canon) : `docs/platform-local-monolith-kind-implementation-plan.md` (J3 / J4)
-- NP : `deploy/apps/base/networkpolicies.yaml` (`app.kubernetes.io/name: lazaret`, port 8080)
-- Operator P4 : `deploy/p4/` ; [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md)
+- NP : `ops/deploy/apps/base/networkpolicies.yaml` (`app.kubernetes.io/name: lazaret`, port 8080)
+- Operator P4 : `ops/deploy/p4/` ; [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md)
 - Wiki pointeur (optionnel) : `obsidian/AI FOR ALL/projects/aiforall/decisions/0604-j3-overlay-demo-monolith.md`
-- Preuve d’implémentation : `just deploy-j3` ; overlay `deploy/apps/overlays/kind-demo-monolith/` ; Job `invoke-probe-j3` POST `lazaret.aiforall-gateway.svc.cluster.local:8080/lazaret/invoke` → HTTP 401 `{"error":"unauthorized"}`
+- Preuve d’implémentation : `just deploy-j3` ; overlay `ops/deploy/apps/overlays/kind-demo-monolith/` ; Job `invoke-probe-j3` POST `lazaret.aiforall-gateway.svc.cluster.local:8080/lazaret/invoke` → HTTP 401 `{"error":"unauthorized"}`

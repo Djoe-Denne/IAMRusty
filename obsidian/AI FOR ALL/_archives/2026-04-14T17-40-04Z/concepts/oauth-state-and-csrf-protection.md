@@ -1,10 +1,10 @@
-﻿---
+---
 title: >-
   OAuth State and CSRF Protection
 category: concepts
 tags: [security, oauth, csrf, visibility/internal]
 sources:
-  - IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
+  - services/IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
 summary: >-
   OAuth flows are hardened with encoded state, nonce/timestamp validation, exact redirect URIs, and authenticated linking rules.
 provenance:

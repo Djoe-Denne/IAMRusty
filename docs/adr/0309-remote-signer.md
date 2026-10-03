@@ -26,8 +26,8 @@
 
 **Partial** — adapter HTTP livré, vendor HSM absent :
 
-- `IAMRusty/infra/src/signing/remote.rs` : `RemoteSigningProvider` impl `SigningProvider` — `sign_digest` → `POST {url}/sign` (digest only) ; `GET {url}/keys/{key_id}` ; auth via `WorkloadIdentity` ; URL / `key_id` vides = fail-closed.
-- Preuve IT : `IAMRusty/infra/tests/remote_signer.rs` (+ fixtures `IAMRusty/tests/fixtures/remote_signer/`) wiremock.
+- `services/IAMRusty/infra/src/signing/remote.rs` : `RemoteSigningProvider` impl `SigningProvider` — `sign_digest` → `POST {url}/sign` (digest only) ; `GET {url}/keys/{key_id}` ; auth via `WorkloadIdentity` ; URL / `key_id` vides = fail-closed.
+- Preuve IT : `services/IAMRusty/infra/tests/remote_signer.rs` (+ fixtures `services/IAMRusty/tests/fixtures/remote_signer/`) wiremock.
 - OpenBao Transit = Cosign Apparatus / chemin Transit IAM existant — **pas** un HSM remote JWT.
 - **Gaps** : vendor HSM / protocole KMIP concret = Non décidé ; pas de HSM réel en IT.
 
@@ -54,4 +54,4 @@ Après le port `SigningProvider` ([0304](0304-jwt-acces-plateforme-rs256-jwks.md
 ## Références
 
 - [0304](0304-jwt-acces-plateforme-rs256-jwks.md) §6, §19, §22 ; [0307](0307-workload-identity-port.md)
-- Preuve Partial : `IAMRusty/infra/src/signing/remote.rs` ; `IAMRusty/infra/tests/remote_signer.rs` ; fixtures `IAMRusty/tests/fixtures/remote_signer/`
+- Preuve Partial : `services/IAMRusty/infra/src/signing/remote.rs` ; `services/IAMRusty/infra/tests/remote_signer.rs` ; fixtures `services/IAMRusty/tests/fixtures/remote_signer/`

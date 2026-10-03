@@ -1,0 +1,580 @@
+# Opt-in real platform workloads for kind-mesh (ADR-0308 §7).
+# Applying this replaces pause Deployments iam/hive/telegraph/manifesto of the
+# same name in aiforall-platform. `kubectl apply -k ops/deploy/apps/overlays/kind`
+# restores the pause images. No hostPort: this Postgres is not compose :5432.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mesh-postgres-init
+  namespace: aiforall-platform
+data:
+  init.sql: |
+    CREATE DATABASE telegraph_dev;
+    CREATE DATABASE hive_dev;
+    CREATE DATABASE manifesto_dev;
+    CREATE DATABASE openfga_dev;
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: aiforall
+    app.kubernetes.io/component: mesh-authn
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/part-of: aiforall
+        app.kubernetes.io/component: mesh-authn
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              value: postgres
+            - name: POSTGRES_DB
+              value: iam_dev
+          ports:
+            - name: postgres
+              containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            periodSeconds: 5
+            failureThreshold: 12
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: init
+          configMap:
+            name: mesh-postgres-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: aiforall
+spec:
+  selector:
+    app.kubernetes.io/name: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openfga
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: openfga
+    app.kubernetes.io/part-of: aiforall
+    app.kubernetes.io/component: mesh-authn
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openfga
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openfga
+        app.kubernetes.io/part-of: aiforall
+        app.kubernetes.io/component: mesh-authn
+    spec:
+      automountServiceAccountToken: false
+      initContainers:
+        - name: migrate
+          image: openfga/openfga:latest
+          imagePullPolicy: IfNotPresent
+          args: ["migrate"]
+          env:
+            - name: OPENFGA_DATASTORE_ENGINE
+              value: postgres
+            - name: OPENFGA_DATASTORE_URI
+              value: postgres://postgres:postgres@postgres:5432/openfga_dev?sslmode=disable
+      containers:
+        - name: openfga
+          image: openfga/openfga:latest
+          imagePullPolicy: IfNotPresent
+          args: ["run"]
+          env:
+            - name: OPENFGA_DATASTORE_ENGINE
+              value: postgres
+            - name: OPENFGA_DATASTORE_URI
+              value: postgres://postgres:postgres@postgres:5432/openfga_dev?sslmode=disable
+            - name: OPENFGA_PLAYGROUND_ENABLED
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: grpc
+              containerPort: 8081
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 24
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openfga
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: openfga
+    app.kubernetes.io/part-of: aiforall
+spec:
+  selector:
+    app.kubernetes.io/name: openfga
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+    - name: grpc
+      port: 8081
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iam
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: iam
+    app.kubernetes.io/part-of: aiforall
+    app.kubernetes.io/component: platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: iam
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: iam
+        app.kubernetes.io/part-of: aiforall
+        app.kubernetes.io/component: platform
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: iam
+          image: aiforall-iam-service:latest
+          imagePullPolicy: Never
+          env:
+            - name: RUST_ENVIRONMENT
+              value: development
+            - name: DATABASE_URL
+              value: postgres://postgres:postgres@postgres:5432/iam_dev
+            - name: IAM_INTERNAL_SERVICE_TOKEN
+              value: iam-internal-dev-token
+            - name: IAM_SERVER__TLS_REQUIRE_CLIENT_CERT
+              value: "true"
+            - name: IAM_AUTH__MESH__TRUSTED_GATEWAY_SAN
+              value: envoy-mesh
+            - name: IAM_QUEUE__ENABLED
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: https
+              containerPort: 8443
+          startupProbe:
+            httpGet:
+              path: /iam/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          volumeMounts:
+            - name: config
+              mountPath: /app/config/development.toml
+              subPath: development.toml
+            - name: config
+              mountPath: /app/config/keys/test-platform.pem
+              subPath: test-platform.pem
+            - name: config
+              mountPath: /app/config/keys/test-platform.pub
+              subPath: test-platform.pub
+            - name: certs
+              mountPath: /app/certs
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: config
+          configMap:
+            name: iam-dev-config
+        - name: certs
+          secret:
+            secretName: platform-mesh-certs
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: iam-service.crt
+                path: iam-service.crt
+              - key: iam-service.key
+                path: iam-service.key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iam
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: iam
+    app.kubernetes.io/part-of: aiforall
+spec:
+  selector:
+    app.kubernetes.io/name: iam
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+    - name: https
+      port: 8443
+      targetPort: https
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hive
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: hive
+    app.kubernetes.io/part-of: aiforall
+    app.kubernetes.io/component: platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hive
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hive
+        app.kubernetes.io/part-of: aiforall
+        app.kubernetes.io/component: platform
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: hive
+          image: aiforall-hive-service:latest
+          imagePullPolicy: Never
+          env:
+            - name: RUST_ENVIRONMENT
+              value: development
+            - name: DATABASE_URL
+              value: postgres://postgres:postgres@postgres:5432/hive_dev
+            - name: HIVE_IAM_SERVICE__API_KEY
+              value: iam-internal-dev-token
+            - name: HIVE_IAM_SERVICE__BASE_URL
+              value: http://iam.aiforall-platform.svc.cluster.local:8080
+            - name: HIVE_SERVER__TLS_REQUIRE_CLIENT_CERT
+              value: "true"
+            - name: HIVE_AUTH__MESH__TRUSTED_GATEWAY_SAN
+              value: envoy-mesh
+            - name: HIVE_AUTH__JWT__JWKS_URL
+              value: http://iam.aiforall-platform.svc.cluster.local:8080/iam/.well-known/jwks.json
+            - name: HIVE_QUEUE__ENABLED
+              value: "false"
+            - name: HIVE_OPENFGA__STORE_ID
+              value: ""
+            - name: HIVE_OPENFGA__AUTHORIZATION_MODEL_ID
+              value: ""
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: https
+              containerPort: 8443
+          startupProbe:
+            httpGet:
+              path: /hive/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          volumeMounts:
+            - name: config
+              mountPath: /app/config/development.toml
+              subPath: development.toml
+            - name: certs
+              mountPath: /app/certs
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: config
+          configMap:
+            name: hive-dev-config
+        - name: certs
+          secret:
+            secretName: platform-mesh-certs
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: hive-service.crt
+                path: hive-service.crt
+              - key: hive-service.key
+                path: hive-service.key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: hive
+    app.kubernetes.io/part-of: aiforall
+spec:
+  selector:
+    app.kubernetes.io/name: hive
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+    - name: https
+      port: 8443
+      targetPort: https
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telegraph
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: telegraph
+    app.kubernetes.io/part-of: aiforall
+    app.kubernetes.io/component: platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: telegraph
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: telegraph
+        app.kubernetes.io/part-of: aiforall
+        app.kubernetes.io/component: platform
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: telegraph
+          image: aiforall-telegraph-service:latest
+          imagePullPolicy: Never
+          env:
+            - name: RUST_ENVIRONMENT
+              value: development
+            - name: DATABASE_URL
+              value: postgres://postgres:postgres@postgres:5432/telegraph_dev
+            - name: TELEGRAPH_SERVER__TLS_REQUIRE_CLIENT_CERT
+              value: "true"
+            - name: TELEGRAPH_AUTH__MESH__TRUSTED_GATEWAY_SAN
+              value: envoy-mesh
+            - name: TELEGRAPH_AUTH__JWT__JWKS_URL
+              value: http://iam.aiforall-platform.svc.cluster.local:8080/iam/.well-known/jwks.json
+            - name: TELEGRAPH_QUEUE__ENABLED
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: https
+              containerPort: 8443
+          startupProbe:
+            httpGet:
+              path: /telegraph/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          volumeMounts:
+            - name: config
+              mountPath: /app/config/development.toml
+              subPath: development.toml
+            - name: certs
+              mountPath: /app/certs
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: config
+          configMap:
+            name: telegraph-dev-config
+        - name: certs
+          secret:
+            secretName: platform-mesh-certs
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: telegraph-service.crt
+                path: telegraph-service.crt
+              - key: telegraph-service.key
+                path: telegraph-service.key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: telegraph
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: telegraph
+    app.kubernetes.io/part-of: aiforall
+spec:
+  selector:
+    app.kubernetes.io/name: telegraph
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+    - name: https
+      port: 8443
+      targetPort: https
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: manifesto
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: manifesto
+    app.kubernetes.io/part-of: aiforall
+    app.kubernetes.io/component: platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: manifesto
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: manifesto
+        app.kubernetes.io/part-of: aiforall
+        app.kubernetes.io/component: platform
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: manifesto
+          image: aiforall-manifesto-service:latest
+          imagePullPolicy: Never
+          env:
+            - name: RUST_ENVIRONMENT
+              value: development
+            - name: DATABASE_URL
+              value: postgres://postgres:postgres@postgres:5432/manifesto_dev
+            - name: MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__HS256_SECRET
+              value: manifesto-grant-snapshot-dev-hs256
+            - name: MANIFESTO_SERVER__TLS_REQUIRE_CLIENT_CERT
+              value: "true"
+            - name: MANIFESTO_AUTH__MESH__TRUSTED_GATEWAY_SAN
+              value: envoy-mesh
+            - name: MANIFESTO_AUTH__JWT__JWKS_URL
+              value: http://iam.aiforall-platform.svc.cluster.local:8080/iam/.well-known/jwks.json
+            - name: MANIFESTO_QUEUE__ENABLED
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: https
+              containerPort: 8443
+          startupProbe:
+            httpGet:
+              path: /manifesto/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          volumeMounts:
+            - name: config
+              mountPath: /app/config/development.toml
+              subPath: development.toml
+            - name: certs
+              mountPath: /app/certs
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: config
+          configMap:
+            name: manifesto-dev-config
+        - name: certs
+          secret:
+            secretName: platform-mesh-certs
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: manifesto-service.crt
+                path: manifesto-service.crt
+              - key: manifesto-service.key
+                path: manifesto-service.key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: manifesto
+  namespace: aiforall-platform
+  labels:
+    app.kubernetes.io/name: manifesto
+    app.kubernetes.io/part-of: aiforall
+spec:
+  selector:
+    app.kubernetes.io/name: manifesto
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+    - name: https
+      port: 8443
+      targetPort: https

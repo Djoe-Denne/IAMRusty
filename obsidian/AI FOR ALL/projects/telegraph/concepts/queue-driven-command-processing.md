@@ -3,10 +3,10 @@ title: Queue-Driven Command Processing
 category: concepts
 tags: [events, commands, queue, rust, visibility/internal]
 sources:
-  - Telegraph/setup/src/app.rs
-  - Telegraph/application/src/command/factory.rs
-  - Telegraph/application/src/usecase/event_processing.rs
-  - Telegraph/infra/src/event/consumer.rs
+  - services/Telegraph/setup/src/app.rs
+  - services/Telegraph/application/src/command/factory.rs
+  - services/Telegraph/application/src/usecase/event_processing.rs
+  - services/Telegraph/infra/src/event/consumer.rs
 summary: Telegraph routes SQS events through a rustycog command service so async consumers and HTTP handlers can share typed use-case orchestration.
 provenance:
   extracted: 0.76

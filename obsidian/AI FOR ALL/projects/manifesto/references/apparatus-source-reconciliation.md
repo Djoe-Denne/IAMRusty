@@ -6,15 +6,15 @@ status: proposed
 feature_status: future
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
-  - Manifesto/domain/src/entity/project_component.rs
-  - Manifesto/domain/src/port/service.rs
-  - Manifesto/application/src/usecase/component.rs
-  - Manifesto/infra/src/transaction.rs
-  - apparatus-events/src/component.rs
-  - openfga/model.fga
-  - sentinel-sync/src/translator/manifesto.rs
+  - services/Manifesto/domain/src/entity/project_component.rs
+  - services/Manifesto/domain/src/port/service.rs
+  - services/Manifesto/application/src/usecase/component.rs
+  - services/Manifesto/infra/src/transaction.rs
+  - crates/apparatus-events/src/component.rs
+  - ops/openfga/model.fga
+  - workers/sentinel-sync/src/translator/manifesto.rs
   - docker-compose.yml
-  - monolith/src/runtime.rs
+  - runtime/monolith/src/runtime.rs
 evidence_commit: bbf236eee7b5be08477de3ed30d34c6ff280e81b
 rustycog_commit: cb0cff1d0130a848d781b18ad3def58055e7fabd
 source_sha256: 4c1f93d4ec2319babdc4c724ff90c09bdd66db0ff68193cb6374aa06f2385c13

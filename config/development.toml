@@ -3,7 +3,7 @@
 # Compose app images mount each service's own `/app/config`, not this file.
 #
 # Shared [database] is overlayed per slice via IAM_/TELEGRAPH_/HIVE_/MANIFESTO_/LAZARET_
-# (see monolith/run-host.ps1).
+# (see runtime/monolith/run-host.ps1).
 # Queues: Manifesto must publish `project_created` → `sentinel-sync-events` (LocalStack).
 # SQS host MUST be `localhost` (rustycog LocalStack URL special-case; not 127.0.0.1).
 # run-host.ps1 keeps IAM/Telegraph/Hive/Lazaret consumers off so they do not steal that queue.
@@ -73,8 +73,8 @@ oauth_state_secret = "iam-oauth-state-hmac-change-me"
 
 [jwt.secret]
 type = "pem_file"
-private_key_path = "IAMRusty/config/keys/test-platform.pem"
-public_key_path = "IAMRusty/config/keys/test-platform.pub"
+private_key_path = "services/IAMRusty/config/keys/test-platform.pem"
+public_key_path = "services/IAMRusty/config/keys/test-platform.pub"
 key_id = "test-rs256-kid-01"
 
 [[idp.connectors]]

@@ -1,5 +1,5 @@
 ---
-title: "ADR-0603 — tranche locale deploy/kind Apparatus↔Lazaret (Proposed)"
+title: "ADR-0603 — tranche locale ops/deploy/kind Apparatus↔Lazaret (Proposed)"
 category: decisions
 tags: [architecture, platform, kubernetes, visibility/internal]
 status: proposed
@@ -9,7 +9,7 @@ sources:
   - docs/platform-local-v1-implementation-contract.md
 summary: >-
   Canon : docs/adr/0603. Première tranche Vague 4 = locale (A+B) :
-  deploy/ + cloud/opentofu/ ; preuve Apparatus↔Lazaret en manifests ;
+  ops/deploy/ + ops/cloud/opentofu/ ; preuve Apparatus↔Lazaret en manifests ;
   pas GKE, pas 0602. Lazaret ≠ Factory. Ne SuperSède pas 0600/0601/0008.
 created: 2026-09-25T10:51:00Z
 updated: 2026-09-27T09:20:00Z
@@ -25,4 +25,4 @@ Canon : `docs/adr/0603-tranche-locale-deploy-kind-apparatus-lazaret.md`. Hub : [
 
 ## Statut : Proposed (2026-09-25)
 
-Réalité **Partial** : `just deploy-m1` / `deploy-m2` / `deploy-m3`, arbres `deploy/` et `cloud/opentofu/`. Pas GKE, pas Flux live, pas 0602. Scaffolding A+B autorisé sans Accept GKE. Ne SuperSède **pas** 0600, 0601, ni 0008. Suite locale : [[projects/aiforall/decisions/0604-j3-overlay-demo-monolith]] et [[projects/aiforall/decisions/0605-gold-path-kind]] (Réalité Implemented, Statut Proposed). Lazaret = gateway P3 ; Factory = P5/P6 non livré.
+Réalité **Partial** : `just deploy-m1` / `deploy-m2` / `deploy-m3`, arbres `ops/deploy/` et `ops/cloud/opentofu/`. Pas GKE, pas Flux live, pas 0602. Scaffolding A+B autorisé sans Accept GKE. Ne SuperSède **pas** 0600, 0601, ni 0008. Suite locale : [[projects/aiforall/decisions/0604-j3-overlay-demo-monolith]] et [[projects/aiforall/decisions/0605-gold-path-kind]] (Réalité Implemented, Statut Proposed). Lazaret = gateway P3 ; Factory = P5/P6 non livré.

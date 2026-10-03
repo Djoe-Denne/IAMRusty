@@ -33,11 +33,11 @@ Le dual runtime ([0404](0404-runtime-microservices-et-monolithe.md)) impose deux
 
 ## État runtime
 
-`HttpIamOrganizationSignerClient` câblé par défaut dans `Hive/setup` ; routes admin Hive `POST /api/organizations/{id}/signer/{configure,test,rotate,disable}` (permission Admin). Sur succès : persist org `signing_profile_id` + `signing_status` uniquement. IAM refuse BYOKMS aws/gcp/azure (pas d’adapters). Pas de secret dans les domain events. Telegraph = notifications seulement. Les PEM d’organisation vivent sous `{keys}/organizations/{org_id}/…` ; la clé plateforme reste hors de cette racine.
+`HttpIamOrganizationSignerClient` câblé par défaut dans `services/Hive/setup` ; routes admin Hive `POST /api/organizations/{id}/signer/{configure,test,rotate,disable}` (permission Admin). Sur succès : persist org `signing_profile_id` + `signing_status` uniquement. IAM refuse BYOKMS aws/gcp/azure (pas d’adapters). Pas de secret dans les domain events. Telegraph = notifications seulement. Les PEM d’organisation vivent sous `{keys}/organizations/{org_id}/…` ; la clé plateforme reste hors de cette racine.
 
 `RotateOrganizationSigner` runtime : N+1 réel (Pending puis Active, ancienne Active → Retiring) ; PEM biclé sous pem_root ou Transit create+read public ; probe Transit live.
 
-**InProcess monolithe (working tree)** : pont `monolith/src/in_process_iam_signer.rs` + câblage `monolith/src/runtime.rs` via le sucre `with_iam_organization_signer_client` (écrit le champ `iam_organization_signer` du sac `HiveOutboundOverrides`, [0104](0104-outbound-overrides-composition-root.md) Partial). Politique de transport 0306 inchangée.
+**InProcess monolithe (working tree)** : pont `runtime/monolith/src/in_process_iam_signer.rs` + câblage `runtime/monolith/src/runtime.rs` via le sucre `with_iam_organization_signer_client` (écrit le champ `iam_organization_signer` du sac `HiveOutboundOverrides`, [0104](0104-outbound-overrides-composition-root.md) Partial). Politique de transport 0306 inchangée.
 
 **Gap Partial** : pas d’adapters BYOKMS aws/gcp/azure ; pas d’events SigningProfile*.
 
@@ -76,9 +76,9 @@ Introduire le port synchrone Hive→IAM après (ou avec) SigningKeyRegistry ([03
 - Credential HTTP : [0307](0307-workload-identity-port.md) (Accepted / Partial)
 - Hive / Telegraph : [0402](0402-hive-organisations.md), [0403](0403-telegraph-notifications-event-driven.md)
 - Preuves runtime (Partial — HTTP + InProcess setter nommé) :
-  - Hive handlers : `Hive/http/src/handlers/organization_signer.rs` (`configure`/`test`/`rotate`/`disable`)
-  - Client s2s HTTP : `Hive/infra/src/iam/organization_signer_client.rs` `HttpIamOrganizationSignerClient` (`x-iam-internal-token` via WorkloadIdentity/StaticCredential (`iam-internal-token`)), câblé `Hive/setup`
-  - Routes IAM internes : `IAMRusty/http/src/handlers/organization_signer.rs`
-  - Persist UX only : `Hive/domain/src/entity/organization.rs` (`signing_profile_id`, `signing_status`) ; pas de secret dans events
-  - InProcess monolithe : `monolith/src/in_process_iam_signer.rs`, câblage `monolith/src/runtime.rs` → `with_iam_organization_signer_client`
+  - Hive handlers : `services/Hive/http/src/handlers/organization_signer.rs` (`configure`/`test`/`rotate`/`disable`)
+  - Client s2s HTTP : `services/Hive/infra/src/iam/organization_signer_client.rs` `HttpIamOrganizationSignerClient` (`x-iam-internal-token` via WorkloadIdentity/StaticCredential (`iam-internal-token`)), câblé `services/Hive/setup`
+  - Routes IAM internes : `services/IAMRusty/http/src/handlers/organization_signer.rs`
+  - Persist UX only : `services/Hive/domain/src/entity/organization.rs` (`signing_profile_id`, `signing_status`) ; pas de secret dans events
+  - InProcess monolithe : `runtime/monolith/src/in_process_iam_signer.rs`, câblage `runtime/monolith/src/runtime.rs` → `with_iam_organization_signer_client`
 - Gaps vs cible : pas d’adapters BYOKMS aws/gcp/azure ; pas d’events SigningProfile*

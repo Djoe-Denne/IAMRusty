@@ -34,7 +34,7 @@ Conséquence : posséder la clé `envoy-mesh` permet d’injecter n’importe qu
 
 ## Amendement 2026-10-02
 
-Prime sur `compose_then_kind`. IT : third parties hors Kind (norme Compose ; code = testcontainers). E2E : Kind seul, preuve `scripts/mesh-authn-kind-e2e.sh`. Isoprod hors IT : Postgres, Redis et le reste in-kind. Flux commenté ne mesure pas Implemented. Journal : [[journal/2026-10-02]].
+Prime sur `compose_then_kind`. IT : third parties hors Kind (norme Compose ; code = testcontainers). E2E : Kind seul, preuve `ops/scripts/mesh-authn-kind-e2e.sh`. Isoprod hors IT : Postgres, Redis et le reste in-kind. Flux commenté ne mesure pas Implemented. Journal : [[journal/2026-10-02]].
 
 `kind-mesh` a les quatre routes, les workloads, §7, les chemins publics sans Check, Postgres sans hostPort 5432. Signup / login / JWKS passent par Envoy.
 

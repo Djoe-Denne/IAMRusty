@@ -6,8 +6,8 @@ tags: [platform, microservices, rust, visibility/internal]
 sources:
   - README.md
   - Cargo.toml
-  - monolith/Cargo.toml
-  - monolith/src/runtime.rs
+  - runtime/monolith/Cargo.toml
+  - runtime/monolith/src/runtime.rs
   - docs/reviews/iam-architecture-comparison.md
   - .agents/skills/rustycog-submodule/SKILL.md
   - C:/Users/djden/source/repos/AIForAll/.env

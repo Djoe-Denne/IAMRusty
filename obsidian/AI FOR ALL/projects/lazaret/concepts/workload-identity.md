@@ -6,11 +6,11 @@ tags: [architecture, rust, visibility/internal]
 sources:
   - docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md
   - docs/services/lazaret.md
-  - Lazaret/domain/src/identity.rs
-  - Lazaret/application/src/identity.rs
-  - Lazaret/http/src/lib.rs
-  - Lazaret/tests/apparatus_p3_t11b_session_mtls.rs
-  - Lazaret/tests/apparatus_p3_t13_ca_persist.rs
+  - services/Lazaret/domain/src/identity.rs
+  - services/Lazaret/application/src/identity.rs
+  - services/Lazaret/http/src/lib.rs
+  - services/Lazaret/tests/apparatus_p3_t11b_session_mtls.rs
+  - services/Lazaret/tests/apparatus_p3_t13_ca_persist.rs
 summary: >-
   Enroll CSR puis session EdDSA. T11b : /session sous mTLS optionnel
   (même CA). T13 : CA persist generate-if-absent, leaf serveur, TTL
@@ -54,15 +54,15 @@ L’enrollment n’est plus seulement in-memory : table `apparatus_enrollments` 
 
 Trou mTLS `POST /lazaret/session` **fermé**. HTTPS live via `serve_router` + authentification client **optionnelle** rustycog (pin `0858eab`). Mapping `PeerClientCertificate` → `VerifiedClientCertificate` **sans** écraser les `extensions_mut` T3/T10 : la session mTLS ne doit pas perdre l’identité déjà posée à l’enroll. ^[inferred]
 
-Même **instance** CA pour enroll et `tls_client_ca_path` : le certificat émis à l’enroll est celui que le handshake `/session` vérifie. Preuve : `Lazaret/tests/apparatus_p3_t11b_session_mtls.rs`.
+Même **instance** CA pour enroll et `tls_client_ca_path` : le certificat émis à l’enroll est celui que le handshake `/session` vérifie. Preuve : `services/Lazaret/tests/apparatus_p3_t11b_session_mtls.rs`.
 
 ## T13 — persistance CA + leaf serveur (`311e0ab`)
 
-Trou persistance clé CA **fermé**. `generate-if-absent` au boot `Application::new` — pas `openssl` dans l’entrypoint. La leaf serveur est signée par cette CA. Survive un redémarrage avec la **même** CA. Preuve : `Lazaret/tests/apparatus_p3_t13_ca_persist.rs`.
+Trou persistance clé CA **fermé**. `generate-if-absent` au boot `Application::new` — pas `openssl` dans l’entrypoint. La leaf serveur est signée par cette CA. Survive un redémarrage avec la **même** CA. Preuve : `services/Lazaret/tests/apparatus_p3_t13_ca_persist.rs`.
 
 Défaut TTL CA : 24×365 h (8760). Nombre d’**implémentation**, **non** figé par Accept. ^[extracted]
 
-TLS compose Lazaret (distinct du mesh T14b) : `tls_port` 8080, volume `./Lazaret/certs:/app/certs`, HEALTHCHECK `curl -fk https://localhost:8080/lazaret/health`.
+TLS compose Lazaret (distinct du mesh T14b) : `tls_port` 8080, volume `./services/Lazaret/certs:/app/certs`, HEALTHCHECK `curl -fk https://localhost:8080/lazaret/health`.
 
 ## Related
 

@@ -4,9 +4,9 @@ title: >-
 category: concepts
 tags: [openfga, sentinel-sync, manifesto, visibility/internal]
 sources:
-  - sentinel-sync/src/reconcile.rs
-  - sentinel-sync/src/fga_client.rs
-  - Manifesto/infra/src/adapters/org_scope.rs
+  - workers/sentinel-sync/src/reconcile.rs
+  - workers/sentinel-sync/src/fga_client.rs
+  - services/Manifesto/infra/src/adapters/org_scope.rs
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/11c01523-bb74-444a-ac31-44384d63de7d/11c01523-bb74-444a-ac31-44384d63de7d.jsonl
 summary: >-
   Reconcile writes the exact desired−existing delta for project and component tuples only. OpenFGA 1.5 cannot Read with an empty object id; the client reads the store then filters.

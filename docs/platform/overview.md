@@ -14,7 +14,7 @@ AIForAll est un workspace Rust de bounded contexts hexagonaux, tous câblés via
 | **oodhive-monolith** | Compose les 4 routeurs sous un listener | `/iam` … `/manifesto` | (hors compose) | `oodhive-monolith` |
 | **readiness** | Crate `/ready` partagée | `/ready` sur chaque service | — | `readiness` |
 
-Préfixes : constantes `SERVICE_PREFIX` dans chaque crate HTTP (`IAMRusty/http`, `Hive/http`, …). Le monolithe les réutilise via `.nest(...)` — même contrat de chemins en standalone et en monolithe.
+Préfixes : constantes `SERVICE_PREFIX` dans chaque crate HTTP (`services/IAMRusty/http`, `services/Hive/http`, …). Le monolithe les réutilise via `.nest(...)` — même contrat de chemins en standalone et en monolithe.
 
 ## Infra locale (`docker-compose.yml`)
 

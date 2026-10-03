@@ -8,8 +8,8 @@ sources:
   - rustycog/rustycog-http/src/mesh_principal.rs
   - rustycog/rustycog-http/src/middleware_auth.rs
   - rustycog/rustycog-config/src/lib.rs
-  - deploy/mesh/compose.yaml
-  - IAMRusty/setup/src/app.rs
+  - ops/deploy/mesh/compose.yaml
+  - services/IAMRusty/setup/src/app.rs
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/23daa0aa-3a66-4665-8db4-80c94e4e20a7/23daa0aa-3a66-4665-8db4-80c94e4e20a7.jsonl
 summary: >-
   Mode mesh rustycog : trusted_gateway_san non vide = principal Envoy,
@@ -34,7 +34,7 @@ IAM `setup` copie `config.auth.mesh` dans `http_verifier_auth` pour que `/api/me
 
 ## Overlay Compose
 
-`deploy/mesh/compose.yaml` : `*_SERVER__TLS_REQUIRE_CLIENT_CERT=true` et `*_AUTH__MESH__TRUSTED_GATEWAY_SAN=envoy-mesh` pour iam, hive, telegraph, manifesto.
+`ops/deploy/mesh/compose.yaml` : `*_SERVER__TLS_REQUIRE_CLIENT_CERT=true` et `*_AUTH__MESH__TRUSTED_GATEWAY_SAN=envoy-mesh` pour iam, hive, telegraph, manifesto.
 
 ## Témoin de confiance
 

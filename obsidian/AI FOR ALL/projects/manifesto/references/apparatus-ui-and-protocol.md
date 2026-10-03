@@ -6,9 +6,9 @@ status: proposed
 feature_status: future
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
-  - Manifesto/http/src/lib.rs
-  - apparatus-events/src/component.rs
-  - apparatus-contracts/src/protocol.rs
+  - services/Manifesto/http/src/lib.rs
+  - crates/apparatus-events/src/component.rs
+  - crates/apparatus-contracts/src/protocol.rs
   - https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe
   - https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage
 summary: "Host UI absent ; DTO protocole P0 dans apparatus-contracts, sans transport HTTP."
@@ -22,7 +22,7 @@ updated: 2026-09-11T05:45:00Z
 
 # Apparatus — UI, SDK et protocole
 
-Manifesto est actuellement une API Rust. L’audit n’a trouvé ni frontend produit Manifesto, ni host de slots, ni bridge, ni design system ; le React de `IAMRusty/qa/test-ui` est une fixture QA. Il faut donc créer le host avant d’intégrer les UI de [[projects/manifesto/concepts/apparatus-platform]].
+Manifesto est actuellement une API Rust. L’audit n’a trouvé ni frontend produit Manifesto, ni host de slots, ni bridge, ni design system ; le React de `services/IAMRusty/qa/test-ui` est une fixture QA. Il faut donc créer le host avant d’intégrer les UI de [[projects/manifesto/concepts/apparatus-platform]].
 
 ## Sortie frontend et slots
 

@@ -8,11 +8,11 @@ status: proposed
 feature_status: future
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
-  - Manifesto/domain/src/entity/project_component.rs
-  - Manifesto/application/src/usecase/component.rs
-  - Manifesto/setup/src/app.rs
-  - monolith/src/runtime.rs
-  - apparatus-contracts/src/lib.rs
+  - services/Manifesto/domain/src/entity/project_component.rs
+  - services/Manifesto/application/src/usecase/component.rs
+  - services/Manifesto/setup/src/app.rs
+  - runtime/monolith/src/runtime.rs
+  - crates/apparatus-contracts/src/lib.rs
   - docs/adr/0002-apparatus-contract-first.md
   - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
 summary: >-

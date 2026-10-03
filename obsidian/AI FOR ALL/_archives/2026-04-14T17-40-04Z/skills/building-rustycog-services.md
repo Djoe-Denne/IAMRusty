@@ -1,12 +1,12 @@
-﻿---
+---
 title: >-
   Building RustyCog Services
 category: skills
 tags: [rustycog, scaffolding, services, visibility/internal]
 sources:
-  - Manifesto/docs/rustycog-service-build-guide.md
-  - Manifesto/docs/rustycog-hexagonal-web-service-guide.md
-  - Manifesto/docs/rustycog-implementation-and-usage-guide.md
+  - services/Manifesto/docs/rustycog-service-build-guide.md
+  - services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md
+  - services/Manifesto/docs/rustycog-implementation-and-usage-guide.md
   - rustycog/rustycog-command/src/registry.rs
   - rustycog/rustycog-http/src/builder.rs
   - rustycog/rustycog-http/src/middleware_permission.rs

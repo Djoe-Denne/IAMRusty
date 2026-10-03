@@ -66,10 +66,10 @@ Membership Hive porte `(iss, sub)` ; tokens `iss=iamrusty` = platform historique
 - IdP / Hive : [0400](0400-iamrusty-identite-hexagonale.md), [0402](0402-hive-organisations.md)
 - AuthN/AuthZ : [0302](0302-authn-jwt-authz-openfga.md)
 - Preuves runtime (Implemented) :
-  - Table `identities` : `IAMRusty/migration/src/m20220101_000003_identities.rs` ; `IAMRusty/infra/src/repository/entity/identities.rs`
-  - `ensure_platform_identity` sur login/refresh : `IAMRusty/application/src/usecase/{login,token}.rs`, `IAMRusty/infra/src/repository/identity_repository.rs`
-  - Membership `(iss, sub)` : `Hive/domain/src/entity/organization_member.rs` `OrganizationMember.issuer` ; handlers `Hive/http/src/handlers/members.rs` (`JwtPrincipal.iss`) ; `find_by_organization_issuer_and_user`
-  - Events issuer optionnel : `hive-events/src/member.rs` (`MemberJoinedEvent`, `MemberRemovedEvent`, `MemberRolesUpdatedEvent`)
-  - Unit : `IAMRusty/domain/tests/identity_ensure.rs`, `Hive/domain/tests/member_issuer.rs`
-  - FGA reste `user:{uuid}` : `sentinel-sync/src/fga_client.rs`
+  - Table `identities` : `services/IAMRusty/migration/src/m20220101_000003_identities.rs` ; `services/IAMRusty/infra/src/repository/entity/identities.rs`
+  - `ensure_platform_identity` sur login/refresh : `services/IAMRusty/application/src/usecase/{login,token}.rs`, `services/IAMRusty/infra/src/repository/identity_repository.rs`
+  - Membership `(iss, sub)` : `services/Hive/domain/src/entity/organization_member.rs` `OrganizationMember.issuer` ; handlers `services/Hive/http/src/handlers/members.rs` (`JwtPrincipal.iss`) ; `find_by_organization_issuer_and_user`
+  - Events issuer optionnel : `crates/hive-events/src/member.rs` (`MemberJoinedEvent`, `MemberRemovedEvent`, `MemberRolesUpdatedEvent`)
+  - Unit : `services/IAMRusty/domain/tests/identity_ensure.rs`, `services/Hive/domain/tests/member_issuer.rs`
+  - FGA reste `user:{uuid}` : `workers/sentinel-sync/src/fga_client.rs`
 - Gaps vs cible : linking multi-domain, switch d’identity UX, mint JWT org

@@ -42,7 +42,7 @@ openfga
 
 ## Transport
 
-`test.toml` : `queue.enabled = false`. Suites SQS : descripteur `has_sqs() == true` + `HIVE_QUEUE__ENABLED=true` (ou IAM/MANIFESTO). Assert la file **destination** et la file fallback vide. Références : `Hive/tests/sqs_event_routing_tests.rs`, IAM, Manifesto.
+`test.toml` : `queue.enabled = false`. Suites SQS : descripteur `has_sqs() == true` + `HIVE_QUEUE__ENABLED=true` (ou IAM/MANIFESTO). Assert la file **destination** et la file fallback vide. Références : `services/Hive/tests/sqs_event_routing_tests.rs`, IAM, Manifesto.
 
 ## Fixtures HTTP sortantes
 
@@ -54,4 +54,4 @@ Skill [creating-testcontainer-fixtures](../../.agents/skills/creating-testcontai
 
 ## IAM
 
-Pas d’OpenFGA. JWT + fixtures DB + parfois wiremock OAuth. Scénarios fonctionnels documentés : [../functional/identite.md](../functional/identite.md) et `IAMRusty/qa/scenarii/`.
+Pas d’OpenFGA. JWT + fixtures DB + parfois wiremock OAuth. Scénarios fonctionnels documentés : [../functional/identite.md](../functional/identite.md) et `services/IAMRusty/qa/scenarii/`.

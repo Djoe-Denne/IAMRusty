@@ -3,15 +3,15 @@ title: Hive Testing and API Fixtures
 category: references
 tags: [reference, testing, fixtures, visibility/internal]
 sources:
-  - Hive/config/test.toml
-  - Hive/tests/common.rs
-  - Hive/tests/organization_api_tests.rs
-  - Hive/tests/members_api_tests.rs
-  - Hive/tests/sqs_event_routing_tests.rs
-  - Hive/tests/external_link_api_tests.rs
-  - Hive/tests/fixtures/external_provider/mod.rs
-  - Hive/tests/fixtures/external_provider/service.rs
-  - Hive/tests/fixtures/external_provider/resources.rs
+  - services/Hive/config/test.toml
+  - services/Hive/tests/common.rs
+  - services/Hive/tests/organization_api_tests.rs
+  - services/Hive/tests/members_api_tests.rs
+  - services/Hive/tests/sqs_event_routing_tests.rs
+  - services/Hive/tests/external_link_api_tests.rs
+  - services/Hive/tests/fixtures/external_provider/mod.rs
+  - services/Hive/tests/fixtures/external_provider/service.rs
+  - services/Hive/tests/fixtures/external_provider/resources.rs
 summary: Hive validates its API with real DB, JWT-backed tests, real OpenFGA, LocalStack SQS routing checks, and an ExternalProviderMockService wrapper around the shared rustycog-testing wiremock fixture.
 provenance:
   extracted: 0.78
@@ -28,13 +28,13 @@ These sources show how `[[projects/hive/hive]]` validates its organization-manag
 ## Key Ideas
 
 - `HiveTestDescriptor` follows the shared `rustycog_testing` pattern for service bootstrapping, migrations, DB setup, and test-server lifecycle, as documented in `[[projects/rustycog/references/rustycog-testing]]`.
-- Hive's default test runtime keeps `has_db()` true and `has_sqs()` false so ordinary HTTP/API tests do not start LocalStack. `Hive/tests/sqs_event_routing_tests.rs` defines its own SQS-specific descriptor and sets `HIVE_QUEUE__ENABLED=true` before bootstrapping the fixture/server.
-- `Hive/tests/sqs_event_routing_tests.rs` is one of the canonical producer-side routing checks: each `#[serial]` test drains `test-sentinel-sync-events` and `test-hive-default-events`, performs a real HTTP action, waits with `TestSqs::wait_for_messages_from_queue("test-sentinel-sync-events", ...)`, and asserts the explicitly mapped event did not fall through to the default queue.
+- Hive's default test runtime keeps `has_db()` true and `has_sqs()` false so ordinary HTTP/API tests do not start LocalStack. `services/Hive/tests/sqs_event_routing_tests.rs` defines its own SQS-specific descriptor and sets `HIVE_QUEUE__ENABLED=true` before bootstrapping the fixture/server.
+- `services/Hive/tests/sqs_event_routing_tests.rs` is one of the canonical producer-side routing checks: each `#[serial]` test drains `test-sentinel-sync-events` and `test-hive-default-events`, performs a real HTTP action, waits with `TestSqs::wait_for_messages_from_queue("test-sentinel-sync-events", ...)`, and asserts the explicitly mapped event did not fall through to the default queue.
 - Organization, member, and external-link tests create real DB state, mint JWTs, call the live HTTP server, and assert on both response codes and persisted data.
 - The tests are serial and mirror the same broad style now used by IAMRusty and Manifesto producer-routing tests, while Telegraph remains the queue-consumer behavior example.
-- External provider behavior is isolated through an `ExternalProviderMockService` (in `Hive/tests/fixtures/external_provider/service.rs`) that wraps the shared [[projects/rustycog/references/wiremock-mock-server-fixture]] and emulates `/config/validate`, `/connection/test`, `/organization/info`, `/members`, and `/members/check` endpoints.
+- External provider behavior is isolated through an `ExternalProviderMockService` (in `services/Hive/tests/fixtures/external_provider/service.rs`) that wraps the shared [[projects/rustycog/references/wiremock-mock-server-fixture]] and emulates `/config/validate`, `/connection/test`, `/organization/info`, `/members`, and `/members/check` endpoints.
 - The wrapper exposes one async `mock_*` method per scenario — `mock_validate_config_ok`, `mock_validate_config_fail(message_contains)`, `mock_connection_test(connected)`, `mock_organization_info(name, external_id)`, `mock_members(members)`, `mock_is_member(is_member)` — each returning `&Self` so arrangements can be chained per test.
-- Each mock is mounted with `Mock::given(method("POST")).and(path("/..."))`; the failure stub also chains `body_string_contains(message_contains)` to react only to specific request bodies, and the response side uses `ResponseTemplate::new(<status>).set_body_json(...)` with typed DTOs from `Hive/tests/fixtures/external_provider/resources.rs` (`ConnectionTestResponseBody`, `OrganizationInfo`, `MembersResponse`, `Member`).
+- Each mock is mounted with `Mock::given(method("POST")).and(path("/..."))`; the failure stub also chains `body_string_contains(message_contains)` to react only to specific request bodies, and the response side uses `ResponseTemplate::new(<status>).set_body_json(...)` with typed DTOs from `services/Hive/tests/fixtures/external_provider/resources.rs` (`ConnectionTestResponseBody`, `OrganizationInfo`, `MembersResponse`, `Member`).
 - The fixture is constructed via `ExternalProviderFixtures::service().await`, which calls `ExternalProviderMockService::new()` → `MockServerFixture::new()`; the fixture handle is held in a `_fixture` field so its `Drop` impl resets all mocks for the next test.
 - Tests like `external_link_api_tests` (`create_external_link_happy_path`, `create_external_link_requires_auth`, `create_external_link_forbidden_for_read_only_member`) currently exercise the API surface end-to-end against the live HTTP server and DB but do not yet arrange `ExternalProviderMockService` stubs in the visible flows. ^[ambiguous]
 - Follow [[skills/stubbing-http-with-wiremock]] when extending this fixture or adding a new external collaborator.

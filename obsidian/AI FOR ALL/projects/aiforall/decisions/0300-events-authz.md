@@ -26,7 +26,7 @@ Canon : `docs/adr/0300`–`0303`. Hub : [[projects/aiforall/decisions/index]].
 
 `iam-events`, `hive-events`, `manifesto-events`, `telegraph-events` portent les types de domaine. Le transport = `QueueConfig` : `Sqs` | `Kafka` | `Disabled`. `Disabled` est un transport valide.
 
-`apparatus-events/` existe sur disque mais **hors** `workspace.members`. **NATS** n’est pas un transport plateforme.
+`crates/apparatus-events/` existe sur disque mais **hors** `workspace.members`. **NATS** n’est pas un transport plateforme.
 
 La file physique (`telegraph-events`, `sentinel-sync-events`) est un câblage d’opérateur, pas le schéma.
 

@@ -15,7 +15,7 @@
 # images. `depends_on` only orders runtime startup, not builds, so we build
 # in two explicit steps.
 
-# Use PowerShell on Windows (matches IAMRusty/justfile convention)
+# Use PowerShell on Windows (matches services/IAMRusty/justfile convention)
 set shell := ["powershell.exe", "-c"]
 
 # Default - list available recipes
@@ -76,14 +76,14 @@ restart: down up
 # stop compose iam-service if that port is taken.
 # If this process booted with [queue] enabled=false, RESTART it after enabling queues.
 monolith:
-    & ./monolith/run-host.ps1
+    & ./runtime/monolith/run-host.ps1
 
 # Preuves — index :
 #   just prove-gold                  = nominal Kind 0605
 #   just prove-j1 / monolith-prove   = host J1
-#   monolith/prove-e2e-curl.ps1      = curl hôte ≠ preuve
+#   runtime/monolith/prove-e2e-curl.ps1      = curl hôte ≠ preuve
 monolith-prove:
-    & ./monolith/prove-j1.ps1
+    & ./runtime/monolith/prove-j1.ps1
 
 alias prove-j1 := monolith-prove
 
@@ -92,13 +92,13 @@ alias prove-j1 := monolith-prove
 # Order: just up-infra → queues on → just monolith (restart) → just sentinel-sync.
 sentinel-sync:
     $env:RUN_ENV = "development"
-    . ./openfga/ensure-host-store.ps1
+    . ./ops/openfga/ensure-host-store.ps1
     cargo run -p sentinel-sync
 
 # Host Manifesto component catalog stub (GET http://127.0.0.1:9000/api/components).
 # Needed for prove-e2e-curl POST .../components after the OpenFGA Admin grant.
 component-catalog:
-    & ./monolith/run-component-catalog.ps1
+    & ./runtime/monolith/run-component-catalog.ps1
 
 # === Observability =========================================================
 
@@ -137,11 +137,11 @@ db-verify-emails TARGET_DB="iam_dev":
 
 # === OpenFGA model ========================================================
 
-# Regenerate openfga/model.json from openfga/model.fga.
+# Regenerate ops/openfga/model.json from ops/openfga/model.fga.
 #
 # The integration-test fixture (rustycog-testing TestOpenFga) uploads
-# openfga/model.json into the test container at startup. Whenever
-# openfga/model.fga changes, run this recipe and commit the regenerated
+# ops/openfga/model.json into the test container at startup. Whenever
+# ops/openfga/model.fga changes, run this recipe and commit the regenerated
 # JSON alongside the DSL update.
 #
 # Uses the `fga` CLI when present on PATH; otherwise falls back to a
@@ -150,50 +150,50 @@ db-verify-emails TARGET_DB="iam_dev":
 regenerate-openfga-model-json:
     @if (Get-Command fga -ErrorAction SilentlyContinue) { \
         Write-Host "Using local fga CLI" -ForegroundColor Cyan; \
-        fga model transform --file openfga/model.fga | Set-Content -Path openfga/model.json; \
+        fga model transform --file ops/openfga/model.fga | Set-Content -Path ops/openfga/model.json; \
     } else { \
         Write-Host "Local fga CLI not found; running openfga/cli via docker" -ForegroundColor Cyan; \
-        docker run --rm -v "${PWD}/openfga:/work" -w /work openfga/cli model transform --file model.fga | Set-Content -Path openfga/model.json; \
+        docker run --rm -v "${PWD}/openfga:/work" -w /work openfga/cli model transform --file model.fga | Set-Content -Path ops/openfga/model.json; \
     }
-    @Write-Host "Wrote openfga/model.json" -ForegroundColor Green
+    @Write-Host "Wrote ops/openfga/model.json" -ForegroundColor Green
 
 # === Local Kubernetes (ADR-0603) ===========================================
 # Kind cluster aiforall-local — never apparatus-p4-it. Does not replace Compose `up`.
 
 deploy-m1:
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/verify-m1.ps1
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./ops/deploy/verify-m1.ps1
 
 deploy-m2:
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/verify-m2.ps1
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./ops/deploy/verify-m2.ps1
 
 deploy-m3:
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/verify-m3.ps1
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./ops/deploy/verify-m3.ps1
 
 # Real apparatus-controller on kind aiforall-local (J2). Never apparatus-p4-it.
 # Does not bind host :8080. Does not replace Compose `up` / `up-infra` / `monolith`.
 deploy-j2:
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/deploy-j2.ps1
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./ops/deploy/deploy-j2.ps1
 
 # Demo overlay: oodhive-monolith on kind aiforall-local (J3 / ADR-0604).
-# Distinct from deploy/apps/overlays/kind (M2 nginx stub). Not 0601 canon.
+# Distinct from ops/deploy/apps/overlays/kind (M2 nginx stub). Not 0601 canon.
 # Needs `just up-infra` (Postgres/OpenFGA on the Windows host via host.docker.internal).
 # Never apparatus-p4-it. Does not bind host :8080.
 deploy-j3:
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/deploy-j3.ps1
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./ops/deploy/deploy-j3.ps1
 
 # Mesh AuthN sur kind aiforall-local (ADR-0308). Image Linux chargee dans le cluster.
 # Le binaire hote est `cargo build` a la racine (target/). Ne pas lancer un second cargo en parallele.
 deploy-mesh:
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/deploy-mesh.ps1
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./ops/deploy/deploy-mesh.ps1
 
 # Dette hors gold 0605 / 0008 — schedule manuel + Job enroll (0604). Pas une étape nominale.
 debt-schedule-reference-kv:
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/apps/overlays/kind-demo-monolith/schedule-reference-kv.ps1
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./ops/deploy/apps/overlays/kind-demo-monolith/schedule-reference-kv.ps1
 
 # Preuves — index :
 #   just prove-gold                  = nominal Kind 0605
 #   just prove-j1 / monolith-prove   = host J1
-#   monolith/prove-e2e-curl.ps1      = curl hôte ≠ preuve
+#   runtime/monolith/prove-e2e-curl.ps1      = curl hôte ≠ preuve
 prove-gold:
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./deploy/apps/overlays/kind-demo-monolith/prove-gold-path.ps1
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./ops/deploy/apps/overlays/kind-demo-monolith/prove-gold-path.ps1
 

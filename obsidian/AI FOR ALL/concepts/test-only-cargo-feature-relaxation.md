@@ -4,11 +4,11 @@ title: >-
 category: concepts
 tags: [testing, rust, cargo, feature-flags, security, visibility/internal]
 sources:
-  - IAMRusty/infra/Cargo.toml
-  - IAMRusty/infra/src/token/registration_token_service.rs
-  - IAMRusty/infra/src/token/jwt_encoder.rs
-  - IAMRusty/Cargo.toml
-  - IAMRusty/tests/utils/jwt.rs
+  - services/IAMRusty/infra/Cargo.toml
+  - services/IAMRusty/infra/src/token/registration_token_service.rs
+  - services/IAMRusty/infra/src/token/jwt_encoder.rs
+  - services/IAMRusty/Cargo.toml
+  - services/IAMRusty/tests/utils/jwt.rs
 summary: >-
   Pattern for using a Cargo feature activated only via a parent crate's dev-dependencies
   to compile out production-only invariants in test builds without changing runtime behavior.

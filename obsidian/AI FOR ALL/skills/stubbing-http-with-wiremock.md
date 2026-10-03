@@ -4,10 +4,10 @@ category: skills
 tags: [skills, testing, wiremock, fixtures, visibility/internal]
 sources:
   - rustycog/rustycog-testing/src/wiremock/mod.rs
-  - Hive/tests/fixtures/external_provider/service.rs
-  - Hive/tests/fixtures/external_provider/mod.rs
-  - Telegraph/tests/fixtures/smtp/service.rs
-  - Telegraph/tests/fixtures/smtp/mod.rs
+  - services/Hive/tests/fixtures/external_provider/service.rs
+  - services/Hive/tests/fixtures/external_provider/mod.rs
+  - services/Telegraph/tests/fixtures/smtp/service.rs
+  - services/Telegraph/tests/fixtures/smtp/mod.rs
 summary: Recipe for stubbing outbound HTTP with rustycog-testing MockServerFixture, including isolated() for parallel catalog stubs. Not for OpenFGA Check.
 provenance:
   extracted: 0.7

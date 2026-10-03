@@ -57,6 +57,6 @@ Le framework `rustycog/` est feature-gated (`command`, `db`, `events`, `http`, `
 
 ## Références
 
-- `Manifesto/docs/rustycog-hexagonal-web-service-guide.md` §4, `rustycog-service-build-guide.md` §2
-- `IAMRusty/Cargo.toml` (`iam-service` + `iam-migration`), idem Hive/Telegraph/Manifesto
+- `services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md` §4, `rustycog-service-build-guide.md` §2
+- `services/IAMRusty/Cargo.toml` (`iam-service` + `iam-migration`), idem Hive/Telegraph/Manifesto
 - Preuve : dossiers `domain`, `application`, `infra`, `http`, `configuration`, `migration`, `setup`, `tests`, `src/main.rs` dans les 4 services

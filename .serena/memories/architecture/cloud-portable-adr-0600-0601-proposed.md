@@ -1,7 +1,7 @@
 # Cloud portable 0600 — GKE + Flux clos, OTLP ouvert (2026-09-20)
 
 Q1 premier adapter V1 = **GKE** (`gcp`). Motif: corpus OpenTofu/Terraform borné (google_container_cluster + node_pool), sans mega-module. EKS trop de surface AWS. Kapsule corpus tiers mince; ScalewayConfig = app, pas cluster. k3s install facile mais OpenTofu snowflake.
-Portable: outputs identiques; zéro annotation GCP dans deploy/apps/base.
+Portable: outputs identiques; zéro annotation GCP dans ops/deploy/apps/base.
 
 Q2 GitOps = **Flux**. Argo CD rejeté V1.
 

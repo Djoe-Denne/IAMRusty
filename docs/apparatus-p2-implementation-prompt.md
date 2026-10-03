@@ -45,18 +45,18 @@ Le wiki (bindings, plan) est **conception** (`^[inferred]`), **pas** une ADR. In
    - `projects/manifesto/concepts/apparatus-capabilities-and-isolation.md`
    - `projects/manifesto/concepts/apparatus-platform.md`
 7. Code P1 réel (existant, à étendre, pas à réécrire) :
-   - `Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs` (table `apparatus_bindings` ; enregistrée dans `Manifesto/migration/src/lib.rs`)
-   - `Manifesto/infra/src/apparatus_backfill.rs`
-   - `Manifesto/infra/src/apparatus_mapping.rs`
-   - `Manifesto/infra/src/apparatus_outbox.rs` (`persist_binding_atomically`)
-   - `Manifesto/infra/src/transaction.rs` (`ProjectAuthorizationUnitOfWorkImpl`)
-   - `Manifesto/infra/src/repository/component_repository.rs`
-   - `Manifesto/http/src/handlers/components.rs` (5 registrations `/components` dans `Manifesto/http/src/lib.rs`)
-   - `Manifesto/infra/src/event/consumer.rs` (`ApparatusEventConsumer` / `ApparatusEventHandler` — chemin **legacy** `project_id + component_type`)
-   - `Manifesto/infra/src/event/processors/component_processor.rs` (`ComponentStatusProcessor`)
-   - `Manifesto/tests/apparatus_p1_t1_migration.rs` … `apparatus_p1_t7_gate.rs`
-   - `Manifesto/tests/common.rs` ; `openfga/model.fga`
-   - Contrats P0 : `apparatus-contracts/src/protocol.rs` (`/bind` `/configure` `/unbind` `/invoke`) ; `apparatus-contracts/src/ports.rs` (`KvStore` seulement — **pas** encore de port runtime)
+   - `services/Manifesto/migration/src/m20260912_000012_create_apparatus_bindings_table.rs` (table `apparatus_bindings` ; enregistrée dans `services/Manifesto/migration/src/lib.rs`)
+   - `services/Manifesto/infra/src/apparatus_backfill.rs`
+   - `services/Manifesto/infra/src/apparatus_mapping.rs`
+   - `services/Manifesto/infra/src/apparatus_outbox.rs` (`persist_binding_atomically`)
+   - `services/Manifesto/infra/src/transaction.rs` (`ProjectAuthorizationUnitOfWorkImpl`)
+   - `services/Manifesto/infra/src/repository/component_repository.rs`
+   - `services/Manifesto/http/src/handlers/components.rs` (5 registrations `/components` dans `services/Manifesto/http/src/lib.rs`)
+   - `services/Manifesto/infra/src/event/consumer.rs` (`ApparatusEventConsumer` / `ApparatusEventHandler` — chemin **legacy** `project_id + component_type`)
+   - `services/Manifesto/infra/src/event/processors/component_processor.rs` (`ComponentStatusProcessor`)
+   - `services/Manifesto/tests/apparatus_p1_t1_migration.rs` … `apparatus_p1_t7_gate.rs`
+   - `services/Manifesto/tests/common.rs` ; `ops/openfga/model.fga`
+   - Contrats P0 : `crates/apparatus-contracts/src/protocol.rs` (`/bind` `/configure` `/unbind` `/invoke`) ; `crates/apparatus-contracts/src/ports.rs` (`KvStore` seulement — **pas** encore de port runtime)
 
 Si tu touches une API RustyCog (queue, readiness, startup worker), lis `.agents/skills/rustycog/SKILL.md` et uniquement ses références pertinentes. P2 n’est **pas** un nouveau service RustyCog. Pour les fixtures DB : `.agents/skills/creating-testcontainer-fixtures/SKILL.md`. HTTP live seulement si l’ADR P2 l’exige : `.agents/skills/creating-wiremock-fixtures/SKILL.md`.
 
@@ -84,14 +84,14 @@ Nomme les tests `Manifesto/tests/apparatus_p2_t*.rs` (même esprit que P1 : `t1`
 
 Autorisé **uniquement** par ADR-0001 Accepted : un événement dépourvu de `binding_id` **et** de génération n’affecte **jamais** un binding managed. (La clause wiki « un ancien `active` ne réactive pas un binding supprimé » est conception : pas de tombstone P1, CASCADE actuel ; ne l’implémente pas en T1.)
 
-- RED : tests (unit + si besoin DB) sur `Manifesto/infra/src/event/consumer.rs` et `Manifesto/infra/src/event/processors/component_processor.rs` : si `source=managed` et message **sans** `binding_id` (champ événement, pas une colonne SQL P1), **ignorer** ; chemin legacy `project_id + component_type` inchangé pour `source=legacy`.
+- RED : tests (unit + si besoin DB) sur `services/Manifesto/infra/src/event/consumer.rs` et `services/Manifesto/infra/src/event/processors/component_processor.rs` : si `source=managed` et message **sans** `binding_id` (champ événement, pas une colonne SQL P1), **ignorer** ; chemin legacy `project_id + component_type` inchangé pour `source=legacy`.
 - GREEN : filtre minimal, pas de nouveau type FGA, pas de worker, pas de colonne génération.
 - Sortie : preuve test (`apparatus_p2_t1_*.rs`) ; legacy intact.
 
 ### Tranche 2 — Persistence desired/observed + génération + opérations (APRÈS Phase 0)
 
-- RED (intégration DB, Postgres testcontainer via `Manifesto/tests/common.rs`) : migration additive réversible selon **colonnes figées par l’ADR P2 Accepted** (pas d’invention) ; 1:1 et absence de second UUID public conservés ; `source` legacy|managed intact.
-- **Gate T7 dès T2** : retargeter `Manifesto/tests/apparatus_p1_t7_gate.rs` **avant** d’introduire des tokens P2 (`poll`, `worker`, `lease`, `fencing`, `controller`, `desired_state`) dans `Manifesto/migration/src` ou le prod. Allowlist **uniquement** les modules/migration listés par l’ADR. P3+ reste interdit (`kubernetes`/`k8s`, `wasm`/`wasi`/`wasmtime`, `iframe`, `messagechannel`, `apparatus_host`, `ui_host`, `gateway` dans `Manifesto/*/src`, Factory hors allowlist `ManifestoCommandRegistryFactory`).
+- RED (intégration DB, Postgres testcontainer via `services/Manifesto/tests/common.rs`) : migration additive réversible selon **colonnes figées par l’ADR P2 Accepted** (pas d’invention) ; 1:1 et absence de second UUID public conservés ; `source` legacy|managed intact.
+- **Gate T7 dès T2** : retargeter `services/Manifesto/tests/apparatus_p1_t7_gate.rs` **avant** d’introduire des tokens P2 (`poll`, `worker`, `lease`, `fencing`, `controller`, `desired_state`) dans `services/Manifesto/migration/src` ou le prod. Allowlist **uniquement** les modules/migration listés par l’ADR. P3+ reste interdit (`kubernetes`/`k8s`, `wasm`/`wasi`/`wasmtime`, `iframe`, `messagechannel`, `apparatus_host`, `ui_host`, `gateway` dans `services/Manifesto/*/src`, Factory hors allowlist `ManifestoCommandRegistryFactory`).
 - GREEN : migration minimale, `down` propre ; T7 P1 ne casse plus T2.
 - Sortie : up/down verts ; preuve qu’on n’a pas recopié le wiki au-delà de l’ADR.
 
@@ -99,12 +99,12 @@ Autorisé **uniquement** par ADR-0001 Accepted : un événement dépourvu de `bi
 
 - RED : desired + opération + outbox atomiques ; échec → rollback ; **zéro** nouveau type FGA ; pas de tuple lifecycle ; ne pas confondre `grant_revision` AuthZ et génération runtime.
 - GREEN : UoW sans ACL pour observations ; `ProjectAuthorizationUnitOfWork` seulement pour add/remove ownership (déjà P1, `persist_binding_atomically`).
-- Sortie : rollback vert ; `grep apparatus openfga/model.fga` toujours 0 ; events ownership conservés.
+- Sortie : rollback vert ; `grep apparatus ops/openfga/model.fga` toujours 0 ; events ownership conservés.
 - Événements desired/observed versionnés : **seulement** si l’ADR P2 Accepted les exige. Sinon **aucun** nouvel event managed (P1 les interdisait encore). Ne pas copier un payload wiki.
 
 ### Tranche 4 — Ports runtime + adaptateur de test déterministe
 
-- RED : ports et adaptateur **figés par l’ADR P2** (les noms wiki `ensure_instance` / `observe_instance` / `delete_instance` sont des exemples). Étendre `apparatus-contracts/src/ports.rs` (aujourd’hui `KvStore` seulement). Réutiliser DTO P0 `apparatus-contracts/src/protocol.rs` (pas un second protocole wire). Adaptateur **in-process déterministe**. **Zéro** identifiant `gateway` sous `Manifesto/*/src`.
+- RED : ports et adaptateur **figés par l’ADR P2** (les noms wiki `ensure_instance` / `observe_instance` / `delete_instance` sont des exemples). Étendre `crates/apparatus-contracts/src/ports.rs` (aujourd’hui `KvStore` seulement). Réutiliser DTO P0 `crates/apparatus-contracts/src/protocol.rs` (pas un second protocole wire). Adaptateur **in-process déterministe**. **Zéro** identifiant `gateway` sous `services/Manifesto/*/src`.
 - GREEN : pas de Kubernetes, pas de gateway réseau, pas de mTLS, pas de secret manager, pas de nouveau microservice, pas de broker réel.
 - Sortie : tests unit/contract in-process verts (cycle bind/configure/unbind/retries **selon l’ADR**). `invoke` réel via gateway = **P3**, hors P2.
 
@@ -124,19 +124,19 @@ Autorisé **uniquement** par ADR-0001 Accepted : un événement dépourvu de `bi
 ### Tranche 7 — Cleanup projet relançable + Gate P3
 
 - RED : suppression projet conserve l’intention de nettoyage au-delà du CASCADE SQL actuel (`fk_apparatus_bindings_component`) ; cleanup relançable ; gate négatif P3+ (pas de gateway réseau réelle, Factory, K8s, WASM/WASI, host UI, iframe, MessageChannel, VALID/VERIFIED persistants, `APP-01`..`07` préemptés, pas de nouveau microservice).
-- GREEN : opérations de cleanup durables ; gate `Manifesto/tests/apparatus_p1_t7_gate.rs` retargeté P3+ (ne pas laisser les tokens P2 interdits à jamais).
+- GREEN : opérations de cleanup durables ; gate `services/Manifesto/tests/apparatus_p1_t7_gate.rs` retargeté P3+ (ne pas laisser les tokens P2 interdits à jamais).
 - Sortie : cleanup relançable + gate P3 vert (`apparatus_p2_t7_*.rs`).
 
 ## Stratégie de tests (couches pertinentes P2 seulement)
 
 - **Unitaires** : CAS génération, expiry lease, fencing, clés d’idempotence, filtre events managed.
 - **Contract** : DTO P0 bind/configure/unbind ; pas de second protocole ; pas de `trusted_skip_gateway`.
-- **Intégration DB** (Postgres testcontainer, `Manifesto/tests/common.rs`, skill testcontainers) : T2, T3, crash/reprise, cleanup.
-- **Intégration AuthZ** (OpenFGA réel) : **seulement** si on touche tuples/grants. P2 vise zéro changement ACL → preuve d’absence (`grep apparatus openfga/model.fga` = 0) suffit ; ne pas construire une suite FGA « pour faire joli ».
+- **Intégration DB** (Postgres testcontainer, `services/Manifesto/tests/common.rs`, skill testcontainers) : T2, T3, crash/reprise, cleanup.
+- **Intégration AuthZ** (OpenFGA réel) : **seulement** si on touche tuples/grants. P2 vise zéro changement ACL → preuve d’absence (`grep apparatus ops/openfga/model.fga` = 0) suffit ; ne pas construire une suite FGA « pour faire joli ».
 - **Intégration HTTP** : seulement si ADR P2 ajoute 202/suivi. Skill wiremock.
 - **Worker in-process** : T4–T6, adaptateur déterministe. **Pas** de cluster K8s. Mocks NetworkPolicy ≠ isolation.
 - **E2E gateway / Factory / host / K8s** : hors P2 (P3–P6).
-- Réutiliser `Manifesto/tests/common.rs`. Ne crée aucun harness parallèle. Les tests P0 in-process restent des tests Cargo, pas un runtime de production.
+- Réutiliser `services/Manifesto/tests/common.rs`. Ne crée aucun harness parallèle. Les tests P0 in-process restent des tests Cargo, pas un runtime de production.
 
 ## Hors périmètre strict
 

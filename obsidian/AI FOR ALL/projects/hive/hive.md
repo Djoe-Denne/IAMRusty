@@ -4,12 +4,12 @@ title: >-
 category: project
 tags: [organizations, permissions, integrations, visibility/internal]
 sources:
-  - Hive/Cargo.toml
-  - Hive/openspecs.yaml
-  - hive-events/README.md
-  - Hive/setup/src/app.rs
-  - Hive/http/src/lib.rs
-  - Hive/application/src/command/factory.rs
+  - services/Hive/Cargo.toml
+  - services/Hive/openspecs.yaml
+  - crates/hive-events/README.md
+  - services/Hive/setup/src/app.rs
+  - services/Hive/http/src/lib.rs
+  - services/Hive/application/src/command/factory.rs
 summary: >-
   Hive : organisations et permissions. Signer d’org = commande synchrone
   vers IAM (0306), métadonnées seulement. HTTPS compose port 8443.
@@ -40,7 +40,7 @@ updated: 2026-09-27T09:20:00Z
 - Hive publishes `[[projects/hive-events/hive-events]]` domain events for organization, member, invitation, external-link, and sync-job changes rather than treating HTTP as the only integration surface.
 - Hive uses the shared `[[projects/rustycog/rustycog]]` stack, but it diverges from IAMRusty and Telegraph in its custom HTTP error model and in how much of its command or spec surface is actually exposed over HTTP. Conflict to resolve. ^[ambiguous]
 - Hive treats `hive-events` as event-contract vocabulary and relies on `[[projects/rustycog/references/rustycog-events]]` for queue transport and publisher runtime behavior.
-- T14b (HEAD `a27ea5b`) : HTTPS compose via dual-bind rustycog, hôte **8443**, CA mesh `./certs/platform-mesh` **distincte** de la CA Lazaret, authentification client **optionnelle** — pas un rustls required. Preuve `Hive/tests/https_mesh_optional_mtls.rs`. Concept : [[projects/aiforall/concepts/https-platform-mesh]].
+- T14b (HEAD `a27ea5b`) : HTTPS compose via dual-bind rustycog, hôte **8443**, CA mesh `./ops/certs/platform-mesh` **distincte** de la CA Lazaret, authentification client **optionnelle** — pas un rustls required. Preuve `services/Hive/tests/https_mesh_optional_mtls.rs`. Concept : [[projects/aiforall/concepts/https-platform-mesh]].
 
 ## Related
 

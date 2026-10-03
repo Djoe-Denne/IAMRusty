@@ -83,7 +83,7 @@ Relancer Cursor après fusion MCP pour que l'IDE charge les nouveaux serveurs.
 - Noyau du node Kind (quand il tournait) : `6.6.87.2-microsoft-standard-WSL2`, containerd 2.0.2. Docker Desktop 4.70.0 : containerd v2.2.1, runc 1.3.4.
 - Un `.exe` `target\` Windows ne démarre pas dans Kind. Compiler les images dans Docker, pas `cargo` hôte.
 - Ne pas partager `target\` hôte avec un build Linux.
-- Admin Envoy Compose : bind `0.0.0.0:9901` **dans** le conteneur (`deploy/mesh/envoy.yaml`) ; `docker-compose.yml` publie `10000:10000` seulement. Overlay Kind : `127.0.0.1:9901`. Ne pas publier l'admin.
+- Admin Envoy Compose : bind `0.0.0.0:9901` **dans** le conteneur (`ops/deploy/mesh/envoy.yaml`) ; `docker-compose.yml` publie `10000:10000` seulement. Overlay Kind : `127.0.0.1:9901`. Ne pas publier l'admin.
 - Clusters aussi présents : `apparatus-p4-it`, contexte `rancher-desktop` — **hors périmètre**.
 
 ## Commandes de vérification
