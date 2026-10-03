@@ -1,11 +1,9 @@
-# ADR-0304 digest
+# ADR-0304 — AuthN JWT / arbitrage 2026-10-03
 
-- Jalon : AuthN JWT plateforme
-- Chemin : `docs/adr/0304-jwt-acces-plateforme-rs256-jwks.md`
-- Statut : Accepted
-- Réalité : Partial
+Statut : Accepted. Réalité : Partial. Canon : docs/adr/0304-jwt-acces-plateforme-rs256-jwks.md ; voir le fichier ADR.
 
-- Access RS256 + kid opaque + JWKS ; encodeur = clé plateforme au boot.
-- Rotate org N+1 (Pending→Active, ancienne Retiring) ; retiring hors JWKS après TTL+60s.
-- Probe Transit live (config IAM `transit_url`/`transit_token`) ; cloud BYOKMS / 0309 absents.
-- Voir le fichier ADR.
+- Principal canonique (iss, sub) ; une clé org ne confère aucune identité de compte plateforme.
+- Arbitrage humain explicite : confiance JWKS expire à 60 s depuis le dernier snapshot autoritatif validé, mesh et in-process ; outage après la borne = fail-closed. Poll 60 s / 2 s ne prouve pas cette borne.
+- JWKS valide vide retire les clés ; registry initialisé vide ne ressuscite pas le bootstrap ; émission par clé révoquée interdite.
+- Remote signer HTTP Partial, pas HSM/KMIP livré ni adapters cloud BYOKMS.
+- Baseline f060d47 / rustycog ba69c9e : fixes et preuves finales encore requis. IT testcontainers et E2E Kind seulement après intégration complète ; aucune promotion Implemented dans ce tour.

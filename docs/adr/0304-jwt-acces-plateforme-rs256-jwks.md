@@ -4,12 +4,13 @@
 - Réalité : Partial
 - Date : 2026-09-26
 - Décideurs : Djoé Denne (acceptation humaine 2026-09-26)
+- Amendement : 2026-10-03 — arbitrage utilisateur fail-closed JWKS à 60 s, cohérent avec [0308](0308-mesh-authn-jwt.md) point 6 ; cible ratifiée, preuve d’implémentation encore à produire.
 - Jalon concerné : architecture actuelle / AuthN JWT (complète 0302 ; hors P-Apparatus)
 - SuperSède : la décision antérieure **de cette ADR** « OpenBao ne signe pas les JWT utilisateurs » ; **pour la cible seulement**, la décision [0302](0302-authn-jwt-authz-openfga.md) « `iss=iamrusty` unique » (pas l’ADR 0302 entière — AuthZ OpenFGA, Bearer, `aud=aiforall` restent)
 - SuperSédée par : —
 - Related : [0302](0302-authn-jwt-authz-openfga.md), [0305](0305-account-identity-trust-domain.md), [0306](0306-hive-iam-configuration-signature.md), [0307](0307-workload-identity-port.md), [0308](0308-mesh-authn-jwt.md), [0309](0309-remote-signer.md), [0400](0400-iamrusty-identite-hexagonale.md)
 
-`Accepted` ratifie la cible crypto / JWKS / issuer par trust domain. `Réalité : Partial` : mint RS256 + JWKS + extracteur rustycog RS256 + rotate N+1 + probe Transit ; **pas** d’adapters cloud BYOKMS ; remote signer ([0309](0309-remote-signer.md)) absent.
+`Accepted` ratifie la cible crypto / JWKS / issuer par trust domain. `Réalité : Partial` : mint RS256 + JWKS + extracteur rustycog RS256 + rotate N+1 + probe Transit ; **pas** d’adapters cloud BYOKMS ; remote signer HTTP ([0309](0309-remote-signer.md)) présent / Partial, sans HSM livré. Expiration fail-closed JWKS à 60 s ratifiée le 2026-10-03 mais non démontrée à cette baseline.
 
 ## Contexte
 
@@ -33,7 +34,7 @@
 14. **Révocation urgence** : `status=revoked`, stop signatures, retrait confiance, propagation validators. Delete JWKS ≠ instantané (cache). Propriété : propagation maximale documentée ; mécanisme détaillé = [0308](0308-mesh-authn-jwt.md). Ne pas confondre révocation clé vs session.
 15. **Refresh** : opaques, rotatifs, révocables. Révoquer un refresh n’annule pas les access JWT déjà émis. Pas de deny-list `jti` ici.
 16. **Headers `jku`, `x5u`, `jwk`** ignorés / refusés comme trust roots. `kid` ne construit jamais URL / path / host.
-17. **Cache JWKS** : pas de fetch par requête ; `kid` connu = validation locale ; `kid` inconnu = refresh coalescé (singleflight), negative cache, last-known-good, refresh périodique. Détail mesh = [0308](0308-mesh-authn-jwt.md). Consommateurs ne parlent pas au KMS. Amendement 2026-10-02, chiffres dans 0308 point 6 : refresh 60 s en staging / prod (configurable), 2 s en local / Kind / tests ; staleness max après révocation = 60 s.
+17. **Cache JWKS** : pas de fetch par requête ; `kid` connu = validation locale ; `kid` inconnu = refresh coalescé (singleflight), negative cache, last-known-good, refresh périodique. Détail mesh = [0308](0308-mesh-authn-jwt.md). Consommateurs ne parlent pas au KMS. Amendements 2026-10-02 / 2026-10-03, détails dans 0308 point 6 : poll 60 s en staging / prod, 2 s en local / Kind / tests ; **âge maximal de confiance 60 s depuis le dernier snapshot autoritatif validé**, même pendant une panne de refresh. À la borne : fail-closed, sans prolongation par cache hit ni refresh échoué. Règle identique en mesh et in-process. JWKS valide vide = retrait immédiat des clés ; registry initialisé vide ≠ bootstrap jamais initialisé. La révocation de la dernière clé ne republie pas une clé bootstrap et une clé révoquée ne sert plus à émettre. Décision ratifiée ; implémentation et preuve finales encore requises.
 18. **`typ` cible = `aiforall-access+jwt`** (rien dans le runtime ne prouve `at+jwt`). Décision, pas implémenté.
 19. **Port conceptuel `SigningProvider`** (`sign_digest`, `public_key`, `capabilities`) ; algo domaine RS256 ; mapping vendor dans l’adapter. Séparer `CredentialProvider` / `WorkloadIdentity` ([0307](0307-workload-identity-port.md)). WIF (OIDC / X509) préféré. `StaticCredential` = fallback ; secret dans OpenBao ; jamais Hive DB ; jamais domain event. Ordre : OIDC WIF, X509/mTLS, static.
 20. **JWKS unique** acceptable maintenant ; limite ~1000+ à surveiller ; 10000+ ⇒ évolution sharding / JWKS par issuer. Pas de surconception.
@@ -43,7 +44,7 @@
 
 ## État runtime
 
-Access JWT = RS256 + `kid` + `typ=aiforall-access+jwt` via `PemSigningProvider` / Transit adapter ; `iss` = `{public_base_url}/iam` ; `aud=aiforall`. JWKS = `SigningKeyRegistry::list_jwks_keys` (pending+active+retiring ; retiring hors fenêtre après TTL access + skew 60s ; fallback bootstrap cache). Rotate org = N+1 (Pending puis Active / ancienne Retiring) ; probe Transit = `sign_digest` + verify PKCS1v15 (URL Transit depuis config IAM, refuse fermé sans URL). `UserIdExtractor` vérifie RS256 + JWKS et expose `JwtPrincipal` (défaut in-process). En overlay mesh, le service peut au contraire faire confiance au principal passerelle sans revérifier le JWT ([0308](0308-mesh-authn-jwt.md) §7). Runtime TOMLs : `allowed_algorithms=["RS256"]`. HS256 = uniquement le flag explicite `allowed_algorithms` dans les `test.toml` (pas le défaut). Adapters AWS/GCP/Azure BYOKMS **absents**. Remote signer ([0309](0309-remote-signer.md)) **absent**.
+Access JWT = RS256 + `kid` + `typ=aiforall-access+jwt` via `PemSigningProvider` / Transit adapter ; `iss` = `{public_base_url}/iam` ; `aud=aiforall`. JWKS = `SigningKeyRegistry::list_jwks_keys` (pending+active+retiring ; retiring hors fenêtre après TTL access + skew 60s ; fallback bootstrap cache). Rotate org = N+1 (Pending puis Active / ancienne Retiring) ; probe Transit = `sign_digest` + verify PKCS1v15 (URL Transit depuis config IAM, refuse fermé sans URL). `UserIdExtractor` vérifie RS256 + JWKS et expose `JwtPrincipal` (défaut in-process). En overlay mesh, le service peut au contraire faire confiance au principal passerelle sans revérifier le JWT ([0308](0308-mesh-authn-jwt.md) §7). Runtime TOMLs : `allowed_algorithms=["RS256"]`. HS256 = uniquement le flag explicite `allowed_algorithms` dans les `test.toml` (pas le défaut). Adapters AWS/GCP/Azure BYOKMS **absents**. Remote signer HTTP ([0309](0309-remote-signer.md)) **Partial**, sans HSM/KMIP livré. Le fallback bootstrap du registry vide et les caches last-known-good non bornés sont des écarts à corriger, pas la cible du point 17.
 
 ## Migration
 

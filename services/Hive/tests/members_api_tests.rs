@@ -1,6 +1,6 @@
 use reqwest::StatusCode;
-use rustycog::testing::http::jwt::create_jwt_token;
-use sea_orm::EntityTrait;
+use rustycog::testing::http::jwt::{create_jwt_token, TEST_JWT_ISSUER};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serial_test::serial;
 use uuid::Uuid;
 
@@ -259,6 +259,16 @@ async fn get_member_happy_path_for_owner() {
     let org = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner_id)
         .await
         .unwrap();
+
+    // Membership identity must match the issuer of the authenticated test token.
+    let seeded_owner = organization_members::Entity::find()
+        .filter(organization_members::Column::OrganizationId.eq(org.id))
+        .filter(organization_members::Column::UserId.eq(owner_id))
+        .one(fixture.db().as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(seeded_owner.issuer, TEST_JWT_ISSUER);
 
     // Route guard: `with_permission_on_param(..., "organization_id")`.
     openfga

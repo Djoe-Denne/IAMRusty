@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use chrono::Utc;
+use rustycog::testing::http::jwt::TEST_JWT_ISSUER;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use uuid::Uuid;
 
@@ -8,10 +9,6 @@ use hive_infra::repository::entity::{
     external_providers, organization_invitations, organization_member_role_permissions,
     organization_members, organizations, permissions, resources, role_permissions,
 };
-
-/// Platform test issuer, matching `TEST_PLATFORM_ISSUER` in `rustycog-testing`
-/// and `TEST_ISSUER` in `services/Hive/application/tests/command_coverage.rs`.
-const TEST_ISSUER: &str = "http://127.0.0.1/iam";
 
 /// Builder-style DB fixtures for Hive, mirroring the structure used in `services/IAMRusty/tests/fixtures/db`.
 pub struct DbFixtures;
@@ -585,7 +582,8 @@ impl OrganizationMemberFixtureBuilder {
             id: Set(self.id),
             organization_id: Set(self.organization_id.expect("organization_id is required")),
             user_id: Set(self.user_id.expect("user_id is required")),
-            issuer: Set(TEST_ISSUER.to_string()),
+            // API fixtures authenticate with the HS256 `create_jwt_token` helper.
+            issuer: Set(TEST_JWT_ISSUER.to_string()),
             status: Set(self.status),
             invited_by_user_id: Set(self.invited_by_user_id),
             invited_at: Set(self.invited_at),
