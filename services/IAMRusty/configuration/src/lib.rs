@@ -24,6 +24,8 @@ use tracing::debug;
 
 mod idp;
 pub use idp::{IdpConfig, IdpConnectorConfig, IdpRedirectFlow};
+pub mod security;
+pub use security::{AuthRateLimitConfig, OAuthStateSecret, SecurityConfig, SecurityMode, TrustedAuthProxy};
 
 use thiserror::Error;
 
@@ -517,6 +519,9 @@ pub struct JwtKeyPair {
 /// Main application configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
+    /// Explicit boot-time security and authentication abuse policy.
+    #[serde(default)]
+    pub security: SecurityConfig,
     /// Server configuration
     pub server: ServerConfig,
     /// Shared authentication verifier configuration
@@ -565,7 +570,7 @@ fn default_jwt_audience() -> String {
 }
 
 fn default_oauth_state_secret() -> String {
-    "iam-oauth-state-hmac-change-me".to_string()
+    String::new()
 }
 
 fn default_public_base_url() -> String {
@@ -602,6 +607,7 @@ impl ConfigLoader<Self> for AppConfig {
         Self {
             server: ServerConfig::default(),
             auth: AuthConfig::default(),
+            security: SecurityConfig::default(),
             database: DatabaseConfig::default(),
             idp: IdpConfig::default(),
             jwt: JwtConfig {

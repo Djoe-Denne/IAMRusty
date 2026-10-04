@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: apparatus-operator, namespace: aiforall-apparatus}
+spec:
+  strategy: {type: Recreate}
+  template:
+    spec:
+      hostAliases: null
+      containers:
+        - name: operator
+          ports: null
+          env:
+            - {name: APPARATUS_SYSTEM_NAMESPACE, value: aiforall-local-apparatus}
+            - {name: APPARATUS_PLUGINS_NAMESPACE, value: aiforall-local-plugins}
+            - {name: APPARATUS_PLUGIN_ENROLL_URL, value: "https://lazaret.aiforall-local-full.svc.cluster.local:8080/lazaret/enroll"}
+            - {name: APPARATUS_REGISTRY_HOST, value: "zot.aiforall-local-full.svc.cluster.local:5000"}
+            - {name: APPARATUS_REGISTRY_NETWORK, value: "zot.aiforall-local-full.svc.cluster.local:5000"}
+            - {name: APPARATUS_VAULT_ADDR, value: "http://openbao.aiforall-local-full.svc.cluster.local:8200"}
+            - {name: APPARATUS_VAULT_ADDR_NETWORK, value: "http://openbao.aiforall-local-full.svc.cluster.local:8200"}
+      volumes:
+        - name: admission-store
+          $patch: replace
+          persistentVolumeClaim: {claimName: admission-store}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: apparatus-operator, namespace: aiforall-apparatus}
+$patch: delete

@@ -105,7 +105,7 @@ impl CommandErrorMapper for RegistrationErrorMapper {
 }
 
 /// Command to complete user registration with username
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CompleteRegistrationCommand {
     /// Command instance ID
     pub command_id: Uuid,
@@ -113,6 +113,14 @@ pub struct CompleteRegistrationCommand {
     pub registration_token: String,
     /// Chosen username
     pub username: String,
+}
+
+impl std::fmt::Debug for CompleteRegistrationCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CompleteRegistrationCommand")
+            .field("command_id", &self.command_id)
+            .finish_non_exhaustive()
+    }
 }
 
 impl CompleteRegistrationCommand {

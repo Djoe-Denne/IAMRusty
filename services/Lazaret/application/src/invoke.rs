@@ -75,9 +75,60 @@ impl PluginEndpointLocator for StaticPluginLocator {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DigestDnsPluginLocator;
 
+/// Digest-based routing in one validated Kubernetes namespace.
+#[derive(Debug, Clone)]
+pub struct NamespacedDigestDnsPluginLocator {
+    namespace: String,
+}
+
+/// Invalid namespace supplied to digest DNS routing.
+#[derive(Debug, Error)]
+#[error("plugin namespace must be a nonempty DNS-1123 label of at most 63 bytes")]
+pub struct InvalidPluginNamespace;
+
+impl NamespacedDigestDnsPluginLocator {
+    /// Construct a locator without trimming or silently replacing explicit input.
+    ///
+    /// # Errors
+    /// Returns [`InvalidPluginNamespace`] unless the namespace is a DNS-1123 label.
+    pub fn try_new(namespace: impl Into<String>) -> Result<Self, InvalidPluginNamespace> {
+        let namespace = namespace.into();
+        let bytes = namespace.as_bytes();
+        let alnum = |b: &u8| b.is_ascii_lowercase() || b.is_ascii_digit();
+        if !(bytes.len() <= 63
+            && bytes.first().is_some_and(alnum)
+            && bytes.last().is_some_and(alnum)
+            && bytes.iter().all(|b| alnum(b) || *b == b'-'))
+        {
+            return Err(InvalidPluginNamespace);
+        }
+        Ok(Self { namespace })
+    }
+}
+
+#[async_trait]
+impl PluginEndpointLocator for NamespacedDigestDnsPluginLocator {
+    async fn locate(&self, _binding_id: &str, _instance_id: &str) -> Option<String> {
+        None
+    }
+
+    async fn locate_release(
+        &self,
+        _binding_id: &str,
+        _instance_id: &str,
+        release: &str,
+    ) -> Option<String> {
+        plugin_dns_endpoint_in_namespace(release, &self.namespace)
+    }
+}
+
 /// `http://plugin-{32 hex}.apparatus-plugins.svc:8080` — same 32 hex as `pod_name_for`.
 #[must_use]
 pub fn plugin_dns_endpoint(release: &str) -> Option<String> {
+    plugin_dns_endpoint_in_namespace(release, "apparatus-plugins")
+}
+
+fn plugin_dns_endpoint_in_namespace(release: &str, namespace: &str) -> Option<String> {
     let hex = release
         .strip_prefix("sha256:")
         .unwrap_or(release.trim())
@@ -85,14 +136,14 @@ pub fn plugin_dns_endpoint(release: &str) -> Option<String> {
     if hex.len() < 32 {
         return None;
     }
-    let take = &hex[..32];
+    let take = hex.get(..32)?;
     if !take
         .bytes()
         .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
     {
         return None;
     }
-    Some(format!("http://plugin-{take}.apparatus-plugins.svc:8080"))
+    Some(format!("http://plugin-{take}.{namespace}.svc:8080"))
 }
 
 #[async_trait]
@@ -459,7 +510,9 @@ fn plugin_invoke_url(endpoint: &str) -> String {
 
 #[cfg(test)]
 mod plugin_dns_tests {
-    use super::plugin_dns_endpoint;
+    use super::{
+        plugin_dns_endpoint, plugin_dns_endpoint_in_namespace, NamespacedDigestDnsPluginLocator,
+    };
 
     const DIGEST: &str = "sha256:98ba747fc572de29d76dfd08f92537782bf0353b652adcace10200020ee560cf";
 
@@ -475,5 +528,26 @@ mod plugin_dns_tests {
     fn rejects_short_or_non_hex() {
         assert!(plugin_dns_endpoint("sha256:abc").is_none());
         assert!(plugin_dns_endpoint("latest").is_none());
+    }
+
+    #[test]
+    fn rejects_invalid_namespace_without_normalizing() {
+        for namespace in ["", "Mixed", "a.b", "ns/path", "ns:8080", "-ns", "ns-", " ns "] {
+            assert!(NamespacedDigestDnsPluginLocator::try_new(namespace).is_err());
+        }
+        assert!(NamespacedDigestDnsPluginLocator::try_new("a".repeat(64)).is_err());
+        assert!(NamespacedDigestDnsPluginLocator::try_new("a".repeat(63)).is_ok());
+        assert!(NamespacedDigestDnsPluginLocator::try_new("a").is_ok());
+    }
+
+    #[test]
+    fn custom_namespace_uses_release_digest() {
+        let locator = NamespacedDigestDnsPluginLocator::try_new("aiforall-local-plugins")
+            .expect("valid namespace");
+        assert_eq!(
+            plugin_dns_endpoint_in_namespace(DIGEST, &locator.namespace).as_deref(),
+            Some("http://plugin-98ba747fc572de29d76dfd08f9253778.aiforall-local-plugins.svc:8080")
+        );
+        assert!(plugin_dns_endpoint_in_namespace("binding-id", &locator.namespace).is_none());
     }
 }

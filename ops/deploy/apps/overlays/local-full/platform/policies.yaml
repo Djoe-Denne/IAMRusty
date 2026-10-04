@@ -1,0 +1,263 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-test-client}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: local-full-client}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: envoy-mesh}}}]
+      ports: [{protocol: TCP, port: 10000}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {k8s-app: kube-dns}}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-postgres}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: postgres}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [iam, hive, telegraph, manifesto, lazaret, openfga, sentinel-sync]}]}
+      ports: [{protocol: TCP, port: 5432}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-openfga}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: openfga}}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [hive, telegraph, manifesto, sentinel-sync, local-full-bootstrap]}]}
+      ports: [{protocol: TCP, port: 8080}]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: postgres}}}]
+      ports: [{protocol: TCP, port: 5432}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-sqs}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: localstack}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [iam, hive, telegraph, manifesto, lazaret, sentinel-sync]}]}
+      ports: [{protocol: TCP, port: 4566}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-app-data-egress}
+spec:
+  podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [iam, hive, telegraph, manifesto, lazaret, sentinel-sync]}]}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: postgres}}}]
+      ports: [{protocol: TCP, port: 5432}]
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: openfga}}}]
+      ports: [{protocol: TCP, port: 8080}]
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: localstack}}}]
+      ports: [{protocol: TCP, port: 4566}]
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: iam}}}]
+      ports: [{protocol: TCP, port: 8080}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-platform-mesh-ingress}
+spec:
+  podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [iam, hive, telegraph, manifesto]}]}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {app.kubernetes.io/name: envoy-mesh}}}]
+      ports: [{protocol: TCP, port: 8443}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-iam-internal}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: iam}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [hive, telegraph, manifesto, lazaret]}]}
+      ports: [{protocol: TCP, port: 8080}]
+    - from: [{podSelector: {matchLabels: {app.kubernetes.io/name: ext-authz}}}]
+      ports: [{protocol: TCP, port: 8443}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-envoy}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: envoy-mesh}}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {app.kubernetes.io/name: local-full-client}}}]
+      ports: [{protocol: TCP, port: 10000}]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: ext-authz}}}]
+      ports: [{protocol: TCP, port: 8090}]
+    - to:
+        - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [iam, hive, telegraph, manifesto]}]}
+      ports: [{protocol: TCP, port: 8443}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ext-authz}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: ext-authz}}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {app.kubernetes.io/name: envoy-mesh}}}]
+      ports: [{protocol: TCP, port: 8090}]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: iam}}}]
+      ports: [{protocol: TCP, port: 8443}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-bootstrap}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: local-full-bootstrap}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: openfga}}}]
+      ports: [{protocol: TCP, port: 8080}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-api}
+spec:
+  podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [local-full-bootstrap, openbao]}]}
+  policyTypes: [Egress]
+  # Deployment helper adds the actual control-plane InternalIP before apply;
+  # no namespace-wide unrestricted TCP/443 egress.
+  egress:
+    - to: [{ipBlock: {cidr: 10.96.0.1/32}}]
+      ports: [{protocol: TCP, port: 443}, {protocol: TCP, port: 6443}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-redis}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: redis}}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {app.kubernetes.io/name: lazaret}}}]
+      ports: [{protocol: TCP, port: 6379}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-lazaret}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: lazaret}}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: aiforall-local-plugins}}
+          podSelector: {matchExpressions: [{key: apparatus.aiforall.dev/project, operator: Exists}, {key: apparatus.aiforall.dev/binding, operator: Exists}, {key: app.kubernetes.io/instance, operator: Exists}]}
+      ports: [{protocol: TCP, port: 8080}]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: redis}}}]
+      ports: [{protocol: TCP, port: 6379}]
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: openbao}}}]
+      ports: [{protocol: TCP, port: 8200}]
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: manifesto}}}]
+      ports: [{protocol: TCP, port: 8080}]
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: aiforall-local-plugins}}
+          podSelector: {matchExpressions: [{key: apparatus.aiforall.dev/project, operator: Exists}, {key: apparatus.aiforall.dev/binding, operator: Exists}, {key: app.kubernetes.io/instance, operator: Exists}]}
+      ports: [{protocol: TCP, port: 8080}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-manifesto-catalog}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: manifesto}}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {app.kubernetes.io/name: lazaret}}}]
+      ports: [{protocol: TCP, port: 8080}]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: component-catalog}}}]
+      ports: [{protocol: TCP, port: 9000}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-catalog}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: component-catalog}}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {app.kubernetes.io/name: manifesto}}}]
+      ports: [{protocol: TCP, port: 9000}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-smtp-egress}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: telegraph}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: mailhog}}}]
+      ports: [{protocol: TCP, port: 1025}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-smtp}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: mailhog}}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {app.kubernetes.io/name: telegraph}}}]
+      ports: [{protocol: TCP, port: 1025}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-openbao}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: openbao}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [lazaret, openbao-seed]}]}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: aiforall-local-apparatus}}
+          podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [apparatus-operator, local-full-admit]}]}
+      ports: [{protocol: TCP, port: 8200}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-bao-seed}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: openbao-seed}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: openbao}}}]
+      ports: [{protocol: TCP, port: 8200}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-zot}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: zot}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: aiforall-local-apparatus}}
+          podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [apparatus-operator, local-full-admit]}]}
+      ports: [{protocol: TCP, port: 5000}]

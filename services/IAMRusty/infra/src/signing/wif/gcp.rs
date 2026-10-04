@@ -33,8 +33,11 @@ impl GcpWif {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .map_err(|e| {
-                DomainError::external_service_error("workload_identity", &e.to_string())
+            .map_err(|_| {
+                DomainError::external_service_error(
+                    "workload_identity",
+                    "HTTP client initialization failed",
+                )
             })?;
         Ok(Self {
             client,
@@ -66,7 +69,7 @@ impl WorkloadIdentity for GcpWif {
             ("subject_token_type", "urn:ietf:params:oauth:token-type:jwt"),
             ("scope", "https://www.googleapis.com/auth/cloud-platform"),
         ];
-        debug!(url = %self.token_url, "GCP WIF token exchange");
+        debug!("GCP WIF token exchange");
         let response = self
             .client
             .post(&self.token_url)
@@ -77,8 +80,8 @@ impl WorkloadIdentity for GcpWif {
             .form(&form)
             .send()
             .await
-            .map_err(|e| {
-                DomainError::external_service_error("workload_identity", &e.to_string())
+            .map_err(|_| {
+                DomainError::external_service_error("workload_identity", "GCP token request failed")
             })?;
         let status = response.status();
         if !status.is_success() {
@@ -87,11 +90,8 @@ impl WorkloadIdentity for GcpWif {
                 &format!("GCP STS HTTP {status}"),
             ));
         }
-        let parsed: GcpTokenResponse = response.json().await.map_err(|e| {
-            DomainError::external_service_error(
-                "workload_identity",
-                &format!("GCP STS invalid JSON: {e}"),
-            )
+        let parsed: GcpTokenResponse = response.json().await.map_err(|_| {
+            DomainError::external_service_error("workload_identity", "GCP token response invalid")
         })?;
         if parsed.access_token.trim().is_empty() {
             return Err(DomainError::external_service_error(

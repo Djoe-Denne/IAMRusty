@@ -1,7 +1,7 @@
 use crate::error::ApiError;
 use axum::{extract::State, Json};
 use iam_application::command::{user::GetUserCommand, CommandContext};
-use rustycog::http::AuthUser;
+use crate::platform_user::PlatformUser;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -27,7 +27,7 @@ pub struct UserResponse {
 /// Returns [`ApiError`] when the user cannot be loaded.
 pub async fn get_user(
     State(state): State<rustycog::http::AppState>,
-    auth_user: AuthUser,
+    auth_user: PlatformUser,
 ) -> Result<Json<UserResponse>, ApiError> {
     debug!("Getting user profile for ID: {}", auth_user.user_id);
 

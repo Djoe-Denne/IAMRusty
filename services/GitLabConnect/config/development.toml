@@ -21,6 +21,7 @@ allowed_algorithms = ["RS256"]
 level = "debug"
 
 [gitlab]
+pkce_supported = false
 client_id = "your-gitlab-client-id"
 client_secret = "your-gitlab-client-secret"
 auth_url = "https://gitlab.com/oauth/authorize"

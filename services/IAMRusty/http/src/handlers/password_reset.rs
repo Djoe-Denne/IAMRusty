@@ -9,7 +9,8 @@ use iam_application::command::{
     CommandContext,
 };
 use rustycog::http::AppState;
-use rustycog::http::{AuthUser, ValidatedJson};
+use rustycog::http::ValidatedJson;
+use crate::platform_user::PlatformUser;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 use validator::Validate;
@@ -110,7 +111,7 @@ pub async fn request_password_reset(
         }
         Err(e) => {
             // Log the error but don't expose it to prevent enumeration
-            error!("Password reset request failed: {:?}", e);
+            error!("Password reset request failed");
             // Still return success for anti-enumeration
             return Err(AuthError::password_reset_request_failed(&e));
         }
@@ -132,7 +133,7 @@ pub async fn validate_reset_token(
     State(state): State<AppState>,
     ValidatedJson(request): ValidatedJson<ValidateResetTokenRequest>,
 ) -> Result<Json<ValidateResetTokenResponse>, AuthError> {
-    debug!("Validating reset token: {}", request.token);
+    debug!("Validating reset token");
 
     let command = ValidateResetTokenCommand::new(request.token);
     let context = CommandContext::default();
@@ -151,7 +152,7 @@ pub async fn validate_reset_token(
             }))
         }
         Err(e) => {
-            error!("Token validation failed: {:?}", e);
+            error!("Token validation failed");
             Err(AuthError::password_reset_validate_failed(&e))
         }
     }
@@ -166,10 +167,7 @@ pub async fn reset_password_unauthenticated(
     State(state): State<AppState>,
     ValidatedJson(request): ValidatedJson<ResetPasswordUnauthenticatedRequest>,
 ) -> Result<Json<ResetPasswordResponse>, AuthError> {
-    debug!(
-        "Processing unauthenticated password reset with token: {}",
-        request.token
-    );
+    debug!("Processing unauthenticated password reset");
 
     let command = ResetPasswordUnauthenticatedCommand::new(request.token, request.new_password);
     let context = CommandContext::default();
@@ -182,7 +180,7 @@ pub async fn reset_password_unauthenticated(
             }))
         }
         Err(e) => {
-            error!("Password reset failed: {:?}", e);
+            error!("Password reset failed");
             Err(AuthError::password_reset_confirm_failed(&e))
         }
     }
@@ -196,7 +194,7 @@ pub async fn reset_password_unauthenticated(
 /// or the authenticated reset command fails.
 pub async fn reset_password_authenticated(
     State(state): State<AppState>,
-    auth_user: AuthUser,
+    auth_user: PlatformUser,
     ValidatedJson(request): ValidatedJson<ResetPasswordAuthenticatedRequest>,
 ) -> Result<Json<ResetPasswordResponse>, AuthError> {
     debug!(
@@ -229,7 +227,7 @@ pub async fn reset_password_authenticated(
             }))
         }
         Err(e) => {
-            error!("Authenticated password reset failed: {:?}", e);
+            error!("Authenticated password reset failed");
             Err(AuthError::password_reset_authenticated_failed(&e))
         }
     }

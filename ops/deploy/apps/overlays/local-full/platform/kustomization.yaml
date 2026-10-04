@@ -1,0 +1,83 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: aiforall-local-full
+labels:
+  - pairs:
+      aiforall.dev/profile: local-full
+    includeSelectors: false
+    includeTemplates: true
+resources:
+  - ../../kind-mesh/platform-services.yaml
+  - ../../kind-mesh/ext-authz.yaml
+  - ../../kind-mesh/envoy-mesh.yaml
+  - ../../../../p4/zot.yaml
+  - dependencies.yaml
+  - lazaret-sentinel.yaml
+  - bootstrap.yaml
+  - policies.yaml
+  - budgets.yaml
+configMapGenerator:
+  - name: iam-dev-config
+    files:
+      - development.toml=../config/iam.toml
+      - test-platform.pem=../../../../../../services/IAMRusty/config/keys/test-platform.pem
+      - test-platform.pub=../../../../../../services/IAMRusty/config/keys/test-platform.pub
+  - name: hive-dev-config
+    files:
+      - development.toml=../../../../../../services/Hive/config/development.toml
+  - name: telegraph-dev-config
+    files:
+      - development.toml=../../../../../../services/Telegraph/config/development.toml
+  - name: manifesto-dev-config
+    files:
+      - development.toml=../../../../../../services/Manifesto/config/development.toml
+  - name: lazaret-dev-config
+    files:
+      - development.toml=../config/lazaret.toml
+  - name: sentinel-config
+    files:
+      - sentinel-sync.toml=../config/sentinel.toml
+  - name: local-full-bootstrap-scripts
+    files:
+      - fga-bootstrap.py=../helpers/fga-bootstrap.py
+      - seed-openbao.sh=../helpers/seed-openbao.sh
+  - name: local-full-fga-model
+    files:
+      - model.json=../../../../../openfga/model.json
+  - name: catalog-config
+    files:
+      - server.js=../../../../../../runtime/monolith/component-catalog-server.js
+      - catalog.json=../../../../../../runtime/monolith/component-catalog.json
+  - name: localstack-init
+    literals:
+      - "init-aws.sh=#!/bin/sh\nset -eu\nfor q in telegraph-events user-events lazaret-kv-events sentinel-sync-events; do awslocal sqs create-queue --queue-name \"$q\" >/dev/null; done\n"
+patches:
+  - path: patches.yaml
+  - target:
+      kind: Deployment
+      name: (iam|hive|telegraph|manifesto)
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: unused
+      spec:
+        replicas: 2
+        strategy:
+          rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+        template:
+          spec:
+            topologySpreadConstraints:
+              - maxSkew: 1
+                topologyKey: kubernetes.io/hostname
+                whenUnsatisfiable: DoNotSchedule
+                labelSelector:
+                  matchLabels: {app.kubernetes.io/component: platform}
+                matchLabelKeys: [app.kubernetes.io/name]
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: node-role.kubernetes.io/control-plane
+                          operator: DoesNotExist

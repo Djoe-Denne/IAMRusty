@@ -14,8 +14,8 @@ use serial_test::serial;
 use std::sync::Arc;
 use uuid::Uuid;
 
-const P3_MIGRATION_FILE: &str = "m20260913_000014_apparatus_p3_grants.rs";
-const DECLARED_MIGRATION_FILE: &str = "m20260916_000015_apparatus_declared_capabilities.rs";
+const P3_MIGRATION_FILE: &str = "m20241015_000001_initial_schema.rs";
+const DECLARED_MIGRATION_FILE: &str = "m20241015_000001_initial_schema.rs";
 
 fn migration_dir() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migration/src")
@@ -99,12 +99,12 @@ fn t2_migration_file_exists() {
 fn t2_migration_registered_in_migrator() {
     let lib = std::fs::read_to_string(migration_dir().join("lib.rs")).expect("lib.rs lisible");
     assert!(
-        lib.contains("m20260913_000014_apparatus_p3_grants"),
-        "RED T2 : Migrator n'enregistre pas m20260913_000014_apparatus_p3_grants"
+        lib.contains("m20241015_000001_initial_schema"),
+        "RED T2 : Migrator n'enregistre pas m20241015_000001_initial_schema"
     );
     assert!(
-        lib.contains("m20260916_000015_apparatus_declared_capabilities"),
-        "RED T2 : Migrator n'enregistre pas m20260916_000015_apparatus_declared_capabilities"
+        lib.contains("m20241015_000001_initial_schema"),
+        "RED T2 : Migrator n'enregistre pas m20241015_000001_initial_schema"
     );
 }
 
@@ -454,20 +454,13 @@ async fn t2_down_one_step_then_up_reversible() {
     let applied = Migrator::get_applied_migrations(db.as_ref())
         .await
         .expect("migrations appliquées");
-    let mut steps = 0u32;
-    let mut found = false;
-    for migration in applied.iter().rev() {
-        steps += 1;
-        if migration.name().contains("apparatus_p3_grants") {
-            found = true;
-            break;
-        }
-    }
+    // P1/P2/P3 share one initial migration; down cannot retain an older phase.
+    assert_eq!(applied.len(), 1, "single initial migration only");
     assert!(
-        found,
-        "RED T2 : m20260913_000014_apparatus_p3_grants non appliquée"
+        applied[0].name().contains("m20241015_000001_initial_schema"),
+        "RED T2 : m20241015_000001_initial_schema non appliquée"
     );
-    Migrator::down(db.as_ref(), Some(steps))
+    Migrator::down(db.as_ref(), Some(1))
         .await
         .expect("down P3");
 
@@ -488,21 +481,9 @@ async fn t2_down_one_step_then_up_reversible() {
         "down : apparatus_capability_consents doit disparaître"
     );
     assert!(
-        table_exists(&db, "apparatus_bindings").await,
-        "down ne doit pas drop apparatus_bindings"
+        !table_exists(&db, "apparatus_bindings").await,
+        "down of the initial migration drops apparatus_bindings, including P1/P2"
     );
-    for col in [
-        "id",
-        "component_id",
-        "digest",
-        "source",
-        "desired_generation",
-    ] {
-        assert!(
-            column_row(&db, "apparatus_bindings", col).await.is_some(),
-            "colonne P1/P2 {col} doit rester après down P3"
-        );
-    }
 
     Migrator::up(db.as_ref(), None)
         .await

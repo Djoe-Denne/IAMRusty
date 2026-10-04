@@ -18,6 +18,7 @@ allowed_algorithms = ["RS256"]
 level = "info"
 
 [github]
+pkce_supported = false # Explicit receiver capability; enable only for a supported vendor.
 client_id = "your-github-client-id"
 client_secret = "your-github-client-secret"
 auth_url = "https://github.com/login/oauth/authorize"

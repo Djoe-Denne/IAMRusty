@@ -161,6 +161,8 @@ const WORKLOAD_KEY_PATH: &str = "/tmp/lazaret-workload-key.pem";
 
 struct EnrollCfg {
     url: String,
+    /// Explicit server trust anchor; absent uses verified system/public TLS roots.
+    ca_cert_path: Option<String>,
     binding: Uuid,
     project_id: Uuid,
     release: String,
@@ -181,6 +183,7 @@ fn enroll_cfg_from_env() -> Option<EnrollCfg> {
     }
     Some(EnrollCfg {
         url,
+        ca_cert_path: std::env::var("LAZARET_CA_CERT_PATH").ok(),
         binding,
         project_id,
         release,
@@ -195,11 +198,18 @@ async fn enroll_from_env_or_exit() {
     let Some(cfg) = enroll_cfg_from_env() else {
         return;
     };
+    let client = match enrollment_client(&cfg) {
+        Ok(client) => client,
+        Err(err) => {
+            eprintln!("enroll failed: {err}");
+            std::process::exit(1);
+        }
+    };
     if Path::new(WORKLOAD_CERT_PATH).is_file() && Path::new(WORKLOAD_KEY_PATH).is_file() {
         eprintln!("workload already enrolled on disk, skip POST /lazaret/enroll");
         return;
     }
-    match enroll_workload(&cfg).await {
+    match enroll_workload(&cfg, &client).await {
         Ok(()) => {}
         Err(err) if err.contains("409") => {
             eprintln!("enroll already present (409), continue serving");
@@ -211,7 +221,38 @@ async fn enroll_from_env_or_exit() {
     }
 }
 
-async fn enroll_workload(cfg: &EnrollCfg) -> Result<(), String> {
+fn enrollment_client(cfg: &EnrollCfg) -> Result<reqwest::Client, String> {
+    let ca_pem = cfg
+        .ca_cert_path
+        .as_ref()
+        .map(|path| {
+            std::fs::read(path).map_err(|_| "cannot read enrollment CA certificate".to_owned())
+        })
+        .transpose()?;
+    enrollment_client_with_ca(&cfg.url, ca_pem.as_deref())
+}
+
+fn enrollment_client_with_ca(url: &str, ca_pem: Option<&[u8]>) -> Result<reqwest::Client, String> {
+    let url = reqwest::Url::parse(url).map_err(|_| "invalid enrollment URL".to_owned())?;
+    if !matches!(url.scheme(), "http" | "https")
+        || (ca_pem.is_some() && url.scheme() != "https")
+    {
+        return Err("enrollment CA requires HTTPS".to_owned());
+    }
+    let mut builder = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .redirect(reqwest::redirect::Policy::none());
+    if let Some(pem) = ca_pem {
+        let certificate = reqwest::Certificate::from_pem(pem)
+            .map_err(|_| "invalid enrollment CA certificate".to_owned())?;
+        builder = builder.add_root_certificate(certificate);
+    }
+    builder
+        .build()
+        .map_err(|_| "cannot build enrollment HTTP client".to_owned())
+}
+
+async fn enroll_workload(cfg: &EnrollCfg, client: &reqwest::Client) -> Result<(), String> {
     let key = KeyPair::generate().map_err(|err| format!("workload key: {err}"))?;
     let params = CertificateParams::new(vec!["apparatus-reference-kv".to_owned()])
         .map_err(|err| format!("csr params: {err}"))?;
@@ -229,30 +270,36 @@ async fn enroll_workload(cfg: &EnrollCfg) -> Result<(), String> {
         "grant_revision": 1,
         "project_id": cfg.project_id,
     });
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|err| format!("http client: {err}"))?;
-    let response = client
+    let mut response = client
         .post(&cfg.url)
         .json(&body)
         .send()
         .await
-        .map_err(|err| format!("POST enroll: {err}"))?;
+        .map_err(|_| "POST enroll transport failed".to_owned())?;
     let status = response.status();
-    let text = response.text().await.unwrap_or_default();
     if status.as_u16() == 409 {
         return Err("409".to_owned());
     }
     if !status.is_success() {
-        return Err(format!("HTTP {status} {text}"));
+        return Err(format!("HTTP {status}"));
     }
-    let parsed: serde_json::Value =
-        serde_json::from_str(&text).map_err(|err| format!("enroll json: {err} {text}"))?;
+    let mut body = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|_| "cannot read enrollment response".to_owned())?
+    {
+        if chunk.len() > 65_536 - body.len() {
+            return Err("enrollment response too large".to_owned());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    let parsed: serde_json::Value = serde_json::from_slice(&body)
+        .map_err(|_| "invalid enrollment response JSON".to_owned())?;
     let cert_pem = parsed
         .get("certificate_pem")
         .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| format!("missing certificate_pem: {text}"))?;
+        .ok_or_else(|| "missing certificate_pem".to_owned())?;
     std::fs::write(WORKLOAD_CERT_PATH, cert_pem).map_err(|err| format!("write cert: {err}"))?;
     std::fs::write(WORKLOAD_KEY_PATH, key.serialize_pem())
         .map_err(|err| format!("write key: {err}"))?;
@@ -261,4 +308,46 @@ async fn enroll_workload(cfg: &EnrollCfg) -> Result<(), String> {
         status.as_u16()
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod enrollment_trust_tests {
+    use super::{enrollment_client, enrollment_client_with_ca, EnrollCfg};
+    use rcgen::{BasicConstraints, CertificateParams, IsCa, KeyPair};
+
+    #[test]
+    fn accepts_explicit_ca_without_network_or_invalid_tls_bypass() {
+        let mut params = CertificateParams::new(Vec::<String>::new()).expect("CA params");
+        params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+        let ca = params
+            .self_signed(&KeyPair::generate().expect("CA key"))
+            .expect("CA");
+        assert!(enrollment_client_with_ca(
+            "https://lazaret.aiforall-local-full.svc.cluster.local:8080/lazaret/enroll",
+            Some(ca.pem().as_bytes()),
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn invalid_explicit_ca_or_downgrade_fails_closed() {
+        let url = "https://lazaret.aiforall-local-full.svc.cluster.local:8080/lazaret/enroll";
+        assert!(enrollment_client_with_ca(url, Some(b"not a certificate")).is_err());
+        assert!(enrollment_client_with_ca(url, Some(b"")).is_err());
+        assert!(enrollment_client_with_ca("http://lazaret:8080", Some(b"CA")).is_err());
+        assert!(enrollment_client_with_ca(url, None).is_ok());
+    }
+
+    #[test]
+    fn unreadable_explicit_ca_does_not_fall_back_to_system_roots() {
+        let cfg = EnrollCfg {
+            url: "https://lazaret.aiforall-local-full.svc.cluster.local:8080/lazaret/enroll"
+                .to_owned(),
+            ca_cert_path: Some(String::new()),
+            binding: uuid::Uuid::nil(),
+            project_id: uuid::Uuid::nil(),
+            release: "unused".to_owned(),
+        };
+        assert!(enrollment_client(&cfg).is_err());
+    }
 }

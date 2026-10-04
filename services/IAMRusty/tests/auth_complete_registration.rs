@@ -152,18 +152,20 @@ async fn test_complete_registration_invalid_token_signature() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_expired_token() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
 
     // Create an expired registration token using the utility function
     let user_id = uuid::Uuid::new_v4();
     let email = "test@example.com".to_string();
-    let config = load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config");
-
+    let (codec, issuer) = common::fixture_jwt_codec(&fixture)
+        .await
+        .expect("actual shared fixture codec and issuer");
     let expired_token =
-        utils::jwt::create_expired_registration_token_with_encoder(user_id, email, &config)
-            .expect("Failed to create expired registration token");
+        utils::jwt::create_expired_registration_token_with_codec(user_id, email, &issuer, codec)
+            .await
+            .expect("expired claims signed by the same writer-bound registration codec");
 
     let completion_data = json!({
         "registration_token": expired_token,

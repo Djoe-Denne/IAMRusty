@@ -1,7 +1,7 @@
 # ADR-0604 : L’écart de séquence J3 est un overlay Kustomize démo non canon sur kind `aiforall-local` : Deployment `oodhive-monolith` pour prouver plugins → `/lazaret/invoke`, sans SuperSéder le canon cluster 4+1 de 0601
 
 - Statut : Proposed
-- Réalité : Implemented
+- Réalité : Partial
 - Date : 2026-09-25
 - Décideurs : (à remplir à l’acceptation)
 - Jalon concerné : Cloud-portable (hors Apparatus P0–P6)
@@ -9,7 +9,7 @@
 - SuperSédée par : —
 - Related : [0600](0600-cloud-portable-opentofu-k8s-gitops.md), [0601](0601-cluster-trust-namespaces-standalones.md), [0603](0603-tranche-locale-deploy-kind-apparatus-lazaret.md), [0404](0404-runtime-microservices-et-monolithe.md), [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md)
 
-`Accepted` ratifie une cible. `Réalité` **Implemented** : overlay démo + image `aiforall-oodhive-monolith:j3` + `just deploy-j3` (accord de coding explicite ; Statut reste Proposed). Cette ADR **ne SuperSède pas** [0601](0601-cluster-trust-namespaces-standalones.md), [0404](0404-runtime-microservices-et-monolithe.md), [0600](0600-cloud-portable-opentofu-k8s-gitops.md), [0603](0603-tranche-locale-deploy-kind-apparatus-lazaret.md), ni [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md). Elle enregistre un **écart de séquence** : prouver le chemin plugin → nest Lazaret **in-cluster** avec le monolithe, **sans** déclarer le monolithe unité cluster V1.
+`Accepted` ratifierait une cible ; le Statut reste Proposed. `Réalité : Partial` au 2026-10-04 : overlay démo, Dockerfile/image J3 et helpers présents ; l’ancien état Implemented et le résultat J3 sont conservés comme preuve historique de cette tranche, pas validation du root actuel modifié. Cette ADR ne SuperSède ni [0601](0601-cluster-trust-namespaces-standalones.md), ni [0404](0404-runtime-microservices-et-monolithe.md), ni [0600](0600-cloud-portable-opentofu-k8s-gitops.md), ni [0603](0603-tranche-locale-deploy-kind-apparatus-lazaret.md), ni [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md). Elle décrit l’écart J3 monolithe démo ; le nouveau lab standalone est distinct ([0606](0606-local-full-kind-isole.md)), sans Accept implicite.
 
 ## Contexte
 
@@ -58,6 +58,13 @@ NetworkPolicy base (`ops/deploy/apps/base/networkpolicies.yaml`) : pods `aiforal
 - J4 : bascule 4+1 standalone images (ADR ou contrat ultérieur).
 - Couche C GKE, 0602 / `aiforall-obs`, Flux live, Cosign CI.
 
+## Réalité courante et preuve historique — 2026-10-04
+
+- Source J3 : `ops/deploy/apps/overlays/kind-demo-monolith/`, `ops/deploy/deploy-j3.ps1` et runtime monolithe. Le résultat HTTP401 du Job référencé ci-dessous est historique ; ce travail documentaire ne réexécute ni build ni Job. Source root HEAD `5348a63` non committée : aucune compilation complète/IT/E2E de l’ensemble modifié ne justifie de conserver Implemented comme état courant.
+- Le point 4 et `host.docker.internal` restent une limite historique explicite : pas une option conforme de fermeture local isoprod. Le local-full source utilise `ops/deploy/apps/overlays/local-full/`, standalones et dépendances in-Kind ; il ne transforme pas une preuve monolithe J3 en preuve de quatre services.
+- Kind-demo-monolith et gold path restent séparés du nouveau lab/context `kind-aiforall-local-full` autorisé après IT. Le cluster legacy étranger n’est ni modifié ni recréé pour révalider J3. Si la preuve historique n’est pas reproductible dans le périmètre autorisé, rendre INCONCLUSIVE et demander un arbitrage, pas un transfert automatique de preuve.
+- D6 render112 et topologie1+2 sont SOURCE/offline ; NetworkPolicy avec CNI enforce, vrai trafic Envoy, reprise et restore distinct exigent leurs preuves au hash courant. Une promotion future doit qualifier précisément J3/gold vs standalone/full. 0404/0500 et leurs limites historiques restent inchangés.
+
 ## Références
 
 - Canon cluster : `docs/adr/0601-cluster-trust-namespaces-standalones.md` ; dual runtime : `docs/adr/0404-runtime-microservices-et-monolithe.md`
@@ -66,4 +73,4 @@ NetworkPolicy base (`ops/deploy/apps/base/networkpolicies.yaml`) : pods `aiforal
 - NP : `ops/deploy/apps/base/networkpolicies.yaml` (`app.kubernetes.io/name: lazaret`, port 8080)
 - Operator P4 : `ops/deploy/p4/` ; [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md)
 - Wiki pointeur (optionnel) : `obsidian/AI FOR ALL/projects/aiforall/decisions/0604-j3-overlay-demo-monolith.md`
-- Preuve d’implémentation : `just deploy-j3` ; overlay `ops/deploy/apps/overlays/kind-demo-monolith/` ; Job `invoke-probe-j3` POST `lazaret.aiforall-gateway.svc.cluster.local:8080/lazaret/invoke` → HTTP 401 `{"error":"unauthorized"}`
+- Preuve historique de la tranche J3 (pas de nouvelle exécution) : `just deploy-j3` ; overlay `ops/deploy/apps/overlays/kind-demo-monolith/` ; Job `invoke-probe-j3` POST `lazaret.aiforall-gateway.svc.cluster.local:8080/lazaret/invoke` → HTTP 401 `{"error":"unauthorized"}`

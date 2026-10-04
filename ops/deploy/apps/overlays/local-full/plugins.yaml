@@ -1,0 +1,72 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: aiforall-local-plugins}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+# Populated from the prepared workload CA by the parent entrypoint. Public only.
+apiVersion: v1
+kind: Secret
+metadata: {name: lazaret-workload-ca, namespace: aiforall-local-plugins}
+type: Opaque
+data: {}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: local-full-controller-plugins, namespace: aiforall-local-plugins}
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [create, get, list, watch, delete]
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [create, get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: local-full-controller-plugins, namespace: aiforall-local-plugins}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: local-full-controller-plugins}
+subjects: [{kind: ServiceAccount, name: controller, namespace: aiforall-local-apparatus}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: aiforall-local-plugins}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {k8s-app: kube-dns}}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-lazaret-hop, namespace: aiforall-local-plugins}
+spec:
+  podSelector: {matchExpressions: [{key: apparatus.aiforall.dev/project, operator: Exists}, {key: apparatus.aiforall.dev/binding, operator: Exists}, {key: app.kubernetes.io/instance, operator: Exists}]}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: aiforall-local-full}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: lazaret}}
+      ports: [{protocol: TCP, port: 8080}]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: aiforall-local-full}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: lazaret}}
+      ports: [{protocol: TCP, port: 8080}]
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata: {name: plugins-budget, namespace: aiforall-local-plugins}
+spec: {hard: {requests.cpu: "1", requests.memory: 512Mi, limits.cpu: "4", limits.memory: 1Gi, pods: "8"}}
+---
+apiVersion: v1
+kind: LimitRange
+metadata: {name: plugins-budget, namespace: aiforall-local-plugins}
+spec:
+  limits:
+    - type: Container
+      defaultRequest: {cpu: 100m, memory: 64Mi}
+      default: {cpu: "1", memory: 256Mi}
+      max: {cpu: "1", memory: 256Mi}

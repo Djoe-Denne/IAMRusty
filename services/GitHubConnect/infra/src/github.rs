@@ -11,7 +11,7 @@ use idp_connect_contract::{
 };
 use oauth2::{
     basic::BasicClient, AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, HttpRequest,
-    HttpResponse, RedirectUrl, TokenResponse, TokenUrl,
+    HttpResponse, PkceCodeVerifier, RedirectUrl, TokenResponse, TokenUrl,
 };
 use serde::Deserialize;
 use tracing::error;
@@ -22,6 +22,7 @@ const SCOPE: &str = "user";
 
 /// GitHub federated OAuth client (vendor HTTP only).
 pub struct GitHubConnectClient {
+    pkce_supported: bool,
     client_id: ClientId,
     client_secret: ClientSecret,
     auth_url: AuthUrl,
@@ -34,6 +35,7 @@ pub struct GitHubConnectClient {
 impl std::fmt::Debug for GitHubConnectClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GitHubConnectClient")
+            .field("pkce_supported", &self.pkce_supported)
             .field("user_url", &self.user_url)
             .field("redirect_uris", &self.redirect_uris)
             .finish_non_exhaustive()
@@ -48,6 +50,35 @@ impl GitHubConnectClient {
     /// Returns [`DomainError::OAuth2Error`] if `auth_url` or `token_url` is not a
     /// valid URL, or if the HTTP client cannot be constructed.
     pub fn from_config(config: &GitHubConfig) -> Result<Self, DomainError> {
+        Self::from_config_with_transport(
+            config,
+            github_connect_configuration::transport::VendorTransportSecurity::Verified,
+        )
+    }
+
+    /// Build with an explicit local/test exemption. TLS certificates remain verified.
+    ///
+    /// # Errors
+    /// Rejects unsafe vendor URLs or HTTP client construction failures.
+    pub fn from_config_with_transport(
+        config: &GitHubConfig,
+        policy: github_connect_configuration::transport::VendorTransportSecurity,
+    ) -> Result<Self, DomainError> {
+        Self::from_config_with_transport_and_pkce(config, policy, false)
+    }
+
+    /// Explicit receiver capability. Unsupported PKCE is refused rather than ignored.
+    ///
+    /// # Errors
+    /// Rejects unsafe vendor URLs or HTTP client construction failures.
+    pub fn from_config_with_transport_and_pkce(
+        config: &GitHubConfig,
+        policy: github_connect_configuration::transport::VendorTransportSecurity,
+        pkce_supported: bool,
+    ) -> Result<Self, DomainError> {
+        for raw in [&config.auth_url, &config.token_url, &config.user_url] {
+            validate_vendor_url(raw, policy)?;
+        }
         let auth_url = AuthUrl::new(config.auth_url.clone())
             .map_err(|e| DomainError::OAuth2Error(format!("invalid auth URL: {e}")))?;
         let token_url = TokenUrl::new(config.token_url.clone())
@@ -59,6 +90,7 @@ impl GitHubConnectClient {
             .build()
             .map_err(|e| DomainError::OAuth2Error(format!("failed to build HTTP client: {e}")))?;
         Ok(Self {
+            pkce_supported,
             client_id: ClientId::new(config.client_id.clone()),
             client_secret: ClientSecret::new(config.client_secret.clone()),
             auth_url,
@@ -95,6 +127,29 @@ impl GitHubConnectClient {
         )
         .set_redirect_uri(redirect))
     }
+}
+
+fn validate_vendor_url(
+    raw: &str,
+    policy: github_connect_configuration::transport::VendorTransportSecurity,
+) -> Result<(), DomainError> {
+    let url = reqwest::Url::parse(raw)
+        .map_err(|_| DomainError::OAuth2Error("invalid vendor URL".into()))?;
+    if raw.trim() != raw
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || !matches!(url.scheme(), "https" | "http")
+        || (policy == github_connect_configuration::transport::VendorTransportSecurity::Verified
+            && url.scheme() != "https")
+    {
+        return Err(DomainError::OAuth2Error(
+            "vendor requires verified HTTPS; plaintext needs explicit local/test policy".into(),
+        ));
+    }
+    Ok(())
 }
 
 async fn send_oauth(
@@ -167,13 +222,33 @@ impl FederatedOAuthClient for GitHubConnectClient {
         redirect_uri: &str,
         state: &str,
     ) -> Result<AuthorizeResponse, FederatedOAuthError> {
+        self.authorize_with_pkce(redirect_uri, state, None).await
+    }
+
+    async fn authorize_with_pkce(
+        &self,
+        redirect_uri: &str,
+        state: &str,
+        code_challenge: Option<&str>,
+    ) -> Result<AuthorizeResponse, FederatedOAuthError> {
+        if code_challenge.is_some_and(|challenge| {
+            !self.pkce_supported || !idp_connect_contract::dto::valid_s256_challenge(challenge)
+        }) {
+            return Err(FederatedOAuthError::Authorize);
+        }
         self.ensure_redirect_allowed(redirect_uri, FederatedOAuthError::Authorize)?;
         let client = self.basic_client(redirect_uri, FederatedOAuthError::Authorize)?;
         let state = state.to_owned();
-        let (auth_url, _) = client
+        let (mut auth_url, _) = client
             .authorize_url(move || CsrfToken::new(state))
             .add_scope(oauth2::Scope::new(SCOPE.to_owned()))
             .url();
+        if let Some(challenge) = code_challenge {
+            let mut pairs = auth_url.query_pairs_mut();
+            pairs.append_pair("code_challenge", challenge);
+            pairs.append_pair("code_challenge_method", "S256");
+            pairs.finish();
+        }
         Ok(AuthorizeResponse {
             authorization_url: auth_url.to_string(),
             scope: SCOPE.to_owned(),
@@ -185,11 +260,28 @@ impl FederatedOAuthClient for GitHubConnectClient {
         code: &str,
         redirect_uri: &str,
     ) -> Result<ProviderTokens, FederatedOAuthError> {
+        self.exchange_code_with_pkce(code, redirect_uri, None).await
+    }
+
+    async fn exchange_code_with_pkce(
+        &self,
+        code: &str,
+        redirect_uri: &str,
+        code_verifier: Option<&str>,
+    ) -> Result<ProviderTokens, FederatedOAuthError> {
+        if code_verifier.is_some_and(|verifier| {
+            !self.pkce_supported || !idp_connect_contract::dto::valid_pkce_verifier(verifier)
+        }) {
+            return Err(FederatedOAuthError::ExchangeCode);
+        }
         self.ensure_redirect_allowed(redirect_uri, FederatedOAuthError::ExchangeCode)?;
         let client = self.basic_client(redirect_uri, FederatedOAuthError::ExchangeCode)?;
         let http = self.http.clone();
-        let token_result = client
-            .exchange_code(AuthorizationCode::new(code.to_owned()))
+        let mut request = client.exchange_code(AuthorizationCode::new(code.to_owned()));
+        if let Some(verifier) = code_verifier {
+            request = request.set_pkce_verifier(PkceCodeVerifier::new(verifier.to_owned()));
+        }
+        let token_result = request
             .request_async(move |req| async move { send_oauth(&http, req).await })
             .await
             .map_err(|_| {
@@ -244,5 +336,124 @@ impl FederatedOAuthClient for GitHubConnectClient {
         };
 
         Ok(map_profile(github_user, &github_emails))
+    }
+}
+
+#[cfg(test)]
+mod transport_tests {
+    use super::*;
+    use github_connect_configuration::transport::VendorTransportSecurity;
+
+    #[test]
+    fn plaintext_vendor_endpoints_require_explicit_isolated_policy() {
+        let config = GitHubConfig {
+            token_url: "http://localhost/token".into(),
+            ..GitHubConfig::default()
+        };
+        assert!(GitHubConnectClient::from_config(&config).is_err());
+        assert!(GitHubConnectClient::from_config_with_transport(
+            &config,
+            VendorTransportSecurity::IsolatedTest
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn invalid_vendor_urls_never_echo_embedded_credentials() {
+        let error = validate_vendor_url(
+            "https://user:SENTINEL-VENDOR-SECRET@vendor/token",
+            VendorTransportSecurity::Verified,
+        )
+        .unwrap_err();
+        assert!(!error.to_string().contains("SENTINEL-VENDOR-SECRET"));
+    }
+
+    #[tokio::test]
+    async fn pkce_is_explicit_s256_and_never_silently_ignored() {
+        let redirect = "https://app.example/callback";
+        let config = GitHubConfig {
+            redirect_uris: vec![redirect.into()],
+            ..GitHubConfig::default()
+        };
+        let disabled = GitHubConnectClient::from_config(&config).unwrap();
+        let challenge = "a".repeat(43);
+        assert!(disabled
+            .authorize_with_pkce(redirect, "opaque", Some(&challenge))
+            .await
+            .is_err());
+        assert!(disabled
+            .exchange_code_with_pkce("code", redirect, Some(&challenge))
+            .await
+            .is_err());
+        let enabled = GitHubConnectClient::from_config_with_transport_and_pkce(
+            &config,
+            VendorTransportSecurity::Verified,
+            true,
+        )
+        .unwrap();
+        let response = enabled
+            .authorize_with_pkce(redirect, "opaque", Some(&challenge))
+            .await
+            .unwrap();
+        let url = reqwest::Url::parse(&response.authorization_url).unwrap();
+        assert_eq!(
+            url.query_pairs()
+                .filter(|(key, value)| key.as_ref() == "code_challenge"
+                    && value.as_ref() == challenge.as_str())
+                .count(),
+            1
+        );
+        assert_eq!(
+            url.query_pairs()
+                .filter(|(key, value)| key.as_ref() == "code_challenge_method"
+                    && value.as_ref() == "S256")
+                .count(),
+            1
+        );
+        let no_pkce = enabled.authorize(redirect, "opaque").await.unwrap();
+        assert!(!no_pkce.authorization_url.contains("code_challenge"));
+        assert!(enabled
+            .authorize_with_pkce(redirect, "opaque", Some("short"))
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn consumed_verifier_reaches_vendor_token_post() {
+        use wiremock::{
+            matchers::{body_string_contains, method, path},
+            Mock, MockServer, ResponseTemplate,
+        };
+        let vendor = MockServer::start().await;
+        let verifier = "v".repeat(43);
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .and(body_string_contains(format!("code_verifier={verifier}")))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("Content-Type", "application/json")
+                    .set_body_string(r#"{"access_token":"opaque-access","token_type":"Bearer"}"#),
+            )
+            .expect(1)
+            .mount(&vendor)
+            .await;
+        let redirect = "https://app.example/callback";
+        let config = GitHubConfig {
+            token_url: format!("{}/token", vendor.uri()),
+            redirect_uris: vec![redirect.into()],
+            ..GitHubConfig::default()
+        };
+        let client = GitHubConnectClient::from_config_with_transport_and_pkce(
+            &config,
+            VendorTransportSecurity::IsolatedTest,
+            true,
+        )
+        .unwrap();
+        let tokens = client
+            .exchange_code_with_pkce("opaque-code", redirect, Some(&verifier))
+            .await
+            .unwrap();
+        assert_eq!(tokens.access_token, "opaque-access");
+        vendor.verify().await;
     }
 }

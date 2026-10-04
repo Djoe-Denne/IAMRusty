@@ -38,7 +38,10 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: postgres
-          image: postgres:15-alpine
+          image: postgres:15.12-alpine3.21@sha256:ef9d1517df69c4d27dbb9ddcec14f431a2442628603f4e9daa429b92ae6c3cd1
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
           imagePullPolicy: IfNotPresent
           env:
             - name: POSTGRES_USER
@@ -108,7 +111,10 @@ spec:
       automountServiceAccountToken: false
       initContainers:
         - name: migrate
-          image: openfga/openfga:latest
+          image: openfga/openfga:v1.8.5@sha256:d023be1d5b75df633c1efa6ab6b86748e77b05d5e78d0f40973a5e47d4264ce7
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {cpu: "1", memory: 256Mi}
           imagePullPolicy: IfNotPresent
           args: ["migrate"]
           env:
@@ -118,7 +124,10 @@ spec:
               value: postgres://postgres:postgres@postgres:5432/openfga_dev?sslmode=disable
       containers:
         - name: openfga
-          image: openfga/openfga:latest
+          image: openfga/openfga:v1.8.5@sha256:d023be1d5b75df633c1efa6ab6b86748e77b05d5e78d0f40973a5e47d4264ce7
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {cpu: "1", memory: 256Mi}
           imagePullPolicy: IfNotPresent
           args: ["run"]
           env:
@@ -188,6 +197,14 @@ spec:
       containers:
         - name: iam
           image: aiforall-iam-service:latest
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          readinessProbe:
+            httpGet: {path: /iam/ready, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
           imagePullPolicy: Never
           env:
             - name: RUST_ENVIRONMENT
@@ -294,6 +311,14 @@ spec:
       containers:
         - name: hive
           image: aiforall-hive-service:latest
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          readinessProbe:
+            httpGet: {path: /hive/ready, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
           imagePullPolicy: Never
           env:
             - name: RUST_ENVIRONMENT
@@ -402,6 +427,14 @@ spec:
       containers:
         - name: telegraph
           image: aiforall-telegraph-service:latest
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          readinessProbe:
+            httpGet: {path: /telegraph/ready, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
           imagePullPolicy: Never
           env:
             - name: RUST_ENVIRONMENT
@@ -502,6 +535,14 @@ spec:
       containers:
         - name: manifesto
           image: aiforall-manifesto-service:latest
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          readinessProbe:
+            httpGet: {path: /manifesto/ready, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
           imagePullPolicy: Never
           env:
             - name: RUST_ENVIRONMENT

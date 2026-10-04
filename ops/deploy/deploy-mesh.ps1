@@ -2,7 +2,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+. (Join-Path $PSScriptRoot 'common.ps1')
+$RepoRoot = Get-AIForAllRoot $PSScriptRoot
 Set-Location $RepoRoot
 
 $KindContext = 'kind-aiforall-local'
@@ -25,23 +26,15 @@ if ($missing.Count -gt 0) {
     exit 1
 }
 
-$clusterOut = & kind get clusters 2>&1
-$hasLocal = $false
-foreach ($line in @($clusterOut)) {
-    if (([string]$line).Trim() -eq $ClusterName) { $hasLocal = $true }
-}
-if (-not $hasLocal) {
-    Write-Host 'mesh STOP : cluster kind aiforall-local absent. just deploy-m2 le cree.' -ForegroundColor Red
-    exit 1
-}
+Initialize-LocalKind
 
 Write-Host "mesh : contexte $KindContext (jamais $ForbiddenContext)" -ForegroundColor Cyan
 Write-Host 'mesh : cargo build hote = target/. Image Kind = compilation Linux dans Docker, comme J3.' -ForegroundColor Cyan
 
 Write-Host 'mesh : certificats platform-mesh' -ForegroundColor Cyan
 & docker run --rm `
-    -v "${PWD}/certs/platform-mesh:/certs" `
-    -v "${PWD}/scripts/generate-platform-mesh-certs.sh:/generate-platform-mesh-certs.sh:ro" `
+    -v "${PWD}/ops/certs/platform-mesh:/certs" `
+    -v "${PWD}/ops/scripts/generate-platform-mesh-certs.sh:/generate-platform-mesh-certs.sh:ro" `
     alpine:3.20 `
     sh -c "apk add --no-cache openssl >/dev/null && sh /generate-platform-mesh-certs.sh"
 if ($LASTEXITCODE -ne 0) {
@@ -62,13 +55,15 @@ $loadImages = @(
     'aiforall-hive-service:latest',
     'aiforall-telegraph-service:latest',
     'aiforall-manifesto-service:latest',
-    'postgres:15-alpine',
-    'openfga/openfga:latest',
+    'postgres:15.12-alpine3.21@sha256:ef9d1517df69c4d27dbb9ddcec14f431a2442628603f4e9daa429b92ae6c3cd1',
+    'openfga/openfga:v1.8.5@sha256:d023be1d5b75df633c1efa6ab6b86748e77b05d5e78d0f40973a5e47d4264ce7',
+    'envoyproxy/envoy:v1.31.2@sha256:c56804e9fc8d5184c45862ad851173a925ff383151cb94156f86bed047da29bc',
     'alpine:3.20'
 )
 foreach ($img in $loadImages) {
     & docker image inspect $img *> $null
     if ($LASTEXITCODE -ne 0) {
+        if ($img -like 'aiforall-*') { throw "Local application image $img missing; parent must build it in Docker first." }
         Write-Host "mesh : docker pull $img" -ForegroundColor Cyan
         & docker pull $img
         if ($LASTEXITCODE -ne 0) {
@@ -81,6 +76,7 @@ foreach ($img in $loadImages) {
     if ($LASTEXITCODE -ne 0) {
         # Multi-arch indexes (postgres, openfga, alpine) fail ctr import until
         # the tag is a single linux/amd64 image.
+        if ($img -like '*@sha256:*') { throw "Pinned image import failed: $img. Do not rebuild/retag a pinned upstream image." }
         $df = Join-Path $env:TEMP 'kind-single.Dockerfile'
         Set-Content -Path $df -Value "FROM $img`n" -Encoding ascii
         & docker build --platform linux/amd64 -t $img -f $df $env:TEMP
@@ -153,6 +149,23 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host 'mesh echec : apply kind-mesh' -ForegroundColor Red
     exit $LASTEXITCODE
 }
+
+$configurationIdentity = $meshYaml | Out-String
+foreach ($name in @('iam', 'hive', 'telegraph', 'manifesto')) {
+    Set-LocalDeploymentIdentity -Namespace aiforall-platform -Deployment $name -Container $name -SourceImage "aiforall-$name-service:latest" -Configuration $configurationIdentity
+}
+Set-LocalDeploymentIdentity -Namespace $Namespace -Deployment ext-authz -Container ext-authz -SourceImage $Image -Configuration $configurationIdentity
+# Envoy's inline ConfigMap is not generated. Include its actual rendered bytes
+# in the template identity, so a config change rolls the mounted file too.
+$envoyPatch = @{ spec = @{ template = @{ metadata = @{ annotations = @{ 'aiforall.dev/config-sha256' = (& {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($configurationIdentity)))).Replace('-', '').ToLowerInvariant() } finally { $sha.Dispose() }
+}) } } } } } | ConvertTo-Json -Depth 10 -Compress
+$patchFile = [IO.Path]::GetTempFileName()
+try {
+    [IO.File]::WriteAllText($patchFile, $envoyPatch, [Text.UTF8Encoding]::new($false))
+    Invoke-Kubectl @('-n', $Namespace, 'patch', 'deployment/envoy-mesh', '--type=merge', '--patch-file', $patchFile)
+} finally { Remove-Item -LiteralPath $patchFile -ErrorAction SilentlyContinue }
 
 Invoke-Kubectl @('rollout', 'status', 'deployment/postgres', '-n', 'aiforall-platform', '--timeout=180s')
 Invoke-Kubectl @('rollout', 'status', 'deployment/openfga', '-n', 'aiforall-platform', '--timeout=180s')

@@ -9,7 +9,7 @@
 - SuperSédée par : —
 - Related : [0600](0600-cloud-portable-opentofu-k8s-gitops.md), [0601](0601-cluster-trust-namespaces-standalones.md), [0004](0004-apparatus-capability-gateway.md), [0007](0007-apparatus-p3-capability-boundary-after-accept.md), [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md)
 
-`Accepted` ratifie une cible. `Réalité` **Partial** : arbres `ops/deploy/` + `ops/cloud/opentofu/` livrés (M1–M3 locaux) ; pas GKE, pas Flux live, pas 0602. Cette ADR **ne SuperSède pas** [0600](0600-cloud-portable-opentofu-k8s-gitops.md), [0601](0601-cluster-trust-namespaces-standalones.md), ni [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) (Accepted / **Implemented** A-DEC 2026-09-22). Elle enregistre un **écart de séquence** : livrer A+B local **avant** Accept GKE / couche C / [0602](0602-observabilite-portable-otlp-lgtm.md).
+`Accepted` ratifierait une cible ; le Statut reste Proposed. `Réalité : Partial` au 2026-10-04 : arbres IaC locaux présents, M1–M3 et leurs preuves bornés à la tranche historique ; D6/local-full source rendue offline, sans validation runtime du nouvel ensemble. Pas GKE, Flux live ou 0602 livré. Cette ADR ne SuperSède ni [0600](0600-cloud-portable-opentofu-k8s-gitops.md), ni [0601](0601-cluster-trust-namespaces-standalones.md), ni [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md). Elle reste une décision de séquence A+B local avant la couche distante ; la frontière du nouveau lab dédié relève de [0606](0606-local-full-kind-isole.md), Proposed / Partial.
 
 ## Contexte
 
@@ -80,6 +80,14 @@ Valeur : un tiers installable localement (lint) + tableau de mapping ns/SA 0601 
 - Images digest de prod, Cosign CI, Kyverno staging/prod.
 - Host UI / Factory (P5/P6).
 
+## État source et portée des preuves — 2026-10-04
+
+- M1–M3 ci-dessus restent la tranche historique ; leurs commandes/résultats ne prouvent ni le root modifié ni un local-full courant. Stub invoke, compilation et YAML ne prouvent pas le parcours métier/réseau/durabilité. Les fixtures P4 protégées ne sont jamais un contexte d’E2E plateforme.
+- Emplacements courants : `ops/deploy/apps/base/`, `ops/deploy/apps/overlays/{kind,kind-demo-monolith,kind-mesh,local-full}/`, `ops/deploy/kind/`, `ops/deploy/mesh/`, scripts `ops/deploy/*local-full*`. OpenTofu reste `ops/cloud/opentofu/`, hors apply remote. Le local-full ne remplace pas les overlays historiques ni leur carte 7 namespaces.
+- `ops/deploy/PACKAGE-D-CHECKPOINT.md` D6 rapporte rendu offline **112 ressources** (111 était la source antérieure), sélection exclusive du nouveau cluster/context, image nœud épinglée, mapping HTTP loopback18080 et projection de CA publique seule. Ce sont des validations SOURCE/offline, pas TLS/NetworkPolicy/PVC vivants.
+- Gates encore ouverts après intégration : compilation root/units ciblées, IT testcontainers, puis E2E dans `kind-aiforall-local-full` explicitement autorisé (1 control-plane + 2 workers). Inventaire/bail et topologie exacte préalables ; mismatch ⇒ STOP/INCONCLUSIVE, sans delete/recreate du cluster legacy.
+- Admission-store/PostgreSQL/Redis/Zot ont des PVC local-path déclarés ; OpenBao DEV et SQS LocalStack restent volatils, SMTP/catalogue simulés et OAuth externe désactivé par défaut. La survie pod n’est pas la survie nœud/HA ; backup/restore distinct et reprise réelle restent à prouver. Aucun constat local retiré automatiquement de scope.
+
 ## Références
 
 - Canon : `docs/adr/0600-*.md`, `0601-*.md` ; moteur P4 : `0008` (+ closeout) ; gateway : `0004`, `0007`
@@ -88,4 +96,4 @@ Valeur : un tiers installable localement (lint) + tableau de mapping ns/SA 0601 
 - Code ancré : `services/Lazaret/application/src/invoke.rs` ; `apparatus_contracts::INVOKE_PATH` ; IT `workers/apparatus-operator/tests/apparatus_m5_invoke_isolated.rs`, `apparatus_m6_e2e_chain.rs` ; fixture kind `workers/apparatus-operator/tests/fixtures/kind/cluster.yaml`
 - Compose : `docker-compose.yml` (`lazaret-service` :8084) ; écart `just up` / 0500 cité, non « réparé »
 - Wiki pointeur : `obsidian/AI FOR ALL/projects/aiforall/decisions/0603-tranche-locale.md`
-- Preuve d’implémentation : `just deploy-m1` (kustomize kind+p4) ; `just deploy-m2` (kind `aiforall-local`, Job `invoke-probe` GET `/lazaret/invoke` 200) ; `just deploy-m3` (`helm lint` shim Envoy Gateway). `tofu validate` non exécuté (binaire absent).
+- Preuves historiques M1–M3 (pas de nouvelle exécution au 2026-10-04) : `just deploy-m1` (kustomize kind+p4) ; `just deploy-m2` (kind `aiforall-local`, Job `invoke-probe` GET `/lazaret/invoke` 200) ; `just deploy-m3` (`helm lint` shim Envoy Gateway). `tofu validate` non exécuté (binaire absent).

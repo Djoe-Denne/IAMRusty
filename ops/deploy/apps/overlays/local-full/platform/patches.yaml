@@ -1,0 +1,151 @@
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: mesh-postgres-init, namespace: aiforall-platform}
+data:
+  init.sql: |
+    CREATE DATABASE telegraph_dev;
+    CREATE DATABASE hive_dev;
+    CREATE DATABASE manifesto_dev;
+    CREATE DATABASE lazaret_dev;
+    CREATE DATABASE openfga_dev;
+    CREATE DATABASE sentinel_dev;
+---
+# Dedicated loopback host endpoint, leaving legacy service/mappings untouched.
+apiVersion: v1
+kind: Service
+metadata: {name: envoy-mesh, namespace: aiforall-gateway}
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: 10000
+      targetPort: http
+      nodePort: 30080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: postgres, namespace: aiforall-platform}
+spec:
+  strategy: {type: Recreate}
+  template:
+    spec:
+      securityContext: {runAsNonRoot: true, runAsUser: 70, runAsGroup: 70, fsGroup: 70, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: postgres
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+      volumes:
+        - name: data
+          $patch: replace
+          persistentVolumeClaim: {claimName: postgres-data}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: zot, namespace: aiforall-platform}
+spec:
+  strategy: {type: Recreate}
+  template:
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: zot
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          startupProbe:
+            tcpSocket: {port: http}
+            failureThreshold: 36
+            periodSeconds: 5
+      volumes:
+        - name: data
+          $patch: replace
+          persistentVolumeClaim: {claimName: zot-data}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: iam, namespace: aiforall-platform}
+spec:
+  template:
+    spec:
+      containers:
+        - name: iam
+          env:
+            - {name: IAM_QUEUE__ENABLED, value: "true"}
+            - {name: IAM_QUEUE__HOST, value: localstack}
+            - {name: RUST_LOG, value: info}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: hive, namespace: aiforall-platform}
+spec:
+  template:
+    spec:
+      containers:
+        - name: hive
+          env:
+            - {name: HIVE_IAM_SERVICE__BASE_URL, value: "http://iam:8080"}
+            - {name: HIVE_PLATFORM_IAM_SERVICE__BASE_URL, value: "http://iam:8080"}
+            - {name: HIVE_AUTH__JWT__JWKS_URL, value: "http://iam:8080/iam/.well-known/jwks.json"}
+            - {name: HIVE_QUEUE__ENABLED, value: "true"}
+            - {name: HIVE_QUEUE__HOST, value: localstack}
+            - name: HIVE_OPENFGA__STORE_ID
+              value: null
+              valueFrom: {configMapKeyRef: {name: local-full-fga, key: store-id}}
+            - name: HIVE_OPENFGA__AUTHORIZATION_MODEL_ID
+              value: null
+              valueFrom: {configMapKeyRef: {name: local-full-fga, key: model-id}}
+            - {name: RUST_LOG, value: info}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: telegraph, namespace: aiforall-platform}
+spec:
+  template:
+    spec:
+      containers:
+        - name: telegraph
+          env:
+            - {name: TELEGRAPH_AUTH__JWT__JWKS_URL, value: "http://iam:8080/iam/.well-known/jwks.json"}
+            - {name: TELEGRAPH_QUEUE__ENABLED, value: "true"}
+            - {name: TELEGRAPH_QUEUE__HOST, value: localstack}
+            - {name: TELEGRAPH_COMMUNICATION__EMAIL__SMTP__HOST, value: mailhog}
+            - {name: TELEGRAPH_COMMUNICATION__EMAIL__SMTP__PORT, value: "1025"}
+            - {name: TELEGRAPH_COMMUNICATION__EMAIL__SMTP__USE_TLS, value: "false"}
+            - name: TELEGRAPH_OPENFGA__STORE_ID
+              valueFrom: {configMapKeyRef: {name: local-full-fga, key: store-id}}
+            - name: TELEGRAPH_OPENFGA__AUTHORIZATION_MODEL_ID
+              valueFrom: {configMapKeyRef: {name: local-full-fga, key: model-id}}
+            - {name: RUST_LOG, value: info}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: manifesto, namespace: aiforall-platform}
+spec:
+  template:
+    spec:
+      containers:
+        - name: manifesto
+          env:
+            - {name: MANIFESTO_AUTH__JWT__JWKS_URL, value: "http://iam:8080/iam/.well-known/jwks.json"}
+            - {name: MANIFESTO_QUEUE__ENABLED, value: "true"}
+            - {name: MANIFESTO_QUEUE__HOST, value: localstack}
+            - {name: MANIFESTO_SERVICE__COMPONENT_SERVICE__BASE_URL, value: "http://component-catalog:9000"}
+            - {name: MANIFESTO_SERVICE__COMPONENT_SERVICE__API_KEY, value: aiforall-gold-catalog}
+            - name: MANIFESTO_OPENFGA__STORE_ID
+              valueFrom: {configMapKeyRef: {name: local-full-fga, key: store-id}}
+            - name: MANIFESTO_OPENFGA__AUTHORIZATION_MODEL_ID
+              valueFrom: {configMapKeyRef: {name: local-full-fga, key: model-id}}
+            - {name: RUST_LOG, value: info}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: ext-authz, namespace: aiforall-gateway}
+spec:
+  template:
+    spec:
+      containers:
+        - name: ext-authz
+          env:
+            - {name: EXT_AUTHZ_JWKS_URL, value: "https://iam:8443/iam/.well-known/jwks.json"}

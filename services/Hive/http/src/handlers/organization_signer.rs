@@ -1,8 +1,8 @@
 //! Hive admin HTTP for IAM organization-signer RPC (ADR-0306).
 
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use hive_application::{
     ConfigureOrganizationSignerCommand, ConfigureOrganizationSignerHttpRequest,
@@ -16,6 +16,16 @@ use rustycog::permission::ResourceId;
 use crate::error::HttpError;
 
 fn map_cmd(e: rustycog::command::CommandError) -> HttpError {
+    if let rustycog::command::CommandError::Business { code, .. } = &e {
+        if code == "iam_signing_admission_throttled" {
+            return HttpError::RateLimit;
+        }
+        if code == "iam_signing_epoch_conflict" {
+            return HttpError::Conflict {
+                message: "Signing epoch conflict".into(),
+            };
+        }
+    }
     HttpError::Internal {
         message: format!("Command execution failed: {e}"),
     }

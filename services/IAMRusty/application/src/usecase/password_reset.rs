@@ -139,13 +139,7 @@ where
     event_publisher: Arc<EP>,
     password_service: Arc<PS>,
     outbox_unit_of_work: Option<Arc<dyn IamOutboxUnitOfWork>>,
-    session_revoker: Option<Arc<dyn SessionRevoker>>,
-}
-
-/// Revokes refresh sessions after a password change.
-#[async_trait]
-pub trait SessionRevoker: Send + Sync {
-    async fn revoke_all(&self, user_id: Uuid) -> Result<u64, String>;
+    session_writer: Option<Arc<dyn iam_domain::port::repository::AuthenticationSessionWriter>>,
 }
 
 /// Password service trait for dependency injection
@@ -182,7 +176,7 @@ where
             event_publisher,
             password_service,
             outbox_unit_of_work: None,
-            session_revoker: None,
+            session_writer: None,
         }
     }
 
@@ -203,23 +197,18 @@ where
             event_publisher,
             password_service,
             outbox_unit_of_work: Some(outbox_unit_of_work),
-            session_revoker: None,
+            session_writer: None,
         }
     }
 
-    /// Revoke refresh tokens after a successful password reset or change.
+    /// Atomic password mutation + reset-capability invalidation + session purge.
     #[must_use]
-    pub fn with_session_revoker(mut self, session_revoker: Arc<dyn SessionRevoker>) -> Self {
-        self.session_revoker = Some(session_revoker);
+    pub fn with_session_writer(
+        mut self,
+        writer: Arc<dyn iam_domain::port::repository::AuthenticationSessionWriter>,
+    ) -> Self {
+        self.session_writer = Some(writer);
         self
-    }
-
-    async fn revoke_sessions(&self, user_id: Uuid) {
-        if let Some(revoker) = &self.session_revoker {
-            if let Err(e) = revoker.revoke_all(user_id).await {
-                tracing::warn!("Failed to revoke sessions for user {user_id}: {e}");
-            }
-        }
     }
 
     async fn record_or_publish_event(
@@ -353,7 +342,7 @@ where
         new_password: String,
     ) -> Result<ResetPasswordResponse, PasswordResetError> {
         // Find user
-        let mut user = self
+        let user = self
             .user_repository
             .find_by_id(user_id)
             .await
@@ -361,7 +350,7 @@ where
             .ok_or(PasswordResetError::UserNotFound)?;
 
         // Verify current password
-        if let Some(password_hash) = user.password_hash {
+        if let Some(password_hash) = &user.password_hash {
             if !self
                 .password_service
                 .verify_password(&current_password, &password_hash)
@@ -376,22 +365,19 @@ where
         // Hash new password
         let password_hash = self.password_service.hash_password(&new_password).await?;
 
-        // Update user password
-        user.password_hash = Some(password_hash);
-        self.user_repository
-            .update(user)
+        self.session_writer
+            .as_ref()
+            .ok_or_else(|| {
+                PasswordResetError::ServiceError("session writer not configured".into())
+            })?
+            .reset_password(user_id, user.password_hash, password_hash, None)
             .await
-            .map_err(|e| PasswordResetError::RepositoryError(e.to_string()))?;
-
-        // Invalidate all existing reset tokens for this user
-        if let Err(e) = self
-            .password_reset_token_repository
-            .delete_all_for_user(user_id)
-            .await
-        {
-            tracing::warn!("Failed to delete reset tokens for user {}: {}", user_id, e);
-        }
-        self.revoke_sessions(user_id).await;
+            .map_err(|error| match error {
+                DomainError::InvalidToken => PasswordResetError::IncorrectCurrentPassword,
+                _ => {
+                    PasswordResetError::RepositoryError("password change transaction failed".into())
+                }
+            })?;
 
         Ok(ResetPasswordResponse {
             message: "Password has been successfully changed".to_string(),
@@ -410,7 +396,7 @@ where
         let token_hash = PasswordResetToken::hash_token(&reset_token);
 
         // Find and validate the token by hash
-        let mut token = self
+        let token = self
             .password_reset_token_repository
             .find_by_token_hash(&token_hash)
             .await
@@ -427,7 +413,7 @@ where
         }
 
         // Find user by the user_id from the token
-        let mut user = self
+        let user = self
             .user_repository
             .find_by_id(token.user_id)
             .await
@@ -440,33 +426,24 @@ where
             .hash_password(&request.new_password)
             .await?;
 
-        // Update user password
-        user.password_hash = Some(password_hash);
-        self.user_repository
-            .update(user)
-            .await
-            .map_err(|e| PasswordResetError::RepositoryError(e.to_string()))?;
-
-        // Mark token as used
-        token.mark_as_used();
-        self.password_reset_token_repository
-            .update(&token)
-            .await
-            .map_err(|e| PasswordResetError::RepositoryError(e.to_string()))?;
-
-        // Delete all other reset tokens for this user
-        if let Err(e) = self
-            .password_reset_token_repository
-            .delete_all_for_user(token.user_id)
-            .await
-        {
-            tracing::warn!(
-                "Failed to delete other reset tokens for user {}: {}",
+        self.session_writer
+            .as_ref()
+            .ok_or_else(|| {
+                PasswordResetError::ServiceError("session writer not configured".into())
+            })?
+            .reset_password(
                 token.user_id,
-                e
-            );
-        }
-        self.revoke_sessions(token.user_id).await;
+                user.password_hash,
+                password_hash,
+                Some(token_hash),
+            )
+            .await
+            .map_err(|error| match error {
+                DomainError::InvalidToken => PasswordResetError::InvalidResetToken,
+                _ => {
+                    PasswordResetError::RepositoryError("password reset transaction failed".into())
+                }
+            })?;
 
         Ok(ResetPasswordResponse {
             message: "Password has been successfully reset".to_string(),

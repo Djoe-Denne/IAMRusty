@@ -90,7 +90,7 @@ pub enum SignupResponse {
         refresh_token: String,
         message: String,
     },
-    /// New user created - username required  
+    /// New user created - username required
     RegistrationRequired {
         user: IncompleteUserProfile,
         registration_token: String,
@@ -201,6 +201,7 @@ where
     event_publisher: Arc<EP>,
     signup_transaction: Option<Arc<dyn SignupTransaction>>,
     outbox_unit_of_work: Option<Arc<dyn IamOutboxUnitOfWork>>,
+    session_writer: Option<Arc<dyn crate::port::repository::AuthenticationSessionWriter>>,
 }
 
 pub struct AuthServiceDependencies<UR, UER, EVR, PS, TS, RTS, EP>
@@ -271,7 +272,18 @@ where
             event_publisher: dependencies.event_publisher,
             signup_transaction,
             outbox_unit_of_work,
+            session_writer: None,
         }
+    }
+
+    /// Bind writer-backed atomic refresh issuance. Missing binding fails closed.
+    #[must_use]
+    pub fn with_session_writer(
+        mut self,
+        writer: Arc<dyn crate::port::repository::AuthenticationSessionWriter>,
+    ) -> Self {
+        self.session_writer = Some(writer);
+        self
     }
 
     /// Generate a verification token using UUID v4
@@ -374,6 +386,7 @@ where
         let registration_token = self
             .registration_token_service
             .generate_registration_token(existing_user.id, request.email.clone())
+            .await
             .map_err(AuthError::RepositoryError)?;
         Ok(SignupResponse::RegistrationRequired {
             user: IncompleteUserProfile {
@@ -427,6 +440,7 @@ where
         let registration_token = self
             .registration_token_service
             .generate_registration_token(created_user.id, request.email.clone())
+            .await
             .map_err(AuthError::RepositoryError)?;
         Ok(SignupResponse::RegistrationRequired {
             user: IncompleteUserProfile {
@@ -486,6 +500,7 @@ where
             let registration_token = self
                 .registration_token_service
                 .generate_registration_token(user.id, request.email.clone())
+                .await
                 .map_err(AuthError::RepositoryError)?;
 
             return Ok(LoginResponse::RegistrationIncomplete {
@@ -513,6 +528,20 @@ where
             .generate_refresh_token(user.id)
             .await
             .map_err(|e| AuthError::TokenServiceError(Box::new(e)))?;
+
+        self.session_writer
+            .as_ref()
+            .ok_or_else(|| {
+                AuthError::RepositoryError(DomainError::RepositoryError(
+                    "session writer not configured".into(),
+                ))
+            })?
+            .issue(refresh_token.clone(), user.password_hash.clone())
+            .await
+            .map_err(|error| match error {
+                DomainError::InvalidToken => AuthError::InvalidCredentials,
+                error => AuthError::RepositoryError(error),
+            })?;
 
         let event: Box<dyn rustycog::events::event::DomainEvent + 'static> =
             DomainEvent::UserLoggedIn(UserLoggedInEvent::new(

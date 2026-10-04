@@ -46,6 +46,7 @@ static_resources:
                       routes:
                         - match:
                             path: /iam/.well-known/jwks.json
+                            headers: [{name: ':method', string_match: {safe_regex: {google_re2: {}, regex: '^(GET|HEAD)$'}}}]
                           route:
                             cluster: iam
                           typed_per_filter_config:
@@ -54,6 +55,7 @@ static_resources:
                               disabled: true
                         - match:
                             path: /iam/api/auth/signup
+                            headers: [{name: ':method', string_match: {exact: POST}}]
                           route:
                             cluster: iam
                           typed_per_filter_config:
@@ -62,6 +64,49 @@ static_resources:
                               disabled: true
                         - match:
                             path: /iam/api/auth/login
+                            headers: [{name: ':method', string_match: {exact: POST}}]
+                          route:
+                            cluster: iam
+                          typed_per_filter_config:
+                            envoy.filters.http.ext_authz:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                              disabled: true
+                        - match:
+                            safe_regex:
+                              google_re2: {}
+                              regex: '^/iam/api/auth/(verify|username/check|[^/]+/(login|callback))$'
+                            headers: [{name: ':method', string_match: {safe_regex: {google_re2: {}, regex: '^(GET|HEAD)$'}}}]
+                          route:
+                            cluster: iam
+                          typed_per_filter_config:
+                            envoy.filters.http.ext_authz:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                              disabled: true
+                        - match:
+                            safe_regex:
+                              google_re2: {}
+                              regex: '^/iam/(api/auth/(resend-verification|complete-registration|password/(reset-request|reset-validate|reset-confirm))|api/token/refresh)$'
+                            headers: [{name: ':method', string_match: {exact: POST}}]
+                          route:
+                            cluster: iam
+                          typed_per_filter_config:
+                            envoy.filters.http.ext_authz:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                              disabled: true
+                        # State/browser-DB authenticated callbacks, NOT unguarded OAuth.
+                        # Deploy only together with the section-9 compliant A2 handler.
+                        - match:
+                            path: /iam/api/auth/github/relink-callback
+                            headers: [{name: ':method', string_match: {safe_regex: {google_re2: {}, regex: '^(GET|HEAD)$'}}}]
+                          route:
+                            cluster: iam
+                          typed_per_filter_config:
+                            envoy.filters.http.ext_authz:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                              disabled: true
+                        - match:
+                            path: /iam/api/auth/gitlab/relink-callback
+                            headers: [{name: ':method', string_match: {safe_regex: {google_re2: {}, regex: '^(GET|HEAD)$'}}}]
                           route:
                             cluster: iam
                           typed_per_filter_config:

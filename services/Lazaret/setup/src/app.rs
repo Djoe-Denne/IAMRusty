@@ -6,8 +6,8 @@ use std::sync::Arc;
 use anyhow::Error;
 use axum::Router;
 use lazaret_application::{
-    empty_command_registry, DigestDnsPluginLocator, EmptyPluginLocator, GrantService,
-    IdentityService, InvokeService, PluginEndpointLocator, StaticPluginLocator,
+    empty_command_registry, EmptyPluginLocator, GrantService, IdentityService, InvokeService,
+    NamespacedDigestDnsPluginLocator, PluginEndpointLocator, StaticPluginLocator,
 };
 use lazaret_configuration::AppConfig;
 use lazaret_domain::{
@@ -97,7 +97,7 @@ impl Application {
             kv,
             secrets,
             connectors,
-            plugin_endpoint_locator(&config),
+            plugin_endpoint_locator(&config)?,
         ));
         let readiness = build_readiness(db_write, kv_event_consumer.as_ref());
 
@@ -315,15 +315,18 @@ fn build_named_connectors(config: &AppConfig) -> Result<Arc<NamedConnectorProxy>
         .map_err(|e| anyhow::anyhow!("Connector proxy: {e}"))
 }
 
-fn plugin_endpoint_locator(config: &AppConfig) -> Arc<dyn PluginEndpointLocator> {
+fn plugin_endpoint_locator(config: &AppConfig) -> Result<Arc<dyn PluginEndpointLocator>, Error> {
     if config.plugin_hop.use_dns_formula {
-        return Arc::new(DigestDnsPluginLocator);
+        config.plugin_hop.validate().map_err(anyhow::Error::msg)?;
+        return Ok(Arc::new(NamespacedDigestDnsPluginLocator::try_new(
+            config.plugin_hop.namespace.clone(),
+        )?));
     }
     let url = config.plugin_hop.endpoint_url.trim();
     if url.is_empty() {
-        Arc::new(EmptyPluginLocator)
+        Ok(Arc::new(EmptyPluginLocator))
     } else {
-        Arc::new(StaticPluginLocator::new(url.to_owned()))
+        Ok(Arc::new(StaticPluginLocator::new(url.to_owned())))
     }
 }
 

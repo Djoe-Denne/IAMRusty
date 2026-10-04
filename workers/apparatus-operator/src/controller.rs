@@ -13,8 +13,10 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use k8s_openapi::api::core::v1::{
-    Container, ContainerPort, EnvVar, Pod, PodSpec, Service, ServicePort, ServiceSpec,
+    Container, ContainerPort, EnvVar, KeyToPath, Pod, PodSpec, Probe, ResourceRequirements,
+    SecretVolumeSource, Service, ServicePort, ServiceSpec, TCPSocketAction, Volume, VolumeMount,
 };
+use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use kube::api::{Api, DeleteParams, DynamicObject, Patch, PatchParams, PostParams};
@@ -148,8 +150,77 @@ impl std::error::Error for ControllerError {}
 pub struct WorkloadReconciler {
     client: Client,
     store_path: PathBuf,
+    namespaces: ControllerNamespaces,
     /// Cible Cosign injectée (tests). Prod : [`AdmitTarget::from_schedule_env`].
     schedule_admit_target: Option<crate::admit::AdmitTarget>,
+}
+
+/// Explicit namespace mapping; digest/instance identity is unchanged.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ControllerNamespaces {
+    /// Namespace containing AdmissionRecord objects.
+    system: String,
+    /// Namespace containing plugin Pods and Services.
+    plugins: String,
+}
+
+impl Default for ControllerNamespaces {
+    fn default() -> Self {
+        Self {
+            system: SYSTEM_NAMESPACE.to_owned(),
+            plugins: PLUGINS_NAMESPACE.to_owned(),
+        }
+    }
+}
+
+impl ControllerNamespaces {
+    /// Admission namespace selected by this mapping.
+    #[must_use]
+    pub fn system(&self) -> &str {
+        &self.system
+    }
+
+    /// Plugin namespace selected by this mapping.
+    #[must_use]
+    pub fn plugins(&self) -> &str {
+        &self.plugins
+    }
+
+    /// Validate a complete, distinct DNS-1123 namespace pair.
+    ///
+    /// # Errors
+    ///
+    /// Empty, invalid, identical or partially specified namespace mapping.
+    pub fn try_new(system: String, plugins: String) -> Result<Self, ControllerError> {
+        fn valid(value: &str) -> bool {
+            !value.is_empty()
+                && value.len() <= 63
+                && value
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+                && value.as_bytes()[0].is_ascii_alphanumeric()
+                && value.as_bytes()[value.len() - 1].is_ascii_alphanumeric()
+        }
+        if !valid(&system) || !valid(&plugins) || system == plugins {
+            return Err(ControllerError::new("invalid controller namespace mapping"));
+        }
+        Ok(Self { system, plugins })
+    }
+
+    fn from_env() -> Result<Self, ControllerError> {
+        match (
+            std::env::var("APPARATUS_SYSTEM_NAMESPACE"),
+            std::env::var("APPARATUS_PLUGINS_NAMESPACE"),
+        ) {
+            (Err(std::env::VarError::NotPresent), Err(std::env::VarError::NotPresent)) => {
+                Ok(Self::default())
+            }
+            (Ok(system), Ok(plugins)) => Self::try_new(system, plugins),
+            _ => Err(ControllerError::new(
+                "both controller namespaces must be specified together",
+            )),
+        }
+    }
 }
 
 impl WorkloadReconciler {
@@ -171,6 +242,7 @@ impl WorkloadReconciler {
         Ok(Self {
             client,
             store_path,
+            namespaces: ControllerNamespaces::default(),
             schedule_admit_target: None,
         })
     }
@@ -181,6 +253,7 @@ impl WorkloadReconciler {
     ///
     /// Configuration Kubernetes absente, ou `APPARATUS_ADMISSION_STORE_PATH` unset/vide.
     pub async fn connect_default() -> Result<Self, ControllerError> {
+        let namespaces = ControllerNamespaces::from_env()?;
         let store_path = admission_store_path_from_env().map_err(|err| {
             ControllerError::new(format!("APPARATUS_ADMISSION_STORE_PATH: {err}"))
         })?;
@@ -190,6 +263,7 @@ impl WorkloadReconciler {
         Ok(Self {
             client,
             store_path,
+            namespaces,
             schedule_admit_target: None,
         })
     }
@@ -201,6 +275,13 @@ impl WorkloadReconciler {
     #[must_use]
     pub fn with_schedule_admit_target(mut self, target: crate::admit::AdmitTarget) -> Self {
         self.schedule_admit_target = Some(target);
+        self
+    }
+
+    /// Apply a validated namespace mapping without changing release identity.
+    #[must_use]
+    pub fn with_namespaces(mut self, namespaces: ControllerNamespaces) -> Self {
+        self.namespaces = namespaces;
         self
     }
 
@@ -217,7 +298,7 @@ impl WorkloadReconciler {
     ) -> Result<(), ControllerError> {
         validate_cri_pin(cri_image)?;
         let name = cr_name_for(&record.descriptor_digest);
-        let api = admission_api(self.client.clone());
+        let api = admission_api(self.client.clone(), &self.namespaces.system);
         let _ = api.delete(&name, &DeleteParams::default()).await;
         let mut labels = serde_json::Map::new();
         if let Some(iso) = isolation {
@@ -229,7 +310,7 @@ impl WorkloadReconciler {
             "kind": KIND,
             "metadata": {
                 "name": name,
-                "namespace": SYSTEM_NAMESPACE,
+                "namespace": self.namespaces.system,
                 "labels": Value::Object(labels),
             },
             "spec": {
@@ -247,7 +328,7 @@ impl WorkloadReconciler {
         let status_patch = json!({
             "apiVersion": format!("{GROUP}/{VERSION}"),
             "kind": KIND,
-            "metadata": { "name": name, "namespace": SYSTEM_NAMESPACE },
+            "metadata": { "name": name, "namespace": self.namespaces.system },
             "status": { "phase": VALID_PHASE }
         });
         api.patch_status(&name, &PatchParams::default(), &Patch::Merge(status_patch))
@@ -265,7 +346,7 @@ impl WorkloadReconciler {
         &self,
         digest: &ReleaseDigest,
     ) -> Result<ReconcileOutcome, ControllerError> {
-        let api = admission_api(self.client.clone());
+        let api = admission_api(self.client.clone(), &self.namespaces.system);
         let name = cr_name_for(digest);
         let obj = match api.get(&name).await {
             Ok(obj) => obj,
@@ -341,9 +422,10 @@ impl WorkloadReconciler {
             Err(refuse) => return Ok(ReconcileOutcome::Refused(refuse)),
         };
         let pod_name = pod_name_for(&digest);
-        let pods: Api<Pod> = Api::namespaced(self.client.clone(), PLUGINS_NAMESPACE);
+        let pods: Api<Pod> = Api::namespaced(self.client.clone(), &self.namespaces.plugins);
         let labels = plugin_pod_labels(&isolation, &pod_name);
         let enroll_url = std::env::var("APPARATUS_PLUGIN_ENROLL_URL").ok();
+        let workload_ca = PluginWorkloadCa::from_env()?;
         if let Ok(existing) = pods.get(&pod_name).await {
             if existing_plugin_pod_matches(
                 &existing,
@@ -351,7 +433,8 @@ impl WorkloadReconciler {
                 &digest,
                 enroll_url.as_deref(),
                 &pod_name,
-            ) {
+            ) && workload_ca.as_ref().is_none_or(|ca| ca.matches(&existing))
+            {
                 self.ensure_plugin_service(&pod_name, labels).await?;
                 return Ok(ReconcileOutcome::Scheduled { pod_name });
             }
@@ -365,10 +448,13 @@ impl WorkloadReconciler {
         }
         let mut spec = envelope_to_podspec(cri_image, &isolation)?;
         inject_plugin_workload_env(&mut spec, &isolation, &digest, enroll_url.as_deref());
+        if let Some(ca) = workload_ca {
+            ca.inject(&mut spec)?;
+        }
         let pod = Pod {
             metadata: ObjectMeta {
                 name: Some(pod_name.clone()),
-                namespace: Some(PLUGINS_NAMESPACE.to_owned()),
+                namespace: Some(self.namespaces.plugins.clone()),
                 labels: Some(labels.clone()),
                 ..ObjectMeta::default()
             },
@@ -402,7 +488,7 @@ impl WorkloadReconciler {
         pod_name: &str,
         timeout: Duration,
     ) -> Result<String, ControllerError> {
-        let pods: Api<Pod> = Api::namespaced(self.client.clone(), PLUGINS_NAMESPACE);
+        let pods: Api<Pod> = Api::namespaced(self.client.clone(), &self.namespaces.plugins);
         let deadline = tokio::time::Instant::now() + timeout;
         loop {
             match pods.get(pod_name).await {
@@ -451,7 +537,7 @@ impl WorkloadReconciler {
     ///
     /// Échec API autre que 404.
     pub async fn plugin_pod_exists(&self, pod_name: &str) -> Result<bool, ControllerError> {
-        let pods: Api<Pod> = Api::namespaced(self.client.clone(), PLUGINS_NAMESPACE);
+        let pods: Api<Pod> = Api::namespaced(self.client.clone(), &self.namespaces.plugins);
         match pods.get(pod_name).await {
             Ok(_) => Ok(true),
             Err(err) if is_not_found(&err) => Ok(false),
@@ -464,8 +550,9 @@ impl WorkloadReconciler {
         pod_name: &str,
         labels: BTreeMap<String, String>,
     ) -> Result<(), ControllerError> {
-        let services: Api<Service> = Api::namespaced(self.client.clone(), PLUGINS_NAMESPACE);
-        let service = plugin_cluster_ip_service(pod_name, labels.clone());
+        let services: Api<Service> = Api::namespaced(self.client.clone(), &self.namespaces.plugins);
+        let mut service = plugin_cluster_ip_service(pod_name, labels.clone());
+        service.metadata.namespace = Some(self.namespaces.plugins.clone());
         match services.create(&PostParams::default(), &service).await {
             Ok(_) => Ok(()),
             Err(err) if is_already_exists(&err) => match services.get(pod_name).await {
@@ -508,7 +595,7 @@ impl WorkloadReconciler {
     ///
     /// Échec API delete, ou timeout Terminating.
     pub async fn delete_plugin_pod(&self, pod_name: &str) -> Result<(), ControllerError> {
-        let pods: Api<Pod> = Api::namespaced(self.client.clone(), PLUGINS_NAMESPACE);
+        let pods: Api<Pod> = Api::namespaced(self.client.clone(), &self.namespaces.plugins);
         let params = DeleteParams {
             grace_period_seconds: Some(0),
             ..DeleteParams::default()
@@ -543,7 +630,7 @@ impl WorkloadReconciler {
         &self,
         digest: &ReleaseDigest,
     ) -> Result<(), ControllerError> {
-        let api = admission_api(self.client.clone());
+        let api = admission_api(self.client.clone(), &self.namespaces.system);
         let name = cr_name_for(digest);
         match api.delete(&name, &DeleteParams::default()).await {
             Ok(_) => Ok(()),
@@ -560,7 +647,7 @@ impl WorkloadReconciler {
     ///
     /// Échec du watch Kubernetes.
     pub async fn run_watch(self) -> Result<(), ControllerError> {
-        let api = admission_api(self.client.clone());
+        let api = admission_api(self.client.clone(), &self.namespaces.system);
         let mut stream = watcher(api, watcher::Config::default())
             .default_backoff()
             .applied_objects()
@@ -599,6 +686,21 @@ pub fn envelope_to_podspec(
             name: "plugin".to_owned(),
             image: Some(cri_image.to_owned()),
             image_pull_policy: Some("IfNotPresent".to_owned()),
+            resources: Some(ResourceRequirements {
+                requests: Some(BTreeMap::from([
+                    ("cpu".to_owned(), Quantity("100m".to_owned())),
+                    ("memory".to_owned(), Quantity("64Mi".to_owned())),
+                ])),
+                limits: Some(BTreeMap::from([
+                    ("cpu".to_owned(), Quantity("1".to_owned())),
+                    ("memory".to_owned(), Quantity("256Mi".to_owned())),
+                ])),
+                ..ResourceRequirements::default()
+            }),
+            // The existing invoke contract fixes TCP/8080. Do not invent a
+            // public HTTP health endpoint or use /invoke as a probe.
+            startup_probe: Some(plugin_transport_probe(36)),
+            readiness_probe: Some(plugin_transport_probe(3)),
             ports: Some(vec![ContainerPort {
                 name: Some("invoke".to_owned()),
                 container_port: PLUGIN_INVOKE_PORT,
@@ -611,6 +713,105 @@ pub fn envelope_to_podspec(
         automount_service_account_token: Some(false),
         ..PodSpec::default()
     })
+}
+
+fn plugin_transport_probe(failure_threshold: i32) -> Probe {
+    Probe {
+        tcp_socket: Some(TCPSocketAction {
+            port: IntOrString::Int(PLUGIN_INVOKE_PORT),
+            ..TCPSocketAction::default()
+        }),
+        period_seconds: Some(5),
+        timeout_seconds: Some(2),
+        failure_threshold: Some(failure_threshold),
+        ..Probe::default()
+    }
+}
+
+#[cfg(test)]
+mod pod_budget_tests {
+    use super::*;
+
+    #[test]
+    fn plugin_ca_projection_is_public_only_and_detects_drift() {
+        let ca = PluginWorkloadCa {
+            secret: "lazaret-workload-ca".to_owned(),
+            sha256: "a".repeat(64),
+        };
+        let mut spec = PodSpec {
+            containers: vec![Container::default()],
+            ..PodSpec::default()
+        };
+        ca.inject(&mut spec).unwrap();
+        let source = spec.volumes.as_ref().unwrap()[0].secret.as_ref().unwrap();
+        let items = source.items.as_ref().unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].key, "ca.crt");
+        assert_eq!(items[0].mode, Some(0o444));
+        assert_eq!(
+            spec.containers[0].volume_mounts.as_ref().unwrap()[0].read_only,
+            Some(true)
+        );
+        let mut pod = Pod {
+            spec: Some(spec),
+            ..Pod::default()
+        };
+        assert!(ca.matches(&pod));
+        let rotated = PluginWorkloadCa {
+            secret: ca.secret.clone(),
+            sha256: "b".repeat(64),
+        };
+        assert!(!rotated.matches(&pod));
+        let spec = pod.spec.as_mut().unwrap();
+        assert!(ca.inject(spec).is_err());
+    }
+
+    #[test]
+    fn namespaces_are_complete_distinct_and_preserve_defaults() {
+        let defaults = ControllerNamespaces::default();
+        assert_eq!(defaults.system(), SYSTEM_NAMESPACE);
+        assert_eq!(defaults.plugins(), PLUGINS_NAMESPACE);
+        for (system, plugins) in [
+            ("", "aiforall-local-plugins"),
+            ("Same", "valid"),
+            ("same", "same"),
+            ("-bad", "valid"),
+        ] {
+            assert!(ControllerNamespaces::try_new(system.to_owned(), plugins.to_owned()).is_err());
+        }
+        let mapped = ControllerNamespaces::try_new(
+            "aiforall-local-apparatus".to_owned(),
+            "aiforall-local-plugins".to_owned(),
+        )
+        .unwrap();
+        assert_eq!(mapped.plugins(), "aiforall-local-plugins");
+        let digest = ReleaseDigest::new(&format!("sha256:{}", "a".repeat(64))).unwrap();
+        assert_eq!(pod_name_for(&digest), format!("plugin-{}", "a".repeat(32)));
+    }
+
+    #[test]
+    fn plugin_has_bounded_resources_and_transport_readiness() {
+        let isolation = IsolationLabels::try_new("project", "binding").unwrap();
+        let image = format!("registry.example/plugin@sha256:{}", "a".repeat(64));
+        let spec = envelope_to_podspec(&image, &isolation).unwrap();
+        let container = &spec.containers[0];
+        let resources = container.resources.as_ref().unwrap();
+        assert_eq!(resources.requests.as_ref().unwrap()["cpu"].0, "100m");
+        assert_eq!(resources.limits.as_ref().unwrap()["memory"].0, "256Mi");
+        let readiness = container.readiness_probe.as_ref().unwrap();
+        assert!(readiness.http_get.is_none());
+        assert_eq!(
+            readiness.tcp_socket.as_ref().unwrap().port,
+            IntOrString::Int(PLUGIN_INVOKE_PORT)
+        );
+        assert_eq!(readiness.failure_threshold, Some(3));
+        assert_eq!(
+            container.startup_probe.as_ref().unwrap().failure_threshold,
+            Some(36)
+        );
+        assert_eq!(spec.automount_service_account_token, Some(false));
+        assert_eq!(container.image.as_deref(), Some(image.as_str()));
+    }
 }
 
 /// Nom DNS-1123 de la CR pour un digest 0002.
@@ -705,6 +906,119 @@ pub fn plugin_cluster_ip_service(pod_name: &str, labels: BTreeMap<String, String
     }
 }
 
+const WORKLOAD_CA_VOLUME: &str = "lazaret-workload-ca";
+const WORKLOAD_CA_DIRECTORY: &str = "/var/run/lazaret-ca";
+const WORKLOAD_CA_PATH: &str = "/var/run/lazaret-ca/ca.crt";
+
+/// Controller-owned projection of public trust only; never the signing CA key.
+struct PluginWorkloadCa {
+    secret: String,
+    sha256: String,
+}
+
+impl PluginWorkloadCa {
+    fn from_env() -> Result<Option<Self>, ControllerError> {
+        match (
+            std::env::var("APPARATUS_PLUGIN_CA_SECRET"),
+            std::env::var("APPARATUS_PLUGIN_CA_SHA256"),
+        ) {
+            (Err(std::env::VarError::NotPresent), Err(std::env::VarError::NotPresent)) => Ok(None),
+            (Ok(secret), Ok(sha256))
+                if !secret.is_empty()
+                    && secret.len() <= 63
+                    && secret
+                        .bytes()
+                        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+                    && secret.as_bytes()[0].is_ascii_alphanumeric()
+                    && secret.as_bytes()[secret.len() - 1].is_ascii_alphanumeric()
+                    && sha256.len() == 64
+                    && sha256
+                        .bytes()
+                        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) =>
+            {
+                Ok(Some(Self { secret, sha256 }))
+            }
+            _ => Err(ControllerError::new(
+                "invalid or incomplete plugin public CA configuration",
+            )),
+        }
+    }
+
+    fn volume(&self) -> Volume {
+        Volume {
+            name: WORKLOAD_CA_VOLUME.to_owned(),
+            secret: Some(SecretVolumeSource {
+                secret_name: Some(self.secret.clone()),
+                items: Some(vec![KeyToPath {
+                    key: "ca.crt".to_owned(),
+                    path: "ca.crt".to_owned(),
+                    mode: Some(0o444),
+                }]),
+                optional: Some(false),
+                ..SecretVolumeSource::default()
+            }),
+            ..Volume::default()
+        }
+    }
+
+    fn mount() -> VolumeMount {
+        VolumeMount {
+            name: WORKLOAD_CA_VOLUME.to_owned(),
+            mount_path: WORKLOAD_CA_DIRECTORY.to_owned(),
+            read_only: Some(true),
+            ..VolumeMount::default()
+        }
+    }
+
+    fn inject(&self, spec: &mut PodSpec) -> Result<(), ControllerError> {
+        if spec
+            .volumes
+            .as_ref()
+            .is_some_and(|volumes| volumes.iter().any(|v| v.name == WORKLOAD_CA_VOLUME))
+        {
+            return Err(ControllerError::new(
+                "plugin artifact conflicts with reserved public CA volume",
+            ));
+        }
+        let container = spec
+            .containers
+            .first_mut()
+            .ok_or_else(|| ControllerError::new("plugin container missing"))?;
+        let mounts = container.volume_mounts.get_or_insert_with(Vec::new);
+        if mounts
+            .iter()
+            .any(|m| m.name == WORKLOAD_CA_VOLUME || m.mount_path == WORKLOAD_CA_DIRECTORY)
+        {
+            return Err(ControllerError::new(
+                "plugin artifact conflicts with reserved public CA mount",
+            ));
+        }
+        mounts.push(Self::mount());
+        let env = container.env.get_or_insert_with(Vec::new);
+        upsert_env(env, "LAZARET_CA_CERT_PATH", WORKLOAD_CA_PATH.to_owned());
+        upsert_env(env, "APPARATUS_WORKLOAD_CA_SHA256", self.sha256.clone());
+        spec.volumes
+            .get_or_insert_with(Vec::new)
+            .push(self.volume());
+        Ok(())
+    }
+
+    fn matches(&self, pod: &Pod) -> bool {
+        pod_env(pod, "LAZARET_CA_CERT_PATH") == Some(WORKLOAD_CA_PATH)
+            && pod_env(pod, "APPARATUS_WORKLOAD_CA_SHA256") == Some(self.sha256.as_str())
+            && pod.spec.as_ref().is_some_and(|spec| {
+                spec.volumes
+                    .as_ref()
+                    .is_some_and(|volumes| volumes.contains(&self.volume()))
+                    && spec
+                        .containers
+                        .first()
+                        .and_then(|c| c.volume_mounts.as_ref())
+                        .is_some_and(|mounts| mounts.contains(&Self::mount()))
+            })
+    }
+}
+
 fn inject_plugin_workload_env(
     spec: &mut PodSpec,
     isolation: &IsolationLabels,
@@ -718,7 +1032,8 @@ fn inject_plugin_workload_env(
     upsert_env(&mut env, "BINDING", isolation.binding.clone());
     upsert_env(&mut env, "PROJECT_ID", isolation.project.clone());
     upsert_env(&mut env, "RELEASE", digest.as_str().to_owned());
-    // Enroll = HTTP 8080 (T14b). Session/invoke = HTTPS 8443. Pas de CA inventée ici.
+    // Legacy HTTP enrollment is unchanged. Isolated HTTPS enrollment additionally
+    // receives the explicit public CA projection above, never a TLS bypass.
     if let Some(url) = enroll_url.map(str::trim).filter(|value| !value.is_empty()) {
         upsert_env(&mut env, "LAZARET_ENROLL_URL", url.to_owned());
     }
@@ -728,6 +1043,7 @@ fn inject_plugin_workload_env(
 fn upsert_env(env: &mut Vec<EnvVar>, name: &str, value: String) {
     if let Some(existing) = env.iter_mut().find(|item| item.name == name) {
         existing.value = Some(value);
+        existing.value_from = None;
         return;
     }
     env.push(EnvVar {
@@ -817,10 +1133,10 @@ pub async fn sign_envelope_and_apply_from_env() -> Result<(), ControllerError> {
         .await
 }
 
-fn admission_api(client: Client) -> Api<DynamicObject> {
+fn admission_api(client: Client, namespace: &str) -> Api<DynamicObject> {
     let gvk = GroupVersionKind::gvk(GROUP, VERSION, KIND);
     let ar = ApiResource::from_gvk(&gvk);
-    Api::namespaced_with(client, SYSTEM_NAMESPACE, &ar)
+    Api::namespaced_with(client, namespace, &ar)
 }
 
 fn isolation_from_labels(

@@ -1,5 +1,6 @@
 use crate::usecase::oauth::{OAuthError, OAuthResponse, OAuthUseCase};
 use async_trait::async_trait;
+use iam_domain::entity::oauth_transaction::{BegunOAuthTransaction, ConsumedOAuthTransaction};
 use iam_domain::entity::provider::Provider;
 use rustycog::command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use std::sync::Arc;
@@ -53,6 +54,10 @@ impl CommandErrorMapper for OAuthLoginErrorMapper {
                 }
             },
             |oauth_error| match oauth_error {
+                OAuthError::Transaction(_) => CommandError::business(
+                    OAuthLoginErrorCode::InvalidToken.as_str(),
+                    "Invalid OAuth transaction",
+                ),
                 OAuthError::DomainError(domain_error) => {
                     use iam_domain::error::DomainError;
                     match domain_error {
@@ -102,7 +107,6 @@ impl OAuthLoginErrorMapper {
 }
 
 /// OAuth login command
-#[derive(Debug, Clone)]
 pub struct OAuthLoginCommand {
     /// Command instance ID
     pub command_id: Uuid,
@@ -112,18 +116,33 @@ pub struct OAuthLoginCommand {
     pub code: String,
     /// Redirect URI used at authorize time
     pub redirect_uri: String,
+    pub consumed: ConsumedOAuthTransaction,
 }
 
 impl OAuthLoginCommand {
     /// Create a new OAuth login command
     #[must_use]
-    pub fn new(provider: Provider, code: String, redirect_uri: String) -> Self {
+    pub fn new(
+        provider: Provider,
+        code: String,
+        redirect_uri: String,
+        consumed: ConsumedOAuthTransaction,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             provider,
             code,
             redirect_uri,
+            consumed,
         }
+    }
+}
+
+impl std::fmt::Debug for OAuthLoginCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OAuthLoginCommand")
+            .field("command_id", &self.command_id)
+            .finish_non_exhaustive()
     }
 }
 
@@ -183,14 +202,19 @@ where
 {
     async fn handle(&self, command: OAuthLoginCommand) -> Result<OAuthResponse, CommandError> {
         self.oauth_use_case
-            .oauth_login(command.provider, command.code, command.redirect_uri)
+            .oauth_login(
+                command.provider,
+                command.code,
+                command.redirect_uri,
+                command.consumed,
+            )
             .await
             .map_err(|e| OAuthLoginErrorMapper.map_error(Box::new(e)))
     }
 }
 
 /// Generate OAuth start URL command
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct GenerateOAuthStartUrlCommand {
     /// Command instance ID
     pub command_id: Uuid,
@@ -200,18 +224,33 @@ pub struct GenerateOAuthStartUrlCommand {
     pub redirect_uri: String,
     /// Encoded IAM OAuth state
     pub state: String,
+    pub begun: BegunOAuthTransaction,
 }
 
 impl GenerateOAuthStartUrlCommand {
     /// Create a new generate OAuth start URL command
     #[must_use]
-    pub fn new(provider: Provider, redirect_uri: String, state: String) -> Self {
+    pub fn new(
+        provider: Provider,
+        redirect_uri: String,
+        state: String,
+        begun: BegunOAuthTransaction,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             provider,
             redirect_uri,
             state,
+            begun,
         }
+    }
+}
+
+impl std::fmt::Debug for GenerateOAuthStartUrlCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GenerateOAuthStartUrlCommand")
+            .field("command_id", &self.command_id)
+            .finish_non_exhaustive()
     }
 }
 
@@ -263,7 +302,12 @@ where
 {
     async fn handle(&self, command: GenerateOAuthStartUrlCommand) -> Result<String, CommandError> {
         self.oauth_use_case
-            .generate_start_url(command.provider, command.redirect_uri, command.state)
+            .generate_start_url(
+                command.provider,
+                command.redirect_uri,
+                command.state,
+                &command.begun,
+            )
             .await
             .map_err(|e| OAuthLoginErrorMapper.map_error(Box::new(e)))
     }

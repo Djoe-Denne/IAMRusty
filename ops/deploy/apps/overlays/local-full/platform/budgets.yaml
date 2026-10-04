@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata: {name: local-full-budget}
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 4Gi
+    limits.cpu: "20"
+    limits.memory: 10Gi
+    pods: "45"
+    persistentvolumeclaims: "4"
+    requests.storage: 6Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata: {name: local-full-container-budget}
+spec:
+  limits:
+    - type: Container
+      defaultRequest: {cpu: 50m, memory: 64Mi}
+      default: {cpu: 500m, memory: 256Mi}
+      max: {cpu: "2", memory: 1Gi}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: iam}
+spec: {minAvailable: 1, selector: {matchLabels: {app.kubernetes.io/name: iam}}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: hive}
+spec: {minAvailable: 1, selector: {matchLabels: {app.kubernetes.io/name: hive}}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: telegraph}
+spec: {minAvailable: 1, selector: {matchLabels: {app.kubernetes.io/name: telegraph}}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: manifesto}
+spec: {minAvailable: 1, selector: {matchLabels: {app.kubernetes.io/name: manifesto}}}

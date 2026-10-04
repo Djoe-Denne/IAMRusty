@@ -2336,6 +2336,7 @@ dependencies = [
  "axum-server",
  "axum-test 17.3.0",
  "base64 0.22.1",
+ "iam-domain",
  "jsonwebtoken",
  "reqwest 0.12.28",
  "rustls 0.23.40",
@@ -2697,7 +2698,9 @@ dependencies = [
  "oauth2",
  "reqwest 0.11.27",
  "serde",
+ "tokio",
  "tracing",
+ "wiremock",
 ]
 
 [[package]]
@@ -2777,7 +2780,9 @@ dependencies = [
  "oauth2",
  "reqwest 0.11.27",
  "serde",
+ "tokio",
  "tracing",
+ "wiremock",
 ]
 
 [[package]]
@@ -3593,6 +3598,7 @@ dependencies = [
  "tokio",
  "tokio-test",
  "tracing",
+ "url",
  "urlencoding",
  "uuid",
 ]
@@ -3627,6 +3633,8 @@ dependencies = [
  "iam-configuration",
  "iam-domain",
  "lazy_static",
+ "rand 0.8.6",
+ "rcgen",
  "readiness",
  "regex",
  "rustls 0.23.40",
@@ -3640,9 +3648,11 @@ dependencies = [
  "tower 0.4.13",
  "tower-http 0.5.2",
  "tracing",
+ "tracing-subscriber",
  "url",
  "uuid",
  "validator",
+ "x509-parser",
 ]
 
 [[package]]
@@ -3759,6 +3769,7 @@ dependencies = [
  "axum 0.8.9",
  "base64 0.22.1",
  "chrono",
+ "futures",
  "iam-application",
  "iam-configuration",
  "iam-domain",

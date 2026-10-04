@@ -99,7 +99,7 @@ impl AuthErrorMapper {
 }
 
 /// Signup command
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SignupCommand {
     /// Command instance ID
     pub command_id: Uuid,
@@ -107,6 +107,14 @@ pub struct SignupCommand {
     pub email: String,
     /// Password for the new user
     pub password: String,
+}
+
+impl std::fmt::Debug for SignupCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SignupCommand")
+            .field("command_id", &self.command_id)
+            .finish_non_exhaustive()
+    }
 }
 
 impl SignupCommand {

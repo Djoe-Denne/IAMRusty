@@ -5,8 +5,6 @@ use iam_domain::entity::signing_key::{SigningKey, SigningProviderType};
 use iam_domain::error::DomainError;
 use iam_domain::port::{OrganizationSignerProbe, SigningProvider};
 use rsa::pkcs1v15::Pkcs1v15Sign;
-use rsa::pkcs8::DecodePublicKey;
-use rsa::RsaPublicKey;
 use sha2::{Digest, Sha256};
 use std::path::{Component, Path, PathBuf};
 use uuid::Uuid;
@@ -156,6 +154,15 @@ async fn challenge_transit(
     transit: Option<&TransitClientConfig>,
     key: &SigningKey,
 ) -> Result<(), DomainError> {
+    let org = key
+        .organization_id
+        .filter(|_| key.trust_scope == iam_domain::entity::signing_key::TrustScope::Organization)
+        .ok_or_else(|| path_policy_error("Transit organization binding required"))?;
+    iam_domain::entity::signing_key::require_org_transit_binding(
+        org,
+        &key.provider_key_ref,
+        key.credential_ref.as_deref(),
+    )?;
     let transit = transit.ok_or_else(|| {
         DomainError::external_service_error(
             "openbao_transit",
@@ -165,8 +172,7 @@ async fn challenge_transit(
     let token_ref = key
         .credential_ref
         .as_deref()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or(transit.token_ref.as_str());
+        .ok_or_else(|| path_policy_error("Transit organization credential required"))?;
     let provider = TransitSigningProvider::new(
         transit.base_url.clone(),
         key.provider_key_ref.clone(),
@@ -183,8 +189,7 @@ async fn verify_challenge_signature(
 ) -> Result<(), DomainError> {
     let digest = Sha256::digest(CHALLENGE_BYTES);
     let signature = provider.sign_digest(&digest).await?;
-    let public = RsaPublicKey::from_public_key_pem(public_key_pem)
-        .map_err(|e| DomainError::AuthorizationError(format!("invalid RSA public key PEM: {e}")))?;
+    let public = iam_domain::entity::signing_key::parse_signing_public_key(public_key_pem)?;
     public
         .verify(Pkcs1v15Sign::new::<Sha256>(), &digest, &signature)
         .map_err(|e| {
@@ -303,11 +308,48 @@ mod tests {
         let key = sample_key(
             org_id,
             SigningProviderType::OpenBaoTransit,
-            "org-acme-key",
+            &format!("org-{org_id}-jwt"),
             include_str!("../../../config/keys/test-platform.pub"),
         );
+        let mut key = key;
+        key.credential_ref = Some(format!("org-{org_id}-credential"));
         let err = probe().challenge(&key).await.expect_err("no transit url");
         assert!(matches!(err, DomainError::ExternalServiceError { .. }));
+    }
+
+    #[tokio::test]
+    async fn transit_rejects_foreign_or_platform_credentials_before_resolution() {
+        struct NeverResolve;
+        #[async_trait]
+        impl iam_domain::port::WorkloadIdentity for NeverResolve {
+            async fn resolve(
+                &self,
+                _: &str,
+            ) -> Result<iam_domain::port::WorkloadCredential, DomainError> {
+                panic!("invalid organization refs must be denied before any credential or remote operation")
+            }
+        }
+        let org = Uuid::new_v4();
+        let foreign = Uuid::new_v4();
+        let probe = probe().with_transit(TransitClientConfig {
+            base_url: "http://127.0.0.1:1".into(),
+            workload: std::sync::Arc::new(NeverResolve),
+            token_ref: "platform-token".into(),
+        });
+        for credential in [
+            None,
+            Some("platform-token".to_string()),
+            Some(format!("org-{foreign}-credential")),
+        ] {
+            let mut key = sample_key(
+                org,
+                SigningProviderType::OpenBaoTransit,
+                &format!("org-{org}-jwt"),
+                include_str!("../../../config/keys/test-platform.pub"),
+            );
+            key.credential_ref = credential;
+            assert!(probe.challenge(&key).await.is_err());
+        }
     }
 
     #[tokio::test]
@@ -403,5 +445,97 @@ mod tests {
             .await
             .expect_err("organization_id required");
         assert!(matches!(err, DomainError::AuthorizationError(_)));
+    }
+
+    fn seeded_pair(bits: usize, seed: u64) -> (String, String) {
+        use rand::{rngs::StdRng, SeedableRng};
+        use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
+        use rsa::RsaPrivateKey;
+        let mut rng = StdRng::seed_from_u64(seed);
+        let private = RsaPrivateKey::new(&mut rng, bits).expect("rsa keygen");
+        let private_pem = private
+            .to_pkcs8_pem(LineEnding::LF)
+            .expect("pkcs8 encode")
+            .to_string();
+        let public_pem = private
+            .to_public_key()
+            .to_public_key_pem(LineEnding::LF)
+            .expect("spki encode")
+            .to_string();
+        (private_pem, public_pem)
+    }
+
+    fn write_org_pem(pem_root: &Path, org_id: Uuid, private_pem: &str) -> String {
+        let org_dir = pem_root.join(org_id.to_string());
+        std::fs::create_dir_all(&org_dir).expect("org pem dir");
+        let file_name = format!("{}.pem", Uuid::new_v4());
+        std::fs::write(org_dir.join(&file_name), private_pem.as_bytes()).expect("write pem");
+        format!("{org_id}/{file_name}")
+    }
+
+    #[tokio::test]
+    async fn pem_challenge_accepts_rsa8192_pair() {
+        let (private, public) = seeded_pair(8192, 0xA110_2026);
+        let org_id = Uuid::new_v4();
+        let pem_root = std::env::temp_dir().join(format!("aiforall-probe-8k-{}", Uuid::new_v4()));
+        let key_ref = write_org_pem(&pem_root, org_id, &private);
+        let key = sample_key(org_id, SigningProviderType::PemFile, &key_ref, &public);
+        DefaultOrganizationSignerProbe::new(pem_root.clone())
+            .challenge(&key)
+            .await
+            .expect("rsa8192 challenge must pass ratified upper bound");
+        let _ = std::fs::remove_dir_all(&pem_root);
+    }
+
+    #[tokio::test]
+    async fn pem_challenge_control_rsa4096_unchanged() {
+        let (private, public) = seeded_pair(4096, 0x4096_0001);
+        let org_id = Uuid::new_v4();
+        let pem_root = std::env::temp_dir().join(format!("aiforall-probe-4k-{}", Uuid::new_v4()));
+        let key_ref = write_org_pem(&pem_root, org_id, &private);
+        let key = sample_key(org_id, SigningProviderType::PemFile, &key_ref, &public);
+        DefaultOrganizationSignerProbe::new(pem_root.clone())
+            .challenge(&key)
+            .await
+            .expect("rsa4096 control challenge must stay green");
+        let _ = std::fs::remove_dir_all(&pem_root);
+    }
+
+    #[tokio::test]
+    async fn verify_challenge_signature_rsa8192_accepts_valid_rejects_wrong() {
+        struct CorruptSign(PemSigningProvider);
+
+        #[async_trait]
+        impl iam_domain::port::SigningProvider for CorruptSign {
+            async fn sign_digest(&self, digest: &[u8]) -> Result<Vec<u8>, DomainError> {
+                let mut signature = self.0.sign_digest(digest).await?;
+                if let Some(last) = signature.last_mut() {
+                    *last ^= 0x01;
+                }
+                Ok(signature)
+            }
+
+            async fn public_key(&self) -> Result<String, DomainError> {
+                self.0.public_key().await
+            }
+
+            fn capabilities(&self) -> iam_domain::port::SigningCapabilities {
+                iam_domain::port::SigningCapabilities {
+                    sign_digest: true,
+                    public_key_available: true,
+                }
+            }
+        }
+
+        let (private, public) = seeded_pair(8192, 0xCAFE_8192);
+        let honest = PemSigningProvider::new(&private, &public).expect("matched 8192 pair");
+        verify_challenge_signature(&honest, &public)
+            .await
+            .expect("valid rsa8192 signature must verify");
+        let wrong = CorruptSign(honest);
+        let err = verify_challenge_signature(&wrong, &public)
+            .await
+            .expect_err("corrupted rsa8192 signature must be rejected");
+        assert!(matches!(err, DomainError::TokenValidationFailed(_)));
     }
 }

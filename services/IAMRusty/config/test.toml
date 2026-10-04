@@ -4,6 +4,13 @@
 # Root-level AppConfig field (must sit above [server] or TOML nests it).
 internal_service_token = "iam-internal-test-token"
 
+[security]
+mode = "isolated_test"
+
+[security.rate_limit]
+# Functional fixtures opt out explicitly; abuse/security tests must override to false.
+disabled = true
+
 [server]
 host = "127.0.0.1"
 port = 8081
@@ -25,6 +32,7 @@ username = "postgres"
 password = "postgres"
 
 [[idp.connectors]]
+pkce_supported = false # PKCE security tests must explicitly enable sender AND receiver.
 id = "github"
 base_url = "http://127.0.0.1:3000/github-connect"
 hmac_secret = "iam-idp-connect-test-hmac"
@@ -34,6 +42,7 @@ redirect_uris = [
 ]
 
 [[idp.connectors]]
+pkce_supported = false
 id = "gitlab"
 base_url = "http://127.0.0.1:3000/gitlab-connect"
 hmac_secret = "iam-idp-connect-test-hmac"

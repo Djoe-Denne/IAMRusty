@@ -69,7 +69,11 @@ impl Application {
             Arc::new(InMemoryPermissionChecker::new());
 
         let state = AppState::new(command_service, user_id_extractor, permission_checker);
-        let client = Arc::new(GitLabConnectClient::from_config(&config.gitlab)?);
+        let client = Arc::new(GitLabConnectClient::from_config_with_transport_and_pkce(
+            &config.gitlab,
+            config.gitlab.transport_security,
+            config.gitlab.pkce_supported,
+        )?);
         let connect = ConnectState { hmac_key, client };
         let readiness = Arc::new(ReadinessProbe::new("gitlab-connect-service"));
 

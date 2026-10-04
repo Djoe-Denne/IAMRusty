@@ -83,7 +83,7 @@ fn t7_no_p2_runtime_tokens_in_manifesto_prod() {
     // ADR-0006 L : tokens P2 autorisés uniquement dans la migration runtime et
     // `apparatus_runtime/`. Le gate P3+ vit dans `apparatus_p2_t7_gate.rs`.
     const P2_RUNTIME_ALLOW_PATH: &[&str] = &[
-        "services/Manifesto/migration/src/m20260912_000013_apparatus_p2_runtime.rs",
+        "services/Manifesto/migration/src/m20241015_000001_initial_schema.rs",
         "services/Manifesto/infra/src/apparatus_runtime/",
     ];
     let mut all_hits = Vec::new();

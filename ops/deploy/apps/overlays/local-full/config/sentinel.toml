@@ -1,0 +1,22 @@
+[logging]
+level = "info"
+[openfga]
+scheme = "http"
+host = "openfga"
+port = 8080
+store_id = ""
+[idempotency]
+backend = "postgres"
+database_url = "postgres://postgres:postgres@postgres:5432/sentinel_dev"
+[queue]
+type = "sqs"
+enabled = true
+region = "us-east-1"
+account_id = "000000000000"
+default_queues = ["sentinel-sync-events"]
+host = "localstack"
+port = 4566
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30

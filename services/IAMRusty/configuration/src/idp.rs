@@ -29,6 +29,9 @@ pub struct IdpConnectorConfig {
     /// Registered redirect URIs (callback and relink-callback).
     #[serde(default)]
     pub redirect_uris: Vec<String>,
+    /// Enable only after the deployed receiver supports S256. Never infer capability from a URL.
+    #[serde(default)]
+    pub pkce_supported: bool,
 }
 
 impl std::fmt::Debug for IdpConnectorConfig {
@@ -38,6 +41,7 @@ impl std::fmt::Debug for IdpConnectorConfig {
             .field("base_url", &self.base_url)
             .field("hmac_secret", &"***")
             .field("redirect_uris", &self.redirect_uris)
+            .field("pkce_supported", &self.pkce_supported)
             .finish()
     }
 }
@@ -195,6 +199,7 @@ mod tests {
             id: id.to_string(),
             base_url: "http://127.0.0.1:3000/github-connect".to_string(),
             hmac_secret: hmac.to_string(),
+            pkce_supported: false,
             redirect_uris: vec![
                 "http://127.0.0.1:8081/iam/api/auth/github/callback".to_string(),
                 "http://127.0.0.1:8081/iam/api/auth/github/relink-callback".to_string(),
@@ -221,6 +226,7 @@ mod tests {
             id: "github".to_string(),
             base_url: String::new(),
             hmac_secret: "iam-idp-connect-test-hmac".to_string(),
+            pkce_supported: false,
             redirect_uris: vec![
                 "http://127.0.0.1:8081/api/auth/github/callback".to_string(),
                 "http://127.0.0.1:8081/api/auth/github/relink-callback".to_string(),
@@ -244,6 +250,7 @@ mod tests {
             id: "github".to_string(),
             base_url: "http://127.0.0.1:3000/github-connect".to_string(),
             hmac_secret: "iam-idp-connect-test-hmac".to_string(),
+            pkce_supported: false,
             redirect_uris: vec![
                 "http://evil.example/?next=/callback".to_string(),
                 "http://evil.example/callback.attacker".to_string(),

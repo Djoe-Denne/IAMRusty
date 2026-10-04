@@ -17,6 +17,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+url = { workspace = true }
 urlencoding = "2.1"
 
 # Cryptography

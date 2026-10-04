@@ -4,6 +4,7 @@
 //! and interacting with external systems through ports.
 
 pub mod auth;
+pub mod background;
 pub mod command;
 pub mod dto;
 pub mod usecase;

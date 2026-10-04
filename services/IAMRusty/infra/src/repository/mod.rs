@@ -1,7 +1,9 @@
 //! Repository implementations using `SeaORM`
 
 // pub mod user; // Legacy - replaced by user_read and user_write
+pub mod authentication_session;
 pub mod entity;
+pub mod oauth_transaction_write;
 pub mod token;
 
 pub mod combined_email_verification_repository;
@@ -25,5 +27,7 @@ pub mod user_email_write;
 pub mod user_read;
 pub mod user_write;
 
+pub use authentication_session::SeaOrmAuthenticationSessionWriter;
 pub use identity_repository::SeaOrmIdentityRepository;
+pub use oauth_transaction_write::SeaOrmOAuthTransactionWriteRepository;
 pub use signing_key_registry::{bootstrap_platform_signing_key, SeaOrmSigningKeyRegistry};

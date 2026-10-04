@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: lazaret}
+spec:
+  # Existing enrollment registry is process-local; do not claim HA for this slice.
+  replicas: 1
+  selector: {matchLabels: {app.kubernetes.io/name: lazaret}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: lazaret, app.kubernetes.io/component: platform}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000, seccompProfile: {type: RuntimeDefault}}
+      initContainers:
+        - name: server-leaf
+          image: aiforall-lazaret-service:local-full
+          imagePullPolicy: Never
+          command: [sh, -ec, "cp /app/identity-ca/server.crt /app/certs/server.crt; cp /app/identity-ca/server.key /app/certs/server.key"]
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {cpu: 100m, memory: 64Mi}}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          volumeMounts: [{name: identity-ca, mountPath: /app/identity-ca, readOnly: true}, {name: certs, mountPath: /app/certs}]
+      containers:
+        - name: lazaret
+          image: aiforall-lazaret-service:local-full
+          imagePullPolicy: Never
+          env:
+            - {name: RUST_ENVIRONMENT, value: development}
+            - {name: DATABASE_URL, value: "postgres://postgres:postgres@postgres:5432/lazaret_dev"}
+            - {name: RUST_LOG, value: info}
+          resources: {requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: "1", memory: 512Mi}}
+          ports: [{name: https, containerPort: 8080}]
+          readinessProbe: {httpGet: {scheme: HTTPS, path: /lazaret/ready, port: https}, periodSeconds: 5, timeoutSeconds: 2}
+          startupProbe: {httpGet: {scheme: HTTPS, path: /lazaret/health, port: https}, periodSeconds: 5, failureThreshold: 60}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          volumeMounts:
+            - {name: config, mountPath: /app/config/development.toml, subPath: development.toml, readOnly: true}
+            - {name: identity-ca, mountPath: /app/identity-ca, readOnly: true}
+            - {name: certs, mountPath: /app/certs}
+      volumes:
+        - {name: config, configMap: {name: lazaret-dev-config}}
+        - {name: identity-ca, secret: {secretName: lazaret-identity-ca}}
+        - {name: certs, emptyDir: {}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: lazaret}
+spec: {selector: {app.kubernetes.io/name: lazaret}, ports: [{name: https, port: 8080, targetPort: https}]}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: sentinel-sync}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app.kubernetes.io/name: sentinel-sync}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: sentinel-sync, app.kubernetes.io/component: projection}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: sentinel-sync
+          image: aiforall-sentinel-sync:local-full
+          imagePullPolicy: Never
+          env:
+            - name: SENTINEL_SYNC_OPENFGA__STORE_ID
+              valueFrom: {configMapKeyRef: {name: local-full-fga, key: store-id}}
+            - name: SENTINEL_SYNC_OPENFGA__AUTHORIZATION_MODEL_ID
+              valueFrom: {configMapKeyRef: {name: local-full-fga, key: model-id}}
+            - {name: RUST_LOG, value: info}
+          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 500m, memory: 256Mi}}
+          startupProbe:
+            exec: {command: [sh, -ec, "curl --max-time 2 -fsS http://openfga:8080/healthz >/dev/null && curl --max-time 2 -fsS http://localstack:4566/_localstack/health >/dev/null"]}
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec: {command: [sh, -ec, "kill -0 1 && curl --max-time 2 -fsS http://openfga:8080/healthz >/dev/null && curl --max-time 2 -fsS http://localstack:4566/_localstack/health >/dev/null"]}
+            periodSeconds: 5
+            timeoutSeconds: 5
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          volumeMounts: [{name: config, mountPath: /app/config/sentinel-sync.toml, subPath: sentinel-sync.toml, readOnly: true}]
+      volumes: [{name: config, configMap: {name: sentinel-config}}]

@@ -19,14 +19,14 @@ provenance:
   inferred: 0.10
   ambiguous: 0.02
 created: 2026-09-27T09:20:00Z
-updated: 2026-10-01T16:45:00Z
+updated: 2026-10-04
 ---
 
 # ADR 0304–0309 — JWT d'accès, trust et signature
 
 Canon : `docs/adr/0304`–`0309`. Hub : [[projects/aiforall/decisions/index]]. Photo antérieure (HS256, `iss=iamrusty`) : [[projects/aiforall/decisions/0300-events-authz]]. How-to : [[projects/aiforall/concepts/jwt-issuer-vs-consumer]].
 
-`Accepted` ratifie une cible. `Réalité` décrit le dépôt au 27 septembre 2026 (HEAD `2473baa`).
+`Accepted` ratifie une cible. La photographie HEAD `2473baa` du 27 septembre reste historique ; réconciliation courante 2026-10-04 via les ADR canoniques, sans nouveau run IAM/mesh.
 
 ## 0304 — RS256 + JWKS (Accepted / Partial)
 
@@ -38,7 +38,7 @@ Acceptation humaine 2026-09-26. SuperSède **uniquement** la cible 0302 « `iss=
 - Principal = `(iss, sub)`. Claim `org` = contexte de trust, pas une permission. `kid` ne contient ni org id, ni ARN, ni chemin OpenBao.
 - Issuer cible : platform `https://{host}/iam` ; org `https://{host}/iam/orgs/{slug}`. Signature valide + mauvais issuer = rejet.
 
-Réalité **Partial** : mint RS256, JWKS, extracteur rustycog RS256, rotate N+1, probe Transit. Pas d’adapters cloud BYOKMS. Remote signer absent.
+Réalité **Partial** au 2026-10-04 : source mint commun access/registration, fence writer après signer, paire PEM/candidat, JWKS vide et trust monotone60 écrite. SDK `ca2e35fcd56279e9e52625d0df9381f240f3390d` publié/sélectionné et SDK22 purs PASS selon parent ; pas une preuve IAM/publisher. Remote signer HTTP 0309 présent / Partial ; adapters cloud/HSM non livrés. Root/IT/E2E encore à valider.
 
 ## 0305 — Account ≠ Identity (Accepted / Implemented)
 
@@ -58,7 +58,7 @@ Port conceptuel. SPIFFE est évalué, pas une dépendance obligatoire, et pas un
 
 ## 0308 — Mesh AuthN JWT (Accepted / Partial)
 
-Le gateway valide le JWT puis produit `(iss, sub)` via HTTP ext_authz. Opt-in Compose : mTLS hops + §7 (le service ne revérifie pas le JWT). Kind encore un cluster `backend`, sans §7. Page dédiée : [[projects/aiforall/decisions/0308-mesh-authn-jwt]]. Runtime : [[projects/aiforall/concepts/mesh-ext-authz-opt-in]]. Pas Implemented.
+Le gateway valide le JWT puis produit `(iss, sub)` via HTTP ext_authz. Source §7 et caches fail-closed60 écrite ; ancienne description Kind `backend` sans §7 = historique, pas code actuel. Aucune nouvelle preuve réseau : [[projects/aiforall/decisions/0308-mesh-authn-jwt]]. Conception/runtime : [[projects/aiforall/concepts/mesh-ext-authz-opt-in]] ; le canon prime. Pas Implemented.
 
 ## 0309 — Remote signer (Accepted / Partial)
 

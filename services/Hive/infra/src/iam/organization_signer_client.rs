@@ -108,6 +108,18 @@ impl HttpIamOrganizationSignerClient {
             .await
             .map_err(|e| DomainError::external_service_error("iam_service", &e.to_string()))?;
         let status = response.status();
+        if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(DomainError::external_service_error(
+                "iam_service",
+                "signing_admission_throttled",
+            ));
+        }
+        if status == reqwest::StatusCode::CONFLICT {
+            return Err(DomainError::external_service_error(
+                "iam_service",
+                "signing_epoch_conflict",
+            ));
+        }
         let text = response
             .text()
             .await

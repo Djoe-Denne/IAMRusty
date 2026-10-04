@@ -87,6 +87,16 @@ fn map_result(result: OrganizationSignerResult) -> OrganizationSignerResponse {
 
 fn map_iam_error(err: IamDomainError) -> DomainError {
     match err {
+        IamDomainError::SigningKeyAdmissionDenied { reason, .. } => {
+            use iam_domain::entity::signing_key::SigningKeyAdmissionReason;
+            let message = match reason {
+                SigningKeyAdmissionReason::EpochConflict => "signing_epoch_conflict",
+                SigningKeyAdmissionReason::Capacity
+                | SigningKeyAdmissionReason::TenantEpochLimit
+                | SigningKeyAdmissionReason::ChurnRate => "signing_admission_throttled",
+            };
+            DomainError::external_service_error("iam_service", message)
+        }
         IamDomainError::UserNotFound | IamDomainError::TokenNotFound => {
             DomainError::entity_not_found("organization_signer", "missing")
         }
@@ -209,6 +219,28 @@ mod tests {
             .expect("rotate");
         assert_eq!(rotated.kid, "kid-rotate");
         assert_eq!(*facade.rotate_calls.lock().unwrap(), 1);
+    }
+
+    #[test]
+    fn admission_denials_match_http_client_markers_without_internal_details() {
+        use iam_domain::entity::signing_key::SigningKeyAdmissionReason as Reason;
+        for (reason, expected) in [
+            (Reason::Capacity, "signing_admission_throttled"),
+            (Reason::TenantEpochLimit, "signing_admission_throttled"),
+            (Reason::ChurnRate, "signing_admission_throttled"),
+            (Reason::EpochConflict, "signing_epoch_conflict"),
+        ] {
+            for retry_after_seconds in [None, Some(3500)] {
+                let error = map_iam_error(IamDomainError::SigningKeyAdmissionDenied {
+                    reason,
+                    retry_after_seconds,
+                });
+                assert!(
+                    matches!(error, DomainError::ExternalServiceError { service, message }
+                    if service == "iam_service" && message == expected)
+                );
+            }
+        }
     }
 
     #[test]

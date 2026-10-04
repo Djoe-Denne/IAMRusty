@@ -17,7 +17,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..\..\..')
+. (Join-Path $PSScriptRoot '../../../common.ps1')
+$RepoRoot = Get-AIForAllRoot $PSScriptRoot
 Set-Location $RepoRoot
 
 $KindContext = 'kind-aiforall-local'
@@ -145,8 +146,8 @@ multiple_crate_versions = "allow"
 module_name_repetitions = "allow"
 must_use_candidate = "allow"
 "@ | Set-Content -Encoding utf8 (Join-Path $staging 'Cargo.toml')
-    Copy-Item -Recurse (Join-Path $RepoRoot 'apparatus-contracts') (Join-Path $staging 'apparatus-contracts')
-    Copy-Item -Recurse (Join-Path $RepoRoot 'apparatus-reference-kv') (Join-Path $staging 'apparatus-reference-kv')
+    Copy-Item -Recurse (Join-Path $RepoRoot 'crates/apparatus-contracts') (Join-Path $staging 'apparatus-contracts')
+    Copy-Item -Recurse (Join-Path $RepoRoot 'crates/apparatus-reference-kv') (Join-Path $staging 'apparatus-reference-kv')
     # M5 : Dockerfile.http → Dockerfile à la racine du staging (contexte docker = staging).
     Copy-Item (Join-Path $RepoRoot 'crates\apparatus-reference-kv\Dockerfile.http') (Join-Path $staging 'Dockerfile')
     return $staging

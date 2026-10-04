@@ -34,6 +34,38 @@ pub trait FederatedOAuthClient: Send + Sync {
         redirect_uri: &str,
     ) -> Result<ProviderTokens, FederatedOAuthError>;
 
+    /// S256 authorize. Legacy adapters must refuse a requested challenge, not downgrade.
+    ///
+    /// # Errors
+    /// Returns [`FederatedOAuthError::Authorize`] if PKCE is unsupported or authorize fails.
+    async fn authorize_with_pkce(
+        &self,
+        redirect_uri: &str,
+        state: &str,
+        code_challenge: Option<&str>,
+    ) -> Result<AuthorizeResponse, FederatedOAuthError> {
+        if code_challenge.is_some() {
+            return Err(FederatedOAuthError::Authorize);
+        }
+        self.authorize(redirect_uri, state).await
+    }
+
+    /// Forward a consumed transaction's verifier. Legacy adapters fail closed on Some.
+    ///
+    /// # Errors
+    /// Returns [`FederatedOAuthError::ExchangeCode`] if PKCE is unsupported or exchange fails.
+    async fn exchange_code_with_pkce(
+        &self,
+        code: &str,
+        redirect_uri: &str,
+        code_verifier: Option<&str>,
+    ) -> Result<ProviderTokens, FederatedOAuthError> {
+        if code_verifier.is_some() {
+            return Err(FederatedOAuthError::ExchangeCode);
+        }
+        self.exchange_code(code, redirect_uri).await
+    }
+
     /// Fetch the vendor user profile with an access token.
     ///
     /// # Errors

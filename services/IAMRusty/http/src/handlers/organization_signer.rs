@@ -1,14 +1,14 @@
 //! Organization signer internal RPC (ADR-0306) — guarded by `x-iam-internal-token` only.
 
 use axum::{
+    Extension, Json,
     extract::Path,
     http::{HeaderMap, StatusCode},
-    Extension, Json,
 };
 use iam_application::usecase::organization_signer::{
-    ConfigureOrganizationSignerInput, OrganizationSignerFacade, OrganizationSignerFacadeImpl,
-    OrganizationSignerResult, ISSUER_OWNED_BY_OTHER_ORGANIZATION,
-    NO_ACTIVE_ORGANIZATION_SIGNING_KEY,
+    ConfigureOrganizationSignerInput, ISSUER_OWNED_BY_OTHER_ORGANIZATION,
+    NO_ACTIVE_ORGANIZATION_SIGNING_KEY, OrganizationSignerFacade, OrganizationSignerFacadeImpl,
+    OrganizationSignerResult,
 };
 use iam_domain::error::DomainError;
 use iam_domain::port::repository::{IdentityRepository, SigningKeyRegistry};
@@ -108,6 +108,13 @@ pub struct OrganizationIdentityResponse {
 
 fn map_signer_error(err: DomainError) -> StatusCode {
     match err {
+        DomainError::SigningKeyAdmissionDenied { reason, .. } => match reason {
+            iam_domain::entity::signing_key::SigningKeyAdmissionReason::EpochConflict => {
+                StatusCode::CONFLICT
+            }
+            _ => StatusCode::TOO_MANY_REQUESTS,
+        },
+        DomainError::InvalidSigningKeyMaterial => StatusCode::BAD_REQUEST,
         DomainError::BusinessRuleViolation(ref message)
             if message == ISSUER_OWNED_BY_OTHER_ORGANIZATION =>
         {
@@ -129,12 +136,34 @@ fn map_signer_error(err: DomainError) -> StatusCode {
     }
 }
 
+fn signer_error_response(err: DomainError) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let retry = match &err {
+        DomainError::SigningKeyAdmissionDenied {
+            retry_after_seconds,
+            ..
+        } => *retry_after_seconds,
+        _ => None,
+    };
+    let mut response = map_signer_error(err).into_response();
+    if let Some(retry) = retry {
+        if let Ok(value) = retry.to_string().parse() {
+            response
+                .headers_mut()
+                .insert(axum::http::header::RETRY_AFTER, value);
+        }
+    }
+    response
+}
+
+#[cfg(test)]
 fn map_rotate_error(err: DomainError) -> StatusCode {
     map_signer_error(err)
 }
 
 fn map_probe_error(err: DomainError) -> StatusCode {
     match err {
+        DomainError::InvalidSigningKeyMaterial => StatusCode::BAD_REQUEST,
         DomainError::AuthorizationError(_)
         | DomainError::TokenValidationFailed(_)
         | DomainError::ProviderNotSupported(_)
@@ -163,8 +192,9 @@ pub async fn configure_organization_signer(
     Path(org_id): Path<Uuid>,
     Extension(ctx): Extension<Arc<SignerRouteContext>>,
     Json(body): Json<ConfigureSignerBody>,
-) -> Result<Json<SignerResponse>, StatusCode> {
-    require_internal_service_token(&headers)?;
+) -> Result<Json<SignerResponse>, axum::response::Response> {
+    use axum::response::IntoResponse;
+    require_internal_service_token(&headers).map_err(IntoResponse::into_response)?;
     let result = ctx
         .facade
         .configure(
@@ -178,7 +208,7 @@ pub async fn configure_organization_signer(
             },
         )
         .await
-        .map_err(map_signer_error)?;
+        .map_err(signer_error_response)?;
     Ok(Json(result.into()))
 }
 
@@ -213,9 +243,14 @@ pub async fn rotate_organization_signer(
     headers: HeaderMap,
     Path(org_id): Path<Uuid>,
     Extension(ctx): Extension<Arc<SignerRouteContext>>,
-) -> Result<Json<SignerResponse>, StatusCode> {
-    require_internal_service_token(&headers)?;
-    let result = ctx.facade.rotate(org_id).await.map_err(map_rotate_error)?;
+) -> Result<Json<SignerResponse>, axum::response::Response> {
+    use axum::response::IntoResponse;
+    require_internal_service_token(&headers).map_err(IntoResponse::into_response)?;
+    let result = ctx
+        .facade
+        .rotate(org_id)
+        .await
+        .map_err(signer_error_response)?;
     Ok(Json(result.into()))
 }
 
@@ -269,12 +304,50 @@ mod tests {
     use iam_application::usecase::organization_signer::require_org_scoped_pem_ref;
     use iam_domain::entity::identity::{Identity, IdentityKind};
     use iam_domain::entity::signing_key::{
-        opaque_kid, SigningKey, SigningKeyStatus, SigningProviderType, TrustScope,
-        FORBIDDEN_TRANSIT_KEY_NAME,
+        FORBIDDEN_TRANSIT_KEY_NAME, SigningKey, SigningKeyStatus, SigningProviderType, TrustScope,
+        opaque_kid,
     };
     use iam_domain::entity::token::JwkSet;
     use std::collections::HashMap;
     use std::sync::Mutex;
+
+    #[test]
+    fn admission_errors_are_generic_and_retry_after_is_only_supplied_metadata() {
+        use iam_domain::entity::signing_key::SigningKeyAdmissionReason;
+        for reason in [
+            SigningKeyAdmissionReason::Capacity,
+            SigningKeyAdmissionReason::TenantEpochLimit,
+            SigningKeyAdmissionReason::ChurnRate,
+        ] {
+            let response = signer_error_response(DomainError::SigningKeyAdmissionDenied {
+                reason,
+                retry_after_seconds: None,
+            });
+            assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+            assert!(
+                response
+                    .headers()
+                    .get(axum::http::header::RETRY_AFTER)
+                    .is_none()
+            );
+        }
+        let response = signer_error_response(DomainError::SigningKeyAdmissionDenied {
+            reason: SigningKeyAdmissionReason::ChurnRate,
+            retry_after_seconds: Some(7),
+        });
+        assert_eq!(response.headers()[axum::http::header::RETRY_AFTER], "7");
+        assert_eq!(
+            map_signer_error(DomainError::SigningKeyAdmissionDenied {
+                reason: SigningKeyAdmissionReason::EpochConflict,
+                retry_after_seconds: None,
+            }),
+            StatusCode::CONFLICT
+        );
+        assert_eq!(
+            map_signer_error(DomainError::InvalidSigningKeyMaterial),
+            StatusCode::BAD_REQUEST
+        );
+    }
 
     fn sample_org_key(org_id: Uuid, issuer: &str, public_key: &str) -> SigningKey {
         let now = Utc::now();
@@ -316,6 +389,7 @@ mod tests {
     #[derive(Default)]
     struct FakeRegistry {
         keys: Mutex<Vec<SigningKey>>,
+        history: Mutex<Vec<iam_domain::entity::signing_key::SigningKeyAdmissionHistory>>,
     }
 
     #[async_trait]
@@ -323,8 +397,149 @@ mod tests {
         type Error = DomainError;
 
         async fn insert(&self, key: &SigningKey) -> Result<(), Self::Error> {
-            self.keys.lock().unwrap().push(key.clone());
+            let mut keys = self.keys.lock().unwrap();
+            let mut history = self.history.lock().unwrap();
+            if keys
+                .iter()
+                .any(|row| row.id == key.id || row.kid == key.kid)
+            {
+                return Err(DomainError::InvalidSigningKeyMaterial);
+            }
+            let now = Utc::now();
+            let mut proposed = keys.clone();
+            proposed.push(key.clone());
+            iam_domain::entity::signing_key::SigningKeyLifecyclePolicy::new()?.check_admission(
+                &proposed,
+                &history,
+                Some(key),
+                900,
+                now,
+            )?;
+            keys.push(key.clone());
+            history.push(
+                iam_domain::entity::signing_key::SigningKeyAdmissionHistory {
+                    organization_id: key.organization_id,
+                    admitted_at: now,
+                },
+            );
             Ok(())
+        }
+
+        async fn replace_active_organization_key(
+            &self,
+            candidate: &SigningKey,
+            expected: Option<&str>,
+        ) -> Result<SigningKey, Self::Error> {
+            use iam_domain::entity::signing_key::{
+                SigningKeyAdmissionHistory, SigningKeyAdmissionReason, SigningKeyLifecyclePolicy,
+                admission_denied, same_effective_signing_binding,
+            };
+            let mut keys = self.keys.lock().unwrap();
+            let mut history = self.history.lock().unwrap();
+            let org = candidate
+                .organization_id
+                .ok_or(DomainError::InvalidSigningKeyMaterial)?;
+            if candidate.trust_scope != TrustScope::Organization
+                || candidate.status != SigningKeyStatus::Active
+            {
+                return Err(DomainError::InvalidSigningKeyMaterial);
+            }
+            let current = keys.iter().find(|key| {
+                key.organization_id == Some(org) && key.status == SigningKeyStatus::Active
+            });
+            if expected.is_some_and(|kid| current.map(|key| key.kid.as_str()) != Some(kid)) {
+                return Err(admission_denied(SigningKeyAdmissionReason::EpochConflict));
+            }
+            if let Some(current) =
+                current.filter(|key| same_effective_signing_binding(key, candidate))
+            {
+                return Ok(current.clone());
+            }
+            if keys
+                .iter()
+                .any(|key| key.issuer == candidate.issuer && key.organization_id != Some(org))
+            {
+                return Err(DomainError::BusinessRuleViolation(
+                    ISSUER_OWNED_BY_OTHER_ORGANIZATION.into(),
+                ));
+            }
+            let existing = keys
+                .iter()
+                .find(|key| key.id == candidate.id || key.kid == candidate.kid);
+            if existing.is_some_and(|key| {
+                key.status != SigningKeyStatus::Pending
+                    || key.id != candidate.id
+                    || key.kid != candidate.kid
+                    || !same_effective_signing_binding(key, candidate)
+            }) {
+                return Err(admission_denied(SigningKeyAdmissionReason::EpochConflict));
+            }
+            let promotion = existing.is_some();
+            let now = Utc::now();
+            let mut persisted = candidate.clone();
+            if let Some(existing) = existing {
+                persisted.created_at = existing.created_at;
+            }
+            persisted.updated_at = now;
+            let mut proposed = keys.clone();
+            for key in &mut proposed {
+                if key.organization_id == Some(org) && key.status == SigningKeyStatus::Active {
+                    key.status = SigningKeyStatus::Retiring;
+                    key.updated_at = now;
+                }
+            }
+            if let Some(slot) = proposed.iter_mut().find(|key| key.id == persisted.id) {
+                *slot = persisted.clone();
+            } else {
+                proposed.push(persisted.clone());
+            }
+            SigningKeyLifecyclePolicy::new()?.check_admission(
+                &proposed,
+                &history,
+                if promotion { None } else { Some(&persisted) },
+                900,
+                now,
+            )?;
+            *keys = proposed;
+            if !promotion {
+                history.push(SigningKeyAdmissionHistory {
+                    organization_id: Some(org),
+                    admitted_at: now,
+                });
+            }
+            Ok(persisted)
+        }
+
+        async fn revoke_organization_keys(
+            &self,
+            org: Uuid,
+        ) -> Result<Vec<SigningKey>, Self::Error> {
+            let mut keys = self.keys.lock().unwrap();
+            let now = Utc::now();
+            for key in keys.iter_mut().filter(|key| {
+                key.organization_id == Some(org) && key.status != SigningKeyStatus::Revoked
+            }) {
+                key.status = SigningKeyStatus::Revoked;
+                key.updated_at = now;
+            }
+            Ok(keys
+                .iter()
+                .filter(|key| key.organization_id == Some(org))
+                .cloned()
+                .collect())
+        }
+
+        async fn jwks_publication_snapshot(
+            &self,
+        ) -> Result<iam_domain::entity::signing_key::SigningKeyPublicationSnapshot, Self::Error>
+        {
+            let keys = self.keys.lock().unwrap();
+            Ok(
+                iam_domain::entity::signing_key::SigningKeyPublicationSnapshot {
+                    keys: keys.clone(),
+                    as_of: Utc::now(),
+                },
+            )
         }
 
         async fn find_by_kid(&self, kid: &str) -> Result<Option<SigningKey>, Self::Error> {
@@ -338,7 +553,40 @@ mod tests {
         }
 
         async fn find_active_platform_key(&self) -> Result<Option<SigningKey>, Self::Error> {
-            Ok(None)
+            Ok(self
+                .keys
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|key| {
+                    key.status == SigningKeyStatus::Active
+                        && key.trust_scope == TrustScope::Platform
+                        && key.organization_id.is_none()
+                })
+                .cloned())
+        }
+
+        async fn confirm_active_for_emission(
+            &self,
+            expected: &SigningKey,
+        ) -> Result<bool, Self::Error> {
+            let keys = self.keys.lock().unwrap();
+            Ok(keys
+                .iter()
+                .find(|key| key.id == expected.id)
+                .is_some_and(|key| {
+                    key.status == SigningKeyStatus::Active
+                        && expected.status == SigningKeyStatus::Active
+                        && key.kid == expected.kid
+                        && key.algorithm == expected.algorithm
+                        && key.issuer == expected.issuer
+                        && key.trust_scope == expected.trust_scope
+                        && key.organization_id == expected.organization_id
+                        && key.public_key == expected.public_key
+                        && key.provider_type == expected.provider_type
+                        && key.provider_key_ref == expected.provider_key_ref
+                        && key.credential_ref == expected.credential_ref
+                }))
         }
 
         async fn list_jwks_keys(&self) -> Result<Vec<SigningKey>, Self::Error> {
@@ -353,10 +601,26 @@ mod tests {
         }
 
         async fn update(&self, key: &SigningKey) -> Result<(), Self::Error> {
+            use iam_domain::entity::signing_key::{
+                SigningKeyAdmissionReason, admission_denied, same_effective_signing_binding,
+            };
             let mut keys = self.keys.lock().unwrap();
-            if let Some(slot) = keys.iter_mut().find(|k| k.id == key.id) {
-                *slot = key.clone();
+            let slot = keys
+                .iter_mut()
+                .find(|row| row.id == key.id)
+                .ok_or_else(|| admission_denied(SigningKeyAdmissionReason::EpochConflict))?;
+            let transition = slot.status == key.status
+                || (slot.status == SigningKeyStatus::Active
+                    && key.status == SigningKeyStatus::Retiring)
+                || (slot.status != SigningKeyStatus::Revoked
+                    && key.status == SigningKeyStatus::Revoked);
+            if slot.kid != key.kid || !same_effective_signing_binding(slot, key) || !transition {
+                return Err(admission_denied(SigningKeyAdmissionReason::EpochConflict));
             }
+            if slot.status != key.status {
+                slot.updated_at = Utc::now();
+            }
+            slot.status = key.status.clone();
             Ok(())
         }
 
@@ -469,14 +733,10 @@ mod tests {
     impl OrganizationSignerRotator for StubRotator {
         async fn rotate(&self, organization_id: Uuid) -> Result<SigningKey, DomainError> {
             let keys = self.registry.find_by_organization(organization_id).await?;
-            let mut active = keys
+            let active = keys
                 .into_iter()
                 .find(|k| k.status.can_sign())
                 .ok_or_else(|| DomainError::AuthorizationError("missing".into()))?;
-            active.status = SigningKeyStatus::Retiring;
-            active.updated_at = Utc::now();
-            self.registry.update(&active).await?;
-
             let now = Utc::now();
             let new_key = SigningKey {
                 id: Uuid::new_v4(),
@@ -493,8 +753,9 @@ mod tests {
                 created_at: now,
                 updated_at: now,
             };
-            self.registry.insert(&new_key).await?;
-            Ok(new_key)
+            self.registry
+                .replace_active_organization_key(&new_key, Some(&active.kid))
+                .await
         }
     }
 
@@ -534,7 +795,7 @@ mod tests {
         )
         .await
         .expect_err("bad pem");
-        assert_eq!(err, StatusCode::BAD_REQUEST);
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
@@ -564,7 +825,7 @@ mod tests {
         )
         .await
         .expect_err("oversized pem");
-        assert_eq!(err, StatusCode::BAD_REQUEST);
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
     }
 
     #[test]
@@ -771,7 +1032,7 @@ mod tests {
         )
         .await
         .expect_err("platform pem");
-        assert_eq!(platform, StatusCode::BAD_REQUEST);
+        assert_eq!(platform.status(), StatusCode::BAD_REQUEST);
 
         let foreign = configure_organization_signer(
             internal_headers(),
@@ -787,7 +1048,7 @@ mod tests {
         )
         .await
         .expect_err("foreign org pem");
-        assert_eq!(foreign, StatusCode::BAD_REQUEST);
+        assert_eq!(foreign.status(), StatusCode::BAD_REQUEST);
 
         let traversal = configure_organization_signer(
             internal_headers(),
@@ -803,7 +1064,7 @@ mod tests {
         )
         .await
         .expect_err("dotdot");
-        assert_eq!(traversal, StatusCode::BAD_REQUEST);
+        assert_eq!(traversal.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
@@ -835,7 +1096,7 @@ mod tests {
         )
         .await
         .expect_err("org-prefixed traversal");
-        assert_eq!(err, StatusCode::BAD_REQUEST);
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
         assert!(registry.keys.lock().unwrap().is_empty());
     }
 
@@ -867,6 +1128,6 @@ mod tests {
         )
         .await
         .expect_err("cosign key name");
-        assert_eq!(err, StatusCode::BAD_REQUEST);
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
     }
 }

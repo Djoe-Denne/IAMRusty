@@ -1,10 +1,10 @@
 //! Organization signer configuration commands (ADR-0306).
 
 use async_trait::async_trait;
+use hive_domain::OrganizationRepository;
 use hive_domain::port::service::{
     ConfigureOrganizationSignerRequest, IamOrganizationSignerClient, OrganizationSignerResponse,
 };
-use hive_domain::OrganizationRepository;
 use rustycog::command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use rustycog::core::error::DomainError;
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,30 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::ApplicationError;
+
+fn map_iam_signer_error(operation: &str, error: DomainError) -> CommandError {
+    match &error {
+        DomainError::ExternalServiceError { service, message } if service == "iam_service" => {
+            match message.as_str() {
+                "signing_admission_throttled" => {
+                    return CommandError::business(
+                        "iam_signing_admission_throttled",
+                        "Signing admission temporarily unavailable",
+                    );
+                }
+                "signing_epoch_conflict" => {
+                    return CommandError::business(
+                        "iam_signing_epoch_conflict",
+                        "Signing epoch conflict",
+                    );
+                }
+                _ => {}
+            }
+        }
+        _ => {}
+    }
+    CommandError::infrastructure(operation, error.to_string())
+}
 
 /// HTTP/DTO request for configuring an org signer (no secrets in Hive events).
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
@@ -152,9 +176,7 @@ impl CommandHandler<ConfigureOrganizationSignerCommand>
             .iam_client
             .configure_organization_signer(command.organization_id, &iam_request)
             .await
-            .map_err(|e| {
-                CommandError::infrastructure("iam_signer_configure_failed", e.to_string())
-            })?;
+            .map_err(|e| map_iam_signer_error("iam_signer_configure_failed", e))?;
 
         org.signing_profile_id = Some(response.signing_profile_id);
         org.signing_status = Some(response.status.clone());
@@ -274,7 +296,7 @@ impl CommandHandler<TestOrganizationSignerCommand> for OrganizationSignerActionH
             .iam_client
             .test_organization_signer(command.organization_id)
             .await
-            .map_err(|e| CommandError::infrastructure("iam_signer_test_failed", e.to_string()))?;
+            .map_err(|e| map_iam_signer_error("iam_signer_test_failed", e))?;
         self.persist_status(command.organization_id, &response)
             .await?;
         Ok(response.into())
@@ -291,7 +313,7 @@ impl CommandHandler<RotateOrganizationSignerCommand> for OrganizationSignerActio
             .iam_client
             .rotate_organization_signer(command.organization_id)
             .await
-            .map_err(|e| CommandError::infrastructure("iam_signer_rotate_failed", e.to_string()))?;
+            .map_err(|e| map_iam_signer_error("iam_signer_rotate_failed", e))?;
         self.persist_status(command.organization_id, &response)
             .await?;
         Ok(response.into())

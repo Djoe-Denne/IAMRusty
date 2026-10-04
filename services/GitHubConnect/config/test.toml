@@ -17,6 +17,8 @@ allowed_algorithms = ["RS256", "HS256"]
 level = "debug"
 
 [github]
+pkce_supported = false # PKCE regression fixtures explicitly enable this capability.
+transport_security = "isolated_test"
 client_id = "test_github_client_id"
 client_secret = "test_github_client_secret"
 # Tests override vendor URLs via GitHubService::base_url() from MockServerFixture::isolated().

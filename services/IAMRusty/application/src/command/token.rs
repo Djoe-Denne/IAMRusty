@@ -5,6 +5,32 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
+#[cfg(test)]
+mod redaction_tests {
+    use super::*;
+
+    #[test]
+    fn credential_commands_debug_only_exposes_correlation_id() {
+        let refresh = RefreshTokenCommand {
+            command_id: Uuid::new_v4(),
+            refresh_token: "unit-refresh-secret".into(),
+        };
+        let revoke = RevokeTokenCommand {
+            command_id: Uuid::new_v4(),
+            refresh_token: "unit-revoke-secret".into(),
+        };
+        assert!(!format!("{refresh:?}").contains("unit-refresh-secret"));
+        assert!(!format!("{revoke:?}").contains("unit-revoke-secret"));
+        let login = crate::command::password_login::PasswordLoginCommand {
+            command_id: Uuid::new_v4(),
+            email: "unit@example.test".into(),
+            password: "unit-password-secret".into(),
+        };
+        assert!(!format!("{login:?}").contains("unit-password-secret"));
+        assert!(format!("{login:?}").contains(&login.command_id.to_string()));
+    }
+}
+
 /// Error codes for token-related operations
 #[derive(Debug, Clone)]
 pub enum TokenErrorCode {
@@ -130,12 +156,20 @@ impl TokenErrorMapper {
 }
 
 /// Refresh token command
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct RefreshTokenCommand {
     /// Command instance ID
     pub command_id: Uuid,
     /// Refresh token to use
     pub refresh_token: String,
+}
+
+impl std::fmt::Debug for RefreshTokenCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RefreshTokenCommand")
+            .field("command_id", &self.command_id)
+            .finish_non_exhaustive()
+    }
 }
 
 impl RefreshTokenCommand {
@@ -172,12 +206,20 @@ impl Command for RefreshTokenCommand {
 }
 
 /// Revoke token command
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct RevokeTokenCommand {
     /// Command instance ID
     pub command_id: Uuid,
     /// Refresh token to revoke
     pub refresh_token: String,
+}
+
+impl std::fmt::Debug for RevokeTokenCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RevokeTokenCommand")
+            .field("command_id", &self.command_id)
+            .finish_non_exhaustive()
+    }
 }
 
 impl RevokeTokenCommand {

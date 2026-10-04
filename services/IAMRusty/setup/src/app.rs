@@ -1,12 +1,19 @@
 use anyhow::Result;
 use axum::Router;
 use chrono::Duration;
+use futures::future::select_all;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tokio::sync::watch;
+use tokio::task::JoinHandle;
 use tracing::info;
 
-use iam_http_server::{SignerRouteContext, create_app_routes, create_router};
+use iam_http_server::oauth_browser::{OAuthBrowserPolicy, OAuthRouteContext};
+use iam_http_server::rate_limit::AuthRateLimiter;
+use iam_http_server::{
+    IamHttpSecurityContext, PlatformIssuer, SignerRouteContext, create_app_routes, create_router,
+};
 use iam_infra::{
     auth::{
         HttpIdpConnector, PasswordResetServiceAdapter, PasswordService, PasswordServiceAdapter,
@@ -14,7 +21,9 @@ use iam_infra::{
     db::DbConnectionPool,
     event_adapter::IAMErrorMapper,
     repository::{
-        SeaOrmIdentityRepository, SeaOrmSigningKeyRegistry, bootstrap_platform_signing_key,
+        SeaOrmAuthenticationSessionWriter, SeaOrmIdentityRepository,
+        SeaOrmOAuthTransactionWriteRepository, SeaOrmSigningKeyRegistry,
+        bootstrap_platform_signing_key,
         combined_email_verification_repository::CombinedEmailVerificationRepository,
         combined_password_reset_token_repository::CombinedPasswordResetTokenRepository,
         combined_repository::{
@@ -45,11 +54,12 @@ use iam_infra::{
 use rustycog::http::{AppState, UserIdExtractor};
 use rustycog::permission::{InMemoryPermissionChecker, PermissionChecker};
 
-use iam_configuration::{AppConfig, IdpConfig, SecretStorage};
+use iam_configuration::{AppConfig, IdpConfig, SecretStorage, SecurityMode};
 use iam_domain::entity::provider::Provider;
 use iam_domain::entity::signing_key::{JWKS_RETIRE_SKEW_SECONDS, SigningProviderType};
 use iam_domain::error::DomainError;
 use iam_domain::port::SigningProvider;
+use iam_domain::port::repository::{AuthenticationSessionWriter, OAuthTransactionWriteRepository};
 use iam_domain::port::service::FederatedOAuthClient;
 use readiness::{
     ComponentStatus, QueueRole, ReadinessProbe, attach_ready,
@@ -59,12 +69,13 @@ use rustycog::events::{adapter::MultiQueueEventPublisher, event::EventPublisher}
 use rustycog::outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
 
 use iam_application::{
+    background::{OAuthTransactionCleanup, OAuthTransactionCleanupPolicy},
     command::{CommandRegistryFactory, GenericCommandService, IamRegistryUseCases},
     usecase::{
         link_provider::{LinkProviderUseCase, LinkProviderUseCaseImpl},
         login::{LoginUseCase, LoginUseCaseImpl},
         oauth::{OAuthUseCase, OAuthUseCaseImpl},
-        password_reset::{PasswordResetUseCase, PasswordResetUseCaseImpl, SessionRevoker},
+        password_reset::{PasswordResetUseCase, PasswordResetUseCaseImpl},
         provider::{ProviderUseCase, ProviderUseCaseImpl},
         registration::{RegistrationUseCase, RegistrationUseCaseImpl},
         token::{TokenUseCase, TokenUseCaseImpl},
@@ -80,22 +91,40 @@ pub struct IAMRustyApp {
     readiness: Arc<ReadinessProbe>,
     idp: Arc<IdpConfig>,
     signer: Option<Arc<SignerRouteContext>>,
+    http_security: Arc<IamHttpSecurityContext>,
+    jwt_codec: Arc<JwtTokenService>,
+    signing_registry: Arc<SeaOrmSigningKeyRegistry>,
+    access_token_ttl: u64,
+    oauth_cleanup: Arc<OAuthTransactionCleanup>,
+    oauth_cleanup_stop: watch::Sender<bool>,
 }
 
 impl IAMRustyApp {
-    pub const fn new(
+    pub fn new(
         app_state: AppState,
         outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
         readiness: Arc<ReadinessProbe>,
         idp: Arc<IdpConfig>,
         signer: Option<Arc<SignerRouteContext>>,
+        signing_registry: Arc<SeaOrmSigningKeyRegistry>,
+        access_token_ttl: u64,
+        jwt_codec: Arc<JwtTokenService>,
+        security: Arc<IamHttpSecurityContext>,
+        oauth_cleanup: Arc<OAuthTransactionCleanup>,
     ) -> Self {
+        let (oauth_cleanup_stop, _) = watch::channel(false);
         Self {
             app_state,
             outbox_dispatcher,
             readiness,
             idp,
             signer,
+            http_security: security,
+            jwt_codec,
+            signing_registry,
+            access_token_ttl,
+            oauth_cleanup,
+            oauth_cleanup_stop,
         }
     }
 
@@ -105,9 +134,20 @@ impl IAMRustyApp {
                 self.app_state.clone(),
                 self.idp.clone(),
                 self.signer.clone(),
+                self.http_security.clone(),
             ),
             self.readiness.clone(),
         )
+    }
+
+    /// The root-created codec shared by access and completion issuance.
+    /// No private key material or HTTP extension is exposed by this accessor.
+    pub fn jwt_codec(&self) -> Arc<JwtTokenService> {
+        self.jwt_codec.clone()
+    }
+
+    pub fn signing_registry(&self) -> (Arc<SeaOrmSigningKeyRegistry>, u64) {
+        (self.signing_registry.clone(), self.access_token_ttl)
     }
 
     #[must_use]
@@ -134,18 +174,73 @@ impl IAMRustyApp {
     #[must_use]
     pub fn start_background_tasks(&self) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
         let dispatcher = self.outbox_dispatcher.clone();
-        vec![tokio::spawn(async move {
-            dispatcher
-                .start()
-                .await
-                .map_err(|e| anyhow::anyhow!("IAMRusty outbox dispatcher failed: {e}"))
-        })]
+        let cleanup = self.oauth_cleanup.clone();
+        let stop = self.oauth_cleanup_stop.subscribe();
+        vec![
+            tokio::spawn(async move {
+                dispatcher
+                    .start()
+                    .await
+                    .map_err(|_| anyhow::anyhow!("IAMRusty outbox dispatcher failed"))
+            }),
+            tokio::spawn(async move {
+                cleanup
+                    .run(stop)
+                    .await
+                    .map_err(|_| anyhow::anyhow!("IAM OAuth transaction cleanup failed"))
+            }),
+        ]
     }
 
-    pub async fn stop_background_tasks(&self) {
-        if let Err(e) = self.outbox_dispatcher.stop().await {
-            tracing::error!("Failed to stop IAMRusty outbox dispatcher: {e}");
+    pub async fn stop_background_tasks(&self) -> Result<()> {
+        self.oauth_cleanup_stop.send_replace(true);
+        self.outbox_dispatcher
+            .stop()
+            .await
+            .map_err(|_| anyhow::anyhow!("Failed to stop IAMRusty outbox dispatcher"))
+    }
+
+    /// Cooperatively stop, then join every owned IAM handle under one five-second budget.
+    /// Timed-out handles are aborted and awaited; no worker handle is discarded.
+    pub async fn shutdown_background_tasks(
+        &self,
+        handles: &mut Vec<JoinHandle<Result<()>>>,
+    ) -> Result<()> {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        let mut first_error =
+            match tokio::time::timeout_at(deadline, self.stop_background_tasks()).await {
+                Ok(result) => result.err(),
+                Err(_) => Some(anyhow::anyhow!("IAM cooperative background stop timed out")),
+            };
+        while !handles.is_empty() {
+            let joined = tokio::time::timeout_at(deadline, select_all(handles.iter_mut())).await;
+            match joined {
+                Ok((result, index, remaining)) => {
+                    drop(remaining);
+                    drop(handles.swap_remove(index));
+                    let error = match result {
+                        Ok(Ok(())) => None,
+                        Ok(Err(error)) => Some(error),
+                        Err(_) => Some(anyhow::anyhow!("IAM background worker join failed")),
+                    };
+                    if first_error.is_none() {
+                        first_error = error;
+                    }
+                }
+                Err(_) => {
+                    for handle in handles.iter() {
+                        handle.abort();
+                    }
+                    for handle in handles.drain(..) {
+                        let _ = handle.await;
+                    }
+                    if first_error.is_none() {
+                        first_error = Some(anyhow::anyhow!("IAM background drain timed out"));
+                    }
+                }
+            }
         }
+        first_error.map_or(Ok(()), Err)
     }
 }
 
@@ -172,6 +267,12 @@ pub async fn build_app_state(
     config: AppConfig,
     maybe_event_publisher: Option<Arc<MultiQueueEventPublisher<DomainError>>>,
 ) -> Result<IAMRustyApp> {
+    let oauth_state_secret = config
+        .security
+        .validate(&config.jwt.oauth_state_secret, &config.idp)
+        .map_err(anyhow::Error::msg)?;
+    iam_http_server::configure_oauth_state_secret(oauth_state_secret)
+        .map_err(anyhow::Error::msg)?;
     let (event_publisher, queue_status, queue_transport) =
         if let Some(publisher) = maybe_event_publisher {
             signal_queue_status("iam", QueueRole::Publisher, &ComponentStatus::Injected);
@@ -209,11 +310,71 @@ pub async fn build_app_state_with_event_publisher<EP>(
 where
     EP: EventPublisher<DomainError> + Send + Sync + 'static,
 {
+    build_app_state_with_event_publisher_and_signing_keys(
+        config,
+        event_publisher,
+        queue_status,
+        queue_transport,
+        &[],
+    )
+    .await
+}
+
+/// Isolated fixtures seed through the SAME root-created admission writer before bootstrap.
+/// Normal production construction supplies no fixture keys.
+pub async fn build_app_state_with_event_publisher_and_signing_keys<EP>(
+    config: AppConfig,
+    event_publisher: Arc<EP>,
+    queue_status: ComponentStatus,
+    queue_transport: Option<Arc<rustycog::events::ConcreteEventPublisher>>,
+    signing_keys: &[iam_domain::entity::signing_key::SigningKey],
+) -> Result<IAMRustyApp>
+where
+    EP: EventPublisher<DomainError> + Send + Sync + 'static,
+{
+    if !signing_keys.is_empty() {
+        anyhow::ensure!(
+            config.security.mode == iam_configuration::security::SecurityMode::IsolatedTest,
+            "initial fixture keys require explicit isolated_test mode"
+        );
+        // Validate the configured pair before any fixture Active insertion too.
+        let iam_configuration::JwtAlgorithm::RS256(pair) = config.jwt.create_jwt_algorithm()?
+        else {
+            anyhow::bail!("initial signing fixture keys require RSA configuration");
+        };
+        PemSigningProvider::new(&pair.private_key, pair.public_key)?;
+    }
+    let oauth_state_secret = config
+        .security
+        .validate(&config.jwt.oauth_state_secret, &config.idp)
+        .map_err(anyhow::Error::msg)?;
+    iam_http_server::configure_oauth_state_secret(oauth_state_secret)
+        .map_err(anyhow::Error::msg)?;
     info!("Building IAM service...");
 
+    let platform_issuer =
+        PlatformIssuer::new(config.jwt.platform_issuer()).map_err(anyhow::Error::msg)?;
+    let rate_limiter = Arc::new(
+        AuthRateLimiter::new(config.security.rate_limit.clone(), config.security.mode)
+            .map_err(anyhow::Error::msg)?,
+    );
+    let browser_policy = OAuthBrowserPolicy::new(config.security.mode, &config.jwt.public_base_url)
+        .map_err(anyhow::Error::msg)?;
+
+    let signing_policy =
+        Arc::new(iam_domain::entity::signing_key::SigningKeyLifecyclePolicy::new()?);
     // Setup database connection pool
     let db_pool = DbConnectionPool::new(&config.database).await?;
     let db_write = db_pool.get_write_connection();
+    let signing_registry = Arc::new(SeaOrmSigningKeyRegistry::new(
+        db_write.clone(),
+        signing_policy,
+        config.jwt.expiration_seconds,
+    )?);
+    for key in signing_keys {
+        iam_domain::port::repository::SigningKeyRegistry::insert(signing_registry.as_ref(), key)
+            .await?;
+    }
     let dispatcher_publisher: Arc<dyn EventPublisher<DomainError>> = event_publisher.clone();
     let outbox_dispatcher = Arc::new(OutboxDispatcher::new(
         db_pool.clone(),
@@ -229,7 +390,11 @@ where
         }
     );
 
-    let repos = setup_repositories(&db_pool, config.jwt.platform_issuer());
+    let repos = setup_repositories(
+        &db_pool,
+        config.jwt.platform_issuer(),
+        signing_registry.clone(),
+    );
     let idp = Arc::new(config.idp.clone());
     let oauth_clients = setup_oauth_clients(&config)?;
 
@@ -238,25 +403,45 @@ where
     let password_service_adapter = Arc::new(PasswordServiceAdapter::new(password_service.clone()));
 
     let (http_verifier_auth, inline_jwks, token_service, registration_token_service, signer_ctx) =
-        setup_jwt(&config, db_pool.get_write_connection()).await?;
+        setup_jwt(&config, db_write.clone(), signing_registry.clone()).await?;
 
     let outbox_unit_of_work = Arc::new(IamOutboxUnitOfWorkImpl::new(
         db_pool.clone(),
         OutboxRecorder,
     ));
+    let oauth_transaction_writer: Arc<dyn OAuthTransactionWriteRepository> = Arc::new(
+        SeaOrmOAuthTransactionWriteRepository::new(db_pool.get_write_connection()),
+    );
+    let oauth_cleanup = Arc::new(
+        OAuthTransactionCleanup::new(
+            oauth_transaction_writer.clone(),
+            OAuthTransactionCleanupPolicy::default(),
+        )
+        .map_err(|_| anyhow::anyhow!("Invalid OAuth transaction cleanup policy"))?,
+    );
     let usecases = setup_iam_usecases(
         &db_pool,
         IamUsecasesDeps {
+            oauth_transaction_writer,
             repos,
             event_publisher: event_publisher.clone(),
             clients: oauth_clients,
             password_service,
             password_service_adapter,
-            token_service,
+            token_service: token_service.clone(),
             registration_token_service,
             outbox_unit_of_work,
         },
     );
+    let oauth = Arc::new(OAuthRouteContext {
+        use_case: usecases.oauth.clone(),
+        browser: browser_policy,
+    });
+    let http_security = Arc::new(IamHttpSecurityContext::new(
+        platform_issuer,
+        rate_limiter,
+        oauth,
+    ));
     let registry = CommandRegistryFactory::create_iam_registry(usecases, &config.command);
     let command_service = Arc::new(GenericCommandService::new(Arc::new(registry)));
 
@@ -285,6 +470,11 @@ where
         readiness,
         idp,
         signer_ctx,
+        signing_registry,
+        config.jwt.expiration_seconds,
+        token_service,
+        http_security,
+        oauth_cleanup,
     ))
 }
 
@@ -295,20 +485,6 @@ type TokenRepo = CombinedTokenRepository<TokenReadRepositoryImpl, TokenWriteRepo
 type RefreshRepo =
     CombinedRefreshTokenRepository<RefreshTokenReadRepositoryImpl, RefreshTokenWriteRepositoryImpl>;
 
-struct RefreshSessionRevoker {
-    repo: RefreshRepo,
-}
-
-#[async_trait::async_trait]
-impl SessionRevoker for RefreshSessionRevoker {
-    async fn revoke_all(&self, user_id: uuid::Uuid) -> Result<u64, String> {
-        use iam_domain::port::repository::RefreshTokenWriteRepository;
-        self.repo
-            .delete_by_user_id(user_id)
-            .await
-            .map_err(|e| e.to_string())
-    }
-}
 type PasswordResetRepo = CombinedPasswordResetTokenRepository<
     PasswordResetTokenReadRepositoryImpl,
     PasswordResetTokenWriteRepositoryImpl,
@@ -333,6 +509,8 @@ struct OauthClients {
 }
 
 struct OauthLinkDeps {
+    session_writer: Arc<dyn AuthenticationSessionWriter>,
+    oauth_transaction_writer: Arc<dyn OAuthTransactionWriteRepository>,
     user_repo: UserRepo,
     user_email_repo: UserEmailRepo,
     token_repo_login: TokenRepo,
@@ -345,6 +523,7 @@ struct OauthLinkDeps {
 }
 
 struct AuthRegistrationDeps<EP> {
+    session_writer: Arc<dyn AuthenticationSessionWriter>,
     user_repo: UserRepo,
     user_email_repo: UserEmailRepo,
     email_verification_repo: CombinedEmailVerificationRepository,
@@ -355,12 +534,12 @@ struct AuthRegistrationDeps<EP> {
     token_service: Arc<JwtTokenService>,
     registration_token_service: Arc<iam_infra::token::RegistrationTokenServiceImpl>,
     outbox_unit_of_work: Arc<IamOutboxUnitOfWorkImpl>,
-    refresh_token_repo: RefreshRepo,
     identity_repo: Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>,
     platform_issuer: String,
 }
 
 struct IamUsecasesDeps<EP> {
+    oauth_transaction_writer: Arc<dyn OAuthTransactionWriteRepository>,
     repos: IamRepos,
     event_publisher: Arc<EP>,
     clients: OauthClients,
@@ -375,6 +554,8 @@ fn setup_oauth_and_link(
     deps: OauthLinkDeps,
 ) -> (Arc<dyn OAuthUseCase>, Arc<dyn LinkProviderUseCase>) {
     let OauthLinkDeps {
+        session_writer,
+        oauth_transaction_writer,
         user_repo,
         user_email_repo,
         token_repo_login,
@@ -393,13 +574,17 @@ fn setup_oauth_and_link(
         iam_domain::service::TokenService::new(token_service.clone(), Duration::hours(1)),
         clients.clone(),
     );
-    let oauth = Arc::new(OAuthUseCaseImpl::new(
-        Arc::new(oauth_service),
-        registration_token_service,
-        token_service,
-        identity_repo,
-        platform_issuer,
-    ));
+    let oauth = Arc::new(
+        OAuthUseCaseImpl::new(
+            Arc::new(oauth_service),
+            registration_token_service,
+            token_service,
+            identity_repo,
+            platform_issuer,
+        )
+        .with_session_writer(session_writer)
+        .with_oauth_transaction_writer(oauth_transaction_writer),
+    );
     let provider_link_service = Arc::new(iam_domain::service::ProviderLinkService::new(
         Arc::new(user_repo),
         Arc::new(user_email_repo),
@@ -421,6 +606,7 @@ where
     EP: EventPublisher<DomainError> + Send + Sync + 'static,
 {
     let AuthRegistrationDeps {
+        session_writer,
         user_repo,
         user_email_repo,
         email_verification_repo,
@@ -431,7 +617,6 @@ where
         token_service,
         registration_token_service,
         outbox_unit_of_work,
-        refresh_token_repo,
         identity_repo,
         platform_issuer,
     } = deps;
@@ -449,7 +634,8 @@ where
             },
             signup_transaction,
             outbox_unit_of_work.clone(),
-        ),
+        )
+        .with_session_writer(session_writer.clone()),
     );
     let login_auth = Arc::new(LoginUseCaseImpl::new(
         auth_service,
@@ -468,7 +654,8 @@ where
                 event_publisher: event_publisher.clone(),
             },
             outbox_unit_of_work.clone(),
-        ),
+        )
+        .with_session_writer(session_writer.clone()),
     );
     let registration = Arc::new(RegistrationUseCaseImpl::new(
         registration_service,
@@ -487,9 +674,7 @@ where
             password_reset_service_adapter,
             outbox_unit_of_work,
         )
-        .with_session_revoker(Arc::new(RefreshSessionRevoker {
-            repo: refresh_token_repo,
-        })),
+        .with_session_writer(session_writer),
     );
     (login_auth, registration, password_reset)
 }
@@ -554,6 +739,7 @@ where
     EP: EventPublisher<DomainError> + Send + Sync + 'static,
 {
     let IamUsecasesDeps {
+        oauth_transaction_writer,
         repos,
         event_publisher,
         clients,
@@ -575,7 +761,12 @@ where
         signing_key_registry,
         platform_issuer,
     } = repos;
+    let session_writer: Arc<dyn AuthenticationSessionWriter> = Arc::new(
+        SeaOrmAuthenticationSessionWriter::new(db_pool.get_write_connection()),
+    );
     let (oauth, link_provider) = setup_oauth_and_link(OauthLinkDeps {
+        session_writer: session_writer.clone(),
+        oauth_transaction_writer,
         user_repo: user_repo.clone(),
         user_email_repo: user_email_repo.clone(),
         token_repo_login,
@@ -589,6 +780,7 @@ where
     let (login_auth, registration, password_reset) = setup_auth_registration_password(
         db_pool,
         AuthRegistrationDeps {
+            session_writer,
             user_repo: user_repo.clone(),
             user_email_repo: user_email_repo.clone(),
             email_verification_repo,
@@ -599,7 +791,6 @@ where
             token_service: token_service.clone(),
             registration_token_service,
             outbox_unit_of_work,
-            refresh_token_repo: refresh_token_repo.clone(),
             identity_repo: identity_repo.clone(),
             platform_issuer: platform_issuer.clone(),
         },
@@ -627,7 +818,11 @@ where
     }
 }
 
-fn setup_repositories(db_pool: &DbConnectionPool, platform_issuer: String) -> IamRepos {
+fn setup_repositories(
+    db_pool: &DbConnectionPool,
+    platform_issuer: String,
+    signing_registry: Arc<SeaOrmSigningKeyRegistry>,
+) -> IamRepos {
     let user_repo = CombinedUserRepository::new(
         UserReadRepositoryImpl::new(db_pool.get_read_connection()),
         UserWriteRepositoryImpl::new(db_pool.get_write_connection()),
@@ -668,9 +863,7 @@ fn setup_repositories(db_pool: &DbConnectionPool, platform_issuer: String) -> Ia
         db_pool.get_write_connection(),
     ))
         as Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>;
-    let signing_key_registry = Arc::new(SeaOrmSigningKeyRegistry::new(
-        db_pool.get_write_connection(),
-    ))
+    let signing_key_registry = signing_registry
         as Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>;
     IamRepos {
         user_repo,
@@ -689,6 +882,7 @@ fn setup_repositories(db_pool: &DbConnectionPool, platform_issuer: String) -> Ia
 async fn setup_jwt(
     config: &AppConfig,
     db: Arc<sea_orm::DatabaseConnection>,
+    registry: Arc<SeaOrmSigningKeyRegistry>,
 ) -> Result<(
     iam_configuration::AuthConfig,
     String,
@@ -708,7 +902,6 @@ async fn setup_jwt(
     })?;
 
     let platform_issuer = config.jwt.platform_issuer();
-    let registry = Arc::new(SeaOrmSigningKeyRegistry::new(db.clone()));
     let identity_repo = Arc::new(SeaOrmIdentityRepository::new(db));
     let pem_root = organization_signer_pem_root(&config.jwt.secret);
     let transit = resolve_transit_client_config(&config.jwt)?;
@@ -789,12 +982,15 @@ async fn setup_jwt(
                 .await
                 .map_err(|e| anyhow::anyhow!("signing key bootstrap: {e}"))?;
 
-                let jwk = JwtTokenService::jwk_from_pem(
+                let mut jwk = JwtTokenService::jwk_from_pem(
                     &bootstrapped.public_key,
                     &bootstrapped.kid,
                     &bootstrapped.issuer,
                 )
                 .map_err(|e| anyhow::anyhow!("JWKS build: {e}"))?;
+                jwk.status = Some(bootstrapped.status.clone());
+                jwk.trust_scope = Some(bootstrapped.trust_scope.clone());
+                jwk.organization_id = bootstrapped.organization_id;
                 let jwks = iam_domain::entity::token::JwkSet { keys: vec![jwk] };
 
                 (
@@ -817,6 +1013,7 @@ async fn setup_jwt(
         config.jwt.refresh_token_expiration_seconds,
     )
     .with_issuer_audience(platform_issuer.clone(), config.jwt.audience.clone());
+    token_service = token_service.with_signing_registry(registry.clone());
 
     let inline_jwks = if let Some((provider, kid, issuer, jwks)) = signing_bits {
         let json =
@@ -830,12 +1027,11 @@ async fn setup_jwt(
     };
 
     let token_service = Arc::new(token_service);
-    iam_http_server::configure_oauth_state_secret(config.jwt.oauth_state_secret.clone());
     if !config.internal_service_token.is_empty() {
         iam_http_server::configure_internal_service_token(config.internal_service_token.clone());
     }
     let registration_token_service = Arc::new(
-        iam_infra::token::RegistrationTokenServiceImpl::new(jwt_algorithm)
+        iam_infra::token::RegistrationTokenServiceImpl::new(token_service.clone())
             .map_err(|e| anyhow::anyhow!("Failed to create registration token service: {e}"))?,
     );
     Ok((
@@ -848,7 +1044,7 @@ async fn setup_jwt(
 }
 
 fn setup_oauth_clients(config: &AppConfig) -> Result<OauthClients> {
-    let by_slug = setup_http_idp_clients(&config.idp)?;
+    let by_slug = setup_http_idp_clients(&config.idp, config.security.mode)?;
     Ok(OauthClients { by_slug })
 }
 
@@ -889,12 +1085,15 @@ async fn remote_signing_bits(
     )
     .await
     .map_err(|e| anyhow::anyhow!("signing key bootstrap: {e}"))?;
-    let jwk = JwtTokenService::jwk_from_pem(
+    let mut jwk = JwtTokenService::jwk_from_pem(
         &bootstrapped.public_key,
         &bootstrapped.kid,
         &bootstrapped.issuer,
     )
     .map_err(|e| anyhow::anyhow!("JWKS build: {e}"))?;
+    jwk.status = Some(bootstrapped.status.clone());
+    jwk.trust_scope = Some(bootstrapped.trust_scope.clone());
+    jwk.organization_id = bootstrapped.organization_id;
     let jwks = iam_domain::entity::token::JwkSet { keys: vec![jwk] };
     Ok((
         Arc::new(provider) as Arc<dyn iam_domain::port::SigningProvider>,
@@ -985,6 +1184,7 @@ fn resolve_transit_client_config(
 
 fn setup_http_idp_clients(
     idp: &IdpConfig,
+    security_mode: SecurityMode,
 ) -> Result<HashMap<Provider, Arc<dyn FederatedOAuthClient>>> {
     idp.validate().map_err(DomainError::OAuth2Error)?;
     let mut by_slug = HashMap::new();
@@ -992,7 +1192,11 @@ fn setup_http_idp_clients(
         let provider = Provider::parse_slug(&connector.id).map_err(|_| {
             DomainError::OAuth2Error(format!("illegal IdP connector id: {}", connector.id))
         })?;
-        let client = HttpIdpConnector::new(&connector.base_url, &connector.hmac_secret)?;
+        let client = HttpIdpConnector::with_security_mode(
+            &connector.base_url,
+            &connector.hmac_secret,
+            security_mode,
+        )?;
         by_slug.insert(provider, Arc::new(client) as Arc<dyn FederatedOAuthClient>);
     }
     Ok(by_slug)
@@ -1027,48 +1231,69 @@ pub async fn run_server(app: IAMRustyApp, app_config: ServerConfig) -> Result<()
         let probe = app.readiness.clone();
         let idp = app.idp.clone();
         let signer = app.signer.clone();
+        let security = app.http_security.clone();
         tokio::spawn(async move {
-            create_app_routes(app_state, server_config, probe, idp, signer).await
+            create_app_routes(app_state, server_config, probe, idp, signer, security).await
         })
     };
 
     let mut background_tasks = app.start_background_tasks();
-    let mut outbox_handle = background_tasks
-        .pop()
-        .ok_or_else(|| anyhow::anyhow!("IAMRusty outbox dispatcher should always be configured"))?;
+    let _abort_on_cancel = OwnedTaskAbortGuard(
+        background_tasks
+            .iter()
+            .map(JoinHandle::abort_handle)
+            .chain(std::iter::once(server_handle.abort_handle()))
+            .collect(),
+    );
+    let mut server_finished = false;
 
     let result: Result<()> = tokio::select! {
         _ = tokio::signal::ctrl_c() => {
             tracing::info!("Shutdown signal received; stopping IAMRusty runtime");
             Ok(())
         }
-        result = &mut outbox_handle => {
-            match result {
-                Ok(Ok(())) => Ok(()),
-                Ok(Err(error)) => Err(error),
-                Err(error) => Err(anyhow::anyhow!("IAMRusty outbox dispatcher task panicked: {error}")),
-            }
-        }
+        result = wait_for_background_failure(&mut background_tasks) => result,
         result = &mut server_handle => {
+            server_finished = true;
             match result {
                 Ok(Ok(())) => Ok(()),
                 Ok(Err(error)) => Err(error),
-                Err(error) => Err(anyhow::anyhow!("IAMRusty HTTP server task panicked: {error}")),
+                Err(_) => Err(anyhow::anyhow!("IAMRusty HTTP server task join failed")),
             }
         }
     };
 
-    app.stop_background_tasks().await;
-    if !outbox_handle.is_finished() {
-        outbox_handle.abort();
-    }
-    if !server_handle.is_finished() {
+    let cleanup_result = app.shutdown_background_tasks(&mut background_tasks).await;
+    if !server_finished {
         server_handle.abort();
+        let _ = server_handle.await;
     }
-    let _ = outbox_handle.await;
-    let _ = server_handle.await;
+    result.and(cleanup_result)
+}
 
-    result
+struct OwnedTaskAbortGuard(Vec<tokio::task::AbortHandle>);
+
+impl Drop for OwnedTaskAbortGuard {
+    fn drop(&mut self) {
+        for task in &self.0 {
+            task.abort();
+        }
+    }
+}
+
+/// Observe every IAM task without transferring ownership to a disposable wait future.
+pub async fn wait_for_background_failure(handles: &mut Vec<JoinHandle<Result<()>>>) -> Result<()> {
+    if handles.is_empty() {
+        return Err(anyhow::anyhow!("IAM background task set is empty"));
+    }
+    let (result, index, remaining) = select_all(handles.iter_mut()).await;
+    drop(remaining);
+    drop(handles.swap_remove(index));
+    match result {
+        Ok(Ok(())) => Err(anyhow::anyhow!("IAM background worker exited unexpectedly")),
+        Ok(Err(error)) => Err(error),
+        Err(_) => Err(anyhow::anyhow!("IAM background worker join failed")),
+    }
 }
 
 #[cfg(test)]
@@ -1080,6 +1305,7 @@ mod tests {
 
     fn complete_connector(id: &str) -> IdpConnectorConfig {
         IdpConnectorConfig {
+            pkce_supported: false,
             id: id.to_string(),
             base_url: format!("http://127.0.0.1:9/{id}-connect"),
             hmac_secret: "sixteen-bytes-ok".to_string(),
@@ -1095,7 +1321,8 @@ mod tests {
         let idp = IdpConfig {
             connectors: vec![complete_connector("huggingface")],
         };
-        let by_slug = setup_http_idp_clients(&idp).expect("complete huggingface line boots");
+        let by_slug = setup_http_idp_clients(&idp, iam_configuration::SecurityMode::IsolatedTest)
+            .expect("complete huggingface line boots");
         let expected = Provider::parse_slug("huggingface").expect("slug");
         assert!(by_slug.contains_key(&expected));
         assert_eq!(by_slug.len(), 1);
@@ -1106,7 +1333,8 @@ mod tests {
         let idp = IdpConfig {
             connectors: vec![complete_connector("github"), complete_connector("gitlab")],
         };
-        let by_slug = setup_http_idp_clients(&idp).expect("github+gitlab boot");
+        let by_slug = setup_http_idp_clients(&idp, iam_configuration::SecurityMode::IsolatedTest)
+            .expect("github+gitlab boot");
         assert!(by_slug.contains_key(&Provider::parse_slug("github").expect("github")));
         assert!(by_slug.contains_key(&Provider::parse_slug("gitlab").expect("gitlab")));
         assert_eq!(by_slug.len(), 2);
@@ -1117,7 +1345,7 @@ mod tests {
         let idp = IdpConfig {
             connectors: vec![complete_connector("hugging-face")],
         };
-        match setup_http_idp_clients(&idp) {
+        match setup_http_idp_clients(&idp, iam_configuration::SecurityMode::IsolatedTest) {
             Ok(_) => panic!("expected fail-closed boot"),
             Err(err) => assert!(
                 err.to_string().contains("illegal IdP connector id"),
@@ -1133,7 +1361,7 @@ mod tests {
         let idp = IdpConfig {
             connectors: vec![connector],
         };
-        match setup_http_idp_clients(&idp) {
+        match setup_http_idp_clients(&idp, iam_configuration::SecurityMode::IsolatedTest) {
             Ok(_) => panic!("expected fail-closed boot"),
             Err(err) => assert!(
                 err.to_string().contains("at least 16"),
@@ -1144,12 +1372,38 @@ mod tests {
 
     #[test]
     fn setup_rejects_empty_registry() {
-        match setup_http_idp_clients(&IdpConfig::default()) {
+        match setup_http_idp_clients(
+            &IdpConfig::default(),
+            iam_configuration::SecurityMode::IsolatedTest,
+        ) {
             Ok(_) => panic!("expected fail-closed boot"),
             Err(err) => assert!(
                 err.to_string().contains("must not be empty"),
                 "unexpected error: {err}"
             ),
+        }
+    }
+
+    #[tokio::test]
+    async fn boot_rejects_empty_oauth_state_secret_before_any_runtime_dependency() {
+        for mode in [
+            iam_configuration::SecurityMode::Verified,
+            iam_configuration::SecurityMode::LocalInsecure,
+            iam_configuration::SecurityMode::IsolatedTest,
+        ] {
+            let mut config = iam_configuration::AppConfig::default();
+            config.security.mode = mode;
+            config.jwt.oauth_state_secret.clear();
+            config.idp = IdpConfig {
+                connectors: vec![complete_connector("github")],
+            };
+            match super::build_app_state(config, None).await {
+                Ok(_) => panic!("empty OAuth state secret must fail closed at boot"),
+                Err(error) => assert!(
+                    error.to_string().contains("OAuth state"),
+                    "must fail secret validation, not queue/database/network setup: {error}"
+                ),
+            }
         }
     }
 

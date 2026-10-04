@@ -1,4 +1,8 @@
+#[path = "support/browser_flow.rs"]
+mod browser_flow;
 mod common;
+#[path = "support/fixture_cleanup.rs"]
+mod fixture_cleanup;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 mod utils;
@@ -7,7 +11,7 @@ use common::setup_test_server;
 use fixtures::IdpConnectFixtures;
 use reqwest::{Response, StatusCode};
 use serial_test::serial;
-use utils::{auth::AuthTestUtils, oauth::OAuthTestUtils};
+use utils::auth::AuthTestUtils;
 
 async fn assert_failed_without_persistence(
     response: Response,
@@ -34,130 +38,151 @@ async fn assert_failed_without_persistence(
 #[serial]
 async fn github_rate_limit_and_server_error_are_http_failures_without_account_side_effects() {
     let (fixture, base_url, client) = setup_test_server().await.unwrap();
-    let db = fixture.db();
-    let idp = IdpConnectFixtures::service().await;
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
+        let idp = IdpConnectFixtures::service().await;
 
-    idp.mock_token("github").await;
-    idp.mock_profile_status("github", 429).await;
-    let state = OAuthTestUtils::create_login_state("github");
-    let rate_limited = client
-        .get(format!("{base_url}/api/auth/github/callback"))
-        .query(&[("code", "test_auth_code"), ("state", &state)])
-        .send()
-        .await
-        .unwrap();
-    assert_failed_without_persistence(rate_limited, db.clone()).await;
+        idp.mock_token("github").await;
+        idp.mock_profile_status("github", 429).await;
+        let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
+        let rate_limited = client
+            .get(format!("{base_url}/api/auth/github/callback"))
+            .query(&[("code", "test_auth_code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .unwrap();
+        assert_failed_without_persistence(rate_limited, db.clone()).await;
 
-    idp.reset().await;
-    idp.mock_token("github").await;
-    idp.mock_profile_status("github", 502).await;
-    let state = OAuthTestUtils::create_login_state("github");
-    let unavailable = client
-        .get(format!("{base_url}/api/auth/github/callback"))
-        .query(&[("code", "test_auth_code"), ("state", &state)])
-        .send()
-        .await
-        .unwrap();
-    assert_failed_without_persistence(unavailable, db).await;
+        idp.reset().await;
+        idp.mock_token("github").await;
+        idp.mock_profile_status("github", 502).await;
+        let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
+        let unavailable = client
+            .get(format!("{base_url}/api/auth/github/callback"))
+            .query(&[("code", "test_auth_code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .unwrap();
+        assert_failed_without_persistence(unavailable, db).await;
+    })
+    .await;
 }
 
 #[tokio::test]
 #[serial]
 async fn gitlab_forbidden_rate_limit_and_server_error_keep_the_same_public_contract() {
     let (fixture, base_url, client) = setup_test_server().await.unwrap();
-    let db = fixture.db();
-    let idp = IdpConnectFixtures::service().await;
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
+        let idp = IdpConnectFixtures::service().await;
 
-    idp.mock_token("gitlab").await;
-    idp.mock_profile_status("gitlab", 403).await;
-    let state = OAuthTestUtils::create_login_state("gitlab");
-    let forbidden = client
-        .get(format!("{base_url}/api/auth/gitlab/callback"))
-        .query(&[("code", "test_auth_code"), ("state", &state)])
-        .send()
-        .await
-        .unwrap();
-    assert_failed_without_persistence(forbidden, db.clone()).await;
+        idp.mock_token("gitlab").await;
+        idp.mock_profile_status("gitlab", 403).await;
+        let (state, cookie) = browser_flow::login(&client, &base_url, "gitlab", &idp).await;
+        let forbidden = client
+            .get(format!("{base_url}/api/auth/gitlab/callback"))
+            .query(&[("code", "test_auth_code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .unwrap();
+        assert_failed_without_persistence(forbidden, db.clone()).await;
 
-    idp.reset().await;
-    idp.mock_token("gitlab").await;
-    idp.mock_profile_status("gitlab", 429).await;
-    let state = OAuthTestUtils::create_login_state("gitlab");
-    let rate_limited = client
-        .get(format!("{base_url}/api/auth/gitlab/callback"))
-        .query(&[("code", "test_auth_code"), ("state", &state)])
-        .send()
-        .await
-        .unwrap();
-    assert_failed_without_persistence(rate_limited, db.clone()).await;
+        idp.reset().await;
+        idp.mock_token("gitlab").await;
+        idp.mock_profile_status("gitlab", 429).await;
+        let (state, cookie) = browser_flow::login(&client, &base_url, "gitlab", &idp).await;
+        let rate_limited = client
+            .get(format!("{base_url}/api/auth/gitlab/callback"))
+            .query(&[("code", "test_auth_code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .unwrap();
+        assert_failed_without_persistence(rate_limited, db.clone()).await;
 
-    idp.reset().await;
-    idp.mock_token("gitlab").await;
-    idp.mock_profile_status("gitlab", 502).await;
-    let state = OAuthTestUtils::create_login_state("gitlab");
-    let unavailable = client
-        .get(format!("{base_url}/api/auth/gitlab/callback"))
-        .query(&[("code", "test_auth_code"), ("state", &state)])
-        .send()
-        .await
-        .unwrap();
-    assert_failed_without_persistence(unavailable, db).await;
+        idp.reset().await;
+        idp.mock_token("gitlab").await;
+        idp.mock_profile_status("gitlab", 502).await;
+        let (state, cookie) = browser_flow::login(&client, &base_url, "gitlab", &idp).await;
+        let unavailable = client
+            .get(format!("{base_url}/api/auth/gitlab/callback"))
+            .query(&[("code", "test_auth_code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .unwrap();
+        assert_failed_without_persistence(unavailable, db).await;
+    })
+    .await;
 }
 
 #[tokio::test]
 #[serial]
 async fn github_rejects_invalid_authorization_codes_and_clients_without_writing_tokens() {
     let (fixture, base_url, client) = setup_test_server().await.unwrap();
-    let db = fixture.db();
-    let idp = IdpConnectFixtures::service().await;
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
+        let idp = IdpConnectFixtures::service().await;
 
-    idp.mock_s2s_unauthorized("github", "/v1/token").await;
-    let state = OAuthTestUtils::create_login_state("github");
-    let invalid_code = client
-        .get(format!("{base_url}/api/auth/github/callback"))
-        .query(&[("code", "expired-or-replayed-code"), ("state", &state)])
-        .send()
-        .await
-        .unwrap();
-    assert_failed_without_persistence(invalid_code, db.clone()).await;
+        idp.mock_s2s_unauthorized("github", "/v1/token").await;
+        let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
+        let invalid_code = client
+            .get(format!("{base_url}/api/auth/github/callback"))
+            .query(&[("code", "expired-or-replayed-code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .unwrap();
+        assert_failed_without_persistence(invalid_code, db.clone()).await;
 
-    idp.reset().await;
-    idp.mock_s2s_unauthorized("github", "/v1/token").await;
-    let state = OAuthTestUtils::create_login_state("github");
-    let invalid_client = client
-        .get(format!("{base_url}/api/auth/github/callback"))
-        .query(&[("code", "test_auth_code"), ("state", &state)])
-        .send()
-        .await
-        .unwrap();
-    assert_failed_without_persistence(invalid_client, db).await;
+        idp.reset().await;
+        idp.mock_s2s_unauthorized("github", "/v1/token").await;
+        let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
+        let invalid_client = client
+            .get(format!("{base_url}/api/auth/github/callback"))
+            .query(&[("code", "test_auth_code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .unwrap();
+        assert_failed_without_persistence(invalid_client, db).await;
+    })
+    .await;
 }
 
 #[tokio::test]
 #[serial]
 async fn gitlab_rejects_invalid_authorization_codes_and_clients_without_writing_tokens() {
     let (fixture, base_url, client) = setup_test_server().await.unwrap();
-    let db = fixture.db();
-    let idp = IdpConnectFixtures::service().await;
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
+        let idp = IdpConnectFixtures::service().await;
 
-    idp.mock_s2s_unauthorized("gitlab", "/v1/token").await;
-    let state = OAuthTestUtils::create_login_state("gitlab");
-    let invalid_code = client
-        .get(format!("{base_url}/api/auth/gitlab/callback"))
-        .query(&[("code", "expired-or-replayed-code"), ("state", &state)])
-        .send()
-        .await
-        .unwrap();
-    assert_failed_without_persistence(invalid_code, db.clone()).await;
+        idp.mock_s2s_unauthorized("gitlab", "/v1/token").await;
+        let (state, cookie) = browser_flow::login(&client, &base_url, "gitlab", &idp).await;
+        let invalid_code = client
+            .get(format!("{base_url}/api/auth/gitlab/callback"))
+            .query(&[("code", "expired-or-replayed-code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .unwrap();
+        assert_failed_without_persistence(invalid_code, db.clone()).await;
 
-    idp.reset().await;
-    idp.mock_s2s_unauthorized("gitlab", "/v1/token").await;
-    let state = OAuthTestUtils::create_login_state("gitlab");
-    let invalid_client = client
-        .get(format!("{base_url}/api/auth/gitlab/callback"))
-        .query(&[("code", "test_auth_code"), ("state", &state)])
-        .send()
-        .await
-        .unwrap();
-    assert_failed_without_persistence(invalid_client, db).await;
+        idp.reset().await;
+        idp.mock_s2s_unauthorized("gitlab", "/v1/token").await;
+        let (state, cookie) = browser_flow::login(&client, &base_url, "gitlab", &idp).await;
+        let invalid_client = client
+            .get(format!("{base_url}/api/auth/gitlab/callback"))
+            .query(&[("code", "test_auth_code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .unwrap();
+        assert_failed_without_persistence(invalid_client, db).await;
+    })
+    .await;
 }

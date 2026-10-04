@@ -4,6 +4,9 @@
 # stack on the shared `aiforall-network`. Hostnames such as `postgres`,
 # `localstack`, and `openfga` resolve to the matching compose services.
 
+[security]
+mode = "local_insecure"
+
 [server]
 host = "0.0.0.0"
 port = 8080
@@ -30,6 +33,7 @@ password = "postgres"
 # IAM → Connect S2S is HTTP on the compose network (service DNS :8080), not HTTPS mesh.
 # HMAC (0409) authenticates the hop. Public OAuth callbacks stay on IAM :8080.
 [[idp.connectors]]
+pkce_supported = false # Receiver-first rollout; explicitly enable S256 after verification.
 id = "github"
 base_url = "http://github-connect-service:8080/github-connect"
 hmac_secret = "change-me-github-connect-hmac"
@@ -39,6 +43,7 @@ redirect_uris = [
 ]
 
 [[idp.connectors]]
+pkce_supported = false
 id = "gitlab"
 base_url = "http://gitlab-connect-service:8080/gitlab-connect"
 hmac_secret = "change-me-gitlab-connect-hmac"
@@ -55,7 +60,8 @@ audience = "aiforall"
 public_base_url = "http://127.0.0.1:8080"
 jwks_url = "http://127.0.0.1:8080/iam/.well-known/jwks.json"
 allowed_algorithms = ["RS256"]
-oauth_state_secret = "iam-oauth-state-hmac-change-me"
+# Public local-only key, rejected by verified/production policy. Not a production fallback.
+oauth_state_secret = "b9a3475cd01f826ee684f2703acb15d96c02e85147bd6a3905f8a63e12d9c407"
 
 [jwt.secret]
 type = "pem_file"

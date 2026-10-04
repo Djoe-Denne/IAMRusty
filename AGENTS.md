@@ -9,7 +9,7 @@ L’hôte est Windows. Kind et les tests locaux tournent dans la VM Linux de Doc
 ## Cycle de vie du runtime local
 
 - Charger `.agents/skills/local-runtime-lifecycle/SKILL.md` avant démarrage ou fin de Docker/Kind/WSL, E2E, test local ou IT ; canon court : `.cursor/rules/local-runtime-lifecycle.mdc` (OpenCode n'applique pas automatiquement les MDC).
-- Runtime à la demande seulement : E2E/test manuel local → `kind-aiforall-local` ; IT → fixtures testcontainers du harness existant, jamais Kind ni migration Compose. Ne pas réveiller un runtime arrêté pour du travail documentaire/statique.
+- Runtime à la demande seulement : E2E/test manuel local → `kind-aiforall-local` (défaut) ou, uniquement sur autorisation user explicite (2026-10-04) pour un scénario full profile multi-nœuds, `kind-aiforall-local-full` ; IT → fixtures testcontainers du harness existant, jamais Kind ni migration Compose. Ne pas réveiller un runtime arrêté pour du travail documentaire/statique ; aucun démarrage de Kind pour l'E2E avant la fin des corrections et de la phase IT finale (la compilation Docker / pure unit gates en cours d'implémentation reste autorisée — un slot cargo, ledger propre).
 - Le parent tient l'inventaire AVANT et le bail partagé des IDs créés/redémarrés explicitement pour la tâche ; ni nom ni image ne prouvent la propriété. Les workers rendent cet inventaire sans arrêter un runtime encore requis par le parent.
 - Avant réponse finale, succès ou échec : arrêter gracieusement les ressources possédées devenues inutiles (permission permanente pour ce stop réversible, annoncer périmètre/perte de mémoire volatile), vérifier les fuites ; aucune suppression/prune/reset. Rétention seulement pour travail réellement actif/bail parent ou demande explicite de keepalive.
 - Pour libérer la RAM, arrêter Docker Desktop puis `wsl --shutdown` seulement sans autre workload/bail, propriété inconnue ni cluster protégé affecté ; sinon signaler la RAM résiduelle et demander un arbitrage ciblé. Vérifier états + vmmem/RAM disponible sans Docker CLI après shutdown.
@@ -17,7 +17,7 @@ L’hôte est Windows. Kind et les tests locaux tournent dans la VM Linux de Doc
 
 ## Problèmes infrastructure
 
-Routage des diagnostics locaux (Docker Desktop, Compose, Kind `aiforall-local`, Envoy du dépôt). Pas de prod. Jamais `kind-apparatus-p4-it` ni `rancher-desktop`.
+Routage des diagnostics locaux (Docker Desktop, Compose, Kind `aiforall-local` et `aiforall-local-full` — liste close, Envoy du dépôt). Pas de prod. Jamais `kind-apparatus-p4-it` ni `rancher-desktop` ni tout autre contexte non listé.
 
 - **Docker / Compose** → `container-runtime-debugger` (skills `.agents/skills/docker-*`).
 - **Kubernetes / Kind** → `k8s-operator` (read-only par défaut).

@@ -42,6 +42,17 @@ spec:
         - name: ext-authz
           image: aiforall-ext-authz:local
           imagePullPolicy: Never
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          startupProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
           ports:
             - name: http
               containerPort: 8090

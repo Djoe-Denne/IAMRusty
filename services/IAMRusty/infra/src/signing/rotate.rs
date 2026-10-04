@@ -119,6 +119,11 @@ pub async fn insert_pending_rotation(
         updated_at: now,
     };
     ctx.registry.insert(&pending).await?;
+    let pending = ctx
+        .registry
+        .find_by_kid(&pending.kid)
+        .await?
+        .ok_or(DomainError::InvalidToken)?;
     Ok(PendingRotation {
         pending,
         previous_active: active.clone(),
@@ -135,16 +140,12 @@ pub async fn promote_pending_rotation(
     pending: PendingRotation,
 ) -> Result<SigningKey, DomainError> {
     let now = Utc::now();
-    let mut retiring = pending.previous_active;
-    retiring.status = SigningKeyStatus::Retiring;
-    retiring.updated_at = now;
-    ctx.registry.update(&retiring).await?;
-
     let mut active = pending.pending;
     active.status = SigningKeyStatus::Active;
     active.updated_at = now;
-    ctx.registry.update(&active).await?;
-    Ok(active)
+    ctx.registry
+        .replace_active_organization_key(&active, Some(&pending.previous_active.kid))
+        .await
 }
 
 async fn mint_material(
@@ -163,13 +164,26 @@ async fn mint_material(
             mint_pem_material(&ctx.pem_root, kid, organization_id)
         }
         SigningProviderType::OpenBaoTransit => {
+            let org = active
+                .organization_id
+                .ok_or_else(|| DomainError::InvalidToken)?;
+            iam_domain::entity::signing_key::require_org_transit_binding(
+                org,
+                &active.provider_key_ref,
+                active.credential_ref.as_deref(),
+            )?;
             let transit = ctx.transit.as_ref().ok_or_else(|| {
                 DomainError::external_service_error(
                     "openbao_transit",
                     "Transit URL not configured — refuse closed",
                 )
             })?;
-            mint_transit_material(transit, kid, active.credential_ref.as_deref()).await
+            mint_transit_material(
+                transit,
+                &format!("org-{org}-{kid}"),
+                active.credential_ref.as_deref(),
+            )
+            .await
         }
         SigningProviderType::AwsKms
         | SigningProviderType::GcpKms
@@ -230,7 +244,9 @@ async fn mint_transit_material(
 ) -> Result<(String, Option<String>, String), DomainError> {
     let token_ref = credential_ref
         .filter(|s| !s.trim().is_empty())
-        .unwrap_or(transit.token_ref.as_str());
+        .ok_or_else(|| {
+            DomainError::AuthorizationError("organization Transit credential required".into())
+        })?;
     let provider = TransitSigningProvider::new(
         transit.base_url.clone(),
         kid,
@@ -259,10 +275,80 @@ mod tests {
     #[async_trait]
     impl SigningKeyRegistry for FakeRegistry {
         type Error = DomainError;
+        async fn jwks_publication_snapshot(
+            &self,
+        ) -> Result<iam_domain::entity::signing_key::SigningKeyPublicationSnapshot, Self::Error>
+        {
+            Ok(
+                iam_domain::entity::signing_key::SigningKeyPublicationSnapshot {
+                    keys: self.keys.lock().unwrap().clone(),
+                    as_of: Utc::now(),
+                },
+            )
+        }
+
+        async fn confirm_active_for_emission(
+            &self,
+            expected: &SigningKey,
+        ) -> Result<bool, Self::Error> {
+            // Compare the expected object, not merely kid/id; timestamps are not epochs.
+            Ok(expected.status == SigningKeyStatus::Active
+                && self.keys.lock().unwrap().iter().any(|row| {
+                    let mut row = row.clone();
+                    row.created_at = expected.created_at;
+                    row.updated_at = expected.updated_at;
+                    row == *expected
+                }))
+        }
 
         async fn insert(&self, key: &SigningKey) -> Result<(), Self::Error> {
             self.keys.lock().unwrap().push(key.clone());
             Ok(())
+        }
+
+        async fn replace_active_organization_key(
+            &self,
+            key: &SigningKey,
+            expected_active_kid: Option<&str>,
+        ) -> Result<SigningKey, Self::Error> {
+            let mut keys = self.keys.lock().unwrap();
+            if let Some(expected) = expected_active_kid {
+                if !keys
+                    .iter()
+                    .any(|row| row.kid == expected && row.status == SigningKeyStatus::Active)
+                {
+                    return Err(DomainError::InvalidToken);
+                }
+            }
+            for row in keys.iter_mut().filter(|row| {
+                row.organization_id == key.organization_id && row.status == SigningKeyStatus::Active
+            }) {
+                row.status = SigningKeyStatus::Retiring;
+                row.updated_at = key.updated_at;
+            }
+            if let Some(row) = keys.iter_mut().find(|row| row.id == key.id) {
+                *row = key.clone();
+            } else {
+                keys.push(key.clone());
+            }
+            Ok(key.clone())
+        }
+
+        async fn revoke_organization_keys(
+            &self,
+            organization_id: Uuid,
+        ) -> Result<Vec<SigningKey>, Self::Error> {
+            let mut keys = self.keys.lock().unwrap();
+            let mut revoked = Vec::new();
+            for row in keys
+                .iter_mut()
+                .filter(|row| row.organization_id == Some(organization_id))
+            {
+                row.status = SigningKeyStatus::Revoked;
+                row.updated_at = Utc::now();
+                revoked.push(row.clone());
+            }
+            Ok(revoked)
         }
 
         async fn find_by_kid(&self, kid: &str) -> Result<Option<SigningKey>, Self::Error> {

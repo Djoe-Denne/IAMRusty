@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: postgres-data}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: standard
+  resources: {requests: {storage: 2Gi}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: zot-data}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: standard
+  resources: {requests: {storage: 2Gi}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: redis-data}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: standard
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: redis}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app.kubernetes.io/name: redis}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: redis, app.kubernetes.io/component: data}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsUser: 999, runAsGroup: 999, fsGroup: 999, runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: redis
+          image: redis:7.2.7-alpine@sha256:ddd16a9b1575a774c7e62956be8daa1de5b32cfb5c25b7a216aefed8e0919f9b
+          command: [redis-server, --appendonly, "yes", --appendfsync, always]
+          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 500m, memory: 256Mi}}
+          ports: [{name: redis, containerPort: 6379}]
+          readinessProbe: {exec: {command: [redis-cli, ping]}, periodSeconds: 5}
+          startupProbe: {exec: {command: [redis-cli, ping]}, periodSeconds: 5, failureThreshold: 36}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          volumeMounts: [{name: data, mountPath: /data}]
+      volumes: [{name: data, persistentVolumeClaim: {claimName: redis-data}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: redis}
+spec: {selector: {app.kubernetes.io/name: redis}, ports: [{port: 6379, targetPort: redis}]}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: localstack}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app.kubernetes.io/name: localstack}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: localstack, app.kubernetes.io/component: queue}}
+    spec:
+      automountServiceAccountToken: false
+      # LocalStack's upstream entrypoint needs a writable root/temp area, no Docker socket.
+      securityContext: {seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: localstack
+          image: localstack/localstack:3.0.2@sha256:e606c4421419030b12d63a59f1211f57f5b0fbf7e9ce769e6250ee62ff4f9293
+          env:
+            - {name: SERVICES, value: sqs}
+            - {name: EAGER_SERVICE_LOADING, value: "1"}
+            - {name: AWS_DEFAULT_REGION, value: us-east-1}
+            - {name: SQS_ENDPOINT_STRATEGY, value: path}
+            - {name: LOCALSTACK_HOST, value: "localstack:4566"}
+          resources: {requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: "1", memory: 768Mi}}
+          ports: [{name: sqs, containerPort: 4566}]
+          readinessProbe:
+            exec: {command: [sh, -ec, "awslocal sqs get-queue-url --queue-name sentinel-sync-events >/dev/null && awslocal sqs get-queue-url --queue-name telegraph-events >/dev/null"]}
+            periodSeconds: 5
+            timeoutSeconds: 5
+          startupProbe: {httpGet: {path: /_localstack/health, port: sqs}, periodSeconds: 5, failureThreshold: 60}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          volumeMounts: [{name: init, mountPath: /etc/localstack/init/ready.d/init-aws.sh, subPath: init-aws.sh, readOnly: true}]
+      volumes: [{name: init, configMap: {name: localstack-init, defaultMode: 365}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: localstack}
+spec: {selector: {app.kubernetes.io/name: localstack}, ports: [{port: 4566, targetPort: sqs}]}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: openbao}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app.kubernetes.io/name: openbao}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: openbao, app.kubernetes.io/component: secrets}}
+    spec:
+      serviceAccountName: openbao
+      securityContext: {seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: openbao
+          image: openbao/openbao:2.6.2@sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641
+          args: [server, -dev, -dev-listen-address=0.0.0.0:8200, -dev-root-token-id=local-full-dev-root]
+          env: [{name: BAO_ADDR, value: "http://127.0.0.1:8200"}, {name: SKIP_SETCAP, value: "true"}]
+          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 500m, memory: 256Mi}}
+          ports: [{name: bao, containerPort: 8200}]
+          readinessProbe: {httpGet: {path: /v1/sys/health, port: bao}, periodSeconds: 5}
+          startupProbe: {httpGet: {path: /v1/sys/health, port: bao}, periodSeconds: 5, failureThreshold: 36}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: openbao}
+spec: {selector: {app.kubernetes.io/name: openbao}, ports: [{port: 8200, targetPort: bao}]}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: mailhog}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app.kubernetes.io/name: mailhog}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: mailhog, app.kubernetes.io/component: simulator}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: mailhog
+          image: mailhog/mailhog:v1.0.1@sha256:8d76a3d4ffa32a3661311944007a415332c4bb855657f4f6c57996405c009bea
+          resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {cpu: 200m, memory: 128Mi}}
+          ports: [{name: smtp, containerPort: 1025}, {name: ui, containerPort: 8025}]
+          readinessProbe: {tcpSocket: {port: smtp}, periodSeconds: 5}
+          startupProbe: {tcpSocket: {port: smtp}, periodSeconds: 5, failureThreshold: 36}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: mailhog}
+spec: {selector: {app.kubernetes.io/name: mailhog}, ports: [{name: smtp, port: 1025, targetPort: smtp}, {name: ui, port: 8025, targetPort: ui}]}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: component-catalog}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app.kubernetes.io/name: component-catalog}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: component-catalog, app.kubernetes.io/component: simulator}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: catalog
+          image: node:20.19.0-alpine@sha256:8bda036ddd59ea51a23bc1a1035d3b5c614e72c01366d989f4120e8adca196d4
+          command: [node, /catalog/server.js]
+          env: [{name: CATALOG_JSON, value: /catalog/catalog.json}, {name: CATALOG_PORT, value: "9000"}, {name: CATALOG_TOKEN, value: aiforall-gold-catalog}]
+          resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {cpu: 200m, memory: 128Mi}}
+          ports: [{name: http, containerPort: 9000}]
+          readinessProbe: {tcpSocket: {port: http}, periodSeconds: 5}
+          startupProbe: {tcpSocket: {port: http}, periodSeconds: 5, failureThreshold: 36}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          volumeMounts: [{name: catalog, mountPath: /catalog, readOnly: true}]
+      volumes: [{name: catalog, configMap: {name: catalog-config}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: component-catalog}
+spec: {selector: {app.kubernetes.io/name: component-catalog}, ports: [{port: 9000, targetPort: http}]}

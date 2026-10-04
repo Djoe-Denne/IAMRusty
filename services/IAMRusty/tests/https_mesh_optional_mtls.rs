@@ -1,27 +1,33 @@
-//! T14b — IAM dual-bind HTTP+HTTPS with optional mesh client CA (no docker).
+//! T14b — IAM real-core dual-bind HTTP+HTTPS with optional mesh client CA.
+//! Existing testcontainers harness, final-only execution under the parent lease.
+mod common;
+#[path = "support/fixture_cleanup.rs"]
+mod fixture_cleanup;
+#[path = "fixtures/mod.rs"]
+mod fixtures;
+#[path = "support/owned_task.rs"]
+mod owned_task;
+mod utils;
 
 use std::net::TcpListener;
 use std::path::Path;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use iam_configuration::IdpConfig;
-use iam_http_server::{create_prefixed_router, SERVICE_PREFIX};
+use iam_http_server::SERVICE_PREFIX;
 use rcgen::{
     BasicConstraints, Certificate, CertificateParams, DnType, ExtendedKeyUsagePurpose, IsCa,
     KeyPair, KeyUsagePurpose,
 };
-use readiness::ReadinessProbe;
-use rustycog::command::{CommandRegistry, GenericCommandService};
 use rustycog::config::ServerConfig;
-use rustycog::http::{serve_router, AppState, UserIdExtractor};
-use rustycog::permission::{InMemoryPermissionChecker, PermissionChecker};
+use rustycog::http::serve_router;
 
 struct TestPki {
     _dir: tempfile::TempDir,
     server_cert_path: String,
     server_key_path: String,
     client_ca_path: String,
+    server_ca_pem: String,
+    foreign_ca_pem: String,
     client_identity_pem: Vec<u8>,
     foreign_identity_pem: Vec<u8>,
 }
@@ -76,11 +82,12 @@ fn generate_pki() -> TestPki {
     let dir = tempfile::tempdir().unwrap();
     let (ca_cert, ca_key) = new_ca("rustycog-test-client-ca");
     let (foreign_ca, foreign_ca_key) = new_ca("rustycog-foreign-client-ca");
+    let (server_ca, server_ca_key) = new_ca("rustycog-test-server-ca");
     let (server_cert, server_key) = new_end_entity(
         vec!["127.0.0.1".into(), "localhost".into()],
         "rustycog-test-server",
         ExtendedKeyUsagePurpose::ServerAuth,
-        None,
+        Some((&server_ca, &server_ca_key)),
     );
     let (client_cert, client_key) = new_end_entity(
         vec!["mtls-client.test".into()],
@@ -103,6 +110,8 @@ fn generate_pki() -> TestPki {
         server_cert_path,
         server_key_path,
         client_ca_path,
+        server_ca_pem: server_ca.pem(),
+        foreign_ca_pem: foreign_ca.pem(),
         client_identity_pem: identity_pem(&client_cert, &client_key),
         foreign_identity_pem: identity_pem(&foreign_cert, &foreign_key),
         _dir: dir,
@@ -115,16 +124,6 @@ fn ephemeral_port() -> u16 {
         .local_addr()
         .unwrap()
         .port()
-}
-
-fn app_state() -> AppState {
-    let command_service = Arc::new(GenericCommandService::new(Arc::new(
-        CommandRegistry::default(),
-    )));
-    let extractor =
-        UserIdExtractor::from_resolved_secret("rustycog-test-hs256-secret").expect("jwt");
-    let checker: Arc<dyn PermissionChecker> = Arc::new(InMemoryPermissionChecker::new());
-    AppState::new(command_service, extractor, checker)
 }
 
 fn dual_bind_config(
@@ -167,14 +166,19 @@ fn http_client() -> reqwest::Client {
         .unwrap()
 }
 
-async fn spawn_server(config: ServerConfig) -> tokio::task::JoinHandle<anyhow::Result<()>> {
-    let router = create_prefixed_router(
-        app_state(),
-        Arc::new(ReadinessProbe::new("iam")),
-        Arc::new(IdpConfig::default()),
-        None,
-    );
-    tokio::spawn(async move { serve_router(router, config).await })
+async fn spawn_server(
+    fixture: &common::TestFixture,
+    config: ServerConfig,
+) -> owned_task::OwnedTask<anyhow::Result<()>> {
+    let mut security = iam_configuration::security::SecurityConfig::default();
+    security.mode = iam_configuration::security::SecurityMode::LocalInsecure;
+    security.rate_limit.disabled = false;
+    // Real shared composition root supplies all three mandatory HTTP dependencies;
+    // no unrelated fake OAuth use-case or manually injected transport extensions.
+    let app = common::build_test_iam_app(fixture, security)
+        .await
+        .expect("actual IAM core/security builder");
+    owned_task::spawn(async move { serve_router(app.router(), config).await })
 }
 
 async fn wait_until_ready(
@@ -209,42 +213,121 @@ async fn assert_2xx(client: &reqwest::Client, url: &str) {
 }
 
 #[tokio::test]
+#[serial_test::serial]
 async fn dual_bind_http_and_optional_mtls() {
-    install_crypto();
-    let pki = generate_pki();
-    let cleartext_port = ephemeral_port();
-    let tls_listen = ephemeral_port();
-    let health = format!("{SERVICE_PREFIX}/health");
-    let cleartext_url = format!("http://127.0.0.1:{cleartext_port}{health}");
-    let tls_url = format!("https://127.0.0.1:{tls_listen}{health}");
-    let handle = spawn_server(dual_bind_config(
-        &pki,
-        cleartext_port,
-        tls_listen,
-        pki.client_ca_path.clone(),
-    ))
+    let (fixture, _, _) = common::setup_test_server()
+        .await
+        .expect("owned protocol fixture");
+    fixture_cleanup::run(&fixture, async {
+        install_crypto();
+        let pki = generate_pki();
+        let cleartext_port = ephemeral_port();
+        let tls_listen = ephemeral_port();
+        let health = format!("{SERVICE_PREFIX}/health");
+        let cleartext_url = format!("http://127.0.0.1:{cleartext_port}{health}");
+        let tls_url = format!("https://127.0.0.1:{tls_listen}{health}");
+        let handle = spawn_server(
+            &fixture,
+            dual_bind_config(&pki, cleartext_port, tls_listen, pki.client_ca_path.clone()),
+        )
+        .await;
+
+        let plain = http_client();
+        wait_until_ready(&handle, &plain, &cleartext_url).await;
+        let tls_probe = https_client(None);
+        wait_until_ready(&handle, &tls_probe, &tls_url).await;
+
+        assert_2xx(&plain, &cleartext_url).await;
+        assert_2xx(&tls_probe, &tls_url).await;
+
+        let mesh = https_client(Some(&pki.client_identity_pem));
+        assert_2xx(&mesh, &tls_url).await;
+
+        let foreign = https_client(Some(&pki.foreign_identity_pem));
+        match foreign.get(&tls_url).send().await {
+            Err(_) => {}
+            Ok(response) => assert!(
+                !response.status().is_success(),
+                "foreign client cert must not get 2xx, got {}",
+                response.status()
+            ),
+        }
+
+        handle.abort();
+        let _ = handle.await;
+    })
     .await;
+}
 
-    let plain = http_client();
-    wait_until_ready(&handle, &plain, &cleartext_url).await;
-    let tls_probe = https_client(None);
-    wait_until_ready(&handle, &tls_probe, &tls_url).await;
-
-    assert_2xx(&plain, &cleartext_url).await;
-    assert_2xx(&tls_probe, &tls_url).await;
-
-    let mesh = https_client(Some(&pki.client_identity_pem));
-    assert_2xx(&mesh, &tls_url).await;
-
-    let foreign = https_client(Some(&pki.foreign_identity_pem));
-    match foreign.get(&tls_url).send().await {
-        Err(_) => {}
-        Ok(response) => assert!(
-            !response.status().is_success(),
-            "foreign client cert must not get 2xx, got {}",
-            response.status()
-        ),
-    }
-
-    handle.abort();
+#[tokio::test]
+#[serial_test::serial]
+async fn verified_https_no_client_ca_rejects_wrong_ca_and_wrong_server_san() {
+    let (fixture, _, _) = common::setup_test_server()
+        .await
+        .expect("owned protocol fixture");
+    fixture_cleanup::run(&fixture, async {
+        install_crypto();
+        let pki = generate_pki();
+        let cleartext_port = ephemeral_port();
+        let tls_port = ephemeral_port();
+        let handle = spawn_server(
+            &fixture,
+            dual_bind_config(&pki, cleartext_port, tls_port, String::new()),
+        )
+        .await;
+        let url = format!("https://localhost:{tls_port}{SERVICE_PREFIX}/health");
+        let verified = reqwest::Client::builder()
+            .use_rustls_tls()
+            .no_proxy()
+            .add_root_certificate(
+                reqwest::Certificate::from_pem(pki.server_ca_pem.as_bytes()).expect("server CA"),
+            )
+            .timeout(Duration::from_secs(5))
+            .build()
+            .expect("verified client");
+        wait_until_ready(&handle, &verified, &url).await;
+        let positive = verified.get(&url).send().await;
+        let foreign = reqwest::Client::builder()
+            .use_rustls_tls()
+            .no_proxy()
+            .tls_built_in_root_certs(false)
+            .add_root_certificate(
+                reqwest::Certificate::from_pem(pki.foreign_ca_pem.as_bytes()).expect("foreign CA"),
+            )
+            .timeout(Duration::from_secs(5))
+            .build()
+            .expect("wrong-CA client");
+        let wrong_ca = foreign.get(&url).send().await;
+        let wrong_name = reqwest::Client::builder()
+            .use_rustls_tls()
+            .no_proxy()
+            .add_root_certificate(
+                reqwest::Certificate::from_pem(pki.server_ca_pem.as_bytes()).expect("server CA"),
+            )
+            .resolve(
+                "wrong-san.test",
+                std::net::SocketAddr::from(([127, 0, 0, 1], tls_port)),
+            )
+            .timeout(Duration::from_secs(5))
+            .build()
+            .expect("wrong-SAN client");
+        let wrong_san = wrong_name
+            .get(format!(
+                "https://wrong-san.test:{tls_port}{SERVICE_PREFIX}/health"
+            ))
+            .send()
+            .await;
+        handle.abort();
+        let _ = handle.await;
+        assert!(positive
+            .expect("trusted server without client certificate")
+            .status()
+            .is_success());
+        assert!(wrong_ca.is_err(), "wrong server CA must fail before HTTP");
+        assert!(
+            wrong_san.is_err(),
+            "trusted CA alone cannot bypass server SAN"
+        );
+    })
+    .await;
 }

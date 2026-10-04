@@ -2,7 +2,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+. (Join-Path $PSScriptRoot 'common.ps1')
+$RepoRoot = Get-AIForAllRoot $PSScriptRoot
 Set-Location $RepoRoot
 
 $KindContext = 'kind-aiforall-local'
@@ -25,25 +26,7 @@ if ($missing.Count -gt 0) {
 
 Write-Host "M2 : contexte $KindContext (jamais $ForbiddenContext)" -ForegroundColor Cyan
 
-$clusterOut = & kind get clusters 2>&1
-$hasLocal = $false
-foreach ($line in @($clusterOut)) {
-    if (([string]$line).Trim() -eq 'aiforall-local') {
-        $hasLocal = $true
-        break
-    }
-}
-if (-not $hasLocal) {
-    Write-Host "Creation du cluster kind aiforall-local..."
-    & kind create cluster --config ops/deploy/kind/cluster.yaml
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "M2 echec : kind create cluster" -ForegroundColor Red
-        exit $LASTEXITCODE
-    }
-}
-else {
-    Write-Host "Cluster aiforall-local deja present."
-}
+Initialize-LocalKind
 
 function Invoke-Kubectl {
     param([Parameter(Mandatory = $true)][string[]]$KubectlArgs)
@@ -65,5 +48,5 @@ Invoke-Kubectl @('wait', '--for=condition=complete', 'job/invoke-probe', '-n', '
 Write-Host "NetworkPolicy + Services :" -ForegroundColor Cyan
 Invoke-Kubectl @('get', 'netpol,svc', '-A')
 
-Write-Host "M2 OK : probe HTTP /lazaret/invoke = 200. Cluster conserve (kind delete cluster --name aiforall-local pour detruire)." -ForegroundColor Green
+Write-Host "M2 OK : probe HTTP /lazaret/invoke = 200. Ressources conservees sous bail du parent." -ForegroundColor Green
 exit 0

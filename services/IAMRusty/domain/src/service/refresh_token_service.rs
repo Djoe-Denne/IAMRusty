@@ -90,15 +90,15 @@ where
             .refresh_token_repo
             .find_by_token(&refresh_token)
             .await
-            .map_err(|e| {
-                debug!("Error finding refresh token: {}", e);
-                DomainError::RepositoryError(e.to_string())
+            .map_err(|_| {
+                debug!("Error finding refresh session");
+                DomainError::RepositoryError("refresh session lookup failed".into())
             })?
             .ok_or(DomainError::TokenNotFound)?;
 
         // Check if the token is valid
         if !old_token.is_valid {
-            debug!("Invalid refresh token: {}", refresh_token);
+            debug!(token_id = %old_token.id, "Invalid refresh session");
             return Err(DomainError::InvalidToken);
         }
 
@@ -109,9 +109,9 @@ where
             self.refresh_token_repo
                 .update_validity(old_token.id, false)
                 .await
-                .map_err(|e| {
-                    debug!("Error updating refresh token validity: {}", e);
-                    DomainError::RepositoryError(e.to_string())
+                .map_err(|_| {
+                    debug!("Error updating refresh session validity");
+                    DomainError::RepositoryError("refresh session invalidation failed".into())
                 })?;
 
             return Err(DomainError::TokenExpired);
@@ -122,9 +122,9 @@ where
             .token_service
             .generate_access_token(old_token.user_id)
             .await
-            .map_err(|e| {
-                debug!("Error generating access token: {}", e);
-                DomainError::TokenServiceError(e.to_string())
+            .map_err(|_| {
+                debug!("Error generating access token");
+                DomainError::TokenServiceError("access token generation failed".into())
             })?;
 
         // Generate a new refresh token
@@ -132,9 +132,9 @@ where
             .token_service
             .generate_refresh_token(old_token.user_id)
             .await
-            .map_err(|e| {
-                debug!("Error generating refresh token: {}", e);
-                DomainError::TokenServiceError(e.to_string())
+            .map_err(|_| {
+                debug!("Error generating refresh token");
+                DomainError::TokenServiceError("refresh token generation failed".into())
             })?;
 
         // Store the new refresh token and delete the old token atomically.
@@ -142,11 +142,11 @@ where
             .rotate(old_token.id, new_refresh_token.clone())
             .await
             .map_err(|e| {
-                debug!("Error rotating refresh token: {}", e);
+                debug!("Error rotating refresh session");
                 if Self::is_rotation_lost_race(&e) {
                     DomainError::InvalidToken
                 } else {
-                    DomainError::RepositoryError(e.to_string())
+                    DomainError::RepositoryError("refresh session rotation failed".into())
                 }
             })?;
 

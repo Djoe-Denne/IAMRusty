@@ -3,50 +3,44 @@
 use base64::{engine::general_purpose, Engine as _};
 use chrono::Utc;
 use hmac::{Hmac, Mac};
+use iam_configuration::security::OAuthStateSecret;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock, PoisonError};
+use std::sync::OnceLock;
 use thiserror::Error;
 use uuid::Uuid;
 
 const STATE_TTL_SECS: i64 = 600;
 
 static STATE_SECRET: OnceLock<Vec<u8>> = OnceLock::new();
-static USED_NONCES: OnceLock<Mutex<HashMap<String, i64>>> = OnceLock::new();
 
 type HmacSha256 = Hmac<Sha256>;
 
 /// Configure the HMAC secret used to sign OAuth state (not the JWT secret).
-pub fn configure_oauth_state_secret(secret: impl Into<String>) {
-    let bytes = secret.into().into_bytes();
-    let _ = STATE_SECRET.set(bytes);
+///
+/// # Errors
+/// Returns an error if another app has already installed a different key.
+pub fn configure_oauth_state_secret(secret: OAuthStateSecret) -> Result<(), &'static str> {
+    let bytes = secret.as_bytes().to_vec();
+    match STATE_SECRET.set(bytes) {
+        Ok(()) => Ok(()),
+        Err(bytes) if STATE_SECRET.get() == Some(&bytes) => Ok(()),
+        Err(_) => Err("OAuth state key already configured differently"),
+    }
 }
 
-fn state_secret() -> &'static [u8] {
+fn state_secret() -> Result<&'static [u8], StateError> {
     STATE_SECRET
         .get()
-        .map_or(b"iam-oauth-state-hmac-change-me", Vec::as_slice)
-}
-
-fn used_nonces() -> &'static Mutex<HashMap<String, i64>> {
-    USED_NONCES.get_or_init(|| Mutex::new(HashMap::new()))
+        .map(Vec::as_slice)
+        .ok_or(StateError::Unconfigured)
 }
 
 /// OAuth operation type
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(tag = "type")]
-pub enum OAuthOperation {
-    /// Login operation (create new user or authenticate existing)
-    #[serde(rename = "login")]
-    Login,
-    /// Link provider operation (link to existing authenticated user)
-    #[serde(rename = "link")]
-    Link { user_id: Uuid },
-}
+pub use iam_domain::entity::oauth_transaction::OAuthOperation;
 
 /// OAuth state parameter for encoding operation context
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct OAuthState {
     /// The operation being performed
     pub operation: OAuthOperation,
@@ -59,15 +53,24 @@ pub struct OAuthState {
     pub exp: i64,
 }
 
+impl std::fmt::Debug for OAuthState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("OAuthState([redacted])")
+    }
+}
+
 /// State parameter encoding/decoding errors
-#[derive(Debug, Error)]
+#[derive(Error)]
 pub enum StateError {
+    /// No boot-validated key has been installed.
+    #[error("OAuth state secret not configured")]
+    Unconfigured,
     /// Failed to serialize state
-    #[error("Failed to serialize state: {0}")]
+    #[error("Failed to serialize state")]
     SerializationError(#[from] serde_json::Error),
 
     /// Failed to encode/decode base64
-    #[error("Failed to encode/decode base64: {0}")]
+    #[error("Failed to encode/decode base64")]
     Base64Error(#[from] base64::DecodeError),
 
     /// Invalid state format
@@ -81,10 +84,12 @@ pub enum StateError {
     /// State has expired
     #[error("State expired")]
     Expired,
+}
 
-    /// State nonce was already used
-    #[error("State already used")]
-    Replay,
+impl std::fmt::Debug for StateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("StateError([redacted])")
+    }
 }
 
 impl OAuthState {
@@ -110,6 +115,17 @@ impl OAuthState {
         }
     }
 
+    /// Create a separate relink intention, bound to the guarded platform subject.
+    #[must_use]
+    pub fn new_relink(user_id: Uuid, provider: impl Into<String>) -> Self {
+        Self {
+            operation: OAuthOperation::Relink { user_id },
+            nonce: Uuid::new_v4().to_string(),
+            provider: provider.into(),
+            exp: Utc::now().timestamp() + STATE_TTL_SECS,
+        }
+    }
+
     /// Encode the state to a signed base64 string for use in OAuth flow
     ///
     /// # Errors
@@ -126,31 +142,38 @@ impl OAuthState {
     ///
     /// # Errors
     ///
-    /// Returns [`StateError`] when the value is unsigned, tampered, expired, or replayed.
+    /// Returns [`StateError`] when the value is unsigned, malformed, tampered or expired.
+    /// Replay protection belongs exclusively to the transaction writer.
     pub fn inspect(encoded: &str) -> Result<Self, StateError> {
-        let (payload, mac) = encoded.split_once('.').ok_or(StateError::InvalidFormat)?;
-        let expected = sign(payload)?;
-        if !constant_time_eq(mac.as_bytes(), expected.as_bytes()) {
-            return Err(StateError::InvalidSignature);
+        if encoded.len() > 2000 {
+            return Err(StateError::InvalidFormat);
         }
+        let (payload, mac) = encoded.split_once('.').ok_or(StateError::InvalidFormat)?;
+        let signature = general_purpose::URL_SAFE_NO_PAD
+            .decode(mac)
+            .map_err(|_| StateError::InvalidSignature)?;
+        let mut verifier =
+            HmacSha256::new_from_slice(state_secret()?).map_err(|_| StateError::InvalidFormat)?;
+        verifier.update(payload.as_bytes());
+        verifier
+            .verify_slice(&signature)
+            .map_err(|_| StateError::InvalidSignature)?;
         let json_bytes = general_purpose::URL_SAFE_NO_PAD.decode(payload)?;
         let json = String::from_utf8(json_bytes).map_err(|_| StateError::InvalidFormat)?;
         let state: Self = serde_json::from_str(&json)?;
-        if state.exp == 0 || state.exp < Utc::now().timestamp() {
+        if state.exp <= Utc::now().timestamp() {
             return Err(StateError::Expired);
         }
         Ok(state)
     }
 
-    /// Decode a signed state string and consume its nonce.
+    /// Inspect a signed state. Only the persistent transaction writer authorizes a callback.
     ///
     /// # Errors
     ///
-    /// Returns [`StateError`] when inspection fails or the nonce was already consumed.
+    /// Returns [`StateError`] when inspection fails. This is not an anti-replay authority.
     pub fn decode(encoded: &str) -> Result<Self, StateError> {
-        let state = Self::inspect(encoded)?;
-        consume_nonce(&state.nonce, state.exp)?;
-        Ok(state)
+        Self::inspect(encoded)
     }
 
     /// Check if this is a login operation
@@ -165,45 +188,53 @@ impl OAuthState {
         match &self.operation {
             OAuthOperation::Link { user_id } => Some(*user_id),
             OAuthOperation::Login => None,
+            OAuthOperation::Relink { .. } => None,
         }
     }
 }
 
 fn sign(payload: &str) -> Result<String, StateError> {
     let mut mac =
-        HmacSha256::new_from_slice(state_secret()).map_err(|_| StateError::InvalidFormat)?;
+        HmacSha256::new_from_slice(state_secret()?).map_err(|_| StateError::InvalidFormat)?;
     mac.update(payload.as_bytes());
     Ok(general_purpose::URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes()))
-}
-
-fn consume_nonce(nonce: &str, exp: i64) -> Result<(), StateError> {
-    let now = Utc::now().timestamp();
-    let mut store = used_nonces().lock().unwrap_or_else(PoisonError::into_inner);
-    store.retain(|_, until| *until > now);
-    if store.contains_key(nonce) {
-        return Err(StateError::Replay);
-    }
-    store.insert(nonce.to_string(), exp);
-    drop(store);
-    Ok(())
-}
-
-fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
-    if left.len() != right.len() {
-        return false;
-    }
-    left.iter()
-        .zip(right.iter())
-        .fold(0u8, |acc, (a, b)| acc | (a ^ b))
-        == 0
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn configure_test_key() {
+        let config = iam_configuration::security::SecurityConfig {
+            mode: iam_configuration::security::SecurityMode::IsolatedTest,
+            ..iam_configuration::security::SecurityConfig::default()
+        };
+        configure_oauth_state_secret(
+            config
+                .validate_oauth_state_secret("iam-oauth-state-hmac-test")
+                .unwrap(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn installing_a_different_key_never_silently_reuses_the_first() {
+        configure_test_key();
+        let config = iam_configuration::security::SecurityConfig {
+            mode: iam_configuration::security::SecurityMode::IsolatedTest,
+            ..iam_configuration::security::SecurityConfig::default()
+        };
+        assert!(configure_oauth_state_secret(
+            config
+                .validate_oauth_state_secret("different-isolated-test-key")
+                .unwrap()
+        )
+        .is_err());
+    }
+
     #[test]
     fn test_login_state_roundtrip() {
+        configure_test_key();
         let state = OAuthState::new_login("github");
         let encoded = state.encode().unwrap();
         let decoded = OAuthState::decode(&encoded).unwrap();
@@ -216,6 +247,7 @@ mod tests {
 
     #[test]
     fn test_link_state_roundtrip() {
+        configure_test_key();
         let user_id = Uuid::new_v4();
         let state = OAuthState::new_link(user_id, "gitlab");
         let encoded = state.encode().unwrap();
@@ -242,18 +274,18 @@ mod tests {
     }
 
     #[test]
-    fn replayed_state_is_rejected() {
+    fn inspection_is_not_a_process_local_replay_authority() {
+        configure_test_key();
         let state = OAuthState::new_login("github");
         let encoded = state.encode().unwrap();
         assert!(OAuthState::decode(&encoded).is_ok());
-        assert!(matches!(
-            OAuthState::decode(&encoded),
-            Err(StateError::Replay)
-        ));
+        assert!(OAuthState::inspect(&encoded).is_ok());
+        assert!(OAuthState::decode(&encoded).is_ok());
     }
 
     #[test]
     fn decode_rejects_missing_provider_field() {
+        configure_test_key();
         let json = serde_json::json!({
             "operation": { "type": "login" },
             "nonce": Uuid::new_v4().to_string(),

@@ -57,6 +57,9 @@ spec:
       initContainers:
         - name: fix-store-perms
           image: aiforall-apparatus-controller:j2
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
           imagePullPolicy: Never
           command: ["/bin/sh", "-c", "mkdir -p /var/lib/apparatus && chown -R 65534:65534 /var/lib/apparatus"]
           securityContext:
@@ -72,6 +75,9 @@ spec:
       containers:
         - name: operator
           image: aiforall-apparatus-controller:j2
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {cpu: "1", memory: 256Mi}
           imagePullPolicy: Never
           ports:
             - name: http

@@ -160,7 +160,6 @@ impl CommandErrorMapper for ProviderErrorMapper {
 }
 
 /// Link provider command
-#[derive(Debug, Clone)]
 pub struct LinkProviderCommand {
     /// Command instance ID
     pub command_id: Uuid,
@@ -172,19 +171,35 @@ pub struct LinkProviderCommand {
     pub code: String,
     /// Redirect URI used in OAuth flow
     pub redirect_uri: String,
+    pub consumed: iam_domain::entity::oauth_transaction::ConsumedOAuthTransaction,
 }
 
 impl LinkProviderCommand {
     /// Create a new link provider command
     #[must_use]
-    pub fn new(user_id: Uuid, provider: Provider, code: String, redirect_uri: String) -> Self {
+    pub fn new(
+        user_id: Uuid,
+        provider: Provider,
+        code: String,
+        redirect_uri: String,
+        consumed: iam_domain::entity::oauth_transaction::ConsumedOAuthTransaction,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             user_id,
             provider,
             code,
             redirect_uri,
+            consumed,
         }
+    }
+}
+
+impl std::fmt::Debug for LinkProviderCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LinkProviderCommand")
+            .field("command_id", &self.command_id)
+            .finish_non_exhaustive()
     }
 }
 
@@ -270,6 +285,7 @@ where
                 command.provider,
                 command.code,
                 command.redirect_uri,
+                command.consumed,
             )
             .await
             .map_err(|e| LinkProviderErrorMapper.map_error(Box::new(e)))
@@ -277,7 +293,7 @@ where
 }
 
 /// Generate OAuth start URL for linking command
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct GenerateLinkProviderStartUrlCommand {
     /// Command instance ID
     pub command_id: Uuid,
@@ -287,18 +303,33 @@ pub struct GenerateLinkProviderStartUrlCommand {
     pub redirect_uri: String,
     /// Encoded IAM OAuth state
     pub state: String,
+    pub begun: iam_domain::entity::oauth_transaction::BegunOAuthTransaction,
 }
 
 impl GenerateLinkProviderStartUrlCommand {
     /// Create a new generate link provider start URL command
     #[must_use]
-    pub fn new(provider: Provider, redirect_uri: String, state: String) -> Self {
+    pub fn new(
+        provider: Provider,
+        redirect_uri: String,
+        state: String,
+        begun: iam_domain::entity::oauth_transaction::BegunOAuthTransaction,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             provider,
             redirect_uri,
             state,
+            begun,
         }
+    }
+}
+
+impl std::fmt::Debug for GenerateLinkProviderStartUrlCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GenerateLinkProviderStartUrlCommand")
+            .field("command_id", &self.command_id)
+            .finish_non_exhaustive()
     }
 }
 
@@ -351,7 +382,12 @@ where
         command: GenerateLinkProviderStartUrlCommand,
     ) -> Result<String, CommandError> {
         self.link_provider_use_case
-            .generate_start_url(command.provider, command.redirect_uri, command.state)
+            .generate_start_url(
+                command.provider,
+                command.redirect_uri,
+                command.state,
+                &command.begun,
+            )
             .await
             .map_err(|e| LinkProviderErrorMapper.map_error(Box::new(e)))
     }
@@ -519,7 +555,6 @@ where
 }
 
 /// Relink provider command
-#[derive(Debug, Clone)]
 pub struct RelinkProviderCommand {
     /// Command instance ID
     pub command_id: Uuid,
@@ -531,19 +566,35 @@ pub struct RelinkProviderCommand {
     pub code: String,
     /// Redirect URI used in OAuth flow
     pub redirect_uri: String,
+    pub consumed: iam_domain::entity::oauth_transaction::ConsumedOAuthTransaction,
 }
 
 impl RelinkProviderCommand {
     /// Create a new relink provider command
     #[must_use]
-    pub fn new(user_id: Uuid, provider: Provider, code: String, redirect_uri: String) -> Self {
+    pub fn new(
+        user_id: Uuid,
+        provider: Provider,
+        code: String,
+        redirect_uri: String,
+        consumed: iam_domain::entity::oauth_transaction::ConsumedOAuthTransaction,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             user_id,
             provider,
             code,
             redirect_uri,
+            consumed,
         }
+    }
+}
+
+impl std::fmt::Debug for RelinkProviderCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RelinkProviderCommand")
+            .field("command_id", &self.command_id)
+            .finish_non_exhaustive()
     }
 }
 
@@ -629,6 +680,7 @@ where
                 command.provider,
                 command.code,
                 command.redirect_uri,
+                command.consumed,
             )
             .await
             .map_err(|e| LinkProviderErrorMapper.map_error(Box::new(e)))
@@ -636,7 +688,7 @@ where
 }
 
 /// Generate OAuth start URL for relinking command
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct GenerateRelinkProviderStartUrlCommand {
     /// Command instance ID
     pub command_id: Uuid,
@@ -646,18 +698,33 @@ pub struct GenerateRelinkProviderStartUrlCommand {
     pub redirect_uri: String,
     /// Opaque state forwarded to the connector
     pub state: String,
+    pub begun: iam_domain::entity::oauth_transaction::BegunOAuthTransaction,
 }
 
 impl GenerateRelinkProviderStartUrlCommand {
     /// Create a new generate relink provider start URL command
     #[must_use]
-    pub fn new(provider: Provider, redirect_uri: String, state: String) -> Self {
+    pub fn new(
+        provider: Provider,
+        redirect_uri: String,
+        state: String,
+        begun: iam_domain::entity::oauth_transaction::BegunOAuthTransaction,
+    ) -> Self {
         Self {
             command_id: Uuid::new_v4(),
             provider,
             redirect_uri,
             state,
+            begun,
         }
+    }
+}
+
+impl std::fmt::Debug for GenerateRelinkProviderStartUrlCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GenerateRelinkProviderStartUrlCommand")
+            .field("command_id", &self.command_id)
+            .finish_non_exhaustive()
     }
 }
 
@@ -710,7 +777,12 @@ where
         command: GenerateRelinkProviderStartUrlCommand,
     ) -> Result<String, CommandError> {
         self.link_provider_use_case
-            .generate_relink_start_url(command.provider, command.redirect_uri, command.state)
+            .generate_relink_start_url(
+                command.provider,
+                command.redirect_uri,
+                command.state,
+                &command.begun,
+            )
             .await
             .map_err(|e| LinkProviderErrorMapper.map_error(Box::new(e)))
     }

@@ -1,5 +1,7 @@
 # ADR-0006 : La réconciliation Apparatus P2 est un contrôleur in-process de Manifesto, sans infrastructure réelle
 
+> Mise à jour 2026-10-04 — migrations aplaties, un seul fichier nécessaire pour le moment : `services/Manifesto/migration/src/m20241015_000001_initial_schema.rs` (Apparatus et outbox inclus). Les chemins incrémentaux ci-dessous sont historiques ; `down` retire désormais le schéma complet. Statut et réalité inchangés.
+
 - Statut : Accepted
 - Réalité : Implemented
 - Date : 2026-09-12

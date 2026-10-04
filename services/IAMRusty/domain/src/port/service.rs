@@ -33,13 +33,14 @@ pub trait JwtTokenEncoder: Send + Sync {
 }
 
 /// Registration token service for managing RSA-signed registration tokens
+#[async_trait]
 pub trait RegistrationTokenService: Send + Sync {
     /// Generate a registration token for email/password flow.
     ///
     /// # Errors
     ///
     /// Returns [`DomainError`] if the token cannot be signed.
-    fn generate_registration_token(
+    async fn generate_registration_token(
         &self,
         user_id: Uuid,
         email: String,
@@ -50,7 +51,7 @@ pub trait RegistrationTokenService: Send + Sync {
     /// # Errors
     ///
     /// Returns [`DomainError`] if the token cannot be signed.
-    fn generate_oauth_registration_token(
+    async fn generate_oauth_registration_token(
         &self,
         user_id: Uuid,
         email: String,
@@ -62,13 +63,13 @@ pub trait RegistrationTokenService: Send + Sync {
     /// # Errors
     ///
     /// Returns [`DomainError`] if the token is invalid, expired, or cannot be decoded.
-    fn validate_registration_token(
+    async fn validate_registration_token(
         &self,
         token: &str,
     ) -> Result<RegistrationTokenClaims, DomainError>;
 
     /// Check if a registration token is valid and not expired
-    fn is_registration_token_valid(&self, token: &str) -> bool;
+    async fn is_registration_token_valid(&self, token: &str) -> bool;
 }
 
 /// Token service for handling JWT tokens

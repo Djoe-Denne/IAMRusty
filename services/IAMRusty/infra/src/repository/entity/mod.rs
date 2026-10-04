@@ -4,6 +4,7 @@ pub mod password_reset_tokens;
 pub mod prelude;
 
 pub mod identities;
+pub mod oauth_transactions;
 pub mod provider_tokens;
 pub mod refresh_tokens;
 pub mod signing_keys;

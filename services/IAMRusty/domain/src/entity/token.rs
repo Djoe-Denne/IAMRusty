@@ -74,7 +74,7 @@ impl TokenClaims {
 }
 
 /// JWT key pair for token signing and verification
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct JwtKeyPair {
     /// Private key (RS256)
     pub private_key: String,
@@ -84,6 +84,14 @@ pub struct JwtKeyPair {
 
     /// Key ID
     pub kid: String,
+}
+
+impl std::fmt::Debug for JwtKeyPair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JwtKeyPair")
+            .field("kid", &self.kid)
+            .finish_non_exhaustive()
+    }
 }
 
 /// JSON Web Key Set for token verification
@@ -117,6 +125,13 @@ pub struct Jwk {
 
     /// Issuer bound to this key (custom claim; must equal JWT `iss`).
     pub iss: String,
+    /// Registry lifecycle metadata. Missing values never imply Active.
+    #[serde(default)]
+    pub status: Option<crate::entity::signing_key::SigningKeyStatus>,
+    #[serde(default)]
+    pub trust_scope: Option<crate::entity::signing_key::TrustScope>,
+    #[serde(default)]
+    pub organization_id: Option<Uuid>,
 }
 
 impl Jwk {
@@ -127,10 +142,10 @@ impl Jwk {
     /// Returns an error string if the PEM cannot be parsed as an RSA public key.
     pub fn from_rsa_pem(public_key_pem: &str, kid: &str, issuer: &str) -> Result<Self, String> {
         use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-        use rsa::{pkcs8::DecodePublicKey, traits::PublicKeyParts, RsaPublicKey};
+        use rsa::traits::PublicKeyParts;
 
-        let rsa_pub = RsaPublicKey::from_public_key_pem(public_key_pem)
-            .map_err(|e| format!("Failed to parse RSA public key PEM: {e}"))?;
+        let rsa_pub = crate::entity::signing_key::parse_signing_public_key(public_key_pem)
+            .map_err(|_| "invalid RSA public key".to_string())?;
         Ok(Self {
             kty: "RSA".to_string(),
             kid: kid.to_string(),
@@ -139,16 +154,50 @@ impl Jwk {
             n: URL_SAFE_NO_PAD.encode(rsa_pub.n().to_bytes_be()),
             e: URL_SAFE_NO_PAD.encode(rsa_pub.e().to_bytes_be()),
             iss: issuer.to_string(),
+            status: None,
+            trust_scope: None,
+            organization_id: None,
         })
     }
 }
 
 impl JwkSet {
-    /// Convert registry keys to JWKS. Non-RS256 and invalid RSA PEMs are skipped (never fail-closed).
+    /// Complete canonical DTO, never silently drop an admissible row.
+    pub fn from_registry_keys_checked(
+        keys: &[crate::entity::signing_key::SigningKey],
+    ) -> Result<Self, crate::error::DomainError> {
+        let mut kids = std::collections::HashSet::new();
+        if keys.iter().any(|key| {
+            !kids.insert(&key.kid)
+                || key.algorithm != "RS256"
+                || key.issuer.is_empty()
+                || key.status == crate::entity::signing_key::SigningKeyStatus::Revoked
+                || (key.trust_scope == crate::entity::signing_key::TrustScope::Platform)
+                    != key.organization_id.is_none()
+                || Jwk::from_rsa_pem(&key.public_key, &key.kid, &key.issuer).is_err()
+        }) {
+            return Err(crate::error::DomainError::InvalidSigningKeyMaterial);
+        }
+        Ok(Self::from_registry_keys(keys))
+    }
+
+    /// Exact serde compact UTF8 shared by publication DTO and reservation math.
+    pub fn compact_bytes(&self) -> Result<Vec<u8>, crate::error::DomainError> {
+        serde_json::to_vec(self).map_err(|_| crate::error::DomainError::InvalidSigningKeyMaterial)
+    }
+    /// Convert valid registry public material to JWKS with actual lifecycle/trust
+    /// metadata. Revoked/invalid bindings, non-RS256 and invalid PEMs are excluded.
     #[must_use]
     pub fn from_registry_keys(keys: &[crate::entity::signing_key::SigningKey]) -> Self {
         let mut jwks_keys = Vec::with_capacity(keys.len());
         for key in keys {
+            use crate::entity::signing_key::{SigningKeyStatus, TrustScope};
+            if key.status == SigningKeyStatus::Revoked
+                || key.issuer.is_empty()
+                || (key.trust_scope == TrustScope::Platform) != key.organization_id.is_none()
+            {
+                continue;
+            }
             if !key.algorithm.eq_ignore_ascii_case("RS256") {
                 tracing::warn!(
                     kid = %key.kid,
@@ -158,7 +207,12 @@ impl JwkSet {
                 continue;
             }
             match Jwk::from_rsa_pem(&key.public_key, &key.kid, &key.issuer) {
-                Ok(jwk) => jwks_keys.push(jwk),
+                Ok(mut jwk) => {
+                    jwk.status = Some(key.status.clone());
+                    jwk.trust_scope = Some(key.trust_scope.clone());
+                    jwk.organization_id = key.organization_id;
+                    jwks_keys.push(jwk);
+                }
                 Err(e) => {
                     tracing::warn!(
                         kid = %key.kid,

@@ -1,5 +1,7 @@
 # ADR-0001 : Le binding Apparatus est une extension 1:1 de ProjectComponent, propriété Manifesto
 
+> Mise à jour 2026-10-04 — migrations aplaties, un seul fichier nécessaire pour le moment : `services/Manifesto/migration/src/m20241015_000001_initial_schema.rs` (Apparatus et outbox inclus). Les chemins incrémentaux ci-dessous sont historiques ; `down` retire désormais le schéma complet. Statut et réalité inchangés.
+
 - Statut : Accepted
 - Réalité : Partial
 - Date : 2026-09-10

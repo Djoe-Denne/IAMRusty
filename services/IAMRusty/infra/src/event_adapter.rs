@@ -67,6 +67,12 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
                 ServiceError::infrastructure(format!("{service}: {message}"))
             }
             DomainError::TokenNotFound => ServiceError::authentication("Token not found"),
+            DomainError::SigningKeyAdmissionDenied { .. } => {
+                ServiceError::authorization("Signing key admission denied")
+            }
+            DomainError::InvalidSigningKeyMaterial => {
+                ServiceError::validation("Invalid signing key material")
+            }
         }
     }
 

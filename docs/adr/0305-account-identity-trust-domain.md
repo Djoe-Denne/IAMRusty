@@ -73,3 +73,7 @@ Membership Hive porte `(iss, sub)` ; tokens `iss=iamrusty` = platform historique
   - Unit : `services/IAMRusty/domain/tests/identity_ensure.rs`, `services/Hive/domain/tests/member_issuer.rs`
   - FGA reste `user:{uuid}` : `workers/sentinel-sync/src/fga_client.rs`
 - Gaps vs cible : linking multi-domain, switch d’identity UX, mint JWT org
+
+## Mise à jour 2026-10-04 — migrations aplaties
+
+Il n'existe pas de données en production à préserver. Le schéma IAM, dont `identities` et ses index, est livré en un seul fichier de migration initiale, `services/IAMRusty/migration/src/m20220101_000001_initial_schema.rs`. Le chemin 000003 ci-dessus reste une référence historique ; le backfill legacy n'est plus nécessaire. Les migrations incrémentales seront réintroduites seulement quand un état persisté devra être préservé. Statut et réalité inchangés.

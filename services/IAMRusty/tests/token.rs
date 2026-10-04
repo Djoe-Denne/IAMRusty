@@ -635,13 +635,16 @@ async fn test_refresh_token_concurrent_requests_with_same_token() {
 
     // Make multiple concurrent requests with the same refresh token
     let mut handles = vec![];
+    let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(3));
 
     for i in 0..3 {
         let base_url = base_url.clone();
         let token = refresh_token.to_string();
+        let barrier = barrier.clone();
 
         let handle = tokio::spawn(async move {
             let client2 = create_test_client();
+            barrier.wait().await;
             let response = client2
                 .post(format!("{base_url}/api/token/refresh"))
                 .json(&json!({
@@ -660,6 +663,7 @@ async fn test_refresh_token_concurrent_requests_with_same_token() {
     // Wait for all requests to complete
     let mut success_count = 0;
     let mut failure_count = 0;
+    let mut winning_refresh_token = None;
 
     for handle in handles {
         let (request_id, status, response_result) = handle.await.expect("Request failed");
@@ -675,6 +679,7 @@ async fn test_refresh_token_concurrent_requests_with_same_token() {
                 response_json["refresh_token"].is_string(),
                 "Request {request_id} should return new refresh token"
             );
+            winning_refresh_token = response_json["refresh_token"].as_str().map(str::to_owned);
         } else if status == 401 {
             failure_count += 1;
             // This is expected due to token rotation
@@ -683,26 +688,36 @@ async fn test_refresh_token_concurrent_requests_with_same_token() {
         }
     }
 
-    // ✅ With refresh token rotation, the behavior depends on timing
-    // At least one request should succeed, and we should have some results
-    assert!(
-        success_count >= 1,
-        "At least one concurrent request should succeed"
-    );
+    assert_eq!(success_count, 1, "Rotation must have exactly one winner");
     assert_eq!(
-        success_count + failure_count,
-        3,
-        "All requests should complete"
+        failure_count, 2,
+        "Both losing requests must be unauthorized"
     );
-
-    // In most cases, we expect only one success due to token rotation,
-    // but due to timing/race conditions, multiple might succeed before the deletion happens
-    if success_count == 1 {
-        assert_eq!(
-            failure_count, 2,
-            "If only one succeeds, two should fail due to token rotation"
-        );
-    }
+    let winner = winning_refresh_token.expect("Winner must return a refresh token");
+    assert!(
+        winner != refresh_token,
+        "Rotation must replace the consumed token"
+    );
+    let active = db
+        .query_one(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT COUNT(*) AS count FROM refresh_tokens WHERE user_id = $1 AND is_valid = true AND expires_at > NOW()",
+            [user.id().into()],
+        ))
+        .await
+        .expect("Read remaining refresh tokens")
+        .expect("COUNT returns a row");
+    assert_eq!(active.try_get::<i64>("", "count").expect("count"), 1);
+    let replacement = db
+        .query_one(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT COUNT(*) AS count FROM refresh_tokens WHERE user_id = $1 AND token = $2 AND is_valid = true AND expires_at > NOW()",
+            [user.id().into(), iam_domain::entity::token::RefreshToken::hash_token(&winner).into()],
+        ))
+        .await
+        .expect("Read winning refresh token")
+        .expect("COUNT returns a row");
+    assert_eq!(replacement.try_get::<i64>("", "count").expect("count"), 1);
 }
 
 #[tokio::test]

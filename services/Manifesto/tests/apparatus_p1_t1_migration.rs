@@ -23,7 +23,7 @@ fn migration_dir() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migration/src")
 }
 
-/// Fichiers de migration portant `apparatus` dans leur nom.
+/// Fichier initial portant désormais le schéma Apparatus aplati.
 fn apparatus_migrations() -> Vec<std::path::PathBuf> {
     let mut out = Vec::new();
     let entries = std::fs::read_dir(migration_dir()).expect("migration/src lisible");
@@ -32,7 +32,7 @@ fn apparatus_migrations() -> Vec<std::path::PathBuf> {
         if path
             .file_name()
             .and_then(|n| n.to_str())
-            .is_some_and(|n| n.contains("apparatus") && n.ends_with(".rs"))
+            .is_some_and(|n| n == "m20241015_000001_initial_schema.rs")
         {
             out.push(path);
         }
@@ -48,7 +48,7 @@ fn apparatus_migrations() -> Vec<std::path::PathBuf> {
 fn t1_migration_file_exists() {
     assert!(
         !apparatus_migrations().is_empty(),
-        "RED T1 : aucun fichier services/Manifesto/migration/src/*apparatus*.rs"
+        "RED T1 : fichier services/Manifesto/migration/src/m20241015_000001_initial_schema.rs absent"
     );
 }
 
@@ -83,8 +83,8 @@ fn t1_migration_registered_in_migrator() {
     let lib = migration_dir().join("lib.rs");
     let content = std::fs::read_to_string(&lib).expect("migration lib lisible");
     assert!(
-        content.to_lowercase().contains("apparatus"),
-        "RED T1 : Migrator ne référence aucune migration apparatus"
+        content.contains("m20241015_000001_initial_schema"),
+        "RED T1 : Migrator ne référence pas le schéma initial"
     );
 }
 

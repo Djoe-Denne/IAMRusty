@@ -39,22 +39,47 @@ impl TransitSigningProvider {
         public_key_pem: Option<String>,
     ) -> Result<Self, DomainError> {
         let key_name = key_name.into();
-        if key_name == FORBIDDEN_TRANSIT_KEY_NAME {
-            return Err(DomainError::AuthorizationError(
-                "Transit key name apparatus-p4-cosign is forbidden".into(),
-            ));
-        }
+        iam_domain::entity::signing_key::require_transit_key_name(&key_name)?;
         let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
-            .map_err(|e| DomainError::external_service_error("openbao_transit", &e.to_string()))?;
+            .map_err(|_| {
+                DomainError::external_service_error(
+                    "openbao_transit",
+                    "HTTP client initialization failed",
+                )
+            })?;
+        let base_url = base_url.into();
+        let parsed = reqwest::Url::parse(&base_url).map_err(|_| DomainError::InvalidToken)?;
+        if !matches!(parsed.scheme(), "http" | "https")
+            || !parsed.username().is_empty()
+            || parsed.password().is_some()
+            || parsed.query().is_some()
+            || parsed.fragment().is_some()
+        {
+            return Err(DomainError::InvalidToken);
+        }
         Ok(Self {
             client,
-            base_url: base_url.into().trim_end_matches('/').to_string(),
+            base_url: base_url.trim_end_matches('/').to_string(),
             key_name,
             token_ref: token_ref.into(),
             workload,
             public_key_pem,
         })
+    }
+
+    fn endpoint(&self, operation: &str) -> Result<reqwest::Url, DomainError> {
+        let mut url = reqwest::Url::parse(&self.base_url).map_err(|_| DomainError::InvalidToken)?;
+        url.path_segments_mut()
+            .map_err(|_| DomainError::InvalidToken)?
+            .pop_if_empty()
+            .push("v1")
+            .push("transit")
+            .push(operation)
+            .push(&self.key_name);
+        Ok(url)
     }
 
     /// `POST /v1/transit/keys/{name}` with `type=rsa-2048`, `exportable=false`.
@@ -64,26 +89,27 @@ impl TransitSigningProvider {
     /// Returns [`DomainError`] on HTTP or auth failure.
     pub async fn create_rsa2048_key(&self) -> Result<(), DomainError> {
         let cred = self.workload.resolve(&self.token_ref).await?;
-        let url = format!("{}/v1/transit/keys/{}", self.base_url, self.key_name);
+        let url = self.endpoint("keys")?;
         let body = serde_json::json!({
             "type": "rsa-2048",
             "exportable": false,
         });
-        debug!(%url, "OpenBao Transit create key");
+        debug!("OpenBao Transit create key");
         let response = self
             .client
-            .post(&url)
+            .post(url)
             .header("X-Vault-Token", &cred.secret)
             .json(&body)
             .send()
             .await
-            .map_err(|e| DomainError::external_service_error("openbao_transit", &e.to_string()))?;
+            .map_err(|_| {
+                DomainError::external_service_error("openbao_transit", "request failed")
+            })?;
         if !response.status().is_success() {
             let status = response.status();
-            let text = response.text().await.unwrap_or_default();
             return Err(DomainError::external_service_error(
                 "openbao_transit",
-                &format!("create key HTTP {status}: {text}"),
+                &format!("create key HTTP {status}"),
             ));
         }
         Ok(())
@@ -91,25 +117,26 @@ impl TransitSigningProvider {
 
     async fn fetch_public_key_pem(&self) -> Result<String, DomainError> {
         let cred = self.workload.resolve(&self.token_ref).await?;
-        let url = format!("{}/v1/transit/keys/{}", self.base_url, self.key_name);
-        debug!(%url, "OpenBao Transit read key");
+        let url = self.endpoint("keys")?;
+        debug!("OpenBao Transit read key");
         let response = self
             .client
-            .get(&url)
+            .get(url)
             .header("X-Vault-Token", &cred.secret)
             .send()
             .await
-            .map_err(|e| DomainError::external_service_error("openbao_transit", &e.to_string()))?;
+            .map_err(|_| {
+                DomainError::external_service_error("openbao_transit", "request failed")
+            })?;
         if !response.status().is_success() {
             let status = response.status();
-            let text = response.text().await.unwrap_or_default();
             return Err(DomainError::external_service_error(
                 "openbao_transit",
-                &format!("read key HTTP {status}: {text}"),
+                &format!("read key HTTP {status}"),
             ));
         }
-        let parsed: TransitReadKeyResponse = response.json().await.map_err(|e| {
-            DomainError::external_service_error("openbao_transit", &format!("invalid JSON: {e}"))
+        let parsed: TransitReadKeyResponse = response.json().await.map_err(|_| {
+            DomainError::external_service_error("openbao_transit", "invalid key response")
         })?;
         parsed
             .data
@@ -159,7 +186,7 @@ struct TransitKeyVersion {
 impl SigningProvider for TransitSigningProvider {
     async fn sign_digest(&self, digest: &[u8]) -> Result<Vec<u8>, DomainError> {
         let cred = self.workload.resolve(&self.token_ref).await?;
-        let url = format!("{}/v1/transit/sign/{}", self.base_url, self.key_name);
+        let url = self.endpoint("sign")?;
         let body = serde_json::json!({
             "input": STANDARD.encode(digest),
             "prehashed": true,
@@ -167,27 +194,28 @@ impl SigningProvider for TransitSigningProvider {
             "signature_algorithm": "pkcs1v15",
         });
 
-        debug!(%url, "OpenBao Transit sign");
+        debug!("OpenBao Transit sign");
         let response = self
             .client
-            .post(&url)
+            .post(url)
             .header("X-Vault-Token", &cred.secret)
             .json(&body)
             .send()
             .await
-            .map_err(|e| DomainError::external_service_error("openbao_transit", &e.to_string()))?;
+            .map_err(|_| {
+                DomainError::external_service_error("openbao_transit", "request failed")
+            })?;
 
         if !response.status().is_success() {
             let status = response.status();
-            let text = response.text().await.unwrap_or_default();
             return Err(DomainError::external_service_error(
                 "openbao_transit",
-                &format!("HTTP {status}: {text}"),
+                &format!("HTTP {status}"),
             ));
         }
 
-        let parsed: TransitSignResponse = response.json().await.map_err(|e| {
-            DomainError::external_service_error("openbao_transit", &format!("invalid JSON: {e}"))
+        let parsed: TransitSignResponse = response.json().await.map_err(|_| {
+            DomainError::external_service_error("openbao_transit", "invalid sign response")
         })?;
 
         // vault:v1:<base64>
@@ -241,5 +269,44 @@ mod tests {
             ),
             "TransitSigningProvider::new must refuse apparatus-p4-cosign"
         );
+    }
+
+    #[tokio::test]
+    async fn challenge_requests_only_exact_sign_endpoint_and_does_not_follow_redirects() {
+        use iam_domain::port::{WorkloadCredential, WorkloadIdentity};
+        use wiremock::{
+            matchers::{method, path},
+            Mock, MockServer, ResponseTemplate,
+        };
+        struct Credential;
+        #[async_trait]
+        impl WorkloadIdentity for Credential {
+            async fn resolve(&self, _: &str) -> Result<WorkloadCredential, DomainError> {
+                Ok(WorkloadCredential {
+                    secret: "unit-credential".into(),
+                })
+            }
+        }
+        let server = MockServer::start().await;
+        let destination = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/transit/sign/org-key"))
+            .respond_with(ResponseTemplate::new(302).insert_header("Location", destination.uri()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let provider = TransitSigningProvider::new(
+            server.uri(),
+            "org-key",
+            "org-credential",
+            Arc::new(Credential),
+            Some("public-key".into()),
+        )
+        .unwrap();
+        assert!(provider.sign_digest(b"digest").await.is_err());
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].url.path(), "/v1/transit/sign/org-key");
+        assert!(destination.received_requests().await.unwrap().is_empty());
     }
 }

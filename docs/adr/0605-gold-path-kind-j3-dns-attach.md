@@ -1,7 +1,7 @@
 # ADR-0605 : Le gold path local Kind = HTTP 200 via le monolithe J3 seul Lazaret ; DNS = Service ClusterIP du même nom que le Pod ; attach digest + declared_capabilities = writer managed existant
 
 - Statut : Proposed
-- Réalité : Implemented
+- Réalité : Partial
 - Date : 2026-09-25
 - Décideurs : (à remplir à l’acceptation)
 - Jalon concerné : Cloud-portable (gold path local Kind ; hors Apparatus P0–P6)
@@ -9,7 +9,7 @@
 - SuperSédée par : —
 - Related : [0601](0601-cluster-trust-namespaces-standalones.md), [0604](0604-j3-overlay-demo-monolith-kind-invoke.md), [0603](0603-tranche-locale-deploy-kind-apparatus-lazaret.md), [0006](0006-apparatus-p2-reconciliation-in-process.md), [0007](0007-apparatus-p3-capability-boundary-after-accept.md), [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md), [0010](0010-gate-preprod-workload-certificate-ca.md), [0404](0404-runtime-microservices-et-monolithe.md)
 
-`Accepted` ratifierait le **gold path local** ci-dessous. `Réalité` **Implemented** : attach writer + locator DNS + Service operator + Job Adm-A (`SA admit-sign`) + `just prove-gold` → invoke in-cluster HTTP 200 (accord de coding explicite ; Statut reste Proposed). Dette locale : Transit sur le même OpenBao `-dev` (D-TRANSIT-TCB). Cette ADR **ne SuperSède pas** [0601](0601-cluster-trust-namespaces-standalones.md) (canon 4+1), [0604](0604-j3-overlay-demo-monolith-kind-invoke.md) (overlay démo = écart de séquence), [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md) ni [0010](0010-gate-preprod-workload-certificate-ca.md).
+`Accepted` ratifierait le **gold path local** ci-dessous ; le Statut reste Proposed. `Réalité : Partial` au 2026-10-04 : attach writer, locator DNS, Service operator, Job Adm-A et helper présents ; l’ancien Implemented et HTTP200 J3 restent des preuves historiques, pas une validation du root actuel modifié. D-TRANSIT-TCB (OpenBao DEV commun) reste visible. Cette ADR ne SuperSède ni [0601](0601-cluster-trust-namespaces-standalones.md), ni [0604](0604-j3-overlay-demo-monolith-kind-invoke.md), ni [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md), ni [0010](0010-gate-preprod-workload-certificate-ca.md). Le nouveau lab [0606](0606-local-full-kind-isole.md) ne constitue pas automatiquement une nouvelle preuve gold/J3.
 
 ## Contexte
 
@@ -55,10 +55,17 @@ Les trois points ci-dessous forment **un seul** choix de gold path local Kind (o
 - J4 bascule 4+1 ; GKE / 0602 ; Factory / host UI (P5/P6)
 - Contenu exact YAML / impl locator (formule URL seulement)
 
+## Réalité courante et preuve historique — 2026-10-04
+
+- La preuve `just prove-gold` HTTP200 décrite en références est historique. Source présente : writer managed attach, locator DNS/operator, Job `ops/deploy/p4/admit-job.yaml` et overlay `ops/deploy/apps/overlays/kind-demo-monolith/`. Aucun nouveau build/IT/E2E de ce parcours au root HEAD `5348a63` modifié/non committé ne permet de maintenir Implemented comme réalité courante.
+- La cible métier reste attach digest/declared via writer managed, URL Service du Pod, Adm-A signé et invoke in-cluster. Le rendu D6/local-full 112 ressources ne prouve ni l’attache, ni la validation admission, ni HTTP200. Le choix monolithe J3 n’est pas réinterprété silencieusement comme preuve standalone.
+- Le lab local-full dédié ([0606](0606-local-full-kind-isole.md)) vise dépendances in-Kind et PVC local-path ; DEV/SQS volatils, catalog/SMTP simulés, OAuth externe désactivé et stockage node-local ne sont ni HA ni reprise prouvée. Preuve crypto/autorisation/attache/réseau et backup/restore cible distincte restent exigés selon leurs constats, sans retrait automatique du scope local.
+- Root compilation/units, IT testcontainers puis E2E après intégration : contexte full autorisé et inventaire/bail vérifiés. Legacy étranger préservé ; non-reproductibilité gold/J3 dans ce périmètre ⇒ INCONCLUSIVE/arbitrage humain, jamais delete/recreate ni transfert de résultat historique. Aucun cloud/GKE/Flux/HSM fictivement livré.
+
 ## Références
 
 - Guide : `docs/platform-local-gold-case-implementation-guide.md` ; plan : `docs/platform-local-monolith-kind-implementation-plan.md`
 - Overlay démo : [0604](0604-j3-overlay-demo-monolith-kind-invoke.md) ; canon cluster : [0601](0601-cluster-trust-namespaces-standalones.md)
 - Gates pré-prod (citer) : [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md), [0010](0010-gate-preprod-workload-certificate-ca.md)
 - Attach / consents : [0006](0006-apparatus-p2-reconciliation-in-process.md), [0007](0007-apparatus-p3-capability-boundary-after-accept.md)
-- Preuve d’implémentation : `just prove-gold` ; Job `apparatus-admit-gold-*` SA `admit-sign` ; Pod+Service `plugin-{32hex}` ; invoke in-cluster HTTPS `/lazaret/invoke` → HTTP 200 + `hostname=plugin-{32hex}`
+- Preuve historique de la tranche gold/J3 (pas de nouvelle exécution) : `just prove-gold` ; Job `apparatus-admit-gold-*` SA `admit-sign` ; Pod+Service `plugin-{32hex}` ; invoke in-cluster HTTPS `/lazaret/invoke` → HTTP 200 + `hostname=plugin-{32hex}`

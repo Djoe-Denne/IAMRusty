@@ -1,6 +1,10 @@
 // Include common test utilities and fixtures
 
+#[path = "support/browser_flow.rs"]
+mod browser_flow;
 mod common;
+#[path = "support/fixture_cleanup.rs"]
+mod fixture_cleanup;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 mod utils;
@@ -23,56 +27,60 @@ async fn test_oauth_callback_gitlab_successful_flow_creates_jwt_for_new_user() {
     let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let _db = fixture.db();
+    fixture_cleanup::run(&fixture, async {
+        let _db = fixture.db();
 
-    // Setup GitLab mock server for successful flow
-    let idp = IdpConnectFixtures::service().await;
-    idp.mock_gitlab_happy_alice().await;
+        // Setup GitLab mock server for successful flow
+        let idp = IdpConnectFixtures::service().await;
+        idp.mock_gitlab_happy_alice().await;
 
-    // Create valid state for login operation
-    let state = OAuthTestUtils::create_login_state("gitlab");
+        // Create valid state for login operation
+        let (state, cookie) = browser_flow::login(&client, &base_url, "gitlab", &idp).await;
 
-    // Make callback request with authorization code
-    let response = client
-        .get(format!("{base_url}/api/auth/gitlab/callback"))
-        .query(&[("code", "test_auth_code"), ("state", &state)])
-        .send()
-        .await
-        .expect("Failed to send callback request");
+        // Make callback request with authorization code
+        let response = client
+            .get(format!("{base_url}/api/auth/gitlab/callback"))
+            .query(&[("code", "test_auth_code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .expect("Failed to send callback request");
 
-    // ✅ Should return 200 OK with JWT token
-    assert_eq!(
-        response.status(),
-        202,
-        "Should return 200 OK for successful GitLab OAuth callback"
-    );
+        // ✅ Should return 200 OK with JWT token
+        assert_eq!(
+            response.status(),
+            202,
+            "Should return 200 OK for successful GitLab OAuth callback"
+        );
 
-    let response_json: Value = response.json().await.expect("Should return JSON response");
+        let response_json: Value = response.json().await.expect("Should return JSON response");
 
-    assert_eq!(
-        response_json["operation"],
-        "registration_required".to_string()
-    );
+        assert_eq!(
+            response_json["operation"],
+            "registration_required".to_string()
+        );
 
-    // ✅ Should return registration token
-    let registration_token = response_json["registration_token"]
-        .as_str()
-        .expect("Response should contain registration token");
-    assert!(
-        JwtTestUtils::verify_jwt_structure(registration_token),
-        "Registration token should have valid structure"
-    );
-
-    // ✅ Should return provider info
-    let provider_info = response_json["provider_info"]
-        .as_object()
-        .expect("Response should contain provider info");
-    assert_eq!(
-        provider_info["email"]
+        // ✅ Should return registration token
+        let registration_token = response_json["registration_token"]
             .as_str()
-            .expect("Provider info should contain email"),
-        "alice@example.com"
-    );
+            .expect("Response should contain registration token");
+        assert!(
+            JwtTestUtils::verify_jwt_structure(registration_token),
+            "Registration token should have valid structure"
+        );
+
+        // ✅ Should return provider info
+        let provider_info = response_json["provider_info"]
+            .as_object()
+            .expect("Response should contain provider info");
+        assert_eq!(
+            provider_info["email"]
+                .as_str()
+                .expect("Provider info should contain email"),
+            "alice@example.com"
+        );
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -81,42 +89,46 @@ async fn test_oauth_callback_replay_same_state_returns_400_invalid_state() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
+    fixture_cleanup::run(&_fixture, async {
+        let idp = IdpConnectFixtures::service().await;
+        idp.mock_gitlab_happy_alice().await;
 
-    let idp = IdpConnectFixtures::service().await;
-    idp.mock_gitlab_happy_alice().await;
+        let (state, cookie) = browser_flow::login(&client, &base_url, "gitlab", &idp).await;
+        let callback = format!("{base_url}/api/auth/gitlab/callback");
 
-    let state = OAuthTestUtils::create_login_state("gitlab");
-    let callback = format!("{base_url}/api/auth/gitlab/callback");
+        let first = client
+            .get(&callback)
+            .query(&[("code", "test_auth_code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .expect("Failed to send first callback request");
+        assert_eq!(
+            first.status(),
+            202,
+            "First callback should succeed and consume OAuthState nonce"
+        );
 
-    let first = client
-        .get(&callback)
-        .query(&[("code", "test_auth_code"), ("state", &state)])
-        .send()
-        .await
-        .expect("Failed to send first callback request");
-    assert_eq!(
-        first.status(),
-        202,
-        "First callback should succeed and consume OAuthState nonce"
-    );
+        let replay = client
+            .get(&callback)
+            .query(&[("code", "test_auth_code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .expect("Failed to send replayed callback request");
+        assert_eq!(
+            replay.status(),
+            400,
+            "Replayed OAuthState must return 400 invalid_state"
+        );
 
-    let replay = client
-        .get(&callback)
-        .query(&[("code", "test_auth_code"), ("state", &state)])
-        .send()
-        .await
-        .expect("Failed to send replayed callback request");
-    assert_eq!(
-        replay.status(),
-        400,
-        "Replayed OAuthState must return 400 invalid_state"
-    );
-
-    let error_response: Value = replay
-        .json()
-        .await
-        .expect("Should return JSON error response");
-    assert_eq!(error_response["error"]["error_code"], "invalid_state");
+        let error_response: Value = replay
+            .json()
+            .await
+            .expect("Should return JSON error response");
+        assert_eq!(error_response["error"]["error_code"], "invalid_state");
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -126,102 +138,107 @@ async fn test_oauth_callback_links_external_account_with_valid_link_state() {
     let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = fixture.db();
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
 
-    // Pre-create existing user with database fixtures
-    let existing_user = DbFixtures::user()
-        .arthur()
-        .commit(db.clone())
-        .await
-        .expect("Failed to create existing user");
+        // Pre-create existing user with database fixtures
+        let existing_user = DbFixtures::user()
+            .arthur()
+            .commit(db.clone())
+            .await
+            .expect("Failed to create existing user");
 
-    let primary_email = DbFixtures::user_email()
-        .arthur_primary(existing_user.id())
-        .commit(db.clone())
-        .await
-        .expect("Failed to create primary email");
+        let primary_email = DbFixtures::user_email()
+            .arthur_primary(existing_user.id())
+            .commit(db.clone())
+            .await
+            .expect("Failed to create primary email");
 
-    // Setup GitHub mock server
-    let idp = IdpConnectFixtures::service().await;
-    idp.mock_github_happy_arthur().await;
+        // Setup GitHub mock server
+        let idp = IdpConnectFixtures::service().await;
+        idp.mock_github_happy_arthur().await;
 
-    // Create valid state for link operation with existing user ID
-    let state = OAuthTestUtils::create_link_state(existing_user.id(), "github");
+        // Create valid state for link operation with existing user ID
+        let (state, cookie) =
+            browser_flow::link(&client, &base_url, "github", existing_user.id(), &idp).await;
 
-    // Make callback request for linking
-    let response = client
-        .get(format!("{base_url}/api/auth/github/callback"))
-        .query(&[("code", "test_auth_code"), ("state", &state)])
-        .send()
-        .await
-        .expect("Failed to send callback request");
+        // Make callback request for linking
+        let response = client
+            .get(format!("{base_url}/api/auth/github/callback"))
+            .query(&[("code", "test_auth_code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .expect("Failed to send callback request");
 
-    // ✅ Should return 200 OK with success status
-    assert_eq!(
-        response.status(),
-        200,
-        "Should return 200 OK for successful account linking"
-    );
+        // ✅ Should return 200 OK with success status
+        assert_eq!(
+            response.status(),
+            200,
+            "Should return 200 OK for successful account linking"
+        );
 
-    let response_json: Value = response.json().await.expect("Should return JSON response");
+        let response_json: Value = response.json().await.expect("Should return JSON response");
 
-    assert_eq!(response_json["operation"], "link");
-    assert!(response_json["message"]
-        .as_str()
-        .unwrap()
-        .contains("successfully linked"));
+        assert_eq!(response_json["operation"], "link");
+        assert!(response_json["message"]
+            .as_str()
+            .unwrap()
+            .contains("successfully linked"));
 
-    // ✅ Should NOT create new user (should still be 1)
-    let user_count = AuthTestUtils::count_entities(db.clone(), "users")
-        .await
-        .expect("Failed to count users");
-    assert_eq!(
-        user_count, 1,
-        "Should not create new user for linking operation"
-    );
+        // ✅ Should NOT create new user (should still be 1)
+        let user_count = AuthTestUtils::count_entities(db.clone(), "users")
+            .await
+            .expect("Failed to count users");
+        assert_eq!(
+            user_count, 1,
+            "Should not create new user for linking operation"
+        );
 
-    // ✅ Should create provider token linked to existing user
-    let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
-        .await
-        .expect("Failed to count provider tokens");
-    assert_eq!(token_count, 1, "Should create exactly one provider token");
+        // ✅ Should create provider token linked to existing user
+        let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
+            .await
+            .expect("Failed to count provider tokens");
+        assert_eq!(token_count, 1, "Should create exactly one provider token");
 
-    // ✅ Verify provider token is linked to correct user
-    let provider_token_data: Option<sea_orm::QueryResult> = db
-        .query_one(Statement::from_string(
-            DatabaseBackend::Postgres,
-            format!(
-                "SELECT user_id, provider FROM provider_tokens WHERE user_id = '{}'",
-                existing_user.id()
-            ),
-        ))
-        .await
-        .expect("Failed to query provider token");
+        // ✅ Verify provider token is linked to correct user
+        let provider_token_data: Option<sea_orm::QueryResult> = db
+            .query_one(Statement::from_string(
+                DatabaseBackend::Postgres,
+                format!(
+                    "SELECT user_id, provider FROM provider_tokens WHERE user_id = '{}'",
+                    existing_user.id()
+                ),
+            ))
+            .await
+            .expect("Failed to query provider token");
 
-    let provider_token_data = provider_token_data.expect("Provider token should exist");
-    let token_user_id: Uuid = provider_token_data
-        .try_get("", "user_id")
-        .expect("Should have user_id");
-    let provider: String = provider_token_data
-        .try_get("", "provider")
-        .expect("Should have provider");
+        let provider_token_data = provider_token_data.expect("Provider token should exist");
+        let token_user_id: Uuid = provider_token_data
+            .try_get("", "user_id")
+            .expect("Should have user_id");
+        let provider: String = provider_token_data
+            .try_get("", "provider")
+            .expect("Should have provider");
 
-    assert_eq!(
-        token_user_id,
-        existing_user.id(),
-        "Provider token should be linked to existing user"
-    );
-    assert_eq!(provider, "github", "Provider should be GitHub");
+        assert_eq!(
+            token_user_id,
+            existing_user.id(),
+            "Provider token should be linked to existing user"
+        );
+        assert_eq!(provider, "github", "Provider should be GitHub");
 
-    // ✅ Verify existing user and email are unchanged
-    assert!(existing_user
-        .check(db.clone())
-        .await
-        .expect("Failed to check existing user"));
-    assert!(primary_email
-        .check(db.clone())
-        .await
-        .expect("Failed to check primary email"));
+        // ✅ Verify existing user and email are unchanged
+        assert!(existing_user
+            .check(db.clone())
+            .await
+            .expect("Failed to check existing user"));
+        assert!(primary_email
+            .check(db.clone())
+            .await
+            .expect("Failed to check primary email"));
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -231,113 +248,118 @@ async fn test_oauth_callback_associates_new_provider_for_same_user() {
     let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = fixture.db();
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
 
-    // Pre-create user with existing GitHub provider
-    let existing_user = DbFixtures::user()
-        .arthur()
-        .commit(db.clone())
-        .await
-        .expect("Failed to create existing user");
+        // Pre-create user with existing GitHub provider
+        let existing_user = DbFixtures::user()
+            .arthur()
+            .commit(db.clone())
+            .await
+            .expect("Failed to create existing user");
 
-    let primary_email = DbFixtures::user_email()
-        .arthur_primary(existing_user.id())
-        .commit(db.clone())
-        .await
-        .expect("Failed to create primary email");
+        let primary_email = DbFixtures::user_email()
+            .arthur_primary(existing_user.id())
+            .commit(db.clone())
+            .await
+            .expect("Failed to create primary email");
 
-    let github_token = DbFixtures::provider_token()
-        .arthur_github(existing_user.id())
-        .commit(db.clone())
-        .await
-        .expect("Failed to create GitHub token");
+        let github_token = DbFixtures::provider_token()
+            .arthur_github(existing_user.id())
+            .commit(db.clone())
+            .await
+            .expect("Failed to create GitHub token");
 
-    // Setup GitLab mock server for the same user (Arthur)
-    let idp = IdpConnectFixtures::service().await;
-    idp.mock_gitlab_happy_alice().await;
+        // Setup GitLab mock server for the same user (Arthur)
+        let idp = IdpConnectFixtures::service().await;
+        idp.mock_gitlab_happy_alice().await;
 
-    // Create valid state for link operation
-    let state = OAuthTestUtils::create_link_state(existing_user.id(), "gitlab");
+        // Create valid state for link operation
+        let (state, cookie) =
+            browser_flow::link(&client, &base_url, "gitlab", existing_user.id(), &idp).await;
 
-    // Make callback request to associate GitLab with existing user
-    let response = client
-        .get(format!("{base_url}/api/auth/gitlab/callback"))
-        .query(&[("code", "test_auth_code"), ("state", &state)])
-        .send()
-        .await
-        .expect("Failed to send callback request");
+        // Make callback request to associate GitLab with existing user
+        let response = client
+            .get(format!("{base_url}/api/auth/gitlab/callback"))
+            .query(&[("code", "test_auth_code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .expect("Failed to send callback request");
 
-    // ✅ Should return 200 OK with linked status
-    assert_eq!(
-        response.status(),
-        200,
-        "Should return 200 OK for successful provider association"
-    );
+        // ✅ Should return 200 OK with linked status
+        assert_eq!(
+            response.status(),
+            200,
+            "Should return 200 OK for successful provider association"
+        );
 
-    let response_json: Value = response.json().await.expect("Should return JSON response");
+        let response_json: Value = response.json().await.expect("Should return JSON response");
 
-    assert_eq!(response_json["operation"], "link");
+        assert_eq!(response_json["operation"], "link");
 
-    // ✅ Should still have only one user
-    let user_count = AuthTestUtils::count_entities(db.clone(), "users")
-        .await
-        .expect("Failed to count users");
-    assert_eq!(user_count, 1, "Should still have exactly one user");
+        // ✅ Should still have only one user
+        let user_count = AuthTestUtils::count_entities(db.clone(), "users")
+            .await
+            .expect("Failed to count users");
+        assert_eq!(user_count, 1, "Should still have exactly one user");
 
-    // ✅ Should now have two provider tokens (GitHub + GitLab)
-    let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
-        .await
-        .expect("Failed to count provider tokens");
-    assert_eq!(
-        token_count, 2,
-        "Should have two provider tokens (GitHub + GitLab)"
-    );
+        // ✅ Should now have two provider tokens (GitHub + GitLab)
+        let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
+            .await
+            .expect("Failed to count provider tokens");
+        assert_eq!(
+            token_count, 2,
+            "Should have two provider tokens (GitHub + GitLab)"
+        );
 
-    // ✅ Verify both providers are linked to the same user
-    let provider_tokens: Vec<sea_orm::QueryResult> = db
-        .query_all(Statement::from_string(
-            DatabaseBackend::Postgres,
-            format!(
-                "SELECT provider FROM provider_tokens WHERE user_id = '{}' ORDER BY provider",
-                existing_user.id()
-            ),
-        ))
-        .await
-        .expect("Failed to query provider tokens");
+        // ✅ Verify both providers are linked to the same user
+        let provider_tokens: Vec<sea_orm::QueryResult> = db
+            .query_all(Statement::from_string(
+                DatabaseBackend::Postgres,
+                format!(
+                    "SELECT provider FROM provider_tokens WHERE user_id = '{}' ORDER BY provider",
+                    existing_user.id()
+                ),
+            ))
+            .await
+            .expect("Failed to query provider tokens");
 
-    assert_eq!(
-        provider_tokens.len(),
-        2,
-        "Should have exactly two provider tokens"
-    );
+        assert_eq!(
+            provider_tokens.len(),
+            2,
+            "Should have exactly two provider tokens"
+        );
 
-    let providers: Vec<String> = provider_tokens
-        .iter()
-        .map(|row| {
-            row.try_get::<String>("", "provider")
-                .expect("Should have provider")
-        })
-        .collect();
+        let providers: Vec<String> = provider_tokens
+            .iter()
+            .map(|row| {
+                row.try_get::<String>("", "provider")
+                    .expect("Should have provider")
+            })
+            .collect();
 
-    assert_eq!(
-        providers,
-        vec!["github", "gitlab"],
-        "Should have both GitHub and GitLab providers"
-    );
+        assert_eq!(
+            providers,
+            vec!["github", "gitlab"],
+            "Should have both GitHub and GitLab providers"
+        );
 
-    // ✅ Verify original entities are unchanged
-    assert!(existing_user
-        .check(db.clone())
-        .await
-        .expect("Failed to check existing user"));
-    assert!(primary_email
-        .check(db.clone())
-        .await
-        .expect("Failed to check primary email"));
-    assert!(github_token
-        .check(db.clone())
-        .await
-        .expect("Failed to check GitHub token"));
+        // ✅ Verify original entities are unchanged
+        assert!(existing_user
+            .check(db.clone())
+            .await
+            .expect("Failed to check existing user"));
+        assert!(primary_email
+            .check(db.clone())
+            .await
+            .expect("Failed to check primary email"));
+        assert!(github_token
+            .check(db.clone())
+            .await
+            .expect("Failed to check GitHub token"));
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -347,115 +369,120 @@ async fn test_oauth_callback_prevents_linking_provider_already_bound_to_another_
     let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = fixture.db();
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
 
-    // Pre-create first user with GitHub provider
-    let first_user = DbFixtures::user()
-        .arthur()
-        .commit(db.clone())
-        .await
-        .expect("Failed to create first user");
+        // Pre-create first user with GitHub provider
+        let first_user = DbFixtures::user()
+            .arthur()
+            .commit(db.clone())
+            .await
+            .expect("Failed to create first user");
 
-    let first_user_email = DbFixtures::user_email()
-        .arthur_primary(first_user.id())
-        .commit(db.clone())
-        .await
-        .expect("Failed to create first user email");
+        let first_user_email = DbFixtures::user_email()
+            .arthur_primary(first_user.id())
+            .commit(db.clone())
+            .await
+            .expect("Failed to create first user email");
 
-    let first_user_github_token = DbFixtures::provider_token()
-        .arthur_github(first_user.id())
-        .commit(db.clone())
-        .await
-        .expect("Failed to create first user GitHub token");
+        let first_user_github_token = DbFixtures::provider_token()
+            .arthur_github(first_user.id())
+            .commit(db.clone())
+            .await
+            .expect("Failed to create first user GitHub token");
 
-    // Pre-create second user (different user who wants to link the same GitHub account)
-    let second_user = DbFixtures::user()
-        .bob()
-        .commit(db.clone())
-        .await
-        .expect("Failed to create second user");
+        // Pre-create second user (different user who wants to link the same GitHub account)
+        let second_user = DbFixtures::user()
+            .bob()
+            .commit(db.clone())
+            .await
+            .expect("Failed to create second user");
 
-    let second_user_email = DbFixtures::user_email()
-        .bob_primary(second_user.id())
-        .commit(db.clone())
-        .await
-        .expect("Failed to create second user email");
+        let second_user_email = DbFixtures::user_email()
+            .bob_primary(second_user.id())
+            .commit(db.clone())
+            .await
+            .expect("Failed to create second user email");
 
-    // Setup GitHub mock server to return Arthur's profile (already linked to first user)
-    let idp = IdpConnectFixtures::service().await;
-    idp.mock_github_happy_arthur().await;
+        // Setup GitHub mock server to return Arthur's profile (already linked to first user)
+        let idp = IdpConnectFixtures::service().await;
+        idp.mock_github_happy_arthur().await;
 
-    // Create valid state for link operation with second user ID
-    let state = OAuthTestUtils::create_link_state(second_user.id(), "github");
+        // Create valid state for link operation with second user ID
+        let (state, cookie) =
+            browser_flow::link(&client, &base_url, "github", second_user.id(), &idp).await;
 
-    // Attempt to link Arthur's GitHub account to second user (should fail)
-    let response = client
-        .get(format!("{base_url}/api/auth/github/callback"))
-        .query(&[("code", "test_auth_code"), ("state", &state)])
-        .send()
-        .await
-        .expect("Failed to send callback request");
+        // Attempt to link Arthur's GitHub account to second user (should fail)
+        let response = client
+            .get(format!("{base_url}/api/auth/github/callback"))
+            .query(&[("code", "test_auth_code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .expect("Failed to send callback request");
 
-    // ❌ Should return 409 Conflict (provider already linked to another user)
-    assert_eq!(
-        response.status(),
-        409,
-        "Should return 409 Conflict for provider already linked to another user"
-    );
+        // ❌ Should return 409 Conflict (provider already linked to another user)
+        assert_eq!(
+            response.status(),
+            409,
+            "Should return 409 Conflict for provider already linked to another user"
+        );
 
-    let error_response: Value = response
-        .json()
-        .await
-        .expect("Should return JSON error response");
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
 
-    assert_eq!(
-        error_response["error"]["error_code"],
-        "provider_already_linked"
-    );
-    assert!(
-        error_response["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("already linked to another user"),
-        "Error message should indicate provider is already linked"
-    );
+        assert_eq!(
+            error_response["error"]["error_code"],
+            "provider_already_linked"
+        );
+        assert!(
+            error_response["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("already linked to another user"),
+            "Error message should indicate provider is already linked"
+        );
 
-    // ✅ Should still have exactly two users (no new users created)
-    let user_count = AuthTestUtils::count_entities(db.clone(), "users")
-        .await
-        .expect("Failed to count users");
-    assert_eq!(user_count, 2, "Should still have exactly two users");
+        // ✅ Should still have exactly two users (no new users created)
+        let user_count = AuthTestUtils::count_entities(db.clone(), "users")
+            .await
+            .expect("Failed to count users");
+        assert_eq!(user_count, 2, "Should still have exactly two users");
 
-    // ✅ Should still have exactly one provider token (no new tokens created)
-    let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
-        .await
-        .expect("Failed to count provider tokens");
-    assert_eq!(
-        token_count, 1,
-        "Should still have exactly one provider token"
-    );
+        // ✅ Should still have exactly one provider token (no new tokens created)
+        let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
+            .await
+            .expect("Failed to count provider tokens");
+        assert_eq!(
+            token_count, 1,
+            "Should still have exactly one provider token"
+        );
 
-    // ✅ Verify original entities are unchanged
-    assert!(first_user
-        .check(db.clone())
-        .await
-        .expect("Failed to check first user"));
-    assert!(first_user_email
-        .check(db.clone())
-        .await
-        .expect("Failed to check first user email"));
-    assert!(first_user_github_token
-        .check(db.clone())
-        .await
-        .expect("Failed to check first user GitHub token"));
-    assert!(second_user
-        .check(db.clone())
-        .await
-        .expect("Failed to check second user"));
-    assert!(second_user_email
-        .check(db.clone())
-        .await
-        .expect("Failed to check second user email"));
+        // ✅ Verify original entities are unchanged
+        assert!(first_user
+            .check(db.clone())
+            .await
+            .expect("Failed to check first user"));
+        assert!(first_user_email
+            .check(db.clone())
+            .await
+            .expect("Failed to check first user email"));
+        assert!(first_user_github_token
+            .check(db.clone())
+            .await
+            .expect("Failed to check first user GitHub token"));
+        assert!(second_user
+            .check(db.clone())
+            .await
+            .expect("Failed to check second user"));
+        assert!(second_user_email
+            .check(db.clone())
+            .await
+            .expect("Failed to check second user email"));
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -465,64 +492,68 @@ async fn test_oauth_callback_fails_on_invalid_authorization_code() {
     let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = fixture.db();
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
 
-    // Setup GitHub mock server to return error for invalid code
-    let idp = IdpConnectFixtures::service().await;
-    idp.mock_s2s_unauthorized("github", "/v1/token").await;
+        // Setup GitHub mock server to return error for invalid code
+        let idp = IdpConnectFixtures::service().await;
+        idp.mock_s2s_unauthorized("github", "/v1/token").await;
 
-    // Create valid state
-    let state = OAuthTestUtils::create_login_state("github");
+        // Create valid state
+        let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
 
-    // Make callback request with invalid authorization code
-    let response = client
-        .get(format!("{base_url}/api/auth/github/callback"))
-        .query(&[("code", "invalid_auth_code_123"), ("state", &state)])
-        .send()
-        .await
-        .expect("Failed to send callback request");
+        // Make callback request with invalid authorization code
+        let response = client
+            .get(format!("{base_url}/api/auth/github/callback"))
+            .query(&[("code", "invalid_auth_code_123"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .expect("Failed to send callback request");
 
-    // ❌ Should return 401 Unauthorized for invalid code
-    assert_eq!(
-        response.status(),
-        401,
-        "Should return 401 Unauthorized for invalid authorization code"
-    );
+        // ❌ Should return 401 Unauthorized for invalid code
+        assert_eq!(
+            response.status(),
+            401,
+            "Should return 401 Unauthorized for invalid authorization code"
+        );
 
-    let error_response: Value = response
-        .json()
-        .await
-        .expect("Should return JSON error response");
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
 
-    // For invalid code, the error comes from the login usecase, not the callback endpoint
-    assert_eq!(
-        error_response["error"]["error_code"],
-        "authentication_failed"
-    );
-    assert!(
-        error_response["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("Authentication failed"),
-        "Error message should mention authentication failure"
-    );
+        // For invalid code, the error comes from the login usecase, not the callback endpoint
+        assert_eq!(
+            error_response["error"]["error_code"],
+            "authentication_failed"
+        );
+        assert!(
+            error_response["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("Authentication failed"),
+            "Error message should mention authentication failure"
+        );
 
-    // ✅ Should not create any users or tokens
-    let user_count = AuthTestUtils::count_entities(db.clone(), "users")
-        .await
-        .expect("Failed to count users");
-    assert_eq!(
-        user_count, 0,
-        "Should not create any users for invalid code"
-    );
+        // ✅ Should not create any users or tokens
+        let user_count = AuthTestUtils::count_entities(db.clone(), "users")
+            .await
+            .expect("Failed to count users");
+        assert_eq!(
+            user_count, 0,
+            "Should not create any users for invalid code"
+        );
 
-    let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
-        .await
-        .expect("Failed to count provider tokens");
-    assert_eq!(
-        token_count, 0,
-        "Should not create any provider tokens for invalid code"
-    );
+        let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
+            .await
+            .expect("Failed to count provider tokens");
+        assert_eq!(
+            token_count, 0,
+            "Should not create any provider tokens for invalid code"
+        );
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -532,64 +563,68 @@ async fn test_oauth_callback_fails_on_expired_authorization_code() {
     let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = fixture.db();
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
 
-    // Setup GitHub mock server to return error for expired code
-    let idp = IdpConnectFixtures::service().await;
-    idp.mock_s2s_unauthorized("github", "/v1/token").await; // Using invalid_code as expired_code may not exist
+        // Setup GitHub mock server to return error for expired code
+        let idp = IdpConnectFixtures::service().await;
+        idp.mock_s2s_unauthorized("github", "/v1/token").await; // Using invalid_code as expired_code may not exist
 
-    // Create valid state
-    let state = OAuthTestUtils::create_login_state("github");
+        // Create valid state
+        let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
 
-    // Make callback request with expired authorization code
-    let response = client
-        .get(format!("{base_url}/api/auth/github/callback"))
-        .query(&[("code", "expired_auth_code_456"), ("state", &state)])
-        .send()
-        .await
-        .expect("Failed to send callback request");
+        // Make callback request with expired authorization code
+        let response = client
+            .get(format!("{base_url}/api/auth/github/callback"))
+            .query(&[("code", "expired_auth_code_456"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .expect("Failed to send callback request");
 
-    // ❌ Should return 401 for expired code
-    assert_eq!(
-        response.status(),
-        401,
-        "Should return 401 for expired authorization code"
-    );
+        // ❌ Should return 401 for expired code
+        assert_eq!(
+            response.status(),
+            401,
+            "Should return 401 for expired authorization code"
+        );
 
-    let error_response: Value = response
-        .json()
-        .await
-        .expect("Should return JSON error response");
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
 
-    // For expired code, the error comes from the login usecase, not the callback endpoint
-    assert_eq!(
-        error_response["error"]["error_code"],
-        "authentication_failed"
-    );
-    assert!(
-        error_response["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("Authentication failed"),
-        "Error message should mention authentication failure"
-    );
+        // For expired code, the error comes from the login usecase, not the callback endpoint
+        assert_eq!(
+            error_response["error"]["error_code"],
+            "authentication_failed"
+        );
+        assert!(
+            error_response["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("Authentication failed"),
+            "Error message should mention authentication failure"
+        );
 
-    // ✅ Should not create any users or tokens
-    let user_count = AuthTestUtils::count_entities(db.clone(), "users")
-        .await
-        .expect("Failed to count users");
-    assert_eq!(
-        user_count, 0,
-        "Should not create any users for expired code"
-    );
+        // ✅ Should not create any users or tokens
+        let user_count = AuthTestUtils::count_entities(db.clone(), "users")
+            .await
+            .expect("Failed to count users");
+        assert_eq!(
+            user_count, 0,
+            "Should not create any users for expired code"
+        );
 
-    let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
-        .await
-        .expect("Failed to count provider tokens");
-    assert_eq!(
-        token_count, 0,
-        "Should not create any provider tokens for expired code"
-    );
+        let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
+            .await
+            .expect("Failed to count provider tokens");
+        assert_eq!(
+            token_count, 0,
+            "Should not create any provider tokens for expired code"
+        );
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -599,35 +634,37 @@ async fn test_oauth_callback_returns_400_on_missing_state_parameter() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
+    fixture_cleanup::run(&_fixture, async {
+        // Make callback request without state parameter
+        let response = client
+            .get(format!("{base_url}/api/auth/github/callback"))
+            .query(&[("code", "valid_auth_code")])
+            .send()
+            .await
+            .expect("Failed to send callback request");
 
-    // Make callback request without state parameter
-    let response = client
-        .get(format!("{base_url}/api/auth/github/callback"))
-        .query(&[("code", "valid_auth_code")])
-        .send()
-        .await
-        .expect("Failed to send callback request");
+        // ❌ Should return 400 Bad Request for missing state
+        assert_eq!(
+            response.status(),
+            400,
+            "Should return 400 Bad Request for missing state parameter"
+        );
 
-    // ❌ Should return 400 Bad Request for missing state
-    assert_eq!(
-        response.status(),
-        400,
-        "Should return 400 Bad Request for missing state parameter"
-    );
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
 
-    let error_response: Value = response
-        .json()
-        .await
-        .expect("Should return JSON error response");
-
-    assert_eq!(error_response["error"]["error_code"], "missing_state");
-    assert!(
-        error_response["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("state parameter"),
-        "Error message should mention missing state parameter"
-    );
+        assert_eq!(error_response["error"]["error_code"], "missing_state");
+        assert!(
+            error_response["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("state parameter"),
+            "Error message should mention missing state parameter"
+        );
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -637,31 +674,34 @@ async fn test_oauth_callback_returns_400_on_missing_code_parameter() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
+    fixture_cleanup::run(&_fixture, async {
+        let idp = IdpConnectFixtures::service().await;
+        let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
 
-    // Create valid state
-    let state = OAuthTestUtils::create_login_state("github");
+        // Make callback request without code parameter
+        let response = client
+            .get(format!("{base_url}/api/auth/github/callback"))
+            .query(&[("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .expect("Failed to send callback request");
 
-    // Make callback request without code parameter
-    let response = client
-        .get(format!("{base_url}/api/auth/github/callback"))
-        .query(&[("state", &state)])
-        .send()
-        .await
-        .expect("Failed to send callback request");
+        // ❌ Should return 400 Bad Request for missing code
+        assert_eq!(
+            response.status(),
+            400,
+            "Should return 400 Bad Request for missing code parameter"
+        );
 
-    // ❌ Should return 400 Bad Request for missing code
-    assert_eq!(
-        response.status(),
-        400,
-        "Should return 400 Bad Request for missing code parameter"
-    );
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
 
-    let error_response: Value = response
-        .json()
-        .await
-        .expect("Should return JSON error response");
-
-    assert_eq!(error_response["error"]["error_code"], "missing_code");
+        assert_eq!(error_response["error"]["error_code"], "missing_code");
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -671,38 +711,40 @@ async fn test_oauth_callback_returns_400_on_invalid_state_format() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
+    fixture_cleanup::run(&_fixture, async {
+        // Create invalid state (not base64 encoded JSON)
+        let invalid_state = OAuthTestUtils::create_invalid_state();
 
-    // Create invalid state (not base64 encoded JSON)
-    let invalid_state = OAuthTestUtils::create_invalid_state();
+        // Make callback request with invalid state format
+        let response = client
+            .get(format!("{base_url}/api/auth/github/callback"))
+            .query(&[("code", "valid_auth_code"), ("state", &invalid_state)])
+            .send()
+            .await
+            .expect("Failed to send callback request");
 
-    // Make callback request with invalid state format
-    let response = client
-        .get(format!("{base_url}/api/auth/github/callback"))
-        .query(&[("code", "valid_auth_code"), ("state", &invalid_state)])
-        .send()
-        .await
-        .expect("Failed to send callback request");
+        // ❌ Should return 400 Bad Request for invalid state format
+        assert_eq!(
+            response.status(),
+            400,
+            "Should return 400 Bad Request for invalid state format"
+        );
 
-    // ❌ Should return 400 Bad Request for invalid state format
-    assert_eq!(
-        response.status(),
-        400,
-        "Should return 400 Bad Request for invalid state format"
-    );
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
 
-    let error_response: Value = response
-        .json()
-        .await
-        .expect("Should return JSON error response");
-
-    assert_eq!(error_response["error"]["error_code"], "invalid_state");
-    assert!(
-        error_response["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("state parameter"),
-        "Error message should mention invalid state parameter"
-    );
+        assert_eq!(error_response["error"]["error_code"], "invalid_state");
+        assert!(
+            error_response["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("state parameter"),
+            "Error message should mention invalid state parameter"
+        );
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -712,37 +754,39 @@ async fn test_oauth_callback_returns_400_on_invalid_state_purpose() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
+    fixture_cleanup::run(&_fixture, async {
+        // Create state with invalid operation type
+        let invalid_state_data = serde_json::json!({
+            "operation": {
+                "type": "invalid_operation"
+            },
+            "nonce": Uuid::new_v4().to_string()
+        });
+        let invalid_state = general_purpose::URL_SAFE_NO_PAD.encode(invalid_state_data.to_string());
 
-    // Create state with invalid operation type
-    let invalid_state_data = serde_json::json!({
-        "operation": {
-            "type": "invalid_operation"
-        },
-        "nonce": Uuid::new_v4().to_string()
-    });
-    let invalid_state = general_purpose::URL_SAFE_NO_PAD.encode(invalid_state_data.to_string());
+        // Make callback request with invalid state purpose
+        let response = client
+            .get(format!("{base_url}/api/auth/github/callback"))
+            .query(&[("code", "valid_auth_code"), ("state", &invalid_state)])
+            .send()
+            .await
+            .expect("Failed to send callback request");
 
-    // Make callback request with invalid state purpose
-    let response = client
-        .get(format!("{base_url}/api/auth/github/callback"))
-        .query(&[("code", "valid_auth_code"), ("state", &invalid_state)])
-        .send()
-        .await
-        .expect("Failed to send callback request");
+        // ❌ Should return 400 Bad Request for invalid state purpose
+        assert_eq!(
+            response.status(),
+            400,
+            "Should return 400 Bad Request for invalid state purpose"
+        );
 
-    // ❌ Should return 400 Bad Request for invalid state purpose
-    assert_eq!(
-        response.status(),
-        400,
-        "Should return 400 Bad Request for invalid state purpose"
-    );
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
 
-    let error_response: Value = response
-        .json()
-        .await
-        .expect("Should return JSON error response");
-
-    assert_eq!(error_response["error"]["error_code"], "invalid_state");
+        assert_eq!(error_response["error"]["error_code"], "invalid_state");
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -752,65 +796,69 @@ async fn test_oauth_callback_returns_401_when_provider_refuses_user() {
     let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = fixture.db();
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
 
-    // Setup GitHub mock server to return successful token exchange but unauthorized user profile
-    let idp = IdpConnectFixtures::service().await;
-    idp.mock_token("github").await;
-    idp.mock_profile_status("github", 401).await;
+        // Setup GitHub mock server to return successful token exchange but unauthorized user profile
+        let idp = IdpConnectFixtures::service().await;
+        idp.mock_token("github").await;
+        idp.mock_profile_status("github", 401).await;
 
-    // Create valid state
-    let state = OAuthTestUtils::create_login_state("github");
+        // Create valid state
+        let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
 
-    // Make callback request where provider refuses user access
-    let response = client
-        .get(format!("{base_url}/api/auth/github/callback"))
-        .query(&[("code", "valid_code_but_user_refused"), ("state", &state)])
-        .send()
-        .await
-        .expect("Failed to send callback request");
+        // Make callback request where provider refuses user access
+        let response = client
+            .get(format!("{base_url}/api/auth/github/callback"))
+            .query(&[("code", "valid_code_but_user_refused"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .expect("Failed to send callback request");
 
-    // ❌ Should return 401 Unauthorized when provider refuses user
-    assert_eq!(
-        response.status(),
-        401,
-        "Should return 401 Unauthorized when provider refuses user"
-    );
+        // ❌ Should return 401 Unauthorized when provider refuses user
+        assert_eq!(
+            response.status(),
+            401,
+            "Should return 401 Unauthorized when provider refuses user"
+        );
 
-    let error_response: Value = response
-        .json()
-        .await
-        .expect("Should return JSON error response");
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
 
-    // For provider refusal, the error comes from the login usecase
-    assert_eq!(
-        error_response["error"]["error_code"],
-        "authentication_failed"
-    );
-    assert!(
-        error_response["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("Authentication failed"),
-        "Error message should mention authentication failure"
-    );
+        // For provider refusal, the error comes from the login usecase
+        assert_eq!(
+            error_response["error"]["error_code"],
+            "authentication_failed"
+        );
+        assert!(
+            error_response["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("Authentication failed"),
+            "Error message should mention authentication failure"
+        );
 
-    // ✅ Should not create any users or tokens
-    let user_count = AuthTestUtils::count_entities(db.clone(), "users")
-        .await
-        .expect("Failed to count users");
-    assert_eq!(
-        user_count, 0,
-        "Should not create any users when provider refuses"
-    );
+        // ✅ Should not create any users or tokens
+        let user_count = AuthTestUtils::count_entities(db.clone(), "users")
+            .await
+            .expect("Failed to count users");
+        assert_eq!(
+            user_count, 0,
+            "Should not create any users when provider refuses"
+        );
 
-    let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
-        .await
-        .expect("Failed to count provider tokens");
-    assert_eq!(
-        token_count, 0,
-        "Should not create any provider tokens when provider refuses"
-    );
+        let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
+            .await
+            .expect("Failed to count provider tokens");
+        assert_eq!(
+            token_count, 0,
+            "Should not create any provider tokens when provider refuses"
+        );
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -820,65 +868,69 @@ async fn test_oauth_callback_returns_401_when_provider_rejects_user() {
     let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let db = fixture.db();
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
 
-    // Setup GitHub mock server to simulate provider rejection (e.g., account suspended)
-    let idp = IdpConnectFixtures::service().await;
-    idp.mock_token("github").await;
-    idp.mock_profile_status("github", 401).await; // Using unauthorized as account_suspended may not exist
+        // Setup GitHub mock server to simulate provider rejection (e.g., account suspended)
+        let idp = IdpConnectFixtures::service().await;
+        idp.mock_token("github").await;
+        idp.mock_profile_status("github", 401).await; // Using unauthorized as account_suspended may not exist
 
-    // Create valid state
-    let state = OAuthTestUtils::create_login_state("github");
+        // Create valid state
+        let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
 
-    // Make callback request where provider rejects user
-    let response = client
-        .get(format!("{base_url}/api/auth/github/callback"))
-        .query(&[("code", "valid_code_but_user_rejected"), ("state", &state)])
-        .send()
-        .await
-        .expect("Failed to send callback request");
+        // Make callback request where provider rejects user
+        let response = client
+            .get(format!("{base_url}/api/auth/github/callback"))
+            .query(&[("code", "valid_code_but_user_rejected"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .expect("Failed to send callback request");
 
-    // ❌ Should return 401 Unauthorized when provider rejects user
-    assert_eq!(
-        response.status(),
-        401,
-        "Should return 401 Unauthorized when provider rejects user"
-    );
+        // ❌ Should return 401 Unauthorized when provider rejects user
+        assert_eq!(
+            response.status(),
+            401,
+            "Should return 401 Unauthorized when provider rejects user"
+        );
 
-    let error_response: Value = response
-        .json()
-        .await
-        .expect("Should return JSON error response");
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
 
-    // For provider rejection, the error comes from the login usecase
-    assert_eq!(
-        error_response["error"]["error_code"],
-        "authentication_failed"
-    );
-    assert!(
-        error_response["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("Authentication failed"),
-        "Error message should mention authentication failure"
-    );
+        // For provider rejection, the error comes from the login usecase
+        assert_eq!(
+            error_response["error"]["error_code"],
+            "authentication_failed"
+        );
+        assert!(
+            error_response["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("Authentication failed"),
+            "Error message should mention authentication failure"
+        );
 
-    // ✅ Should not create any users or tokens
-    let user_count = AuthTestUtils::count_entities(db.clone(), "users")
-        .await
-        .expect("Failed to count users");
-    assert_eq!(
-        user_count, 0,
-        "Should not create any users when provider rejects"
-    );
+        // ✅ Should not create any users or tokens
+        let user_count = AuthTestUtils::count_entities(db.clone(), "users")
+            .await
+            .expect("Failed to count users");
+        assert_eq!(
+            user_count, 0,
+            "Should not create any users when provider rejects"
+        );
 
-    let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
-        .await
-        .expect("Failed to count provider tokens");
-    assert_eq!(
-        token_count, 0,
-        "Should not create any provider tokens when provider rejects"
-    );
+        let token_count = AuthTestUtils::count_entities(db.clone(), "provider_tokens")
+            .await
+            .expect("Failed to count provider tokens");
+        assert_eq!(
+            token_count, 0,
+            "Should not create any provider tokens when provider rejects"
+        );
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -888,37 +940,41 @@ async fn test_oauth_callback_unsupported_provider_returns_422() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
+    fixture_cleanup::run(&_fixture, async {
+        // Create valid state
+        let idp = IdpConnectFixtures::service().await;
+        let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
 
-    // Create valid state
-    let state = OAuthTestUtils::create_login_state("github");
+        // Test unsupported providers
+        let unsupported_providers = vec!["facebook", "google", "twitter", "unknown"];
 
-    // Test unsupported providers
-    let unsupported_providers = vec!["facebook", "google", "twitter", "unknown"];
+        for provider in unsupported_providers {
+            let response = client
+                .get(format!("{base_url}/api/auth/{provider}/callback"))
+                .query(&[("code", "valid_auth_code"), ("state", &state)])
+                .header("cookie", &cookie)
+                .send()
+                .await
+                .expect("Failed to send callback request");
 
-    for provider in unsupported_providers {
-        let response = client
-            .get(format!("{base_url}/api/auth/{provider}/callback"))
-            .query(&[("code", "valid_auth_code"), ("state", &state)])
-            .send()
-            .await
-            .expect("Failed to send callback request");
+            assert_eq!(
+                response.status(),
+                422,
+                "Should return 422 Unprocessable Entity for unregistered provider: {provider}"
+            );
 
-        assert_eq!(
-            response.status(),
-            422,
-            "Should return 422 Unprocessable Entity for unregistered provider: {provider}"
-        );
+            let error_response: Value = response
+                .json()
+                .await
+                .expect("Should return JSON error response");
 
-        let error_response: Value = response
-            .json()
-            .await
-            .expect("Should return JSON error response");
-
-        assert_eq!(
-            error_response["error"]["error_code"], "connector_not_configured",
-            "Unregistered slug {provider} should be connector_not_configured"
-        );
-    }
+            assert_eq!(
+                error_response["error"]["error_code"], "connector_not_configured",
+                "Unregistered slug {provider} should be connector_not_configured"
+            );
+        }
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -928,47 +984,57 @@ async fn test_oauth_callback_case_insensitive_providers() {
     let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let _db = fixture.db();
+    fixture_cleanup::run(&fixture, async {
+        let _db = fixture.db();
 
-    // Setup fixtures
-    let idp = IdpConnectFixtures::service().await;
-    idp.mock_github_happy_arthur().await;
-    idp.mock_gitlab_happy_alice().await;
+        // Setup fixtures
+        let idp = IdpConnectFixtures::service().await;
+        idp.mock_github_happy_arthur().await;
+        idp.mock_gitlab_happy_alice().await;
 
-    // Test case variations that should work
-    let valid_cases = vec![
-        ("github", "test_auth_code"),
-        ("GITHUB", "test_auth_code"),
-        ("GitHub", "test_auth_code"),
-        ("gitlab", "test_auth_code"),
-        ("GITLAB", "test_auth_code"),
-        ("GitLab", "test_auth_code"),
-    ];
+        // Test case variations that should work
+        let valid_cases = vec![
+            ("github", "test_auth_code"),
+            ("GITHUB", "test_auth_code"),
+            ("GitHub", "test_auth_code"),
+            ("gitlab", "test_auth_code"),
+            ("GITLAB", "test_auth_code"),
+            ("GitLab", "test_auth_code"),
+        ];
 
-    for (provider_input, auth_code) in valid_cases {
-        let state = OAuthTestUtils::create_login_state(provider_input.to_ascii_lowercase());
+        for (provider_input, auth_code) in valid_cases {
+            let (state, cookie) = browser_flow::login(
+                &client,
+                &base_url,
+                &provider_input.to_ascii_lowercase(),
+                &idp,
+            )
+            .await;
 
-        let response = client
-            .get(format!("{base_url}/api/auth/{provider_input}/callback"))
-            .query(&[("code", auth_code), ("state", &state)])
-            .send()
-            .await
-            .expect("Failed to send callback request");
+            let response = client
+                .get(format!("{base_url}/api/auth/{provider_input}/callback"))
+                .query(&[("code", auth_code), ("state", &state)])
+                .header("cookie", &cookie)
+                .send()
+                .await
+                .expect("Failed to send callback request");
 
-        // ✅ Should successfully handle case-insensitive provider names
-        assert_eq!(
-            response.status(),
-            202,
-            "Should handle case-insensitive provider: {provider_input}"
-        );
+            // ✅ Should successfully handle case-insensitive provider names
+            assert_eq!(
+                response.status(),
+                202,
+                "Should handle case-insensitive provider: {provider_input}"
+            );
 
-        let response_json: Value = response.json().await.expect("Should return JSON response");
+            let response_json: Value = response.json().await.expect("Should return JSON response");
 
-        assert_eq!(
-            response_json["operation"],
-            "registration_required".to_string()
-        );
-    }
+            assert_eq!(
+                response_json["operation"],
+                "registration_required".to_string()
+            );
+        }
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -977,19 +1043,23 @@ async fn oauth_callback_connector_401_is_iam_error() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
-    let idp = IdpConnectFixtures::service().await;
-    idp.mock_s2s_unauthorized("github", "/v1/token").await;
+    fixture_cleanup::run(&_fixture, async {
+        let idp = IdpConnectFixtures::service().await;
+        idp.mock_s2s_unauthorized("github", "/v1/token").await;
 
-    let state = OAuthTestUtils::create_login_state("github");
-    let response = client
-        .get(format!("{base_url}/api/auth/github/callback"))
-        .query(&[("code", "test_auth_code"), ("state", &state)])
-        .send()
-        .await
-        .expect("Failed to send callback request");
+        let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
+        let response = client
+            .get(format!("{base_url}/api/auth/github/callback"))
+            .query(&[("code", "test_auth_code"), ("state", &state)])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .expect("Failed to send callback request");
 
-    assert_ne!(response.status(), 200);
-    assert_ne!(response.status(), 202);
+        assert_ne!(response.status(), 200);
+        assert_ne!(response.status(), 202);
+    })
+    .await;
 }
 
 #[tokio::test]
@@ -998,27 +1068,29 @@ async fn test_oauth_callback_rejects_cross_provider_state() {
     let (_fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
+    fixture_cleanup::run(&_fixture, async {
+        let idp = IdpConnectFixtures::service().await;
+        let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
 
-    let state = iam_http_server::OAuthState::new_login("github")
-        .encode()
-        .expect("signed github login state");
+        let response = client
+            .get(format!("{base_url}/api/auth/gitlab/callback"))
+            .query(&[("code", "test_auth_code"), ("state", state.as_str())])
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .expect("Failed to send callback request");
 
-    let response = client
-        .get(format!("{base_url}/api/auth/gitlab/callback"))
-        .query(&[("code", "test_auth_code"), ("state", state.as_str())])
-        .send()
-        .await
-        .expect("Failed to send callback request");
+        assert_eq!(
+            response.status(),
+            400,
+            "GitHub-minted state on GitLab callback must be invalid_state"
+        );
 
-    assert_eq!(
-        response.status(),
-        400,
-        "GitHub-minted state on GitLab callback must be invalid_state"
-    );
-
-    let error_response: Value = response
-        .json()
-        .await
-        .expect("Should return JSON error response");
-    assert_eq!(error_response["error"]["error_code"], "invalid_state");
+        let error_response: Value = response
+            .json()
+            .await
+            .expect("Should return JSON error response");
+        assert_eq!(error_response["error"]["error_code"], "invalid_state");
+    })
+    .await;
 }

@@ -2,7 +2,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+. (Join-Path $PSScriptRoot 'common.ps1')
+$RepoRoot = Get-AIForAllRoot $PSScriptRoot
 Set-Location $RepoRoot
 
 function Test-HasCommand {

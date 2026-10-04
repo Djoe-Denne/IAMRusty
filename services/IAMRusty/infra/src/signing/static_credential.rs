@@ -9,9 +9,17 @@ use std::sync::Arc;
 /// Resolves named credential refs from an in-memory map (config or OpenBao-injected secrets).
 ///
 /// Never stores secrets in Hive DB or domain events.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct StaticCredential {
     secrets: Arc<HashMap<String, String>>,
+}
+
+impl std::fmt::Debug for StaticCredential {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StaticCredential")
+            .field("entries", &self.secrets.len())
+            .finish_non_exhaustive()
+    }
 }
 
 impl StaticCredential {
@@ -55,7 +63,7 @@ impl WorkloadIdentity for StaticCredential {
             .ok_or_else(|| {
                 DomainError::external_service_error(
                     "workload_identity",
-                    &format!("unknown credential_ref: {credential_ref}"),
+                    "unknown credential reference",
                 )
             })
     }
@@ -77,5 +85,13 @@ mod tests {
     fn static_credential_rejects_empty_secret() {
         assert!(StaticCredential::from_pair("openbao-token", "  ").is_err());
         assert!(StaticCredential::from_pair("openbao-token", "").is_err());
+    }
+
+    #[test]
+    fn debug_redacts_entire_credential_map() {
+        let wi = StaticCredential::from_pair("unit-ref", "unit-secret").unwrap();
+        let debug = format!("{wi:?}");
+        assert!(!debug.contains("unit-secret"));
+        assert!(!debug.contains("unit-ref"));
     }
 }

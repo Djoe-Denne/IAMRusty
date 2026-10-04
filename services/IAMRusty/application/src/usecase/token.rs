@@ -170,27 +170,32 @@ where
     }
 
     async fn get_jwks(&self) -> Result<JwkSet, TokenError> {
-        let keys = self
+        let snapshot = self
             .signing_key_registry
-            .list_jwks_keys()
+            .jwks_publication_snapshot()
             .await
             .map_err(|e| TokenError::RepositoryError(e.to_string()))?;
 
-        if keys.is_empty() {
-            // Bootstrap cache fallback when the registry has not been seeded yet.
-            return Ok(self.refresh_token_service.get_jwks());
-        }
-
-        let keys = iam_domain::entity::signing_key::filter_jwks_publication_keys(
-            keys,
+        // The writer registry is authoritative, including an empty result. Bootstrapping
+        // belongs to setup, never to a publisher that could resurrect revoked keys.
+        let keys = iam_domain::entity::signing_key::filter_jwks_publication_keys_at(
+            snapshot.keys,
             self.access_token_expiration_seconds,
+            snapshot.as_of,
         );
-        Ok(JwkSet::from_registry_keys(&keys))
+        let set = JwkSet::from_registry_keys_checked(&keys)
+            .map_err(|_| TokenError::RepositoryError("invalid signing registry snapshot".into()))?;
+        // Same compact serializer as admission. Publication is complete even for
+        // a preexisting oversized snapshot requiring explicit human recovery.
+        set.compact_bytes()
+            .map_err(|_| TokenError::RepositoryError("invalid signing registry snapshot".into()))?;
+        Ok(set)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::{TokenUseCase, TokenUseCaseImpl};
     use chrono::Utc;
     use iam_domain::entity::signing_key::{
         SigningKey, SigningKeyStatus, SigningProviderType, TrustScope,
@@ -239,5 +244,198 @@ mod tests {
         let jwks = JwkSet::from_registry_keys(&[hmac, good]);
         assert_eq!(jwks.keys.len(), 1);
         assert_eq!(jwks.keys[0].kid, "good-kid");
+    }
+
+    #[test]
+    fn jwks_metadata_is_registry_truth_and_last_revocation_is_empty() {
+        let pem = include_str!("../../../config/keys/test-platform.pub");
+        let mut key = signing_key("epoch", pem);
+        key.status = SigningKeyStatus::Pending;
+        let jwks = JwkSet::from_registry_keys(&[key.clone()]);
+        let json = serde_json::to_value(&jwks).unwrap();
+        assert_eq!(json["keys"][0]["status"], "pending");
+        assert_eq!(json["keys"][0]["trust_scope"], "organization");
+        assert_eq!(
+            json["keys"][0]["organization_id"],
+            key.organization_id.unwrap().to_string()
+        );
+        assert!(json["keys"][0].get("credential_ref").is_none());
+        key.status = SigningKeyStatus::Revoked;
+        assert!(JwkSet::from_registry_keys(&[key]).keys.is_empty());
+        assert!(JwkSet::from_registry_keys(&[]).keys.is_empty());
+    }
+
+    struct Registry {
+        fail: bool,
+        keys: Vec<SigningKey>,
+    }
+    #[async_trait::async_trait]
+    impl iam_domain::port::repository::SigningKeyRegistry for Registry {
+        type Error = iam_domain::error::DomainError;
+        async fn jwks_publication_snapshot(
+            &self,
+        ) -> Result<iam_domain::entity::signing_key::SigningKeyPublicationSnapshot, Self::Error>
+        {
+            if self.fail {
+                return Err(iam_domain::error::DomainError::RepositoryError(
+                    "unavailable".into(),
+                ));
+            }
+            Ok(
+                iam_domain::entity::signing_key::SigningKeyPublicationSnapshot {
+                    keys: self.keys.clone(),
+                    as_of: Utc::now(),
+                },
+            )
+        }
+        async fn confirm_active_for_emission(&self, _: &SigningKey) -> Result<bool, Self::Error> {
+            panic!("JWKS publication must not invoke an emission fence")
+        }
+        async fn insert(&self, _: &SigningKey) -> Result<(), Self::Error> {
+            unreachable!()
+        }
+        async fn update(&self, _: &SigningKey) -> Result<(), Self::Error> {
+            unreachable!()
+        }
+        async fn replace_active_organization_key(
+            &self,
+            _: &SigningKey,
+            _: Option<&str>,
+        ) -> Result<SigningKey, Self::Error> {
+            unreachable!()
+        }
+        async fn revoke_organization_keys(&self, _: Uuid) -> Result<Vec<SigningKey>, Self::Error> {
+            unreachable!()
+        }
+        async fn find_by_kid(&self, _: &str) -> Result<Option<SigningKey>, Self::Error> {
+            unreachable!()
+        }
+        async fn find_active_platform_key(&self) -> Result<Option<SigningKey>, Self::Error> {
+            unreachable!()
+        }
+        async fn find_by_organization(&self, _: Uuid) -> Result<Vec<SigningKey>, Self::Error> {
+            unreachable!()
+        }
+        async fn find_by_issuer(&self, _: &str) -> Result<Vec<SigningKey>, Self::Error> {
+            unreachable!()
+        }
+        async fn list_jwks_keys(&self) -> Result<Vec<SigningKey>, Self::Error> {
+            if self.fail {
+                Err(iam_domain::error::DomainError::RepositoryError(
+                    "unavailable".into(),
+                ))
+            } else {
+                Ok(self.keys.clone())
+            }
+        }
+    }
+    struct Bootstrap;
+    #[async_trait::async_trait]
+    impl iam_domain::service::RefreshTokenService for Bootstrap {
+        async fn refresh_token(
+            &self,
+            _: String,
+        ) -> Result<iam_domain::service::RefreshTokenResponse, iam_domain::error::DomainError>
+        {
+            unreachable!()
+        }
+        async fn revoke_token(&self, _: String) -> Result<(), iam_domain::error::DomainError> {
+            unreachable!()
+        }
+        async fn revoke_all_tokens(&self, _: Uuid) -> Result<u64, iam_domain::error::DomainError> {
+            unreachable!()
+        }
+        fn get_jwks(&self) -> JwkSet {
+            panic!("publisher must never resurrect bootstrap")
+        }
+    }
+    struct Identities;
+    #[async_trait::async_trait]
+    impl iam_domain::port::repository::IdentityRepository for Identities {
+        type Error = iam_domain::error::DomainError;
+        async fn find_by_issuer_subject(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> Result<Option<iam_domain::entity::identity::Identity>, Self::Error> {
+            unreachable!()
+        }
+        async fn find_by_user_id(
+            &self,
+            _: Uuid,
+        ) -> Result<Vec<iam_domain::entity::identity::Identity>, Self::Error> {
+            unreachable!()
+        }
+        async fn create(
+            &self,
+            _: &iam_domain::entity::identity::Identity,
+        ) -> Result<iam_domain::entity::identity::Identity, Self::Error> {
+            unreachable!()
+        }
+        async fn ensure_platform_identity(
+            &self,
+            _: Uuid,
+            _: &str,
+        ) -> Result<iam_domain::entity::identity::Identity, Self::Error> {
+            unreachable!()
+        }
+        async fn ensure_organization_managed_identity(
+            &self,
+            _: Uuid,
+            _: &str,
+        ) -> Result<iam_domain::entity::identity::Identity, Self::Error> {
+            unreachable!()
+        }
+    }
+
+    #[tokio::test]
+    async fn empty_writer_snapshot_is_success_but_writer_failure_is_not_empty_or_bootstrap() {
+        use std::sync::Arc;
+        for fail in [false, true] {
+            let publisher = TokenUseCaseImpl::new(
+                Arc::new(Bootstrap),
+                Arc::new(Registry { fail, keys: vec![] }),
+                Arc::new(Identities),
+                "https://iam.example",
+            );
+            let result = publisher.get_jwks().await;
+            if fail {
+                assert!(result.is_err());
+            } else {
+                assert!(result.unwrap().keys.is_empty());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn last_key_revocation_is_empty_but_corrupt_or_duplicate_registry_is_an_error() {
+        use std::sync::Arc;
+        let pem = include_str!("../../../config/keys/test-platform.pub");
+        let mut revoked = signing_key("epoch", pem);
+        revoked.status = SigningKeyStatus::Revoked;
+        let publisher = TokenUseCaseImpl::new(
+            Arc::new(Bootstrap),
+            Arc::new(Registry {
+                fail: false,
+                keys: vec![revoked],
+            }),
+            Arc::new(Identities),
+            "https://iam.example",
+        );
+        assert!(publisher.get_jwks().await.unwrap().keys.is_empty());
+        let good = signing_key("epoch", pem);
+        let mut corrupt = good.clone();
+        corrupt.public_key = "garbage".into();
+        let mut unbound = good.clone();
+        unbound.organization_id = None;
+        for keys in [vec![good.clone(), good], vec![corrupt], vec![unbound]] {
+            let publisher = TokenUseCaseImpl::new(
+                Arc::new(Bootstrap),
+                Arc::new(Registry { fail: false, keys }),
+                Arc::new(Identities),
+                "https://iam.example",
+            );
+            assert!(publisher.get_jwks().await.is_err());
+        }
     }
 }

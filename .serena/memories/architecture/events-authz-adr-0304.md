@@ -1,9 +1,10 @@
-# ADR-0304 — AuthN JWT / arbitrage 2026-10-03
+# ADR-0304 — état source 2026-10-04
 
 Statut : Accepted. Réalité : Partial. Canon : docs/adr/0304-jwt-acces-plateforme-rs256-jwks.md ; voir le fichier ADR.
 
-- Principal canonique (iss, sub) ; une clé org ne confère aucune identité de compte plateforme.
-- Arbitrage humain explicite : confiance JWKS expire à 60 s depuis le dernier snapshot autoritatif validé, mesh et in-process ; outage après la borne = fail-closed. Poll 60 s / 2 s ne prouve pas cette borne.
-- JWKS valide vide retire les clés ; registry initialisé vide ne ressuscite pas le bootstrap ; émission par clé révoquée interdite.
-- Remote signer HTTP Partial, pas HSM/KMIP livré ni adapters cloud BYOKMS.
-- Baseline f060d47 / rustycog ba69c9e : fixes et preuves finales encore requis. IT testcontainers et E2E Kind seulement après intégration complète ; aucune promotion Implemented dans ce tour.
+- RS256/JWKS/trust : sources de métadonnées, snapshot vide autoritatif et fraîcheur monotone60 écrites ; f060d47/ba69c9e = historique, pas état courant.
+- SDK ca2e35fcd56279e9e52625d0df9381f240f3390d publié selon parent, checkout/gitlink worktree sélectionné ; 22 pure SDK PASS selon parent, pas units/publisher IAM. Root HEAD5348a63 non committé.
+- ANY-RS256 access/registration : codec commun, fence SELECT primaire après signer, Active seul émet ; paire PEM/candidat contrôlés dans source B revue PASS statique.
+- Remote signer HTTP 0309 présent/Partial, sans HSM/KMIP/adapters cloud livrés ; aucun cloud futur exigé pour la preuve du lab.
+- Compilation root complète, units IAM, IT SQL/publication/concurrence et E2E mesh encore à exécuter après intégration ; pas Implemented ni fermeture globale.
+- Mise à jour 2026-10-04 — migrations aplaties : aucune donnée en production ; schéma IAM initial unique `m20220101_000001_initial_schema.rs`, outbox comprise, sans préflight/backfill legacy. Migrations incrémentales seulement quand un état persisté devra être préservé. Statut Accepted / réalité Partial inchangés ; aucune preuve IT/E2E ajoutée.

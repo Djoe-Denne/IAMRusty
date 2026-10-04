@@ -110,13 +110,14 @@ where
     EP: EventPublisher<DomainError>,
 {
     user_read_repo: Arc<UR>,
-    user_write_repo: Arc<UW>,
+    _user_write_repo: Arc<UW>,
     user_email_repo: Arc<UER>,
     email_verification_repo: Arc<EVR>,
     registration_token_service: Arc<RTS>,
     token_service: Arc<TS>,
     event_publisher: Arc<EP>,
     outbox_unit_of_work: Option<Arc<dyn IamOutboxUnitOfWork>>,
+    session_writer: Option<Arc<dyn crate::port::repository::AuthenticationSessionWriter>>,
 }
 
 pub struct RegistrationServiceDependencies<UR, UW, UER, EVR, RTS, TS, EP>
@@ -168,14 +169,24 @@ where
     ) -> Self {
         Self {
             user_read_repo: dependencies.user_read_repo,
-            user_write_repo: dependencies.user_write_repo,
+            _user_write_repo: dependencies.user_write_repo,
             user_email_repo: dependencies.user_email_repo,
             email_verification_repo: dependencies.email_verification_repo,
             registration_token_service: dependencies.registration_token_service,
             token_service: dependencies.token_service,
             event_publisher: dependencies.event_publisher,
             outbox_unit_of_work,
+            session_writer: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_session_writer(
+        mut self,
+        writer: Arc<dyn crate::port::repository::AuthenticationSessionWriter>,
+    ) -> Self {
+        self.session_writer = Some(writer);
+        self
     }
 
     async fn record_or_publish_event(
@@ -224,14 +235,15 @@ where
         // Validate and decode registration token
         let token_claims = self
             .registration_token_service
-            .validate_registration_token(registration_token)?;
+            .validate_registration_token(registration_token)
+            .await?;
 
         // Get user by ID from token
         let user_id = token_claims
             .get_user_id()
             .map_err(|_| DomainError::InvalidToken)?;
 
-        let mut user = self
+        let user = self
             .user_read_repo
             .find_by_id(user_id)
             .await
@@ -248,14 +260,6 @@ where
             return Err(DomainError::UsernameTaken);
         }
 
-        // Update user with username
-        user.complete_registration(username.clone());
-        let updated_user = self
-            .user_write_repo
-            .update(user)
-            .await
-            .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
-
         // Get user's primary email
         let user_email = self
             .user_email_repo
@@ -267,7 +271,7 @@ where
             .ok_or_else(|| DomainError::RepositoryError("Primary email not found".to_string()))?;
 
         // Access+refresh only after the email is verified.
-        let (access_token, refresh_token) = if user_email.is_verified {
+        let (access_token, refresh_token, session) = if user_email.is_verified {
             let access_token = self
                 .token_service
                 .generate_access_token(user_id)
@@ -278,10 +282,20 @@ where
                 .generate_refresh_token(user_id)
                 .await
                 .map_err(|e| DomainError::TokenServiceError(e.to_string()))?;
-            (access_token.token, refresh_token.token)
+            (
+                access_token.token,
+                refresh_token.token.clone(),
+                Some(refresh_token),
+            )
         } else {
-            (String::new(), String::new())
+            (String::new(), String::new(), None)
         };
+        let updated_user = self
+            .session_writer
+            .as_ref()
+            .ok_or_else(|| DomainError::RepositoryError("session writer not configured".into()))?
+            .complete_registration(user_id, user.password_hash, username.clone(), session)
+            .await?;
 
         // Publish UserSignedUp event only for email/password flows
         // OAuth flows don't need this event since the email is already verified by the provider

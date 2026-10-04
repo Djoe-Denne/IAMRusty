@@ -7,8 +7,53 @@ use iam_domain::entity::registration_token::{RegistrationFlow, RegistrationToken
 use iam_domain::entity::token::{JwtKeyPair, TokenClaims};
 use iam_domain::port::service::{JwtTokenEncoder, RegistrationTokenService};
 use iam_infra::token::{registration_token_service::RegistrationTokenServiceImpl, JwtTokenService};
-use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+use std::sync::Arc;
 use uuid::Uuid;
+
+/// Explicit synthetic codec for validator tests only, never the real publisher fixture.
+/// Platform and organization scope are selected by API, not inferred from issuer text.
+pub struct FakeJwtCodec {
+    platform_issuer: String,
+}
+
+impl FakeJwtCodec {
+    pub fn from_config(config: &JwtConfig) -> Self {
+        Self {
+            platform_issuer: config.platform_issuer(),
+        }
+    }
+
+    pub fn platform_token(&self, user_id: Uuid) -> String {
+        rustycog::testing::http::jwt::create_rs256_jwt_token_with_issuer(
+            user_id,
+            &self.platform_issuer,
+        )
+    }
+
+    pub fn platform_jwks(
+        &self,
+        status: rustycog::testing::http::jwt::TestSigningKeyStatus,
+    ) -> String {
+        rustycog::testing::http::jwt::CanonicalJwk::platform(self.platform_issuer.as_str())
+            .with_status(status)
+            .to_jwks_json()
+    }
+
+    pub fn organization_token(&self, user_id: Uuid, owner: Uuid, issuer: &str) -> String {
+        rustycog::testing::http::jwt::create_organization_rs256_jwt_token(user_id, owner, issuer)
+    }
+
+    pub fn organization_jwks(
+        &self,
+        owner: Uuid,
+        issuer: &str,
+        status: rustycog::testing::http::jwt::TestSigningKeyStatus,
+    ) -> String {
+        rustycog::testing::http::jwt::CanonicalJwk::organization(issuer, owner)
+            .with_status(status)
+            .to_jwks_json()
+    }
+}
 
 /// Create a JWT token service from configuration for testing
 fn create_jwt_service_from_config(config: &JwtConfig) -> Result<JwtTokenService, anyhow::Error> {
@@ -28,30 +73,69 @@ fn create_jwt_service_from_config(config: &JwtConfig) -> Result<JwtTokenService,
         config.expiration_seconds,
         config.refresh_token_expiration_seconds,
     )
-    .with_issuer_audience(config.issuer.clone(), config.audience.clone()))
+    .with_issuer_audience(config.platform_issuer(), config.audience.clone()))
 }
 
 /// Create a registration token service from configuration for testing.
 ///
-/// Both HS256 and RS256 are first-class on `RegistrationTokenServiceImpl`.
-/// In-tree `test.toml` is HS256 so rustycog-http `UserIdExtractor` can
-/// verify the tokens.
+/// Config-only compatibility is explicitly isolated HMAC, never an unbound RSA
+/// signer. RSA tests must supply their real writer/provider-bound shared codec.
 fn create_registration_token_service_from_config(
     config: &JwtConfig,
 ) -> Result<RegistrationTokenServiceImpl, anyhow::Error> {
-    let jwt_algorithm_config = config.create_jwt_algorithm()?;
-
-    let jwt_algorithm = match jwt_algorithm_config {
-        JwtAlgorithm::HS256(secret) => iam_infra::token::JwtAlgorithm::HS256(secret),
-        JwtAlgorithm::RS256(key_pair) => iam_infra::token::JwtAlgorithm::RS256(JwtKeyPair {
-            private_key: key_pair.private_key,
-            public_key: key_pair.public_key,
-            kid: key_pair.kid,
-        }),
-    };
-
-    RegistrationTokenServiceImpl::new(jwt_algorithm)
+    RegistrationTokenServiceImpl::new(isolated_registration_codec(config)?)
         .map_err(|e| anyhow::anyhow!("Failed to create registration token service: {e}"))
+}
+
+fn isolated_registration_codec(config: &JwtConfig) -> Result<Arc<JwtTokenService>> {
+    let app_config = iam_configuration::load_config_fresh::<iam_configuration::AppConfig>()?;
+    if app_config.security.mode != iam_configuration::security::SecurityMode::IsolatedTest
+        || !config.uses_hmac()
+    {
+        anyhow::bail!(
+            "config-only registration helper requires explicit isolated-test HMAC; RSA requires a bound shared codec"
+        );
+    }
+    Ok(Arc::new(create_jwt_service_from_config(config)?))
+}
+
+/// Uses the caller's actual shared signer/primary registry; never invents an Active row.
+pub async fn create_valid_registration_token_with_codec(
+    user_id: Uuid,
+    email: String,
+    codec: Arc<JwtTokenService>,
+) -> Result<String> {
+    RegistrationTokenServiceImpl::new(codec)?
+        .generate_registration_token(user_id, email)
+        .await
+        .map_err(anyhow::Error::from)
+}
+
+/// Deliberately expired completion claims, still signed through the real shared codec.
+pub async fn create_expired_registration_token_with_codec(
+    user_id: Uuid,
+    email: String,
+    platform_issuer: &str,
+    codec: Arc<JwtTokenService>,
+) -> Result<String> {
+    // Enforce the same constructor binding checks as normal completion generation.
+    let _service = RegistrationTokenServiceImpl::new(codec.clone())?;
+    let claims = RegistrationTokenClaims {
+        sub: "registration".to_string(),
+        user_id: user_id.to_string(),
+        email,
+        flow: RegistrationFlow::EmailPassword,
+        provider_info: None,
+        iss: Some(platform_issuer.to_owned()),
+        aud: Some("registration".to_owned()),
+        exp: (Utc::now() - Duration::hours(1)).timestamp(),
+        iat: (Utc::now() - Duration::hours(2)).timestamp(),
+        jti: Uuid::new_v4().to_string(),
+    };
+    codec
+        .encode_registration(&claims)
+        .await
+        .map_err(anyhow::Error::from)
 }
 
 /// JWT Test Utilities for creating and validating tokens in tests
@@ -140,7 +224,7 @@ impl JwtTestUtils {
     }
 
     /// Create a valid registration token for testing
-    pub fn create_valid_registration_token(
+    pub async fn create_valid_registration_token(
         user_id: Uuid,
         email: String,
         config: &JwtConfig,
@@ -149,50 +233,23 @@ impl JwtTestUtils {
 
         service
             .generate_registration_token(user_id, email)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to generate registration token: {e}"))
     }
 
     /// Create an expired registration token for testing
-    pub fn create_expired_registration_token(
+    pub async fn create_expired_registration_token(
         user_id: Uuid,
         email: String,
         config: &JwtConfig,
     ) -> Result<String, anyhow::Error> {
-        // Create claims that are already expired
-        let expired_claims = RegistrationTokenClaims {
-            sub: "registration".to_string(),
-            user_id: user_id.to_string(),
+        create_expired_registration_token_with_codec(
+            user_id,
             email,
-            flow: RegistrationFlow::EmailPassword, // Default to email/password flow for tests
-            provider_info: None,                   // No provider info for email/password flow
-            exp: (Utc::now() - Duration::hours(1)).timestamp(), // Expired 1 hour ago
-            iat: (Utc::now() - Duration::hours(2)).timestamp(), // Issued 2 hours ago
-            jti: Uuid::new_v4().to_string(),
-        };
-
-        // Build the encoding key from the test config. Header `alg`
-        // must match the key material (RS256 from PEM, HS256 from a
-        // shared secret) or `jsonwebtoken::encode` rejects the pair.
-        let jwt_algorithm_config = config.create_jwt_algorithm()?;
-
-        let (encoding_key, kid, algorithm) = match jwt_algorithm_config {
-            JwtAlgorithm::RS256(key_pair) => {
-                let encoding_key = EncodingKey::from_rsa_pem(key_pair.private_key.as_bytes())
-                    .map_err(|e| anyhow::anyhow!("Failed to create encoding key: {e}"))?;
-                (encoding_key, Some(key_pair.kid), Algorithm::RS256)
-            }
-            JwtAlgorithm::HS256(secret) => {
-                let encoding_key = EncodingKey::from_secret(secret.as_bytes());
-                (encoding_key, None, Algorithm::HS256)
-            }
-        };
-
-        // Create header with proper algorithm and (optional) key ID
-        let mut header = Header::new(algorithm);
-        header.kid = kid;
-
-        encode(&header, &expired_claims, &encoding_key)
-            .map_err(|e| anyhow::anyhow!("Failed to encode expired registration token: {e}"))
+            &config.platform_issuer(),
+            isolated_registration_codec(config)?,
+        )
+        .await
     }
 
     /// Create a JWT token with custom expiration
@@ -339,19 +396,19 @@ pub async fn create_invalid_jwt_token(
 }
 
 /// Create a valid registration token for testing
-pub fn create_valid_registration_token_with_encoder(
+pub async fn create_valid_registration_token_with_encoder(
     user_id: Uuid,
     email: String,
     config: &JwtConfig,
 ) -> Result<String, anyhow::Error> {
-    JwtTestUtils::create_valid_registration_token(user_id, email, config)
+    JwtTestUtils::create_valid_registration_token(user_id, email, config).await
 }
 
 /// Create an expired registration token for testing
-pub fn create_expired_registration_token_with_encoder(
+pub async fn create_expired_registration_token_with_encoder(
     user_id: Uuid,
     email: String,
     config: &JwtConfig,
 ) -> Result<String, anyhow::Error> {
-    JwtTestUtils::create_expired_registration_token(user_id, email, config)
+    JwtTestUtils::create_expired_registration_token(user_id, email, config).await
 }

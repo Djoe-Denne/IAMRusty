@@ -391,6 +391,40 @@ where
     type Error = <T as PasswordResetTokenReadRepository>::Error;
 }
 
+/// Writer-only session boundary. Implementations lock the actual user row and
+/// compare the credential snapshot before issuing a refresh session.
+#[async_trait::async_trait]
+pub trait AuthenticationSessionWriter: Send + Sync {
+    async fn issue(
+        &self,
+        token: RefreshToken,
+        expected_password_hash: Option<String>,
+    ) -> Result<(), crate::error::DomainError>;
+
+    /// Complete registration and persist its optional verified-email session in
+    /// the same user-row transaction, without writing a stale password snapshot.
+    async fn complete_registration(
+        &self,
+        user_id: Uuid,
+        expected_password_hash: Option<String>,
+        username: String,
+        token: Option<RefreshToken>,
+    ) -> Result<crate::entity::user::User, crate::error::DomainError>;
+
+    /// Change password, invalidate reset capabilities and purge sessions in one
+    /// transaction. A supplied reset token must be revalidated on the writer.
+    async fn reset_password(
+        &self,
+        user_id: Uuid,
+        expected_password_hash: Option<String>,
+        new_password_hash: String,
+        reset_token_hash: Option<String>,
+    ) -> Result<(), crate::error::DomainError>;
+}
+
+pub mod oauth_transaction_repository;
+pub use oauth_transaction_repository::OAuthTransactionWriteRepository;
+
 /// Registry for platform / organization signing keys (ADR-0304).
 #[async_trait::async_trait]
 pub trait SigningKeyRegistry: Send + Sync {
@@ -401,21 +435,52 @@ pub trait SigningKeyRegistry: Send + Sync {
     async fn insert(&self, key: &crate::entity::signing_key::SigningKey)
         -> Result<(), Self::Error>;
 
+    /// Atomically replace an organization's Active key (or promote Pending).
+    /// Checks issuer ownership on the writer, retires old Active rows and inserts/
+    /// promotes the replacement in one transaction. `expected_active_kid` makes
+    /// rotation conditional on the epoch whose material was minted.
+    async fn replace_active_organization_key(
+        &self,
+        key: &crate::entity::signing_key::SigningKey,
+        expected_active_kid: Option<&str>,
+    ) -> Result<crate::entity::signing_key::SigningKey, Self::Error>;
+
+    /// Atomically revoke every key for an organization, serializing with replace.
+    async fn revoke_organization_keys(
+        &self,
+        organization_id: Uuid,
+    ) -> Result<Vec<crate::entity::signing_key::SigningKey>, Self::Error>;
+
     /// Find a key by opaque kid.
     async fn find_by_kid(
         &self,
         kid: &str,
     ) -> Result<Option<crate::entity::signing_key::SigningKey>, Self::Error>;
 
+    /// Final emission fence: a fresh autocommit/READ COMMITTED SELECT on the
+    /// primary writer, after signing, confirms Active and every expected binding
+    /// and public material (not timestamps). Never use a replica or cached row.
+    /// The SELECT snapshot linearizes issuance; later retirement is ordered after it.
+    async fn confirm_active_for_emission(
+        &self,
+        expected: &crate::entity::signing_key::SigningKey,
+    ) -> Result<bool, Self::Error>;
+
     /// Active platform signing key used to mint new access tokens.
     async fn find_active_platform_key(
         &self,
     ) -> Result<Option<crate::entity::signing_key::SigningKey>, Self::Error>;
 
-    /// Keys eligible for JWKS (`active` | `retiring`), never HMAC/oct.
+    /// Keys eligible for publication (`pending` | `active` | `retiring`), never
+    /// HMAC/oct. Pending is prepublication only, not an authentication authority.
     async fn list_jwks_keys(
         &self,
     ) -> Result<Vec<crate::entity::signing_key::SigningKey>, Self::Error>;
+
+    /// One coherent primary SELECT including DB statement clock, also when empty.
+    async fn jwks_publication_snapshot(
+        &self,
+    ) -> Result<crate::entity::signing_key::SigningKeyPublicationSnapshot, Self::Error>;
 
     /// Update key status / public material.
     async fn update(&self, key: &crate::entity::signing_key::SigningKey)

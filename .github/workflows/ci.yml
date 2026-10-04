@@ -20,11 +20,11 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
           components: rustfmt
 
@@ -84,14 +84,17 @@ jobs:
           - service: Sentinel Sync
             cache_key: sentinel-sync
             package_args: --package sentinel-sync
+          - service: Ext Authz
+            cache_key: ext-authz
+            package_args: --package ext-authz
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: ${{ matrix.cache_key }}
           cache-on-failure: true
@@ -107,18 +110,44 @@ jobs:
       - name: Build service
         run: cargo build --locked --all-targets ${{ matrix.package_args }}
 
+  ext-authz-unit:
+    name: Ext Authz (unit + HTTP Check stand-in, not Envoy proof)
+    runs-on: ubuntu-latest
+    needs: [fmt]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          shared-key: ext-authz
+      # Wiremock HTTP only: no Kind, Docker fixture or cloud credentials.
+      - run: cargo test --locked --package ext-authz --lib --test mesh_path_standin --test registry_publication
+
+  infra-static:
+    name: Infrastructure (offline render + shell syntax)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # kubectl is used only as an offline kustomize renderer; no cluster access.
+      - name: Install YAML parser
+        run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.2
+      - name: Check scripts and render deployment overlays
+        run: bash ops/tests/infra-static.sh
+
   apparatus-p0:
     name: Apparatus P0 (contracts + reference-kv)
     runs-on: ubuntu-latest
     needs: [fmt]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: apparatus-p0
           cache-on-failure: true
@@ -133,6 +162,12 @@ jobs:
     name: Coverage - integration (${{ matrix.service }})
     runs-on: ubuntu-latest
     needs: [build]
+    # Native hosted Linux job (no job container): daemon-published ports are
+    # reachable on loopback. Containerized/manual runners require bridge proof.
+    env:
+      RUSTYCOG_TEST_RUNNER_MODE: local
+      RUSTYCOG_TEST_RUN_ID: fi-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
+      RUSTYCOG_TEST_LEDGER_DIR: ${{ runner.temp }}/rustycog-fixtures-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.cache_key }}
     strategy:
       fail-fast: false
       matrix:
@@ -194,15 +229,15 @@ jobs:
               --package apparatus-reference-kv
               --features apparatus-contracts/test-harness
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
           components: llvm-tools-preview
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: ${{ matrix.cache_key }}
           cache-on-failure: true
@@ -215,7 +250,18 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libcurl4-openssl-dev
 
-      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: taiki-e/install-action@72f835688cb6c15903b796f704b01e652a2b8835 # cargo-llvm-cov
+
+      - name: Prepare explicit fixture runner context
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RUSTYCOG_TEST_RUN_ID" =~ ^[A-Za-z0-9-]{1,40}$ ]]
+          [[ "$RUNNER_TEMP" == /* && "$RUSTYCOG_TEST_LEDGER_DIR" == "$RUNNER_TEMP"/* ]]
+          [[ ! -L "$RUSTYCOG_TEST_LEDGER_DIR" ]]
+          umask 077
+          mkdir -p -- "$RUSTYCOG_TEST_LEDGER_DIR"
+          # SDK creates exclusive per-process ledgers; never truncate/reuse one.
 
       - name: Check Docker
         run: |
@@ -237,7 +283,7 @@ jobs:
 
       - name: Upload integration coverage artifact
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.output_path }}
@@ -305,15 +351,15 @@ jobs:
             output_path: lcov-unit-readiness.info
             package_args: --package readiness
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
           components: llvm-tools-preview
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: ${{ matrix.cache_key }}
           cache-on-failure: true
@@ -326,7 +372,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libcurl4-openssl-dev
 
-      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: taiki-e/install-action@72f835688cb6c15903b796f704b01e652a2b8835 # cargo-llvm-cov
 
       - name: Run unit tests (lib + bins) with coverage
         run: |
@@ -340,7 +386,7 @@ jobs:
 
       - name: Upload unit coverage artifact
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.output_path }}
@@ -353,7 +399,7 @@ jobs:
     if: ${{ always() && !cancelled() }}
     steps:
       - name: Download coverage artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true
         with:
           pattern: lcov-*
@@ -385,7 +431,7 @@ jobs:
           lcov "${lcov_args[@]}" --output-file lcov.info
 
       - name: Upload merged coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: lcov
           path: lcov.info
@@ -396,13 +442,13 @@ jobs:
     needs: [merge-coverage]
     if: ${{ always() && !cancelled() }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           submodules: true
 
       - name: Download coverage artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true
         with:
           name: lcov
@@ -415,11 +461,11 @@ jobs:
             : > lcov.info
           fi
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
           components: clippy
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: sonar
           cache-on-failure: true
@@ -468,7 +514,7 @@ jobs:
           cat target/sonar/clippy-production.jsonl target/sonar/clippy-tests.jsonl > target/sonar/clippy.json
 
       - name: SonarCloud scan
-        uses: SonarSource/sonarqube-scan-action@v7
+        uses: SonarSource/sonarqube-scan-action@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:

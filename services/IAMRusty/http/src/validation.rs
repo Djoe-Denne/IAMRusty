@@ -95,14 +95,14 @@ const COMMON_WEAK_PASSWORDS: &[&str] = &[
 /// Returns a [`ValidationError`] with code `empty_string` when the value is empty
 /// or whitespace-only.
 pub fn validate_non_empty_string(value: &str) -> Result<(), ValidationError> {
-    debug!("Validating non-empty string: '{value}'");
+    debug!("Validating non-empty string");
 
     if value.trim().is_empty() {
-        warn!("String is empty or whitespace only: '{value}'");
+        warn!("String is empty or whitespace only");
         return Err(ValidationError::new("empty_string"));
     }
 
-    debug!("String is valid (non-empty): '{value}'");
+    debug!("String is valid (non-empty)");
     Ok(())
 }
 
@@ -231,19 +231,19 @@ pub fn validate_strong_password(password: &str) -> Result<(), ValidationError> {
 /// Returns a [`ValidationError`] when the token is empty (`empty_verification_token`)
 /// or does not match [`VERIFICATION_TOKEN_REGEX`] (`invalid_verification_token_format`).
 pub fn validate_verification_token(token: &str) -> Result<(), ValidationError> {
-    debug!("Validating verification token: '{token}'");
+    debug!("Validating verification token");
 
     if token.trim().is_empty() {
-        warn!("Verification token is empty: '{token}'");
+        warn!("Verification token is empty");
         return Err(ValidationError::new("empty_verification_token"));
     }
 
     if !VERIFICATION_TOKEN_REGEX.is_match(token) {
-        warn!("Verification token format invalid: '{token}'");
+        warn!("Verification token format invalid");
         return Err(ValidationError::new("invalid_verification_token_format"));
     }
 
-    debug!("Verification token is valid: '{token}'");
+    debug!("Verification token is valid");
     Ok(())
 }
 
@@ -256,10 +256,10 @@ pub fn validate_verification_token(token: &str) -> Result<(), ValidationError> {
 /// Returns a [`ValidationError`] when the token is empty (`empty_reset_token`) or
 /// its length is not in `1..=100` (`invalid_reset_token_length`).
 pub fn validate_reset_token_format(token: &str) -> Result<(), ValidationError> {
-    debug!("Validating reset token format: '{token}'");
+    debug!("Validating reset token format");
 
     if token.trim().is_empty() {
-        warn!("Reset token is empty: '{token}'");
+        warn!("Reset token is empty");
         return Err(ValidationError::new("empty_reset_token"));
     }
 
@@ -270,7 +270,7 @@ pub fn validate_reset_token_format(token: &str) -> Result<(), ValidationError> {
         return Err(ValidationError::new("invalid_reset_token_length"));
     }
 
-    debug!("Reset token format is valid: '{token}'");
+    debug!("Reset token format is valid");
     Ok(())
 }
 
@@ -331,10 +331,10 @@ pub fn mask_email(email: &str) -> String {
 /// Returns a [`ValidationError`] when the code is empty or whitespace-only
 /// (`empty_oauth_code`) or longer than 1000 characters (`oauth_code_too_long`).
 pub fn validate_oauth_code(code: &str) -> Result<(), ValidationError> {
-    debug!("Validating OAuth code: '{}' (length: {})", code, code.len());
+    debug!("Validating OAuth code");
 
     if code.trim().is_empty() {
-        warn!("OAuth code is empty or whitespace only: '{code}'");
+        warn!("OAuth code is empty or whitespace only");
         return Err(ValidationError::new("empty_oauth_code"));
     }
 
@@ -344,7 +344,7 @@ pub fn validate_oauth_code(code: &str) -> Result<(), ValidationError> {
         return Err(ValidationError::new("oauth_code_too_long"));
     }
 
-    debug!("OAuth code is valid: '{code}'");
+    debug!("OAuth code is valid");
     Ok(())
 }
 
@@ -356,14 +356,10 @@ pub fn validate_oauth_code(code: &str) -> Result<(), ValidationError> {
 /// (`empty_refresh_token`) or its length is outside `10..=1000`
 /// (`invalid_refresh_token_length`).
 pub fn validate_refresh_token(token: &str) -> Result<(), ValidationError> {
-    debug!(
-        "Validating refresh token: '{}' (length: {})",
-        token,
-        token.len()
-    );
+    debug!("Validating refresh token");
 
     if token.trim().is_empty() {
-        warn!("Refresh token is empty or whitespace only: '{token}'");
+        warn!("Refresh token is empty or whitespace only");
         return Err(ValidationError::new("empty_refresh_token"));
     }
 
@@ -376,7 +372,7 @@ pub fn validate_refresh_token(token: &str) -> Result<(), ValidationError> {
         return Err(ValidationError::new("invalid_refresh_token_length"));
     }
 
-    debug!("Refresh token is valid: '{token}'");
+    debug!("Refresh token is valid");
     Ok(())
 }
 
@@ -386,6 +382,40 @@ mod tests {
     use crate::handlers::auth::OAuthCallbackQuery;
     use crate::handlers::token::RefreshTokenRequest;
     use validator::Validate;
+
+    #[test]
+    fn credential_validation_never_traces_secrets_on_success_or_failure() {
+        use std::io::Write;
+        use std::sync::{Arc, Mutex};
+
+        #[derive(Clone)]
+        struct Capture(Arc<Mutex<Vec<u8>>>);
+        impl Write for Capture {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
+        }
+        let buffer = Arc::new(Mutex::new(Vec::new()));
+        let writer = Capture(buffer.clone());
+        let subscriber = tracing_subscriber::fmt().without_time().with_ansi(false)
+            .with_max_level(tracing::Level::DEBUG).with_writer(move || writer.clone()).finish();
+        let sentinel = "SENTINEL-CREDENTIAL-NOT-IN-LOGS";
+        tracing::subscriber::with_default(subscriber, || {
+            for credential in [sentinel.to_string(), format!("{sentinel}{}", "x".repeat(1100)), " ".to_string()] {
+                let _ = validate_non_empty_string(&credential);
+                let _ = validate_oauth_code(&credential);
+                let _ = validate_refresh_token(&credential);
+                let _ = validate_reset_token_format(&credential);
+                let _ = validate_verification_token(&credential);
+            }
+        });
+        let logs = String::from_utf8(buffer.lock().unwrap().clone()).unwrap();
+        assert!(logs.contains("Validating OAuth code"));
+        assert!(logs.contains("too long"));
+        assert!(!logs.contains(sentinel));
+    }
 
     #[test]
     fn test_oauth_callback_query_validation() {

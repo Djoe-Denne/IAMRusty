@@ -69,7 +69,11 @@ impl Application {
             Arc::new(InMemoryPermissionChecker::new());
 
         let state = AppState::new(command_service, user_id_extractor, permission_checker);
-        let client = Arc::new(GitHubConnectClient::from_config(&config.github)?);
+        let client = Arc::new(GitHubConnectClient::from_config_with_transport_and_pkce(
+            &config.github,
+            config.github.transport_security,
+            config.github.pkce_supported,
+        )?);
         let connect = ConnectState { hmac_key, client };
         let readiness = Arc::new(ReadinessProbe::new("github-connect-service"));
 

@@ -42,6 +42,8 @@ pub fn test_config(github_base: &str) -> AppConfig {
             ..LoggingConfig::default()
         },
         github: GitHubConfig {
+            pkce_supported: false,
+            transport_security: github_connect_configuration::VendorTransportSecurity::IsolatedTest,
             client_id: "test_github_client_id".to_owned(),
             client_secret: "test_github_client_secret".to_owned(),
             auth_url: format!("{base}/login/oauth/authorize"),

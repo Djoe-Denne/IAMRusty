@@ -2,6 +2,9 @@
 
 use crate::usecase::factory::OAuthProviderFactory;
 use async_trait::async_trait;
+use iam_domain::entity::oauth_transaction::{
+    BegunOAuthTransaction, ConsumedOAuthTransaction, OAuthOperation,
+};
 use iam_domain::entity::{provider::Provider, user::User, user_email::UserEmail};
 use iam_domain::error::DomainError;
 use iam_domain::port::service::FederatedOAuthClient;
@@ -53,6 +56,7 @@ pub trait LinkProviderUseCase: Send + Sync {
         provider: Provider,
         redirect_uri: String,
         state: String,
+        begun: &BegunOAuthTransaction,
     ) -> Result<String, LinkProviderError>;
 
     /// Generate OAuth authorization URL for relink provider flow
@@ -65,6 +69,7 @@ pub trait LinkProviderUseCase: Send + Sync {
         provider: Provider,
         redirect_uri: String,
         state: String,
+        begun: &BegunOAuthTransaction,
     ) -> Result<String, LinkProviderError>;
 
     /// Link a new OAuth provider to an existing authenticated user
@@ -74,6 +79,7 @@ pub trait LinkProviderUseCase: Send + Sync {
         provider: Provider,
         code: String,
         redirect_uri: String,
+        consumed: ConsumedOAuthTransaction,
     ) -> Result<LinkProviderResponse, LinkProviderError>;
 
     /// Relink an existing OAuth provider to replace the existing token
@@ -83,6 +89,7 @@ pub trait LinkProviderUseCase: Send + Sync {
         provider: Provider,
         code: String,
         redirect_uri: String,
+        consumed: ConsumedOAuthTransaction,
     ) -> Result<LinkProviderResponse, LinkProviderError>;
 }
 
@@ -119,15 +126,16 @@ where
         provider: Provider,
         redirect_uri: String,
         state: String,
+        begun: &BegunOAuthTransaction,
     ) -> Result<String, LinkProviderError> {
         let client = self
             .auth_factory
             .get(&provider)
             .map_err(|_| LinkProviderError::ProviderNotConfigured(provider.as_str().to_string()))?;
         let response = client
-            .authorize(&redirect_uri, &state)
+            .authorize_with_pkce(&redirect_uri, &state, begun.code_challenge.as_deref())
             .await
-            .map_err(|e| LinkProviderError::AuthError(e.to_string()))?;
+            .map_err(|_| LinkProviderError::AuthError("OAuth authorization failed".into()))?;
         Ok(response.authorization_url)
     }
 
@@ -137,6 +145,7 @@ where
         provider: &Provider,
         code: String,
         redirect_uri: String,
+        consumed: &ConsumedOAuthTransaction,
     ) -> Result<
         (
             iam_domain::entity::provider::ProviderTokens,
@@ -149,14 +158,14 @@ where
             .get(provider)
             .map_err(|_| LinkProviderError::ProviderNotConfigured(provider.as_str().to_string()))?;
 
-        let tokens = client
-            .exchange_code(&code, &redirect_uri)
-            .await
-            .map_err(|e| LinkProviderError::AuthError(e.to_string()))?;
+        if consumed.provider() != provider || consumed.redirect_uri() != redirect_uri {
+            return Err(DomainError::InvalidToken.into());
+        }
+        let tokens = consumed.exchange_code(client.as_ref(), &code).await?;
         let profile = client
             .user_profile(&tokens.access_token)
             .await
-            .map_err(|e| LinkProviderError::AuthError(e.to_string()))?;
+            .map_err(|_| LinkProviderError::AuthError("OAuth profile request failed".into()))?;
 
         Ok((tokens, profile))
     }
@@ -180,8 +189,10 @@ where
         provider: Provider,
         redirect_uri: String,
         state: String,
+        begun: &BegunOAuthTransaction,
     ) -> Result<String, LinkProviderError> {
-        self.authorize_url(provider, redirect_uri, state).await
+        self.authorize_url(provider, redirect_uri, state, begun)
+            .await
     }
 
     async fn generate_relink_start_url(
@@ -189,8 +200,10 @@ where
         provider: Provider,
         redirect_uri: String,
         state: String,
+        begun: &BegunOAuthTransaction,
     ) -> Result<String, LinkProviderError> {
-        self.authorize_url(provider, redirect_uri, state).await
+        self.authorize_url(provider, redirect_uri, state, begun)
+            .await
     }
 
     async fn link_provider(
@@ -199,9 +212,13 @@ where
         provider: Provider,
         code: String,
         redirect_uri: String,
+        consumed: ConsumedOAuthTransaction,
     ) -> Result<LinkProviderResponse, LinkProviderError> {
+        if consumed.operation() != &(OAuthOperation::Link { user_id }) {
+            return Err(DomainError::InvalidToken.into());
+        }
         let (tokens, profile) = self
-            .fetch_provider_profile(&provider, code, redirect_uri)
+            .fetch_provider_profile(&provider, code, redirect_uri, &consumed)
             .await?;
 
         let result = self
@@ -223,9 +240,13 @@ where
         provider: Provider,
         code: String,
         redirect_uri: String,
+        consumed: ConsumedOAuthTransaction,
     ) -> Result<LinkProviderResponse, LinkProviderError> {
+        if consumed.operation() != &(OAuthOperation::Relink { user_id }) {
+            return Err(DomainError::InvalidToken.into());
+        }
         let (tokens, profile) = self
-            .fetch_provider_profile(&provider, code, redirect_uri)
+            .fetch_provider_profile(&provider, code, redirect_uri, &consumed)
             .await?;
 
         let result = self

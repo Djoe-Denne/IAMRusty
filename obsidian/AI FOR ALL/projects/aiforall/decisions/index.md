@@ -5,9 +5,9 @@ tags: [architecture, rustycog, platform, visibility/internal]
 status: accepted
 summary: >-
   Hub 0100–0502. IAM 0407–0411 Implemented. Cloud 0600–0602 Proposed.
-  0603 Partial ; 0604 et 0605 Réalité Implemented, Statut Proposed.
+  0603–0606 Réalité Partial, Statut Proposed ; J3/gold historiques conservés.
 created: 2026-09-12T10:20:00Z
-updated: 2026-10-01T16:45:00Z
+updated: 2026-10-04
 sources:
   - docs/adr/README.md
   - docs/adr/0100-services-metier-hexagonaux-rustycog.md
@@ -43,9 +43,17 @@ Pas un compteur global. Un sujet hexagonal n’est **pas** `0006`.
 | 0300–0399 | Events, outbox, AuthN/AuthZ | [[projects/aiforall/decisions/0300-events-authz]], [[projects/aiforall/decisions/0304-access-jwt-trust]], [[projects/aiforall/decisions/0308-mesh-authn-jwt]] |
 | 0400–0499 | Services et runtimes | [[projects/aiforall/decisions/0400-services-runtime]] |
 | 0500–0599 | Config, CI, rustycog | [[projects/aiforall/decisions/0500-plateforme-qualite]] |
-| 0600–0699 | Cloud / IaC / GitOps / cluster | [[projects/aiforall/decisions/0600-cloud-portable]], [[projects/aiforall/decisions/0601-cluster-topology]], [[projects/aiforall/decisions/0602-observabilite-portable]], [[projects/aiforall/decisions/0603-tranche-locale]], [[projects/aiforall/decisions/0604-j3-overlay-demo-monolith]], [[projects/aiforall/decisions/0605-gold-path-kind]] |
+| 0600–0699 | Cloud / IaC / GitOps / cluster | [[projects/aiforall/decisions/0600-cloud-portable]], [[projects/aiforall/decisions/0601-cluster-topology]], [[projects/aiforall/decisions/0602-observabilite-portable]], [[projects/aiforall/decisions/0603-tranche-locale]], [[projects/aiforall/decisions/0604-j3-overlay-demo-monolith]], [[projects/aiforall/decisions/0605-gold-path-kind]], [[projects/aiforall/decisions/0606-local-full-kind-isole]] |
 
 Agents Cursor dédiés (Grok 4.6 Extra High) : `adr-hexagonal-rustycog`, `adr-testing-strategy`, `adr-events-authz`, `adr-services-runtime`, `adr-platform-quality` — voir [[projects/aiforall/concepts/orchestrator-agent-harness]].
+
+## Admission JWKS — S-10
+
+[[projects/aiforall/decisions/0310-admission-epochs-budget-jwks]] — Canon `docs/adr/0310-admission-epochs-budget-jwks.md`, **Accepted / Partial** : ratification humaine0310 le 2026-10-04, primitives existantes seulement ; budget/idempotence/churn non livrés, S-10 HIGH BLOCK. S-11 guard endpoint/UID reste ouvert dans [[projects/aiforall/decisions/0606-local-full-kind-isole]]. Contrats§§14–15, aucune preuve root/IT/E2E nouvelle.
+
+## Réconciliation source 2026-10-04
+
+Canon : `docs/adr/README.md`. 0304/0308/0412 **Accepted / Partial** ; 0603–0606 **Proposed / Partial**. SDK `ca2e35fcd56279e9e52625d0df9381f240f3390d` publié/sélectionné et SDK22 purs PASS selon parent ; aucune compilation root complète ni preuve IAM/mesh/full intégrée nouvelle. D6 render112 = source/offline. J3/gold restent historiques ; nouveau contexte full autorisé après IT, legacy étranger intact. 0404/0500 et cibles futures0600–0602 inchangés ; aucune Accept implicite.
 
 ## Partial connus
 
@@ -72,8 +80,9 @@ Elles **ne font pas** partie de cette vague 2 et **ne se fusionnent pas** dans [
 | [[projects/aiforall/decisions/0601-cluster-topology]] | 4+1 Deployments ; ns `aiforall-*` | ferme le Non décidé K8s de 0404 sans l'éditer |
 | [[projects/aiforall/decisions/0602-observabilite-portable]] | Plan A câble rustycog ; plan B LGTM/Tempo derrière collector | ferme Q3 0600 sans SuperSéder 0600 |
 | [[projects/aiforall/decisions/0603-tranche-locale]] | Première tranche = locale A+B | Proposed / Partial |
-| [[projects/aiforall/decisions/0604-j3-overlay-demo-monolith]] | Overlay démo monolithe kind | Proposed / Réalité Implemented |
-| [[projects/aiforall/decisions/0605-gold-path-kind]] | HTTP 200 J3, DNS = Service du Pod | Proposed / Réalité Implemented |
+| [[projects/aiforall/decisions/0604-j3-overlay-demo-monolith]] | Overlay démo monolithe kind ; résultat J3 historique | Proposed / Réalité courante Partial |
+| [[projects/aiforall/decisions/0605-gold-path-kind]] | HTTP200 J3 historique, DNS = Service du Pod | Proposed / Réalité courante Partial |
+| [[projects/aiforall/decisions/0606-local-full-kind-isole]] | Lab Kind full dédié 1+2, legacy préservé, dépendances/états in-cluster | Proposed / Partial ; source/offline, pas preuve runtime |
 
 ## Related
 

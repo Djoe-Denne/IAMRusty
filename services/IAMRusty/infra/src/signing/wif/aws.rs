@@ -31,8 +31,11 @@ impl AwsWif {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .map_err(|e| {
-                DomainError::external_service_error("workload_identity", &e.to_string())
+            .map_err(|_| {
+                DomainError::external_service_error(
+                    "workload_identity",
+                    "HTTP client initialization failed",
+                )
             })?;
         Ok(Self {
             client,
@@ -59,7 +62,7 @@ impl WorkloadIdentity for AwsWif {
             ("RoleSessionName", self.role_session_name.as_str()),
             ("WebIdentityToken", subject_token.as_str()),
         ];
-        debug!(url = %self.token_url, "AWS WIF AssumeRoleWithWebIdentity");
+        debug!("AWS WIF AssumeRoleWithWebIdentity");
         let response = self
             .client
             .post(&self.token_url)
@@ -70,12 +73,12 @@ impl WorkloadIdentity for AwsWif {
             .form(&form)
             .send()
             .await
-            .map_err(|e| {
-                DomainError::external_service_error("workload_identity", &e.to_string())
+            .map_err(|_| {
+                DomainError::external_service_error("workload_identity", "AWS token request failed")
             })?;
         let status = response.status();
-        let body = response.text().await.map_err(|e| {
-            DomainError::external_service_error("workload_identity", &e.to_string())
+        let body = response.text().await.map_err(|_| {
+            DomainError::external_service_error("workload_identity", "AWS token response failed")
         })?;
         if !status.is_success() {
             return Err(DomainError::external_service_error(

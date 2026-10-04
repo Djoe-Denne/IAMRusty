@@ -8,10 +8,18 @@ pub use rustycog::config::{
     ServerConfig,
 };
 pub use rustycog::logger::setup_logging;
+pub mod transport;
+pub use transport::VendorTransportSecurity;
 
 /// GitHub vendor + S2S HMAC settings.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct GitHubConfig {
+    /// Explicit transport policy; defaults to verified HTTPS.
+    #[serde(default)]
+    pub transport_security: VendorTransportSecurity,
+    /// Explicit vendor receiver capability; activate before enabling IAM PKCE.
+    #[serde(default)]
+    pub pkce_supported: bool,
     /// OAuth application client id (not a secret).
     #[serde(default)]
     pub client_id: String,
@@ -39,6 +47,8 @@ impl Default for GitHubConfig {
     fn default() -> Self {
         Self {
             client_id: String::new(),
+            transport_security: VendorTransportSecurity::default(),
+            pkce_supported: false,
             client_secret: String::new(),
             auth_url: default_auth_url(),
             token_url: default_token_url(),

@@ -4,10 +4,10 @@ use std::sync::Arc;
 use futures::future::select_all;
 use tokio::task::{JoinError, JoinHandle};
 
-use crate::config::{load_monolith_config, MonolithConfig};
+use crate::config::{MonolithConfig, load_monolith_config};
 use crate::in_process_binding_grant::InProcessBindingGrantClient;
 use crate::in_process_iam_signer::InProcessIamOrganizationSignerClient;
-use crate::routes::{compose_routes, MonolithRouters};
+use crate::routes::{MonolithRouters, compose_routes};
 
 pub async fn run() -> anyhow::Result<()> {
     setup_logging_once();
@@ -54,8 +54,8 @@ pub async fn run() -> anyhow::Result<()> {
     )
     .await?;
 
+    let mut iam_tasks = iam_app.start_background_tasks();
     let mut background_tasks = Vec::new();
-    background_tasks.extend(iam_app.start_background_tasks());
     background_tasks.extend(telegraph_app.start_background_tasks());
     background_tasks.extend(hive_app.start_background_tasks());
     background_tasks.extend(manifesto_app.start_background_tasks());
@@ -83,21 +83,34 @@ pub async fn run() -> anyhow::Result<()> {
         readiness,
     );
 
-    let server = tokio::spawn(async move {
+    let mut server = tokio::spawn(async move {
         rustycog::http::serve_router(router, server)
             .await
             .map_err(|e| anyhow::anyhow!("Monolith HTTP server failed: {e}"))
     });
 
-    let result = wait_for_shutdown_or_failure(server, background_tasks).await;
+    let _abort_on_cancel = OwnedTaskAbortGuard(
+        iam_tasks
+            .iter()
+            .chain(background_tasks.iter())
+            .map(JoinHandle::abort_handle)
+            .chain(std::iter::once(server.abort_handle()))
+            .collect(),
+    );
+    let (result, server_finished) =
+        wait_for_shutdown_or_failure(&mut server, &mut iam_tasks, &mut background_tasks).await;
 
-    iam_app.stop_background_tasks().await;
+    let iam_cleanup = iam_app.shutdown_background_tasks(&mut iam_tasks).await;
     telegraph_app.stop_background_tasks().await;
     hive_app.stop_background_tasks().await;
     manifesto_app.stop_background_tasks().await;
     lazaret_app.stop_background_tasks().await;
-
-    result
+    let other_cleanup = drain_background_tasks(&mut background_tasks).await;
+    if !server_finished {
+        server.abort();
+        let _ = server.await;
+    }
+    result.and(iam_cleanup).and(other_cleanup)
 }
 
 fn setup_logging_once() {
@@ -108,27 +121,23 @@ fn setup_logging_once() {
 }
 
 async fn wait_for_shutdown_or_failure(
-    mut server: JoinHandle<anyhow::Result<()>>,
-    background_tasks: Vec<JoinHandle<anyhow::Result<()>>>,
-) -> anyhow::Result<()> {
-    let background_wait = wait_for_first_background_task(background_tasks);
-
+    server: &mut JoinHandle<anyhow::Result<()>>,
+    iam_tasks: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    background_tasks: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+) -> (anyhow::Result<()>, bool) {
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
             tracing::info!("Shutdown signal received; stopping monolith runtime");
-            server.abort();
-            Ok(())
+            (Ok(()), false)
         }
-        result = &mut server => flatten_join_result("Monolith HTTP server", result),
-        result = background_wait => {
-            server.abort();
-            result
-        }
+        result = server => (flatten_join_result("Monolith HTTP server", result), true),
+        result = iam_setup::app::wait_for_background_failure(iam_tasks) => (result, false),
+        result = wait_for_first_background_task(background_tasks) => (result, false),
     }
 }
 
 async fn wait_for_first_background_task(
-    mut background_tasks: Vec<JoinHandle<anyhow::Result<()>>>,
+    background_tasks: &mut Vec<JoinHandle<anyhow::Result<()>>>,
 ) -> anyhow::Result<()> {
     loop {
         if background_tasks.is_empty() {
@@ -136,20 +145,59 @@ async fn wait_for_first_background_task(
             unreachable!("pending future never resolves");
         }
 
-        let (result, _index, remaining_tasks) = select_all(background_tasks).await;
+        let (result, index, remaining_tasks) = select_all(background_tasks.iter_mut()).await;
+        drop(remaining_tasks);
+        drop(background_tasks.swap_remove(index));
         match &result {
             Ok(Ok(())) => {
                 tracing::warn!("Monolith background task exited cleanly; HTTP listener continues");
-                background_tasks = remaining_tasks;
             }
             _ => {
-                for task in remaining_tasks {
-                    task.abort();
-                }
                 return flatten_join_result("Monolith background task", result);
             }
         }
     }
+}
+
+struct OwnedTaskAbortGuard(Vec<tokio::task::AbortHandle>);
+
+impl Drop for OwnedTaskAbortGuard {
+    fn drop(&mut self) {
+        for task in &self.0 {
+            task.abort();
+        }
+    }
+}
+
+async fn drain_background_tasks(
+    tasks: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+) -> anyhow::Result<()> {
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+    let mut first_error = None;
+    while !tasks.is_empty() {
+        match tokio::time::timeout_at(deadline, select_all(tasks.iter_mut())).await {
+            Ok((result, index, remaining)) => {
+                drop(remaining);
+                drop(tasks.swap_remove(index));
+                let error = flatten_join_result("Monolith background task", result).err();
+                if first_error.is_none() {
+                    first_error = error;
+                }
+            }
+            Err(_) => {
+                for task in tasks.iter() {
+                    task.abort();
+                }
+                for task in tasks.drain(..) {
+                    let _ = task.await;
+                }
+                if first_error.is_none() {
+                    first_error = Some(anyhow::anyhow!("Monolith background drain timed out"));
+                }
+            }
+        }
+    }
+    first_error.map_or(Ok(()), Err)
 }
 
 fn flatten_join_result(

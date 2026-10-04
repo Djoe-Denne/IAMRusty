@@ -229,7 +229,7 @@ pub struct AppConfig {
 }
 
 /// Locator config for the Lazaret → plugin HTTP hop (M5).
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginHopConfig {
     /// Plugin base URL (`http://host:port`). Empty disables the hop.
     /// Dette : `StaticPluginLocator`. Le gold path Kind utilise `use_dns_formula`.
@@ -238,6 +238,71 @@ pub struct PluginHopConfig {
     /// Formule DNS Kind `plugin-{32hex}.apparatus-plugins.svc:8080` (ADR-0605).
     #[serde(default)]
     pub use_dns_formula: bool,
+    /// Kubernetes namespace for digest DNS routing; never trimmed or defaulted when explicit.
+    #[serde(default = "default_plugin_namespace")]
+    pub namespace: String,
+}
+
+fn default_plugin_namespace() -> String {
+    "apparatus-plugins".to_owned()
+}
+
+impl Default for PluginHopConfig {
+    fn default() -> Self {
+        Self {
+            endpoint_url: String::new(),
+            use_dns_formula: false,
+            namespace: default_plugin_namespace(),
+        }
+    }
+}
+
+impl PluginHopConfig {
+    /// Validate DNS routing configuration without normalizing explicit input.
+    ///
+    /// # Errors
+    /// Returns an error when DNS routing uses a namespace that is not a DNS-1123 label.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        let bytes = self.namespace.as_bytes();
+        let alnum = |b: &u8| b.is_ascii_lowercase() || b.is_ascii_digit();
+        if self.use_dns_formula
+            && !(bytes.len() <= 63
+                && bytes.first().is_some_and(alnum)
+                && bytes.last().is_some_and(alnum)
+                && bytes.iter().all(|b| alnum(b) || *b == b'-'))
+        {
+            return Err("plugin namespace must be a nonempty DNS-1123 label of at most 63 bytes");
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod plugin_namespace_tests {
+    use super::PluginHopConfig;
+
+    #[test]
+    fn namespace_validation_is_strict_only_for_dns_routing() {
+        assert_eq!(PluginHopConfig::default().namespace, "apparatus-plugins");
+        for namespace in ["", "Mixed", "a.b", "ns/path", "ns:8080", "-ns", "ns-", " ns "] {
+            let mut cfg = PluginHopConfig {
+                namespace: namespace.to_owned(),
+                use_dns_formula: true,
+                ..PluginHopConfig::default()
+            };
+            assert!(cfg.validate().is_err(), "{namespace:?}");
+            cfg.use_dns_formula = false;
+            assert!(cfg.validate().is_ok());
+        }
+        for length in [1, 63, 64] {
+            let cfg = PluginHopConfig {
+                namespace: "a".repeat(length),
+                use_dns_formula: true,
+                ..PluginHopConfig::default()
+            };
+            assert_eq!(cfg.validate().is_ok(), length <= 63);
+        }
+    }
 }
 
 impl ConfigLoader<Self> for AppConfig {

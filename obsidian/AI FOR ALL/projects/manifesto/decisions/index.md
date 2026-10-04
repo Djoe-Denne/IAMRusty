@@ -9,7 +9,7 @@ summary: >-
   Hub Apparatus 0001–0008 Accepted. 0002–0008 Implemented sauf 0001 Partial.
   Gates 0009–0011 Proposed / Unimplemented. Dette TCB, APP-05 ouvert.
 created: 2026-09-10T06:32:00Z
-updated: 2026-09-27T09:20:00Z
+updated: 2026-10-04
 sources:
   - docs/adr/README.md
   - docs/adr/0001-apparatus-binding-owned-by-manifesto.md
@@ -84,4 +84,4 @@ Photographie rétroactive du 12 septembre 2026. Extrait Manifesto ; index platef
 
 ## Related
 
-- Plateforme cluster (**pas** Apparatus) : [[projects/aiforall/decisions/0600-cloud-portable]] / [[projects/aiforall/decisions/0601-cluster-topology]] — P4 (0008) s'insère dans cette topologie ; 0600/0601 ne sont pas des ADR Apparatus.
+- Plateforme cluster (**pas** Apparatus) : [[projects/aiforall/decisions/0600-cloud-portable]] / [[projects/aiforall/decisions/0601-cluster-topology]] — P4 (0008) s’insère dans cette topologie ; 0600/0601 ne sont pas des ADR Apparatus. Lab local dédié : [[projects/aiforall/decisions/0606-local-full-kind-isole]] (**Proposed / Partial**, source/offline seulement), Related sans fusion de canon ni livraison cloud. Auth globale : [[projects/aiforall/decisions/0310-admission-epochs-budget-jwks]] (Accepted / Partial ; ratification humaine2026-10-04, admission S-10 à implémenter, pas fermeture prouvée).

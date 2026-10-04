@@ -71,7 +71,7 @@ fn hits_case_insensitive(
 }
 
 const P2_RUNTIME_ALLOW_PATH: &[&str] = &[
-    "services/Manifesto/migration/src/m20260912_000013_apparatus_p2_runtime.rs",
+    "services/Manifesto/migration/src/m20241015_000001_initial_schema.rs",
     "services/Manifesto/infra/src/apparatus_runtime/",
 ];
 

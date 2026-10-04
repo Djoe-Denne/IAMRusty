@@ -17,6 +17,8 @@ allowed_algorithms = ["RS256", "HS256"]
 level = "debug"
 
 [gitlab]
+pkce_supported = false # PKCE regression fixtures explicitly enable this capability.
+transport_security = "isolated_test"
 client_id = "test_gitlab_client_id"
 client_secret = "test_gitlab_client_secret"
 # Tests override vendor URLs via GitLabService::base_url() from MockServerFixture::isolated().

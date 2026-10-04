@@ -12,7 +12,7 @@ summary: >-
   ops/deploy/ + ops/cloud/opentofu/ ; preuve Apparatus↔Lazaret en manifests ;
   pas GKE, pas 0602. Lazaret ≠ Factory. Ne SuperSède pas 0600/0601/0008.
 created: 2026-09-25T10:51:00Z
-updated: 2026-09-27T09:20:00Z
+updated: 2026-10-04
 provenance:
   extracted: 0.92
   inferred: 0.06
@@ -25,4 +25,4 @@ Canon : `docs/adr/0603-tranche-locale-deploy-kind-apparatus-lazaret.md`. Hub : [
 
 ## Statut : Proposed (2026-09-25)
 
-Réalité **Partial** : `just deploy-m1` / `deploy-m2` / `deploy-m3`, arbres `ops/deploy/` et `ops/cloud/opentofu/`. Pas GKE, pas Flux live, pas 0602. Scaffolding A+B autorisé sans Accept GKE. Ne SuperSède **pas** 0600, 0601, ni 0008. Suite locale : [[projects/aiforall/decisions/0604-j3-overlay-demo-monolith]] et [[projects/aiforall/decisions/0605-gold-path-kind]] (Réalité Implemented, Statut Proposed). Lazaret = gateway P3 ; Factory = P5/P6 non livré.
+Réalité **Partial** : `just deploy-m1` / `deploy-m2` / `deploy-m3`, arbres `ops/deploy/` et `ops/cloud/opentofu/`. Pas GKE, pas Flux live, pas 0602. Scaffolding A+B autorisé sans Accept GKE. Ne SuperSède **pas** 0600, 0601, ni 0008. Suite locale : [[projects/aiforall/decisions/0604-j3-overlay-demo-monolith]] et [[projects/aiforall/decisions/0605-gold-path-kind]] (Réalité courante Partial, anciens résultats historiques conservés ; Statut Proposed). Nouveau lab dédié : [[projects/aiforall/decisions/0606-local-full-kind-isole]], source/offline D6 **112 ressources**, pas runtime/durabilité. Les commandes M1–M3 restent historiques ; compilation root/IT/E2E actuelles non fournies. Lazaret = gateway P3 ; Factory = P5/P6 non livré.

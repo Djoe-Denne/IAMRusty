@@ -1,7 +1,7 @@
 use super::resources::{github_arthur, github_bob, gitlab_alice, success_tokens, TEST_HMAC_SECRET};
 use idp_connect_contract::dto::{
-    AuthorizeRequest, AuthorizeResponse, ProviderUserProfile, AUTHORIZE_PATH, PROFILE_PATH,
-    TOKEN_PATH,
+    valid_pkce_verifier, AuthorizeRequest, AuthorizeResponse, ProviderUserProfile, TokenRequest,
+    AUTHORIZE_PATH, PROFILE_PATH, TOKEN_PATH,
 };
 use idp_connect_contract::hmac::{unix_timestamp_secs, verify, SIGNATURE_HEADER, TIMESTAMP_HEADER};
 use rustycog::testing::wiremock::MockServerFixture;
@@ -33,6 +33,11 @@ impl IdpConnectMockService {
 
     pub async fn reset(&self) {
         self._fixture.reset().await;
+    }
+
+    /// Captured real outbound requests; callers must not print credential bodies.
+    pub async fn received_requests(&self) -> Vec<Request> {
+        self.server.received_requests().await.unwrap_or_default()
     }
 
     pub async fn mock_github_happy_arthur(&self) -> &Self {
@@ -127,7 +132,19 @@ impl Respond for HmacResponder {
         }
         match self {
             Self::Authorize(slug) => authorize_ok(slug, request),
-            Self::Token => ResponseTemplate::new(200).set_body_json(success_tokens()),
+            Self::Token => {
+                let Ok(body) = serde_json::from_slice::<TokenRequest>(&request.body) else {
+                    return ResponseTemplate::new(400);
+                };
+                if body
+                    .code_verifier
+                    .as_deref()
+                    .is_some_and(|value| !valid_pkce_verifier(value))
+                {
+                    return ResponseTemplate::new(400);
+                }
+                ResponseTemplate::new(200).set_body_json(success_tokens())
+            }
             Self::Profile(profile) => ResponseTemplate::new(200).set_body_json(profile),
         }
     }
@@ -170,6 +187,9 @@ fn authorize_ok(slug: &str, request: &Request) -> ResponseTemplate {
     let Ok(body) = serde_json::from_slice::<AuthorizeRequest>(&request.body) else {
         return ResponseTemplate::new(401);
     };
+    let Ok(challenge) = body.pkce_challenge() else {
+        return ResponseTemplate::new(400);
+    };
     let (base, client_id, scope) = if slug == "gitlab" {
         (
             "http://localhost:3000/oauth/authorize",
@@ -192,6 +212,11 @@ fn authorize_ok(slug: &str, request: &Request) -> ResponseTemplate {
         .append_pair("scope", scope)
         .append_pair("response_type", "code")
         .append_pair("state", &body.state);
+    if let Some(challenge) = challenge {
+        url.query_pairs_mut()
+            .append_pair("code_challenge", challenge)
+            .append_pair("code_challenge_method", "S256");
+    }
     ResponseTemplate::new(200).set_body_json(AuthorizeResponse {
         authorization_url: url.to_string(),
         scope: scope.to_string(),

@@ -1,5 +1,7 @@
 # ADR-0402 : Hive possède organisations, invitations, membres et liens externes
 
+> Mise à jour 2026-10-04 — migrations aplaties, un seul fichier nécessaire pour le moment : `services/Hive/migration/src/m20240101_000001_initial_schema.rs` (issuer, métadonnées UX de signature, unicité des rôles par organisation et outbox inclus). `down` retire désormais le schéma complet. Statut et réalité inchangés.
+
 - Statut : Accepted
 - Réalité : Implemented
 - Date : 2026-09-12

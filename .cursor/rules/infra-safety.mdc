@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Infra safety (local)
 
-Périmètre : Docker Desktop, Compose, Kind `aiforall-local`, Envoy du dépôt, CI GitHub du dépôt. Pas de prod.
+Périmètre : Docker Desktop, Compose, Kind `aiforall-local` (défaut legacy) et Kind `aiforall-local-full` (cluster dédié multi-nœuds full profile, autorisation user explicite 2026-10-04), Envoy du dépôt, CI GitHub du dépôt. Pas de prod.
 
 ## Les 10 règles
 
@@ -18,8 +18,12 @@ Périmètre : Docker Desktop, Compose, Kind `aiforall-local`, Envoy du dépôt, 
 7. Jamais `kubectl delete namespace`.
 8. Jamais `helm uninstall` automatiquement.
 9. Jamais exposer l'Admin Envoy hors loopback / réseau local contrôlé.
-10. Jamais modifier un cluster non identifié comme **dev local** (`kind-aiforall-local` uniquement).
+10. Jamais modifier un cluster non identifié comme **dev local**. Contextes dev local autorisés — **liste close, sans wildcard** : `kind-aiforall-local` (défaut) et `kind-aiforall-local-full` (uniquement sur autorisation user explicite 2026-10-04).
 
 ## Clusters hors périmètre
 
-Ne jamais écrire sur `kind-apparatus-p4-it` ni `rancher-desktop`. Ne pas installer Helm. Ne pas lancer `docker compose down -v` ni `docker rm -f` de façon spontanée.
+Ne jamais écrire sur `kind-apparatus-p4-it` ni `rancher-desktop`. Tout autre contexte Kind non listé au périmètre ci-dessus est hors périmètre (liste close, aucun wildcard). Ne pas installer Helm. Ne pas lancer `docker compose down -v` ni `docker rm -f` de façon spontanée.
+
+## Destruction en environnement de test (décision utilisateur 2026-10-04)
+
+Rien n'est en production : sur le périmètre ci-dessus (clusters de test du projet `aiforall-local` / `aiforall-local-full`, namespaces, containers, volumes, migrations), la destruction/réinitialisation est **autorisée sans confirmation supplémentaire** dès que la ressource est identifiée comme ressource de test de ce projet — recréation de cluster comprise. Les règles 3–8 ci-dessus ne s'appliquent plus comme interdits absolus dans ce cadre : elles restent « pas d'automatisme aveugle ». Restent exclus sauf contre-ordre explicite : `kind-apparatus-p4-it`, `rancher-desktop`, et toute ressource non identifiée ou visiblement étrangère sur le daemon partagé (autre projet) — vérification rapide avant un nettoyage massif.

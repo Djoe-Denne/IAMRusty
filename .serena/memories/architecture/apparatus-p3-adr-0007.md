@@ -1,5 +1,7 @@
 # Apparatus P3 — ADR-0007
 
+- Mise à jour 2026-10-04 — migrations aplaties, un seul fichier nécessaire pour le moment : `services/Manifesto/migration/src/m20241015_000001_initial_schema.rs` (P1/P2/P3 et outbox). Les chemins incrémentaux sont historiques ; `down` retire le schéma complet. Statut et réalité inchangés.
+
 - Jalon P3. Canon : `docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md`. Statut : **Accepted**. Réalité : **Implemented** (A-DEC 2026-09-20). SuperSède : aucune.
 - Décision : BC **Lazaret** (`Lazaret` / `lazaret-service`) = frontière capacités/données, distinct de Manifesto. 0006 G et E restent (pas d'`invoke` sur `ApparatusRuntime` Manifesto ; zéro `gateway` sous `services/Manifesto/*/src` ; `/components` gelé à 5).
 - Preuve P3 : T1–T14b. Hors-jalon (ne bloquent pas Implemented) : APP-05 ouvert ; G/E en vigueur ; pas K8s ; pas de second protocole.

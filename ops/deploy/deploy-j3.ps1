@@ -2,7 +2,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+. (Join-Path $PSScriptRoot 'common.ps1')
+$RepoRoot = Get-AIForAllRoot $PSScriptRoot
 Set-Location $RepoRoot
 
 $KindContext = 'kind-aiforall-local'
@@ -28,6 +29,7 @@ if ($missing.Count -gt 0) {
 }
 
 Write-Host "J3 : contexte $KindContext (jamais $ForbiddenContext)" -ForegroundColor Cyan
+Initialize-LocalKind
 Write-Host 'J3 : Compose hote (just up-infra) via host.docker.internal - pas de Postgres in-kind.' -ForegroundColor Cyan
 
 $pgOk = $false

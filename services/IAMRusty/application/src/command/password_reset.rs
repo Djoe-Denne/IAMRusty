@@ -102,12 +102,20 @@ where
 }
 
 /// Validate reset token command
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ValidateResetTokenCommand {
     /// Command instance ID
     pub command_id: Uuid,
     /// Reset token to validate
     pub reset_token: String,
+}
+
+impl std::fmt::Debug for ValidateResetTokenCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ValidateResetTokenCommand")
+            .field("command_id", &self.command_id)
+            .finish_non_exhaustive()
+    }
 }
 
 impl ValidateResetTokenCommand {
@@ -187,7 +195,7 @@ where
 }
 
 /// Reset password unauthenticated command
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ResetPasswordUnauthenticatedCommand {
     /// Command instance ID
     pub command_id: Uuid,
@@ -195,6 +203,14 @@ pub struct ResetPasswordUnauthenticatedCommand {
     pub reset_token: String,
     /// New password
     pub new_password: String,
+}
+
+impl std::fmt::Debug for ResetPasswordUnauthenticatedCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResetPasswordUnauthenticatedCommand")
+            .field("command_id", &self.command_id)
+            .finish_non_exhaustive()
+    }
 }
 
 impl ResetPasswordUnauthenticatedCommand {
@@ -292,7 +308,7 @@ where
 }
 
 /// Reset password authenticated command
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ResetPasswordAuthenticatedCommand {
     /// Command instance ID
     pub command_id: Uuid,
@@ -302,6 +318,14 @@ pub struct ResetPasswordAuthenticatedCommand {
     pub current_password: String,
     /// New password
     pub new_password: String,
+}
+
+impl std::fmt::Debug for ResetPasswordAuthenticatedCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResetPasswordAuthenticatedCommand")
+            .field("command_id", &self.command_id)
+            .finish_non_exhaustive()
+    }
 }
 
 impl ResetPasswordAuthenticatedCommand {

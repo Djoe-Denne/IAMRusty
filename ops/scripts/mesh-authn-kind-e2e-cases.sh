@@ -59,11 +59,9 @@ public_envoy "signup via Envoy sans Bearer" POST /iam/api/auth/signup \
 reg=$(jq -r '.registration_token // empty' /tmp/body)
 [ -n "$reg" ] || fail "signup sans registration_token"
 
-curl -sS --http1.1 $CERTS \
+public_envoy "complete-registration via Envoy sans Bearer" POST /iam/api/auth/complete-registration \
   -H 'content-type: application/json' \
-  -d "{\"registration_token\":\"${reg}\",\"username\":\"${user}\"}" \
-  -o /tmp/body \
-  "${IAM}/iam/api/auth/complete-registration" || fail "complete-registration"
+  -d "{\"registration_token\":\"${reg}\",\"username\":\"${user}\"}"
 
 updated=$(PGPASSWORD=postgres psql -h postgres.aiforall-platform.svc.cluster.local -U postgres -d iam_dev -v ON_ERROR_STOP=1 -tAc \
   "UPDATE user_emails SET is_verified = true WHERE email = '${email}' RETURNING email;")
@@ -74,6 +72,8 @@ public_envoy "login via Envoy sans Bearer" POST /iam/api/auth/login \
   -d "{\"email\":\"${email}\",\"password\":\"${pass}\"}"
 token=$(jq -r '.access_token // empty' /tmp/body)
 [ -n "$token" ] || fail "login sans access_token"
+refresh=$(jq -r '.refresh_token // empty' /tmp/body)
+[ -n "$refresh" ] || fail "login sans refresh_token"
 header_b64=$(printf '%s' "$token" | cut -d. -f1)
 payload_b64=$(printf '%s' "$token" | cut -d. -f2)
 payload_json=$(b64url_decode "$payload_b64")
@@ -97,6 +97,34 @@ code=$(http_code $CERTS \
 [ "$code" = "200" ] || fail "IAM /me via Envoy: HTTP $code"
 jq -e --arg sub "$sub" '.id == $sub' /tmp/body >/dev/null || fail "IAM /me n a pas utilise sub"
 ok "IAM /me via Envoy utilise sub"
+
+# A valid Bearer must win over every client-supplied principal field at Envoy.
+code=$(http_code $CERTS -H "authorization: Bearer ${token}" \
+  -H "$SPOOF_ISS" -H "$SPOOF_SUB" -H 'x-principal-org: attacker-org' \
+  "${ENVOY}/iam/api/me")
+[ "$code" = "200" ] || fail "IAM /me Bearer + spoof via Envoy: HTTP $code"
+jq -e --arg sub "$sub" '.id == $sub' /tmp/body >/dev/null \
+  || fail "IAM /me Bearer + spoof n a pas utilise le vrai sub"
+ok "IAM /me Bearer + spoof via Envoy utilise le vrai sub"
+
+# Public refresh must rely on the actual session issued by login, never a DB insert.
+public_envoy "refresh via Envoy sans access JWT" POST /iam/api/token/refresh \
+  -H 'content-type: application/json' -d "{\"refresh_token\":\"${refresh}\"}"
+replacement=$(jq -r '.refresh_token // empty' /tmp/body)
+[ -n "$replacement" ] && [ "$replacement" != "$refresh" ] || fail "refresh sans remplacement"
+replacement_hash=$(printf '%s' "$replacement" | openssl dgst -sha256 -r | cut -d' ' -f1)
+active_replacement=$(PGPASSWORD=postgres psql -h postgres.aiforall-platform.svc.cluster.local -U postgres -d iam_dev -v ON_ERROR_STOP=1 -tAc \
+  "SELECT count(*) FROM refresh_tokens WHERE user_id = '${sub}' AND token = '${replacement_hash}' AND is_valid = true AND expires_at > NOW();")
+[ "$active_replacement" = "1" ] || fail "refresh remplace non persiste"
+ok "refresh public issu du login persiste"
+
+code=$(http_code $CERTS -H "$SPOOF_ISS" -H "$SPOOF_SUB" \
+  -H 'x-principal-org: attacker-org' "${ENVOY}/iam/api/me")
+[ "$code" = "401" ] || [ "$code" = "403" ] \
+  || fail "IAM /me spoof sans JWT via Envoy: HTTP $code"
+jq -e 'has("access_token") | not' /tmp/body >/dev/null \
+  || fail "IAM /me spoof sans JWT divulgue access_token"
+ok "IAM /me spoof sans JWT via Envoy refuse"
 
 code=$(http_code $CERTS \
   -H "authorization: Bearer ${token}" "${ENVOY}/telegraph/api/notifications")

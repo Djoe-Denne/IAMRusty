@@ -1,3 +1,6 @@
+use crate::oauth_browser::{validate_authorization_pkce, CallbackIntent, OAuthRouteContext};
+use crate::oauth_state::OAuthOperation;
+use crate::platform_user::PlatformUser;
 use crate::{error::AuthError, idp_registry, oauth_state::OAuthState};
 use axum::{
     extract::{Path, Query, State},
@@ -22,6 +25,7 @@ use iam_application::command::{
     CommandContext,
 };
 use iam_configuration::{IdpConfig, IdpRedirectFlow};
+use iam_domain::entity::oauth_transaction::ConsumedOAuthTransaction;
 use iam_domain::entity::provider::Provider;
 use rustycog::http::AppState;
 use rustycog::http::{AuthUser, ValidatedJson};
@@ -33,7 +37,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 /// OAuth callback query parameters
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Deserialize, Validate)]
 pub struct OAuthCallbackQuery {
     /// Authorization code from provider
     #[validate(length(max = 1000, message = "Authorization code is too long"))]
@@ -47,6 +51,12 @@ pub struct OAuthCallbackQuery {
     /// Error description from provider (if any)
     #[validate(length(max = 1000, message = "Error description is too long"))]
     pub error_description: Option<String>,
+}
+
+impl std::fmt::Debug for OAuthCallbackQuery {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("OAuthCallbackQuery([redacted])")
+    }
 }
 
 /// OAuth provider path parameter
@@ -83,7 +93,7 @@ pub struct EmailData {
 }
 
 /// OAuth login response
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 pub struct OAuthLoginResponse {
     /// Operation type
     pub operation: String,
@@ -124,7 +134,7 @@ pub enum OAuthResponse {
 }
 
 /// OAuth registration required response
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 pub struct OAuthRegistrationRequiredResponse {
     /// Operation type
     pub operation: String,
@@ -150,7 +160,7 @@ pub struct ProviderInfo {
 }
 
 /// Email/password signup request (username now chosen separately)
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Deserialize, Validate)]
 pub struct SignupRequest {
     #[validate(custom(
         function = "crate::validation::validate_email_format",
@@ -165,7 +175,7 @@ pub struct SignupRequest {
 }
 
 /// Signup response variants
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 #[serde(untagged)]
 pub enum SignupResponse {
     /// Existing user - password auth added
@@ -186,7 +196,7 @@ pub enum SignupResponse {
 }
 
 /// Email/password login request
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Deserialize, Validate)]
 pub struct LoginRequest {
     #[validate(custom(
         function = "crate::validation::validate_email_format",
@@ -232,7 +242,7 @@ pub struct SuccessResponse {
 }
 
 /// Login response variants
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 #[serde(untagged)]
 pub enum LoginResponse {
     /// Successful login
@@ -286,8 +296,10 @@ fn resolve_provider_redirect(
 pub async fn oauth_login_start(
     State(state): State<AppState>,
     Extension(idp): Extension<Arc<IdpConfig>>,
+    Extension(oauth): Extension<Arc<OAuthRouteContext>>,
     Path(provider_path): Path<ProviderPath>,
-) -> Result<Redirect, AuthError> {
+    headers: HeaderMap,
+) -> Result<(HeaderMap, Redirect), AuthError> {
     debug!(
         "OAuth login start for provider: {}",
         provider_path.provider_name
@@ -308,13 +320,35 @@ pub async fn oauth_login_start(
     let encoded_state = oauth_state
         .encode()
         .map_err(|_e| AuthError::oauth_state_encoding_failed("login_start"))?;
+    let nonce = oauth
+        .browser
+        .start_nonce(&headers)
+        .map_err(|_| AuthError::oauth_invalid_state("login_start"))?;
+    let pkce_required = idp
+        .connector(provider.as_str())
+        .is_some_and(|cfg| cfg.pkce_supported);
+    let begun = oauth
+        .begin(
+            &oauth_state,
+            &encoded_state,
+            &nonce,
+            provider.clone(),
+            redirect_uri.clone(),
+            pkce_required,
+        )
+        .await?;
 
     // Generate provider authorization URL using the command service
     let context = CommandContext::new()
         .with_metadata("operation".to_string(), "login_start".to_string())
         .with_metadata("provider".to_string(), provider.as_str().to_string());
 
-    let command = GenerateOAuthStartUrlCommand::new(provider, redirect_uri, encoded_state.clone());
+    let command = GenerateOAuthStartUrlCommand::new(
+        provider,
+        redirect_uri,
+        encoded_state.clone(),
+        begun.clone(),
+    );
     let base_auth_url = state
         .command_service
         .execute(command, context)
@@ -324,6 +358,8 @@ pub async fn oauth_login_start(
     // Parse the URL and replace the state parameter with our own
     let mut url = url::Url::parse(&base_auth_url)
         .map_err(|_e| AuthError::oauth_invalid_url("login_start"))?;
+    oauth.browser.validate_authorization_url(&url)?;
+    validate_authorization_pkce(&url, &begun)?;
 
     // Remove any existing state parameter and add our own
     let mut new_query_pairs = Vec::new();
@@ -344,11 +380,12 @@ pub async fn oauth_login_start(
         query_pairs.finish();
     }
 
-    debug!(
-        "Redirecting to provider authorization URL for login: {}",
-        url.as_str()
-    );
-    Ok(Redirect::to(url.as_str()))
+    debug!("Redirecting to provider for login");
+    let cookies = oauth
+        .browser
+        .cookie_headers(&nonce)
+        .map_err(|_| AuthError::oauth_invalid_state("login_start"))?;
+    Ok((cookies, Redirect::to(url.as_str())))
 }
 
 /// Handle OAuth link start - redirects to provider for linking (authenticated users)
@@ -360,9 +397,11 @@ pub async fn oauth_login_start(
 pub async fn oauth_link_start(
     State(state): State<AppState>,
     Extension(idp): Extension<Arc<IdpConfig>>,
+    Extension(oauth): Extension<Arc<OAuthRouteContext>>,
     Path(provider_path): Path<ProviderPath>,
-    auth_user: AuthUser,
-) -> Result<Redirect, AuthError> {
+    auth_user: PlatformUser,
+    headers: HeaderMap,
+) -> Result<(HeaderMap, Redirect), AuthError> {
     debug!(
         "OAuth link start for provider: {} and user: {}",
         provider_path.provider_name, auth_user.user_id
@@ -396,6 +435,23 @@ pub async fn oauth_link_start(
     let encoded_state = oauth_state
         .encode()
         .map_err(|_e| AuthError::oauth_state_encoding_failed("link_start"))?;
+    let nonce = oauth
+        .browser
+        .start_nonce(&headers)
+        .map_err(|_| AuthError::oauth_invalid_state("link_start"))?;
+    let pkce_required = idp
+        .connector(provider.as_str())
+        .is_some_and(|cfg| cfg.pkce_supported);
+    let begun = oauth
+        .begin(
+            &oauth_state,
+            &encoded_state,
+            &nonce,
+            provider.clone(),
+            redirect_uri.clone(),
+            pkce_required,
+        )
+        .await?;
 
     // Generate provider authorization URL using the command service
     let context = CommandContext::new()
@@ -403,8 +459,12 @@ pub async fn oauth_link_start(
         .with_metadata("operation".to_string(), "link_start".to_string())
         .with_metadata("provider".to_string(), provider.as_str().to_string());
 
-    let command =
-        GenerateLinkProviderStartUrlCommand::new(provider, redirect_uri, encoded_state.clone());
+    let command = GenerateLinkProviderStartUrlCommand::new(
+        provider,
+        redirect_uri,
+        encoded_state.clone(),
+        begun.clone(),
+    );
     let base_auth_url = state
         .command_service
         .execute(command, context)
@@ -414,6 +474,8 @@ pub async fn oauth_link_start(
     // Parse the URL and replace the state parameter with our own
     let mut url =
         url::Url::parse(&base_auth_url).map_err(|_e| AuthError::oauth_invalid_url("link_start"))?;
+    oauth.browser.validate_authorization_url(&url)?;
+    validate_authorization_pkce(&url, &begun)?;
 
     // Remove any existing state parameter and add our own
     let mut new_query_pairs = Vec::new();
@@ -434,11 +496,12 @@ pub async fn oauth_link_start(
         query_pairs.finish();
     }
 
-    debug!(
-        "Redirecting to provider authorization URL for linking: {}",
-        url.as_str()
-    );
-    Ok(Redirect::to(url.as_str()))
+    debug!("Redirecting to provider for linking");
+    let cookies = oauth
+        .browser
+        .cookie_headers(&nonce)
+        .map_err(|_| AuthError::oauth_invalid_state("link_start"))?;
+    Ok((cookies, Redirect::to(url.as_str())))
 }
 
 /// Handle OAuth callback - processes both login and link operations
@@ -451,32 +514,15 @@ pub async fn oauth_link_start(
 pub async fn oauth_callback(
     State(state): State<AppState>,
     Extension(idp): Extension<Arc<IdpConfig>>,
+    Extension(oauth): Extension<Arc<OAuthRouteContext>>,
     Path(provider_path): Path<ProviderPath>,
+    headers: HeaderMap,
     Valid(Query(query)): Valid<Query<OAuthCallbackQuery>>,
 ) -> Result<(StatusCode, Json<OAuthResponse>), AuthError> {
     debug!(
         "OAuth callback for provider: {}",
         provider_path.provider_name
     );
-
-    // Check for OAuth errors from provider
-    if let Some(error) = query.error {
-        let description = query
-            .error_description
-            .unwrap_or_else(|| "OAuth error".to_string());
-        error!("OAuth error from provider: {} - {}", error, description);
-        return Err(AuthError::oauth_provider_error(
-            "callback",
-            error,
-            description,
-        ));
-    }
-
-    // Check if code parameter is present
-    let code = match query.code {
-        Some(c) if !c.is_empty() => c,
-        _ => return Err(AuthError::oauth_missing_code("callback")),
-    };
 
     let (provider, redirect_uri) = resolve_provider_redirect(
         &idp,
@@ -486,26 +532,47 @@ pub async fn oauth_callback(
     )?;
 
     // Decode the state to determine operation type
-    let oauth_state = if let Some(state_param) = query.state {
-        OAuthState::decode(&state_param).map_err(|_e| AuthError::oauth_invalid_state("callback"))?
-    } else {
-        return Err(AuthError::oauth_missing_state("callback"));
-    };
-
-    if oauth_state.provider != provider.as_str() {
-        return Err(AuthError::oauth_invalid_state("callback"));
+    let state_param = query
+        .state
+        .as_deref()
+        .ok_or_else(|| AuthError::oauth_missing_state("callback"))?;
+    let consumed = oauth
+        .consume_callback(
+            state_param,
+            &headers,
+            provider,
+            redirect_uri,
+            CallbackIntent::LoginOrLink,
+        )
+        .await?;
+    // An error callback terminates the same browser-bound transaction, without exchange.
+    if let Some(error) = query.error {
+        return Err(AuthError::oauth_provider_error(
+            "callback",
+            error,
+            query.error_description.unwrap_or_default(),
+        ));
     }
+    let code = query
+        .code
+        .filter(|code| !code.trim().is_empty())
+        .ok_or_else(|| AuthError::oauth_missing_code("callback"))?;
+    let provider = consumed.provider().clone();
+    let redirect_uri = consumed.redirect_uri().to_owned();
 
-    if oauth_state.is_login() {
+    if matches!(consumed.operation(), OAuthOperation::Login) {
         // Handle login operation
         let (status_code, json_response) =
-            handle_login_callback(state, provider, code, redirect_uri).await?;
+            handle_login_callback(state, provider, code, redirect_uri, consumed).await?;
         Ok((status_code, json_response))
-    } else if let Some(user_id) = oauth_state.get_link_user_id() {
+    } else if matches!(consumed.operation(), OAuthOperation::Link { .. }) {
+        let user_id = consumed
+            .target_user_id()
+            .ok_or_else(|| AuthError::oauth_invalid_state("callback"))?;
         // Handle link operation
         debug!("handle_link_callback user={user_id}");
         let json_response =
-            handle_link_callback(state, provider, code, redirect_uri, user_id).await?;
+            handle_link_callback(state, provider, code, redirect_uri, user_id, consumed).await?;
         Ok((StatusCode::OK, json_response))
     } else {
         error!("Invalid OAuth state operation");
@@ -519,6 +586,7 @@ async fn handle_login_callback(
     provider: Provider,
     code: String,
     redirect_uri: String,
+    consumed: ConsumedOAuthTransaction,
 ) -> Result<(StatusCode, Json<OAuthResponse>), AuthError> {
     debug!("Handling login callback");
 
@@ -526,13 +594,14 @@ async fn handle_login_callback(
         .with_metadata("operation".to_string(), "login_callback".to_string())
         .with_metadata("provider".to_string(), provider.as_str().to_string());
 
-    let command = OAuthLoginCommand::new(provider, code, redirect_uri);
+    let command = OAuthLoginCommand::new(provider, code, redirect_uri, consumed);
+    // The committed consume proof is moved once; transport failures never auto-retry.
     let response = state
         .command_service
-        .execute(command, context)
+        .execute_once(command, context)
         .await
         .map_err(|e| {
-            error!("Failed to login: {}", e);
+            error!("Failed to login");
             AuthError::oauth_login_failed("login", &e)
         })?;
 
@@ -584,6 +653,7 @@ async fn handle_link_callback(
     code: String,
     redirect_uri: String,
     user_id: Uuid,
+    consumed: ConsumedOAuthTransaction,
 ) -> Result<Json<OAuthResponse>, AuthError> {
     debug!("Handling link callback for user: {}", user_id);
 
@@ -593,13 +663,14 @@ async fn handle_link_callback(
         .with_metadata("operation".to_string(), "link_callback".to_string())
         .with_metadata("provider".to_string(), slug.clone());
 
-    let command = LinkProviderCommand::new(user_id, provider, code, redirect_uri);
+    let command = LinkProviderCommand::new(user_id, provider, code, redirect_uri, consumed);
+    // A callback is non-replayable after consume, even when the provider fails.
     let response = state
         .command_service
-        .execute(command, context)
+        .execute_once(command, context)
         .await
         .map_err(|e| {
-            error!("Failed to link provider: {}", e);
+            error!("Failed to link provider");
             AuthError::oauth_link_failed("link", &e, &slug)
         })?;
 
@@ -659,7 +730,7 @@ pub async fn signup(
         .execute(command, context)
         .await
         .map_err(|e| {
-            error!("Signup failed: {}", e);
+            error!("Signup failed");
             AuthError::signup_failed(&e)
         })?;
 
@@ -731,7 +802,7 @@ pub async fn login(
         .execute(command, context)
         .await
         .map_err(|e| {
-            error!("Login failed: {}", e);
+            error!("Login failed");
             AuthError::login_failed(&e)
         })?;
 
@@ -784,7 +855,7 @@ pub async fn verify_email(
         .execute(command, context)
         .await
         .map_err(|e| {
-            error!("Email verification failed: {}", e);
+            error!("Email verification failed");
             AuthError::verification_failed(&e)
         })?;
 
@@ -813,9 +884,9 @@ pub async fn resend_verification_email(
         Ok(response) => Json(SuccessResponse {
             message: response.message,
         }),
-        Err(e) => {
-            // Log the actual error for debugging but don't reveal it to the client
-            debug!("Resend verification failed: {}", e);
+        Err(_e) => {
+            // Emit only the operation, never raw upstream diagnostic text.
+            debug!("Resend verification failed");
 
             // Always return generic success message to prevent user enumeration attacks
             // This prevents attackers from discovering which emails are registered
@@ -827,7 +898,7 @@ pub async fn resend_verification_email(
 }
 
 /// Provider token response for internal endpoints
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 pub struct InternalProviderTokenResponse {
     /// Access token from the provider
     pub access_token: String,
@@ -878,7 +949,7 @@ pub async fn internal_provider_token(
         .execute(command, context)
         .await
         .map_err(|e| {
-            error!("Failed to get provider token: {}", e);
+            error!("Failed to get provider token");
             AuthError::provider_token_failed(&e, &slug)
         })?;
 
@@ -908,8 +979,8 @@ pub async fn jwks(
         .command_service
         .execute(command, context)
         .await
-        .map_err(|e| {
-            error!("Failed to get JWKS: {}", e);
+        .map_err(|_e| {
+            error!("Failed to get JWKS");
             AuthError::oauth_url_generation_failed("get_jwks")
         })?;
 
@@ -918,7 +989,7 @@ pub async fn jwks(
 }
 
 /// Complete registration request
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Deserialize, Validate)]
 pub struct CompleteRegistrationRequest {
     /// RSA-signed JWT registration token
     #[validate(length(min = 1, message = "Registration token is required"))]
@@ -937,7 +1008,7 @@ pub struct CompleteRegistrationRequest {
 }
 
 /// Complete registration response
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 pub struct CompleteRegistrationResponse {
     /// User profile
     pub user: UserData,
@@ -997,7 +1068,7 @@ pub async fn complete_registration(
         .execute(command, context)
         .await
         .map_err(|e| {
-            error!("Complete registration failed: {}", e);
+            error!("Complete registration failed");
             AuthError::registration_failed(&e)
         })?;
 
@@ -1036,7 +1107,7 @@ pub async fn check_username(
         .execute(command, context)
         .await
         .map_err(|e| {
-            error!("Username check failed: {}", e);
+            error!("Username check failed");
             AuthError::username_check_failed(&e)
         })?;
 
@@ -1093,7 +1164,7 @@ pub async fn revoke_provider_token(
         .execute(command, context)
         .await
         .map_err(|e| {
-            error!("Failed to revoke provider token: {}", e);
+            error!("Failed to revoke provider token");
             AuthError::provider_token_failed(&e, &slug)
         })?;
 
@@ -1103,11 +1174,39 @@ pub async fn revoke_provider_token(
 }
 
 /// OAuth start response for generating authorization URLs
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 pub struct OAuthStartResponse {
     /// Authorization URL to redirect user to
     pub auth_url: String,
 }
+
+impl std::fmt::Debug for OAuthStartResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("OAuthStartResponse([redacted])")
+    }
+}
+
+macro_rules! redacted_auth_debug {
+    ($($name:ident),+ $(,)?) => { $(
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str(concat!(stringify!($name), "([redacted])"))
+            }
+        }
+    )+ };
+}
+
+redacted_auth_debug!(
+    OAuthLoginResponse,
+    OAuthRegistrationRequiredResponse,
+    SignupRequest,
+    SignupResponse,
+    LoginRequest,
+    LoginResponse,
+    InternalProviderTokenResponse,
+    CompleteRegistrationRequest,
+    CompleteRegistrationResponse
+);
 
 /// Relink provider callback response
 #[derive(Debug, Serialize)]
@@ -1131,13 +1230,14 @@ pub struct RelinkProviderCallbackResponse {
 pub async fn relink_provider_callback(
     State(state): State<AppState>,
     Extension(idp): Extension<Arc<IdpConfig>>,
+    Extension(oauth): Extension<Arc<OAuthRouteContext>>,
     Path(provider_path): Path<ProviderPath>,
-    Query(callback_request): Query<OAuthCallbackQuery>,
-    auth_user: AuthUser,
+    headers: HeaderMap,
+    Valid(Query(callback_request)): Valid<Query<OAuthCallbackQuery>>,
 ) -> Result<Json<RelinkProviderCallbackResponse>, AuthError> {
     debug!(
-        "Relink provider callback for provider: {} and user: {}",
-        provider_path.provider_name, auth_user.user_id
+        "Relink provider callback for provider: {}",
+        provider_path.provider_name
     );
 
     let (provider, redirect_uri) = resolve_provider_redirect(
@@ -1147,28 +1247,53 @@ pub async fn relink_provider_callback(
         "relink_provider",
     )?;
 
-    let code = match callback_request.code {
-        Some(c) if !c.is_empty() => c,
-        _ => return Err(AuthError::oauth_missing_code("relink_provider")),
-    };
-
+    let state_param = callback_request
+        .state
+        .as_deref()
+        .ok_or_else(|| AuthError::oauth_missing_state("relink_provider"))?;
+    let consumed = oauth
+        .consume_callback(
+            state_param,
+            &headers,
+            provider,
+            redirect_uri,
+            CallbackIntent::Relink,
+        )
+        .await?;
+    if let Some(error) = callback_request.error {
+        return Err(AuthError::oauth_provider_error(
+            "relink_provider",
+            error,
+            callback_request.error_description.unwrap_or_default(),
+        ));
+    }
+    let code = callback_request
+        .code
+        .filter(|code| !code.trim().is_empty())
+        .ok_or_else(|| AuthError::oauth_missing_code("relink_provider"))?;
+    let user_id = consumed
+        .target_user_id()
+        .ok_or_else(|| AuthError::oauth_invalid_state("relink_provider"))?;
+    let provider = consumed.provider().clone();
+    let redirect_uri = consumed.redirect_uri().to_owned();
     let slug = provider.as_str().to_string();
-    let command = RelinkProviderCommand::new(auth_user.user_id, provider, code, redirect_uri);
+    let command = RelinkProviderCommand::new(user_id, provider, code, redirect_uri, consumed);
 
     let context = CommandContext::new()
-        .with_user_id(auth_user.user_id)
+        .with_user_id(user_id)
         .with_metadata(
             "operation".to_string(),
             "relink_provider_callback".to_string(),
         )
         .with_metadata("provider".to_string(), slug.clone());
 
+    // Share no consumed proof with the retrying bus; relink executes at most once.
     let result = state
         .command_service
-        .execute(command, context)
+        .execute_once(command, context)
         .await
         .map_err(|e| {
-            error!("Failed to relink provider: {}", e);
+            error!("Failed to relink provider");
             AuthError::link_provider_failed(&e, &slug)
         })?;
 
@@ -1210,9 +1335,11 @@ pub async fn relink_provider_callback(
 pub async fn generate_relink_provider_start_url(
     State(state): State<AppState>,
     Extension(idp): Extension<Arc<IdpConfig>>,
+    Extension(oauth): Extension<Arc<OAuthRouteContext>>,
     Path(provider_path): Path<ProviderPath>,
-    _auth_user: AuthUser,
-) -> Result<Json<OAuthStartResponse>, AuthError> {
+    auth_user: PlatformUser,
+    headers: HeaderMap,
+) -> Result<(HeaderMap, Json<OAuthStartResponse>), AuthError> {
     debug!(
         "Generate relink provider start URL for provider: {}",
         provider_path.provider_name
@@ -1226,9 +1353,36 @@ pub async fn generate_relink_provider_start_url(
     )?;
 
     let slug = provider.as_str().to_string();
-    let command = GenerateRelinkProviderStartUrlCommand::new(provider, redirect_uri, String::new());
+    let oauth_state = OAuthState::new_relink(auth_user.user_id, provider.as_str());
+    let encoded_state = oauth_state
+        .encode()
+        .map_err(|_| AuthError::oauth_state_encoding_failed("relink_start"))?;
+    let nonce = oauth
+        .browser
+        .start_nonce(&headers)
+        .map_err(|_| AuthError::oauth_invalid_state("relink_start"))?;
+    let pkce_required = idp
+        .connector(provider.as_str())
+        .is_some_and(|cfg| cfg.pkce_supported);
+    let begun = oauth
+        .begin(
+            &oauth_state,
+            &encoded_state,
+            &nonce,
+            provider.clone(),
+            redirect_uri.clone(),
+            pkce_required,
+        )
+        .await?;
+    let command = GenerateRelinkProviderStartUrlCommand::new(
+        provider,
+        redirect_uri,
+        encoded_state.clone(),
+        begun.clone(),
+    );
 
     let context = CommandContext::new()
+        .with_user_id(auth_user.user_id)
         .with_metadata(
             "operation".to_string(),
             "generate_relink_provider_start_url".to_string(),
@@ -1240,9 +1394,72 @@ pub async fn generate_relink_provider_start_url(
         .execute(command, context)
         .await
         .map_err(|e| {
-            error!("Failed to generate relink provider start URL: {}", e);
+            error!("Failed to generate relink provider start URL");
             AuthError::oauth_start_failed(&e, &slug)
         })?;
 
-    Ok(Json(OAuthStartResponse { auth_url }))
+    let mut url =
+        url::Url::parse(&auth_url).map_err(|_| AuthError::oauth_invalid_url("relink_start"))?;
+    oauth.browser.validate_authorization_url(&url)?;
+    validate_authorization_pkce(&url, &begun)?;
+    let pairs: Vec<_> = url
+        .query_pairs()
+        .filter(|(key, _)| key != "state")
+        .map(|(key, value)| (key.into_owned(), value.into_owned()))
+        .collect();
+    url.set_query(None);
+    {
+        let mut query = url.query_pairs_mut();
+        query.extend_pairs(pairs);
+        query.append_pair("state", &encoded_state);
+        query.finish();
+    }
+    let cookies = oauth
+        .browser
+        .cookie_headers(&nonce)
+        .map_err(|_| AuthError::oauth_invalid_state("relink_start"))?;
+    Ok((
+        cookies,
+        Json(OAuthStartResponse {
+            auth_url: url.to_string(),
+        }),
+    ))
+}
+
+#[cfg(test)]
+mod credential_debug_tests {
+    use super::*;
+
+    #[test]
+    fn oauth_browser_credentials_remain_wire_data_not_diagnostics() {
+        let query = OAuthCallbackQuery {
+            code: Some("SENTINEL-CODE".into()),
+            state: Some("SENTINEL-STATE".into()),
+            error: None,
+            error_description: None,
+        };
+        let start = OAuthStartResponse {
+            auth_url: "https://vendor/authorize?state=SENTINEL-STATE".into(),
+        };
+        let login = OAuthLoginResponse {
+            operation: "login".into(),
+            user: UserData {
+                id: uuid::Uuid::nil().to_string(),
+                username: None,
+                email: None,
+                avatar_url: None,
+            },
+            access_token: "SENTINEL-ACCESS".into(),
+            refresh_token: "SENTINEL-REFRESH".into(),
+            expires_in: 900,
+        };
+        assert!(!format!("{query:?} {start:?} {login:?}").contains("SENTINEL"));
+        // Redaction must not break the public JSON contract.
+        let wire = serde_json::to_value(&login).unwrap();
+        assert_eq!(wire["refresh_token"], "SENTINEL-REFRESH");
+        assert_eq!(
+            serde_json::to_value(start).unwrap()["auth_url"],
+            "https://vendor/authorize?state=SENTINEL-STATE"
+        );
+    }
 }

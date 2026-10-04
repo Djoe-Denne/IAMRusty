@@ -10,14 +10,14 @@ sources:
   - docs/adr/0304-jwt-acces-plateforme-rs256-jwks.md
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/23daa0aa-3a66-4665-8db4-80c94e4e20a7/23daa0aa-3a66-4665-8db4-80c94e4e20a7.jsonl
 summary: >-
-  0308 Accepted / Partial. Amendement 2026-10-02 : e2e Kind, IT hors
-  Kind, isoprod third parties in-kind. Pas Implemented.
+  0308 Accepted / Partial. Source caches trust monotone60 et vide autoritatif écrite,
+  SDK22 purs PASS selon parent ; IAM/mesh courant non prouvé. IT puis E2E full.
 provenance:
   extracted: 0.90
   inferred: 0.08
   ambiguous: 0.02
 created: 2026-10-01T16:45:00Z
-updated: 2026-10-02T14:55:00Z
+updated: 2026-10-04
 ---
 
 # ADR-0308 — Mesh AuthN JWT, mode passerelle
@@ -34,13 +34,13 @@ Conséquence : posséder la clé `envoy-mesh` permet d’injecter n’importe qu
 
 ## Amendement 2026-10-02
 
-Prime sur `compose_then_kind`. IT : third parties hors Kind (norme Compose ; code = testcontainers). E2E : Kind seul, preuve `ops/scripts/mesh-authn-kind-e2e.sh`. Isoprod hors IT : Postgres, Redis et le reste in-kind. Flux commenté ne mesure pas Implemented. Journal : [[journal/2026-10-02]].
+Prime sur `compose_then_kind`. IT : testcontainers du harness, hors Kind, pas migration Compose. E2E : Kind après IT finale ; script mesh historique `ops/scripts/mesh-authn-kind-e2e.sh`. Isoprod hors IT : dépendances in-Kind. Nouveau full dédié autorisé : [[projects/aiforall/decisions/0606-local-full-kind-isole]]. Flux commenté ne mesure pas Implemented. Journal historique : [[journal/2026-10-02]].
 
-`kind-mesh` a les quatre routes, les workloads, §7, les chemins publics sans Check, Postgres sans hostPort 5432. Signup / login / JWKS passent par Envoy.
+Sources `ops/deploy/apps/overlays/kind-mesh/` et profil full séparé présentes. Les résultats signup/login/JWKS/S2S du 2026-10-02 sont historiques, pas preuve du root courant modifié. Routes publiques exactes/transactionnelles, trust et trafic Envoy doivent être prouvés après intégration.
 
-## Gaps qui bloquent encore Implemented
+## Gates de preuve qui bloquent encore Implemented
 
-S2S `/internal/{provider}/token|revoke` = 401 hors passerelle. Gitlink `2290d45` non commité. Staleness sans TTL (0304 §17) — ne pas chiffrer pour clôturer. Le signataire 0306 n’est pas le trou S2S.
+SDK sélectionné `ca2e35fcd56279e9e52625d0df9381f240f3390d`, publié selon parent ; `2290d45`/`ba69c9e` et LKG sans TTL sont historiques. Sources monotone60/vide/métadonnées/trust écrites, poll60/local2 conservé ; SDK22 purs PASS ≠ IAM/publisher/mesh. Compilation root, units IAM, IT SQL/crypto/concurrence puis E2E Envoy/S2S/spoof/outage/vide encore requis. Le signataire 0306 n’est pas ce trou.
 
 Ne bloquent plus : e2e Compose, Flux commenté, Kind sans services, routes publiques hors Envoy, « mesh non défaut » (l’opt-in est la décision).
 

@@ -82,12 +82,13 @@ where
         provider: &Provider,
         redirect_uri: &str,
         state: &str,
+        begun: &crate::entity::oauth_transaction::BegunOAuthTransaction,
     ) -> Result<String, DomainError> {
         let client = self.get_provider_client(provider)?;
         let response = client
-            .authorize(redirect_uri, state)
+            .authorize_with_pkce(redirect_uri, state, begun.code_challenge.as_deref())
             .await
-            .map_err(|e| DomainError::OAuth2Error(e.to_string()))?;
+            .map_err(|_| DomainError::OAuth2Error("OAuth authorization failed".into()))?;
         Ok(response.authorization_url)
     }
 
@@ -102,7 +103,14 @@ where
         provider: &Provider,
         code: &str,
         redirect_uri: &str,
+        consumed: &crate::entity::oauth_transaction::ConsumedOAuthTransaction,
     ) -> Result<(User, String, String), DomainError> {
+        if consumed.provider() != provider
+            || consumed.redirect_uri() != redirect_uri
+            || consumed.operation() != &crate::entity::oauth_transaction::OAuthOperation::Login
+        {
+            return Err(DomainError::InvalidToken);
+        }
         debug!(
             "Processing OAuth2 callback for provider: {}",
             provider.as_str()
@@ -110,17 +118,14 @@ where
 
         let client = self.get_provider_client(provider)?;
 
-        let tokens = client
-            .exchange_code(code, redirect_uri)
-            .await
-            .map_err(|e| DomainError::OAuth2Error(e.to_string()))?;
+        let tokens = consumed.exchange_code(client.as_ref(), code).await?;
 
         debug!("Successfully exchanged code for tokens");
 
         let profile = client
             .user_profile(&tokens.access_token)
             .await
-            .map_err(|e| DomainError::UserProfileError(e.to_string()))?;
+            .map_err(|_| DomainError::UserProfileError("OAuth profile request failed".into()))?;
 
         debug!("Retrieved user profile: {}", profile.username);
 
@@ -473,7 +478,15 @@ mod missing_client_tests {
         );
         let provider = Provider::parse_slug("github").expect("github slug");
         let err = service
-            .generate_authorize_url(&provider, "http://localhost/cb", "state")
+            .generate_authorize_url(
+                &provider,
+                "http://localhost/cb",
+                "state",
+                &crate::entity::oauth_transaction::BegunOAuthTransaction {
+                    code_challenge: None,
+                    code_challenge_method: None,
+                },
+            )
             .await
             .expect_err("empty catalogue");
         assert!(

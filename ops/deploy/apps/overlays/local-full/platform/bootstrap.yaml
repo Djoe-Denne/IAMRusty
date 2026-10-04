@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: local-full-fga}
+data: {}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: local-full-bootstrap}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: local-full-bootstrap}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [local-full-fga]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: local-full-bootstrap}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: local-full-bootstrap}
+subjects: [{kind: ServiceAccount, name: local-full-bootstrap}]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: openbao}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: aiforall-local-full-token-review}
+rules:
+  - apiGroups: [authentication.k8s.io]
+    resources: [tokenreviews]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: aiforall-local-full-token-review}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: aiforall-local-full-token-review}
+subjects: [{kind: ServiceAccount, name: openbao, namespace: aiforall-local-full}]
+---
+apiVersion: batch/v1
+kind: Job
+metadata: {name: fga-bootstrap}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 240
+  template:
+    metadata: {labels: {app.kubernetes.io/name: local-full-bootstrap}}
+    spec:
+      serviceAccountName: local-full-bootstrap
+      restartPolicy: Never
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: bootstrap
+          image: python:3.12.9-alpine3.21@sha256:28b8a72c4e0704dd2048b79830e692e94ac2d43d30c914d54def6abf74448a4e
+          command: [python, /scripts/fga-bootstrap.py]
+          env: [{name: POD_NAMESPACE, valueFrom: {fieldRef: {fieldPath: metadata.namespace}}}, {name: PYTHONDONTWRITEBYTECODE, value: "1"}]
+          resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {cpu: 200m, memory: 128Mi}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          volumeMounts: [{name: scripts, mountPath: /scripts, readOnly: true}, {name: model, mountPath: /model, readOnly: true}]
+      volumes: [{name: scripts, configMap: {name: local-full-bootstrap-scripts}}, {name: model, configMap: {name: local-full-fga-model}}]
+---
+apiVersion: batch/v1
+kind: Job
+metadata: {name: openbao-seed}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 240
+  template:
+    metadata: {labels: {app.kubernetes.io/name: openbao-seed}}
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext: {seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: seed
+          image: openbao/openbao:2.6.2@sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641
+          command: [sh, /scripts/seed-openbao.sh]
+          env: [{name: BAO_ADDR, value: "http://openbao:8200"}, {name: BAO_TOKEN, value: local-full-dev-root}]
+          resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {cpu: 200m, memory: 128Mi}}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          volumeMounts: [{name: scripts, mountPath: /scripts, readOnly: true}, {name: ca, mountPath: /kube-ca, readOnly: true}]
+      volumes:
+        - {name: scripts, configMap: {name: local-full-bootstrap-scripts}}
+        - {name: ca, configMap: {name: kube-root-ca.crt}}

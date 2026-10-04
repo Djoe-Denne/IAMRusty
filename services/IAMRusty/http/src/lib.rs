@@ -15,8 +15,12 @@ use crate::rate_limit::rate_limit_auth;
 pub mod error;
 pub mod handlers;
 pub mod idp_registry;
+pub mod oauth_browser;
 pub mod oauth_state;
+pub mod platform_user;
+pub mod public_routes;
 pub mod rate_limit;
+pub mod security_context;
 pub mod validation;
 
 pub use error::{ApiError, AuthError};
@@ -40,7 +44,9 @@ pub use handlers::{
     user::get_user,
 };
 pub use oauth_state::{configure_oauth_state_secret, OAuthState};
+pub use platform_user::{PlatformIssuer, PlatformUser};
 pub use rate_limit::configure_internal_service_token;
+pub use security_context::IamHttpSecurityContext;
 
 pub const SERVICE_PREFIX: &str = "/iam";
 
@@ -53,6 +59,7 @@ pub fn create_router(
     state: AppState,
     idp: Arc<IdpConfig>,
     signer: Option<Arc<SignerRouteContext>>,
+    security: Arc<IamHttpSecurityContext>,
 ) -> Router {
     let builder = RouteBuilder::new(state)
         .health_check()
@@ -118,8 +125,7 @@ pub fn create_router(
         .get(
             "/api/auth/{provider_name}/relink-callback",
             relink_provider_callback,
-        )
-        .authenticated();
+        );
 
     let mut router = builder
         .into_router()
@@ -133,6 +139,9 @@ pub fn create_router(
         router = router.layer(Extension(signer));
     }
     router
+        .layer(Extension(security.platform_issuer()))
+        .layer(Extension(security.rate_limiter()))
+        .layer(Extension(security.oauth()))
 }
 
 /// Create the IAM router under its bounded-context prefix.
@@ -141,10 +150,11 @@ pub fn create_prefixed_router(
     probe: Arc<ReadinessProbe>,
     idp: Arc<IdpConfig>,
     signer: Option<Arc<SignerRouteContext>>,
+    security: Arc<IamHttpSecurityContext>,
 ) -> Router {
     Router::new().nest(
         SERVICE_PREFIX,
-        attach_ready(create_router(state, idp, signer), probe),
+        attach_ready(create_router(state, idp, signer, security), probe),
     )
 }
 
@@ -159,6 +169,11 @@ pub async fn create_app_routes(
     probe: Arc<ReadinessProbe>,
     idp: Arc<IdpConfig>,
     signer: Option<Arc<SignerRouteContext>>,
+    security: Arc<IamHttpSecurityContext>,
 ) -> anyhow::Result<()> {
-    rustycog::http::serve_router(create_prefixed_router(state, probe, idp, signer), config).await
+    rustycog::http::serve_router(
+        create_prefixed_router(state, probe, idp, signer, security),
+        config,
+    )
+    .await
 }

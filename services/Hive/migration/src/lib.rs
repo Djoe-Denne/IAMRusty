@@ -1,37 +1,12 @@
 pub use sea_orm_migration::prelude::*;
 
-mod m20240101_000001_create_organizations_table;
-mod m20240101_000003_create_organization_members_table;
-mod m20240101_000004_create_organization_invitations_table;
-mod m20240101_000005_create_external_providers_table;
-mod m20240101_000006_create_external_links_table;
-mod m20240101_000007_create_sync_jobs_table;
-mod m20240101_000008_create_permissions_table;
-mod m20240101_000009_create_resources_table;
-mod m20240101_000010_create_role_permissions_table;
-mod m20240101_000012_create_organization_member_role_permissions_table;
-mod m20240101_000013_member_issuer;
-mod m20261003_000014_role_permission_organization_scope;
+mod m20240101_000001_initial_schema;
 
 pub struct Migrator;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        vec![
-            Box::new(m20240101_000001_create_organizations_table::Migration),
-            Box::new(m20240101_000003_create_organization_members_table::Migration),
-            Box::new(m20240101_000004_create_organization_invitations_table::Migration),
-            Box::new(m20240101_000005_create_external_providers_table::Migration),
-            Box::new(m20240101_000006_create_external_links_table::Migration),
-            Box::new(m20240101_000007_create_sync_jobs_table::Migration),
-            Box::new(m20240101_000008_create_permissions_table::Migration),
-            Box::new(m20240101_000009_create_resources_table::Migration),
-            Box::new(m20240101_000010_create_role_permissions_table::Migration),
-            Box::new(m20240101_000012_create_organization_member_role_permissions_table::Migration),
-            Box::new(m20240101_000013_member_issuer::Migration),
-            rustycog::outbox::outbox_migration(),
-            Box::new(m20261003_000014_role_permission_organization_scope::Migration),
-        ]
+        vec![Box::new(m20240101_000001_initial_schema::Migration)]
     }
 }

@@ -1,0 +1,64 @@
+[server]
+host = "0.0.0.0"
+port = 8080
+tls_enabled = true
+tls_port = 8080
+tls_cert_path = "/app/certs/server.crt"
+tls_key_path = "/app/certs/server.key"
+tls_client_ca_path = "/app/certs/ca.crt"
+[auth.jwt]
+audience = "aiforall"
+jwks_url = "http://iam:8080/iam/.well-known/jwks.json"
+allowed_algorithms = ["RS256"]
+[identity]
+session_ttl_minutes = 15
+cert_ttl_hours = 24
+ca_cert_pem_path = "/app/identity-ca/ca.crt"
+ca_key_pem_path = "/app/identity-ca/ca.key"
+[database]
+host = "postgres"
+port = 5432
+db = "lazaret_dev"
+[database.creds]
+username = "postgres"
+password = "postgres"
+[logging]
+level = "info"
+[command.retry]
+max_attempts = 0
+base_delay_ms = 50
+max_delay_ms = 5000
+backoff_multiplier = 2.0
+use_jitter = false
+[queue]
+type = "sqs"
+enabled = true
+region = "us-east-1"
+account_id = "000000000000"
+default_queues = ["lazaret-kv-events"]
+host = "localstack"
+port = 4566
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30
+[manifesto_service]
+base_url = "http://manifesto:8080/manifesto"
+timeout_seconds = 10
+bearer_token = ""
+hs256_secret = "manifesto-grant-snapshot-dev-hs256"
+issuer = "aiforall-platform"
+audience = "manifesto-bindings"
+[kv]
+backend = "redis"
+[redis]
+hostname = "redis"
+port = 6379
+[vault]
+base_url = "http://openbao:8200"
+token = "local-full-dev-root"
+mount = "secret"
+[plugin_hop]
+use_dns_formula = false
+# Parent must add this typed config field + namespace-aware locator wiring.
+namespace = "aiforall-local-plugins"

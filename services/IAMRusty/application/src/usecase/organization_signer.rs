@@ -129,6 +129,13 @@ impl OrganizationSignerFacade for OrganizationSignerFacadeImpl {
         if provider_type == SigningProviderType::PemFile {
             require_org_scoped_pem_ref(organization_id, &request.provider_key_ref)?;
         }
+        if provider_type == SigningProviderType::OpenBaoTransit {
+            iam_domain::entity::signing_key::require_org_transit_binding(
+                organization_id,
+                &request.provider_key_ref,
+                request.credential_ref.as_deref(),
+            )?;
+        }
         require_rsa_public_pem(&request.public_key)?;
 
         let issuer = org_issuer(&self.public_base_url, &request.org_slug);
@@ -137,15 +144,6 @@ impl OrganizationSignerFacade for OrganizationSignerFacadeImpl {
             return Err(DomainError::BusinessRuleViolation(
                 ISSUER_OWNED_BY_OTHER_ORGANIZATION.to_string(),
             ));
-        }
-
-        let org_keys = self.registry.find_by_organization(organization_id).await?;
-        for mut previous in org_keys {
-            if previous.status.can_sign() {
-                previous.status = SigningKeyStatus::Retiring;
-                previous.updated_at = Utc::now();
-                self.registry.update(&previous).await?;
-            }
         }
 
         let now = Utc::now();
@@ -165,13 +163,18 @@ impl OrganizationSignerFacade for OrganizationSignerFacadeImpl {
             created_at: now,
             updated_at: now,
         };
-        self.registry.insert(&key).await?;
+        // Validate backend/material binding before touching the published epoch.
+        self.probe.challenge(&key).await?;
+        let key = self
+            .registry
+            .replace_active_organization_key(&key, None)
+            .await?;
 
         Ok(OrganizationSignerResult {
             signing_profile_id: key.id,
-            kid,
+            kid: key.kid,
             status: String::from(&key.status),
-            issuer,
+            issuer: key.issuer,
         })
     }
 
@@ -196,15 +199,11 @@ impl OrganizationSignerFacade for OrganizationSignerFacadeImpl {
         &self,
         organization_id: Uuid,
     ) -> Result<OrganizationSignerResult, DomainError> {
-        let keys = self.registry.find_by_organization(organization_id).await?;
-        let mut last = None;
-        for mut key in keys {
-            key.status = SigningKeyStatus::Revoked;
-            key.updated_at = Utc::now();
-            self.registry.update(&key).await?;
-            last = Some(key);
-        }
-        let key = last.ok_or_else(|| {
+        let keys = self
+            .registry
+            .revoke_organization_keys(organization_id)
+            .await?;
+        let key = keys.into_iter().last().ok_or_else(|| {
             DomainError::AuthorizationError(NO_ACTIVE_ORGANIZATION_SIGNING_KEY.to_string())
         })?;
         Ok(OrganizationSignerResult::from_key(&key))
@@ -291,5 +290,117 @@ mod tests {
         assert!(require_org_scoped_pem_ref(org_id, &format!("{other}/kid.pem")).is_err());
         assert!(require_org_scoped_pem_ref(org_id, "../test-platform.pem").is_err());
         assert!(require_org_scoped_pem_ref(org_id, &format!("{org_id}/kid.pem")).is_ok());
+    }
+
+    struct AtomicFailureRegistry {
+        previous: SigningKey,
+        attempted: std::sync::atomic::AtomicBool,
+    }
+    #[async_trait]
+    impl SigningKeyRegistry for AtomicFailureRegistry {
+        type Error = DomainError;
+        async fn jwks_publication_snapshot(
+            &self,
+        ) -> Result<iam_domain::entity::signing_key::SigningKeyPublicationSnapshot, DomainError>
+        {
+            panic!("configure must not use publication snapshot")
+        }
+        async fn confirm_active_for_emission(&self, _: &SigningKey) -> Result<bool, DomainError> {
+            panic!("configuration must not invoke an emission fence")
+        }
+        async fn insert(&self, _: &SigningKey) -> Result<(), DomainError> {
+            panic!("non-atomic insert")
+        }
+        async fn update(&self, _: &SigningKey) -> Result<(), DomainError> {
+            panic!("non-atomic retirement")
+        }
+        async fn replace_active_organization_key(
+            &self,
+            _: &SigningKey,
+            _: Option<&str>,
+        ) -> Result<SigningKey, DomainError> {
+            self.attempted
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            Err(DomainError::RepositoryError(
+                "injected insert failure".into(),
+            ))
+        }
+        async fn revoke_organization_keys(&self, _: Uuid) -> Result<Vec<SigningKey>, DomainError> {
+            unreachable!()
+        }
+        async fn find_by_kid(&self, _: &str) -> Result<Option<SigningKey>, DomainError> {
+            Ok(Some(self.previous.clone()))
+        }
+        async fn find_active_platform_key(&self) -> Result<Option<SigningKey>, DomainError> {
+            Ok(None)
+        }
+        async fn list_jwks_keys(&self) -> Result<Vec<SigningKey>, DomainError> {
+            Ok(vec![self.previous.clone()])
+        }
+        async fn find_by_organization(&self, _: Uuid) -> Result<Vec<SigningKey>, DomainError> {
+            Ok(vec![self.previous.clone()])
+        }
+        async fn find_by_issuer(&self, _: &str) -> Result<Vec<SigningKey>, DomainError> {
+            Ok(vec![self.previous.clone()])
+        }
+    }
+    struct Probe;
+    #[async_trait]
+    impl OrganizationSignerProbe for Probe {
+        async fn challenge(&self, _: &SigningKey) -> Result<(), DomainError> {
+            Ok(())
+        }
+    }
+    struct Rotator;
+    #[async_trait]
+    impl OrganizationSignerRotator for Rotator {
+        async fn rotate(&self, _: Uuid) -> Result<SigningKey, DomainError> {
+            unreachable!()
+        }
+    }
+    #[tokio::test]
+    async fn failed_configure_never_retires_previous_via_separate_update() {
+        let org = Uuid::new_v4();
+        let now = Utc::now();
+        let public = include_str!("../../../config/keys/test-platform.pub");
+        let registry = Arc::new(AtomicFailureRegistry {
+            previous: SigningKey {
+                id: Uuid::new_v4(),
+                kid: "previous".into(),
+                algorithm: "RS256".into(),
+                trust_scope: TrustScope::Organization,
+                issuer: "https://iam.example/iam/orgs/acme".into(),
+                provider_type: SigningProviderType::PemFile,
+                provider_key_ref: format!("{org}/previous.pem"),
+                credential_ref: None,
+                public_key: public.into(),
+                status: SigningKeyStatus::Active,
+                organization_id: Some(org),
+                created_at: now,
+                updated_at: now,
+            },
+            attempted: std::sync::atomic::AtomicBool::new(false),
+        });
+        let facade = OrganizationSignerFacadeImpl::new(
+            registry.clone(),
+            "https://iam.example",
+            Arc::new(Probe),
+            Arc::new(Rotator),
+        );
+        let result = facade
+            .configure(
+                org,
+                &ConfigureOrganizationSignerInput {
+                    provider_type: "pem_file".into(),
+                    provider_key_ref: format!("{org}/new.pem"),
+                    credential_ref: None,
+                    public_key: public.into(),
+                    org_slug: "acme".into(),
+                },
+            )
+            .await;
+        assert!(result.is_err());
+        assert!(registry.attempted.load(std::sync::atomic::Ordering::SeqCst));
+        assert_eq!(registry.previous.status, SigningKeyStatus::Active);
     }
 }

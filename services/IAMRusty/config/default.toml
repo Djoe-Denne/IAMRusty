@@ -27,6 +27,7 @@ password = "postgres"
 read_replicas = []
 
 [[idp.connectors]]
+pkce_supported = false # Receiver-first rollout; no implicit PKCE capability.
 id = "github"
 base_url = "http://127.0.0.1:8085/github-connect"
 hmac_secret = "change-me-github-connect-hmac"
@@ -36,6 +37,7 @@ redirect_uris = [
 ]
 
 [[idp.connectors]]
+pkce_supported = false
 id = "gitlab"
 base_url = "http://127.0.0.1:8086/gitlab-connect"
 hmac_secret = "change-me-gitlab-connect-hmac"
@@ -52,7 +54,7 @@ audience = "aiforall"
 public_base_url = "http://127.0.0.1:8080"
 jwks_url = "http://127.0.0.1:8080/iam/.well-known/jwks.json"
 allowed_algorithms = ["RS256"]
-oauth_state_secret = "iam-oauth-state-hmac-change-me"
+oauth_state_secret = "" # Required explicitly by the served profile; never a known fallback.
 
 # JWT secret configuration using RS256 PEM
 [jwt.secret]

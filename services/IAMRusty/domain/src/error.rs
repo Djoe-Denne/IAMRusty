@@ -3,6 +3,16 @@ use thiserror::Error;
 /// Domain-level errors
 #[derive(Debug, Clone, Error)]
 pub enum DomainError {
+    /// Redacted lifecycle admission outcome (429, or 409 for EpochConflict).
+    #[error("signing key admission denied: {reason:?}")]
+    SigningKeyAdmissionDenied {
+        reason: crate::entity::signing_key::SigningKeyAdmissionReason,
+        retry_after_seconds: Option<u32>,
+    },
+
+    /// New material/binding fails the ratified limits (400, no payload details).
+    #[error("invalid signing key material")]
+    InvalidSigningKeyMaterial,
     /// User not found
     #[error("User not found")]
     UserNotFound,

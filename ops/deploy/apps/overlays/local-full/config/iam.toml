@@ -1,0 +1,68 @@
+# Explicit local-only credentials/key. No enabled external OAuth connector.
+[security]
+mode = "local_insecure"
+# Envoy pods have dynamic IPs in the pinned Kind/Calico pod network.
+# Network match alone is insufficient: IAM also requires the verified envoy-mesh TLS SAN.
+[[security.rate_limit.trusted_proxies]]
+ip = "10.244.0.0"
+prefix_len = 16
+dns_san = "envoy-mesh"
+[server]
+host = "0.0.0.0"
+port = 8080
+tls_enabled = true
+tls_port = 8443
+tls_cert_path = "/app/certs/iam-service.crt"
+tls_key_path = "/app/certs/iam-service.key"
+tls_client_ca_path = "/app/certs/ca.crt"
+[auth.jwt]
+audience = "aiforall"
+jwks_url = "http://iam:8080/iam/.well-known/jwks.json"
+allowed_algorithms = ["RS256"]
+[database]
+host = "postgres"
+port = 5432
+db = "iam_dev"
+[database.creds]
+username = "postgres"
+password = "postgres"
+[idp]
+connectors = []
+[jwt]
+expiration_seconds = 900
+refresh_token_expiration_seconds = 2592000
+issuer = "http://127.0.0.1:8080/iam"
+audience = "aiforall"
+public_base_url = "http://127.0.0.1:8080"
+jwks_url = "http://iam:8080/iam/.well-known/jwks.json"
+allowed_algorithms = ["RS256"]
+oauth_state_secret = "b9a3475cd01f826ee684f2703acb15d96c02e85147bd6a3905f8a63e12d9c407"
+[jwt.secret]
+type = "pem_file"
+private_key_path = "config/keys/test-platform.pem"
+public_key_path = "config/keys/test-platform.pub"
+key_id = "test-rs256-kid-01"
+[logging]
+level = "info"
+[command.retry]
+max_attempts = 0
+base_delay_ms = 50
+max_delay_ms = 5000
+backoff_multiplier = 2.0
+use_jitter = false
+[queue]
+type = "sqs"
+enabled = true
+region = "us-east-1"
+account_id = "000000000000"
+default_queues = ["telegraph-events"]
+host = "localstack"
+port = 4566
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30
+[queue.queues]
+user_signed_up = ["telegraph-events", "sentinel-sync-events"]
+user_email_verified = ["telegraph-events", "sentinel-sync-events"]
+password_reset_requested = ["telegraph-events"]

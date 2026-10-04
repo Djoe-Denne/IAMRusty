@@ -117,14 +117,33 @@ async fn handle_authorize(
     State(client): State<Arc<dyn FederatedOAuthClient>>,
     Json(req): Json<AuthorizeRequest>,
 ) -> impl IntoResponse {
-    json_or_bad_gateway(client.authorize(&req.redirect_uri, &req.state).await)
+    let challenge = match req.pkce_challenge() {
+        Ok(challenge) => challenge,
+        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+    };
+    json_or_bad_gateway(
+        client
+            .authorize_with_pkce(&req.redirect_uri, &req.state, challenge)
+            .await,
+    )
 }
 
 async fn handle_token(
     State(client): State<Arc<dyn FederatedOAuthClient>>,
     Json(req): Json<TokenRequest>,
 ) -> impl IntoResponse {
-    json_or_bad_gateway(client.exchange_code(&req.code, &req.redirect_uri).await)
+    if req
+        .code_verifier
+        .as_deref()
+        .is_some_and(|verifier| !crate::dto::valid_pkce_verifier(verifier))
+    {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    json_or_bad_gateway(
+        client
+            .exchange_code_with_pkce(&req.code, &req.redirect_uri, req.code_verifier.as_deref())
+            .await,
+    )
 }
 
 async fn handle_profile(
@@ -246,5 +265,69 @@ mod tests {
             ))
             .await;
         response.assert_status(StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn old_receiver_adapter_cannot_ignore_requested_pkce() {
+        let (server, key) = signed_server();
+        let challenge = "a".repeat(43);
+        let authorize = format!(
+            r#"{{"redirect_uri":"https://app.example/cb","state":"opaque","code_challenge":"{challenge}","code_challenge_method":"S256"}}"#
+        );
+        post_signed(
+            &server,
+            &key,
+            "/github-connect/v1/authorize",
+            "/github-connect/v1/authorize",
+            &authorize,
+        )
+        .await
+        .assert_status(StatusCode::BAD_GATEWAY);
+        let token = format!(
+            r#"{{"code":"opaque","redirect_uri":"https://app.example/cb","code_verifier":"{challenge}"}}"#
+        );
+        post_signed(
+            &server,
+            &key,
+            "/github-connect/v1/token",
+            "/github-connect/v1/token",
+            &token,
+        )
+        .await
+        .assert_status(StatusCode::BAD_GATEWAY);
+    }
+
+    #[tokio::test]
+    async fn malformed_pkce_wire_is_rejected_before_adapter() {
+        let (server, key) = signed_server();
+        let challenge = "a".repeat(43);
+        for extras in [
+            format!(r#", "code_challenge":"{challenge}""#),
+            format!(r#", "code_challenge":"{challenge}","code_challenge_method":"plain""#),
+            r#", "code_challenge_method":"S256""#.to_string(),
+        ] {
+            let authorize =
+                format!(r#"{{"redirect_uri":"https://app.example/cb","state":"opaque"{extras}}}"#);
+            post_signed(
+                &server,
+                &key,
+                "/github-connect/v1/authorize",
+                "/github-connect/v1/authorize",
+                &authorize,
+            )
+            .await
+            .assert_status(StatusCode::BAD_REQUEST);
+        }
+        let token =
+            r#"{"code":"opaque","redirect_uri":"https://app.example/cb","code_verifier":"short"}"#;
+        post_signed(
+            &server,
+            &key,
+            "/github-connect/v1/token",
+            "/github-connect/v1/token",
+            token,
+        )
+        .await
+        .assert_status(StatusCode::BAD_REQUEST);
     }
 }

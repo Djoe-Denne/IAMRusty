@@ -186,6 +186,11 @@ deploy-j3:
 deploy-mesh:
     Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./ops/deploy/deploy-mesh.ps1
 
+# Autonomous local-full source profile. Defaults to OFFLINE render; deployment
+# needs the parent lease, immutable prebuilt image map and prepared local CAs.
+deploy-local-full action="render" *args:
+    python ./ops/deploy/deploy-local-full.py {{action}} {{args}}
+
 # Dette hors gold 0605 / 0008 — schedule manuel + Job enroll (0604). Pas une étape nominale.
 debt-schedule-reference-kv:
     Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./ops/deploy/apps/overlays/kind-demo-monolith/schedule-reference-kv.ps1
@@ -196,4 +201,3 @@ debt-schedule-reference-kv:
 #   runtime/monolith/prove-e2e-curl.ps1      = curl hôte ≠ preuve
 prove-gold:
     Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./ops/deploy/apps/overlays/kind-demo-monolith/prove-gold-path.ps1
-

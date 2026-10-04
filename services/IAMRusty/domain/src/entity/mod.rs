@@ -3,6 +3,7 @@
 pub mod email_verification;
 pub mod events;
 pub mod identity;
+pub mod oauth_transaction;
 pub mod password_reset_token;
 pub mod provider;
 pub mod provider_link;

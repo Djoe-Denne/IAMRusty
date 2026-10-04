@@ -18,6 +18,7 @@ allowed_algorithms = ["RS256"]
 level = "info"
 
 [gitlab]
+pkce_supported = false # Explicit receiver capability; enable only for a supported vendor.
 client_id = "your-gitlab-client-id"
 client_secret = "your-gitlab-client-secret"
 auth_url = "https://gitlab.com/oauth/authorize"

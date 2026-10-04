@@ -199,7 +199,7 @@ async fn role_permission_scope_indexes(db: &impl ConnectionTrait) -> Vec<String>
 
 #[tokio::test]
 #[serial]
-async fn role_permission_scope_migration_round_trip_preserves_populated_rows() {
+async fn initial_schema_round_trip_recreates_scoped_index_and_rollback_preserves_rows() {
     let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let db = fixture.db();
     let token = create_jwt_token(Uuid::new_v4());
@@ -208,30 +208,20 @@ async fn role_permission_scope_migration_round_trip_preserves_populated_rows() {
     let before = role_permission_scope_state(&txn).await;
     assert!(!before.0.is_empty() && !before.1.is_empty());
 
-    // Simulate the populated previous schema without changing the shared DB:
-    // all DDL and migration-history changes are inside this outer transaction.
+    // There is one initial migration, not an incremental index migration:
+    // down drops the schema; the outer transaction protects the shared DB.
     Migrator::down(&txn, Some(1)).await.unwrap();
-    assert_eq!(role_permission_scope_state(&txn).await, before);
-    assert_eq!(
-        role_permission_scope_indexes(&txn).await,
-        vec![String::from("idx_role_permissions_unique_combo")]
-    );
+    assert_role_permission_schema_dropped(&txn).await;
 
     Migrator::up(&txn, Some(1)).await.unwrap();
-    assert_eq!(role_permission_scope_state(&txn).await, before);
+    let recreated = role_permission_scope_state(&txn).await;
+    assert!(recreated.0.is_empty() && recreated.1.is_empty());
     assert_eq!(
         role_permission_scope_indexes(&txn).await,
         vec![String::from("idx_role_permissions_org_unique_combo")]
     );
 
-    // Down succeeds with no cross-org collisions and preserves role IDs and
-    // owner assignment IDs/member IDs/role IDs, not just the row counts.
-    Migrator::down(&txn, Some(1)).await.unwrap();
-    assert_eq!(role_permission_scope_state(&txn).await, before);
-    assert_eq!(
-        role_permission_scope_indexes(&txn).await,
-        vec![String::from("idx_role_permissions_unique_combo")]
-    );
+    // Only rolling back the outer transaction preserves the populated rows.
     txn.rollback().await.unwrap();
     assert_eq!(role_permission_scope_state(db.as_ref()).await, before);
     assert_eq!(
@@ -243,7 +233,7 @@ async fn role_permission_scope_migration_round_trip_preserves_populated_rows() {
 
 #[tokio::test]
 #[serial]
-async fn role_permission_scope_migration_rejects_colliding_downgrade_without_loss() {
+async fn initial_schema_down_drops_cross_org_roles_and_rollback_preserves_rows() {
     let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let db = fixture.db();
     let token = create_jwt_token(Uuid::new_v4());
@@ -252,24 +242,26 @@ async fn role_permission_scope_migration_rejects_colliding_downgrade_without_los
     let txn = db.begin().await.unwrap();
     let before = role_permission_scope_state(&txn).await;
 
-    // PostgreSQL's nested migration transaction must roll back the failed
-    // global index creation, keeping both organizations and the scoped index.
-    let error = Migrator::down(&txn, Some(1)).await.unwrap_err();
-    assert!(error
-        .to_string()
-        .contains("idx_role_permissions_unique_combo"));
-    assert_eq!(role_permission_scope_state(&txn).await, before);
-    assert_eq!(
-        role_permission_scope_indexes(&txn).await,
-        vec![String::from("idx_role_permissions_org_unique_combo")]
-    );
-    // The failed down must also leave the migration recorded as applied: an
-    // up with no pending migrations is a no-op, not another CREATE INDEX.
-    Migrator::up(&txn, Some(1)).await.unwrap();
-    assert_eq!(role_permission_scope_state(&txn).await, before);
+    // Flattening removed the downgrade to a global uniqueness index. Even
+    // cross-org combinations are dropped by down of the initial schema.
+    Migrator::down(&txn, Some(1)).await.unwrap();
+    assert_role_permission_schema_dropped(&txn).await;
     txn.rollback().await.unwrap();
     assert_eq!(role_permission_scope_state(db.as_ref()).await, before);
     cleanup_scoped_role_test_organizations(db.as_ref(), vec![first.id, second.id]).await;
+}
+
+async fn assert_role_permission_schema_dropped(db: &impl ConnectionTrait) {
+    let row = db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT to_regclass('role_permissions') IS NULL AND \
+             to_regclass('organization_member_role_permissions') IS NULL AS dropped",
+        ))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(row.try_get::<bool>("", "dropped").unwrap());
 }
 
 #[tokio::test]

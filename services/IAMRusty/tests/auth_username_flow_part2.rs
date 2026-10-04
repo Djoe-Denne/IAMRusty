@@ -15,7 +15,7 @@ use serial_test::serial;
 use std::collections::HashMap;
 use url::Url;
 use utils::jwt::{
-    create_expired_registration_token_with_encoder, create_valid_jwt_token_with_encoder,
+    create_expired_registration_token_with_codec, create_valid_jwt_token_with_encoder,
 };
 use uuid::Uuid;
 
@@ -380,17 +380,20 @@ async fn test_registration_token_expires_after_configured_duration() {
 #[serial]
 async fn test_expired_registration_token_returns_400() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = setup_test_server()
         .await
         .expect("Failed to setup test server");
 
-    let config = &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config");
-
-    let expired_token = create_expired_registration_token_with_encoder(
+    let (codec, issuer) = common::fixture_jwt_codec(&fixture)
+        .await
+        .expect("actual shared fixture codec and issuer");
+    let expired_token = create_expired_registration_token_with_codec(
         Uuid::new_v4(),
         "test@example.com".to_string(),
-        config,
+        &issuer,
+        codec,
     )
+    .await
     .expect("Failed to create expired token");
 
     // Try to complete registration with expired token

@@ -10,7 +10,7 @@
 - SuperSédée par : —
 - Related : [0302](0302-authn-jwt-authz-openfga.md), [0305](0305-account-identity-trust-domain.md), [0306](0306-hive-iam-configuration-signature.md), [0307](0307-workload-identity-port.md), [0308](0308-mesh-authn-jwt.md), [0309](0309-remote-signer.md), [0400](0400-iamrusty-identite-hexagonale.md)
 
-`Accepted` ratifie la cible crypto / JWKS / issuer par trust domain. `Réalité : Partial` : mint RS256 + JWKS + extracteur rustycog RS256 + rotate N+1 + probe Transit ; **pas** d’adapters cloud BYOKMS ; remote signer HTTP ([0309](0309-remote-signer.md)) présent / Partial, sans HSM livré. Expiration fail-closed JWKS à 60 s ratifiée le 2026-10-03 mais non démontrée à cette baseline.
+`Accepted` ratifie la cible crypto / JWKS / issuer par trust domain. `Réalité : Partial` au 2026-10-04 : sources IAM et SDK de fail-closed60, JWKS vide et mint RS256 commun écrites ; validation intégrée IAM/mesh encore absente. Le SDK publié `ca2e35fcd56279e9e52625d0df9381f240f3390d` est sélectionné dans le worktree ; 22 tests purs SDK PASS rapportés par le parent ne sont pas des tests IAM. Remote signer HTTP (0309) présent / Partial ; adapters cloud BYOKMS et HSM/KMIP non livrés, pas des gates du lab local.
 
 ## Contexte
 
@@ -42,9 +42,9 @@
 22. **Remote signer** : contrat minimal → [0309](0309-remote-signer.md).
 23. **`services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md` n’est pas canon.**
 
-## État runtime
+## État source et validation courante
 
-Access JWT = RS256 + `kid` + `typ=aiforall-access+jwt` via `PemSigningProvider` / Transit adapter ; `iss` = `{public_base_url}/iam` ; `aud=aiforall`. JWKS = `SigningKeyRegistry::list_jwks_keys` (pending+active+retiring ; retiring hors fenêtre après TTL access + skew 60s ; fallback bootstrap cache). Rotate org = N+1 (Pending puis Active / ancienne Retiring) ; probe Transit = `sign_digest` + verify PKCS1v15 (URL Transit depuis config IAM, refuse fermé sans URL). `UserIdExtractor` vérifie RS256 + JWKS et expose `JwtPrincipal` (défaut in-process). En overlay mesh, le service peut au contraire faire confiance au principal passerelle sans revérifier le JWT ([0308](0308-mesh-authn-jwt.md) §7). Runtime TOMLs : `allowed_algorithms=["RS256"]`. HS256 = uniquement le flag explicite `allowed_algorithms` dans les `test.toml` (pas le défaut). Adapters AWS/GCP/Azure BYOKMS **absents**. Remote signer HTTP ([0309](0309-remote-signer.md)) **Partial**, sans HSM/KMIP livré. Le fallback bootstrap du registry vide et les caches last-known-good non bornés sont des écarts à corriger, pas la cible du point 17.
+Sources courantes : access JWT RS256, `kid` opaque, `typ=aiforall-access+jwt`, `iss={public_base_url}/iam`, `aud=aiforall`. Le codec IAM partage désormais la signature/fence writer entre access et registration ; Active seul émet, contrôle autoritatif final après les await du signer, point L = snapshot du SELECT primaire. Le provider PEM valide la paire privée/publique ; le candidat doit vérifier contre le public enregistré. Registry/JWKS sérialisent status/trust/organisation et un registry initialisé sans clé admissible publie `keys: []`, sans résurrection bootstrap. Ces éléments sont SOURCE, pas une preuve de compilation ou de concurrence backend. À la baseline historique `f060d47` / `ba69c9e`, fallback bootstrap sur registry vide et LKG non borné étaient des écarts ; ils ne décrivent plus les nouvelles sources. Le remote signer HTTP reste Partial ; cloud BYOKMS/HSM/KMIP non livrés. HS256 reste la compat de tests explicite, pas le défaut RS256 runtime.
 
 ## Migration
 
@@ -78,15 +78,23 @@ Dual-verify bornée (RS256 + `kid` ; HS256 = HMAC migration only dans test.toml)
 - Contrat remote signer détaillé ([0309](0309-remote-signer.md)).
 - UX switch d’identity / membership `(iss, sub)` ([0305](0305-account-identity-trust-domain.md), [0306](0306-hive-iam-configuration-signature.md)).
 
+## Réconciliation source — 2026-10-04
+
+- Root HEAD `5348a63`, changements non committés ; checkout/gitlink worktree SDK `ca2e35fcd56279e9e52625d0df9381f240f3390d`, publication confirmée par le parent. Aucun commit/push root ni nouveau run effectué par cette réconciliation.
+- Source B : `services/IAMRusty/infra/src/token/{jwt_encoder,registration_token_service}.rs`, `infra/src/signing/pem.rs`, `infra/src/repository/signing_key_registry.rs` (préfixe services/IAMRusty) ; review CORE final PASS **statique**. Codec registration async et bindings shared setup restent à intégrer/valider avec le lot final.
+- Source caches : `rustycog/rustycog-http/src/jwks.rs`, `workers/ext-authz/src/jwks_cache.rs` et validateurs de trust ; succès autoritatif vide et confiance monotone limitée à 60 s, hit/erreur sans prolongation. Le parent rapporte 22 tests purs SDK PASS, y compris contrat de publication valide/métadonnées ; cela ne prouve pas le publisher IAM, ses transactions ou Envoy.
+- Gates encore ouverts : compilation root complète après intégration, units IAM effectivement exécutées, IT PostgreSQL/publisher/fence/rotation/reset et E2E mesh au hash courant. Pas de promotion Implemented sur source/review. Cloud/HSM futurs ne sont pas des conditions de ces gates locaux.
+- Provenance : `.cursor/review-briefings/20261004-package-b-registration-final-wiring.md`, `20261004-correctness-iam-core-final.md`, contrat interface §§12–13 et validation parent SDK22 du 2026-10-04. `f060d47` reste une baseline historique.
+
 ## Références
 
 - Complète : [0302](0302-authn-jwt-authz-openfga.md) (AuthN/AuthZ ; ne SuperSède pas l’ADR entière)
 - Modèle trust : [0305](0305-account-identity-trust-domain.md) ; config signer : [0306](0306-hive-iam-configuration-signature.md)
-- Accepted / Partial : [0307](0307-workload-identity-port.md), [0308](0308-mesh-authn-jwt.md) (mode passerelle §7) ; Accepted / Unimplemented : [0309](0309-remote-signer.md)
+- Accepted / Implemented : [0307](0307-workload-identity-port.md), port WIF seulement ; Accepted / Partial : [0308](0308-mesh-authn-jwt.md) (mode passerelle §7), [0309](0309-remote-signer.md) (HTTP, sans HSM/KMIP livré)
 - IdP : [0400](0400-iamrusty-identite-hexagonale.md)
 - Handbook : `docs/platform/authn-jwt.md`
 - Non-canon : `services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md`
-- Preuves runtime (Partial — pas Implemented : BYOKMS cloud + remote signer 0309 absents) :
+- Sources et tests présents (pas de nouveau résultat IAM revendiqué ; remote signer HTTP Partial, BYOKMS cloud non livré) :
   - Encodeur RS256 + SigningProvider : `services/IAMRusty/infra/src/token/jwt_encoder.rs`, `services/IAMRusty/infra/src/signing/{pem,transit,static_credential}.rs`
   - JWKS registry : `services/IAMRusty/infra/src/repository/signing_key_registry.rs` `SeaOrmSigningKeyRegistry::list_jwks_keys` → `TokenUseCaseImpl::get_jwks` → `GET /iam/.well-known/jwks.json`
   - Extracteur RS256 + JWKS + `JwtPrincipal` : `rustycog/rustycog-http/src/jwt_handler.rs`
@@ -94,3 +102,7 @@ Dual-verify bornée (RS256 + `kid` ; HS256 = HMAC migration only dans test.toml)
   - Config `allowed_algorithms=[RS256]` : `services/IAMRusty/configuration/src/lib.rs` `http_verifier_auth_rs256_only_excludes_hs256` ; HS256 seulement via `allowed_algorithms` dans `*/config/test.toml`
   - Probe test-signer : `services/IAMRusty/domain/src/port/signing.rs` `OrganizationSignerProbe` ; `services/IAMRusty/infra/src/signing/probe.rs` ; câblé `services/IAMRusty/setup/src/app.rs` `SignerRouteContext`
   - Refresh opaque inchangé : `services/IAMRusty/domain/src/service/refresh_token_service.rs`
+
+## Mise à jour 2026-10-04 — migrations aplaties
+
+Il n'existe pas de données en production à préserver. Le schéma IAM est livré en un seul fichier de migration initiale, `services/IAMRusty/migration/src/m20220101_000001_initial_schema.rs`, outbox comprise. Le préflight et le backfill de cutover legacy sont supprimés ; les contraintes d'admission restent inchangées. Les migrations incrémentales seront réintroduites seulement quand un état persisté devra être préservé. Statut et réalité de livraison inchangés ; cette décision ne constitue pas une preuve IT/E2E.

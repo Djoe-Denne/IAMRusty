@@ -1,11 +1,11 @@
-use super::entity::{prelude::Users, users};
+use super::entity::users;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use iam_domain::entity::user::User as DomainUser;
 use iam_domain::port::repository::UserWriteRepository;
-use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr, Set, TransactionTrait};
 use std::sync::Arc;
-use tracing::{debug, error};
+use tracing::debug;
 
 /// `SeaORM` implementation of `UserWriteRepository`
 #[derive(Clone)]
@@ -60,13 +60,13 @@ impl UserWriteRepository for UserWriteRepositoryImpl {
 
     async fn update(&self, user: DomainUser) -> Result<DomainUser, Self::Error> {
         debug!("Updating user with ID: {}", user.id);
-        let existing = Users::find_by_id(user.id)
-            .one(self.db.as_ref())
-            .await?
-            .ok_or_else(|| {
-                error!(user_id = %user.id, "Failed to update user: User not found");
-                DbErr::RecordNotFound("User not found".to_string())
-            })?;
+        let tx = self.db.begin().await?;
+        let existing = super::authentication_session::lock_user(&tx, user.id).await?;
+        if user.password_hash.is_some() && user.password_hash != existing.password_hash {
+            return Err(DbErr::Custom(
+                "password mutations require the authentication session writer".into(),
+            ));
+        }
 
         let mut model = users::ActiveModel::from(existing);
 
@@ -76,12 +76,11 @@ impl UserWriteRepository for UserWriteRepositoryImpl {
         if user.avatar_url.is_some() {
             model.avatar_url = Set(user.avatar_url.clone());
         }
-        if user.password_hash.is_some() {
-            model.password_hash = Set(user.password_hash.clone());
-        }
+        // Generic profile updates never mutate credentials or restore a replica snapshot.
         model.updated_at = Set(user.updated_at.naive_utc());
 
-        let updated = model.update(self.db.as_ref()).await?;
+        let updated = model.update(&tx).await?;
+        tx.commit().await?;
 
         Ok(Self::to_domain(updated))
     }

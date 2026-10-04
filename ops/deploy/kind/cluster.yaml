@@ -3,7 +3,7 @@ apiVersion: kind.x-k8s.io/v1alpha4
 name: aiforall-local
 # CNI : Calico v3.29.7 (pin GitHub manifests/calico.yaml) installé par deploy-j2.ps1.
 # ≠ fixture IT apparatus-p4-it (tests/fixtures/kind/* intouchable ; IT Linux CI garde 192.168.0.0/16).
-# kindnet interdit : n'enforce pas NetworkPolicy ; recreate obligatoire si présent.
+# kindnet interdit : n'enforce pas NetworkPolicy ; conflit = STOP, jamais de reset.
 # Docker Desktop : host.docker.internal = 192.168.65.254 ∈ 192.168.0.0/16 → Calico
 # traite l'hôte comme un pod (Postgres pool timeout). Pin local = 10.244.0.0/16.
 networking:
@@ -11,3 +11,4 @@ networking:
   podSubnet: "10.244.0.0/16"
 nodes:
   - role: control-plane
+    image: kindest/node:v1.32.2@sha256:142f543559cc55d64e1ab9341df08e5ced84bd2e893736da8f51320f26f5950b

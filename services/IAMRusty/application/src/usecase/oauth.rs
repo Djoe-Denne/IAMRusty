@@ -1,6 +1,10 @@
 //! OAuth use case module for OAuth provider authentication
 
 use async_trait::async_trait;
+use iam_domain::entity::oauth_transaction::{
+    BeginOAuthTransaction, BegunOAuthTransaction, ConsumeOAuthTransaction,
+    ConsumedOAuthTransaction, OAuthTransaction, OAuthTransactionError,
+};
 use iam_domain::entity::{provider::Provider, user::User};
 use iam_domain::error::DomainError;
 use iam_domain::port::{
@@ -18,6 +22,8 @@ pub enum OAuthError {
     /// Domain service error
     #[error("Domain service error: {0}")]
     DomainError(#[from] DomainError),
+    #[error("{0}")]
+    Transaction(#[from] OAuthTransactionError),
 }
 
 /// OAuth response enum for different scenarios
@@ -68,6 +74,14 @@ pub struct ProviderInfo {
 /// OAuth use case interface
 #[async_trait]
 pub trait OAuthUseCase: Send + Sync {
+    async fn begin_oauth_transaction(
+        &self,
+        input: BeginOAuthTransaction,
+    ) -> Result<BegunOAuthTransaction, OAuthError>;
+    async fn consume_oauth_transaction(
+        &self,
+        input: ConsumeOAuthTransaction,
+    ) -> Result<ConsumedOAuthTransaction, OAuthError>;
     /// Generate OAuth authorization URL for login flow
     ///
     /// # Errors
@@ -78,6 +92,7 @@ pub trait OAuthUseCase: Send + Sync {
         provider: Provider,
         redirect_uri: String,
         state: String,
+        begun: &BegunOAuthTransaction,
     ) -> Result<String, OAuthError>;
 
     /// Exchange authorization code for tokens and login user
@@ -92,6 +107,7 @@ pub trait OAuthUseCase: Send + Sync {
         provider: Provider,
         code: String,
         redirect_uri: String,
+        consumed: ConsumedOAuthTransaction,
     ) -> Result<OAuthResponse, OAuthError>;
 }
 
@@ -109,6 +125,9 @@ where
     token: Arc<TS>,
     identity_repo: Arc<dyn IdentityRepository<Error = DomainError>>,
     platform_issuer: String,
+    session_writer: Option<Arc<dyn iam_domain::port::repository::AuthenticationSessionWriter>>,
+    oauth_transaction_writer:
+        Option<Arc<dyn iam_domain::port::repository::OAuthTransactionWriteRepository>>,
 }
 
 impl<UR, TR, UER, RTS, TS> OAuthUseCaseImpl<UR, TR, UER, RTS, TS>
@@ -133,7 +152,26 @@ where
             token,
             identity_repo,
             platform_issuer: platform_issuer.into(),
+            session_writer: None,
+            oauth_transaction_writer: None,
         }
+    }
+    #[must_use]
+    pub fn with_session_writer(
+        mut self,
+        writer: Arc<dyn iam_domain::port::repository::AuthenticationSessionWriter>,
+    ) -> Self {
+        self.session_writer = Some(writer);
+        self
+    }
+
+    #[must_use]
+    pub fn with_oauth_transaction_writer(
+        mut self,
+        writer: Arc<dyn iam_domain::port::repository::OAuthTransactionWriteRepository>,
+    ) -> Self {
+        self.oauth_transaction_writer = Some(writer);
+        self
     }
 }
 
@@ -150,14 +188,37 @@ where
     <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
     TS::Error: std::error::Error + Send + Sync + 'static,
 {
+    async fn begin_oauth_transaction(
+        &self,
+        input: BeginOAuthTransaction,
+    ) -> Result<BegunOAuthTransaction, OAuthError> {
+        let writer = self
+            .oauth_transaction_writer
+            .as_ref()
+            .ok_or(OAuthTransactionError::Storage)?;
+        Ok(OAuthTransaction::begin(writer.as_ref(), input).await?)
+    }
+
+    async fn consume_oauth_transaction(
+        &self,
+        input: ConsumeOAuthTransaction,
+    ) -> Result<ConsumedOAuthTransaction, OAuthError> {
+        let writer = self
+            .oauth_transaction_writer
+            .as_ref()
+            .ok_or(OAuthTransactionError::Storage)?;
+        Ok(ConsumedOAuthTransaction::consume(writer.as_ref(), input).await?)
+    }
+
     async fn generate_start_url(
         &self,
         provider: Provider,
         redirect_uri: String,
         state: String,
+        begun: &BegunOAuthTransaction,
     ) -> Result<String, OAuthError> {
         self.oauth
-            .generate_authorize_url(&provider, &redirect_uri, &state)
+            .generate_authorize_url(&provider, &redirect_uri, &state, begun)
             .await
             .map_err(Into::into)
     }
@@ -167,11 +228,12 @@ where
         provider: Provider,
         code: String,
         redirect_uri: String,
+        consumed: ConsumedOAuthTransaction,
     ) -> Result<OAuthResponse, OAuthError> {
         // Delegate to domain service - note: we ignore the JWT token since we'll generate proper tokens
         let (user, _jwt_token, email) = self
             .oauth
-            .process_callback(&provider, &code, &redirect_uri)
+            .process_callback(&provider, &code, &redirect_uri, &consumed)
             .await?;
 
         // Check if user is complete (has username) or needs registration
@@ -188,6 +250,7 @@ where
                         avatar: user.avatar_url.clone(),
                     },
                 )
+                .await
                 .map_err(OAuthError::DomainError)?;
 
             return Ok(OAuthResponse::Registration(OAuthRegistrationResponse {
@@ -222,6 +285,12 @@ where
             .ensure_platform_identity(user.id, &self.platform_issuer)
             .await
             .map_err(OAuthError::DomainError)?;
+
+        self.session_writer
+            .as_ref()
+            .ok_or_else(|| DomainError::RepositoryError("session writer not configured".into()))?
+            .issue(refresh_token.clone(), user.password_hash.clone())
+            .await?;
 
         Ok(OAuthResponse::Login(OAuthLoginResponse {
             user,

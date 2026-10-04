@@ -118,7 +118,10 @@ async fn check(
     };
 
     match extractor.extract_principal(&token).await {
-        Ok(principal) => allow(&principal.iss, &principal.sub.to_string()),
+        Ok(principal) if state.cache.still_authorizes(&kid, &doc) => {
+            allow(&principal.iss, &principal.sub.to_string())
+        }
+        Ok(_) => deny("JWKS authorization snapshot expired or replaced"),
         Err(err) => deny(&format!("JWT rejected: {err}")),
     }
 }
@@ -204,12 +207,64 @@ mod tests {
     use super::*;
     use crate::jwks_fixtures::JwksFixtures;
     use rustycog::testing::http::jwt::{
-        create_rs256_jwt_token, create_rs256_jwt_token_with_options, test_rs256_jwks_json,
-        Rs256TokenOptions, TEST_JWT_AUDIENCE, TEST_PLATFORM_ISSUER, TEST_RS256_KID,
+        create_rs256_jwt_token, create_rs256_jwt_token_with_options,
+        test_rs256_jwks_json as legacy_test_jwks, Rs256TokenOptions, TEST_JWT_AUDIENCE,
+        TEST_PLATFORM_ISSUER, TEST_RS256_KID,
     };
     use serial_test::serial;
     use std::time::Duration;
     use uuid::Uuid;
+
+    fn test_rs256_jwks_json() -> String {
+        let mut doc: Value = serde_json::from_str(&legacy_test_jwks()).expect("test JWKS");
+        doc["keys"][0]["status"] = serde_json::json!("active");
+        doc["keys"][0]["trust_scope"] = serde_json::json!("platform");
+        doc["keys"][0]["organization_id"] = Value::Null;
+        doc.to_string()
+    }
+
+    #[tokio::test]
+    async fn pure_verifier_rejects_expired_bad_signature_future_dates_and_wrong_owner() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let valid = serde_json::json!({"sub":Uuid::new_v4().to_string(), "iss":TEST_PLATFORM_ISSUER,
+            "aud":TEST_JWT_AUDIENCE, "exp":now+3600, "iat":now, "jti":"fixture-id"});
+        let key = jsonwebtoken::EncodingKey::from_rsa_pem(
+            rustycog::testing::http::jwt::TEST_RS256_PRIVATE_PEM.as_bytes(),
+        )
+        .unwrap();
+        let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
+        header.typ = Some("aiforall-access+jwt".into());
+        header.kid = Some(TEST_RS256_KID.into());
+        let sign = |claims: &Value| jsonwebtoken::encode(&header, claims, &key).unwrap();
+        let extractor =
+            UserIdExtractor::from_inline_jwks(test_rs256_jwks_json(), Some(TEST_JWT_AUDIENCE))
+                .unwrap();
+        assert!(extractor.extract_principal(&sign(&valid)).await.is_ok());
+        for field in ["exp", "nbf", "iat"] {
+            let mut claims = valid.clone();
+            claims[field] = serde_json::json!(if field == "exp" {
+                now - 3600
+            } else {
+                now + 3600
+            });
+            assert!(extractor.extract_principal(&sign(&claims)).await.is_err());
+        }
+        let mut parts: Vec<String> = sign(&valid).split('.').map(str::to_string).collect();
+        let first = if parts[2].starts_with('A') { "B" } else { "A" };
+        parts[2].replace_range(0..1, first);
+        assert!(extractor.extract_principal(&parts.join(".")).await.is_err());
+        let mut doc: Value = serde_json::from_str(&test_rs256_jwks_json()).unwrap();
+        doc["keys"][0]["trust_scope"] = serde_json::json!("organization");
+        doc["keys"][0]["organization_id"] = serde_json::json!(Uuid::new_v4().to_string());
+        let extractor =
+            UserIdExtractor::from_inline_jwks(doc.to_string(), Some(TEST_JWT_AUDIENCE)).unwrap();
+        let mut claims = valid;
+        claims["org"] = serde_json::json!(Uuid::new_v4().to_string());
+        assert!(extractor.extract_principal(&sign(&claims)).await.is_err());
+    }
 
     async fn server_with_jwks(jwks: &str) -> (axum_test::TestServer, JwksFixtures) {
         let fixture = JwksFixtures::service().await;
@@ -431,8 +486,8 @@ mod tests {
         jwks.reset().await;
         jwks.mock_jwks_ok(&revoked_json).await;
 
-        // refresh_coalesced skips re-fetch within 50ms of last_fetch
-        tokio::time::sleep(Duration::from_millis(60)).await;
+        // The bounded retry throttle does not reset snapshot freshness.
+        tokio::time::sleep(Duration::from_millis(300)).await;
         state.poll_jwks_if_due().await;
 
         let gets_after_poll = jwks

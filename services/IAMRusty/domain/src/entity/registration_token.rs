@@ -33,6 +33,14 @@ pub struct RegistrationTokenClaims {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_info: Option<ProviderInfo>,
 
+    /// Optional only for decoding legacy completion tokens. New codec fills this.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub iss: Option<String>,
+
+    /// Dedicated registration audience; never an access-token audience.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aud: Option<String>,
+
     /// JWT expiration timestamp
     pub exp: i64,
 
@@ -82,6 +90,8 @@ impl RegistrationTokenClaims {
             iat: now.timestamp(),
             jti: Uuid::new_v4().to_string(),
             provider_info: None,
+            iss: None,
+            aud: None,
         }
     }
 

@@ -1,5 +1,7 @@
 # Apparatus P0/P1 — ADR-0001
 
+- Mise à jour 2026-10-04 — migrations aplaties, un seul fichier nécessaire pour le moment : `services/Manifesto/migration/src/m20241015_000001_initial_schema.rs` (P1/P2/P3 et outbox). Les chemins incrémentaux sont historiques ; `down` retire le schéma complet. Statut et réalité inchangés.
+
 - Canon : `docs/adr/0001-apparatus-binding-owned-by-manifesto.md`
 - Jalon : P0/P1
 - Statut : Accepted

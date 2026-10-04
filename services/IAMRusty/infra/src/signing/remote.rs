@@ -68,7 +68,12 @@ impl RemoteSigningProvider {
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .build()
-            .map_err(|e| DomainError::external_service_error("remote_signer", &e.to_string()))?;
+            .map_err(|_| {
+                DomainError::external_service_error(
+                    "remote_signer",
+                    "HTTP client initialization failed",
+                )
+            })?;
         Ok(Self {
             client,
             base_url,
@@ -100,7 +105,7 @@ impl SigningProvider for RemoteSigningProvider {
             algorithm: &self.algorithm,
             digest: STANDARD.encode(digest),
         };
-        debug!(%url, "remote signer sign_digest");
+        debug!("remote signer sign_digest");
         let response = self
             .client
             .post(&url)
@@ -108,17 +113,18 @@ impl SigningProvider for RemoteSigningProvider {
             .json(&body)
             .send()
             .await
-            .map_err(|e| DomainError::external_service_error("remote_signer", &e.to_string()))?;
+            .map_err(|_| {
+                DomainError::external_service_error("remote_signer", "sign request failed")
+            })?;
         if !response.status().is_success() {
             let status = response.status();
-            let text = response.text().await.unwrap_or_default();
             return Err(DomainError::external_service_error(
                 "remote_signer",
-                &format!("sign HTTP {status}: {text}"),
+                &format!("sign HTTP {status}"),
             ));
         }
-        let parsed: SignResponse = response.json().await.map_err(|e| {
-            DomainError::external_service_error("remote_signer", &format!("invalid sign JSON: {e}"))
+        let parsed: SignResponse = response.json().await.map_err(|_| {
+            DomainError::external_service_error("remote_signer", "invalid sign response")
         })?;
         STANDARD.decode(parsed.signature.trim()).map_err(|e| {
             DomainError::external_service_error(
@@ -131,26 +137,26 @@ impl SigningProvider for RemoteSigningProvider {
     async fn public_key(&self) -> Result<String, DomainError> {
         let auth = self.authorization().await?;
         let url = format!("{}/keys/{}", self.base_url, self.key_id);
-        debug!(%url, "remote signer get public key");
+        debug!("remote signer get public key");
         let response = self
             .client
             .get(&url)
             .header("Authorization", auth)
             .send()
             .await
-            .map_err(|e| DomainError::external_service_error("remote_signer", &e.to_string()))?;
+            .map_err(|_| {
+                DomainError::external_service_error("remote_signer", "public key request failed")
+            })?;
         if !response.status().is_success() {
             let status = response.status();
-            let text = response.text().await.unwrap_or_default();
             return Err(DomainError::external_service_error(
                 "remote_signer",
-                &format!("keys HTTP {status}: {text}"),
+                &format!("keys HTTP {status}"),
             ));
         }
-        let text = response
-            .text()
-            .await
-            .map_err(|e| DomainError::external_service_error("remote_signer", &e.to_string()))?;
+        let text = response.text().await.map_err(|_| {
+            DomainError::external_service_error("remote_signer", "public key response failed")
+        })?;
         let pem = if let Ok(json) = serde_json::from_str::<PublicKeyJson>(&text) {
             json.public_key
         } else {

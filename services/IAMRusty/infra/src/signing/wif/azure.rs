@@ -35,8 +35,11 @@ impl AzureWif {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .map_err(|e| {
-                DomainError::external_service_error("workload_identity", &e.to_string())
+            .map_err(|_| {
+                DomainError::external_service_error(
+                    "workload_identity",
+                    "HTTP client initialization failed",
+                )
             })?;
         Ok(Self {
             client,
@@ -75,7 +78,7 @@ impl WorkloadIdentity for AzureWif {
             ("grant_type", "client_credentials"),
             ("scope", self.scope.as_str()),
         ];
-        debug!(%url, "Azure WIF client_assertion token");
+        debug!("Azure WIF client_assertion token");
         let response = self
             .client
             .post(&url)
@@ -86,8 +89,11 @@ impl WorkloadIdentity for AzureWif {
             .form(&form)
             .send()
             .await
-            .map_err(|e| {
-                DomainError::external_service_error("workload_identity", &e.to_string())
+            .map_err(|_| {
+                DomainError::external_service_error(
+                    "workload_identity",
+                    "Azure token request failed",
+                )
             })?;
         let status = response.status();
         if !status.is_success() {
@@ -96,11 +102,8 @@ impl WorkloadIdentity for AzureWif {
                 &format!("Azure token HTTP {status}"),
             ));
         }
-        let parsed: AzureTokenResponse = response.json().await.map_err(|e| {
-            DomainError::external_service_error(
-                "workload_identity",
-                &format!("Azure token invalid JSON: {e}"),
-            )
+        let parsed: AzureTokenResponse = response.json().await.map_err(|_| {
+            DomainError::external_service_error("workload_identity", "Azure token response invalid")
         })?;
         if parsed.access_token.trim().is_empty() {
             return Err(DomainError::external_service_error(

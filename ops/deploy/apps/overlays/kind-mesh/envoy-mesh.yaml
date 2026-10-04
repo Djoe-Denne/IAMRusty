@@ -42,6 +42,11 @@ data:
                     "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
                     stat_prefix: mesh_ingress
                     codec_type: AUTO
+                    # IAM S5/S-12 charges the rightmost XFF hop. Append the actual
+                    # mTLS downstream socket peer, never a caller-supplied identity.
+                    use_remote_address: true
+                    xff_num_trusted_hops: 0
+                    skip_xff_append: false
                     route_config:
                       name: local_route
                       virtual_hosts:
@@ -50,6 +55,7 @@ data:
                           routes:
                             - match:
                                 path: /iam/.well-known/jwks.json
+                                headers: [{name: ':method', string_match: {safe_regex: {google_re2: {}, regex: '^(GET|HEAD)$'}}}]
                               route:
                                 cluster: iam
                               typed_per_filter_config:
@@ -58,6 +64,7 @@ data:
                                   disabled: true
                             - match:
                                 path: /iam/api/auth/signup
+                                headers: [{name: ':method', string_match: {exact: POST}}]
                               route:
                                 cluster: iam
                               typed_per_filter_config:
@@ -66,6 +73,48 @@ data:
                                   disabled: true
                             - match:
                                 path: /iam/api/auth/login
+                                headers: [{name: ':method', string_match: {exact: POST}}]
+                              route:
+                                cluster: iam
+                              typed_per_filter_config:
+                                envoy.filters.http.ext_authz:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                                  disabled: true
+                            - match:
+                                safe_regex:
+                                  google_re2: {}
+                                  regex: '^/iam/api/auth/(verify|username/check|[^/]+/(login|callback))$'
+                                headers: [{name: ':method', string_match: {safe_regex: {google_re2: {}, regex: '^(GET|HEAD)$'}}}]
+                              route:
+                                cluster: iam
+                              typed_per_filter_config:
+                                envoy.filters.http.ext_authz:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                                  disabled: true
+                            - match:
+                                safe_regex:
+                                  google_re2: {}
+                                  regex: '^/iam/(api/auth/(resend-verification|complete-registration|password/(reset-request|reset-validate|reset-confirm))|api/token/refresh)$'
+                                headers: [{name: ':method', string_match: {exact: POST}}]
+                              route:
+                                cluster: iam
+                              typed_per_filter_config:
+                                envoy.filters.http.ext_authz:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                                  disabled: true
+                            # State/browser-DB authenticated callbacks; deploy with A2 only.
+                            - match:
+                                path: /iam/api/auth/github/relink-callback
+                                headers: [{name: ':method', string_match: {safe_regex: {google_re2: {}, regex: '^(GET|HEAD)$'}}}]
+                              route:
+                                cluster: iam
+                              typed_per_filter_config:
+                                envoy.filters.http.ext_authz:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                                  disabled: true
+                            - match:
+                                path: /iam/api/auth/gitlab/relink-callback
+                                headers: [{name: ':method', string_match: {safe_regex: {google_re2: {}, regex: '^(GET|HEAD)$'}}}]
                               route:
                                 cluster: iam
                               typed_per_filter_config:
@@ -312,7 +361,18 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: envoy
-          image: envoyproxy/envoy:v1.31-latest
+          image: envoyproxy/envoy:v1.31.2@sha256:c56804e9fc8d5184c45862ad851173a925ff383151cb94156f86bed047da29bc
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          startupProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
           args:
             - -c
             - /etc/envoy/envoy.yaml

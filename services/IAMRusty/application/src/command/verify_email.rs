@@ -99,7 +99,7 @@ impl AuthErrorMapper {
 }
 
 /// Email verification command
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct VerifyEmailCommand {
     /// Command instance ID
     pub command_id: Uuid,
@@ -107,6 +107,14 @@ pub struct VerifyEmailCommand {
     pub email: String,
     /// Verification token
     pub verification_token: String,
+}
+
+impl std::fmt::Debug for VerifyEmailCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VerifyEmailCommand")
+            .field("command_id", &self.command_id)
+            .finish_non_exhaustive()
+    }
 }
 
 impl VerifyEmailCommand {

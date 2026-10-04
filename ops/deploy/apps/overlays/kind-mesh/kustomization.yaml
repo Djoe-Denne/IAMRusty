@@ -10,8 +10,7 @@ resources:
   - networkpolicy.yaml
   - ext-authz.yaml
   - envoy-mesh.yaml
-generatorOptions:
-  disableNameSuffixHash: true
+# Content hashes change PodTemplate ConfigMap references, including subPath mounts.
 configMapGenerator:
   - name: iam-dev-config
     namespace: aiforall-platform

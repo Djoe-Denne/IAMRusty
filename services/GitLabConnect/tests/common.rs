@@ -42,6 +42,8 @@ pub fn test_config(gitlab_base: &str) -> AppConfig {
             ..LoggingConfig::default()
         },
         gitlab: GitLabConfig {
+            pkce_supported: false,
+            transport_security: gitlab_connect_configuration::VendorTransportSecurity::IsolatedTest,
             client_id: "test_gitlab_client_id".to_owned(),
             client_secret: "test_gitlab_client_secret".to_owned(),
             auth_url: format!("{base}/oauth/authorize"),

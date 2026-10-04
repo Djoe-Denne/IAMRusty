@@ -1,4 +1,4 @@
-//! Apparatus P2 — T2 migration additive réversible (ADR-0006 D).
+//! Apparatus P2 — T2 schema carried by the single initial migration.
 //!
 //! Harness unique `common::setup_test_server` (5-tuple). `#[serial]` sur tout
 //! test touchant Postgres / `TestOpenFga`.
@@ -14,7 +14,7 @@ use serial_test::serial;
 use std::sync::Arc;
 use uuid::Uuid;
 
-const P2_MIGRATION_FILE: &str = "m20260912_000013_apparatus_p2_runtime.rs";
+const P2_MIGRATION_FILE: &str = "m20241015_000001_initial_schema.rs";
 
 const P2_COLUMNS: [&str; 9] = [
     "desired_generation",
@@ -100,8 +100,8 @@ fn t2_migration_file_exists() {
 fn t2_migration_registered_in_migrator() {
     let lib = std::fs::read_to_string(migration_dir().join("lib.rs")).expect("lib.rs lisible");
     assert!(
-        lib.contains("m20260912_000013_apparatus_p2_runtime"),
-        "RED T2 : Migrator n'enregistre pas m20260912_000013_apparatus_p2_runtime"
+        lib.contains("m20241015_000001_initial_schema"),
+        "RED T2 : Migrator n'enregistre pas m20241015_000001_initial_schema"
     );
 }
 
@@ -118,7 +118,7 @@ fn t2_migration_declares_nine_additive_columns() {
 }
 
 #[test]
-fn t2_migration_declares_cleanup_jobs_without_fk() {
+fn t2_initial_schema_declares_cleanup_jobs_without_incremental_migrations() {
     let content = std::fs::read_to_string(p2_migration_path()).expect("RED T2 : migration absente");
     let lower = content.to_lowercase();
     assert!(
@@ -137,10 +137,16 @@ fn t2_migration_declares_cleanup_jobs_without_fk() {
             "RED T2 : apparatus_cleanup_jobs doit déclarer {col}"
         );
     }
-    assert!(
-        !content.contains("ForeignKey"),
-        "RED T2 : apparatus_cleanup_jobs ne doit pas porter de FK"
-    );
+    // The initial schema legitimately contains FKs on other tables. Keep the
+    // cleanup-jobs FK contract in the table-specific DB test below, and forbid
+    // reintroducing incremental migrations after flattening.
+    let mut migrations: Vec<_> = std::fs::read_dir(migration_dir())
+        .expect("migration directory readable")
+        .map(|entry| entry.expect("migration entry readable").file_name())
+        .filter(|name| name.to_string_lossy().starts_with("m20"))
+        .collect();
+    migrations.sort();
+    assert_eq!(migrations, vec![std::ffi::OsString::from(P2_MIGRATION_FILE)]);
 }
 
 // ---------------------------------------------------------------------------
@@ -299,25 +305,16 @@ async fn t2_down_one_step_then_up_reversible() {
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
 
-    // P2 est enregistrée avant outbox : `down(Some(1))` reverse-vec peut
-    // d'abord retirer outbox. On compte jusqu'à la migration P2.
+    // Le schéma P2 est désormais porté par la migration initiale unique.
     let applied = Migrator::get_applied_migrations(db.as_ref())
         .await
         .expect("migrations appliquées");
-    let mut steps = 0u32;
-    let mut found = false;
-    for migration in applied.iter().rev() {
-        steps += 1;
-        if migration.name().contains("apparatus_p2_runtime") {
-            found = true;
-            break;
-        }
-    }
+    assert_eq!(applied.len(), 1, "single initial migration only");
     assert!(
-        found,
-        "RED T2 : m20260912_000013_apparatus_p2_runtime non appliquée"
+        applied[0].name().contains("m20241015_000001_initial_schema"),
+        "RED T2 : m20241015_000001_initial_schema non appliquée"
     );
-    Migrator::down(db.as_ref(), Some(steps))
+    Migrator::down(db.as_ref(), Some(1))
         .await
         .expect("down P2");
 
@@ -332,15 +329,10 @@ async fn t2_down_one_step_then_up_reversible() {
         "down : apparatus_cleanup_jobs doit disparaître"
     );
     assert!(
-        table_exists(&db, "apparatus_bindings").await,
-        "down ne doit pas drop apparatus_bindings"
+        !table_exists(&db, "apparatus_bindings").await,
+        "down of the initial migration drops apparatus_bindings, including P1"
     );
-    for col in ["id", "component_id", "digest", "source"] {
-        assert!(
-            column_row(&db, "apparatus_bindings", col).await.is_some(),
-            "P1 {col} doit rester après down P2"
-        );
-    }
+    // No P1-only schema exists after down of the flattened initial migration.
 
     Migrator::up(db.as_ref(), None)
         .await
