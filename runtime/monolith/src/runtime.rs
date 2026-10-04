@@ -4,10 +4,10 @@ use std::sync::Arc;
 use futures::future::select_all;
 use tokio::task::{JoinError, JoinHandle};
 
-use crate::config::{MonolithConfig, load_monolith_config};
+use crate::config::{load_monolith_config, MonolithConfig};
 use crate::in_process_binding_grant::InProcessBindingGrantClient;
 use crate::in_process_iam_signer::InProcessIamOrganizationSignerClient;
-use crate::routes::{MonolithRouters, compose_routes};
+use crate::routes::{compose_routes, MonolithRouters};
 
 pub async fn run() -> anyhow::Result<()> {
     setup_logging_once();

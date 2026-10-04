@@ -1,7 +1,7 @@
 //! Browser-only OAuth binding. No cookies or credentials are accepted from forwarding headers.
 
-use axum::http::{HeaderMap, HeaderValue, header};
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use axum::http::{header, HeaderMap, HeaderValue};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use iam_application::usecase::oauth::OAuthUseCase;
 use iam_configuration::security::SecurityMode;
 use iam_domain::entity::{
@@ -340,8 +340,8 @@ mod tests {
     use std::{
         collections::HashMap,
         sync::{
-            Mutex,
             atomic::{AtomicUsize, Ordering},
+            Mutex,
         },
     };
 
@@ -527,23 +527,17 @@ mod tests {
             assert!(cookie.contains(bit));
         }
         assert!(!cookie.contains("Domain="));
-        assert!(
-            secure
-                .validate_authorization_url(&url::Url::parse("http://vendor/authorize").unwrap())
-                .is_err()
-        );
-        assert!(
-            secure
-                .validate_authorization_url(&url::Url::parse("https://vendor/authorize").unwrap())
-                .is_ok()
-        );
+        assert!(secure
+            .validate_authorization_url(&url::Url::parse("http://vendor/authorize").unwrap())
+            .is_err());
+        assert!(secure
+            .validate_authorization_url(&url::Url::parse("https://vendor/authorize").unwrap())
+            .is_ok());
         let local =
             OAuthBrowserPolicy::new(SecurityMode::LocalInsecure, "http://localhost").unwrap();
-        assert!(
-            local
-                .validate_authorization_url(&url::Url::parse("http://vendor/authorize").unwrap())
-                .is_ok()
-        );
+        assert!(local
+            .validate_authorization_url(&url::Url::parse("http://vendor/authorize").unwrap())
+            .is_ok());
         let cookie = local.cookie_headers(&nonce).unwrap();
         let value = cookie[header::SET_COOKIE].to_str().unwrap();
         assert!(value.starts_with("iam-oauth-browser="));
@@ -664,54 +658,46 @@ mod tests {
                 CallbackIntent::Relink,
             ),
         ] {
-            assert!(
-                context
-                    .consume_callback(&value, &headers, provider, redirect.clone(), intention)
-                    .await
-                    .is_err()
-            );
+            assert!(context
+                .consume_callback(&value, &headers, provider, redirect.clone(), intention)
+                .await
+                .is_err());
         }
         let mut expired = state.clone();
         expired.exp = chrono::Utc::now().timestamp() - 1;
-        assert!(
-            context
-                .consume_callback(
-                    &expired.encode().unwrap(),
-                    &cookies,
-                    provider.clone(),
-                    redirect.clone(),
-                    CallbackIntent::LoginOrLink
-                )
-                .await
-                .is_err()
-        );
+        assert!(context
+            .consume_callback(
+                &expired.encode().unwrap(),
+                &cookies,
+                provider.clone(),
+                redirect.clone(),
+                CallbackIntent::LoginOrLink
+            )
+            .await
+            .is_err());
         assert_eq!(core.writer.consumes.load(Ordering::SeqCst), 0);
         let wrong_browser = context.browser.start_nonce(&HeaderMap::new()).unwrap();
         let wrong_cookie = browser_cookie(context.browser, &wrong_browser);
-        assert!(
-            context
-                .consume_callback(
-                    &signed,
-                    &wrong_cookie,
-                    provider.clone(),
-                    redirect.clone(),
-                    CallbackIntent::LoginOrLink
-                )
-                .await
-                .is_err()
-        );
-        assert!(
-            context
-                .consume_callback(
-                    &signed,
-                    &cookies,
-                    provider.clone(),
-                    "https://platform/wrong-callback".into(),
-                    CallbackIntent::LoginOrLink
-                )
-                .await
-                .is_err()
-        );
+        assert!(context
+            .consume_callback(
+                &signed,
+                &wrong_cookie,
+                provider.clone(),
+                redirect.clone(),
+                CallbackIntent::LoginOrLink
+            )
+            .await
+            .is_err());
+        assert!(context
+            .consume_callback(
+                &signed,
+                &cookies,
+                provider.clone(),
+                "https://platform/wrong-callback".into(),
+                CallbackIntent::LoginOrLink
+            )
+            .await
+            .is_err());
         let consumed = context
             .consume_callback(
                 &signed,
@@ -723,18 +709,16 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(consumed.target_user_id(), None);
-        assert!(
-            context
-                .consume_callback(
-                    &signed,
-                    &cookies,
-                    provider,
-                    redirect,
-                    CallbackIntent::LoginOrLink
-                )
-                .await
-                .is_err()
-        );
+        assert!(context
+            .consume_callback(
+                &signed,
+                &cookies,
+                provider,
+                redirect,
+                CallbackIntent::LoginOrLink
+            )
+            .await
+            .is_err());
     }
 
     #[tokio::test]
@@ -806,18 +790,16 @@ mod tests {
             (signed.clone(), HeaderMap::new(), CallbackIntent::Relink),
             (signed.clone(), cookies.clone(), CallbackIntent::LoginOrLink),
         ] {
-            assert!(
-                context
-                    .consume_callback(
-                        &signed,
-                        &headers,
-                        provider.clone(),
-                        redirect.clone(),
-                        intention
-                    )
-                    .await
-                    .is_err()
-            );
+            assert!(context
+                .consume_callback(
+                    &signed,
+                    &headers,
+                    provider.clone(),
+                    redirect.clone(),
+                    intention
+                )
+                .await
+                .is_err());
         }
         assert_eq!(core.writer.consumes.load(Ordering::SeqCst), 0);
         // Even a newly signed state cannot override the target stored at START.
@@ -825,18 +807,16 @@ mod tests {
         wrong_target.operation = OAuthOperation::Relink {
             user_id: uuid::Uuid::new_v4(),
         };
-        assert!(
-            context
-                .consume_callback(
-                    &wrong_target.encode().unwrap(),
-                    &cookies,
-                    provider.clone(),
-                    redirect.clone(),
-                    CallbackIntent::Relink
-                )
-                .await
-                .is_err()
-        );
+        assert!(context
+            .consume_callback(
+                &wrong_target.encode().unwrap(),
+                &cookies,
+                provider.clone(),
+                redirect.clone(),
+                CallbackIntent::Relink
+            )
+            .await
+            .is_err());
         let consumed = context
             .consume_callback(
                 &signed,

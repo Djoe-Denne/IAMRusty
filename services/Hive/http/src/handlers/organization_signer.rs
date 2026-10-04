@@ -1,8 +1,8 @@
 //! Hive admin HTTP for IAM organization-signer RPC (ADR-0306).
 
 use axum::{
-    Json,
     extract::{Path, State},
+    Json,
 };
 use hive_application::{
     ConfigureOrganizationSignerCommand, ConfigureOrganizationSignerHttpRequest,

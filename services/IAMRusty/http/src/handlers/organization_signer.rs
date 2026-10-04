@@ -1,14 +1,14 @@
 //! Organization signer internal RPC (ADR-0306) — guarded by `x-iam-internal-token` only.
 
 use axum::{
-    Extension, Json,
     extract::Path,
     http::{HeaderMap, StatusCode},
+    Extension, Json,
 };
 use iam_application::usecase::organization_signer::{
-    ConfigureOrganizationSignerInput, ISSUER_OWNED_BY_OTHER_ORGANIZATION,
-    NO_ACTIVE_ORGANIZATION_SIGNING_KEY, OrganizationSignerFacade, OrganizationSignerFacadeImpl,
-    OrganizationSignerResult,
+    ConfigureOrganizationSignerInput, OrganizationSignerFacade, OrganizationSignerFacadeImpl,
+    OrganizationSignerResult, ISSUER_OWNED_BY_OTHER_ORGANIZATION,
+    NO_ACTIVE_ORGANIZATION_SIGNING_KEY,
 };
 use iam_domain::error::DomainError;
 use iam_domain::port::repository::{IdentityRepository, SigningKeyRegistry};
@@ -304,8 +304,8 @@ mod tests {
     use iam_application::usecase::organization_signer::require_org_scoped_pem_ref;
     use iam_domain::entity::identity::{Identity, IdentityKind};
     use iam_domain::entity::signing_key::{
-        FORBIDDEN_TRANSIT_KEY_NAME, SigningKey, SigningKeyStatus, SigningProviderType, TrustScope,
-        opaque_kid,
+        opaque_kid, SigningKey, SigningKeyStatus, SigningProviderType, TrustScope,
+        FORBIDDEN_TRANSIT_KEY_NAME,
     };
     use iam_domain::entity::token::JwkSet;
     use std::collections::HashMap;
@@ -324,12 +324,10 @@ mod tests {
                 retry_after_seconds: None,
             });
             assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
-            assert!(
-                response
-                    .headers()
-                    .get(axum::http::header::RETRY_AFTER)
-                    .is_none()
-            );
+            assert!(response
+                .headers()
+                .get(axum::http::header::RETRY_AFTER)
+                .is_none());
         }
         let response = signer_error_response(DomainError::SigningKeyAdmissionDenied {
             reason: SigningKeyAdmissionReason::ChurnRate,
@@ -431,8 +429,8 @@ mod tests {
             expected: Option<&str>,
         ) -> Result<SigningKey, Self::Error> {
             use iam_domain::entity::signing_key::{
-                SigningKeyAdmissionHistory, SigningKeyAdmissionReason, SigningKeyLifecyclePolicy,
-                admission_denied, same_effective_signing_binding,
+                admission_denied, same_effective_signing_binding, SigningKeyAdmissionHistory,
+                SigningKeyAdmissionReason, SigningKeyLifecyclePolicy,
             };
             let mut keys = self.keys.lock().unwrap();
             let mut history = self.history.lock().unwrap();
@@ -602,7 +600,7 @@ mod tests {
 
         async fn update(&self, key: &SigningKey) -> Result<(), Self::Error> {
             use iam_domain::entity::signing_key::{
-                SigningKeyAdmissionReason, admission_denied, same_effective_signing_binding,
+                admission_denied, same_effective_signing_binding, SigningKeyAdmissionReason,
             };
             let mut keys = self.keys.lock().unwrap();
             let slot = keys

@@ -25,7 +25,9 @@ use tracing::debug;
 mod idp;
 pub use idp::{IdpConfig, IdpConnectorConfig, IdpRedirectFlow};
 pub mod security;
-pub use security::{AuthRateLimitConfig, OAuthStateSecret, SecurityConfig, SecurityMode, TrustedAuthProxy};
+pub use security::{
+    AuthRateLimitConfig, OAuthStateSecret, SecurityConfig, SecurityMode, TrustedAuthProxy,
+};
 
 use thiserror::Error;
 

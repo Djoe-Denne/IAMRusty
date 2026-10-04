@@ -1,10 +1,10 @@
 //! Organization signer configuration commands (ADR-0306).
 
 use async_trait::async_trait;
-use hive_domain::OrganizationRepository;
 use hive_domain::port::service::{
     ConfigureOrganizationSignerRequest, IamOrganizationSignerClient, OrganizationSignerResponse,
 };
+use hive_domain::OrganizationRepository;
 use rustycog::command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use rustycog::core::error::DomainError;
 use serde::{Deserialize, Serialize};

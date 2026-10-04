@@ -395,15 +395,25 @@ mod tests {
                 self.0.lock().unwrap().extend_from_slice(bytes);
                 Ok(bytes.len())
             }
-            fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
         }
         let buffer = Arc::new(Mutex::new(Vec::new()));
         let writer = Capture(buffer.clone());
-        let subscriber = tracing_subscriber::fmt().without_time().with_ansi(false)
-            .with_max_level(tracing::Level::DEBUG).with_writer(move || writer.clone()).finish();
+        let subscriber = tracing_subscriber::fmt()
+            .without_time()
+            .with_ansi(false)
+            .with_max_level(tracing::Level::DEBUG)
+            .with_writer(move || writer.clone())
+            .finish();
         let sentinel = "SENTINEL-CREDENTIAL-NOT-IN-LOGS";
         tracing::subscriber::with_default(subscriber, || {
-            for credential in [sentinel.to_string(), format!("{sentinel}{}", "x".repeat(1100)), " ".to_string()] {
+            for credential in [
+                sentinel.to_string(),
+                format!("{sentinel}{}", "x".repeat(1100)),
+                " ".to_string(),
+            ] {
                 let _ = validate_non_empty_string(&credential);
                 let _ = validate_oauth_code(&credential);
                 let _ = validate_refresh_token(&credential);

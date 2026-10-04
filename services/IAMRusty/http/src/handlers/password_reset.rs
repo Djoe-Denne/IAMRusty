@@ -1,4 +1,5 @@
 use crate::error::AuthError;
+use crate::platform_user::PlatformUser;
 use axum::{extract::State, Json};
 use iam_application::command::{
     password_reset::{
@@ -10,7 +11,6 @@ use iam_application::command::{
 };
 use rustycog::http::AppState;
 use rustycog::http::ValidatedJson;
-use crate::platform_user::PlatformUser;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 use validator::Validate;

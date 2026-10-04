@@ -234,9 +234,7 @@ fn enrollment_client(cfg: &EnrollCfg) -> Result<reqwest::Client, String> {
 
 fn enrollment_client_with_ca(url: &str, ca_pem: Option<&[u8]>) -> Result<reqwest::Client, String> {
     let url = reqwest::Url::parse(url).map_err(|_| "invalid enrollment URL".to_owned())?;
-    if !matches!(url.scheme(), "http" | "https")
-        || (ca_pem.is_some() && url.scheme() != "https")
-    {
+    if !matches!(url.scheme(), "http" | "https") || (ca_pem.is_some() && url.scheme() != "https") {
         return Err("enrollment CA requires HTTPS".to_owned());
     }
     let mut builder = reqwest::Client::builder()
@@ -294,8 +292,8 @@ async fn enroll_workload(cfg: &EnrollCfg, client: &reqwest::Client) -> Result<()
         }
         body.extend_from_slice(&chunk);
     }
-    let parsed: serde_json::Value = serde_json::from_slice(&body)
-        .map_err(|_| "invalid enrollment response JSON".to_owned())?;
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&body).map_err(|_| "invalid enrollment response JSON".to_owned())?;
     let cert_pem = parsed
         .get("certificate_pem")
         .and_then(serde_json::Value::as_str)

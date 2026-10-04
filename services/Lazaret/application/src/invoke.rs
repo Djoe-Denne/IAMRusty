@@ -532,7 +532,9 @@ mod plugin_dns_tests {
 
     #[test]
     fn rejects_invalid_namespace_without_normalizing() {
-        for namespace in ["", "Mixed", "a.b", "ns/path", "ns:8080", "-ns", "ns-", " ns "] {
+        for namespace in [
+            "", "Mixed", "a.b", "ns/path", "ns:8080", "-ns", "ns-", " ns ",
+        ] {
             assert!(NamespacedDigestDnsPluginLocator::try_new(namespace).is_err());
         }
         assert!(NamespacedDigestDnsPluginLocator::try_new("a".repeat(64)).is_err());

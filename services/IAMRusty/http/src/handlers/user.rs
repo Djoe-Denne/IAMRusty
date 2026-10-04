@@ -1,7 +1,7 @@
 use crate::error::ApiError;
+use crate::platform_user::PlatformUser;
 use axum::{extract::State, Json};
 use iam_application::command::{user::GetUserCommand, CommandContext};
-use crate::platform_user::PlatformUser;
 use serde::Serialize;
 use uuid::Uuid;
 

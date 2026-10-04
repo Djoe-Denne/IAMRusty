@@ -457,12 +457,12 @@ async fn t2_down_one_step_then_up_reversible() {
     // P1/P2/P3 share one initial migration; down cannot retain an older phase.
     assert_eq!(applied.len(), 1, "single initial migration only");
     assert!(
-        applied[0].name().contains("m20241015_000001_initial_schema"),
+        applied[0]
+            .name()
+            .contains("m20241015_000001_initial_schema"),
         "RED T2 : m20241015_000001_initial_schema non appliquée"
     );
-    Migrator::down(db.as_ref(), Some(1))
-        .await
-        .expect("down P3");
+    Migrator::down(db.as_ref(), Some(1)).await.expect("down P3");
 
     assert!(
         column_row(&db, "apparatus_bindings", "grant_revision")

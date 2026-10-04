@@ -284,7 +284,9 @@ mod plugin_namespace_tests {
     #[test]
     fn namespace_validation_is_strict_only_for_dns_routing() {
         assert_eq!(PluginHopConfig::default().namespace, "apparatus-plugins");
-        for namespace in ["", "Mixed", "a.b", "ns/path", "ns:8080", "-ns", "ns-", " ns "] {
+        for namespace in [
+            "", "Mixed", "a.b", "ns/path", "ns:8080", "-ns", "ns-", " ns ",
+        ] {
             let mut cfg = PluginHopConfig {
                 namespace: namespace.to_owned(),
                 use_dns_formula: true,

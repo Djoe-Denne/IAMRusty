@@ -146,7 +146,10 @@ fn t2_initial_schema_declares_cleanup_jobs_without_incremental_migrations() {
         .filter(|name| name.to_string_lossy().starts_with("m20"))
         .collect();
     migrations.sort();
-    assert_eq!(migrations, vec![std::ffi::OsString::from(P2_MIGRATION_FILE)]);
+    assert_eq!(
+        migrations,
+        vec![std::ffi::OsString::from(P2_MIGRATION_FILE)]
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -311,12 +314,12 @@ async fn t2_down_one_step_then_up_reversible() {
         .expect("migrations appliquées");
     assert_eq!(applied.len(), 1, "single initial migration only");
     assert!(
-        applied[0].name().contains("m20241015_000001_initial_schema"),
+        applied[0]
+            .name()
+            .contains("m20241015_000001_initial_schema"),
         "RED T2 : m20241015_000001_initial_schema non appliquée"
     );
-    Migrator::down(db.as_ref(), Some(1))
-        .await
-        .expect("down P2");
+    Migrator::down(db.as_ref(), Some(1)).await.expect("down P2");
 
     for col in P2_COLUMNS {
         assert!(

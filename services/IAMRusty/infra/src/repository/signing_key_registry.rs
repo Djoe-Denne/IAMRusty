@@ -525,71 +525,153 @@ mod admission_tests {
         use super::*;
         use sea_orm::QueryTrait;
 
-        fn targeted_database(affected: Vec<signing_keys::Model>, publication: Vec<signing_keys::Model>,
-            history: Option<Vec<BTreeMap<String, Value>>>, issuer_conflict: bool, platform_epoch_exists: bool, as_of: DateTime<Utc>) -> MockDatabase {
+        fn targeted_database(
+            affected: Vec<signing_keys::Model>,
+            publication: Vec<signing_keys::Model>,
+            history: Option<Vec<BTreeMap<String, Value>>>,
+            issuer_conflict: bool,
+            platform_epoch_exists: bool,
+            as_of: DateTime<Utc>,
+        ) -> MockDatabase {
             let clock = BTreeMap::from([("as_of".to_string(), as_of.fixed_offset().into())]);
             let facts = BTreeMap::from([
                 ("invalid_retirement".to_string(), false.into()),
                 ("issuer_conflict".to_string(), issuer_conflict.into()),
-                ("platform_epoch_exists".to_string(), platform_epoch_exists.into()),
+                (
+                    "platform_epoch_exists".to_string(),
+                    platform_epoch_exists.into(),
+                ),
             ]);
             let database = MockDatabase::new(DbBackend::Postgres)
-                .append_exec_results((0..3).map(|_| MockExecResult { rows_affected: 1, last_insert_id: 0 }))
+                .append_exec_results((0..3).map(|_| MockExecResult {
+                    rows_affected: 1,
+                    last_insert_id: 0,
+                }))
                 .append_query_results([issuer_projection(&affected)])
                 .append_query_results([affected])
                 .append_query_results([vec![clock]])
                 .append_query_results([publication])
                 .append_query_results([vec![facts]]);
-            match history { Some(history) => database.append_query_results([history]), None => database }
+            match history {
+                Some(history) => database.append_query_results([history]),
+                None => database,
+            }
         }
 
         #[test]
         fn query_shapes_lock_only_affected_rows_and_never_limit_complete_publication() {
-            let org = Uuid::new_v4(); let candidate = to_domain(row(org, "active")).unwrap();
-            for operation in [LifecycleOperation::Insert(&candidate), LifecycleOperation::Replace(&candidate), LifecycleOperation::Update(&candidate)] {
-                let query = SigningKeys::find().filter(affected_rows(&TrustScope::Organization, Some(org), operation))
-                    .order_by_asc(signing_keys::Column::Id).lock_exclusive().build(DbBackend::Postgres).to_string();
+            let org = Uuid::new_v4();
+            let candidate = to_domain(row(org, "active")).unwrap();
+            for operation in [
+                LifecycleOperation::Insert(&candidate),
+                LifecycleOperation::Replace(&candidate),
+                LifecycleOperation::Update(&candidate),
+            ] {
+                let query = SigningKeys::find()
+                    .filter(affected_rows(
+                        &TrustScope::Organization,
+                        Some(org),
+                        operation,
+                    ))
+                    .order_by_asc(signing_keys::Column::Id)
+                    .lock_exclusive()
+                    .build(DbBackend::Postgres)
+                    .to_string();
                 assert!(query.contains("WHERE"));
                 assert!(query.contains(&candidate.id.to_string()));
                 assert!(query.contains(&candidate.kid));
                 assert!(query.contains("FOR UPDATE"));
-                let issuers = SigningKeys::find().select_only().column(signing_keys::Column::Issuer).distinct()
-                    .filter(affected_rows(&TrustScope::Organization, Some(org), operation)).build(DbBackend::Postgres).to_string();
+                let issuers = SigningKeys::find()
+                    .select_only()
+                    .column(signing_keys::Column::Issuer)
+                    .distinct()
+                    .filter(affected_rows(
+                        &TrustScope::Organization,
+                        Some(org),
+                        operation,
+                    ))
+                    .build(DbBackend::Postgres)
+                    .to_string();
                 assert!(issuers.starts_with("SELECT DISTINCT"));
                 assert!(!issuers.contains("public_key"));
             }
-            let query = SigningKeys::find().filter(publication_rows(Utc::now()-chrono::Duration::seconds(960), Utc::now()))
-                .build(DbBackend::Postgres).to_string();
-            assert!(!query.contains("LIMIT")); assert!(!query.contains("FOR UPDATE"));
-            assert!(query.contains("'pending', 'active'")); assert!(query.contains("'retiring'"));
-            assert!(query.contains(" > ")); assert!(query.contains(" <= "));
-            let revoke = SigningKeys::find().filter(affected_rows(&TrustScope::Organization, Some(org), LifecycleOperation::Revoke))
-                .build(DbBackend::Postgres).to_string();
-            assert!(revoke.contains(&org.to_string())); assert!(revoke.contains("<> 'revoked'"));
+            let query = SigningKeys::find()
+                .filter(publication_rows(
+                    Utc::now() - chrono::Duration::seconds(960),
+                    Utc::now(),
+                ))
+                .build(DbBackend::Postgres)
+                .to_string();
+            assert!(!query.contains("LIMIT"));
+            assert!(!query.contains("FOR UPDATE"));
+            assert!(query.contains("'pending', 'active'"));
+            assert!(query.contains("'retiring'"));
+            assert!(query.contains(" > "));
+            assert!(query.contains(" <= "));
+            let revoke = SigningKeys::find()
+                .filter(affected_rows(
+                    &TrustScope::Organization,
+                    Some(org),
+                    LifecycleOperation::Revoke,
+                ))
+                .build(DbBackend::Postgres)
+                .to_string();
+            assert!(revoke.contains(&org.to_string()));
+            assert!(revoke.contains("<> 'revoked'"));
         }
 
         #[tokio::test]
         async fn one_key_change_has_one_explicit_write_with_1k_or_10k_historical_rows() {
-            let org = Uuid::new_v4(); let as_of = Utc::now();
+            let org = Uuid::new_v4();
+            let as_of = Utc::now();
             let live = row(org, "active");
             for historical_count in [1000, 10000] {
-                let mut oracle: Vec<_> = (0..historical_count).map(|index| {
-                    let mut historical = row(org, if index%2 == 0 { "revoked" } else { "retiring" });
-                    historical.updated_at = (as_of-chrono::Duration::days(2)).naive_utc();
-                    historical.public_key = "historical payload must not be parsed by admission".into();
-                    to_domain(historical).unwrap()
-                }).collect();
+                let mut oracle: Vec<_> = (0..historical_count)
+                    .map(|index| {
+                        let mut historical = row(
+                            org,
+                            if index % 2 == 0 {
+                                "revoked"
+                            } else {
+                                "retiring"
+                            },
+                        );
+                        historical.updated_at = (as_of - chrono::Duration::days(2)).naive_utc();
+                        historical.public_key =
+                            "historical payload must not be parsed by admission".into();
+                        to_domain(historical).unwrap()
+                    })
+                    .collect();
                 oracle.push(to_domain(live.clone()).unwrap());
-                let eligible = iam_domain::entity::signing_key::filter_jwks_publication_keys_at(oracle, 900, as_of);
-                assert_eq!(eligible.len(), 1); assert_eq!(eligible[0].id, live.id);
+                let eligible = iam_domain::entity::signing_key::filter_jwks_publication_keys_at(
+                    oracle, 900, as_of,
+                );
+                assert_eq!(eligible.len(), 1);
+                assert_eq!(eligible[0].id, live.id);
                 // Mock only the rows admitted by the asserted SQL predicates.
                 // Actual PostgreSQL plans/cardinality remain E-owned evidence.
-                let mut retired = live.clone(); retired.status = "retiring".into(); retired.updated_at = as_of.naive_utc();
-                let db = Arc::new(targeted_database(vec![live.clone()], vec![live.clone()], None, false, false, as_of)
-                    .append_query_results([vec![retired]]).into_connection());
-                let registry = repository(db.clone()); let mut candidate = to_domain(live.clone()).unwrap(); candidate.status = SigningKeyStatus::Retiring;
+                let mut retired = live.clone();
+                retired.status = "retiring".into();
+                retired.updated_at = as_of.naive_utc();
+                let db = Arc::new(
+                    targeted_database(
+                        vec![live.clone()],
+                        vec![live.clone()],
+                        None,
+                        false,
+                        false,
+                        as_of,
+                    )
+                    .append_query_results([vec![retired]])
+                    .into_connection(),
+                );
+                let registry = repository(db.clone());
+                let mut candidate = to_domain(live.clone()).unwrap();
+                candidate.status = SigningKeyStatus::Retiring;
                 registry.update(&candidate).await.unwrap();
-                drop(registry); let log = log(db); assert_order(&log);
+                drop(registry);
+                let log = log(db);
+                assert_order(&log);
                 assert_eq!(log.matches("UPDATE \"signing_keys\"").count(), 1);
                 assert_eq!(log.matches("FOR UPDATE").count(), 1);
                 assert!(!log.contains("lifecycle_admitted_at"));
@@ -601,70 +683,200 @@ mod admission_tests {
 
         #[tokio::test]
         async fn targeted_revoked_or_expired_identity_conflicts_cannot_reactivate() {
-            let org = Uuid::new_v4(); let as_of = Utc::now();
+            let org = Uuid::new_v4();
+            let as_of = Utc::now();
             for status in ["revoked", "retiring"] {
-                let mut historical = row(org, status); historical.updated_at = (as_of-chrono::Duration::days(2)).naive_utc();
+                let mut historical = row(org, status);
+                historical.updated_at = (as_of - chrono::Duration::days(2)).naive_utc();
                 for duplicate_id in [true, false] {
-                    let mut candidate = to_domain(historical.clone()).unwrap(); candidate.status = SigningKeyStatus::Pending;
-                    if duplicate_id { candidate.kid = iam_domain::entity::signing_key::opaque_kid(); } else { candidate.id = Uuid::new_v4(); }
-                    let db = Arc::new(targeted_database(vec![historical.clone()], vec![], Some(vec![]), false, false, as_of).into_connection());
+                    let mut candidate = to_domain(historical.clone()).unwrap();
+                    candidate.status = SigningKeyStatus::Pending;
+                    if duplicate_id {
+                        candidate.kid = iam_domain::entity::signing_key::opaque_kid();
+                    } else {
+                        candidate.id = Uuid::new_v4();
+                    }
+                    let db = Arc::new(
+                        targeted_database(
+                            vec![historical.clone()],
+                            vec![],
+                            Some(vec![]),
+                            false,
+                            false,
+                            as_of,
+                        )
+                        .into_connection(),
+                    );
                     let registry = repository(db.clone());
-                    assert!(matches!(registry.insert(&candidate).await, Err(DomainError::SigningKeyAdmissionDenied { reason: SigningKeyAdmissionReason::EpochConflict, .. })));
-                    drop(registry); let log = log(db); assert!(log.contains("ROLLBACK")); assert!(!log.contains("INSERT INTO"));
+                    assert!(matches!(
+                        registry.insert(&candidate).await,
+                        Err(DomainError::SigningKeyAdmissionDenied {
+                            reason: SigningKeyAdmissionReason::EpochConflict,
+                            ..
+                        })
+                    ));
+                    drop(registry);
+                    let log = log(db);
+                    assert!(log.contains("ROLLBACK"));
+                    assert!(!log.contains("INSERT INTO"));
                 }
-                let db = Arc::new(targeted_database(vec![historical.clone()], vec![], None, false, false, as_of).into_connection());
-                let registry = repository(db.clone()); let mut candidate = to_domain(historical).unwrap(); candidate.status = SigningKeyStatus::Active;
+                let db = Arc::new(
+                    targeted_database(vec![historical.clone()], vec![], None, false, false, as_of)
+                        .into_connection(),
+                );
+                let registry = repository(db.clone());
+                let mut candidate = to_domain(historical).unwrap();
+                candidate.status = SigningKeyStatus::Active;
                 assert!(registry.update(&candidate).await.is_err());
-                drop(registry); let log = log(db); assert!(log.contains("ROLLBACK")); assert!(!log.contains("UPDATE "));
+                drop(registry);
+                let log = log(db);
+                assert!(log.contains("ROLLBACK"));
+                assert!(!log.contains("UPDATE "));
             }
         }
 
         #[tokio::test]
         async fn historical_issuer_ownership_and_platform_epoch_exist_without_payload_reads() {
-            let org = Uuid::new_v4(); let as_of = Utc::now(); let candidate = to_domain(row(org, "pending")).unwrap();
-            let db = Arc::new(targeted_database(vec![], vec![], Some(vec![]), true, false, as_of).into_connection());
-            let registry = repository(db.clone()); assert!(registry.insert(&candidate).await.is_err());
-            drop(registry); let issuer_log = log(db); assert!(issuer_log.contains("WHERE issuer=$2::text")); assert!(issuer_log.contains("IS DISTINCT FROM")); assert!(issuer_log.contains("ROLLBACK"));
-            let db = Arc::new(targeted_database(vec![], vec![], None, false, true, as_of).into_connection());
+            let org = Uuid::new_v4();
+            let as_of = Utc::now();
+            let candidate = to_domain(row(org, "pending")).unwrap();
+            let db = Arc::new(
+                targeted_database(vec![], vec![], Some(vec![]), true, false, as_of)
+                    .into_connection(),
+            );
             let registry = repository(db.clone());
-            assert!(bootstrap_platform_signing_key(&registry, &iam_domain::entity::signing_key::opaque_kid(), "https://iam.example.test/iam", &candidate.public_key, "platform-ref", SigningProviderType::PemFile).await.is_err());
-            drop(registry); let platform_log = log(db); assert!(platform_log.contains("AS platform_epoch_exists")); assert!(!platform_log.contains("INSERT INTO")); assert!(platform_log.contains("ROLLBACK"));
+            assert!(registry.insert(&candidate).await.is_err());
+            drop(registry);
+            let issuer_log = log(db);
+            assert!(issuer_log.contains("WHERE issuer=$2::text"));
+            assert!(issuer_log.contains("IS DISTINCT FROM"));
+            assert!(issuer_log.contains("ROLLBACK"));
+            let db = Arc::new(
+                targeted_database(vec![], vec![], None, false, true, as_of).into_connection(),
+            );
+            let registry = repository(db.clone());
+            assert!(bootstrap_platform_signing_key(
+                &registry,
+                &iam_domain::entity::signing_key::opaque_kid(),
+                "https://iam.example.test/iam",
+                &candidate.public_key,
+                "platform-ref",
+                SigningProviderType::PemFile
+            )
+            .await
+            .is_err());
+            drop(registry);
+            let platform_log = log(db);
+            assert!(platform_log.contains("AS platform_epoch_exists"));
+            assert!(!platform_log.contains("INSERT INTO"));
+            assert!(platform_log.contains("ROLLBACK"));
         }
 
         #[tokio::test]
         async fn revoke_affects_expired_rows_preserves_history_and_repeat_is_bounded() {
-            let org = Uuid::new_v4(); let as_of = Utc::now();
-            let active = row(org, "active"); let mut expired = row(org, "retiring"); expired.updated_at = (as_of-chrono::Duration::days(2)).naive_utc();
+            let org = Uuid::new_v4();
+            let as_of = Utc::now();
+            let active = row(org, "active");
+            let mut expired = row(org, "retiring");
+            expired.updated_at = (as_of - chrono::Duration::days(2)).naive_utc();
             let clock = BTreeMap::from([("as_of".to_string(), as_of.fixed_offset().into())]);
-            let mut terminal = active.clone(); terminal.status = "revoked".into(); terminal.updated_at = as_of.naive_utc();
+            let mut terminal = active.clone();
+            terminal.status = "revoked".into();
+            terminal.updated_at = as_of.naive_utc();
             for repeat in [false, true] {
-                let affected = if repeat { vec![] } else { vec![active.clone(), expired.clone()] };
+                let affected = if repeat {
+                    vec![]
+                } else {
+                    vec![active.clone(), expired.clone()]
+                };
                 let mut mock = MockDatabase::new(DbBackend::Postgres)
-                    .append_exec_results((0..3).map(|_| MockExecResult { rows_affected: 1, last_insert_id: 0 }))
+                    .append_exec_results((0..3).map(|_| MockExecResult {
+                        rows_affected: 1,
+                        last_insert_id: 0,
+                    }))
                     .append_query_results([issuer_projection(&affected)])
-                    .append_query_results([affected]).append_query_results([vec![clock.clone()]]);
-                mock = if repeat { mock.append_query_results([vec![terminal.clone()]]) }
-                    else { mock.append_query_results([vec![terminal.clone()], vec![terminal.clone()]]) };
-                let db = Arc::new(mock.into_connection()); let registry = repository(db.clone());
+                    .append_query_results([affected])
+                    .append_query_results([vec![clock.clone()]]);
+                mock = if repeat {
+                    mock.append_query_results([vec![terminal.clone()]])
+                } else {
+                    mock.append_query_results([vec![terminal.clone()], vec![terminal.clone()]])
+                };
+                let db = Arc::new(mock.into_connection());
+                let registry = repository(db.clone());
                 let result = registry.revoke_organization_keys(org).await.unwrap();
-                assert_eq!(result.len(), if repeat {1} else {2}); assert!(result.iter().all(|key| key.status == SigningKeyStatus::Revoked));
-                if repeat { assert_eq!(result[0], to_domain(terminal.clone()).unwrap()); }
-                drop(registry); let log = log(db); assert!(log.contains("COMMIT")); assert!(!log.contains("lifecycle_admitted_at"));
-                assert_eq!(log.matches("UPDATE \"signing_keys\"").count(), if repeat {0} else {2});
-                assert!(log.contains("<>")); assert!(!log.contains("AS invalid_retirement"));
-                if repeat { assert!(log.contains("LIMIT")); }
+                assert_eq!(result.len(), if repeat { 1 } else { 2 });
+                assert!(result
+                    .iter()
+                    .all(|key| key.status == SigningKeyStatus::Revoked));
+                if repeat {
+                    assert_eq!(result[0], to_domain(terminal.clone()).unwrap());
+                }
+                drop(registry);
+                let log = log(db);
+                assert!(log.contains("COMMIT"));
+                assert!(!log.contains("lifecycle_admitted_at"));
+                assert_eq!(
+                    log.matches("UPDATE \"signing_keys\"").count(),
+                    if repeat { 0 } else { 2 }
+                );
+                assert!(log.contains("<>"));
+                assert!(!log.contains("AS invalid_retirement"));
+                if repeat {
+                    assert!(log.contains("LIMIT"));
+                }
             }
         }
 
         #[tokio::test]
         async fn recent_churn_is_scoped_newest_four_and_publishes_no_subset() {
-            let org = Uuid::new_v4(); let as_of = Utc::now(); let current = row(org, "active");
-            let history = vec![BTreeMap::from([("organization_id".into(), org.into()), ("lifecycle_admitted_at".into(), (as_of-chrono::Duration::seconds(100)).fixed_offset().into())]);4];
-            let db = Arc::new(targeted_database(vec![current.clone()], vec![current.clone()], Some(history), false, false, as_of).into_connection());
-            let registry = repository(db.clone()); let mut candidate = to_domain(current).unwrap(); candidate.id = Uuid::new_v4(); candidate.kid = iam_domain::entity::signing_key::opaque_kid(); candidate.provider_key_ref = "new-ref".into();
-            assert!(matches!(registry.replace_active_organization_key(&candidate, None).await, Err(DomainError::SigningKeyAdmissionDenied { reason: SigningKeyAdmissionReason::ChurnRate, retry_after_seconds: Some(3500) })));
-            drop(registry); let log = log(db); assert!(log.contains("WHERE organization_id=$1::uuid")); assert!(log.contains("ORDER BY lifecycle_admitted_at DESC LIMIT $3"));
-            assert!(!log.contains("UPDATE ")); assert!(!log.contains("INSERT INTO")); assert!(log.contains("ROLLBACK"));
+            let org = Uuid::new_v4();
+            let as_of = Utc::now();
+            let current = row(org, "active");
+            let history = vec![
+                BTreeMap::from([
+                    ("organization_id".into(), org.into()),
+                    (
+                        "lifecycle_admitted_at".into(),
+                        (as_of - chrono::Duration::seconds(100))
+                            .fixed_offset()
+                            .into()
+                    )
+                ]);
+                4
+            ];
+            let db = Arc::new(
+                targeted_database(
+                    vec![current.clone()],
+                    vec![current.clone()],
+                    Some(history),
+                    false,
+                    false,
+                    as_of,
+                )
+                .into_connection(),
+            );
+            let registry = repository(db.clone());
+            let mut candidate = to_domain(current).unwrap();
+            candidate.id = Uuid::new_v4();
+            candidate.kid = iam_domain::entity::signing_key::opaque_kid();
+            candidate.provider_key_ref = "new-ref".into();
+            assert!(matches!(
+                registry
+                    .replace_active_organization_key(&candidate, None)
+                    .await,
+                Err(DomainError::SigningKeyAdmissionDenied {
+                    reason: SigningKeyAdmissionReason::ChurnRate,
+                    retry_after_seconds: Some(3500)
+                })
+            ));
+            drop(registry);
+            let log = log(db);
+            assert!(log.contains("WHERE organization_id=$1::uuid"));
+            assert!(log.contains("ORDER BY lifecycle_admitted_at DESC LIMIT $3"));
+            assert!(!log.contains("UPDATE "));
+            assert!(!log.contains("INSERT INTO"));
+            assert!(log.contains("ROLLBACK"));
         }
     }
 
@@ -679,7 +891,10 @@ mod admission_tests {
         candidate.created_at += chrono::Duration::hours(1);
         candidate.updated_at += chrono::Duration::hours(1);
         // The Windows checkout may already use CRLF; do not create invalid CRCRLF.
-        candidate.public_key = candidate.public_key.replace("\r\n", "\n").replace('\n', "\r\n");
+        candidate.public_key = candidate
+            .public_key
+            .replace("\r\n", "\n")
+            .replace('\n', "\r\n");
         // No-op survives charged churn history; nothing is re-admitted.
         let history = vec![
             BTreeMap::from([
@@ -853,9 +1068,10 @@ mod admission_tests {
                 }))
                 .append_query_results([issuer_projection(&terminal)])
                 .append_query_results([terminal.clone()])
-                .append_query_results([vec![BTreeMap::from([
-                    ("as_of".to_string(), as_of.fixed_offset().into()),
-                ])]])
+                .append_query_results([vec![BTreeMap::from([(
+                    "as_of".to_string(),
+                    as_of.fixed_offset().into(),
+                )])]])
                 .append_query_results([terminal.clone()])
                 .append_query_results([vec![BTreeMap::from([
                     ("invalid_retirement".to_string(), false.into()),
