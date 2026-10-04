@@ -181,14 +181,14 @@ fn workload_csr() -> String {
 }
 
 fn identity_service_on(
-    db: DatabaseConnection,
+    db: Arc<DatabaseConnection>,
     snapshots: Arc<dyn BindingGrantSnapshotPort>,
 ) -> Arc<IdentityService> {
     let config = IdentityConfig::default();
     Arc::new(IdentityService::new(
         Arc::new(PlatformInternalCa::new().expect("ca")),
         Arc::new(DedicatedSessionSigner::from_config(&config).expect("signer")),
-        Arc::new(PostgresEnrollmentRegistry::new(db)),
+        Arc::new(PostgresEnrollmentRegistry::from_arc(&db)),
         snapshots,
         config.session_ttl_minutes,
         config.cert_ttl_hours,
@@ -267,7 +267,7 @@ async fn session_status(
 #[serial]
 async fn t10_enrollment_survives_new_identity_service() {
     let (fixture, _base, _client) = setup_test_server().await.expect("serveur");
-    let db = fixture.db().as_ref().clone();
+    let db = fixture.db();
     let expected = sample_identity();
     let project_id = Uuid::new_v4();
     let snapshots: Arc<dyn BindingGrantSnapshotPort> = Arc::new(port_for(&[&expected], project_id));
@@ -292,7 +292,7 @@ async fn t10_enrollment_survives_new_identity_service() {
 #[serial]
 async fn t10_component_removed_revokes_enrollment_and_purges_kv() {
     let (fixture, _base, _client) = setup_test_server().await.expect("serveur");
-    let db = fixture.db().as_ref().clone();
+    let db = fixture.db();
     let expected_a = sample_identity();
     let expected_b = sample_identity();
     let project_id = Uuid::new_v4();
@@ -361,7 +361,7 @@ async fn t10_component_removed_revokes_enrollment_and_purges_kv() {
 #[serial]
 async fn t10_second_enroll_same_binding_other_fingerprint_is_conflict() {
     let (fixture, _base, _client) = setup_test_server().await.expect("serveur");
-    let db = fixture.db().as_ref().clone();
+    let db = fixture.db();
     let expected = sample_identity();
     let project_id = Uuid::new_v4();
     let snapshots: Arc<dyn BindingGrantSnapshotPort> = Arc::new(port_for(&[&expected], project_id));
@@ -430,7 +430,7 @@ async fn t10_revoke_failure_skips_kv_purge() {
 #[serial]
 async fn t10_grant_revision_bump_no_reenroll_frozen_session() {
     let (fixture, _base, _client) = setup_test_server().await.expect("serveur");
-    let db = fixture.db().as_ref().clone();
+    let db = fixture.db();
     let expected = sample_identity();
     assert_eq!(expected.grant_revision, 0);
     let project_id = Uuid::new_v4();
@@ -489,8 +489,8 @@ async fn t10_grant_revision_bump_no_reenroll_frozen_session() {
 #[serial]
 async fn t10_put_same_fingerprint_is_noop() {
     let (fixture, _base, _client) = setup_test_server().await.expect("serveur");
-    let db = fixture.db().as_ref().clone();
-    let store = PostgresEnrollmentRegistry::new(db);
+    let db = fixture.db();
+    let store = PostgresEnrollmentRegistry::from_arc(&db);
     let identity = sample_identity();
     let fingerprint = "a".repeat(64);
     store

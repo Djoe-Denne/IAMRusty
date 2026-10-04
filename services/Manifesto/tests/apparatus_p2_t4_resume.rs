@@ -6,6 +6,8 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
+use std::sync::Arc;
+
 use chrono::{Duration, Utc};
 use common::*;
 use fixtures::DbFixtures;
@@ -29,7 +31,7 @@ fn sample_digest() -> String {
 }
 
 async fn create_managed_with_digest(
-    db: &DatabaseConnection,
+    db: &Arc<DatabaseConnection>,
     base_url: &str,
     client: &reqwest::Client,
     openfga: &TestOpenFga,
@@ -115,7 +117,7 @@ async fn t4_apply_due_once_sets_observed_to_desired() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let component_id = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    let component_id = create_managed_with_digest(&db, &base_url, &client, &openfga).await;
     let runtime = InProcessApparatusRuntime::new();
     let now = Utc::now() + Duration::hours(2);
 
@@ -148,7 +150,7 @@ async fn t4_second_apply_does_not_bind_twice() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let component_id = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    let component_id = create_managed_with_digest(&db, &base_url, &client, &openfga).await;
     let runtime = InProcessApparatusRuntime::new();
     let now = Utc::now() + Duration::hours(2);
 
@@ -178,7 +180,7 @@ async fn t4_crash_after_bind_resumes_without_second_instance() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let component_id = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    let component_id = create_managed_with_digest(&db, &base_url, &client, &openfga).await;
     let runtime = InProcessApparatusRuntime::new();
     let now = Utc::now() + Duration::hours(2);
 
@@ -203,7 +205,7 @@ async fn t4_stale_observed_write_is_refused() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let component_id = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    let component_id = create_managed_with_digest(&db, &base_url, &client, &openfga).await;
     let runtime = InProcessApparatusRuntime::new();
     let now = Utc::now() + Duration::hours(2);
 
@@ -225,7 +227,7 @@ async fn t4_stale_bind_failure_write_is_refused() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let component_id = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    let component_id = create_managed_with_digest(&db, &base_url, &client, &openfga).await;
     let runtime = InProcessApparatusRuntime::new();
     let now = Utc::now() + Duration::hours(2);
 

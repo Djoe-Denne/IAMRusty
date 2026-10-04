@@ -45,7 +45,7 @@ fn sample_digest() -> String {
 }
 
 async fn create_managed_with_digest(
-    db: &DatabaseConnection,
+    db: &Arc<DatabaseConnection>,
     base_url: &str,
     client: &reqwest::Client,
     openfga: &TestOpenFga,
@@ -249,7 +249,7 @@ async fn t5_concurrent_apply_single_claim() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let component_id = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    let component_id = create_managed_with_digest(&db, &base_url, &client, &openfga).await;
     let runtime = InProcessApparatusRuntime::new();
     let now = Utc::now() + ChronoDuration::hours(2);
 
@@ -274,7 +274,7 @@ async fn t5_expired_claim_is_stolen() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let component_id = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    let component_id = create_managed_with_digest(&db, &base_url, &client, &openfga).await;
     db.execute(Statement::from_sql_and_values(
         DatabaseBackend::Postgres,
         "UPDATE apparatus_bindings \
@@ -318,7 +318,7 @@ async fn t5_queue_disabled_runtime_can_be_live() {
 
     let runtime = Arc::new(InProcessApparatusRuntime::new());
     let handle = start_apparatus_runtime(
-        fixture.db().as_ref().clone(),
+        fixture.db(),
         runtime,
         "t5-live".to_owned(),
         Duration::from_secs(60),
@@ -337,7 +337,7 @@ async fn t5_ticker_start_stop_is_live() {
         setup_test_server().await.expect("serveur de test");
     let runtime = Arc::new(InProcessApparatusRuntime::new());
     let handle = start_apparatus_runtime(
-        fixture.db().as_ref().clone(),
+        fixture.db(),
         runtime,
         "t5-tick".to_owned(),
         Duration::from_secs(60),
@@ -374,7 +374,7 @@ async fn t5_abort_makes_readiness_not_ready() {
         setup_test_server().await.expect("serveur de test");
     let runtime = Arc::new(InProcessApparatusRuntime::new());
     let handle = start_apparatus_runtime(
-        fixture.db().as_ref().clone(),
+        fixture.db(),
         runtime,
         "t5-ready".to_owned(),
         Duration::from_secs(60),
@@ -393,8 +393,8 @@ async fn t5_poison_bind_does_not_abort_pass() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let first = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
-    let second = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    let first = create_managed_with_digest(&db, &base_url, &client, &openfga).await;
+    let second = create_managed_with_digest(&db, &base_url, &client, &openfga).await;
     let runtime = FailFirstBindRuntime::new();
     let now = Utc::now() + ChronoDuration::hours(2);
 
@@ -418,7 +418,7 @@ async fn t5_bind_fail_writes_backoff_and_skips_same_now() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let component_id = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    let component_id = create_managed_with_digest(&db, &base_url, &client, &openfga).await;
     let runtime = AlwaysFailBindRuntime::new();
     let now = Utc::now() + ChronoDuration::hours(2);
 
@@ -455,7 +455,7 @@ async fn t5_bind_fails_until_terminal_excluded() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let component_id = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    let component_id = create_managed_with_digest(&db, &base_url, &client, &openfga).await;
     quarantine_other_due_managed_bindings(db.as_ref(), component_id).await;
     let runtime = AlwaysFailBindRuntime::new();
     let mut now = Utc::now() + ChronoDuration::hours(2);
@@ -499,7 +499,7 @@ async fn t5_bind_success_after_fail_resets_retry() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let component_id = create_managed_with_digest(db.as_ref(), &base_url, &client, &openfga).await;
+    let component_id = create_managed_with_digest(&db, &base_url, &client, &openfga).await;
     let runtime = FailFirstBindRuntime::new();
     let now = Utc::now() + ChronoDuration::hours(2);
 

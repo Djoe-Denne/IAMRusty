@@ -4,6 +4,8 @@
 //! « appliquer le chemin existant » (composants non backfillés). Une source
 //! inconnue n'est jamais traitée comme un succès silencieux.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use rustycog::core::error::ServiceError;
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement};
@@ -35,14 +37,14 @@ pub trait ApparatusBindingSourceLookup: Send + Sync {
 
 /// Lookup SQL de `apparatus_bindings.source` par `component_id`.
 pub struct SqlApparatusBindingSourceLookup {
-    db: DatabaseConnection,
+    db: Arc<DatabaseConnection>,
 }
 
 impl SqlApparatusBindingSourceLookup {
     /// Construit le lookup sur une connexion en lecture.
     #[must_use]
-    pub fn new(db: DatabaseConnection) -> Self {
-        Self { db }
+    pub fn new(db: impl Into<Arc<DatabaseConnection>>) -> Self {
+        Self { db: db.into() }
     }
 }
 

@@ -14,22 +14,20 @@ use uuid::Uuid;
 /// Postgres KV namespaced by `binding_id`.
 #[derive(Clone)]
 pub struct PostgresKvStore {
-    db: DatabaseConnection,
+    db: Arc<DatabaseConnection>,
 }
 
 impl PostgresKvStore {
     /// Bind to the Lazaret write connection.
     #[must_use]
-    pub const fn new(db: DatabaseConnection) -> Self {
-        Self { db }
+    pub fn new(db: DatabaseConnection) -> Self {
+        Self { db: Arc::new(db) }
     }
 
     /// Bind from a shared pool handle.
     #[must_use]
     pub fn from_arc(db: &Arc<DatabaseConnection>) -> Self {
-        Self {
-            db: db.as_ref().clone(),
-        }
+        Self { db: Arc::clone(db) }
     }
 }
 

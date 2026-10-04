@@ -66,7 +66,7 @@ impl Application {
 
         let db = DbConnectionPool::new(&config.database).await?;
         let db_write = db.get_write_connection();
-        let kv_conn = db_write.as_ref().clone();
+        let kv_conn = db_write.clone();
 
         let command_registry = empty_command_registry();
         let command_service = Arc::new(GenericCommandService::new(Arc::new(command_registry)));
@@ -277,7 +277,7 @@ fn ensure_boot_tls(ca: &PlatformInternalCa, server: &ServerConfig) -> Result<(),
 
 fn build_platform_kv(
     config: &AppConfig,
-    kv_conn: DatabaseConnection,
+    kv_conn: Arc<DatabaseConnection>,
 ) -> Result<Arc<dyn AsyncKvStore>, Error> {
     if config.kv.backend.eq_ignore_ascii_case("redis") {
         Ok(Arc::new(
@@ -285,7 +285,7 @@ fn build_platform_kv(
                 .map_err(|e| anyhow::anyhow!("Redis KV: {e}"))?,
         ))
     } else {
-        Ok(Arc::new(PostgresKvStore::new(kv_conn)))
+        Ok(Arc::new(PostgresKvStore::from_arc(&kv_conn)))
     }
 }
 

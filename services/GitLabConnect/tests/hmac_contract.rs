@@ -21,6 +21,7 @@ fn token_body() -> String {
     serde_json::to_string(&TokenRequest {
         code: "test_auth_code".to_owned(),
         redirect_uri: ALLOWED_REDIRECT.to_owned(),
+        code_verifier: None,
     })
     .expect("token body")
 }
@@ -93,6 +94,7 @@ async fn redirect_uri_outside_allowlist_is_not_ok() {
     let body = serde_json::to_string(&TokenRequest {
         code: "test_auth_code".to_owned(),
         redirect_uri: "https://evil.example/cb".to_owned(),
+        code_verifier: None,
     })
     .expect("body");
     let response = post_signed(&server, TOKEN_ROUTE, &body).await;

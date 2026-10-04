@@ -50,7 +50,7 @@ impl DbFixtures {
 
     /// Create a user with email and password authentication
     pub async fn create_user_with_email_password(
-        db: &DatabaseConnection,
+        db: &Arc<DatabaseConnection>,
         email: &str,
         password: &str,
         username: Option<&str>,
@@ -65,7 +65,7 @@ impl DbFixtures {
         let user = Self::user()
             .username(username.unwrap_or("testuser").to_string())
             .password_hash(password_hash)
-            .commit(Arc::new(db.clone()))
+            .commit(db.clone())
             .await?;
 
         // Create primary email
@@ -74,7 +74,7 @@ impl DbFixtures {
             .email(email)
             .with_primary(true)
             .with_verified(true)
-            .commit(Arc::new(db.clone()))
+            .commit(db.clone())
             .await?;
 
         Ok(user)
@@ -82,11 +82,11 @@ impl DbFixtures {
 
     /// Create a user without username (for registration flow testing)
     pub async fn create_user_without_username(
-        db: &DatabaseConnection,
+        db: &Arc<DatabaseConnection>,
         email: &str,
     ) -> Result<users::UserFixture, DbErr> {
         // Create user without username
-        let user = Self::user().commit(Arc::new(db.clone())).await?;
+        let user = Self::user().commit(db.clone()).await?;
 
         // Create primary email
         Self::user_email()
@@ -94,7 +94,7 @@ impl DbFixtures {
             .email(email)
             .with_primary(true)
             .with_verified(false)
-            .commit(Arc::new(db.clone()))
+            .commit(db.clone())
             .await?;
 
         Ok(user)
@@ -102,16 +102,13 @@ impl DbFixtures {
 
     /// Create a complete test user with email and OAuth provider
     pub async fn create_user_with_oauth_provider(
-        db: &DatabaseConnection,
+        db: &Arc<DatabaseConnection>,
         email: &str,
         username: &str,
         provider: &str,
     ) -> Result<(users::UserFixture, provider_tokens::ProviderTokenFixture), DbErr> {
         // Create user
-        let user = Self::user()
-            .username(username)
-            .commit(Arc::new(db.clone()))
-            .await?;
+        let user = Self::user().username(username).commit(db.clone()).await?;
 
         // Create primary email
         Self::user_email()
@@ -119,7 +116,7 @@ impl DbFixtures {
             .email(email)
             .with_primary(true)
             .with_verified(true)
-            .commit(Arc::new(db.clone()))
+            .commit(db.clone())
             .await?;
 
         // Create provider token
@@ -127,13 +124,13 @@ impl DbFixtures {
             "github" => {
                 Self::provider_token()
                     .github(user.id())
-                    .commit(Arc::new(db.clone()))
+                    .commit(db.clone())
                     .await?
             }
             "gitlab" => {
                 Self::provider_token()
                     .gitlab(user.id())
-                    .commit(Arc::new(db.clone()))
+                    .commit(db.clone())
                     .await?
             }
             _ => return Err(DbErr::Custom(format!("Unsupported provider: {provider}"))),

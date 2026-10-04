@@ -24,7 +24,17 @@ async fn emission_fence_reads_fresh_committed_primary_state_not_the_initial_acti
         .expect("writer registry fixture");
     fixture_cleanup::run(&fixture, async {
     let db = fixture.db();
-    let primary = SeaOrmSigningKeyRegistry::new(db.clone());
+    let primary = SeaOrmSigningKeyRegistry::new(
+        db.clone(),
+        std::sync::Arc::new(
+            iam_domain::entity::signing_key::SigningKeyLifecyclePolicy::new()
+                .expect("valid signing lifecycle policy"),
+        ),
+        iam_configuration::load_config_part::<iam_configuration::JwtConfig>("jwt")
+            .expect("fixture JWT config")
+            .expiration_seconds,
+    )
+    .expect("valid writer registry");
     let initial = primary
         .find_by_kid(&key.kid)
         .await

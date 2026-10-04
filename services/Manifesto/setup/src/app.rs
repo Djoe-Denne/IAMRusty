@@ -134,7 +134,7 @@ impl Application {
         let db_write = db.get_write_connection();
         let tick_interval = manifesto_infra::apparatus_runtime::APPARATUS_TICK_INTERVAL;
         let apparatus_runtime = start_apparatus_runtime(
-            db_write.as_ref().clone(),
+            db_write.clone(),
             Arc::new(InProcessApparatusRuntime::new()),
             format!("manifesto-{}", std::process::id()),
             tick_interval,
@@ -459,14 +459,11 @@ async fn setup_application(
     let (project_service, component_service, member_service, permission_service) =
         setup_domain(&db, config)?;
     let apparatus_binding_source = Arc::new(SqlApparatusBindingSourceLookup::new(
-        db.get_read_connection().as_ref().clone(),
+        db.get_read_connection(),
     ));
-    let binding_grant_reader: Arc<dyn manifesto_application::BindingGrantSnapshotReader> = Arc::new(
-        SqlBindingGrantSnapshotReader::new(db.get_read_connection().as_ref().clone()),
-    );
-    let binding_consent_writer = Arc::new(SqlBindingConsentWriter::new(
-        db.get_write_connection().as_ref().clone(),
-    ));
+    let binding_grant_reader: Arc<dyn manifesto_application::BindingGrantSnapshotReader> =
+        Arc::new(SqlBindingGrantSnapshotReader::new(db.get_read_connection()));
+    let binding_consent_writer = Arc::new(SqlBindingConsentWriter::new(db.get_write_connection()));
     let project_authorization_uow = Arc::new(ProjectAuthorizationUnitOfWorkImpl::new(
         db,
         OutboxRecorder::new(),

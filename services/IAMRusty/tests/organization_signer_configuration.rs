@@ -63,7 +63,13 @@ async fn missing_and_other_org_credentials_never_resolve_or_touch_vendor_but_val
             inner: StaticCredential::from_pair(&credential, "SentinelABC-fixed-fixture-credential").expect("fixed test credential"),
             calls: AtomicUsize::new(0),
         });
-        let registry = Arc::new(SeaOrmSigningKeyRegistry::new(fixture.db()));
+        let registry = Arc::new(SeaOrmSigningKeyRegistry::new(
+            fixture.db(),
+            Arc::new(iam_domain::entity::signing_key::SigningKeyLifecyclePolicy::new()
+                .expect("valid signing lifecycle policy")),
+            iam_configuration::load_config_part::<iam_configuration::JwtConfig>("jwt")
+                .expect("fixture JWT config").expiration_seconds,
+        ).expect("valid writer registry"));
         let pem_root = tempfile::tempdir().expect("isolated PEM root");
         let transit = TransitClientConfig { base_url: vendor.uri(), workload: workload.clone(), token_ref: credential.clone() };
         let facade = OrganizationSignerFacadeImpl::new(registry.clone(), "https://issuer.example",

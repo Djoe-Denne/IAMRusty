@@ -63,8 +63,9 @@ fn ca() -> (Certificate, KeyPair) {
         key,
     )
 }
-pub fn unrelated_root() -> reqwest::Certificate {
-    reqwest::Certificate::from_pem(ca().0.pem().as_bytes()).expect("unrelated fixture public CA")
+pub fn unrelated_root() -> reqwest_legacy::Certificate {
+    reqwest_legacy::Certificate::from_pem(ca().0.pem().as_bytes())
+        .expect("unrelated fixture public CA")
 }
 
 async fn protocol(
@@ -164,7 +165,7 @@ async fn protocol(
 
 pub struct VerifiedIdpTls {
     _pki: tempfile::TempDir,
-    root: reqwest::Certificate,
+    root: reqwest_legacy::Certificate,
     uri: String,
     state: Arc<Protocol>,
     stop: tokio::sync::watch::Sender<bool>,
@@ -191,7 +192,7 @@ impl VerifiedIdpTls {
         std::fs::write(pki.path().join("server.pem"), leaf.pem()).expect("fixture leaf file");
         std::fs::write(pki.path().join("server.key"), leaf_key.serialize_pem())
             .expect("generated fixture key file");
-        let root = reqwest::Certificate::from_pem(
+        let root = reqwest_legacy::Certificate::from_pem(
             &std::fs::read(pki.path().join("ca.pem")).expect("public fixture CA bytes"),
         )
         .expect("explicit instance root");
@@ -252,7 +253,7 @@ impl VerifiedIdpTls {
         }
         fixture
     }
-    pub fn root(&self) -> reqwest::Certificate {
+    pub fn root(&self) -> reqwest_legacy::Certificate {
         self.root.clone()
     }
     pub fn uri(&self) -> &str {

@@ -187,11 +187,12 @@ async fn apply_one(
 
 /// Boucle d'intervalle : `apply_due_once` à chaque tick.
 pub async fn run_tick_loop(
-    db: DatabaseConnection,
+    db: impl Into<Arc<DatabaseConnection>>,
     runtime: Arc<dyn ApparatusRuntime>,
     owner: String,
     tick_interval: Duration,
 ) {
+    let db = db.into();
     let start = tokio::time::Instant::now() + tick_interval;
     let mut interval = tokio::time::interval_at(start, tick_interval);
     loop {

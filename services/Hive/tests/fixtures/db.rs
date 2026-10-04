@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{borrow::Borrow, collections::HashMap, sync::Arc};
 
 use chrono::Utc;
 use rustycog::testing::http::jwt::TEST_JWT_ISSUER;
@@ -91,7 +91,7 @@ impl DbFixtures {
             .name("Test Org")
             .slug(format!("test-org-{}", &Uuid::new_v4().to_string()[..8]))
             .description(Some("Seeded org"))
-            .commit(Arc::new(db.clone()))
+            .commit(db)
             .await?;
 
         let mut members: Vec<organization_members::Model> = Vec::new();
@@ -102,7 +102,7 @@ impl DbFixtures {
                 .user_id(user_id.parse::<Uuid>().unwrap())
                 .status("active")
                 .joined_now()
-                .commit(Arc::new(db.clone()))
+                .commit(db)
                 .await?;
             members.push(member);
         }
@@ -115,7 +115,7 @@ impl DbFixtures {
                 .resource_id("organization")
                 .name(format!("org_{perm}_role"))
                 .description(Some(&format!("{perm} on organization")))
-                .commit(Arc::new(db.clone()))
+                .commit(db)
                 .await?;
 
             for member in &members {
@@ -127,7 +127,7 @@ impl DbFixtures {
                     let _ = Self::member_role_permission_link()
                         .member_id(member.id)
                         .role_permission_id(rp.id)
-                        .commit(Arc::new(db.clone()))
+                        .commit(db)
                         .await?;
                 }
             }
@@ -471,7 +471,10 @@ impl OrganizationFixtureBuilder {
     /// # Errors
     ///
     /// Returns an error if the row cannot be inserted.
-    pub async fn commit(self, db: Arc<DatabaseConnection>) -> anyhow::Result<organizations::Model> {
+    pub async fn commit(
+        self,
+        db: impl Borrow<DatabaseConnection> + Send,
+    ) -> anyhow::Result<organizations::Model> {
         let now = Utc::now();
         let model = organizations::ActiveModel {
             id: Set(self.id),
@@ -486,7 +489,7 @@ impl OrganizationFixtureBuilder {
             created_at: Set(now),
             updated_at: Set(now),
         }
-        .insert(&*db)
+        .insert(db.borrow())
         .await?;
         Ok(model)
     }
@@ -575,7 +578,7 @@ impl OrganizationMemberFixtureBuilder {
     /// Panics if `organization_id` or `user_id` was not set.
     pub async fn commit(
         self,
-        db: Arc<DatabaseConnection>,
+        db: impl Borrow<DatabaseConnection> + Send,
     ) -> anyhow::Result<organization_members::Model> {
         let now = Utc::now();
         let model = organization_members::ActiveModel {
@@ -591,7 +594,7 @@ impl OrganizationMemberFixtureBuilder {
             created_at: Set(now),
             updated_at: Set(now),
         }
-        .insert(&*db)
+        .insert(db.borrow())
         .await?;
         Ok(model)
     }
@@ -672,7 +675,7 @@ impl RolePermissionFixtureBuilder {
     /// Panics if `organization_id`, `permission_id`, or `resource_id` was not set.
     pub async fn commit(
         self,
-        db: Arc<DatabaseConnection>,
+        db: impl Borrow<DatabaseConnection> + Send,
     ) -> anyhow::Result<role_permissions::Model> {
         let model = role_permissions::ActiveModel {
             id: Set(self.id),
@@ -683,7 +686,7 @@ impl RolePermissionFixtureBuilder {
             resource_id: Set(self.resource_id.expect("resource_id is required")),
             created_at: Set(Utc::now()),
         }
-        .insert(&*db)
+        .insert(db.borrow())
         .await?;
         Ok(model)
     }
@@ -740,7 +743,7 @@ impl MemberRolePermissionLinkBuilder {
     /// Panics if `member_id` or `role_permission_id` was not set.
     pub async fn commit(
         self,
-        db: Arc<DatabaseConnection>,
+        db: impl Borrow<DatabaseConnection> + Send,
     ) -> anyhow::Result<organization_member_role_permissions::Model> {
         let model = organization_member_role_permissions::ActiveModel {
             id: Set(self.id),
@@ -750,7 +753,7 @@ impl MemberRolePermissionLinkBuilder {
                 .expect("role_permission_id is required")),
             created_at: Set(Utc::now()),
         }
-        .insert(&*db)
+        .insert(db.borrow())
         .await?;
         Ok(model)
     }

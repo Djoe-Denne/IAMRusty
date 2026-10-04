@@ -17,6 +17,7 @@ use manifesto_infra::apparatus_runtime::{run_once, InProcessApparatusRuntime};
 use rustycog::permission::{Permission, ResourceRef, Subject};
 use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
 use serial_test::serial;
+use std::sync::Arc;
 use uuid::Uuid;
 
 fn create_test_jwt_token(user_id: Uuid) -> String {
@@ -24,7 +25,7 @@ fn create_test_jwt_token(user_id: Uuid) -> String {
 }
 
 async fn create_and_delete_managed(
-    db: &DatabaseConnection,
+    db: &Arc<DatabaseConnection>,
     base_url: &str,
     client: &reqwest::Client,
     openfga: &TestOpenFga,
@@ -174,7 +175,7 @@ async fn t7_delete_then_run_once_completes_job() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let component_id = create_and_delete_managed(db.as_ref(), &base_url, &client, &openfga).await;
+    let component_id = create_and_delete_managed(&db, &base_url, &client, &openfga).await;
     assert!(
         job_completed_at(db.as_ref(), component_id).await.is_none(),
         "T7 : job ouvert"
@@ -199,7 +200,7 @@ async fn t7_run_once_replay_is_idempotent() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let component_id = create_and_delete_managed(db.as_ref(), &base_url, &client, &openfga).await;
+    let component_id = create_and_delete_managed(&db, &base_url, &client, &openfga).await;
     let runtime = InProcessApparatusRuntime::new();
     let now = Utc::now() + Duration::hours(2);
     run_once(db.as_ref(), &runtime, "t7-owner", now)
@@ -226,7 +227,7 @@ async fn t7_teardown_fail_writes_backoff() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let component_id = create_and_delete_managed(db.as_ref(), &base_url, &client, &openfga).await;
+    let component_id = create_and_delete_managed(&db, &base_url, &client, &openfga).await;
     let runtime = AlwaysFailTeardownRuntime::new();
     let now = Utc::now() + Duration::hours(2);
 
@@ -262,7 +263,7 @@ async fn t7_teardown_fails_until_terminal_excluded() {
     let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
-    let component_id = create_and_delete_managed(db.as_ref(), &base_url, &client, &openfga).await;
+    let component_id = create_and_delete_managed(&db, &base_url, &client, &openfga).await;
     let runtime = AlwaysFailTeardownRuntime::new();
     let mut now = Utc::now() + Duration::hours(2);
 

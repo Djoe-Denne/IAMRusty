@@ -38,13 +38,12 @@ const MAX_ENROLLMENTS: usize = 10_000;
 pub fn build_identity_service(
     config: &IdentityConfig,
     snapshots: Arc<dyn BindingGrantSnapshotPort>,
-    db: DatabaseConnection,
+    db: Arc<DatabaseConnection>,
 ) -> Result<(Arc<IdentityService>, Arc<PlatformInternalCa>), IdentityError> {
     let ca = Arc::new(PlatformInternalCa::from_identity_config(config)?);
     let signer = Arc::new(DedicatedSessionSigner::from_config(config)?);
-    let enrollments = Arc::new(crate::enrollment_postgres::PostgresEnrollmentRegistry::new(
-        db,
-    ));
+    let enrollments =
+        Arc::new(crate::enrollment_postgres::PostgresEnrollmentRegistry::from_arc(&db));
     let session_ttl = if config.session_ttl_minutes == 0 {
         DEFAULT_SESSION_TTL_MINUTES
     } else {

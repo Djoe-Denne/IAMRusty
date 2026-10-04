@@ -269,10 +269,35 @@ fn mock_publisher(mock: Arc<MockEventPublisher>) -> Arc<MultiQueueEventPublisher
 
 async fn start_owned_listener(
     fixture: &TestFixture,
-    config: AppConfig,
+    mut config: AppConfig,
     publisher: Arc<MultiQueueEventPublisher<DomainError>>,
     pem_files: Option<Arc<tempfile::TempDir>>,
 ) -> anyhow::Result<(String, Client)> {
+    let pem_files = match pem_files {
+        Some(files) => Some(files),
+        None => {
+            use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
+            let key = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048)?;
+            let files = Arc::new(tempfile::TempDir::new()?);
+            let private = files.path().join("private.pem");
+            let public = files.path().join("public.pem");
+            std::fs::write(&private, key.to_pkcs8_pem(LineEnding::LF)?.as_bytes())?;
+            std::fs::write(
+                &public,
+                key.to_public_key().to_public_key_pem(LineEnding::LF)?,
+            )?;
+            config.jwt.secret = SecretStorage::PemFile {
+                private_key_path: private.to_string_lossy().into_owned(),
+                public_key_path: public.to_string_lossy().into_owned(),
+                key_id: Some(iam_domain::entity::signing_key::opaque_kid()),
+            };
+            config.jwt.allowed_algorithms = vec!["RS256".into()];
+            config.jwt.backend = None;
+            config.jwt.provider = None;
+            config.jwt.remote = None;
+            Some(files)
+        }
+    };
     start_owned_listener_with_keys(fixture, config, publisher, pem_files, &[]).await
 }
 

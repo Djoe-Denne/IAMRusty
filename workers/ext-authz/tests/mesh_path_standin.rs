@@ -320,21 +320,45 @@ async fn real_pending_publisher_key_cannot_authenticate() {
 #[tokio::test]
 #[serial]
 async fn real_platform_metadata_cannot_be_promoted_to_organization_by_a_claim() {
-    let (server, _jwks) = server_with_jwks(&test_rs256_jwks_json()).await;
-    let token = create_rs256_jwt_token(Uuid::new_v4());
+    let (server, _jwks) = server_with_jwks(&registry::platform_jwks()).await;
+    let user = Uuid::new_v4();
+    let token = create_rs256_jwt_token(user);
     server
         .post("/")
         .add_header("authorization", format!("Bearer {token}"))
         .await
         .assert_status(StatusCode::OK);
-    let invalid = signed_variant(&token, |claims| {
-        claims["org"] = Uuid::new_v4().to_string().into()
+    let organization = Uuid::new_v4();
+    let with_org = signed_variant(&token, |claims| {
+        claims["org"] = organization.to_string().into()
     });
-    server
+    // An extra claim cannot change the authenticated platform (iss, sub).
+    let response = server
+        .post("/")
+        .add_header("authorization", format!("Bearer {with_org}"))
+        .await;
+    response.assert_status(StatusCode::OK);
+    assert_eq!(
+        response.header("x-principal-iss").to_str().expect("iss"),
+        TEST_PLATFORM_ISSUER
+    );
+    assert_eq!(
+        response.header("x-principal-sub").to_str().expect("sub"),
+        user.to_string()
+    );
+    assert!(response.maybe_header("x-principal-org").is_none());
+    let invalid = signed_variant(&token, |claims| {
+        claims["iss"] = format!("https://issuer.example/org/{organization}").into();
+        claims["org"] = organization.to_string().into()
+    });
+    let rejected = server
         .post("/")
         .add_header("authorization", format!("Bearer {invalid}"))
-        .await
-        .assert_status(StatusCode::FORBIDDEN);
+        .await;
+    rejected.assert_status(StatusCode::FORBIDDEN);
+    assert!(rejected.maybe_header("x-principal-iss").is_none());
+    assert!(rejected.maybe_header("x-principal-sub").is_none());
+    assert!(rejected.maybe_header("x-principal-org").is_none());
 }
 
 #[tokio::test]

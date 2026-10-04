@@ -37,11 +37,12 @@ impl ApparatusRuntimeHandle {
 
 /// Démarre la boucle d'intervalle in-process.
 pub fn start_apparatus_runtime(
-    db: DatabaseConnection,
+    db: impl Into<Arc<DatabaseConnection>>,
     runtime: Arc<dyn ApparatusRuntime>,
     owner: String,
     tick_interval: Duration,
 ) -> ApparatusRuntimeHandle {
+    let db = db.into();
     let live = Arc::new(AtomicBool::new(true));
     let live_flag = live.clone();
     let join = tokio::spawn(async move {

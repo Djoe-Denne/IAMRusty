@@ -1,5 +1,7 @@
 //! SQL reader/writer for binding consents and grants (privileged caller).
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use manifesto_application::{
     ApplicationError, BindingConsentWriter, BindingGrantSnapshotReader,
@@ -43,14 +45,14 @@ const UPSERT_CONSENT: &str = "INSERT INTO apparatus_capability_consents \
 
 /// SeaORM reader for binding grant snapshots.
 pub struct SqlBindingGrantSnapshotReader {
-    db: DatabaseConnection,
+    db: Arc<DatabaseConnection>,
 }
 
 impl SqlBindingGrantSnapshotReader {
     /// Construct a reader on a database connection.
     #[must_use]
-    pub const fn new(db: DatabaseConnection) -> Self {
-        Self { db }
+    pub fn new(db: impl Into<Arc<DatabaseConnection>>) -> Self {
+        Self { db: db.into() }
     }
 }
 
@@ -62,20 +64,20 @@ impl BindingGrantSnapshotReader for SqlBindingGrantSnapshotReader {
         component_id: Uuid,
         principal: Option<Uuid>,
     ) -> Result<BindingGrantSnapshotResponse, ApplicationError> {
-        load_snapshot(&self.db, project_id, component_id, principal).await
+        load_snapshot(self.db.as_ref(), project_id, component_id, principal).await
     }
 }
 
 /// SeaORM writer: upsert consent + bump `grant_revision` in one transaction.
 pub struct SqlBindingConsentWriter {
-    db: DatabaseConnection,
+    db: Arc<DatabaseConnection>,
 }
 
 impl SqlBindingConsentWriter {
     /// Construct a writer on a write connection.
     #[must_use]
-    pub const fn new(db: DatabaseConnection) -> Self {
-        Self { db }
+    pub fn new(db: impl Into<Arc<DatabaseConnection>>) -> Self {
+        Self { db: db.into() }
     }
 }
 

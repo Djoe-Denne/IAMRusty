@@ -46,7 +46,7 @@ async fn t1_sql_lookup_reads_managed_legacy_or_none() {
     .await
     .expect("insert legacy binding");
 
-    let lookup = SqlApparatusBindingSourceLookup::new(db.as_ref().clone());
+    let lookup = SqlApparatusBindingSourceLookup::new(db.clone());
 
     let managed = lookup
         .source_for_component(managed_component.id())

@@ -35,17 +35,17 @@ impl DbFixtures {
 
     /// Create a project with owner member
     pub async fn create_project_with_owner(
-        db: &DatabaseConnection,
+        db: &Arc<DatabaseConnection>,
         owner_id: Uuid,
     ) -> Result<(ProjectFixture, MemberFixture), DbErr> {
         let project = Self::project()
             .personal(owner_id)
-            .commit(Arc::new(db.clone()))
+            .commit(db.clone())
             .await?;
 
         let member = Self::member()
             .owner(project.id(), owner_id)
-            .commit(Arc::new(db.clone()))
+            .commit(db.clone())
             .await?;
 
         Ok((project, member))
@@ -53,7 +53,7 @@ impl DbFixtures {
 
     /// Create a project with owner and component
     pub async fn create_project_with_component(
-        db: &DatabaseConnection,
+        db: &Arc<DatabaseConnection>,
         owner_id: Uuid,
         component_type: &str,
     ) -> Result<(ProjectFixture, MemberFixture, ComponentFixture), DbErr> {
@@ -62,7 +62,7 @@ impl DbFixtures {
         let component = Self::component()
             .for_project(project.id())
             .component_type(component_type)
-            .commit(Arc::new(db.clone()))
+            .commit(db.clone())
             .await?;
 
         Ok((project, member, component))

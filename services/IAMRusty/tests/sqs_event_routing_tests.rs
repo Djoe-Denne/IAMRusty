@@ -195,7 +195,7 @@ async fn routes_iam_events_to_telegraph_queue() {
     let short_id = &Uuid::new_v4().to_string()[..8];
     let email = format!("sqs-reset-{short_id}@example.com");
     DbFixtures::create_user_with_email_password(
-        fixture.db().as_ref(),
+        &fixture.db(),
         &email,
         "securePassword123",
         Some("sqsresetuser"),
