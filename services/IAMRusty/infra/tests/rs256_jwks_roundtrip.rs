@@ -1,11 +1,14 @@
 //! RS256 encode + JWKS + extractor acceptance (no postgres).
 
+use iam_domain::entity::signing_key::{SigningKeyLifecyclePolicy, SigningKeyStatus, TrustScope};
 use iam_domain::entity::token::{Jwk, JwkSet, TokenClaims, DEFAULT_JWT_AUDIENCE};
 use iam_domain::port::service::JwtTokenEncoder;
 use iam_domain::port::SigningProvider;
+use iam_infra::repository::signing_key_registry::SeaOrmSigningKeyRegistry;
 use iam_infra::signing::PemSigningProvider;
 use iam_infra::token::{JwtAlgorithm, JwtTokenService};
 use rustycog::http::{UserIdExtractor, ACCESS_TOKEN_TYP};
+use sea_orm::{DbBackend, MockDatabase};
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -24,12 +27,16 @@ fn pem_provider() -> PemSigningProvider {
 #[tokio::test]
 async fn rs256_encode_jwks_and_extractor_accept() {
     let provider = Arc::new(pem_provider()) as Arc<dyn SigningProvider>;
-    let jwk = Jwk::from_rsa_pem(
+    let mut jwk = Jwk::from_rsa_pem(
         include_str!("../../config/keys/test-platform.pub"),
         KID,
         PLATFORM_ISSUER,
     )
     .expect("jwk");
+    // PEM material alone is not trusted: explicitly bootstrap this fixture's
+    // canonical platform metadata, as required by the fail-closed verifier.
+    jwk.status = Some(SigningKeyStatus::Active);
+    jwk.trust_scope = Some(TrustScope::Platform);
     assert_eq!(jwk.kty, "RSA");
     assert_eq!(jwk.use_, "sig");
     assert_eq!(jwk.alg, "RS256");
@@ -43,6 +50,34 @@ async fn rs256_encode_jwks_and_extractor_accept() {
     assert!(jwks_json.contains("\"iss\""));
     assert!(jwks_json.contains(PLATFORM_ISSUER));
 
+    // The encoder also requires an authoritative Active epoch and a final
+    // emission fence. Keep this no-Postgres roundtrip on the existing ORM seam.
+    let now = chrono::Utc::now().naive_utc();
+    let row = iam_infra::repository::entity::signing_keys::Model {
+        id: Uuid::new_v4(),
+        kid: KID.into(),
+        algorithm: "RS256".into(),
+        trust_scope: "platform".into(),
+        issuer: PLATFORM_ISSUER.into(),
+        provider_type: "pem_file".into(),
+        provider_key_ref: "test-platform.pem".into(),
+        credential_ref: None,
+        public_key: include_str!("../../config/keys/test-platform.pub").into(),
+        status: "active".into(),
+        organization_id: None,
+        created_at: now,
+        updated_at: now,
+    };
+    let db = MockDatabase::new(DbBackend::Postgres)
+        .append_query_results([vec![row.clone()], vec![row]])
+        .into_connection();
+    let registry = SeaOrmSigningKeyRegistry::new(
+        Arc::new(db),
+        Arc::new(SigningKeyLifecyclePolicy::new().expect("lifecycle policy")),
+        900,
+    )
+    .expect("fixture registry");
+
     let mut service = JwtTokenService::with_refresh_expiration(
         JwtAlgorithm::RS256(iam_domain::entity::token::JwtKeyPair {
             private_key: include_str!("../../config/keys/test-platform.pem").to_string(),
@@ -53,8 +88,9 @@ async fn rs256_encode_jwks_and_extractor_accept() {
         2592000,
     )
     .with_issuer_audience(PLATFORM_ISSUER, DEFAULT_JWT_AUDIENCE);
-    service =
-        service.with_signing_provider(provider, KID.to_string(), PLATFORM_ISSUER.to_string(), jwks);
+    service = service
+        .with_signing_provider(provider, KID.to_string(), PLATFORM_ISSUER.to_string(), jwks)
+        .with_signing_registry(Arc::new(registry));
 
     let user_id = Uuid::new_v4();
     let claims = TokenClaims::new_with_issuer_audience(

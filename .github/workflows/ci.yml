@@ -164,10 +164,6 @@ jobs:
     needs: [build]
     # Native hosted Linux job (no job container): daemon-published ports are
     # reachable on loopback. Containerized/manual runners require bridge proof.
-    env:
-      RUSTYCOG_TEST_RUNNER_MODE: local
-      RUSTYCOG_TEST_RUN_ID: fi-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
-      RUSTYCOG_TEST_LEDGER_DIR: ${{ runner.temp }}/rustycog-fixtures-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.cache_key }}
     strategy:
       fail-fast: false
       matrix:
@@ -254,6 +250,10 @@ jobs:
 
       - name: Prepare explicit fixture runner context
         shell: bash
+        env:
+          RUSTYCOG_TEST_RUNNER_MODE: local
+          RUSTYCOG_TEST_RUN_ID: fi-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
+          RUSTYCOG_TEST_LEDGER_DIR: ${{ runner.temp }}/rustycog-fixtures-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.cache_key }}
         run: |
           set -euo pipefail
           [[ "$RUSTYCOG_TEST_RUN_ID" =~ ^[A-Za-z0-9-]{1,40}$ ]]
@@ -272,6 +272,10 @@ jobs:
         run: docker pull localstack/localstack:3.0.2
 
       - name: Run integration tests (tests/) with coverage
+        env:
+          RUSTYCOG_TEST_RUNNER_MODE: local
+          RUSTYCOG_TEST_RUN_ID: fi-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
+          RUSTYCOG_TEST_LEDGER_DIR: ${{ runner.temp }}/rustycog-fixtures-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.cache_key }}
         run: |
           set +e
           cargo llvm-cov ${{ matrix.package_args }} --locked --no-report --no-fail-fast --tests
