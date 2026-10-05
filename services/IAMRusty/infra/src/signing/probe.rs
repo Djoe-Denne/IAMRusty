@@ -473,9 +473,37 @@ mod tests {
         format!("{org_id}/{file_name}")
     }
 
+    /// Loads the test-only RSA-8192 pair provisioned per environment through
+    /// `IAMRUSTY_TEST_RSA8192_PEM_B64` (base64 of a PKCS#8 private PEM; see
+    /// `ops/scripts/generate-test-keys.sh`). Returns `None` when unset so
+    /// callers skip instead of keygenning oversize material. The key material
+    /// is never logged.
+    fn load_rsa8192_pair() -> Option<(String, String)> {
+        use rsa::pkcs8::{DecodePrivateKey, EncodePublicKey, LineEnding};
+
+        let encoded = std::env::var("IAMRUSTY_TEST_RSA8192_PEM_B64").ok()?;
+        let pem_bytes =
+            base64::Engine::decode(&base64::engine::general_purpose::STANDARD, encoded.trim())
+                .expect("IAMRUSTY_TEST_RSA8192_PEM_B64 must be valid base64");
+        let private = String::from_utf8(pem_bytes)
+            .expect("IAMRUSTY_TEST_RSA8192_PEM_B64 must decode to a UTF-8 private PEM");
+        let private_key = rsa::RsaPrivateKey::from_pkcs8_pem(&private)
+            .expect("IAMRUSTY_TEST_RSA8192_PEM_B64 must contain a PKCS#8 private PEM");
+        let public = private_key
+            .to_public_key()
+            .to_public_key_pem(LineEnding::LF)
+            .expect("rsa8192 public PEM encode");
+        Some((private, public))
+    }
+
     #[tokio::test]
     async fn pem_challenge_accepts_rsa8192_pair() {
-        let (private, public) = seeded_pair(8192, 0xA110_2026);
+        let Some((private, public)) = load_rsa8192_pair() else {
+            eprintln!(
+                "skipping: IAMRUSTY_TEST_RSA8192_PEM_B64 not set (bash ops/scripts/generate-test-keys.sh)"
+            );
+            return;
+        };
         let org_id = Uuid::new_v4();
         let pem_root = std::env::temp_dir().join(format!("aiforall-probe-8k-{}", Uuid::new_v4()));
         let key_ref = write_org_pem(&pem_root, org_id, &private);
@@ -527,7 +555,12 @@ mod tests {
             }
         }
 
-        let (private, public) = seeded_pair(8192, 0xCAFE_8192);
+        let Some((private, public)) = load_rsa8192_pair() else {
+            eprintln!(
+                "skipping: IAMRUSTY_TEST_RSA8192_PEM_B64 not set (bash ops/scripts/generate-test-keys.sh)"
+            );
+            return;
+        };
         let honest = PemSigningProvider::new(&private, &public).expect("matched 8192 pair");
         verify_challenge_signature(&honest, &public)
             .await

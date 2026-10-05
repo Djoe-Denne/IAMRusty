@@ -254,6 +254,7 @@ jobs:
           RUSTYCOG_TEST_RUNNER_MODE: local
           RUSTYCOG_TEST_RUN_ID: fi-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
           RUSTYCOG_TEST_LEDGER_DIR: ${{ runner.temp }}/rustycog-fixtures-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.cache_key }}
+          IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
         run: |
           set -euo pipefail
           [[ "$RUSTYCOG_TEST_RUN_ID" =~ ^[A-Za-z0-9-]{1,40}$ ]]
@@ -276,6 +277,7 @@ jobs:
           RUSTYCOG_TEST_RUNNER_MODE: local
           RUSTYCOG_TEST_RUN_ID: fi-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
           RUSTYCOG_TEST_LEDGER_DIR: ${{ runner.temp }}/rustycog-fixtures-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.cache_key }}
+          IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
         run: |
           set +e
           cargo llvm-cov ${{ matrix.package_args }} --locked --no-report --no-fail-fast --tests
@@ -379,6 +381,8 @@ jobs:
       - uses: taiki-e/install-action@72f835688cb6c15903b796f704b01e652a2b8835 # cargo-llvm-cov
 
       - name: Run unit tests (lib + bins) with coverage
+        env:
+          IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
         run: |
           set +e
           cargo llvm-cov ${{ matrix.package_args }} --locked --no-report --no-fail-fast --lib --bins
