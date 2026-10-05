@@ -161,3 +161,6 @@ certs/
 certificates/
 ssl/ 
 .grepai/
+
+# Agent-created Docker resource registry (never commit; per-project registry of images/containers/volumes created by agents)
+.tmp/

@@ -1,0 +1,50 @@
+---
+description: Registre texte temporaire de toutes les ressources Docker créées par les agents (images, conteneurs, volumes), gitignore, avec statut de suppression sûre — obligatoire avant tout nettoyage
+alwaysApply: true
+---
+
+# Registre des ressources Docker des agents (canon)
+
+Toute ressource Docker créée par un agent ou sous-agent — image, conteneur, volume — doit être **enregistrée à la création** dans un fichier de registre texte temporaire. Objectif : rendre tout nettoyage ultérieur trivial (lecture du registre au lieu d'une demi-heure d'investigation de propriété).
+
+## Le fichier de registre
+
+- Emplacement par projet : `.tmp/docker-resources-<YYYYMMDD>.log` (créer `.tmp/` si absent).
+- Le fichier et `.tmp/` sont **gitignorés** (déjà couvert par `.gitignore` : `.tmp/` ; sinon l'ajouter).
+- Un registre par jour ; ne jamais réécrire/tronquer un registre existant : append-only, horodaté UTC.
+- L'emplacement exact est rappelé dans la réponse finale de l'agent (« registre : `<chemin>` »).
+
+## Format d'une ligne (une ressource = une ligne, JSONL)
+
+```json
+{"ts":"2026-10-05T18:40:12Z","actor":"<agent|subagent id ou nom>","task":"<objet court>","kind":"container|image|volume","id":"<ID retourné par docker>","name":"<nom si applicable>","image":"<image pour un conteneur>","prior_state":"absent|exited|running","safe_to_delete":"yes|no|ask","safe_reason":"<pourquoi>","session_ledger":"<chemin du ledger de session si existant>"}
+```
+
+Règles de contenu :
+- `id` = **ID retourné par la commande de création** (jamais un nom seul, jamais déduit). Exception volumes : `docker volume rm`/`inspect` identifient par **Name** — enregistrer le `Name` retourné à la création (preuve : réponse de `docker volume create` ou create-response du harness). Si la création est opaque (ID inconnu) : `id":"UNKNOWN"` et `safe_to_delete":"ask"` — collision = STOP.
+- `safe_to_delete` :
+  - `yes` = fixture de test possédée, arrêtée/éphémère, aucun état à préserver **et** aucun bail parent/autre agent actif ;
+  - `no` = runtime actif, toolchain/cache à conserver (ex. compiler avec couches rustfmt/clippy, volumes cargo/target nommés), ou toute ressource encore requise par une campagne en cours ;
+  - `ask` = propriété douteuse, ressource longue durée, ou tout ce qui n'est pas `yes`.
+- Événements append-only : arrêt normal → `"event":"stopped"` qui **conserve** le `safe_to_delete` courant (un cache `no` arrêté reste `no` tant que la campagne l'exige) ; changement d'avis → nouvelle ligne `"event":"reclassified"` avec raison, jamais réécriture. À la lecture : **dernier événement par identité** fait foi ; conflit entre lignes → traiter `ask`.
+- Un conteneur qui a **consommé du temps de toolchain** (install rustfmt/clippy/llvm-cov dans sa couche) est `no` tant que la campagne l'utilise, même arrêté.
+
+## Avant tout nettoyage (obligatoire)
+
+1. Lire **tous les registres encore pertinents** (jour courant + précédents tant que les ressources listées peuvent exister ; en pratique tant qu'aucun teardown/compaction n'a été vérifié). État courant = **dernier événement par identité** ; conflit → `ask`.
+2. Ne supprimer que les ressources `safe_to_delete":"yes"` **et** vérifiées présentes/exited au moment T (`docker inspect`) **et** sans bail parent/autre agent actif.
+3. `no` et `ask` : jamais supprimés automatiquement — lister et demander arbitration user.
+4. Les ressources **sans ligne de registre** restent régies par `infra-safety.mdc` et `local-runtime-lifecycle.mdc` : non possédées, non touchées.
+5. Aucun prune global (`system/container/volume/image/builder prune`) n'est autorisé comme raccourci même si un registre existe ; le registre **complète** les règles existantes, il ne les remplace pas.
+
+## Rédaction (tous les agents)
+
+- Image de base téléchargée pour un run (`rust:1.94-slim-bookworm`, `postgres:15-alpine`…) → ligne `kind":"image"` avec `safe_to_delete` honnête (souvent `ask` : réutilisable par d'autres runs).
+- Volume nommé créé → ligne `kind":"volume"` ; les caches toolchain sont typiquement `no`.
+- Conteneur testcontainer de fixture → le harness tient déjà son ledger JSONL : l'agent référence ce ledger dans `session_ledger` **et** ajoute sa ligne au registre (le registre est la vue agrégée multi-agents).
+
+## Application
+
+- Parent : vérifier à la réception du travail d'un worker que le registre existe dès qu'une création Docker est annoncée.
+- Worker : ne pas rendre la main sans avoir écrit/actualisé ses lignes ; « pas de ligne de registre » = retour incomplet.
+- Vérification finale de session : lecture des registres → ressources `yes` restantes à arrêter/supprimer, `no`/`ask` restantes listées dans la réponse finale avec périmètre et raison.
