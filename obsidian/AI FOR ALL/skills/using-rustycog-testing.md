@@ -24,7 +24,7 @@ provenance:
   inferred: 0.08
   ambiguous: 0.04
 created: 2026-04-15T17:15:56.0808743Z
-updated: 2026-09-12T10:20:00Z
+updated: 2026-10-05T00:00:00Z
 ---
 
 # Using RustyCog Testing
@@ -46,6 +46,13 @@ Use this guide when setting up integration tests with `<!-- [[projects/rustycog/
 - For outbound HTTP collaborators, wrap [[projects/rustycog/references/isolated-wiremock-fixture]] (`new()` singleton or `isolated()`) in a typed `MockService` — see [[skills/stubbing-http-with-wiremock]].
 - Opt in with `has_openfga() == true` and `openfga_authorization_model_json()`. Keep `openfga.cache_ttl_seconds = 0` so grant→revoke is not served from `CachedPermissionChecker`. `OpenFgaMockService` is crate-level only — not for Hive / Telegraph / Manifesto HTTP ITs.
 - Keep transport-heavy tests separate from fast unit tests to preserve local iteration speed.
+
+## Handle DB et runner (2026-10-05)
+
+- **DB handle by borrow.** Helpers take the connection as `impl Borrow<DatabaseConnection> + Send` (or a plain `&DatabaseConnection`). No `db.clone()` and no `Arc::new(db.clone())`: the sea-orm `mock` feature removes `Clone`, so a cloned handle breaks the no-mock build. `Arc` only for genuine multi-task sharing.
+- **Shared pool, clean transaction per test.** Tests share the pool but write through their own `begin_write_transaction`, keeping explicit state per `#[serial]` case.
+- **Runner env at STEP level.** Every IT run sets `RUSTYCOG_TEST_RUNNER_MODE`, `RUSTYCOG_TEST_RUN_ID`, and `RUSTYCOG_TEST_LEDGER_DIR` at the STEP level before the suite starts.
+- **OAuth consumption commands are one-shot.** `GenericCommandService::execute_once` — at-most-once semantics, never a `Clone` of the proof; a retry is a new START, not a re-run of the same handler.
 
 ## Common Pitfalls
 

@@ -42,7 +42,7 @@ provenance:
   inferred: 0.14
   ambiguous: 0.08
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-09-20T10:35:00Z
+updated: 2026-10-05T00:00:00Z
 ---
 
 # Integration Testing with Real Infrastructure
@@ -95,3 +95,13 @@ Décision canonique (12 sept. 2026) : [[projects/aiforall/decisions/0200-strateg
 - [[skills/stubbing-http-with-wiremock]] - How to add a new wiremock-backed collaborator fixture.
 - [[skills/creating-testcontainer-fixtures]] - How to add a new real-protocol Docker-backed fixture (Postgres, LocalStack, Kafka, MailHog, Redis, ...).
 - [[concepts/structured-service-configuration]] - Random ports and typed config matter in both suites.
+
+## Conventions 2026-10-05 (campagne IAM)
+
+Conventions ratified during the IAM campaign, layered on the harness rules above:
+
+- **DB by borrow, never by clone.** Code takes the connection as `impl Borrow<DatabaseConnection> + Send` (or a plain `&DatabaseConnection`). `db.clone()` and `Arc::new(db.clone())` are forbidden: the sea-orm `mock` feature removes `Clone`, so a cloned handle breaks the no-mock build. Reach for `Arc` only when a handle is genuinely shared across tasks.
+- **Shared pool, own transaction.** Tests share the pool but each writes through its own `begin_write_transaction`, so every `#[serial]` case starts from explicit state instead of leaking writes into its neighbors.
+- **Fixture ownership by returned ID.** Testcontainer fixtures are owned through the ID returned at creation — never by name. No adoption, no eviction by name or label: a name collision is a STOP-and-fail, and a container created opaquely without an ID is UNKNOWN, not a cleanup candidate. The recipe in [[skills/creating-testcontainer-fixtures]] follows this contract.
+- **Runner env at STEP level.** Any IT run sets `RUSTYCOG_TEST_RUNNER_MODE`, `RUSTYCOG_TEST_RUN_ID`, and `RUSTYCOG_TEST_LEDGER_DIR` at the STEP level before the suite starts — not from inside a test body.
+- **Replay the exact CI commands locally before push.** The `build --locked --all-targets` commands from the CI matrix plus the `clippy` invocation of the Sonar job — nothing less permissive — are the pre-push gate.

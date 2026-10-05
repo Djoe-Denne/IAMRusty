@@ -14,7 +14,7 @@ provenance:
   inferred: 0.1
   ambiguous: 0.06
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-04-23T19:10:00Z
+updated: 2026-10-05T00:00:00Z
 ---
 
 # IAMRusty Testing and Fixtures
@@ -38,6 +38,11 @@ This page narrows `[[projects/rustycog/references/rustycog-testing]]` to the way
 - The test harness compiles `iam-infra` with the [[concepts/test-only-cargo-feature-relaxation|`test-relaxed-jwt`]] Cargo feature on (activated via `services/IAMRusty/Cargo.toml`'s dev-dep entry), which lifts the RS256-only constructor checks in `RegistrationTokenServiceImpl` and `JwtTokenService` so the in-tree HS256 `test.toml` boots the suite without committing RSA PEM material. See [[projects/iamrusty/concepts/jwt-algorithm-enforcement-and-test-relaxation]] for the production guards this relaxes.
 - The `tests/utils/jwt.rs` helpers no longer duplicate the RS256 check — they pass whatever algorithm the test config produced through to the (now relaxed) production constructor, which is the single authoritative gate.
 - Tests asserting JWT header `alg` (e.g. `tests/auth_username_flow_part2.rs::test_registration_token_has_correct_rsa_signature`) accept either `RS*` or `HS*`, because the production-only RS256 invariant is not expressible while the feature is on.
+
+## Bootstrap de clé de signature (post-178a4cb)
+
+- IAM tests must generate a **real RSA 2048 PEM keypair** for signing-key material (see `services/IAMRusty/tests/common.rs`, which builds `rsa::RsaPrivateKey::new(..., 2048)` into a `SecretStorage::PemFile` and names it with `iam_domain::entity::signing_key::opaque_kid()`). The post-178a4cb path is fail-closed: invalid material is rejected outright with `invalid signing key material` — there is no test-only bypass to feed it junk keys.
+- Keep the generated PEM files alive for the whole lifetime of the listener. The JWKS/token path holds references to the key material, so dropping the temp files mid-suite breaks every request after the first.
 
 ## Open Questions
 

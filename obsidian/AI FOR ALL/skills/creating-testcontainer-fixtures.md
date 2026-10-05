@@ -17,13 +17,13 @@ sources:
   - services/IAMRusty/config/test.toml
   - services/Manifesto/config/test.toml
 summary: >-
-  Recipe for adding a real Docker-backed testcontainer fixture, including shared vs service-local placement, stale-container cleanup, and port = 0 config wiring.
+  Recipe for adding a real Docker-backed testcontainer fixture, including shared vs service-local placement, ownership-by-ID container lifecycle, and port = 0 config wiring.
 provenance:
   extracted: 0.74
   inferred: 0.22
   ambiguous: 0.04
 created: 2026-04-23T19:30:00Z
-updated: 2026-08-31T09:45:00Z
+updated: 2026-10-05T00:00:00Z
 ---
 
 # Creating Testcontainer Fixtures
@@ -109,26 +109,25 @@ This is the heart of the fixture. The pattern from `sqs_testcontainer.rs`:
 
 1. Acquire the singleton mutex.
 2. If a container is already running, return it (plus the resolved config).
-3. Otherwise, **call `cleanup_existing_<thing>_container().await` first** to evict any stale container left from a previous interrupted run.
+3. Otherwise, create the container and **capture the ID it returns** — that returned ID is the only handle this fixture ever uses to touch the container (see 2d).
 4. Resolve a port (see Step 3).
 5. Build the `GenericImage` with `with_container_name("<service>_test-<thing>")`, env vars, and `with_mapped_port(...)` to pin the host side.
 6. `start().await` the container.
 7. Stash it in the singleton slot, return.
 
-### 2d. Defensive Docker-level cleanup
+### 2d. Ownership by returned container ID (no eviction by name)
 
-```rust
-async fn cleanup_existing_<thing>_container() {
-    use std::process::Command;
-    let containers = ["<service>_test-<thing>"];
-    for container_name in &containers {
-        let _ = Command::new("docker").args(&["stop", container_name]).output();
-        let _ = Command::new("docker").args(&["rm", "-f", container_name]).output();
-    }
-}
-```
+The old pattern — a `cleanup_existing_<thing>_container()` that `docker stop`'d / `docker rm -f`'d containers by name — is **gone**. Repo infra rules forbid deleting resources we do not own, and a name- or label-based sweep can only ever hit something another suite, task, or worker created.
 
-This is the safety net for `Ctrl-C` and panics in startup — the next `cargo test` would otherwise fail to bind because the previous container is still grabbing the port. The container name **must** be unique per fixture; SQS uses `iam_test-localstack-sqs`, MailHog uses `telegraph_test-smtp`. Reusing a name across fixtures is the easiest way to cause confusing cross-suite failures.
+The contract instead:
+
+1. **Create** the container through the fixture API.
+2. **Capture the returned ID** — the `ContainerAsync` handle (or its raw Docker ID) handed back at creation.
+3. **Manipulate only that ID**: `stop()` / `rm()` go through the handle you captured, never through `docker stop <name>`, `docker rm <name>`, or a name/label filter sweep.
+4. **Name collision = STOP and fail.** If `start()` fails because a container with the same name already exists, the run aborts with an explicit error. It never evicts the pre-existing container.
+5. **Opaque creation without an ID = UNKNOWN, never adopted.** A container discovered at runtime with no captured ID (a leftover from an interrupted run) is `UNKNOWN`: log it and fail — or route around it — but do not adopt, reuse, or remove it.
+
+Reclaiming a leftover container is the runtime owner's job (session lifecycle ledger), not something a fixture does silently. Container names still **must** be unique per fixture (`<service>_test-<thing>` — SQS uses `iam_test-localstack-sqs`, MailHog `telegraph_test-smtp`) so a collision is detectable and fails loudly instead of silently aliasing a sibling fixture's resource.
 
 ### 2e. Typed client API
 
@@ -203,8 +202,8 @@ LocalStack ships an `/_localstack/health` endpoint, MailHog uses `/api/v1/messag
 
 ## Common Pitfalls
 
-- **Reusing a container name across fixtures.** The defensive Docker cleanup in step 2d uses an exact-match name list; a duplicated name means stopping and removing a sibling fixture's container by mistake. Name uniquely (`<service>_test-<thing>`).
-- **Forgetting to call `cleanup_existing_<thing>_container().await` before starting.** A `Ctrl-C` between test runs leaves the old container holding the port — the next run fails with a confusing "address already in use" instead of cleanly evicting the stale one.
+- **Evicting or adopting a container by name or label.** The only permitted lifecycle operations target the ID returned by your own `create`. A name collision is a STOP-and-fail condition, and a name-less leftover is UNKNOWN — never a cleanup candidate. (Ownership contract, 2026-10-05 — see step 2d.)
+- **Ignoring a name collision instead of failing.** If `start()` reports the fixture's name is already taken, the run must stop with an explicit error. Silently reusing the pre-existing container means asserting against infrastructure you do not own.
 - **Holding only a clone of the inner client without the singleton.** If the only `Arc<Test<Thing>Container>` reference goes out of scope during teardown, the container drops and the next test has to start a fresh one. Keep the `OnceLock` slot populated for the whole test process.
 - **Leaving `port = 0` *and* hard-coding the port elsewhere.** The whole point of `port = 0` is the fixture publishes the resolved port via env. If a different config file or a `const` still has `1025` baked in, the service-under-test connects to the wrong place and the test sees no traffic.
 - **Keeping a single `api_url` field for a random-port fixture.** Random host ports need a typed `port` slot plus `actual_port()` cache. Use `api_url()` as a computed method, not as the stored config field.
