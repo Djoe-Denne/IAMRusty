@@ -479,9 +479,24 @@ mod tests {
     /// callers skip instead of keygenning oversize material. The key material
     /// is never logged.
     fn load_rsa8192_pair() -> Option<(String, String)> {
-        use rsa::pkcs8::{DecodePrivateKey, EncodePublicKey, LineEnding};
+        let encoded = std::env::var("IAMRUSTY_TEST_RSA8192_PEM_B64").ok();
+        load_rsa8192_pair_from(
+            encoded.as_deref(),
+            std::env::var("CI").is_ok_and(|v| v == "true"),
+        )
+    }
 
-        let encoded = std::env::var("IAMRUSTY_TEST_RSA8192_PEM_B64").ok()?;
+    fn load_rsa8192_pair_from(encoded: Option<&str>, required: bool) -> Option<(String, String)> {
+        use rsa::pkcs8::{DecodePrivateKey, EncodePublicKey, LineEnding};
+        use rsa::traits::PublicKeyParts;
+
+        let Some(encoded) = encoded.filter(|value| !value.trim().is_empty()) else {
+            assert!(
+                !required,
+                "RSA8192 probe material must be provisioned in CI"
+            );
+            return None;
+        };
         let pem_bytes =
             base64::Engine::decode(&base64::engine::general_purpose::STANDARD, encoded.trim())
                 .expect("IAMRUSTY_TEST_RSA8192_PEM_B64 must be valid base64");
@@ -489,11 +504,44 @@ mod tests {
             .expect("IAMRUSTY_TEST_RSA8192_PEM_B64 must decode to a UTF-8 private PEM");
         let private_key = rsa::RsaPrivateKey::from_pkcs8_pem(&private)
             .expect("IAMRUSTY_TEST_RSA8192_PEM_B64 must contain a PKCS#8 private PEM");
+        assert_eq!(
+            private_key.n().bits(),
+            8192,
+            "RSA8192 probe requires an 8192-bit key"
+        );
         let public = private_key
             .to_public_key()
             .to_public_key_pem(LineEnding::LF)
             .expect("rsa8192 public PEM encode");
         Some((private, public))
+    }
+
+    #[test]
+    fn rsa8192_loader_without_local_material_is_explicitly_not_exercised() {
+        assert!(load_rsa8192_pair_from(None, false).is_none());
+        assert!(load_rsa8192_pair_from(Some(" \t"), false).is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "RSA8192 probe material must be provisioned in CI")]
+    fn rsa8192_loader_requires_ci_material() {
+        let _ = load_rsa8192_pair_from(None, true);
+    }
+
+    #[test]
+    #[should_panic(expected = "RSA8192 probe material must be provisioned in CI")]
+    fn rsa8192_loader_rejects_empty_ci_material() {
+        let _ = load_rsa8192_pair_from(Some(" \t"), true);
+    }
+
+    #[test]
+    #[should_panic(expected = "RSA8192 probe requires an 8192-bit key")]
+    fn rsa8192_loader_rejects_valid_but_wrong_size_material() {
+        let encoded = base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            include_str!("../../../config/keys/test-platform.pem"),
+        );
+        let _ = load_rsa8192_pair_from(Some(&encoded), true);
     }
 
     #[tokio::test]

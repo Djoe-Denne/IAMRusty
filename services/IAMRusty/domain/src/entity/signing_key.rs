@@ -847,6 +847,9 @@ mod admission_tests {
         candidate.kid = opaque_kid();
         candidate.created_at += chrono::Duration::hours(1);
         candidate.updated_at += chrono::Duration::hours(1);
+        // The checked-in fixture is already CRLF; do not manufacture CRCRLF.
+        candidate.public_key = candidate.public_key.replace("\r\n", "\n");
+        assert!(same_effective_signing_binding(&original, &candidate));
         candidate.public_key = candidate.public_key.replace('\n', "\r\n");
         assert!(same_effective_signing_binding(&original, &candidate));
         for mutant in 0..7 {

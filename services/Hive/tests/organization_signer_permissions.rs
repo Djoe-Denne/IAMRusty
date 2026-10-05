@@ -5,7 +5,9 @@ mod common;
 use common::{fixtures::db::DbFixtures, HiveTestFixture, Permission, ResourceRef, Subject};
 use futures::FutureExt;
 use rustycog::testing::{
-    http::jwt::{create_jwt_token_with_secret, TEST_JWT_AUDIENCE, TEST_JWT_ISSUER},
+    http::jwt::{
+        create_jwt_token_with_secret, TEST_HS256_SECRET, TEST_JWT_AUDIENCE, TEST_JWT_ISSUER,
+    },
     wiremock::MockServerFixture,
 };
 use serial_test::serial;
@@ -86,16 +88,18 @@ async fn configure_requires_admin_on_the_exact_organization_before_any_iam_rpc()
         let other = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner)
             .await
             .expect("separate organization scope");
-        // Preserve the harness's explicit HS256 test policy, never infer it from
-        // names or mint an arbitrary-issuer JWT. Other policies need a root codec.
-        assert!(
-            auth.jwt.jwks_url.is_none(),
+        // Preserve the harness's explicit dual-verifier test policy. This request
+        // uses its configured HS256 branch, never an arbitrary issuer or mesh metadata.
+        assert_eq!(
+            auth.jwt.jwks_url.as_deref(),
+            Some("http://127.0.0.1:8081/iam/.well-known/jwks.json"),
             "this helper must report its actual explicit test verifier configuration"
         );
-        assert!(
-            auth.jwt.allowed_algorithms.is_empty()
-                || auth.jwt.allowed_algorithms == vec!["HS256".to_owned()]
+        assert_eq!(
+            auth.jwt.allowed_algorithms,
+            vec!["RS256".to_owned(), "HS256".to_owned()]
         );
+        assert_eq!(auth.jwt.hs256_secret.as_deref(), Some(TEST_HS256_SECRET));
         assert_eq!(auth.jwt.issuer.as_deref(), Some(TEST_JWT_ISSUER));
         assert_eq!(auth.jwt.audience.as_deref(), Some(TEST_JWT_AUDIENCE));
         assert!(

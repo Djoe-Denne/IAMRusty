@@ -75,7 +75,7 @@ impl PluginEndpointLocator for StaticPluginLocator {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DigestDnsPluginLocator;
 
-/// Digest-based routing in one validated Kubernetes namespace.
+/// Digest-based routing in one namespace validated as a DNS-1123 label.
 #[derive(Debug, Clone)]
 pub struct NamespacedDigestDnsPluginLocator {
     namespace: String,

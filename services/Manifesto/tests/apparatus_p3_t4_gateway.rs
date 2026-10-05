@@ -53,7 +53,7 @@ fn create_platform_grant_snapshot_jwt() -> String {
 
 fn workspace_root() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
+        .join("../..")
         .canonicalize()
         .expect("workspace lisible")
 }

@@ -3,7 +3,7 @@
 use std::sync::LazyLock;
 
 use regex::Regex;
-use tracing::log::{debug, warn};
+use tracing::{debug, warn};
 use validator::ValidationError;
 
 /// Compile a static validation pattern.

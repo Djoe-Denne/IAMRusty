@@ -5,10 +5,10 @@
 
 use std::path::{Path, PathBuf};
 
-/// Racine du workspace (`services/Manifesto/../`).
+/// Racine du workspace (`services/Manifesto/../../`).
 fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
+        .join("../..")
         .canonicalize()
         .expect("workspace lisible")
 }

@@ -238,7 +238,7 @@ pub struct PluginHopConfig {
     /// Formule DNS Kind `plugin-{32hex}.apparatus-plugins.svc:8080` (ADR-0605).
     #[serde(default)]
     pub use_dns_formula: bool,
-    /// Kubernetes namespace for digest DNS routing; never trimmed or defaulted when explicit.
+    /// Plugin service namespace for digest DNS routing; never trimmed or defaulted when explicit.
     #[serde(default = "default_plugin_namespace")]
     pub namespace: String,
 }

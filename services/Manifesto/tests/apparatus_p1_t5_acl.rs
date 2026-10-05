@@ -24,7 +24,8 @@ fn create_test_jwt_token(user_id: Uuid) -> String {
 #[test]
 fn t5_model_has_no_new_apparatus_type() {
     // Garde : aucun nouveau type FGA (escalade obligatoire sinon).
-    let model = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../openfga/model.fga");
+    let model =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ops/openfga/model.fga");
     let content = std::fs::read_to_string(&model).expect("model.fga lisible");
     let lower = content.to_lowercase();
     assert!(

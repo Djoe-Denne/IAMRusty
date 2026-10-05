@@ -835,9 +835,17 @@ mod tests {
 
     #[tokio::test]
     async fn rotate_http_promotes_active_and_retires_previous() {
+        use rand::{rngs::StdRng, SeedableRng};
+        use rsa::pkcs8::{EncodePublicKey, LineEnding};
+
         let org_id = Uuid::new_v4();
         let old_pub = include_str!("../../../config/keys/test-platform.pub");
-        let new_pub = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1LfVLPHCozMxH2Mo\n4lgOEePzNm0tRgeLezV6ffAt0gunVTLw7onLRnrq0/IzW7yWR7QkrmBL7jTKEn5u\n+qKhbwKfBstIs+bMY2Zkp18gnTxKLxoS2tFczGkPLPgizskuemMghRniWaoLcyeh\nkd3qqGElvW/VDL5AaWTg0nLVkjRo9z+40RQzuVaE8AkAFmxZzow3x+VJYKdjykkJ\n0iT9wCS0DRZSjGtGhQxZHXcEOTIKK9EHi4OUVzy/F+bs/bTW9sZ/L/YRt1DVnGGt\nY5k4EDEbOQPd1cq61Yx0ZQIDAQAB\n-----END PUBLIC KEY-----\n";
+        // Admission requires valid RSA material; the old literal was truncated.
+        let next = rsa::RsaPrivateKey::new(&mut StdRng::seed_from_u64(857), 2048).unwrap();
+        let new_pub = next
+            .to_public_key()
+            .to_public_key_pem(LineEnding::LF)
+            .unwrap();
         let registry = Arc::new(FakeRegistry::default());
         let active = sample_org_key(org_id, "http://127.0.0.1/iam/orgs/acme", old_pub);
         registry.insert(&active).await.unwrap();

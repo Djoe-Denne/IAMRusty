@@ -280,6 +280,10 @@ jobs:
           IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
         run: |
           set +e
+          if [[ "${{ matrix.service }}" == "IAMRusty" && -z "${IAMRUSTY_TEST_RSA8192_PEM_B64//[[:space:]]/}" ]]; then
+            echo "IAM RSA8192 probe material is required in CI" >&2
+            exit 1
+          fi
           cargo llvm-cov ${{ matrix.package_args }} --locked --no-report --no-fail-fast --tests
           test_status=$?
           set -e
@@ -385,6 +389,10 @@ jobs:
           IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
         run: |
           set +e
+          if [[ "${{ matrix.service }}" == "IAMRusty" && -z "${IAMRUSTY_TEST_RSA8192_PEM_B64//[[:space:]]/}" ]]; then
+            echo "IAM RSA8192 probe material is required in CI" >&2
+            exit 1
+          fi
           cargo llvm-cov ${{ matrix.package_args }} --locked --no-report --no-fail-fast --lib --bins
           test_status=$?
           set -e

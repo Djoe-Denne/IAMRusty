@@ -96,7 +96,9 @@ mod tests {
         let public_a = include_str!("../../../config/keys/test-platform.pub");
         assert!(PemSigningProvider::new(private_b.as_str(), public_b.clone()).is_ok());
         assert!(PemSigningProvider::new(private_a, public_a).is_ok());
-        assert!(PemSigningProvider::new(private_a, public_a.replace("\n", "\r\n")).is_ok());
+        let public_a_lf = public_a.replace("\r\n", "\n");
+        assert!(PemSigningProvider::new(private_a, &public_a_lf).is_ok());
+        assert!(PemSigningProvider::new(private_a, public_a_lf.replace('\n', "\r\n")).is_ok());
         for (private, public) in [
             (private_b.as_str(), public_a),
             (private_a, public_b.as_str()),

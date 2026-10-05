@@ -590,7 +590,7 @@ mod attach_from_catalog_tests {
             name: "Reference KV".to_owned(),
             description: None,
             version: "1.0.0".to_owned(),
-            endpoint: "http://127.0.0.1:8080/lazaret".to_owned(),
+            endpoint: "http://127.0.0.1:8080/catalog-fixture".to_owned(),
             digest: digest.map(ToOwned::to_owned),
             declared_capabilities: declared
                 .map(|caps| caps.into_iter().map(ToOwned::to_owned).collect()),

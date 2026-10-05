@@ -84,7 +84,8 @@ async fn count_i64(
 
 #[test]
 fn t3_openfga_model_has_no_apparatus_type() {
-    let model = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../openfga/model.fga");
+    let model =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ops/openfga/model.fga");
     let content = std::fs::read_to_string(&model).expect("model.fga lisible");
     assert!(
         !content.to_lowercase().contains("apparatus"),
