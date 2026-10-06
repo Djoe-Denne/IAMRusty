@@ -18,7 +18,8 @@ use serial_test::serial;
 #[tokio::test]
 #[serial]
 async fn emission_fence_reads_fresh_committed_primary_state_not_the_initial_active_object() {
-    let key = registry::registry_key(SigningKeyStatus::Active, None);
+    let mut key = registry::registry_key(SigningKeyStatus::Active, None);
+    key.kid = iam_domain::entity::signing_key::opaque_kid();
     let (fixture, _, _) = common::setup_test_server_with_signing_keys(&[key.clone()])
         .await
         .expect("writer registry fixture");

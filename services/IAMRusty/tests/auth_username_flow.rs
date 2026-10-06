@@ -15,6 +15,18 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use url::Url;
 
+fn browser_cookie(response: &reqwest::Response) -> &str {
+    response
+        .headers()
+        .get("set-cookie")
+        .expect("real OAuth START must set the browser binding")
+        .to_str()
+        .expect("cookie header")
+        .split(';')
+        .next()
+        .expect("cookie pair")
+}
+
 fn decode_jwt_header(jwt: &str) -> Result<Value, Box<dyn std::error::Error>> {
     let header_encoded = jwt.split('.').next().ok_or("Invalid JWT format")?;
     let decoded_bytes = match general_purpose::URL_SAFE_NO_PAD.decode(header_encoded) {
@@ -437,7 +449,13 @@ async fn test_login_completed_user_returns_200_with_tokens() {
     let header = decode_jwt_header(access_token).expect("jwt header");
     assert_eq!(header["alg"], "RS256");
     assert_eq!(header["typ"], "aiforall-access+jwt");
-    assert_eq!(header["kid"], "test-rs256-kid-01");
+    let (codec, _) = common::fixture_jwt_codec(&fixture)
+        .await
+        .expect("live shared signer");
+    assert_eq!(
+        header["kid"],
+        codec.signing_kid().expect("registered RSA kid")
+    );
 }
 
 #[tokio::test]
@@ -630,6 +648,7 @@ async fn test_oauth_callback_new_user_returns_202_with_registration_token() {
     // Simulate OAuth callback for new user
     let callback_response = client
         .get(format!("{base_url}/api/auth/github/callback"))
+        .header(reqwest::header::COOKIE, browser_cookie(&start_response))
         .query(&[("code", "test_auth_code"), ("state", state)])
         .send()
         .await
@@ -696,6 +715,7 @@ async fn test_registration_token_contains_oauth_provider_info() {
     // Complete OAuth callback
     let callback_response = client
         .get(format!("{base_url}/api/auth/github/callback"))
+        .header(reqwest::header::COOKIE, browser_cookie(&start_response))
         .query(&[("code", "test_auth_code"), ("state", state)])
         .send()
         .await
@@ -1425,6 +1445,7 @@ async fn test_complete_oauth_first_flow() {
     // Complete OAuth callback
     let callback_response = client
         .get(format!("{base_url}/api/auth/github/callback"))
+        .header(reqwest::header::COOKIE, browser_cookie(&start_response))
         .query(&[("code", "test_auth_code"), ("state", state)])
         .send()
         .await

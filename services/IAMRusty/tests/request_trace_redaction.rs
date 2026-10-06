@@ -53,7 +53,7 @@ async fn real_request_logs_do_not_expose_credentials_raw_oauth_urls_states_or_ve
         let request_subscriber = subscriber.clone();
         // Install on each real request future, not a global subscriber/reset.
         // Include a nonsecret witness so an empty capture cannot pass.
-        let router = app.router().layer(axum::middleware::from_fn(move |request: axum::extract::Request, next: axum::middleware::Next| {
+        let router = axum::Router::new().nest(iam_http_server::SERVICE_PREFIX, app.router()).layer(axum::middleware::from_fn(move |request: axum::extract::Request, next: axum::middleware::Next| {
             let subscriber = request_subscriber.clone();
             async move { tracing::debug!(event="e4_request_capture", "request capture witness"); next.run(request).await }
                 .with_subscriber(subscriber)

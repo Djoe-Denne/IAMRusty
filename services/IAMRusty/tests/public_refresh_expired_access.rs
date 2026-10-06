@@ -18,7 +18,8 @@ use serial_test::serial;
 #[tokio::test]
 #[serial]
 async fn expired_access_is_rejected_by_me_but_cannot_block_public_persisted_refresh() {
-    let platform = registry::registry_key(SigningKeyStatus::Active, None);
+    let mut platform = registry::registry_key(SigningKeyStatus::Active, None);
+    platform.kid = iam_domain::entity::signing_key::opaque_kid();
     let (fixture, base, client) = common::setup_test_server_with_signing_keys(&[platform.clone()])
         .await
         .expect("actual published RS256 platform registry");

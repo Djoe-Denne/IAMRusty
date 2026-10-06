@@ -178,7 +178,8 @@ async fn spawn_server(
     let app = common::build_test_iam_app(fixture, security)
         .await
         .expect("actual IAM core/security builder");
-    owned_task::spawn(async move { serve_router(app.router(), config).await })
+    let router = axum::Router::new().nest(iam_http_server::SERVICE_PREFIX, app.router());
+    owned_task::spawn(async move { serve_router(router, config).await })
 }
 
 async fn wait_until_ready(

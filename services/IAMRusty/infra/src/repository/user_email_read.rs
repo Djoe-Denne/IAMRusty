@@ -58,7 +58,7 @@ impl UserEmailReadRepository for UserEmailReadRepositoryImpl {
     }
 
     async fn find_by_email(&self, email: &str) -> Result<Option<DomainUserEmail>, Self::Error> {
-        debug!("Reading user email by email: {}", email);
+        debug!("Reading user email by address");
         let user_email = UserEmails::find()
             .filter(user_emails::Column::Email.eq(email))
             .one(self.db.as_ref())

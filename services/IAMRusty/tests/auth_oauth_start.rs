@@ -591,9 +591,10 @@ async fn idp_connect_rejects_invalid_hmac_with_401() {
     let idp = IdpConnectFixtures::service().await;
     idp.mock_github_happy_arthur().await;
 
-    let connector = HttpIdpConnector::new(
+    let connector = HttpIdpConnector::with_security_mode(
         format!("{}/github-connect", idp.base_url()),
         "wrong-hmac-secret!!",
+        iam_configuration::SecurityMode::IsolatedTest,
     )
     .expect("wrong secret still meets minimum length");
 

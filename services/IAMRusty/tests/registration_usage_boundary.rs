@@ -18,7 +18,8 @@ use serial_test::serial;
 #[tokio::test]
 #[serial]
 async fn password_and_oauth_registration_preserve_real_24h_claims_and_cannot_be_account_bearers() {
-    let key = registry::registry_key(SigningKeyStatus::Active, None);
+    let mut key = registry::registry_key(SigningKeyStatus::Active, None);
+    key.kid = iam_domain::entity::signing_key::opaque_kid();
     let (fixture, base, client) = common::setup_test_server_with_signing_keys(&[key.clone()])
         .await
         .expect("actual writer-bound RS256 registration codec");

@@ -49,11 +49,11 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Capture {
     }
 }
 impl Capture {
-    async fn event(&self, event: &str) -> bool {
+    async fn event_since(&self, event: &str, offset: usize) -> bool {
         tokio::time::timeout(Duration::from_secs(10), async {
             loop {
                 let notified = self.changed.notified();
-                if String::from_utf8_lossy(&self.bytes.lock().expect("capture lock"))
+                if String::from_utf8_lossy(&self.bytes.lock().expect("capture lock")[offset..])
                     .contains(event)
                 {
                     break;
@@ -69,7 +69,7 @@ impl Capture {
     }
 }
 
-async fn expired_row(db: &sea_orm::DatabaseConnection) -> uuid::Uuid {
+async fn expired_row(db: &impl ConnectionTrait) -> uuid::Uuid {
     let id = uuid::Uuid::new_v4();
     db.execute(Statement::from_sql_and_values(DatabaseBackend::Postgres,
         "INSERT INTO oauth_transactions(id,nonce_hash,state_hash,browser_nonce_hash,provider,operation,redirect_uri,expires_at,pkce_verifier) VALUES ($1,$2,$3,$4,'github','login','http://127.0.0.1/callback',NOW()-INTERVAL '1 minute','SentinelABC-expired-PKCE-verifier')",
@@ -84,14 +84,17 @@ async fn real_cleanup_failure_is_observable_redacted_and_retries_after_writer_re
     let (fixture, _, _) = common::setup_test_server().await.expect("Postgres harness");
     fixture_cleanup::run(&fixture, async {
     let db = fixture.db();
-    let id = expired_row(db.as_ref()).await;
+    // Publish the row and its failure seam together: the normal app actor is already live.
+    let transaction = db.begin().await.expect("primary fixture transaction");
+    let id = expired_row(&transaction).await;
     let name = format!("test_cleanup_{}", uuid::Uuid::new_v4().simple());
-    db.execute_unprepared(&format!("CREATE FUNCTION {name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF OLD.id='{id}' THEN RAISE EXCEPTION 'SentinelABC-test-storage-error'; END IF; RETURN OLD; END $$"))
+    transaction.execute_unprepared(&format!("CREATE FUNCTION {name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF OLD.id='{id}' THEN RAISE EXCEPTION 'SentinelABC-test-storage-error'; END IF; RETURN OLD; END $$"))
         .await.expect("fixture-owned purge error seam");
-    if db.execute_unprepared(&format!("CREATE TRIGGER {name} BEFORE DELETE ON oauth_transactions FOR EACH ROW EXECUTE FUNCTION {name}()")).await.is_err() {
-        db.execute_unprepared(&format!("DROP FUNCTION {name}()")).await.expect("cleanup unused seam");
+    if transaction.execute_unprepared(&format!("CREATE TRIGGER {name} BEFORE DELETE ON oauth_transactions FOR EACH ROW EXECUTE FUNCTION {name}()")).await.is_err() {
+        transaction.rollback().await.expect("rollback unused seam and row");
         panic!("unable to install fixture error seam");
     }
+    transaction.commit().await.expect("publish protected expired row");
     let actor = OAuthTransactionCleanup::new(
         Arc::new(SeaOrmOAuthTransactionWriteRepository::new(db.clone())),
         OAuthTransactionCleanupPolicy {
@@ -109,13 +112,15 @@ async fn real_cleanup_failure_is_observable_redacted_and_retries_after_writer_re
     let (stop, receive) = tokio::sync::watch::channel(false);
     let mut task =
         owned_task::spawn(async move { actor.run(receive).await }.with_subscriber(subscriber));
-    let failed = capture.event("oauth_cleanup_failure").await;
+    let failed = capture.event_since("oauth_cleanup_failure", 0).await;
     let removed = db
         .execute_unprepared(&format!(
             "DROP TRIGGER {name} ON oauth_transactions; DROP FUNCTION {name}()"
         ))
         .await;
-    let recovered = capture.event("oauth_cleanup_success").await;
+    // Retain all bytes for redaction, but require a success newer than seam removal.
+    let recovery_offset = capture.bytes.lock().expect("capture lock").len();
+    let recovered = capture.event_since("oauth_cleanup_success", recovery_offset).await;
     let _ = stop.send(true);
     let joined = tokio::time::timeout(Duration::from_secs(5), &mut task).await;
     if joined.is_err() {

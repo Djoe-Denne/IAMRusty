@@ -59,14 +59,15 @@ audience = "aiforall"
 public_base_url = "http://127.0.0.1:8081"
 jwks_url = "http://127.0.0.1:8081/iam/.well-known/jwks.json"
 allowed_algorithms = ["RS256"]
-oauth_state_secret = "iam-oauth-state-hmac-test"
+# Non-secret fixture provisioned for LocalInsecure's >=32-byte/non-placeholder policy.
+oauth_state_secret = "f01d8a453ed04f9aa8506972c62e7b93d97845b10ca263e74f506d192a8cb657"
 
 # JWT secret configuration using RS256 PEM (test-platform keys)
 [jwt.secret]
 type = "pem_file"
 private_key_path = "config/keys/test-platform.pem"
 public_key_path = "config/keys/test-platform.pub"
-key_id = "test-rs256-kid-01"
+key_id = "924f73728ad442d6b1e7a2b740853f9c"
 
 # ADR-0307: single GCP WIF block for test harness (AWS/Azure covered in iam-infra tests).
 [jwt.workload]

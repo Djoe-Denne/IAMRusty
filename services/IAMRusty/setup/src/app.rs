@@ -402,7 +402,7 @@ where
     let password_service = Arc::new(PasswordService::new());
     let password_service_adapter = Arc::new(PasswordServiceAdapter::new(password_service.clone()));
 
-    let (http_verifier_auth, inline_jwks, token_service, registration_token_service, signer_ctx) =
+    let (http_verifier_auth, _inline_jwks, token_service, registration_token_service, signer_ctx) =
         setup_jwt(&config, db_write.clone(), signing_registry.clone()).await?;
 
     let outbox_unit_of_work = Arc::new(IamOutboxUnitOfWorkImpl::new(
@@ -445,10 +445,12 @@ where
     let registry = CommandRegistryFactory::create_iam_registry(usecases, &config.command);
     let command_service = Arc::new(GenericCommandService::new(Arc::new(registry)));
 
-    // Seed inline JWKS so IAM does not HTTP-call itself before listen.
-    let user_id_extractor =
-        UserIdExtractor::from_config_with_inline_jwks(http_verifier_auth, &inline_jwks)
-            .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {e}"))?;
+    // The configured live publisher is authoritative, including organization
+    // epochs and revocations. An inline-only bootstrap snapshot ignores the URL
+    // and expires after 60 s without any way to refresh. Construction performs
+    // no HTTP request; the first bearer is verified only after listen.
+    let user_id_extractor = UserIdExtractor::new(http_verifier_auth)
+        .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {e}"))?;
 
     // IAM routes are never guarded by `with_permission_on` — IAM is the
     // identity provider, not a resource service — so we plug in an empty

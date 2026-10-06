@@ -2,9 +2,9 @@ use anyhow::Result;
 use base64;
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{Duration, Utc};
-use iam_configuration::{JwtAlgorithm, JwtConfig};
+use iam_configuration::JwtConfig;
 use iam_domain::entity::registration_token::{RegistrationFlow, RegistrationTokenClaims};
-use iam_domain::entity::token::{JwtKeyPair, TokenClaims};
+use iam_domain::entity::token::TokenClaims;
 use iam_domain::port::service::{JwtTokenEncoder, RegistrationTokenService};
 use iam_infra::token::{registration_token_service::RegistrationTokenServiceImpl, JwtTokenService};
 use std::sync::Arc;
@@ -56,24 +56,23 @@ impl FakeJwtCodec {
 }
 
 /// Create a JWT token service from configuration for testing
-fn create_jwt_service_from_config(config: &JwtConfig) -> Result<JwtTokenService, anyhow::Error> {
-    let jwt_algorithm_config = config.create_jwt_algorithm()?;
-
-    let jwt_algorithm = match jwt_algorithm_config {
-        JwtAlgorithm::HS256(secret) => iam_infra::token::JwtAlgorithm::HS256(secret),
-        JwtAlgorithm::RS256(key_pair) => iam_infra::token::JwtAlgorithm::RS256(JwtKeyPair {
-            private_key: key_pair.private_key,
-            public_key: key_pair.public_key,
-            kid: key_pair.kid,
-        }),
+fn create_jwt_service_from_config(config: &JwtConfig) -> Result<Arc<JwtTokenService>> {
+    if config.uses_rsa() {
+        // Preserve compatibility without inventing an Active row: reuse the
+        // actual owned app's provider AND primary writer emission fence.
+        return crate::common::fixture_jwt_codec_from_config(config);
+    }
+    let iam_configuration::JwtAlgorithm::HS256(secret) = config.create_jwt_algorithm()? else {
+        anyhow::bail!("isolated codec requires HMAC configuration");
     };
-
-    Ok(JwtTokenService::with_refresh_expiration(
-        jwt_algorithm,
-        config.expiration_seconds,
-        config.refresh_token_expiration_seconds,
-    )
-    .with_issuer_audience(config.platform_issuer(), config.audience.clone()))
+    Ok(Arc::new(
+        JwtTokenService::with_refresh_expiration(
+            iam_infra::token::JwtAlgorithm::HS256(secret),
+            config.expiration_seconds,
+            config.refresh_token_expiration_seconds,
+        )
+        .with_issuer_audience(config.platform_issuer(), config.audience.clone()),
+    ))
 }
 
 /// Create a registration token service from configuration for testing.
@@ -96,7 +95,7 @@ fn isolated_registration_codec(config: &JwtConfig) -> Result<Arc<JwtTokenService
             "config-only registration helper requires explicit isolated-test HMAC; RSA requires a bound shared codec"
         );
     }
-    Ok(Arc::new(create_jwt_service_from_config(config)?))
+    create_jwt_service_from_config(config)
 }
 
 /// Uses the caller's actual shared signer/primary registry; never invents an Active row.

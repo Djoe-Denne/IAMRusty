@@ -299,6 +299,14 @@ async fn relink_start_requires_platform_auth_but_bound_callback_needs_no_bearer(
         .expect("signup");
     assert_eq!(signup.status(), 202);
     let signup: Value = signup.json().await.expect("signup JSON");
+    // The account contract issues access/refresh only after email verification.
+    // This test targets browser binding, not delivery of the verification email.
+    let verified = fixture.db().execute(Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        "UPDATE user_emails SET is_verified=true WHERE email=$1",
+        ["browser-relink@example.com".into()],
+    )).await.expect("verified platform-account fixture");
+    assert_eq!(verified.rows_affected(), 1);
     let complete = client.post(format!("{base}/api/auth/complete-registration"))
         .json(&json!({"registration_token": signup["registration_token"], "username": "browserrelink"}))
         .send().await.expect("complete");
@@ -312,6 +320,7 @@ async fn relink_start_requires_platform_auth_but_bound_callback_needs_no_bearer(
     let token = complete["access_token"]
         .as_str()
         .expect("platform access token");
+    assert!(!token.is_empty(), "verified account must receive an access token");
     let before = idp.received_requests().await.len();
     assert_eq!(
         client

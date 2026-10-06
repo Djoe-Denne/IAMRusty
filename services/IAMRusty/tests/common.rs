@@ -29,7 +29,7 @@ use tokio::sync::watch;
 struct IamTestListenerLease {
     fixture_db: Arc<sea_orm::DatabaseConnection>,
     config: AppConfig,
-    _app: Arc<IAMRustyApp>,
+    app: Arc<IAMRustyApp>,
     shutdown: watch::Sender<bool>,
     task: tokio::task::JoinHandle<anyhow::Result<()>>,
     _pem_files: Option<Arc<tempfile::TempDir>>,
@@ -59,6 +59,34 @@ fn fixture_writer(fixture: &TestFixture) -> anyhow::Result<Arc<sea_orm::Database
         .ok_or_else(|| anyhow::anyhow!("IAM fixture requires writer DB"))
 }
 
+/// Compatibility seam for config-only access-token helpers. A config cannot
+/// authorize an RSA signer: resolve exactly one live, owned composition root.
+///
+/// # Errors
+/// Rejects missing or ambiguous owned roots instead of inventing a signing epoch.
+pub fn fixture_jwt_codec_from_config(
+    config: &iam_configuration::JwtConfig,
+) -> anyhow::Result<Arc<iam_infra::token::JwtTokenService>> {
+    let leases = listener_leases()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut matching = leases.iter().filter(|lease| {
+        !lease.task.is_finished()
+            && lease.config.jwt.platform_issuer() == config.platform_issuer()
+            && lease.config.jwt.audience == config.audience
+    });
+    let lease = matching
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("RSA token helper requires a live owned IAM app"))?;
+    anyhow::ensure!(
+        matching.next().is_none(),
+        "ambiguous owned IAM signer; pass fixture codec explicitly"
+    );
+    let codec = lease.app.jwt_codec();
+    drop(leases);
+    Ok(codec)
+}
+
 /// Exact live root codec and effective issuer, not another registry/encoder.
 pub async fn fixture_jwt_codec(
     fixture: &TestFixture,
@@ -71,7 +99,7 @@ pub async fn fixture_jwt_codec(
         .iter()
         .find(|lease| Arc::ptr_eq(&db, &lease.fixture_db) && !lease.task.is_finished())
         .ok_or_else(|| anyhow::anyhow!("fixture has no live owned IAM app"))?;
-    Ok((lease._app.jwt_codec(), lease.config.jwt.platform_issuer()))
+    Ok((lease.app.jwt_codec(), lease.config.jwt.platform_issuer()))
 }
 
 pub async fn fixture_signing_registry(
@@ -86,7 +114,7 @@ pub async fn fixture_signing_registry(
         .iter()
         .find(|lease| Arc::ptr_eq(&db, &lease.fixture_db) && !lease.task.is_finished())
         .ok_or_else(|| anyhow::anyhow!("fixture has no live owned IAM app"))?;
-    Ok(lease._app.signing_registry())
+    Ok(lease.app.signing_registry())
 }
 
 /// Public registration/completion creates the account and persisted session using
@@ -385,7 +413,7 @@ async fn start_owned_listener_with_keys(
         .push(IamTestListenerLease {
             fixture_db,
             config,
-            _app: app,
+            app,
             shutdown,
             task,
             _pem_files: pem_files,
@@ -500,7 +528,21 @@ pub async fn build_test_iam_app(
     fixture: &TestFixture,
     security: iam_configuration::security::SecurityConfig,
 ) -> Result<IAMRustyApp, Box<dyn std::error::Error>> {
-    let config = fixture_config_with_security(fixture, Some(security))?;
+    let mut config = fixture_config_with_security(fixture, Some(security))?;
+    // A second root on the same writer must retain its registered signing
+    // binding, not re-bootstrap from the unrelated on-disk default key.
+    let db = fixture_writer(fixture)?;
+    {
+        let leases = listener_leases()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(primary) = leases
+            .iter()
+            .find(|lease| Arc::ptr_eq(&db, &lease.fixture_db) && !lease.task.is_finished())
+        {
+            config.jwt = primary.config.jwt.clone();
+        }
+    }
     Ok(build_app_state_with_event_publisher(
         config,
         mock_publisher(Arc::new(MockEventPublisher::new())),

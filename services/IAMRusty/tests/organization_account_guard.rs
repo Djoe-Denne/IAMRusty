@@ -41,9 +41,10 @@ fn sign(key: &iam_domain::entity::signing_key::SigningKey, victim: Uuid) -> Stri
 #[tokio::test]
 #[serial]
 async fn published_organization_signer_with_victim_sub_cannot_me_link_or_relink() {
-    let platform = registry::registry_key(SigningKeyStatus::Active, None);
+    let mut platform = registry::registry_key(SigningKeyStatus::Active, None);
+    platform.kid = iam_domain::entity::signing_key::opaque_kid();
     let mut organization = registry::registry_key(SigningKeyStatus::Active, Some(Uuid::new_v4()));
-    organization.kid = "actual-published-organization-key".into();
+    organization.kid = iam_domain::entity::signing_key::opaque_kid();
     // Integration must seed REAL writer registry rows, configure RS256/JWKS trust,
     // bind platform issuer from this row and use the actual GET publisher route.
     let (fixture, base, client) =
@@ -109,7 +110,7 @@ async fn published_organization_signer_with_victim_sub_cannot_me_link_or_relink(
             assert_eq!(
                 response.status(),
                 403,
-                "trusted org token must fail the platform account guard"
+                "trusted org token must fail the platform account guard on {route}"
             );
             assert_eq!(
                 idp.received_requests().await.len(),

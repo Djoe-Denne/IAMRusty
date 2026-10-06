@@ -338,7 +338,8 @@ impl JwtConfig {
     /// Auth config for rustycog-http `UserIdExtractor` (RS256 JWKS + optional HS256 window).
     ///
     /// Production / default: `allowed_algorithms=["RS256"]`, `jwks_url` set, no HS256 secret.
-    /// IAM seeds inline JWKS at setup so it does not HTTP-call itself before listen.
+    /// IAM constructs a URL-backed verifier without boot-time I/O; bearer requests
+    /// refresh the authoritative publisher instead of pinning a bootstrap snapshot.
     ///
     /// # Errors
     ///

@@ -127,8 +127,11 @@ async fn transit_probe_signs_and_verifies_challenge() {
 
     let fixture = MockServerFixture::isolated().await;
     let server = fixture.server();
+    let org = uuid::Uuid::new_v4();
+    let key_name = format!("org-{org}-signing");
+    let credential = format!("org-{org}-credential");
     Mock::given(method("POST"))
-        .and(path("/v1/transit/sign/org-acme"))
+        .and(path(format!("/v1/transit/sign/{key_name}")))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "data": { "signature": format!("vault:v1:{sig_b64}") }
         })))
@@ -136,12 +139,12 @@ async fn transit_probe_signs_and_verifies_challenge() {
         .await;
 
     let wi: Arc<dyn WorkloadIdentity> =
-        Arc::new(StaticCredential::from_pair("openbao-token", "s.test-token").expect("pair"));
+        Arc::new(StaticCredential::from_pair(&credential, "s.test-token").expect("pair"));
     let probe = DefaultOrganizationSignerProbe::new(std::env::temp_dir()).with_transit(
         TransitClientConfig {
             base_url: server.uri(),
             workload: wi,
-            token_ref: "openbao-token".into(),
+            token_ref: credential.clone(),
         },
     );
     let now = chrono::Utc::now();
@@ -152,11 +155,11 @@ async fn transit_probe_signs_and_verifies_challenge() {
         trust_scope: TrustScope::Organization,
         issuer: "http://127.0.0.1/iam/orgs/acme".into(),
         provider_type: SigningProviderType::OpenBaoTransit,
-        provider_key_ref: "org-acme".into(),
-        credential_ref: Some("openbao-token".into()),
+        provider_key_ref: key_name,
+        credential_ref: Some(credential),
         public_key: public.to_string(),
         status: SigningKeyStatus::Active,
-        organization_id: Some(uuid::Uuid::new_v4()),
+        organization_id: Some(org),
         created_at: now,
         updated_at: now,
     };

@@ -623,6 +623,18 @@ pub fn filter_jwks_publication_keys_at(
 
 #[cfg(test)]
 mod admission_tests {
+    #[test]
+    fn public_parser_accepts_lf_and_crlf_with_identical_key_material() {
+        use rsa::traits::PublicKeyParts;
+        let lf = include_str!("../../../config/keys/test-platform.pub").replace("\r\n", "\n");
+        let crlf = lf.replace('\n', "\r\n");
+        let a = super::parse_signing_public_key(&lf).expect("LF SPKI");
+        let b = super::parse_signing_public_key(&crlf).expect("CRLF SPKI");
+        assert_eq!(a.n(), b.n());
+        assert_eq!(a.e(), b.e());
+        assert!(super::parse_signing_public_key("invalid\r\nPUBLIC KEY").is_err());
+    }
+
     use super::*;
     use crate::error::DomainError;
     use base64::Engine;

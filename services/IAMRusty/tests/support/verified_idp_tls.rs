@@ -17,8 +17,8 @@ use idp_connect_contract::{
     hmac::{unix_timestamp_secs, verify, SIGNATURE_HEADER, TIMESTAMP_HEADER},
 };
 use rcgen::{
-    BasicConstraints, Certificate, CertificateParams, ExtendedKeyUsagePurpose, IsCa, KeyPair,
-    KeyUsagePurpose,
+    BasicConstraints, Certificate, CertificateParams, DnType, ExtendedKeyUsagePurpose, IsCa,
+    KeyPair, KeyUsagePurpose,
 };
 use std::{
     sync::{
@@ -49,6 +49,11 @@ struct Protocol {
 
 fn ca() -> (Certificate, KeyPair) {
     let mut parameters = CertificateParams::new(Vec::new()).expect("generated CA parameters");
+    // Distinct issuer/subject DNs are required by OpenSSL chain building: rcgen's
+    // default CN on BOTH CA and leaf makes the leaf look self-issued.
+    parameters
+        .distinguished_name
+        .push(DnType::CommonName, "IAM IdP fixture CA");
     parameters.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
     parameters.key_usages = vec![
         KeyUsagePurpose::DigitalSignature,
@@ -181,6 +186,8 @@ impl VerifiedIdpTls {
             vec!["wrong-san.test".to_owned()]
         };
         let mut leaf = CertificateParams::new(names).expect("generated leaf SAN");
+        leaf.distinguished_name
+            .push(DnType::CommonName, "IAM IdP fixture server");
         leaf.key_usages = vec![KeyUsagePurpose::DigitalSignature];
         leaf.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
         let leaf_key = KeyPair::generate().expect("generated fixture server key");

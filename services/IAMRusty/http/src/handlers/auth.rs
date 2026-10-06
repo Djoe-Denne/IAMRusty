@@ -718,7 +718,7 @@ pub async fn signup(
     State(state): State<AppState>,
     ValidatedJson(request): ValidatedJson<SignupRequest>,
 ) -> Result<(StatusCode, Json<SignupResponse>), AuthError> {
-    debug!("Email/password signup for email: {}", request.email);
+    debug!("Email/password signup");
 
     let context = CommandContext::new()
         .with_metadata("operation".to_string(), "signup".to_string())
@@ -790,7 +790,7 @@ pub async fn login(
     State(state): State<AppState>,
     ValidatedJson(request): ValidatedJson<LoginRequest>,
 ) -> Result<Json<LoginResponse>, AuthError> {
-    debug!("Email/password login for email: {}", request.email);
+    debug!("Email/password login");
 
     let context = CommandContext::new()
         .with_metadata("operation".to_string(), "login".to_string())
@@ -843,7 +843,7 @@ pub async fn verify_email(
     State(state): State<AppState>,
     Valid(Query(request)): Valid<Query<VerifyEmailQuery>>,
 ) -> Result<Json<SuccessResponse>, AuthError> {
-    debug!("Email verification for: {}", request.email);
+    debug!("Email verification");
 
     let context = CommandContext::new()
         .with_metadata("operation".to_string(), "verify_email".to_string())
@@ -869,7 +869,7 @@ pub async fn resend_verification_email(
     State(state): State<AppState>,
     ValidatedJson(request): ValidatedJson<ResendVerificationEmailRequest>,
 ) -> Json<SuccessResponse> {
-    debug!("Resend verification email for: {}", request.email);
+    debug!("Resend verification email");
 
     let command = ResendVerificationEmailCommand::new(request.email.clone());
     let context = CommandContext::new()

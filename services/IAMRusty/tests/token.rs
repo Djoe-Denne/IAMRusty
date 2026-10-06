@@ -1485,8 +1485,8 @@ async fn test_jwt_token_validation_using_jwks_endpoint() {
     );
     assert_eq!(
         header_json["typ"].as_str().unwrap(),
-        "JWT",
-        "Token type should be JWT"
+        iam_domain::entity::signing_key::ACCESS_TOKEN_TYP,
+        "Access token type must be the ratified access-token profile"
     );
 
     // ✅ JWT payload should contain expected claims

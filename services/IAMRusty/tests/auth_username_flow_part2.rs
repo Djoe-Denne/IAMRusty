@@ -169,7 +169,17 @@ async fn test_oauth_provider_linked_to_different_user_returns_409() {
         .expect("Failed to start OAuth linking");
 
     // Start the OAuth flow
+    assert_eq!(oauth_start_response.status(), 303, "real OAuth START");
     if oauth_start_response.status() == 303 {
+        let cookie = oauth_start_response
+            .headers()
+            .get("set-cookie")
+            .expect("browser binding")
+            .to_str()
+            .expect("cookie header")
+            .split(';')
+            .next()
+            .expect("cookie pair");
         let location = oauth_start_response
             .headers()
             .get("location")
@@ -182,6 +192,7 @@ async fn test_oauth_provider_linked_to_different_user_returns_409() {
         // Complete OAuth callback (this should detect the conflict)
         let callback_response = client
             .get(format!("{base_url}/api/auth/github/callback"))
+            .header(reqwest::header::COOKIE, cookie)
             .query(&[("code", "test_auth_code"), ("state", state)])
             .send()
             .await
@@ -253,7 +264,7 @@ async fn test_registration_token_has_correct_rsa_signature() {
     );
 
     // Decode header to verify algorithm
-    let header_decoded = general_purpose::STANDARD
+    let header_decoded = general_purpose::URL_SAFE_NO_PAD
         .decode(parts[0])
         .expect("Should decode header");
     let header_str = String::from_utf8(header_decoded).expect("Header should be UTF-8");

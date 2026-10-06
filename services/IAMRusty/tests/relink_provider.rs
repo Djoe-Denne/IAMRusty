@@ -410,6 +410,10 @@ async fn test_relink_provider_callback_returns_400_missing_code() {
             .expect("Should return JSON error response");
         assert_eq!(error_response["error"]["error_code"], "missing_code");
 
+        // Even a missing-code callback consumes its browser transaction.
+        // The empty-code case requires a new START, not a replay of that proof.
+        let (state, cookie) =
+            browser_flow::relink(&client, &base_url, "github", user.id(), &idp).await;
         let empty_code = client
             .get(format!("{base_url}/api/auth/github/relink-callback"))
             .header("cookie", &cookie)
