@@ -533,6 +533,11 @@ mod tests {
             "kid.pem",
             public,
         );
+        // Platform scope passes the domain scope invariant and the local-PEM
+        // policy, so the missing organization_id must be rejected by the PEM
+        // path policy itself (AuthorizationError) — not by the earlier
+        // Organization-scope material check (InvalidSigningKeyMaterial).
+        key.trust_scope = TrustScope::Platform;
         key.organization_id = None;
         let err = probe()
             .challenge(&key)
