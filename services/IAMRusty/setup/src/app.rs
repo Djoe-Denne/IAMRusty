@@ -1834,6 +1834,29 @@ mod tests {
                 0,
                 "neither delegated backend may enter the PEM/HMAC resolver"
             );
+            // D-1R-N: the delegated guard normalizes algorithm names (trim +
+            // ASCII case), so padded or lowercase HS256 aliases are rejected
+            // before any callback with the unreadable PEM still configured.
+            for alias in [" HS256 ", "hs256", "\tHS256"] {
+                config.jwt.allowed_algorithms = vec!["RS256".into(), alias.into()];
+                let alias_calls = std::cell::Cell::new(0);
+                let alias_result = signing_auth_after_policy(&config, || {
+                    alias_calls.set(alias_calls.get() + 1);
+                    config.jwt.http_verifier_auth().map_err(Into::into)
+                });
+                assert!(
+                    alias_result
+                        .unwrap_err()
+                        .to_string()
+                        .contains("invalid delegated signing secret configuration"),
+                    "padded/lowercase HS256 alias must hit the delegated guard: {alias:?}"
+                );
+                assert_eq!(
+                    alias_calls.get(),
+                    0,
+                    "normalized HS256 aliases must not enter the PEM/HMAC resolver: {alias:?}"
+                );
+            }
             config.jwt.allowed_algorithms = vec!["RS256".into()];
             let auth = signing_auth_after_policy(&config, || {
                 calls.set(calls.get() + 1);

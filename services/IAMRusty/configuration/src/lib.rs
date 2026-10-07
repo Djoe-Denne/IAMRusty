@@ -323,7 +323,10 @@ impl JwtConfig {
             && self
                 .allowed_algorithms
                 .iter()
-                .any(|alg| alg.eq_ignore_ascii_case("HS256"))
+                // D-1R-N: normalize exactly like the effective SDK resolver
+                // (trim + ASCII case) so padded/lowercase HS256 aliases cannot
+                // slip past the delegated guard into the lazy PEM/HMAC callback.
+                .any(|alg| alg.trim().eq_ignore_ascii_case("HS256"))
             && (self.platform_transit_binding()?.is_some() || self.remote_is_requested())
         {
             return Err(SecretError::InvalidFormat(
