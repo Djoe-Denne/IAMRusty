@@ -68,7 +68,7 @@ impl HttpIdpConnector {
     ///
     /// Roots extend the default trust store for this client only. HTTPS certificate
     /// and hostname verification remain enabled; redirects remain disabled.
-    /// Parse PEM inputs with [`reqwest::Certificate::from_pem`] before calling this
+    /// Parse PEM inputs with [`parse_certificate_pem`] before calling this
     /// constructor. No externally constructed client or private key is accepted.
     /// `SecurityMode::Verified` still requires HTTPS, including with custom roots.
     ///
@@ -151,6 +151,35 @@ impl HttpIdpConnector {
 
         response.json::<R>().await.map_err(|_| on_fail)
     }
+}
+
+/// Parse an administrator-provided public CA PEM into a [`reqwest::Certificate`].
+///
+/// A structural PEM check runs BEFORE the platform TLS parser: on Windows the
+/// native-tls schannel backend decodes headerless base64-looking bytes through
+/// `CryptStringToBinaryA` and crashes the process with malformed input
+/// (STATUS_ACCESS_VIOLATION). Only well-formed `-----BEGIN CERTIFICATE-----`
+/// blocks ever reach [`reqwest::Certificate::from_pem`].
+///
+/// # Errors
+///
+/// Rejects non-UTF-8 bytes, missing/invalid CERTIFICATE guard lines, empty
+/// bodies, and any PEM the platform parser itself rejects.
+pub fn parse_certificate_pem(pem: &[u8]) -> Result<reqwest::Certificate, DomainError> {
+    let text = std::str::from_utf8(pem)
+        .map_err(|_| DomainError::OAuth2Error("CA PEM is not UTF-8".to_string()))?;
+    let trimmed = text.trim();
+    let body = trimmed
+        .strip_prefix("-----BEGIN CERTIFICATE-----")
+        .and_then(|rest| rest.strip_suffix("-----END CERTIFICATE-----"))
+        .ok_or_else(|| {
+            DomainError::OAuth2Error("CA PEM must be a CERTIFICATE PEM block".to_string())
+        })?;
+    if body.trim().is_empty() {
+        return Err(DomainError::OAuth2Error("CA PEM body is empty".to_string()));
+    }
+    reqwest::Certificate::from_pem(pem)
+        .map_err(|_| DomainError::OAuth2Error("CA PEM rejected by the platform parser".into()))
 }
 
 #[async_trait]
@@ -248,8 +277,19 @@ mod tests {
 
     #[test]
     fn malformed_additional_ca_is_rejected_during_input_parsing() {
-        assert!(reqwest::Certificate::from_pem(b"not a public CA certificate").is_err());
-        assert!(reqwest::Certificate::from_pem(b"").is_err());
+        // The raw platform parser must never see unvalidated bytes: on Windows
+        // schannel crashes the process with headerless base64-looking input.
+        // The sanctioned boundary is the shape-checked parse_certificate_pem.
+        assert!(super::parse_certificate_pem(b"not a public CA certificate").is_err());
+        assert!(super::parse_certificate_pem(b"").is_err());
+        assert!(super::parse_certificate_pem(
+            b"-----BEGIN CERTIFICATE-----\n!!!\n-----END CERTIFICATE-----"
+        )
+        .is_err());
+        assert!(super::parse_certificate_pem(
+            b"-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----"
+        )
+        .is_err());
     }
 
     fn isolated_client(server: &MockServer) -> HttpIdpConnector {
