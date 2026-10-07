@@ -466,27 +466,38 @@ async fn access_and_registration_fences_reject_primary_disable_during_public_or_
                 let active = primary.promote_signing_key(&pending).await.unwrap();
                 let signer = Arc::new(BarrierSigner { inner: PemSigningProvider::new(include_str!("../config/keys/test-platform.pem"), active.public_key.clone()).unwrap(), public_barrier,
                     entered: tokio::sync::Notify::new(), release: tokio::sync::Notify::new(), signatures: AtomicUsize::new(0) });
+                // This isolated fixture uses an explicitly provisioned PEM signer.
+                // It must reach the I/O barrier rather than fail the production PEM guard.
                 let codec = Arc::new(JwtTokenService::with_rsa(JwtKeyPair { private_key: String::new(), public_key: active.public_key.clone(), kid: "stale-boot-kid".into() }, 173)
-                    .with_local_pem_allowed(false).with_issuer_audience(&active.issuer, "aiforall")
+                    .with_local_pem_allowed(true).with_issuer_audience(&active.issuer, "aiforall")
                     .with_signing_provider(signer.clone(), "stale-boot-kid", &active.issuer, JwkSet { keys: vec![] })
                     .with_signing_registry(primary.clone()));
                 let registration = RegistrationTokenServiceImpl::new(codec.clone()).unwrap();
                 let issuance = async {
                     let user = uuid::Uuid::new_v4();
                     match registration_flow {
-                        0 => codec.generate_access_token(user).await.map(|token| token.token).map_err(|_| ()),
-                        1 => registration.generate_registration_token(user, "fixture@example.test".into()).await.map_err(|_| ()),
+                        0 => codec.generate_access_token(user).await.map(|token| token.token).map_err(|error| error.to_string()),
+                        1 => registration.generate_registration_token(user, "fixture@example.test".into()).await.map_err(|error| error.to_string()),
                         _ => registration.generate_oauth_registration_token(user, "fixture@example.test".into(), iam_domain::entity::registration_token::ProviderInfo {
-                            email: "fixture@example.test".into(), avatar: None, suggested_username: "fixture".into() }).await.map_err(|_| ()),
+                            email: "fixture@example.test".into(), avatar: None, suggested_username: "fixture".into() }).await.map_err(|error| error.to_string()),
                     }
                 };
-                let transition = async {
-                    signer.entered.notified().await;
+                let result = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+                    tokio::pin!(issuance);
+                    // An early issuance error must fail the test, not leave the
+                    // transition waiting forever for an unreachable callback.
+                    tokio::select! {
+                        result = &mut issuance => {
+                            let error = result.expect_err("no token may escape before the signer barrier");
+                            panic!("issuance failed before signer barrier (flow={registration_flow}, public_barrier={public_barrier}): {error}");
+                        }
+                        () = signer.entered.notified() => {}
+                    }
                     tokio::time::timeout(std::time::Duration::from_secs(5), other.revoke_signing_scope(&scope)).await.expect("emission I/O must not hold writer locks").unwrap();
                     assert!(!primary.confirm_active_for_emission(&active).await.unwrap());
                     signer.release.notify_one();
-                };
-                let (result, ()) = tokio::join!(issuance, transition);
+                    issuance.await
+                }).await.expect("signer barrier and final emission fence must complete within 10 seconds");
                 assert!(result.is_err(), "neither access nor either registration flow may emit a disabled primary binding");
                 assert_eq!(signer.signatures.load(Ordering::SeqCst), 1, "a valid candidate reaches the final writer fence");
                 assert!(primary.signing_scope_snapshot(&scope).await.unwrap().active.is_none());
@@ -575,7 +586,16 @@ async fn emission_fence_reads_fresh_committed_primary_state_not_the_initial_acti
         .confirm_active_for_emission(&initial)
         .await
         .expect("exact Active epoch recovery"));
-    separate
+    // Arrange the missing-row fault atomically while respecting the prepared
+    // public entry's FK. Keep triggers enabled and preserve the absent-row fence.
+    let removal = separate.begin().await.expect("independent removal transaction");
+    let prepared = removal.execute(Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        "DELETE FROM signing_public_entries WHERE signing_key_id=$1",
+        [initial.id.into()],
+    )).await.expect("remove prepared public entry");
+    assert_eq!(prepared.rows_affected(), 1);
+    let removed = removal
         .execute(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
             "DELETE FROM signing_keys WHERE id=$1",
@@ -583,6 +603,8 @@ async fn emission_fence_reads_fresh_committed_primary_state_not_the_initial_acti
         ))
         .await
         .expect("remove primary epoch");
+    assert_eq!(removed.rows_affected(), 1);
+    removal.commit().await.expect("removal commits before absent-row fence");
     assert!(!primary
         .confirm_active_for_emission(&initial)
         .await
