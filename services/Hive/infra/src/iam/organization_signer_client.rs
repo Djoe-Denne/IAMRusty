@@ -108,6 +108,12 @@ impl HttpIamOrganizationSignerClient {
             .await
             .map_err(|e| DomainError::external_service_error("iam_service", &e.to_string()))?;
         let status = response.status();
+        if status == reqwest::StatusCode::BAD_REQUEST {
+            return Err(DomainError::external_service_error(
+                "iam_service",
+                "signing_invalid_input",
+            ));
+        }
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
             return Err(DomainError::external_service_error(
                 "iam_service",
@@ -210,5 +216,74 @@ mod tests {
             workload: None,
         };
         assert!(HttpIamOrganizationSignerClient::from_config(&config).is_ok());
+    }
+
+    #[tokio::test]
+    async fn outbound400_is_opaque_invalid_input_while409_429_and_provider500_remain_distinct() {
+        use wiremock::{
+            matchers::{header, method, path},
+            Mock, MockServer, ResponseTemplate,
+        };
+        for (status, marker) in [
+            (400, "signing_invalid_input"),
+            (409, "signing_epoch_conflict"),
+            (429, "signing_admission_throttled"),
+            (500, ""),
+        ] {
+            for version in [None, Some(0)] {
+                let server = MockServer::start().await;
+                let org = Uuid::new_v4();
+                Mock::given(method("POST"))
+                    .and(path(format!(
+                        "/iam/internal/organizations/{org}/signer/configure"
+                    )))
+                    .and(header("x-iam-internal-token", "explicit-test-credential"))
+                    .respond_with(
+                        ResponseTemplate::new(status)
+                            .set_body_string("must-not-expose-invalid-material-details"),
+                    )
+                    .expect(1)
+                    .mount(&server)
+                    .await;
+                let client = HttpIamOrganizationSignerClient::new(
+                    server.uri(),
+                    "explicit-test-credential",
+                    5,
+                )
+                .unwrap();
+                let err = client
+                    .configure_organization_signer(
+                        org,
+                        &ConfigureOrganizationSignerRequest {
+                            provider_type: "openbao_transit".into(),
+                            provider_key_ref: format!("org-{org}-key"),
+                            provider_key_version: version,
+                            credential_ref: Some(format!("org-{org}-credential")),
+                            public_key: "public-material".into(),
+                            org_slug: "db-org".into(),
+                        },
+                    )
+                    .await
+                    .unwrap_err();
+                if status != 500 {
+                    assert!(
+                        matches!(err,DomainError::ExternalServiceError {ref service,ref message} if service=="iam_service" && message==marker)
+                    );
+                } else {
+                    assert!(
+                        matches!(err,DomainError::ExternalServiceError {ref message,..} if message!="signing_invalid_input")
+                    );
+                }
+                let requests = server.received_requests().await.unwrap();
+                assert_eq!(requests.len(), 1);
+                let body: serde_json::Value = serde_json::from_slice(&requests[0].body).unwrap();
+                assert_eq!(
+                    body.get("provider_key_version")
+                        .and_then(|value| value.as_u64()),
+                    version.map(u64::from)
+                );
+                assert_eq!(body["org_slug"], "db-org");
+            }
+        }
     }
 }

@@ -304,16 +304,16 @@ async fn start_owned_listener(
     let pem_files = match pem_files {
         Some(files) => Some(files),
         None => {
-            use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
-            let key = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048)?;
+            // Public, deliberately non-secret/nonproduction RSA fixture. The
+            // SDK constants and IAM config/keys/test-platform.* are the SAME
+            // pair; this is not evidence of distinct keys or rotation. Real
+            // provider parsing/probing still runs on each isolated app boot.
+            use rustycog::testing::http::jwt::{TEST_RS256_PRIVATE_PEM, TEST_RS256_PUBLIC_PEM};
             let files = Arc::new(tempfile::TempDir::new()?);
             let private = files.path().join("private.pem");
             let public = files.path().join("public.pem");
-            std::fs::write(&private, key.to_pkcs8_pem(LineEnding::LF)?.as_bytes())?;
-            std::fs::write(
-                &public,
-                key.to_public_key().to_public_key_pem(LineEnding::LF)?,
-            )?;
+            std::fs::write(&private, TEST_RS256_PRIVATE_PEM)?;
+            std::fs::write(&public, TEST_RS256_PUBLIC_PEM)?;
             config.jwt.secret = SecretStorage::PemFile {
                 private_key_path: private.to_string_lossy().into_owned(),
                 public_key_path: public.to_string_lossy().into_owned(),

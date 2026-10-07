@@ -17,7 +17,7 @@ provenance:
   inferred: 0.12
   ambiguous: 0.03
 created: 2026-10-03T15:10:00Z
-updated: 2026-10-03T15:10:00Z
+updated: 2026-10-07T00:00:00Z
 ---
 
 # Cycle de vie du runtime local
@@ -31,7 +31,7 @@ Avant le 2026-10-03, chaque worker redécouvrait quand démarrer Docker/Kind, qu
 ## Règles
 
 1. **À la demande** : Docker/Kind/WSL démarrent seulement pour une preuve E2E, un test local demandé ou une IT en cours ; jamais pour du travail documentaire/statique.
-2. **Canal** : E2E et tests locaux → cluster `kind-aiforall-local` exclusivement ; IT → fixtures testcontainers du [[projects/aiforall/concepts/mesh-ext-authz-opt-in|harness existant]] (jamais Kind, jamais migration Compose).
+2. **Canal** : E2E et tests locaux → cluster `kind-aiforall-local` exclusivement ; IT → fixtures testcontainers du [[projects/aiforall/concepts/mesh-ext-authz-opt-in|harness existant]] (jamais Kind, jamais migration Compose). **Depuis le 2026-10-07** : dev/compile/IT natif Windows (`cargo` hôte, `target\` sur E:, cf. `AGENTS.md` Décision 2026-10-07) ; Docker pour les images Linux Kind et l'infra tierce testcontainers qui démarre seule.
 3. **Propriété** : inventaire AVANT (état Docker/WSL, conteneurs runnings/stoppés), bail partagé par le parent (orchestrator) sur les IDs créés/redémarrés explicitement pour la tâche. Le nom ou l'image d'un conteneur ne prouve **pas** la propriété ; un ancien conteneur n'est jamais adopté.
 4. **Workers** : rendent l'inventaire de nettoyage au parent ; n'arrêtent pas une ressource encore requise par le parent ou une validation en arrière-plan.
 5. **Arrêt** : à succès ou échec, avant de rendre la main, arrêt gracieux `docker stop` des ressources possédées sans besoin actif (permission permanente pour ce stop réversible ; annonce des IDs et de la perte de mémoire volatile). Stop ≠ delete : jamais prune, `rm -f`, reset, suppression de volume/container/namespace/cluster sans permission destructive explicite et ciblée (voir [[skills/docker-destructive-guardrails|garde-fous Docker]]).
@@ -46,5 +46,5 @@ Avant le 2026-10-03, chaque worker redécouvrait quand démarrer Docker/Kind, qu
 ## Related
 
 - [[projects/aiforall/skills/running-mesh-authn-e2e]] — canal E2E Kind.
-- [[projects/aiforall/skills/running-it-tests-docker]] — canal IT.
+- [[projects/aiforall/skills/running-it-tests-docker]] — canal IT (**obsolète 2026-10-07** : IT natif Windows).
 - [[projects/aiforall/concepts/rustycog-git-submodule]] — autre caution de propriété (submodule).

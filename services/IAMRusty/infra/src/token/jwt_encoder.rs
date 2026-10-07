@@ -41,10 +41,10 @@ pub enum TokenError {
     GenericError(String),
 }
 
-/// JWT algorithm configuration (local material; RS256 prefer SigningProvider).
+/// JWT verification configuration. All RS256 emission requires an explicit provider.
 #[derive(Clone)]
 pub enum JwtAlgorithm {
-    /// RSA256 with key pair (legacy / bootstrap; prefer [`SigningProvider`])
+    /// RSA256 verification material; private field never authorizes encoding.
     RS256(JwtKeyPair),
     /// HMAC256 with secret (HS256 migration / registration tokens)
     HS256(String),
@@ -77,10 +77,11 @@ pub struct JwtTokenService {
     jwks_cache: Arc<JwkSet>,
     signing_registry:
         Option<Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>>,
+    allow_local_pem: bool,
 }
 
 impl JwtTokenService {
-    /// Create a new `JwtTokenService` with RSA256 keys
+    /// Configure RSA verification material. Encoding still requires a provider.
     #[must_use]
     pub fn with_rsa(key_pair: JwtKeyPair, access_token_expiration: u64) -> Self {
         Self {
@@ -94,6 +95,7 @@ impl JwtTokenService {
             signing_issuer: None,
             jwks_cache: Arc::new(JwkSet { keys: vec![] }),
             signing_registry: None,
+            allow_local_pem: false,
         }
     }
 
@@ -111,6 +113,7 @@ impl JwtTokenService {
             signing_issuer: None,
             jwks_cache: Arc::new(JwkSet { keys: vec![] }),
             signing_registry: None,
+            allow_local_pem: false,
         }
     }
 
@@ -132,7 +135,15 @@ impl JwtTokenService {
             signing_issuer: None,
             jwks_cache: Arc::new(JwkSet { keys: vec![] }),
             signing_registry: None,
+            allow_local_pem: false,
         }
+    }
+
+    /// Allow PEM bindings only after an explicit nonprod composition-root policy.
+    #[must_use]
+    pub fn with_local_pem_allowed(mut self, allowed: bool) -> Self {
+        self.allow_local_pem = allowed;
+        self
     }
 
     /// Bind platform `iss` / `aud` claims used when minting access tokens.
@@ -197,7 +208,6 @@ impl JwtTokenService {
         &self,
         issuer: &str,
         organization: Option<&str>,
-        kid: &str,
         provider: &dyn SigningProvider,
     ) -> Result<iam_domain::entity::signing_key::SigningKey, DomainError> {
         use iam_domain::entity::signing_key::{SigningKeyStatus, TrustScope};
@@ -205,7 +215,7 @@ impl JwtTokenService {
             DomainError::AuthorizationError("signing registry not configured".into())
         })?;
         let key = registry
-            .find_by_kid(kid)
+            .find_active_platform_key()
             .await
             .map_err(|_| DomainError::AuthorizationError("signing epoch unavailable".into()))?
             .ok_or_else(|| DomainError::AuthorizationError("signing epoch unavailable".into()))?;
@@ -213,7 +223,6 @@ impl JwtTokenService {
             || key.algorithm != "RS256"
             || key.issuer != issuer
             || key.issuer != self.issuer()
-            || key.kid != kid
             || key.trust_scope != TrustScope::Platform
             || key.organization_id.is_some()
             || organization.is_some()
@@ -222,8 +231,13 @@ impl JwtTokenService {
                 "signing epoch not eligible".into(),
             ));
         }
+        if key.provider_type == iam_domain::entity::signing_key::SigningProviderType::PemFile
+            && !self.allow_local_pem
+        {
+            return Err(DomainError::InvalidSigningKeyMaterial);
+        }
         let public = provider
-            .public_key()
+            .public_key_for(&key)
             .await
             .map_err(|_| DomainError::AuthorizationError("signer unavailable".into()))?;
         let expected =
@@ -343,18 +357,11 @@ impl JwtTokenService {
     pub(super) fn require_registration_configuration(&self) -> Result<(), DomainError> {
         if self.uses_rs256() {
             if self.signing_registry.is_none()
+                || self.signing_provider.is_none()
                 || self.get_key_id().is_none_or(|kid| kid.is_empty())
                 || self.signing_provider.is_some() != self.signing_kid.is_some()
             {
                 return Err(DomainError::AuthorizationError("unbound RSA codec".into()));
-            }
-            if self.signing_provider.is_none() {
-                if let JwtAlgorithm::RS256(pair) = &self.algorithm_config {
-                    crate::signing::PemSigningProvider::new(
-                        &pair.private_key,
-                        pair.public_key.clone(),
-                    )?;
-                }
             }
         }
         Ok(())
@@ -389,21 +396,12 @@ impl JwtTokenService {
         typ: &str,
     ) -> Result<String, DomainError> {
         self.require_registration_configuration()?;
-        let local;
-        let provider: &dyn SigningProvider = if let Some(provider) = &self.signing_provider {
-            provider.as_ref()
-        } else if let JwtAlgorithm::RS256(pair) = &self.algorithm_config {
-            local = crate::signing::PemSigningProvider::new(
-                &pair.private_key,
-                pair.public_key.clone(),
-            )?;
-            &local
-        } else {
-            return Err(DomainError::InvalidToken);
-        };
-        let kid = self.get_key_id().ok_or(DomainError::InvalidToken)?;
+        let provider = self
+            .signing_provider
+            .as_deref()
+            .ok_or_else(|| DomainError::AuthorizationError("RS256 provider required".into()))?;
         let expected = self
-            .require_active_signing_epoch(issuer, organization, &kid, provider)
+            .require_active_signing_epoch(issuer, organization, provider)
             .await?;
         let header = Header {
             alg: Algorithm::RS256,
@@ -422,7 +420,7 @@ impl JwtTokenService {
         );
         let digest = Sha256::digest(signing_input.as_bytes());
         let signature = provider
-            .sign_digest(&digest)
+            .sign_digest_for(&expected, &digest)
             .await
             .map_err(|_| DomainError::AuthorizationError("signer unavailable".into()))?;
         let candidate = format!("{}.{}", signing_input, URL_SAFE_NO_PAD.encode(signature));
@@ -746,6 +744,7 @@ mod platform_hs256 {
                     issuer: DEFAULT_JWT_ISSUER.into(),
                     provider_type: "pem_file".into(),
                     provider_key_ref: "platform.pem".into(),
+                    provider_key_version: None,
                     credential_ref: None,
                     public_key: public.into(),
                     status: status.into(),
@@ -793,6 +792,7 @@ mod emission_fence_tests {
         let registry = Arc::new(FenceRegistry {
             final_snapshot: Mutex::new(FinalSnapshot::Row(Some(key.clone()))),
             initial: key,
+            selected: None,
             confirmations: AtomicUsize::new(0),
             signatures: Arc::new(AtomicUsize::new(0)),
             remote: false,
@@ -906,11 +906,12 @@ mod emission_fence_tests {
     async fn registration_both_flows_reject_retirement_during_public_key_or_sign_barrier() {
         for oauth in [false, true] {
             for block_public_key in [false, true] {
-                for case in [0, 2, 3, 7] {
+                for case in [0, 2, 3, 7, 8] {
                     let initial = active_epoch();
                     let signatures = Arc::new(AtomicUsize::new(0));
                     let registry = Arc::new(FenceRegistry {
                         initial: initial.clone(),
+                        selected: None,
                         final_snapshot: Mutex::new(FinalSnapshot::Row(Some(initial.clone()))),
                         confirmations: AtomicUsize::new(0),
                         signatures: signatures.clone(),
@@ -1217,6 +1218,7 @@ mod emission_fence_tests {
     }
     struct FenceRegistry {
         initial: SigningKey,
+        selected: Option<Mutex<SigningKey>>,
         final_snapshot: Mutex<FinalSnapshot>,
         confirmations: AtomicUsize,
         signatures: Arc<AtomicUsize>,
@@ -1236,9 +1238,18 @@ mod emission_fence_tests {
             expected: &SigningKey,
         ) -> Result<bool, DomainError> {
             // Catches an id-only synthetic expectation or a replaced/blinded binding.
-            assert_eq!(expected, &self.initial);
+            let selected = self
+                .selected
+                .as_ref()
+                .map_or_else(|| self.initial.clone(), |key| key.lock().unwrap().clone());
+            assert_eq!(expected, &selected);
             if self.remote {
-                assert_eq!(self.signatures.load(Ordering::SeqCst), 1);
+                // Exactly one NEW signature precedes each final primary gate,
+                // including repeated emissions and a freshly selected version.
+                assert_eq!(
+                    self.signatures.load(Ordering::SeqCst),
+                    self.confirmations.load(Ordering::SeqCst) + 1
+                );
             }
             self.confirmations.fetch_add(1, Ordering::SeqCst);
             match &*self.final_snapshot.lock().unwrap() {
@@ -1252,7 +1263,10 @@ mod emission_fence_tests {
             }
         }
         async fn find_by_kid(&self, _: &str) -> Result<Option<SigningKey>, DomainError> {
-            Ok(Some(self.initial.clone()))
+            Ok(Some(self.selected.as_ref().map_or_else(
+                || self.initial.clone(),
+                |key| key.lock().unwrap().clone(),
+            )))
         }
         async fn insert(&self, _: &SigningKey) -> Result<(), DomainError> {
             unreachable!()
@@ -1271,7 +1285,10 @@ mod emission_fence_tests {
             unreachable!()
         }
         async fn find_active_platform_key(&self) -> Result<Option<SigningKey>, DomainError> {
-            unreachable!()
+            Ok(Some(self.selected.as_ref().map_or_else(
+                || self.initial.clone(),
+                |key| key.lock().unwrap().clone(),
+            )))
         }
         async fn list_jwks_keys(&self) -> Result<Vec<SigningKey>, DomainError> {
             unreachable!()
@@ -1324,6 +1341,7 @@ mod emission_fence_tests {
             issuer: DEFAULT_JWT_ISSUER.into(),
             provider_type: SigningProviderType::RemoteHttp,
             provider_key_ref: "unit-signer".into(),
+            provider_key_version: None,
             credential_ref: Some("unit-credential-ref".into()),
             public_key: include_str!("../../../config/keys/test-platform.pub").into(),
             status: SigningKeyStatus::Active,
@@ -1340,6 +1358,19 @@ mod emission_fence_tests {
                 kid: "epoch".into(),
             },
             900,
+        )
+        .with_local_pem_allowed(true) // explicit isolated unit fixture
+        .with_signing_provider(
+            Arc::new(
+                crate::signing::PemSigningProvider::new(
+                    include_str!("../../../config/keys/test-platform.pem"),
+                    include_str!("../../../config/keys/test-platform.pub"),
+                )
+                .unwrap(),
+            ),
+            "epoch",
+            DEFAULT_JWT_ISSUER,
+            JwkSet { keys: vec![] },
         )
     }
     fn snapshot(case: u8, initial: &SigningKey) -> FinalSnapshot {
@@ -1360,6 +1391,10 @@ mod emission_fence_tests {
                 FinalSnapshot::Row(Some(row))
             }
             6 => FinalSnapshot::False,
+            8 => {
+                row.provider_key_version = Some(row.provider_key_version.unwrap_or(0) + 1);
+                FinalSnapshot::Row(Some(row))
+            }
             _ => FinalSnapshot::Error,
         }
     }
@@ -1367,11 +1402,12 @@ mod emission_fence_tests {
     #[tokio::test]
     async fn rs256_final_writer_fence_after_public_key_or_signature_barrier() {
         for block_public_key in [false, true] {
-            for case in 0..=7 {
+            for case in 0..=8 {
                 let initial = active_epoch();
                 let signatures = Arc::new(AtomicUsize::new(0));
                 let registry = Arc::new(FenceRegistry {
                     initial: initial.clone(),
+                    selected: None,
                     final_snapshot: Mutex::new(FinalSnapshot::Row(Some(initial.clone()))),
                     confirmations: AtomicUsize::new(0),
                     signatures: signatures.clone(),
@@ -1420,11 +1456,13 @@ mod emission_fence_tests {
 
     #[tokio::test]
     async fn rs256_local_rsa_candidate_uses_same_final_gate() {
-        for case in 0..=7 {
-            let initial = active_epoch();
+        for case in 0..=8 {
+            let mut initial = active_epoch();
+            initial.provider_type = SigningProviderType::PemFile;
             let registry = Arc::new(FenceRegistry {
                 final_snapshot: Mutex::new(snapshot(case, &initial)),
                 initial,
+                selected: None,
                 confirmations: AtomicUsize::new(0),
                 signatures: Arc::new(AtomicUsize::new(0)),
                 remote: false,
@@ -1439,6 +1477,318 @@ mod emission_fence_tests {
                 .await;
             assert_eq!(result.is_ok(), case == 0);
             assert_eq!(registry.confirmations.load(Ordering::SeqCst), 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn local_private_codec_requires_explicit_nonprod_opt_in_and_never_falls_back_when_disabled(
+    ) {
+        let (private, public) = distinct_pair();
+        let mut initial = active_epoch();
+        initial.provider_type = SigningProviderType::PemFile;
+        let (_, registry) = registered_codec(initial);
+        let guarded = JwtTokenService::with_rsa(
+            JwtKeyPair {
+                private_key: private.clone(),
+                public_key: public.clone(),
+                kid: "untrusted-local".into(),
+            },
+            900,
+        )
+        .with_signing_registry(registry.clone());
+        assert!(guarded
+            .encode(&TokenClaims::new(
+                "fixture",
+                "fixture",
+                chrono::Duration::seconds(60)
+            ))
+            .await
+            .is_err());
+        assert_eq!(registry.confirmations.load(Ordering::SeqCst), 0);
+        assert!(RegistrationTokenServiceImpl::new(Arc::new(guarded)).is_err());
+        // Even explicit fixture mode cannot mint from a key pair without a
+        // deliberately injected provider. This is not an implicit constructor.
+        let unbound = JwtTokenService::with_rsa(
+            JwtKeyPair {
+                private_key: private.clone(),
+                public_key: public.clone(),
+                kid: "epoch".into(),
+            },
+            900,
+        )
+        .with_local_pem_allowed(true)
+        .with_signing_registry(registry.clone());
+        assert!(unbound
+            .encode(&TokenClaims::new(
+                "fixture",
+                "fixture",
+                chrono::Duration::seconds(60)
+            ))
+            .await
+            .is_err());
+        assert!(RegistrationTokenServiceImpl::new(Arc::new(unbound)).is_err());
+        assert_eq!(registry.confirmations.load(Ordering::SeqCst), 0);
+        let disabled = local_service()
+            .with_local_pem_allowed(false)
+            .with_signing_registry(registry.clone());
+        assert!(disabled
+            .encode(&TokenClaims::new(
+                "fixture",
+                "fixture",
+                chrono::Duration::seconds(60)
+            ))
+            .await
+            .is_err());
+        assert_eq!(registry.confirmations.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn provider_public_or_sign_failure_never_uses_a_valid_local_keypair_for_any_namespace() {
+        struct Unavailable {
+            public_failure: bool,
+            signatures: Arc<AtomicUsize>,
+        }
+        #[async_trait]
+        impl SigningProvider for Unavailable {
+            async fn public_key(&self) -> Result<String, DomainError> {
+                if self.public_failure {
+                    Err(DomainError::AuthorizationError(
+                        "fixture-public-failure".into(),
+                    ))
+                } else {
+                    Ok(include_str!("../../../config/keys/test-platform.pub").into())
+                }
+            }
+            async fn sign_digest(&self, _: &[u8]) -> Result<Vec<u8>, DomainError> {
+                self.signatures.fetch_add(1, Ordering::SeqCst);
+                Err(DomainError::AuthorizationError(
+                    "fixture-sign-failure".into(),
+                ))
+            }
+            fn capabilities(&self) -> SigningCapabilities {
+                SigningCapabilities::default()
+            }
+        }
+        for public_failure in [false, true] {
+            for namespace in 0..3 {
+                let (_, registry) = registered_codec(active_epoch());
+                let signatures = Arc::new(AtomicUsize::new(0));
+                // local_service has a valid pair and explicit nonprod permission;
+                // replacement by the unavailable provider must not retain a fallback.
+                let codec = Arc::new(
+                    local_service()
+                        .with_signing_provider(
+                            Arc::new(Unavailable {
+                                public_failure,
+                                signatures: signatures.clone(),
+                            }),
+                            "epoch",
+                            DEFAULT_JWT_ISSUER,
+                            JwkSet { keys: vec![] },
+                        )
+                        .with_signing_registry(registry.clone()),
+                );
+                let result = if namespace == 0 {
+                    codec
+                        .encode(&TokenClaims::new(
+                            "fixture",
+                            "fixture",
+                            chrono::Duration::seconds(60),
+                        ))
+                        .await
+                } else {
+                    registration_call(
+                        &RegistrationTokenServiceImpl::new(codec).unwrap(),
+                        namespace == 2,
+                        Uuid::new_v4(),
+                    )
+                    .await
+                };
+                assert!(result.is_err());
+                assert_eq!(
+                    signatures.load(Ordering::SeqCst),
+                    usize::from(!public_failure)
+                );
+                assert_eq!(registry.confirmations.load(Ordering::SeqCst), 0);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn platform_access_and_both_registration_flows_select_current_transit_version_not_boot_kid(
+    ) {
+        use base64::Engine;
+        use rsa::pkcs8::DecodePrivateKey;
+        use wiremock::{
+            matchers::{method, path},
+            Mock, ResponseTemplate,
+        };
+        let (next_private, next_public) = distinct_pair();
+        let old_public = include_str!("../../../config/keys/test-platform.pub");
+        assert_ne!(old_public, next_public.as_str());
+        let fixture = rustycog::testing::wiremock::MockServerFixture::isolated().await;
+        let server = fixture.server();
+        let next_for_get = next_public.clone();
+        Mock::given(method("GET")).and(path("/v1/transit/keys/platform-fixture"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"data": {
+                "latest_version": 8, "keys": {"7":{"public_key":old_public}, "8":{"public_key":next_for_get}}
+            }}))).mount(&*server).await;
+        let signatures = Arc::new(AtomicUsize::new(0));
+        let observed = signatures.clone();
+        let old_private = rsa::RsaPrivateKey::from_pkcs8_pem(include_str!(
+            "../../../config/keys/test-platform.pem"
+        ))
+        .unwrap();
+        let next_private = rsa::RsaPrivateKey::from_pkcs8_pem(next_private).unwrap();
+        Mock::given(method("POST")).and(path("/v1/transit/sign/platform-fixture"))
+            .respond_with(move |request: &wiremock::Request| {
+                let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap();
+                let version = body["key_version"].as_u64().unwrap();
+                assert_eq!(body["prehashed"], true);
+                let digest = base64::engine::general_purpose::STANDARD.decode(body["input"].as_str().unwrap()).unwrap();
+                assert_eq!(digest.len(), 32);
+                let private = match version { 7 => &old_private, 8 => &next_private, _ => panic!("unexpected pin") };
+                let signature = private.sign(rsa::pkcs1v15::Pkcs1v15Sign::new::<sha2::Sha256>(), &digest).unwrap();
+                observed.fetch_add(1, Ordering::SeqCst);
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"data":{"signature":format!("vault:v{version}:{}",base64::engine::general_purpose::STANDARD.encode(signature))}}))
+            }).mount(&*server).await;
+        let mut initial = active_epoch();
+        initial.provider_type =
+            iam_domain::entity::signing_key::SigningProviderType::OpenBaoTransit;
+        initial.provider_key_ref = "platform-fixture".into();
+        initial.provider_key_version = Some(7);
+        initial.credential_ref = Some("platform-credential".into());
+        let registry = Arc::new(FenceRegistry {
+            initial: initial.clone(),
+            selected: Some(Mutex::new(initial.clone())),
+            final_snapshot: Mutex::new(FinalSnapshot::Row(Some(initial.clone()))),
+            confirmations: AtomicUsize::new(0),
+            signatures: signatures.clone(),
+            remote: true,
+        });
+        let provider = Arc::new(
+            crate::signing::ScopedSigningProvider::transit(
+                crate::signing::TransitClientConfig {
+                    base_url: server.uri(),
+                    token_ref: "platform-credential".into(),
+                    workload: Arc::new(
+                        crate::signing::StaticCredential::from_pair(
+                            "platform-credential",
+                            "fixture-token",
+                        )
+                        .unwrap(),
+                    ),
+                },
+                "platform-fixture".into(),
+                "platform-credential".into(),
+            )
+            .unwrap(),
+        );
+        let codec = Arc::new(
+            local_service()
+                .with_local_pem_allowed(false)
+                .with_signing_provider(
+                    provider,
+                    "intentionally-stale-boot-kid",
+                    DEFAULT_JWT_ISSUER,
+                    JwkSet { keys: vec![] },
+                )
+                .with_signing_registry(registry.clone()),
+        );
+        let registration = RegistrationTokenServiceImpl::new(codec.clone()).unwrap();
+        for version in [7, 8] {
+            let mut current = initial.clone();
+            if version == 8 {
+                current.id = Uuid::new_v4();
+                current.kid = "dynamic-successor-kid".into();
+                current.public_key = next_public.clone();
+            }
+            current.provider_key_version = Some(version);
+            *registry.selected.as_ref().unwrap().lock().unwrap() = current.clone();
+            *registry.final_snapshot.lock().unwrap() = FinalSnapshot::Row(Some(current.clone()));
+            let user = Uuid::new_v4();
+            let access = codec.generate_access_token(user).await.unwrap().token;
+            assert_eq!(
+                jsonwebtoken::decode_header(&access).unwrap().kid.as_deref(),
+                Some(current.kid.as_str())
+            );
+            let mut validation = Validation::new(Algorithm::RS256);
+            validation.set_audience(&[codec.audience()]);
+            validation.set_issuer(&[DEFAULT_JWT_ISSUER]);
+            let claims = jsonwebtoken::decode::<TokenClaims>(
+                &access,
+                &DecodingKey::from_rsa_pem(current.public_key.as_bytes()).unwrap(),
+                &validation,
+            )
+            .unwrap()
+            .claims;
+            assert_eq!(claims.sub, user.to_string());
+            if version == 8 {
+                assert!(jsonwebtoken::decode::<TokenClaims>(
+                    &access,
+                    &DecodingKey::from_rsa_pem(old_public.as_bytes()).unwrap(),
+                    &validation
+                )
+                .is_err());
+            }
+            for oauth in [false, true] {
+                let token = registration_call(&registration, oauth, user).await.unwrap();
+                assert_eq!(
+                    jsonwebtoken::decode_header(&token).unwrap().kid.as_deref(),
+                    Some(current.kid.as_str())
+                );
+                assert_eq!(
+                    registration
+                        .validate_registration_token(&token)
+                        .await
+                        .unwrap()
+                        .get_user_id()
+                        .unwrap(),
+                    user
+                );
+            }
+        }
+        assert_eq!(signatures.load(Ordering::SeqCst), 6);
+        assert_eq!(registry.confirmations.load(Ordering::SeqCst), 6);
+        let requests = server.received_requests().await.unwrap();
+        let pins: Vec<_> = requests
+            .iter()
+            .filter(|request| request.method.as_str() == "POST")
+            .map(|request| {
+                serde_json::from_slice::<serde_json::Value>(&request.body).unwrap()["key_version"]
+                    .as_u64()
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(pins, vec![7, 7, 7, 8, 8, 8]);
+        let last = registry.selected.as_ref().unwrap().lock().unwrap().clone();
+        for case in 0..7 {
+            let mut invalid = last.clone();
+            match case {
+                0 => invalid.provider_key_ref = "another-key".into(),
+                1 => invalid.credential_ref = Some("another-credential".into()),
+                2 => invalid.organization_id = Some(Uuid::new_v4()),
+                3 => invalid.provider_key_version = None,
+                4 => invalid.provider_key_version = Some(0),
+                5 => invalid.provider_key_version = Some(9), // public version not present
+                _ => {
+                    invalid.provider_type =
+                        iam_domain::entity::signing_key::SigningProviderType::PemFile
+                }
+            }
+            *registry.selected.as_ref().unwrap().lock().unwrap() = invalid;
+            assert!(codec.generate_access_token(Uuid::new_v4()).await.is_err());
+            for oauth in [false, true] {
+                assert!(registration_call(&registration, oauth, Uuid::new_v4())
+                    .await
+                    .is_err());
+            }
+            assert_eq!(
+                signatures.load(Ordering::SeqCst),
+                6,
+                "invalid binding must not fall back to local private material"
+            );
+            assert_eq!(registry.confirmations.load(Ordering::SeqCst), 6);
         }
     }
 }

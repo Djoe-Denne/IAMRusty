@@ -17,7 +17,7 @@ Treat this invocation as rare and costly. Be decisive, evidence-driven, and narr
 - Form a new approach rather than repeating the same patch.
 - Implement only if the package asks for implementation; otherwise diagnose and propose.
 - Validate with this repository's conventions. For Rust, when applicable, choose the minimum fit among `cargo fmt --check`, `cargo check`, `cargo clippy`, and `cargo test`.
-- Compile local tests and Kind images in Docker Linux, one Cargo at a time; do not share Linux and Windows targets.
+- Compile local tests natively on Windows (one Cargo at a time); Docker only builds the Linux images Kind loads. Do not share Windows and Linux targets.
 
 ## Do not
 

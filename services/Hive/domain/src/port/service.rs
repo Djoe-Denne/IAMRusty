@@ -43,6 +43,8 @@ pub struct ConfigureOrganizationSignerRequest {
     pub provider_type: String,
     pub provider_key_ref: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_key_version: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credential_ref: Option<String>,
     pub public_key: String,
     pub org_slug: String,

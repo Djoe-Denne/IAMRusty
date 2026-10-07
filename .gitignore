@@ -164,3 +164,6 @@ ssl/
 
 # Agent-created Docker resource registry (never commit; per-project registry of images/containers/volumes created by agents)
 .tmp/
+
+# Local agent handoff ledgers (session state, never commit)
+.cursor/handoffs/*

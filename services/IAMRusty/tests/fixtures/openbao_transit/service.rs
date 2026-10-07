@@ -3,7 +3,7 @@
 use rustycog::testing::wiremock::MockServerFixture;
 use std::sync::Arc;
 use wiremock::{
-    matchers::{method, path},
+    matchers::{body_partial_json, method, path},
     Mock, MockServer, ResponseTemplate,
 };
 
@@ -36,13 +36,26 @@ impl OpenBaoTransitMockService {
     ///
     /// `signature_b64` is raw PKCS1v15 signature bytes, base64-encoded (standard).
     pub async fn mock_sign_ok(&self, key_name: &str, signature_b64: &str) -> &Self {
+        self.mock_sign_version_ok(key_name, 1, signature_b64).await
+    }
+
+    /// Versioned outbound contract only; this mock is not a real Transit engine.
+    pub async fn mock_sign_version_ok(
+        &self,
+        key_name: &str,
+        version: u32,
+        signature_b64: &str,
+    ) -> &Self {
         let body = TransitSignResponse {
             data: TransitSignData {
-                signature: format!("vault:v1:{signature_b64}"),
+                signature: format!("vault:v{version}:{signature_b64}"),
             },
         };
         Mock::given(method("POST"))
             .and(path(format!("/v1/transit/sign/{key_name}")))
+            .and(body_partial_json(
+                serde_json::json!({"key_version":version}),
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_json(body))
             .mount(&*self.server)
             .await;
@@ -61,12 +74,24 @@ impl OpenBaoTransitMockService {
 
     /// Stub `GET /v1/transit/keys/{name}` returning a public PEM.
     pub async fn mock_read_key_ok(&self, key_name: &str, public_key_pem: &str) -> &Self {
+        self.mock_read_key_version_ok(key_name, 1, public_key_pem)
+            .await
+    }
+
+    pub async fn mock_read_key_version_ok(
+        &self,
+        key_name: &str,
+        version: u32,
+        public_key_pem: &str,
+    ) -> &Self {
         Mock::given(method("GET"))
             .and(path(format!("/v1/transit/keys/{key_name}")))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "data": {
+                    "type":"rsa-2048", "exportable":false, "supports_signing":true,
+                    "latest_version":version,
                     "keys": {
-                        "1": { "public_key": public_key_pem }
+                        (version.to_string()): { "public_key": public_key_pem }
                     }
                 }
             })))

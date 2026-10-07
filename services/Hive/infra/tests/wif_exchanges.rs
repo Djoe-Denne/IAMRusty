@@ -155,6 +155,7 @@ async fn http_iam_signer_uses_wif_resolved_token() {
             &ConfigureOrganizationSignerRequest {
                 provider_type: "openbao".into(),
                 provider_key_ref: "org-key".into(),
+                provider_key_version: Some(1),
                 credential_ref: None,
                 public_key: "pk".into(),
                 org_slug: "acme".into(),

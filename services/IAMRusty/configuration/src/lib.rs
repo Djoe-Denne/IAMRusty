@@ -219,6 +219,16 @@ pub struct JwtConfig {
     /// Remote Sign / GetPublicKey endpoint (ADR-0309). Absent → PEM / Transit default.
     #[serde(default)]
     pub remote: Option<RemoteSignerConfig>,
+    /// Platform Transit binding; absence/zero is never an implicit latest pin.
+    #[serde(default)]
+    pub platform_transit: Option<PlatformTransitConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PlatformTransitConfig {
+    pub provider_key_ref: String,
+    pub provider_key_version: u32,
+    pub credential_ref: String,
 }
 
 /// `[jwt.remote]` — HTTP remote signer (digest only; no private key).
@@ -278,6 +288,78 @@ pub struct AzureWorkloadConfig {
 }
 
 impl JwtConfig {
+    pub fn platform_transit_binding(&self) -> Result<Option<&PlatformTransitConfig>, SecretError> {
+        if !self
+            .signing_backend()
+            .is_some_and(|backend| backend.eq_ignore_ascii_case("transit"))
+        {
+            return Ok(None);
+        }
+        let binding = self.platform_transit.as_ref().ok_or_else(|| {
+            SecretError::InvalidFormat("explicit platform Transit binding required".into())
+        })?;
+        if binding.provider_key_version == 0
+            || binding.provider_key_ref.trim().is_empty()
+            || binding.credential_ref.trim().is_empty()
+            || !self
+                .transit_url
+                .as_deref()
+                .is_some_and(|url| !url.trim().is_empty())
+                && !matches!(&self.secret, SecretStorage::Vault { url, .. } if !url.trim().is_empty())
+        {
+            return Err(SecretError::InvalidFormat(
+                "invalid platform Transit binding".into(),
+            ));
+        }
+        Ok(Some(binding))
+    }
+
+    /// Validate provider selection without resolving/reading any private secret.
+    pub fn validate_signing_security(&self, mode: SecurityMode) -> Result<(), SecretError> {
+        // Delegated RS256 may leave PEM storage entirely unused. Asking the
+        // HMAC resolver to consume that PEM instead would read private RSA
+        // before discovering it is not an independent legacy HMAC secret.
+        if matches!(self.secret, SecretStorage::PemFile { .. })
+            && self
+                .allowed_algorithms
+                .iter()
+                .any(|alg| alg.eq_ignore_ascii_case("HS256"))
+            && (self.platform_transit_binding()?.is_some() || self.remote_is_requested())
+        {
+            return Err(SecretError::InvalidFormat(
+                "invalid delegated signing secret configuration".into(),
+            ));
+        }
+        if self.platform_transit_binding()?.is_some() {
+            let url = self
+                .transit_url
+                .as_deref()
+                .or_else(|| {
+                    if let SecretStorage::Vault { url, .. } = &self.secret {
+                        Some(url.as_str())
+                    } else {
+                        None
+                    }
+                })
+                .ok_or_else(|| SecretError::InvalidFormat("Transit endpoint required".into()))?;
+            if mode == SecurityMode::Verified && !url.starts_with("https://") {
+                return Err(SecretError::InvalidFormat(
+                    "verified Transit requires HTTPS".into(),
+                ));
+            }
+            return Ok(());
+        }
+        if self.remote_is_requested() {
+            self.remote_http_endpoint()?;
+            return Ok(());
+        }
+        if self.uses_rsa() && !mode.allows_local_pem() {
+            return Err(SecretError::InvalidFormat(
+                "private PEM provider forbidden in verified mode".into(),
+            ));
+        }
+        Ok(())
+    }
     /// Resolve the JWT secret from the configured storage
     ///
     /// # Errors
@@ -304,8 +386,12 @@ impl JwtConfig {
 
     /// Check if the configuration uses RSA keys
     #[must_use]
-    pub const fn uses_rsa(&self) -> bool {
+    pub fn uses_rsa(&self) -> bool {
         matches!(self.secret, SecretStorage::PemFile { .. })
+            || self.remote_is_requested()
+            || self
+                .signing_backend()
+                .is_some_and(|backend| backend.eq_ignore_ascii_case("transit"))
     }
 
     /// Check if the configuration uses HMAC
@@ -343,8 +429,8 @@ impl JwtConfig {
     ///
     /// # Errors
     ///
-    /// Returns [`SecretError`] if RSA PEM material cannot be resolved when required for
-    /// issuer setup, or if neither JWKS nor HS256 material is configured.
+    /// Returns [`SecretError`] if neither JWKS nor valid HS256 material is configured.
+    /// RS256-only verification does not resolve any private PEM material.
     pub fn http_verifier_auth(&self) -> Result<AuthConfig, SecretError> {
         let mut auth = AuthConfig::default();
         auth.jwt.audience = Some(self.audience.clone());
@@ -357,17 +443,26 @@ impl JwtConfig {
             } else {
                 self.allowed_algorithms.clone()
             };
-            // RS256 issuer URL is carried by JWK `iss`; do not force HS256 issuer here.
+            // Seed installation requires the trusted platform issuer. The SDK
+            // has one issuer field: never overwrite an independent HS256 issuer
+            // to make a mixed migration window appear representable.
             if auth.jwt.allowed_algorithms.iter().any(|a| a == "HS256") {
                 if let Ok(JwtSecret::Hmac(secret)) = self.resolve_secret() {
                     auth.jwt.hs256_secret = Some(secret);
                     auth.jwt.issuer = Some(self.issuer.clone());
                 }
+            } else if auth.jwt.allowed_algorithms.iter().any(|a| a == "RS256") {
+                auth.jwt.issuer = Some(self.platform_issuer());
             }
             return Ok(auth);
         }
 
         // Legacy HS256-only path (tests that have not migrated yet).
+        if self.uses_rsa() {
+            return Err(SecretError::InvalidFormat(
+                "RS256 issuer requires a JWKS authority URL".into(),
+            ));
+        }
         match self.resolve_secret()? {
             JwtSecret::Hmac(secret) => {
                 auth.jwt.hs256_secret = Some(secret);
@@ -492,7 +587,84 @@ impl Default for JwtConfig {
             backend: None,
             provider: None,
             remote: None,
+            platform_transit: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod signing_security_tests {
+    use super::*;
+
+    fn unreadable_pem() -> JwtConfig {
+        JwtConfig {
+            secret: SecretStorage::PemFile {
+                private_key_path: "must-not-read/private.pem".into(),
+                public_key_path: "must-not-read/public.pem".into(),
+                key_id: Some("must-not-use-bootstrap".into()),
+            },
+            ..JwtConfig::default()
+        }
+    }
+
+    #[test]
+    fn verified_private_pem_is_rejected_before_secret_resolution() {
+        let jwt = unreadable_pem();
+        let error = jwt
+            .validate_signing_security(SecurityMode::Verified)
+            .unwrap_err();
+        assert!(error.to_string().contains("private PEM provider forbidden"));
+        assert!(jwt
+            .validate_signing_security(SecurityMode::LocalInsecure)
+            .is_ok());
+        assert!(jwt
+            .validate_signing_security(SecurityMode::IsolatedTest)
+            .is_ok());
+    }
+
+    #[test]
+    fn verified_transit_requires_explicit_positive_binding_and_does_not_resolve_private_pem() {
+        let mut jwt = unreadable_pem();
+        jwt.backend = Some("transit".into());
+        jwt.transit_url = Some("https://bao.example".into());
+        jwt.transit_token = Some("fixture-token".into());
+        assert!(jwt
+            .validate_signing_security(SecurityMode::Verified)
+            .is_err());
+        jwt.platform_transit = Some(PlatformTransitConfig {
+            provider_key_ref: "platform-fixture".into(),
+            provider_key_version: 7,
+            credential_ref: "platform-credential".into(),
+        });
+        assert!(jwt
+            .validate_signing_security(SecurityMode::Verified)
+            .is_ok());
+        assert!(jwt.uses_rsa());
+        let auth = jwt.http_verifier_auth().unwrap();
+        assert_eq!(
+            auth.jwt.issuer.as_deref(),
+            Some(jwt.platform_issuer().as_str())
+        );
+        assert!(auth.jwt.hs256_secret.is_none());
+        jwt.platform_transit.as_mut().unwrap().provider_key_version = 0;
+        assert!(jwt
+            .validate_signing_security(SecurityMode::Verified)
+            .is_err());
+        jwt.platform_transit.as_mut().unwrap().provider_key_version = 7;
+        jwt.transit_url = Some("http://bao.example".into());
+        assert!(jwt
+            .validate_signing_security(SecurityMode::Verified)
+            .is_err());
+        assert!(jwt
+            .validate_signing_security(SecurityMode::IsolatedTest)
+            .is_ok());
+        jwt.public_base_url.clear();
+        jwt.jwks_url = None;
+        assert!(jwt
+            .http_verifier_auth()
+            .unwrap_err()
+            .to_string()
+            .contains("JWKS authority URL"));
     }
 }
 
@@ -631,6 +803,7 @@ impl ConfigLoader<Self> for AppConfig {
                 backend: None,
                 provider: None,
                 remote: None,
+                platform_transit: None,
             },
             logging: LoggingConfig::default(),
             scaleway: ScalewayConfig::default(),
@@ -813,6 +986,10 @@ mod tests {
             Some("http://127.0.0.1:8080/iam/.well-known/jwks.json")
         );
         assert_eq!(auth.jwt.allowed_algorithms, vec!["RS256".to_string()]);
+        assert_eq!(
+            auth.jwt.issuer.as_deref(),
+            Some("http://127.0.0.1:8080/iam")
+        );
         assert!(auth.jwt.hs256_secret.is_none());
     }
 
@@ -833,5 +1010,31 @@ mod tests {
         assert_eq!(auth.jwt.allowed_algorithms, vec!["RS256".to_string()]);
         assert!(!auth.jwt.allowed_algorithms.iter().any(|a| a == "HS256"));
         assert!(auth.jwt.hs256_secret.is_none());
+    }
+
+    #[test]
+    fn http_verifier_auth_mixed_window_keeps_independent_hmac_issuer() {
+        let jwt = JwtConfig {
+            secret: SecretStorage::PlainText {
+                value: "explicit-legacy-hmac-secret".into(),
+            },
+            issuer: "legacy-hmac-issuer".into(),
+            public_base_url: "https://platform.example".into(),
+            allowed_algorithms: vec!["RS256".into(), "HS256".into()],
+            ..JwtConfig::default()
+        };
+        let auth = jwt
+            .http_verifier_auth()
+            .expect("retain explicit HS256 config");
+        assert_eq!(auth.jwt.issuer.as_deref(), Some("legacy-hmac-issuer"));
+        assert_ne!(
+            auth.jwt.issuer.as_deref(),
+            Some(jwt.platform_issuer().as_str())
+        );
+        assert_eq!(
+            auth.jwt.hs256_secret.as_deref(),
+            Some("explicit-legacy-hmac-secret")
+        );
+        assert_eq!(auth.jwt.allowed_algorithms, vec!["RS256", "HS256"]);
     }
 }

@@ -17,6 +17,11 @@ use crate::error::HttpError;
 
 fn map_cmd(e: rustycog::command::CommandError) -> HttpError {
     if let rustycog::command::CommandError::Business { code, .. } = &e {
+        if code == "iam_signing_invalid_input" {
+            return HttpError::BadRequest {
+                message: "Invalid signing input".into(),
+            };
+        }
         if code == "iam_signing_admission_throttled" {
             return HttpError::RateLimit;
         }
@@ -28,6 +33,40 @@ fn map_cmd(e: rustycog::command::CommandError) -> HttpError {
     }
     HttpError::Internal {
         message: format!("Command execution failed: {e}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::response::IntoResponse;
+    #[test]
+    fn signing_input_is400_epoch409_capacity429_but_provider_and_db_faults_remain500() {
+        for (code, status) in [
+            ("iam_signing_invalid_input", 400),
+            ("iam_signing_epoch_conflict", 409),
+            ("iam_signing_admission_throttled", 429),
+        ] {
+            assert_eq!(
+                map_cmd(rustycog::command::CommandError::business(
+                    code,
+                    "private-upstream-detail"
+                ))
+                .into_response()
+                .status()
+                .as_u16(),
+                status
+            );
+        }
+        assert_eq!(
+            map_cmd(rustycog::command::CommandError::infrastructure(
+                "provider",
+                "private-detail"
+            ))
+            .into_response()
+            .status(),
+            500
+        );
     }
 }
 

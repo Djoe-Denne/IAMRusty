@@ -7,6 +7,7 @@ use iam_domain::port::{OrganizationSignerProbe, SigningProvider};
 use rsa::pkcs1v15::Pkcs1v15Sign;
 use sha2::{Digest, Sha256};
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
 use uuid::Uuid;
 
 use super::pem::PemSigningProvider;
@@ -17,6 +18,25 @@ use super::transit::TransitSigningProvider;
 const CHALLENGE_BYTES: &[u8] = b"aiforall-org-signer-challenge";
 const MAX_PEM_BYTES: u64 = 16 * 1024;
 
+/// Local enrollment adapter for a provider already bound by the composition root.
+pub struct ProviderBindingProbe(pub Arc<dyn SigningProvider>);
+#[async_trait]
+impl OrganizationSignerProbe for ProviderBindingProbe {
+    async fn challenge(&self, key: &SigningKey) -> Result<(), DomainError> {
+        let public = self.0.public_key_for(key).await?;
+        if iam_domain::entity::signing_key::parse_signing_public_key(&public)?
+            != iam_domain::entity::signing_key::parse_signing_public_key(&key.public_key)?
+        {
+            return Err(DomainError::InvalidSigningKeyMaterial);
+        }
+        let digest = Sha256::digest(CHALLENGE_BYTES);
+        let signature = self.0.sign_digest_for(key, &digest).await?;
+        iam_domain::entity::signing_key::parse_signing_public_key(&key.public_key)?
+            .verify(Pkcs1v15Sign::new::<Sha256>(), &digest, &signature)
+            .map_err(|_| DomainError::InvalidSigningKeyMaterial)
+    }
+}
+
 /// Filesystem PEM + live Transit probe. Cloud BYOKMS types stay unsupported.
 ///
 /// PEM private keys may only be read from [`pem_root`]. Transit requires a
@@ -25,6 +45,7 @@ const MAX_PEM_BYTES: u64 = 16 * 1024;
 pub struct DefaultOrganizationSignerProbe {
     pem_root: PathBuf,
     transit: Option<TransitClientConfig>,
+    allow_local_pem: bool,
 }
 
 impl DefaultOrganizationSignerProbe {
@@ -33,7 +54,14 @@ impl DefaultOrganizationSignerProbe {
         Self {
             pem_root,
             transit: None,
+            allow_local_pem: false,
         }
+    }
+
+    #[must_use]
+    pub fn with_local_pem_allowed(mut self, allowed: bool) -> Self {
+        self.allow_local_pem = allowed;
+        self
     }
 
     #[must_use]
@@ -45,7 +73,15 @@ impl DefaultOrganizationSignerProbe {
 
 #[async_trait]
 impl OrganizationSignerProbe for DefaultOrganizationSignerProbe {
+    fn validate_configuration(&self, key: &SigningKey) -> Result<(), DomainError> {
+        iam_domain::entity::signing_key::SigningScope::of(key).validate()?;
+        if key.provider_type == SigningProviderType::PemFile && !self.allow_local_pem {
+            return Err(DomainError::InvalidSigningKeyMaterial);
+        }
+        Ok(())
+    }
     async fn challenge(&self, key: &SigningKey) -> Result<(), DomainError> {
+        self.validate_configuration(key)?;
         match key.provider_type {
             SigningProviderType::PemFile => challenge_pem(&self.pem_root, key).await,
             SigningProviderType::OpenBaoTransit => {
@@ -65,7 +101,7 @@ fn path_policy_error(message: &str) -> DomainError {
     DomainError::AuthorizationError(message.to_string())
 }
 
-fn resolve_pem_path(
+pub(super) fn resolve_pem_path(
     pem_root: &Path,
     provider_key_ref: &str,
     organization_id: Option<Uuid>,
@@ -154,15 +190,16 @@ async fn challenge_transit(
     transit: Option<&TransitClientConfig>,
     key: &SigningKey,
 ) -> Result<(), DomainError> {
-    let org = key
-        .organization_id
-        .filter(|_| key.trust_scope == iam_domain::entity::signing_key::TrustScope::Organization)
-        .ok_or_else(|| path_policy_error("Transit organization binding required"))?;
-    iam_domain::entity::signing_key::require_org_transit_binding(
-        org,
-        &key.provider_key_ref,
-        key.credential_ref.as_deref(),
-    )?;
+    iam_domain::entity::signing_key::SigningScope::of(key).validate()?;
+    if let Some(org) = key.organization_id {
+        iam_domain::entity::signing_key::require_org_transit_binding(
+            org,
+            &key.provider_key_ref,
+            key.credential_ref.as_deref(),
+        )?;
+    } else {
+        iam_domain::entity::signing_key::require_transit_key_name(&key.provider_key_ref)?;
+    }
     let transit = transit.ok_or_else(|| {
         DomainError::external_service_error(
             "openbao_transit",
@@ -173,13 +210,21 @@ async fn challenge_transit(
         .credential_ref
         .as_deref()
         .ok_or_else(|| path_policy_error("Transit organization credential required"))?;
+    if key.organization_id.is_none() && token_ref != transit.token_ref {
+        return Err(path_policy_error(
+            "Transit platform credential binding mismatch",
+        ));
+    }
     let provider = TransitSigningProvider::new(
         transit.base_url.clone(),
         key.provider_key_ref.clone(),
+        iam_domain::entity::signing_key::require_transit_key_version(key.provider_key_version)?,
         token_ref,
         transit.workload.clone(),
         Some(key.public_key.clone()),
     )?;
+    // Public retrieval and the PoP must both use the recorded provider version.
+    provider.enrollment_public_key().await?;
     verify_challenge_signature(&provider, &key.public_key).await
 }
 
@@ -221,6 +266,7 @@ mod tests {
             issuer: "http://127.0.0.1/iam/orgs/acme".to_string(),
             provider_type,
             provider_key_ref: key_ref.to_string(),
+            provider_key_version: None,
             credential_ref: None,
             public_key: public_key.to_string(),
             status: SigningKeyStatus::Active,
@@ -231,7 +277,7 @@ mod tests {
     }
 
     fn probe() -> DefaultOrganizationSignerProbe {
-        DefaultOrganizationSignerProbe::new(std::env::temp_dir())
+        DefaultOrganizationSignerProbe::new(std::env::temp_dir()).with_local_pem_allowed(true)
     }
 
     #[tokio::test]
@@ -251,6 +297,7 @@ mod tests {
         let key_ref = format!("{org_id}/{file_name}");
         let key = sample_key(org_id, SigningProviderType::PemFile, &key_ref, public);
         DefaultOrganizationSignerProbe::new(pem_root.clone())
+            .with_local_pem_allowed(true)
             .challenge(&key)
             .await
             .expect("pem challenge");
@@ -271,6 +318,50 @@ mod tests {
         );
         let err = probe().challenge(&key).await.expect_err("missing file");
         assert!(matches!(err, DomainError::ExternalServiceError { .. }));
+    }
+
+    #[tokio::test]
+    async fn default_probe_refuses_local_pem_without_opt_in() {
+        let org = Uuid::new_v4();
+        let key = sample_key(
+            org,
+            SigningProviderType::PemFile,
+            &format!("{org}/missing.pem"),
+            include_str!("../../../config/keys/test-platform.pub"),
+        );
+        let guarded = DefaultOrganizationSignerProbe::new(std::env::temp_dir());
+        assert!(matches!(
+            guarded.challenge(&key).await,
+            Err(DomainError::InvalidSigningKeyMaterial)
+        ));
+        assert!(matches!(
+            guarded.validate_configuration(&key),
+            Err(DomainError::InvalidSigningKeyMaterial)
+        ));
+    }
+
+    #[tokio::test]
+    async fn pem_policy_denies_platform_and_org_before_private_file_resolution() {
+        for platform in [false, true] {
+            let org = Uuid::new_v4();
+            let mut key = sample_key(
+                org,
+                SigningProviderType::PemFile,
+                &format!("{org}/must-not-read.pem"),
+                include_str!("../../../config/keys/test-platform.pub"),
+            );
+            if platform {
+                key.trust_scope = iam_domain::entity::signing_key::TrustScope::Platform;
+                key.organization_id = None;
+            }
+            let root = std::env::temp_dir().join(format!("iam-probe-denied-{}", Uuid::new_v4()));
+            let guarded = DefaultOrganizationSignerProbe::new(root.clone());
+            assert!(matches!(
+                guarded.challenge(&key).await,
+                Err(DomainError::InvalidSigningKeyMaterial)
+            ));
+            assert!(!root.exists());
+        }
     }
 
     #[tokio::test]
@@ -379,6 +470,7 @@ mod tests {
         let key_ref = format!("{org_b}/{file_name}");
         let key = sample_key(org_a, SigningProviderType::PemFile, &key_ref, public);
         let err = DefaultOrganizationSignerProbe::new(pem_root.clone())
+            .with_local_pem_allowed(true)
             .challenge(&key)
             .await
             .expect_err("foreign org pem");
@@ -400,6 +492,7 @@ mod tests {
         let key_ref = org_b_dir.join(&file_name).to_string_lossy().into_owned();
         let key = sample_key(org_a, SigningProviderType::PemFile, &key_ref, public);
         let err = DefaultOrganizationSignerProbe::new(pem_root.clone())
+            .with_local_pem_allowed(true)
             .challenge(&key)
             .await
             .expect_err("absolute foreign org pem");
@@ -423,6 +516,7 @@ mod tests {
             public,
         );
         let err = DefaultOrganizationSignerProbe::new(pem_root.clone())
+            .with_local_pem_allowed(true)
             .challenge(&key)
             .await
             .expect_err("platform pem");
@@ -557,6 +651,7 @@ mod tests {
         let key_ref = write_org_pem(&pem_root, org_id, &private);
         let key = sample_key(org_id, SigningProviderType::PemFile, &key_ref, &public);
         DefaultOrganizationSignerProbe::new(pem_root.clone())
+            .with_local_pem_allowed(true)
             .challenge(&key)
             .await
             .expect("rsa8192 challenge must pass ratified upper bound");
@@ -571,6 +666,7 @@ mod tests {
         let key_ref = write_org_pem(&pem_root, org_id, &private);
         let key = sample_key(org_id, SigningProviderType::PemFile, &key_ref, &public);
         DefaultOrganizationSignerProbe::new(pem_root.clone())
+            .with_local_pem_allowed(true)
             .challenge(&key)
             .await
             .expect("rsa4096 control challenge must stay green");

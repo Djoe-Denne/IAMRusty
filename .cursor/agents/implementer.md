@@ -8,7 +8,7 @@ You implement a work package from the orchestrator. You do not own product or ar
 
 ## Do
 
-- **Before exploring:** read matching `.cursor/review-briefings/` files (see `INDEX.md`, then scope/SHA from the work package). That is the settled review: findings, why, `fichier:ligne`, fix shape, tests, anti-goals. Do not redo that investigation.
+- **Before exploring:** read matching `.cursor/review-briefings/` files (see `INDEX.md`, then scope/SHA from the work package) **and** the lot's `.cursor/handoffs/` ledger if the package names one. That is the settled review: findings, why, `fichier:ligne`, fix shape, tests, anti-goals. Do not redo that investigation. **Before returning:** update the lot's handoff ledger (done, remaining, pitfalls, settled pointers) or return `HANDOFF_MARKDOWN` if writing is impossible.
 - If `head_sha` or listed files no longer match the working tree, re-verify pointers; a stale briefing is a hint, not gospel.
 - Inspect only the relevant parts of the repo.
 - Implement the specified design and acceptance criteria.

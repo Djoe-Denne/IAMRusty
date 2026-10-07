@@ -1,0 +1,65 @@
+---
+description: Handoff persistant entre agents — ledger de session obligatoire, lecture avant exploration, continuité des sessions subagent
+alwaysApply: true
+---
+
+# Handoff agents (décision utilisateur 2026-10-07)
+
+Chaque changement d'agent perd le contexte du précédent : session vierge,
+re-exploration, erreurs de réinterprétation. Contre-mesure : un **ledger de
+handoff** écrit dans le dépôt, obligatoire à la lecture et à l'écriture.
+
+## Fichier
+
+`.cursor/handoffs/<YYYYMMDD>-<slug>.md` — un fichier par tâche/lot, créé au
+démarrage du travail par le parent (orchestrator ou session racine), mis à jour
+par chaque agent qui travaille sur le lot. Gitignored.
+
+Format (sections stables, append-only par section) :
+
+```markdown
+# <slug>
+## Décisions tranchées (file:line vérifiés)
+## Fait
+## Reste
+## Pièges / ne pas refaire
+## Prochaine étape
+## Sessions subagent (agent → sessionID)
+```
+
+## Obligations
+
+1. **Lire avant explorer.** Tout agent qui reçoit un work package lit le
+   handoff du lot avant toute exploration. Ne re-vérifier que les pointeurs
+   périmés (fichier/ligne ne matche plus) — sinon ils font autorité.
+2. **Écrire avant rendre.** Tout agent met à jour le handoff avant sa réponse
+   finale : décisions tranchées, fait/reste, pièges. Rien d'essentiel ne reste
+   chat-only. Si l'écriture est impossible (read-only), rendre
+   `HANDOFF_MARKDOWN` et le parent le persiste.
+3. **Parent = gardien.** Le parent passe le chemin du handoff dans chaque work
+   package (comme les briefings) et vérifie le handoff au retour. Handoff
+   absent à la fin d'un travail substantiel = retour incomplet.
+4. **Pointeurs vérifiés.** Un pointer `file:line` écrit dans le handoff doit
+   avoir été observé par son auteur, pas inféré.
+
+## Continuité de session (anti-respawn)
+
+- Le parent enregistre les `sessionID` des sous-agents dans la section
+  « Sessions subagent ».
+- Pour la suite du travail sur le même lot, **reprendre la même session
+  subagent** (sessionID) au lieu d'en créer une neuve : l'agent garde son
+  exploration, ses lectures, ses échecs déjà vus.
+- Spawn neuf uniquement si : changement de scope, contexte périmé (le diff ne
+  matche plus), ou saturation de la session précédente.
+- Ne jamais reprendre une session au-delà de son bail : session ≠ propriété
+  éternelle ; le bail reste celui défini par `local-runtime-lifecycle`.
+
+## Rôle du handoff vs autres vecteurs
+
+| Vecteur | Rôle |
+|---|---|
+| `AGENTS.md` / `.cursor/rules/` | canon permanent |
+| `docs/adr/` + `docs/contracts/` | décisions structurelles durables |
+| `.cursor/review-briefings/` | raisonnement des reviews |
+| `.cursor/handoffs/` | état vivant d'un lot en cours |
+| `.serena/memories/` | digest court, jamais canon |

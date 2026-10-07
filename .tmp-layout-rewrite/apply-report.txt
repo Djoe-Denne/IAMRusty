@@ -1,0 +1,143 @@
+layout-rewrite : apply (ecriture)
+racine : C:\Users\djden\source\repos\AIForAll
+fichiers scannes : 1861
+
+zone cargo : 2 fichiers, 22 remplacements
+  Cargo.toml:iam-events -> crates/iam-events
+  Cargo.toml:idp-connect-contract -> crates/idp-connect-contract
+  Cargo.toml:hive-events -> crates/hive-events
+  Cargo.toml:manifesto-events -> crates/manifesto-events
+  Cargo.toml:telegraph-events -> crates/telegraph-events
+  Cargo.toml:readiness -> crates/readiness
+  Cargo.toml:ext-authz -> workers/ext-authz
+  Cargo.toml:IAMRusty -> services/IAMRusty
+  ... (14 autres, relancer avec -Verbose)
+
+zone compose : 4 fichiers, 38 remplacements
+  docker-compose.yml:openfga/model.fga -> ops/openfga/model.fga
+  docker-compose.yml:./IAMRusty/scripts/localstack-init.sh -> ./services/IAMRusty/scripts/localstack-init.sh
+  docker-compose.yml:./scripts/openbao-gold-seed.sh -> ./ops/scripts/openbao-gold-seed.sh
+  docker-compose.yml:./certs/platform-mesh -> ./ops/certs/platform-mesh
+  docker-compose.yml:./scripts/generate-platform-mesh-certs.sh -> ./ops/scripts/generate-platform-mesh-certs.sh
+  docker-compose.yml:IAMRusty/Dockerfile -> services/IAMRusty/Dockerfile
+  docker-compose.yml:IAMRusty/.env -> services/IAMRusty/.env
+  docker-compose.yml:./IAMRusty/config -> ./services/IAMRusty/config
+  ... (30 autres, relancer avec -Verbose)
+
+zone docker : 17 fichiers, 25 remplacements
+  Dockerfile.build:monolith/Dockerfile -> runtime/monolith/Dockerfile
+  workers/ext-authz/Dockerfile:monolith/Dockerfile -> runtime/monolith/Dockerfile
+  workers/apparatus-operator/Dockerfile.admit:apparatus-operator/src/admit.rs -> workers/apparatus-operator/src/admit.rs
+  workers/apparatus-operator/Dockerfile.admit.dockerignore:monolith/run-host.ps1 -> runtime/monolith/run-host.ps1
+  workers/apparatus-operator/Dockerfile.controller:apparatus-operator/src/admit.rs -> workers/apparatus-operator/src/admit.rs
+  workers/apparatus-operator/Dockerfile.controller.dockerignore:monolith/run-host.ps1 -> runtime/monolith/run-host.ps1
+  services/Telegraph/Dockerfile:Telegraph/docker-entrypoint.sh -> services/Telegraph/docker-entrypoint.sh
+  services/Telegraph/Dockerfile:Telegraph/config -> services/Telegraph/config
+  ... (17 autres, relancer avec -Verbose)
+
+zone rust : 36 fichiers, 177 remplacements
+  workers/ext-authz/tests/mesh_path_standin.rs:deploy/apps/overlays/kind-mesh/ -> ops/deploy/apps/overlays/kind-mesh/
+  workers/ext-authz/tests/mesh_path_standin.rs:monolith/prove-e2e-curl.ps1 -> runtime/monolith/prove-e2e-curl.ps1
+  workers/apparatus-operator/tests/apparatus_m1_reference_kv_pin.rs:apparatus-reference-kv/ -> crates/apparatus-reference-kv/
+  workers/apparatus-operator/tests/apparatus_m1_reference_kv_pin.rs:apparatus-reference-kv/apparatus.toml -> crates/apparatus-reference-kv/apparatus.toml
+  workers/apparatus-operator/tests/apparatus_m1_reference_kv_pin.rs:apparatus-reference-kv/ -> crates/apparatus-reference-kv/
+  workers/apparatus-operator/tests/apparatus_m2_valid_persist.rs:apparatus-reference-kv/apparatus.toml -> crates/apparatus-reference-kv/apparatus.toml
+  workers/apparatus-operator/tests/apparatus_m2_valid_persist.rs:apparatus-reference-kv/apparatus.toml -> crates/apparatus-reference-kv/apparatus.toml
+  workers/apparatus-operator/tests/apparatus_m3_install_fail_closed.rs:apparatus-reference-kv/apparatus.toml -> crates/apparatus-reference-kv/apparatus.toml
+  ... (169 autres, relancer avec -Verbose)
+
+zone justfile : 1 fichiers, 24 remplacements
+  justfile:IAMRusty/justfile -> services/IAMRusty/justfile
+  justfile:./monolith/run-host.ps1 -> ./runtime/monolith/run-host.ps1
+  justfile:monolith/prove-e2e-curl.ps1 -> runtime/monolith/prove-e2e-curl.ps1
+  justfile:./monolith/prove-j1.ps1 -> ./runtime/monolith/prove-j1.ps1
+  justfile:./openfga/ensure-host-store.ps1 -> ./ops/openfga/ensure-host-store.ps1
+  justfile:./monolith/run-component-catalog.ps1 -> ./runtime/monolith/run-component-catalog.ps1
+  justfile:openfga/model.json -> ops/openfga/model.json
+  justfile:openfga/model.fga -> ops/openfga/model.fga
+  ... (16 autres, relancer avec -Verbose)
+
+zone scripts : 15 fichiers, 77 remplacements
+  runtime/monolith/prove-e2e-curl.ps1:IAMRusty/tests/auth_username_flow.rs -> services/IAMRusty/tests/auth_username_flow.rs
+  runtime/monolith/prove-j1.ps1:deploy/ -> ops/deploy/
+  runtime/monolith/run-host.ps1:openfga/ensure-host-store.ps1 -> ops/openfga/ensure-host-store.ps1
+  ops/scripts/mesh-authn-e2e-cases.sh:scripts/mesh-authn-e2e.sh -> ops/scripts/mesh-authn-e2e.sh
+  ops/scripts/mesh-authn-e2e.sh:scripts/mesh-authn-e2e.sh -> ops/scripts/mesh-authn-e2e.sh
+  ops/scripts/mesh-authn-kind-e2e.sh:certs/ -> ops/certs/
+  ops/scripts/rename-crates.sh:IAMRusty/configuration/Cargo.toml -> services/IAMRusty/configuration/Cargo.toml
+  ops/scripts/rename-crates.sh:IAMRusty/infra/Cargo.toml -> services/IAMRusty/infra/Cargo.toml
+  ... (69 autres, relancer avec -Verbose)
+
+zone ci : 0 fichiers, 0 remplacements
+
+zone sonar : 1 fichiers, 10 remplacements
+  sonar-project.properties:monolith/src/ -> runtime/monolith/src/
+  sonar-project.properties:iam-events/src/ -> crates/iam-events/src/
+  sonar-project.properties:hive-events/src/ -> crates/hive-events/src/
+  sonar-project.properties:manifesto-events/src/ -> crates/manifesto-events/src/
+  sonar-project.properties:apparatus-events/src/ -> crates/apparatus-events/src/
+  sonar-project.properties:monolith/src/ -> runtime/monolith/src/
+  sonar-project.properties:iam-events/src/ -> crates/iam-events/src/
+  sonar-project.properties:hive-events/src/ -> crates/hive-events/src/
+  ... (2 autres, relancer avec -Verbose)
+
+zone docs : 101 fichiers, 824 remplacements
+  README.md:IAMRusty/README.md -> services/IAMRusty/README.md
+  README.md:Telegraph/README.md -> services/Telegraph/README.md
+  README.md:Hive/README.md -> services/Hive/README.md
+  README.md:Manifesto/README.md -> services/Manifesto/README.md
+  README.md:sentinel-sync/README.md -> workers/sentinel-sync/README.md
+  README.md:monolith/README.md -> runtime/monolith/README.md
+  README.md:monolith/README.md -> runtime/monolith/README.md
+  README.md:monolith/README.md -> runtime/monolith/README.md
+  ... (816 autres, relancer avec -Verbose)
+
+zone obsidian : 176 fichiers, 1318 remplacements
+  obsidian/AI FOR ALL/.manifest.json:Lazaret/README.md -> services/Lazaret/README.md
+  obsidian/AI FOR ALL/.manifest.json:Manifesto/migration/src/m20260912_000013_apparatus_p2_runtime.rs -> services/Manifesto/migration/src/m20260912_000013_apparatus_p2_runtime.rs
+  obsidian/AI FOR ALL/.manifest.json:Manifesto/infra/src/apparatus_outbox.rs -> services/Manifesto/infra/src/apparatus_outbox.rs
+  obsidian/AI FOR ALL/.manifest.json:Manifesto/infra/src/apparatus_runtime/mod.rs -> services/Manifesto/infra/src/apparatus_runtime/mod.rs
+  obsidian/AI FOR ALL/.manifest.json:Manifesto/infra/src/apparatus_runtime/cas.rs -> services/Manifesto/infra/src/apparatus_runtime/cas.rs
+  obsidian/AI FOR ALL/.manifest.json:Manifesto/infra/src/apparatus_runtime/tick.rs -> services/Manifesto/infra/src/apparatus_runtime/tick.rs
+  obsidian/AI FOR ALL/.manifest.json:Manifesto/infra/src/apparatus_runtime/cleanup.rs -> services/Manifesto/infra/src/apparatus_runtime/cleanup.rs
+  obsidian/AI FOR ALL/.manifest.json:Manifesto/infra/src/apparatus_runtime/in_process.rs -> services/Manifesto/infra/src/apparatus_runtime/in_process.rs
+  ... (1310 autres, relancer avec -Verbose)
+
+zone serena : 16 fichiers, 28 remplacements
+  .serena/memories/architecture/apparatus-m1-m6-chain.md:apparatus-operator/tests/apparatus_m1_reference_kv_pin.rs -> workers/apparatus-operator/tests/apparatus_m1_reference_kv_pin.rs
+  .serena/memories/architecture/apparatus-m1-m6-chain.md:apparatus-reference-kv/apparatus.toml -> crates/apparatus-reference-kv/apparatus.toml
+  .serena/memories/architecture/apparatus-m1-m6-chain.md:apparatus-operator/tests/apparatus_m2_valid_persist.rs -> workers/apparatus-operator/tests/apparatus_m2_valid_persist.rs
+  .serena/memories/architecture/apparatus-m1-m6-chain.md:apparatus-operator/tests/apparatus_m3_install_fail_closed.rs -> workers/apparatus-operator/tests/apparatus_m3_install_fail_closed.rs
+  .serena/memories/architecture/apparatus-m1-m6-chain.md:apparatus-operator/tests/apparatus_m4_desired_state_bridge.rs -> workers/apparatus-operator/tests/apparatus_m4_desired_state_bridge.rs
+  .serena/memories/architecture/apparatus-m1-m6-chain.md:apparatus-operator/tests/apparatus_m5_invoke_isolated.rs -> workers/apparatus-operator/tests/apparatus_m5_invoke_isolated.rs
+  .serena/memories/architecture/apparatus-m1-m6-chain.md:apparatus-operator/tests/apparatus_m6_e2e_chain.rs -> workers/apparatus-operator/tests/apparatus_m6_e2e_chain.rs
+  .serena/memories/architecture/apparatus-m1-m6-chain.md:apparatus-operator/tests/fixtures/chain.rs -> workers/apparatus-operator/tests/fixtures/chain.rs
+  ... (20 autres, relancer avec -Verbose)
+
+zone skills : 13 fichiers, 63 remplacements
+  .cursor/skills/envoy-runtime-debug/SKILL.md:deploy/mesh/envoy.yaml -> ops/deploy/mesh/envoy.yaml
+  .cursor/skills/envoy-runtime-debug/SKILL.md:deploy/apps/overlays/kind-mesh/envoy-mesh.yaml -> ops/deploy/apps/overlays/kind-mesh/envoy-mesh.yaml
+  .cursor/skills/envoy-runtime-debug/SKILL.md:deploy/mesh/envoy.yaml -> ops/deploy/mesh/envoy.yaml
+  .cursor/skills/creating-wiremock-fixtures/SKILL.md:Manifesto/setup/src/app.rs -> services/Manifesto/setup/src/app.rs
+  .cursor/skills/creating-wiremock-fixtures/SKILL.md:Hive/tests/fixtures/external_provider/ -> services/Hive/tests/fixtures/external_provider/
+  .cursor/skills/creating-wiremock-fixtures/SKILL.md:Telegraph/tests/fixtures/smtp/ -> services/Telegraph/tests/fixtures/smtp/
+  .cursor/skills/creating-wiremock-fixtures/SKILL.md:Manifesto/tests/common.rs -> services/Manifesto/tests/common.rs
+  .cursor/skills/creating-wiremock-fixtures/SKILL.md:Manifesto/setup/src/app.rs -> services/Manifesto/setup/src/app.rs
+  ... (55 autres, relancer avec -Verbose)
+
+zone other : 190 fichiers, 2211 remplacements
+  services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md:Manifesto/src/main.rs -> services/Manifesto/src/main.rs
+  services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md:Manifesto/setup/src/app.rs -> services/Manifesto/setup/src/app.rs
+  services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md:Manifesto/http/src/lib.rs -> services/Manifesto/http/src/lib.rs
+  services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md:Manifesto/http/src/handlers/members.rs -> services/Manifesto/http/src/handlers/members.rs
+  services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md:Manifesto/application/src/command/factory.rs -> services/Manifesto/application/src/command/factory.rs
+  services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md:Manifesto/domain/src/port/repository.rs -> services/Manifesto/domain/src/port/repository.rs
+  services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md:Manifesto/infra/src/repository/resource_repository.rs -> services/Manifesto/infra/src/repository/resource_repository.rs
+  services/Manifesto/docs/rustycog-hexagonal-web-service-guide.md:Manifesto/config/test.toml -> services/Manifesto/config/test.toml
+  ... (2203 autres, relancer avec -Verbose)
+
+RESUME
+  fichiers scannes : 1861
+  fichiers touches : 572
+  remplacements : 4817
+  insertions workspace : 1

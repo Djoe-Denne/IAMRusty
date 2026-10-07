@@ -29,7 +29,7 @@ if ($missing.Count -gt 0) {
 Initialize-LocalKind
 
 Write-Host "mesh : contexte $KindContext (jamais $ForbiddenContext)" -ForegroundColor Cyan
-Write-Host 'mesh : cargo build hote = target/. Image Kind = compilation Linux dans Docker, comme J3.' -ForegroundColor Cyan
+Write-Host 'mesh : cargo build hote = target/ (image Kind = build Linux Docker via Dockerfile.build, cf. AGENTS.md 2026-10-07).' -ForegroundColor Cyan
 
 Write-Host 'mesh : certificats platform-mesh' -ForegroundColor Cyan
 & docker run --rm `

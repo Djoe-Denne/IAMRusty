@@ -1,29 +1,33 @@
 ---
 title: >-
-  Lancer les IT en Docker (Windows hôte)
+  Lancer les IT en Docker (Windows hôte) — OBSOLÈTE 2026-10-07
 category: skills
-tags: [skill, docker, testcontainers, rust, visibility/internal]
+tags: [skill, docker, testcontainers, rust, visibility/internal, obsolete]
 sources:
   - conversation opencode 2026-10-03 (clôture 0308)
-  - AGENTS.md (Compilation locale)
+  - AGENTS.md (Compilation et tests locaux)
   - services/IAMRusty/justfile
   - rustycog/rustycog-testing/src/common/database.rs
   - rustycog/rustycog-config/src/lib.rs
 summary: >-
-  Recette séquencée pour IT Rust dans Docker depuis Windows : image
-  runner, préfixes alignés, réseau fixture, noms fixes, fuite Ryuk,
-  un cargo à la fois. S2S IAM prouvé 23/23 (2026-10-03).
+  DÉPRÉCIÉ 2026-10-07 : les IT tournent maintenant NATIVEMENT sous Windows
+  (cargo hôte, target sur E:), les fixtures testcontainers démarrant leurs
+  conteneurs tiers via le daemon Docker. Cette page ne reste que référence
+  historique (pièges hosts/prefixes/noms fixes encore utiles).
 provenance:
   extracted: 0.80
   inferred: 0.16
   ambiguous: 0.04
 created: 2026-10-03T15:10:00Z
-updated: 2026-10-03T15:10:00Z
+updated: 2026-10-07T00:00:00Z
 ---
 
-# Lancer les IT en Docker (Windows hôte)
+# Lancer les IT en Docker (Windows hôte) — OBSOLÈTE
 
-Contexte : [[projects/aiforall/concepts/local-runtime-lifecycle]]. Cycle de vie du runtime : `AGENTS.md`. Découverte étape par étape lors de la clôture 0308 ([[projects/aiforall/references/opencode-close-0308-2026-10-03]]). Ces commandes ne concernent **pas** l'e2e Kind ([[projects/aiforall/skills/running-mesh-authn-e2e]]).
+> [!warning] Obsolète depuis le 2026-10-07
+> Décision utilisateur : la compilation et les tests d'intégration tournent **nativement sous Windows** (`cargo` hôte, `target\` sur `E:\cargo-target\AIForAll` via `.cargo/config.toml`). Les fixtures testcontainers démarrent elles-mêmes l'infra tierce via le daemon Docker — pas d'image runner, pas de run du service dans Docker. Voir `AGENTS.md` (Compilation et tests locaux) et `.cursor/rules/cargo-docker-kind.mdc`. La recette ci-dessous n'est plus à appliquer ; les pièges de préfixes/hosts (section suivante) restent informatifs.
+
+Cycle de vie du runtime : `AGENTS.md`. Découverte étape par étape lors de la clôture 0308 ([[projects/aiforall/references/opencode-close-0308-2026-10-03]]).
 
 ## Image runner
 

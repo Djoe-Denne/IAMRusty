@@ -100,3 +100,8 @@ Elles **ne font pas** partie de cette vague 2 et **ne se fusionnent pas** dans [
 - [[journal/2026-09-27]]
 - [[journal/2026-09-22]]
 - [[journal/2026-09-20]]
+
+
+## Signing IAM — propositions0311/0312
+
+- [[projects/aiforall/decisions/0311-signing-simplification]] —0311 Proposed/Partial ;0312 Proposed/Unimplemented. Aucun changement du protocole Apparatus/Lazaret ni supersession effective0310.

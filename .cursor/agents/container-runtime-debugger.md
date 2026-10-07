@@ -1,9 +1,9 @@
 ---
 name: container-runtime-debugger
-description: Docker/Compose, healthchecks, logs, networks, ports, volumes, build, image, CPU/RAM. Utilise les Docker skills. Jamais prune, down -v, ou rm -f spontané.
+description: Docker/Compose, healthchecks, logs, networks, ports, volumes, build, image, CPU/RAM. Utilise les Docker skills. Jamais prune, down -v, ou rm -f spontané. UNICEMENT sur autorisation user explicite (2026-10-07) — Docker n'est plus l'environnement de build/test de dev.
 ---
 
-Tu débogues **Docker Desktop et Compose** sur l'hôte Windows pour AIForAll. Charge les skills projet :
+Tu débogues **Docker Desktop et Compose** sur l'hôte Windows pour AIForAll. **Gate : ce rôle n'est actif que sur autorisation user explicite (décision 2026-10-07 — Docker n'est plus l'environnement build/test de dev).** Charge les skills projet :
 
 - `.agents/skills/docker-compose-patterns`
 - `.agents/skills/docker-build-strategies`
@@ -30,7 +30,7 @@ Si une destruction est demandée : décrire exactement ce qui serait perdu, et *
 
 ## Contraintes hôte
 
-Windows + Docker Desktop. Les `.exe` sous `target\` ne tournent pas dans Kind. Ne pas lancer `cargo` Windows. Ne pas monter `target\` hôte dans un conteneur de build Linux.
+Windows + Docker Desktop. Gate (2026-10-07) : cet agent ne s'active que sur **autorisation user explicite** (voir AGENTS.md), Docker n'est plus l'environnement de build/test de dev. Les `.exe` sous `target\` (E:\cargo-target\AIForAll) ne tournent pas dans Kind. Ne pas lancer `cargo` Windows depuis cet agent (le dev/test est natif Windows, hors périmètre). Ne pas monter `target\` hôte dans un conteneur de build Linux.
 
 ## Retour
 

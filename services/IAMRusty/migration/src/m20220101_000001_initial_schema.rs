@@ -13,6 +13,8 @@ impl MigrationTrait for Migration {
         create_user_email_verification_table(manager).await?;
         create_password_reset_tokens_table(manager).await?;
         create_signing_keys_table(manager).await?;
+        create_signing_scope_epochs(manager).await?;
+        create_prepared_signing_publication(manager).await?;
         create_identities_table(manager).await?;
         create_auth_transactions(manager).await?;
         rustycog::outbox::outbox_migration().up(manager).await?;
@@ -27,10 +29,23 @@ impl MigrationTrait for Migration {
         manager
             .drop_table(Table::drop().table(Identities::Table).to_owned())
             .await?;
+        db.execute_unprepared("DROP TABLE signing_key_prepublications")
+            .await?;
+        db.execute_unprepared("DROP TABLE signing_jwks_publication")
+            .await?;
+        db.execute_unprepared("DROP TABLE signing_public_entries")
+            .await?;
+        db.execute_unprepared("DROP FUNCTION iam_invalidate_signing_publication()")
+            .await?;
         manager
             .drop_table(Table::drop().table(SigningKeys::Table).to_owned())
             .await?;
         db.execute_unprepared("DROP FUNCTION iam_signing_admitted_at_immutable()")
+            .await?;
+        // Dropping signing_keys above removes its dependent epoch trigger first.
+        db.execute_unprepared("DROP FUNCTION iam_advance_signing_scope_epoch()")
+            .await?;
+        db.execute_unprepared("DROP TABLE signing_scope_epochs")
             .await?;
         manager
             .drop_table(Table::drop().table(PasswordResetTokens::Table).to_owned())
@@ -52,6 +67,59 @@ impl MigrationTrait for Migration {
             .await?;
         Ok(())
     }
+}
+
+/// Additive initial-source foundation for the later atomic writer cutover.
+/// No migration of an already-migrated DB, PEM backfill, or data reset occurs.
+async fn create_prepared_signing_publication(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    let db = manager.get_connection();
+    db.execute_unprepared(r#"
+        CREATE TABLE signing_public_entries (
+            signing_key_id uuid PRIMARY KEY REFERENCES signing_keys(id),
+            public_n varchar(1366) NOT NULL,
+            public_e varchar(11) NOT NULL,
+            binding_fingerprint bytea NOT NULL CHECK (octet_length(binding_fingerprint)=32),
+            longest_entry_bytes integer NOT NULL CHECK (longest_entry_bytes>0 AND longest_entry_bytes<=4096)
+        )
+    "#).await?;
+    db.execute_unprepared(
+        r#"
+        CREATE TABLE signing_jwks_publication (
+            singleton smallint PRIMARY KEY CHECK (singleton=1),
+            revision bigint NOT NULL CHECK (revision>=0),
+            dirty boolean NOT NULL DEFAULT true,
+            payload text NOT NULL CHECK (octet_length(payload)<=786432),
+            as_of timestamptz NOT NULL,
+            next_expiration timestamptz NULL,
+            access_token_ttl bigint NOT NULL CHECK (access_token_ttl>=0),
+            retire_skew bigint NOT NULL CHECK (retire_skew=60)
+        )
+    "#,
+    )
+    .await?;
+    // TTL0 is deliberately unmaterialized policy, never an inferred runtime TTL.
+    // The cutover reader must refresh policy/clock before using this initial row.
+    db.execute_unprepared(r#"
+        INSERT INTO signing_jwks_publication(singleton,revision,payload,as_of,next_expiration,access_token_ttl,retire_skew)
+        VALUES (1,0,'{"keys":[]}',statement_timestamp(),NULL,0,60)
+    "#).await?;
+    db.execute_unprepared(r#"
+        CREATE INDEX signing_keys_slot_publication ON signing_keys(status,trust_scope,organization_id,updated_at)
+        WHERE status IN ('pending','active','retiring')
+    "#).await?;
+    db.execute_unprepared(
+        r#"
+        CREATE INDEX signing_keys_slot_owner ON signing_keys(organization_id,status,updated_at)
+        WHERE status IN ('pending','active','retiring')
+    "#,
+    )
+    .await?;
+    // Prepared records are immutable through the application. Independent SQL
+    // corruption/removal must invalidate publication rather than leave a fresh
+    // cached payload concealing the corrupt record indefinitely.
+    db.execute_unprepared("CREATE FUNCTION iam_invalidate_signing_publication() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE signing_jwks_publication SET dirty=true WHERE singleton=1; IF TG_OP='DELETE' THEN RETURN OLD; END IF; RETURN NEW; END $$").await?;
+    db.execute_unprepared("CREATE TRIGGER signing_public_entries_publication_dirty AFTER INSERT OR UPDATE OR DELETE ON signing_public_entries FOR EACH ROW EXECUTE FUNCTION iam_invalidate_signing_publication()").await?;
+    Ok(())
 }
 
 async fn create_users_table(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
@@ -498,6 +566,11 @@ async fn create_signing_keys_table(manager: &SchemaManager<'_>) -> Result<(), Db
                         .string()
                         .not_null(),
                 )
+                .col(
+                    ColumnDef::new(SigningKeys::ProviderKeyVersion)
+                        .big_integer()
+                        .null(),
+                )
                 .col(ColumnDef::new(SigningKeys::CredentialRef).string().null())
                 .col(ColumnDef::new(SigningKeys::PublicKey).text().not_null())
                 .col(ColumnDef::new(SigningKeys::Status).string().not_null())
@@ -525,10 +598,28 @@ async fn create_signing_keys_table(manager: &SchemaManager<'_>) -> Result<(), Db
         .await?;
     let db = manager.get_connection();
     db.execute_unprepared("CREATE INDEX signing_keys_organization_admitted_at ON signing_keys(organization_id,lifecycle_admitted_at)").await?;
+    // Initial schema for NEW databases only; this is not an upgrade/backfill.
+    db.execute_unprepared("ALTER TABLE signing_keys ADD CONSTRAINT signing_keys_provider_version CHECK ((provider_key_version IS NULL OR provider_key_version BETWEEN 1 AND 4294967295) AND (provider_type <> 'openbao_transit' OR provider_key_version IS NOT NULL))").await?;
     db.execute_unprepared("CREATE FUNCTION iam_signing_admitted_at_immutable() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.lifecycle_admitted_at IS DISTINCT FROM OLD.lifecycle_admitted_at THEN RAISE EXCEPTION 'signing admission history is immutable'; END IF; RETURN NEW; END $$").await?;
     db.execute_unprepared("CREATE TRIGGER signing_keys_admission_immutable BEFORE UPDATE ON signing_keys FOR EACH ROW EXECUTE FUNCTION iam_signing_admitted_at_immutable()").await?;
     db.execute_unprepared("CREATE UNIQUE INDEX signing_keys_one_active_platform ON signing_keys(trust_scope) WHERE trust_scope='platform' AND status='active'").await?;
     db.execute_unprepared("CREATE UNIQUE INDEX signing_keys_one_active_org ON signing_keys(organization_id) WHERE trust_scope='organization' AND status='active'").await?;
+    Ok(())
+}
+
+async fn create_signing_scope_epochs(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    let db = manager.get_connection();
+    // NEW databases only. Never infer a provider version or migrate live rows.
+    db.execute_unprepared("CREATE TABLE signing_scope_epochs (scope_id text PRIMARY KEY, revision bigint NOT NULL DEFAULT 0 CHECK (revision >= 0))").await?;
+    db.execute_unprepared("CREATE TABLE signing_key_prepublications (key_id uuid PRIMARY KEY, scope_id text NOT NULL, revision bigint NOT NULL CHECK (revision > 0), previous_active_kid text NULL)").await?;
+    db.execute_unprepared(
+        "CREATE INDEX signing_prepublication_scope ON signing_key_prepublications(scope_id)",
+    )
+    .await?;
+    // All existing writers participate, including low-level bootstrap/status APIs.
+    // Transaction rollback rolls back the epoch; timestamps are never epochs.
+    db.execute_unprepared("CREATE FUNCTION iam_advance_signing_scope_epoch() RETURNS trigger LANGUAGE plpgsql AS $$ DECLARE sid text; BEGIN sid := CASE WHEN NEW.trust_scope='platform' AND NEW.organization_id IS NULL THEN 'platform' WHEN NEW.trust_scope='organization' AND NEW.organization_id IS NOT NULL THEN 'organization:' || NEW.organization_id::text ELSE NULL END; IF sid IS NULL THEN RAISE EXCEPTION 'invalid signing scope'; END IF; UPDATE signing_jwks_publication SET dirty=true WHERE singleton=1; INSERT INTO signing_scope_epochs(scope_id,revision) VALUES(sid,1) ON CONFLICT(scope_id) DO UPDATE SET revision=signing_scope_epochs.revision+1; RETURN NEW; END $$").await?;
+    db.execute_unprepared("CREATE TRIGGER signing_keys_scope_epoch AFTER INSERT OR UPDATE ON signing_keys FOR EACH ROW EXECUTE FUNCTION iam_advance_signing_scope_epoch()").await?;
     Ok(())
 }
 
@@ -643,6 +734,7 @@ enum SigningKeys {
     Issuer,
     ProviderType,
     ProviderKeyRef,
+    ProviderKeyVersion,
     CredentialRef,
     PublicKey,
     Status,

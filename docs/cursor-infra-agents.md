@@ -57,7 +57,7 @@ Flags vérifiés : `kubernetes-mcp-server@0.0.67 --help` (`--config`, TOML `read
 |---|---|
 | k8s-operator | K8s/Kind fichiers, pods, deploy, svc, EndpointSlice, ConfigMap, events, logs, rollouts. READ ONLY par défaut. Destruction → parent. |
 | envoy-network-debugger | Envoy, listeners, routes, clusters, endpoints, TLS/SNI/H2/DNS/Service. Skill envoy-runtime-debug. |
-| container-runtime-debugger | Docker/Compose, healthchecks, logs, networks, ports, volumes, build. Jamais prune / `down -v` / `rm -f` spontané. |
+| container-runtime-debugger | Docker/Compose, healthchecks, logs, networks, ports, volumes, build. Jamais prune / `down -v` / `rm -f` spontané. **Autorisation user explicite uniquement (2026-10-07).** |
 | infra-verifier | Après changement : Docker, K8s, Envoy, chemin réseau. PASS/FAIL/INCONCLUSIVE. Ne modifie rien. |
 
 Routage : `AGENTS.md` section **Problèmes infrastructure**. Règle : `.cursor/rules/infra-safety.mdc`.
@@ -81,7 +81,7 @@ Relancer Cursor après fusion MCP pour que l'IDE charge les nouveaux serveurs.
 
 - Au moment de l'installation : nœud `aiforall-local-control-plane` **NotReady** (`KubeletNotReady`, container runtime down). Pendant les smoke tests : conteneur Kind **Exited (137)**, API `127.0.0.1:60787` refusée. Ne pas le redémarrer depuis ces agents.
 - Noyau du node Kind (quand il tournait) : `6.6.87.2-microsoft-standard-WSL2`, containerd 2.0.2. Docker Desktop 4.70.0 : containerd v2.2.1, runc 1.3.4.
-- Un `.exe` `target\` Windows ne démarre pas dans Kind. Compiler les images dans Docker, pas `cargo` hôte.
+- Un `.exe` `target\` Windows ne tourne pas dans Kind. Les images Kind se compilent dans Docker (build de livraison) ; depuis le 2026-10-07, tout dev/test est natif Windows — Docker n'est plus un environnement de build/test de dev. `container-runtime-debugger` : autorisation user explicite uniquement.
 - Ne pas partager `target\` hôte avec un build Linux.
 - Admin Envoy Compose : bind `0.0.0.0:9901` **dans** le conteneur (`ops/deploy/mesh/envoy.yaml`) ; `docker-compose.yml` publie `10000:10000` seulement. Overlay Kind : `127.0.0.1:9901`. Ne pas publier l'admin.
 - Clusters aussi présents : `apparatus-p4-it`, contexte `rancher-desktop` — **hors périmètre**.

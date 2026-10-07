@@ -178,18 +178,14 @@ where
 
         // The writer registry is authoritative, including an empty result. Bootstrapping
         // belongs to setup, never to a publisher that could resurrect revoked keys.
-        let keys = iam_domain::entity::signing_key::filter_jwks_publication_keys_at(
-            snapshot.keys,
-            self.access_token_expiration_seconds,
-            snapshot.as_of,
-        );
-        let set = JwkSet::from_registry_keys_checked(&keys)
-            .map_err(|_| TokenError::RepositoryError("invalid signing registry snapshot".into()))?;
-        // Same compact serializer as admission. Publication is complete even for
-        // a preexisting oversized snapshot requiring explicit human recovery.
-        set.compact_bytes()
-            .map_err(|_| TokenError::RepositoryError("invalid signing registry snapshot".into()))?;
-        Ok(set)
+        if snapshot.revision == 0
+            || snapshot.access_token_expiration_seconds != self.access_token_expiration_seconds
+        {
+            return Err(TokenError::RepositoryError(
+                "invalid signing publication policy".into(),
+            ));
+        }
+        Ok(snapshot.publication.into_jwks())
     }
 }
 
@@ -213,6 +209,7 @@ mod tests {
             issuer: "http://127.0.0.1/iam/orgs/acme".to_string(),
             provider_type: SigningProviderType::PemFile,
             provider_key_ref: "config/keys/org.pem".to_string(),
+            provider_key_version: None,
             credential_ref: None,
             public_key: public_key.to_string(),
             status: SigningKeyStatus::Active,
@@ -281,11 +278,10 @@ mod tests {
                     "unavailable".into(),
                 ));
             }
-            Ok(
-                iam_domain::entity::signing_key::SigningKeyPublicationSnapshot {
-                    keys: self.keys.clone(),
-                    as_of: Utc::now(),
-                },
+            iam_domain::entity::signing_key::SigningKeyPublicationSnapshot::from_fixture_keys(
+                self.keys.clone(),
+                Utc::now(),
+                900,
             )
         }
         async fn confirm_active_for_emission(&self, _: &SigningKey) -> Result<bool, Self::Error> {
@@ -423,7 +419,18 @@ mod tests {
             "https://iam.example",
         );
         assert!(publisher.get_jwks().await.unwrap().keys.is_empty());
-        let good = signing_key("epoch", pem);
+        let mut good = signing_key("epoch", pem);
+        good.kid = iam_domain::entity::signing_key::opaque_kid();
+        let positive = TokenUseCaseImpl::new(
+            Arc::new(Bootstrap),
+            Arc::new(Registry {
+                fail: false,
+                keys: vec![good.clone()],
+            }),
+            Arc::new(Identities),
+            "https://iam.example",
+        );
+        assert_eq!(positive.get_jwks().await.unwrap().keys[0].kid, good.kid);
         let mut corrupt = good.clone();
         corrupt.public_key = "garbage".into();
         let mut unbound = good.clone();
@@ -437,5 +444,21 @@ mod tests {
             );
             assert!(publisher.get_jwks().await.is_err());
         }
+    }
+
+    #[tokio::test]
+    async fn mismatched_materialized_policy_is_an_error_not_a_second_pem_publication() {
+        use std::sync::Arc;
+        let publisher = TokenUseCaseImpl::with_expiration(
+            Arc::new(Bootstrap),
+            Arc::new(Registry {
+                fail: false,
+                keys: vec![],
+            }),
+            Arc::new(Identities),
+            "https://iam.example",
+            173,
+        );
+        assert!(publisher.get_jwks().await.is_err());
     }
 }

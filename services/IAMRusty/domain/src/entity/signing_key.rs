@@ -127,6 +127,9 @@ pub struct SigningKey {
     pub issuer: String,
     pub provider_type: SigningProviderType,
     pub provider_key_ref: String,
+    /// Immutable provider version. Transit requires an explicit positive version.
+    /// Private binding metadata: never published in JWKS.
+    pub provider_key_version: Option<u32>,
     pub credential_ref: Option<String>,
     pub public_key: String,
     pub status: SigningKeyStatus,
@@ -136,10 +139,115 @@ pub struct SigningKey {
 }
 
 /// One coherent primary SELECT, not an application-clock or bootstrap snapshot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SigningScope {
+    pub trust_scope: TrustScope,
+    pub organization_id: Option<Uuid>,
+}
+
+impl SigningScope {
+    pub fn platform() -> Self {
+        Self {
+            trust_scope: TrustScope::Platform,
+            organization_id: None,
+        }
+    }
+    pub fn organization(id: Uuid) -> Self {
+        Self {
+            trust_scope: TrustScope::Organization,
+            organization_id: Some(id),
+        }
+    }
+    pub fn of(key: &SigningKey) -> Self {
+        Self {
+            trust_scope: key.trust_scope.clone(),
+            organization_id: key.organization_id,
+        }
+    }
+    pub fn validate(&self) -> Result<(), crate::error::DomainError> {
+        if (self.trust_scope == TrustScope::Platform) != self.organization_id.is_none() {
+            return Err(crate::error::DomainError::InvalidSigningKeyMaterial);
+        }
+        Ok(())
+    }
+}
+
+/// Primary scope epoch, durable even when no Active row remains after disable.
+#[derive(Debug, Clone)]
+pub struct SigningScopeSnapshot {
+    pub scope: SigningScope,
+    pub revision: u64,
+    pub active: Option<SigningKey>,
+    pub pending: Option<PreparedSigningTransition>,
+}
+
+/// Receipt returned only after Pending + its canonical publication commit.
+#[derive(Debug, Clone)]
+pub struct PreparedSigningTransition {
+    pub key: SigningKey,
+    pub revision: u64,
+    pub previous_active_kid: Option<String>,
+}
+
+#[derive(Debug)]
+pub enum SigningKeyPreparation {
+    Unchanged(SigningKey),
+    Pending(PreparedSigningTransition),
+}
+
+/// Probe evidence is constructed by the domain probe port, never by the writer.
+/// Carries the scope revision read BEFORE provider I/O. Not Clone/retry evidence.
+pub struct ProbedSigningKey {
+    key: SigningKey,
+    before: SigningScopeSnapshot,
+}
+impl ProbedSigningKey {
+    pub(crate) fn new(key: SigningKey, before: SigningScopeSnapshot) -> Self {
+        Self { key, before }
+    }
+    pub fn key(&self) -> &SigningKey {
+        &self.key
+    }
+    pub fn before(&self) -> &SigningScopeSnapshot {
+        &self.before
+    }
+}
+
+/// One coherent primary SELECT, not an application-clock or bootstrap snapshot.
 #[derive(Clone)]
 pub struct SigningKeyPublicationSnapshot {
-    pub keys: Vec<SigningKey>,
+    pub publication: crate::entity::signing_publication::ValidatedJwksPublication,
     pub as_of: DateTime<Utc>,
+    pub revision: u64,
+    pub access_token_expiration_seconds: u64,
+    pub next_expiration: Option<DateTime<Utc>>,
+}
+
+impl SigningKeyPublicationSnapshot {
+    /// Fixture/legacy adapter only. Production reads persisted, already validated
+    /// public payloads; it never calls this PEM conversion adapter.
+    pub fn from_fixture_keys(
+        keys: Vec<SigningKey>,
+        as_of: DateTime<Utc>,
+        ttl: u64,
+    ) -> Result<Self, crate::error::DomainError> {
+        let keys = filter_jwks_publication_keys_at(keys, ttl, as_of);
+        let entries = keys
+            .iter()
+            .map(|key| {
+                crate::entity::signing_publication::PreparedSigningPublicKey::prepare(key)?
+                    .project(key)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self {
+            publication:
+                crate::entity::signing_publication::ValidatedJwksPublication::from_entries(entries)?,
+            as_of,
+            revision: 1,
+            access_token_expiration_seconds: ttl,
+            next_expiration: None,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -268,20 +376,11 @@ impl SigningKeyLifecyclePolicy {
     ) -> Result<SigningKeyLifecyclePreflight, crate::error::DomainError> {
         self.validate()?;
         self.access_token_retention(access_ttl_seconds, snapshot.as_of)?;
-        let usage = self
-            .publication_usage(&snapshot.keys, access_ttl_seconds, snapshot.as_of)
-            .ok();
-        let recovery_required = self
-            .check_admission(
-                &snapshot.keys,
-                &[],
-                None,
-                access_ttl_seconds,
-                snapshot.as_of,
-            )
-            .is_err();
+        let usage = Some(snapshot.publication.usage());
+        let recovery_required = snapshot.access_token_expiration_seconds != access_ttl_seconds
+            || snapshot.revision == 0;
         Ok(SigningKeyLifecyclePreflight {
-            snapshot_key_count: snapshot.keys.len(),
+            snapshot_key_count: snapshot.publication.counts().global,
             usage,
             recovery_required,
         })
@@ -320,98 +419,22 @@ impl SigningKeyLifecyclePolicy {
 
     /// New rows only; no legacy Active authentication check is added.
     pub fn validate_new_key(&self, key: &SigningKey) -> Result<(), crate::error::DomainError> {
-        use rsa::traits::PublicKeyParts;
-        let invalid = || crate::error::DomainError::InvalidSigningKeyMaterial;
-        let kid = Uuid::parse_str(&key.kid).map_err(|_| invalid())?;
-        if key.algorithm != "RS256"
-            || kid.get_version() != Some(uuid::Version::Random)
-            || key.kid != kid.simple().to_string()
-            || key.issuer.len() > 1024
-            || url::Url::parse(&key.issuer).is_err()
-            || (key.trust_scope == TrustScope::Platform) != key.organization_id.is_none()
-        {
-            return Err(invalid());
-        }
-        let public = parse_signing_public_key(&key.public_key)?;
-        let exponent = public.e().to_bytes_be();
-        if !(2048..=8192).contains(&public.n().bits()) || exponent.len() > 8 || exponent.is_empty()
-        {
-            return Err(invalid());
-        }
-        let e = exponent
-            .iter()
-            .fold(0u64, |value, byte| (value << 8) | u64::from(*byte));
-        if e < 3 || e % 2 == 0 {
-            return Err(invalid());
-        }
-        // JWK conversion uses canonical minimal n/e base64url, never raw PEM size.
-        if self.reserved_entry_bytes(key)? > self.max_reserved_jwk_bytes {
-            return Err(invalid());
-        }
-        Ok(())
+        crate::entity::signing_publication::PreparedSigningPublicKey::prepare(key).map(|_| ())
     }
 
-    pub fn reserved_entry_bytes(
-        &self,
-        key: &SigningKey,
-    ) -> Result<usize, crate::error::DomainError> {
-        let mut maximum = 0;
-        for status in [
-            SigningKeyStatus::Pending,
-            SigningKeyStatus::Active,
-            SigningKeyStatus::Retiring,
-        ] {
-            let mut variant = key.clone();
-            variant.status = status;
-            let set = crate::entity::token::JwkSet::from_registry_keys_checked(&[variant])?;
-            let size = serde_json::to_vec(&set.keys[0])
-                .map_err(|_| crate::error::DomainError::InvalidSigningKeyMaterial)?
-                .len();
-            maximum = maximum.max(size);
-        }
-        Ok(maximum)
-    }
-
-    /// Exact non-secret preflight/accounting, independent of policy acceptance.
+    /// Compatibility diagnostic for fixture callers, now fixed-slot accounting.
+    /// Production SQL admission/materialization never calls this PEM adapter.
     pub fn publication_usage(
         &self,
         keys: &[SigningKey],
         ttl: u64,
         as_of: DateTime<Utc>,
     ) -> Result<SigningKeyPublicationUsage, crate::error::DomainError> {
-        let keys = filter_jwks_publication_keys_at(keys.to_vec(), ttl, as_of);
-        let actual_bytes = crate::entity::token::JwkSet::from_registry_keys_checked(&keys)?
-            .compact_bytes()?
-            .len();
-        let mut usage = SigningKeyPublicationUsage {
-            actual_bytes,
-            reserved_bytes: crate::entity::token::JwkSet { keys: vec![] }
-                .compact_bytes()?
-                .len(),
-            organization_reserved_bytes: 0,
-            platform_epochs: 0,
-            organization_epochs: std::collections::BTreeMap::new(),
-        };
-        for key in &keys {
-            let cost = self
-                .reserved_entry_bytes(key)?
-                .checked_add(1)
-                .ok_or_else(|| admission_denied(SigningKeyAdmissionReason::Capacity))?;
-            usage.reserved_bytes = usage
-                .reserved_bytes
-                .checked_add(cost)
-                .ok_or_else(|| admission_denied(SigningKeyAdmissionReason::Capacity))?;
-            if let Some(org) = key.organization_id {
-                usage.organization_reserved_bytes = usage
-                    .organization_reserved_bytes
-                    .checked_add(cost)
-                    .ok_or_else(|| admission_denied(SigningKeyAdmissionReason::Capacity))?;
-                *usage.organization_epochs.entry(org).or_default() += 1;
-            } else {
-                usage.platform_epochs += 1;
-            }
-        }
-        Ok(usage)
+        Ok(
+            SigningKeyPublicationSnapshot::from_fixture_keys(keys.to_vec(), as_of, ttl)?
+                .publication
+                .usage(),
+        )
     }
 
     /// Validate the simulated complete publication BEFORE any mutation. New kids
@@ -442,35 +465,35 @@ impl SigningKeyLifecyclePolicy {
             return Err(admission_denied(SigningKeyAdmissionReason::Capacity));
         }
         let published = filter_jwks_publication_keys_at(proposed.to_vec(), ttl, as_of);
-        // Invalid legacy publication is explicit recovery, not silent eviction.
-        if published
-            .iter()
-            .any(|key| self.validate_new_key(key).is_err())
-        {
-            return Err(admission_denied(SigningKeyAdmissionReason::Capacity));
+        // Compatibility adapter for in-memory fixture registries. The real writer
+        // uses SQL counts, not this scan and not a variable-price tariff.
+        let mut counts = crate::entity::signing_publication::SigningSlotCounts::default();
+        let mut owners = std::collections::BTreeMap::<Uuid, usize>::new();
+        for key in &published {
+            counts.global += 1;
+            if let Some(org) = key.organization_id {
+                counts.global_organization += 1;
+                *owners.entry(org).or_default() += 1;
+            } else {
+                counts.platform += 1;
+            }
         }
-        let usage = self
-            .publication_usage(proposed, ttl, as_of)
+        counts.organization = owners.values().copied().max().unwrap_or(0);
+        counts.validate()?;
+        SigningKeyPublicationSnapshot::from_fixture_keys(published, as_of, ttl)
             .map_err(|_| admission_denied(SigningKeyAdmissionReason::Capacity))?;
-        if usage.actual_bytes > usage.reserved_bytes
-            || usage.reserved_bytes > self.max_jwks_bytes
-            || usage.organization_reserved_bytes > self.max_jwks_bytes - self.platform_reserve_bytes
-        {
-            return Err(admission_denied(SigningKeyAdmissionReason::Capacity));
-        }
-        if usage.platform_epochs > self.max_platform_epochs {
-            return Err(admission_denied(SigningKeyAdmissionReason::Capacity));
-        }
-        if usage
-            .organization_epochs
-            .values()
-            .any(|count| *count > self.max_organization_epochs)
-        {
-            return Err(admission_denied(
-                SigningKeyAdmissionReason::TenantEpochLimit,
-            ));
-        }
-        if let Some(org) = new_key.and_then(|key| key.organization_id) {
+        self.check_churn(history, new_key.and_then(|key| key.organization_id), as_of)
+    }
+
+    /// Indexed DB evidence evaluated at the post-lock writer clock. Revocation,
+    /// no-op and promotion do not call this with an organization admission.
+    pub fn check_churn(
+        &self,
+        history: &[SigningKeyAdmissionHistory],
+        organization_id: Option<Uuid>,
+        as_of: DateTime<Utc>,
+    ) -> Result<(), crate::error::DomainError> {
+        if let Some(org) = organization_id {
             let cutoff = as_of
                 .checked_sub_signed(chrono::Duration::seconds(self.churn_window_seconds))
                 .ok_or_else(|| admission_denied(SigningKeyAdmissionReason::Capacity))?;
@@ -499,6 +522,13 @@ impl SigningKeyLifecyclePolicy {
     }
 }
 
+/// Require a pinned Transit version; missing and zero are never aliases for latest.
+pub fn require_transit_key_version(version: Option<u32>) -> Result<u32, crate::error::DomainError> {
+    version
+        .filter(|v| *v > 0)
+        .ok_or(crate::error::DomainError::InvalidSigningKeyMaterial)
+}
+
 /// Configure equality: all effective bindings, normalized n/e; candidate identity
 /// and timestamps are deliberately not part of this no-op comparison.
 pub fn same_effective_signing_binding(a: &SigningKey, b: &SigningKey) -> bool {
@@ -508,6 +538,7 @@ pub fn same_effective_signing_binding(a: &SigningKey, b: &SigningKey) -> bool {
         || a.organization_id != b.organization_id
         || a.provider_type != b.provider_type
         || a.provider_key_ref != b.provider_key_ref
+        || a.provider_key_version != b.provider_key_version
         || a.credential_ref != b.credential_ref
     {
         return false;
@@ -657,6 +688,7 @@ mod admission_tests {
             issuer: "https://iam.example.test/iam/orgs/é".into(),
             provider_type: SigningProviderType::RemoteHttp,
             provider_key_ref: "key-ref".into(),
+            provider_key_version: None,
             credential_ref: Some("credential-ref".into()),
             public_key: include_str!("../../../config/keys/test-platform.pub").into(),
             status: SigningKeyStatus::Active,
@@ -682,30 +714,42 @@ mod admission_tests {
     #[test]
     fn preflight_shared_evaluator_distinguishes_empty_normal_unknown_and_overbudget() {
         let policy = SigningKeyLifecyclePolicy::new().unwrap();
-        let mut snapshot = SigningKeyPublicationSnapshot {
-            keys: vec![],
-            as_of: clock(),
-        };
+        let mut snapshot =
+            SigningKeyPublicationSnapshot::from_fixture_keys(vec![], clock(), 1800).unwrap();
         let report = policy.preflight_publication(&snapshot, 1800).unwrap();
         assert!(!report.recovery_required);
         assert_eq!(report.snapshot_key_count, 0);
         assert_eq!(report.usage.unwrap().actual_bytes, b"{\"keys\":[]}".len());
-        snapshot.keys.push(key(None));
+        snapshot = SigningKeyPublicationSnapshot::from_fixture_keys(vec![key(None)], clock(), 1800)
+            .unwrap();
         assert!(
             !policy
                 .preflight_publication(&snapshot, 1800)
                 .unwrap()
                 .recovery_required
         );
-        snapshot.keys[0].public_key = "invalid legacy public material".into();
-        let report = policy.preflight_publication(&snapshot, 1800).unwrap();
-        assert!(report.recovery_required);
-        assert!(report.usage.is_none());
-        snapshot.keys = (0..1600).map(|_| key(Some(Uuid::new_v4()))).collect();
-        let report = policy.preflight_publication(&snapshot, 1800).unwrap();
-        assert!(report.recovery_required);
-        assert!(report.usage.unwrap().reserved_bytes > 786432);
-        assert_eq!(report.snapshot_key_count, 1600);
+        let mut invalid = key(None);
+        invalid.public_key = "invalid legacy public material".into();
+        assert!(
+            SigningKeyPublicationSnapshot::from_fixture_keys(vec![invalid], clock(), 1800).is_err()
+        );
+        // Explicit0312 remapping: foreign/unbounded snapshot fails construction,
+        // rather than being represented as a successfully served oversized DTO.
+        let overbudget = (0..176).map(|_| key(Some(Uuid::new_v4()))).collect();
+        assert!(matches!(
+            SigningKeyPublicationSnapshot::from_fixture_keys(overbudget, clock(), 1800),
+            Err(DomainError::SigningKeyAdmissionDenied {
+                reason: SigningKeyAdmissionReason::Capacity,
+                ..
+            })
+        ));
+        snapshot.revision = 0;
+        assert!(
+            policy
+                .preflight_publication(&snapshot, 1800)
+                .unwrap()
+                .recovery_required
+        );
         assert!(policy.preflight_publication(&snapshot, 0).is_err());
         assert!(policy.preflight_publication(&snapshot, u64::MAX).is_err());
     }
@@ -718,15 +762,18 @@ mod admission_tests {
         retiring.status = SigningKeyStatus::Retiring;
         retiring.updated_at = clock() - chrono::Duration::seconds(1000);
         retiring.public_key = "invalid retained legacy material".into();
-        let snapshot = SigningKeyPublicationSnapshot {
-            keys: vec![retiring],
-            as_of: clock(),
-        };
+        let snapshot =
+            SigningKeyPublicationSnapshot::from_fixture_keys(vec![retiring.clone()], clock(), 900)
+                .unwrap();
         assert!(
             !policy
                 .preflight_publication(&snapshot, 900)
                 .unwrap()
                 .recovery_required
+        );
+        assert!(
+            SigningKeyPublicationSnapshot::from_fixture_keys(vec![retiring], clock(), 1800)
+                .is_err()
         );
         assert!(
             policy
@@ -789,7 +836,10 @@ mod admission_tests {
         let p = SigningKeyLifecyclePolicy::new().unwrap();
         let mut k = key(Some(Uuid::new_v4()));
         k.issuer = "https://iam.example.test/é?quote=\"&backslash=\\".into();
-        let b = p.reserved_entry_bytes(&k).unwrap();
+        let b = crate::entity::signing_publication::SLOT_BYTES_MAX;
+        let prepared =
+            crate::entity::signing_publication::PreparedSigningPublicKey::prepare(&k).unwrap();
+        assert!(prepared.longest_entry_bytes() <= b);
         for status in [
             SigningKeyStatus::Pending,
             SigningKeyStatus::Active,
@@ -840,7 +890,11 @@ mod admission_tests {
         k.issuer = format!("https://iam.example.test/{}", "\u{1}".repeat(900));
         assert!(k.issuer.len() <= 1024);
         assert!(url::Url::parse(&k.issuer).is_ok());
-        assert!(p.reserved_entry_bytes(&k).unwrap() > 4096);
+        let mut dto =
+            crate::entity::token::Jwk::from_rsa_pem(&k.public_key, &k.kid, &k.issuer).unwrap();
+        dto.status = Some(SigningKeyStatus::Retiring);
+        dto.trust_scope = Some(k.trust_scope.clone());
+        assert!(serde_json::to_vec(&dto).unwrap().len() > 4096);
         assert!(p.validate_new_key(&k).is_err());
         let public = rsa::RsaPublicKey::new_unchecked(
             (rsa::BigUint::from(1u8) << 2047) + rsa::BigUint::from(3u8),
@@ -864,7 +918,7 @@ mod admission_tests {
         assert!(same_effective_signing_binding(&original, &candidate));
         candidate.public_key = candidate.public_key.replace('\n', "\r\n");
         assert!(same_effective_signing_binding(&original, &candidate));
-        for mutant in 0..7 {
+        for mutant in 0..8 {
             let mut changed = candidate.clone();
             match mutant {
                 0 => changed.credential_ref = Some("different-credential".into()),
@@ -873,10 +927,41 @@ mod admission_tests {
                 3 => changed.issuer.push_str("different"),
                 4 => changed.algorithm = "HS256".into(),
                 5 => changed.organization_id = Some(Uuid::new_v4()),
+                6 => changed.provider_key_version = Some(2),
                 _ => changed.public_key = public_bits(4096),
             }
             assert!(!same_effective_signing_binding(&original, &changed));
         }
+    }
+
+    #[test]
+    fn transit_requires_explicit_version_and_version_only_change_is_not_noop() {
+        let policy = SigningKeyLifecyclePolicy::new().unwrap();
+        let mut original = key(Some(Uuid::new_v4()));
+        original.provider_type = SigningProviderType::OpenBaoTransit;
+        for version in [None, Some(0)] {
+            original.provider_key_version = version;
+            assert!(matches!(
+                policy.validate_new_key(&original),
+                Err(crate::error::DomainError::InvalidSigningKeyMaterial)
+            ));
+        }
+        original.provider_key_version = Some(7);
+        policy.validate_new_key(&original).unwrap();
+        let mut candidate = original.clone();
+        candidate.kid = opaque_kid();
+        candidate.id = Uuid::new_v4();
+        assert!(same_effective_signing_binding(&original, &candidate));
+        candidate.provider_key_version = Some(8);
+        assert!(!same_effective_signing_binding(&original, &candidate));
+        let json = serde_json::to_value(
+            crate::entity::token::JwkSet::from_registry_keys_checked(&[original]).unwrap(),
+        )
+        .unwrap();
+        let entry = &json["keys"][0];
+        assert!(entry.get("provider_key_version").is_none());
+        assert!(entry.get("provider_key_ref").is_none());
+        assert!(entry.get("credential_ref").is_none());
     }
 
     #[test]
@@ -950,20 +1035,16 @@ mod admission_tests {
         );
         let org_key = key(Some(org));
         let platform_key = key(None);
-        let org_cost = p.reserved_entry_bytes(&org_key).unwrap() + 1;
-        let platform_cost = p.reserved_entry_bytes(&platform_key).unwrap() + 1;
-        let mut finite = p.clone();
-        finite.max_jwks_bytes = 11 + 2 * org_cost + platform_cost;
-        finite.platform_reserve_bytes = 11 + org_cost + platform_cost;
-        finite.validate().unwrap();
-        assert!(finite
+        assert!(p
             .check_admission(&[org_key.clone(), platform_key], &[], None, 900, clock())
             .is_ok());
-        let another = key(Some(Uuid::new_v4()));
+        let reserved: Vec<_> = (0..176).map(|_| key(Some(Uuid::new_v4()))).collect();
+        assert!(p
+            .check_admission(&reserved[..175], &[], None, 900, clock())
+            .is_ok());
         assert_eq!(
             reason(
-                finite
-                    .check_admission(&[org_key, another], &[], None, 900, clock())
+                p.check_admission(&reserved, &[], None, 900, clock())
                     .unwrap_err()
             ),
             SigningKeyAdmissionReason::Capacity
@@ -1058,6 +1139,7 @@ mod tests {
             issuer: "https://iam.example".into(),
             provider_type: SigningProviderType::PemFile,
             provider_key_ref: "platform.pem".into(),
+            provider_key_version: None,
             credential_ref: None,
             public_key: String::new(),
             status: SigningKeyStatus::Retiring,

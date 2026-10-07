@@ -1,0 +1,52 @@
+diff --git a/services/Lazaret/application/src/invoke.rs b/services/Lazaret/application/src/invoke.rs
+index 5b17c54..83d0415 100644
+--- a/services/Lazaret/application/src/invoke.rs
++++ b/services/Lazaret/application/src/invoke.rs
+@@ -75,7 +75,7 @@ impl PluginEndpointLocator for StaticPluginLocator {
+ #[derive(Debug, Default, Clone, Copy)]
+ pub struct DigestDnsPluginLocator;
+ 
+-/// Digest-based routing in one validated Kubernetes namespace.
++/// Digest-based routing in one namespace validated as a DNS-1123 label.
+ #[derive(Debug, Clone)]
+ pub struct NamespacedDigestDnsPluginLocator {
+     namespace: String,
+diff --git a/services/Lazaret/configuration/src/lib.rs b/services/Lazaret/configuration/src/lib.rs
+index 26754a4..7583a6d 100644
+--- a/services/Lazaret/configuration/src/lib.rs
++++ b/services/Lazaret/configuration/src/lib.rs
+@@ -238,7 +238,7 @@ pub struct PluginHopConfig {
+     /// Formule DNS Kind `plugin-{32hex}.apparatus-plugins.svc:8080` (ADR-0605).
+     #[serde(default)]
+     pub use_dns_formula: bool,
+-    /// Kubernetes namespace for digest DNS routing; never trimmed or defaulted when explicit.
++    /// Plugin service namespace for digest DNS routing; never trimmed or defaulted when explicit.
+     #[serde(default = "default_plugin_namespace")]
+     pub namespace: String,
+ }
+diff --git a/services/Manifesto/application/src/usecase/component.rs b/services/Manifesto/application/src/usecase/component.rs
+index 161ddec..7bef2be 100644
+--- a/services/Manifesto/application/src/usecase/component.rs
++++ b/services/Manifesto/application/src/usecase/component.rs
+@@ -590,7 +590,7 @@ mod attach_from_catalog_tests {
+             name: "Reference KV".to_owned(),
+             description: None,
+             version: "1.0.0".to_owned(),
+-            endpoint: "http://127.0.0.1:8080/lazaret".to_owned(),
++            endpoint: "http://127.0.0.1:8080/catalog-fixture".to_owned(),
+             digest: digest.map(ToOwned::to_owned),
+             declared_capabilities: declared
+                 .map(|caps| caps.into_iter().map(ToOwned::to_owned).collect()),
+diff --git a/services/Manifesto/infra/src/event/consumer.rs b/services/Manifesto/infra/src/event/consumer.rs
+index 03ed6b4..4f8232d 100644
+--- a/services/Manifesto/infra/src/event/consumer.rs
++++ b/services/Manifesto/infra/src/event/consumer.rs
+@@ -16,7 +16,7 @@ use super::processors::ComponentStatusProcessor;
+ 
+ /// Restrict the apparatus listener to `component_status_changed` destinations.
+ /// The shared `[queue.queues]` map also lists AuthZ files (`sentinel-sync-events`);
+-/// rustycog consumers poll `all_queue_urls()`, which would otherwise steal those
++/// rustycog consumers read from `all_queue_urls()`, which would otherwise steal those
+ /// messages (visibility hold, no delete) from sentinel-sync.
+ fn apparatus_listener_queue_config(queue_config: &QueueConfig) -> QueueConfig {
+     match queue_config {

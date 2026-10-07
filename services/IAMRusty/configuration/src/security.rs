@@ -13,6 +13,13 @@ pub enum SecurityMode {
     IsolatedTest,
 }
 
+impl SecurityMode {
+    /// Only these explicitly selected non-production modes allow private PEM.
+    pub const fn allows_local_pem(self) -> bool {
+        matches!(self, Self::LocalInsecure | Self::IsolatedTest)
+    }
+}
+
 /// `[security]` boot policy; missing configuration is production-safe.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SecurityConfig {

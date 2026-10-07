@@ -78,6 +78,8 @@ pub struct ConfigureSignerBody {
     pub provider_type: String,
     pub provider_key_ref: String,
     #[serde(default)]
+    pub provider_key_version: Option<u32>,
+    #[serde(default)]
     pub credential_ref: Option<String>,
     pub public_key: String,
     /// Trusted from Hive (internal token). Hive binds this to `Organization.slug`.
@@ -202,6 +204,7 @@ pub async fn configure_organization_signer(
             &ConfigureOrganizationSignerInput {
                 provider_type: body.provider_type,
                 provider_key_ref: body.provider_key_ref,
+                provider_key_version: body.provider_key_version,
                 credential_ref: body.credential_ref,
                 public_key: body.public_key,
                 org_slug: body.org_slug,
@@ -357,6 +360,7 @@ mod tests {
             issuer: issuer.to_string(),
             provider_type: SigningProviderType::PemFile,
             provider_key_ref: "opaque".to_string(),
+            provider_key_version: None,
             credential_ref: None,
             public_key: public_key.to_string(),
             status: SigningKeyStatus::Active,
@@ -388,11 +392,139 @@ mod tests {
     struct FakeRegistry {
         keys: Mutex<Vec<SigningKey>>,
         history: Mutex<Vec<iam_domain::entity::signing_key::SigningKeyAdmissionHistory>>,
+        epochs: Mutex<std::collections::HashMap<Option<Uuid>, u64>>,
+        prepared: Mutex<Vec<iam_domain::entity::signing_key::PreparedSigningTransition>>,
     }
 
     #[async_trait]
     impl SigningKeyRegistry for FakeRegistry {
         type Error = DomainError;
+
+        async fn signing_scope_snapshot(
+            &self,
+            scope: &iam_domain::entity::signing_key::SigningScope,
+        ) -> Result<iam_domain::entity::signing_key::SigningScopeSnapshot, DomainError> {
+            let keys = self.keys.lock().unwrap();
+            let epochs = self.epochs.lock().unwrap();
+            let prepared = self.prepared.lock().unwrap();
+            Ok(iam_domain::entity::signing_key::SigningScopeSnapshot {
+                scope: scope.clone(),
+                revision: *epochs.get(&scope.organization_id).unwrap_or(&0),
+                active: keys
+                    .iter()
+                    .find(|key| {
+                        key.organization_id == scope.organization_id
+                            && key.status == SigningKeyStatus::Active
+                    })
+                    .cloned(),
+                pending: prepared
+                    .iter()
+                    .find(|p| p.key.organization_id == scope.organization_id)
+                    .cloned(),
+            })
+        }
+
+        async fn prepare_signing_key(
+            &self,
+            proof: iam_domain::entity::signing_key::ProbedSigningKey,
+        ) -> Result<iam_domain::entity::signing_key::SigningKeyPreparation, DomainError> {
+            use iam_domain::entity::signing_key::{
+                PreparedSigningTransition, SigningKeyAdmissionHistory, SigningKeyLifecyclePolicy,
+                SigningKeyPreparation,
+            };
+            let mut keys = self.keys.lock().unwrap();
+            let mut history = self.history.lock().unwrap();
+            let mut epochs = self.epochs.lock().unwrap();
+            let mut prepared = self.prepared.lock().unwrap();
+            let key = proof.key();
+            let revision = epochs.entry(key.organization_id).or_default();
+            if *revision != proof.before().revision {
+                return Err(DomainError::InvalidToken);
+            }
+            if keys
+                .iter()
+                .any(|row| row.issuer == key.issuer && row.organization_id != key.organization_id)
+            {
+                return Err(DomainError::BusinessRuleViolation(
+                    ISSUER_OWNED_BY_OTHER_ORGANIZATION.into(),
+                ));
+            }
+            if let Some(existing) = prepared
+                .iter()
+                .find(|p| p.key.organization_id == key.organization_id)
+            {
+                if !iam_domain::entity::signing_key::same_effective_signing_binding(
+                    &existing.key,
+                    key,
+                ) {
+                    return Err(DomainError::InvalidToken);
+                }
+                return Ok(SigningKeyPreparation::Pending(existing.clone()));
+            }
+            let now = Utc::now();
+            let mut proposed = keys.clone();
+            proposed.push(key.clone());
+            SigningKeyLifecyclePolicy::new()?.check_admission(
+                &proposed,
+                &history,
+                Some(key),
+                900,
+                now,
+            )?;
+            history.push(SigningKeyAdmissionHistory {
+                organization_id: key.organization_id,
+                admitted_at: now,
+            });
+            keys.push(key.clone());
+            *revision += 1;
+            let pending = PreparedSigningTransition {
+                key: key.clone(),
+                revision: *revision,
+                previous_active_kid: proof.before().active.as_ref().map(|key| key.kid.clone()),
+            };
+            prepared.push(pending.clone());
+            Ok(SigningKeyPreparation::Pending(pending))
+        }
+
+        async fn promote_signing_key(
+            &self,
+            expected: &iam_domain::entity::signing_key::PreparedSigningTransition,
+        ) -> Result<SigningKey, DomainError> {
+            let mut keys = self.keys.lock().unwrap();
+            let history = self.history.lock().unwrap();
+            let mut epochs = self.epochs.lock().unwrap();
+            let mut prepared = self.prepared.lock().unwrap();
+            let revision = epochs.entry(expected.key.organization_id).or_default();
+            if *revision != expected.revision
+                || !prepared
+                    .iter()
+                    .any(|p| p.key == expected.key && p.revision == expected.revision)
+            {
+                return Err(DomainError::InvalidToken);
+            }
+            let now = Utc::now();
+            let mut proposed = keys.clone();
+            for key in proposed.iter_mut().filter(|key| {
+                key.organization_id == expected.key.organization_id
+                    && key.status == SigningKeyStatus::Active
+            }) {
+                key.status = SigningKeyStatus::Retiring;
+                key.updated_at = now;
+            }
+            let key = proposed
+                .iter_mut()
+                .find(|key| key.id == expected.key.id && key.status == SigningKeyStatus::Pending)
+                .ok_or(DomainError::InvalidToken)?;
+            key.status = SigningKeyStatus::Active;
+            key.updated_at = now;
+            let committed = key.clone();
+            iam_domain::entity::signing_key::SigningKeyLifecyclePolicy::new()?
+                .check_admission(&proposed, &history, None, 900, now)?;
+            *keys = proposed;
+            *revision += 1;
+            prepared.retain(|p| p.key.id != committed.id);
+            Ok(committed)
+        }
 
         async fn insert(&self, key: &SigningKey) -> Result<(), Self::Error> {
             let mut keys = self.keys.lock().unwrap();
@@ -420,6 +552,12 @@ mod tests {
                     admitted_at: now,
                 },
             );
+            *self
+                .epochs
+                .lock()
+                .unwrap()
+                .entry(key.organization_id)
+                .or_default() += 1;
             Ok(())
         }
 
@@ -514,6 +652,11 @@ mod tests {
         ) -> Result<Vec<SigningKey>, Self::Error> {
             let mut keys = self.keys.lock().unwrap();
             let now = Utc::now();
+            *self.epochs.lock().unwrap().entry(Some(org)).or_default() += 1;
+            self.prepared
+                .lock()
+                .unwrap()
+                .retain(|p| p.key.organization_id != Some(org));
             for key in keys.iter_mut().filter(|key| {
                 key.organization_id == Some(org) && key.status != SigningKeyStatus::Revoked
             }) {
@@ -532,11 +675,10 @@ mod tests {
         ) -> Result<iam_domain::entity::signing_key::SigningKeyPublicationSnapshot, Self::Error>
         {
             let keys = self.keys.lock().unwrap();
-            Ok(
-                iam_domain::entity::signing_key::SigningKeyPublicationSnapshot {
-                    keys: keys.clone(),
-                    as_of: Utc::now(),
-                },
+            iam_domain::entity::signing_key::SigningKeyPublicationSnapshot::from_fixture_keys(
+                keys.clone(),
+                Utc::now(),
+                900,
             )
         }
 
@@ -583,6 +725,7 @@ mod tests {
                         && key.public_key == expected.public_key
                         && key.provider_type == expected.provider_type
                         && key.provider_key_ref == expected.provider_key_ref
+                        && key.provider_key_version == expected.provider_key_version
                         && key.credential_ref == expected.credential_ref
                 }))
         }
@@ -744,6 +887,7 @@ mod tests {
                 issuer: active.issuer.clone(),
                 provider_type: SigningProviderType::PemFile,
                 provider_key_ref: "rotated.pem".to_string(),
+                provider_key_version: None,
                 credential_ref: None,
                 public_key: self.next_public_key.clone(),
                 status: SigningKeyStatus::Active,
@@ -768,6 +912,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn transit_configure_missing_or_zero_version_is_opaque_400_without_mutation() {
+        let org = Uuid::new_v4();
+        let registry = Arc::new(FakeRegistry::default());
+        for version in [None, Some(0)] {
+            let ctx = test_signer_ctx(
+                registry.clone(),
+                Arc::new(FakeIdentityRepo::default()),
+                Arc::new(StubRotator {
+                    registry: registry.clone(),
+                    next_public_key: "unused".into(),
+                }),
+            );
+            let err = configure_organization_signer(
+                internal_headers(),
+                Path(org),
+                Extension(ctx),
+                Json(ConfigureSignerBody {
+                    provider_type: "openbao_transit".into(),
+                    provider_key_ref: format!("org-{org}-key"),
+                    provider_key_version: version,
+                    credential_ref: Some(format!("org-{org}-credential")),
+                    public_key: include_str!("../../../config/keys/test-platform.pub").into(),
+                    org_slug: "acme".into(),
+                }),
+            )
+            .await
+            .expect_err("Transit requires a positive explicit version");
+            assert_eq!(err.status(), StatusCode::BAD_REQUEST);
+            assert!(registry.find_by_organization(org).await.unwrap().is_empty());
+        }
+    }
+
+    #[tokio::test]
     async fn reject_invalid_rsa_public_pem_via_configure() {
         let org_id = Uuid::new_v4();
         let registry = Arc::new(FakeRegistry::default());
@@ -786,6 +963,7 @@ mod tests {
             Json(ConfigureSignerBody {
                 provider_type: "pem_file".into(),
                 provider_key_ref: format!("{org_id}/kid.pem"),
+                provider_key_version: None,
                 credential_ref: None,
                 public_key: "not-a-pem".into(),
                 org_slug: "acme".into(),
@@ -816,6 +994,7 @@ mod tests {
             Json(ConfigureSignerBody {
                 provider_type: "pem_file".into(),
                 provider_key_ref: format!("{org_id}/kid.pem"),
+                provider_key_version: None,
                 credential_ref: None,
                 public_key: oversized,
                 org_slug: "acme".into(),
@@ -917,6 +1096,7 @@ mod tests {
             issuer: active.issuer.clone(),
             provider_type: SigningProviderType::PemFile,
             provider_key_ref: "n1.pem".into(),
+            provider_key_version: None,
             credential_ref: None,
             public_key: active_pub.to_string(),
             status: SigningKeyStatus::Pending,
@@ -1031,6 +1211,7 @@ mod tests {
             Json(ConfigureSignerBody {
                 provider_type: "pem_file".into(),
                 provider_key_ref: "test-platform.pem".into(),
+                provider_key_version: None,
                 credential_ref: None,
                 public_key: pub_pem.to_string(),
                 org_slug: "acme".into(),
@@ -1047,6 +1228,7 @@ mod tests {
             Json(ConfigureSignerBody {
                 provider_type: "pem_file".into(),
                 provider_key_ref: format!("{other}/kid.pem"),
+                provider_key_version: None,
                 credential_ref: None,
                 public_key: pub_pem.to_string(),
                 org_slug: "acme".into(),
@@ -1063,6 +1245,7 @@ mod tests {
             Json(ConfigureSignerBody {
                 provider_type: "pem_file".into(),
                 provider_key_ref: "../test-platform.pem".into(),
+                provider_key_version: None,
                 credential_ref: None,
                 public_key: pub_pem.to_string(),
                 org_slug: "acme".into(),
@@ -1095,6 +1278,7 @@ mod tests {
             Json(ConfigureSignerBody {
                 provider_type: "pem_file".into(),
                 provider_key_ref: format!("{org_id}/../{other}/kid.pem"),
+                provider_key_version: None,
                 credential_ref: None,
                 public_key: pub_pem.to_string(),
                 org_slug: "acme".into(),
@@ -1127,6 +1311,7 @@ mod tests {
             Json(ConfigureSignerBody {
                 provider_type: "openbao_transit".into(),
                 provider_key_ref: FORBIDDEN_TRANSIT_KEY_NAME.to_string(),
+                provider_key_version: Some(1),
                 credential_ref: None,
                 public_key: pub_pem.to_string(),
                 org_slug: "acme".into(),

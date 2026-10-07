@@ -17,6 +17,44 @@ use wiremock::{Mock, Request, ResponseTemplate};
 
 const RPC_CREDENTIAL: &str = "SentinelABC-fixed-Hive-IAM-test-credential";
 
+#[tokio::test]
+#[serial]
+async fn admin_transit_missing_or_zero_version_maps_iam400_without_hive_mutation_and_provider502_stays500(
+) {
+    use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
+    let iam = IamSignerMockService::new().await;
+    let (fixture, base, client, openfga, auth) =
+        common::setup_test_server_with_iam_service(iam.config())
+            .await
+            .unwrap();
+    with_cleanup(&fixture,async {
+        let owner=Uuid::new_v4();let org=DbFixtures::create_org_with_owner(fixture.db().as_ref(),owner).await.unwrap();
+        let token=create_jwt_token_with_secret(owner,auth.jwt.hs256_secret.as_deref().unwrap());
+        let endpoint=format!("{base}/api/organizations/{}/signer/configure",org.id);
+        let state_sql=||Statement::from_sql_and_values(DatabaseBackend::Postgres,"SELECT to_jsonb(o) AS state FROM organizations o WHERE id=$1",[org.id.into()]);
+        let before:serde_json::Value=fixture.db().query_one(state_sql()).await.unwrap().unwrap().try_get("","state").unwrap();
+        for version in [None,Some(0u32)] {
+            let mut body=serde_json::json!({"provider_type":"openbao_transit","provider_key_ref":format!("org-{}-key",org.id),"credential_ref":format!("org-{}-credential",org.id),"public_key":rustycog::testing::http::jwt::TEST_RS256_PUBLIC_PEM,"org_slug":"spoofed"});
+            if let Some(version)=version {body["provider_key_version"]=version.into();}
+            openfga.deny(Subject::new(owner),Permission::Admin,ResourceRef::new("organization",org.id)).await.unwrap();
+            let baseline=iam.received_requests().await.len();
+            assert_eq!(client.post(&endpoint).bearer_auth(&token).json(&body).send().await.unwrap().status(),403);
+            assert_eq!(iam.received_requests().await.len(),baseline,"permission denial must precede the IAM RPC even for malformed input");
+            openfga.allow(Subject::new(owner),Permission::Admin,ResourceRef::new("organization",org.id)).await.unwrap();
+            for (upstream,expected) in [(400,400),(502,500)] {
+                iam.fixture.server().reset().await;
+                Mock::given(wiremock::matchers::method("POST")).and(wiremock::matchers::path(format!("/iam/internal/organizations/{}/signer/configure",org.id)))
+                    .respond_with(ResponseTemplate::new(upstream).set_body_string("private-provider-diagnostic")).expect(1).mount(&iam.fixture.server()).await;
+                let response=client.post(&endpoint).bearer_auth(&token).json(&body).send().await.unwrap();assert_eq!(response.status().as_u16(),expected);
+                if upstream==400 {assert!(!response.text().await.unwrap().contains("private-provider-diagnostic"));}
+                let requests=iam.received_requests().await;assert_eq!(requests.len(),1);
+                let sent:serde_json::Value=serde_json::from_slice(&requests[0].body).unwrap();assert_eq!(sent.get("provider_key_version").and_then(|v|v.as_u64()),version.map(u64::from));assert_eq!(sent["org_slug"],org.slug);
+                let after:serde_json::Value=fixture.db().query_one(state_sql()).await.unwrap().unwrap().try_get("","state").unwrap();assert_eq!(after,before,"no Hive metadata persistence after IAM input/provider errors");
+            }
+        }
+    }).await;
+}
+
 /// Typed HTTP collaborator local to this single newly authorized test file.
 struct IamSignerMockService {
     fixture: MockServerFixture,
@@ -116,6 +154,7 @@ async fn configure_requires_admin_on_the_exact_organization_before_any_iam_rpc()
         let endpoint = format!("{base}/api/organizations/{}/signer/configure", org.id);
         let key_ref = format!("{}/fixture.pem", org.id);
         let body = serde_json::json!({"provider_type":"pem_file","provider_key_ref":key_ref,
+            "provider_key_version":7,
             "public_key":rustycog::testing::http::jwt::TEST_RS256_PUBLIC_PEM,
             "org_slug":other.slug,"organization_id":other.id});
         openfga
@@ -181,6 +220,10 @@ async fn configure_requires_admin_on_the_exact_organization_before_any_iam_rpc()
             "database slug must replace caller-controlled other-organization slug"
         );
         assert_eq!(sent_body["provider_key_ref"], key_ref);
+        assert_eq!(
+            sent_body["provider_key_version"], 7,
+            "HTTP/command/outbound retain the explicit version"
+        );
         assert_eq!(sent_body["public_key"], body["public_key"]);
         assert!(
             sent_body.get("organization_id").is_none(),

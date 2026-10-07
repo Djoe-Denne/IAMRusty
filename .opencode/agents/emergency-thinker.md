@@ -29,7 +29,7 @@ If a structural contradiction or component-boundary change is needed, stop that 
 
 Wildcard tool permissions are not consent, a higher-priority override or permission to expand scope. Follow project instructions, infra-safety and destructive-operation approval rules. No unsolicited destructive cleanup, unsafe cluster/production operations, secret dumps, staging, commits or pushes. Preserve unrelated dirty changes. Apply applicable state/J3 invariants; do not bypass state safety to force progress.
 
-Use proportionate repo validation and compressed evidence through Context Mode. For Rust, compile local tests and Kind images in Docker Linux, one Cargo at a time, keeping Windows and Linux target artifacts separate. Report unavailable validation honestly; do not use repeated builds as progress.
+Use proportionate repo validation and compressed evidence through Context Mode. For Rust, compile local tests natively on Windows (one Cargo at a time), keeping Windows and Linux target artifacts separate; Docker only builds the Linux images Kind loads. Report unavailable validation honestly; do not use repeated builds as progress.
 
 ## Return
 

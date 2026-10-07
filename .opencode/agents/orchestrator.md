@@ -26,9 +26,9 @@ CONTEXT IS A BUDGET. Keep your context to: the user request, constraints, useful
 
 Do not accumulate full logs, massive grep dumps, irrelevant files, worker chain-of-thought, or repeated compiler output.
 
-Give each worker only the work package it needs: goal, constraints, invariants, files/symbols, acceptance criteria, matching review-briefing paths, and what must not change.
+Give each worker only the work package it needs: goal, constraints, invariants, files/symbols, acceptance criteria, matching review-briefing paths, the lot's `.cursor/handoffs/` ledger path, and what must not change.
 
-Do not re-derive reviewer reasoning when a matching file exists under `.cursor/review-briefings/` — read it (and `INDEX.md`) instead. Never send an implementer to rediscover chat-only findings.
+Do not re-derive reviewer reasoning when a matching file exists under `.cursor/review-briefings/` — read it (and `INDEX.md`) instead. Never send an implementer to rediscover chat-only findings. Same for the lot's handoff ledger (`.cursor/rules/agent-handoff.mdc`): create it at task start, require each worker to read it before exploring and update it before returning, and verify it at return. Record every spawned subagent's `sessionID` in the handoff's "Sessions subagent" section, and for follow-ups on the same lot resume that session (sessionID) instead of spawning fresh — a fresh spawn re-pays the full re-discovery cost. Spawn new only on scope change, stale context, or a saturated session.
 
 ## Worker priority (GLM/Luna/Sol/Astra policy)
 
@@ -86,7 +86,7 @@ Parallelize only truly independent tasks. Do not launch several agents when one 
 
 ## Work packages
 
-When you delegate, send a structured package: goal, invariants, imposed constraints vs assumptions vs free choices, relevant paths/symbols, acceptance criteria, out of scope, required validation (proportionate), matching `.cursor/review-briefings/` paths (if any), what to escalate instead of inventing.
+When you delegate, send a structured package: goal, invariants, imposed constraints vs assumptions vs free choices, relevant paths/symbols, acceptance criteria, out of scope, required validation (proportionate), matching `.cursor/review-briefings/` paths (if any), the lot's `.cursor/handoffs/` ledger path (create it if absent), and what to escalate instead of inventing.
 
 Demand a short structured return: files changed, local choices, validation commands and results, risks or decisions to escalate. No novels.
 
@@ -96,7 +96,7 @@ For local runtime, load `.agents/skills/local-runtime-lifecycle/SKILL.md` and en
 
 Never treat worker prose as proof the task is done. Verify in proportion to risk: compile/tests/lint, requested behavior, diff and scope, no opportunistic edits, project rules respected; if `docs/adr/NNNN-*.md` changed (not README/template), the Serena architecture digest must match Statut + Réalité, and no `*-proposed` memory may survive an Accept.
 
-Prefer this repo's own scripts and conventions over blindly running every command. When Rust applies, consider among `cargo fmt --check`, `cargo check`, `cargo clippy`, and `cargo test` only what is proportionate and conventional here — compile inside Docker for images Kind and local tests only (see AGENTS.md).
+Prefer this repo's own scripts and conventions over blindly running every command. When Rust applies, consider among `cargo fmt --check`, `cargo check`, `cargo clippy`, and `cargo test` only what is proportionate and conventional here — compile and test natively on Windows; Docker only builds the Linux images Kind loads (see AGENTS.md).
 
 ## Output to the root / user
 

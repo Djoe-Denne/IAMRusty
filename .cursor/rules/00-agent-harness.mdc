@@ -1,24 +1,45 @@
 ---
-description: Mandatory orchestrator control plane for all project-related work
+description: Control plane — orchestrator requis pour le multi-lots/parallèle/heavy ; tâches simples/moyennes exécutées directement par la session racine
 alwaysApply: true
 ---
 
 # Agent harness
 
-For every project-related user request, `orchestrator` is the mandatory control plane.
+Décision utilisateur 2026-10-07 : chaque délégation coûte une re-découverte
+complète du contexte. Le niveau de délégation est proportionné au travail.
 
-Before editing code, designing a solution, investigating the repository, running a substantial workflow, or giving a project-level technical recommendation, delegate the complete user request to `orchestrator`.
+## Routage proportionné
 
-The root agent must not independently implement, plan, or architect the request when `orchestrator` can be invoked. Do not launch other project subagents from the root; only `orchestrator` chooses Explore, Bash, and workers.
+- **Tâche simple ou moyenne** (bug local, rename, ajustement borné, question
+  ciblée, doc, config) : la **session racine exécute directement** — sans
+  orchestrator, avec les conventions du dépôt (GrepAI/Serena d'abord, un seul
+  cargo, canon `AGENTS.md` + `.cursor/rules/`). Aucun besoin de recréer un
+  plan pour du travail unitaire.
+- **Travail multi-lots, parallélisable, lourd ou à risque** (refonte
+  structurelle, plusieurs lots en parallèle, validation multi-chercheurs,
+  chantier sous bail infra) : déléguer à `orchestrator`, qui route et tient les
+  contraintes. Dans ce cas la racine ne planifie ni n'implémente en parallèle.
+- La racine **annonce son choix** (direct vs orchestrator) en une ligne avant
+  d'agir, pour que le suivi reste lisible.
 
-The orchestrator owns planning, architecture, delegation, rule compliance, verification, and final technical judgment.
+## Les deux cas se resservent des mêmes vecteurs
 
-Do not preload or manually read `.cursor/agents/*.md`. Cursor's subagent metadata is the routing registry; detailed prompts load only when an agent is invoked.
+- Handoff : `.cursor/rules/agent-handoff.mdc` — ledger `.cursor/handoffs/`
+  écrit aussi par la session racine quand elle travaille en direct.
+- Reviews : briefings sous `.cursor/review-briefings/` (README + TEMPLATE
+  trackés, findings gitignored). Une review → briefing persisté + INDEX.md ;
+  implementers lisent les briefings matchants avant d'explorer.
 
-Return the orchestrator's final result to the user. Add root-level content only when necessary for communication.
+## Sous-agents
 
-Review findings are persisted under `.cursor/review-briefings/` (gitignored except README + TEMPLATE). The orchestrator must write/confirm a briefing after every review and pass those paths to implementers. Implementers must read matching briefings before exploring. Do not treat chat-only review output as sufficient.
+- Les reviewers (`correctness-reviewer`, `test-reviewer`, `security-reviewer`,
+  `rust-perf-reviewer`) restent read-only et déclenchés selon la surface du
+  diff (pas systématiques sur les micro-changements).
+- `emergency-thinker` garde son rôle exceptionnel (takeover autorisé
+  uniquement après échecs documentés ou sélection explicite).
+- Continuité : reprendre une session subagent existante (sessionID, cf. règle
+  `agent-handoff`) plutôt qu'un spawn neuf sur le même lot.
 
-If `orchestrator` cannot be invoked, say so explicitly. Do not silently bypass the harness.
-
-Exception: purely conversational messages that do not concern this project may be answered directly, so the harness does not loop.
+Si ni orchestrator ni exécution directe ne conviennent, le dire explicitement.
+Ne pas contourner silencieusement le harness. Exception : messages purement
+conversationnels hors projet, répondus directement.

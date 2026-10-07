@@ -1,7 +1,7 @@
 # E2E mesh — pièges durables
 
 - Preuve e2e (2026-10-02) : `bash ops/scripts/mesh-authn-kind-e2e.sh` sur `kind-aiforall-local`. Exit 0. `ops/scripts/mesh-authn-e2e.sh` (Compose) n'est plus la preuve.
-- Compiler dans Docker, pas `cargo` Windows. Ne pas monter le `target\` hôte. `build-artifacts` avant les images services. Kind ne compile pas : `kind load`.
+- Build image Linux pour Kind : `docker compose build` / `build-artifacts`, puis `kind load` — Kind ne compile pas. (2026-10-07 : dev/test est natif Windows ; Docker est réservé au build d'image et à l'infra testcontainers. Ne pas monter le `target\` hôte dans un conteneur Linux.)
 - Hive : binaire `hivemigration` (collision Lazaret `migration`). Dockerfile copie vers `/app/migration`.
 - Hive refuse de démarrer si `iam_service.api_key` est vide. Secret de dev partagé IAM/Hive dans le compose de base.
 - `DROP DATABASE … WITH (FORCE)` dans le compose de base. Incompatible avec un pod Kind sur le port hôte 5432. Le Postgres `kind-mesh` n'a pas de hostPort.

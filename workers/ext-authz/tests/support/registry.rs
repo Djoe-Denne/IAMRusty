@@ -27,6 +27,7 @@ pub fn registry_key(status: SigningKeyStatus, organization: Option<Uuid>) -> Sig
             "fixed-test-organization-pem"
         }
         .into(),
+        provider_key_version: None,
         credential_ref: None,
         public_key: TEST_RS256_PUBLIC_PEM.into(),
         status,

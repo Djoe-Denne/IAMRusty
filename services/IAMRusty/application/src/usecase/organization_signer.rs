@@ -5,8 +5,8 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use iam_domain::entity::signing_key::{
-    opaque_kid, SigningKey, SigningKeyStatus, SigningProviderType, TrustScope,
-    FORBIDDEN_TRANSIT_KEY_NAME,
+    opaque_kid, same_effective_signing_binding, SigningKey, SigningKeyPreparation,
+    SigningKeyStatus, SigningProviderType, SigningScope, TrustScope, FORBIDDEN_TRANSIT_KEY_NAME,
 };
 use iam_domain::entity::token::Jwk;
 use iam_domain::error::DomainError;
@@ -29,6 +29,7 @@ const MAX_PUBLIC_KEY_BYTES: usize = 16 * 1024;
 pub struct ConfigureOrganizationSignerInput {
     pub provider_type: String,
     pub provider_key_ref: String,
+    pub provider_key_version: Option<u32>,
     pub credential_ref: Option<String>,
     pub public_key: String,
     /// Trusted from Hive (Admin already checked). Bound to `Organization.slug`.
@@ -130,6 +131,9 @@ impl OrganizationSignerFacade for OrganizationSignerFacadeImpl {
             require_org_scoped_pem_ref(organization_id, &request.provider_key_ref)?;
         }
         if provider_type == SigningProviderType::OpenBaoTransit {
+            iam_domain::entity::signing_key::require_transit_key_version(
+                request.provider_key_version,
+            )?;
             iam_domain::entity::signing_key::require_org_transit_binding(
                 organization_id,
                 &request.provider_key_ref,
@@ -139,6 +143,12 @@ impl OrganizationSignerFacade for OrganizationSignerFacadeImpl {
         require_rsa_public_pem(&request.public_key)?;
 
         let issuer = org_issuer(&self.public_base_url, &request.org_slug);
+        // Scope revision is captured before public retrieval / PoP. It remains
+        // meaningful even when disable revoked the last row or affected no rows.
+        let before = self
+            .registry
+            .signing_scope_snapshot(&SigningScope::organization(organization_id))
+            .await?;
         let existing = self.registry.find_by_issuer(&issuer).await?;
         if issuer_owned_by_other_organization(&existing, organization_id) {
             return Err(DomainError::BusinessRuleViolation(
@@ -156,19 +166,44 @@ impl OrganizationSignerFacade for OrganizationSignerFacadeImpl {
             issuer: issuer.clone(),
             provider_type,
             provider_key_ref: request.provider_key_ref.clone(),
+            provider_key_version: request.provider_key_version,
             credential_ref: request.credential_ref.clone(),
             public_key: request.public_key.clone(),
-            status: SigningKeyStatus::Active,
+            status: SigningKeyStatus::Pending,
             organization_id: Some(organization_id),
             created_at: now,
             updated_at: now,
         };
         // Validate backend/material binding before touching the published epoch.
-        self.probe.challenge(&key).await?;
-        let key = self
-            .registry
-            .replace_active_organization_key(&key, None)
-            .await?;
+        self.probe.validate_configuration(&key)?;
+        let key = if let Some(active) = before
+            .active
+            .as_ref()
+            .filter(|active| same_effective_signing_binding(active, &key))
+        {
+            if !self.registry.confirm_active_for_emission(active).await? {
+                return Err(iam_domain::entity::signing_key::admission_denied(
+                    iam_domain::entity::signing_key::SigningKeyAdmissionReason::EpochConflict,
+                ));
+            }
+            active.clone()
+        } else if let Some(pending) = before
+            .pending
+            .as_ref()
+            .filter(|pending| same_effective_signing_binding(&pending.key, &key))
+        {
+            // Durable proof/publication already exists. No second provider Rotate,
+            // admission, or probe whose outcome could replace this pinned binding.
+            self.registry.promote_signing_key(pending).await?
+        } else {
+            let proof = self.probe.prove(key, before).await?;
+            match self.registry.prepare_signing_key(proof).await? {
+                SigningKeyPreparation::Unchanged(key) => key,
+                SigningKeyPreparation::Pending(pending) => {
+                    self.registry.promote_signing_key(&pending).await?
+                }
+            }
+        };
 
         Ok(OrganizationSignerResult {
             signing_profile_id: key.id,
@@ -187,6 +222,11 @@ impl OrganizationSignerFacade for OrganizationSignerFacadeImpl {
                 DomainError::AuthorizationError(NO_ACTIVE_ORGANIZATION_SIGNING_KEY.to_string())
             })?;
         self.probe.challenge(&key).await?;
+        if !self.registry.confirm_active_for_emission(&key).await? {
+            return Err(iam_domain::entity::signing_key::admission_denied(
+                iam_domain::entity::signing_key::SigningKeyAdmissionReason::EpochConflict,
+            ));
+        }
         Ok(OrganizationSignerResult::from_key(&key))
     }
 
@@ -295,10 +335,34 @@ mod tests {
     struct AtomicFailureRegistry {
         previous: SigningKey,
         attempted: std::sync::atomic::AtomicBool,
+        get_fence: Option<std::sync::atomic::AtomicBool>,
     }
     #[async_trait]
     impl SigningKeyRegistry for AtomicFailureRegistry {
         type Error = DomainError;
+        async fn signing_scope_snapshot(
+            &self,
+            scope: &SigningScope,
+        ) -> Result<iam_domain::entity::signing_key::SigningScopeSnapshot, DomainError> {
+            self.attempted
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            Ok(iam_domain::entity::signing_key::SigningScopeSnapshot {
+                scope: scope.clone(),
+                revision: 1,
+                active: Some(self.previous.clone()),
+                pending: None,
+            })
+        }
+        async fn prepare_signing_key(
+            &self,
+            _: iam_domain::entity::signing_key::ProbedSigningKey,
+        ) -> Result<SigningKeyPreparation, DomainError> {
+            self.attempted
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            Err(DomainError::RepositoryError(
+                "injected Pending admission failure".into(),
+            ))
+        }
         async fn jwks_publication_snapshot(
             &self,
         ) -> Result<iam_domain::entity::signing_key::SigningKeyPublicationSnapshot, DomainError>
@@ -306,7 +370,13 @@ mod tests {
             panic!("configure must not use publication snapshot")
         }
         async fn confirm_active_for_emission(&self, _: &SigningKey) -> Result<bool, DomainError> {
-            panic!("configuration must not invoke an emission fence")
+            let allowed = self
+                .get_fence
+                .as_ref()
+                .expect("configuration must not invoke an emission fence");
+            self.attempted
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            Ok(allowed.load(std::sync::atomic::Ordering::SeqCst))
         }
         async fn insert(&self, _: &SigningKey) -> Result<(), DomainError> {
             panic!("non-atomic insert")
@@ -341,6 +411,8 @@ mod tests {
             Ok(vec![self.previous.clone()])
         }
         async fn find_by_issuer(&self, _: &str) -> Result<Vec<SigningKey>, DomainError> {
+            self.attempted
+                .store(true, std::sync::atomic::Ordering::SeqCst);
             Ok(vec![self.previous.clone()])
         }
     }
@@ -358,6 +430,70 @@ mod tests {
             unreachable!()
         }
     }
+
+    #[tokio::test]
+    async fn transit_missing_and_zero_version_fail_before_registry_probe_or_credentials() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        struct CountingProbe(AtomicUsize);
+        #[async_trait]
+        impl OrganizationSignerProbe for CountingProbe {
+            async fn challenge(&self, _: &SigningKey) -> Result<(), DomainError> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Err(DomainError::external_service_error(
+                    "provider",
+                    "must-not-run",
+                ))
+            }
+        }
+        let org = Uuid::new_v4();
+        let now = Utc::now();
+        let registry = Arc::new(AtomicFailureRegistry {
+            previous: SigningKey {
+                id: Uuid::new_v4(),
+                kid: opaque_kid(),
+                algorithm: "RS256".into(),
+                trust_scope: TrustScope::Organization,
+                issuer: "https://iam.example/iam/orgs/acme".into(),
+                provider_type: SigningProviderType::OpenBaoTransit,
+                provider_key_ref: format!("org-{org}-key"),
+                provider_key_version: Some(7),
+                credential_ref: Some(format!("org-{org}-credential")),
+                public_key: include_str!("../../../config/keys/test-platform.pub").into(),
+                status: SigningKeyStatus::Active,
+                organization_id: Some(org),
+                created_at: now,
+                updated_at: now,
+            },
+            attempted: std::sync::atomic::AtomicBool::new(false),
+            get_fence: None,
+        });
+        let probe = Arc::new(CountingProbe(AtomicUsize::new(0)));
+        let facade = OrganizationSignerFacadeImpl::new(
+            registry.clone(),
+            "https://iam.example",
+            probe.clone(),
+            Arc::new(Rotator),
+        );
+        for version in [None, Some(0)] {
+            let err = facade
+                .configure(
+                    org,
+                    &ConfigureOrganizationSignerInput {
+                        provider_type: "openbao_transit".into(),
+                        provider_key_ref: format!("org-{org}-key"),
+                        provider_key_version: version,
+                        credential_ref: Some(format!("org-{org}-credential")),
+                        public_key: registry.previous.public_key.clone(),
+                        org_slug: "acme".into(),
+                    },
+                )
+                .await
+                .unwrap_err();
+            assert!(matches!(err, DomainError::InvalidSigningKeyMaterial));
+            assert!(!registry.attempted.load(Ordering::SeqCst));
+            assert_eq!(probe.0.load(Ordering::SeqCst), 0);
+        }
+    }
     #[tokio::test]
     async fn failed_configure_never_retires_previous_via_separate_update() {
         let org = Uuid::new_v4();
@@ -372,6 +508,7 @@ mod tests {
                 issuer: "https://iam.example/iam/orgs/acme".into(),
                 provider_type: SigningProviderType::PemFile,
                 provider_key_ref: format!("{org}/previous.pem"),
+                provider_key_version: None,
                 credential_ref: None,
                 public_key: public.into(),
                 status: SigningKeyStatus::Active,
@@ -380,6 +517,7 @@ mod tests {
                 updated_at: now,
             },
             attempted: std::sync::atomic::AtomicBool::new(false),
+            get_fence: None,
         });
         let facade = OrganizationSignerFacadeImpl::new(
             registry.clone(),
@@ -393,6 +531,7 @@ mod tests {
                 &ConfigureOrganizationSignerInput {
                     provider_type: "pem_file".into(),
                     provider_key_ref: format!("{org}/new.pem"),
+                    provider_key_version: None,
                     credential_ref: None,
                     public_key: public.into(),
                     org_slug: "acme".into(),
@@ -402,5 +541,75 @@ mod tests {
         assert!(result.is_err());
         assert!(registry.attempted.load(std::sync::atomic::Ordering::SeqCst));
         assert_eq!(registry.previous.status, SigningKeyStatus::Active);
+    }
+
+    #[tokio::test]
+    async fn get_signer_refuses_a_revocation_committed_during_probe_before_returning_to_hive() {
+        struct RevokeDuringProbe(Arc<AtomicFailureRegistry>);
+        #[async_trait]
+        impl OrganizationSignerProbe for RevokeDuringProbe {
+            async fn challenge(&self, _: &SigningKey) -> Result<(), DomainError> {
+                self.0
+                    .get_fence
+                    .as_ref()
+                    .unwrap()
+                    .store(false, std::sync::atomic::Ordering::SeqCst);
+                Ok(())
+            }
+        }
+        let org = Uuid::new_v4();
+        let now = Utc::now();
+        let key = SigningKey {
+            id: Uuid::new_v4(),
+            kid: opaque_kid(),
+            algorithm: "RS256".into(),
+            trust_scope: TrustScope::Organization,
+            issuer: org_issuer("https://platform.example", "fixture"),
+            provider_type: SigningProviderType::PemFile,
+            provider_key_ref: format!("{org}/fixture.pem"),
+            provider_key_version: None,
+            credential_ref: None,
+            public_key: include_str!("../../../config/keys/test-platform.pub").into(),
+            status: SigningKeyStatus::Active,
+            organization_id: Some(org),
+            created_at: now,
+            updated_at: now,
+        };
+        let registry = Arc::new(AtomicFailureRegistry {
+            previous: key.clone(),
+            attempted: std::sync::atomic::AtomicBool::new(false),
+            get_fence: Some(std::sync::atomic::AtomicBool::new(true)),
+        });
+        let positive = OrganizationSignerFacadeImpl::new(
+            registry.clone(),
+            "https://platform.example",
+            Arc::new(Probe),
+            Arc::new(Rotator),
+        );
+        assert_eq!(positive.test(org).await.unwrap().kid, key.kid);
+        assert!(registry
+            .attempted
+            .swap(false, std::sync::atomic::Ordering::SeqCst));
+        let racing = OrganizationSignerFacadeImpl::new(
+            registry.clone(),
+            "https://platform.example",
+            Arc::new(RevokeDuringProbe(registry.clone())),
+            Arc::new(Rotator),
+        );
+        assert!(matches!(
+            racing.test(org).await,
+            Err(DomainError::SigningKeyAdmissionDenied {
+                reason: iam_domain::entity::signing_key::SigningKeyAdmissionReason::EpochConflict,
+                ..
+            })
+        ));
+        assert!(
+            registry.attempted.load(std::sync::atomic::Ordering::SeqCst),
+            "the post-probe primary fence must run before returning a profile"
+        );
+        assert_eq!(
+            registry.previous, key,
+            "the initial object intentionally remains stale"
+        );
     }
 }

@@ -6,7 +6,11 @@ mod fixture_cleanup;
 mod fixtures;
 #[path = "../../../workers/ext-authz/tests/support/registry.rs"]
 mod registry;
+#[path = "support/signing_prefill.rs"]
+mod signing_prefill;
 mod utils;
+#[path = "support/writer_barrier.rs"]
+mod writer_barrier;
 
 use iam_domain::{
     entity::signing_key::{
@@ -16,8 +20,9 @@ use iam_domain::{
     error::DomainError,
     port::repository::SigningKeyRegistry,
 };
-use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
+use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
 use serial_test::serial;
+use std::{collections::BTreeMap, sync::Arc};
 use uuid::Uuid;
 
 fn candidate(org: Option<Uuid>, status: Status) -> SigningKey {
@@ -33,6 +38,138 @@ fn denied(result: &Result<SigningKey, DomainError>, expected: Reason) {
     );
 }
 
+async fn independent_registry(
+    db: &DatabaseConnection,
+    ttl: u64,
+) -> iam_infra::repository::SeaOrmSigningKeyRegistry {
+    iam_infra::repository::SeaOrmSigningKeyRegistry::new(
+        Arc::new(writer_barrier::independent_writer(db).await),
+        Arc::new(SigningKeyLifecyclePolicy::new().expect("same bounded slot/churn policy")),
+        ttl,
+    )
+    .expect("independent primary registry; no shared app/provider authority")
+}
+
+fn public_map(set: &serde_json::Value) -> BTreeMap<String, serde_json::Value> {
+    let entries = set["keys"].as_array().expect("JWKS keys array");
+    let map = entries
+        .iter()
+        .map(|entry| {
+            (
+                entry["kid"].as_str().expect("public kid").to_owned(),
+                entry.clone(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    assert_eq!(
+        map.len(),
+        entries.len(),
+        "no duplicate or silently overwritten kids"
+    );
+    map
+}
+
+/// Expected entries come from explicit arranged/tested rows and a separate PEM
+/// DTO codec, NEVER from the publication under test or a fixture-maintained count.
+async fn assert_complete_publication(
+    writer: &impl SigningKeyRegistry<Error = DomainError>,
+    db: &DatabaseConnection,
+    client: &reqwest::Client,
+    base: &str,
+    expected: &[SigningKey],
+    ttl: u64,
+    org: i64,
+    platform: i64,
+) {
+    signing_prefill::assert_sql_slots(db, ttl, org, platform)
+        .await
+        .expect("independent SQL counts");
+    assert_eq!(expected.len() as i64, org + platform);
+    let expected = iam_domain::entity::token::JwkSet::from_registry_keys_checked(expected)
+        .expect("independent full public DTO oracle");
+    let expected = public_map(&serde_json::to_value(expected).unwrap());
+    let snapshot = writer
+        .jwks_publication_snapshot()
+        .await
+        .expect("real primary materialization");
+    assert_eq!(snapshot.publication.counts().global as i64, org + platform);
+    assert_eq!(
+        snapshot.publication.counts().global_organization as i64,
+        org
+    );
+    assert_eq!(snapshot.publication.counts().platform as i64, platform);
+    assert_eq!(snapshot.access_token_expiration_seconds, ttl);
+    assert!(snapshot.revision > 0);
+    assert_eq!(public_map(&serde_json::to_value(snapshot.publication.jwks()).unwrap()),expected,"all canonical components, issuer/status/scope/org and exact kids, not just a self-confirming count");
+    let response = client
+        .get(format!("{base}/.well-known/jwks.json"))
+        .send()
+        .await
+        .expect("live publisher HTTP");
+    assert_eq!(response.status(), 200);
+    let bytes = response.bytes().await.expect("complete publisher bytes");
+    let usage = snapshot.publication.usage();
+    assert!(bytes.len() <= usage.reserved_bytes && usage.reserved_bytes <= 786_432);
+    assert!(
+        bytes.len() <= 782_538 && bytes.len() < 1_048_576,
+        "independent writer/SDK frame limits"
+    );
+    assert_eq!(
+        public_map(&serde_json::from_slice(&bytes).expect("publisher JSON")),
+        expected,
+        "HTTP must neither truncate nor silently omit or invent a key"
+    );
+    let metadata=db.query_one(Statement::from_string(DatabaseBackend::Postgres,"SELECT revision,dirty,access_token_ttl,retire_skew,next_expiration,payload FROM signing_jwks_publication WHERE singleton=1")).await.unwrap().unwrap();
+    assert!(!metadata.try_get::<bool>("", "dirty").unwrap());
+    assert_eq!(
+        metadata.try_get::<i64>("", "revision").unwrap() as u64,
+        snapshot.revision
+    );
+    assert_eq!(
+        metadata.try_get::<i64>("", "access_token_ttl").unwrap() as u64,
+        ttl
+    );
+    assert_eq!(metadata.try_get::<i64>("", "retire_skew").unwrap(), 60);
+    assert!(
+        metadata
+            .try_get::<Option<chrono::DateTime<chrono::FixedOffset>>>("", "next_expiration")
+            .unwrap()
+            .is_none(),
+        "these fixtures are only Active/Pending, no artificial retirement deadline"
+    );
+    assert_eq!(
+        public_map(
+            &serde_json::from_str(&metadata.try_get::<String>("", "payload").unwrap()).unwrap()
+        ),
+        expected
+    );
+}
+
+async fn assert_platform_receiver(base: &str, issuer: &str, access: &str) {
+    use rustycog::{
+        config::{AuthConfig, JwtAuthConfig},
+        http::UserIdExtractor,
+    };
+    // A fresh, unseeded SDK receiver MUST fetch this live URL. Reconstruction is
+    // not a claim that a warm snapshot's60s lease has elapsed/been extended.
+    let receiver = UserIdExtractor::new(AuthConfig {
+        jwt: JwtAuthConfig {
+            allowed_algorithms: vec!["RS256".into()],
+            issuer: Some(issuer.into()),
+            audience: Some(rustycog::testing::http::jwt::TEST_JWT_AUDIENCE.into()),
+            jwks_url: Some(format!("{base}/.well-known/jwks.json")),
+            ..JwtAuthConfig::default()
+        },
+        ..AuthConfig::default()
+    })
+    .expect("actual URL-bound SDK receiver");
+    let principal = receiver
+        .extract_principal(access)
+        .await
+        .expect("platform signature/trust accepted after live JWKS fetch");
+    assert_eq!(principal.iss, issuer);
+}
+
 #[tokio::test]
 #[serial]
 async fn configure_full_binding_noop_preserves_epoch_but_credential_and_material_changes_admit() {
@@ -40,7 +177,7 @@ async fn configure_full_binding_noop_preserves_epoch_but_credential_and_material
         .await
         .expect("real primary harness");
     fixture_cleanup::run(&fixture, async {
-        let (writer, ttl) = common::fixture_signing_registry(&fixture)
+        let (writer, _ttl) = common::fixture_signing_registry(&fixture)
             .await
             .expect("root writer and publisher TTL");
         let org = Uuid::new_v4();
@@ -72,17 +209,13 @@ async fn configure_full_binding_noop_preserves_epoch_but_credential_and_material
             .jwks_publication_snapshot()
             .await
             .expect("snapshot after noop");
-        assert_eq!(before.keys.len(), after.keys.len());
-        let policy = SigningKeyLifecyclePolicy::new().expect("ratified bounded policy");
         assert_eq!(
-            policy
-                .publication_usage(&before.keys, ttl, before.as_of)
-                .expect("before reservation")
-                .reserved_bytes,
-            policy
-                .publication_usage(&after.keys, ttl, after.as_of)
-                .expect("after reservation")
-                .reserved_bytes
+            before.publication.counts().global,
+            after.publication.counts().global
+        );
+        assert_eq!(
+            before.publication.usage().reserved_bytes,
+            after.publication.usage().reserved_bytes
         );
         denied(
             &writer
@@ -163,16 +296,9 @@ async fn pending_promotion_is_not_double_charged_and_rejected_churn_keeps_previo
             .jwks_publication_snapshot()
             .await
             .expect("promoted reservation");
-        let policy = SigningKeyLifecyclePolicy::new().expect("bounded policy");
         assert_eq!(
-            policy
-                .publication_usage(&before.keys, ttl, before.as_of)
-                .expect("Pending bytes")
-                .reserved_bytes,
-            policy
-                .publication_usage(&after.keys, ttl, after.as_of)
-                .expect("Active bytes")
-                .reserved_bytes,
+            before.publication.usage().reserved_bytes,
+            after.publication.usage().reserved_bytes,
             "promotion cannot charge a second reservation"
         );
         for number in 2..=4 {
@@ -205,12 +331,18 @@ async fn pending_promotion_is_not_double_charged_and_rejected_churn_keeps_previo
             .revoke_organization_keys(org)
             .await
             .expect("revoke does not erase admission history");
+        let after_revoke=signing_prefill::database_state(fixture.db().as_ref()).await.unwrap();
         denied(
             &writer
                 .replace_active_organization_key(&rejected, None)
                 .await,
             Reason::ChurnRate,
         );
+        let restarted=independent_registry(fixture.db().as_ref(),ttl).await;
+        denied(&restarted.replace_active_organization_key(&rejected,None).await,Reason::ChurnRate);
+        assert_eq!(signing_prefill::database_state(fixture.db().as_ref()).await.unwrap(),after_revoke,"revoke/reconstructed registry/repeated denial retain history, epochs and complete snapshot");
+        let history=fixture.db().query_one(Statement::from_sql_and_values(DatabaseBackend::Postgres,"SELECT count(*)::bigint AS n,count(*) FILTER(WHERE lifecycle_admitted_at>statement_timestamp()-INTERVAL '3600 seconds')::bigint AS recent FROM signing_keys WHERE organization_id=$1",[org.into()])).await.unwrap().unwrap();
+        assert_eq!(history.try_get::<i64>("","n").unwrap(),4);assert_eq!(history.try_get::<i64>("","recent").unwrap(),4);
         let other = candidate(Some(Uuid::new_v4()), Status::Active);
         writer
             .replace_active_organization_key(&other, None)
@@ -227,7 +359,7 @@ async fn simultaneous_last_rate_slot_has_one_winner_and_four_persisted_epochs() 
         .await
         .expect("real primary harness");
     fixture_cleanup::run(&fixture, async {
-        let (writer, _) = common::fixture_signing_registry(&fixture)
+        let (writer, ttl) = common::fixture_signing_registry(&fixture)
             .await
             .expect("root writer");
         let org = Uuid::new_v4();
@@ -241,7 +373,8 @@ async fn simultaneous_last_rate_slot_has_one_winner_and_four_persisted_epochs() 
         }
         let left = candidate(Some(org), Status::Pending);
         let right = candidate(Some(org), Status::Pending);
-        let (a, b) = tokio::join!(writer.insert(&left), writer.insert(&right));
+        let other = independent_registry(fixture.db().as_ref(), ttl).await;
+        let (a, b) = tokio::join!(writer.insert(&left), other.insert(&right));
         assert_eq!(
             usize::from(a.is_ok()) + usize::from(b.is_ok()),
             1,
@@ -261,6 +394,8 @@ async fn simultaneous_last_rate_slot_has_one_winner_and_four_persisted_epochs() 
             .expect("committed snapshot");
         assert_eq!(
             snapshot
+                .publication
+                .jwks()
                 .keys
                 .iter()
                 .filter(|k| k.organization_id == Some(org))
@@ -294,7 +429,9 @@ async fn cross_org_last_budget_slot_is_atomic_platform_reserve_and_publisher_sur
                 .status(),
             200
         );
-        let policy = SigningKeyLifecyclePolicy::new().expect("ratified policy");
+        let root=writer.find_active_platform_key().await.expect("primary platform").expect("one root Active");
+        signing_prefill::assert_sql_slots(fixture.db().as_ref(),ttl,0,1).await.unwrap();
+        assert_platform_receiver(&base,&root.issuer,&access).await;
         let large = |org| {
             let mut key = candidate(Some(org), Status::Pending);
             key.issuer = format!("https://issuer.example/{}/{}", org, "x".repeat(900));
@@ -302,47 +439,31 @@ async fn cross_org_last_budget_slot_is_atomic_platform_reserve_and_publisher_sur
         };
         let left = large(Uuid::new_v4());
         let right = large(Uuid::new_v4());
-        let cost = policy
-            .reserved_entry_bytes(&left)
-            .expect("exact escaped DTO max")
-            + 1;
-        assert_eq!(
-            cost,
-            policy.reserved_entry_bytes(&right).expect("same size") + 1
-        );
-        let mut reached = false;
-        for _ in 0..720 {
-            let snapshot = writer
-                .jwks_publication_snapshot()
-                .await
-                .expect("primary budget snapshot");
-            let usage = policy
-                .publication_usage(&snapshot.keys, ttl, snapshot.as_of)
-                .expect("actual compact publication budget");
-            let remaining = 720_896_usize
-                .checked_sub(usage.organization_reserved_bytes)
-                .expect("ratified org ceiling");
-            if remaining < 2 * cost {
-                assert!(remaining >= cost, "one slot remains");
-                reached = true;
-                break;
-            }
-            writer
-                .insert(&large(Uuid::new_v4()))
-                .await
-                .expect("bounded tenant fill with unique organizations");
+        let cost = iam_domain::entity::signing_publication::SLOT_BYTES_MAX + 1;
+        assert_eq!(cost, 4097);
+        // Only neutral preparation changes:174 canonical Active bindings, all
+        // fresh distinct owners, admitted/history/epochs/attestations in one TX.
+        // The helper cannot perform an admission under study or forge receipts.
+        let mut fillers=(0..174).map(|_|{let mut key=large(Uuid::new_v4());key.status=Status::Active;key}).collect::<Vec<_>>();
+        signing_prefill::prefill_organization_frontier(fixture.db().as_ref(),&root,&mut fillers,ttl).await.expect("bounded canonical validated preparation");
+        let mut expected=vec![root.clone()];expected.extend(fillers);
+        assert_complete_publication(writer.as_ref(),fixture.db().as_ref(),&client,&base,&expected,ttl,174,1).await;
+        let head=writer.jwks_publication_snapshot().await.unwrap();
+        assert_eq!(175-head.publication.counts().global_organization,1,"exactly one disjoint org slot remains");
+        for key in [&left,&right] {
+            let row=fixture.db().query_one(Statement::from_sql_and_values(DatabaseBackend::Postgres,"SELECT count(*)::bigint AS n FROM signing_keys WHERE organization_id=$1",[key.organization_id.into()])).await.unwrap().unwrap();
+            assert_eq!(row.try_get::<i64>("","n").unwrap(),0,"race candidates have quota<8 and history<4; global capacity is the ONLY frontier");
         }
-        assert!(
-            reached,
-            "finite setup must reach exact one-slot frontier, no skips"
-        );
-        let (a, b) = tokio::join!(writer.insert(&left), writer.insert(&right));
+        let other=independent_registry(fixture.db().as_ref(),ttl).await;
+        // Separate registry objects/pools on the SAME primary, two independent
+        // production transactions. No fixture counter decides the winner.
+        let (a, b) = tokio::join!(writer.insert(&left), other.insert(&right));
         assert_eq!(
             usize::from(a.is_ok()) + usize::from(b.is_ok()),
             1,
             "cross-org writers share a global primary capacity lock"
         );
-        let error = if a.is_err() { a } else { b };
+        let (winner,loser,error)=if a.is_ok(){(&left,&right,b)}else{(&right,&left,a)};
         assert!(matches!(
             error,
             Err(DomainError::SigningKeyAdmissionDenied {
@@ -350,12 +471,20 @@ async fn cross_org_last_budget_slot_is_atomic_platform_reserve_and_publisher_sur
                 ..
             })
         ));
+        expected.push(winner.clone());
+        assert!(writer.find_by_kid(&loser.kid).await.unwrap().is_none(),"losing key must not persist");
+        assert!(writer.find_by_kid(&winner.kid).await.unwrap().is_some());
+        assert_complete_publication(writer.as_ref(),fixture.db().as_ref(),&client,&base,&expected,ttl,175,1).await;
+        assert!(writer.jwks_publication_snapshot().await.unwrap().revision>head.revision);
         // Tenant exhaustion must not steal the ratified platform reserve.
-        let platform = candidate(None, Status::Pending);
+        let mut platform = root.clone();platform.id=Uuid::new_v4();platform.kid=Uuid::new_v4().simple().to_string();platform.status=Status::Pending;
         writer
             .insert(&platform)
             .await
             .expect("platform reserve admission despite exhausted org budget");
+        expected.push(platform);
+        assert_complete_publication(writer.as_ref(),fixture.db().as_ref(),&client,&base,&expected,ttl,175,2).await;
+        let last_good=signing_prefill::database_state(fixture.db().as_ref()).await.unwrap();
         for _ in 0..3 {
             let result = writer.insert(&large(Uuid::new_v4())).await;
             assert!(matches!(
@@ -365,43 +494,26 @@ async fn cross_org_last_budget_slot_is_atomic_platform_reserve_and_publisher_sur
                     ..
                 })
             ));
+            assert_eq!(signing_prefill::database_state(fixture.db().as_ref()).await.unwrap(),last_good,"repeated capacity refusal has zero partial key/history/epoch/prepared/receipt/snapshot effects");
         }
-        let snapshot = writer
-            .jwks_publication_snapshot()
-            .await
-            .expect("publisher primary snapshot");
-        let usage = policy
-            .publication_usage(&snapshot.keys, ttl, snapshot.as_of)
-            .expect("publication usage");
-        let response = client
-            .get(format!("{base}/.well-known/jwks.json"))
-            .send()
-            .await
-            .expect("actual publisher HTTP");
-        assert_eq!(response.status(), 200);
-        let bytes = response
-            .bytes()
-            .await
-            .expect("actual compact publisher bytes");
-        assert!(bytes.len() <= usage.reserved_bytes && usage.reserved_bytes <= 786_432);
-        let published: serde_json::Value = serde_json::from_slice(&bytes).expect("publisher JSON");
-        let expected = iam_domain::entity::signing_key::filter_jwks_publication_keys_at(
-            snapshot.keys,
-            ttl,
-            snapshot.as_of,
-        );
-        assert_eq!(
-            published["keys"].as_array().expect("keys").len(),
-            expected.len(),
-            "no silent key omission to fit budget"
-        );
-        for key in expected {
-            assert!(published["keys"]
-                .as_array()
-                .expect("keys")
-                .iter()
-                .any(|entry| entry["kid"] == key.kid));
+        // Every platform admission is still a real production writer operation.
+        // Root Active plus15 Pending epochs occupy all16 reserved slots, while
+        // none of the175 org slots can borrow them, even with shared neutral n/e.
+        for _ in 2..16 {
+            let mut key=root.clone();key.id=Uuid::new_v4();key.kid=Uuid::new_v4().simple().to_string();key.status=Status::Pending;
+            writer.insert(&key).await.expect("reserved platform slots through16");expected.push(key);
         }
+        assert_complete_publication(writer.as_ref(),fixture.db().as_ref(),&client,&base,&expected,ttl,175,16).await;
+        assert_eq!(expected.len(),191,"full disjoint191=175+16 frontier");
+        assert_eq!(writer.find_active_platform_key().await.unwrap().unwrap(),root,"Pending reserve admissions and refusals must not retire the root Active");
+        let mut seventeenth=root.clone();seventeenth.id=Uuid::new_v4();seventeenth.kid=Uuid::new_v4().simple().to_string();seventeenth.status=Status::Pending;
+        let last_good=signing_prefill::database_state(fixture.db().as_ref()).await.unwrap();
+        for _ in 0..3 {
+            assert!(matches!(writer.insert(&seventeenth).await,Err(DomainError::SigningKeyAdmissionDenied {reason:Reason::Capacity,..})),"17th platform epoch refused through the real primary writer");
+            assert_eq!(signing_prefill::database_state(fixture.db().as_ref()).await.unwrap(),last_good,"platform refusal has zero partial effects");
+        }
+        assert_complete_publication(writer.as_ref(),fixture.db().as_ref(),&client,&base,&expected,ttl,175,16).await;
+        assert_platform_receiver(&base,&root.issuer,&access).await;
         assert_eq!(
             client
                 .get(format!("{base}/api/me"))
@@ -409,6 +521,128 @@ async fn cross_org_last_budget_slot_is_atomic_platform_reserve_and_publisher_sur
                 .send()
                 .await
                 .expect("unrelated platform remains usable after rejected churn")
+                .status(),
+            200
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+#[serial]
+async fn platform_seventeenth_slot_is_refused_even_with175_unused_org_slots() {
+    let (fixture, base, client) = common::setup_test_server()
+        .await
+        .expect("real primary HTTP harness");
+    fixture_cleanup::run(&fixture, async {
+        let (writer, ttl) = common::fixture_signing_registry(&fixture).await.unwrap();
+        let root = writer.find_active_platform_key().await.unwrap().unwrap();
+        let access = common::fixture_platform_access_token(&fixture)
+            .await
+            .unwrap();
+        let mut expected = vec![root.clone()];
+        assert_complete_publication(
+            writer.as_ref(),
+            fixture.db().as_ref(),
+            &client,
+            &base,
+            &expected,
+            ttl,
+            0,
+            1,
+        )
+        .await;
+        assert_eq!(
+            client
+                .get(format!("{base}/api/me"))
+                .bearer_auth(&access)
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            200
+        );
+        for _ in 1..16 {
+            let mut pending = root.clone();
+            pending.id = Uuid::new_v4();
+            pending.kid = Uuid::new_v4().simple().to_string();
+            pending.status = Status::Pending;
+            writer
+                .insert(&pending)
+                .await
+                .expect("real platform admission through slot16");
+            expected.push(pending);
+        }
+        assert_complete_publication(
+            writer.as_ref(),
+            fixture.db().as_ref(),
+            &client,
+            &base,
+            &expected,
+            ttl,
+            0,
+            16,
+        )
+        .await;
+        assert_eq!(
+            expected.len(),
+            16,
+            "global cap191 is NOT the platform refusal reason"
+        );
+        let state = signing_prefill::database_state(fixture.db().as_ref())
+            .await
+            .unwrap();
+        let mut seventeenth = root.clone();
+        seventeenth.id = Uuid::new_v4();
+        seventeenth.kid = Uuid::new_v4().simple().to_string();
+        seventeenth.status = Status::Pending;
+        let separate = independent_registry(fixture.db().as_ref(), ttl).await;
+        for _ in 0..3 {
+            assert!(
+                matches!(
+                    separate.insert(&seventeenth).await,
+                    Err(DomainError::SigningKeyAdmissionDenied {
+                        reason: Reason::Capacity,
+                        ..
+                    })
+                ),
+                "platform cannot borrow unoccupied org slots"
+            );
+            assert_eq!(
+                signing_prefill::database_state(fixture.db().as_ref())
+                    .await
+                    .unwrap(),
+                state
+            );
+        }
+        assert!(writer
+            .find_by_kid(&seventeenth.kid)
+            .await
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            writer.find_active_platform_key().await.unwrap().unwrap(),
+            root
+        );
+        assert_complete_publication(
+            writer.as_ref(),
+            fixture.db().as_ref(),
+            &client,
+            &base,
+            &expected,
+            ttl,
+            0,
+            16,
+        )
+        .await;
+        assert_platform_receiver(&base, &root.issuer, &access).await;
+        assert_eq!(
+            client
+                .get(format!("{base}/api/me"))
+                .bearer_auth(&access)
+                .send()
+                .await
+                .unwrap()
                 .status(),
             200
         );

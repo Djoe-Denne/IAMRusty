@@ -69,7 +69,7 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/aiforall/references/opencode-close-0308-2026-10-03]] — distillat de la session d'orchestration OpenCode.
 - [[projects/aiforall/concepts/s2s-internal-token-revoke]] — contrat S2S token/revoke prouvé.
 - [[projects/aiforall/concepts/local-runtime-lifecycle]] — cycle de vie Docker/Kind/WSL (nouveau canon AGENTS).
-- [[projects/aiforall/skills/running-it-tests-docker]] — recette IT Docker depuis Windows.
+- [[projects/aiforall/skills/running-it-tests-docker]] — recette IT Docker depuis Windows (**obsolète 2026-10-07** : IT natif Windows).
 - [[projects/aiforall/skills/preserving-role-permission-org-scope]] — migration role_permissions Hive.
 - [[journal/2026-10-02]] — e2e Kind OK ; IT hors Kind ; 0308 toujours Partial.
 - [[projects/aiforall/references/mesh-authn-close-2026-10-02]] — amendement canaux et prompt de clôture.

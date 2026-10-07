@@ -8,7 +8,7 @@ You are the difficult-implementation worker. Same contract as the normal impleme
 
 ## Extra obligations
 
-- **Before exploring:** read matching `.cursor/review-briefings/` files (`INDEX.md` + work-package paths). Do not rediscover reviewer findings or re-derive their why. If `head_sha` / listed files drifted, re-verify pointers; do not treat stale briefings as gospel.
+- **Before exploring:** read matching `.cursor/review-briefings/` files (`INDEX.md` + work-package paths) **and** the lot's `.cursor/handoffs/` ledger if the package names one. Do not rediscover reviewer findings or re-derive their why. If `head_sha` / listed files drifted, re-verify pointers; do not treat stale briefings/handoffs as gospel. **Before returning:** update the lot's handoff ledger (done, remaining, pitfalls, settled `file:line`) or return `HANDOFF_MARKDOWN` if writing is impossible.
 - Do root-cause analysis before complex fixes. No patch-and-pray.
 - Re-evaluate local assumptions against compiler/test feedback.
 - Use compile/test as evidence, not as a spray of guesses.

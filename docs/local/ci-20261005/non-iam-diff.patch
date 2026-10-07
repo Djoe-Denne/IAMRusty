@@ -1,0 +1,203 @@
+diff --git a/services/Hive/tests/organization_signer_permissions.rs b/services/Hive/tests/organization_signer_permissions.rs
+index 3ffbb5e..3d3991b 100644
+--- a/services/Hive/tests/organization_signer_permissions.rs
++++ b/services/Hive/tests/organization_signer_permissions.rs
+@@ -5,7 +5,9 @@ mod common;
+ use common::{fixtures::db::DbFixtures, HiveTestFixture, Permission, ResourceRef, Subject};
+ use futures::FutureExt;
+ use rustycog::testing::{
+-    http::jwt::{create_jwt_token_with_secret, TEST_JWT_AUDIENCE, TEST_JWT_ISSUER},
++    http::jwt::{
++        create_jwt_token_with_secret, TEST_HS256_SECRET, TEST_JWT_AUDIENCE, TEST_JWT_ISSUER,
++    },
+     wiremock::MockServerFixture,
+ };
+ use serial_test::serial;
+@@ -86,16 +88,18 @@ async fn configure_requires_admin_on_the_exact_organization_before_any_iam_rpc()
+         let other = DbFixtures::create_org_with_owner(fixture.db().as_ref(), owner)
+             .await
+             .expect("separate organization scope");
+-        // Preserve the harness's explicit HS256 test policy, never infer it from
+-        // names or mint an arbitrary-issuer JWT. Other policies need a root codec.
+-        assert!(
+-            auth.jwt.jwks_url.is_none(),
++        // Preserve the harness's explicit dual-verifier test policy. This request
++        // uses its configured HS256 branch, never an arbitrary issuer or mesh metadata.
++        assert_eq!(
++            auth.jwt.jwks_url.as_deref(),
++            Some("http://127.0.0.1:8081/iam/.well-known/jwks.json"),
+             "this helper must report its actual explicit test verifier configuration"
+         );
+-        assert!(
+-            auth.jwt.allowed_algorithms.is_empty()
+-                || auth.jwt.allowed_algorithms == vec!["HS256".to_owned()]
++        assert_eq!(
++            auth.jwt.allowed_algorithms,
++            vec!["RS256".to_owned(), "HS256".to_owned()]
+         );
++        assert_eq!(auth.jwt.hs256_secret.as_deref(), Some(TEST_HS256_SECRET));
+         assert_eq!(auth.jwt.issuer.as_deref(), Some(TEST_JWT_ISSUER));
+         assert_eq!(auth.jwt.audience.as_deref(), Some(TEST_JWT_AUDIENCE));
+         assert!(
+diff --git a/services/Manifesto/tests/apparatus_p1_t5_acl.rs b/services/Manifesto/tests/apparatus_p1_t5_acl.rs
+index 0ea44b0..583d6e3 100644
+--- a/services/Manifesto/tests/apparatus_p1_t5_acl.rs
++++ b/services/Manifesto/tests/apparatus_p1_t5_acl.rs
+@@ -24,7 +24,8 @@ fn create_test_jwt_token(user_id: Uuid) -> String {
+ #[test]
+ fn t5_model_has_no_new_apparatus_type() {
+     // Garde : aucun nouveau type FGA (escalade obligatoire sinon).
+-    let model = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../openfga/model.fga");
++    let model =
++        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ops/openfga/model.fga");
+     let content = std::fs::read_to_string(&model).expect("model.fga lisible");
+     let lower = content.to_lowercase();
+     assert!(
+diff --git a/services/Manifesto/tests/apparatus_p1_t7_gate.rs b/services/Manifesto/tests/apparatus_p1_t7_gate.rs
+index b401ce4..24e03d3 100644
+--- a/services/Manifesto/tests/apparatus_p1_t7_gate.rs
++++ b/services/Manifesto/tests/apparatus_p1_t7_gate.rs
+@@ -5,10 +5,10 @@
+ 
+ use std::path::{Path, PathBuf};
+ 
+-/// Racine du workspace (`services/Manifesto/../`).
++/// Racine du workspace (`services/Manifesto/../../`).
+ fn workspace_root() -> PathBuf {
+     Path::new(env!("CARGO_MANIFEST_DIR"))
+-        .join("..")
++        .join("../..")
+         .canonicalize()
+         .expect("workspace lisible")
+ }
+diff --git a/services/Manifesto/tests/apparatus_p2_t3_persist.rs b/services/Manifesto/tests/apparatus_p2_t3_persist.rs
+index 051cb25..ccc429f 100644
+--- a/services/Manifesto/tests/apparatus_p2_t3_persist.rs
++++ b/services/Manifesto/tests/apparatus_p2_t3_persist.rs
+@@ -84,7 +84,8 @@ async fn count_i64(
+ 
+ #[test]
+ fn t3_openfga_model_has_no_apparatus_type() {
+-    let model = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../openfga/model.fga");
++    let model =
++        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ops/openfga/model.fga");
+     let content = std::fs::read_to_string(&model).expect("model.fga lisible");
+     assert!(
+         !content.to_lowercase().contains("apparatus"),
+diff --git a/services/Manifesto/tests/apparatus_p2_t7_gate.rs b/services/Manifesto/tests/apparatus_p2_t7_gate.rs
+index 0de908b..d2a66e5 100644
+--- a/services/Manifesto/tests/apparatus_p2_t7_gate.rs
++++ b/services/Manifesto/tests/apparatus_p2_t7_gate.rs
+@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
+ 
+ fn workspace_root() -> PathBuf {
+     Path::new(env!("CARGO_MANIFEST_DIR"))
+-        .join("..")
++        .join("../..")
+         .canonicalize()
+         .expect("workspace lisible")
+ }
+diff --git a/services/Manifesto/tests/apparatus_p3_t1_absence.rs b/services/Manifesto/tests/apparatus_p3_t1_absence.rs
+index 02865e5..3a3356f 100644
+--- a/services/Manifesto/tests/apparatus_p3_t1_absence.rs
++++ b/services/Manifesto/tests/apparatus_p3_t1_absence.rs
+@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
+ 
+ fn workspace_root() -> PathBuf {
+     Path::new(env!("CARGO_MANIFEST_DIR"))
+-        .join("..")
++        .join("../..")
+         .canonicalize()
+         .expect("workspace lisible")
+ }
+diff --git a/services/Manifesto/tests/apparatus_p3_t2_gate.rs b/services/Manifesto/tests/apparatus_p3_t2_gate.rs
+index ef280a6..1df4723 100644
+--- a/services/Manifesto/tests/apparatus_p3_t2_gate.rs
++++ b/services/Manifesto/tests/apparatus_p3_t2_gate.rs
+@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
+ 
+ fn workspace_root() -> PathBuf {
+     Path::new(env!("CARGO_MANIFEST_DIR"))
+-        .join("..")
++        .join("../..")
+         .canonicalize()
+         .expect("workspace lisible")
+ }
+diff --git a/services/Manifesto/tests/apparatus_p3_t3_identity.rs b/services/Manifesto/tests/apparatus_p3_t3_identity.rs
+index 26b8750..84419ec 100644
+--- a/services/Manifesto/tests/apparatus_p3_t3_identity.rs
++++ b/services/Manifesto/tests/apparatus_p3_t3_identity.rs
+@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
+ 
+ fn workspace_root() -> PathBuf {
+     Path::new(env!("CARGO_MANIFEST_DIR"))
+-        .join("..")
++        .join("../..")
+         .canonicalize()
+         .expect("workspace lisible")
+ }
+diff --git a/services/Manifesto/tests/apparatus_p3_t4_gateway.rs b/services/Manifesto/tests/apparatus_p3_t4_gateway.rs
+index 9894594..3688a2e 100644
+--- a/services/Manifesto/tests/apparatus_p3_t4_gateway.rs
++++ b/services/Manifesto/tests/apparatus_p3_t4_gateway.rs
+@@ -53,7 +53,7 @@ fn create_platform_grant_snapshot_jwt() -> String {
+ 
+ fn workspace_root() -> std::path::PathBuf {
+     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+-        .join("..")
++        .join("../..")
+         .canonicalize()
+         .expect("workspace lisible")
+ }
+diff --git a/services/Manifesto/tests/apparatus_p3_t5_consent.rs b/services/Manifesto/tests/apparatus_p3_t5_consent.rs
+index 45c2477..0b55b9a 100644
+--- a/services/Manifesto/tests/apparatus_p3_t5_consent.rs
++++ b/services/Manifesto/tests/apparatus_p3_t5_consent.rs
+@@ -51,7 +51,7 @@ fn create_platform_grant_snapshot_jwt() -> String {
+ 
+ fn workspace_root() -> std::path::PathBuf {
+     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+-        .join("..")
++        .join("../..")
+         .canonicalize()
+         .expect("workspace lisible")
+ }
+diff --git a/services/Manifesto/tests/apparatus_p3_t6_kv.rs b/services/Manifesto/tests/apparatus_p3_t6_kv.rs
+index c9fffc5..c875ccf 100644
+--- a/services/Manifesto/tests/apparatus_p3_t6_kv.rs
++++ b/services/Manifesto/tests/apparatus_p3_t6_kv.rs
+@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
+ 
+ fn workspace_root() -> PathBuf {
+     Path::new(env!("CARGO_MANIFEST_DIR"))
+-        .join("..")
++        .join("../..")
+         .canonicalize()
+         .expect("workspace lisible")
+ }
+diff --git a/services/Manifesto/tests/apparatus_p3_t7_invoke.rs b/services/Manifesto/tests/apparatus_p3_t7_invoke.rs
+index 64ad1e5..cbed22f 100644
+--- a/services/Manifesto/tests/apparatus_p3_t7_invoke.rs
++++ b/services/Manifesto/tests/apparatus_p3_t7_invoke.rs
+@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
+ 
+ fn workspace_root() -> PathBuf {
+     Path::new(env!("CARGO_MANIFEST_DIR"))
+-        .join("..")
++        .join("../..")
+         .canonicalize()
+         .expect("workspace lisible")
+ }
+diff --git a/services/Manifesto/tests/apparatus_p4_t1_absence.rs b/services/Manifesto/tests/apparatus_p4_t1_absence.rs
+index 9352ee9..bcd6d22 100644
+--- a/services/Manifesto/tests/apparatus_p4_t1_absence.rs
++++ b/services/Manifesto/tests/apparatus_p4_t1_absence.rs
+@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
+ 
+ fn workspace_root() -> PathBuf {
+     Path::new(env!("CARGO_MANIFEST_DIR"))
+-        .join("..")
++        .join("../..")
+         .canonicalize()
+         .expect("workspace lisible")
+ }

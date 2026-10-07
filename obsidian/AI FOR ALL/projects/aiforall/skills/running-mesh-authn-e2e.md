@@ -23,7 +23,7 @@ updated: 2026-10-02T14:55:00Z
 
 # Lancer l’e2e mesh AuthN
 
-Contrat : [[projects/aiforall/decisions/0308-mesh-authn-jwt]]. Preuve du 30 sept. : [[journal/2026-09-30]]. Compiler dans Docker, jamais `cargo` Windows pour ce flux.
+Contrat : [[projects/aiforall/decisions/0308-mesh-authn-jwt]]. Preuve du 30 sept. : [[journal/2026-09-30]]. Build des images Linux dans Docker (build de livraison), jamais `cargo` Windows pour compiler ces images ; depuis le 2026-10-07, tout dev/test est natif Windows.
 
 ## Commande
 

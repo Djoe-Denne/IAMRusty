@@ -28,6 +28,26 @@ pub trait SigningProvider: Send + Sync {
     /// Returns [`DomainError`] when the backend rejects the request or is unsupported.
     async fn sign_digest(&self, digest: &[u8]) -> Result<Vec<u8>, DomainError>;
 
+    /// Binding-aware request. Versioned providers must override this method;
+    /// unversioned local/remote adapters still undergo canonical public checking.
+    async fn sign_digest_for(
+        &self,
+        key: &SigningKey,
+        digest: &[u8],
+    ) -> Result<Vec<u8>, DomainError> {
+        if key.provider_type == crate::entity::signing_key::SigningProviderType::OpenBaoTransit {
+            return Err(DomainError::InvalidSigningKeyMaterial);
+        }
+        self.sign_digest(digest).await
+    }
+
+    async fn public_key_for(&self, key: &SigningKey) -> Result<String, DomainError> {
+        if key.provider_type == crate::entity::signing_key::SigningProviderType::OpenBaoTransit {
+            return Err(DomainError::InvalidSigningKeyMaterial);
+        }
+        self.public_key().await
+    }
+
     /// Return the public key PEM used for JWKS publication, when available.
     ///
     /// # Errors
@@ -74,6 +94,10 @@ pub trait WorkloadIdentity: Send + Sync {
 /// Hexagonal: HTTP handlers depend on this port; adapters live in iam-infra.
 #[async_trait]
 pub trait OrganizationSignerProbe: Send + Sync {
+    /// Non-I/O configuration guard applies even to an identical configure/no-op.
+    fn validate_configuration(&self, _key: &SigningKey) -> Result<(), DomainError> {
+        Ok(())
+    }
     /// Sign a fixed digest with the key's backend and verify it against `key.public_key`.
     ///
     /// # Errors
@@ -81,11 +105,41 @@ pub trait OrganizationSignerProbe: Send + Sync {
     /// Returns [`DomainError`] when the backend is missing, unsupported, or the
     /// signature does not verify.
     async fn challenge(&self, key: &SigningKey) -> Result<(), DomainError>;
+
+    /// Read scope before calling this method. No writer transaction spans I/O.
+    async fn prove(
+        &self,
+        key: SigningKey,
+        before: crate::entity::signing_key::SigningScopeSnapshot,
+    ) -> Result<crate::entity::signing_key::ProbedSigningKey, DomainError> {
+        before.scope.validate()?;
+        if crate::entity::signing_key::SigningScope::of(&key) != before.scope {
+            return Err(DomainError::InvalidSigningKeyMaterial);
+        }
+        self.validate_configuration(&key)?;
+        self.challenge(&key).await?;
+        Ok(crate::entity::signing_key::ProbedSigningKey::new(
+            key, before,
+        ))
+    }
 }
 
 /// Rotate an organization signing key with N+1 pending-then-promote (ADR-0304 §13).
 #[async_trait]
 pub trait OrganizationSignerRotator: Send + Sync {
+    /// Internal Platform/Organization primitive; no new public platform route.
+    async fn rotate_scope(
+        &self,
+        scope: &crate::entity::signing_key::SigningScope,
+    ) -> Result<SigningKey, DomainError> {
+        if let Some(id) = scope.organization_id {
+            self.rotate(id).await
+        } else {
+            Err(DomainError::ProviderNotSupported(
+                "platform rotation unavailable".into(),
+            ))
+        }
+    }
     /// Mint Pending material, publish it, then promote to Active and retire the previous Active.
     ///
     /// # Errors

@@ -431,6 +431,43 @@ pub trait SigningKeyRegistry: Send + Sync {
     /// Error type returned by this registry
     type Error: std::error::Error + Send + Sync + 'static;
 
+    /// Versioned lifecycle extensions fail closed on unsupported adapters.
+    async fn signing_scope_snapshot(
+        &self,
+        _scope: &crate::entity::signing_key::SigningScope,
+    ) -> Result<crate::entity::signing_key::SigningScopeSnapshot, crate::error::DomainError> {
+        Err(crate::error::DomainError::BusinessRuleViolation(
+            "versioned signing lifecycle unavailable".into(),
+        ))
+    }
+
+    async fn prepare_signing_key(
+        &self,
+        _proof: crate::entity::signing_key::ProbedSigningKey,
+    ) -> Result<crate::entity::signing_key::SigningKeyPreparation, crate::error::DomainError> {
+        Err(crate::error::DomainError::BusinessRuleViolation(
+            "versioned signing lifecycle unavailable".into(),
+        ))
+    }
+
+    async fn promote_signing_key(
+        &self,
+        _prepared: &crate::entity::signing_key::PreparedSigningTransition,
+    ) -> Result<crate::entity::signing_key::SigningKey, crate::error::DomainError> {
+        Err(crate::error::DomainError::BusinessRuleViolation(
+            "versioned signing lifecycle unavailable".into(),
+        ))
+    }
+
+    async fn revoke_signing_scope(
+        &self,
+        _scope: &crate::entity::signing_key::SigningScope,
+    ) -> Result<Vec<crate::entity::signing_key::SigningKey>, crate::error::DomainError> {
+        Err(crate::error::DomainError::BusinessRuleViolation(
+            "versioned signing lifecycle unavailable".into(),
+        ))
+    }
+
     /// Insert a new signing key row.
     async fn insert(&self, key: &crate::entity::signing_key::SigningKey)
         -> Result<(), Self::Error>;
@@ -477,7 +514,9 @@ pub trait SigningKeyRegistry: Send + Sync {
         &self,
     ) -> Result<Vec<crate::entity::signing_key::SigningKey>, Self::Error>;
 
-    /// One coherent primary SELECT including DB statement clock, also when empty.
+    /// Already validated primary materialized publication. The adapter refreshes
+    /// expiry/policy/revision0 under its writer lock using a post-wait DB clock.
+    /// Empty is authoritative; no PEM conversion, bootstrap or replica fallback.
     async fn jwks_publication_snapshot(
         &self,
     ) -> Result<crate::entity::signing_key::SigningKeyPublicationSnapshot, Self::Error>;

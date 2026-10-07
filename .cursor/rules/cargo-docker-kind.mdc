@@ -1,27 +1,25 @@
 ---
-description: Compilation locale — Docker Linux par défaut, cargo Windows seulement si nécessaire
+description: Compilation et tests locaux — Windows natif par défaut, Docker uniquement pour images Kind et infra testcontainers
 alwaysApply: true
 ---
 
-# Compilation locale
+# Compilation et tests locaux (décision utilisateur 2026-10-07)
 
-L’hôte est Windows. Kind et les conteneurs de test tournent dans la VM Linux de Docker Desktop. Un `.exe` de `target\` ne démarre pas dans Kind.
+L’hôte est Windows. **Développer, compiler et tester se font nativement sous Windows.** Docker n’est PAS un environnement de dev.
 
 ## Défaut
 
-Tests locaux, images Kind, mesh : compiler dans Docker (`docker build`, `just deploy-mesh`, `just deploy-j3`). Kind ne compile pas. Il charge une image Linux déjà construite (`kind load`).
+- `cargo build`, `cargo test`, `cargo check`, `cargo clippy`, `cargo fmt` : sur l’hôte Windows, par défaut. Un seul `cargo` à la fois.
+- Tests d’intégration : le harness testcontainers existant démarre lui-même ses conteneurs tiers (Postgres, LocalStack, OpenBao, OpenFGA…) via le daemon Docker. Le binaire testé est le `.exe` Windows de `target\`. Ne pas builder d’image applicative ni lancer le service dans Docker pour exécuter un test : c’est interdit sans demande explicite de l’utilisateur.
+- `container-runtime-debugger` (et tout diagnostic Docker/Compose) : uniquement sur autorisation user explicite.
 
-Ne pas lancer `cargo build`, `cargo test` ou `cargo check` sur l’hôte Windows pour ce travail.
+## Docker reste légitime pour
 
-## Windows, seulement si c’est indispensable
+1. **Images Linux pour Kind** : `docker compose build` / `build-artifacts` / Dockerfile des services, puis `kind load`. Kind ne compile pas ; c’est du build de livraison, pas de dev.
+2. **Infrastructure tierce des IT** : démarrée automatiquement par les fixtures testcontainers — ne pas l’orchestrer à la main.
 
-Un `cargo` hôte est permis uniquement si l’utilisateur demande un binaire Windows, ou si l’outil ne peut pas tourner dans Docker. Le dire avant de le lancer. Un seul `cargo` à la fois. Jamais en parallèle d’un `docker build` qui compile Rust, ni d’un `cargo check` de l’IDE.
+## Ne jamais faire
 
-## Dossier `target`
-
-Le dépôt source est partagé. Le dossier `target\` ne l’est pas.
-
-- `cargo` Windows écrit `target\` pour `x86_64-pc-windows-msvc`.
-- Docker écrit son propre cache BuildKit (artefacts `x86_64-unknown-linux-gnu`), ignoré par `.dockerignore`.
-
-Un `cargo check` Windows ne relit pas ces artefacts Linux. Monter le `target\` hôte dans le conteneur mélange les deux cibles et casse les deux builds. Ne pas le faire.
+- Builder ou exécuter des tests dans Docker « parce que c’était la règle avant ». Les tests locaux via Docker sont supprimés du canon.
+- Partager ou monter `target\` entre l’hôte et un conteneur : le `target\` Windows (`x86_64-pc-windows-msvc`) vit sur `E:\cargo-target\AIForAll` (`.cargo/config.toml`) et est incompatible avec les artefacts Docker (`x86_64-unknown-linux-gnu`).
+- Lancer un second `cargo` en parallèle (un seul slot, coordonné avec le parent/orchestrator).

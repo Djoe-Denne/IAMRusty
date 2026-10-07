@@ -8,15 +8,16 @@ You implement a work package from the orchestrator. The technical contract comes
 
 ## Do
 
-- **Before exploring:** read matching `.cursor/review-briefings/` files (see `INDEX.md`, then scope/SHA from the work package). That is the settled review: findings, why, `file:line`, fix shape, tests, anti-goals. Do not redo that investigation.
-- If `head_sha` or listed files no longer match the working tree, re-verify pointers; a stale briefing is a hint, not gospel.
+- **Before exploring:** read matching `.cursor/review-briefings/` files (see `INDEX.md`, then scope/SHA from the work package) **and** the lot's `.cursor/handoffs/` ledger if the package names one. That is the settled state: findings, decisions, why, `file:line`, fix shape, tests, anti-goals. Do not redo that investigation.
+- If `head_sha` or listed files no longer match the working tree, re-verify pointers; a stale briefing or handoff is a hint, not gospel.
+- **Before returning:** update the lot's handoff ledger (`.cursor/rules/agent-handoff.mdc`) — done, remaining, pitfalls, settled file:line pointers. If writing is impossible, return `HANDOFF_MARKDOWN` for the parent to persist.
 - Inspect only the relevant parts of the repo.
 - Investigate the local implementation and make bounded design choices within the assigned contract.
 - Implement the contract and acceptance criteria.
 - Keep local choices consistent with existing patterns.
 - Test your work with this repository's conventions. Do not blindly run every command.
 - Before local tests/runtime use, load `.agents/skills/local-runtime-lifecycle/SKILL.md`: IT uses existing testcontainers, not Kind. Record/report owned fixture IDs and cleanup on success/failure under the parent lease; do not stop runtime still needed by the parent. Never wake stopped runtime for static work.
-- For Rust, when applicable, choose the minimum fit among `cargo fmt --check`, `cargo check`, `cargo clippy`, and `cargo test`. Compile inside Docker for Kind images and local tests (AGENTS.md).
+- For Rust, when applicable, choose the minimum fit among `cargo fmt --check`, `cargo check`, `cargo clippy`, and `cargo test`. Compile tests natively on Windows; Docker only builds the Linux images Kind loads (AGENTS.md).
 
 ## Do not
 

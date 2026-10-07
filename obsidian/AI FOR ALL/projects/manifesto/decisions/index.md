@@ -85,3 +85,8 @@ Photographie rétroactive du 12 septembre 2026. Extrait Manifesto ; index platef
 ## Related
 
 - Plateforme cluster (**pas** Apparatus) : [[projects/aiforall/decisions/0600-cloud-portable]] / [[projects/aiforall/decisions/0601-cluster-topology]] — P4 (0008) s’insère dans cette topologie ; 0600/0601 ne sont pas des ADR Apparatus. Lab local dédié : [[projects/aiforall/decisions/0606-local-full-kind-isole]] (**Proposed / Partial**, source/offline seulement), Related sans fusion de canon ni livraison cloud. Auth globale : [[projects/aiforall/decisions/0310-admission-epochs-budget-jwks]] (Accepted / Partial ; ratification humaine2026-10-04, admission S-10 à implémenter, pas fermeture prouvée).
+
+
+## Signing IAM — propositions0311/0312
+
+- [[projects/aiforall/decisions/0311-signing-simplification]] —0311 Proposed/Partial ;0312 Proposed/Unimplemented. Aucun changement du protocole Apparatus/Lazaret ni supersession effective0310.

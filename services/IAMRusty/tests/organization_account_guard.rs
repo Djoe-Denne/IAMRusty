@@ -20,6 +20,14 @@ use serial_test::serial;
 use uuid::Uuid;
 
 fn sign(key: &iam_domain::entity::signing_key::SigningKey, victim: Uuid) -> String {
+    sign_with_pem(key, victim, TEST_RS256_PRIVATE_PEM)
+}
+
+fn sign_with_pem(
+    key: &iam_domain::entity::signing_key::SigningKey,
+    victim: Uuid,
+    private: &str,
+) -> String {
     let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
     header.kid = Some(key.kid.clone());
     header.typ = Some("aiforall-access+jwt".into());
@@ -32,8 +40,7 @@ fn sign(key: &iam_domain::entity::signing_key::SigningKey, victim: Uuid) -> Stri
     jsonwebtoken::encode(
         &header,
         &claims,
-        &jsonwebtoken::EncodingKey::from_rsa_pem(TEST_RS256_PRIVATE_PEM.as_bytes())
-            .expect("fixed nonsecret key"),
+        &jsonwebtoken::EncodingKey::from_rsa_pem(private.as_bytes()).expect("fixed nonsecret key"),
     )
     .expect("signed principal")
 }
@@ -131,4 +138,37 @@ async fn published_organization_signer_with_victim_sub_cannot_me_link_or_relink(
         assert_eq!(row.try_get::<i64>("", "count").expect("count"), 0);
     })
     .await;
+}
+
+#[tokio::test]
+#[serial]
+async fn post_boot_published_kid_resolves_through_live_url_refresh() {
+    use iam_domain::port::repository::SigningKeyRegistry;
+    use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
+    let (fixture, base, client) = common::setup_test_server()
+        .await
+        .expect("real IAM listener boot");
+    fixture_cleanup::run(&fixture, async {
+        let victim = DbFixtures::user().arthur().commit(fixture.db()).await.expect("victim account");
+        let (writer, _) = common::fixture_signing_registry(&fixture).await.expect("same primary writer");
+        // Generate and admit AFTER boot: neither kid nor RSA material can be in
+        // the boot seed. No warmup bearer or arbitrary 60-second wait is used.
+        let private = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048).expect("distinct post-boot RSA");
+        let mut organization = registry::registry_key(SigningKeyStatus::Active, Some(Uuid::new_v4()));
+        organization.kid = iam_domain::entity::signing_key::opaque_kid();
+        organization.public_key = private.to_public_key().to_public_key_pem(LineEnding::LF).expect("new SPKI");
+        let before = writer.jwks_publication_snapshot().await.expect("primary state after boot");
+        let new_public=iam_domain::entity::token::Jwk::from_rsa_pem(&organization.public_key,&organization.kid,&organization.issuer).unwrap();
+        assert!(before.publication.jwks().keys.iter().all(|key| key.kid != organization.kid && (key.n != new_public.n || key.e != new_public.e)));
+        let admitted = writer.replace_active_organization_key(&organization, None).await.expect("real post-boot admission");
+        let private_pem = private.to_pkcs8_pem(LineEnding::LF).expect("fixture private material");
+        let token = sign_with_pem(&admitted, victim.id(), private_pem.as_str());
+        let idp = IdpConnectFixtures::service().await;
+        let idp_before = idp.received_requests().await.len();
+        let response = client.get(format!("{base}/api/me")).bearer_auth(&token)
+            .send().await.expect("first bearer with post-boot kid");
+        assert_eq!(response.status(), 403,
+            "a post-boot organization kid must resolve via the live URL and reach the account guard, not fail 401");
+        assert_eq!(idp.received_requests().await.len(), idp_before, "guard precedes IdP");
+    }).await;
 }

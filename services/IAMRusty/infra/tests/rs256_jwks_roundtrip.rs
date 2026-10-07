@@ -61,6 +61,7 @@ async fn rs256_encode_jwks_and_extractor_accept() {
         issuer: PLATFORM_ISSUER.into(),
         provider_type: "pem_file".into(),
         provider_key_ref: "test-platform.pem".into(),
+        provider_key_version: None,
         credential_ref: None,
         public_key: include_str!("../../config/keys/test-platform.pub").into(),
         status: "active".into(),
@@ -87,6 +88,7 @@ async fn rs256_encode_jwks_and_extractor_accept() {
         900,
         2592000,
     )
+    .with_local_pem_allowed(true) // explicit nonprod PEM provider fixture
     .with_issuer_audience(PLATFORM_ISSUER, DEFAULT_JWT_AUDIENCE);
     service = service
         .with_signing_provider(provider, KID.to_string(), PLATFORM_ISSUER.to_string(), jwks)
@@ -182,6 +184,7 @@ fn jwks_from_registry_keys_skips_invalid_pem_keeps_good_keys() {
         issuer: PLATFORM_ISSUER.to_string(),
         provider_type: SigningProviderType::PemFile,
         provider_key_ref: "opaque".to_string(),
+        provider_key_version: None,
         credential_ref: None,
         public_key: include_str!("../../config/keys/test-platform.pub").to_string(),
         status: SigningKeyStatus::Active,

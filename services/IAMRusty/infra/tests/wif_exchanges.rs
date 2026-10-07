@@ -127,6 +127,7 @@ async fn transit_sign_uses_wif_resolved_token() {
     let transit = TransitSigningProvider::new(
         wif.base_url(),
         "platform-key",
+        1,
         "openbao-token",
         workload,
         None,

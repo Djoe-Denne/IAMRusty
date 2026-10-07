@@ -13,6 +13,7 @@ pub struct Model {
     pub issuer: String,
     pub provider_type: String,
     pub provider_key_ref: String,
+    pub provider_key_version: Option<i64>,
     pub credential_ref: Option<String>,
     #[sea_orm(column_type = "Text")]
     pub public_key: String,

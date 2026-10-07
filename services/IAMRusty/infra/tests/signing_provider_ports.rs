@@ -49,6 +49,7 @@ async fn transit_sign_stub_produces_verifiable_digest_signature() {
     let transit = TransitSigningProvider::new(
         server.uri(),
         "platform-key",
+        1,
         "openbao-token",
         wi,
         Some(include_str!("../../config/keys/test-platform.pub").to_string()),
@@ -97,8 +98,9 @@ async fn transit_public_key_fetched_when_absent() {
 
     let wi: Arc<dyn WorkloadIdentity> =
         Arc::new(StaticCredential::from_pair("openbao-token", "s.test-token").expect("pair"));
-    let transit = TransitSigningProvider::new(server.uri(), "org-key", "openbao-token", wi, None)
-        .expect("transit");
+    let transit =
+        TransitSigningProvider::new(server.uri(), "org-key", 1, "openbao-token", wi, None)
+            .expect("transit");
     let pem = transit.public_key().await.expect("fetch pub");
     assert!(pem.contains("BEGIN PUBLIC KEY"));
 }
@@ -130,6 +132,14 @@ async fn transit_probe_signs_and_verifies_challenge() {
     let org = uuid::Uuid::new_v4();
     let key_name = format!("org-{org}-signing");
     let credential = format!("org-{org}-credential");
+    Mock::given(method("GET"))
+        .and(path(format!("/v1/transit/keys/{key_name}")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "data": { "type":"rsa-2048", "exportable":false, "supports_signing":true,
+                "latest_version":1, "keys": { "1": { "public_key": public } } }
+        })))
+        .mount(&*server)
+        .await;
     Mock::given(method("POST"))
         .and(path(format!("/v1/transit/sign/{key_name}")))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -156,6 +166,7 @@ async fn transit_probe_signs_and_verifies_challenge() {
         issuer: "http://127.0.0.1/iam/orgs/acme".into(),
         provider_type: SigningProviderType::OpenBaoTransit,
         provider_key_ref: key_name,
+        provider_key_version: Some(1),
         credential_ref: Some(credential),
         public_key: public.to_string(),
         status: SigningKeyStatus::Active,

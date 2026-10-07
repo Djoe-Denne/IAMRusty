@@ -14,7 +14,7 @@ updated: 2026-10-03T15:10:00Z
 # AIForAll Skills
 
 - [[projects/aiforall/skills/running-mesh-authn-e2e]] — e2e Compose 0308 ; `hivemigration`, FORCE, `build-artifacts` d’abord.
-- [[projects/aiforall/skills/running-it-tests-docker]] — IT Rust en Docker depuis Windows : préfixes alignés, réseau fixture, fuite Ryuk, noms fixes.
+- [[projects/aiforall/skills/running-it-tests-docker]] — IT Rust en Docker depuis Windows : préfixes alignés, réseau fixture, fuite Ryuk, noms fixes. (**obsolète 2026-10-07** : dev/IT natif Windows.)
 - [[projects/aiforall/skills/preserving-role-permission-org-scope]] — migration Hive : unicité (org, perm, resource) sans perte.
 - [[projects/aiforall/skills/running-aiforall-runtime-modes]]
 - [[projects/aiforall/skills/fixing-sonar-clippy-in-services]]

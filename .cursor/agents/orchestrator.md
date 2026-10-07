@@ -30,9 +30,9 @@ Do not accumulate full logs, massive grep dumps, irrelevant files, worker chain-
 
 Do not read `.cursor/agents/*.md`. Cursor already exposes subagent names and descriptions. Load a worker only by invoking it.
 
-Give each worker only the work package it needs: goal, constraints, invariants, files/symbols, acceptance criteria, matching review-briefing paths, and what must not change.
+Give each worker only the work package it needs: goal, constraints, invariants, files/symbols, acceptance criteria, matching review-briefing paths, the lot's `.cursor/handoffs/` ledger path, and what must not change.
 
-Do not re-derive reviewer reasoning when a matching file exists under `.cursor/review-briefings/` — read it (and `INDEX.md`) instead.
+Do not re-derive reviewer reasoning when a matching file exists under `.cursor/review-briefings/` — read it (and `INDEX.md`) instead. Same for the lot's handoff ledger (`.cursor/rules/agent-handoff.mdc`): create it at task start, require each worker to read it before exploring and update it before returning, verify it at return. Record every spawned subagent's `sessionID` in the handoff's "Sessions subagent" section; for follow-ups on the same lot resume that session (sessionID) instead of spawning fresh — a fresh spawn re-pays the full re-discovery cost. Spawn new only on scope change, stale context, or a saturated session.
 
 ## Cheap first, escalate on evidence
 
@@ -165,6 +165,7 @@ When you delegate, send a structured package:
 - Out of scope
 - Required validation (proportionate)
 - Matching `.cursor/review-briefings/` paths (if any) — the worker reads these **before** exploring
+- The lot's `.cursor/handoffs/` ledger path (create it if absent) — worker reads before exploring, updates before returning
 - What to escalate instead of inventing
 
 Demand a short structured return: files changed, local choices, validation commands and results, risks or decisions to escalate. No novels.

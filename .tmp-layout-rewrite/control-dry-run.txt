@@ -1,0 +1,44 @@
+layout-rewrite : dry-run (aucune ecriture)
+racine : C:\Users\djden\source\repos\AIForAll
+fichiers scannes : 1861
+
+zone cargo : 0 fichiers, 0 remplacements
+
+zone compose : 0 fichiers, 0 remplacements
+
+zone docker : 0 fichiers, 0 remplacements
+
+zone rust : 0 fichiers, 0 remplacements
+
+zone justfile : 0 fichiers, 0 remplacements
+
+zone scripts : 0 fichiers, 0 remplacements
+
+zone ci : 0 fichiers, 0 remplacements
+
+zone sonar : 0 fichiers, 0 remplacements
+
+zone docs : 4 fichiers, 4 remplacements
+  runtime/monolith/README.md:monolith/ -> runtime/monolith/
+  ops/deploy/README.md:monolith/ -> runtime/monolith/
+  docs/architecture/topology.md:monolith/ -> runtime/monolith/
+  docs/adr/0604-j3-overlay-demo-monolith-kind-invoke.md:monolith/ -> runtime/monolith/
+
+zone obsidian : 0 fichiers, 0 remplacements
+
+zone serena : 1 fichiers, 1 remplacements
+  .serena/memories/architecture/cloud-portable-adr-0604.md:monolith/ -> runtime/monolith/
+
+zone skills : 0 fichiers, 0 remplacements
+
+zone other : 4 fichiers, 4 remplacements
+  .cursor/review-briefings/20260925T1710Z-orchestrator-adr-preprod-readiness-66a232c.md:monolith/ -> runtime/monolith/
+  .cursor/review-briefings/20260926T0712Z-orchestrator-gold-path-0605-scope-66a232c.md:monolith/ -> runtime/monolith/
+  .cursor/review-briefings/20260926T0715Z-maintainability-gold-path-0605-66a232c.md:monolith/ -> runtime/monolith/
+  .cursor/review-briefings/20260926T1516Z-architecte-gold-prod-mimic-l1-l4-66a232c.md:monolith/README.md -> runtime/monolith/README.md
+
+RESUME
+  fichiers scannes : 1861
+  fichiers touches : 9
+  remplacements : 9
+  insertions workspace : 0

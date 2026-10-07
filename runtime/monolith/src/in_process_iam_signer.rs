@@ -39,6 +39,7 @@ impl IamOrganizationSignerClient for InProcessIamOrganizationSignerClient {
         let input = ConfigureOrganizationSignerInput {
             provider_type: request.provider_type.clone(),
             provider_key_ref: request.provider_key_ref.clone(),
+            provider_key_version: request.provider_key_version,
             credential_ref: request.credential_ref.clone(),
             public_key: request.public_key.clone(),
             org_slug: request.org_slug.clone(),
@@ -87,6 +88,9 @@ fn map_result(result: OrganizationSignerResult) -> OrganizationSignerResponse {
 
 fn map_iam_error(err: IamDomainError) -> DomainError {
     match err {
+        IamDomainError::InvalidSigningKeyMaterial => {
+            DomainError::external_service_error("iam_service", "signing_invalid_input")
+        }
         IamDomainError::SigningKeyAdmissionDenied { reason, .. } => {
             use iam_domain::entity::signing_key::SigningKeyAdmissionReason;
             let message = match reason {
@@ -145,6 +149,11 @@ mod tests {
         ) -> Result<OrganizationSignerResult, IamDomainError> {
             *self.configure_calls.lock().unwrap() += 1;
             *self.last_configure.lock().unwrap() = Some((organization_id, request.clone()));
+            if request.provider_type == "openbao_transit" {
+                iam_domain::entity::signing_key::require_transit_key_version(
+                    request.provider_key_version,
+                )?;
+            }
             Ok(OrganizationSignerResult {
                 signing_profile_id: Uuid::nil(),
                 kid: "kid-configure".into(),
@@ -195,6 +204,7 @@ mod tests {
                 &ConfigureOrganizationSignerRequest {
                     provider_type: "pem_file".into(),
                     provider_key_ref: format!("{org_id}/a.pem"),
+                    provider_key_version: Some(7),
                     credential_ref: None,
                     public_key: "pem".into(),
                     org_slug: "acme".into(),
@@ -212,6 +222,7 @@ mod tests {
             .expect("captured");
         assert_eq!(seen_org, org_id);
         assert_eq!(seen_input.org_slug, "acme");
+        assert_eq!(seen_input.provider_key_version, Some(7));
 
         let rotated = client
             .rotate_organization_signer(org_id)
@@ -241,6 +252,43 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[tokio::test]
+    async fn transit_missing_and_zero_version_cross_the_real_bridge_as_opaque_invalid_input() {
+        let facade = Arc::new(FakeFacade::default());
+        let client = InProcessIamOrganizationSignerClient::new(facade.clone());
+        let org = Uuid::new_v4();
+        for version in [None, Some(0)] {
+            let request = ConfigureOrganizationSignerRequest {
+                provider_type: "openbao_transit".into(),
+                provider_key_ref: format!("org-{org}-key"),
+                provider_key_version: version,
+                credential_ref: Some(format!("org-{org}-credential")),
+                public_key: "public".into(),
+                org_slug: "db-org".into(),
+            };
+            let err = client
+                .configure_organization_signer(org, &request)
+                .await
+                .unwrap_err();
+            assert!(
+                matches!(err,DomainError::ExternalServiceError{ref service,ref message} if service=="iam_service" && message=="signing_invalid_input")
+            );
+            let captured = facade.last_configure.lock().unwrap().clone().unwrap();
+            assert_eq!(captured.0, org);
+            assert_eq!(captured.1.provider_key_version, version);
+            assert_eq!(captured.1.credential_ref, request.credential_ref);
+            assert_eq!(*facade.rotate_calls.lock().unwrap(), 0);
+        }
+        assert_eq!(*facade.configure_calls.lock().unwrap(), 2);
+        assert!(matches!(
+            map_iam_error(IamDomainError::RepositoryError("database".into())),
+            DomainError::Internal { .. }
+        ));
+        assert!(
+            matches!(map_iam_error(IamDomainError::external_service_error("provider","down")),DomainError::ExternalServiceError{ref service,ref message} if service=="provider" && message!="signing_invalid_input")
+        );
     }
 
     #[test]

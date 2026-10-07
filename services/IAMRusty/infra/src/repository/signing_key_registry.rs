@@ -3,9 +3,10 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use iam_domain::entity::signing_key::{
-    admission_denied, same_effective_signing_binding, SigningKey, SigningKeyAdmissionHistory,
-    SigningKeyAdmissionReason, SigningKeyLifecyclePolicy, SigningKeyLifecyclePreflight,
-    SigningKeyPublicationSnapshot, SigningKeyStatus, SigningProviderType, TrustScope,
+    admission_denied, PreparedSigningTransition, ProbedSigningKey, SigningKey,
+    SigningKeyAdmissionHistory, SigningKeyAdmissionReason, SigningKeyLifecyclePolicy,
+    SigningKeyLifecyclePreflight, SigningKeyPreparation, SigningKeyPublicationSnapshot,
+    SigningKeyStatus, SigningProviderType, SigningScope, SigningScopeSnapshot, TrustScope,
 };
 use iam_domain::error::DomainError;
 use iam_domain::port::repository::SigningKeyRegistry;
@@ -19,6 +20,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::repository::entity::signing_keys::{self, Entity as SigningKeys};
+use iam_domain::entity::signing_publication::{PreparedSigningPublicKey, SigningSlotCounts};
+#[path = "signing_publication.rs"]
+mod publication;
 
 /// Postgres-backed signing key registry.
 #[derive(Clone)]
@@ -102,6 +106,9 @@ impl SeaOrmSigningKeyRegistry {
             .all(&tx)
             .await
             .map_err(registry_error)?;
+        // Publication row follows affected key locks. The clock below is after
+        // this wait too, and writers/read-refreshes share the same global lock.
+        let stored_publication = publication::lock_snapshot(&tx).await?;
         // Capture AFTER every lock wait; subsequent reads share this clock and the
         // global writer exclusion, not transaction_timestamp() or another app clock.
         let clock = tx
@@ -119,44 +126,82 @@ impl SeaOrmSigningKeyRegistry {
             .into_iter()
             .map(to_domain)
             .collect::<Result<Vec<_>, _>>()?;
-        if matches!(operation, LifecycleOperation::Revoke) {
-            // All non-Revoked target rows are affected, including expired Retiring.
-            // No unrelated publication/history is needed for this reducing operation.
-            return Ok((
-                tx,
-                LifecycleState {
-                    keys: affected,
-                    history: vec![],
-                    as_of,
-                    issuer_conflict: false,
-                    invalid_retirement: false,
-                    platform_epoch_exists: false,
-                },
-            ));
-        }
-        let retention = self
-            .policy
-            .access_token_retention(self.access_token_expiration_seconds, as_of)?;
-        let cutoff = as_of
-            .checked_sub_signed(retention)
-            .ok_or(DomainError::InvalidSigningKeyMaterial)?;
-        let publication = SigningKeys::find()
-            .filter(publication_rows(cutoff, as_of))
-            .order_by_asc(signing_keys::Column::Id)
-            .all(&tx)
-            .await
-            .map_err(registry_error)?
-            .into_iter()
-            .map(to_domain)
-            .collect::<Result<Vec<_>, _>>()?;
         // Global lock makes these targeted historical existence reads stable. They
         // retain issuer ownership and no-bootstrap-reactivation without loading rows.
-        let facts = tx.query_one(Statement::from_sql_and_values(DbBackend::Postgres,
-        "SELECT EXISTS(SELECT 1 FROM signing_keys WHERE status='retiring' AND updated_at > $1::timestamp) AS invalid_retirement, EXISTS(SELECT 1 FROM signing_keys WHERE issuer=$2::text AND (trust_scope IS DISTINCT FROM $3::text OR organization_id IS DISTINCT FROM $4::uuid)) AS issuer_conflict, CASE WHEN $5::boolean THEN EXISTS(SELECT 1 FROM signing_keys WHERE trust_scope='platform' AND organization_id IS NULL) ELSE false END AS platform_epoch_exists",
+        let facts = if matches!(operation, LifecycleOperation::Revoke) {
+            None
+        } else {
+            Some(tx.query_one(Statement::from_sql_and_values(DbBackend::Postgres,
+        "SELECT EXISTS(SELECT 1 FROM signing_keys WHERE status='retiring' AND updated_at > $1::timestamp) AS invalid_retirement, EXISTS(SELECT 1 FROM signing_keys WHERE issuer=$2::text AND (trust_scope IS DISTINCT FROM $3::text OR organization_id IS DISTINCT FROM $4::uuid)) AS issuer_conflict, CASE WHEN $5::boolean THEN EXISTS(SELECT 1 FROM signing_keys WHERE trust_scope='platform' AND organization_id IS NULL) OR EXISTS(SELECT 1 FROM signing_scope_epochs WHERE scope_id='platform' AND revision>0) ELSE false END AS platform_epoch_exists",
         vec![as_of.naive_utc().into(), issuer.map(str::to_string).into(), scope_name(scope).into(), organization_id.into(), matches!(operation, LifecycleOperation::Bootstrap(_)).into()]))
-        .await.map_err(registry_error)?.ok_or(DomainError::InvalidToken)?;
+        .await.map_err(registry_error)?.ok_or(DomainError::InvalidToken)?)
+        };
+        let fact = |name| -> Result<bool, DomainError> {
+            facts
+                .as_ref()
+                .map(|row| row.try_get("", name).map_err(registry_error))
+                .transpose()
+                .map(|value| value.unwrap_or(false))
+        };
+        let mut state = LifecycleState {
+            keys: affected,
+            history: Vec::new(),
+            as_of,
+            counts: SigningSlotCounts::default(),
+            publics: std::collections::BTreeMap::new(),
+            stored_publication,
+            organization_id,
+            issuer_conflict: fact("issuer_conflict")?,
+            invalid_retirement: fact("invalid_retirement")?,
+            platform_epoch_exists: fact("platform_epoch_exists")?,
+        };
+        // Durable operations still need to wait for their scope CAS row. Their
+        // view/count/history is loaded only after that final wait and clock.
+        if !matches!(
+            operation,
+            LifecycleOperation::Prepare(_) | LifecycleOperation::Promote(_)
+        ) {
+            self.load_state_view(
+                &tx,
+                &mut state,
+                operation.needs_churn(),
+                !matches!(operation, LifecycleOperation::Revoke),
+            )
+            .await?;
+        }
+        Ok((tx, state))
+    }
+
+    async fn load_state_view(
+        &self,
+        tx: &DatabaseTransaction,
+        state: &mut LifecycleState,
+        needs_churn: bool,
+        check_slots: bool,
+    ) -> Result<(), DomainError> {
+        let retention = self
+            .policy
+            .access_token_retention(self.access_token_expiration_seconds, state.as_of)?;
+        let cutoff = state
+            .as_of
+            .checked_sub_signed(retention)
+            .ok_or(DomainError::InvalidSigningKeyMaterial)?;
+        if check_slots {
+            state.counts =
+                publication::counts(tx, cutoff, state.as_of, state.organization_id).await?;
+        }
+        let (keys, publics, invalid_retirement) =
+            publication::load_view(tx, cutoff, state.as_of, &state.keys).await?;
+        // Replace the preliminary fact too: a durable scope-CAS wait may cross
+        // a future-retirement boundary. Fold this into public view assembly at
+        // the final clock, never another price/count rescan.
+        state.invalid_retirement = invalid_retirement;
+        state.keys = merge_lifecycle_rows(keys, std::mem::take(&mut state.keys));
+        state.publics = publics;
+        let as_of = state.as_of;
+        let organization_id = state.organization_id;
         let mut history = Vec::new();
-        if operation.needs_churn() {
+        if needs_churn {
             if let Some(org) = organization_id {
                 // The newest N admissions give the exact Nth-newest retry deadline
                 // and threshold. This LIMIT applies to quota evidence, NEVER JWKS.
@@ -178,23 +223,8 @@ impl SeaOrmSigningKeyRegistry {
                 }
             }
         }
-        Ok((
-            tx,
-            LifecycleState {
-                keys: merge_lifecycle_rows(publication, affected),
-                history,
-                as_of,
-                issuer_conflict: facts
-                    .try_get("", "issuer_conflict")
-                    .map_err(registry_error)?,
-                invalid_retirement: facts
-                    .try_get("", "invalid_retirement")
-                    .map_err(registry_error)?,
-                platform_epoch_exists: facts
-                    .try_get("", "platform_epoch_exists")
-                    .map_err(registry_error)?,
-            },
-        ))
+        state.history = history;
+        Ok(())
     }
 
     fn check_plan(
@@ -202,7 +232,8 @@ impl SeaOrmSigningKeyRegistry {
         state: &LifecycleState,
         proposed: &[SigningKey],
         new_key: Option<&SigningKey>,
-    ) -> Result<(), DomainError> {
+        new_public: Option<&PreparedSigningPublicKey>,
+    ) -> Result<publication::PublicationPlan, DomainError> {
         if state.invalid_retirement {
             tracing::warn!(
                 event = "signing_admission_recovery_required",
@@ -210,31 +241,85 @@ impl SeaOrmSigningKeyRegistry {
             );
             return Err(admission_denied(SigningKeyAdmissionReason::Capacity));
         }
-        let result = self.policy.check_admission(
-            proposed,
-            &state.history,
-            new_key,
-            self.access_token_expiration_seconds,
-            state.as_of,
-        );
-        if result.is_err()
-            && self
-                .policy
-                .check_admission(
-                    &state.keys,
-                    &[],
-                    None,
-                    self.access_token_expiration_seconds,
-                    state.as_of,
-                )
-                .is_err()
-        {
-            tracing::warn!(
-                event = "signing_admission_recovery_required",
-                "Existing signing publication requires explicit recovery; no eviction performed"
-            );
+        let retention = self
+            .policy
+            .access_token_retention(self.access_token_expiration_seconds, state.as_of)?;
+        // Every permitted non-revoking status transition preserves its slot:
+        // Pending->Active and Active->Retiring (validated positive TTL). Only a
+        // genuinely new binding increments these primary SQL counts. No global
+        // key-vector rescan or per-entry tariff is used for admission.
+        let mut counts = state.counts;
+        if let Some(key) = new_key {
+            counts.global = counts.global.checked_add(1).ok_or_else(conflict)?;
+            if key.organization_id.is_some() {
+                counts.global_organization = counts
+                    .global_organization
+                    .checked_add(1)
+                    .ok_or_else(conflict)?;
+                counts.organization = counts.organization.checked_add(1).ok_or_else(conflict)?;
+            } else {
+                counts.platform = counts.platform.checked_add(1).ok_or_else(conflict)?;
+            }
         }
-        result
+        counts.validate()?;
+        self.policy.check_churn(
+            &state.history,
+            new_key.and_then(|key| key.organization_id),
+            state.as_of,
+        )?;
+        publication::plan(
+            proposed,
+            &state.publics,
+            new_key.zip(new_public),
+            state.as_of,
+            retention,
+        )
+    }
+
+    fn reducing_plan(
+        &self,
+        state: &LifecycleState,
+        proposed: &[SigningKey],
+    ) -> Result<publication::PublicationPlan, DomainError> {
+        publication::plan(
+            proposed,
+            &state.publics,
+            None,
+            state.as_of,
+            self.policy
+                .access_token_retention(self.access_token_expiration_seconds, state.as_of)?,
+        )
+    }
+
+    async fn persist_publication(
+        &self,
+        tx: &DatabaseTransaction,
+        state: &LifecycleState,
+        plan: &publication::PublicationPlan,
+    ) -> Result<(), DomainError> {
+        publication::write(
+            tx,
+            plan,
+            state.stored_publication.revision,
+            state.as_of,
+            self.access_token_expiration_seconds,
+        )
+        .await
+    }
+
+    async fn refresh_unchanged_publication(
+        &self,
+        tx: &DatabaseTransaction,
+        state: &LifecycleState,
+    ) -> Result<(), DomainError> {
+        if state
+            .stored_publication
+            .needs_refresh(state.as_of, self.access_token_expiration_seconds)?
+        {
+            let plan = self.reducing_plan(state, &state.keys)?;
+            self.persist_publication(tx, state, &plan).await?;
+        }
+        Ok(())
     }
 }
 
@@ -245,19 +330,47 @@ struct LifecycleState {
     issuer_conflict: bool,
     invalid_retirement: bool,
     platform_epoch_exists: bool,
+    counts: SigningSlotCounts,
+    publics: std::collections::BTreeMap<Uuid, publication::StoredPublic>,
+    stored_publication: publication::StoredPublication,
+    organization_id: Option<Uuid>,
+}
+
+fn same_prepared_binding(
+    state: &LifecycleState,
+    current: &SigningKey,
+    candidate: &SigningKey,
+    public: &PreparedSigningPublicKey,
+) -> Result<bool, DomainError> {
+    let existing = state
+        .publics
+        .get(&current.id)
+        .ok_or(DomainError::InvalidSigningKeyMaterial)?
+        .restore(current)?;
+    Ok(existing.same_binding(current, public, candidate))
+}
+
+fn same_immutable_binding(a: &SigningKey, b: &SigningKey) -> bool {
+    let mut normalized = a.clone();
+    normalized.status = b.status.clone();
+    normalized.created_at = b.created_at;
+    normalized.updated_at = b.updated_at;
+    normalized == *b
 }
 
 #[derive(Clone, Copy)]
 enum LifecycleOperation<'a> {
     Insert(&'a SigningKey),
     Replace(&'a SigningKey),
+    Prepare(&'a SigningKey),
+    Promote(&'a SigningKey),
     Update(&'a SigningKey),
     Bootstrap(&'a SigningKey),
     Revoke,
 }
 impl LifecycleOperation<'_> {
     fn needs_churn(self) -> bool {
-        matches!(self, Self::Insert(_) | Self::Replace(_))
+        matches!(self, Self::Insert(_) | Self::Replace(_) | Self::Prepare(_))
     }
 }
 
@@ -288,9 +401,10 @@ fn affected_rows(
     };
     match operation {
         LifecycleOperation::Insert(key) => identity(key),
-        LifecycleOperation::Replace(key) | LifecycleOperation::Bootstrap(key) => {
-            Condition::any().add(identity(key)).add(active())
-        }
+        LifecycleOperation::Replace(key)
+        | LifecycleOperation::Prepare(key)
+        | LifecycleOperation::Promote(key)
+        | LifecycleOperation::Bootstrap(key) => Condition::any().add(identity(key)).add(active()),
         LifecycleOperation::Update(key)
             if *scope == TrustScope::Platform && key.status == SigningKeyStatus::Active =>
         {
@@ -303,6 +417,7 @@ fn affected_rows(
     }
 }
 
+#[cfg(test)]
 fn publication_rows(cutoff: DateTime<Utc>, as_of: DateTime<Utc>) -> Condition {
     // Inverse cutoff avoids adding an interval to arbitrary legacy timestamps.
     // Complete eligible set; no LIMIT, no locking unrelated published rows.
@@ -336,6 +451,94 @@ fn conflict() -> DomainError {
     admission_denied(SigningKeyAdmissionReason::EpochConflict)
 }
 
+fn scope_id(scope: &SigningScope) -> Result<String, DomainError> {
+    scope.validate()?;
+    Ok(scope
+        .organization_id
+        .map_or_else(|| "platform".into(), |id| format!("organization:{id}")))
+}
+
+async fn scope_revision(
+    tx: &DatabaseTransaction,
+    scope: &SigningScope,
+) -> Result<u64, DomainError> {
+    let sid = scope_id(scope)?;
+    tx.execute(Statement::from_sql_and_values(DbBackend::Postgres,
+        "INSERT INTO signing_scope_epochs(scope_id,revision) VALUES($1,0) ON CONFLICT(scope_id) DO NOTHING", [sid.clone().into()]))
+        .await.map_err(registry_error)?;
+    let row = tx
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "SELECT revision FROM signing_scope_epochs WHERE scope_id=$1 FOR UPDATE",
+            [sid.into()],
+        ))
+        .await
+        .map_err(registry_error)?
+        .ok_or_else(conflict)?;
+    let revision: i64 = row.try_get("", "revision").map_err(registry_error)?;
+    u64::try_from(revision).map_err(|_| conflict())
+}
+
+async fn advance_empty_or_revoked_scope(
+    tx: &DatabaseTransaction,
+    scope: &SigningScope,
+) -> Result<(), DomainError> {
+    // Explicit fence also when disable affects ZERO rows. Row triggers alone
+    // cannot invalidate an enrollment whose scope never had an Active key.
+    tx.execute(Statement::from_sql_and_values(DbBackend::Postgres,
+        "INSERT INTO signing_scope_epochs(scope_id,revision) VALUES($1,1) ON CONFLICT(scope_id) DO UPDATE SET revision=signing_scope_epochs.revision+1", [scope_id(scope)?.into()]))
+        .await.map_err(registry_error)?;
+    Ok(())
+}
+
+async fn fresh_writer_clock(tx: &DatabaseTransaction) -> Result<DateTime<Utc>, DomainError> {
+    let row = tx
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT statement_timestamp() AS as_of",
+        ))
+        .await
+        .map_err(registry_error)?
+        .ok_or_else(conflict)?;
+    let time: DateTime<chrono::FixedOffset> = row.try_get("", "as_of").map_err(registry_error)?;
+    Ok(time.with_timezone(&Utc))
+}
+
+async fn durable_pending(
+    tx: &DatabaseTransaction,
+    scope: &SigningScope,
+    revision: u64,
+) -> Result<Option<PreparedSigningTransition>, DomainError> {
+    let rows = tx.query_all(Statement::from_sql_and_values(DbBackend::Postgres,
+        "SELECT k.*,p.revision AS prepared_revision,p.previous_active_kid FROM signing_key_prepublications p JOIN signing_keys k ON k.id=p.key_id WHERE p.scope_id=$1 AND k.status='pending' ORDER BY k.id", [scope_id(scope)?.into()]))
+        .await.map_err(registry_error)?;
+    if rows.len() > 1 {
+        return Err(conflict());
+    }
+    let Some(row) = rows.first() else {
+        return Ok(None);
+    };
+    let stored: i64 = row
+        .try_get("", "prepared_revision")
+        .map_err(registry_error)?;
+    let stored = u64::try_from(stored).map_err(|_| conflict())?;
+    // Other mutation/revocation invalidates old evidence, not a new latest pin.
+    if stored != revision {
+        return Err(conflict());
+    }
+    let key = to_domain(signing_keys::Model::from_query_result(row, "").map_err(registry_error)?)?;
+    if SigningScope::of(&key) != *scope {
+        return Err(conflict());
+    }
+    Ok(Some(PreparedSigningTransition {
+        key,
+        revision: stored,
+        previous_active_kid: row
+            .try_get("", "previous_active_kid")
+            .map_err(registry_error)?,
+    }))
+}
+
 fn check_issuer_owner(state: &LifecycleState) -> Result<(), DomainError> {
     if state.issuer_conflict {
         return Err(conflict());
@@ -350,8 +553,8 @@ async fn insert_admitted(
 ) -> Result<SigningKey, DomainError> {
     // Explicit same DB as_of for admission, creation and lifecycle timestamps.
     let row = tx.query_one(Statement::from_sql_and_values(DbBackend::Postgres,
-        "INSERT INTO signing_keys (id,kid,algorithm,trust_scope,issuer,provider_type,provider_key_ref,credential_ref,public_key,status,organization_id,created_at,updated_at,lifecycle_admitted_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,($12::timestamptz AT TIME ZONE 'UTC'),($12::timestamptz AT TIME ZONE 'UTC'),$12::timestamptz) RETURNING *",
-        vec![key.id.into(), key.kid.clone().into(), key.algorithm.clone().into(), scope_name(&key.trust_scope).into(), key.issuer.clone().into(), String::from(&key.provider_type).into(), key.provider_key_ref.clone().into(), key.credential_ref.clone().into(), key.public_key.clone().into(), String::from(&key.status).into(), key.organization_id.into(), as_of.into()]))
+        "INSERT INTO signing_keys (id,kid,algorithm,trust_scope,issuer,provider_type,provider_key_ref,credential_ref,public_key,status,organization_id,created_at,updated_at,lifecycle_admitted_at,provider_key_version) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,($12::timestamptz AT TIME ZONE 'UTC'),($12::timestamptz AT TIME ZONE 'UTC'),$12::timestamptz,$13) RETURNING *",
+        vec![key.id.into(), key.kid.clone().into(), key.algorithm.clone().into(), scope_name(&key.trust_scope).into(), key.issuer.clone().into(), String::from(&key.provider_type).into(), key.provider_key_ref.clone().into(), key.credential_ref.clone().into(), key.public_key.clone().into(), String::from(&key.status).into(), key.organization_id.into(), as_of.into(), key.provider_key_version.map(i64::from).into()]))
         .await.map_err(registry_error)?.ok_or_else(conflict)?;
     to_domain(signing_keys::Model::from_query_result(&row, "").map_err(registry_error)?)
 }
@@ -391,6 +594,20 @@ async fn lock_registry_scope(tx: &DatabaseTransaction, scope: &str) -> Result<()
 }
 
 fn to_domain(model: signing_keys::Model) -> Result<SigningKey, DomainError> {
+    let provider_type = SigningProviderType::from_str(&model.provider_type)
+        .map_err(DomainError::RepositoryError)?;
+    let provider_key_version = model
+        .provider_key_version
+        .map(|version| {
+            u32::try_from(version)
+                .ok()
+                .filter(|v| *v > 0)
+                .ok_or(DomainError::InvalidSigningKeyMaterial)
+        })
+        .transpose()?;
+    if provider_type == SigningProviderType::OpenBaoTransit {
+        iam_domain::entity::signing_key::require_transit_key_version(provider_key_version)?;
+    }
     Ok(SigningKey {
         id: model.id,
         kid: model.kid,
@@ -405,9 +622,9 @@ fn to_domain(model: signing_keys::Model) -> Result<SigningKey, DomainError> {
             }
         },
         issuer: model.issuer,
-        provider_type: SigningProviderType::from_str(&model.provider_type)
-            .map_err(DomainError::RepositoryError)?,
+        provider_type,
         provider_key_ref: model.provider_key_ref,
+        provider_key_version,
         credential_ref: model.credential_ref,
         public_key: model.public_key,
         status: SigningKeyStatus::from_str(&model.status).map_err(DomainError::RepositoryError)?,
@@ -429,6 +646,7 @@ fn to_active(key: &SigningKey) -> signing_keys::ActiveModel {
         issuer: ActiveValue::Set(key.issuer.clone()),
         provider_type: ActiveValue::Set(String::from(&key.provider_type)),
         provider_key_ref: ActiveValue::Set(key.provider_key_ref.clone()),
+        provider_key_version: ActiveValue::Set(key.provider_key_version.map(i64::from)),
         credential_ref: ActiveValue::Set(key.credential_ref.clone()),
         public_key: ActiveValue::Set(key.public_key.clone()),
         status: ActiveValue::Set(String::from(&key.status)),
@@ -444,7 +662,7 @@ mod admission_tests {
     use sea_orm::{Iden, Iterable, MockDatabase, MockExecResult, ModelTrait, Value};
     use std::collections::BTreeMap;
 
-    fn row(org: Uuid, status: &str) -> signing_keys::Model {
+    pub(super) fn row(org: Uuid, status: &str) -> signing_keys::Model {
         let now = Utc::now().naive_utc();
         signing_keys::Model {
             id: Uuid::new_v4(),
@@ -454,6 +672,7 @@ mod admission_tests {
             issuer: "https://iam.example.test/iam/orgs/own".into(),
             provider_type: "remote_http".into(),
             provider_key_ref: "key-ref".into(),
+            provider_key_version: None,
             credential_ref: Some("credential-ref".into()),
             public_key: include_str!("../../../config/keys/test-platform.pub").into(),
             status: status.into(),
@@ -462,6 +681,28 @@ mod admission_tests {
             updated_at: now,
         }
     }
+    #[test]
+    fn provider_version_storage_conversion_is_checked_and_never_backfills_latest() {
+        let mut stored = row(Uuid::new_v4(), "active");
+        stored.provider_type = "openbao_transit".into();
+        for invalid in [None, Some(-1), Some(0), Some(i64::from(u32::MAX) + 1)] {
+            stored.provider_key_version = invalid;
+            assert!(matches!(
+                to_domain(stored.clone()),
+                Err(DomainError::InvalidSigningKeyMaterial)
+            ));
+        }
+        for version in [1, u32::MAX] {
+            stored.provider_key_version = Some(i64::from(version));
+            let key = to_domain(stored.clone()).unwrap();
+            assert_eq!(key.provider_key_version, Some(version));
+            assert_eq!(
+                to_active(&key).provider_key_version,
+                ActiveValue::Set(Some(i64::from(version)))
+            );
+        }
+    }
+
     // Match SELECT DISTINCT issuer, not a full model: tuple extraction uses the
     // first projected column, which a full-model mock would make `algorithm`.
     fn issuer_projection(rows: &[signing_keys::Model]) -> Vec<BTreeMap<String, Value>> {
@@ -471,6 +712,108 @@ mod admission_tests {
             .into_iter()
             .map(|issuer| BTreeMap::from([("issuer".into(), issuer.into())]))
             .collect()
+    }
+
+    pub(super) fn public_projection(rows: &[signing_keys::Model]) -> Vec<BTreeMap<String, Value>> {
+        rows.iter()
+            .map(|model| {
+                let mut values = signing_keys::Column::iter()
+                    .map(|column| (column.to_string(), model.get(column)))
+                    .collect::<BTreeMap<_, _>>();
+                match to_domain(model.clone())
+                    .and_then(|key| PreparedSigningPublicKey::prepare(&key))
+                {
+                    Ok(public) => {
+                        values.insert("public_n".into(), public.n().to_string().into());
+                        values.insert("public_e".into(), public.e().to_string().into());
+                        values.insert(
+                            "binding_fingerprint".into(),
+                            public.binding_fingerprint().to_vec().into(),
+                        );
+                        values.insert(
+                            "longest_entry_bytes".into(),
+                            (public.longest_entry_bytes() as i32).into(),
+                        );
+                    }
+                    Err(_) => {
+                        values.insert("public_n".into(), Option::<String>::None.into());
+                    }
+                }
+                values
+            })
+            .collect()
+    }
+    fn slot_projection(
+        rows: &[signing_keys::Model],
+        org: Option<Uuid>,
+        as_of: DateTime<Utc>,
+    ) -> BTreeMap<String, Value> {
+        let cutoff = as_of - chrono::Duration::seconds(960);
+        let rows = rows
+            .iter()
+            .filter(|row| {
+                row.status == "active"
+                    || row.status == "pending"
+                    || (row.status == "retiring"
+                        && row.updated_at > cutoff.naive_utc()
+                        && row.updated_at <= as_of.naive_utc())
+            })
+            .collect::<Vec<_>>();
+        BTreeMap::from([
+            ("global".into(), (rows.len() as i64).into()),
+            (
+                "global_organization".into(),
+                (rows
+                    .iter()
+                    .filter(|row| row.trust_scope == "organization")
+                    .count() as i64)
+                    .into(),
+            ),
+            (
+                "platform".into(),
+                (rows
+                    .iter()
+                    .filter(|row| row.trust_scope == "platform" && row.organization_id.is_none())
+                    .count() as i64)
+                    .into(),
+            ),
+            (
+                "organization".into(),
+                (rows
+                    .iter()
+                    .filter(|row| row.organization_id == org && org.is_some())
+                    .count() as i64)
+                    .into(),
+            ),
+        ])
+    }
+    pub(super) fn snapshot_projection(
+        rows: &[signing_keys::Model],
+        as_of: DateTime<Utc>,
+    ) -> BTreeMap<String, Value> {
+        let keys = rows
+            .iter()
+            .filter_map(|row| to_domain(row.clone()).ok())
+            .collect();
+        let payload = SigningKeyPublicationSnapshot::from_fixture_keys(keys, as_of, 900)
+            .map_or_else(
+                |_| "{\"keys\":[]}".into(),
+                |snapshot| snapshot.publication.payload().to_string(),
+            );
+        let mut row = BTreeMap::from([
+            ("revision".into(), 1i64.into()),
+            ("payload".into(), payload.into()),
+            ("as_of".into(), as_of.fixed_offset().into()),
+            ("db_as_of".into(), as_of.fixed_offset().into()),
+            (
+                "next_expiration".into(),
+                Option::<DateTime<chrono::FixedOffset>>::None.into(),
+            ),
+            ("access_token_ttl".into(), 900i64.into()),
+            ("retire_skew".into(), 60i64.into()),
+        ]);
+        row.insert("dirty".into(), false.into());
+        row
     }
 
     fn database(
@@ -490,15 +833,21 @@ mod admission_tests {
             ),
         ]);
         let database = MockDatabase::new(DbBackend::Postgres)
-            .append_exec_results((0..3).map(|_| MockExecResult {
+            .append_exec_results((0..5).map(|_| MockExecResult {
                 last_insert_id: 0,
                 rows_affected: 1,
             }))
             .append_query_results([issuer_projection(&rows)])
             .append_query_results([rows.clone()])
+            .append_query_results([vec![snapshot_projection(&rows, as_of)]])
             .append_query_results([vec![clock]])
-            .append_query_results([rows])
-            .append_query_results([vec![facts]]);
+            .append_query_results([vec![facts]])
+            .append_query_results([vec![slot_projection(
+                &rows,
+                rows.first().and_then(|row| row.organization_id),
+                as_of,
+            )]])
+            .append_query_results([public_projection(&rows)]);
         if needs_churn {
             database.append_query_results([history])
         } else {
@@ -543,19 +892,36 @@ mod admission_tests {
                 ),
             ]);
             let database = MockDatabase::new(DbBackend::Postgres)
-                .append_exec_results((0..3).map(|_| MockExecResult {
+                .append_exec_results((0..5).map(|_| MockExecResult {
                     rows_affected: 1,
                     last_insert_id: 0,
                 }))
                 .append_query_results([issuer_projection(&affected)])
-                .append_query_results([affected])
+                .append_query_results([affected.clone()])
+                .append_query_results([vec![snapshot_projection(&publication, as_of)]])
                 .append_query_results([vec![clock]])
-                .append_query_results([publication])
-                .append_query_results([vec![facts]]);
+                .append_query_results([vec![facts]])
+                .append_query_results([vec![slot_projection(
+                    &publication,
+                    affected.first().and_then(|row| row.organization_id),
+                    as_of,
+                )]])
+                .append_query_results([public_projection(&merge_models(publication, affected))]);
             match history {
                 Some(history) => database.append_query_results([history]),
                 None => database,
             }
+        }
+
+        fn merge_models(
+            publication: Vec<signing_keys::Model>,
+            affected: Vec<signing_keys::Model>,
+        ) -> Vec<signing_keys::Model> {
+            let mut rows = std::collections::BTreeMap::new();
+            for row in publication.into_iter().chain(affected) {
+                rows.insert(row.id, row);
+            }
+            rows.into_values().collect()
         }
 
         #[test]
@@ -673,7 +1039,16 @@ mod admission_tests {
                 let log = log(db);
                 assert_order(&log);
                 assert_eq!(log.matches("UPDATE \"signing_keys\"").count(), 1);
-                assert_eq!(log.matches("FOR UPDATE").count(), 1);
+                assert_eq!(
+                    log.matches("FOR UPDATE").count(),
+                    2,
+                    "one affected key lock plus exactly one singleton publication lock"
+                );
+                assert_eq!(
+                    log.matches("FROM signing_jwks_publication WHERE singleton=1 FOR UPDATE")
+                        .count(),
+                    1
+                );
                 assert!(!log.contains("lifecycle_admitted_at"));
                 assert!(!log.contains("historical payload"));
                 let locked = log.split("FOR UPDATE").next().unwrap();
@@ -790,13 +1165,15 @@ mod admission_tests {
                     vec![active.clone(), expired.clone()]
                 };
                 let mut mock = MockDatabase::new(DbBackend::Postgres)
-                    .append_exec_results((0..3).map(|_| MockExecResult {
+                    .append_exec_results((0..6).map(|_| MockExecResult {
                         rows_affected: 1,
                         last_insert_id: 0,
                     }))
                     .append_query_results([issuer_projection(&affected)])
-                    .append_query_results([affected])
-                    .append_query_results([vec![clock.clone()]]);
+                    .append_query_results([affected.clone()])
+                    .append_query_results([vec![snapshot_projection(&affected, as_of)]])
+                    .append_query_results([vec![clock.clone()]])
+                    .append_query_results([public_projection(&affected)]);
                 mock = if repeat {
                     mock.append_query_results([vec![terminal.clone()]])
                 } else {
@@ -882,43 +1259,51 @@ mod admission_tests {
 
     #[tokio::test]
     async fn same_complete_binding_returns_actual_row_kid_timestamps_without_mutations() {
-        let org = Uuid::new_v4();
-        let current = row(org, "active");
-        let expected = to_domain(current.clone()).unwrap();
-        let mut candidate = expected.clone();
-        candidate.id = Uuid::new_v4();
-        candidate.kid = iam_domain::entity::signing_key::opaque_kid();
-        candidate.created_at += chrono::Duration::hours(1);
-        candidate.updated_at += chrono::Duration::hours(1);
-        // The Windows checkout may already use CRLF; do not create invalid CRCRLF.
-        candidate.public_key = candidate
-            .public_key
-            .replace("\r\n", "\n")
-            .replace('\n', "\r\n");
-        // No-op survives charged churn history; nothing is re-admitted.
-        let history = vec![
-            BTreeMap::from([
-                ("organization_id".into(), org.into()),
-                (
-                    "lifecycle_admitted_at".into(),
-                    Utc::now().fixed_offset().into()
-                )
-            ]);
-            4
-        ];
-        let db = Arc::new(database(vec![current], history, Utc::now()).into_connection());
-        let registry = repository(db.clone());
-        let actual = registry
-            .replace_active_organization_key(&candidate, Some(&expected.kid))
-            .await
-            .unwrap();
-        assert_eq!(actual, expected);
-        drop(registry);
-        let log = log(db);
-        assert_order(&log);
-        assert!(!log.contains("UPDATE "));
-        assert!(!log.contains("INSERT INTO"));
-        assert!(log.contains("COMMIT"));
+        for transit_version in [None, Some(7)] {
+            let org = Uuid::new_v4();
+            let mut current = row(org, "active");
+            if let Some(version) = transit_version {
+                current.provider_type = "openbao_transit".into();
+                current.provider_key_ref = format!("org-{org}-key");
+                current.credential_ref = Some(format!("org-{org}-credential"));
+                current.provider_key_version = Some(version);
+            }
+            let expected = to_domain(current.clone()).unwrap();
+            let mut candidate = expected.clone();
+            candidate.id = Uuid::new_v4();
+            candidate.kid = iam_domain::entity::signing_key::opaque_kid();
+            candidate.created_at += chrono::Duration::hours(1);
+            candidate.updated_at += chrono::Duration::hours(1);
+            // The Windows checkout may already use CRLF; do not create invalid CRCRLF.
+            candidate.public_key = candidate
+                .public_key
+                .replace("\r\n", "\n")
+                .replace('\n', "\r\n");
+            // No-op survives charged churn history; nothing is re-admitted.
+            let history = vec![
+                BTreeMap::from([
+                    ("organization_id".into(), org.into()),
+                    (
+                        "lifecycle_admitted_at".into(),
+                        Utc::now().fixed_offset().into()
+                    )
+                ]);
+                4
+            ];
+            let db = Arc::new(database(vec![current], history, Utc::now()).into_connection());
+            let registry = repository(db.clone());
+            let actual = registry
+                .replace_active_organization_key(&candidate, Some(&expected.kid))
+                .await
+                .unwrap();
+            assert_eq!(actual, expected);
+            drop(registry);
+            let log = log(db);
+            assert_order(&log);
+            assert!(!log.contains("UPDATE "));
+            assert!(!log.contains("INSERT INTO"));
+            assert!(log.contains("COMMIT"));
+        }
     }
 
     #[tokio::test]
@@ -948,43 +1333,55 @@ mod admission_tests {
 
     #[tokio::test]
     async fn changed_credential_is_new_admission_and_churn_rejects_before_retirement() {
-        let org = Uuid::new_v4();
-        let current = row(org, "active");
-        let mut candidate = to_domain(current.clone()).unwrap();
-        candidate.id = Uuid::new_v4();
-        candidate.kid = iam_domain::entity::signing_key::opaque_kid();
-        candidate.credential_ref = Some("changed-credential-ref".into());
-        let as_of = Utc::now();
-        let history = vec![
-            BTreeMap::from([
-                ("organization_id".into(), org.into()),
-                (
-                    "lifecycle_admitted_at".into(),
-                    (as_of - chrono::Duration::seconds(100))
-                        .fixed_offset()
-                        .into()
-                )
-            ]);
-            4
-        ];
-        let db = Arc::new(database(vec![current], history, as_of).into_connection());
-        let registry = repository(db.clone());
-        assert!(matches!(
-            registry
-                .replace_active_organization_key(&candidate, None)
-                .await,
-            Err(DomainError::SigningKeyAdmissionDenied {
-                reason: SigningKeyAdmissionReason::ChurnRate,
-                retry_after_seconds: Some(3500)
-            })
-        ));
-        drop(registry);
-        let log = log(db);
-        assert_order(&log);
-        assert!(log.contains("ROLLBACK"));
-        assert!(!log.contains("COMMIT"));
-        assert!(!log.contains("UPDATE "));
-        assert!(!log.contains("INSERT INTO"));
+        for version_only in [false, true] {
+            let org = Uuid::new_v4();
+            let mut current = row(org, "active");
+            if version_only {
+                current.provider_type = "openbao_transit".into();
+                current.provider_key_ref = format!("org-{org}-key");
+                current.credential_ref = Some(format!("org-{org}-credential"));
+                current.provider_key_version = Some(7);
+            }
+            let mut candidate = to_domain(current.clone()).unwrap();
+            candidate.id = Uuid::new_v4();
+            candidate.kid = iam_domain::entity::signing_key::opaque_kid();
+            if version_only {
+                candidate.provider_key_version = Some(8);
+            } else {
+                candidate.credential_ref = Some("changed-credential-ref".into());
+            }
+            let as_of = Utc::now();
+            let history = vec![
+                BTreeMap::from([
+                    ("organization_id".into(), org.into()),
+                    (
+                        "lifecycle_admitted_at".into(),
+                        (as_of - chrono::Duration::seconds(100))
+                            .fixed_offset()
+                            .into()
+                    )
+                ]);
+                4
+            ];
+            let db = Arc::new(database(vec![current], history, as_of).into_connection());
+            let registry = repository(db.clone());
+            assert!(matches!(
+                registry
+                    .replace_active_organization_key(&candidate, None)
+                    .await,
+                Err(DomainError::SigningKeyAdmissionDenied {
+                    reason: SigningKeyAdmissionReason::ChurnRate,
+                    retry_after_seconds: Some(3500)
+                })
+            ));
+            drop(registry);
+            let log = log(db);
+            assert_order(&log);
+            assert!(log.contains("ROLLBACK"));
+            assert!(!log.contains("COMMIT"));
+            assert!(!log.contains("UPDATE "));
+            assert!(!log.contains("INSERT INTO"));
+        }
     }
 
     #[tokio::test]
@@ -1057,7 +1454,7 @@ mod admission_tests {
             .collect();
         let mut mock = database(rows, vec![], as_of)
             .append_query_results([vec![retired], vec![next.clone()]])
-            .append_query_results([publication.clone()]);
+            .append_query_results([vec![snapshot_projection(&terminal, as_of)]]);
         for _ in 0..2 {
             // Same connection, same terminal state: refusal cannot mutate either
             // publication or the active row, even when retried verbatim.
@@ -1068,18 +1465,20 @@ mod admission_tests {
                 }))
                 .append_query_results([issuer_projection(&terminal)])
                 .append_query_results([terminal.clone()])
+                .append_query_results([vec![snapshot_projection(&terminal, as_of)]])
                 .append_query_results([vec![BTreeMap::from([(
                     "as_of".to_string(),
                     as_of.fixed_offset().into(),
                 )])]])
-                .append_query_results([terminal.clone()])
                 .append_query_results([vec![BTreeMap::from([
                     ("invalid_retirement".to_string(), false.into()),
                     ("issuer_conflict".to_string(), false.into()),
                     ("platform_epoch_exists".to_string(), false.into()),
                 ])]])
+                .append_query_results([vec![slot_projection(&terminal, Some(org), as_of)]])
+                .append_query_results([public_projection(&terminal)])
                 .append_query_results([Vec::<BTreeMap<String, Value>>::new()])
-                .append_query_results([publication.clone()]);
+                .append_query_results([vec![snapshot_projection(&terminal, as_of)]]);
         }
         let db = Arc::new(mock.into_connection());
         let registry = repository(db.clone());
@@ -1090,12 +1489,8 @@ mod admission_tests {
             .expect("eighth published epoch is admitted at the exact budget");
         assert_eq!(admitted, to_domain(next).unwrap());
         let last_known_good = registry.jwks_publication_snapshot().await.unwrap();
-        assert_eq!(last_known_good.keys.len(), 8);
-        let good_bytes =
-            iam_domain::entity::token::JwkSet::from_registry_keys_checked(&last_known_good.keys)
-                .unwrap()
-                .compact_bytes()
-                .unwrap();
+        assert_eq!(last_known_good.publication.counts().global, 8);
+        let good_bytes = last_known_good.publication.payload().as_bytes().to_vec();
         let mut rejected = to_domain(row(org, "active")).unwrap();
         rejected.provider_key_ref = "ninth-epoch".into();
         for _ in 0..2 {
@@ -1114,34 +1509,33 @@ mod admission_tests {
                 "distinct admission code, never invalid key material or SQL failure"
             );
             let after = registry.jwks_publication_snapshot().await.unwrap();
-            assert_eq!(after.keys, last_known_good.keys);
-            assert_eq!(after.as_of, last_known_good.as_of);
             assert_eq!(
-                iam_domain::entity::token::JwkSet::from_registry_keys_checked(&after.keys)
-                    .unwrap()
-                    .compact_bytes()
-                    .unwrap(),
-                good_bytes,
+                after.publication.payload(),
+                last_known_good.publication.payload()
             );
+            assert_eq!(after.revision, last_known_good.revision);
+            assert_eq!(after.as_of, last_known_good.as_of);
+            assert_eq!(after.publication.payload().as_bytes(), good_bytes,);
         }
         drop(registry);
         let log = log(db);
         assert_order(&log);
         assert_eq!(log.matches("COMMIT").count(), 1);
         assert_eq!(log.matches("ROLLBACK").count(), 2);
-        assert_eq!(log.matches("INSERT INTO").count(), 1);
+        assert_eq!(log.matches("INSERT INTO signing_keys").count(), 1);
+        assert_eq!(log.matches("INSERT INTO signing_public_entries").count(), 1);
         assert_eq!(log.matches("UPDATE \"signing_keys\"").count(), 1);
     }
 
     #[test]
-    fn exact_organization_byte_budget_accepts_but_one_more_byte_has_capacity_code() {
+    fn fixed_organization_slot_budget_accepts175_but176_has_capacity_code() {
         let policy = SigningKeyLifecyclePolicy::new().unwrap();
         let as_of = Utc::now();
         // Ratified total minus platform reserve, not a test-only policy override.
-        let budget = 786_432 - 65_536;
+        let budget = 175;
         let template = to_domain(row(Uuid::new_v4(), "active")).unwrap();
-        let cost = policy.reserved_entry_bytes(&template).unwrap() + 1;
-        let mut keys: Vec<_> = (0..budget / cost)
+        let cost = 4097;
+        let keys: Vec<_> = (0..budget)
             .map(|_| {
                 let mut key = template.clone();
                 key.id = Uuid::new_v4();
@@ -1150,37 +1544,29 @@ mod admission_tests {
                 key
             })
             .collect();
-        let mut remaining = budget % cost;
-        for key in &mut keys {
-            // ASCII URL path padding has an exact one-byte serialization cost.
-            let padding = remaining.min(1023 - key.issuer.len());
-            key.issuer.push_str(&"x".repeat(padding));
-            remaining -= padding;
-        }
-        assert_eq!(remaining, 0);
         assert_eq!(
             policy
                 .publication_usage(&keys, 900, as_of)
                 .unwrap()
                 .organization_reserved_bytes,
-            budget,
+            716975,
         );
         policy
             .check_admission(&keys, &[], keys.last(), 900, as_of)
-            .expect("exact reserved-byte budget is admitted");
+            .expect("175 disjoint organization slots are admitted");
         let last_known_good = iam_domain::entity::token::JwkSet::from_registry_keys_checked(&keys)
             .unwrap()
             .compact_bytes()
             .unwrap();
         let mut over = keys.clone();
-        over.last_mut().unwrap().issuer.push('x');
-        assert_eq!(
-            policy
-                .publication_usage(&over, 900, as_of)
-                .unwrap()
-                .organization_reserved_bytes,
-            budget + 1,
-        );
+        let mut extra = template;
+        extra.id = Uuid::new_v4();
+        extra.kid = iam_domain::entity::signing_key::opaque_kid();
+        extra.organization_id = Some(Uuid::new_v4());
+        over.push(extra);
+        assert_eq!(over.len(), 176);
+        assert_eq!(budget * cost, 716975);
+        assert!(policy.publication_usage(&over, 900, as_of).is_err());
         for _ in 0..2 {
             assert!(matches!(
                 policy.check_admission(&over, &[], over.last(), 900, as_of),
@@ -1323,6 +1709,7 @@ mod admission_tests {
         let mut platform = row(Uuid::new_v4(), "active");
         platform.trust_scope = "platform".into();
         platform.organization_id = None;
+        platform.credential_ref = None;
         platform.created_at = as_of.naive_utc();
         platform.updated_at = as_of.naive_utc();
         let db = Arc::new(
@@ -1331,16 +1718,13 @@ mod admission_tests {
                 .into_connection(),
         );
         let registry = repository(db.clone());
-        let admitted = bootstrap_platform_signing_key(
-            &registry,
-            &platform.kid,
-            &platform.issuer,
-            &platform.public_key,
-            &platform.provider_key_ref,
-            SigningProviderType::RemoteHttp,
-        )
-        .await
-        .unwrap();
+        // Exercise the exact shared production admission body with a known ID;
+        // MockDatabase cannot return the wrapper's freshly generated UUID. Do
+        // not weaken the prepared fingerprint to accommodate an invented row.
+        let admitted =
+            bootstrap_platform_candidate(&registry, to_domain(platform.clone()).unwrap())
+                .await
+                .unwrap();
         assert_eq!(admitted, to_domain(platform.clone()).unwrap());
         drop(registry);
         let bootstrap_log = log(db);
@@ -1378,26 +1762,31 @@ mod admission_tests {
     }
 
     #[tokio::test]
-    async fn preflight_reports_legacy_policy_drift_without_rejecting_complete_publication() {
+    async fn preflight_corrupt_legacy_publication_fails_closed_without_mutation() {
         let as_of = Utc::now();
         let legacy = row(Uuid::new_v4(), "active");
-        let mut snapshot: BTreeMap<String, Value> = signing_keys::Column::iter()
-            .map(|column| (column.to_string(), legacy.get(column)))
-            .collect();
-        snapshot.insert("as_of".into(), as_of.fixed_offset().into());
-        // The test PEM is valid RSA; a non-opaque old kid is publication-readable
-        // while no new admission may retain this preexisting policy deviation.
-        snapshot.insert("kid".into(), "legacy-kid".into());
+        let mut snapshot = snapshot_projection(&[legacy], as_of);
+        let payload = snapshot.get("payload").unwrap().clone();
+        if let Value::String(Some(payload)) = payload {
+            let mut dto: serde_json::Value = serde_json::from_str(&payload).unwrap();
+            dto["keys"][0]["kid"] = "legacy-kid".into();
+            snapshot.insert(
+                "payload".into(),
+                serde_json::to_string(&dto).unwrap().into(),
+            );
+        } else {
+            panic!("fixture payload must be a string");
+        }
         let db = Arc::new(
             MockDatabase::new(DbBackend::Postgres)
                 .append_query_results([vec![snapshot]])
                 .into_connection(),
         );
         let registry = repository(db.clone());
-        let report = registry.preflight().await.unwrap();
-        assert_eq!(report.snapshot_key_count, 1);
-        assert!(report.recovery_required);
-        assert!(report.usage.is_some());
+        assert!(matches!(
+            registry.preflight().await,
+            Err(DomainError::InvalidSigningKeyMaterial)
+        ));
         drop(registry);
         let log = log(db);
         assert!(!log.contains("UPDATE "));
@@ -1407,10 +1796,7 @@ mod admission_tests {
     #[tokio::test]
     async fn publication_empty_snapshot_still_has_one_primary_db_clock_select() {
         let as_of = Utc::now();
-        let row: BTreeMap<String, Value> = BTreeMap::from([
-            ("as_of".into(), as_of.fixed_offset().into()),
-            ("id".into(), Option::<Uuid>::None.into()),
-        ]);
+        let row = snapshot_projection(&[], as_of);
         let db = Arc::new(
             MockDatabase::new(DbBackend::Postgres)
                 .append_query_results([vec![row]])
@@ -1418,12 +1804,13 @@ mod admission_tests {
         );
         let registry = repository(db.clone());
         let snapshot = registry.jwks_publication_snapshot().await.unwrap();
-        assert!(snapshot.keys.is_empty());
+        assert_eq!(snapshot.publication.counts().global, 0);
         assert_eq!(snapshot.as_of, as_of);
         drop(registry);
         let log = log(db);
-        assert_eq!(log.matches("SELECT statement_timestamp()").count(), 1);
-        assert!(log.contains("LEFT JOIN"));
+        assert_eq!(log.matches("statement_timestamp() AS db_as_of").count(), 1);
+        assert!(log.contains("FROM signing_jwks_publication"));
+        assert!(!log.contains("FROM signing_keys"));
         assert!(!log.contains("BEGIN"));
     }
 }
@@ -1443,6 +1830,7 @@ mod emission_fence_tests {
             issuer: "iamrusty".into(),
             provider_type: "remote_http".into(),
             provider_key_ref: "signer-ref".into(),
+            provider_key_version: None,
             credential_ref: Some("credential-ref".into()),
             public_key: "public-material".into(),
             status: "active".into(),
@@ -1458,7 +1846,7 @@ mod emission_fence_tests {
         let expected = to_domain(original.clone()).unwrap();
         // Each binding mutant independently fails. SQL mocks prove query shape,
         // not isolation or primary topology: those remain real PostgreSQL IT.
-        for case in 0..=15 {
+        for case in 0..=16 {
             let mut current = original.clone();
             match case {
                 0 => {}
@@ -1479,6 +1867,7 @@ mod emission_fence_tests {
                     current.created_at += chrono::Duration::seconds(1);
                     current.updated_at += chrono::Duration::seconds(2);
                 }
+                16 => current.provider_key_version = Some(2),
                 _ => {}
             }
             let rows = if case == 15 { vec![] } else { vec![current] };
@@ -1549,34 +1938,360 @@ mod emission_fence_tests {
 impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
     type Error = DomainError;
 
+    async fn signing_scope_snapshot(
+        &self,
+        scope: &SigningScope,
+    ) -> Result<SigningScopeSnapshot, DomainError> {
+        scope.validate()?;
+        let tx = self.db.begin().await.map_err(registry_error)?;
+        lock_registry_scope(&tx, "iam-signing-jwks-admission-v1").await?;
+        let lock = scope
+            .organization_id
+            .map_or_else(|| "signer-platform".into(), |id| format!("signer-org:{id}"));
+        lock_registry_scope(&tx, &lock).await?;
+        let rows = SigningKeys::find()
+            .filter(scope_rows(&scope.trust_scope, scope.organization_id))
+            .filter(signing_keys::Column::Status.is_in(["active", "pending"]))
+            .order_by_asc(signing_keys::Column::Id)
+            .lock_exclusive()
+            .all(&tx)
+            .await
+            .map_err(registry_error)?
+            .into_iter()
+            .map(to_domain)
+            .collect::<Result<Vec<_>, _>>()?;
+        // Row -> epoch agrees with the additive trigger (including an independent
+        // primary UPDATE). Never invert this order by locking the epoch first.
+        let revision = scope_revision(&tx, scope).await?;
+        let active: Vec<_> = rows
+            .iter()
+            .filter(|key| key.status == SigningKeyStatus::Active)
+            .collect();
+        if active.len() > 1 {
+            return Err(conflict());
+        }
+        let pending = durable_pending(&tx, scope, revision).await?;
+        if rows
+            .iter()
+            .any(|key| key.status == SigningKeyStatus::Pending)
+            && pending.is_none()
+        {
+            return Err(conflict());
+        }
+        let snapshot = SigningScopeSnapshot {
+            scope: scope.clone(),
+            revision,
+            active: active.first().map(|key| (**key).clone()),
+            pending,
+        };
+        tx.commit().await.map_err(registry_error)?;
+        Ok(snapshot)
+    }
+
+    async fn prepare_signing_key(
+        &self,
+        proof: ProbedSigningKey,
+    ) -> Result<SigningKeyPreparation, DomainError> {
+        let candidate = proof.key();
+        let before = proof.before();
+        if SigningScope::of(candidate) != before.scope
+            || candidate.status != SigningKeyStatus::Pending
+        {
+            return Err(DomainError::InvalidSigningKeyMaterial);
+        }
+        let candidate_public = PreparedSigningPublicKey::prepare(candidate)?;
+        let (tx, mut state) = self
+            .begin_lifecycle(
+                &candidate.trust_scope,
+                candidate.organization_id,
+                Some(&candidate.issuer),
+                LifecycleOperation::Prepare(candidate),
+            )
+            .await?;
+        let result = async {
+            check_issuer_owner(&state)?;
+            let revision = scope_revision(&tx, &before.scope).await?;
+            state.as_of = fresh_writer_clock(&tx).await?;
+            if revision != before.revision { return Err(conflict()); }
+            self.load_state_view(&tx,&mut state,true,true).await?;
+            let active: Vec<_> = state.keys.iter().filter(|key| SigningScope::of(key) == before.scope
+                && key.status == SigningKeyStatus::Active).collect();
+            if active.len() > 1 { return Err(conflict()); }
+            let current = active.first().copied();
+            match (current, before.active.as_ref()) {
+                (Some(a), Some(b)) if a.id == b.id && a.kid == b.kid && same_immutable_binding(a, b) => {}
+                (None, None) => {}
+                _ => return Err(conflict()),
+            }
+            if let Some(active) = current {
+                if same_prepared_binding(&state,active,candidate,&candidate_public)? {
+                    self.refresh_unchanged_publication(&tx,&state).await?;
+                    return Ok(SigningKeyPreparation::Unchanged(active.clone()));
+                }
+            }
+            if let Some(pending) = durable_pending(&tx, &before.scope, revision).await? {
+                if !same_prepared_binding(&state,&pending.key,candidate,&candidate_public)? { return Err(conflict()); }
+                self.refresh_unchanged_publication(&tx,&state).await?;
+                return Ok(SigningKeyPreparation::Pending(pending));
+            }
+            if state.keys.iter().any(|key| SigningScope::of(key) == before.scope && key.status == SigningKeyStatus::Pending)
+                || state.keys.iter().any(|key| key.id == candidate.id || key.kid == candidate.kid) {
+                return Err(conflict());
+            }
+            let mut pending = candidate.clone();
+            pending.created_at = state.as_of;
+            pending.updated_at = state.as_of;
+            let mut proposed = state.keys.clone();
+            proposed.push(pending.clone());
+            // Canonical complete proposed publication checked before either write;
+            // old Active is intact. Pending + publication revision commit together.
+            let publication_plan=self.check_plan(&state, &proposed, Some(&pending),Some(&candidate_public))?;
+            let key = insert_admitted(&tx, &pending, state.as_of).await?;
+            publication::persist_prepared(&tx,&key,&candidate_public).await?;
+            let published_revision = scope_revision(&tx, &before.scope).await?;
+            if published_revision != revision.checked_add(1).ok_or_else(conflict)? { return Err(conflict()); }
+            let previous_active_kid = current.map(|key| key.kid.clone());
+            tx.execute(Statement::from_sql_and_values(DbBackend::Postgres,
+                "INSERT INTO signing_key_prepublications(key_id,scope_id,revision,previous_active_kid) VALUES($1,$2,$3,$4)",
+                vec![key.id.into(), scope_id(&before.scope)?.into(), i64::try_from(published_revision).map_err(|_| conflict())?.into(), previous_active_kid.clone().into()]))
+                .await.map_err(registry_error)?;
+            self.persist_publication(&tx,&state,&publication_plan).await?;
+            Ok(SigningKeyPreparation::Pending(PreparedSigningTransition { key, revision: published_revision, previous_active_kid }))
+        }.await;
+        match result {
+            Ok(prepared) => {
+                tx.commit().await.map_err(registry_error)?;
+                Ok(prepared)
+            }
+            Err(error) => {
+                tx.rollback().await.map_err(registry_error)?;
+                Err(error)
+            }
+        }
+    }
+
+    async fn promote_signing_key(
+        &self,
+        prepared: &PreparedSigningTransition,
+    ) -> Result<SigningKey, DomainError> {
+        let scope = SigningScope::of(&prepared.key);
+        let (tx, mut state) = self
+            .begin_lifecycle(
+                &scope.trust_scope,
+                scope.organization_id,
+                Some(&prepared.key.issuer),
+                LifecycleOperation::Promote(&prepared.key),
+            )
+            .await?;
+        let result = async {
+            check_issuer_owner(&state)?;
+            let revision = scope_revision(&tx, &scope).await?;
+            state.as_of = fresh_writer_clock(&tx).await?;
+            if revision != prepared.revision {
+                return Err(conflict());
+            }
+            self.load_state_view(&tx, &mut state, false, true).await?;
+            let stored = durable_pending(&tx, &scope, revision)
+                .await?
+                .ok_or_else(conflict)?;
+            if stored.key.id != prepared.key.id
+                || stored.key.kid != prepared.key.kid
+                || !same_immutable_binding(&stored.key, &prepared.key)
+                || stored.previous_active_kid != prepared.previous_active_kid
+            {
+                return Err(conflict());
+            }
+            let active: Vec<_> = state
+                .keys
+                .iter()
+                .filter(|key| {
+                    SigningScope::of(key) == scope && key.status == SigningKeyStatus::Active
+                })
+                .collect();
+            if active.len() > 1
+                || active.first().map(|key| key.kid.as_str())
+                    != stored.previous_active_kid.as_deref()
+            {
+                return Err(conflict());
+            }
+            let mut committed = stored.key;
+            committed.status = SigningKeyStatus::Active;
+            committed.updated_at = state.as_of;
+            let mut proposed = state.keys.clone();
+            let mut changes = Vec::new();
+            for key in proposed.iter_mut().filter(|key| {
+                SigningScope::of(key) == scope && key.status == SigningKeyStatus::Active
+            }) {
+                key.status = SigningKeyStatus::Retiring;
+                key.updated_at = state.as_of;
+                changes.push(key.clone());
+            }
+            *proposed
+                .iter_mut()
+                .find(|key| key.id == committed.id)
+                .ok_or_else(conflict)? = committed.clone();
+            changes.push(committed.clone());
+            let publication_plan = self.check_plan(&state, &proposed, None, None)?; // no second admission/churn charge
+            persist_changes(&tx, &mut changes).await?;
+            tx.execute(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                "DELETE FROM signing_key_prepublications WHERE key_id=$1 AND revision=$2",
+                vec![
+                    committed.id.into(),
+                    i64::try_from(prepared.revision)
+                        .map_err(|_| conflict())?
+                        .into(),
+                ],
+            ))
+            .await
+            .map_err(registry_error)?;
+            self.persist_publication(&tx, &state, &publication_plan)
+                .await?;
+            to_domain(
+                SigningKeys::find_by_id(committed.id)
+                    .one(&tx)
+                    .await
+                    .map_err(registry_error)?
+                    .ok_or_else(conflict)?,
+            )
+        }
+        .await;
+        match result {
+            Ok(key) => {
+                tx.commit().await.map_err(registry_error)?;
+                Ok(key)
+            }
+            Err(error) => {
+                tx.rollback().await.map_err(registry_error)?;
+                Err(error)
+            }
+        }
+    }
+
+    async fn revoke_signing_scope(
+        &self,
+        scope: &SigningScope,
+    ) -> Result<Vec<SigningKey>, DomainError> {
+        let (tx, state) = self
+            .begin_lifecycle(
+                &scope.trust_scope,
+                scope.organization_id,
+                None,
+                LifecycleOperation::Revoke,
+            )
+            .await?;
+        let result = async {
+            let mut proposed = state.keys.clone();
+            let mut changed = Vec::new();
+            for key in proposed.iter_mut().filter(|key| {
+                SigningScope::of(key) == *scope && key.status != SigningKeyStatus::Revoked
+            }) {
+                key.status = SigningKeyStatus::Revoked;
+                key.updated_at = state.as_of;
+                changed.push(key.clone());
+            }
+            let publication_plan = self.reducing_plan(&state, &proposed)?;
+            advance_empty_or_revoked_scope(&tx, scope).await?;
+            persist_changes(&tx, &mut changed).await?;
+            // Historical admissions are never deleted. Only obsolete private
+            // preparation evidence is removed; scope epoch survives an empty set.
+            tx.execute(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                "DELETE FROM signing_key_prepublications WHERE scope_id=$1",
+                [scope_id(scope)?.into()],
+            ))
+            .await
+            .map_err(registry_error)?;
+            self.persist_publication(&tx, &state, &publication_plan)
+                .await?;
+            if changed.is_empty() {
+                if let Some(row) = SigningKeys::find()
+                    .filter(scope_rows(&scope.trust_scope, scope.organization_id))
+                    .filter(signing_keys::Column::Status.eq("revoked"))
+                    .order_by_desc(signing_keys::Column::Id)
+                    .one(&tx)
+                    .await
+                    .map_err(registry_error)?
+                {
+                    changed.push(to_domain(row)?);
+                }
+            }
+            Ok(changed)
+        }
+        .await;
+        match result {
+            Ok(keys) => {
+                tx.commit().await.map_err(registry_error)?;
+                Ok(keys)
+            }
+            Err(error) => {
+                tx.rollback().await.map_err(registry_error)?;
+                Err(error)
+            }
+        }
+    }
+
     async fn jwks_publication_snapshot(
         &self,
     ) -> Result<SigningKeyPublicationSnapshot, Self::Error> {
-        // One autocommit SELECT supplies rows AND clock, including empty sets.
-        let rows = self.db.query_all(Statement::from_string(DbBackend::Postgres,
-            "SELECT statement_timestamp() AS as_of,k.* FROM (SELECT 1) anchor LEFT JOIN signing_keys k ON k.status IN ('pending','active','retiring') ORDER BY k.id"))
-            .await.map_err(registry_error)?;
-        let clock = rows
-            .first()
-            .ok_or_else(|| registry_error(sea_orm::DbErr::Custom(String::new())))?;
-        let as_of: chrono::DateTime<chrono::FixedOffset> =
-            clock.try_get("", "as_of").map_err(registry_error)?;
-        let mut keys = Vec::new();
-        for row in &rows {
-            if row
-                .try_get::<Option<Uuid>>("", "id")
-                .map_err(registry_error)?
-                .is_some()
-            {
-                keys.push(to_domain(
-                    signing_keys::Model::from_query_result(row, "").map_err(registry_error)?,
-                )?);
+        // Primary payload and DB clock in one SELECT. No registry-key/PEM read
+        // on the fresh path; EMPTY is authoritative, missing/corrupt is an error.
+        let row=self.db.query_one(Statement::from_string(DbBackend::Postgres,
+            "SELECT revision,dirty,payload,as_of,next_expiration,access_token_ttl,retire_skew,statement_timestamp() AS db_as_of FROM signing_jwks_publication WHERE singleton=1"))
+            .await.map_err(registry_error)?.ok_or_else(conflict)?;
+        let stored = publication::StoredPublication::decode(&row)?;
+        let clock: DateTime<chrono::FixedOffset> =
+            row.try_get("", "db_as_of").map_err(registry_error)?;
+        if !stored.needs_refresh(
+            clock.with_timezone(&Utc),
+            self.access_token_expiration_seconds,
+        )? {
+            return stored.snapshot();
+        }
+        let tx = self.db.begin().await.map_err(registry_error)?;
+        let result = async {
+            lock_registry_scope(&tx, "iam-signing-jwks-admission-v1").await?;
+            let locked = publication::lock_snapshot(&tx).await?;
+            let as_of = fresh_writer_clock(&tx).await?;
+            if !locked.needs_refresh(as_of, self.access_token_expiration_seconds)? {
+                return locked.snapshot();
+            }
+            let retention = self
+                .policy
+                .access_token_retention(self.access_token_expiration_seconds, as_of)?;
+            let cutoff = as_of
+                .checked_sub_signed(retention)
+                .ok_or(DomainError::InvalidSigningKeyMaterial)?;
+            let (keys, publics, _) = publication::load_view(&tx, cutoff, as_of, &[]).await?;
+            let plan = publication::plan(&keys, &publics, None, as_of, retention)?;
+            publication::write(
+                &tx,
+                &plan,
+                locked.revision,
+                as_of,
+                self.access_token_expiration_seconds,
+            )
+            .await?;
+            Ok(SigningKeyPublicationSnapshot {
+                publication: plan.publication,
+                as_of,
+                revision: u64::try_from(locked.revision.checked_add(1).ok_or_else(conflict)?)
+                    .map_err(|_| conflict())?,
+                access_token_expiration_seconds: self.access_token_expiration_seconds,
+                next_expiration: plan.next_expiration,
+            })
+        }
+        .await;
+        match result {
+            Ok(snapshot) => {
+                tx.commit().await.map_err(registry_error)?;
+                Ok(snapshot)
+            }
+            Err(error) => {
+                tx.rollback().await.map_err(registry_error)?;
+                Err(error)
             }
         }
-        Ok(SigningKeyPublicationSnapshot {
-            keys,
-            as_of: as_of.with_timezone(&Utc),
-        })
     }
 
     async fn confirm_active_for_emission(
@@ -1606,6 +2321,7 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
             && current.public_key == expected.public_key
             && current.provider_type == expected.provider_type
             && current.provider_key_ref == expected.provider_key_ref
+            && current.provider_key_version == expected.provider_key_version
             && current.credential_ref == expected.credential_ref)
     }
 
@@ -1616,7 +2332,7 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
         ) {
             return Err(conflict());
         }
-        self.policy.validate_new_key(candidate)?;
+        let candidate_public = PreparedSigningPublicKey::prepare(candidate)?;
         let (tx, state) = self
             .begin_lifecycle(
                 &candidate.trust_scope,
@@ -1648,8 +2364,12 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
             admitted.updated_at = state.as_of;
             let mut proposed = state.keys.clone();
             proposed.push(admitted.clone());
-            self.check_plan(&state, &proposed, Some(&admitted))?;
-            insert_admitted(&tx, &admitted, state.as_of).await?;
+            let publication_plan =
+                self.check_plan(&state, &proposed, Some(&admitted), Some(&candidate_public))?;
+            let stored = insert_admitted(&tx, &admitted, state.as_of).await?;
+            publication::persist_prepared(&tx, &stored, &candidate_public).await?;
+            self.persist_publication(&tx, &state, &publication_plan)
+                .await?;
             Ok(())
         }
         .await;
@@ -1673,7 +2393,7 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
         {
             return Err(DomainError::InvalidSigningKeyMaterial);
         }
-        let candidate_validation = self.policy.validate_new_key(candidate);
+        let candidate_validation = PreparedSigningPublicKey::prepare(candidate);
         let (tx, state) = self
             .begin_lifecycle(
                 &candidate.trust_scope,
@@ -1708,18 +2428,19 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
             // An already-admitted Pending rotation is a promotion, never configure-no-op.
             let promotion = existing.filter(|row| row.status == SigningKeyStatus::Pending);
             if promotion.is_none() {
-                if let Some(current) = active
-                    .first()
-                    .filter(|current| same_effective_signing_binding(current, candidate))
+                if let (Some(current), Ok(public)) = (active.first(), candidate_validation.as_ref())
                 {
-                    return Ok((**current).clone());
+                    if same_prepared_binding(&state, current, candidate, public)? {
+                        self.refresh_unchanged_publication(&tx, &state).await?;
+                        return Ok((**current).clone());
+                    }
                 }
             }
-            candidate_validation?;
+            let candidate_public = candidate_validation?;
             let mut committed = if let Some(pending) = promotion {
                 if pending.id != candidate.id
                     || pending.kid != candidate.kid
-                    || !same_effective_signing_binding(pending, candidate)
+                    || !same_prepared_binding(&state, pending, candidate, &candidate_public)?
                 {
                     return Err(conflict());
                 }
@@ -1754,7 +2475,7 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
             } else {
                 proposed.push(committed.clone());
             }
-            self.check_plan(
+            let publication_plan = self.check_plan(
                 &state,
                 &proposed,
                 if promotion.is_some() {
@@ -1762,10 +2483,16 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
                 } else {
                     Some(&committed)
                 },
+                if promotion.is_some() {
+                    None
+                } else {
+                    Some(&candidate_public)
+                },
             )?;
             persist_changes(&tx, &mut changes).await?;
             if promotion.is_none() {
                 committed = insert_admitted(&tx, &committed, state.as_of).await?;
+                publication::persist_prepared(&tx, &committed, &candidate_public).await?;
             } else {
                 committed = to_domain(
                     SigningKeys::find_by_id(committed.id)
@@ -1775,6 +2502,8 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
                         .ok_or_else(conflict)?,
                 )?;
             }
+            self.persist_publication(&tx, &state, &publication_plan)
+                .await?;
             Ok(committed)
         }
         .await;
@@ -1794,49 +2523,8 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
         &self,
         organization_id: Uuid,
     ) -> Result<Vec<SigningKey>, Self::Error> {
-        let (tx, state) = self
-            .begin_lifecycle(
-                &TrustScope::Organization,
-                Some(organization_id),
-                None,
-                LifecycleOperation::Revoke,
-            )
-            .await?;
-        let result = async {
-            let mut changed = state.keys;
-            for key in &mut changed {
-                key.status = SigningKeyStatus::Revoked;
-                key.updated_at = state.as_of;
-            }
-            // Reducing recovery path: no publication policy gate, no history deletion.
-            persist_changes(&tx, &mut changed).await?;
-            if changed.is_empty() {
-                // User-approved RP-1 return shape: affected rows; one terminal row for
-                // an idempotent repeat. No lifetime response scan or post-commit error.
-                if let Some(row) = SigningKeys::find()
-                    .filter(scope_rows(&TrustScope::Organization, Some(organization_id)))
-                    .filter(signing_keys::Column::Status.eq("revoked"))
-                    .order_by_desc(signing_keys::Column::Id)
-                    .one(&tx)
-                    .await
-                    .map_err(registry_error)?
-                {
-                    changed.push(to_domain(row)?);
-                }
-            }
-            Ok(changed)
-        }
-        .await;
-        match result {
-            Ok(keys) => {
-                tx.commit().await.map_err(registry_error)?;
-                Ok(keys)
-            }
-            Err(error) => {
-                tx.rollback().await.map_err(registry_error)?;
-                Err(error)
-            }
-        }
+        self.revoke_signing_scope(&SigningScope::organization(organization_id))
+            .await
     }
 
     async fn find_by_kid(&self, kid: &str) -> Result<Option<SigningKey>, Self::Error> {
@@ -1851,6 +2539,7 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
     async fn find_active_platform_key(&self) -> Result<Option<SigningKey>, Self::Error> {
         let model = SigningKeys::find()
             .filter(signing_keys::Column::TrustScope.eq("platform"))
+            .filter(signing_keys::Column::OrganizationId.is_null())
             .filter(signing_keys::Column::Status.eq("active"))
             .one(self.db.as_ref())
             .await
@@ -1886,13 +2575,18 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
             unchanged_material.status = candidate.status.clone();
             unchanged_material.created_at = candidate.created_at;
             unchanged_material.updated_at = candidate.updated_at;
-            if current.kid != candidate.kid
-                || !(same_effective_signing_binding(current, candidate)
-                    || unchanged_material == *candidate)
-            {
+            let same_binding = if unchanged_material == *candidate {
+                true
+            } else {
+                let public =
+                    PreparedSigningPublicKey::prepare(candidate).map_err(|_| conflict())?;
+                same_prepared_binding(&state, current, candidate, &public)?
+            };
+            if current.kid != candidate.kid || !same_binding {
                 return Err(conflict());
             }
             if current.status == candidate.status {
+                self.refresh_unchanged_publication(&tx, &state).await?;
                 return Ok(());
             } // Never renew retirement timestamps.
             let mut proposed = state.keys.clone();
@@ -1924,10 +2618,14 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
                 .ok_or_else(conflict)? = changed.clone();
             changes.push(changed);
             // Revocation and drain only reduce publication; promotion must preserve its reservation.
-            if candidate.status != SigningKeyStatus::Revoked {
-                self.check_plan(&state, &proposed, None)?;
-            }
-            persist_changes(&tx, &mut changes).await
+            let publication_plan = if candidate.status != SigningKeyStatus::Revoked {
+                self.check_plan(&state, &proposed, None, None)?
+            } else {
+                self.reducing_plan(&state, &proposed)?
+            };
+            persist_changes(&tx, &mut changes).await?;
+            self.persist_publication(&tx, &state, &publication_plan)
+                .await
         }
         .await;
         match result {
@@ -1978,6 +2676,7 @@ pub async fn bootstrap_platform_signing_key(
         issuer: issuer.to_string(),
         provider_type: provider_type.clone(),
         provider_key_ref: provider_key_ref.to_string(),
+        provider_key_version: None,
         credential_ref: None,
         public_key: public_key_pem.to_string(),
         status: SigningKeyStatus::Active,
@@ -1985,12 +2684,28 @@ pub async fn bootstrap_platform_signing_key(
         created_at: now,
         updated_at: now,
     };
-    let candidate_validation = registry.policy.validate_new_key(&candidate);
+    bootstrap_platform_candidate(registry, candidate).await
+}
+
+async fn bootstrap_platform_candidate(
+    registry: &SeaOrmSigningKeyRegistry,
+    candidate: SigningKey,
+) -> Result<SigningKey, DomainError> {
+    if candidate.trust_scope != TrustScope::Platform
+        || candidate.organization_id.is_some()
+        || candidate.status != SigningKeyStatus::Active
+    {
+        return Err(DomainError::InvalidSigningKeyMaterial);
+    }
+    let kid = candidate.kid.clone();
+    let issuer = candidate.issuer.clone();
+    let provider_type = candidate.provider_type.clone();
+    let candidate_validation = PreparedSigningPublicKey::prepare(&candidate);
     let (tx, state) = registry
         .begin_lifecycle(
             &TrustScope::Platform,
             None,
-            Some(issuer),
+            Some(&issuer),
             LifecycleOperation::Bootstrap(&candidate),
         )
         .await?;
@@ -2008,20 +2723,17 @@ pub async fn bootstrap_platform_signing_key(
             return Err(conflict());
         }
         if let Some(existing) = active.first() {
-            require_bootstrap_compatible(
-                existing,
-                kid,
-                issuer,
-                public_key_pem,
-                provider_key_ref,
-                &provider_type,
-            )?;
+            let public=candidate_validation.as_ref().map_err(|_|DomainError::InvalidSigningKeyMaterial)?;
+            if !same_prepared_binding(&state,existing,&candidate,public)? || (provider_type!=SigningProviderType::PemFile && existing.kid!=kid) {
+                return Err(DomainError::AuthorizationError("platform bootstrap conflicts with registered signing epoch; explicit rotation required".into()));
+            }
+            registry.refresh_unchanged_publication(&tx,&state).await?;
             return Ok((***existing).clone());
         }
         if state.platform_epoch_exists {
             return Err(conflict());
         }
-        candidate_validation?;
+        let candidate_public=candidate_validation?;
         let mut key = candidate;
         key.created_at = state.as_of;
         key.updated_at = state.as_of;
@@ -2031,8 +2743,11 @@ pub async fn bootstrap_platform_signing_key(
         }
         let mut proposed = state.keys.clone();
         proposed.push(key.clone());
-        registry.check_plan(&state, &proposed, Some(&key))?;
-        insert_admitted(&tx, &key, state.as_of).await
+        let publication_plan=registry.check_plan(&state, &proposed, Some(&key),Some(&candidate_public))?;
+        let committed=insert_admitted(&tx, &key, state.as_of).await?;
+        publication::persist_prepared(&tx,&committed,&candidate_public).await?;
+        registry.persist_publication(&tx,&state,&publication_plan).await?;
+        Ok(committed)
     }
     .await;
     match result {
@@ -2047,6 +2762,7 @@ pub async fn bootstrap_platform_signing_key(
     }
 }
 
+#[cfg(test)]
 fn require_bootstrap_compatible(
     existing: &SigningKey,
     kid: &str,
@@ -2094,6 +2810,7 @@ mod tests {
             issuer: "https://iam.example/iam".into(),
             provider_type: SigningProviderType::PemFile,
             provider_key_ref: "platform.pem".into(),
+            provider_key_version: None,
             credential_ref: None,
             public_key: include_str!("../../../config/keys/test-platform.pub").into(),
             status: SigningKeyStatus::Active,

@@ -1,0 +1,7 @@
+{
+  "container_id": "7b004a95a3adddd504975688128a6a97b24044fd33bc96d40304e8efc7678651",
+  "fixture_role": "smtp",
+  "run_id": "telegraph-20261005-cover01",
+  "ownership_proof": "coverage.log:12759 Docker create response Id/Warnings under test_user_signed_up_event_happy_path; subsequent start and testcontainers returned-ready evidence :12761/:12773",
+  "final_action": "graceful stop after successful coverage; preserve stopped container"
+}

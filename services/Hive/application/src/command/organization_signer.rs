@@ -18,6 +18,12 @@ fn map_iam_signer_error(operation: &str, error: DomainError) -> CommandError {
     match &error {
         DomainError::ExternalServiceError { service, message } if service == "iam_service" => {
             match message.as_str() {
+                "signing_invalid_input" => {
+                    return CommandError::business(
+                        "iam_signing_invalid_input",
+                        "Invalid signing input",
+                    );
+                }
                 "signing_admission_throttled" => {
                     return CommandError::business(
                         "iam_signing_admission_throttled",
@@ -45,6 +51,8 @@ pub struct ConfigureOrganizationSignerHttpRequest {
     pub provider_type: String,
     #[validate(length(min = 1))]
     pub provider_key_ref: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_key_version: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credential_ref: Option<String>,
     #[validate(length(min = 1))]
@@ -167,6 +175,7 @@ impl CommandHandler<ConfigureOrganizationSignerCommand>
         let iam_request = ConfigureOrganizationSignerRequest {
             provider_type: command.request.provider_type,
             provider_key_ref: command.request.provider_key_ref,
+            provider_key_version: command.request.provider_key_version,
             credential_ref: command.request.credential_ref,
             public_key: command.request.public_key,
             org_slug: org.slug.clone(),
@@ -365,6 +374,7 @@ mod tests {
 
     struct FakeOrgRepo {
         org: Organization,
+        saves: std::sync::atomic::AtomicUsize,
     }
 
     #[async_trait]
@@ -416,6 +426,7 @@ mod tests {
         }
 
         async fn save(&self, organization: &Organization) -> Result<Organization, DomainError> {
+            self.saves.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Ok(organization.clone())
         }
 
@@ -428,6 +439,8 @@ mod tests {
 
     struct CapturingIam {
         captured_slug: Mutex<Option<String>>,
+        captured_version: Mutex<Option<Option<u32>>>,
+        failure: Option<&'static str>,
     }
 
     #[async_trait]
@@ -438,6 +451,10 @@ mod tests {
             request: &ConfigureOrganizationSignerRequest,
         ) -> Result<OrganizationSignerResponse, DomainError> {
             *self.captured_slug.lock().unwrap() = Some(request.org_slug.clone());
+            *self.captured_version.lock().unwrap() = Some(request.provider_key_version);
+            if let Some(message) = self.failure {
+                return Err(DomainError::external_service_error("iam_service", message));
+            }
             Ok(OrganizationSignerResponse {
                 signing_profile_id: Uuid::new_v4(),
                 kid: "kid".into(),
@@ -476,16 +493,22 @@ mod tests {
         org.id = org_id;
         let iam = Arc::new(CapturingIam {
             captured_slug: Mutex::new(None),
+            captured_version: Mutex::new(None),
+            failure: None,
         });
         let handler = ConfigureOrganizationSignerCommandHandler::new(
             iam.clone(),
-            Arc::new(FakeOrgRepo { org }),
+            Arc::new(FakeOrgRepo {
+                org,
+                saves: std::sync::atomic::AtomicUsize::new(0),
+            }),
         );
         let command = ConfigureOrganizationSignerCommand::new(
             org_id,
             ConfigureOrganizationSignerHttpRequest {
                 provider_type: "pem_file".into(),
                 provider_key_ref: "opaque".into(),
+                provider_key_version: None,
                 credential_ref: None,
                 public_key: "-----BEGIN PUBLIC KEY-----\nMIIB\n-----END PUBLIC KEY-----".into(),
                 org_slug: "spoofed-other-org".into(),
@@ -497,5 +520,66 @@ mod tests {
             iam.captured_slug.lock().unwrap().as_deref(),
             Some("acme-from-db")
         );
+    }
+
+    #[tokio::test]
+    async fn configure_propagates_opaque_invalid_input_without_persisting_or_reclassifying_provider_faults(
+    ) {
+        for version in [None, Some(0)] {
+            for message in [
+                "signing_invalid_input",
+                "signing_epoch_conflict",
+                "signing_admission_throttled",
+                "HTTP 502: provider fault",
+            ] {
+                let org = Organization::new("Acme".into(), "db-scope".into(), None, Uuid::new_v4())
+                    .unwrap();
+                let id = org.id;
+                let repo = Arc::new(FakeOrgRepo {
+                    org,
+                    saves: std::sync::atomic::AtomicUsize::new(0),
+                });
+                let iam = Arc::new(CapturingIam {
+                    captured_slug: Mutex::new(None),
+                    captured_version: Mutex::new(None),
+                    failure: Some(message),
+                });
+                let handler =
+                    ConfigureOrganizationSignerCommandHandler::new(iam.clone(), repo.clone());
+                let err = handler
+                    .handle(ConfigureOrganizationSignerCommand::new(
+                        id,
+                        ConfigureOrganizationSignerHttpRequest {
+                            provider_type: "openbao_transit".into(),
+                            provider_key_ref: format!("org-{id}-key"),
+                            provider_key_version: version,
+                            credential_ref: Some(format!("org-{id}-credential")),
+                            public_key: "valid-adapter-owned-public".into(),
+                            org_slug: "spoofed".into(),
+                        },
+                        Uuid::new_v4(),
+                    ))
+                    .await
+                    .unwrap_err();
+                assert_eq!(*iam.captured_version.lock().unwrap(), Some(version));
+                assert_eq!(
+                    iam.captured_slug.lock().unwrap().as_deref(),
+                    Some("db-scope")
+                );
+                assert_eq!(repo.saves.load(std::sync::atomic::Ordering::SeqCst), 0);
+                match message {
+                    "signing_invalid_input" => assert!(
+                        matches!(err,CommandError::Business{ref code,..} if code=="iam_signing_invalid_input")
+                    ),
+                    "signing_epoch_conflict" => assert!(
+                        matches!(err,CommandError::Business{ref code,..} if code=="iam_signing_epoch_conflict")
+                    ),
+                    "signing_admission_throttled" => assert!(
+                        matches!(err,CommandError::Business{ref code,..} if code=="iam_signing_admission_throttled")
+                    ),
+                    _ => assert!(matches!(err, CommandError::Infrastructure { .. })),
+                }
+            }
+        }
     }
 }

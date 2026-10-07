@@ -1,0 +1,35 @@
+---
+description: GrepAI-first policy for semantic code exploration in this repo
+alwaysApply: true
+---
+
+# GrepAI-first pour l'exploration de code
+
+GrepAI maintient un index sémantique vivant du dépôt (`.grepai/`, watcher temps réel, embeddings Ollama `nomic-embed-text`). Il est le premier outil d'exploration de code ; le matching exact reste à grep/Glob.
+
+## Quand utiliser quoi
+
+- **GrepAI d'abord** — recherche sémantique : « où est publié l'outbox », « comment fonctionne X », localisation de concepts, compréhension de comportements, découverte d'architecture.
+  - Via Code Mode : `tools.grepai.grepai_search(...)` dans `execute` — **sans** le paramètre `workspace` (aucun workspace enregistré ; le serveur résout l'index du dépôt lui-même).
+  - Graphe d'appels : `grepai_trace_callers` / `grepai_trace_callees` (qui appelle ce symbole, que fait-il appel).
+  - Carte symbolique : `grepai_rpg_search`, `grepai_rpg_fetch`.
+- **grep/Glob réservés** — matching exact : cibles de rename, chaînes d'erreur littérales, noms de symboles déjà connus, comptage d'occurrences.
+
+## Garde-fou anti-panne silencieuse
+
+Un `grepai_search` qui renvoie 0 résultat est un symptôme, pas une réponse :
+
+1. Vérifier `grepai status` (files indexed > 0) et `grepai watch --status`.
+2. Watcher arrêté (typiquement après reboot) → le relancer : `grepai watch --background`.
+   « already running » est bénin si le `watch --status` local dit running ; si le
+   status local dit « not running », le verrou global est stale → supprimer
+   `%LOCALAPPDATA%\grepai\logs\grepai-watch.pid` puis retenter (jamais de kill).
+   Autostart login : `%LOCALAPPDATA%\grepai\start-watchers.ps1` couvre tous les
+   projets de `source\repos`.
+3. Index vide persistant → **signaler la panne dans la réponse finale** (ne pas
+   la masquer en retombant discrètement sur grep).
+4. Un échec répété de GrepAI n'invalide pas la règle : il invalide l'infrastructure.
+
+## Rappel orchestration
+
+Les briefs `explore`/`implementer` mentionnent GrepAI comme outil d'exploration sémantique. Un worker qui constate un index mort l'escalade au lieu de contourner en silence.

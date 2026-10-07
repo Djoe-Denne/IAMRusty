@@ -1,0 +1,35 @@
+layout-rewrite : dry-run (aucune ecriture)
+racine : C:\Users\djden\source\repos\AIForAll
+fichiers scannes : 1861
+
+zone cargo : 0 fichiers, 0 remplacements
+
+zone compose : 0 fichiers, 0 remplacements
+
+zone docker : 0 fichiers, 0 remplacements
+
+zone rust : 0 fichiers, 0 remplacements
+
+zone justfile : 0 fichiers, 0 remplacements
+
+zone scripts : 0 fichiers, 0 remplacements
+
+zone ci : 0 fichiers, 0 remplacements
+
+zone sonar : 0 fichiers, 0 remplacements
+
+zone docs : 0 fichiers, 0 remplacements
+
+zone obsidian : 0 fichiers, 0 remplacements
+
+zone serena : 0 fichiers, 0 remplacements
+
+zone skills : 0 fichiers, 0 remplacements
+
+zone other : 0 fichiers, 0 remplacements
+
+RESUME
+  fichiers scannes : 1861
+  fichiers touches : 0
+  remplacements : 0
+  insertions workspace : 0
