@@ -1,5 +1,2 @@
 [build]
 jobs = 12
-# Le dossier target vit sur le disque E: (NVMe, ~810 Go libres), pas sur C:.
-# C: n'a plus la place pour un workspace Rust de cette taille.
-target-dir = "E:\\cargo-target\\AIForAll"
