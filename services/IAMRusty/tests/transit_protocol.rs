@@ -16,7 +16,12 @@ struct TransitMockService {
 
 impl TransitMockService {
     async fn new() -> Self {
-        let fixture = MockServerFixture::new().await;
+        // isolated(): a dedicated listener per fixture. The shared-server
+        // new() races with a previous fixture's asynchronous Drop reset on the
+        // process-global listener, wiping freshly mounted mocks mid-test
+        // (observed as a 404 on the rotation read-back with a cleared request
+        // journal).
+        let fixture = MockServerFixture::isolated().await;
         Self {
             server: fixture.server(),
             _fixture: fixture,
