@@ -15,7 +15,7 @@ provenance:
   inferred: 0.14
   ambiguous: 0.02
 created: 2026-08-31T13:30:00Z
-updated: 2026-08-31T13:30:00Z
+updated: 2026-10-08T16:50:00Z
 ---
 
 # Running parallel Sonar lanes
@@ -31,7 +31,7 @@ Use this when closing a large Sonar backlog on `Djoe-Denne_IAMRusty` (or the rus
 
 ## While agents run
 
-- No `cargo` workspace build in Docker (or a shared `target/`) while other lots edit.
+- No `cargo` while other lots edit. One Windows cargo, `-j 1` (`-j 2` / `jobs = 12` OOM LLVM). Write the file claim before editing. October 2026 rule traps: [[projects/aiforall/skills/fixing-sonar-clippy-in-services]].
 - After a lot: `cargo check -p <crate>` (and `--tests` if the lane is tests). Targeted Clippy `-W clippy::future_not_send` / `-W clippy::too_many_lines` on touched files.
 - Do not `change_sonar_issue_status` unless it is a real false positive.
 

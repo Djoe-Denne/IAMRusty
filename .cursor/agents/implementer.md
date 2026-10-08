@@ -18,6 +18,7 @@ You implement a work package from the orchestrator. You do not own product or ar
 
 ## Do not
 
+- Close a Sonar/Clippy issue with `#[allow]` or by flipping its Sonar status. Follow `.cursor/skills/aiforall-sonar-policy/SKILL.md` (2026-10-08 pitfalls: `double_must_use` / `async-trait` 0.1.92, `large_futures`, `rust:S7493`, `needless_pass_by_value`, `secrets:S6706`, `rust:S2208`).
 - Invent a new global architecture.
 - Silently change imposed constraints or the orchestrator's design.
 - Expand scope or drive-by refactor.

@@ -5,8 +5,9 @@ description: >-
   Manifesto, sentinel-sync) after the Aug 2026 campaigns. Use when fixing
   Sonar/Clippy issues on Djoe-Denne_IAMRusty, writing rustdoc # Errors/# Panics,
   replacing unwrap after persist, OAuth URL construction, From vs TryFrom,
-  future_not_send, too_many_lines migrations/setup, or duplicate_mod in
-  Telegraph tests.
+  future_not_send, too_many_lines migrations/setup, duplicate_mod in
+  Telegraph tests, or the 2026-10-08 rules (double_must_use, large_futures,
+  rust:S7493, rust:S2208, secrets:S6706, needless_pass_by_value).
 ---
 
 # AIForAll — politique Sonar / Clippy
@@ -14,8 +15,10 @@ description: >-
 Skill **services** (pas le SDK). Pour rustycog-framework, voir
 `rustycog/.cursor/skills/rustycog-sonar-parallel/SKILL.md`.
 
-Lots file-disjoint. Mutex = package Cargo × `{src|tests}`. Pas de `cargo`
-workspace Docker pendant que d’autres lots éditent. Check crate-local.
+Lots file-disjoint, claim écrit avant toute édition. Mutex = package Cargo ×
+`{src|tests}`. Un seul `cargo` Windows à la fois, en `-j 1` : `-j 2` et
+`jobs = 12` ont provoqué un OOM LLVM (os error 1455). Pas de cargo pendant
+que d’autres lots éditent. Pas de compilation dans Docker.
 
 ## Mécanique (faire)
 
@@ -56,6 +59,45 @@ Ces familles se traitent, plus de skip « policy / hors lot / casse API » :
 - `Mutex::lock()` : `unwrap_or_else(PoisonError::into_inner)`.
 - `too_many_lines` `create_hive_registry` : extraire `register_*` / `setup_*`, pas d’`allow`.
 - `unwrap` persist Hive infra : `try_into_model` / `model_after_persist` + `ok_or_else` internal_error.
+
+## Campagne 2026-10-08 — règles traitées
+
+`#[allow]` n’est pas un correctif. Lignes Sonar périmées : lire le fichier.
+Un `#[path]` dupliqué se corrige une fois dans la source. Une signature
+changée met à jour tous les appelants avant de rendre le lot.
+
+| Règle | Faire | Ne pas faire |
+|---|---|---|
+| `double_must_use` | Attribut déjà dans le source et l’obligation est d’awaiter : `#[must_use = "await the future"]`. Injecté par `async_trait` 0.1.89 : monter la crate à **0.1.92** (retire le `#[must_use]` nu). La 0.1.91 change la mutabilité des receivers : un cargo vert avant les lots parallèles. | Ajouter un attribut absent du source. |
+| `doc_markdown`, `missing_errors_doc`, `missing_panics_doc` | backticks ; `# Errors` / `# Panics` | réécrire le paragraphe |
+| `explicit_auto_deref`, `needless_borrow`, `needless_borrows_for_generic_args` | le déréférencement ou l’emprunt demandé | |
+| `items_after_statements` | déclarations en tête de fonction | |
+| `must_use_candidate`, `return_self_not_must_use`, `missing_const_for_fn` | `#[must_use]` ou `const fn` si le corps l’est déjà | `const` sur un trait public |
+| `option_if_let_else` | laisser un `match` déjà en place | réécrire ce `match` |
+| `map_unwrap_or`, `redundant_closure`, `redundant_closure_for_method_calls`, `or_fun_call`, `rust:S1612` | appel de méthode ou de fonction | closure inutile |
+| `semicolon_if_nothing_returned`, `ignored_unit_patterns`, `collapsible_if`, `manual_assert`, `needless_raw_string_hashes`, `cloned_ref_to_slice_refs`, `unreadable_literal` | le correctif Clippy local | |
+| `too_many_lines`, `too_many_arguments`, `rust:S107` | helpers privés ; struct de paramètres. `tests/common.rs` reste entier chez un seul agent. | `#[allow]` ; couper ce fichier entre agents |
+| `used_underscore_binding` | `_fixture` → `fixture` quand le champ est lu | renommer un binding vraiment ignoré |
+| `struct_field_names` | renommer le champ **et** tous les appelants | renommer un champ `pub` sans ses appelants |
+| `large_futures` | `Box::pin(...).await` sur la future grosse (`setup_test_server`) | |
+| `significant_drop_tightening` | `drop` dès que le guard ne sert plus | tenir un `MutexGuard` au-delà d’un `.await` |
+| `cast_possible_wrap`, `cast_possible_truncation` | `TryFrom` | `as` |
+| `future_not_send` | extraire ; ne pas tenir un guard au `.await` | `#[allow]` |
+| `rust:S7493` | `spawn_blocking` sur l’I/O bloquante de la clé | l’inventer sur une fn sync sans clé |
+| `unused_async` | `fn` s’il n’y a pas de `.await`, appelants inclus | retirer `async` d’une API que les appelants `.await` encore |
+| `unused_self` | fonction associée s’il n’y a aucun appelant méthode | |
+| `needless_pass_by_value` | `&T` / `&Arc<T>` quand l’appelant peut prêter | une référence qui force des clones (`filter_jwks`, `to_domain` restent par valeur) |
+| `expect_used` | `Result` ou `TryFrom` | remplacer `expect` par `panic!` |
+| `redundant_pub_crate` | `pub` dans un module déjà privé | élargir la visibilité réelle |
+| `rust:S2208` | imports explicites | `use super::*` |
+| `secrets:S6706` | clé de test via `OnceLock` et `test_rs256_*_pem()` ; chaque appelant de `TEST_RS256_*_PEM` suit | constante PEM dans le source |
+| `option_option` | `OptionalField::{Unset,Set}` | `Option<Option<T>>` |
+| `Deref` retiré | garder les méthodes qui n’existaient que via `Deref` (`OwnedContainer::stop`) | supprimer le trait et oublier l’appel |
+
+`match_bool` se réécrit en `if`. `needless_continue`, `assertions_on_constants`,
+`needless_option_as_deref`, `match_same_arms`, `bool_to_int_with_if`,
+`clone_on_copy`, `redundant_clone`, `format_push_string` (`write!`) : correctif
+local, sans changement de signature.
 
 ## Après un lot
 

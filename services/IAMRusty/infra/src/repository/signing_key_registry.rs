@@ -929,7 +929,7 @@ mod admission_tests {
                 rows_affected: 1,
             }))
             .append_query_results([issuer_projection(&rows)])
-            .append_query_results([rows.clone()])
+            .append_query_results([rows.to_vec()])
             .append_query_results([vec![snapshot_projection(&rows, as_of)]])
             .append_query_results([vec![clock]])
             .append_query_results([vec![facts]])
@@ -1381,7 +1381,7 @@ mod admission_tests {
                 ]);
                 4
             ];
-            let db = Arc::new(database(vec![current], history, Utc::now()).into_connection());
+            let db = Arc::new(database(&[current], history, Utc::now()).into_connection());
             let registry = repository(db.clone());
             let actual = registry
                 .replace_active_organization_key(&candidate, Some(&expected.kid))
@@ -1402,7 +1402,7 @@ mod admission_tests {
         let org = Uuid::new_v4();
         let current = row(org, "active");
         let candidate = to_domain(current.clone()).unwrap();
-        let db = Arc::new(database(vec![current], vec![], Utc::now()).into_connection());
+        let db = Arc::new(database(&[current], vec![], Utc::now()).into_connection());
         let registry = repository(db.clone());
         assert!(matches!(
             registry
@@ -1454,7 +1454,7 @@ mod admission_tests {
                 ]);
                 4
             ];
-            let db = Arc::new(database(vec![current], history, as_of).into_connection());
+            let db = Arc::new(database(&[current], history, as_of).into_connection());
             let registry = repository(db.clone());
             assert!(matches!(
                 registry
@@ -1483,7 +1483,7 @@ mod admission_tests {
         let mut candidate = to_domain(row(org, "active")).unwrap();
         candidate.provider_key_ref = "new-ref".into();
         for insert in [false, true] {
-            let db = Arc::new(database(rows.clone(), vec![], Utc::now()).into_connection());
+            let db = Arc::new(database(&rows, vec![], Utc::now()).into_connection());
             let registry = repository(db.clone());
             let error = if insert {
                 candidate.status = SigningKeyStatus::Pending;
@@ -1533,7 +1533,7 @@ mod admission_tests {
         let mut terminal = rows.clone();
         terminal[0] = retired.clone();
         terminal.push(next.clone());
-        let mut mock = database(rows, vec![], as_of)
+        let mut mock = database(&rows, vec![], as_of)
             .append_query_results([vec![retired], vec![next.clone()]])
             .append_query_results([vec![snapshot_projection(&terminal, as_of)]]);
         for _ in 0..2 {
@@ -1687,7 +1687,7 @@ mod admission_tests {
             4
         ];
         let db = Arc::new(
-            database(vec![pending.clone(), active.clone()], history, as_of)
+            database(&[pending.clone(), active.clone()], history, as_of)
                 .append_query_results([
                     vec![retired],
                     vec![promoted.clone()],
@@ -1721,7 +1721,7 @@ mod admission_tests {
             let current = row(org, status);
             let mut candidate = to_domain(current.clone()).unwrap();
             candidate.updated_at += chrono::Duration::days(1);
-            let db = Arc::new(database(vec![current], vec![], Utc::now()).into_connection());
+            let db = Arc::new(database(&[current], vec![], Utc::now()).into_connection());
             let registry = repository(db.clone());
             if status == "revoked" {
                 candidate.status = SigningKeyStatus::Active;
@@ -1750,7 +1750,7 @@ mod admission_tests {
         inserted.created_at = as_of.naive_utc();
         inserted.updated_at = as_of.naive_utc();
         for fail_insert in [false, true] {
-            let database = database(vec![current.clone()], vec![], as_of)
+            let database = database(&[current.clone()], vec![], as_of)
                 .append_query_results([vec![retired.clone()]]);
             let database = if fail_insert {
                 database
@@ -1794,7 +1794,7 @@ mod admission_tests {
         platform.created_at = as_of.naive_utc();
         platform.updated_at = as_of.naive_utc();
         let db = Arc::new(
-            database(vec![], vec![], as_of)
+            database(&[], vec![], as_of)
                 .append_query_results([vec![platform.clone()]])
                 .into_connection(),
         );
@@ -1825,7 +1825,7 @@ mod admission_tests {
                 row
             })
             .collect();
-        let db = Arc::new(database(pending, vec![], as_of).into_connection());
+        let db = Arc::new(database(&pending, vec![], as_of).into_connection());
         let registry = repository(db.clone());
         let candidate = to_domain(platform).unwrap();
         assert!(matches!(

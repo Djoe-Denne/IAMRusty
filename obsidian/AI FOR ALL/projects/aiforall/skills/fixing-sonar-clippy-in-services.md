@@ -13,7 +13,7 @@ provenance:
   inferred: 0.1
   ambiguous: 0.05
 created: 2026-08-31T09:45:00Z
-updated: 2026-08-31T13:30:00Z
+updated: 2026-10-08T16:50:00Z
 ---
 
 # Fixing Sonar / Clippy in AIForAll services
@@ -51,5 +51,16 @@ These families are **in scope** — no more “policy / hors lot / casse API” 
 - `Mutex::lock()`: `unwrap_or_else(PoisonError::into_inner)`.
 - `create_hive_registry` length: extract `register_*` / `setup_*`.
 - Hive persist unwraps: `try_into_model` / `model_after_persist` + `ok_or_else` internal_error.
+
+## Campaign 2026-10-08
+
+`#[allow]` does not close an issue. Full do/don't table: `.agents/skills/aiforall-sonar-policy/SKILL.md` and `.cursor/skills/aiforall-sonar-policy/SKILL.md`. SDK pitfalls: `rustycog/.cursor/skills/rustycog-sonar-parallel/SKILL.md`.
+
+Rules closed in that campaign:
+
+- Clippy: `double_must_use`, `doc_markdown`, `explicit_auto_deref`, `needless_borrow`, `needless_borrows_for_generic_args`, `items_after_statements`, `must_use_candidate`, `return_self_not_must_use`, `missing_const_for_fn`, `missing_errors_doc`, `missing_panics_doc`, `option_if_let_else`, `map_unwrap_or`, `redundant_closure`, `redundant_closure_for_method_calls`, `or_fun_call`, `semicolon_if_nothing_returned`, `ignored_unit_patterns`, `collapsible_if`, `manual_assert`, `needless_raw_string_hashes`, `cloned_ref_to_slice_refs`, `unreadable_literal`, `too_many_lines`, `too_many_arguments`, `used_underscore_binding`, `struct_field_names`, `large_futures`, `significant_drop_tightening`, `cast_possible_wrap`, `cast_possible_truncation`, `future_not_send`, `unused_async`, `unused_self`, `needless_pass_by_value`, `expect_used`, `redundant_pub_crate`, `option_option`, `match_bool`, `needless_continue`, `assertions_on_constants`, `needless_option_as_deref`, `match_same_arms`, `bool_to_int_with_if`, `clone_on_copy`, `redundant_clone`, `format_push_string`.
+- Sonar: `rust:S1612`, `rust:S107`, `rust:S2208`, `rust:S7493`, `secrets:S6706`.
+
+Sharp traps: `async_trait` 0.1.89 injects `#[must_use]` — bump to 0.1.92, do not add the attribute. `large_futures` → `Box::pin`. `rust:S7493` → `spawn_blocking` only where the key exists. `needless_pass_by_value` stays by value when a reference would clone (`filter_jwks`, `to_domain`). `expect` → `panic!` does not fix `expect_used`. `secrets:S6706` → `test_rs256_*_pem()` plus every caller. Dropping `Deref` must keep `OwnedContainer::stop`. One Windows `cargo`, `-j 1`.
 
 Parallel execution: [[projects/aiforall/skills/running-parallel-sonar-lanes]].
