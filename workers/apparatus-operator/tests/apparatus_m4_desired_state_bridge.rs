@@ -1,8 +1,8 @@
-//! M4 — pont desired_state Manifesto → M3 (`WorkloadReconciler`).
+//! M4 — pont `desired_state` Manifesto → M3 (`WorkloadReconciler`).
 //!
 //! Observer HTTP hors `services/Manifesto/*/src` : GET list des 5 routes `/components`.
 //! Ready = `status == "active"` et digest `sha256:` + 64 hex. Stub local, pas
-//! rustycog-testing. Isolation = `project_id` + `component_id` (ADR-0001).
+//! `rustycog-testing`. Isolation = `project_id` + `component_id` (ADR-0001).
 
 use std::fs;
 use std::path::{Path, PathBuf};

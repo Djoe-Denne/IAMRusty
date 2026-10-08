@@ -81,7 +81,7 @@ async fn refresh_token_exists(
 #[serial]
 async fn test_refresh_token_success_with_valid_refresh_token() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -192,7 +192,7 @@ async fn test_refresh_token_success_with_valid_refresh_token() {
 #[serial]
 async fn test_refresh_token_returns_401_for_invalid_refresh_token() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let _db = fixture.db();
@@ -232,7 +232,7 @@ async fn test_refresh_token_returns_401_for_invalid_refresh_token() {
 #[serial]
 async fn test_refresh_token_returns_401_for_expired_refresh_token() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -288,7 +288,7 @@ async fn test_refresh_token_returns_401_for_expired_refresh_token() {
 #[serial]
 async fn test_refresh_token_returns_401_for_revoked_refresh_token() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -349,7 +349,7 @@ async fn test_refresh_token_returns_401_for_revoked_refresh_token() {
 #[serial]
 async fn test_refresh_token_returns_400_for_missing_refresh_token() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let _db = fixture.db();
@@ -398,7 +398,7 @@ async fn test_refresh_token_returns_400_for_missing_refresh_token() {
 #[serial]
 async fn test_refresh_token_returns_422_for_empty_refresh_token() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let _db = fixture.db();
@@ -434,7 +434,7 @@ async fn test_refresh_token_returns_422_for_empty_refresh_token() {
 #[serial]
 async fn test_refresh_token_returns_400_for_malformed_json() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let _db = fixture.db();
@@ -459,7 +459,7 @@ async fn test_refresh_token_returns_400_for_malformed_json() {
 #[serial]
 async fn test_refresh_token_returns_400_for_wrong_content_type() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let _db = fixture.db();
@@ -484,7 +484,7 @@ async fn test_refresh_token_returns_400_for_wrong_content_type() {
 #[serial]
 async fn test_refresh_token_invalidates_expired_token_automatically() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -548,7 +548,7 @@ async fn test_refresh_token_invalidates_expired_token_automatically() {
 #[serial]
 async fn test_refresh_token_replay_attack_protection() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -613,7 +613,7 @@ async fn test_refresh_token_replay_attack_protection() {
 #[serial]
 async fn test_refresh_token_concurrent_requests_with_same_token() {
     // Setup test environment
-    let (fixture, base_url, _client) = setup_test_server()
+    let (fixture, base_url, _client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -724,7 +724,7 @@ async fn test_refresh_token_concurrent_requests_with_same_token() {
 #[serial]
 async fn test_refresh_token_generates_unique_access_tokens() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -811,7 +811,7 @@ async fn test_refresh_token_generates_unique_access_tokens() {
 #[serial]
 async fn test_refresh_token_performance_under_load() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -880,7 +880,7 @@ async fn test_refresh_token_performance_under_load() {
 #[serial]
 async fn test_refresh_token_rotation_invalidates_old_token() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -951,7 +951,7 @@ async fn test_refresh_token_rotation_invalidates_old_token() {
 #[serial]
 async fn test_refresh_token_expiration_times_match_configuration() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -1003,7 +1003,7 @@ async fn test_refresh_token_expiration_times_match_configuration() {
 #[serial]
 async fn test_refresh_token_response_format_matches_openapi_spec() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -1093,7 +1093,7 @@ async fn test_refresh_token_response_format_matches_openapi_spec() {
 #[serial]
 async fn test_refresh_token_database_cleanup_on_rotation() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -1172,7 +1172,7 @@ async fn test_refresh_token_database_cleanup_on_rotation() {
 #[serial]
 async fn test_refresh_token_multiple_rotations_in_sequence() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -1264,7 +1264,7 @@ async fn test_refresh_token_multiple_rotations_in_sequence() {
 #[serial]
 async fn test_jwks_returns_200_and_valid_json_structure() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -1306,7 +1306,7 @@ async fn test_jwks_returns_200_and_valid_json_structure() {
 #[serial]
 async fn test_jwks_endpoint_requires_no_authentication() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -1336,7 +1336,7 @@ async fn test_jwks_endpoint_requires_no_authentication() {
 #[serial]
 async fn test_jwks_endpoint_with_different_http_methods() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -1374,7 +1374,7 @@ async fn test_jwks_endpoint_with_different_http_methods() {
 #[serial]
 async fn test_jwt_token_validation_using_jwks_endpoint() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();

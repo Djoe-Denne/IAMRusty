@@ -123,22 +123,23 @@ async fn bring_up_sqs_test_server(
 
 async fn setup_sqs_test_server() -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>>
 {
-    enable_sqs_for_this_test_binary();
-
     const MAX_ATTEMPTS: u32 = 8;
+    enable_sqs_for_this_test_binary();
     for attempt in 1..=MAX_ATTEMPTS {
         match bring_up_sqs_test_server().await {
             Ok(ok) => return Ok(ok),
             Err(err) => {
-                if !is_transient_sqs_setup(&err.to_string()) {
+                let message = err.to_string();
+                if !is_transient_sqs_setup(&message) {
                     return Err(err);
                 }
                 eprintln!(
-                    "transient Manifesto SQS setup failure (attempt {attempt}/{MAX_ATTEMPTS}): {err}"
+                    "transient Manifesto SQS setup failure (attempt {attempt}/{MAX_ATTEMPTS}): {message}"
                 );
                 if attempt == MAX_ATTEMPTS {
                     return Err(err);
                 }
+                drop(err);
                 tokio::time::sleep(std::time::Duration::from_millis(250 * u64::from(attempt)))
                     .await;
             }
@@ -160,6 +161,11 @@ fn is_transient_sqs_setup_classifies_localstack_dispatch_failure() {
         "timed out",
         "error sending request",
     ];
+    const PERMANENT: &[&str] = &[
+        "OpenFGA authorization model is missing",
+        "migration failed: checksum mismatch",
+        "request_timeout_ms configuration invalid",
+    ];
     for message in ISOLATED_TRANSIENT {
         assert!(
             is_transient_sqs_setup(message),
@@ -170,12 +176,6 @@ fn is_transient_sqs_setup_classifies_localstack_dispatch_failure() {
     assert!(is_transient_sqs_setup(
         r#"Custom("Failed to create test SQS: dispatch failure")"#,
     ));
-
-    const PERMANENT: &[&str] = &[
-        "OpenFGA authorization model is missing",
-        "migration failed: checksum mismatch",
-        "request_timeout_ms configuration invalid",
-    ];
     for message in PERMANENT {
         assert!(
             !is_transient_sqs_setup(message),

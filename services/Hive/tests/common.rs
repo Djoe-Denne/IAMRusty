@@ -186,7 +186,127 @@ impl Drop for AbortHiveWorkers {
     }
 }
 
-/// Real fixture storage/OpenFGA and root; only the supplied IAM outbound config is overridden.
+async fn reclaim_finished_owned_listeners() {
+    let finished = {
+        let mut leases = owned_listeners()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let (finished, live): (Vec<_>, Vec<_>) =
+            leases.drain(..).partition(|lease| lease.task.is_finished());
+        *leases = live;
+        finished
+    };
+    for lease in finished {
+        let _ = lease.task.await;
+    }
+}
+
+fn apply_fixture_database_url(
+    config: &mut AppConfig,
+    database_url: &str,
+) -> Result<(), anyhow::Error> {
+    let db_url = reqwest::Url::parse(database_url)?;
+    config.database.host = db_url
+        .host_str()
+        .ok_or_else(|| anyhow!("missing fixture DB host"))?
+        .to_owned();
+    config.database.port = db_url
+        .port()
+        .ok_or_else(|| anyhow!("missing fixture DB port"))?;
+    config.database.db = db_url.path().trim_start_matches('/').to_owned();
+    config.database.creds.username = db_url.username().to_owned();
+    config.database.creds.password = db_url
+        .password()
+        .ok_or_else(|| anyhow!("missing fixture DB credential"))?
+        .to_owned();
+    config.database.read_replicas.clear();
+    Ok(())
+}
+
+async fn run_owned_hive_server(
+    listener: tokio::net::TcpListener,
+    router: axum::Router,
+    server_app: Arc<hive_setup::app::Application>,
+    mut stop: tokio::sync::watch::Receiver<bool>,
+    signal: tokio::sync::watch::Sender<bool>,
+) -> anyhow::Result<()> {
+    let mut workers = server_app.start_background_tasks();
+    let _abort = AbortHiveWorkers(
+        workers
+            .iter()
+            .map(tokio::task::JoinHandle::abort_handle)
+            .collect(),
+    );
+    let server = axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(async move {
+        let stopped = *stop.borrow();
+        if !stopped {
+            let _ = stop.changed().await;
+        }
+    });
+    let server = std::future::IntoFuture::into_future(server);
+    tokio::pin!(server);
+    let (mut result, server_finished) = tokio::select! {
+        result = &mut server => (result.map_err(anyhow::Error::from), true),
+        result = observe_hive_workers(&mut workers) => (result, false),
+    };
+    signal.send_replace(true);
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+    let stopped = tokio::time::timeout_at(deadline, server_app.outbox_dispatcher.stop()).await;
+    let stop_result = match stopped {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(_)) => Err(anyhow!("Hive owned dispatcher stop failed")),
+        Err(_) => Err(anyhow!("Hive owned dispatcher stop timed out")),
+    };
+    if result.is_ok() {
+        result = stop_result;
+    }
+    while !workers.is_empty() {
+        if let Ok((joined, index, rest)) =
+            tokio::time::timeout_at(deadline, futures::future::select_all(workers.iter_mut())).await
+        {
+            drop(rest);
+            drop(workers.swap_remove(index));
+            let joined = joined
+                .map_err(|_| anyhow!("Hive owned worker join failed"))
+                .and_then(|worker_result| worker_result);
+            if result.is_ok() {
+                result = joined;
+            }
+        } else {
+            for worker in &workers {
+                worker.abort();
+            }
+            let remaining = std::mem::take(&mut workers);
+            for worker in remaining {
+                let _ = worker.await;
+            }
+            if result.is_ok() {
+                result = Err(anyhow!("Hive owned worker drain timed out"));
+            }
+        }
+    }
+    if !server_finished {
+        let drained = tokio::time::timeout(std::time::Duration::from_secs(5), &mut server).await;
+        let drained = drained.map_or_else(
+            |_| Err(anyhow!("Hive owned HTTP drain timed out")),
+            |serve_result| serve_result.map_err(anyhow::Error::from),
+        );
+        if result.is_ok() {
+            result = drained;
+        }
+    }
+    result
+}
+
+/// Real fixture storage/`OpenFGA` and root; only the supplied IAM outbound config is overridden.
+///
+/// # Errors
+///
+/// Returns an error if another owned listener is still live, or if the fixture, IAM-backed app, or HTTP server cannot start.
 pub async fn setup_test_server_with_iam_service(
     iam: hive_configuration::IamServiceConfig,
 ) -> Result<
@@ -200,18 +320,7 @@ pub async fn setup_test_server_with_iam_service(
     Box<dyn std::error::Error>,
 > {
     // Never reset migrations underneath another live owned listener.
-    let finished = {
-        let mut leases = owned_listeners()
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let (finished, live): (Vec<_>, Vec<_>) =
-            leases.drain(..).partition(|lease| lease.task.is_finished());
-        *leases = live;
-        finished
-    };
-    for lease in finished {
-        let _ = lease.task.await;
-    }
+    reclaim_finished_owned_listeners().await;
     if !owned_listeners()
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -230,22 +339,8 @@ pub async fn setup_test_server_with_iam_service(
         .as_ref()
         .ok_or_else(|| anyhow!("Hive fixture requires writer DB"))?;
     let db = database.get_connection();
-    let db_url = reqwest::Url::parse(&database.database_url)?;
     let mut config = rustycog::config::load_config_fresh::<AppConfig>()?;
-    config.database.host = db_url
-        .host_str()
-        .ok_or_else(|| anyhow!("missing fixture DB host"))?
-        .to_owned();
-    config.database.port = db_url
-        .port()
-        .ok_or_else(|| anyhow!("missing fixture DB port"))?;
-    config.database.db = db_url.path().trim_start_matches('/').to_owned();
-    config.database.creds.username = db_url.username().to_owned();
-    config.database.creds.password = db_url
-        .password()
-        .ok_or_else(|| anyhow!("missing fixture DB credential"))?
-        .to_owned();
-    config.database.read_replicas.clear();
+    apply_fixture_database_url(&mut config, &database.database_url)?;
     config.iam_service = iam;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
@@ -258,83 +353,11 @@ pub async fn setup_test_server_with_iam_service(
     let app = Arc::new(AppBuilder::new(config).build().await?);
     let effective_auth = app.config.auth.clone();
     let router = axum::Router::new().nest(SERVICE_PREFIX, app.router());
-    let (shutdown, mut stop) = tokio::sync::watch::channel(false);
+    let (shutdown, stop) = tokio::sync::watch::channel(false);
     let server_app = app.clone();
     let signal = shutdown.clone();
     let task = tokio::spawn(async move {
-        let mut workers = server_app.start_background_tasks();
-        let _abort = AbortHiveWorkers(
-            workers
-                .iter()
-                .map(tokio::task::JoinHandle::abort_handle)
-                .collect(),
-        );
-        let server = axum::serve(
-            listener,
-            router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
-        )
-        .with_graceful_shutdown(async move {
-            let stopped = *stop.borrow();
-            if !stopped {
-                let _ = stop.changed().await;
-            }
-        });
-        let server = std::future::IntoFuture::into_future(server);
-        tokio::pin!(server);
-        let (mut result, server_finished) = tokio::select! {
-            result = &mut server => (result.map_err(anyhow::Error::from), true),
-            result = observe_hive_workers(&mut workers) => (result, false),
-        };
-        signal.send_replace(true);
-        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
-        let stopped = tokio::time::timeout_at(deadline, server_app.outbox_dispatcher.stop()).await;
-        let stop_result = match stopped {
-            Ok(Ok(())) => Ok(()),
-            Ok(Err(_)) => Err(anyhow!("Hive owned dispatcher stop failed")),
-            Err(_) => Err(anyhow!("Hive owned dispatcher stop timed out")),
-        };
-        if result.is_ok() {
-            result = stop_result;
-        }
-        while !workers.is_empty() {
-            match tokio::time::timeout_at(deadline, futures::future::select_all(workers.iter_mut()))
-                .await
-            {
-                Ok((joined, index, rest)) => {
-                    drop(rest);
-                    drop(workers.swap_remove(index));
-                    let joined = joined
-                        .map_err(|_| anyhow!("Hive owned worker join failed"))
-                        .and_then(|result| result);
-                    if result.is_ok() {
-                        result = joined;
-                    }
-                }
-                Err(_) => {
-                    for worker in &workers {
-                        worker.abort();
-                    }
-                    for worker in workers.drain(..) {
-                        let _ = worker.await;
-                    }
-                    if result.is_ok() {
-                        result = Err(anyhow!("Hive owned worker drain timed out"));
-                    }
-                }
-            }
-        }
-        if !server_finished {
-            let drained =
-                tokio::time::timeout(std::time::Duration::from_secs(5), &mut server).await;
-            let drained = match drained {
-                Ok(result) => result.map_err(anyhow::Error::from),
-                Err(_) => Err(anyhow!("Hive owned HTTP drain timed out")),
-            };
-            if result.is_ok() {
-                result = drained;
-            }
-        }
-        result
+        run_owned_hive_server(listener, router, server_app, stop, signal).await
     });
     owned_listeners()
         .lock()
@@ -379,6 +402,10 @@ async fn observe_hive_workers(
 }
 
 /// Stop/join this fixture's exact app/listener handles only; never shared containers.
+///
+/// # Errors
+///
+/// Returns an error if the fixture has no writer DB, or if an owned listener fails to stop.
 pub async fn cleanup_test_servers(fixture: &HiveTestFixture) -> anyhow::Result<()> {
     let db = fixture
         .fixture

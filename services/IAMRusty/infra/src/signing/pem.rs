@@ -1,4 +1,4 @@
-//! Provisioned local PEM SigningProvider for explicitly allowed dev/test only.
+//! Provisioned local `PEM` `SigningProvider` for explicitly allowed dev/test only.
 
 use async_trait::async_trait;
 use iam_domain::error::DomainError;
@@ -21,8 +21,8 @@ impl PemSigningProvider {
     /// # Errors
     ///
     /// Returns [`DomainError`] if either PEM is invalid or their normalized n/e
-    /// do not match. The composition root must first allow LocalInsecure or
-    /// IsolatedTest; this provider has Sign/GetPublicKey, no Create/Rotate ability.
+    /// do not match. The composition root must first allow `LocalInsecure` or
+    /// `IsolatedTest`; this provider has `Sign`/`GetPublicKey`, no Create/Rotate ability.
     pub fn new(
         private_key_pem: &str,
         public_key_pem: impl Into<String>,

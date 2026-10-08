@@ -29,15 +29,14 @@ fn browser_cookie(response: &reqwest::Response) -> &str {
 
 fn decode_jwt_header(jwt: &str) -> Result<Value, Box<dyn std::error::Error>> {
     let header_encoded = jwt.split('.').next().ok_or("Invalid JWT format")?;
-    let decoded_bytes = match general_purpose::URL_SAFE_NO_PAD.decode(header_encoded) {
-        Ok(bytes) => bytes,
-        Err(_) => {
-            let padded = match header_encoded.len() % 4 {
-                0 => header_encoded.to_string(),
-                n => format!("{}{}", header_encoded, "=".repeat(4 - n)),
-            };
-            general_purpose::URL_SAFE.decode(padded)?
-        }
+    let decoded_bytes = if let Ok(bytes) = general_purpose::URL_SAFE_NO_PAD.decode(header_encoded) {
+        bytes
+    } else {
+        let padded = match header_encoded.len() % 4 {
+            0 => header_encoded.to_string(),
+            n => format!("{}{}", header_encoded, "=".repeat(4 - n)),
+        };
+        general_purpose::URL_SAFE.decode(padded)?
     };
     let header_str = String::from_utf8(decoded_bytes)?;
     Ok(serde_json::from_str(&header_str)?)
@@ -85,7 +84,7 @@ fn parse_redirect_url(
 #[serial]
 async fn test_new_user_signup_returns_201_with_registration_token() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -143,7 +142,7 @@ async fn test_new_user_signup_returns_201_with_registration_token() {
 #[serial]
 async fn test_registration_token_is_valid_rsa_signed_jwt() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -190,7 +189,7 @@ async fn test_registration_token_is_valid_rsa_signed_jwt() {
 #[serial]
 async fn test_no_user_signed_up_event_triggered_at_signup() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -223,7 +222,7 @@ async fn test_no_user_signed_up_event_triggered_at_signup() {
 #[serial]
 async fn test_user_record_created_with_null_username_pending_status() {
     // Setup
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -276,7 +275,7 @@ async fn test_user_record_created_with_null_username_pending_status() {
 #[serial]
 async fn test_existing_user_signup_is_rejected() {
     // Setup
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -320,7 +319,7 @@ async fn test_existing_user_signup_is_rejected() {
 #[serial]
 async fn test_password_auth_method_added_to_existing_user() {
     // Setup
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -367,7 +366,7 @@ async fn test_password_auth_method_added_to_existing_user() {
 #[serial]
 async fn test_login_completed_user_returns_200_with_tokens() {
     // Setup
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -449,9 +448,7 @@ async fn test_login_completed_user_returns_200_with_tokens() {
     let header = decode_jwt_header(access_token).expect("jwt header");
     assert_eq!(header["alg"], "RS256");
     assert_eq!(header["typ"], "aiforall-access+jwt");
-    let (codec, _) = common::fixture_jwt_codec(&fixture)
-        .await
-        .expect("live shared signer");
+    let (codec, _) = common::fixture_jwt_codec(&fixture).expect("live shared signer");
     assert_eq!(
         header["kid"],
         codec.signing_kid().expect("registered RSA kid")
@@ -462,7 +459,7 @@ async fn test_login_completed_user_returns_200_with_tokens() {
 #[serial]
 async fn test_login_incomplete_user_returns_423_with_registration_token() {
     // Setup
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -532,7 +529,7 @@ async fn test_login_incomplete_user_returns_423_with_registration_token() {
 #[serial]
 async fn test_login_invalid_credentials_returns_401() {
     // Setup
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -585,7 +582,7 @@ async fn test_login_invalid_credentials_returns_401() {
 #[serial]
 async fn test_login_nonexistent_email_returns_401() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -619,7 +616,7 @@ async fn test_login_nonexistent_email_returns_401() {
 #[serial]
 async fn test_oauth_callback_new_user_returns_202_with_registration_token() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -686,7 +683,7 @@ async fn test_oauth_callback_new_user_returns_202_with_registration_token() {
 #[serial]
 async fn test_registration_token_contains_oauth_provider_info() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -778,7 +775,7 @@ async fn test_registration_token_contains_oauth_provider_info() {
 #[serial]
 async fn test_complete_registration_valid_token_available_username_returns_200() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -857,7 +854,7 @@ async fn test_complete_registration_valid_token_available_username_returns_200()
 #[serial]
 async fn test_complete_registration_triggers_user_signed_up_event() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -908,7 +905,7 @@ async fn test_complete_registration_triggers_user_signed_up_event() {
 #[serial]
 async fn test_complete_registration_invalidates_token_after_use() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -985,7 +982,7 @@ async fn test_complete_registration_invalidates_token_after_use() {
 #[serial]
 async fn test_complete_registration_taken_username_returns_409() {
     // Setup
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -1045,7 +1042,7 @@ async fn test_complete_registration_taken_username_returns_409() {
 #[serial]
 async fn test_complete_registration_invalid_username_format_returns_422() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -1113,7 +1110,7 @@ async fn test_complete_registration_invalid_username_format_returns_422() {
 #[serial]
 async fn test_username_check_available_username_returns_true() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -1138,7 +1135,7 @@ async fn test_username_check_available_username_returns_true() {
 #[serial]
 async fn test_username_check_taken_username_returns_false_with_suggestions() {
     // Setup
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -1193,7 +1190,7 @@ async fn test_username_check_taken_username_returns_false_with_suggestions() {
 #[serial]
 async fn test_username_validation_rules() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -1261,7 +1258,7 @@ async fn test_username_validation_rules() {
 #[serial]
 async fn test_complete_email_first_flow() {
     // Setup
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -1416,7 +1413,7 @@ async fn test_complete_email_first_flow() {
 #[serial]
 async fn test_complete_oauth_first_flow() {
     // Setup
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 

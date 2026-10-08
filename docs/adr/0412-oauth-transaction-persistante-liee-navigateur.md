@@ -9,7 +9,7 @@
 - SuperSédée par : —
 - Related : [0409](0409-confiance-callback-oauth-idp-connect.md), [0411](0411-idp-provider-slug-registry-fail-closed.md), [0305](0305-account-identity-trust-domain.md)
 
-`Accepted` ratifie la cible ci-dessous. `Réalité : Partial` au 2026-10-04 : transaction writer PostgreSQL, cookie/browser binding, consommation atomique, PKCE, cleanup et contexte partagé sont écrits dans les sources A/B/root. Aucun résultat de compilation root complète, d’IT ou d’E2E de cet ensemble n’est encore fourni. Elle complète 0409 §3 : IAM conserve callback/linking/state ; l’amendement relink ci-dessous lève uniquement l’ancienne obligation Bearer au callback transactionnel ratifié.
+`Accepted` ratifie la cible ci-dessous. `Réalité : Partial` au 2026-10-04 : transaction writer PostgreSQL, cookie/browser binding, consommation atomique, PKCE, cleanup et contexte partagé sont écrits dans les sources A/B/root. À cet état historique, aucun résultat de compilation root complète, d’IT ou d’E2E de cet ensemble n’était fourni. Actualisation du 2026-10-08 ci-dessous : units + IT IAM vertes attestées par l’utilisateur ; E2E exact-route/Envoy finale toujours restante. Elle complète 0409 §3 : IAM conserve callback/linking/state ; l’amendement relink ci-dessous lève uniquement l’ancienne obligation Bearer au callback transactionnel ratifié.
 
 ## Contexte
 
@@ -50,13 +50,14 @@ La baseline historique d'audit est `f060d47` / rustycog `ba69c9e`. Au début de 
 - Chiffrement field-level des provider tokens (0409), SSO global, session cookie d'authentification.
 - Cloud/GKE/Flux, production HA ou modalités Apparatus 0009–0011.
 
-## État source et critères de fermeture — 2026-10-04
+## État source et critères de fermeture — actualisation 2026-10-08
 
 - `services/IAMRusty/http/src/{oauth_browser,security_context,public_routes}.rs` : cookie noncehash, transaction/state obligatoires et projection du contexte Axum. `IamHttpSecurityContext` agrège issuer plateforme, limiter instance-local et contexte OAuth ; aucune injection dans `AppState.extensions` ni DI SDK.
 - `services/IAMRusty/infra/src/repository/oauth_transaction_write.rs` et migration IAM : create/consume writer, purge bornée des expirées (consommées ou non), `SKIP LOCKED`. Cleanup application : défaut 60 s / 100, cap 1000, stop watch instance-local ; pas de garantie TTL+60 sous panne/backlog.
-- `services/IAMRusty/setup/src/app.rs` : validation navigateur/issuer/limiter pré-DB, contexte OAuth post-DB avec `usecases.oauth.clone()`, writer partagé avec cleanup ; `runtime/monolith/src/` compose les mêmes outputs, préfixe `/iam` une fois et supervise les handles. Source écrite, intégration/exécution finale non prouvée.
-- À valider dans les suites IAM existantes `oauth_browser_transactions`, `oauth_cleanup_lifecycle`, `auth_transactions_postgres` : replay inter-replicas, cookie absent/faux, state/provider/intention/cible/redirect/expiry, consommation avant échange, PKCE/failure, purge avec backlog/concurrence et arrêt supervisé. E2E exact-route/Envoy ensuite ; OAuth vendor désactivé dans le profil par défaut ne constitue pas cette preuve.
-- Root HEAD `5348a63` non committé. Tests/fixtures écrits et revue CORE PASS statique ne sont pas des tests exécutés. SDK22 PASS ne valide pas IAM.
+- `services/IAMRusty/setup/src/app.rs` : validation navigateur/issuer/limiter pré-DB, contexte OAuth post-DB avec `usecases.oauth.clone()`, writer partagé avec cleanup ; `runtime/monolith/src/` compose les mêmes outputs, préfixe `/iam` une fois et supervise les handles. Source écrite à l’état du 2026-10-04 ; units + IT couvertes par l’attestation utilisateur du 2026-10-08 ci-dessous, E2E finale non prouvée.
+- Risques couverts par les suites IAM existantes `oauth_browser_transactions`, `oauth_cleanup_lifecycle`, `auth_transactions_postgres` : replay inter-replicas, cookie absent/faux, state/provider/intention/cible/redirect/expiry, consommation avant échange, PKCE/failure, purge avec backlog/concurrence et arrêt supervisé. **E2E exact-route/Envoy finale explicitement restante** ; OAuth vendor désactivé dans le profil par défaut ne constitue pas cette preuve.
+- État historique du 2026-10-04 : root HEAD `5348a63` non committé ; tests/fixtures écrits et revue CORE PASS statique n’étaient pas des tests exécutés. SDK22 PASS ne valide pas IAM.
+- **2026-10-08 : suites IAM unitaires + IT vertes sur master**, exécutées et confirmées par Djoé Denne. Il s’agit d’une **attestation utilisateur**, pas d’un artefact CI archivé ni d’un run réalisé par cet agent. Cette confirmation couvre units + IT seulement, **pas l’E2E exact-route/Envoy**. Statut **Accepted** et Réalité **Partial** inchangés jusqu’à cette preuve E2E finale.
 
 ## Références
 
@@ -65,7 +66,7 @@ La baseline historique d'audit est `f060d47` / rustycog `ba69c9e`. Au début de 
 - Contrats existants : `crates/idp-connect-contract/src/{client,dto}.rs`.
 - Contrat d'implémentation : `.cursor/review-briefings/20261003-auth-fixes-interface-contract.md`.
 - Ratification : message utilisateur du 2026-10-03 validant transaction persistante, cookie noncehash, liaison obligatoire, consommation inter-replicas et PKCE supporté.
-- Preuve SOURCE : fichiers et suites ci-dessus, contrat interface §§8–13 et handoffs A/B/root du 2026-10-04. Preuves intégrées d’exécution : **non fournies**. Ne pas promouvoir Implemented avant compilation/units IAM, IT puis E2E finales.
+- Preuve SOURCE : fichiers et suites ci-dessus, contrat interface §§8–13 et handoffs A/B/root du 2026-10-04. Preuve d’exécution actualisée le 2026-10-08 : units + IT IAM vertes confirmées par l’utilisateur, sans artefact CI archivé. **E2E exact-route/Envoy finale non fournie** ; ne pas promouvoir Implemented avant cette preuve restante.
 
 ## Mise à jour 2026-10-04 — migrations aplaties
 

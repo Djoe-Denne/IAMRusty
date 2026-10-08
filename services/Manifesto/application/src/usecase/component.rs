@@ -164,7 +164,7 @@ impl ComponentUseCaseImpl {
         }
     }
 
-    /// Persist component writes through the project AuthZ unit of work.
+    /// Persist component writes through the project `AuthZ` unit of work.
     #[must_use]
     pub fn with_authorization_uow(
         mut self,
@@ -250,8 +250,8 @@ pub fn attach_from_catalog(
     })
 }
 
-/// Attach managed (`digest` ou `io.aiforall.reference-kv`) exige le UoW
-/// qui appelle `insert_managed_binding`. Sans UoW : fail-closed, pas de persist.
+/// Attach managed (`digest` ou `io.aiforall.reference-kv`) exige le `UoW`
+/// qui appelle `insert_managed_binding`. Sans `UoW` : fail-closed, pas de persist.
 fn require_uow_for_managed_attach(
     has_uow: bool,
     attach: &ManagedBindingAttach,

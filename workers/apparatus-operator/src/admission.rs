@@ -117,6 +117,8 @@ pub enum AdmitRefuse {
     UnexpectedSignature,
     /// `policy_id` vide ou distinct de [`POLICY_ID`].
     MissingRuntimePolicy,
+    /// Échec d'écriture JSON du store persistant (mémoire déjà restaurée).
+    PersistFailed,
 }
 
 impl AdmitRefuse {
@@ -134,6 +136,7 @@ impl fmt::Display for AdmitRefuse {
             Self::ManifestNonconformant => f.write_str("manifest nonconformant"),
             Self::UnexpectedSignature => f.write_str("unexpected signature"),
             Self::MissingRuntimePolicy => f.write_str("missing runtime policy"),
+            Self::PersistFailed => f.write_str("admission persist failed"),
         }
     }
 }
@@ -193,6 +196,7 @@ pub trait AdmissionStore {
     /// - [`AdmitRefuse::MissingRuntimePolicy`] si `policy_id` est vide ou ≠ [`POLICY_ID`]
     /// - [`AdmitRefuse::ManifestNonconformant`] si `conformance_passed` est `false`
     /// - [`AdmitRefuse::UnexpectedSignature`] si `signature_verified` est `false`
+    /// - [`AdmitRefuse::PersistFailed`] si le store persistant ne peut pas écrire (mémoire restaurée)
     ///
     /// Aucune ligne n'est écrite en cas de refus. `claimed_verified` est ignoré.
     fn admit(&mut self, input: AdmitInput) -> Result<AdmissionRecord, AdmitRefuse>;
@@ -442,7 +446,7 @@ impl AdmissionStore for PersistentAdmissionStore {
         let record = evaluate_admit(input)?;
         let digest = record.descriptor_digest.clone();
         let previous = self.records.insert(digest.clone(), record.clone());
-        if let Err(err) = self.persist() {
+        if self.persist().is_err() {
             match previous {
                 Some(old) => {
                     self.records.insert(digest, old);
@@ -451,10 +455,7 @@ impl AdmissionStore for PersistentAdmissionStore {
                     self.records.remove(&digest);
                 }
             }
-            panic!(
-                "PersistentAdmissionStore: écriture JSON {} échouée: {err}",
-                self.path.display()
-            );
+            return Err(AdmitRefuse::PersistFailed);
         }
         Ok(record)
     }

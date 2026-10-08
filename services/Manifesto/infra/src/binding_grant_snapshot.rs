@@ -43,7 +43,7 @@ const UPSERT_CONSENT: &str = "INSERT INTO apparatus_capability_consents \
      ON CONFLICT (component_id, capability) DO UPDATE \
      SET status = EXCLUDED.status, grant_revision = EXCLUDED.grant_revision";
 
-/// SeaORM reader for binding grant snapshots.
+/// `SeaORM` reader for binding grant snapshots.
 pub struct SqlBindingGrantSnapshotReader {
     db: Arc<DatabaseConnection>,
 }
@@ -68,7 +68,7 @@ impl BindingGrantSnapshotReader for SqlBindingGrantSnapshotReader {
     }
 }
 
-/// SeaORM writer: upsert consent + bump `grant_revision` in one transaction.
+/// `SeaORM` writer: upsert consent + bump `grant_revision` in one transaction.
 pub struct SqlBindingConsentWriter {
     db: Arc<DatabaseConnection>,
 }

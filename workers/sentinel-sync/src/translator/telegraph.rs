@@ -13,6 +13,7 @@ use crate::fga_client::Tuple;
 pub struct TelegraphTranslator;
 
 impl TelegraphTranslator {
+    #[must_use]
     pub const fn new() -> Self {
         Self
     }

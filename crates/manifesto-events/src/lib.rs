@@ -70,7 +70,7 @@ pub enum ManifestoDomainEvent {
 }
 
 impl ManifestoDomainEvent {
-    fn base(&self) -> &rustycog::events::BaseEvent {
+    const fn base(&self) -> &rustycog::events::BaseEvent {
         match self {
             Self::ProjectCreated(event) => &event.base,
             Self::ProjectUpdated(event) => &event.base,

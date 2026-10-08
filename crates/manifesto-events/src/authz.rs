@@ -1,4 +1,4 @@
-//! Shared AuthZ resource parsing for Manifesto events and sentinel-sync.
+//! Shared `AuthZ` resource parsing for `Manifesto` events and `sentinel-sync`.
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -91,11 +91,10 @@ pub fn fga_relation(object_type: &str, permission: &str) -> Option<&'static str>
         ("project", "owner") => Some("owner"),
         ("project", "admin") => Some("admin"),
         ("project", "write") => Some("member"),
-        ("project", "read") => Some("viewer"),
+        ("project", "read") | ("component", "read") => Some("viewer"),
         ("project", "component_viewer") => Some("component_viewer"),
         ("project", "component_editor") => Some("component_editor"),
         ("component", "write" | "admin") => Some("editor"),
-        ("component", "read") => Some("viewer"),
         _ => None,
     }
 }

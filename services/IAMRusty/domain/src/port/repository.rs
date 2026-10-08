@@ -551,7 +551,7 @@ pub trait IdentityRepository: Send + Sync {
         subject: &str,
     ) -> Result<Option<crate::entity::identity::Identity>, Self::Error>;
 
-    /// List identities for a HumanAccount (`users.id`).
+    /// List identities for a `HumanAccount` (`users.id`).
     async fn find_by_user_id(
         &self,
         user_id: Uuid,

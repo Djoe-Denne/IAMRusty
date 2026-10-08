@@ -13,6 +13,7 @@ use super::{Translator, TupleDelta};
 pub struct IamTranslator;
 
 impl IamTranslator {
+    #[must_use]
     pub const fn new() -> Self {
         Self
     }

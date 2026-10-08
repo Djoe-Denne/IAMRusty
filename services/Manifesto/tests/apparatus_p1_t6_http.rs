@@ -3,14 +3,16 @@
 //! Serveur live + `ComponentServiceMockService` (catalogue wiremock déjà arrangé
 //! par `setup_test_server` : pas de `reset()`, pas de ré-arrange).
 //! Harness unique (5-tuple). `#[serial]` partout en live.
-//! Contrat sérialisé gelé : `ComponentResponse` = id, component_type, status,
-//! added_at, configured_at, activated_at, disabled_at ; liste = {data: [...]}.
+//! Contrat sérialisé gelé : `ComponentResponse` = `id`, `component_type`, `status`,
+//! `added_at`, `configured_at`, `activated_at`, `disabled_at` ; liste = {data: [...]}.
 //! Alias binding GREEN : query `?binding=<même component_id>` sur le GET existant
 //! (même ressource, pas de seconde ressource, pas de renommage route).
 
 mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
+
+use std::ffi::OsStr;
 
 use common::*;
 use fixtures::DbFixtures;
@@ -60,7 +62,7 @@ fn scan(dir: &std::path::Path, hits: &mut Vec<String>) {
         let path = entry.path();
         if path.is_dir() {
             scan(&path, hits);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+        } else if path.extension().and_then(OsStr::to_str) == Some("rs") {
             if let Ok(content) = std::fs::read_to_string(&path) {
                 let lower = content.to_lowercase();
                 // `binding` seul suffit ; `alias` générique (ex. « Type alias »)

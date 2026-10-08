@@ -5,6 +5,7 @@
 //! (Factory absente). Ne crée pas `Factory/`, ne retargete pas les gates P2/P3,
 //! n'ajoute pas de SQL.
 
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 fn workspace_root() -> PathBuf {
@@ -19,12 +20,12 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in entries {
         let path = entry.expect("entrée lisible").path();
         if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            let name = path.file_name().and_then(OsStr::to_str).unwrap_or("");
             if name == "tests" || name == "target" {
                 continue;
             }
             collect_rs(&path, out);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+        } else if path.extension().and_then(OsStr::to_str) == Some("rs") {
             out.push(path);
         }
     }
@@ -35,12 +36,12 @@ fn collect_rs_including_tests(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in entries {
         let path = entry.expect("entrée lisible").path();
         if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            let name = path.file_name().and_then(OsStr::to_str).unwrap_or("");
             if name == "target" {
                 continue;
             }
             collect_rs_including_tests(&path, out);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+        } else if path.extension().and_then(OsStr::to_str) == Some("rs") {
             out.push(path);
         }
     }
@@ -195,7 +196,7 @@ fn t1_no_git_package_admission_prod() {
         .iter()
         .filter(|p| {
             p.file_name()
-                .and_then(|n| n.to_str())
+                .and_then(OsStr::to_str)
                 .is_some_and(|n| n.eq_ignore_ascii_case("kubernetes_adapter.rs"))
         })
         .collect();
@@ -323,7 +324,7 @@ fn t1_no_invoke_in_manifesto_rs() {
         &mut files,
     );
     files.retain(|p| {
-        let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let name = p.file_name().and_then(OsStr::to_str).unwrap_or("");
         name != "apparatus_p3_t1_absence.rs" && name != "apparatus_p4_t1_absence.rs"
     });
     assert!(!files.is_empty(), "scope Manifesto .rs non vide");
@@ -386,7 +387,7 @@ fn t1_no_apparatus_p4_migration_filenames() {
     let entries = std::fs::read_dir(&dir).expect("services/Manifesto/migration/src lisible");
     for entry in entries {
         let path = entry.expect("entrée lisible").path();
-        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let name = path.file_name().and_then(OsStr::to_str).unwrap_or("");
         assert!(
             !name.to_ascii_lowercase().contains("apparatus_p4"),
             "T1 RED : fichier migration {name}"

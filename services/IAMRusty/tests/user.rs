@@ -45,7 +45,7 @@ async fn create_invalid_signature_jwt_token(
 #[serial]
 async fn test_get_user_returns_correct_info_when_token_is_valid() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -112,7 +112,7 @@ async fn test_get_user_returns_correct_info_when_token_is_valid() {
 #[serial]
 async fn test_get_user_returns_401_when_token_is_expired() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -156,7 +156,7 @@ async fn test_get_user_returns_401_when_token_is_expired() {
 #[serial]
 async fn test_get_user_returns_401_when_token_is_malformed() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -216,7 +216,7 @@ async fn test_get_user_returns_401_when_token_is_malformed() {
 #[serial]
 async fn test_get_user_returns_401_when_no_authorization_header() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -249,7 +249,7 @@ async fn test_get_user_returns_401_when_no_authorization_header() {
 #[serial]
 async fn test_get_user_returns_401_when_authorization_header_format_is_invalid() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -292,7 +292,7 @@ async fn test_get_user_returns_401_when_authorization_header_format_is_invalid()
 #[serial]
 async fn test_get_user_returns_401_when_user_not_found_in_database() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -351,7 +351,7 @@ async fn test_get_user_returns_401_when_user_not_found_in_database() {
 #[serial]
 async fn test_get_user_returns_correct_primary_email_when_user_has_multiple_emails() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -412,7 +412,7 @@ async fn test_get_user_returns_correct_primary_email_when_user_has_multiple_emai
 #[serial]
 async fn test_get_user_handles_user_with_no_primary_email() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -464,7 +464,7 @@ async fn test_get_user_handles_user_with_no_primary_email() {
 #[serial]
 async fn test_get_user_concurrent_requests_with_same_token() {
     // Setup test environment
-    let (fixture, base_url, _client) = setup_test_server()
+    let (fixture, base_url, _client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -531,7 +531,7 @@ async fn test_get_user_concurrent_requests_with_same_token() {
 #[serial]
 async fn test_get_user_security_jwt_claims_validation() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();

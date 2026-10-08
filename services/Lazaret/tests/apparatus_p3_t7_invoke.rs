@@ -324,7 +324,7 @@ async fn t7_named_connector_rejects_raw_url_and_allows_admitted_name() {
     Mock::given(method("GET"))
         .and(path("/hello"))
         .respond_with(ResponseTemplate::new(200).set_body_string("pong"))
-        .mount(&*connector_mock.server())
+        .mount(&connector_mock.server())
         .await;
 
     let (_fixture, app) = boot(
@@ -473,7 +473,7 @@ async fn t7_secret_reference_and_named_connector() {
     Mock::given(method("GET"))
         .and(path("/hello"))
         .respond_with(ResponseTemplate::new(200).set_body_string("pong"))
-        .mount(&*connector_mock.server())
+        .mount(&connector_mock.server())
         .await;
 
     let descriptor = Arc::new(LazaretTestDescriptor);
@@ -529,7 +529,7 @@ async fn t7_connector_body_too_large_is_413() {
     Mock::given(method("GET"))
         .and(path("/big"))
         .respond_with(ResponseTemplate::new(200).set_body_bytes(huge))
-        .mount(&*connector_mock.server())
+        .mount(&connector_mock.server())
         .await;
     let (_fixture, app) = boot(
         snapshot_mock.base_url(),

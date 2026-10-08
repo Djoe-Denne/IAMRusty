@@ -13,7 +13,8 @@ pub struct SeaOrmOAuthTransactionWriteRepository {
 }
 
 impl SeaOrmOAuthTransactionWriteRepository {
-    pub fn new(writer: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(writer: Arc<DatabaseConnection>) -> Self {
         Self { writer }
     }
 }
@@ -25,6 +26,15 @@ fn storage_error(_: sea_orm::DbErr) -> OAuthTransactionError {
 fn hash_bytes(row: &sea_orm::QueryResult, name: &str) -> Result<[u8; 32], OAuthTransactionError> {
     let bytes: Vec<u8> = row.try_get("", name).map_err(storage_error)?;
     bytes.try_into().map_err(|_| OAuthTransactionError::Storage)
+}
+
+/// Bind unix seconds as `timestamptz` so Postgres never sees an `i64 as f64`.
+fn unix_seconds_timestamptz(
+    unix_seconds: i64,
+) -> Result<chrono::DateTime<chrono::FixedOffset>, OAuthTransactionError> {
+    chrono::DateTime::from_timestamp(unix_seconds, 0)
+        .map(|utc| utc.fixed_offset())
+        .ok_or(OAuthTransactionError::InvalidTransaction)
 }
 
 #[async_trait]
@@ -48,11 +58,11 @@ impl OAuthTransactionWriteRepository for SeaOrmOAuthTransactionWriteRepository {
             return Err(OAuthTransactionError::InvalidTransaction);
         }
         self.writer.execute(Statement::from_sql_and_values(DbBackend::Postgres,
-            "INSERT INTO oauth_transactions (id,nonce_hash,state_hash,browser_nonce_hash,provider,operation,target_user_id,redirect_uri,pkce_verifier,expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,to_timestamp($10))",
+            "INSERT INTO oauth_transactions (id,nonce_hash,state_hash,browser_nonce_hash,provider,operation,target_user_id,redirect_uri,pkce_verifier,expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
             vec![tx.id.into(), tx.nonce_hash.to_vec().into(), tx.state_hash.to_vec().into(),
                 tx.browser_nonce_hash.to_vec().into(), tx.provider.as_str().into(),
                 tx.operation.as_str().into(), tx.operation.target_user_id().into(),
-                tx.redirect_uri.clone().into(), tx.pkce_verifier.clone().into(), (tx.expires_at as f64).into()]))
+                tx.redirect_uri.clone().into(), tx.pkce_verifier.clone().into(), unix_seconds_timestamptz(tx.expires_at)?.into()]))
             .await.map_err(storage_error)?;
         Ok(())
     }
@@ -65,10 +75,10 @@ impl OAuthTransactionWriteRepository for SeaOrmOAuthTransactionWriteRepository {
         // Lock the matching row before removing the secret. All bindings and
         // replay/expiry predicates are on the writer, not a replica snapshot.
         let row = tx.query_one(Statement::from_sql_and_values(DbBackend::Postgres,
-            "SELECT id,nonce_hash,state_hash,browser_nonce_hash,pkce_verifier FROM oauth_transactions WHERE nonce_hash=$1 AND state_hash=$2 AND browser_nonce_hash=$3 AND provider=$4 AND operation=$5 AND target_user_id IS NOT DISTINCT FROM $6::uuid AND redirect_uri=$7 AND expires_at=to_timestamp($8) AND consumed_at IS NULL AND expires_at>clock_timestamp() FOR UPDATE",
+            "SELECT id,nonce_hash,state_hash,browser_nonce_hash,pkce_verifier FROM oauth_transactions WHERE nonce_hash=$1 AND state_hash=$2 AND browser_nonce_hash=$3 AND provider=$4 AND operation=$5 AND target_user_id IS NOT DISTINCT FROM $6::uuid AND redirect_uri=$7 AND expires_at=$8 AND consumed_at IS NULL AND expires_at>clock_timestamp() FOR UPDATE",
             vec![input.nonce_hash.to_vec().into(), input.state_hash.to_vec().into(), input.browser_nonce_hash.to_vec().into(),
                 input.provider.as_str().into(), input.operation.as_str().into(), input.operation.target_user_id().into(),
-                input.redirect_uri.clone().into(), (input.expires_at as f64).into()]))
+                input.redirect_uri.clone().into(), unix_seconds_timestamptz(input.expires_at)?.into()]))
             .await.map_err(storage_error)?;
         let Some(row) = row else {
             tx.commit().await.map_err(storage_error)?;

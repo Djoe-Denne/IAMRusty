@@ -10,7 +10,7 @@ use super::entity::provider_tokens;
 /// # Errors
 ///
 /// Returns [`DbErr::Custom`] when `model.provider` is not a valid provider slug.
-pub(crate) fn to_provider_link(model: provider_tokens::Model) -> Result<ProviderLink, DbErr> {
+pub(super) fn to_provider_link(model: provider_tokens::Model) -> Result<ProviderLink, DbErr> {
     let provider = Provider::parse_slug(&model.provider).map_err(|_| {
         DbErr::Custom(format!(
             "invalid provider slug in provider_tokens: {}",

@@ -363,7 +363,7 @@ impl Application {
         self.readiness.clone()
     }
 
-    /// Binding-grant snapshot reader (ADR-0104 InProcess injection).
+    /// Binding-grant snapshot reader (ADR-0104 `InProcess` injection).
     ///
     /// Present after a successful [`Self::new`]. Callers in the monolith
     /// composition root must fail-closed if this returns [`None`].

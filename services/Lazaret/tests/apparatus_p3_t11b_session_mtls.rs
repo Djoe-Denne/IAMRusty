@@ -268,15 +268,17 @@ async fn wait_until_ready(
 ) {
     let start = Instant::now();
     loop {
-        if handle.is_finished() {
-            panic!("TLS server exited before becoming ready");
-        }
+        assert!(
+            !handle.is_finished(),
+            "TLS server exited before becoming ready"
+        );
         match client.get(url).send().await {
             Ok(_) => return,
             Err(err) => {
-                if start.elapsed() > Duration::from_secs(5) {
-                    panic!("TLS server not ready after 5s: {err}");
-                }
+                assert!(
+                    start.elapsed() <= Duration::from_secs(5),
+                    "TLS server not ready after 5s: {err}"
+                );
                 tokio::time::sleep(Duration::from_millis(50)).await;
             }
         }

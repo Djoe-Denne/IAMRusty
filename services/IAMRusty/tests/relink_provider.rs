@@ -34,7 +34,7 @@ async fn relink_bearer(db: std::sync::Arc<sea_orm::DatabaseConnection>) -> Strin
 #[serial]
 async fn test_generate_relink_provider_start_url_github_success() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -96,7 +96,7 @@ async fn test_generate_relink_provider_start_url_github_success() {
 #[serial]
 async fn test_generate_relink_provider_start_url_gitlab_success() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -143,7 +143,7 @@ async fn test_generate_relink_provider_start_url_gitlab_success() {
 #[serial]
 async fn test_generate_relink_provider_start_url_unsupported_provider() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -184,7 +184,7 @@ async fn test_generate_relink_provider_start_url_unsupported_provider() {
 #[serial]
 async fn test_relink_provider_callback_github_success() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -274,7 +274,7 @@ async fn test_relink_provider_callback_github_success() {
 #[serial]
 async fn test_relink_provider_callback_returns_400_without_browser_transaction() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&_fixture, async {
@@ -300,7 +300,7 @@ async fn test_relink_provider_callback_returns_400_without_browser_transaction()
 #[serial]
 async fn test_relink_provider_start_returns_401_when_token_is_expired() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&_fixture, async {
@@ -336,7 +336,7 @@ async fn test_relink_provider_start_returns_401_when_token_is_expired() {
 #[serial]
 async fn test_relink_provider_callback_returns_422_when_provider_is_unsupported() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&_fixture, async {
@@ -375,7 +375,7 @@ async fn test_relink_provider_callback_returns_422_when_provider_is_unsupported(
 #[serial]
 async fn test_relink_provider_callback_returns_400_missing_code() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -432,7 +432,7 @@ async fn test_relink_provider_callback_returns_400_missing_code() {
 #[serial]
 async fn test_relink_provider_callback_returns_422_when_provider_not_currently_linked() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -502,7 +502,7 @@ async fn test_relink_provider_callback_returns_422_when_provider_not_currently_l
 #[serial]
 async fn test_relink_provider_callback_gitlab_success() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -570,7 +570,7 @@ async fn test_relink_provider_callback_gitlab_success() {
 #[serial]
 async fn test_relink_provider_callback_user_with_multiple_providers() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {

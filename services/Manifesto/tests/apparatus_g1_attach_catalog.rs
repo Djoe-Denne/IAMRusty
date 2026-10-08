@@ -1,4 +1,4 @@
-//! G1 — writer managed écrit digest + declared_capabilities depuis le catalogue.
+//! G1 — writer managed écrit digest + `declared_capabilities` depuis le catalogue.
 //!
 //! Pas de seed SQL. Fail-closed si `io.aiforall.reference-kv` sans digest.
 

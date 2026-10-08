@@ -143,10 +143,10 @@ async fn m1_reference_kv_pinned_envelope_on_zot() {
         .expect("shape déjà assertée");
 
     let cri_image = docker_build_reference_kv_cri_pin();
-    let cri_hex = cri_image
-        .split_once("@sha256:")
-        .map(|(_, hex)| hex)
-        .unwrap_or_else(|| panic!("cri_image pin @sha256: {cri_image}"));
+    let cri_hex = cri_image.split_once("@sha256:").map_or_else(
+        || panic!("cri_image pin @sha256: {cri_image}"),
+        |(_, hex)| hex,
+    );
     assert_ne!(
         cri_hex,
         descriptor_hex,

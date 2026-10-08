@@ -81,6 +81,7 @@ async fn setup_sqs_test_server() -> Result<(TestFixture, String, Client), Box<dy
             Ok(result) => return Ok(result),
             Err(error) => {
                 last_error = Some(error.to_string());
+                drop(error);
                 tokio::time::sleep(Duration::from_secs(2)).await;
             }
         }

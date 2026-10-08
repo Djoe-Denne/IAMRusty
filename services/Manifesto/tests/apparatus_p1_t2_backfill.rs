@@ -9,6 +9,8 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
+use std::ffi::OsStr;
+
 use common::*;
 use fixtures::DbFixtures;
 use manifesto_infra::apparatus_backfill::backfill_apparatus_legacy;
@@ -42,7 +44,7 @@ fn collect(dir: &std::path::Path, hits: &mut Vec<String>) {
         };
         if path.is_dir() {
             collect(&path, hits);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+        } else if path.extension().and_then(OsStr::to_str) == Some("rs") {
             let name = path.to_string_lossy().to_lowercase();
             if name.contains("backfill") {
                 hits.push(path.display().to_string());
@@ -70,7 +72,7 @@ fn t2_backfill_entrypoint_exists() {
 ///
 /// P2/P3 ont ajouté d'autres tables `apparatus_*` ; `apparatus_cleanup_jobs`
 /// n'a pas de FK vers `project_components` par design (ADR-0006).
-/// `LIKE '%apparatus%'` + `rows[0]` est non déterministe (CI a pris cleanup_jobs).
+/// `LIKE '%apparatus%'` + `rows[0]` est non déterministe (CI a pris `cleanup_jobs`).
 async fn require_extension_table(db: &Arc<sea_orm::DatabaseConnection>) -> String {
     let row = db
         .query_one(Statement::from_string(

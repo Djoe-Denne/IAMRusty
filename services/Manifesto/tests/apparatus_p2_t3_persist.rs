@@ -1,4 +1,4 @@
-//! Apparatus P2 — T3 persist desired_generation + cleanup job + outbox (TDD).
+//! Apparatus P2 — T3 persist `desired_generation` + cleanup job + outbox (TDD).
 //!
 //! Harness unique `common::setup_test_server`. `#[serial]` sur le live.
 //! `cache_ttl_seconds=0` via `services/Manifesto/config/test.toml`.

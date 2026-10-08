@@ -86,7 +86,7 @@ async fn rs256_encode_jwks_and_extractor_accept() {
             kid: KID.to_string(),
         }),
         900,
-        2592000,
+        2_592_000,
     )
     .with_local_pem_allowed(true) // explicit nonprod PEM provider fixture
     .with_issuer_audience(PLATFORM_ISSUER, DEFAULT_JWT_AUDIENCE);

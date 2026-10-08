@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use super::transit::{TransitSigningProvider, FORBIDDEN_TRANSIT_KEY_NAME};
 
-/// Optional OpenBao Transit client used for org-key mint / probe.
+/// Optional `OpenBao` Transit client used for org-key mint / probe.
 #[derive(Clone)]
 pub struct TransitClientConfig {
     pub base_url: String,
@@ -50,12 +50,12 @@ pub struct DefaultOrganizationSignerRotator {
 
 impl DefaultOrganizationSignerRotator {
     #[must_use]
-    pub fn new(ctx: RotateContext) -> Self {
+    pub const fn new(ctx: RotateContext) -> Self {
         Self { ctx }
     }
 
     #[must_use]
-    pub fn context(&self) -> &RotateContext {
+    pub const fn context(&self) -> &RotateContext {
         &self.ctx
     }
 }
@@ -82,6 +82,9 @@ pub async fn rotate_organization_signer(
     rotate_signing_scope(ctx, &SigningScope::organization(organization_id)).await
 }
 
+/// # Errors
+///
+/// Returns [`DomainError`] when no Active key exists or material / persistence fails.
 pub async fn rotate_signing_scope(
     ctx: &RotateContext,
     scope: &SigningScope,
@@ -309,7 +312,7 @@ mod tests {
     use crate::token::JwtTokenService;
     use iam_domain::entity::signing_key::TrustScope;
     use iam_domain::entity::token::JwkSet;
-    use rsa::pkcs8::{EncodePublicKey, LineEnding};
+    use rsa::pkcs8::{DecodePrivateKey, EncodePublicKey, LineEnding};
     use rsa::RsaPrivateKey;
     use std::sync::Mutex;
 
@@ -327,23 +330,27 @@ mod tests {
             &self,
             scope: &SigningScope,
         ) -> Result<iam_domain::entity::signing_key::SigningScopeSnapshot, DomainError> {
-            let keys = self.keys.lock().unwrap();
-            let epochs = self.epochs.lock().unwrap();
-            let prepared = self.prepared.lock().unwrap();
-            Ok(iam_domain::entity::signing_key::SigningScopeSnapshot {
-                scope: scope.clone(),
-                revision: *epochs.get(&scope.organization_id).unwrap_or(&0),
-                active: keys
-                    .iter()
-                    .find(|key| {
-                        SigningScope::of(key) == *scope && key.status == SigningKeyStatus::Active
-                    })
-                    .cloned(),
-                pending: prepared
-                    .iter()
-                    .find(|p| SigningScope::of(&p.key) == *scope)
-                    .cloned(),
-            })
+            let snapshot = {
+                let keys = self.keys.lock().unwrap();
+                let epochs = self.epochs.lock().unwrap();
+                let prepared = self.prepared.lock().unwrap();
+                iam_domain::entity::signing_key::SigningScopeSnapshot {
+                    scope: scope.clone(),
+                    revision: *epochs.get(&scope.organization_id).unwrap_or(&0),
+                    active: keys
+                        .iter()
+                        .find(|key| {
+                            SigningScope::of(key) == *scope
+                                && key.status == SigningKeyStatus::Active
+                        })
+                        .cloned(),
+                    pending: prepared
+                        .iter()
+                        .find(|p| SigningScope::of(&p.key) == *scope)
+                        .cloned(),
+                }
+            };
+            Ok(snapshot)
         }
         async fn prepare_signing_key(
             &self,
@@ -353,28 +360,37 @@ mod tests {
             let mut epochs = self.epochs.lock().unwrap();
             let mut prepared = self.prepared.lock().unwrap();
             let key = proof.key();
-            let revision = epochs.entry(key.organization_id).or_default();
-            if *revision != proof.before().revision {
-                return Err(DomainError::InvalidToken);
-            }
-            if let Some(existing) = prepared
-                .iter()
-                .find(|p| SigningScope::of(&p.key) == SigningScope::of(key))
-            {
-                if !same_effective_signing_binding(&existing.key, key) {
-                    return Err(DomainError::InvalidToken);
+            let outcome = {
+                let revision = epochs.entry(key.organization_id).or_default();
+                if *revision != proof.before().revision {
+                    Err(DomainError::InvalidToken)
+                } else if let Some(existing) = prepared
+                    .iter()
+                    .find(|p| SigningScope::of(&p.key) == SigningScope::of(key))
+                {
+                    if !same_effective_signing_binding(&existing.key, key) {
+                        Err(DomainError::InvalidToken)
+                    } else {
+                        Ok(SigningKeyPreparation::Pending(existing.clone()))
+                    }
+                } else {
+                    *revision += 1;
+                    let pending = PreparedSigningTransition {
+                        key: key.clone(),
+                        revision: *revision,
+                        previous_active_kid: proof
+                            .before()
+                            .active
+                            .as_ref()
+                            .map(|key| key.kid.clone()),
+                    };
+                    keys.push(key.clone());
+                    prepared.push(pending.clone());
+                    Ok(SigningKeyPreparation::Pending(pending))
                 }
-                return Ok(SigningKeyPreparation::Pending(existing.clone()));
-            }
-            *revision += 1;
-            let pending = PreparedSigningTransition {
-                key: key.clone(),
-                revision: *revision,
-                previous_active_kid: proof.before().active.as_ref().map(|key| key.kid.clone()),
             };
-            keys.push(key.clone());
-            prepared.push(pending.clone());
-            Ok(SigningKeyPreparation::Pending(pending))
+            drop((keys, epochs, prepared));
+            outcome
         }
         async fn promote_signing_key(
             &self,
@@ -471,7 +487,9 @@ mod tests {
             } else {
                 keys.push(key.clone());
             }
-            Ok(key.clone())
+            let replaced = key.clone();
+            drop(keys);
+            Ok(replaced)
         }
 
         async fn revoke_organization_keys(
@@ -498,6 +516,7 @@ mod tests {
                 row.updated_at = Utc::now();
                 revoked.push(row.clone());
             }
+            drop(keys);
             Ok(revoked)
         }
 
@@ -526,14 +545,14 @@ mod tests {
         }
 
         async fn list_jwks_keys(&self) -> Result<Vec<SigningKey>, Self::Error> {
-            Ok(self
-                .keys
-                .lock()
-                .unwrap()
-                .iter()
-                .filter(|k| k.status.in_jwks())
-                .cloned()
-                .collect())
+            let listed = {
+                let keys = self.keys.lock().unwrap();
+                keys.iter()
+                    .filter(|k| k.status.in_jwks())
+                    .cloned()
+                    .collect()
+            };
+            Ok(listed)
         }
 
         async fn update(&self, key: &SigningKey) -> Result<(), Self::Error> {
@@ -671,7 +690,7 @@ mod tests {
                     "keys":{"7":{"public_key":public},"8":{"public_key":next_public}}
                 }}))
             })
-            .mount(&*server)
+            .mount(&server)
             .await;
         Mock::given(method("POST"))
             .and(path(format!("/v1/transit/keys/{key_name}/rotate")))
@@ -682,7 +701,7 @@ mod tests {
                 );
                 ResponseTemplate::new(204)
             })
-            .mount(&*server)
+            .mount(&server)
             .await;
         Mock::given(method("POST")).and(path(format!("/v1/transit/sign/{key_name}")))
             .respond_with(move |request: &wiremock::Request| {
@@ -695,7 +714,7 @@ mod tests {
                 ResponseTemplate::new(200).set_body_json(serde_json::json!({"data":{
                     "signature":format!("vault:v{version}:{}",base64::engine::general_purpose::STANDARD.encode(signature))
                 }}))
-            }).mount(&*server).await;
+            }).mount(&server).await;
         let mut active = sample_active(owner, public);
         active.trust_scope = scope.trust_scope;
         active.organization_id = scope.organization_id;
@@ -761,14 +780,14 @@ mod tests {
                         "type":"rsa-2048","exportable":false,"supports_signing":true,
                         "latest_version":latest,"keys":{"7":{"public_key":public},"8":{"public_key":successor}}
                     }}))
-                }).mount(&*server).await;
+                }).mount(&server).await;
             Mock::given(method("POST"))
                 .and(path(format!("/v1/transit/keys/{key_name}/rotate")))
                 .respond_with(move |_: &wiremock::Request| {
                     rotated.store(true, Ordering::SeqCst);
                     ResponseTemplate::new(204)
                 })
-                .mount(&*server)
+                .mount(&server)
                 .await;
             Mock::given(method("POST"))
                 .and(path(format!("/v1/transit/sign/{key_name}")))
@@ -776,7 +795,7 @@ mod tests {
                 .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                     "data":{"signature":format!("vault:v{returned_version}:{b64}")}
                 })))
-                .mount(&*server)
+                .mount(&server)
                 .await;
             let registry = Arc::new(FakeRegistry::default());
             let mut active = sample_active(org, public);
@@ -851,7 +870,6 @@ mod tests {
             }
             // Both distinct versions remain cryptographically usable offline
             // during overlap; rotating Transit does not revoke an old signature.
-            use rsa::pkcs8::DecodePrivateKey;
             let old_private = RsaPrivateKey::from_pkcs8_pem(include_str!(
                 "../../../config/keys/test-platform.pem"
             ))

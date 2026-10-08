@@ -3,6 +3,7 @@
 //! Enveloppe ORAS non-CRI, identité catalogue = digest 0002, Cosign+Transit,
 //! zot signer-only push. Fail-loud si Docker ne démarre pas les fixtures.
 
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -125,7 +126,7 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
         let path = entry.expect("entrée lisible").path();
         if path.is_dir() {
             collect_rs(&path, out);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+        } else if path.extension().and_then(OsStr::to_str) == Some("rs") {
             out.push(path);
         }
     }

@@ -4,6 +4,7 @@
 //! `desired_state`) uniquement sur l'allowlist L. Tokens P3+ interdits
 //! partout, y compris l'allowlist P2.
 
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 fn workspace_root() -> PathBuf {
@@ -18,12 +19,12 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in entries {
         let path = entry.expect("entrée lisible").path();
         if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            let name = path.file_name().and_then(OsStr::to_str).unwrap_or("");
             if name == "tests" || name == "target" {
                 continue;
             }
             collect_rs(&path, out);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+        } else if path.extension().and_then(OsStr::to_str) == Some("rs") {
             out.push(path);
         }
     }

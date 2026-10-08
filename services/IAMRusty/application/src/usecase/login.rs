@@ -146,11 +146,7 @@ where
     }
 
     async fn login(&self, request: LoginRequest) -> Result<LoginResponse, LoginError> {
-        let response = self
-            .auth_service
-            .login(request)
-            .await
-            .map_err(LoginError::from)?;
+        let response = self.auth_service.login(request).await?;
         if let LoginResponse::Success { user, .. } = &response {
             self.identity_repo
                 .ensure_platform_identity(user.id, &self.platform_issuer)

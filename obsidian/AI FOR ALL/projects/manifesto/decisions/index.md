@@ -9,7 +9,7 @@ summary: >-
   Hub Apparatus 0001–0008 Accepted. 0002–0008 Implemented sauf 0001 Partial.
   Gates 0009–0011 Proposed / Unimplemented. Dette TCB, APP-05 ouvert.
 created: 2026-09-10T06:32:00Z
-updated: 2026-10-04
+updated: 2026-10-08
 sources:
   - docs/adr/README.md
   - docs/adr/0001-apparatus-binding-owned-by-manifesto.md
@@ -84,9 +84,9 @@ Photographie rétroactive du 12 septembre 2026. Extrait Manifesto ; index platef
 
 ## Related
 
-- Plateforme cluster (**pas** Apparatus) : [[projects/aiforall/decisions/0600-cloud-portable]] / [[projects/aiforall/decisions/0601-cluster-topology]] — P4 (0008) s’insère dans cette topologie ; 0600/0601 ne sont pas des ADR Apparatus. Lab local dédié : [[projects/aiforall/decisions/0606-local-full-kind-isole]] (**Proposed / Partial**, source/offline seulement), Related sans fusion de canon ni livraison cloud. Auth globale : [[projects/aiforall/decisions/0310-admission-epochs-budget-jwks]] (Accepted / Partial ; ratification humaine2026-10-04, admission S-10 à implémenter, pas fermeture prouvée).
+- Plateforme cluster (**pas** Apparatus) : [[projects/aiforall/decisions/0600-cloud-portable]] / [[projects/aiforall/decisions/0601-cluster-topology]] — P4 (0008) s’insère dans cette topologie ; 0600/0601 ne sont pas des ADR Apparatus. Lab local dédié : [[projects/aiforall/decisions/0606-local-full-kind-isole]] (**Proposed / Partial**, source/offline seulement), Related sans fusion de canon ni livraison cloud. Auth globale : [[projects/aiforall/decisions/0310-admission-epochs-budget-jwks]] (Accepted / Partial ; ratification initiale le 2026-10-04, calcul/capacité partiellement supersédés par 0312 livrée le 2026-10-08 ; pas clôture sécurité globale implicite).
 
 
-## Signing IAM — propositions0311/0312
+## Signing IAM — ratification 0311/0312 du 2026-10-08
 
-- [[projects/aiforall/decisions/0311-signing-simplification]] —0311 Proposed/Partial ;0312 Proposed/Unimplemented. Aucun changement du protocole Apparatus/Lazaret ni supersession effective0310.
+- [[projects/aiforall/decisions/0311-signing-simplification]] — 0311 et 0312 **Accepted / Implemented**, ratification explicite de Djoé Denne le 2026-10-08. Units + IT IAM vertes sur master attestées par l’utilisateur, sans artefact CI archivé ; pas E2E 0412 implicite. Supersession ciblée du calcul/capacité de 0310 effective, autres invariants et protocole Apparatus/Lazaret inchangés.

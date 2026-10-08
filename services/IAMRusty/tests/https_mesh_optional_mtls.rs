@@ -189,15 +189,17 @@ async fn wait_until_ready(
 ) {
     let start = Instant::now();
     loop {
-        if handle.is_finished() {
-            panic!("TLS server exited before becoming ready");
-        }
+        assert!(
+            !handle.is_finished(),
+            "TLS server exited before becoming ready"
+        );
         match client.get(url).send().await {
             Ok(_) => return,
             Err(err) => {
-                if start.elapsed() > Duration::from_secs(5) {
-                    panic!("TLS server not ready after 5s: {err}");
-                }
+                assert!(
+                    start.elapsed() <= Duration::from_secs(5),
+                    "TLS server not ready after 5s: {err}"
+                );
                 tokio::time::sleep(Duration::from_millis(50)).await;
             }
         }
@@ -216,119 +218,128 @@ async fn assert_2xx(client: &reqwest::Client, url: &str) {
 #[tokio::test]
 #[serial_test::serial]
 async fn dual_bind_http_and_optional_mtls() {
-    let (fixture, _, _) = common::setup_test_server()
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
         .await
         .expect("owned protocol fixture");
-    fixture_cleanup::run(&fixture, async {
-        install_crypto();
-        let pki = generate_pki();
-        let cleartext_port = ephemeral_port();
-        let tls_listen = ephemeral_port();
-        let health = format!("{SERVICE_PREFIX}/health");
-        let cleartext_url = format!("http://127.0.0.1:{cleartext_port}{health}");
-        let tls_url = format!("https://127.0.0.1:{tls_listen}{health}");
-        let handle = spawn_server(
-            &fixture,
-            dual_bind_config(&pki, cleartext_port, tls_listen, pki.client_ca_path.clone()),
-        )
-        .await;
+    fixture_cleanup::run(
+        &fixture,
+        Box::pin(async {
+            install_crypto();
+            let pki = generate_pki();
+            let cleartext_port = ephemeral_port();
+            let tls_listen = ephemeral_port();
+            let health = format!("{SERVICE_PREFIX}/health");
+            let cleartext_url = format!("http://127.0.0.1:{cleartext_port}{health}");
+            let tls_url = format!("https://127.0.0.1:{tls_listen}{health}");
+            let handle = spawn_server(
+                &fixture,
+                dual_bind_config(&pki, cleartext_port, tls_listen, pki.client_ca_path.clone()),
+            )
+            .await;
 
-        let plain = http_client();
-        wait_until_ready(&handle, &plain, &cleartext_url).await;
-        let tls_probe = https_client(None);
-        wait_until_ready(&handle, &tls_probe, &tls_url).await;
+            let plain = http_client();
+            wait_until_ready(&handle, &plain, &cleartext_url).await;
+            let tls_probe = https_client(None);
+            wait_until_ready(&handle, &tls_probe, &tls_url).await;
 
-        assert_2xx(&plain, &cleartext_url).await;
-        assert_2xx(&tls_probe, &tls_url).await;
+            assert_2xx(&plain, &cleartext_url).await;
+            assert_2xx(&tls_probe, &tls_url).await;
 
-        let mesh = https_client(Some(&pki.client_identity_pem));
-        assert_2xx(&mesh, &tls_url).await;
+            let mesh = https_client(Some(&pki.client_identity_pem));
+            assert_2xx(&mesh, &tls_url).await;
 
-        let foreign = https_client(Some(&pki.foreign_identity_pem));
-        match foreign.get(&tls_url).send().await {
-            Err(_) => {}
-            Ok(response) => assert!(
-                !response.status().is_success(),
-                "foreign client cert must not get 2xx, got {}",
-                response.status()
-            ),
-        }
+            let foreign = https_client(Some(&pki.foreign_identity_pem));
+            match foreign.get(&tls_url).send().await {
+                Err(_) => {}
+                Ok(response) => assert!(
+                    !response.status().is_success(),
+                    "foreign client cert must not get 2xx, got {}",
+                    response.status()
+                ),
+            }
 
-        handle.abort();
-        let _ = handle.await;
-    })
+            handle.abort();
+            let _ = handle.await;
+        }),
+    )
     .await;
 }
 
 #[tokio::test]
 #[serial_test::serial]
 async fn verified_https_no_client_ca_rejects_wrong_ca_and_wrong_server_san() {
-    let (fixture, _, _) = common::setup_test_server()
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
         .await
         .expect("owned protocol fixture");
-    fixture_cleanup::run(&fixture, async {
-        install_crypto();
-        let pki = generate_pki();
-        let cleartext_port = ephemeral_port();
-        let tls_port = ephemeral_port();
-        let handle = spawn_server(
-            &fixture,
-            dual_bind_config(&pki, cleartext_port, tls_port, String::new()),
-        )
-        .await;
-        let url = format!("https://localhost:{tls_port}{SERVICE_PREFIX}/health");
-        let verified = reqwest::Client::builder()
-            .use_rustls_tls()
-            .no_proxy()
-            .add_root_certificate(
-                reqwest::Certificate::from_pem(pki.server_ca_pem.as_bytes()).expect("server CA"),
+    fixture_cleanup::run(
+        &fixture,
+        Box::pin(async {
+            install_crypto();
+            let pki = generate_pki();
+            let cleartext_port = ephemeral_port();
+            let tls_port = ephemeral_port();
+            let handle = spawn_server(
+                &fixture,
+                dual_bind_config(&pki, cleartext_port, tls_port, String::new()),
             )
-            .timeout(Duration::from_secs(5))
-            .build()
-            .expect("verified client");
-        wait_until_ready(&handle, &verified, &url).await;
-        let positive = verified.get(&url).send().await;
-        let foreign = reqwest::Client::builder()
-            .use_rustls_tls()
-            .no_proxy()
-            .tls_built_in_root_certs(false)
-            .add_root_certificate(
-                reqwest::Certificate::from_pem(pki.foreign_ca_pem.as_bytes()).expect("foreign CA"),
-            )
-            .timeout(Duration::from_secs(5))
-            .build()
-            .expect("wrong-CA client");
-        let wrong_ca = foreign.get(&url).send().await;
-        let wrong_name = reqwest::Client::builder()
-            .use_rustls_tls()
-            .no_proxy()
-            .add_root_certificate(
-                reqwest::Certificate::from_pem(pki.server_ca_pem.as_bytes()).expect("server CA"),
-            )
-            .resolve(
-                "wrong-san.test",
-                std::net::SocketAddr::from(([127, 0, 0, 1], tls_port)),
-            )
-            .timeout(Duration::from_secs(5))
-            .build()
-            .expect("wrong-SAN client");
-        let wrong_san = wrong_name
-            .get(format!(
-                "https://wrong-san.test:{tls_port}{SERVICE_PREFIX}/health"
-            ))
-            .send()
             .await;
-        handle.abort();
-        let _ = handle.await;
-        assert!(positive
-            .expect("trusted server without client certificate")
-            .status()
-            .is_success());
-        assert!(wrong_ca.is_err(), "wrong server CA must fail before HTTP");
-        assert!(
-            wrong_san.is_err(),
-            "trusted CA alone cannot bypass server SAN"
-        );
-    })
+            let url = format!("https://localhost:{tls_port}{SERVICE_PREFIX}/health");
+            let verified = reqwest::Client::builder()
+                .use_rustls_tls()
+                .no_proxy()
+                .add_root_certificate(
+                    reqwest::Certificate::from_pem(pki.server_ca_pem.as_bytes())
+                        .expect("server CA"),
+                )
+                .timeout(Duration::from_secs(5))
+                .build()
+                .expect("verified client");
+            wait_until_ready(&handle, &verified, &url).await;
+            let positive = verified.get(&url).send().await;
+            let foreign = reqwest::Client::builder()
+                .use_rustls_tls()
+                .no_proxy()
+                .tls_built_in_root_certs(false)
+                .add_root_certificate(
+                    reqwest::Certificate::from_pem(pki.foreign_ca_pem.as_bytes())
+                        .expect("foreign CA"),
+                )
+                .timeout(Duration::from_secs(5))
+                .build()
+                .expect("wrong-CA client");
+            let wrong_ca = foreign.get(&url).send().await;
+            let wrong_name = reqwest::Client::builder()
+                .use_rustls_tls()
+                .no_proxy()
+                .add_root_certificate(
+                    reqwest::Certificate::from_pem(pki.server_ca_pem.as_bytes())
+                        .expect("server CA"),
+                )
+                .resolve(
+                    "wrong-san.test",
+                    std::net::SocketAddr::from(([127, 0, 0, 1], tls_port)),
+                )
+                .timeout(Duration::from_secs(5))
+                .build()
+                .expect("wrong-SAN client");
+            let wrong_san = wrong_name
+                .get(format!(
+                    "https://wrong-san.test:{tls_port}{SERVICE_PREFIX}/health"
+                ))
+                .send()
+                .await;
+            handle.abort();
+            let _ = handle.await;
+            assert!(positive
+                .expect("trusted server without client certificate")
+                .status()
+                .is_success());
+            assert!(wrong_ca.is_err(), "wrong server CA must fail before HTTP");
+            assert!(
+                wrong_san.is_err(),
+                "trusted CA alone cannot bypass server SAN"
+            );
+        }),
+    )
     .await;
 }

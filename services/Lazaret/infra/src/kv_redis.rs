@@ -134,13 +134,18 @@ return nxt
 ",
         );
         let expected = expected_cas.map(|n| n.to_string()).unwrap_or_default();
+        let quota = i64::try_from(MAX_KV_ENTRIES_PER_BINDING).map_err(|_| {
+            ApparatusError::InvalidOperation {
+                reason: "kv entry quota exceeds i64".to_owned(),
+            }
+        })?;
         let next: Result<i64, redis::RedisError> = script
             .key(cas_hash(binding))
             .key(kv_hash(binding))
             .arg(key)
             .arg(expected)
             .arg(value)
-            .arg(MAX_KV_ENTRIES_PER_BINDING as i64)
+            .arg(quota)
             .invoke(&mut con);
         let next = next.map_err(|error| {
             let msg = redis_error_text(&error);

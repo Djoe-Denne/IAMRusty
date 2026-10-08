@@ -5,7 +5,7 @@ use axum::Json;
 use serde_json::{Map, Value};
 
 /// Return the request method and every `x-principal-*` header seen by IAM.
-#[must_use]
+#[must_use = "await the future"]
 pub async fn mesh_echo_headers(method: Method, headers: HeaderMap) -> Json<Value> {
     let mut principal = Map::new();
     for (name, value) in &headers {

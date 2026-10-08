@@ -1,4 +1,4 @@
-//! SigningProvider adapters and WorkloadIdentity StaticCredential / WIF.
+//! `SigningProvider` adapters and `WorkloadIdentity` `StaticCredential` / `WIF`.
 
 mod pem;
 mod probe;

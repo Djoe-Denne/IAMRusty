@@ -1,4 +1,4 @@
-//! IdP redirect helpers. Registry is injected per-router via axum `Extension`.
+//! `IdP` redirect helpers. Registry is injected per-router via axum `Extension`.
 
 use iam_configuration::{IdpConfig, IdpRedirectFlow};
 

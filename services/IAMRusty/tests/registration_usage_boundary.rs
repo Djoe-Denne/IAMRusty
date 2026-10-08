@@ -11,7 +11,7 @@ mod registry;
 mod utils;
 
 use iam_domain::entity::signing_key::SigningKeyStatus;
-use rustycog::testing::http::jwt::TEST_RS256_PUBLIC_PEM;
+use rustycog::testing::http::jwt::test_rs256_public_pem;
 use serde_json::{json, Value};
 use serial_test::serial;
 
@@ -20,10 +20,12 @@ use serial_test::serial;
 async fn password_and_oauth_registration_preserve_real_24h_claims_and_cannot_be_account_bearers() {
     let mut key = registry::registry_key(SigningKeyStatus::Active, None);
     key.kid = iam_domain::entity::signing_key::opaque_kid();
-    let (fixture, base, client) = common::setup_test_server_with_signing_keys(&[key.clone()])
-        .await
-        .expect("actual writer-bound RS256 registration codec");
+    let (fixture, base, client) =
+        Box::pin(common::setup_test_server_with_signing_keys(&[key.clone()]))
+            .await
+            .expect("actual writer-bound RS256 registration codec");
     fixture_cleanup::run(&fixture, async {
+        use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
         let signup = client.post(format!("{base}/api/auth/signup"))
             .json(&json!({"email":"registration-boundary@example.com", "password":"Boundary1a!Password"}))
             .send().await.expect("actual signup");
@@ -41,7 +43,7 @@ async fn password_and_oauth_registration_preserve_real_24h_claims_and_cannot_be_
         assert_eq!(published.status(), 200);
         let published: Value = published.json().await.expect("JWKS");
         assert!(published["keys"].as_array().expect("keys").iter().any(|jwk| jwk["kid"]==key.kid && jwk["iss"]==key.issuer));
-        let extractor = rustycog::http::UserIdExtractor::from_inline_jwks(&published.to_string(), Some("aiforall"))
+        let extractor = rustycog::http::UserIdExtractor::from_inline_jwks(published.to_string(), Some("aiforall"))
             .expect("publisher-bound account verifier");
         for (result, flow, username) in [(&password,"email_password","regpassword"),(&oauth,"oauth","regoauth")] {
             let token = result["registration_token"].as_str().expect("real registration issuance");
@@ -54,7 +56,7 @@ async fn password_and_oauth_registration_preserve_real_24h_claims_and_cannot_be_
             validation.set_issuer(&[key.issuer.as_str()]);
             validation.sub = Some("registration".into());
             let claims = jsonwebtoken::decode::<Value>(token,
-                &jsonwebtoken::DecodingKey::from_rsa_pem(TEST_RS256_PUBLIC_PEM.as_bytes()).expect("published public material"), &validation)
+                &jsonwebtoken::DecodingKey::from_rsa_pem(test_rs256_public_pem().as_bytes()).expect("published public material"), &validation)
                 .expect("genuinely valid registration signature/kid bindings and registration claims").claims;
             assert_eq!(claims["flow"], flow);
             assert_eq!(claims["exp"].as_i64().expect("exp")-claims["iat"].as_i64().expect("iat"), 86400);
@@ -68,7 +70,6 @@ async fn password_and_oauth_registration_preserve_real_24h_claims_and_cannot_be_
             }
             // Verification is fixture arrangement, never an inserted auth session.
             // Completion may emit access only for a genuinely verified-email row.
-            use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
             let verified = fixture.db().execute(Statement::from_sql_and_values(DatabaseBackend::Postgres,
                 "UPDATE user_emails SET is_verified=true WHERE email=$1", [claims["email"].as_str().expect("email").into()]))
                 .await.expect("verified-email arrangement");

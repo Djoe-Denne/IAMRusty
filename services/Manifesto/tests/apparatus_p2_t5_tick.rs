@@ -1,4 +1,4 @@
-//! Apparatus P2 — T5 ticker, concurrence, claim, is_live.
+//! Apparatus P2 — T5 ticker, concurrence, claim, `is_live`.
 //!
 //! `#[serial]` pour le live DB. Ticker de test : intervalle long.
 

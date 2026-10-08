@@ -11,12 +11,12 @@ mod utils;
 #[tokio::test]
 #[serial]
 async fn internal_http_transit_missing_or_zero_version_is400_without_any_signing_state_mutation() {
-    let (fixture, base, client) = common::setup_test_server().await.unwrap();
+    let (fixture, base, client) = Box::pin(common::setup_test_server()).await.unwrap();
     fixture_cleanup::run(&fixture,async {
         let org=Uuid::new_v4();let endpoint=format!("{base}/internal/organizations/{org}/signer/configure");
         let before=signing_state::database_state(fixture.db().as_ref()).await.unwrap();
         for version in [None,Some(0u32)] {
-            let mut body=serde_json::json!({"provider_type":"openbao_transit","provider_key_ref":format!("org-{org}-key"),"credential_ref":format!("org-{org}-credential"),"public_key":TEST_RS256_PUBLIC_PEM,"org_slug":"fixture"});
+            let mut body=serde_json::json!({"provider_type":"openbao_transit","provider_key_ref":format!("org-{org}-key"),"credential_ref":format!("org-{org}-credential"),"public_key":test_rs256_public_pem(),"org_slug":"fixture"});
             if let Some(version)=version {body["provider_key_version"]=version.into();}
             let response=client.post(&endpoint).header("x-iam-internal-token","iam-internal-test-token").json(&body).send().await.unwrap();
             assert_eq!(response.status(),400,"valid internal capability reaches input validation, not a provider failure");
@@ -26,6 +26,7 @@ async fn internal_http_transit_missing_or_zero_version_is400_without_any_signing
 }
 
 use async_trait::async_trait;
+use base64::Engine;
 use iam_application::usecase::organization_signer::{
     ConfigureOrganizationSignerInput, OrganizationSignerFacade, OrganizationSignerFacadeImpl,
 };
@@ -40,12 +41,14 @@ use iam_infra::{
         StaticCredential, TransitClientConfig,
     },
 };
+use rsa::pkcs8::DecodePrivateKey;
 use rustycog::testing::{
-    http::jwt::{TEST_RS256_PRIVATE_PEM, TEST_RS256_PUBLIC_PEM},
+    http::jwt::{test_rs256_private_pem, test_rs256_public_pem},
     wiremock::MockServerFixture,
 };
 use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use serial_test::serial;
+use sha2::Digest;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
@@ -68,7 +71,7 @@ impl WorkloadIdentity for ObservedCredentials {
 #[serial]
 async fn missing_and_other_org_credentials_never_resolve_or_touch_vendor_but_valid_binding_configures(
 ) {
-    let (fixture, _, _) = common::setup_test_server()
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
         .await
         .expect("primary registry harness");
     fixture_cleanup::run(&fixture, async {
@@ -96,7 +99,7 @@ async fn missing_and_other_org_credentials_never_resolve_or_touch_vendor_but_val
             Arc::new(DefaultOrganizationSignerRotator::new(RotateContext { registry, pem_root: pem_root.path().into(), transit: Some(transit), allow_local_pem: true })));
         let mut input = ConfigureOrganizationSignerInput { provider_type:"openbao_transit".into(), provider_key_ref:key_name.clone(),
             provider_key_version: Some(1),
-            credential_ref:None, public_key:TEST_RS256_PUBLIC_PEM.into(), org_slug:format!("fixture-{org}") };
+            credential_ref:None, public_key:test_rs256_public_pem().into(), org_slug:format!("fixture-{org}") };
         for reference in [None,Some(format!("org-{other}-fixture-credential")),Some(String::new())] {
             input.credential_ref = reference;
             assert!(matches!(facade.configure(org,&input).await,Err(DomainError::AuthorizationError(_))));
@@ -108,13 +111,10 @@ async fn missing_and_other_org_credentials_never_resolve_or_touch_vendor_but_val
             .and(wiremock::matchers::path(format!("/v1/transit/keys/{key_name}")))
             .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "data": { "type":"rsa-2048", "exportable":false, "supports_signing":true, "latest_version":2,
-                    "keys": { "1": { "public_key": TEST_RS256_PUBLIC_PEM }, "2": { "public_key": TEST_RS256_PUBLIC_PEM } } }
+                    "keys": { "1": { "public_key": test_rs256_public_pem() }, "2": { "public_key": test_rs256_public_pem() } } }
             })))
             .mount(&vendor).await;
-        use rsa::pkcs8::DecodePrivateKey;
-        use sha2::Digest;
-        use base64::Engine;
-        let private = rsa::RsaPrivateKey::from_pkcs8_pem(TEST_RS256_PRIVATE_PEM).expect("fixed matching RSA pair");
+        let private = rsa::RsaPrivateKey::from_pkcs8_pem(test_rs256_private_pem()).expect("fixed matching RSA pair");
         let signature = private.sign(rsa::pkcs1v15::Pkcs1v15Sign::new::<sha2::Sha256>(), &sha2::Sha256::digest(b"aiforall-org-signer-challenge"))
             .expect("fixed fixture response signature");
         let signature = base64::engine::general_purpose::STANDARD.encode(signature);
@@ -175,7 +175,7 @@ async fn missing_and_other_org_credentials_never_resolve_or_touch_vendor_but_val
         input.provider_key_version = Some(3);
         for case in 0..8 {
             let mut data = serde_json::json!({"type":"rsa-2048", "exportable":false, "supports_signing":true,
-                "latest_version":3, "keys":{"3":{"public_key":TEST_RS256_PUBLIC_PEM}}});
+                "latest_version":3, "keys":{"3":{"public_key":test_rs256_public_pem()}}});
             match case {
                 0 => { data.as_object_mut().unwrap().remove("supports_signing"); }
                 1 => data["supports_signing"] = false.into(),

@@ -10,6 +10,7 @@
 //! le second ajout concurrent est tranché par la base et [`is_unique_violation`]
 //! le convertit en conflit 409 (pas un `if` applicatif, pas une erreur interne).
 
+use sea_orm::sqlx::error::DatabaseError;
 use sea_orm::DbErr;
 use std::collections::HashMap;
 use std::fmt;
@@ -128,17 +129,16 @@ pub fn check_pairs_injective(pairs: &[(&str, &str)]) -> Result<(), MappingCollis
 /// conflit 409 au lieu d'une erreur interne.
 #[must_use]
 pub fn is_unique_violation(err: &DbErr) -> bool {
-    let runtime_err = match err {
-        DbErr::Exec(err) | DbErr::Query(err) => err,
-        _ => return false,
+    let (DbErr::Exec(runtime_err) | DbErr::Query(runtime_err)) = err else {
+        return false;
     };
-    match runtime_err {
-        sea_orm::RuntimeErr::SqlxError(sqlx_err) => sqlx_err
-            .as_database_error()
-            .and_then(|db_err| db_err.code())
-            .is_some_and(|code| code.as_ref() == "23505"),
-        _ => false,
-    }
+    let sea_orm::RuntimeErr::SqlxError(sqlx_err) = runtime_err else {
+        return false;
+    };
+    sqlx_err
+        .as_database_error()
+        .and_then(DatabaseError::code)
+        .is_some_and(|code| code.as_ref() == "23505")
 }
 
 #[cfg(test)]

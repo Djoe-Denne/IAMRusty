@@ -3,7 +3,7 @@ use iam_domain::entity::{
     signing_key::{SigningKey, SigningKeyStatus, SigningProviderType, TrustScope},
     token::JwkSet,
 };
-use rustycog::testing::http::jwt::{TEST_PLATFORM_ISSUER, TEST_RS256_KID, TEST_RS256_PUBLIC_PEM};
+use rustycog::testing::http::jwt::{test_rs256_public_pem, TEST_PLATFORM_ISSUER, TEST_RS256_KID};
 use uuid::Uuid;
 
 pub fn registry_key(status: SigningKeyStatus, organization: Option<Uuid>) -> SigningKey {
@@ -29,7 +29,7 @@ pub fn registry_key(status: SigningKeyStatus, organization: Option<Uuid>) -> Sig
         .into(),
         provider_key_version: None,
         credential_ref: None,
-        public_key: TEST_RS256_PUBLIC_PEM.into(),
+        public_key: test_rs256_public_pem().into(),
         status,
         organization_id: organization,
         created_at: "2026-10-03T00:00:00Z".parse().expect("fixture date"),

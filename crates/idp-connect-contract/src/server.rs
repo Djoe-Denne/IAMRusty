@@ -215,13 +215,13 @@ mod tests {
         (server, key)
     }
 
-    async fn post_signed(
+    fn post_signed(
         server: &TestServer,
         key: &HmacKey,
         path: &str,
         hmac_path: &str,
         body: &str,
-    ) -> axum_test::TestResponse {
+    ) -> axum_test::TestRequest {
         let now = unix_timestamp_secs().expect("clock");
         let sig = sign(key.as_bytes(), "POST", hmac_path, now, body).expect("sign");
         server
@@ -230,7 +230,6 @@ mod tests {
             .add_header(SIGNATURE_HEADER, sig)
             .content_type("application/json")
             .bytes(axum::body::Bytes::from(body.to_owned()))
-            .await
     }
 
     #[tokio::test]

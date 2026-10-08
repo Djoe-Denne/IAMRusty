@@ -15,7 +15,7 @@ pub struct IamHttpSecurityContext {
 
 impl IamHttpSecurityContext {
     #[must_use]
-    pub fn new(
+    pub const fn new(
         platform_issuer: PlatformIssuer,
         rate_limiter: Arc<AuthRateLimiter>,
         oauth: Arc<OAuthRouteContext>,

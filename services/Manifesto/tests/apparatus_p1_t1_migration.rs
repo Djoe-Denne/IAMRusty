@@ -7,6 +7,8 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
+use std::ffi::OsStr;
+
 use common::*;
 use fixtures::DbFixtures;
 use rustycog::permission::{Permission, ResourceRef, Subject};
@@ -31,7 +33,7 @@ fn apparatus_migrations() -> Vec<std::path::PathBuf> {
         let path = entry.expect("entrée lisible").path();
         if path
             .file_name()
-            .and_then(|n| n.to_str())
+            .and_then(OsStr::to_str)
             .is_some_and(|n| n == "m20241015_000001_initial_schema.rs")
         {
             out.push(path);
@@ -96,7 +98,7 @@ fn t1_migration_registered_in_migrator() {
 ///
 /// P2/P3 ont ajouté d'autres tables `apparatus_*` ; `apparatus_cleanup_jobs`
 /// n'a pas de FK vers `project_components` par design (ADR-0006).
-/// `LIKE '%apparatus%'` + `rows[0]` est non déterministe (CI a pris cleanup_jobs).
+/// `LIKE '%apparatus%'` + `rows[0]` est non déterministe (CI a pris `cleanup_jobs`).
 async fn require_extension_table(db: &Arc<sea_orm::DatabaseConnection>) -> String {
     let row = db
         .query_one(Statement::from_string(

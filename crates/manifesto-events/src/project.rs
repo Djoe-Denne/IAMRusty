@@ -80,6 +80,19 @@ impl ProjectUpdatedEvent {
     }
 }
 
+/// AuthZ fan-out for a v2 `project_deleted` event.
+#[derive(Debug, Clone)]
+pub struct ProjectDeletedAuthz {
+    pub project_id: Uuid,
+    pub project_name: String,
+    pub deleted_by: Uuid,
+    pub deleted_at: DateTime<Utc>,
+    pub member_user_ids: Vec<Uuid>,
+    pub component_ids: Vec<Uuid>,
+    pub owner_type: Option<String>,
+    pub owner_id: Option<Uuid>,
+}
+
 /// Event published when a project is deleted
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectDeletedEvent {
@@ -121,26 +134,17 @@ impl ProjectDeletedEvent {
     }
 
     #[must_use]
-    pub fn with_authz(
-        project_id: Uuid,
-        project_name: String,
-        deleted_by: Uuid,
-        deleted_at: DateTime<Utc>,
-        member_user_ids: Vec<Uuid>,
-        component_ids: Vec<Uuid>,
-        owner_type: Option<String>,
-        owner_id: Option<Uuid>,
-    ) -> Self {
+    pub fn with_authz(authz: ProjectDeletedAuthz) -> Self {
         Self {
-            base: BaseEvent::new("project_deleted".to_string(), project_id).with_version(2),
-            project_id,
-            project_name,
-            deleted_by,
-            deleted_at,
-            member_user_ids,
-            component_ids,
-            owner_type,
-            owner_id,
+            base: BaseEvent::new("project_deleted".to_string(), authz.project_id).with_version(2),
+            project_id: authz.project_id,
+            project_name: authz.project_name,
+            deleted_by: authz.deleted_by,
+            deleted_at: authz.deleted_at,
+            member_user_ids: authz.member_user_ids,
+            component_ids: authz.component_ids,
+            owner_type: authz.owner_type,
+            owner_id: authz.owner_id,
         }
     }
 }
@@ -233,7 +237,7 @@ pub struct ProjectArchivedEvent {
     pub owner_id: Uuid,
     pub archived_by: Uuid,
     pub archived_at: DateTime<Utc>,
-    /// Source revision used to order lifecycle AuthZ changes. `0` on v1.
+    /// Source revision used to order lifecycle `AuthZ` changes. `0` on v1.
     #[serde(default)]
     pub lifecycle_revision: i64,
 }

@@ -17,7 +17,7 @@ use serial_test::serial;
 #[serial]
 async fn test_resend_verification_success() {
     // Setup test server and database
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -117,7 +117,7 @@ async fn test_resend_verification_success() {
 #[serial]
 async fn test_resend_verification_email_already_verified() {
     // Setup test server and database
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -199,7 +199,7 @@ async fn test_resend_verification_email_already_verified() {
 #[serial]
 async fn test_resend_verification_email_not_found() {
     // Setup test server and database
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -242,7 +242,7 @@ async fn test_resend_verification_email_not_found() {
 #[serial]
 async fn test_resend_verification_invalid_email_format() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -292,7 +292,7 @@ async fn test_resend_verification_invalid_email_format() {
 #[serial]
 async fn test_resend_verification_missing_email_field() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -330,7 +330,7 @@ async fn test_resend_verification_missing_email_field() {
 #[serial]
 async fn test_resend_verification_malformed_json() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -368,7 +368,7 @@ async fn test_resend_verification_malformed_json() {
 #[serial]
 async fn test_resend_verification_wrong_content_type() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -404,7 +404,7 @@ async fn test_resend_verification_wrong_content_type() {
 #[serial]
 async fn test_resend_verification_multiple_times_same_email() {
     // Setup test server and database
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -480,7 +480,7 @@ async fn test_resend_verification_multiple_times_same_email() {
 #[serial]
 async fn test_resend_verification_case_insensitive_email() {
     // Setup test server and database
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -547,7 +547,7 @@ async fn test_resend_verification_case_insensitive_email() {
 #[serial]
 async fn test_resend_verification_database_consistency() {
     // Setup test server and database
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -664,7 +664,7 @@ async fn test_resend_verification_database_consistency() {
 #[serial]
 async fn test_resend_verification_invalidates_old_tokens() {
     // Setup test server and database
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();

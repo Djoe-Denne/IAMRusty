@@ -1,4 +1,4 @@
-//! Unit tests for SigningProvider / WorkloadIdentity ports (ADR-0304 / 0307).
+//! Unit tests for `SigningProvider` / `WorkloadIdentity` ports (ADR-0304 / 0307).
 
 use iam_domain::entity::signing_key::{
     SigningKey, SigningKeyStatus, SigningProviderType, TrustScope,
@@ -41,7 +41,7 @@ async fn transit_sign_stub_produces_verifiable_digest_signature() {
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "data": { "signature": format!("vault:v1:{sig_b64}") }
         })))
-        .mount(&*server)
+        .mount(&server)
         .await;
 
     let wi: Arc<dyn WorkloadIdentity> =
@@ -93,7 +93,7 @@ async fn transit_public_key_fetched_when_absent() {
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "data": { "keys": { "1": { "public_key": public } } }
         })))
-        .mount(&*server)
+        .mount(&server)
         .await;
 
     let wi: Arc<dyn WorkloadIdentity> =
@@ -138,14 +138,14 @@ async fn transit_probe_signs_and_verifies_challenge() {
             "data": { "type":"rsa-2048", "exportable":false, "supports_signing":true,
                 "latest_version":1, "keys": { "1": { "public_key": public } } }
         })))
-        .mount(&*server)
+        .mount(&server)
         .await;
     Mock::given(method("POST"))
         .and(path(format!("/v1/transit/sign/{key_name}")))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "data": { "signature": format!("vault:v1:{sig_b64}") }
         })))
-        .mount(&*server)
+        .mount(&server)
         .await;
 
     let wi: Arc<dyn WorkloadIdentity> =

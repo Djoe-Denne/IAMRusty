@@ -62,6 +62,8 @@ impl Default for GitLabConfig {
 impl std::fmt::Debug for GitLabConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GitLabConfig")
+            .field("transport_security", &self.transport_security)
+            .field("pkce_supported", &self.pkce_supported)
             .field("client_id", &self.client_id)
             .field("client_secret", &"***")
             .field("auth_url", &self.auth_url)

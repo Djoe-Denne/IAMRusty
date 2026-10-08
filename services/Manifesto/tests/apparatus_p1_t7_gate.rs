@@ -3,6 +3,7 @@
 //! Tokens P2 restent allowlistés L (migration runtime + `apparatus_runtime/`).
 //! Le gate P3+ vit dans `apparatus_p2_t7_gate.rs`.
 
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 /// Racine du workspace (`services/Manifesto/../../`).
@@ -19,12 +20,12 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in entries {
         let path = entry.expect("entrée lisible").path();
         if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            let name = path.file_name().and_then(OsStr::to_str).unwrap_or("");
             if name == "tests" || name == "target" {
                 continue;
             }
             collect_rs(&path, out);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+        } else if path.extension().and_then(OsStr::to_str) == Some("rs") {
             out.push(path);
         }
     }
@@ -77,7 +78,6 @@ fn hits_case_insensitive(
 
 #[test]
 fn t7_no_p2_runtime_tokens_in_manifesto_prod() {
-    let files = prod_files();
     // Allowlist `factory` : registre de commandes préexistant + commentaire du
     // consumer apparatus legacy (`infra/src/event/consumer.rs`, chemin legacy).
     // ADR-0006 L : tokens P2 autorisés uniquement dans la migration runtime et
@@ -86,6 +86,7 @@ fn t7_no_p2_runtime_tokens_in_manifesto_prod() {
         "services/Manifesto/migration/src/m20241015_000001_initial_schema.rs",
         "services/Manifesto/infra/src/apparatus_runtime/",
     ];
+    let files = prod_files();
     let mut all_hits = Vec::new();
     for token in [
         "poll",

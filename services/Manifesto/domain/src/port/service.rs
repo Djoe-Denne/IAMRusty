@@ -32,7 +32,7 @@ pub trait ComponentServicePort: Send + Sync {
             .any(|c| c.component_type == component_type))
     }
 
-    /// Lookup one catalog row by type (digest / declared_capabilities for attach).
+    /// Lookup one catalog row by type (`digest` / `declared_capabilities` for attach).
     async fn find_component(
         &self,
         component_type: &str,

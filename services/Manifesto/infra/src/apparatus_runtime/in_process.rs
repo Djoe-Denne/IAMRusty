@@ -83,8 +83,9 @@ impl ApparatusRuntime for InProcessApparatusRuntime {
         req.validate()?;
         let op_key = req.operation_id.to_string();
         let mut inner = self.lock();
-        if let Some(stored) = inner.seen_bind.get(&op_key) {
-            let mut replay = stored.clone();
+        if let Some(stored) = inner.seen_bind.get(&op_key).cloned() {
+            drop(inner);
+            let mut replay = stored;
             replay.applied = false;
             return Ok(replay);
         }
@@ -102,6 +103,7 @@ impl ApparatusRuntime for InProcessApparatusRuntime {
             applied: true,
         };
         inner.seen_bind.insert(op_key, response.clone());
+        drop(inner);
         Ok(response)
     }
 
@@ -109,8 +111,9 @@ impl ApparatusRuntime for InProcessApparatusRuntime {
         req.validate()?;
         let op_key = req.operation_id.to_string();
         let mut inner = self.lock();
-        if let Some(stored) = inner.seen_configure.get(&op_key) {
-            let mut replay = stored.clone();
+        if let Some(stored) = inner.seen_configure.get(&op_key).cloned() {
+            drop(inner);
+            let mut replay = stored;
             replay.applied = false;
             return Ok(replay);
         }
@@ -125,6 +128,7 @@ impl ApparatusRuntime for InProcessApparatusRuntime {
             applied: true,
         };
         inner.seen_configure.insert(op_key, response.clone());
+        drop(inner);
         Ok(response)
     }
 
@@ -132,8 +136,9 @@ impl ApparatusRuntime for InProcessApparatusRuntime {
         req.validate()?;
         let op_key = req.operation_id.to_string();
         let mut inner = self.lock();
-        if let Some(stored) = inner.seen_unbind.get(&op_key) {
-            let mut replay = stored.clone();
+        if let Some(stored) = inner.seen_unbind.get(&op_key).cloned() {
+            drop(inner);
+            let mut replay = stored;
             replay.applied = false;
             return Ok(replay);
         }
@@ -148,6 +153,7 @@ impl ApparatusRuntime for InProcessApparatusRuntime {
             applied: true,
         };
         inner.seen_unbind.insert(op_key, response.clone());
+        drop(inner);
         Ok(response)
     }
 
@@ -169,6 +175,7 @@ impl ApparatusRuntime for InProcessApparatusRuntime {
         let mut inner = self.lock();
         inner.teardown_calls = inner.teardown_calls.saturating_add(1);
         inner.instances.remove(binding.as_str());
+        drop(inner);
         Ok(())
     }
 }

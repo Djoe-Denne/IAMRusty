@@ -88,7 +88,7 @@ async fn azure_wif_exchanges_access_token() {
     assert_eq!(cred.secret, "azure-access-token-from-wiremock");
 }
 
-/// Transit Sign uses the WIF-resolved secret as `X-Vault-Token` (OpenBao fixture shape).
+/// Transit `Sign` uses the WIF-resolved secret as `X-Vault-Token` (`OpenBao` fixture shape).
 #[tokio::test]
 #[serial]
 async fn transit_sign_uses_wif_resolved_token() {
@@ -105,7 +105,7 @@ async fn transit_sign_uses_wif_resolved_token() {
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "data": { "signature": format!("vault:v1:{sig_b64}") }
         })))
-        .mount(&*wif.server())
+        .mount(&wif.server())
         .await;
 
     let workload = compose_workload_identity(

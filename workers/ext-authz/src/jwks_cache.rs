@@ -128,11 +128,9 @@ impl JwksCache {
         if now.saturating_duration_since(doc.acquired_at) >= MAX_SNAPSHOT_AGE {
             return None;
         }
-        if doc.kids.contains_key(kid) {
-            Some(doc.raw.clone())
-        } else {
-            None
-        }
+        let raw = doc.kids.contains_key(kid).then(|| doc.raw.clone());
+        drop(guard);
+        raw
     }
 
     fn is_negative(&self, kid: &str) -> bool {
@@ -175,7 +173,9 @@ impl JwksCache {
         if doc.acquired_at.elapsed() >= MAX_SNAPSHOT_AGE {
             return None;
         }
-        doc.kids.get(kid).copied()
+        let status = doc.kids.get(kid).copied();
+        drop(guard);
+        status
     }
 
     /// Recheck the exact authorization snapshot after signature verification.
@@ -199,10 +199,9 @@ impl JwksCache {
                 .inner
                 .read()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            match guard.last_fetch {
-                None => true,
-                Some(at) => at.elapsed() >= self.poll_interval,
-            }
+            guard
+                .last_fetch
+                .map_or(true, |at| at.elapsed() >= self.poll_interval)
         };
         if due {
             let _ = self.refresh_coalesced().await;
@@ -231,12 +230,14 @@ impl JwksCache {
         match self.fetch_once().await {
             Ok(mut doc) => {
                 doc.acquired_at = acquired_at;
-                let mut guard = self
-                    .inner
-                    .write()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                guard.last_good = Some(doc);
-                guard.negative.clear();
+                {
+                    let mut guard = self
+                        .inner
+                        .write()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    guard.last_good = Some(doc);
+                    guard.negative.clear();
+                }
                 Ok(())
             }
             Err(e) => {

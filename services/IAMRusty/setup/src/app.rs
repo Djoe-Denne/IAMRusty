@@ -13,6 +13,7 @@ use iam_http_server::oauth_browser::{OAuthBrowserPolicy, OAuthRouteContext};
 use iam_http_server::rate_limit::AuthRateLimiter;
 use iam_http_server::{
     IamHttpSecurityContext, PlatformIssuer, SignerRouteContext, create_app_routes, create_router,
+    handlers::organization_signer::SignerRouteContextParams,
 };
 use iam_infra::{
     auth::{
@@ -104,19 +105,33 @@ pub struct IAMRustyApp {
     oauth_cleanup_stop: watch::Sender<bool>,
 }
 
+pub struct IAMRustyAppParts {
+    pub app_state: AppState,
+    pub outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
+    pub readiness: Arc<ReadinessProbe>,
+    pub idp: Arc<IdpConfig>,
+    pub signer: Option<Arc<SignerRouteContext>>,
+    pub signing_registry: Arc<SeaOrmSigningKeyRegistry>,
+    pub access_token_ttl: u64,
+    pub jwt_codec: Arc<JwtTokenService>,
+    pub security: Arc<IamHttpSecurityContext>,
+    pub oauth_cleanup: Arc<OAuthTransactionCleanup>,
+}
+
 impl IAMRustyApp {
-    pub fn new(
-        app_state: AppState,
-        outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
-        readiness: Arc<ReadinessProbe>,
-        idp: Arc<IdpConfig>,
-        signer: Option<Arc<SignerRouteContext>>,
-        signing_registry: Arc<SeaOrmSigningKeyRegistry>,
-        access_token_ttl: u64,
-        jwt_codec: Arc<JwtTokenService>,
-        security: Arc<IamHttpSecurityContext>,
-        oauth_cleanup: Arc<OAuthTransactionCleanup>,
-    ) -> Self {
+    pub fn new(parts: IAMRustyAppParts) -> Self {
+        let IAMRustyAppParts {
+            app_state,
+            outbox_dispatcher,
+            readiness,
+            idp,
+            signer,
+            signing_registry,
+            access_token_ttl,
+            jwt_codec,
+            security,
+            oauth_cleanup,
+        } = parts;
         let (oauth_cleanup_stop, _) = watch::channel(false);
         Self {
             app_state,
@@ -139,7 +154,7 @@ impl IAMRustyApp {
                 self.app_state.clone(),
                 self.idp.clone(),
                 self.signer.clone(),
-                self.http_security.clone(),
+                &self.http_security,
             ),
             self.readiness.clone(),
         )
@@ -147,10 +162,12 @@ impl IAMRustyApp {
 
     /// The root-created codec shared by access and completion issuance.
     /// No private key material or HTTP extension is exposed by this accessor.
+    #[must_use]
     pub fn jwt_codec(&self) -> Arc<JwtTokenService> {
         self.jwt_codec.clone()
     }
 
+    #[must_use]
     pub fn signing_registry(&self) -> (Arc<SeaOrmSigningKeyRegistry>, u64) {
         (self.signing_registry.clone(), self.access_token_ttl)
     }
@@ -165,7 +182,7 @@ impl IAMRustyApp {
         self.app_state.clone()
     }
 
-    /// Organization-signer application façade (ADR-0306 InProcess injection).
+    /// Organization-signer application façade (ADR-0306 `InProcess` injection).
     ///
     /// Present when JWT/signing registry was wired at build time. Callers in the
     /// monolith composition root must fail-closed if this returns [`None`].
@@ -197,6 +214,9 @@ impl IAMRustyApp {
         ]
     }
 
+    /// # Errors
+    ///
+    /// Returns an error if the outbox dispatcher cannot stop.
     pub async fn stop_background_tasks(&self) -> Result<()> {
         self.oauth_cleanup_stop.send_replace(true);
         self.outbox_dispatcher
@@ -207,6 +227,10 @@ impl IAMRustyApp {
 
     /// Cooperatively stop, then join every owned IAM handle under one five-second budget.
     /// Timed-out handles are aborted and awaited; no worker handle is discarded.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if cooperative stop or a background worker fails, or if the drain times out.
     pub async fn shutdown_background_tasks(
         &self,
         handles: &mut Vec<JoinHandle<Result<()>>>,
@@ -276,7 +300,7 @@ pub async fn build_app_state(
         .security
         .validate(&config.jwt.oauth_state_secret, &config.idp)
         .map_err(anyhow::Error::msg)?;
-    iam_http_server::configure_oauth_state_secret(oauth_state_secret)
+    iam_http_server::configure_oauth_state_secret(&oauth_state_secret)
         .map_err(anyhow::Error::msg)?;
     let (event_publisher, queue_status, queue_transport) =
         if let Some(publisher) = maybe_event_publisher {
@@ -325,38 +349,78 @@ where
     .await
 }
 
-/// Isolated fixtures seed through the SAME root-created admission writer before bootstrap.
-/// Normal production construction supplies no fixture keys.
-pub async fn build_app_state_with_event_publisher_and_signing_keys<EP>(
-    config: AppConfig,
-    event_publisher: Arc<EP>,
-    queue_status: ComponentStatus,
-    queue_transport: Option<Arc<rustycog::events::ConcreteEventPublisher>>,
-    signing_keys: &[iam_domain::entity::signing_key::SigningKey],
-) -> Result<IAMRustyApp>
-where
-    EP: EventPublisher<DomainError> + Send + Sync + 'static,
-{
-    if !signing_keys.is_empty() {
-        anyhow::ensure!(
-            config.security.mode == iam_configuration::security::SecurityMode::IsolatedTest,
-            "initial fixture keys require explicit isolated_test mode"
-        );
-        // Validate the configured pair before any fixture Active insertion too.
-        let iam_configuration::JwtAlgorithm::RS256(pair) = config.jwt.create_jwt_algorithm()?
-        else {
-            anyhow::bail!("initial signing fixture keys require RSA configuration");
-        };
-        PemSigningProvider::new(&pair.private_key, pair.public_key)?;
-    }
+struct IamSigningPool {
+    platform_issuer: PlatformIssuer,
+    rate_limiter: Arc<AuthRateLimiter>,
+    browser_policy: OAuthBrowserPolicy,
+    db_pool: DbConnectionPool,
+    db_write: Arc<sea_orm::DatabaseConnection>,
+    signing_registry: Arc<SeaOrmSigningKeyRegistry>,
+    outbox_dispatcher: Arc<OutboxDispatcher<DomainError>>,
+}
+
+fn setup_iam_identity_stack(
+    config: &AppConfig,
+    db_pool: &DbConnectionPool,
+    signing_registry: Arc<SeaOrmSigningKeyRegistry>,
+) -> Result<(
+    IamRepos,
+    Arc<IdpConfig>,
+    OauthClients,
+    Arc<PasswordService>,
+    Arc<PasswordServiceAdapter>,
+)> {
+    let repos = setup_repositories(db_pool, config.jwt.platform_issuer(), signing_registry);
+    let idp = Arc::new(config.idp.clone());
+    let oauth_clients = setup_oauth_clients(config)?;
+    let password_service = Arc::new(PasswordService::new());
+    let password_service_adapter = Arc::new(PasswordServiceAdapter::new(password_service.clone()));
+    Ok((
+        repos,
+        idp,
+        oauth_clients,
+        password_service,
+        password_service_adapter,
+    ))
+}
+
+fn setup_oauth_cleanup(
+    db_pool: &DbConnectionPool,
+) -> Result<(
+    Arc<dyn OAuthTransactionWriteRepository>,
+    Arc<OAuthTransactionCleanup>,
+)> {
+    let oauth_transaction_writer: Arc<dyn OAuthTransactionWriteRepository> = Arc::new(
+        SeaOrmOAuthTransactionWriteRepository::new(db_pool.get_write_connection()),
+    );
+    let oauth_cleanup = Arc::new(
+        OAuthTransactionCleanup::new(
+            oauth_transaction_writer.clone(),
+            OAuthTransactionCleanupPolicy::default(),
+        )
+        .map_err(|_| anyhow::anyhow!("Invalid OAuth transaction cleanup policy"))?,
+    );
+    Ok((oauth_transaction_writer, oauth_cleanup))
+}
+
+fn install_oauth_state_secret(config: &AppConfig) -> Result<()> {
     let oauth_state_secret = config
         .security
         .validate(&config.jwt.oauth_state_secret, &config.idp)
         .map_err(anyhow::Error::msg)?;
-    iam_http_server::configure_oauth_state_secret(oauth_state_secret)
+    iam_http_server::configure_oauth_state_secret(&oauth_state_secret)
         .map_err(anyhow::Error::msg)?;
-    info!("Building IAM service...");
+    Ok(())
+}
 
+async fn open_iam_signing_pool<EP>(
+    config: &AppConfig,
+    event_publisher: Arc<EP>,
+    signing_keys: &[iam_domain::entity::signing_key::SigningKey],
+) -> Result<IamSigningPool>
+where
+    EP: EventPublisher<DomainError> + Send + Sync + 'static,
+{
     let platform_issuer =
         PlatformIssuer::new(config.jwt.platform_issuer()).map_err(anyhow::Error::msg)?;
     let rate_limiter = Arc::new(
@@ -365,10 +429,8 @@ where
     );
     let browser_policy = OAuthBrowserPolicy::new(config.security.mode, &config.jwt.public_base_url)
         .map_err(anyhow::Error::msg)?;
-
     let signing_policy =
         Arc::new(iam_domain::entity::signing_key::SigningKeyLifecyclePolicy::new()?);
-    // Setup database connection pool
     let db_pool = DbConnectionPool::new(&config.database).await?;
     let db_write = db_pool.get_write_connection();
     let signing_registry = Arc::new(SeaOrmSigningKeyRegistry::new(
@@ -380,7 +442,7 @@ where
         iam_domain::port::repository::SigningKeyRegistry::insert(signing_registry.as_ref(), key)
             .await?;
     }
-    let dispatcher_publisher: Arc<dyn EventPublisher<DomainError>> = event_publisher.clone();
+    let dispatcher_publisher: Arc<dyn EventPublisher<DomainError>> = event_publisher;
     let outbox_dispatcher = Arc::new(OutboxDispatcher::new(
         db_pool.clone(),
         dispatcher_publisher,
@@ -394,18 +456,98 @@ where
             config.database.read_replicas.len()
         }
     );
+    Ok(IamSigningPool {
+        platform_issuer,
+        rate_limiter,
+        browser_policy,
+        db_pool,
+        db_write,
+        signing_registry,
+        outbox_dispatcher,
+    })
+}
 
-    let repos = setup_repositories(
-        &db_pool,
-        config.jwt.platform_issuer(),
-        signing_registry.clone(),
+fn seed_isolated_signing_keys(
+    config: &AppConfig,
+    signing_keys: &[iam_domain::entity::signing_key::SigningKey],
+) -> Result<()> {
+    if signing_keys.is_empty() {
+        return Ok(());
+    }
+    anyhow::ensure!(
+        config.security.mode == iam_configuration::security::SecurityMode::IsolatedTest,
+        "initial fixture keys require explicit isolated_test mode"
     );
-    let idp = Arc::new(config.idp.clone());
-    let oauth_clients = setup_oauth_clients(&config)?;
+    let iam_configuration::JwtAlgorithm::RS256(pair) = config.jwt.create_jwt_algorithm()? else {
+        anyhow::bail!("initial signing fixture keys require RSA configuration");
+    };
+    PemSigningProvider::new(&pair.private_key, pair.public_key)?;
+    Ok(())
+}
 
-    // Create password service
-    let password_service = Arc::new(PasswordService::new());
-    let password_service_adapter = Arc::new(PasswordServiceAdapter::new(password_service.clone()));
+async fn capture_local_jwks_if_rs256(
+    http_verifier_auth: &iam_configuration::AuthConfig,
+    usecases: &IamRegistryUseCases,
+) -> Result<Option<LocalJwksSeed>> {
+    if !http_verifier_auth
+        .jwt
+        .allowed_algorithms
+        .iter()
+        .any(|a| a == "RS256")
+    {
+        // Preserve the explicit HS256-only legacy mode, without inventing a
+        // JWKS URL, platform issuer, seed, or enabling another algorithm.
+        return Ok(None);
+    }
+    let authority_url = http_verifier_auth
+        .jwt
+        .jwks_url
+        .as_deref()
+        .ok_or_else(|| anyhow::anyhow!("Invalid auth configuration: missing JWKS URL"))?;
+    let jwks_seed = LocalJwksSeed::capture(authority_url, || async {
+        let jwks = usecases.token.get_jwks().await.map_err(|e| {
+            iam_application::command::token::TokenErrorMapper.map_error(Box::new(e))
+        })?;
+        serde_json::to_string(&jwks).map_err(|_| {
+            CommandError::infrastructure("invalid_jwks", "Invalid signing registry snapshot")
+        })
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("Local JWKS capture failed: {e}"))?;
+    Ok(Some(jwks_seed))
+}
+
+/// Isolated fixtures seed through the SAME root-created admission writer before bootstrap.
+/// Normal production construction supplies no fixture keys.
+///
+/// # Errors
+///
+/// Returns an error if the database, JWT, command registry, signing, or readiness wiring fails.
+pub async fn build_app_state_with_event_publisher_and_signing_keys<EP>(
+    config: AppConfig,
+    event_publisher: Arc<EP>,
+    queue_status: ComponentStatus,
+    queue_transport: Option<Arc<rustycog::events::ConcreteEventPublisher>>,
+    signing_keys: &[iam_domain::entity::signing_key::SigningKey],
+) -> Result<IAMRustyApp>
+where
+    EP: EventPublisher<DomainError> + Send + Sync + 'static,
+{
+    seed_isolated_signing_keys(&config, signing_keys)?;
+    install_oauth_state_secret(&config)?;
+    info!("Building IAM service...");
+    let IamSigningPool {
+        platform_issuer,
+        rate_limiter,
+        browser_policy,
+        db_pool,
+        db_write,
+        signing_registry,
+        outbox_dispatcher,
+    } = open_iam_signing_pool(&config, event_publisher.clone(), signing_keys).await?;
+
+    let (repos, idp, oauth_clients, password_service, password_service_adapter) =
+        setup_iam_identity_stack(&config, &db_pool, signing_registry.clone())?;
 
     let (http_verifier_auth, _inline_jwks, token_service, registration_token_service, signer_ctx) =
         setup_jwt(&config, db_write.clone(), signing_registry.clone()).await?;
@@ -414,16 +556,7 @@ where
         db_pool.clone(),
         OutboxRecorder,
     ));
-    let oauth_transaction_writer: Arc<dyn OAuthTransactionWriteRepository> = Arc::new(
-        SeaOrmOAuthTransactionWriteRepository::new(db_pool.get_write_connection()),
-    );
-    let oauth_cleanup = Arc::new(
-        OAuthTransactionCleanup::new(
-            oauth_transaction_writer.clone(),
-            OAuthTransactionCleanupPolicy::default(),
-        )
-        .map_err(|_| anyhow::anyhow!("Invalid OAuth transaction cleanup policy"))?,
-    );
+    let (oauth_transaction_writer, oauth_cleanup) = setup_oauth_cleanup(&db_pool)?;
     let usecases = setup_iam_usecases(
         &db_pool,
         IamUsecasesDeps {
@@ -450,34 +583,7 @@ where
     // Capture the complete primary publisher snapshot before moving its use cases
     // into the registry. The SDK dates acquisition before this local read; neither
     // capture nor extractor construction performs HTTP or renews the seed's TTL.
-    let jwks_seed = if http_verifier_auth
-        .jwt
-        .allowed_algorithms
-        .iter()
-        .any(|a| a == "RS256")
-    {
-        let authority_url = http_verifier_auth
-            .jwt
-            .jwks_url
-            .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("Invalid auth configuration: missing JWKS URL"))?;
-        let jwks_seed = LocalJwksSeed::capture(authority_url, || async {
-            let jwks = usecases.token.get_jwks().await.map_err(|e| {
-                iam_application::command::token::TokenErrorMapper.map_error(Box::new(e))
-            })?;
-            // Match the endpoint's Json<JwkSet> compact serde serializer.
-            serde_json::to_string(&jwks).map_err(|_| {
-                CommandError::infrastructure("invalid_jwks", "Invalid signing registry snapshot")
-            })
-        })
-        .await
-        .map_err(|e| anyhow::anyhow!("Local JWKS capture failed: {e}"))?;
-        Some(jwks_seed)
-    } else {
-        // Preserve the explicit HS256-only legacy mode, without inventing a
-        // JWKS URL, platform issuer, seed, or enabling another algorithm.
-        None
-    };
+    let jwks_seed = capture_local_jwks_if_rs256(&http_verifier_auth, &usecases).await?;
 
     let registry = CommandRegistryFactory::create_iam_registry(usecases, &config.command);
     let command_service = Arc::new(GenericCommandService::new(Arc::new(registry)));
@@ -501,18 +607,18 @@ where
             .with_publisher(queue_status, queue_transport),
     );
 
-    Ok(IAMRustyApp::new(
+    Ok(IAMRustyApp::new(IAMRustyAppParts {
         app_state,
         outbox_dispatcher,
         readiness,
         idp,
-        signer_ctx,
+        signer: signer_ctx,
         signing_registry,
-        config.jwt.expiration_seconds,
-        token_service,
-        http_security,
+        access_token_ttl: config.jwt.expiration_seconds,
+        jwt_codec: token_service,
+        security: http_security,
         oauth_cleanup,
-    ))
+    }))
 }
 
 type UserRepo = CombinedUserRepository<UserReadRepositoryImpl, UserWriteRepositoryImpl>;
@@ -716,23 +822,36 @@ where
     (login_auth, registration, password_reset)
 }
 
-fn setup_provider_user_token(
-    db_pool: &DbConnectionPool,
+struct ProviderUserTokenDeps {
     user_repo: UserRepo,
     user_email_repo: UserEmailRepo,
     refresh_token_repo: RefreshRepo,
     token_service: Arc<JwtTokenService>,
-    signing_key_registry: Arc<
-        dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>,
-    >,
+    signing_key_registry:
+        Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>,
     identity_repo: Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>,
     platform_issuer: String,
     access_token_expiration_seconds: u64,
+}
+
+fn setup_provider_user_token(
+    db_pool: &DbConnectionPool,
+    deps: ProviderUserTokenDeps,
 ) -> (
     Arc<dyn ProviderUseCase>,
     Arc<dyn UserUseCase>,
     Arc<dyn TokenUseCase>,
 ) {
+    let ProviderUserTokenDeps {
+        user_repo,
+        user_email_repo,
+        refresh_token_repo,
+        token_service,
+        signing_key_registry,
+        identity_repo,
+        platform_issuer,
+        access_token_expiration_seconds,
+    } = deps;
     let token_repo_provider = CombinedTokenRepository::new(
         TokenReadRepositoryImpl::new(db_pool.get_read_connection()),
         TokenWriteRepositoryImpl::new(db_pool.get_write_connection()),
@@ -834,14 +953,16 @@ where
     );
     let (provider, user, token) = setup_provider_user_token(
         db_pool,
-        user_repo,
-        user_email_repo,
-        refresh_token_repo,
-        token_service.clone(),
-        signing_key_registry,
-        identity_repo,
-        platform_issuer,
-        token_service.access_token_expiration_seconds(),
+        ProviderUserTokenDeps {
+            user_repo,
+            user_email_repo,
+            refresh_token_repo,
+            token_service: token_service.clone(),
+            signing_key_registry,
+            identity_repo,
+            platform_issuer,
+            access_token_expiration_seconds: token_service.access_token_expiration_seconds(),
+        },
     );
     IamRegistryUseCases {
         oauth,
@@ -962,6 +1083,210 @@ fn configured_local_algorithm(
     })?))
 }
 
+fn setup_signer_route_context(
+    config: &AppConfig,
+    db: Arc<sea_orm::DatabaseConnection>,
+    registry: Arc<SeaOrmSigningKeyRegistry>,
+    pem_root: PathBuf,
+    transit: Option<TransitClientConfig>,
+) -> Result<Option<Arc<SignerRouteContext>>> {
+    let identity_repo = Arc::new(SeaOrmIdentityRepository::new(db));
+    let mut probe = DefaultOrganizationSignerProbe::new(pem_root.clone())
+        .with_local_pem_allowed(config.security.mode.allows_local_pem());
+    if let Some(ref t) = transit {
+        probe = probe.with_transit(t.clone());
+    }
+    let rotator = Arc::new(DefaultOrganizationSignerRotator::new(RotateContext {
+        registry: registry.clone()
+            as Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>,
+        pem_root: pem_root.clone(),
+        transit: transit.clone(),
+        allow_local_pem: config.security.mode.allows_local_pem(),
+    }));
+    Ok(Some(Arc::new(SignerRouteContext::new(
+        SignerRouteContextParams {
+            registry: registry.clone()
+                as Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>,
+            identity_repo: identity_repo
+                as Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>,
+            public_base_url: config.jwt.public_base_url.clone(),
+            probe: Arc::new(probe),
+            rotator: rotator as Arc<dyn iam_domain::port::OrganizationSignerRotator>,
+            pem_root,
+            expiration_seconds: config.jwt.expiration_seconds,
+            skew_seconds: JWKS_RETIRE_SKEW_SECONDS as u64,
+            transit_base_url: transit.as_ref().map(|t| t.base_url.clone()),
+        },
+    ))))
+}
+
+async fn resolve_access_signing(
+    config: &AppConfig,
+    registry: &SeaOrmSigningKeyRegistry,
+    platform_issuer: &str,
+    pem_root: &Path,
+    transit: &Option<TransitClientConfig>,
+    jwt_algorithm_config: Option<iam_configuration::JwtAlgorithm>,
+) -> Result<(
+    JwtAlgorithm,
+    Option<(
+        Arc<dyn iam_domain::port::SigningProvider>,
+        String,
+        String,
+        iam_domain::entity::token::JwkSet,
+    )>,
+)> {
+    let platform_transit = config
+        .jwt
+        .platform_transit_binding()
+        .map_err(|e| anyhow::anyhow!("Invalid platform Transit binding: {e}"))?;
+    let remote_cfg = config
+        .jwt
+        .remote_http_endpoint()
+        .map_err(|e| anyhow::anyhow!("remote signer: {e}"))?;
+    Ok(if let Some(binding) = platform_transit {
+        let transit = transit
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("platform Transit unavailable; no fallback"))?;
+        let bits =
+            platform_transit_signing_bits(registry, platform_issuer, binding, transit, pem_root)
+                .await?;
+        let key = registry
+            .find_active_platform_key()
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("platform Active unavailable"))?;
+        (
+            JwtAlgorithm::RS256(iam_domain::entity::token::JwtKeyPair {
+                private_key: String::new(),
+                public_key: key.public_key,
+                kid: key.kid,
+            }),
+            Some(bits),
+        )
+    } else if let Some(remote) = remote_cfg {
+        let bits = remote_signing_bits(config, registry, platform_issuer, remote).await?;
+        let key = registry
+            .find_active_platform_key()
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("remote Active unavailable"))?;
+        (
+            JwtAlgorithm::RS256(iam_domain::entity::token::JwtKeyPair {
+                private_key: String::new(),
+                public_key: key.public_key,
+                kid: key.kid,
+            }),
+            Some(bits),
+        )
+    } else {
+        resolve_local_access_signing(
+            config,
+            registry,
+            platform_issuer,
+            jwt_algorithm_config,
+            remote_cfg.is_some(),
+        )
+        .await?
+    })
+}
+
+async fn resolve_local_access_signing(
+    config: &AppConfig,
+    registry: &SeaOrmSigningKeyRegistry,
+    platform_issuer: &str,
+    jwt_algorithm_config: Option<iam_configuration::JwtAlgorithm>,
+    remote_already_selected: bool,
+) -> Result<(
+    JwtAlgorithm,
+    Option<(
+        Arc<dyn iam_domain::port::SigningProvider>,
+        String,
+        String,
+        iam_domain::entity::token::JwkSet,
+    )>,
+)> {
+    Ok(
+        match jwt_algorithm_config
+            .ok_or_else(|| anyhow::anyhow!("signing algorithm unavailable"))?
+        {
+            iam_configuration::JwtAlgorithm::HS256(secret) => {
+                tracing::warn!("HS256 JWT algorithm configured — access tokens should be RS256");
+                (
+                    JwtAlgorithm::HS256(secret),
+                    None::<(
+                        Arc<dyn iam_domain::port::SigningProvider>,
+                        String,
+                        String,
+                        iam_domain::entity::token::JwkSet,
+                    )>,
+                )
+            }
+            iam_configuration::JwtAlgorithm::RS256(key_pair) => {
+                anyhow::ensure!(
+                    config.security.mode.allows_local_pem(),
+                    "local PEM signer requires explicit nonprod mode; no provider fallback"
+                );
+                tracing::info!(
+                    "Using RSA256 JWT algorithm (key_id: {}, private_key: {} bytes, public_key: {} bytes)",
+                    key_pair.kid,
+                    key_pair.private_key.len(),
+                    key_pair.public_key.len()
+                );
+                let jwt_algorithm = JwtAlgorithm::RS256(iam_domain::entity::token::JwtKeyPair {
+                    private_key: key_pair.private_key.clone(),
+                    public_key: key_pair.public_key.clone(),
+                    kid: key_pair.kid.clone(),
+                });
+                if remote_already_selected {
+                    tracing::info!(
+                        "Remote access signer requested — skipping PEM access-signer bootstrap"
+                    );
+                    (jwt_algorithm, None)
+                } else {
+                    let provider = Arc::new(
+                        PemSigningProvider::new(&key_pair.private_key, key_pair.public_key.clone())
+                            .map_err(|e| anyhow::anyhow!("PEM signing provider: {e}"))?,
+                    )
+                        as Arc<dyn iam_domain::port::SigningProvider>;
+                    let provider: Arc<dyn SigningProvider> =
+                        Arc::new(ScopedSigningProvider::unversioned(
+                            SigningProviderType::PemFile,
+                            "pem:config/jwt.secret".into(),
+                            None,
+                            provider,
+                        )?);
+
+                    let bootstrapped = bootstrap_platform_signing_key(
+                        registry,
+                        &key_pair.kid,
+                        platform_issuer,
+                        &key_pair.public_key,
+                        "pem:config/jwt.secret",
+                        SigningProviderType::PemFile,
+                    )
+                    .await
+                    .map_err(|e| anyhow::anyhow!("signing key bootstrap: {e}"))?;
+
+                    let mut jwk = JwtTokenService::jwk_from_pem(
+                        &bootstrapped.public_key,
+                        &bootstrapped.kid,
+                        &bootstrapped.issuer,
+                    )
+                    .map_err(|e| anyhow::anyhow!("JWKS build: {e}"))?;
+                    jwk.status = Some(bootstrapped.status.clone());
+                    jwk.trust_scope = Some(bootstrapped.trust_scope.clone());
+                    jwk.organization_id = bootstrapped.organization_id;
+                    let jwks = iam_domain::entity::token::JwkSet { keys: vec![jwk] };
+
+                    (
+                        jwt_algorithm,
+                        Some((provider, bootstrapped.kid, bootstrapped.issuer, jwks)),
+                    )
+                }
+            }
+        },
+    )
+}
+
 async fn setup_jwt(
     config: &AppConfig,
     db: Arc<sea_orm::DatabaseConnection>,
@@ -994,7 +1319,6 @@ async fn setup_jwt(
         configured_local_algorithm(config, platform_transit.is_some() || remote_cfg.is_some())?;
 
     let platform_issuer = config.jwt.platform_issuer();
-    let identity_repo = Arc::new(SeaOrmIdentityRepository::new(db));
     let pem_root = organization_signer_pem_root(&config.jwt.secret);
     let transit = resolve_transit_client_config(&config.jwt)?;
     if config.security.mode == SecurityMode::Verified
@@ -1004,152 +1328,23 @@ async fn setup_jwt(
     {
         return Err(anyhow::anyhow!("verified Transit requires HTTPS"));
     }
-    let mut probe = DefaultOrganizationSignerProbe::new(pem_root.clone())
-        .with_local_pem_allowed(config.security.mode.allows_local_pem());
-    if let Some(ref t) = transit {
-        probe = probe.with_transit(t.clone());
-    }
-    let rotator = Arc::new(DefaultOrganizationSignerRotator::new(RotateContext {
-        registry: registry.clone()
-            as Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>,
-        pem_root: pem_root.clone(),
-        transit: transit.clone(),
-        allow_local_pem: config.security.mode.allows_local_pem(),
-    }));
-    let signer_ctx = Some(Arc::new(SignerRouteContext::new(
-        registry.clone()
-            as Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>,
-        identity_repo
-            as Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>,
-        config.jwt.public_base_url.clone(),
-        Arc::new(probe),
-        rotator as Arc<dyn iam_domain::port::OrganizationSignerRotator>,
+    let signer_ctx = setup_signer_route_context(
+        config,
+        db,
+        registry.clone(),
         pem_root.clone(),
-        config.jwt.expiration_seconds,
-        JWKS_RETIRE_SKEW_SECONDS as u64,
-        transit.as_ref().map(|t| t.base_url.clone()),
-    )));
-
-    let (jwt_algorithm, signing_bits) = if let Some(binding) = platform_transit {
-        let transit = transit
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("platform Transit unavailable; no fallback"))?;
-        let bits = platform_transit_signing_bits(
-            registry.as_ref(),
-            &platform_issuer,
-            binding,
-            transit,
-            &pem_root,
-        )
-        .await?;
-        let key = registry
-            .find_active_platform_key()
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("platform Active unavailable"))?;
-        (
-            JwtAlgorithm::RS256(iam_domain::entity::token::JwtKeyPair {
-                private_key: String::new(),
-                public_key: key.public_key,
-                kid: key.kid,
-            }),
-            Some(bits),
-        )
-    } else if let Some(remote) = remote_cfg {
-        let bits = remote_signing_bits(config, registry.as_ref(), &platform_issuer, remote).await?;
-        let key = registry
-            .find_active_platform_key()
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("remote Active unavailable"))?;
-        (
-            JwtAlgorithm::RS256(iam_domain::entity::token::JwtKeyPair {
-                private_key: String::new(),
-                public_key: key.public_key,
-                kid: key.kid,
-            }),
-            Some(bits),
-        )
-    } else {
-        match jwt_algorithm_config
-            .ok_or_else(|| anyhow::anyhow!("signing algorithm unavailable"))?
-        {
-            iam_configuration::JwtAlgorithm::HS256(secret) => {
-                tracing::warn!("HS256 JWT algorithm configured — access tokens should be RS256");
-                (
-                    JwtAlgorithm::HS256(secret),
-                    None::<(
-                        Arc<dyn iam_domain::port::SigningProvider>,
-                        String,
-                        String,
-                        iam_domain::entity::token::JwkSet,
-                    )>,
-                )
-            }
-            iam_configuration::JwtAlgorithm::RS256(key_pair) => {
-                anyhow::ensure!(
-                    config.security.mode.allows_local_pem(),
-                    "local PEM signer requires explicit nonprod mode; no provider fallback"
-                );
-                tracing::info!(
-                    "Using RSA256 JWT algorithm (key_id: {}, private_key: {} bytes, public_key: {} bytes)",
-                    key_pair.kid,
-                    key_pair.private_key.len(),
-                    key_pair.public_key.len()
-                );
-                let jwt_algorithm = JwtAlgorithm::RS256(iam_domain::entity::token::JwtKeyPair {
-                    private_key: key_pair.private_key.clone(),
-                    public_key: key_pair.public_key.clone(),
-                    kid: key_pair.kid.clone(),
-                });
-                // Remote access signer: skip PEM access-signer bootstrap (no mixed PEM+remote JWKS/kid).
-                if remote_cfg.is_some() {
-                    tracing::info!(
-                        "Remote access signer requested — skipping PEM access-signer bootstrap"
-                    );
-                    (jwt_algorithm, None)
-                } else {
-                    let provider = Arc::new(
-                        PemSigningProvider::new(&key_pair.private_key, key_pair.public_key.clone())
-                            .map_err(|e| anyhow::anyhow!("PEM signing provider: {e}"))?,
-                    )
-                        as Arc<dyn iam_domain::port::SigningProvider>;
-                    let provider: Arc<dyn SigningProvider> =
-                        Arc::new(ScopedSigningProvider::unversioned(
-                            SigningProviderType::PemFile,
-                            "pem:config/jwt.secret".into(),
-                            None,
-                            provider,
-                        )?);
-
-                    let bootstrapped = bootstrap_platform_signing_key(
-                        registry.as_ref(),
-                        &key_pair.kid,
-                        &platform_issuer,
-                        &key_pair.public_key,
-                        "pem:config/jwt.secret",
-                        SigningProviderType::PemFile,
-                    )
-                    .await
-                    .map_err(|e| anyhow::anyhow!("signing key bootstrap: {e}"))?;
-
-                    let mut jwk = JwtTokenService::jwk_from_pem(
-                        &bootstrapped.public_key,
-                        &bootstrapped.kid,
-                        &bootstrapped.issuer,
-                    )
-                    .map_err(|e| anyhow::anyhow!("JWKS build: {e}"))?;
-                    jwk.status = Some(bootstrapped.status.clone());
-                    jwk.trust_scope = Some(bootstrapped.trust_scope.clone());
-                    jwk.organization_id = bootstrapped.organization_id;
-                    let jwks = iam_domain::entity::token::JwkSet { keys: vec![jwk] };
-
-                    (
-                        jwt_algorithm,
-                        Some((provider, bootstrapped.kid, bootstrapped.issuer, jwks)),
-                    )
-                }
-            }
-        }
-    };
+        transit.clone(),
+    )?;
+    let (jwt_algorithm, signing_bits) = resolve_access_signing(
+        config,
+        registry.as_ref(),
+        &platform_issuer,
+        &pem_root,
+        &transit,
+        jwt_algorithm_config,
+    )
+    .await?;
+    let _ = (platform_transit, remote_cfg);
 
     let mut token_service = JwtTokenService::with_refresh_expiration(
         jwt_algorithm.clone(),
@@ -1304,7 +1499,8 @@ async fn platform_transit_signing_bits(
             }
         }
     };
-    let jwks = iam_domain::entity::token::JwkSet::from_registry_keys_checked(&[key.clone()])?;
+    let jwks =
+        iam_domain::entity::token::JwkSet::from_registry_keys_checked(std::slice::from_ref(&key))?;
     Ok((delegate, key.kid, key.issuer, jwks))
 }
 
@@ -1407,8 +1603,10 @@ fn organization_signer_pem_root(secret: &SecretStorage) -> PathBuf {
         } => Path::new(private_key_path)
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
-            .map(|parent| parent.join("organizations"))
-            .unwrap_or_else(|| PathBuf::from("config/keys/organizations")),
+            .map_or_else(
+                || PathBuf::from("config/keys/organizations"),
+                |parent| parent.join("organizations"),
+            ),
         _ => PathBuf::from("config/keys/organizations"),
     }
 }
@@ -1457,10 +1655,10 @@ fn resolve_transit_client_config(
         .unwrap_or("")
         .trim()
         .to_string();
-    if static_secret.is_empty() {
-        if let SecretStorage::Vault { token, .. } = &jwt.secret {
-            static_secret = token.trim().to_string();
-        }
+    if static_secret.is_empty()
+        && let SecretStorage::Vault { token, .. } = &jwt.secret
+    {
+        static_secret = token.trim().to_string();
     }
 
     if !is_wif && static_secret.is_empty() {
@@ -1582,6 +1780,10 @@ impl Drop for OwnedTaskAbortGuard {
 }
 
 /// Observe every IAM task without transferring ownership to a disposable wait future.
+///
+/// # Errors
+///
+/// Returns an error if the task set is empty, a worker fails, or a worker joins with a panic.
 pub async fn wait_for_background_failure(handles: &mut Vec<JoinHandle<Result<()>>>) -> Result<()> {
     if handles.is_empty() {
         return Err(anyhow::anyhow!("IAM background task set is empty"));

@@ -37,7 +37,7 @@ async fn assert_failed_without_persistence(
 #[tokio::test]
 #[serial]
 async fn github_rate_limit_and_server_error_are_http_failures_without_account_side_effects() {
-    let (fixture, base_url, client) = setup_test_server().await.unwrap();
+    let (fixture, base_url, client) = Box::pin(setup_test_server()).await.unwrap();
     fixture_cleanup::run(&fixture, async {
         let db = fixture.db();
         let idp = IdpConnectFixtures::service().await;
@@ -73,7 +73,7 @@ async fn github_rate_limit_and_server_error_are_http_failures_without_account_si
 #[tokio::test]
 #[serial]
 async fn gitlab_forbidden_rate_limit_and_server_error_keep_the_same_public_contract() {
-    let (fixture, base_url, client) = setup_test_server().await.unwrap();
+    let (fixture, base_url, client) = Box::pin(setup_test_server()).await.unwrap();
     fixture_cleanup::run(&fixture, async {
         let db = fixture.db();
         let idp = IdpConnectFixtures::service().await;
@@ -122,7 +122,7 @@ async fn gitlab_forbidden_rate_limit_and_server_error_keep_the_same_public_contr
 #[tokio::test]
 #[serial]
 async fn github_rejects_invalid_authorization_codes_and_clients_without_writing_tokens() {
-    let (fixture, base_url, client) = setup_test_server().await.unwrap();
+    let (fixture, base_url, client) = Box::pin(setup_test_server()).await.unwrap();
     fixture_cleanup::run(&fixture, async {
         let db = fixture.db();
         let idp = IdpConnectFixtures::service().await;
@@ -156,7 +156,7 @@ async fn github_rejects_invalid_authorization_codes_and_clients_without_writing_
 #[tokio::test]
 #[serial]
 async fn gitlab_rejects_invalid_authorization_codes_and_clients_without_writing_tokens() {
-    let (fixture, base_url, client) = setup_test_server().await.unwrap();
+    let (fixture, base_url, client) = Box::pin(setup_test_server()).await.unwrap();
     fixture_cleanup::run(&fixture, async {
         let db = fixture.db();
         let idp = IdpConnectFixtures::service().await;

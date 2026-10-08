@@ -1,17 +1,17 @@
 # ADR-0311 : En production IAM délègue les clés privées et signatures JWT aux providers
 
-- Statut : Proposed
-- Réalité : Partial
-- Date : 2026-10-07
-- Décideurs : Djoé Denne ; périmètre approuvé le2026-10-06, statut formel Proposed demandé
+- Statut : Accepted
+- Réalité : Implemented
+- Date : 2026-10-08
+- Décideurs : Djoé Denne ; périmètre approuvé le 2026-10-06, rédaction Proposed le 2026-10-07 ; Accept explicite le 2026-10-08, pas Accept autonome
 - Jalon concerné : architecture actuelle / IAM signature ; hors P-Apparatus
-- SuperSède : aucune effective ; amendement ciblé de0304 §4 après Accept explicite
+- SuperSède : amendement ciblé de 0304 §4 sur la crypto privée production et le PEM dev/test, effectif après Accept explicite du 2026-10-08 ; pas de supersession de 0304 entière
 - SuperSédée par : —
 - Related :0304,0305,0306,0307,0308,0309,0312
 
 ## Contexte
 
-SigningProvider, Transit et Remote existent. Le chemin PEM génère/charge encore du RSA privé ; Transit ne transmet pas explicitement key_version. Le produit conserve plateforme commune par défaut et autorité entreprise indépendante derrière KMS/HSM. L'accord utilisateur ne signifie ni livraison ni Accept formelle.
+**État historique à la rédaction du 2026-10-07.** SigningProvider, Transit et Remote existent. Le chemin PEM génère/charge encore du RSA privé ; Transit ne transmet pas explicitement key_version. Le produit conserve plateforme commune par défaut et autorité entreprise indépendante derrière KMS/HSM. L'accord utilisateur ne signifie ni livraison ni Accept formelle.
 
 ## Décision
 
@@ -28,6 +28,13 @@ Moins de garde/crypto privée maison, mais dépendance réseau/disponibilité/co
 
 ## Références
 
-- `services/IAMRusty/domain/src/port/signing.rs:18–40` ; `infra/src/signing/rotate.rs:197–260` ; `infra/src/signing/transit.rs:187–198` ; adapters PEM/Transit/Remote.
+- `services/IAMRusty/domain/src/port/signing.rs:18–40` ; `services/IAMRusty/infra/src/signing/rotate.rs:153` ; `services/IAMRusty/setup/src/app.rs:1017,1036,1196–1208` ; adapters PEM/Transit/Remote.
 - Canon0304–0309 ; `docs/local/20261006-signing-simplification-inventory.md` et `20261006-org-authorization-vs-trust-review.md`.
-- Réalité Partial : ports/adapters source présents ; retrait PEM production et orchestration versionnée complète non livrés/non testés ici.
+- Réalité Implemented : rotation déléguée via `rotate_provider_material()` (`services/IAMRusty/infra/src/signing/rotate.rs:153`), version Transit épinglée (`require_transit_key_version` dans transit/probe/scoped et signing_key_registry), PEM limité au dev/test explicite et binding plateforme Transit sans fallback (`services/IAMRusty/setup/src/app.rs:1017,1036,1196–1208`).
+
+## Réalité courante — 2026-10-08
+
+- Ratification explicite de Djoé Denne : **Accepted / Implemented**. L'implémentation du paquet signing a été livrée après la rédaction Proposed (commits `0da64c2`, `8c582d4`, `1d66967`, `f33cf2a`, `6296d0f`, `2dc4126` ; preuves source vérifiées par le contrôleur au HEAD `e8fcaea`).
+- Rotation : `services/IAMRusty/infra/src/signing/rotate.rs:153` appelle `rotate_provider_material()` ; plus de keygen RSA local en production. Public/probe/signature exigent `require_transit_key_version` dans `infra/src/signing/{transit,probe,scoped}.rs` et `infra/src/repository/signing_key_registry.rs` (préfixe `services/IAMRusty/`).
+- PEM : `services/IAMRusty/setup/src/app.rs:1017` utilise `config.security.mode.allows_local_pem()` ; les fixtures exigent `IsolatedTest` (`app.rs:340–350`). La plateforme impose Transit sans fallback (`app.rs:1036`) et `provider_type == OpenBaoTransit` (`app.rs:1196–1208`).
+- Suites IAM **unitaires + IT vertes sur master**, exécutées et confirmées par Djoé Denne le 2026-10-08 ; notamment `signing_epoch_writer`, `transit_protocol`, `signing_admission`. Il s'agit d'une **attestation utilisateur**, pas d'un artefact CI archivé ni d'une exécution par cet agent. Elle ne couvre pas l'E2E exact-route/Envoy de 0412 et ne vaut pas PASS sécurité global implicite.

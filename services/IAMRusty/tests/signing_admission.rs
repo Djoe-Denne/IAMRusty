@@ -20,6 +20,7 @@ use iam_domain::{
     error::DomainError,
     port::repository::SigningKeyRegistry,
 };
+use rsa::pkcs8::EncodePublicKey;
 use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
 use serial_test::serial;
 use std::{collections::BTreeMap, sync::Arc};
@@ -71,20 +72,38 @@ fn public_map(set: &serde_json::Value) -> BTreeMap<String, serde_json::Value> {
 
 /// Expected entries come from explicit arranged/tested rows and a separate PEM
 /// DTO codec, NEVER from the publication under test or a fixture-maintained count.
-async fn assert_complete_publication(
-    writer: &impl SigningKeyRegistry<Error = DomainError>,
-    db: &DatabaseConnection,
-    client: &reqwest::Client,
-    base: &str,
-    expected: &[SigningKey],
+struct CompletePublicationAssert<'a, W: SigningKeyRegistry<Error = DomainError> + ?Sized> {
+    writer: &'a W,
+    db: &'a DatabaseConnection,
+    client: &'a reqwest::Client,
+    base: &'a str,
+    expected: &'a [SigningKey],
     ttl: u64,
     org: i64,
     platform: i64,
-) {
+}
+
+async fn assert_complete_publication<W>(args: CompletePublicationAssert<'_, W>)
+where
+    W: SigningKeyRegistry<Error = DomainError> + ?Sized,
+{
+    let CompletePublicationAssert {
+        writer,
+        db,
+        client,
+        base,
+        expected,
+        ttl,
+        org,
+        platform,
+    } = args;
     signing_prefill::assert_sql_slots(db, ttl, org, platform)
         .await
         .expect("independent SQL counts");
-    assert_eq!(expected.len() as i64, org + platform);
+    assert_eq!(
+        i64::try_from(expected.len()).expect("key count fits i64"),
+        org + platform
+    );
     let expected = iam_domain::entity::token::JwkSet::from_registry_keys_checked(expected)
         .expect("independent full public DTO oracle");
     let expected = public_map(&serde_json::to_value(expected).unwrap());
@@ -92,12 +111,19 @@ async fn assert_complete_publication(
         .jwks_publication_snapshot()
         .await
         .expect("real primary materialization");
-    assert_eq!(snapshot.publication.counts().global as i64, org + platform);
     assert_eq!(
-        snapshot.publication.counts().global_organization as i64,
+        i64::try_from(snapshot.publication.counts().global).expect("global count fits i64"),
+        org + platform
+    );
+    assert_eq!(
+        i64::try_from(snapshot.publication.counts().global_organization)
+            .expect("org count fits i64"),
         org
     );
-    assert_eq!(snapshot.publication.counts().platform as i64, platform);
+    assert_eq!(
+        i64::try_from(snapshot.publication.counts().platform).expect("platform count fits i64"),
+        platform
+    );
     assert_eq!(snapshot.access_token_expiration_seconds, ttl);
     assert!(snapshot.revision > 0);
     assert_eq!(public_map(&serde_json::to_value(snapshot.publication.jwks()).unwrap()),expected,"all canonical components, issuer/status/scope/org and exact kids, not just a self-confirming count");
@@ -122,11 +148,13 @@ async fn assert_complete_publication(
     let metadata=db.query_one(Statement::from_string(DatabaseBackend::Postgres,"SELECT revision,dirty,access_token_ttl,retire_skew,next_expiration,payload FROM signing_jwks_publication WHERE singleton=1")).await.unwrap().unwrap();
     assert!(!metadata.try_get::<bool>("", "dirty").unwrap());
     assert_eq!(
-        metadata.try_get::<i64>("", "revision").unwrap() as u64,
+        u64::try_from(metadata.try_get::<i64>("", "revision").unwrap())
+            .expect("revision is non-negative"),
         snapshot.revision
     );
     assert_eq!(
-        metadata.try_get::<i64>("", "access_token_ttl").unwrap() as u64,
+        u64::try_from(metadata.try_get::<i64>("", "access_token_ttl").unwrap())
+            .expect("ttl is non-negative"),
         ttl
     );
     assert_eq!(metadata.try_get::<i64>("", "retire_skew").unwrap(), 60);
@@ -173,13 +201,12 @@ async fn assert_platform_receiver(base: &str, issuer: &str, access: &str) {
 #[tokio::test]
 #[serial]
 async fn configure_full_binding_noop_preserves_epoch_but_credential_and_material_changes_admit() {
-    let (fixture, _, _) = common::setup_test_server()
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
         .await
         .expect("real primary harness");
     fixture_cleanup::run(&fixture, async {
-        let (writer, _ttl) = common::fixture_signing_registry(&fixture)
-            .await
-            .expect("root writer and publisher TTL");
+        let (writer, _ttl) =
+            common::fixture_signing_registry(&fixture).expect("root writer and publisher TTL");
         let org = Uuid::new_v4();
         let initial = writer
             .replace_active_organization_key(&candidate(Some(org), Status::Active), None)
@@ -231,7 +258,6 @@ async fn configure_full_binding_noop_preserves_epoch_but_credential_and_material
             .expect("same n/e but changed credential must admit");
         assert_ne!(second.kid, initial.kid);
         // A genuine second RSA public key, not malformed fake n/e.
-        use rsa::pkcs8::EncodePublicKey;
         let private = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048)
             .expect("isolated alternate RSA material");
         let mut material = second.clone();
@@ -268,12 +294,11 @@ async fn configure_full_binding_noop_preserves_epoch_but_credential_and_material
 #[tokio::test]
 #[serial]
 async fn pending_promotion_is_not_double_charged_and_rejected_churn_keeps_previous_active() {
-    let (fixture, _, _) = common::setup_test_server()
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
         .await
         .expect("real primary harness");
     fixture_cleanup::run(&fixture, async {
         let (writer, ttl) = common::fixture_signing_registry(&fixture)
-            .await
             .expect("root writer");
         let org = Uuid::new_v4();
         let pending = candidate(Some(org), Status::Pending);
@@ -355,13 +380,11 @@ async fn pending_promotion_is_not_double_charged_and_rejected_churn_keeps_previo
 #[tokio::test]
 #[serial]
 async fn simultaneous_last_rate_slot_has_one_winner_and_four_persisted_epochs() {
-    let (fixture, _, _) = common::setup_test_server()
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
         .await
         .expect("real primary harness");
     fixture_cleanup::run(&fixture, async {
-        let (writer, ttl) = common::fixture_signing_registry(&fixture)
-            .await
-            .expect("root writer");
+        let (writer, ttl) = common::fixture_signing_registry(&fixture).expect("root writer");
         let org = Uuid::new_v4();
         // Pending inserts test independent admission writers without expected-kid
         // conflicts masking the rate frontier. Three of four slots consumed.
@@ -409,12 +432,11 @@ async fn simultaneous_last_rate_slot_has_one_winner_and_four_persisted_epochs() 
 #[tokio::test]
 #[serial]
 async fn cross_org_last_budget_slot_is_atomic_platform_reserve_and_publisher_survive_rejection() {
-    let (fixture, base, client) = common::setup_test_server()
+    let (fixture, base, client) = Box::pin(common::setup_test_server())
         .await
         .expect("real primary HTTP harness");
     fixture_cleanup::run(&fixture, async {
         let (writer, ttl) = common::fixture_signing_registry(&fixture)
-            .await
             .expect("root writer and actual TTL");
         let access = common::fixture_platform_access_token(&fixture)
             .await
@@ -447,7 +469,7 @@ async fn cross_org_last_budget_slot_is_atomic_platform_reserve_and_publisher_sur
         let mut fillers=(0..174).map(|_|{let mut key=large(Uuid::new_v4());key.status=Status::Active;key}).collect::<Vec<_>>();
         signing_prefill::prefill_organization_frontier(fixture.db().as_ref(),&root,&mut fillers,ttl).await.expect("bounded canonical validated preparation");
         let mut expected=vec![root.clone()];expected.extend(fillers);
-        assert_complete_publication(writer.as_ref(),fixture.db().as_ref(),&client,&base,&expected,ttl,174,1).await;
+        assert_complete_publication(CompletePublicationAssert { writer: writer.as_ref(), db: fixture.db().as_ref(), client: &client, base: &base, expected: &expected, ttl, org: 174, platform: 1 }).await;
         let head=writer.jwks_publication_snapshot().await.unwrap();
         assert_eq!(175-head.publication.counts().global_organization,1,"exactly one disjoint org slot remains");
         for key in [&left,&right] {
@@ -474,7 +496,7 @@ async fn cross_org_last_budget_slot_is_atomic_platform_reserve_and_publisher_sur
         expected.push(winner.clone());
         assert!(writer.find_by_kid(&loser.kid).await.unwrap().is_none(),"losing key must not persist");
         assert!(writer.find_by_kid(&winner.kid).await.unwrap().is_some());
-        assert_complete_publication(writer.as_ref(),fixture.db().as_ref(),&client,&base,&expected,ttl,175,1).await;
+        assert_complete_publication(CompletePublicationAssert { writer: writer.as_ref(), db: fixture.db().as_ref(), client: &client, base: &base, expected: &expected, ttl, org: 175, platform: 1 }).await;
         assert!(writer.jwks_publication_snapshot().await.unwrap().revision>head.revision);
         // Tenant exhaustion must not steal the ratified platform reserve.
         let mut platform = root.clone();platform.id=Uuid::new_v4();platform.kid=Uuid::new_v4().simple().to_string();platform.status=Status::Pending;
@@ -483,7 +505,7 @@ async fn cross_org_last_budget_slot_is_atomic_platform_reserve_and_publisher_sur
             .await
             .expect("platform reserve admission despite exhausted org budget");
         expected.push(platform);
-        assert_complete_publication(writer.as_ref(),fixture.db().as_ref(),&client,&base,&expected,ttl,175,2).await;
+        assert_complete_publication(CompletePublicationAssert { writer: writer.as_ref(), db: fixture.db().as_ref(), client: &client, base: &base, expected: &expected, ttl, org: 175, platform: 2 }).await;
         let last_good=signing_prefill::database_state(fixture.db().as_ref()).await.unwrap();
         for _ in 0..3 {
             let result = writer.insert(&large(Uuid::new_v4())).await;
@@ -503,7 +525,7 @@ async fn cross_org_last_budget_slot_is_atomic_platform_reserve_and_publisher_sur
             let mut key=root.clone();key.id=Uuid::new_v4();key.kid=Uuid::new_v4().simple().to_string();key.status=Status::Pending;
             writer.insert(&key).await.expect("reserved platform slots through16");expected.push(key);
         }
-        assert_complete_publication(writer.as_ref(),fixture.db().as_ref(),&client,&base,&expected,ttl,175,16).await;
+        assert_complete_publication(CompletePublicationAssert { writer: writer.as_ref(), db: fixture.db().as_ref(), client: &client, base: &base, expected: &expected, ttl, org: 175, platform: 16 }).await;
         assert_eq!(expected.len(),191,"full disjoint191=175+16 frontier");
         assert_eq!(writer.find_active_platform_key().await.unwrap().unwrap(),root,"Pending reserve admissions and refusals must not retire the root Active");
         let mut seventeenth=root.clone();seventeenth.id=Uuid::new_v4();seventeenth.kid=Uuid::new_v4().simple().to_string();seventeenth.status=Status::Pending;
@@ -512,7 +534,7 @@ async fn cross_org_last_budget_slot_is_atomic_platform_reserve_and_publisher_sur
             assert!(matches!(writer.insert(&seventeenth).await,Err(DomainError::SigningKeyAdmissionDenied {reason:Reason::Capacity,..})),"17th platform epoch refused through the real primary writer");
             assert_eq!(signing_prefill::database_state(fixture.db().as_ref()).await.unwrap(),last_good,"platform refusal has zero partial effects");
         }
-        assert_complete_publication(writer.as_ref(),fixture.db().as_ref(),&client,&base,&expected,ttl,175,16).await;
+        assert_complete_publication(CompletePublicationAssert { writer: writer.as_ref(), db: fixture.db().as_ref(), client: &client, base: &base, expected: &expected, ttl, org: 175, platform: 16 }).await;
         assert_platform_receiver(&base,&root.issuer,&access).await;
         assert_eq!(
             client
@@ -531,26 +553,26 @@ async fn cross_org_last_budget_slot_is_atomic_platform_reserve_and_publisher_sur
 #[tokio::test]
 #[serial]
 async fn platform_seventeenth_slot_is_refused_even_with175_unused_org_slots() {
-    let (fixture, base, client) = common::setup_test_server()
+    let (fixture, base, client) = Box::pin(common::setup_test_server())
         .await
         .expect("real primary HTTP harness");
     fixture_cleanup::run(&fixture, async {
-        let (writer, ttl) = common::fixture_signing_registry(&fixture).await.unwrap();
+        let (writer, ttl) = common::fixture_signing_registry(&fixture).unwrap();
         let root = writer.find_active_platform_key().await.unwrap().unwrap();
         let access = common::fixture_platform_access_token(&fixture)
             .await
             .unwrap();
         let mut expected = vec![root.clone()];
-        assert_complete_publication(
-            writer.as_ref(),
-            fixture.db().as_ref(),
-            &client,
-            &base,
-            &expected,
+        assert_complete_publication(CompletePublicationAssert {
+            writer: writer.as_ref(),
+            db: fixture.db().as_ref(),
+            client: &client,
+            base: &base,
+            expected: &expected,
             ttl,
-            0,
-            1,
-        )
+            org: 0,
+            platform: 1,
+        })
         .await;
         assert_eq!(
             client
@@ -573,16 +595,16 @@ async fn platform_seventeenth_slot_is_refused_even_with175_unused_org_slots() {
                 .expect("real platform admission through slot16");
             expected.push(pending);
         }
-        assert_complete_publication(
-            writer.as_ref(),
-            fixture.db().as_ref(),
-            &client,
-            &base,
-            &expected,
+        assert_complete_publication(CompletePublicationAssert {
+            writer: writer.as_ref(),
+            db: fixture.db().as_ref(),
+            client: &client,
+            base: &base,
+            expected: &expected,
             ttl,
-            0,
-            16,
-        )
+            org: 0,
+            platform: 16,
+        })
         .await;
         assert_eq!(
             expected.len(),
@@ -624,16 +646,16 @@ async fn platform_seventeenth_slot_is_refused_even_with175_unused_org_slots() {
             writer.find_active_platform_key().await.unwrap().unwrap(),
             root
         );
-        assert_complete_publication(
-            writer.as_ref(),
-            fixture.db().as_ref(),
-            &client,
-            &base,
-            &expected,
+        assert_complete_publication(CompletePublicationAssert {
+            writer: writer.as_ref(),
+            db: fixture.db().as_ref(),
+            client: &client,
+            base: &base,
+            expected: &expected,
             ttl,
-            0,
-            16,
-        )
+            org: 0,
+            platform: 16,
+        })
         .await;
         assert_platform_receiver(&base, &root.issuer, &access).await;
         assert_eq!(

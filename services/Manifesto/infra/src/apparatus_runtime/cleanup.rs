@@ -32,7 +32,6 @@ pub async fn apply_cleanup_due(
                 component_id = %job.component_id,
                 "apparatus cleanup job failed"
             );
-            continue;
         }
     }
     Ok(())

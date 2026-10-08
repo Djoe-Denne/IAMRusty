@@ -24,7 +24,16 @@ pub const SERVICE_PREFIX: &str = "/manifesto";
 /// The binding grant snapshot GET is verified with a dedicated platform
 /// extractor (`grant_snapshot_auth`), not IAM `[auth.jwt]`.
 pub fn create_router(state: AppState, grant_snapshot_auth: Arc<UserIdExtractor>) -> Router {
-    let snapshot_routes = Router::new()
+    let builder = attach_project_routes(RouteBuilder::new(state.clone()).health_check());
+    let builder = attach_component_routes(builder);
+    let builder = attach_member_routes(builder);
+    attach_permission_routes(builder)
+        .into_router()
+        .merge(binding_snapshot_routes(state, grant_snapshot_auth))
+}
+
+fn binding_snapshot_routes(state: AppState, grant_snapshot_auth: Arc<UserIdExtractor>) -> Router {
+    Router::new()
         .route(
             "/api/projects/{project_id}/bindings/{component_id}",
             get(get_binding_grant_snapshot),
@@ -33,10 +42,11 @@ pub fn create_router(state: AppState, grant_snapshot_auth: Arc<UserIdExtractor>)
             grant_snapshot_auth,
             auth_middleware,
         ))
-        .with_state(state.clone());
+        .with_state(state)
+}
 
-    RouteBuilder::new(state)
-        .health_check()
+fn attach_project_routes(builder: RouteBuilder) -> RouteBuilder {
+    builder
         // Project routes
         .get("/api/projects", list_projects)
         .might_be_authenticated()
@@ -80,6 +90,10 @@ pub fn create_router(state: AppState, grant_snapshot_auth: Arc<UserIdExtractor>)
         )
         .authenticated()
         .with_permission_on(Permission::Owner, "project")
+}
+
+fn attach_component_routes(builder: RouteBuilder) -> RouteBuilder {
+    builder
         // Component GET/PATCH/DELETE take a component UUID after `{project_id}`.
         // Bind the check to `project_id` so AuthZ is project-scoped, not
         // `project:{component_id}`.
@@ -107,6 +121,10 @@ pub fn create_router(state: AppState, grant_snapshot_auth: Arc<UserIdExtractor>)
         )
         .authenticated()
         .with_permission_on_param(Permission::Admin, "project", "project_id")
+}
+
+fn attach_member_routes(builder: RouteBuilder) -> RouteBuilder {
+    builder
         // Join is JWT-only: public active projects, no project Admin grant.
         .post("/api/projects/{project_id}/join", join_project)
         .authenticated()
@@ -132,6 +150,10 @@ pub fn create_router(state: AppState, grant_snapshot_auth: Arc<UserIdExtractor>)
         )
         .authenticated()
         .with_permission_on_param(Permission::Admin, "project", "project_id")
+}
+
+fn attach_permission_routes(builder: RouteBuilder) -> RouteBuilder {
+    builder
         // Permission management routes (project-admin only)
         .post(
             "/api/projects/{project_id}/members/{user_id}/permissions/{resource}",
@@ -157,8 +179,6 @@ pub fn create_router(state: AppState, grant_snapshot_auth: Arc<UserIdExtractor>)
         )
         .authenticated()
         .with_permission_on_param(Permission::Admin, "project", "project_id")
-        .into_router()
-        .merge(snapshot_routes)
 }
 
 /// Create the Manifesto router under its bounded-context prefix.

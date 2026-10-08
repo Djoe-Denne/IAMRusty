@@ -57,7 +57,7 @@ impl TelegraphApp {
 
         let email_service = setup_email_service(&config)?;
 
-        let db_pool = DbConnectionPool::new(&config.database).await?;
+        let db_pool = Box::pin(DbConnectionPool::new(&config.database)).await?;
         let db_write = db_pool.get_write_connection();
         info!(
             "Database connection pool initialized with {} read replicas",
@@ -69,7 +69,7 @@ impl TelegraphApp {
         );
 
         let (notification_service, signaled_publisher) =
-            setup_notification_service(&db_pool, &config).await?;
+            Box::pin(setup_notification_service(&db_pool, &config)).await?;
         let communication_factory = setup_communication_factory(&config)?;
         let event_handler_config = EventHandlerConfig {
             event_mapping: setup_event_mapping(&config)?,
@@ -95,7 +95,7 @@ impl TelegraphApp {
             ));
         let command_service = Arc::new(GenericCommandService::new(command_registry));
 
-        let event_consumer = EventConsumer::new(config.clone(), command_service.clone())
+        let event_consumer = Box::pin(EventConsumer::new(config.clone(), command_service.clone()))
             .await
             .map_err(|e| anyhow::anyhow!("Failed to create event consumer: {e}"))?;
         let consumer_status = event_consumer.transport_status().clone();
@@ -389,6 +389,6 @@ impl AppBuilder {
     ///
     /// Returns an error when [`TelegraphApp::new`] fails.
     pub async fn build(self) -> Result<TelegraphApp, anyhow::Error> {
-        TelegraphApp::new(self.config).await
+        Box::pin(TelegraphApp::new(self.config)).await
     }
 }

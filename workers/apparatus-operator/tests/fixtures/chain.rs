@@ -261,7 +261,7 @@ pub fn admit_target(stack: &fixtures::SignRegistryStack) -> AdmitTarget {
 
 /// Enveloppe catalogue + pin CRI (push zot).
 #[must_use]
-pub fn catalog_envelope(descriptor: ReleaseDigest, cri_image: String) -> Envelope {
+pub const fn catalog_envelope(descriptor: ReleaseDigest, cri_image: String) -> Envelope {
     Envelope {
         descriptor_digest: descriptor,
         cri_image,
@@ -290,10 +290,7 @@ pub async fn spawn_manifesto_stub(body: serde_json::Value) -> ManifestoStub {
             };
             let mut buf = Vec::new();
             let mut tmp = [0u8; 512];
-            loop {
-                let Ok(n) = sock.read(&mut tmp).await else {
-                    break;
-                };
+            while let Ok(n) = sock.read(&mut tmp).await {
                 if n == 0 {
                     break;
                 }
@@ -354,7 +351,7 @@ pub struct PortForward {
 impl PortForward {
     /// Enveloppe un child kubectl.
     #[must_use]
-    pub fn new(child: Child) -> Self {
+    pub const fn new(child: Child) -> Self {
         Self { child }
     }
 }
@@ -373,14 +370,15 @@ pub fn wait_tcp(addr: &str, timeout: Duration) {
         if TcpStream::connect(addr).is_ok() {
             return;
         }
-        if Instant::now() > deadline {
-            panic!("port-forward {addr} injoignable");
-        }
+        assert!(
+            Instant::now() <= deadline,
+            "port-forward {addr} injoignable"
+        );
         std::thread::sleep(Duration::from_millis(200));
     }
 }
 
-/// Grant MemoryPort (chemin allow/deny, pas OpenFGA).
+/// Grant `MemoryPort` (chemin allow/deny, pas `OpenFGA`).
 pub struct MemoryPort {
     snapshot: BindingGrantSnapshot,
 }
@@ -388,7 +386,7 @@ pub struct MemoryPort {
 impl MemoryPort {
     /// Snapshot figé.
     #[must_use]
-    pub fn new(snapshot: BindingGrantSnapshot) -> Self {
+    pub const fn new(snapshot: BindingGrantSnapshot) -> Self {
         Self { snapshot }
     }
 }
@@ -541,7 +539,7 @@ pub fn wget_reached_target(text: &str) -> bool {
     lower.contains("http/1.") || lower.contains(" 200 ") || lower.contains(" 404 ")
 }
 
-/// Signaux de blocage NetworkPolicy (sonde Kind, pas T12).
+/// Signaux de blocage `NetworkPolicy` (sonde Kind, pas T12).
 #[must_use]
 pub fn wget_blocked_signal(text: &str) -> bool {
     let lower = text.to_ascii_lowercase();
@@ -556,8 +554,8 @@ pub fn wget_blocked_signal(text: &str) -> bool {
 /// Hex CRI `@sha256:` (fail-loud si pin absent).
 #[must_use]
 pub fn cri_hex(cri_image: &str) -> &str {
-    cri_image
-        .split_once("@sha256:")
-        .map(|(_, hex)| hex)
-        .unwrap_or_else(|| panic!("cri_image pin @sha256: {cri_image}"))
+    cri_image.split_once("@sha256:").map_or_else(
+        || panic!("cri_image pin @sha256: {cri_image}"),
+        |(_, hex)| hex,
+    )
 }

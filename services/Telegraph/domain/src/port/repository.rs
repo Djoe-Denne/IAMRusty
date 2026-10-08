@@ -12,6 +12,7 @@ use uuid::Uuid;
 #[async_trait::async_trait]
 pub trait NotificationReadRepository: Send + Sync {
     /// Get notifications for a user
+    #[must_use = "await the future"]
     async fn get_user_notifications(
         &self,
         user_id: Uuid,
@@ -21,21 +22,25 @@ pub trait NotificationReadRepository: Send + Sync {
     ) -> Result<(Vec<NotificationCommunication>, u64), DomainError>;
 
     /// Get a notification by id
+    #[must_use = "await the future"]
     async fn get_notification(
         &self,
         notification_id: Uuid,
     ) -> Result<Option<NotificationCommunication>, DomainError>;
 
     /// Get notification deliveries
+    #[must_use = "await the future"]
     async fn get_notification_deliveries(
         &self,
         notification_id: Uuid,
     ) -> Result<Vec<MessageDelivery>, DomainError>;
 
     /// Count unread notifications for a user
+    #[must_use = "await the future"]
     async fn count_unread_notifications(&self, user_id: Uuid) -> Result<u64, DomainError>;
 
     /// Check if a user has a notification
+    #[must_use = "await the future"]
     async fn user_has_notification(
         &self,
         user_id: Uuid,
@@ -46,12 +51,14 @@ pub trait NotificationReadRepository: Send + Sync {
 #[async_trait::async_trait]
 pub trait NotificationWriteRepository: Send + Sync {
     /// Create a notification
+    #[must_use = "await the future"]
     async fn create_notification(
         &self,
         notification: NotificationCommunication,
     ) -> Result<NotificationCommunication, DomainError>;
 
     /// Create a notification and its delivery record atomically.
+    #[must_use = "await the future"]
     async fn create_notification_with_delivery(
         &self,
         notification: NotificationCommunication,
@@ -59,21 +66,25 @@ pub trait NotificationWriteRepository: Send + Sync {
     ) -> Result<(NotificationCommunication, MessageDelivery), DomainError>;
 
     /// Mark notification as read
+    #[must_use = "await the future"]
     async fn mark_as_read(
         &self,
         notification_id: Uuid,
     ) -> Result<NotificationCommunication, DomainError>;
 
     /// Delete expired notifications
+    #[must_use = "await the future"]
     async fn delete_expired_notifications(&self) -> Result<u64, DomainError>;
 
-    /// Create a delivery record    
+    /// Create a delivery record
+    #[must_use = "await the future"]
     async fn create_delivery(
         &self,
         delivery: MessageDelivery,
     ) -> Result<MessageDelivery, DomainError>;
 
     /// Update a delivery record
+    #[must_use = "await the future"]
     async fn update_delivery_status(
         &self,
         delivery_id: Uuid,
@@ -82,6 +93,7 @@ pub trait NotificationWriteRepository: Send + Sync {
     ) -> Result<MessageDelivery, DomainError>;
 
     /// Increment delivery attempt
+    #[must_use = "await the future"]
     async fn increment_delivery_attempt(
         &self,
         delivery_id: Uuid,

@@ -3,7 +3,7 @@ use thiserror::Error;
 /// Domain-level errors
 #[derive(Debug, Clone, Error)]
 pub enum DomainError {
-    /// Redacted lifecycle admission outcome (429, or 409 for EpochConflict).
+    /// Redacted lifecycle admission outcome (429, or 409 for `EpochConflict`).
     #[error("signing key admission denied: {reason:?}")]
     SigningKeyAdmissionDenied {
         reason: crate::entity::signing_key::SigningKeyAdmissionReason,
@@ -21,7 +21,7 @@ pub enum DomainError {
     #[error("Provider not supported: {0}")]
     ProviderNotSupported(String),
 
-    /// IdP connector is not configured for this provider slug
+    /// `IdP` connector is not configured for this provider slug
     #[error("IdP connector not configured: {0}")]
     ConnectorNotConfigured(String),
 
@@ -90,13 +90,13 @@ pub enum DomainError {
     #[error("Event publishing error: {0}")]
     EventError(String),
 
-    /// External service (OpenBao Transit, WorkloadIdentity, …)
+    /// External service (`OpenBao` Transit, `WorkloadIdentity`, …)
     #[error("External service error ({service}): {message}")]
     ExternalServiceError { service: String, message: String },
 }
 
 impl DomainError {
-    /// Build an external-service failure for adapters (Transit, WorkloadIdentity, …).
+    /// Build an external-service failure for adapters (`Transit`, `WorkloadIdentity`, …).
     #[must_use]
     pub fn external_service_error(service: &str, message: &str) -> Self {
         Self::ExternalServiceError {

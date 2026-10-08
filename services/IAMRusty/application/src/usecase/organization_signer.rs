@@ -1,6 +1,6 @@
 //! Organization signer façade (ADR-0306) — configure / test / rotate / disable.
 //!
-//! Returns [`DomainError`] (not HTTP status) so InProcess adapters need no Axum.
+//! Returns [`DomainError`] (not HTTP status) so `InProcess` adapters need no `Axum`.
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -24,7 +24,7 @@ pub const NO_ACTIVE_ORGANIZATION_SIGNING_KEY: &str = "no active organization sig
 
 const MAX_PUBLIC_KEY_BYTES: usize = 16 * 1024;
 
-/// Input for ConfigureOrganizationSigner (IAM-owned DTO — not hive-domain).
+/// Input for `ConfigureOrganizationSigner` (IAM-owned DTO — not hive-domain).
 #[derive(Debug, Clone)]
 pub struct ConfigureOrganizationSignerInput {
     pub provider_type: String,
@@ -58,7 +58,7 @@ impl OrganizationSignerResult {
 
 /// Application façade for organization signer lifecycle (ADR-0306).
 ///
-/// No Admin / OpenFGA check here — Hive HTTP owns AuthZ. No internal token check
+/// No `Admin` / `OpenFGA` check here — `Hive` HTTP owns `AuthZ`. No internal token check
 /// here — IAM HTTP handlers enforce `x-iam-internal-token` on the HTTP path only.
 #[async_trait]
 pub trait OrganizationSignerFacade: Send + Sync {
@@ -311,9 +311,9 @@ pub fn require_org_scoped_pem_ref(org_id: Uuid, provider_key_ref: &str) -> Resul
         Some(std::path::Component::Normal(first)) if first == org.as_str()
     ) && components.next().is_some();
     if !under_org {
-        return Err(DomainError::BusinessRuleViolation(
-            "PEM provider_key_ref must be under {org_id}/".into(),
-        ));
+        return Err(DomainError::BusinessRuleViolation(format!(
+            "PEM provider_key_ref must be under {org}/",
+        )));
     }
     Ok(())
 }

@@ -19,6 +19,7 @@ use crate::fga_client::Tuple;
 pub struct ManifestoTranslator;
 
 impl ManifestoTranslator {
+    #[must_use]
     pub const fn new() -> Self {
         Self
     }
@@ -381,9 +382,10 @@ mod tests {
     use manifesto_events::{
         AuthzTuple, ComponentAddedEvent, MemberAddedEvent, MemberPermissionsUpdatedEvent,
         MemberRemovedEvent, PermissionGrantedEvent, PermissionRevokedEvent, ProjectArchivedEvent,
-        ProjectCreatedEvent, ProjectDeletedEvent, ProjectOwnershipTransferredEvent,
-        ProjectPublishedEvent, ProjectResumedEvent, ProjectSuspendedEvent,
-        ProjectVisibilityChangedEvent, ResourcePermission,
+        ProjectCreatedEvent, ProjectDeletedAuthz, ProjectDeletedEvent,
+        ProjectOwnershipTransferredEvent, ProjectOwnershipTransferredInput, ProjectPublishedEvent,
+        ProjectResumedEvent, ProjectSuspendedEvent, ProjectVisibilityChangedEvent,
+        ResourcePermission,
     };
 
     fn to_json<T: serde::Serialize>(value: T) -> serde_json::Value {
@@ -556,14 +558,16 @@ mod tests {
         let project_id = Uuid::new_v4();
         let actor = Uuid::new_v4();
         let evt = ManifestoDomainEvent::ProjectDeleted(ProjectDeletedEvent::with_authz(
-            project_id,
-            "gone".into(),
-            actor,
-            Utc::now(),
-            vec![actor],
-            Vec::new(),
-            Some("personal".into()),
-            Some(actor),
+            ProjectDeletedAuthz {
+                project_id,
+                project_name: "gone".into(),
+                deleted_by: actor,
+                deleted_at: Utc::now(),
+                member_user_ids: vec![actor],
+                component_ids: Vec::new(),
+                owner_type: Some("personal".into()),
+                owner_id: Some(actor),
+            },
         ));
         let delta = ManifestoTranslator::new()
             .translate(&to_json(evt))
@@ -677,16 +681,16 @@ mod tests {
         let from = Uuid::new_v4();
         let to = Uuid::new_v4();
         let delta = translate_event(&ManifestoDomainEvent::ProjectOwnershipTransferred(
-            ProjectOwnershipTransferredEvent::new(
+            ProjectOwnershipTransferredEvent::new(ProjectOwnershipTransferredInput {
                 project_id,
-                from,
-                to,
-                from,
-                Utc::now(),
-                Some("personal".into()),
-                Some(from),
-                Some(to),
-            ),
+                from_user_id: from,
+                to_user_id: to,
+                transferred_by: from,
+                transferred_at: Utc::now(),
+                owner_type: Some("personal".into()),
+                previous_owner_id: Some(from),
+                new_owner_id: Some(to),
+            }),
         ));
         assert!(delta
             .deletes

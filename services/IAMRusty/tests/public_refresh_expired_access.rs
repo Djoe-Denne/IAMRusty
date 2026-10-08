@@ -10,7 +10,7 @@ mod utils;
 
 use iam_domain::entity::signing_key::SigningKeyStatus;
 use rustycog::testing::http::jwt::{
-    TEST_JWT_AUDIENCE, TEST_RS256_PRIVATE_PEM, TEST_RS256_PUBLIC_PEM,
+    test_rs256_private_pem, test_rs256_public_pem, TEST_JWT_AUDIENCE,
 };
 use serde_json::{json, Value};
 use serial_test::serial;
@@ -20,10 +20,13 @@ use serial_test::serial;
 async fn expired_access_is_rejected_by_me_but_cannot_block_public_persisted_refresh() {
     let mut platform = registry::registry_key(SigningKeyStatus::Active, None);
     platform.kid = iam_domain::entity::signing_key::opaque_kid();
-    let (fixture, base, client) = common::setup_test_server_with_signing_keys(&[platform.clone()])
-        .await
-        .expect("actual published RS256 platform registry");
+    let (fixture, base, client) = Box::pin(common::setup_test_server_with_signing_keys(&[
+        platform.clone(),
+    ]))
+    .await
+    .expect("actual published RS256 platform registry");
     fixture_cleanup::run(&fixture, async {
+    use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
     let email = "expired-access-refresh@example.com";
     let password = "ExpiredPublic1a!";
     let user = fixtures::DbFixtures::create_user_with_email_password(
@@ -60,7 +63,7 @@ async fn expired_access_is_rejected_by_me_but_cannot_block_public_persisted_refr
             && key["status"] == "active"
             && key["trust_scope"] == "platform"));
     let extractor = rustycog::http::UserIdExtractor::from_inline_jwks(
-        &jwks.to_string(),
+        jwks.to_string(),
         Some(TEST_JWT_AUDIENCE),
     )
     .expect("real publisher trust");
@@ -77,7 +80,7 @@ async fn expired_access_is_rejected_by_me_but_cannot_block_public_persisted_refr
     let expired = jsonwebtoken::encode(
         &header,
         &claims,
-        &jsonwebtoken::EncodingKey::from_rsa_pem(TEST_RS256_PRIVATE_PEM.as_bytes())
+        &jsonwebtoken::EncodingKey::from_rsa_pem(test_rs256_private_pem().as_bytes())
             .expect("fixed key"),
     )
     .expect("sign expired access");
@@ -89,7 +92,7 @@ async fn expired_access_is_rejected_by_me_but_cannot_block_public_persisted_refr
     validation.set_issuer(&[claims["iss"].as_str().expect("issuer")]);
     jsonwebtoken::decode::<Value>(
         &expired,
-        &jsonwebtoken::DecodingKey::from_rsa_pem(TEST_RS256_PUBLIC_PEM.as_bytes())
+        &jsonwebtoken::DecodingKey::from_rsa_pem(test_rs256_public_pem().as_bytes())
             .expect("fixed public key"),
         &validation,
     )
@@ -121,7 +124,6 @@ async fn expired_access_is_rejected_by_me_but_cannot_block_public_persisted_refr
         replacement != refresh,
         "rotation must replace the actual session"
     );
-    use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
     let row = fixture.db().query_one(Statement::from_sql_and_values(DatabaseBackend::Postgres,
         "SELECT COUNT(*) AS count FROM refresh_tokens WHERE user_id=$1 AND token=$2 AND is_valid AND expires_at>NOW()",
         [user.id().into(), iam_domain::entity::token::RefreshToken::hash_token(replacement).into()]))

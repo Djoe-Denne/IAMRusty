@@ -5,20 +5,20 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub use idp_connect_contract::{ProviderTokens, ProviderUserProfile};
 
-/// Typed IdP slug (`github`, `gitlab`, `huggingface`, …).
+/// Typed `IdP` slug (`github`, `gitlab`, `huggingface`, …).
 ///
 /// Parse accepts ASCII letters only (`^[a-zA-Z]+$`), then ASCII case-folds.
 /// Canon is `^[a-z]+$`, length 1–50. Not `Copy`: the inner slug is owned.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Provider(String);
 
-/// Rejected IdP slug (illegal charset, empty, or longer than 50).
+/// Rejected `IdP` slug (illegal charset, empty, or longer than 50).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("invalid OAuth2 provider slug")]
 pub struct ProviderParseError;
 
 impl Provider {
-    /// Parse an IdP slug: letters-only, ASCII case-fold, length 1–50.
+    /// Parse an `IdP` slug: letters-only, ASCII case-fold, length 1–50.
     ///
     /// # Errors
     ///

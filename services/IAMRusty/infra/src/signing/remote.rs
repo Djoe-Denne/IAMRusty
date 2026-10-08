@@ -1,4 +1,4 @@
-//! Remote HTTP SigningProvider — Sign(digest) / GetPublicKey only (ADR-0309).
+//! Remote HTTP `SigningProvider` — `Sign`(digest) / `GetPublicKey` only (ADR-0309).
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD, Engine as _};

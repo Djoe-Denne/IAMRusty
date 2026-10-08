@@ -181,14 +181,14 @@ fn workload_csr() -> String {
 }
 
 fn identity_service_on(
-    db: Arc<DatabaseConnection>,
+    db: &Arc<DatabaseConnection>,
     snapshots: Arc<dyn BindingGrantSnapshotPort>,
 ) -> Arc<IdentityService> {
     let config = IdentityConfig::default();
     Arc::new(IdentityService::new(
         Arc::new(PlatformInternalCa::new().expect("ca")),
         Arc::new(DedicatedSessionSigner::from_config(&config).expect("signer")),
-        Arc::new(PostgresEnrollmentRegistry::from_arc(&db)),
+        Arc::new(PostgresEnrollmentRegistry::from_arc(db)),
         snapshots,
         config.session_ttl_minutes,
         config.cert_ttl_hours,
@@ -271,12 +271,12 @@ async fn t10_enrollment_survives_new_identity_service() {
     let expected = sample_identity();
     let project_id = Uuid::new_v4();
     let snapshots: Arc<dyn BindingGrantSnapshotPort> = Arc::new(port_for(&[&expected], project_id));
-    let identity_a = identity_service_on(db.clone(), snapshots.clone());
+    let identity_a = identity_service_on(&db, snapshots.clone());
     let issued = enroll(&identity_a, expected.clone(), project_id).await;
     let cert = VerifiedClientCertificate::from_pem(&issued.pem).expect("cert");
     drop(identity_a);
 
-    let identity_b = identity_service_on(db, snapshots);
+    let identity_b = identity_service_on(&db, snapshots);
     identity_b
         .issue_session(&cert)
         .await
@@ -298,7 +298,7 @@ async fn t10_component_removed_revokes_enrollment_and_purges_kv() {
     let project_id = Uuid::new_v4();
     let snapshots: Arc<dyn BindingGrantSnapshotPort> =
         Arc::new(port_for(&[&expected_a, &expected_b], project_id));
-    let identity = identity_service_on(db.clone(), snapshots);
+    let identity = identity_service_on(&db, snapshots);
     let issued_a = enroll(&identity, expected_a.clone(), project_id).await;
     let issued_b = enroll(&identity, expected_b.clone(), project_id).await;
     let cert_a = VerifiedClientCertificate::from_pem(&issued_a.pem).expect("cert a");
@@ -365,7 +365,7 @@ async fn t10_second_enroll_same_binding_other_fingerprint_is_conflict() {
     let expected = sample_identity();
     let project_id = Uuid::new_v4();
     let snapshots: Arc<dyn BindingGrantSnapshotPort> = Arc::new(port_for(&[&expected], project_id));
-    let identity = identity_service_on(db, snapshots);
+    let identity = identity_service_on(&db, snapshots);
     let first = enroll(&identity, expected.clone(), project_id).await;
     let err = identity
         .enroll(EnrollCommand {
@@ -438,7 +438,7 @@ async fn t10_grant_revision_bump_no_reenroll_frozen_session() {
         snapshot: Mutex::new(snapshot_for(&expected, project_id)),
     });
     let snapshots: Arc<dyn BindingGrantSnapshotPort> = port.clone();
-    let identity = identity_service_on(db, snapshots);
+    let identity = identity_service_on(&db, snapshots);
     let issued = enroll(&identity, expected.clone(), project_id).await;
 
     let mut bumped = snapshot_for(&expected, project_id);

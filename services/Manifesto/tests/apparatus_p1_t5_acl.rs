@@ -1,6 +1,6 @@
 //! Apparatus P1 — T5 ACL et événements (RED, TDD Phase C).
 //!
-//! OpenFGA réel (testcontainer). Harness unique `common::setup_test_server`.
+//! `OpenFGA` réel (testcontainer). Harness unique `common::setup_test_server`.
 //! `#[serial]` partout en live. Arrange : `project` + Admin/Read uniquement ;
 //! jamais de tuple `component:{id}` ad hoc. Lecture seule des tuples existants.
 //! T5 prouve uniquement : grants inchangés + revoke→403 au commit DB.

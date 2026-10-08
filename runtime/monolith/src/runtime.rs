@@ -9,6 +9,13 @@ use crate::in_process_binding_grant::InProcessBindingGrantClient;
 use crate::in_process_iam_signer::InProcessIamOrganizationSignerClient;
 use crate::routes::{compose_routes, MonolithRouters};
 
+/// Compose nested service runtimes and serve the monolith HTTP stack.
+///
+/// # Errors
+///
+/// Returns an error if configuration loading, nested application setup, or
+/// server bind fails, or if the in-process `IAM` signer or `Manifesto` grant
+/// reader is unavailable.
 pub async fn run() -> anyhow::Result<()> {
     setup_logging_once();
     let MonolithConfig {
@@ -148,13 +155,10 @@ async fn wait_for_first_background_task(
         let (result, index, remaining_tasks) = select_all(background_tasks.iter_mut()).await;
         drop(remaining_tasks);
         drop(background_tasks.swap_remove(index));
-        match &result {
-            Ok(Ok(())) => {
-                tracing::warn!("Monolith background task exited cleanly; HTTP listener continues");
-            }
-            _ => {
-                return flatten_join_result("Monolith background task", result);
-            }
+        if let Ok(Ok(())) = &result {
+            tracing::warn!("Monolith background task exited cleanly; HTTP listener continues");
+        } else {
+            return flatten_join_result("Monolith background task", result);
         }
     }
 }

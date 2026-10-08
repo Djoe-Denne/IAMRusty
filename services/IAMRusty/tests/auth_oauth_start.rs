@@ -40,7 +40,7 @@ fn parse_redirect_url(
 #[serial]
 async fn test_oauth_start_github_redirect_success() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -132,7 +132,7 @@ async fn test_oauth_start_github_redirect_success() {
 #[serial]
 async fn test_oauth_start_gitlab_redirect_success() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -224,7 +224,7 @@ async fn test_oauth_start_gitlab_redirect_success() {
 #[serial]
 async fn test_oauth_start_unsupported_provider_returns_422() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -259,7 +259,7 @@ async fn test_oauth_start_unsupported_provider_returns_422() {
 #[tokio::test]
 #[serial]
 async fn test_oauth_start_illegal_syntax_returns_400() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -293,7 +293,7 @@ async fn test_oauth_start_illegal_syntax_returns_400() {
 #[serial]
 async fn test_oauth_start_case_insensitive_providers() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -351,7 +351,7 @@ async fn test_oauth_start_case_insensitive_providers() {
 #[serial]
 async fn test_oauth_start_state_security_and_uniqueness() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -414,7 +414,7 @@ async fn test_oauth_start_state_security_and_uniqueness() {
 #[serial]
 async fn test_oauth_start_with_auth_header_link_operation() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -456,7 +456,7 @@ async fn test_oauth_start_with_auth_header_link_operation() {
 #[serial]
 async fn test_oauth_start_invalid_auth_header_formats() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -498,7 +498,7 @@ async fn test_oauth_start_invalid_auth_header_formats() {
 #[serial]
 async fn test_oauth_start_query_parameter_structure() {
     // Setup test server
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -612,7 +612,7 @@ async fn idp_connect_rejects_invalid_hmac_with_401() {
 #[tokio::test]
 #[serial]
 async fn oauth_start_connector_401_is_not_redirect() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let idp = IdpConnectFixtures::service().await;

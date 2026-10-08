@@ -15,7 +15,7 @@ use tracing::{debug, error, info};
 use super::processors::ComponentStatusProcessor;
 
 /// Restrict the apparatus listener to `component_status_changed` destinations.
-/// The shared `[queue.queues]` map also lists AuthZ files (`sentinel-sync-events`);
+/// The shared `[queue.queues]` map also lists `AuthZ` files (`sentinel-sync-events`);
 /// rustycog consumers read from `all_queue_urls()`, which would otherwise steal those
 /// messages (visibility hold, no delete) from sentinel-sync.
 fn apparatus_listener_queue_config(queue_config: &QueueConfig) -> QueueConfig {
@@ -27,7 +27,7 @@ fn apparatus_listener_queue_config(queue_config: &QueueConfig) -> QueueConfig {
                     "component_status_changed".to_string(),
                     dest.clone(),
                 )]);
-                narrowed.default_queues = dest.clone();
+                narrowed.default_queues.clone_from(dest);
                 QueueConfig::Sqs(narrowed)
             }
             _ => QueueConfig::Disabled,

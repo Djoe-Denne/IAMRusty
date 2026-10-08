@@ -1,4 +1,4 @@
-//! Typed outbound IdP TLS stand-in. Generated PKI follows SDK mtls_client_auth.rs.
+//! Typed outbound `IdP` TLS stand-in. Generated PKI follows SDK `mtls_client_auth.rs`.
 //! No live keys, environment trust overrides, unsafe client flags or global fixture.
 use crate::owned_task;
 use axum::{
@@ -9,6 +9,7 @@ use axum::{
     routing::post,
     Json, Router,
 };
+use base64::Engine;
 use idp_connect_contract::{
     dto::{
         AuthorizeRequest, AuthorizeResponse, ProfileRequest, TokenRequest, AUTHORIZE_PATH,
@@ -35,10 +36,10 @@ pub const REDIRECT_URI: &str = "https://iam.example/iam/api/auth/github/callback
 
 #[derive(Clone, Default)]
 pub struct Receipts {
-    pub hmac_valid: usize,
-    pub authorize_valid: usize,
-    pub token_valid: usize,
-    pub profile_valid: usize,
+    pub hmac: usize,
+    pub authorize: usize,
+    pub token: usize,
+    pub profile: usize,
 }
 struct Protocol {
     requests: AtomicUsize,
@@ -105,7 +106,7 @@ async fn protocol(
     if !validated {
         return StatusCode::UNAUTHORIZED.into_response();
     }
-    state.receipts.lock().expect("receipt lock").hmac_valid += 1;
+    state.receipts.lock().expect("receipt lock").hmac += 1;
     if let Some(location) = state.redirect.lock().expect("redirect lock").clone() {
         return (
             StatusCode::TEMPORARY_REDIRECT,
@@ -122,11 +123,11 @@ async fn protocol(
         };
         if request.state != STATE
             || request.redirect_uri != REDIRECT_URI
-            || challenge.as_deref() != Some(state.challenge.as_str())
+            || challenge != Some(state.challenge.as_str())
         {
             return StatusCode::BAD_REQUEST.into_response();
         }
-        state.receipts.lock().expect("receipt lock").authorize_valid += 1;
+        state.receipts.lock().expect("receipt lock").authorize += 1;
         let mut url = url::Url::parse("https://provider.example/authorize")
             .expect("fixed nonsecret vendor URL");
         url.query_pairs_mut()
@@ -150,7 +151,7 @@ async fn protocol(
         {
             return StatusCode::BAD_REQUEST.into_response();
         }
-        state.receipts.lock().expect("receipt lock").token_valid += 1;
+        state.receipts.lock().expect("receipt lock").token += 1;
         return Json(crate::fixtures::idp_connect::resources::success_tokens()).into_response();
     }
     if uri.path() == format!("/connect{PROFILE_PATH}") {
@@ -162,7 +163,7 @@ async fn protocol(
         {
             return StatusCode::UNAUTHORIZED.into_response();
         }
-        state.receipts.lock().expect("receipt lock").profile_valid += 1;
+        state.receipts.lock().expect("receipt lock").profile += 1;
         return Json(crate::fixtures::idp_connect::resources::github_arthur()).into_response();
     }
     StatusCode::NOT_FOUND.into_response()
@@ -212,7 +213,6 @@ impl VerifiedIdpTls {
         let listener =
             std::net::TcpListener::bind("127.0.0.1:0").expect("one isolated bound listener");
         let address = listener.local_addr().expect("actual random address");
-        use base64::Engine;
         let challenge = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(
             iam_domain::entity::oauth_transaction::hash_oauth_bytes(VERIFIER.as_bytes()),
         );

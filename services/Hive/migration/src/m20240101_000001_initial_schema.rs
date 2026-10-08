@@ -9,17 +9,17 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        organizations::create(manager).await?;
-        organization_members::create(manager).await?;
-        organization_invitations::create(manager).await?;
-        external_providers::create(manager).await?;
-        external_links::create(manager).await?;
-        sync_jobs::create(manager).await?;
-        permissions::create(manager).await?;
-        resources::create(manager).await?;
-        role_permissions::create(manager).await?;
-        organization_member_role_permissions::create(manager).await?;
-        outbox::create(manager).await?;
+        Box::pin(organizations::create(manager)).await?;
+        Box::pin(organization_members::create(manager)).await?;
+        Box::pin(organization_invitations::create(manager)).await?;
+        Box::pin(external_providers::create(manager)).await?;
+        Box::pin(external_links::create(manager)).await?;
+        Box::pin(sync_jobs::create(manager)).await?;
+        Box::pin(permissions::create(manager)).await?;
+        Box::pin(resources::create(manager)).await?;
+        Box::pin(role_permissions::create(manager)).await?;
+        Box::pin(organization_member_role_permissions::create(manager)).await?;
+        Box::pin(outbox::create(manager)).await?;
         Ok(())
     }
 

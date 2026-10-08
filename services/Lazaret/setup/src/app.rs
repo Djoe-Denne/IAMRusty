@@ -80,13 +80,12 @@ impl Application {
 
         let state = AppState::new(command_service, user_id_extractor, permission_checker);
         let (snapshots, _) = resolve_binding_grant_snapshots(&config, injected_snapshots)?;
-        let (identity, ca) =
-            build_identity_service(&config.identity, snapshots.clone(), kv_conn.clone())
-                .map_err(|e| anyhow::anyhow!("Invalid identity configuration: {e}"))?;
+        let (identity, ca) = build_identity_service(&config.identity, snapshots.clone(), &kv_conn)
+            .map_err(|e| anyhow::anyhow!("Invalid identity configuration: {e}"))?;
         ensure_boot_tls(&ca, &config.server)
             .map_err(|e| anyhow::anyhow!("Invalid TLS material: {e}"))?;
         let grant_service = Arc::new(GrantService::new(snapshots));
-        let kv = build_platform_kv(&config, kv_conn)?;
+        let kv = build_platform_kv(&config, &kv_conn)?;
         let secrets = build_secret_resolver(&config)?;
         let connectors = build_named_connectors(&config)?;
         let kv_event_consumer =
@@ -197,7 +196,7 @@ impl Application {
 
 /// Resolve Manifesto binding-grant snapshots (ADR-0104).
 ///
-/// Without injection → HTTP adapter. With setter → injected capability (InProcess).
+/// Without injection → HTTP adapter. With setter → injected capability (`InProcess`).
 ///
 /// Returns `(client, used_injected)` so unit tests can prove the transport choice.
 pub(crate) fn resolve_binding_grant_snapshots(
@@ -239,7 +238,7 @@ impl AppBuilder {
         self
     }
 
-    /// Inject an InProcess (or test) binding-grant snapshot port.
+    /// Inject an `InProcess` (or test) binding-grant snapshot port.
     ///
     /// Sugar over [`Self::with_outbound`]: writes `binding_grant_snapshots`.
     #[must_use]
@@ -277,7 +276,7 @@ fn ensure_boot_tls(ca: &PlatformInternalCa, server: &ServerConfig) -> Result<(),
 
 fn build_platform_kv(
     config: &AppConfig,
-    kv_conn: Arc<DatabaseConnection>,
+    kv_conn: &Arc<DatabaseConnection>,
 ) -> Result<Arc<dyn AsyncKvStore>, Error> {
     if config.kv.backend.eq_ignore_ascii_case("redis") {
         Ok(Arc::new(
@@ -285,7 +284,7 @@ fn build_platform_kv(
                 .map_err(|e| anyhow::anyhow!("Redis KV: {e}"))?,
         ))
     } else {
-        Ok(Arc::new(PostgresKvStore::from_arc(&kv_conn)))
+        Ok(Arc::new(PostgresKvStore::from_arc(kv_conn)))
     }
 }
 

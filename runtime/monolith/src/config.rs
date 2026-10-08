@@ -9,11 +9,15 @@ pub struct MonolithConfig {
     pub lazaret: lazaret_configuration::AppConfig,
 }
 
-/// Overlay TLS for rustycog dual-bind (HTTP 8080 + HTTPS tls_port).
+/// Overlay TLS for `rustycog` dual-bind (HTTP 8080 + HTTPS `tls_port`).
 /// Default off so host J1 (`just monolith`) stays plain HTTP.
 ///
 /// When enabled (J3 kind overlay), Lazaret nest `ensure_boot_tls` and identity CA
 /// paths are aligned to the same files rustycog uses as `tls_client_ca_path`.
+///
+/// # Errors
+///
+/// Returns an error if any nested service config cannot be loaded.
 pub fn load_monolith_config() -> anyhow::Result<MonolithConfig> {
     let iam = iam_configuration::load_config()?;
     let telegraph = telegraph_configuration::load_config()?;
@@ -35,13 +39,22 @@ pub fn load_monolith_config() -> anyhow::Result<MonolithConfig> {
         Some(tls) => {
             // Nest Lazaret: generate-if-absent leaf + write trust anchor (T13).
             lazaret.server.tls_enabled = true;
-            lazaret.server.tls_cert_path = tls.cert_path.clone();
-            lazaret.server.tls_key_path = tls.key_path.clone();
-            lazaret.server.tls_client_ca_path = tls.client_ca_path.clone();
+            lazaret.server.tls_cert_path.clone_from(&tls.cert_path);
+            lazaret.server.tls_key_path.clone_from(&tls.key_path);
+            lazaret
+                .server
+                .tls_client_ca_path
+                .clone_from(&tls.client_ca_path);
             lazaret.server.tls_port = tls.port;
             // Same CA instance for enroll signing and rustycog client CA.
-            lazaret.identity.ca_cert_pem_path = tls.client_ca_path.clone();
-            lazaret.identity.ca_key_pem_path = tls.ca_key_path.clone();
+            lazaret
+                .identity
+                .ca_cert_pem_path
+                .clone_from(&tls.client_ca_path);
+            lazaret
+                .identity
+                .ca_key_pem_path
+                .clone_from(&tls.ca_key_path);
 
             ServerConfig {
                 host: "0.0.0.0".to_string(),

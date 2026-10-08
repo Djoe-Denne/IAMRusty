@@ -1,4 +1,4 @@
-//! StaticCredential WorkloadIdentity adapter (config / OpenBao-injected map).
+//! `StaticCredential` `WorkloadIdentity` adapter (config / `OpenBao`-injected map).
 //!
 //! Never stores secrets in Hive DB or domain events.
 
@@ -15,7 +15,7 @@ pub struct StaticCredential {
 }
 
 impl StaticCredential {
-    /// Build from an explicit map of credential_ref → secret value.
+    /// Build from an explicit map of `credential_ref` → secret value.
     #[must_use]
     pub fn new(secrets: HashMap<String, String>) -> Self {
         Self {

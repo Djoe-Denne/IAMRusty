@@ -7,7 +7,7 @@ use std::{
 };
 pub struct OwnedTask<T>(tokio::task::JoinHandle<T>);
 impl<T> OwnedTask<T> {
-    pub fn new(handle: tokio::task::JoinHandle<T>) -> Self {
+    pub const fn new(handle: tokio::task::JoinHandle<T>) -> Self {
         Self(handle)
     }
 }

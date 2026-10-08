@@ -114,7 +114,7 @@ async fn assert_denied_without_exchange(
 #[tokio::test]
 #[serial]
 async fn browser_binding_provider_intention_expiry_and_replay_fail_before_connector() {
-    let (fixture, base, _) = setup_test_server().await.expect("IAM harness");
+    let (fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
     fixture_cleanup::run(&fixture, async {
     let idp = IdpConnectFixtures::service().await;
     idp.mock_github_happy_arthur().await;
@@ -177,7 +177,7 @@ async fn browser_binding_provider_intention_expiry_and_replay_fail_before_connec
 #[tokio::test]
 #[serial]
 async fn two_tabs_share_browser_nonce_but_have_independent_consumable_transactions() {
-    let (_fixture, base, _) = setup_test_server().await.expect("IAM harness");
+    let (_fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
     fixture_cleanup::run(&_fixture, async {
         let idp = IdpConnectFixtures::service().await;
         idp.mock_github_happy_arthur().await;
@@ -209,7 +209,7 @@ async fn two_tabs_share_browser_nonce_but_have_independent_consumable_transactio
 #[tokio::test]
 #[serial]
 async fn oauth_registration_returns_persisted_refresh_without_fixture_token_insertion() {
-    let (fixture, base, _) = setup_test_server().await.expect("IAM harness");
+    let (fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
     fixture_cleanup::run(&fixture, async {
     let idp = IdpConnectFixtures::service().await;
     idp.mock_github_happy_arthur().await;
@@ -252,11 +252,11 @@ async fn oauth_registration_returns_persisted_refresh_without_fixture_token_inse
 #[tokio::test]
 #[serial]
 async fn replica_race_consumes_the_browser_transaction_once() {
-    let (fixture, base, _) = setup_test_server().await.expect("IAM harness");
-    fixture_cleanup::run(&fixture, async {
+    let (fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
+    fixture_cleanup::run(&fixture, Box::pin(async {
     // Integration API must construct a distinct app/listener against this writer DB;
     // returning the harness singleton URL would invalidate the replica proof.
-    let (replica, _) = common::setup_test_replica(&fixture)
+    let (replica, _) = Box::pin(common::setup_test_replica(&fixture))
         .await
         .expect("second IAM replica");
     assert_ne!(base, replica, "replica must have a distinct listener");
@@ -280,13 +280,13 @@ async fn replica_race_consumes_the_browser_transaction_once() {
         "SELECT COUNT(*) AS count FROM oauth_transactions WHERE consumed_at IS NOT NULL AND pkce_verifier IS NULL".to_owned()))
         .await.expect("read committed consumption").expect("count row");
     assert_eq!(row.try_get::<i64>("", "count").expect("count"), 1);
-    }).await;
+    })).await;
 }
 
 #[tokio::test]
 #[serial]
 async fn relink_start_requires_platform_auth_but_bound_callback_needs_no_bearer() {
-    let (fixture, base, _) = setup_test_server().await.expect("IAM harness");
+    let (fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
     fixture_cleanup::run(&fixture, async {
     let client = browser_client();
     let idp = IdpConnectFixtures::service().await;
@@ -447,7 +447,7 @@ async fn relink_start_requires_platform_auth_but_bound_callback_needs_no_bearer(
 async fn pkce_s256_survives_connector_authorize_and_token_exchange() {
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
     // Integration configures sender AND mock receiver capability explicitly.
-    let (_fixture, base, _) = common::setup_test_server_with_pkce()
+    let (_fixture, base, _) = Box::pin(common::setup_test_server_with_pkce())
         .await
         .expect("PKCE-enabled IAM harness");
     fixture_cleanup::run(&_fixture, async {
@@ -490,7 +490,7 @@ async fn pkce_s256_survives_connector_authorize_and_token_exchange() {
             "receiver must not drop PKCE from the browser authorization URL"
         );
         assert_eq!(
-            callback(&client, &base, "github/callback", &state, Some(&cookie))
+            callback(&client, &base, "github/callback", state, Some(&cookie))
                 .await
                 .status(),
             202
@@ -531,7 +531,7 @@ async fn pkce_s256_survives_connector_authorize_and_token_exchange() {
 #[tokio::test]
 #[serial]
 async fn stored_target_and_redirect_mismatch_deny_but_query_cannot_retarget_consumed_capability() {
-    let (fixture, base, _) = setup_test_server().await.expect("IAM harness");
+    let (fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
     fixture_cleanup::run(&fixture, async {
     let db = fixture.db();
     let owner = fixtures::DbFixtures::user()
@@ -627,7 +627,7 @@ async fn stored_target_and_redirect_mismatch_deny_but_query_cannot_retarget_cons
 #[tokio::test]
 #[serial]
 async fn writer_consume_failure_is_unavailable_and_has_no_connector_call_or_consumption() {
-    let (fixture, base, _) = setup_test_server().await.expect("IAM harness");
+    let (fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
     fixture_cleanup::run(&fixture, async {
     let db = fixture.db();
     let idp = IdpConnectFixtures::service().await;

@@ -99,7 +99,7 @@ async fn azure_wif_exchanges_access_token() {
     assert_eq!(cred.secret, "azure-access-token-from-wiremock");
 }
 
-/// Hive HTTP IAM signer sends WIF-resolved `x-iam-internal-token`, not static api_key.
+/// Hive HTTP IAM signer sends WIF-resolved `x-iam-internal-token`, not static `api_key`.
 #[tokio::test]
 #[serial]
 async fn http_iam_signer_uses_wif_resolved_token() {
@@ -122,7 +122,7 @@ async fn http_iam_signer_uses_wif_resolved_token() {
             "status": "active",
             "issuer": "https://iam.test"
         })))
-        .mount(&*wif.server())
+        .mount(&wif.server())
         .await;
 
     let workload = compose_workload_identity(

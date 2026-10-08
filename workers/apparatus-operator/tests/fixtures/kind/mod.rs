@@ -523,10 +523,7 @@ impl KindCluster {
     /// # Errors
     ///
     /// Image déjà présente (faux vert) ou `crictl` injoignable.
-    pub fn assert_registry_cri_absent(
-        &self,
-        cri_image: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn assert_registry_cri_absent(cri_image: &str) -> Result<(), Box<dyn std::error::Error>> {
         let node = format!("{CLUSTER_NAME}-control-plane");
         let out = node_exec(&node, &["crictl", "inspecti", cri_image])?;
         if out.status.success() {
@@ -636,8 +633,7 @@ fn host_cli_ok(name: &str, arg: &str) -> bool {
     Command::new(name)
         .arg(arg)
         .output()
-        .map(|out| out.status.success())
-        .unwrap_or(false)
+        .map_or(false, |out| out.status.success())
 }
 
 fn docker_image_usable(image: &str) -> bool {
@@ -965,8 +961,7 @@ fn wait_crictl_ready(node: &str) -> Result<(), Box<dyn std::error::Error>> {
 fn nonce_hex() -> String {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_nanos());
     format!("{nanos:x}")
 }
 
@@ -1053,8 +1048,7 @@ fn bin_ok(name: &str) -> bool {
     Command::new(name)
         .arg("version")
         .output()
-        .map(|out| out.status.success())
-        .unwrap_or(false)
+        .map_or(false, |out| out.status.success())
 }
 
 fn cluster_exists(kind_bin: &Path) -> Result<bool, Box<dyn std::error::Error>> {

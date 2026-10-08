@@ -6,6 +6,7 @@
 //! / `k8s-openapi` dans les `Cargo.toml` Manifesto. Pas de YAML Kind-cluster
 //! (`kind.x-k8s.io` / `kind: Cluster`) sous `workers/apparatus-operator/k8s/`.
 
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -25,12 +26,12 @@ fn collect_named(dir: &Path, file_name: &str, out: &mut Vec<PathBuf>) {
     for entry in entries {
         let path = entry.expect("entrée lisible").path();
         if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            let name = path.file_name().and_then(OsStr::to_str).unwrap_or("");
             if name == "target" || name == ".git" {
                 continue;
             }
             collect_named(&path, file_name, out);
-        } else if path.file_name().and_then(|n| n.to_str()) == Some(file_name) {
+        } else if path.file_name().and_then(OsStr::to_str) == Some(file_name) {
             out.push(path);
         }
     }
@@ -255,7 +256,7 @@ fn t2_admit_and_controller_features_declared() {
 
 fn is_yaml_file(path: &Path) -> bool {
     path.extension()
-        .and_then(|ext| ext.to_str())
+        .and_then(OsStr::to_str)
         .is_some_and(|ext| ext.eq_ignore_ascii_case("yaml") || ext.eq_ignore_ascii_case("yml"))
 }
 

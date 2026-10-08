@@ -234,6 +234,7 @@ pub trait EnrollmentStore: Send + Sync {
     /// in-memory capacity, [`IdentityError::BindingAlreadyEnrolled`] when the
     /// binding is already enrolled under a different fingerprint, or
     /// [`IdentityError::EnrollmentStore`] when a durable adapter fails.
+    #[must_use = "await the future"]
     async fn put(
         &self,
         fingerprint: String,
@@ -243,6 +244,7 @@ pub trait EnrollmentStore: Send + Sync {
     /// Lookup enrollment by fingerprint.
     ///
     /// Durable adapters map store failure to `None` (fail-closed session 401).
+    #[must_use = "await the future"]
     async fn get(&self, fingerprint: &str) -> Option<WorkloadIdentity>;
 
     /// `true` when this binding already has a stored fingerprint (first-wins).
@@ -251,6 +253,7 @@ pub trait EnrollmentStore: Send + Sync {
     ///
     /// Returns [`IdentityError::EnrollmentStore`] when a durable adapter fails.
     /// In-memory adapters return `Ok(bool)`.
+    #[must_use = "await the future"]
     async fn binding_enrolled(&self, binding: Uuid) -> Result<bool, IdentityError>;
 
     /// Drop enrollment rows for this binding. Missing binding is a no-op.
@@ -259,6 +262,7 @@ pub trait EnrollmentStore: Send + Sync {
     ///
     /// Returns [`IdentityError::EnrollmentStore`] when a durable adapter fails.
     /// In-memory adapters always return `Ok(())`.
+    #[must_use = "await the future"]
     async fn revoke_binding(&self, binding: Uuid) -> Result<(), IdentityError>;
 }
 

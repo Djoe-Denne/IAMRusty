@@ -111,6 +111,7 @@ where
     TR: iam_domain::port::repository::TokenRepository + Send + Sync,
 {
     /// Create a new `LinkProviderUseCaseImpl`
+    #[must_use]
     pub fn new(
         clients: Arc<HashMap<Provider, Arc<dyn FederatedOAuthClient>>>,
         provider_link_service: Arc<ProviderLinkService<UR, UER, TR>>,

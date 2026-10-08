@@ -26,15 +26,18 @@ pub struct TupleDelta {
 }
 
 impl TupleDelta {
+    #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.writes.is_empty() && self.deletes.is_empty()
     }
 
+    #[must_use]
     pub fn write(mut self, t: Tuple) -> Self {
         self.writes.push(t);
         self
     }
 
+    #[must_use]
     pub fn delete(mut self, t: Tuple) -> Self {
         self.deletes.push(t);
         self
@@ -61,5 +64,10 @@ pub trait Translator: Send + Sync {
     /// Return `Some(TupleDelta)` if the translator claims this event, `None`
     /// if it cannot decode or does not care about the event. Unknown events
     /// are fine — most domain events are irrelevant to authorization.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an implementation fails while building the tuple
+    /// delta after claiming the event.
     fn translate(&self, raw_event: &serde_json::Value) -> Result<Option<TupleDelta>>;
 }

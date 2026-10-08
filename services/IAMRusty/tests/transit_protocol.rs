@@ -1,4 +1,4 @@
-//! S9 outbound HTTP protocol tests. No live OpenBao, ACL or HTTPS deployment claim.
+//! S9 outbound HTTP protocol tests. No live `OpenBao`, ACL or HTTPS deployment claim.
 use iam_domain::port::SigningProvider;
 use iam_infra::signing::{StaticCredential, TransitSigningProvider};
 use rustycog::testing::wiremock::MockServerFixture;
@@ -11,7 +11,7 @@ use wiremock::{
 
 struct TransitMockService {
     server: Arc<MockServer>,
-    _fixture: MockServerFixture,
+    server_fixture: MockServerFixture,
 }
 
 impl TransitMockService {
@@ -24,8 +24,11 @@ impl TransitMockService {
         let fixture = MockServerFixture::isolated().await;
         Self {
             server: fixture.server(),
-            _fixture: fixture,
+            server_fixture: fixture,
         }
+    }
+    async fn reset(&self) {
+        self.server_fixture.reset().await;
     }
     async fn sign_response(&self, key: &str, response: ResponseTemplate) {
         Mock::given(method("POST"))
@@ -94,7 +97,7 @@ async fn redirects_cannot_forward_credentials_to_an_alternate_operation() {
             .expect("positive Sign protocol control"),
         [1, 2, 3]
     );
-    fixture._fixture.reset().await;
+    fixture.reset().await;
     fixture
         .sign_response(
             &key,
@@ -194,7 +197,7 @@ async fn explicit_version_is_sent_and_only_the_exact_vault_envelope_is_accepted(
         ("vault:v7:", false),
         ("vault:v7:!!!", false),
     ] {
-        fixture._fixture.reset().await;
+        fixture.reset().await;
         fixture
             .sign_response(
                 "pinned-key",
@@ -254,7 +257,7 @@ async fn public_read_is_exact_even_after_external_rotation_and_never_uses_latest
     let provider = fixture.provider_at("key", 7, "org-fixture-credential");
     let public = include_str!("../config/keys/test-platform.pub");
     for latest in [7, 8, 42] {
-        fixture._fixture.reset().await;
+        fixture.reset().await;
         Mock::given(method("GET"))
             .and(path("/v1/transit/keys/key"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -272,7 +275,7 @@ async fn public_read_is_exact_even_after_external_rotation_and_never_uses_latest
         serde_json::json!({"keys":{"7":{}},"latest_public_key":public}),
         serde_json::json!({"keys":{"7":{"public_key":""}},"latest_public_key":public}),
     ] {
-        fixture._fixture.reset().await;
+        fixture.reset().await;
         Mock::given(method("GET"))
             .and(path("/v1/transit/keys/key"))
             .respond_with(
@@ -310,7 +313,7 @@ async fn supplied_public_is_confronted_with_exact_provider_version() {
         .mount(&fixture.server)
         .await;
     assert_eq!(provider.public_key().await.unwrap(), public);
-    fixture._fixture.reset().await;
+    fixture.reset().await;
     Mock::given(method("GET"))
         .and(path("/v1/transit/keys/key"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -322,7 +325,7 @@ async fn supplied_public_is_confronted_with_exact_provider_version() {
         provider.public_key().await.is_err(),
         "cached public cannot hide missing provider version"
     );
-    fixture._fixture.reset().await;
+    fixture.reset().await;
     let different = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048)
         .unwrap()
         .to_public_key()
@@ -463,7 +466,7 @@ async fn rotation_refuses_incompatible_or_already_advanced_key_before_side_effec
         ("rsa-2048", true, true, 7),
         ("rsa-2048", false, false, 7),
     ] {
-        fixture._fixture.reset().await;
+        fixture.reset().await;
         Mock::given(method("GET"))
             .and(path("/v1/transit/keys/key"))
             .respond_with(
@@ -553,7 +556,7 @@ async fn failed_or_indeterminate_rotation_is_not_retried_or_replaced_by_create()
         ResponseTemplate::new(500),
         ResponseTemplate::new(204).set_delay(Duration::from_secs(30)),
     ] {
-        fixture._fixture.reset().await;
+        fixture.reset().await;
         Mock::given(method("GET"))
             .and(path("/v1/transit/keys/key"))
             .respond_with(

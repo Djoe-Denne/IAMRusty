@@ -50,6 +50,11 @@ fn default_backend() -> String {
 impl SentinelSyncConfig {
     /// Load config from `config/sentinel-sync.toml` and `SENTINEL_SYNC_*`
     /// env vars (`prefix_separator = "_"` like rustycog-config: `SENTINEL_SYNC_OPENFGA__STORE_ID`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file or environment cannot be parsed, or if
+    /// deserialization into `SentinelSyncConfig` fails.
     pub fn load() -> Result<Self, rustycog::config::ConfigError> {
         use rustycog::config::{Config, Environment, File, FileFormat};
 

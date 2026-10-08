@@ -13,9 +13,9 @@ use manifesto_domain::{
     ProjectMember,
 };
 use manifesto_events::{
-    ManifestoDomainEvent, ProjectArchivedEvent, ProjectCreatedEvent, ProjectDeletedEvent,
-    ProjectPublishedEvent, ProjectResumedEvent, ProjectSuspendedEvent, ProjectUpdatedEvent,
-    ProjectVisibilityChangedEvent,
+    ManifestoDomainEvent, ProjectArchivedEvent, ProjectCreatedEvent, ProjectDeletedAuthz,
+    ProjectDeletedEvent, ProjectPublishedEvent, ProjectResumedEvent, ProjectSuspendedEvent,
+    ProjectUpdatedEvent, ProjectVisibilityChangedEvent,
 };
 use rustycog::core::error::DomainError;
 use rustycog::events::{DomainEvent, EventPublisher};
@@ -98,7 +98,7 @@ pub trait ProjectAuthorizationUnitOfWork: Send + Sync {
         added_by: Uuid,
     ) -> Result<ProjectMember, ApplicationError>;
 
-    /// Persist a project deletion and its AuthZ events in one transaction.
+    /// Persist a project deletion and its `AuthZ` events in one transaction.
     ///
     /// # Errors
     ///
@@ -158,7 +158,7 @@ pub trait ProjectAuthorizationUnitOfWork: Send + Sync {
         events: Vec<Box<dyn DomainEvent>>,
     ) -> Result<(), ApplicationError>;
 
-    /// Transfer ownership, persist project owner_id, and record events.
+    /// Transfer ownership, persist project `owner_id`, and record events.
     ///
     /// # Errors
     ///
@@ -799,14 +799,16 @@ impl ProjectUseCase for ProjectUseCaseImpl {
             .await?;
         let components = self.component_service.list_components(&project_id).await?;
         let event = ManifestoDomainEvent::ProjectDeleted(ProjectDeletedEvent::with_authz(
-            project_id,
-            project.name.clone(),
-            user_id,
-            Utc::now(),
-            members.iter().map(|member| member.user_id).collect(),
-            components.iter().map(|component| component.id).collect(),
-            Some(project.owner_type.as_str().to_string()),
-            Some(project.owner_id),
+            ProjectDeletedAuthz {
+                project_id,
+                project_name: project.name.clone(),
+                deleted_by: user_id,
+                deleted_at: Utc::now(),
+                member_user_ids: members.iter().map(|member| member.user_id).collect(),
+                component_ids: components.iter().map(|component| component.id).collect(),
+                owner_type: Some(project.owner_type.as_str().to_string()),
+                owner_id: Some(project.owner_id),
+            },
         ));
         if let Some(uow) = &self.project_authorization_uow {
             uow.delete_project_with_events(project, vec![event.into()])

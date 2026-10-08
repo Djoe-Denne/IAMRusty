@@ -80,10 +80,10 @@ async fn verified_root_and_ip_san_allow_real_hmac_authorize_s256_exchange_and_pr
             3,
             "one HTTP request per operation, no retry"
         );
-        assert_eq!(receipts.hmac_valid, 3);
-        assert_eq!(receipts.authorize_valid, 1);
-        assert_eq!(receipts.token_valid, 1);
-        assert_eq!(receipts.profile_valid, 1);
+        assert_eq!(receipts.hmac, 3);
+        assert_eq!(receipts.authorize, 1);
+        assert_eq!(receipts.token, 1);
+        assert_eq!(receipts.profile, 1);
         assert!(
             HttpIdpConnector::with_security_mode_and_roots(
                 "http://127.0.0.1/connect",
@@ -187,7 +187,7 @@ async fn verified_https_redirect_does_not_forward_hmac_or_body_to_another_truste
             .is_err());
         assert_eq!(original.count(), 1, "exactly one attempted operation");
         assert_eq!(
-            original.receipts().hmac_valid,
+            original.receipts().hmac,
             1,
             "redirect response must be reached by a real authenticated request"
         );

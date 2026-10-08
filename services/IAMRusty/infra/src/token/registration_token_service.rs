@@ -17,7 +17,7 @@ pub struct RegistrationTokenServiceImpl {
 }
 
 impl RegistrationTokenServiceImpl {
-    /// Share the already-bound codec from setup_jwt; never create another PEM or
+    /// Share the already-bound codec from `setup_jwt`; never create another `PEM` or
     /// signing registry. This concrete dependency stays wholly inside infra.
     ///
     /// # Errors

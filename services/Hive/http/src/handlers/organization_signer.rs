@@ -15,8 +15,8 @@ use rustycog::permission::ResourceId;
 
 use crate::error::HttpError;
 
-fn map_cmd(e: rustycog::command::CommandError) -> HttpError {
-    if let rustycog::command::CommandError::Business { code, .. } = &e {
+fn map_cmd(e: &rustycog::command::CommandError) -> HttpError {
+    if let rustycog::command::CommandError::Business { code, .. } = e {
         if code == "iam_signing_invalid_input" {
             return HttpError::BadRequest {
                 message: "Invalid signing input".into(),
@@ -36,41 +36,7 @@ fn map_cmd(e: rustycog::command::CommandError) -> HttpError {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use axum::response::IntoResponse;
-    #[test]
-    fn signing_input_is400_epoch409_capacity429_but_provider_and_db_faults_remain500() {
-        for (code, status) in [
-            ("iam_signing_invalid_input", 400),
-            ("iam_signing_epoch_conflict", 409),
-            ("iam_signing_admission_throttled", 429),
-        ] {
-            assert_eq!(
-                map_cmd(rustycog::command::CommandError::business(
-                    code,
-                    "private-upstream-detail"
-                ))
-                .into_response()
-                .status()
-                .as_u16(),
-                status
-            );
-        }
-        assert_eq!(
-            map_cmd(rustycog::command::CommandError::infrastructure(
-                "provider",
-                "private-detail"
-            ))
-            .into_response()
-            .status(),
-            500
-        );
-    }
-}
-
-/// POST /api/organizations/{organization_id}/signer/configure
+/// POST /`api/organizations/{organization_id}/signer/configure`
 ///
 /// # Errors
 ///
@@ -88,11 +54,11 @@ pub async fn configure_organization_signer(
         .command_service
         .execute(command, context)
         .await
-        .map_err(map_cmd)?;
+        .map_err(|e| map_cmd(&e))?;
     Ok(Json(result))
 }
 
-/// POST /api/organizations/{organization_id}/signer/test
+/// POST /`api/organizations/{organization_id}/signer/test`
 ///
 /// # Errors
 ///
@@ -108,11 +74,11 @@ pub async fn test_organization_signer(
         .command_service
         .execute(command, context)
         .await
-        .map_err(map_cmd)?;
+        .map_err(|e| map_cmd(&e))?;
     Ok(Json(result))
 }
 
-/// POST /api/organizations/{organization_id}/signer/rotate
+/// POST /`api/organizations/{organization_id}/signer/rotate`
 ///
 /// # Errors
 ///
@@ -128,11 +94,11 @@ pub async fn rotate_organization_signer(
         .command_service
         .execute(command, context)
         .await
-        .map_err(map_cmd)?;
+        .map_err(|e| map_cmd(&e))?;
     Ok(Json(result))
 }
 
-/// POST /api/organizations/{organization_id}/signer/disable
+/// POST /`api/organizations/{organization_id}/signer/disable`
 ///
 /// # Errors
 ///
@@ -148,6 +114,40 @@ pub async fn disable_organization_signer(
         .command_service
         .execute(command, context)
         .await
-        .map_err(map_cmd)?;
+        .map_err(|e| map_cmd(&e))?;
     Ok(Json(result))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::response::IntoResponse;
+    #[test]
+    fn signing_input_is400_epoch409_capacity429_but_provider_and_db_faults_remain500() {
+        for (code, status) in [
+            ("iam_signing_invalid_input", 400),
+            ("iam_signing_epoch_conflict", 409),
+            ("iam_signing_admission_throttled", 429),
+        ] {
+            assert_eq!(
+                map_cmd(&rustycog::command::CommandError::business(
+                    code,
+                    "private-upstream-detail"
+                ))
+                .into_response()
+                .status()
+                .as_u16(),
+                status
+            );
+        }
+        assert_eq!(
+            map_cmd(&rustycog::command::CommandError::infrastructure(
+                "provider",
+                "private-detail"
+            ))
+            .into_response()
+            .status(),
+            500
+        );
+    }
 }

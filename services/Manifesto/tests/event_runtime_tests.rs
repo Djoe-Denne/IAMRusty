@@ -172,9 +172,11 @@ async fn test_apparatus_consumer_is_noop_when_sqs_has_no_component_status_queue(
         Arc::new(AbsentBindingSource),
     ));
 
-    let mut sqs = SqsConfig::default();
-    sqs.enabled = true;
-    sqs.default_queues = vec!["sentinel-sync-events".to_string()];
+    let mut sqs = SqsConfig {
+        enabled: true,
+        default_queues: vec!["sentinel-sync-events".to_string()],
+        ..SqsConfig::default()
+    };
     sqs.queues.insert(
         "project_created".to_string(),
         vec!["sentinel-sync-events".to_string()],

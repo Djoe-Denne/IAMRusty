@@ -7,7 +7,7 @@ summary: >-
   Hub 0100–0502. IAM 0407–0411 Implemented. Cloud 0600–0602 Proposed.
   0603–0606 Réalité Partial, Statut Proposed ; J3/gold historiques conservés.
 created: 2026-09-12T10:20:00Z
-updated: 2026-10-04
+updated: 2026-10-08
 sources:
   - docs/adr/README.md
   - docs/adr/0100-services-metier-hexagonaux-rustycog.md
@@ -49,11 +49,15 @@ Agents Cursor dédiés (Grok 4.6 Extra High) : `adr-hexagonal-rustycog`, `adr-te
 
 ## Admission JWKS — S-10
 
-[[projects/aiforall/decisions/0310-admission-epochs-budget-jwks]] — Canon `docs/adr/0310-admission-epochs-budget-jwks.md`, **Accepted / Partial** : ratification humaine0310 le 2026-10-04, primitives existantes seulement ; budget/idempotence/churn non livrés, S-10 HIGH BLOCK. S-11 guard endpoint/UID reste ouvert dans [[projects/aiforall/decisions/0606-local-full-kind-isole]]. Contrats§§14–15, aucune preuve root/IT/E2E nouvelle.
+[[projects/aiforall/decisions/0310-admission-epochs-budget-jwks]] — Canon `docs/adr/0310-admission-epochs-budget-jwks.md`, **Accepted / Partial** : ratification initiale le 2026-10-04 ; calcul/capacité partiellement supersédés par 0312 le 2026-10-08, autres invariants conservés. [[projects/aiforall/decisions/0311-signing-simplification]] — **0311–0312 Accepted / Implemented**, Accept explicite de Djoé Denne le 2026-10-08 ; implémentation livrée, slots prouvés, units + IT IAM vertes sur master attestées par l’utilisateur (pas artefact CI archivé). Aucune clôture sécurité globale S-10 ni preuve E2E implicite. S-11 guard endpoint/UID reste distinct dans [[projects/aiforall/decisions/0606-local-full-kind-isole]]. Contrats historiques §§14–15, calcul/capacité remplacés par 0312.
 
 ## Réconciliation source 2026-10-04
 
 Canon : `docs/adr/README.md`. 0304/0308/0412 **Accepted / Partial** ; 0603–0606 **Proposed / Partial**. SDK `ca2e35fcd56279e9e52625d0df9381f240f3390d` publié/sélectionné et SDK22 purs PASS selon parent ; aucune compilation root complète ni preuve IAM/mesh/full intégrée nouvelle. D6 render112 = source/offline. J3/gold restent historiques ; nouveau contexte full autorisé après IT, legacy étranger intact. 0404/0500 et cibles futures0600–0602 inchangés ; aucune Accept implicite.
+
+## Réconciliation signing/OAuth — 2026-10-08
+
+Canons : `docs/adr/0311-crypto-privee-deleguee-aux-providers.md`, `docs/adr/0312-admission-jwks-par-slots-bornes.md` et `docs/adr/0412-oauth-transaction-persistante-liee-navigateur.md`. 0311–0312 **Accepted / Implemented** ; 0412 **Accepted / Partial**, units + IT vertes attestées par l’utilisateur, **E2E finale exact-route/Envoy restante** : [[projects/iamrusty/decisions/0412-oauth-transaction-browser-binding]]. La section datée 2026-10-04 ci-dessus reste historique, pas l’état actuel des preuves IAM.
 
 ## Partial connus
 

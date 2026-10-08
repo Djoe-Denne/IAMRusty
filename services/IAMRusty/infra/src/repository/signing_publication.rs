@@ -620,7 +620,7 @@ mod tests {
     async fn dirty_prepared_record_corruption_forces_primary_refresh_and_rolls_back_not_empty() {
         let now = Utc::now();
         let model = row(Uuid::new_v4(), "active");
-        let mut cached = snapshot_projection(&[model.clone()], now);
+        let mut cached = snapshot_projection(std::slice::from_ref(&model), now);
         cached.insert("dirty".into(), true.into());
         let mut records = public_projection(&[model]);
         if let Value::Bytes(Some(bytes)) = records[0].get_mut("binding_fingerprint").unwrap() {

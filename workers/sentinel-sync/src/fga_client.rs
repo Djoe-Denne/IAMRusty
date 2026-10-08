@@ -131,6 +131,11 @@ pub struct OpenFgaWriteClient {
 }
 
 impl OpenFgaWriteClient {
+    /// Build an HTTP client for the configured `OpenFGA` store.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP client cannot be built.
     pub fn new(config: OpenFgaConfig) -> Result<Self> {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
@@ -151,6 +156,11 @@ impl OpenFgaWriteClient {
     ///
     /// `OpenFGA`'s write endpoint is atomic per call, so the caller can fuse
     /// "remove old, add new" transitions into one request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP request fails or `OpenFGA` returns a
+    /// non-success status.
     pub async fn write(&self, writes: &[Tuple], deletes: &[Tuple]) -> Result<()> {
         if writes.is_empty() && deletes.is_empty() {
             return Ok(());
@@ -221,7 +231,7 @@ impl OpenFgaWriteClient {
 
     /// Apply writes then deletes as a single grouped `OpenFGA` write when
     /// possible. Conflicting already-exists / missing-tuple responses fall
-    /// back to per-tuple retries so AuthZ is idempotent.
+    /// back to per-tuple retries so `AuthZ` is idempotent.
     ///
     /// # Errors
     ///
@@ -395,7 +405,8 @@ mod tests {
     fn normalize_cancels_writes_and_deletes_of_the_same_tuple() {
         let keep = Uuid::new_v4();
         let tuple = Tuple::wildcard_user("project", keep, "viewer");
-        let (writes, deletes) = normalize_tuple_delta(&[tuple.clone()], &[tuple]);
+        let (writes, deletes) =
+            normalize_tuple_delta(std::slice::from_ref(&tuple), std::slice::from_ref(&tuple));
         assert!(writes.is_empty());
         assert!(deletes.is_empty());
     }

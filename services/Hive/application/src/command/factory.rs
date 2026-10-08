@@ -41,22 +41,37 @@ use rustycog::command::{CommandRegistry, CommandRegistryBuilder, RegistryConfig}
 use rustycog::config::CommandConfig;
 use std::sync::Arc;
 
+/// Ports required to register the full Hive command set.
+pub struct HiveCommandRegistryParams {
+    pub organization_usecase: Arc<dyn OrganizationUseCase>,
+    pub member_usecase: Arc<dyn MemberUseCase>,
+    pub invitation_usecase: Arc<dyn InvitationUseCase>,
+    pub external_link_usecase: Arc<dyn ExternalLinkUseCase>,
+    pub sync_job_usecase: Arc<dyn SyncJobUseCase>,
+    pub role_usecase: Arc<dyn RoleUseCase>,
+    pub iam_signer_client: Arc<dyn IamOrganizationSignerClient>,
+    pub organization_repo: Arc<dyn OrganizationRepository>,
+}
+
 /// Factory for creating a command registry with all Hive commands registered
 pub struct HiveCommandRegistryFactory;
 
 impl HiveCommandRegistryFactory {
     /// Create a command registry with all Hive commands registered
     pub fn create_hive_registry(
-        organization_usecase: Arc<dyn OrganizationUseCase>,
-        member_usecase: Arc<dyn MemberUseCase>,
-        invitation_usecase: Arc<dyn InvitationUseCase>,
-        external_link_usecase: Arc<dyn ExternalLinkUseCase>,
-        sync_job_usecase: Arc<dyn SyncJobUseCase>,
-        role_usecase: Arc<dyn RoleUseCase>,
-        iam_signer_client: Arc<dyn IamOrganizationSignerClient>,
-        organization_repo: Arc<dyn OrganizationRepository>,
+        params: HiveCommandRegistryParams,
         command_config: &CommandConfig,
     ) -> CommandRegistry {
+        let HiveCommandRegistryParams {
+            organization_usecase,
+            member_usecase,
+            invitation_usecase,
+            external_link_usecase,
+            sync_job_usecase,
+            role_usecase,
+            iam_signer_client,
+            organization_repo,
+        } = params;
         let builder = CommandRegistryBuilder::with_config(RegistryConfig::from_retry_config(
             &command_config.retry,
         ));

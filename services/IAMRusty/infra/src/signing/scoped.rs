@@ -20,6 +20,10 @@ pub struct ScopedSigningProvider {
 }
 
 impl ScopedSigningProvider {
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the transit key name is invalid, `token_ref`
+    /// does not match `credential_ref`, or the HTTP transport cannot be built.
     pub fn transit(
         config: TransitClientConfig,
         key_ref: String,
@@ -41,6 +45,11 @@ impl ScopedSigningProvider {
 
     /// Explicit nonprod/local or remote bootstrap adapter. The public comparison
     /// in the shared codec prevents a different material from using this delegate.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError::InvalidSigningKeyMaterial`] if `provider_type` is
+    /// not a pem-file or remote-http bootstrap adapter.
     pub fn unversioned(
         provider_type: SigningProviderType,
         key_ref: String,
@@ -65,12 +74,12 @@ impl ScopedSigningProvider {
 
     fn require_scope_binding(&self, key: &SigningKey) -> Result<(), DomainError> {
         SigningScope::of(key).validate()?;
-        if key.trust_scope != TrustScope::Platform
-            || key.organization_id.is_some()
-            || key.provider_type != self.provider_type
-            || key.provider_key_ref != self.key_ref
-            || key.credential_ref != self.credential_ref
-        {
+        let same_platform_binding = key.trust_scope == TrustScope::Platform
+            && key.organization_id.is_none()
+            && key.provider_type == self.provider_type
+            && key.provider_key_ref == self.key_ref
+            && key.credential_ref == self.credential_ref;
+        if !same_platform_binding {
             return Err(DomainError::InvalidSigningKeyMaterial);
         }
         Ok(())

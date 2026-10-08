@@ -12,15 +12,19 @@ use rustycog::core::error::DomainError;
 #[async_trait]
 pub trait OrganizationReadRepository: Send + Sync {
     /// Find organization by ID
+    #[must_use = "await the future"]
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Organization>, DomainError>;
 
     /// Find organization by slug
+    #[must_use = "await the future"]
     async fn find_by_slug(&self, slug: &str) -> Result<Option<Organization>, DomainError>;
 
     /// Find organizations by owner user ID
+    #[must_use = "await the future"]
     async fn find_by_owner(&self, owner_user_id: &Uuid) -> Result<Vec<Organization>, DomainError>;
 
     /// Find organizations where user has any role
+    #[must_use = "await the future"]
     async fn find_by_user_membership(
         &self,
         user_id: &Uuid,
@@ -29,6 +33,7 @@ pub trait OrganizationReadRepository: Send + Sync {
     ) -> Result<Vec<Organization>, DomainError>;
 
     /// Search organizations by name
+    #[must_use = "await the future"]
     async fn search_by_name(
         &self,
         user_id: Option<Uuid>,
@@ -38,6 +43,7 @@ pub trait OrganizationReadRepository: Send + Sync {
     ) -> Result<Vec<Organization>, DomainError>;
 
     /// Count total organizations
+    #[must_use = "await the future"]
     async fn count(&self) -> Result<i64, DomainError>;
 }
 
@@ -45,12 +51,15 @@ pub trait OrganizationReadRepository: Send + Sync {
 #[async_trait]
 pub trait OrganizationWriteRepository: Send + Sync {
     /// Check if organization exists by slug
+    #[must_use = "await the future"]
     async fn exists_by_slug(&self, slug: &str) -> Result<bool, DomainError>;
 
     /// Save organization (create or update)
+    #[must_use = "await the future"]
     async fn save(&self, organization: &Organization) -> Result<Organization, DomainError>;
 
     /// Delete organization by ID
+    #[must_use = "await the future"]
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError>;
 }
 
@@ -65,9 +74,11 @@ pub trait OrganizationRepository:
 #[async_trait]
 pub trait OrganizationMemberReadRepository: Send + Sync {
     /// Find member by ID
+    #[must_use = "await the future"]
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<OrganizationMember>, DomainError>;
 
     /// Find member by organization, issuer, and user ID
+    #[must_use = "await the future"]
     async fn find_by_organization_issuer_and_user(
         &self,
         organization_id: &Uuid,
@@ -76,6 +87,7 @@ pub trait OrganizationMemberReadRepository: Send + Sync {
     ) -> Result<Option<OrganizationMember>, DomainError>;
 
     /// Find member by organization and user ID
+    #[must_use = "await the future"]
     async fn find_by_organization_and_user(
         &self,
         organization_id: &Uuid,
@@ -83,6 +95,7 @@ pub trait OrganizationMemberReadRepository: Send + Sync {
     ) -> Result<Option<OrganizationMember>, DomainError>;
 
     /// Find all members of an organization
+    #[must_use = "await the future"]
     async fn find_by_organization(
         &self,
         organization_id: &Uuid,
@@ -91,9 +104,11 @@ pub trait OrganizationMemberReadRepository: Send + Sync {
     ) -> Result<Vec<OrganizationMember>, DomainError>;
 
     /// Find all organizations a user is a member of
+    #[must_use = "await the future"]
     async fn find_by_user(&self, user_id: &Uuid) -> Result<Vec<OrganizationMember>, DomainError>;
 
     /// Find members by status in an organization
+    #[must_use = "await the future"]
     async fn find_by_organization_and_status(
         &self,
         organization_id: &Uuid,
@@ -101,9 +116,11 @@ pub trait OrganizationMemberReadRepository: Send + Sync {
     ) -> Result<Vec<OrganizationMember>, DomainError>;
 
     /// Count members in organization
+    #[must_use = "await the future"]
     async fn count_by_organization(&self, organization_id: &Uuid) -> Result<i64, DomainError>;
 
     /// Count active members in organization
+    #[must_use = "await the future"]
     async fn count_active_by_organization(
         &self,
         organization_id: &Uuid,
@@ -114,15 +131,19 @@ pub trait OrganizationMemberReadRepository: Send + Sync {
 #[async_trait]
 pub trait OrganizationMemberWriteRepository: Send + Sync {
     /// Check if user is a member of organization
+    #[must_use = "await the future"]
     async fn is_member(&self, organization_id: &Uuid, user_id: &Uuid) -> Result<bool, DomainError>;
 
     /// Save member (create or update)
+    #[must_use = "await the future"]
     async fn save(&self, member: &OrganizationMember) -> Result<OrganizationMember, DomainError>;
 
     /// Delete member by ID
+    #[must_use = "await the future"]
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError>;
 
     /// Delete members by organization ID
+    #[must_use = "await the future"]
     async fn delete_by_organization(&self, organization_id: &Uuid) -> Result<(), DomainError>;
 }
 
@@ -136,11 +157,14 @@ pub trait OrganizationMemberRepository:
 /// Repository port for Permission entities (read-only)
 #[async_trait]
 pub trait PermissionReadRepository: Send + Sync {
+    #[must_use = "await the future"]
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Permission>, DomainError>;
+    #[must_use = "await the future"]
     async fn find_by_level(
         &self,
         level: &PermissionLevel,
     ) -> Result<Option<Permission>, DomainError>;
+    #[must_use = "await the future"]
     async fn find_all(&self) -> Result<Vec<Permission>, DomainError>;
 }
 
@@ -151,8 +175,11 @@ pub trait PermissionRepository: Send + Sync + PermissionReadRepository {}
 /// Repository port for Resource entities (read-only)
 #[async_trait]
 pub trait ResourceReadRepository: Send + Sync {
+    #[must_use = "await the future"]
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Resource>, DomainError>;
+    #[must_use = "await the future"]
     async fn find_by_type(&self, resource_type: &str) -> Result<Option<Resource>, DomainError>;
+    #[must_use = "await the future"]
     async fn find_all(&self) -> Result<Vec<Resource>, DomainError>;
 }
 
@@ -163,18 +190,22 @@ pub trait ResourceRepository: Send + Sync + ResourceReadRepository {}
 /// Read operations for `RolePermission` entities
 #[async_trait]
 pub trait RolePermissionReadRepository: Send + Sync {
+    #[must_use = "await the future"]
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<RolePermission>, DomainError>;
+    #[must_use = "await the future"]
     async fn find_by_organization_role(
         &self,
         organization_id: &Uuid,
         resource_type: &str,
         permission: &str,
     ) -> Result<Option<RolePermission>, DomainError>;
+    #[must_use = "await the future"]
     async fn find_by_organization_roles(
         &self,
         organization_id: &Uuid,
         role_permissions: &[RolePermission],
     ) -> Result<Vec<RolePermission>, DomainError>;
+    #[must_use = "await the future"]
     async fn find_by_organization(
         &self,
         organization_id: &Uuid,
@@ -184,11 +215,13 @@ pub trait RolePermissionReadRepository: Send + Sync {
 /// Write operations for `RolePermission` entities
 #[async_trait]
 pub trait RolePermissionWriteRepository: Send + Sync {
+    #[must_use = "await the future"]
     async fn save(
         &self,
         organization_id: &Uuid,
         role_permission: &RolePermission,
     ) -> Result<RolePermission, DomainError>;
+    #[must_use = "await the future"]
     async fn delete_by_organization(&self, organization_id: &Uuid) -> Result<(), DomainError>;
 }
 
@@ -202,6 +235,7 @@ pub trait RolePermissionRepository:
 /// Read operations for `MemberRole` entities
 #[async_trait]
 pub trait MemberRoleReadRepository: Send + Sync {
+    #[must_use = "await the future"]
     async fn find_by_organization_member(
         &self,
         member_id: &Uuid,
@@ -211,11 +245,14 @@ pub trait MemberRoleReadRepository: Send + Sync {
 /// Write operations for `MemberRole` entities
 #[async_trait]
 pub trait MemberRoleWriteRepository: Send + Sync {
+    #[must_use = "await the future"]
     async fn save(
         &self,
         member_role: &OrganizationMemberRolePermission,
     ) -> Result<OrganizationMemberRolePermission, DomainError>;
+    #[must_use = "await the future"]
     async fn delete_by_organization_member(&self, member_id: &Uuid) -> Result<(), DomainError>;
+    #[must_use = "await the future"]
     async fn delete_by_organization(&self, organization_id: &Uuid) -> Result<(), DomainError>;
 }
 
@@ -230,27 +267,32 @@ pub trait MemberRoleRepository:
 #[async_trait]
 pub trait OrganizationInvitationReadRepository: Send + Sync {
     /// Find invitation by ID
+    #[must_use = "await the future"]
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<OrganizationInvitation>, DomainError>;
 
     /// Find invitation by token
+    #[must_use = "await the future"]
     async fn find_by_token(
         &self,
         token: &str,
     ) -> Result<Option<OrganizationInvitation>, DomainError>;
 
     /// Find invitations by organization
+    #[must_use = "await the future"]
     async fn find_by_organization(
         &self,
         organization_id: &Uuid,
     ) -> Result<Vec<OrganizationInvitation>, DomainError>;
 
     /// Find invitations by aggregate id
+    #[must_use = "await the future"]
     async fn find_by_aggregate_id(
         &self,
         aggregate_id: &str,
     ) -> Result<Vec<OrganizationInvitation>, DomainError>;
 
     /// Find pending invitations by organization and aggregate id
+    #[must_use = "await the future"]
     async fn find_by_organization_and_aggregate_id_status(
         &self,
         organization_id: &Uuid,
@@ -259,18 +301,22 @@ pub trait OrganizationInvitationReadRepository: Send + Sync {
     ) -> Result<Option<OrganizationInvitation>, DomainError>;
 
     /// Find invitations by status
+    #[must_use = "await the future"]
     async fn find_by_status(
         &self,
         status: &InvitationStatus,
     ) -> Result<Vec<OrganizationInvitation>, DomainError>;
 
     /// Find expired invitations
+    #[must_use = "await the future"]
     async fn find_expired(&self) -> Result<Vec<OrganizationInvitation>, DomainError>;
 
     /// Count invitations by organization
+    #[must_use = "await the future"]
     async fn count_by_organization(&self, organization_id: &Uuid) -> Result<i64, DomainError>;
 
     /// Count pending invitations by organization
+    #[must_use = "await the future"]
     async fn count_pending_by_organization(
         &self,
         organization_id: &Uuid,
@@ -281,12 +327,14 @@ pub trait OrganizationInvitationReadRepository: Send + Sync {
 #[async_trait]
 pub trait OrganizationInvitationWriteRepository: Send + Sync {
     /// Save invitation (create or update)
+    #[must_use = "await the future"]
     async fn save(
         &self,
         invitation: &OrganizationInvitation,
     ) -> Result<OrganizationInvitation, DomainError>;
 
     /// Delete invitation by ID
+    #[must_use = "await the future"]
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError>;
 }
 
@@ -301,18 +349,22 @@ pub trait OrganizationInvitationRepository:
 #[async_trait]
 pub trait ExternalProviderReadRepository: Send + Sync {
     /// Find provider by ID
+    #[must_use = "await the future"]
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<ExternalProvider>, DomainError>;
 
     /// Find provider by source
+    #[must_use = "await the future"]
     async fn find_by_source(
         &self,
         provider_source: &str,
     ) -> Result<Option<ExternalProvider>, DomainError>;
 
     /// Find all providers
+    #[must_use = "await the future"]
     async fn find_all(&self) -> Result<Vec<ExternalProvider>, DomainError>;
 
     /// Find active providers
+    #[must_use = "await the future"]
     async fn find_active(&self) -> Result<Vec<ExternalProvider>, DomainError>;
 }
 
@@ -320,9 +372,11 @@ pub trait ExternalProviderReadRepository: Send + Sync {
 #[async_trait]
 pub trait ExternalProviderWriteRepository: Send + Sync {
     /// Save provider (create or update)
+    #[must_use = "await the future"]
     async fn save(&self, provider: &ExternalProvider) -> Result<ExternalProvider, DomainError>;
 
     /// Delete provider by ID
+    #[must_use = "await the future"]
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError>;
 }
 
@@ -337,15 +391,18 @@ pub trait ExternalProviderRepository:
 #[async_trait]
 pub trait ExternalLinkReadRepository: Send + Sync {
     /// Find link by ID
+    #[must_use = "await the future"]
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<ExternalLink>, DomainError>;
 
     /// Find links by organization
+    #[must_use = "await the future"]
     async fn find_by_organization(
         &self,
         organization_id: &Uuid,
     ) -> Result<Vec<ExternalLink>, DomainError>;
 
     /// Find link by organization and provider
+    #[must_use = "await the future"]
     async fn find_by_organization_and_provider(
         &self,
         organization_id: &Uuid,
@@ -353,13 +410,16 @@ pub trait ExternalLinkReadRepository: Send + Sync {
     ) -> Result<Option<ExternalLink>, DomainError>;
 
     /// Find links with sync enabled
+    #[must_use = "await the future"]
     async fn find_sync_enabled(&self) -> Result<Vec<ExternalLink>, DomainError>;
 
     /// Find links that need sync (enabled and not recently synced)
+    #[must_use = "await the future"]
     async fn find_needing_sync(&self, max_age_hours: i64)
         -> Result<Vec<ExternalLink>, DomainError>;
 
     /// Count links by organization
+    #[must_use = "await the future"]
     async fn count_by_organization(&self, organization_id: &Uuid) -> Result<i64, DomainError>;
 }
 
@@ -367,9 +427,11 @@ pub trait ExternalLinkReadRepository: Send + Sync {
 #[async_trait]
 pub trait ExternalLinkWriteRepository: Send + Sync {
     /// Save link (create or update)
+    #[must_use = "await the future"]
     async fn save(&self, link: &ExternalLink) -> Result<ExternalLink, DomainError>;
 
     /// Delete link by ID
+    #[must_use = "await the future"]
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError>;
 }
 
@@ -384,36 +446,45 @@ pub trait ExternalLinkRepository:
 #[async_trait]
 pub trait SyncJobReadRepository: Send + Sync {
     /// Find job by ID
+    #[must_use = "await the future"]
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<SyncJob>, DomainError>;
 
     /// Find jobs by external link
+    #[must_use = "await the future"]
     async fn find_by_external_link(&self, link_id: &Uuid) -> Result<Vec<SyncJob>, DomainError>;
 
     /// Find jobs by organization
+    #[must_use = "await the future"]
     async fn find_by_organization(
         &self,
         organization_id: &Uuid,
     ) -> Result<Vec<SyncJob>, DomainError>;
 
     /// Find jobs by status
+    #[must_use = "await the future"]
     async fn find_by_status(&self, status: &SyncJobStatus) -> Result<Vec<SyncJob>, DomainError>;
 
     /// Find running jobs
+    #[must_use = "await the future"]
     async fn find_running(&self) -> Result<Vec<SyncJob>, DomainError>;
 
     /// Find running jobs for external link
+    #[must_use = "await the future"]
     async fn find_running_by_external_link(
         &self,
         link_id: &Uuid,
     ) -> Result<Vec<SyncJob>, DomainError>;
 
     /// Find recent jobs (last N days)
+    #[must_use = "await the future"]
     async fn find_recent(&self, days: i64) -> Result<Vec<SyncJob>, DomainError>;
 
     /// Count jobs by external link
+    #[must_use = "await the future"]
     async fn count_by_external_link(&self, link_id: &Uuid) -> Result<i64, DomainError>;
 
     /// Count running jobs
+    #[must_use = "await the future"]
     async fn count_running(&self) -> Result<i64, DomainError>;
 }
 
@@ -421,9 +492,11 @@ pub trait SyncJobReadRepository: Send + Sync {
 #[async_trait]
 pub trait SyncJobWriteRepository: Send + Sync {
     /// Save job (create or update)
+    #[must_use = "await the future"]
     async fn save(&self, job: &SyncJob) -> Result<SyncJob, DomainError>;
 
     /// Delete job by ID
+    #[must_use = "await the future"]
     async fn delete_by_id(&self, id: &Uuid) -> Result<(), DomainError>;
 }
 

@@ -73,11 +73,11 @@ impl SecretResolver for VaultHttpSecretResolver {
         if !response.status().is_success() {
             return Err(SecretError::ResolveFailed);
         }
-        if response
-            .content_length()
-            .is_some_and(|len| len as usize > MAX_PAYLOAD_BYTES)
-        {
-            return Err(SecretError::ResolveFailed);
+        if let Some(len) = response.content_length() {
+            let n = usize::try_from(len).map_err(|_| SecretError::ResolveFailed)?;
+            if n > MAX_PAYLOAD_BYTES {
+                return Err(SecretError::ResolveFailed);
+            }
         }
         let bytes = response
             .bytes()

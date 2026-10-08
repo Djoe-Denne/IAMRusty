@@ -91,16 +91,19 @@ impl TestRedis {
 
 async fn get_or_create_test_redis_container() -> Result<u16, Box<dyn std::error::Error>> {
     let container_mutex = TEST_REDIS_CONTAINER.get_or_init(|| Arc::new(Mutex::new(None)));
-    let mut container_guard = container_mutex.lock().await;
-    if let Some(ref container) = *container_guard {
-        return Ok(container.port);
+    {
+        let container_guard = container_mutex.lock().await;
+        if let Some(ref container) = *container_guard {
+            return Ok(container.port);
+        }
     }
 
     cleanup_existing_redis_container();
 
-    let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
-    let port = listener.local_addr()?.port();
-    drop(listener);
+    let port = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
+        listener.local_addr()?.port()
+    };
 
     let image = GenericImage::new("redis", "7-alpine")
         .with_container_name("lazaret_test-redis")
@@ -109,6 +112,11 @@ async fn get_or_create_test_redis_container() -> Result<u16, Box<dyn std::error:
     info!("Starting Redis container on port {port}");
     let container = image.start().await?;
     let test_container = Arc::new(TestRedisContainer { container, port });
+
+    let mut container_guard = container_mutex.lock().await;
+    if let Some(ref existing) = *container_guard {
+        return Ok(existing.port);
+    }
     *container_guard = Some(test_container);
     register_redis_cleanup_handler();
     Ok(port)

@@ -1,4 +1,4 @@
-//! One-shot Manifesto DB → OpenFGA reconciliation.
+//! One-shot `Manifesto` DB → `OpenFGA` reconciliation.
 //!
 //! Reads live project memberships, owners, parents, grants and visibility
 //! from Postgres, compares them with existing `project`/`component` tuples,
@@ -51,7 +51,7 @@ pub fn diff_tuples(desired: &[Tuple], existing: &[Tuple]) -> (Vec<Tuple>, Vec<Tu
     )
 }
 
-/// Reconcile Manifesto rows into OpenFGA without deleting the store.
+/// Reconcile `Manifesto` rows into `OpenFGA` without deleting the store.
 ///
 /// Only `project` and `component` tuples are compared. Other types are left
 /// untouched. Missing desired tuples are written; leftover Manifesto tuples
@@ -59,7 +59,7 @@ pub fn diff_tuples(desired: &[Tuple], existing: &[Tuple]) -> (Vec<Tuple>, Vec<Tu
 ///
 /// # Errors
 ///
-/// Returns if the database or OpenFGA write fails.
+/// Returns if the database or `OpenFGA` write fails.
 pub async fn reconcile_manifesto(database_url: &str, fga: &OpenFgaWriteClient) -> Result<usize> {
     let db = Database::connect(database_url)
         .await
@@ -92,17 +92,18 @@ async fn load_desired_tuples(db: &DatabaseConnection) -> Result<Vec<Tuple>> {
 async fn paginated_query(db: &DatabaseConnection, sql: &str) -> Result<Vec<sea_orm::QueryResult>> {
     let mut offset = 0_u64;
     let mut rows = Vec::new();
+    let page_size = usize::try_from(PAGE_SIZE).context("PAGE_SIZE exceeds usize")?;
     loop {
         let page = db
             .query_all(Statement::from_sql_and_values(
                 DbBackend::Postgres,
-                &format!("{sql} LIMIT {PAGE_SIZE} OFFSET {offset}"),
+                format!("{sql} LIMIT {PAGE_SIZE} OFFSET {offset}"),
                 [],
             ))
             .await?;
         let count = page.len();
         rows.extend(page);
-        if count < PAGE_SIZE as usize {
+        if count < page_size {
             break;
         }
         offset += PAGE_SIZE;
@@ -298,7 +299,7 @@ mod tests {
         let project_id = Uuid::from_u128(3);
         let desired = vec![Tuple::wildcard_user("project", project_id, "viewer")];
         let leftover = Tuple::user("project", project_id, "viewer", Uuid::from_u128(8));
-        let (writes, deletes) = diff_tuples(&desired, &[leftover.clone()]);
+        let (writes, deletes) = diff_tuples(&desired, std::slice::from_ref(&leftover));
         assert_eq!(writes, desired);
         assert_eq!(deletes, vec![leftover]);
     }
@@ -307,7 +308,8 @@ mod tests {
     fn diff_does_not_touch_already_matching_tuples() {
         let project_id = Uuid::from_u128(3);
         let tuple = Tuple::wildcard_user("project", project_id, "viewer");
-        let (writes, deletes) = diff_tuples(&[tuple.clone()], &[tuple]);
+        let (writes, deletes) =
+            diff_tuples(std::slice::from_ref(&tuple), std::slice::from_ref(&tuple));
         assert!(writes.is_empty());
         assert!(deletes.is_empty());
     }

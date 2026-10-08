@@ -140,8 +140,8 @@ impl ComponentWriteRepositoryImpl {
     /// Sous course réelle, la contrainte `project_components_unique` tranche :
     /// l'écriture fautive devient `ResourceAlreadyExists` (409), pas une
     /// erreur interne (500). Le refus vient de la base, pas d'un `if` applicatif.
-    fn map_unique_conflict(err: sea_orm::DbErr, component_type: &str) -> DomainError {
-        if crate::apparatus_mapping::is_unique_violation(&err) {
+    fn map_unique_conflict(err: &sea_orm::DbErr, component_type: &str) -> DomainError {
+        if crate::apparatus_mapping::is_unique_violation(err) {
             DomainError::resource_already_exists("Component", component_type)
         } else {
             DomainError::internal_error(&err.to_string())
@@ -172,12 +172,12 @@ impl ComponentWriteRepositoryImpl {
             active_model
                 .update(db)
                 .await
-                .map_err(|e| Self::map_unique_conflict(e, &component.component_type))?
+                .map_err(|e| Self::map_unique_conflict(&e, &component.component_type))?
         } else {
             active_model
                 .insert(db)
                 .await
-                .map_err(|e| Self::map_unique_conflict(e, &component.component_type))?
+                .map_err(|e| Self::map_unique_conflict(&e, &component.component_type))?
         };
         ComponentMapper::to_domain(model)
     }

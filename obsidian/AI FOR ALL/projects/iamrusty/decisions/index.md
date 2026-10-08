@@ -8,7 +8,7 @@ summary: >-
   Hub ADR 0407–0411 Accepted / Implemented ; 0412 Accepted / Partial. Crates GitHubConnect et
   GitLabConnect en HEAD. OAuth démarre sur /login. Slug fail-closed.
 created: 2026-09-20T16:15:00Z
-updated: 2026-10-04
+updated: 2026-10-08
 sources:
   - docs/adr/README.md
   - docs/adr/0407-contrat-authn-federee-vendor-neutral.md
@@ -27,7 +27,7 @@ provenance:
 
 Canon : `docs/adr/0407`–`0411`. Jalon **IAM-IdP** (hors Apparatus). Statut **Accepted**. Réalité **Implemented** : IAM parle aux vendors via Connect HMAC S2S ; `Provider` = slug registry (0411). Pas de HuggingFaceConnect, pas de nest monolith.
 
-Canon additionnel : `docs/adr/0412-oauth-transaction-persistante-liee-navigateur.md`, **Accepted / Partial** : transaction OAuth liée au navigateur, ratifiée le 2026-10-03 ; pas de preuve runtime nouvelle.
+Canon additionnel : `docs/adr/0412-oauth-transaction-persistante-liee-navigateur.md`, **Accepted / Partial** : transaction OAuth liée au navigateur, ratifiée le 2026-10-03 ; units + IT IAM vertes sur master attestées par l’utilisateur le 2026-10-08 (pas artefact CI archivé), E2E finale exact-route/Envoy restante.
 
 Binaires dans le workspace depuis `b634413` (`services/GitHubConnect/`, `services/GitLabConnect/`). `66a232c` : le flux OAuth démarre sur `/login` (plus `/start`) ; connecteur incomplet ou slug hors registry = fail-closed. Voir [[journal/2026-09-27]].
 
@@ -40,7 +40,7 @@ Ne pas confondre avec [[projects/aiforall/decisions/index|vague 2 rétroactive]]
 | [[projects/iamrusty/decisions/0409-confiance-oauth]] | Callback/CSRF IAM ; secrets vendor sur le connecteur | |
 | [[projects/iamrusty/decisions/0410-migration]] | Extraction incrémentale, UX inchangée | |
 | [[projects/iamrusty/decisions/0411-slug-registry]] | Slug typé + registry boot fail-closed | plus d’enum GH/GL ; hot-load non |
-| [[projects/iamrusty/decisions/0412-oauth-transaction-browser-binding]] | Transaction OAuth writer + liaison navigateur + PKCE supporté | Accepted / Partial ; source transaction/cookie/PKCE/cleanup écrite, preuves intégrées non fournies |
+| [[projects/iamrusty/decisions/0412-oauth-transaction-browser-binding]] | Transaction OAuth writer + liaison navigateur + PKCE supporté | Accepted / Partial ; units + IT vertes attestées le 2026-10-08, E2E finale exact-route/Envoy restante |
 
 ## Related
 

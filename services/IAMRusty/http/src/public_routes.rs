@@ -1,4 +1,5 @@
 //! Exact public authentication matrix for the mesh allowlist (service prefix included).
+//!
 //! `{provider_name}` means one registered connector slug, not an `/iam/` wildcard.
 //! GET routes also support HEAD implicitly in Axum. Browser callbacks require a
 //! consumed, cookie-bound transaction in phase 2; public does not mean unchecked.

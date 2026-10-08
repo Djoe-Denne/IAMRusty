@@ -34,7 +34,7 @@ fn lifecycle_registry(
 async fn publisher_rematerializes_on_deadline_before_responding() {
     let (fixture, base, client) = common::setup_test_server().await.unwrap();
     fixture_cleanup::run(&fixture,async {
-        let (writer,ttl)=common::fixture_signing_registry(&fixture).await.unwrap();
+        let (writer,ttl)=common::fixture_signing_registry(&fixture).unwrap();
         let root=writer.find_active_platform_key().await.unwrap().unwrap();
         for dirty in [false,true] {
             let mut key=pending_candidate(uuid::Uuid::new_v4(),"expiry");key.status=SigningKeyStatus::Active;
@@ -66,7 +66,7 @@ async fn publisher_rematerializes_on_deadline_before_responding() {
             // Crucially NO registry snapshot getter between arrangement and HTTP.
             let response=client.get(format!("{base}/.well-known/jwks.json")).send().await.unwrap();assert_eq!(response.status(),200);
             let actual:serde_json::Value=response.json().await.unwrap();
-            let expected=iam_domain::entity::token::JwkSet::from_registry_keys_checked(&[root.clone()]).unwrap();
+            let expected=iam_domain::entity::token::JwkSet::from_registry_keys_checked(std::slice::from_ref(&root)).unwrap();
             assert_eq!(actual,serde_json::to_value(expected).unwrap(),"expired Retiring must disappear in the handler's FIRST response, not only a later DB getter");
             let after=fixture.db().query_one(Statement::from_string(DatabaseBackend::Postgres,"SELECT revision,dirty,payload,next_expiration,access_token_ttl,retire_skew FROM signing_jwks_publication WHERE singleton=1")).await.unwrap().unwrap();
             assert_eq!(after.try_get::<i64>("","revision").unwrap() as u64,cached.revision+1);assert!(!after.try_get::<bool>("","dirty").unwrap());
@@ -157,14 +157,16 @@ fn require_pending(
 ) -> iam_domain::entity::signing_key::PreparedSigningTransition {
     match preparation {
         iam_domain::entity::signing_key::SigningKeyPreparation::Pending(pending) => pending,
-        _ => panic!("new binding must be durably prepared, not a no-op"),
+        iam_domain::entity::signing_key::SigningKeyPreparation::Unchanged(_) => {
+            panic!("new binding must be durably prepared, not a no-op")
+        }
     }
 }
 
-fn assert_epoch_conflict(error: iam_domain::error::DomainError) {
+fn assert_epoch_conflict(error: &iam_domain::error::DomainError) {
     assert!(
         matches!(
-            &error,
+            error,
             iam_domain::error::DomainError::SigningKeyAdmissionDenied {
                 reason: iam_domain::entity::signing_key::SigningKeyAdmissionReason::EpochConflict,
                 ..
@@ -184,7 +186,7 @@ async fn pending_publication_is_durable_resume_is_idempotent_and_promotion_prese
     };
     let (fixture, _, _) = common::setup_test_server().await.unwrap();
     fixture_cleanup::run(&fixture, async {
-        let primary = lifecycle_registry(fixture.db().clone(), 173);
+        let primary = lifecycle_registry(fixture.db(), 173);
         let org = uuid::Uuid::new_v4();
         let scope = SigningScope::organization(org);
         let mut active = pending_candidate(org, "old"); active.status = SigningKeyStatus::Active;
@@ -208,7 +210,7 @@ async fn pending_publication_is_durable_resume_is_idempotent_and_promotion_prese
         assert_eq!(old_count, 2);
 
         // New repository instance reads only committed primary durable evidence.
-        let restarted = lifecycle_registry(fixture.db().clone(), 173);
+        let restarted = lifecycle_registry(fixture.db(), 173);
         let recovered = restarted.signing_scope_snapshot(&scope).await.unwrap();
         let durable = recovered.pending.clone().unwrap();
         assert_eq!(durable.key, prepared.key);
@@ -218,7 +220,7 @@ async fn pending_publication_is_durable_resume_is_idempotent_and_promotion_prese
         assert_eq!(resumed.key, prepared.key);
         assert_eq!(resumed.revision, prepared.revision);
         let mut forged = resumed.clone(); forged.revision += 1;
-        assert_epoch_conflict(restarted.promote_signing_key(&forged).await.unwrap_err());
+        assert_epoch_conflict(&restarted.promote_signing_key(&forged).await.unwrap_err());
         assert_eq!(restarted.find_by_kid(&active.kid).await.unwrap().unwrap().status, SigningKeyStatus::Active);
         let committed = restarted.promote_signing_key(&resumed).await.unwrap();
         assert_eq!(committed.id, candidate.id);
@@ -271,7 +273,7 @@ async fn independent_writer_disable_invalidates_delayed_probe_even_for_an_empty_
         let separate =
             std::sync::Arc::new(writer_barrier::independent_writer(fixture.db().as_ref()).await);
         for has_active in [false, true] {
-            let primary = std::sync::Arc::new(lifecycle_registry(fixture.db().clone(), 173));
+            let primary = std::sync::Arc::new(lifecycle_registry(fixture.db(), 173));
             let org = uuid::Uuid::new_v4();
             let scope = SigningScope::organization(org);
             if has_active {
@@ -308,7 +310,7 @@ async fn independent_writer_disable_invalidates_delayed_probe_even_for_an_empty_
             assert!(disabled.revision > old_revision);
             assert!(disabled.active.is_none());
             release.notify_one();
-            assert_epoch_conflict(continuation.await.unwrap().unwrap_err());
+            assert_epoch_conflict(&continuation.await.unwrap().unwrap_err());
             assert!(primary
                 .signing_scope_snapshot(&scope)
                 .await
@@ -335,7 +337,7 @@ async fn two_prepared_writers_have_one_cas_winner_and_disable_prevents_pending_r
     use iam_domain::{entity::signing_key::SigningScope, port::OrganizationSignerProbe};
     let (fixture, _, _) = common::setup_test_server().await.unwrap();
     fixture_cleanup::run(&fixture, async {
-        let primary = lifecycle_registry(fixture.db().clone(), 173);
+        let primary = lifecycle_registry(fixture.db(), 173);
         let separate =
             std::sync::Arc::new(writer_barrier::independent_writer(fixture.db().as_ref()).await);
         let other = lifecycle_registry(separate, 173);
@@ -353,11 +355,11 @@ async fn two_prepared_writers_have_one_cas_winner_and_disable_prevents_pending_r
         let (a, b) = tokio::join!(primary.prepare_signing_key(a), other.prepare_signing_key(b));
         let prepared = match (a, b) {
             (Ok(a), Err(error)) => {
-                assert_epoch_conflict(error);
+                assert_epoch_conflict(&error);
                 require_pending(a)
             }
             (Err(error), Ok(b)) => {
-                assert_epoch_conflict(error);
+                assert_epoch_conflict(&error);
                 require_pending(b)
             }
             _ => panic!("exactly one scope CAS admission must succeed"),
@@ -365,22 +367,22 @@ async fn two_prepared_writers_have_one_cas_winner_and_disable_prevents_pending_r
         let mut wrong_binding = prepared.clone();
         wrong_binding.key.provider_key_ref.push_str("-forged");
         assert_epoch_conflict(
-            primary
+            &primary
                 .promote_signing_key(&wrong_binding)
                 .await
                 .unwrap_err(),
         );
-        assert!(
+        assert_eq!(
             primary
                 .find_by_kid(&prepared.key.kid)
                 .await
                 .unwrap()
                 .unwrap()
-                .status
-                == SigningKeyStatus::Pending
+                .status,
+            SigningKeyStatus::Pending
         );
         other.revoke_signing_scope(&scope).await.unwrap();
-        assert_epoch_conflict(primary.promote_signing_key(&prepared).await.unwrap_err());
+        assert_epoch_conflict(&primary.promote_signing_key(&prepared).await.unwrap_err());
         let after = primary.signing_scope_snapshot(&scope).await.unwrap();
         assert!(after.revision > prepared.revision);
         assert!(after.active.is_none());
@@ -452,7 +454,7 @@ async fn access_and_registration_fences_reject_primary_disable_during_public_or_
     }
     let (fixture, _, _) = common::setup_test_server().await.unwrap();
     fixture_cleanup::run(&fixture, async {
-        let primary = Arc::new(lifecycle_registry(fixture.db().clone(), 173));
+        let primary = Arc::new(lifecycle_registry(fixture.db(), 173));
         let other = lifecycle_registry(Arc::new(writer_barrier::independent_writer(fixture.db().as_ref()).await), 173);
         let scope = SigningScope::platform();
         for registration_flow in 0..3 {

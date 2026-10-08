@@ -38,12 +38,12 @@ const MAX_ENROLLMENTS: usize = 10_000;
 pub fn build_identity_service(
     config: &IdentityConfig,
     snapshots: Arc<dyn BindingGrantSnapshotPort>,
-    db: Arc<DatabaseConnection>,
+    db: &Arc<DatabaseConnection>,
 ) -> Result<(Arc<IdentityService>, Arc<PlatformInternalCa>), IdentityError> {
     let ca = Arc::new(PlatformInternalCa::from_identity_config(config)?);
     let signer = Arc::new(DedicatedSessionSigner::from_config(config)?);
     let enrollments =
-        Arc::new(crate::enrollment_postgres::PostgresEnrollmentRegistry::from_arc(&db));
+        Arc::new(crate::enrollment_postgres::PostgresEnrollmentRegistry::from_arc(db));
     let session_ttl = if config.session_ttl_minutes == 0 {
         DEFAULT_SESSION_TTL_MINUTES
     } else {
@@ -108,6 +108,7 @@ impl EnrollmentStore for InMemoryEnrollmentRegistry {
             return Err(IdentityError::RegistryFull);
         }
         map.insert(fingerprint, identity);
+        drop(map);
         Ok(())
     }
 
@@ -194,14 +195,13 @@ impl PlatformInternalCa {
     /// certificate, or files cannot be written. Returns [`IdentityError::InvalidIdentity`] when
     /// generating if the CA TTL cannot be applied.
     pub fn load_or_create(cert_path: &Path, key_path: &Path) -> Result<Self, IdentityError> {
-        match pem_pair_present(cert_path, key_path)? {
-            true => Self::load_from_files(cert_path, key_path),
-            false => {
-                let ca = Self::new()?;
-                write_pem_file(cert_path, &ca.trust_anchor_pem)?;
-                write_key_file(key_path, &ca.key.serialize_pem())?;
-                Ok(ca)
-            }
+        if pem_pair_present(cert_path, key_path)? {
+            Self::load_from_files(cert_path, key_path)
+        } else {
+            let ca = Self::new()?;
+            write_pem_file(cert_path, &ca.trust_anchor_pem)?;
+            write_key_file(key_path, &ca.key.serialize_pem())?;
+            Ok(ca)
         }
     }
 

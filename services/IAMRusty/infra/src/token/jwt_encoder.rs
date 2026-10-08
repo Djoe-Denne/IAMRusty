@@ -1,4 +1,4 @@
-//! JWT encoder with SigningProvider RS256 path (ADR-0304).
+//! JWT encoder with `SigningProvider` RS256 path (`ADR-0304`).
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -67,7 +67,7 @@ pub struct JwtTokenService {
     refresh_token_expiration: u64,
     issuer: String,
     audience: String,
-    /// Optional RS256 SigningProvider used by both access and registration.
+    /// Optional RS256 `SigningProvider` used by both access and registration.
     signing_provider: Option<Arc<dyn SigningProvider>>,
     /// Opaque kid for SigningProvider-backed encode.
     signing_kid: Option<String>,
@@ -141,7 +141,7 @@ impl JwtTokenService {
 
     /// Allow PEM bindings only after an explicit nonprod composition-root policy.
     #[must_use]
-    pub fn with_local_pem_allowed(mut self, allowed: bool) -> Self {
+    pub const fn with_local_pem_allowed(mut self, allowed: bool) -> Self {
         self.allow_local_pem = allowed;
         self
     }
@@ -158,7 +158,7 @@ impl JwtTokenService {
         self
     }
 
-    /// Attach the shared SigningProvider for RS256 access and registration minting.
+    /// Attach the shared `SigningProvider` for RS256 access and registration minting.
     #[must_use]
     pub fn with_signing_provider(
         mut self,
@@ -333,6 +333,10 @@ impl JwtTokenService {
     }
 
     /// Extract RSA modulus (n) and exponent (e) from a PEM public key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if the PEM cannot be parsed.
     pub fn extract_rsa_components(public_key_pem: &str) -> Result<(String, String), String> {
         let rsa_pub = iam_domain::entity::signing_key::parse_signing_public_key(public_key_pem)
             .map_err(|_| "invalid RSA public key".to_string())?;
@@ -355,14 +359,13 @@ impl JwtTokenService {
     }
 
     pub(super) fn require_registration_configuration(&self) -> Result<(), DomainError> {
-        if self.uses_rs256() {
-            if self.signing_registry.is_none()
+        if self.uses_rs256()
+            && (self.signing_registry.is_none()
                 || self.signing_provider.is_none()
                 || self.get_key_id().is_none_or(|kid| kid.is_empty())
-                || self.signing_provider.is_some() != self.signing_kid.is_some()
-            {
-                return Err(DomainError::AuthorizationError("unbound RSA codec".into()));
-            }
+                || self.signing_provider.is_some() != self.signing_kid.is_some())
+        {
+            return Err(DomainError::AuthorizationError("unbound RSA codec".into()));
         }
         Ok(())
     }
@@ -569,7 +572,6 @@ impl JwtTokenEncoder for JwtTokenService {
         let token_data = jsonwebtoken::decode::<TokenClaims>(token, &decoding_key, &validation)
             .map_err(|e| match e.kind() {
                 jsonwebtoken::errors::ErrorKind::ExpiredSignature => DomainError::TokenExpired,
-                jsonwebtoken::errors::ErrorKind::InvalidSignature => DomainError::InvalidToken,
                 _ => DomainError::InvalidToken,
             })?;
         Ok(token_data.claims)
@@ -790,7 +792,7 @@ mod emission_fence_tests {
 
     fn registered_codec(key: SigningKey) -> (Arc<JwtTokenService>, Arc<FenceRegistry>) {
         let registry = Arc::new(FenceRegistry {
-            final_snapshot: Mutex::new(FinalSnapshot::Row(Some(key.clone()))),
+            final_snapshot: Mutex::new(snapshot_row(key.clone())),
             initial: key,
             selected: None,
             confirmations: AtomicUsize::new(0),
@@ -912,7 +914,7 @@ mod emission_fence_tests {
                     let registry = Arc::new(FenceRegistry {
                         initial: initial.clone(),
                         selected: None,
-                        final_snapshot: Mutex::new(FinalSnapshot::Row(Some(initial.clone()))),
+                        final_snapshot: Mutex::new(snapshot_row(initial.clone())),
                         confirmations: AtomicUsize::new(0),
                         signatures: signatures.clone(),
                         remote: true,
@@ -1066,6 +1068,7 @@ mod emission_fence_tests {
 
     #[tokio::test]
     async fn registration_unbound_missing_inactive_or_changed_material_fails_closed() {
+        use sea_orm::{DbBackend, MockDatabase};
         assert!(RegistrationTokenServiceImpl::new(Arc::new(local_service())).is_err());
         for oauth in [false, true] {
             for case in 0..5 {
@@ -1087,11 +1090,10 @@ mod emission_fence_tests {
                     .is_err());
                 assert_eq!(
                     registry.confirmations.load(Ordering::SeqCst),
-                    if case == 3 { 1 } else { 0 }
+                    usize::from(case == 3)
                 );
             }
         }
-        use sea_orm::{DbBackend, MockDatabase};
         for error in [false, true] {
             let mock = MockDatabase::new(DbBackend::Postgres);
             let mock = if error {
@@ -1212,9 +1214,12 @@ mod emission_fence_tests {
     }
 
     enum FinalSnapshot {
-        Row(Option<SigningKey>),
+        Row(Option<Box<SigningKey>>),
         False,
         Error,
+    }
+    fn snapshot_row(key: SigningKey) -> FinalSnapshot {
+        FinalSnapshot::Row(Some(Box::new(key)))
     }
     struct FenceRegistry {
         initial: SigningKey,
@@ -1254,7 +1259,7 @@ mod emission_fence_tests {
             self.confirmations.fetch_add(1, Ordering::SeqCst);
             match &*self.final_snapshot.lock().unwrap() {
                 FinalSnapshot::Row(Some(row)) => {
-                    Ok(row.status == SigningKeyStatus::Active && row == expected)
+                    Ok(row.status == SigningKeyStatus::Active && row.as_ref() == expected)
                 }
                 FinalSnapshot::Row(None) | FinalSnapshot::False => Ok(false),
                 FinalSnapshot::Error => Err(DomainError::RepositoryError(
@@ -1376,24 +1381,24 @@ mod emission_fence_tests {
     fn snapshot(case: u8, initial: &SigningKey) -> FinalSnapshot {
         let mut row = initial.clone();
         match case {
-            0 => FinalSnapshot::Row(Some(row)),
+            0 => snapshot_row(row),
             1..=3 => {
                 row.status = match case {
                     1 => SigningKeyStatus::Pending,
                     2 => SigningKeyStatus::Retiring,
                     _ => SigningKeyStatus::Revoked,
                 };
-                FinalSnapshot::Row(Some(row))
+                snapshot_row(row)
             }
             4 => FinalSnapshot::Row(None),
             5 => {
                 row.public_key.push_str("changed");
-                FinalSnapshot::Row(Some(row))
+                snapshot_row(row)
             }
             6 => FinalSnapshot::False,
             8 => {
                 row.provider_key_version = Some(row.provider_key_version.unwrap_or(0) + 1);
-                FinalSnapshot::Row(Some(row))
+                snapshot_row(row)
             }
             _ => FinalSnapshot::Error,
         }
@@ -1408,7 +1413,7 @@ mod emission_fence_tests {
                 let registry = Arc::new(FenceRegistry {
                     initial: initial.clone(),
                     selected: None,
-                    final_snapshot: Mutex::new(FinalSnapshot::Row(Some(initial.clone()))),
+                    final_snapshot: Mutex::new(snapshot_row(initial.clone())),
                     confirmations: AtomicUsize::new(0),
                     signatures: signatures.clone(),
                     remote: true,
@@ -1614,8 +1619,17 @@ mod emission_fence_tests {
         }
     }
 
-    #[tokio::test]
-    async fn platform_access_and_both_registration_flows_select_current_transit_version_not_boot_kid(
+    async fn mount_platform_transit(
+        server: &wiremock::MockServer,
+        next_public: String,
+        old_public: &'static str,
+        next_private_pem: &str,
+        signatures: Arc<AtomicUsize>,
+        initial: SigningKey,
+    ) -> (
+        Arc<JwtTokenService>,
+        RegistrationTokenServiceImpl,
+        Arc<FenceRegistry>,
     ) {
         use base64::Engine;
         use rsa::pkcs8::DecodePrivateKey;
@@ -1623,23 +1637,17 @@ mod emission_fence_tests {
             matchers::{method, path},
             Mock, ResponseTemplate,
         };
-        let (next_private, next_public) = distinct_pair();
-        let old_public = include_str!("../../../config/keys/test-platform.pub");
-        assert_ne!(old_public, next_public.as_str());
-        let fixture = rustycog::testing::wiremock::MockServerFixture::isolated().await;
-        let server = fixture.server();
-        let next_for_get = next_public.clone();
+        let next_for_get = next_public;
         Mock::given(method("GET")).and(path("/v1/transit/keys/platform-fixture"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"data": {
                 "latest_version": 8, "keys": {"7":{"public_key":old_public}, "8":{"public_key":next_for_get}}
-            }}))).mount(&*server).await;
-        let signatures = Arc::new(AtomicUsize::new(0));
+            }}))).mount(server).await;
         let observed = signatures.clone();
         let old_private = rsa::RsaPrivateKey::from_pkcs8_pem(include_str!(
             "../../../config/keys/test-platform.pem"
         ))
         .unwrap();
-        let next_private = rsa::RsaPrivateKey::from_pkcs8_pem(next_private).unwrap();
+        let next_private = rsa::RsaPrivateKey::from_pkcs8_pem(next_private_pem).unwrap();
         Mock::given(method("POST")).and(path("/v1/transit/sign/platform-fixture"))
             .respond_with(move |request: &wiremock::Request| {
                 let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap();
@@ -1651,17 +1659,11 @@ mod emission_fence_tests {
                 let signature = private.sign(rsa::pkcs1v15::Pkcs1v15Sign::new::<sha2::Sha256>(), &digest).unwrap();
                 observed.fetch_add(1, Ordering::SeqCst);
                 ResponseTemplate::new(200).set_body_json(serde_json::json!({"data":{"signature":format!("vault:v{version}:{}",base64::engine::general_purpose::STANDARD.encode(signature))}}))
-            }).mount(&*server).await;
-        let mut initial = active_epoch();
-        initial.provider_type =
-            iam_domain::entity::signing_key::SigningProviderType::OpenBaoTransit;
-        initial.provider_key_ref = "platform-fixture".into();
-        initial.provider_key_version = Some(7);
-        initial.credential_ref = Some("platform-credential".into());
+            }).mount(server).await;
         let registry = Arc::new(FenceRegistry {
             initial: initial.clone(),
             selected: Some(Mutex::new(initial.clone())),
-            final_snapshot: Mutex::new(FinalSnapshot::Row(Some(initial.clone()))),
+            final_snapshot: Mutex::new(snapshot_row(initial)),
             confirmations: AtomicUsize::new(0),
             signatures: signatures.clone(),
             remote: true,
@@ -1696,6 +1698,85 @@ mod emission_fence_tests {
                 .with_signing_registry(registry.clone()),
         );
         let registration = RegistrationTokenServiceImpl::new(codec.clone()).unwrap();
+        (codec, registration, registry)
+    }
+
+    async fn transit_sign_key_versions(server: &wiremock::MockServer) -> Vec<u64> {
+        server
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .filter(|request| request.method.as_str() == "POST")
+            .map(|request| {
+                serde_json::from_slice::<serde_json::Value>(&request.body).unwrap()["key_version"]
+                    .as_u64()
+                    .unwrap()
+            })
+            .collect()
+    }
+
+    async fn reject_invalid_transit_bindings(
+        codec: &JwtTokenService,
+        registration: &RegistrationTokenServiceImpl,
+        registry: &FenceRegistry,
+        last: SigningKey,
+        signatures: &AtomicUsize,
+    ) {
+        for case in 0..7 {
+            let mut invalid = last.clone();
+            match case {
+                0 => invalid.provider_key_ref = "another-key".into(),
+                1 => invalid.credential_ref = Some("another-credential".into()),
+                2 => invalid.organization_id = Some(Uuid::new_v4()),
+                3 => invalid.provider_key_version = None,
+                4 => invalid.provider_key_version = Some(0),
+                5 => invalid.provider_key_version = Some(9), // public version not present
+                _ => {
+                    invalid.provider_type =
+                        iam_domain::entity::signing_key::SigningProviderType::PemFile;
+                }
+            }
+            *registry.selected.as_ref().unwrap().lock().unwrap() = invalid;
+            assert!(codec.generate_access_token(Uuid::new_v4()).await.is_err());
+            for oauth in [false, true] {
+                assert!(registration_call(registration, oauth, Uuid::new_v4())
+                    .await
+                    .is_err());
+            }
+            assert_eq!(
+                signatures.load(Ordering::SeqCst),
+                6,
+                "invalid binding must not fall back to local private material"
+            );
+            assert_eq!(registry.confirmations.load(Ordering::SeqCst), 6);
+        }
+    }
+
+    #[tokio::test]
+    async fn platform_access_and_both_registration_flows_select_current_transit_version_not_boot_kid(
+    ) {
+        let (next_private, next_public) = distinct_pair();
+        let old_public = include_str!("../../../config/keys/test-platform.pub");
+        assert_ne!(old_public, next_public.as_str());
+        let fixture = rustycog::testing::wiremock::MockServerFixture::isolated().await;
+        let server = fixture.server();
+        let signatures = Arc::new(AtomicUsize::new(0));
+        let mut initial = active_epoch();
+        initial.provider_type =
+            iam_domain::entity::signing_key::SigningProviderType::OpenBaoTransit;
+        initial.provider_key_ref = "platform-fixture".into();
+        initial.provider_key_version = Some(7);
+        initial.credential_ref = Some("platform-credential".into());
+        let (codec, registration, registry) = mount_platform_transit(
+            server.as_ref(),
+            next_public.clone(),
+            old_public,
+            next_private.as_str(),
+            signatures.clone(),
+            initial.clone(),
+        )
+        .await;
         for version in [7, 8] {
             let mut current = initial.clone();
             if version == 8 {
@@ -1705,7 +1786,7 @@ mod emission_fence_tests {
             }
             current.provider_key_version = Some(version);
             *registry.selected.as_ref().unwrap().lock().unwrap() = current.clone();
-            *registry.final_snapshot.lock().unwrap() = FinalSnapshot::Row(Some(current.clone()));
+            *registry.final_snapshot.lock().unwrap() = snapshot_row(current.clone());
             let user = Uuid::new_v4();
             let access = codec.generate_access_token(user).await.unwrap().token;
             assert_eq!(
@@ -1750,45 +1831,11 @@ mod emission_fence_tests {
         }
         assert_eq!(signatures.load(Ordering::SeqCst), 6);
         assert_eq!(registry.confirmations.load(Ordering::SeqCst), 6);
-        let requests = server.received_requests().await.unwrap();
-        let pins: Vec<_> = requests
-            .iter()
-            .filter(|request| request.method.as_str() == "POST")
-            .map(|request| {
-                serde_json::from_slice::<serde_json::Value>(&request.body).unwrap()["key_version"]
-                    .as_u64()
-                    .unwrap()
-            })
-            .collect();
-        assert_eq!(pins, vec![7, 7, 7, 8, 8, 8]);
+        assert_eq!(
+            transit_sign_key_versions(server.as_ref()).await,
+            vec![7, 7, 7, 8, 8, 8]
+        );
         let last = registry.selected.as_ref().unwrap().lock().unwrap().clone();
-        for case in 0..7 {
-            let mut invalid = last.clone();
-            match case {
-                0 => invalid.provider_key_ref = "another-key".into(),
-                1 => invalid.credential_ref = Some("another-credential".into()),
-                2 => invalid.organization_id = Some(Uuid::new_v4()),
-                3 => invalid.provider_key_version = None,
-                4 => invalid.provider_key_version = Some(0),
-                5 => invalid.provider_key_version = Some(9), // public version not present
-                _ => {
-                    invalid.provider_type =
-                        iam_domain::entity::signing_key::SigningProviderType::PemFile
-                }
-            }
-            *registry.selected.as_ref().unwrap().lock().unwrap() = invalid;
-            assert!(codec.generate_access_token(Uuid::new_v4()).await.is_err());
-            for oauth in [false, true] {
-                assert!(registration_call(&registration, oauth, Uuid::new_v4())
-                    .await
-                    .is_err());
-            }
-            assert_eq!(
-                signatures.load(Ordering::SeqCst),
-                6,
-                "invalid binding must not fall back to local private material"
-            );
-            assert_eq!(registry.confirmations.load(Ordering::SeqCst), 6);
-        }
+        reject_invalid_transit_bindings(&codec, &registration, &registry, last, &signatures).await;
     }
 }

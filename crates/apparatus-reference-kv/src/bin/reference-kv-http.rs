@@ -9,9 +9,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use apparatus_contracts::{
-    digest_str, new_operation_id, BindRequest, BindResponse, ConfigureRequest, ConfigureResponse,
-    HealthResponse, HealthStatus, InvokeRequest, InvokeResponse, ReadyResponse, UnbindRequest,
-    UnbindResponse, BIND_PATH, CONFIGURE_PATH, HEALTH_PATH, INVOKE_PATH, READY_PATH, UNBIND_PATH,
+    digest_str, new_operation_id, ApparatusId, BindRequest, BindResponse, ConfigureRequest,
+    ConfigureResponse, HealthResponse, HealthStatus, InvokeRequest, InvokeResponse, ReadyResponse,
+    UnbindRequest, UnbindResponse, BIND_PATH, CONFIGURE_PATH, HEALTH_PATH, INVOKE_PATH, READY_PATH,
+    UNBIND_PATH,
 };
 use apparatus_reference_kv::{
     InMemoryKvStore, ReferenceKvBackend, REFERENCE_APPARATUS_ID, REFERENCE_VERSION,
@@ -54,23 +55,34 @@ async fn main() {
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let listener = tokio::net::TcpListener::bind(addr)
         .await
-        .unwrap_or_else(|err| panic!("bind {addr}: {err}"));
-    axum::serve(listener, app)
-        .await
-        .unwrap_or_else(|err| panic!("serve: {err}"));
+        .unwrap_or_else(|err| {
+            eprintln!("bind {addr}: {err}");
+            std::process::exit(1);
+        });
+    axum::serve(listener, app).await.unwrap_or_else(|err| {
+        eprintln!("serve: {err}");
+        std::process::exit(1);
+    });
+}
+
+fn baked_apparatus_id() -> ApparatusId {
+    REFERENCE_APPARATUS_ID.parse().unwrap_or_else(|err| {
+        eprintln!("baked apparatus id: {err}");
+        std::process::exit(1);
+    })
 }
 
 async fn health() -> Json<HealthResponse> {
     Json(HealthResponse {
         status: HealthStatus::Ok,
-        apparatus_id: REFERENCE_APPARATUS_ID.parse().expect("id référence"),
+        apparatus_id: baked_apparatus_id(),
     })
 }
 
 async fn ready() -> Json<ReadyResponse> {
     Json(ReadyResponse {
         ready: true,
-        apparatus_id: REFERENCE_APPARATUS_ID.parse().expect("id référence"),
+        apparatus_id: baked_apparatus_id(),
         release_digest: digest_str(REFERENCE_VERSION),
     })
 }
@@ -127,7 +139,7 @@ fn ensure_bound(state: &AppState, request: &InvokeRequest) -> Result<(), (Status
     }
     let bind = BindRequest {
         binding_id: request.binding_id.clone(),
-        apparatus_id: REFERENCE_APPARATUS_ID.parse().expect("id référence"),
+        apparatus_id: baked_apparatus_id(),
         release_digest: digest_str(REFERENCE_VERSION),
         operation_id: new_operation_id(),
         config: None,
@@ -297,10 +309,17 @@ async fn enroll_workload(cfg: &EnrollCfg, client: &reqwest::Client) -> Result<()
     let cert_pem = parsed
         .get("certificate_pem")
         .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| "missing certificate_pem".to_owned())?;
-    std::fs::write(WORKLOAD_CERT_PATH, cert_pem).map_err(|err| format!("write cert: {err}"))?;
-    std::fs::write(WORKLOAD_KEY_PATH, key.serialize_pem())
-        .map_err(|err| format!("write key: {err}"))?;
+        .ok_or_else(|| "missing certificate_pem".to_owned())?
+        .to_owned();
+    let key_pem = key.serialize_pem();
+    tokio::task::spawn_blocking(move || {
+        std::fs::write(WORKLOAD_CERT_PATH, cert_pem)?;
+        std::fs::write(WORKLOAD_KEY_PATH, key_pem)?;
+        Ok::<_, std::io::Error>(())
+    })
+    .await
+    .map_err(|err| format!("write cert/key join: {err}"))?
+    .map_err(|err| format!("write cert/key: {err}"))?;
     eprintln!(
         "enroll HTTP {} written to {WORKLOAD_CERT_PATH}",
         status.as_u16()

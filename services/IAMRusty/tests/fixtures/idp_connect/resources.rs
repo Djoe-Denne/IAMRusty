@@ -13,7 +13,7 @@ pub fn success_tokens() -> ProviderTokens {
     }
 }
 
-/// GitHub Arthur profile (matches previous GitHubFixtures).
+/// GitHub Arthur profile (matches previous `GitHubFixtures`).
 #[must_use]
 pub fn github_arthur() -> ProviderUserProfile {
     ProviderUserProfile {
@@ -37,7 +37,7 @@ pub fn github_bob() -> ProviderUserProfile {
     }
 }
 
-/// GitLab Alice profile (matches previous GitLabFixtures).
+/// GitLab Alice profile (matches previous `GitLabFixtures`).
 #[must_use]
 pub fn gitlab_alice() -> ProviderUserProfile {
     ProviderUserProfile {

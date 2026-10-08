@@ -6,10 +6,10 @@
 - Décideurs : utilisateur, ratification explicite le 2026-10-04 : « Valider ces limites (Recommended) » ; promotion demandée par l’utilisateur, pas Accept autonome
 - Jalon concerné : IAM AuthN / fermeture locale S-10 (hors Apparatus P0–P6)
 - SuperSède : aucune
-- SuperSédée par : —
+- SuperSédée par : [0312](0312-admission-jwks-par-slots-bornes.md), partiellement sur le mécanisme de calcul/capacité (§§2–3), effective le 2026-10-08 ; autres décisions conservées
 - Related : [0304](0304-jwt-acces-plateforme-rs256-jwks.md), [0306](0306-hive-iam-configuration-signature.md), [0308](0308-mesh-authn-jwt.md), [0309](0309-remote-signer.md)
 
-`Accepted` ratifie ce contrat et le tuple numérique ci-dessous, sur accord explicite utilisateur du 2026-10-04. `Réalité : Partial` ne concerne que les primitives déjà présentes : registry primaire, epochs/remplacement atomique, publication complète et consommateurs bornés. **Idempotence configure/admission-budget/churn ne sont pas implémentés ou prouvés ; S-10/HIGH reste BLOCK.** Aucun run ou patch applicatif par cette rédaction.
+**État historique au 2026-10-04 (actualisation et supersession ciblée ci-dessous).** `Accepted` ratifie ce contrat et le tuple numérique ci-dessous, sur accord explicite utilisateur du 2026-10-04. `Réalité : Partial` ne concerne que les primitives déjà présentes : registry primaire, epochs/remplacement atomique, publication complète et consommateurs bornés. **Idempotence configure/admission-budget/churn ne sont pas implémentés ou prouvés ; S-10/HIGH reste BLOCK.** Aucun run ou patch applicatif par cette rédaction.
 
 ## Contexte
 
@@ -51,8 +51,16 @@ Capacité future à grande échelle/cloud et évolution ultérieure des limites 
 - Source : `services/IAMRusty/application/src/usecase/{organization_signer,token}.rs`, `domain/src/entity/{signing_key,token}.rs`, `domain/src/port/signing.rs`, `infra/src/repository/signing_key_registry.rs` (préfixe IAM pour les chemins abrégés).
 - Consommateurs inchangés : `workers/ext-authz/src/jwks_cache.rs`, SDK épinglé `rustycog/rustycog-http/src/jwks.rs` ; body1MiB/fail-closed60.
 - Baseline wiki antérieure : `projects/aiforall/decisions/0304-access-jwt-trust.md`, `0308-mesh-authn-jwt.md` ; canon0304/0306/0308/0309.
-- Preuve actuelle : primitives source uniquement ; admission/idempotence/quota et tests ciblés **non livrés/NOT RUN**. Brief sécurité S-10 et contrat§14, pas clôture root/IT/E2E.
+- Preuve historique au 2026-10-04 : primitives source uniquement ; admission/idempotence/quota et tests ciblés **non livrés/NOT RUN**. Brief sécurité S-10 et contrat§14, pas clôture root/IT/E2E.
 
 ## Mise à jour 2026-10-04 — migrations aplaties
 
 Il n'existe pas de données en production à préserver. Le schéma IAM est livré en un seul fichier de migration initiale, `services/IAMRusty/migration/src/m20220101_000001_initial_schema.rs`. Le contexte task-local, le préflight et le backfill de cutover legacy du 000006 sont supprimés : le contrat §14.B est supersédé sur ce point. La colonne `lifecycle_admitted_at`, son default DB, son index et son trigger d'immutabilité sont conservés dès la création ; la logique d'admission S-10 reste inchangée. Les migrations incrémentales seront réintroduites seulement quand un état persisté devra être préservé. Statut et réalité inchangés ; aucune preuve IT/E2E ajoutée.
+
+## Mise à jour 2026-10-08 — supersession ciblée par 0312
+
+L'Accept explicite de 0312 par Djoé Denne le 2026-10-08 rend **effective** la substitution du mécanisme de calcul/capacité des §§2–3 : slots JWKS à coût maximal fixe et cardinalités globales finies, au lieu du recalcul de réservations variables. Canon de remplacement : [ADR-0312](0312-admission-jwks-par-slots-bornes.md), **Accepted / Implemented**. Les paragraphes ci-dessus conservent l'historique ratifié le 2026-10-04 ; ils ne constituent plus la cible du calcul remplacé.
+
+La supersession est **partielle**, pas un retrait de l'ADR entière : **Statut Accepted / Réalité Partial conservés** pour 0310. Autorité writer/atomicité, publication entière, budgets `786432/720896/65536`, consommateur `1MiB`/fraîcheur `60s`, caps org/plateforme et churn, idempotence de binding complète, fences et refus sans dommages restent des invariants. Cette réconciliation ne prononce pas de clôture sécurité globale S-10 ni de validation E2E ; elle ne doit plus être lue comme « admission/capacité non livrées ».
+
+Preuve livrée du mécanisme de remplacement : `services/IAMRusty/domain/src/entity/signing_publication.rs:19–30` et `services/IAMRusty/domain/src/entity/signing_key.rs:470,813,835`, vérifiées par le contrôleur au HEAD `e8fcaea`. Units + IT IAM vertes sur master confirmées par Djoé Denne le 2026-10-08 (**attestation utilisateur**, pas artefact CI archivé). Voir 0312 pour les constantes et preuves, sans nouvelle exécution ni modification de code dans ce lot.

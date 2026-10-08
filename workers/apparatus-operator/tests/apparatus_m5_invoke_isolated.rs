@@ -226,16 +226,10 @@ async fn spawn_manifesto_stub(body: serde_json::Value) -> ManifestoStub {
         .unwrap_or_else(|err| panic!("local_addr stub: {err}"));
     let payload = serde_json::to_string(&body).expect("json stub");
     tokio::spawn(async move {
-        loop {
-            let Ok((mut sock, _)) = listener.accept().await else {
-                break;
-            };
+        while let Ok((mut sock, _)) = listener.accept().await {
             let mut buf = Vec::new();
             let mut tmp = [0u8; 512];
-            loop {
-                let Ok(n) = sock.read(&mut tmp).await else {
-                    break;
-                };
+            while let Ok(n) = sock.read(&mut tmp).await {
                 if n == 0 {
                     break;
                 }
@@ -303,9 +297,10 @@ fn wait_tcp(addr: &str, timeout: Duration) {
         if TcpStream::connect(addr).is_ok() {
             return;
         }
-        if Instant::now() > deadline {
-            panic!("port-forward {addr} injoignable");
-        }
+        assert!(
+            Instant::now() <= deadline,
+            "port-forward {addr} injoignable"
+        );
         std::thread::sleep(Duration::from_millis(200));
     }
 }

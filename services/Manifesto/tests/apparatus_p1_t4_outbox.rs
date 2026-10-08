@@ -8,6 +8,8 @@ mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 
+use std::ffi::OsStr;
+
 use common::*;
 use fixtures::DbFixtures;
 use manifesto_infra::apparatus_outbox::persist_binding_atomically;
@@ -106,7 +108,7 @@ fn scan(dir: &std::path::Path, hits: &mut Vec<String>) {
         let path = entry.path();
         if path.is_dir() {
             scan(&path, hits);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+        } else if path.extension().and_then(OsStr::to_str) == Some("rs") {
             if let Ok(content) = std::fs::read_to_string(&path) {
                 for (idx, line) in content.lines().enumerate() {
                     let lower = line.to_lowercase();

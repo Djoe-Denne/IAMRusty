@@ -1,4 +1,4 @@
-//! Federated IdP connector registry (`[idp]`).
+//! Federated `IdP` connector registry (`[idp]`).
 
 use std::str::FromStr;
 

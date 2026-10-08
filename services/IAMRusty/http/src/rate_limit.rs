@@ -129,8 +129,8 @@ impl AuthRateLimiter {
     }
 
     fn take_slot(&self, key: BucketKey, limit: u32, now: Instant) -> bool {
-        let mut store = self.buckets.lock().unwrap_or_else(PoisonError::into_inner);
         let window = Duration::from_secs(self.config.window_seconds);
+        let mut store = self.buckets.lock().unwrap_or_else(PoisonError::into_inner);
         // Evict only expired buckets: random sources cannot evict a live account budget.
         store.retain(|_, (start, _)| now.saturating_duration_since(*start) < window);
         if !store.contains_key(&key) && store.len() >= self.config.max_buckets {
@@ -138,7 +138,9 @@ impl AuthRateLimiter {
         }
         let entry = store.entry(key).or_insert((now, 0));
         entry.1 = entry.1.saturating_add(1);
-        entry.1 <= limit
+        let admitted = entry.1 <= limit;
+        drop(store);
+        admitted
     }
 
     fn account_digest(&self, body: &[u8]) -> Option<[u8; 32]> {

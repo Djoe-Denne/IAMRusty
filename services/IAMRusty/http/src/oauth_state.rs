@@ -20,7 +20,7 @@ type HmacSha256 = Hmac<Sha256>;
 ///
 /// # Errors
 /// Returns an error if another app has already installed a different key.
-pub fn configure_oauth_state_secret(secret: OAuthStateSecret) -> Result<(), &'static str> {
+pub fn configure_oauth_state_secret(secret: &OAuthStateSecret) -> Result<(), &'static str> {
     let bytes = secret.as_bytes().to_vec();
     match STATE_SECRET.set(bytes) {
         Ok(()) => Ok(()),
@@ -46,7 +46,7 @@ pub struct OAuthState {
     pub operation: OAuthOperation,
     /// Random nonce for security
     pub nonce: String,
-    /// Canonical IdP slug bound at start (CSRF cross-provider check)
+    /// Canonical `IdP` slug bound at start (`CSRF` cross-provider check)
     pub provider: String,
     /// Unix expiry timestamp
     #[serde(default)]
@@ -187,8 +187,7 @@ impl OAuthState {
     pub const fn get_link_user_id(&self) -> Option<Uuid> {
         match &self.operation {
             OAuthOperation::Link { user_id } => Some(*user_id),
-            OAuthOperation::Login => None,
-            OAuthOperation::Relink { .. } => None,
+            OAuthOperation::Login | OAuthOperation::Relink { .. } => None,
         }
     }
 }
@@ -210,7 +209,7 @@ mod tests {
             ..iam_configuration::security::SecurityConfig::default()
         };
         configure_oauth_state_secret(
-            config
+            &config
                 .validate_oauth_state_secret("iam-oauth-state-hmac-test")
                 .unwrap(),
         )
@@ -225,7 +224,7 @@ mod tests {
             ..iam_configuration::security::SecurityConfig::default()
         };
         assert!(configure_oauth_state_secret(
-            config
+            &config
                 .validate_oauth_state_secret("different-isolated-test-key")
                 .unwrap()
         )

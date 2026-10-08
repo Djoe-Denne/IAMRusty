@@ -479,7 +479,7 @@ struct OwnerMemberService {
 }
 
 impl OwnerMemberService {
-    fn for_project(project: &Project) -> Self {
+    const fn for_project(project: &Project) -> Self {
         Self {
             project_id: project.id,
             owner_id: project.created_by,
@@ -544,7 +544,7 @@ impl MemberService for OwnerMemberService {
     }
 
     async fn count_active_members(&self, project_id: &Uuid) -> Result<i64, DomainError> {
-        Ok(if *project_id == self.project_id { 1 } else { 0 })
+        Ok(i64::from(*project_id == self.project_id))
     }
 
     async fn check_member_exists(

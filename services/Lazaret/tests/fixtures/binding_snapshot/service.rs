@@ -13,7 +13,7 @@ use super::resources::BindingGrantSnapshotBody;
 /// Wiremock fake for the Manifesto binding grant snapshot GET.
 pub struct BindingSnapshotMockService {
     server: Arc<MockServer>,
-    _fixture: MockServerFixture,
+    fixture: MockServerFixture,
 }
 
 impl BindingSnapshotMockService {
@@ -21,10 +21,7 @@ impl BindingSnapshotMockService {
     pub async fn new() -> Self {
         let fixture = MockServerFixture::isolated().await;
         let server = fixture.server();
-        Self {
-            server,
-            _fixture: fixture,
-        }
+        Self { server, fixture }
     }
 
     /// Base URL for [`lazaret_infra::HttpBindingGrantClient`] (`uri()`, no extra prefix).
@@ -50,7 +47,7 @@ impl BindingSnapshotMockService {
                     .set_body_json(BindingGrantSnapshotBody::from(body))
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }
@@ -70,14 +67,14 @@ impl BindingSnapshotMockService {
                     .set_body_json(BindingGrantSnapshotBody::from(body))
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }
 
     /// Wipe mounted stubs.
     pub async fn reset(&self) {
-        self._fixture.reset().await;
+        self.fixture.reset().await;
     }
 
     /// Stub GET that returns 404 (missing binding).
@@ -86,7 +83,7 @@ impl BindingSnapshotMockService {
         Mock::given(method("GET"))
             .and(path(route.as_str()))
             .respond_with(ResponseTemplate::new(404))
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }

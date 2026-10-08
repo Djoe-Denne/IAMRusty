@@ -136,10 +136,7 @@ mod tests {
         };
         assert_eq!(message, "component_inactive");
         assert!(!message.contains("ComponentInactive"));
-        let body = serde_json::to_value(ErrorBody {
-            error: message.clone(),
-        })
-        .expect("json");
+        let body = serde_json::to_value(ErrorBody { error: message }).expect("json");
         assert_eq!(body["error"], "component_inactive");
         assert!(!body.to_string().contains("ComponentInactive"));
     }

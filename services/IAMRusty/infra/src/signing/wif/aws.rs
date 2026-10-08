@@ -1,4 +1,4 @@
-//! AWS STS AssumeRoleWithWebIdentity WIF adapter (ADR-0307).
+//! AWS STS `AssumeRoleWithWebIdentity` WIF adapter (ADR-0307).
 
 use super::{extract_xml_tag, read_subject_token};
 use async_trait::async_trait;

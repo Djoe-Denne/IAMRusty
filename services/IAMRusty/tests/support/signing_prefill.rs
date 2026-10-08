@@ -49,7 +49,7 @@ pub async fn prefill_organization_frontier(
         let mut publics=Vec::with_capacity(keys.len());
         for key in keys.iter_mut() {
             ensure!(key.trust_scope==TrustScope::Organization && key.status==SigningKeyStatus::Active && key.organization_id.is_some(),"only distinct-owner Active filler bindings are arranged; no Pending receipt fabricated");
-            ensure!(key.provider_type==SigningProviderType::PemFile && key.provider_key_version.is_none() && key.credential_ref.is_none() && key.public_key==rustycog::testing::http::jwt::TEST_RS256_PUBLIC_PEM,"only the explicit nonproduction neutral public material may be prefilled");
+            ensure!(key.provider_type==SigningProviderType::PemFile && key.provider_key_version.is_none() && key.credential_ref.is_none() && key.public_key==rustycog::testing::http::jwt::test_rs256_public_pem(),"only the explicit nonproduction neutral public material may be prefilled");
             ensure!(ids.insert(key.id) && kids.insert(key.kid.clone()) && owners.insert(key.organization_id.unwrap()) && issuers.insert(key.issuer.clone()),"prefill IDs/kids/owners/issuers must be unique, including platform");
             key.created_at=now;key.updated_at=now;
             let public=PreparedSigningPublicKey::prepare(key)?;

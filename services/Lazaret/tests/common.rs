@@ -17,7 +17,7 @@ pub use rustycog::testing::TestFixture;
 #[allow(unused_imports)]
 pub use rustycog::testing::http::jwt::create_jwt_token;
 
-/// Lazaret test descriptor (Postgres only, no OpenFGA container).
+/// Lazaret test descriptor (Postgres only, no `OpenFGA` container).
 pub struct LazaretTestDescriptor;
 
 #[async_trait]

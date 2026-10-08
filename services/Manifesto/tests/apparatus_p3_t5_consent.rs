@@ -84,12 +84,10 @@ fn snapshot_url(
     component_id: Uuid,
     principal: Option<Uuid>,
 ) -> String {
-    match principal {
-        Some(user) => {
-            format!("{base}/api/projects/{project_id}/bindings/{component_id}?principal={user}")
-        }
-        None => format!("{base}/api/projects/{project_id}/bindings/{component_id}"),
-    }
+    principal.map_or_else(
+        || format!("{base}/api/projects/{project_id}/bindings/{component_id}"),
+        |user| format!("{base}/api/projects/{project_id}/bindings/{component_id}?principal={user}"),
+    )
 }
 
 fn consents_url(base: &str, project_id: Uuid, component_id: Uuid) -> String {

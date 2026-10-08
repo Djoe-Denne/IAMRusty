@@ -80,6 +80,6 @@ impl ConnectorProxy for NamedConnectorProxy {
         path: &str,
         injected_bearer: Option<&[u8]>,
     ) -> Result<Vec<u8>, ConnectorError> {
-        NamedConnectorProxy::fetch(self, name, path, injected_bearer).await
+        Self::fetch(self, name, path, injected_bearer).await
     }
 }

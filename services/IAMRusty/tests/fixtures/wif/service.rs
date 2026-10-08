@@ -11,24 +11,21 @@ use super::resources::*;
 
 pub struct WifMockService {
     server: Arc<MockServer>,
-    _fixture: MockServerFixture,
+    fixture: MockServerFixture,
 }
 
 impl WifMockService {
     pub async fn new() -> Self {
         let fixture = MockServerFixture::new().await;
         let server = fixture.server();
-        Self {
-            server,
-            _fixture: fixture,
-        }
+        Self { server, fixture }
     }
 
     pub fn base_url(&self) -> String {
         self.server.uri()
     }
 
-    /// Shared wiremock server (for mounting sibling stubs, e.g. OpenBao Transit).
+    /// Shared `wiremock` server (for mounting sibling stubs, e.g. `OpenBao` `Transit`).
     pub fn server(&self) -> Arc<MockServer> {
         Arc::clone(&self.server)
     }
@@ -36,7 +33,7 @@ impl WifMockService {
     /// Reset mounted stubs (skill contract; used by mid-test re-arrangement).
     #[allow(dead_code)]
     pub async fn reset(&self) {
-        self._fixture.reset().await;
+        self.fixture.reset().await;
     }
 
     /// Stub AWS STS `AssumeRoleWithWebIdentity` returning `SessionToken`.
@@ -61,7 +58,7 @@ impl WifMockService {
                     .insert_header("content-type", "text/xml")
                     .set_body_string(body),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }
@@ -76,7 +73,7 @@ impl WifMockService {
         Mock::given(method("POST"))
             .and(path("/v1/token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(body))
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }
@@ -91,7 +88,7 @@ impl WifMockService {
         Mock::given(method("POST"))
             .and(path(format!("/{tenant_id}/oauth2/v2.0/token")))
             .respond_with(ResponseTemplate::new(200).set_body_json(body))
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }

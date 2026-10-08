@@ -55,7 +55,7 @@ fn fixture_writer(fixture: &TestFixture) -> anyhow::Result<Arc<sea_orm::Database
     fixture
         .database
         .as_ref()
-        .map(|database| database.get_connection())
+        .map(TestDatabase::get_connection)
         .ok_or_else(|| anyhow::anyhow!("IAM fixture requires writer DB"))
 }
 
@@ -88,37 +88,54 @@ pub fn fixture_jwt_codec_from_config(
 }
 
 /// Exact live root codec and effective issuer, not another registry/encoder.
-pub async fn fixture_jwt_codec(
+///
+/// # Errors
+///
+/// Returns an error if the fixture has no writer database or no live owned IAM app.
+pub fn fixture_jwt_codec(
     fixture: &TestFixture,
 ) -> Result<(Arc<iam_infra::token::JwtTokenService>, String), Box<dyn std::error::Error>> {
     let db = fixture_writer(fixture)?;
-    let leases = listener_leases()
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let lease = leases
-        .iter()
-        .find(|lease| Arc::ptr_eq(&db, &lease.fixture_db) && !lease.task.is_finished())
-        .ok_or_else(|| anyhow::anyhow!("fixture has no live owned IAM app"))?;
-    Ok((lease.app.jwt_codec(), lease.config.jwt.platform_issuer()))
+    let found = {
+        let leases = listener_leases()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        leases
+            .iter()
+            .find(|lease| Arc::ptr_eq(&db, &lease.fixture_db) && !lease.task.is_finished())
+            .map(|lease| (lease.app.jwt_codec(), lease.config.jwt.platform_issuer()))
+    };
+    found.ok_or_else(|| anyhow::anyhow!("fixture has no live owned IAM app").into())
 }
 
-pub async fn fixture_signing_registry(
+/// Exact live signing-key registry and current epoch from the owned composition root.
+///
+/// # Errors
+///
+/// Returns an error if the fixture has no writer database or no live owned IAM app.
+pub fn fixture_signing_registry(
     fixture: &TestFixture,
 ) -> Result<(Arc<iam_infra::repository::SeaOrmSigningKeyRegistry>, u64), Box<dyn std::error::Error>>
 {
     let db = fixture_writer(fixture)?;
-    let leases = listener_leases()
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let lease = leases
-        .iter()
-        .find(|lease| Arc::ptr_eq(&db, &lease.fixture_db) && !lease.task.is_finished())
-        .ok_or_else(|| anyhow::anyhow!("fixture has no live owned IAM app"))?;
-    Ok(lease.app.signing_registry())
+    let found = {
+        let leases = listener_leases()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        leases
+            .iter()
+            .find(|lease| Arc::ptr_eq(&db, &lease.fixture_db) && !lease.task.is_finished())
+            .map(|lease| lease.app.signing_registry())
+    };
+    found.ok_or_else(|| anyhow::anyhow!("fixture has no live owned IAM app").into())
 }
 
 /// Public registration/completion creates the account and persisted session using
 /// the same root codec. Email verification is explicit fixture arrangement only.
+///
+/// # Errors
+///
+/// Returns an error if registration, session persist, or token issuance fails.
 pub async fn fixture_platform_access_token(
     fixture: &TestFixture,
 ) -> Result<String, Box<dyn std::error::Error>> {
@@ -252,19 +269,26 @@ fn fixture_config_with_security(
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("IAM fixture requires writer DB"))?;
     let database_url = url::Url::parse(&database.database_url)?;
-    config.database.host = database_url
+    let host = database_url
         .host_str()
-        .ok_or_else(|| anyhow::anyhow!("missing fixture DB host"))?
-        .to_owned();
+        .ok_or_else(|| anyhow::anyhow!("missing fixture DB host"))?;
+    config.database.host.clone_from(host);
     config.database.port = database_url
         .port()
         .ok_or_else(|| anyhow::anyhow!("missing fixture DB port"))?;
-    config.database.db = database_url.path().trim_start_matches('/').to_owned();
-    config.database.creds.username = database_url.username().to_owned();
-    config.database.creds.password = database_url
+    config
+        .database
+        .db
+        .clone_from(database_url.path().trim_start_matches('/'));
+    config
+        .database
+        .creds
+        .username
+        .clone_from(database_url.username());
+    let password = database_url
         .password()
-        .ok_or_else(|| anyhow::anyhow!("missing fixture DB credential"))?
-        .to_owned();
+        .ok_or_else(|| anyhow::anyhow!("missing fixture DB credential"))?;
+    config.database.creds.password.clone_from(password);
     config.database.read_replicas.clear();
     if !explicit_security && config.security.mode != SecurityMode::IsolatedTest {
         return Err(anyhow::anyhow!(
@@ -308,12 +332,12 @@ async fn start_owned_listener(
             // SDK constants and IAM config/keys/test-platform.* are the SAME
             // pair; this is not evidence of distinct keys or rotation. Real
             // provider parsing/probing still runs on each isolated app boot.
-            use rustycog::testing::http::jwt::{TEST_RS256_PRIVATE_PEM, TEST_RS256_PUBLIC_PEM};
+            use rustycog::testing::http::jwt::{test_rs256_private_pem, test_rs256_public_pem};
             let files = Arc::new(tempfile::TempDir::new()?);
             let private = files.path().join("private.pem");
             let public = files.path().join("public.pem");
-            std::fs::write(&private, TEST_RS256_PRIVATE_PEM)?;
-            std::fs::write(&public, TEST_RS256_PUBLIC_PEM)?;
+            std::fs::write(&private, test_rs256_private_pem())?;
+            std::fs::write(&public, test_rs256_public_pem())?;
             config.jwt.secret = SecretStorage::PemFile {
                 private_key_path: private.to_string_lossy().into_owned(),
                 public_key_path: public.to_string_lossy().into_owned(),
@@ -326,7 +350,14 @@ async fn start_owned_listener(
             Some(files)
         }
     };
-    start_owned_listener_with_keys(fixture, config, publisher, pem_files, &[]).await
+    Box::pin(start_owned_listener_with_keys(
+        fixture,
+        config,
+        publisher,
+        pem_files,
+        &[],
+    ))
+    .await
 }
 
 async fn start_owned_listener_with_keys(
@@ -352,12 +383,14 @@ async fn start_owned_listener_with_keys(
         config.auth.jwt.allowed_algorithms = vec!["RS256".into()];
     }
     let app = Arc::new(
-        iam_setup::app::build_app_state_with_event_publisher_and_signing_keys(
-            config.clone(),
-            publisher,
-            ComponentStatus::Injected,
-            None,
-            signing_keys,
+        Box::pin(
+            iam_setup::app::build_app_state_with_event_publisher_and_signing_keys(
+                config.clone(),
+                publisher,
+                ComponentStatus::Injected,
+                None,
+                signing_keys,
+            ),
         )
         .await?,
     );
@@ -420,6 +453,16 @@ async fn start_owned_listener_with_keys(
         });
     let base = format!("http://{address}{SERVICE_PREFIX}");
     // Serving is not an auth proof; a bounded readiness wait only establishes the listener.
+    if iam_listener_ready(&client, &base).await {
+        return Ok((base, client));
+    }
+    cleanup_test_servers(fixture).await?;
+    Err(anyhow::anyhow!(
+        "IAM fixture listener failed to become available"
+    ))
+}
+
+async fn iam_listener_ready(client: &Client, base: &str) -> bool {
     for _ in 0..100 {
         if client
             .get(format!("{base}/ready"))
@@ -428,17 +471,18 @@ async fn start_owned_listener_with_keys(
             .await
             .is_ok_and(|response| response.status().is_success())
         {
-            return Ok((base, client));
+            return true;
         }
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     }
-    cleanup_test_servers(fixture).await?;
-    Err(anyhow::anyhow!(
-        "IAM fixture listener failed to become available"
-    ))
+    false
 }
 
 /// Stop and join only listeners owned by this fixture's parent lease, not containers.
+///
+/// # Errors
+///
+/// Returns the first listener shutdown or join error, if any.
 pub async fn cleanup_test_servers(fixture: &TestFixture) -> anyhow::Result<()> {
     let db = fixture_writer(fixture)?;
     let leases = {
@@ -476,6 +520,10 @@ pub async fn cleanup_test_servers(fixture: &TestFixture) -> anyhow::Result<()> {
 }
 
 /// A real second app/listener: same writer storage/config, new per-instance budgets.
+///
+/// # Errors
+///
+/// Returns an error if no live primary listener exists or the replica fails to start.
 pub async fn setup_test_replica(
     fixture: &TestFixture,
 ) -> Result<(String, Client), Box<dyn std::error::Error>> {
@@ -492,15 +540,20 @@ pub async fn setup_test_replica(
             })?;
         (primary.config.clone(), primary._pem_files.clone())
     };
-    Ok(start_owned_listener(
+    Ok(Box::pin(start_owned_listener(
         fixture,
         config,
         mock_publisher(Arc::new(MockEventPublisher::new())),
         pem_files,
-    )
+    ))
     .await?)
 }
 
+/// Start a primary IAM test listener with GitHub PKCE enabled.
+///
+/// # Errors
+///
+/// Returns an error if the fixture, GitHub connector, or HTTP listener fails to start.
 pub async fn setup_test_server_with_pkce(
 ) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
     prepare_primary_fixture().await?;
@@ -513,17 +566,21 @@ pub async fn setup_test_server_with_pkce(
         .find(|entry| entry.id == "github")
         .ok_or_else(|| anyhow::anyhow!("PKCE fixture requires configured GitHub connector"))?;
     github.pkce_supported = true;
-    let (base, client) = start_owned_listener(
+    let (base, client) = Box::pin(start_owned_listener(
         &fixture,
         config,
         mock_publisher(Arc::new(MockEventPublisher::new())),
         None,
-    )
+    ))
     .await?;
     Ok((fixture, base, client))
 }
 
 /// Build the actual root on existing writer storage; no migrations, listeners or tasks.
+///
+/// # Errors
+///
+/// Returns an error if configuration or composition-root construction fails.
 pub async fn build_test_iam_app(
     fixture: &TestFixture,
     security: iam_configuration::security::SecurityConfig,
@@ -543,15 +600,20 @@ pub async fn build_test_iam_app(
             config.jwt = primary.config.jwt.clone();
         }
     }
-    Ok(build_app_state_with_event_publisher(
+    Ok(Box::pin(build_app_state_with_event_publisher(
         config,
         mock_publisher(Arc::new(MockEventPublisher::new())),
         ComponentStatus::Injected,
         None,
-    )
+    ))
     .await?)
 }
 
+/// Start a primary IAM test listener with an explicit enabled rate-limit policy.
+///
+/// # Errors
+///
+/// Returns an error if the policy is disabled or the fixture or listener fails to start.
 pub async fn setup_test_server_with_rate_limits(
     limits: iam_configuration::security::AuthRateLimitConfig,
 ) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
@@ -562,28 +624,34 @@ pub async fn setup_test_server_with_rate_limits(
     let fixture = TestFixture::new(Arc::new(IAMRustyTestDescriptor)).await?;
     let mut config = fixture_config(&fixture)?;
     config.security.rate_limit = limits;
-    let (base, client) = start_owned_listener(
+    let (base, client) = Box::pin(start_owned_listener(
         &fixture,
         config,
         mock_publisher(Arc::new(MockEventPublisher::new())),
         None,
-    )
+    ))
     .await?;
     Ok((fixture, base, client))
 }
 
+/// Start a primary IAM test listener bound to the provided active platform signing keys.
+///
+/// # Errors
+///
+/// Returns an error if the platform key does not match the PEM bootstrap binding,
+/// or if the fixture or listener fails to start.
 pub async fn setup_test_server_with_signing_keys(
     keys: &[SigningKey],
 ) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
+    use rustycog::testing::http::jwt::{test_rs256_private_pem, test_rs256_public_pem};
     prepare_primary_fixture().await?;
-    use rustycog::testing::http::jwt::{TEST_RS256_PRIVATE_PEM, TEST_RS256_PUBLIC_PEM};
     let platform = keys
         .iter()
         .find(|key| {
             key.trust_scope == TrustScope::Platform && key.status == SigningKeyStatus::Active
         })
         .ok_or_else(|| anyhow::anyhow!("strict fixture requires an active platform key"))?;
-    if platform.public_key != TEST_RS256_PUBLIC_PEM
+    if platform.public_key != test_rs256_public_pem()
         || platform.provider_type != SigningProviderType::PemFile
         || platform.provider_key_ref != "pem:config/jwt.secret"
         || platform.credential_ref.is_some()
@@ -604,8 +672,8 @@ pub async fn setup_test_server_with_signing_keys(
     let pem_files = Arc::new(tempfile::TempDir::new()?);
     let private = pem_files.path().join("private.pem");
     let public = pem_files.path().join("public.pem");
-    std::fs::write(&private, TEST_RS256_PRIVATE_PEM)?;
-    std::fs::write(&public, TEST_RS256_PUBLIC_PEM)?;
+    std::fs::write(&private, test_rs256_private_pem())?;
+    std::fs::write(&public, test_rs256_public_pem())?;
     config.jwt.secret = SecretStorage::PemFile {
         private_key_path: private.to_string_lossy().into_owned(),
         public_key_path: public.to_string_lossy().into_owned(),
@@ -615,13 +683,13 @@ pub async fn setup_test_server_with_signing_keys(
     config.jwt.backend = None;
     config.jwt.provider = None;
     config.jwt.remote = None;
-    let (base, client) = start_owned_listener_with_keys(
+    let (base, client) = Box::pin(start_owned_listener_with_keys(
         &fixture,
         config,
         mock_publisher(Arc::new(MockEventPublisher::new())),
         Some(pem_files),
         keys,
-    )
+    ))
     .await?;
     Ok((fixture, base, client))
 }
@@ -688,12 +756,12 @@ pub async fn setup_test_server() -> Result<(TestFixture, String, Client), Box<dy
     prepare_primary_fixture().await?;
     let fixture = TestFixture::new(Arc::new(IAMRustyTestDescriptor)).await?;
     let config = fixture_config(&fixture)?;
-    let (base, client) = start_owned_listener(
+    let (base, client) = Box::pin(start_owned_listener(
         &fixture,
         config,
         mock_publisher(Arc::new(MockEventPublisher::new())),
         None,
-    )
+    ))
     .await?;
     Ok((fixture, base, client))
 }
@@ -782,9 +850,9 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptorWithMockEvents
 /// Returns an error if the test fixture or HTTP server fails to start.
 pub async fn setup_test_server_with_mock_events(
 ) -> Result<(TestFixture, String, Client, Arc<MockEventPublisher>), Box<dyn std::error::Error>> {
-    prepare_primary_fixture().await?;
     static MOCK_EVENTS_DESCRIPTOR: OnceLock<Arc<IAMRustyTestDescriptorWithMockEvents>> =
         OnceLock::new();
+    prepare_primary_fixture().await?;
 
     let descriptor = MOCK_EVENTS_DESCRIPTOR
         .get_or_init(|| Arc::new(IAMRustyTestDescriptorWithMockEvents::new()))
@@ -793,12 +861,12 @@ pub async fn setup_test_server_with_mock_events(
     let fixture = TestFixture::new(descriptor.clone()).await?;
     let mock_event_publisher = descriptor.mock_event_publisher.clone();
     let config = fixture_config(&fixture)?;
-    let (base_url, client) = start_owned_listener(
+    let (base_url, client) = Box::pin(start_owned_listener(
         &fixture,
         config,
         mock_publisher(mock_event_publisher.clone()),
         None,
-    )
+    ))
     .await?;
     Ok((fixture, base_url, client, mock_event_publisher))
 }

@@ -18,7 +18,9 @@ pub async fn claim_binding(
     now: DateTime<Utc>,
 ) -> Result<Option<i64>, DbErr> {
     let owner = truncate_owner(owner);
-    let expires = now + chrono::Duration::seconds(APPARATUS_LEASE_TTL.as_secs() as i64);
+    let ttl_secs = i64::try_from(APPARATUS_LEASE_TTL.as_secs())
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
+    let expires = now + chrono::Duration::seconds(ttl_secs);
     let row = db
         .query_one(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,

@@ -17,6 +17,7 @@ use crate::fga_client::Tuple;
 pub struct HiveTranslator;
 
 impl HiveTranslator {
+    #[must_use]
     pub const fn new() -> Self {
         Self
     }

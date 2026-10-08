@@ -23,8 +23,8 @@ use ext_authz::{check_router, AuthzState, ExtAuthzConfig};
 use jwks_fixtures::JwksFixtures;
 use registry::platform_jwks as test_rs256_jwks_json;
 use rustycog::testing::http::jwt::{
-    create_rs256_jwt_token, create_rs256_jwt_token_with_options, Rs256TokenOptions,
-    TEST_PLATFORM_ISSUER, TEST_RS256_PRIVATE_PEM,
+    create_rs256_jwt_token, create_rs256_jwt_token_with_options, test_rs256_private_pem,
+    Rs256TokenOptions, TEST_PLATFORM_ISSUER,
 };
 use serial_test::serial;
 use std::sync::Arc;
@@ -163,7 +163,7 @@ fn signed_variant(token: &str, change: impl FnOnce(&mut serde_json::Value)) -> S
     .expect("fixture claims JSON");
     change(&mut claims);
     let header = jsonwebtoken::decode_header(token).expect("fixture header");
-    let key = jsonwebtoken::EncodingKey::from_rsa_pem(TEST_RS256_PRIVATE_PEM.as_bytes())
+    let key = jsonwebtoken::EncodingKey::from_rsa_pem(test_rs256_private_pem().as_bytes())
         .expect("fixed test signing key");
     jsonwebtoken::encode(&header, &claims, &key).expect("sign variant")
 }
@@ -184,9 +184,15 @@ async fn standin_rejects_expired_and_future_claims_with_valid_kid() {
         .expect("clock")
         .as_secs();
     let variants = [
-        signed_variant(&token, |claims| claims["exp"] = (now - 3600).into()),
-        signed_variant(&token, |claims| claims["nbf"] = (now + 3600).into()),
-        signed_variant(&token, |claims| claims["iat"] = (now + 3600).into()),
+        signed_variant(&token, |claims| {
+            claims["exp"] = (now - 3600).into();
+        }),
+        signed_variant(&token, |claims| {
+            claims["nbf"] = (now + 3600).into();
+        }),
+        signed_variant(&token, |claims| {
+            claims["iat"] = (now + 3600).into();
+        }),
     ];
     for invalid in variants {
         let response = server
@@ -262,7 +268,7 @@ async fn real_organization_metadata_accepts_owner_issuer_but_not_platform_substi
     use iam_domain::entity::signing_key::SigningKeyStatus;
     let organization = Uuid::new_v4();
     let key = registry::registry_key(SigningKeyStatus::Active, Some(organization));
-    let (server, _jwks) = server_with_jwks(&registry::serialize(&[key.clone()])).await;
+    let (server, _jwks) = server_with_jwks(&registry::serialize(std::slice::from_ref(&key))).await;
     let token = create_rs256_jwt_token(Uuid::new_v4());
     let legitimate = signed_variant(&token, |claims| {
         claims["iss"] = key.issuer.clone().into();
@@ -283,7 +289,7 @@ async fn real_organization_metadata_accepts_owner_issuer_but_not_platform_substi
     assert!(response.maybe_header("x-principal-sub").is_none());
     for invalid in [
         signed_variant(&legitimate, |claims| {
-            claims["org"] = Uuid::new_v4().to_string().into()
+            claims["org"] = Uuid::new_v4().to_string().into();
         }),
         signed_variant(&legitimate, |claims| {
             claims.as_object_mut().expect("claims object").remove("org");
@@ -330,7 +336,7 @@ async fn real_platform_metadata_cannot_be_promoted_to_organization_by_a_claim() 
         .assert_status(StatusCode::OK);
     let organization = Uuid::new_v4();
     let with_org = signed_variant(&token, |claims| {
-        claims["org"] = organization.to_string().into()
+        claims["org"] = organization.to_string().into();
     });
     // An extra claim cannot change the authenticated platform (iss, sub).
     let response = server
@@ -349,7 +355,7 @@ async fn real_platform_metadata_cannot_be_promoted_to_organization_by_a_claim() 
     assert!(response.maybe_header("x-principal-org").is_none());
     let invalid = signed_variant(&token, |claims| {
         claims["iss"] = format!("https://issuer.example/org/{organization}").into();
-        claims["org"] = organization.to_string().into()
+        claims["org"] = organization.to_string().into();
     });
     let rejected = server
         .post("/")

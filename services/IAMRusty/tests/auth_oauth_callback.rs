@@ -24,7 +24,7 @@ use uuid::Uuid;
 #[serial]
 async fn test_oauth_callback_gitlab_successful_flow_creates_jwt_for_new_user() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -86,10 +86,10 @@ async fn test_oauth_callback_gitlab_successful_flow_creates_jwt_for_new_user() {
 #[tokio::test]
 #[serial]
 async fn test_oauth_callback_replay_same_state_returns_400_invalid_state() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
-    fixture_cleanup::run(&_fixture, async {
+    fixture_cleanup::run(&fixture, async {
         let idp = IdpConnectFixtures::service().await;
         idp.mock_gitlab_happy_alice().await;
 
@@ -135,7 +135,7 @@ async fn test_oauth_callback_replay_same_state_returns_400_invalid_state() {
 #[serial]
 async fn test_oauth_callback_links_external_account_with_valid_link_state() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -245,7 +245,7 @@ async fn test_oauth_callback_links_external_account_with_valid_link_state() {
 #[serial]
 async fn test_oauth_callback_associates_new_provider_for_same_user() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -366,7 +366,7 @@ async fn test_oauth_callback_associates_new_provider_for_same_user() {
 #[serial]
 async fn test_oauth_callback_prevents_linking_provider_already_bound_to_another_user() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -489,7 +489,7 @@ async fn test_oauth_callback_prevents_linking_provider_already_bound_to_another_
 #[serial]
 async fn test_oauth_callback_fails_on_invalid_authorization_code() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -560,7 +560,7 @@ async fn test_oauth_callback_fails_on_invalid_authorization_code() {
 #[serial]
 async fn test_oauth_callback_fails_on_expired_authorization_code() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -631,10 +631,10 @@ async fn test_oauth_callback_fails_on_expired_authorization_code() {
 #[serial]
 async fn test_oauth_callback_returns_400_on_missing_state_parameter() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
-    fixture_cleanup::run(&_fixture, async {
+    fixture_cleanup::run(&fixture, async {
         // Make callback request without state parameter
         let response = client
             .get(format!("{base_url}/api/auth/github/callback"))
@@ -671,10 +671,10 @@ async fn test_oauth_callback_returns_400_on_missing_state_parameter() {
 #[serial]
 async fn test_oauth_callback_returns_400_on_missing_code_parameter() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
-    fixture_cleanup::run(&_fixture, async {
+    fixture_cleanup::run(&fixture, async {
         let idp = IdpConnectFixtures::service().await;
         let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
 
@@ -708,10 +708,10 @@ async fn test_oauth_callback_returns_400_on_missing_code_parameter() {
 #[serial]
 async fn test_oauth_callback_returns_400_on_invalid_state_format() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
-    fixture_cleanup::run(&_fixture, async {
+    fixture_cleanup::run(&fixture, async {
         // Create invalid state (not base64 encoded JSON)
         let invalid_state = OAuthTestUtils::create_invalid_state();
 
@@ -751,10 +751,10 @@ async fn test_oauth_callback_returns_400_on_invalid_state_format() {
 #[serial]
 async fn test_oauth_callback_returns_400_on_invalid_state_purpose() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
-    fixture_cleanup::run(&_fixture, async {
+    fixture_cleanup::run(&fixture, async {
         // Create state with invalid operation type
         let invalid_state_data = serde_json::json!({
             "operation": {
@@ -793,7 +793,7 @@ async fn test_oauth_callback_returns_400_on_invalid_state_purpose() {
 #[serial]
 async fn test_oauth_callback_returns_401_when_provider_refuses_user() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -865,7 +865,7 @@ async fn test_oauth_callback_returns_401_when_provider_refuses_user() {
 #[serial]
 async fn test_oauth_callback_returns_401_when_provider_rejects_user() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -937,10 +937,10 @@ async fn test_oauth_callback_returns_401_when_provider_rejects_user() {
 #[serial]
 async fn test_oauth_callback_unsupported_provider_returns_422() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
-    fixture_cleanup::run(&_fixture, async {
+    fixture_cleanup::run(&fixture, async {
         // Create valid state
         let idp = IdpConnectFixtures::service().await;
         let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
@@ -981,7 +981,7 @@ async fn test_oauth_callback_unsupported_provider_returns_422() {
 #[serial]
 async fn test_oauth_callback_case_insensitive_providers() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
@@ -1040,10 +1040,10 @@ async fn test_oauth_callback_case_insensitive_providers() {
 #[tokio::test]
 #[serial]
 async fn oauth_callback_connector_401_is_iam_error() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
-    fixture_cleanup::run(&_fixture, async {
+    fixture_cleanup::run(&fixture, async {
         let idp = IdpConnectFixtures::service().await;
         idp.mock_s2s_unauthorized("github", "/v1/token").await;
 
@@ -1065,10 +1065,10 @@ async fn oauth_callback_connector_401_is_iam_error() {
 #[tokio::test]
 #[serial]
 async fn test_oauth_callback_rejects_cross_provider_state() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
-    fixture_cleanup::run(&_fixture, async {
+    fixture_cleanup::run(&fixture, async {
         let idp = IdpConnectFixtures::service().await;
         let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
 

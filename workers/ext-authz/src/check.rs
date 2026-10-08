@@ -60,7 +60,6 @@ impl AuthzState {
 
 /// HTTP Check router. `POST /` and `POST /check`, plus any other path/method
 /// Envoy forwards (client path, including a doubled slash from `path_prefix: /`).
-#[must_use]
 pub fn check_router(state: Arc<AuthzState>) -> Router {
     Router::new()
         .route("/", post(check))
@@ -232,7 +231,7 @@ mod tests {
         let valid = serde_json::json!({"sub":Uuid::new_v4().to_string(), "iss":TEST_PLATFORM_ISSUER,
             "aud":TEST_JWT_AUDIENCE, "exp":now+3600, "iat":now, "jti":"fixture-id"});
         let key = jsonwebtoken::EncodingKey::from_rsa_pem(
-            rustycog::testing::http::jwt::TEST_RS256_PRIVATE_PEM.as_bytes(),
+            rustycog::testing::http::jwt::test_rs256_private_pem().as_bytes(),
         )
         .unwrap();
         let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
@@ -429,7 +428,6 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn rejects_wrong_audience() {
-        let user = Uuid::new_v4();
         #[derive(serde::Serialize)]
         struct Claims {
             sub: String,
@@ -439,6 +437,7 @@ mod tests {
             iat: usize,
             jti: String,
         }
+        let user = Uuid::new_v4();
         let claims = Claims {
             sub: user.to_string(),
             iss: TEST_PLATFORM_ISSUER.to_string(),
@@ -451,7 +450,7 @@ mod tests {
         header.typ = Some("aiforall-access+jwt".into());
         header.kid = Some(TEST_RS256_KID.to_string());
         let key = jsonwebtoken::EncodingKey::from_rsa_pem(
-            rustycog::testing::http::jwt::TEST_RS256_PRIVATE_PEM.as_bytes(),
+            rustycog::testing::http::jwt::test_rs256_private_pem().as_bytes(),
         )
         .expect("pem");
         let token = jsonwebtoken::encode(&header, &claims, &key).expect("encode");

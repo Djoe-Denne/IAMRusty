@@ -4,8 +4,9 @@ use axum::Router;
 
 // Hive
 use hive_application::{
-    ExternalLinkUseCaseImpl, HiveCommandRegistryFactory, InvitationUseCaseImpl, MemberUseCaseImpl,
-    OrganizationUseCaseImpl, RoleUseCaseImpl, SyncJobUseCaseImpl,
+    ExternalLinkUseCaseImpl, HiveCommandRegistryFactory, HiveCommandRegistryParams,
+    InvitationUseCaseImpl, MemberUseCaseImpl, OrganizationUseCaseImpl, RoleUseCaseImpl,
+    SyncJobUseCaseImpl,
 };
 use hive_configuration::AppConfig;
 use hive_domain::service::{
@@ -70,6 +71,8 @@ type DomainServices = (
     Arc<dyn hive_domain::service::ExternalProviderService>,
     Arc<dyn hive_domain::service::RoleService>,
     Arc<dyn hive_domain::service::SyncService>,
+    Arc<dyn hive_domain::port::service::IamOrganizationSignerClient>,
+    Arc<dyn hive_domain::OrganizationRepository>,
 );
 
 type RepositoryBundle = (
@@ -87,7 +90,7 @@ type RepositoryBundle = (
     Arc<dyn hive_domain::port::service::IamOrganizationSignerClient>,
 );
 
-/// IAM organization-signer port used by Hive (HTTP or InProcess).
+/// IAM organization-signer port used by Hive (HTTP or `InProcess`).
 pub type IamSignerClient = Arc<dyn hive_domain::port::service::IamOrganizationSignerClient>;
 
 /// Host-injected outbound adapters for Hive (ADR-0104). `Default` = HTTP clients.
@@ -150,14 +153,16 @@ impl Application {
 
         // Setup command registry
         let command_registry = HiveCommandRegistryFactory::create_hive_registry(
-            organization_usecase,
-            member_usecase,
-            invitation_usecase,
-            external_link_usecase,
-            sync_job_usecase,
-            role_usecase,
-            iam_signer_client,
-            organization_repo,
+            HiveCommandRegistryParams {
+                organization_usecase,
+                member_usecase,
+                invitation_usecase,
+                external_link_usecase,
+                sync_job_usecase,
+                role_usecase,
+                iam_signer_client,
+                organization_repo,
+            },
             &config.command,
         );
 
@@ -392,19 +397,7 @@ fn setup_domain(
     db: &DbConnectionPool,
     config: &AppConfig,
     iam_signer_client: Option<IamSignerClient>,
-) -> Result<
-    (
-        Arc<dyn hive_domain::service::OrganizationService>,
-        Arc<dyn hive_domain::service::MemberService>,
-        Arc<dyn hive_domain::service::InvitationService>,
-        Arc<dyn hive_domain::service::ExternalProviderService>,
-        Arc<dyn hive_domain::service::RoleService>,
-        Arc<dyn hive_domain::service::SyncService>,
-        Arc<dyn hive_domain::port::service::IamOrganizationSignerClient>,
-        Arc<dyn hive_domain::OrganizationRepository>,
-    ),
-    Error,
-> {
+) -> Result<DomainServices, Error> {
     let (
         organization_repo,
         member_repo,
@@ -479,7 +472,7 @@ fn setup_domain(
 
 /// Resolve IAM organization-signer client (ADR-0306).
 ///
-/// Without injection → HTTP adapter. With setter → injected capability (InProcess).
+/// Without injection → HTTP adapter. With setter → injected capability (`InProcess`).
 ///
 /// Returns `(client, used_injected)` so unit tests can prove the transport choice.
 pub(crate) fn resolve_iam_signer_client(
@@ -629,7 +622,7 @@ impl AppBuilder {
         self
     }
 
-    /// Inject an InProcess (or test) IAM organization-signer client (ADR-0306).
+    /// Inject an `InProcess` (or test) IAM organization-signer client (ADR-0306).
     ///
     /// Sugar over [`Self::with_outbound`]: writes `iam_organization_signer`.
     #[must_use]

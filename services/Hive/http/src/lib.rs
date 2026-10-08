@@ -24,89 +24,96 @@ pub const SERVICE_PREFIX: &str = "/hive";
 /// (`user_id`, `role_id`, `invitation_id`) is not used as the object id.
 /// `POST /api/invitations/{token}/accept` is authenticated but not org-scoped.
 pub fn create_router(state: AppState) -> Router {
-    RouteBuilder::new(state)
-        .health_check()
-        // Search remains public (Public orgs only). GET by id requires membership.
-        .get("/api/organizations/search", search_organizations)
-        .might_be_authenticated()
-        .get("/api/organizations/{organization_id}", get_organization)
-        .authenticated()
-        .with_permission_on(Permission::Read, "organization")
-        // Authenticated organization routes
-        .post("/api/organizations", create_organization)
-        .authenticated()
-        .put("/api/organizations/{organization_id}", update_organization)
-        .authenticated()
-        .with_permission_on(Permission::Admin, "organization")
-        .delete("/api/organizations/{organization_id}", delete_organization)
-        .authenticated()
-        .with_permission_on(Permission::Admin, "organization")
-        .get("/api/organizations", list_organizations)
-        .authenticated()
-        // Sync job routes
-        .post(
-            "/api/organizations/{organization_id}/sync-jobs",
-            start_sync_job,
-        )
-        .authenticated()
-        .with_permission_on(Permission::Write, "organization")
-        // Role routes
-        .get("/api/organizations/{organization_id}/roles", list_roles)
-        .authenticated()
-        .with_permission_on(Permission::Read, "organization")
-        .get(
-            "/api/organizations/{organization_id}/roles/{role_id}",
-            get_role,
-        )
-        .authenticated()
-        .with_permission_on_param(Permission::Read, "organization", "organization_id")
-        // Member routes (scoped to the organization in OpenFGA)
-        .post("/api/organizations/{organization_id}/members", add_member)
-        .authenticated()
-        .with_permission_on(Permission::Write, "organization")
-        .delete(
-            "/api/organizations/{organization_id}/members/{user_id}",
-            remove_member,
-        )
-        .authenticated()
-        .with_permission_on_param(Permission::Write, "organization", "organization_id")
-        .get("/api/organizations/{organization_id}/members", list_members)
-        .authenticated()
-        .with_permission_on(Permission::Read, "organization")
-        .get(
-            "/api/organizations/{organization_id}/members/{user_id}",
-            get_member,
-        )
-        .authenticated()
-        .with_permission_on_param(Permission::Read, "organization", "organization_id")
-        .patch(
-            "/api/organizations/{organization_id}/members/{user_id}",
-            update_member,
-        )
-        .authenticated()
-        .with_permission_on_param(Permission::Write, "organization", "organization_id")
-        // Invitation routes
-        .post(
-            "/api/organizations/{organization_id}/invitations",
-            create_invitation,
-        )
-        .authenticated()
-        .with_permission_on(Permission::Write, "organization")
-        .delete(
-            "/api/organizations/{organization_id}/invitations/{invitation_id}",
-            cancel_invitation,
-        )
-        .authenticated()
-        .with_permission_on_param(Permission::Write, "organization", "organization_id")
-        .post("/api/invitations/{token}/accept", accept_invitation)
-        .authenticated()
-        // External link routes (admin-only action on the parent organization)
-        .post(
-            "/api/organizations/{organization_id}/external-links",
-            create_external_link,
-        )
-        .authenticated()
-        .with_permission_on(Permission::Admin, "organization")
+    with_organization_signer_routes(
+        RouteBuilder::new(state)
+            .health_check()
+            // Search remains public (Public orgs only). GET by id requires membership.
+            .get("/api/organizations/search", search_organizations)
+            .might_be_authenticated()
+            .get("/api/organizations/{organization_id}", get_organization)
+            .authenticated()
+            .with_permission_on(Permission::Read, "organization")
+            // Authenticated organization routes
+            .post("/api/organizations", create_organization)
+            .authenticated()
+            .put("/api/organizations/{organization_id}", update_organization)
+            .authenticated()
+            .with_permission_on(Permission::Admin, "organization")
+            .delete("/api/organizations/{organization_id}", delete_organization)
+            .authenticated()
+            .with_permission_on(Permission::Admin, "organization")
+            .get("/api/organizations", list_organizations)
+            .authenticated()
+            // Sync job routes
+            .post(
+                "/api/organizations/{organization_id}/sync-jobs",
+                start_sync_job,
+            )
+            .authenticated()
+            .with_permission_on(Permission::Write, "organization")
+            // Role routes
+            .get("/api/organizations/{organization_id}/roles", list_roles)
+            .authenticated()
+            .with_permission_on(Permission::Read, "organization")
+            .get(
+                "/api/organizations/{organization_id}/roles/{role_id}",
+                get_role,
+            )
+            .authenticated()
+            .with_permission_on_param(Permission::Read, "organization", "organization_id")
+            // Member routes (scoped to the organization in OpenFGA)
+            .post("/api/organizations/{organization_id}/members", add_member)
+            .authenticated()
+            .with_permission_on(Permission::Write, "organization")
+            .delete(
+                "/api/organizations/{organization_id}/members/{user_id}",
+                remove_member,
+            )
+            .authenticated()
+            .with_permission_on_param(Permission::Write, "organization", "organization_id")
+            .get("/api/organizations/{organization_id}/members", list_members)
+            .authenticated()
+            .with_permission_on(Permission::Read, "organization")
+            .get(
+                "/api/organizations/{organization_id}/members/{user_id}",
+                get_member,
+            )
+            .authenticated()
+            .with_permission_on_param(Permission::Read, "organization", "organization_id")
+            .patch(
+                "/api/organizations/{organization_id}/members/{user_id}",
+                update_member,
+            )
+            .authenticated()
+            .with_permission_on_param(Permission::Write, "organization", "organization_id")
+            // Invitation routes
+            .post(
+                "/api/organizations/{organization_id}/invitations",
+                create_invitation,
+            )
+            .authenticated()
+            .with_permission_on(Permission::Write, "organization")
+            .delete(
+                "/api/organizations/{organization_id}/invitations/{invitation_id}",
+                cancel_invitation,
+            )
+            .authenticated()
+            .with_permission_on_param(Permission::Write, "organization", "organization_id")
+            .post("/api/invitations/{token}/accept", accept_invitation)
+            .authenticated()
+            // External link routes (admin-only action on the parent organization)
+            .post(
+                "/api/organizations/{organization_id}/external-links",
+                create_external_link,
+            )
+            .authenticated()
+            .with_permission_on(Permission::Admin, "organization"),
+    )
+    .into_router()
+}
+
+fn with_organization_signer_routes(builder: RouteBuilder) -> RouteBuilder {
+    builder
         // Organization signer (Hive → IAM ADR-0306)
         .post(
             "/api/organizations/{organization_id}/signer/configure",
@@ -132,7 +139,6 @@ pub fn create_router(state: AppState) -> Router {
         )
         .authenticated()
         .with_permission_on(Permission::Admin, "organization")
-        .into_router()
 }
 
 /// Create the Hive router under its bounded-context prefix.

@@ -6,18 +6,18 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        create_users_table(manager).await?;
-        create_user_emails_table(manager).await?;
-        create_provider_tokens_table(manager).await?;
-        create_refresh_tokens_table(manager).await?;
-        create_user_email_verification_table(manager).await?;
-        create_password_reset_tokens_table(manager).await?;
-        create_signing_keys_table(manager).await?;
-        create_signing_scope_epochs(manager).await?;
-        create_prepared_signing_publication(manager).await?;
-        create_identities_table(manager).await?;
-        create_auth_transactions(manager).await?;
-        rustycog::outbox::outbox_migration().up(manager).await?;
+        Box::pin(create_users_table(manager)).await?;
+        Box::pin(create_user_emails_table(manager)).await?;
+        Box::pin(create_provider_tokens_table(manager)).await?;
+        Box::pin(create_refresh_tokens_table(manager)).await?;
+        Box::pin(create_user_email_verification_table(manager)).await?;
+        Box::pin(create_password_reset_tokens_table(manager)).await?;
+        Box::pin(create_signing_keys_table(manager)).await?;
+        Box::pin(create_signing_scope_epochs(manager)).await?;
+        Box::pin(create_prepared_signing_publication(manager)).await?;
+        Box::pin(create_identities_table(manager)).await?;
+        Box::pin(create_auth_transactions(manager)).await?;
+        Box::pin(rustycog::outbox::outbox_migration().up(manager)).await?;
         Ok(())
     }
 
@@ -73,7 +73,7 @@ impl MigrationTrait for Migration {
 /// No migration of an already-migrated DB, PEM backfill, or data reset occurs.
 async fn create_prepared_signing_publication(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     let db = manager.get_connection();
-    db.execute_unprepared(r#"
+    db.execute_unprepared(r"
         CREATE TABLE signing_public_entries (
             signing_key_id uuid PRIMARY KEY REFERENCES signing_keys(id),
             public_n varchar(1366) NOT NULL,
@@ -81,9 +81,9 @@ async fn create_prepared_signing_publication(manager: &SchemaManager<'_>) -> Res
             binding_fingerprint bytea NOT NULL CHECK (octet_length(binding_fingerprint)=32),
             longest_entry_bytes integer NOT NULL CHECK (longest_entry_bytes>0 AND longest_entry_bytes<=4096)
         )
-    "#).await?;
+    ").await?;
     db.execute_unprepared(
-        r#"
+        r"
         CREATE TABLE signing_jwks_publication (
             singleton smallint PRIMARY KEY CHECK (singleton=1),
             revision bigint NOT NULL CHECK (revision>=0),
@@ -94,7 +94,7 @@ async fn create_prepared_signing_publication(manager: &SchemaManager<'_>) -> Res
             access_token_ttl bigint NOT NULL CHECK (access_token_ttl>=0),
             retire_skew bigint NOT NULL CHECK (retire_skew=60)
         )
-    "#,
+    ",
     )
     .await?;
     // TTL0 is deliberately unmaterialized policy, never an inferred runtime TTL.
@@ -103,15 +103,15 @@ async fn create_prepared_signing_publication(manager: &SchemaManager<'_>) -> Res
         INSERT INTO signing_jwks_publication(singleton,revision,payload,as_of,next_expiration,access_token_ttl,retire_skew)
         VALUES (1,0,'{"keys":[]}',statement_timestamp(),NULL,0,60)
     "#).await?;
-    db.execute_unprepared(r#"
+    db.execute_unprepared(r"
         CREATE INDEX signing_keys_slot_publication ON signing_keys(status,trust_scope,organization_id,updated_at)
         WHERE status IN ('pending','active','retiring')
-    "#).await?;
+    ").await?;
     db.execute_unprepared(
-        r#"
+        r"
         CREATE INDEX signing_keys_slot_owner ON signing_keys(organization_id,status,updated_at)
         WHERE status IN ('pending','active','retiring')
-    "#,
+    ",
     )
     .await?;
     // Prepared records are immutable through the application. Independent SQL

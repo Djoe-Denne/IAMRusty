@@ -327,29 +327,36 @@ pub struct ProjectOwnershipTransferredEvent {
     pub new_owner_id: Option<Uuid>,
 }
 
+/// Arguments of [`ProjectOwnershipTransferredEvent::new`].
+#[derive(Debug, Clone)]
+pub struct ProjectOwnershipTransferredInput {
+    pub project_id: Uuid,
+    pub from_user_id: Uuid,
+    pub to_user_id: Uuid,
+    pub transferred_by: Uuid,
+    pub transferred_at: DateTime<Utc>,
+    pub owner_type: Option<String>,
+    pub previous_owner_id: Option<Uuid>,
+    pub new_owner_id: Option<Uuid>,
+}
+
 impl ProjectOwnershipTransferredEvent {
     #[must_use]
-    pub fn new(
-        project_id: Uuid,
-        from_user_id: Uuid,
-        to_user_id: Uuid,
-        transferred_by: Uuid,
-        transferred_at: DateTime<Utc>,
-        owner_type: Option<String>,
-        previous_owner_id: Option<Uuid>,
-        new_owner_id: Option<Uuid>,
-    ) -> Self {
+    pub fn new(input: ProjectOwnershipTransferredInput) -> Self {
         Self {
-            base: BaseEvent::new("project_ownership_transferred".to_string(), project_id)
-                .with_version(EVENT_SCHEMA_V2),
-            project_id,
-            from_user_id,
-            to_user_id,
-            transferred_by,
-            transferred_at,
-            owner_type,
-            previous_owner_id,
-            new_owner_id,
+            base: BaseEvent::new(
+                "project_ownership_transferred".to_string(),
+                input.project_id,
+            )
+            .with_version(EVENT_SCHEMA_V2),
+            project_id: input.project_id,
+            from_user_id: input.from_user_id,
+            to_user_id: input.to_user_id,
+            transferred_by: input.transferred_by,
+            transferred_at: input.transferred_at,
+            owner_type: input.owner_type,
+            previous_owner_id: input.previous_owner_id,
+            new_owner_id: input.new_owner_id,
         }
     }
 }

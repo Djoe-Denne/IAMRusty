@@ -64,7 +64,7 @@ fn store_failed() -> ApparatusError {
     }
 }
 
-fn map_put_cas_row(row: QueryResult) -> Result<i64, ApparatusError> {
+fn map_put_cas_row(row: &QueryResult) -> Result<i64, ApparatusError> {
     let outcome: String = row.try_get("", "outcome").map_err(|_| store_failed())?;
     match outcome.as_str() {
         "ok" => row.try_get("", "cas_version").map_err(|_| store_failed()),
@@ -189,7 +189,11 @@ impl AsyncKvStore for PostgresKvStore {
             });
         }
         let binding_id = binding_uuid(binding)?;
-        let quota = MAX_KV_ENTRIES_PER_BINDING as i64;
+        let quota = i64::try_from(MAX_KV_ENTRIES_PER_BINDING).map_err(|_| {
+            ApparatusError::InvalidOperation {
+                reason: "kv entry quota exceeds i64".to_owned(),
+            }
+        })?;
         if let Some(expected) = expected_cas {
             let row = self
                 .db
@@ -209,7 +213,7 @@ impl AsyncKvStore for PostgresKvStore {
             let Some(row) = row else {
                 return Err(cas_mismatch());
             };
-            return map_put_cas_row(row);
+            return map_put_cas_row(&row);
         }
         let row = self
             .db
@@ -265,7 +269,7 @@ impl AsyncKvStore for PostgresKvStore {
 
 impl KvStore for PostgresKvStore {
     fn kv_get(&self, binding: &BindingId, key: &str) -> Result<Option<Vec<u8>>, ApparatusError> {
-        run_sync(AsyncKvStore::get(self, binding, key))
+        run_sync(AsyncKvStore::get(self, binding, key))?
     }
 
     fn kv_put(
@@ -275,11 +279,11 @@ impl KvStore for PostgresKvStore {
         value: &[u8],
         expected_cas: Option<i64>,
     ) -> Result<i64, ApparatusError> {
-        run_sync(AsyncKvStore::put(self, binding, key, value, expected_cas))
+        run_sync(AsyncKvStore::put(self, binding, key, value, expected_cas))?
     }
 
     fn kv_delete(&self, binding: &BindingId, key: &str) -> Result<bool, ApparatusError> {
-        run_sync(AsyncKvStore::delete(self, binding, key))
+        run_sync(AsyncKvStore::delete(self, binding, key))?
     }
 
     fn kv_purge(&self, binding: &BindingId) {
@@ -287,14 +291,16 @@ impl KvStore for PostgresKvStore {
     }
 }
 
-fn run_sync<T>(fut: impl std::future::Future<Output = T>) -> T {
+fn run_sync<T>(fut: impl std::future::Future<Output = T>) -> Result<T, ApparatusError> {
     match tokio::runtime::Handle::try_current() {
-        Ok(handle) => tokio::task::block_in_place(|| handle.block_on(fut)),
-        Err(_) => tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("kv runtime")
-            .block_on(fut),
+        Ok(handle) => Ok(tokio::task::block_in_place(|| handle.block_on(fut))),
+        Err(_) => {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|_| store_failed())?;
+            Ok(runtime.block_on(fut))
+        }
     }
 }
 

@@ -58,26 +58,30 @@ fn workspace_root() -> std::path::PathBuf {
         .expect("workspace lisible")
 }
 
-async fn seed_binding_consent_revisions(
-    db: &sea_orm::DatabaseConnection,
+struct BindingConsentRevisionSeed<'a> {
     component_id: Uuid,
-    digest: &str,
+    digest: &'a str,
     desired_generation: i64,
     binding_revision: i64,
-    capability: &str,
-    consent_status: &str,
+    capability: &'a str,
+    consent_status: &'a str,
     consent_revision: i64,
+}
+
+async fn seed_binding_consent_revisions(
+    db: &sea_orm::DatabaseConnection,
+    seed: BindingConsentRevisionSeed<'_>,
 ) {
     db.execute(Statement::from_sql_and_values(
         DatabaseBackend::Postgres,
         "INSERT INTO apparatus_bindings (component_id, source, digest, desired_generation, grant_revision, declared_capabilities) \
          VALUES ($1, 'managed', $2, $3, $4, jsonb_build_array($5))",
         [
-            component_id.into(),
-            digest.into(),
-            desired_generation.into(),
-            binding_revision.into(),
-            capability.into(),
+            seed.component_id.into(),
+            seed.digest.into(),
+            seed.desired_generation.into(),
+            seed.binding_revision.into(),
+            seed.capability.into(),
         ],
     ))
     .await
@@ -87,10 +91,10 @@ async fn seed_binding_consent_revisions(
         "INSERT INTO apparatus_capability_consents (component_id, capability, status, grant_revision) \
          VALUES ($1, $2, $3, $4)",
         [
-            component_id.into(),
-            capability.into(),
-            consent_status.into(),
-            consent_revision.into(),
+            seed.component_id.into(),
+            seed.capability.into(),
+            seed.consent_status.into(),
+            seed.consent_revision.into(),
         ],
     ))
     .await
@@ -103,12 +107,10 @@ fn snapshot_url(
     component_id: Uuid,
     principal: Option<Uuid>,
 ) -> String {
-    match principal {
-        Some(user) => {
-            format!("{base}/api/projects/{project_id}/bindings/{component_id}?principal={user}")
-        }
-        None => format!("{base}/api/projects/{project_id}/bindings/{component_id}"),
-    }
+    principal.map_or_else(
+        || format!("{base}/api/projects/{project_id}/bindings/{component_id}"),
+        |user| format!("{base}/api/projects/{project_id}/bindings/{component_id}?principal={user}"),
+    )
 }
 
 fn method_body(src: &str, name: &str) -> String {
@@ -153,13 +155,15 @@ async fn t4_snapshot_returns_consented_cap_from_db() {
 
     seed_binding_consent_revisions(
         &db,
-        component.id(),
-        "release-1",
-        1,
-        0,
-        "project.read",
-        "consented",
-        0,
+        BindingConsentRevisionSeed {
+            component_id: component.id(),
+            digest: "release-1",
+            desired_generation: 1,
+            binding_revision: 0,
+            capability: "project.read",
+            consent_status: "consented",
+            consent_revision: 0,
+        },
     )
     .await;
 
@@ -211,13 +215,15 @@ async fn t4_snapshot_requires_jwt() {
             .expect("composant");
     seed_binding_consent_revisions(
         &db,
-        component.id(),
-        "release-1",
-        1,
-        0,
-        "project.read",
-        "consented",
-        0,
+        BindingConsentRevisionSeed {
+            component_id: component.id(),
+            digest: "release-1",
+            desired_generation: 1,
+            binding_revision: 0,
+            capability: "project.read",
+            consent_status: "consented",
+            consent_revision: 0,
+        },
     )
     .await;
 
@@ -247,13 +253,15 @@ async fn t4_snapshot_rejects_iam_jwt() {
             .expect("composant");
     seed_binding_consent_revisions(
         &db,
-        component.id(),
-        "release-1",
-        1,
-        0,
-        "project.read",
-        "consented",
-        0,
+        BindingConsentRevisionSeed {
+            component_id: component.id(),
+            digest: "release-1",
+            desired_generation: 1,
+            binding_revision: 0,
+            capability: "project.read",
+            consent_status: "consented",
+            consent_revision: 0,
+        },
     )
     .await;
 
@@ -285,13 +293,15 @@ async fn t4_revoked_consent_is_visible() {
             .expect("composant");
     seed_binding_consent_revisions(
         &db,
-        component.id(),
-        "release-1",
-        1,
-        0,
-        "project.read",
-        "revoked",
-        0,
+        BindingConsentRevisionSeed {
+            component_id: component.id(),
+            digest: "release-1",
+            desired_generation: 1,
+            binding_revision: 0,
+            capability: "project.read",
+            consent_status: "revoked",
+            consent_revision: 0,
+        },
     )
     .await;
 
@@ -321,13 +331,15 @@ async fn t4_mismatched_consent_revision_is_visible() {
             .expect("composant");
     seed_binding_consent_revisions(
         &db,
-        component.id(),
-        "release-1",
-        1,
-        0,
-        "project.read",
-        "consented",
-        9,
+        BindingConsentRevisionSeed {
+            component_id: component.id(),
+            digest: "release-1",
+            desired_generation: 1,
+            binding_revision: 0,
+            capability: "project.read",
+            consent_status: "consented",
+            consent_revision: 9,
+        },
     )
     .await;
 

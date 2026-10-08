@@ -1,3 +1,13 @@
+# Correction datée — 2026-10-08 (autorité courante)
+
+- Implémentation du paquet signing **LIVRÉE** après la rédaction des ADR ; preuves vérifiées par le contrôleur au HEAD e8fcaea. L’assertion « Implémentation NON commencée » et les descriptions de keygen RSA local/absence de key_version ci-dessous sont **obsolètes**, conservées comme historique du 2026-10-06.
+- Djoé Denne a explicitement ratifié **ADR-0311 et ADR-0312 Accepted / Implemented** le 2026-10-08. Canons : docs/adr/0311-crypto-privee-deleguee-aux-providers.md et docs/adr/0312-admission-jwks-par-slots-bornes.md ; voir ces fichiers, pas le point de pause ancien pour l’état courant.
+- Rotation provider, versions épinglées, PEM uniquement dev/test explicite, plateforme Transit sans fallback et admission JWKS par slots prouvés sont livrés. Supersession ciblée du calcul/capacité de 0310 par 0312 effective ; 0310 reste Accepted / Partial sur le reste.
+- Suites IAM **unitaires + IT vertes sur master**, exécutées et confirmées par l’utilisateur le 2026-10-08 : attestation utilisateur, **pas artefact CI archivé**. Le vert n’inclut **pas l’E2E exact-route/Envoy** ; 0412 reste Accepted / Partial. Aucun PASS sécurité global/S-10 implicite.
+- La consigne de pause ci-dessous et le prompt docs/local/20261007-signing-implementation-prompt.md décrivent un point de reprise historique, pas une implémentation encore à commencer. Ce correctif de mémoire n’affirme aucune nouvelle validation RustSec.
+
+---
+
 # Point de reprise IMPORTANT — clés IAM / entreprise / RustSec
 
 ## Consigne utilisateur

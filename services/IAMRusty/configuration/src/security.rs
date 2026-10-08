@@ -15,6 +15,7 @@ pub enum SecurityMode {
 
 impl SecurityMode {
     /// Only these explicitly selected non-production modes allow private PEM.
+    #[must_use]
     pub const fn allows_local_pem(self) -> bool {
         matches!(self, Self::LocalInsecure | Self::IsolatedTest)
     }
@@ -160,7 +161,7 @@ impl SecurityConfig {
             .any(|marker| lower.contains(marker));
             let distinct = key.bytes().collect::<std::collections::HashSet<_>>().len();
             let repeated = (1..=key.len() / 2).any(|period| {
-                key.len() % period == 0
+                key.len().is_multiple_of(period)
                     && key
                         .as_bytes()
                         .chunks(period)

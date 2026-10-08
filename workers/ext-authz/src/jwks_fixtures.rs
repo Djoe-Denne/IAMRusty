@@ -9,17 +9,14 @@ use wiremock::{
 
 pub struct JwksFixtures {
     server: Arc<MockServer>,
-    _fixture: MockServerFixture,
+    fixture: MockServerFixture,
 }
 
 impl JwksFixtures {
     pub async fn service() -> Self {
         let fixture = MockServerFixture::new().await;
         let server = fixture.server();
-        Self {
-            server,
-            _fixture: fixture,
-        }
+        Self { server, fixture }
     }
 
     pub fn base_url(&self) -> String {
@@ -31,7 +28,7 @@ impl JwksFixtures {
     }
 
     pub async fn reset(&self) {
-        self._fixture.reset().await;
+        self.fixture.reset().await;
     }
 
     pub async fn mock_jwks_ok(&self, body: &str) -> &Self {
@@ -42,7 +39,7 @@ impl JwksFixtures {
                     .insert_header("content-type", "application/json")
                     .set_body_string(body.to_string()),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }

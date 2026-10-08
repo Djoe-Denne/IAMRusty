@@ -1,4 +1,4 @@
-//! Wiremock remote Sign / GetPublicKey mocks (ADR-0309).
+//! `wiremock` remote `Sign` / `GetPublicKey` mocks (ADR-0309).
 
 use rustycog::testing::wiremock::MockServerFixture;
 use std::sync::Arc;
@@ -11,17 +11,14 @@ use super::resources::*;
 
 pub struct RemoteSignerMockService {
     server: Arc<MockServer>,
-    _fixture: MockServerFixture,
+    fixture: MockServerFixture,
 }
 
 impl RemoteSignerMockService {
     pub async fn new() -> Self {
         let fixture = MockServerFixture::new().await;
         let server = fixture.server();
-        Self {
-            server,
-            _fixture: fixture,
-        }
+        Self { server, fixture }
     }
 
     pub fn base_url(&self) -> String {
@@ -29,7 +26,7 @@ impl RemoteSignerMockService {
     }
 
     pub async fn reset(&self) {
-        self._fixture.reset().await;
+        self.fixture.reset().await;
     }
 
     pub async fn received_requests(&self) -> Vec<wiremock::Request> {
@@ -42,7 +39,7 @@ impl RemoteSignerMockService {
             .respond_with(ResponseTemplate::new(200).set_body_json(SignResponseBody {
                 signature: signature_b64.to_string(),
             }))
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }
@@ -60,7 +57,7 @@ impl RemoteSignerMockService {
                     public_key: public_key_pem.to_string(),
                 }),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }

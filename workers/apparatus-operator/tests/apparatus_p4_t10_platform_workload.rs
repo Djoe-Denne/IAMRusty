@@ -410,8 +410,7 @@ async fn t10_kubelet_pulls_pinned_cri_from_zot() {
     cluster
         .ensure_zot_http_mirror(stack.zot.port)
         .unwrap_or_else(|err| panic!("{err}"));
-    cluster
-        .assert_registry_cri_absent(&cri_image)
+    fixtures::kind::KindCluster::assert_registry_cri_absent(&cri_image)
         .unwrap_or_else(|err| panic!("{err}"));
     let mut target = admit_target(&stack);
     target.tag = "t10-zot".to_owned();

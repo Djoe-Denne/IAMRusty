@@ -131,7 +131,7 @@ pub fn plugin_dns_endpoint(release: &str) -> Option<String> {
 fn plugin_dns_endpoint_in_namespace(release: &str, namespace: &str) -> Option<String> {
     let hex = release
         .strip_prefix("sha256:")
-        .unwrap_or(release.trim())
+        .unwrap_or_else(|| release.trim())
         .trim();
     if hex.len() < 32 {
         return None;
@@ -444,10 +444,8 @@ fn map_kv_put_error(error: apparatus_contracts::ApparatusError) -> InvokeError {
         {
             InvokeError::Failed
         }
-        apparatus_contracts::ApparatusError::InvalidOperation { reason } => {
-            InvokeError::BadRequest(reason)
-        }
-        apparatus_contracts::ApparatusError::InvalidId { reason } => {
+        apparatus_contracts::ApparatusError::InvalidOperation { reason }
+        | apparatus_contracts::ApparatusError::InvalidId { reason } => {
             InvokeError::BadRequest(reason)
         }
         _ => InvokeError::Failed,
@@ -456,8 +454,8 @@ fn map_kv_put_error(error: apparatus_contracts::ApparatusError) -> InvokeError {
 
 fn stable_kv_reason(error: &apparatus_contracts::ApparatusError) -> String {
     match error {
-        apparatus_contracts::ApparatusError::InvalidOperation { reason } => reason.clone(),
-        apparatus_contracts::ApparatusError::InvalidId { reason } => reason.clone(),
+        apparatus_contracts::ApparatusError::InvalidOperation { reason }
+        | apparatus_contracts::ApparatusError::InvalidId { reason } => reason.clone(),
         other => other.to_string(),
     }
 }

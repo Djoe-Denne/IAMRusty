@@ -16,7 +16,7 @@ use serial_test::serial;
 #[tokio::test]
 #[serial]
 async fn test_username_check_available_returns_true() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -42,7 +42,7 @@ async fn test_username_check_available_returns_true() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_taken_returns_false_with_suggestions() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -94,7 +94,7 @@ async fn test_username_check_taken_returns_false_with_suggestions() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_case_sensitivity() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -146,7 +146,7 @@ async fn test_username_check_case_sensitivity() {
 #[tokio::test]
 #[serial]
 async fn test_username_minimum_length_validation() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -185,7 +185,7 @@ async fn test_username_minimum_length_validation() {
 #[tokio::test]
 #[serial]
 async fn test_username_maximum_length_validation() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -222,7 +222,7 @@ async fn test_username_maximum_length_validation() {
 #[tokio::test]
 #[serial]
 async fn test_username_character_pattern_validation() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -298,7 +298,7 @@ async fn test_username_character_pattern_validation() {
 #[tokio::test]
 #[serial]
 async fn test_username_unicode_and_special_characters() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -357,7 +357,7 @@ async fn test_username_unicode_and_special_characters() {
 #[tokio::test]
 #[serial]
 async fn test_username_suggestions_reasonable_alternatives() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -437,7 +437,7 @@ async fn test_username_suggestions_reasonable_alternatives() {
 #[tokio::test]
 #[serial]
 async fn test_username_suggestions_different_strategies() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -489,7 +489,7 @@ async fn test_username_suggestions_different_strategies() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_missing_parameter() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -510,7 +510,7 @@ async fn test_username_check_missing_parameter() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_empty_parameter() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -531,7 +531,7 @@ async fn test_username_check_empty_parameter() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_multiple_parameters() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -554,7 +554,7 @@ async fn test_username_check_multiple_parameters() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_whitespace_handling() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -590,7 +590,7 @@ async fn test_username_check_whitespace_handling() {
 #[tokio::test]
 #[serial]
 async fn test_username_uniqueness_across_database() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -640,7 +640,7 @@ async fn test_username_uniqueness_across_database() {
 #[tokio::test]
 #[serial]
 async fn test_username_check_performance_with_many_users() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();

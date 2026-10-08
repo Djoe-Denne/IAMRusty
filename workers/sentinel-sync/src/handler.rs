@@ -51,6 +51,65 @@ impl SyncEventHandler {
         }
         None
     }
+
+    async fn complete_event(&self, event_id: Uuid) -> Result<(), ServiceError> {
+        self.ledger
+            .complete(event_id)
+            .await
+            .map_err(|error| ServiceError::internal(format!("ledger.complete failed: {error}")))
+    }
+
+    async fn complete_with_lifecycle(
+        &self,
+        event_id: Uuid,
+        visibility_order: Option<&LifecycleOrder>,
+    ) -> Result<(), ServiceError> {
+        if let Some(order) = visibility_order {
+            self.ledger
+                .complete_visibility_change(order.project_id, order.revision)
+                .await
+                .map_err(|error| {
+                    ServiceError::internal(format!("lifecycle revision completion failed: {error}"))
+                })?;
+        }
+        self.complete_event(event_id).await
+    }
+
+    async fn fail_delivery(&self, event_id: Uuid, error_message: &str) {
+        if let Err(ledger_error) = self.ledger.fail(event_id, error_message).await {
+            warn!(event_id = %event_id, error = %ledger_error, "failed to mark event delivery as failed");
+        }
+    }
+
+    async fn gate_lifecycle(
+        &self,
+        event_id: Uuid,
+        visibility_order: Option<&LifecycleOrder>,
+    ) -> Result<bool, ServiceError> {
+        let Some(order) = visibility_order else {
+            return Ok(true);
+        };
+        let is_next = self
+            .ledger
+            .begin_visibility_change(order.project_id, order.revision)
+            .await
+            .map_err(|error| {
+                ServiceError::infrastructure(format!(
+                    "lifecycle revision is not ready for processing: {error}"
+                ))
+            })?;
+        if is_next {
+            return Ok(true);
+        }
+        debug!(
+            event_id = %event_id,
+            project_id = %order.project_id,
+            revision = order.revision,
+            "obsolete lifecycle event, skipping"
+        );
+        self.complete_event(event_id).await?;
+        Ok(false)
+    }
 }
 
 /// Rebuild `{ event_type, data }` when the transport delivered a flat payload.
@@ -134,43 +193,21 @@ impl EventHandler for SyncEventHandler {
         })?;
         let raw = canonical_event_envelope(&event_type, raw);
         let visibility_order = lifecycle_order(&raw)?;
-        if let Some(order) = &visibility_order {
-            let is_next = self
-                .ledger
-                .begin_visibility_change(order.project_id, order.revision)
-                .await
-                .map_err(|error| {
-                    ServiceError::infrastructure(format!(
-                        "lifecycle revision is not ready for processing: {error}"
-                    ))
-                })?;
-            if !is_next {
-                debug!(
-                    event_id = %event_id,
-                    project_id = %order.project_id,
-                    revision = order.revision,
-                    "obsolete lifecycle event, skipping"
-                );
-                self.ledger.complete(event_id).await.map_err(|error| {
-                    ServiceError::internal(format!("ledger.complete failed: {error}"))
-                })?;
-                return Ok(());
-            }
+        if !self
+            .gate_lifecycle(event_id, visibility_order.as_ref())
+            .await?
+        {
+            return Ok(());
         }
 
         let Some((delta, translator_name)) = self.translate(&raw) else {
             if is_manifesto_event_type(&event_type) {
                 let error_message = format!("manifesto event {event_type} could not be decoded");
-                if let Err(ledger_error) = self.ledger.fail(event_id, &error_message).await {
-                    warn!(event_id = %event_id, error = %ledger_error, "failed to mark event delivery as failed");
-                }
+                self.fail_delivery(event_id, &error_message).await;
                 return Err(ServiceError::internal(error_message));
             }
             debug!(event_id = %event_id, event_type = %event_type, "no translator claimed event");
-            self.ledger
-                .complete(event_id)
-                .await
-                .map_err(|e| ServiceError::internal(format!("ledger.complete failed: {e}")))?;
+            self.complete_event(event_id).await?;
             return Ok(());
         };
 
@@ -181,19 +218,8 @@ impl EventHandler for SyncEventHandler {
                 translator = translator_name,
                 "translator produced empty delta"
             );
-            if let Some(order) = &visibility_order {
-                self.ledger
-                    .complete_visibility_change(order.project_id, order.revision)
-                    .await
-                    .map_err(|error| {
-                        ServiceError::internal(format!(
-                            "lifecycle revision completion failed: {error}"
-                        ))
-                    })?;
-            }
-            self.ledger.complete(event_id).await.map_err(|error| {
-                ServiceError::internal(format!("ledger.complete failed: {error}"))
-            })?;
+            self.complete_with_lifecycle(event_id, visibility_order.as_ref())
+                .await?;
             return Ok(());
         }
 
@@ -203,25 +229,12 @@ impl EventHandler for SyncEventHandler {
             .await
         {
             let error_message = format!("OpenFGA write failed: {error}");
-            if let Err(ledger_error) = self.ledger.fail(event_id, &error_message).await {
-                warn!(event_id = %event_id, error = %ledger_error, "failed to mark event delivery as failed");
-            }
+            self.fail_delivery(event_id, &error_message).await;
             return Err(ServiceError::infrastructure(&error_message));
         }
 
-        if let Some(order) = &visibility_order {
-            self.ledger
-                .complete_visibility_change(order.project_id, order.revision)
-                .await
-                .map_err(|error| {
-                    ServiceError::internal(format!("lifecycle revision completion failed: {error}"))
-                })?;
-        }
-
-        self.ledger
-            .complete(event_id)
-            .await
-            .map_err(|e| ServiceError::internal(format!("ledger.complete failed: {e}")))?;
+        self.complete_with_lifecycle(event_id, visibility_order.as_ref())
+            .await?;
 
         info!(
             event_id = %event_id,

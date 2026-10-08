@@ -22,7 +22,7 @@ use utils::jwt::{
 #[serial]
 async fn test_revoke_provider_token_github_success() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -130,7 +130,7 @@ async fn test_revoke_provider_token_github_success() {
 #[serial]
 async fn test_revoke_provider_token_gitlab_success() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -196,7 +196,7 @@ async fn test_revoke_provider_token_gitlab_success() {
 #[serial]
 async fn test_revoke_provider_token_returns_401_when_no_authorization_header() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -219,7 +219,7 @@ async fn test_revoke_provider_token_returns_401_when_no_authorization_header() {
 #[serial]
 async fn test_revoke_provider_token_returns_401_when_token_is_expired() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -253,7 +253,7 @@ async fn test_revoke_provider_token_returns_401_when_token_is_expired() {
 #[serial]
 async fn test_revoke_provider_token_returns_401_when_token_has_invalid_signature() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -287,7 +287,7 @@ async fn test_revoke_provider_token_returns_401_when_token_has_invalid_signature
 #[serial]
 async fn test_revoke_provider_token_returns_422_when_provider_is_unsupported() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -334,7 +334,7 @@ async fn test_revoke_provider_token_returns_422_when_provider_is_unsupported() {
 #[serial]
 async fn test_revoke_provider_token_returns_404_when_no_token_for_provider() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -389,7 +389,7 @@ async fn test_revoke_provider_token_returns_404_when_no_token_for_provider() {
 #[serial]
 async fn test_revoke_provider_token_returns_401_when_user_not_found() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -434,7 +434,7 @@ async fn test_revoke_provider_token_returns_401_when_user_not_found() {
 #[serial]
 async fn test_revoke_provider_token_idempotent_on_already_revoked() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -511,7 +511,7 @@ async fn test_revoke_provider_token_idempotent_on_already_revoked() {
 #[serial]
 async fn test_revoke_provider_token_different_users_different_tokens() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();

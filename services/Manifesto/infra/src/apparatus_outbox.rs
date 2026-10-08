@@ -67,8 +67,7 @@ pub(crate) async fn insert_managed_binding<C>(
 where
     C: ConnectionTrait,
 {
-    let declared_json = serde_json::to_string(&declared_capabilities)
-        .expect("declared_capabilities is a Vec<String>");
+    let declared_json = serde_json::Value::from(declared_capabilities).to_string();
     db.execute(Statement::from_sql_and_values(
         DbBackend::Postgres,
         INSERT_MANAGED_BINDING,

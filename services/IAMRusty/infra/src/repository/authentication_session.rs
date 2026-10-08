@@ -18,7 +18,8 @@ pub struct SeaOrmAuthenticationSessionWriter {
 }
 
 impl SeaOrmAuthenticationSessionWriter {
-    pub fn new(writer: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(writer: Arc<DatabaseConnection>) -> Self {
         Self { writer }
     }
 }

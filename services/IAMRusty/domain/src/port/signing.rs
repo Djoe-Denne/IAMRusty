@@ -1,4 +1,4 @@
-//! SigningProvider, WorkloadIdentity, and OrganizationSignerProbe ports (ADR-0304 / 0306 / 0307).
+//! `SigningProvider`, `WorkloadIdentity`, and `OrganizationSignerProbe` ports (ADR-0304 / 0306 / 0307).
 
 use async_trait::async_trait;
 use uuid::Uuid;
@@ -17,8 +17,8 @@ pub struct SigningCapabilities {
 
 /// Port used by IAM to request cryptographic signatures for access JWTs.
 ///
-/// KMS is only on the login/refresh path. Adapters must never export private keys
-/// (OpenBao Transit Sign, PEM local, …). Cloud BYOKMS adapters are unsupported here.
+/// `KMS` is only on the login/refresh path. Adapters must never export private keys
+/// (`OpenBao` Transit `Sign`, `PEM` local, …). Cloud `BYOKMS` adapters are unsupported here.
 #[async_trait]
 pub trait SigningProvider: Send + Sync {
     /// Sign a pre-hashed digest (typically SHA-256 of the JWS signing input).
@@ -77,11 +77,11 @@ impl std::fmt::Debug for WorkloadCredential {
 /// Port for obtaining s2s / KMS credentials without baking SA key JSON into Hive DB.
 ///
 /// Preference order (ADR-0304 §19 / ADR-0307): OIDC WIF, then X509/mTLS, then
-/// [`crate::port::signing`] static secrets (OpenBao / config). SPIFFE/SPIRE is
+/// [`crate::port::signing`] static secrets (`OpenBao` / config). `SPIFFE`/`SPIRE` is
 /// not a required adapter.
 #[async_trait]
 pub trait WorkloadIdentity: Send + Sync {
-    /// Resolve a named credential reference (config key, OpenBao path, …).
+    /// Resolve a named credential reference (config key, `OpenBao` path, …).
     ///
     /// # Errors
     ///
@@ -95,6 +95,10 @@ pub trait WorkloadIdentity: Send + Sync {
 #[async_trait]
 pub trait OrganizationSignerProbe: Send + Sync {
     /// Non-I/O configuration guard applies even to an identical configure/no-op.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] when configuration is invalid. The default implementation succeeds.
     fn validate_configuration(&self, _key: &SigningKey) -> Result<(), DomainError> {
         Ok(())
     }

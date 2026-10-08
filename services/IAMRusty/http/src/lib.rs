@@ -59,7 +59,7 @@ pub fn create_router(
     state: AppState,
     idp: Arc<IdpConfig>,
     signer: Option<Arc<SignerRouteContext>>,
-    security: Arc<IamHttpSecurityContext>,
+    security: &IamHttpSecurityContext,
 ) -> Router {
     let builder = RouteBuilder::new(state)
         .health_check()
@@ -154,7 +154,7 @@ pub fn create_prefixed_router(
 ) -> Router {
     Router::new().nest(
         SERVICE_PREFIX,
-        attach_ready(create_router(state, idp, signer, security), probe),
+        attach_ready(create_router(state, idp, signer, &security), probe),
     )
 }
 

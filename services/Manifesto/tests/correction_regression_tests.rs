@@ -1126,9 +1126,9 @@ async fn generic_component_grant_lists_all_instances() {
 #[serial]
 async fn postgres_ledger_survives_restart_and_keeps_monotonic_order() {
     let fixture = {
-        let (_fixture, _base_url, _client, _openfga, _components) =
+        let (fixture, _base_url, _client, _openfga, _components) =
             setup_test_server().await.expect("setup");
-        _fixture
+        fixture
     };
     let database_url = fixture
         .database
@@ -1166,6 +1166,35 @@ async fn postgres_ledger_survives_restart_and_keeps_monotonic_order() {
 #[tokio::test]
 #[serial]
 async fn sentinel_applies_v2_grant_from_flat_payload() {
+    #[derive(Debug)]
+    struct FlatEvent {
+        event_id: Uuid,
+        project_id: Uuid,
+        payload: Value,
+    }
+    impl DomainEvent for FlatEvent {
+        fn event_type(&self) -> &'static str {
+            "permission_granted"
+        }
+        fn event_id(&self) -> Uuid {
+            self.event_id
+        }
+        fn aggregate_id(&self) -> Uuid {
+            self.project_id
+        }
+        fn occurred_at(&self) -> chrono::DateTime<Utc> {
+            Utc::now()
+        }
+        fn version(&self) -> u32 {
+            2
+        }
+        fn to_json(&self) -> Result<String, rustycog::core::error::ServiceError> {
+            Ok(self.payload.to_string())
+        }
+        fn metadata(&self) -> std::collections::HashMap<String, String> {
+            std::collections::HashMap::new()
+        }
+    }
     let (_fixture, _base_url, _client, openfga, _components) =
         setup_test_server().await.expect("setup");
     let project_id = Uuid::new_v4();
@@ -1191,35 +1220,6 @@ async fn sentinel_applies_v2_grant_from_flat_payload() {
         object.insert("event_id".into(), json!(event_id));
         object.insert("event_type".into(), json!("permission_granted"));
         object.insert("aggregate_id".into(), json!(project_id));
-    }
-    #[derive(Debug)]
-    struct FlatEvent {
-        event_id: Uuid,
-        project_id: Uuid,
-        payload: Value,
-    }
-    impl DomainEvent for FlatEvent {
-        fn event_type(&self) -> &str {
-            "permission_granted"
-        }
-        fn event_id(&self) -> Uuid {
-            self.event_id
-        }
-        fn aggregate_id(&self) -> Uuid {
-            self.project_id
-        }
-        fn occurred_at(&self) -> chrono::DateTime<Utc> {
-            Utc::now()
-        }
-        fn version(&self) -> u32 {
-            2
-        }
-        fn to_json(&self) -> Result<String, rustycog::core::error::ServiceError> {
-            Ok(self.payload.to_string())
-        }
-        fn metadata(&self) -> std::collections::HashMap<String, String> {
-            std::collections::HashMap::new()
-        }
     }
     handler
         .handle_event(Box::new(FlatEvent {

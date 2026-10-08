@@ -1,4 +1,4 @@
-//! StaticCredential WorkloadIdentity adapter (config / OpenBao ref map).
+//! `StaticCredential` `WorkloadIdentity` adapter (config / `OpenBao`-injected map).
 
 use async_trait::async_trait;
 use iam_domain::error::DomainError;
@@ -6,7 +6,7 @@ use iam_domain::port::{WorkloadCredential, WorkloadIdentity};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// Resolves named credential refs from an in-memory map (config or OpenBao-injected secrets).
+/// Resolves named credential refs from an in-memory map (config or `OpenBao`-injected secrets).
 ///
 /// Never stores secrets in Hive DB or domain events.
 #[derive(Clone, Default)]
@@ -23,7 +23,7 @@ impl std::fmt::Debug for StaticCredential {
 }
 
 impl StaticCredential {
-    /// Build from an explicit map of credential_ref → secret value.
+    /// Build from an explicit map of `credential_ref` → secret value.
     #[must_use]
     pub fn new(secrets: HashMap<String, String>) -> Self {
         Self {

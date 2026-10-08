@@ -65,7 +65,7 @@ mod tests {
     use super::*;
 
     async fn extract(iss: &str, org: Option<&str>) -> Result<PlatformUser, StatusCode> {
-        let (mut parts, _) = axum::http::Request::new(()).into_parts();
+        let (mut parts, ()) = axum::http::Request::new(()).into_parts();
         parts
             .extensions
             .insert(PlatformIssuer::new("https://platform/iam".into()).unwrap());
@@ -99,7 +99,7 @@ mod tests {
 
     #[tokio::test]
     async fn injected_uuid_alone_is_not_identity_proof() {
-        let (mut parts, _) = axum::http::Request::new(()).into_parts();
+        let (mut parts, ()) = axum::http::Request::new(()).into_parts();
         parts
             .extensions
             .insert(PlatformIssuer::new("https://platform/iam".into()).unwrap());

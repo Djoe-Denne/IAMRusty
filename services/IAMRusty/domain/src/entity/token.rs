@@ -163,6 +163,10 @@ impl Jwk {
 
 impl JwkSet {
     /// Complete canonical DTO, never silently drop an admissible row.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::DomainError`] if a row is duplicate, revoked, or not RS256.
     pub fn from_registry_keys_checked(
         keys: &[crate::entity::signing_key::SigningKey],
     ) -> Result<Self, crate::error::DomainError> {
@@ -182,6 +186,10 @@ impl JwkSet {
     }
 
     /// Exact serde compact UTF8 shared by publication DTO and reservation math.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::DomainError`] if the compact JSON cannot be serialized.
     pub fn compact_bytes(&self) -> Result<Vec<u8>, crate::error::DomainError> {
         serde_json::to_vec(self).map_err(|_| crate::error::DomainError::InvalidSigningKeyMaterial)
     }

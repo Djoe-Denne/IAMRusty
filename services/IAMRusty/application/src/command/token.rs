@@ -5,32 +5,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-#[cfg(test)]
-mod redaction_tests {
-    use super::*;
-
-    #[test]
-    fn credential_commands_debug_only_exposes_correlation_id() {
-        let refresh = RefreshTokenCommand {
-            command_id: Uuid::new_v4(),
-            refresh_token: "unit-refresh-secret".into(),
-        };
-        let revoke = RevokeTokenCommand {
-            command_id: Uuid::new_v4(),
-            refresh_token: "unit-revoke-secret".into(),
-        };
-        assert!(!format!("{refresh:?}").contains("unit-refresh-secret"));
-        assert!(!format!("{revoke:?}").contains("unit-revoke-secret"));
-        let login = crate::command::password_login::PasswordLoginCommand {
-            command_id: Uuid::new_v4(),
-            email: "unit@example.test".into(),
-            password: "unit-password-secret".into(),
-        };
-        assert!(!format!("{login:?}").contains("unit-password-secret"));
-        assert!(format!("{login:?}").contains(&login.command_id.to_string()));
-    }
-}
-
 /// Error codes for token-related operations
 #[derive(Debug, Clone)]
 pub enum TokenErrorCode {
@@ -459,5 +433,31 @@ where
             .get_jwks()
             .await
             .map_err(|e| TokenErrorMapper.map_error(Box::new(e)))
+    }
+}
+
+#[cfg(test)]
+mod redaction_tests {
+    use super::*;
+
+    #[test]
+    fn credential_commands_debug_only_exposes_correlation_id() {
+        let refresh = RefreshTokenCommand {
+            command_id: Uuid::new_v4(),
+            refresh_token: "unit-refresh-secret".into(),
+        };
+        let revoke = RevokeTokenCommand {
+            command_id: Uuid::new_v4(),
+            refresh_token: "unit-revoke-secret".into(),
+        };
+        assert!(!format!("{refresh:?}").contains("unit-refresh-secret"));
+        assert!(!format!("{revoke:?}").contains("unit-revoke-secret"));
+        let login = crate::command::password_login::PasswordLoginCommand {
+            command_id: Uuid::new_v4(),
+            email: "unit@example.test".into(),
+            password: "unit-password-secret".into(),
+        };
+        assert!(!format!("{login:?}").contains("unit-password-secret"));
+        assert!(format!("{login:?}").contains(&login.command_id.to_string()));
     }
 }

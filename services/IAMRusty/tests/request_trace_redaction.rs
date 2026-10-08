@@ -41,10 +41,10 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Capture {
 #[tokio::test]
 #[serial]
 async fn real_request_logs_do_not_expose_credentials_raw_oauth_urls_states_or_vendor_body() {
-    let (fixture, _, _) = common::setup_test_server()
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
         .await
         .expect("real HTTP/Postgres fixture");
-    fixture_cleanup::run(&fixture, async {
+    fixture_cleanup::run(&fixture, Box::pin(async {
         let mut security = iam_configuration::security::SecurityConfig::default();
         security.mode = iam_configuration::security::SecurityMode::IsolatedTest;
         let app = common::build_test_iam_app(&fixture, security).await.expect("actual IAM app");
@@ -103,11 +103,14 @@ async fn real_request_logs_do_not_expose_credentials_raw_oauth_urls_states_or_ve
             .send().await.expect("Bearer rejection").status(),401);
         handle.abort();
         let _ = handle.await;
-        let logs = capture.0.lock().expect("capture lock");
-        let logs = String::from_utf8_lossy(&logs);
+        let logs = {
+            let guard = capture.0.lock().expect("capture lock");
+            String::from_utf8_lossy(&guard).into_owned()
+        };
         assert!(logs.contains("e4_request_capture"),"request-level subscriber must capture a real event");
         for secret in ["SentinelABC",state.as_str(),cookie.as_str(),location.as_str()] {
             assert!(!logs.contains(secret),"DEBUG logs must redact request credentials, OAuth URLs/state and upstream bodies");
         }
-    }).await;
+    }))
+    .await;
 }

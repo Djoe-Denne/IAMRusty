@@ -223,11 +223,11 @@ const fn deny(reason: GrantDenyReason) -> GrantDecision {
     GrantDecision::Deny { reason }
 }
 
-fn project_is_operable(status: &str) -> bool {
+const fn project_is_operable(status: &str) -> bool {
     status.eq_ignore_ascii_case("active") || status.eq_ignore_ascii_case("draft")
 }
 
-fn component_is_active(status: &str) -> bool {
+const fn component_is_active(status: &str) -> bool {
     status.eq_ignore_ascii_case("active")
 }
 

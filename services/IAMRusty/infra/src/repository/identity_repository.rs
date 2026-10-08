@@ -1,4 +1,4 @@
-//! SeaORM Identity repository.
+//! `SeaORM` `Identity` repository.
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -22,7 +22,7 @@ pub struct SeaOrmIdentityRepository {
 
 impl SeaOrmIdentityRepository {
     #[must_use]
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }

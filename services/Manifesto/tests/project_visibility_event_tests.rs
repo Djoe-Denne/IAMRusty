@@ -163,7 +163,7 @@ struct OwnerMemberService {
 }
 
 impl OwnerMemberService {
-    fn for_project(project: &Project) -> Self {
+    const fn for_project(project: &Project) -> Self {
         Self {
             project_id: project.id,
             owner_id: project.created_by,
@@ -372,21 +372,21 @@ impl EventPublisher<DomainError> for RecordingEventPublisher {
 
 fn usecase(project: Project, publisher: Arc<RecordingEventPublisher>) -> ProjectUseCaseImpl {
     usecase_with_checker(
-        project,
+        &project,
         publisher,
         Arc::new(InMemoryPermissionChecker::default()),
     )
 }
 
 fn usecase_with_checker(
-    project: Project,
+    project: &Project,
     publisher: Arc<RecordingEventPublisher>,
     checker: Arc<InMemoryPermissionChecker>,
 ) -> ProjectUseCaseImpl {
     ProjectUseCaseImpl::new(
         Arc::new(MemoryProjectService::new(project.clone())),
         Arc::new(UnusedComponentService),
-        Arc::new(OwnerMemberService::for_project(&project)),
+        Arc::new(OwnerMemberService::for_project(project)),
         Arc::new(UnusedPermissionService),
         publisher,
         BusinessConfig::default(),
@@ -409,7 +409,7 @@ async fn update_visibility_flip_emits_visibility_changed_then_updated() {
     let project = build_project(Visibility::Private);
     let publisher = Arc::new(RecordingEventPublisher::default());
     let usecase = usecase_with_checker(
-        project.clone(),
+        &project,
         publisher.clone(),
         admin_checker(project.created_by, project.id),
     );

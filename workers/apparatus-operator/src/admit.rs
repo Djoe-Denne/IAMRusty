@@ -182,7 +182,9 @@ fn http_post_json(base: &str, path: &str, body: &str) -> Result<(u16, String), A
         .read_to_end(&mut buf)
         .map_err(|err| AdmitError::new(format!("vault read: {err}")))?;
     let text = String::from_utf8_lossy(&buf);
-    let (head, rest_body) = text.split_once("\r\n\r\n").unwrap_or((text.as_ref(), ""));
+    let (head, rest_body) = text
+        .split_once("\r\n\r\n")
+        .unwrap_or_else(|| (text.as_ref(), ""));
     let status = head
         .lines()
         .next()
@@ -275,7 +277,9 @@ pub async fn push_and_sign_envelope(
 
     let workdir = make_workdir()?;
     let envelope_path = workdir.join("envelope.json");
-    fs::write(&envelope_path, json.as_bytes())
+    tokio::task::spawn_blocking(move || fs::write(&envelope_path, json))
+        .await
+        .map_err(|err| AdmitError::new(format!("write envelope.json join: {err}")))?
         .map_err(|err| AdmitError::new(format!("write envelope.json: {err}")))?;
 
     let oras_host = host_tool(ORAS_BIN_ENV);
@@ -350,7 +354,11 @@ pub async fn push_and_sign_envelope(
 
     let digest_ref = format!("{registry}/{}@{oci_digest}", target.repository);
     let signature_verified = sign_and_verify(target, &digest_ref)?;
-    let _ = fs::remove_dir_all(&workdir);
+    let _ = tokio::task::spawn_blocking({
+        let workdir = workdir.clone();
+        move || fs::remove_dir_all(workdir)
+    })
+    .await;
 
     Ok(SignedEnvelope {
         catalog_digest: envelope.descriptor_digest.clone(),
@@ -624,8 +632,7 @@ fn docker_host_path(path: &Path) -> Result<String, AdmitError> {
 fn make_workdir() -> Result<PathBuf, AdmitError> {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_nanos());
     let dir = std::env::temp_dir().join(format!("apparatus-admit-{nanos}"));
     fs::create_dir_all(&dir).map_err(|err| AdmitError::new(format!("create workdir: {err}")))?;
     Ok(dir)

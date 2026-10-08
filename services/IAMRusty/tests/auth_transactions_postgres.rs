@@ -74,7 +74,9 @@ fn consume(record: &OAuthTransaction) -> ConsumeOAuthTransaction {
 #[tokio::test]
 #[serial]
 async fn e2_same_refresh_rotation_has_one_success_one_record_not_found_and_no_orphan() {
-    let (fixture, _, _) = common::setup_test_server().await.expect("Postgres harness");
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
+        .await
+        .expect("Postgres harness");
     fixture_cleanup::run(&fixture, async {
     let db = fixture.db();
     let user = DbFixtures::user()
@@ -123,7 +125,9 @@ async fn e2_same_refresh_rotation_has_one_success_one_record_not_found_and_no_or
 #[tokio::test]
 #[serial]
 async fn e3_consume_uses_writer_lock_one_committed_capability_and_erases_db_verifier() {
-    let (fixture, _, _) = common::setup_test_server().await.expect("Postgres harness");
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
+        .await
+        .expect("Postgres harness");
     fixture_cleanup::run(&fixture, async {
     let db = fixture.db();
     let writer = Arc::new(SeaOrmOAuthTransactionWriteRepository::new(db.clone()));
@@ -172,7 +176,13 @@ async fn e3_consume_uses_writer_lock_one_committed_capability_and_erases_db_veri
     db.execute(Statement::from_sql_and_values(
         DatabaseBackend::Postgres,
         "UPDATE oauth_transactions SET expires_at=to_timestamp($2) WHERE id=$1",
-        [expired.id.into(), (expired.expires_at as f64).into()],
+        [
+            expired.id.into(),
+            f64::from(
+                i32::try_from(expired.expires_at).expect("unix seconds fit i32"),
+            )
+            .into(),
+        ],
     ))
     .await
     .expect("expire real row");
@@ -195,7 +205,9 @@ async fn e3_consume_uses_writer_lock_one_committed_capability_and_erases_db_veri
 #[serial]
 async fn e4_initial_schema_refuses_two_active_platform_keys() {
     use iammigration::{MigratorTrait, SchemaManager};
-    let (fixture, _, _) = common::setup_test_server().await.expect("Postgres harness");
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
+        .await
+        .expect("Postgres harness");
     fixture_cleanup::run(&fixture, async {
     let tx = fixture
         .db()
@@ -228,7 +240,9 @@ async fn e4_initial_schema_refuses_two_active_platform_keys() {
 #[tokio::test]
 #[serial]
 async fn e4_login_target_check_rejects_real_existing_user_target() {
-    let (fixture, _, _) = common::setup_test_server().await.expect("Postgres harness");
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
+        .await
+        .expect("Postgres harness");
     fixture_cleanup::run(&fixture, async {
     let db = fixture.db();
     let user = DbFixtures::user()
@@ -255,7 +269,9 @@ async fn e4_login_target_check_rejects_real_existing_user_target() {
 #[tokio::test]
 #[serial]
 async fn e5_stale_registration_password_cannot_write_username_or_refresh() {
-    let (fixture, _, _) = common::setup_test_server().await.expect("Postgres harness");
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
+        .await
+        .expect("Postgres harness");
     fixture_cleanup::run(&fixture, async {
     let db = fixture.db();
     let user = DbFixtures::user()
@@ -288,7 +304,9 @@ async fn e5_stale_registration_password_cannot_write_username_or_refresh() {
 #[tokio::test]
 #[serial]
 async fn cleanup_cap_skip_locked_and_two_replicas_preserve_valid_transactions() {
-    let (fixture, _, _) = common::setup_test_server().await.expect("Postgres harness");
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
+        .await
+        .expect("Postgres harness");
     fixture_cleanup::run(&fixture, async {
     let db = fixture.db();
     let writer = Arc::new(SeaOrmOAuthTransactionWriteRepository::new(db.clone()));

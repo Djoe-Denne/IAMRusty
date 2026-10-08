@@ -1,4 +1,4 @@
-//! Remote HTTP SigningProvider proofs (ADR-0309).
+//! Remote HTTP `SigningProvider` proofs (ADR-0309).
 
 #[path = "../../tests/fixtures/remote_signer/mod.rs"]
 mod remote_signer_fixtures;
@@ -6,7 +6,7 @@ mod remote_signer_fixtures;
 use iam_configuration::{JwtConfig, RemoteSignerConfig};
 use iam_domain::port::{SigningProvider, WorkloadIdentity};
 use iam_infra::signing::{compose_workload_identity, RemoteSigningProvider, StaticCredential};
-use rustycog::testing::http::jwt::TEST_RS256_PUBLIC_PEM;
+use rustycog::testing::http::jwt::test_rs256_public_pem;
 use serial_test::serial;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
@@ -49,7 +49,7 @@ async fn remote_sign_sends_digest_not_claims() {
 #[serial]
 async fn remote_get_public_key() {
     let mock = remote_signer_fixtures::RemoteSignerFixtures::service().await;
-    mock.mock_get_public_key_ok(TEST_RS256_PUBLIC_PEM).await;
+    mock.mock_get_public_key_ok(test_rs256_public_pem()).await;
 
     let wi: Arc<dyn WorkloadIdentity> =
         Arc::new(StaticCredential::from_pair("remote-signer", "s.remote").expect("pair"));
@@ -66,7 +66,7 @@ async fn remote_get_public_key() {
 #[serial]
 async fn remote_uses_workload_identity_header() {
     let mock = remote_signer_fixtures::RemoteSignerFixtures::service().await;
-    let sig_b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &[1u8; 8]);
+    let sig_b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [1u8; 8]);
     mock.mock_sign_ok(&sig_b64).await;
 
     let workload = compose_workload_identity(None, "wif-remote-token", "remote-signer")
@@ -136,10 +136,10 @@ fn remote_url_absent_is_fail_closed() {
 #[serial]
 async fn remote_never_returns_private_key() {
     let mock = remote_signer_fixtures::RemoteSignerFixtures::service().await;
-    mock.mock_get_public_key_ok(TEST_RS256_PUBLIC_PEM).await;
+    mock.mock_get_public_key_ok(test_rs256_public_pem()).await;
     mock.mock_sign_ok(&base64::Engine::encode(
         &base64::engine::general_purpose::STANDARD,
-        &[2u8; 4],
+        [2u8; 4],
     ))
     .await;
 

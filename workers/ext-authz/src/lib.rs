@@ -1,6 +1,6 @@
 //! Envoy HTTP `ext_authz` Check: validate JWT, then emit `(iss, sub)` (ADR-0308).
 //!
-//! No OpenFGA. No events. Not a fifth hexagon.
+//! No `OpenFGA`. No events. Not a fifth hexagon.
 
 #![allow(missing_docs)]
 

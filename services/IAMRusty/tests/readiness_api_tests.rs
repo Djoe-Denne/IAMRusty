@@ -10,7 +10,7 @@ use common::setup_test_server;
 #[tokio::test]
 #[serial]
 async fn ready_is_healthy_when_postgres_is_available_and_queue_is_optional() {
-    let (_fixture, server_url, client) = setup_test_server().await.unwrap();
+    let (_fixture, server_url, client) = Box::pin(setup_test_server()).await.unwrap();
 
     let response = client
         .get(format!("{server_url}/ready"))

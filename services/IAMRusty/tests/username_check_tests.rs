@@ -20,7 +20,7 @@ fn create_test_client() -> Client {
 #[tokio::test]
 #[serial]
 async fn test_username_available() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -40,7 +40,7 @@ async fn test_username_available() {
 #[tokio::test]
 #[serial]
 async fn test_username_taken() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -68,7 +68,7 @@ async fn test_username_taken() {
 #[tokio::test]
 #[serial]
 async fn test_username_validation() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 

@@ -24,7 +24,7 @@ async fn admin_transit_missing_or_zero_version_maps_iam400_without_hive_mutation
     use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
     let iam = IamSignerMockService::new().await;
     let (fixture, base, client, openfga, auth) =
-        common::setup_test_server_with_iam_service(iam.config())
+        Box::pin(common::setup_test_server_with_iam_service(iam.config()))
             .await
             .unwrap();
     with_cleanup(&fixture,async {
@@ -34,7 +34,7 @@ async fn admin_transit_missing_or_zero_version_maps_iam400_without_hive_mutation
         let state_sql=||Statement::from_sql_and_values(DatabaseBackend::Postgres,"SELECT to_jsonb(o) AS state FROM organizations o WHERE id=$1",[org.id.into()]);
         let before:serde_json::Value=fixture.db().query_one(state_sql()).await.unwrap().unwrap().try_get("","state").unwrap();
         for version in [None,Some(0u32)] {
-            let mut body=serde_json::json!({"provider_type":"openbao_transit","provider_key_ref":format!("org-{}-key",org.id),"credential_ref":format!("org-{}-credential",org.id),"public_key":rustycog::testing::http::jwt::TEST_RS256_PUBLIC_PEM,"org_slug":"spoofed"});
+            let mut body=serde_json::json!({"provider_type":"openbao_transit","provider_key_ref":format!("org-{}-key",org.id),"credential_ref":format!("org-{}-credential",org.id),"public_key":rustycog::testing::http::jwt::test_rs256_public_pem(),"org_slug":"spoofed"});
             if let Some(version)=version {body["provider_key_version"]=version.into();}
             openfga.deny(Subject::new(owner),Permission::Admin,ResourceRef::new("organization",org.id)).await.unwrap();
             let baseline=iam.received_requests().await.len();
@@ -48,7 +48,7 @@ async fn admin_transit_missing_or_zero_version_maps_iam400_without_hive_mutation
                 let response=client.post(&endpoint).bearer_auth(&token).json(&body).send().await.unwrap();assert_eq!(response.status().as_u16(),expected);
                 if upstream==400 {assert!(!response.text().await.unwrap().contains("private-provider-diagnostic"));}
                 let requests=iam.received_requests().await;assert_eq!(requests.len(),1);
-                let sent:serde_json::Value=serde_json::from_slice(&requests[0].body).unwrap();assert_eq!(sent.get("provider_key_version").and_then(|v|v.as_u64()),version.map(u64::from));assert_eq!(sent["org_slug"],org.slug);
+                let sent:serde_json::Value=serde_json::from_slice(&requests[0].body).unwrap();assert_eq!(sent.get("provider_key_version").and_then(serde_json::Value::as_u64),version.map(u64::from));assert_eq!(sent["org_slug"],org.slug);
                 let after:serde_json::Value=fixture.db().query_one(state_sql()).await.unwrap().unwrap().try_get("","state").unwrap();assert_eq!(after,before,"no Hive metadata persistence after IAM input/provider errors");
             }
         }
@@ -115,7 +115,7 @@ async fn configure_requires_admin_on_the_exact_organization_before_any_iam_rpc()
     // Integration-owned additive helper: actual AppBuilder + same existing real
     // testcontainers/OpenFGA descriptor, isolated listener, only IAM config override.
     let (fixture, base, client, openfga, auth) =
-        common::setup_test_server_with_iam_service(iam.config())
+        Box::pin(common::setup_test_server_with_iam_service(iam.config()))
             .await
             .expect("real isolated Hive HTTP harness with outbound IAM override");
     with_cleanup(&fixture, async {
@@ -155,7 +155,7 @@ async fn configure_requires_admin_on_the_exact_organization_before_any_iam_rpc()
         let key_ref = format!("{}/fixture.pem", org.id);
         let body = serde_json::json!({"provider_type":"pem_file","provider_key_ref":key_ref,
             "provider_key_version":7,
-            "public_key":rustycog::testing::http::jwt::TEST_RS256_PUBLIC_PEM,
+            "public_key":rustycog::testing::http::jwt::test_rs256_public_pem(),
             "org_slug":other.slug,"organization_id":other.id});
         openfga
             .deny(

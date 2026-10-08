@@ -1,4 +1,4 @@
-//! SeaORM SigningKeyRegistry implementation.
+//! `SeaORM` `SigningKeyRegistry` implementation.
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -33,8 +33,12 @@ pub struct SeaOrmSigningKeyRegistry {
 }
 
 impl SeaOrmSigningKeyRegistry {
-    #[must_use]
     /// `db` must be the primary writer's autocommit connection, never a replica.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the finite policy or the access-token TTL is invalid.
+    #[must_use = "the constructed registry should be used"]
     pub fn new(
         db: Arc<DatabaseConnection>,
         policy: Arc<SigningKeyLifecyclePolicy>,
@@ -50,6 +54,10 @@ impl SeaOrmSigningKeyRegistry {
     }
 
     /// Non-secret preflight; report recovery, never use this as a global auth gate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the publication snapshot or policy preflight fails.
     pub async fn preflight(&self) -> Result<SigningKeyLifecyclePreflight, DomainError> {
         let snapshot = self.jwks_publication_snapshot().await?;
         let report = self
@@ -74,38 +82,16 @@ impl SeaOrmSigningKeyRegistry {
         let tx = self.db.begin().await.map_err(registry_error)?;
         lock_registry_scope(&tx, "iam-signing-jwks-admission-v1").await?;
         match (scope, organization_id) {
-            (TrustScope::Platform, None) => lock_registry_scope(&tx, "signer-platform").await?,
+            (TrustScope::Platform, None) => {
+                lock_registry_scope(&tx, "signer-platform").await?;
+            }
             (TrustScope::Organization, Some(org)) => {
-                lock_registry_scope(&tx, &format!("signer-org:{org}")).await?
+                lock_registry_scope(&tx, &format!("signer-org:{org}")).await?;
             }
             _ => return Err(DomainError::InvalidSigningKeyMaterial),
         }
-        let affected = affected_rows(scope, organization_id, operation);
-        // Project only issuers of rows we may mutate/inspect, never historical PEMs.
-        let mut issuers: std::collections::BTreeSet<String> = SigningKeys::find()
-            .select_only()
-            .column(signing_keys::Column::Issuer)
-            .distinct()
-            .filter(affected.clone())
-            .into_tuple::<String>()
-            .all(&tx)
-            .await
-            .map_err(registry_error)?
-            .into_iter()
-            .collect();
-        if let Some(issuer) = issuer {
-            issuers.insert(issuer.to_string());
-        }
-        for issuer in issuers {
-            lock_registry_scope(&tx, &format!("signer-issuer:{issuer}")).await?;
-        }
-        let affected = SigningKeys::find()
-            .filter(affected)
-            .order_by_asc(signing_keys::Column::Id)
-            .lock_exclusive()
-            .all(&tx)
-            .await
-            .map_err(registry_error)?;
+        let affected =
+            lock_lifecycle_affected(&tx, scope, organization_id, issuer, operation).await?;
         // Publication row follows affected key locks. The clock below is after
         // this wait too, and writers/read-refreshes share the same global lock.
         let stored_publication = publication::lock_snapshot(&tx).await?;
@@ -321,6 +307,65 @@ impl SeaOrmSigningKeyRegistry {
         }
         Ok(())
     }
+
+    async fn persist_replaced_organization_key(
+        &self,
+        tx: &DatabaseTransaction,
+        state: &LifecycleState,
+        candidate: &SigningKey,
+        candidate_public: &PreparedSigningPublicKey,
+        mut committed: SigningKey,
+        is_promotion: bool,
+    ) -> Result<SigningKey, DomainError> {
+        committed.status = SigningKeyStatus::Active;
+        committed.updated_at = state.as_of;
+        let mut proposed = state.keys.clone();
+        let mut changes = Vec::new();
+        for key in proposed.iter_mut().filter(|key| {
+            key.organization_id == candidate.organization_id
+                && key.trust_scope == candidate.trust_scope
+                && key.status == SigningKeyStatus::Active
+        }) {
+            key.status = SigningKeyStatus::Retiring;
+            key.updated_at = state.as_of;
+            changes.push(key.clone());
+        }
+        if is_promotion {
+            *proposed
+                .iter_mut()
+                .find(|key| key.id == committed.id)
+                .ok_or_else(conflict)? = committed.clone();
+            changes.push(committed.clone());
+        } else {
+            proposed.push(committed.clone());
+        }
+        let publication_plan = self.check_plan(
+            state,
+            &proposed,
+            if is_promotion { None } else { Some(&committed) },
+            if is_promotion {
+                None
+            } else {
+                Some(candidate_public)
+            },
+        )?;
+        persist_changes(tx, &mut changes).await?;
+        if is_promotion {
+            committed = to_domain(
+                SigningKeys::find_by_id(committed.id)
+                    .one(tx)
+                    .await
+                    .map_err(registry_error)?
+                    .ok_or_else(conflict)?,
+            )?;
+        } else {
+            committed = insert_admitted(tx, &committed, state.as_of).await?;
+            publication::persist_prepared(tx, &committed, candidate_public).await?;
+        }
+        self.persist_publication(tx, state, &publication_plan)
+            .await?;
+        Ok(committed)
+    }
 }
 
 struct LifecycleState {
@@ -369,16 +414,51 @@ enum LifecycleOperation<'a> {
     Revoke,
 }
 impl LifecycleOperation<'_> {
-    fn needs_churn(self) -> bool {
+    const fn needs_churn(self) -> bool {
         matches!(self, Self::Insert(_) | Self::Replace(_) | Self::Prepare(_))
     }
 }
 
+async fn lock_lifecycle_affected(
+    tx: &DatabaseTransaction,
+    scope: &TrustScope,
+    organization_id: Option<Uuid>,
+    issuer: Option<&str>,
+    operation: LifecycleOperation<'_>,
+) -> Result<Vec<signing_keys::Model>, DomainError> {
+    let affected = affected_rows(scope, organization_id, operation);
+    // Project only issuers of rows we may mutate/inspect, never historical PEMs.
+    let mut issuers: std::collections::BTreeSet<String> = SigningKeys::find()
+        .select_only()
+        .column(signing_keys::Column::Issuer)
+        .distinct()
+        .filter(affected.clone())
+        .into_tuple::<String>()
+        .all(tx)
+        .await
+        .map_err(registry_error)?
+        .into_iter()
+        .collect();
+    if let Some(issuer) = issuer {
+        issuers.insert(issuer.to_string());
+    }
+    for issuer in issuers {
+        lock_registry_scope(tx, &format!("signer-issuer:{issuer}")).await?;
+    }
+    SigningKeys::find()
+        .filter(affected)
+        .order_by_asc(signing_keys::Column::Id)
+        .lock_exclusive()
+        .all(tx)
+        .await
+        .map_err(registry_error)
+}
+
 fn scope_rows(scope: &TrustScope, organization_id: Option<Uuid>) -> Condition {
-    let owner = match organization_id {
-        Some(org) => signing_keys::Column::OrganizationId.eq(org),
-        None => signing_keys::Column::OrganizationId.is_null(),
-    };
+    let owner = organization_id.map_or_else(
+        || signing_keys::Column::OrganizationId.is_null(),
+        |org| signing_keys::Column::OrganizationId.eq(org),
+    );
     Condition::all()
         .add(signing_keys::Column::TrustScope.eq(scope_name(scope)))
         .add(owner)
@@ -399,22 +479,25 @@ fn affected_rows(
             .add(signing_keys::Column::Id.eq(key.id))
             .add(signing_keys::Column::Kid.eq(key.kid.clone()))
     };
-    match operation {
-        LifecycleOperation::Insert(key) => identity(key),
+    let key = match operation {
+        LifecycleOperation::Insert(key) => return identity(key),
+        LifecycleOperation::Revoke => {
+            return Condition::all()
+                .add(scope_rows(scope, organization_id))
+                .add(signing_keys::Column::Status.ne("revoked"));
+        }
+        LifecycleOperation::Update(key)
+            if *scope != TrustScope::Platform || key.status != SigningKeyStatus::Active =>
+        {
+            return identity(key);
+        }
         LifecycleOperation::Replace(key)
         | LifecycleOperation::Prepare(key)
         | LifecycleOperation::Promote(key)
-        | LifecycleOperation::Bootstrap(key) => Condition::any().add(identity(key)).add(active()),
-        LifecycleOperation::Update(key)
-            if *scope == TrustScope::Platform && key.status == SigningKeyStatus::Active =>
-        {
-            Condition::any().add(identity(key)).add(active())
-        }
-        LifecycleOperation::Update(key) => identity(key),
-        LifecycleOperation::Revoke => Condition::all()
-            .add(scope_rows(scope, organization_id))
-            .add(signing_keys::Column::Status.ne("revoked")),
-    }
+        | LifecycleOperation::Bootstrap(key)
+        | LifecycleOperation::Update(key) => key,
+    };
+    Condition::any().add(identity(key)).add(active())
 }
 
 #[cfg(test)]
@@ -441,7 +524,7 @@ fn merge_lifecycle_rows(
     }
     by_id.into_values().collect()
 }
-fn scope_name(scope: &TrustScope) -> &'static str {
+const fn scope_name(scope: &TrustScope) -> &'static str {
     match scope {
         TrustScope::Platform => "platform",
         TrustScope::Organization => "organization",
@@ -732,7 +815,9 @@ mod admission_tests {
                         );
                         values.insert(
                             "longest_entry_bytes".into(),
-                            (public.longest_entry_bytes() as i32).into(),
+                            i32::try_from(public.longest_entry_bytes())
+                                .unwrap_or(i32::MAX)
+                                .into(),
                         );
                     }
                     Err(_) => {
@@ -759,31 +844,37 @@ mod admission_tests {
                         && row.updated_at <= as_of.naive_utc())
             })
             .collect::<Vec<_>>();
+        let as_i64 = |n: usize| i64::try_from(n).unwrap_or(i64::MAX);
         BTreeMap::from([
-            ("global".into(), (rows.len() as i64).into()),
+            ("global".into(), as_i64(rows.len()).into()),
             (
                 "global_organization".into(),
-                (rows
-                    .iter()
-                    .filter(|row| row.trust_scope == "organization")
-                    .count() as i64)
-                    .into(),
+                as_i64(
+                    rows.iter()
+                        .filter(|row| row.trust_scope == "organization")
+                        .count(),
+                )
+                .into(),
             ),
             (
                 "platform".into(),
-                (rows
-                    .iter()
-                    .filter(|row| row.trust_scope == "platform" && row.organization_id.is_none())
-                    .count() as i64)
-                    .into(),
+                as_i64(
+                    rows.iter()
+                        .filter(|row| {
+                            row.trust_scope == "platform" && row.organization_id.is_none()
+                        })
+                        .count(),
+                )
+                .into(),
             ),
             (
                 "organization".into(),
-                (rows
-                    .iter()
-                    .filter(|row| row.organization_id == org && org.is_some())
-                    .count() as i64)
-                    .into(),
+                as_i64(
+                    rows.iter()
+                        .filter(|row| row.organization_id == org && org.is_some())
+                        .count(),
+                )
+                .into(),
             ),
         ])
     }
@@ -817,7 +908,7 @@ mod admission_tests {
     }
 
     fn database(
-        rows: Vec<signing_keys::Model>,
+        rows: &[signing_keys::Model],
         history: Vec<BTreeMap<String, Value>>,
         as_of: DateTime<Utc>,
     ) -> MockDatabase {
@@ -991,7 +1082,7 @@ mod admission_tests {
             let org = Uuid::new_v4();
             let as_of = Utc::now();
             let live = row(org, "active");
-            for historical_count in [1000, 10000] {
+            for historical_count in [1000, 10_000] {
                 let mut oracle: Vec<_> = (0..historical_count)
                     .map(|index| {
                         let mut historical = row(
@@ -1442,16 +1533,6 @@ mod admission_tests {
         let mut terminal = rows.clone();
         terminal[0] = retired.clone();
         terminal.push(next.clone());
-        let publication: Vec<BTreeMap<String, Value>> = terminal
-            .iter()
-            .map(|row| {
-                let mut values: BTreeMap<String, Value> = signing_keys::Column::iter()
-                    .map(|column| (column.to_string(), row.get(column)))
-                    .collect();
-                values.insert("as_of".into(), as_of.fixed_offset().into());
-                values
-            })
-            .collect();
         let mut mock = database(rows, vec![], as_of)
             .append_query_results([vec![retired], vec![next.clone()]])
             .append_query_results([vec![snapshot_projection(&terminal, as_of)]]);
@@ -1549,7 +1630,7 @@ mod admission_tests {
                 .publication_usage(&keys, 900, as_of)
                 .unwrap()
                 .organization_reserved_bytes,
-            716975,
+            716_975,
         );
         policy
             .check_admission(&keys, &[], keys.last(), 900, as_of)
@@ -1565,7 +1646,7 @@ mod admission_tests {
         extra.organization_id = Some(Uuid::new_v4());
         over.push(extra);
         assert_eq!(over.len(), 176);
-        assert_eq!(budget * cost, 716975);
+        assert_eq!(budget * cost, 716_975);
         assert!(policy.publication_usage(&over, 900, as_of).is_err());
         for _ in 0..2 {
             assert!(matches!(
@@ -1849,7 +1930,6 @@ mod emission_fence_tests {
         for case in 0..=16 {
             let mut current = original.clone();
             match case {
-                0 => {}
                 1 => current.id = Uuid::new_v4(),
                 2 => current.kid.push_str("changed"),
                 3 => current.algorithm = "HS256".into(),
@@ -2437,74 +2517,34 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
                 }
             }
             let candidate_public = candidate_validation?;
-            let mut committed = if let Some(pending) = promotion {
-                if pending.id != candidate.id
-                    || pending.kid != candidate.kid
-                    || !same_prepared_binding(&state, pending, candidate, &candidate_public)?
-                {
-                    return Err(conflict());
-                }
-                pending.clone()
-            } else {
-                if existing.is_some() {
-                    return Err(conflict());
-                }
-                let mut new = candidate.clone();
-                new.created_at = state.as_of;
-                new
-            };
-            committed.status = SigningKeyStatus::Active;
-            committed.updated_at = state.as_of;
-            let mut proposed = state.keys.clone();
-            let mut changes = Vec::new();
-            for key in proposed.iter_mut().filter(|key| {
-                key.organization_id == candidate.organization_id
-                    && key.trust_scope == candidate.trust_scope
-                    && key.status == SigningKeyStatus::Active
-            }) {
-                key.status = SigningKeyStatus::Retiring;
-                key.updated_at = state.as_of;
-                changes.push(key.clone());
-            }
-            if promotion.is_some() {
-                *proposed
-                    .iter_mut()
-                    .find(|key| key.id == committed.id)
-                    .ok_or_else(conflict)? = committed.clone();
-                changes.push(committed.clone());
-            } else {
-                proposed.push(committed.clone());
-            }
-            let publication_plan = self.check_plan(
-                &state,
-                &proposed,
-                if promotion.is_some() {
-                    None
-                } else {
-                    Some(&committed)
+            let committed = promotion.map_or_else(
+                || {
+                    if existing.is_some() {
+                        return Err(conflict());
+                    }
+                    let mut new = candidate.clone();
+                    new.created_at = state.as_of;
+                    Ok(new)
                 },
-                if promotion.is_some() {
-                    None
-                } else {
-                    Some(&candidate_public)
+                |pending| {
+                    if pending.id != candidate.id
+                        || pending.kid != candidate.kid
+                        || !same_prepared_binding(&state, pending, candidate, &candidate_public)?
+                    {
+                        return Err(conflict());
+                    }
+                    Ok(pending.clone())
                 },
             )?;
-            persist_changes(&tx, &mut changes).await?;
-            if promotion.is_none() {
-                committed = insert_admitted(&tx, &committed, state.as_of).await?;
-                publication::persist_prepared(&tx, &committed, &candidate_public).await?;
-            } else {
-                committed = to_domain(
-                    SigningKeys::find_by_id(committed.id)
-                        .one(&tx)
-                        .await
-                        .map_err(registry_error)?
-                        .ok_or_else(conflict)?,
-                )?;
-            }
-            self.persist_publication(&tx, &state, &publication_plan)
-                .await?;
-            Ok(committed)
+            self.persist_replaced_organization_key(
+                &tx,
+                &state,
+                candidate,
+                &candidate_public,
+                committed,
+                promotion.is_some(),
+            )
+            .await
         }
         .await;
         match result {
@@ -2591,12 +2631,12 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
             } // Never renew retirement timestamps.
             let mut proposed = state.keys.clone();
             let mut changes = Vec::new();
-            let mut changed = current.clone();
-            changed.status = candidate.status.clone();
-            changed.updated_at = state.as_of;
+            let mut updated_row = current.clone();
+            updated_row.status = candidate.status.clone();
+            updated_row.updated_at = state.as_of;
             match (&current.status, &candidate.status) {
-                (_, SigningKeyStatus::Revoked) => {}
-                (SigningKeyStatus::Active, SigningKeyStatus::Retiring) => {}
+                (_, SigningKeyStatus::Revoked)
+                | (SigningKeyStatus::Active, SigningKeyStatus::Retiring) => {}
                 (SigningKeyStatus::Pending, SigningKeyStatus::Active)
                     if current.trust_scope == TrustScope::Platform =>
                 {
@@ -2614,14 +2654,14 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
             }
             *proposed
                 .iter_mut()
-                .find(|key| key.id == changed.id)
-                .ok_or_else(conflict)? = changed.clone();
-            changes.push(changed);
+                .find(|key| key.id == updated_row.id)
+                .ok_or_else(conflict)? = updated_row.clone();
+            changes.push(updated_row);
             // Revocation and drain only reduce publication; promotion must preserve its reservation.
-            let publication_plan = if candidate.status != SigningKeyStatus::Revoked {
-                self.check_plan(&state, &proposed, None, None)?
-            } else {
+            let publication_plan = if candidate.status == SigningKeyStatus::Revoked {
                 self.reducing_plan(&state, &proposed)?
+            } else {
+                self.check_plan(&state, &proposed, None, None)?
             };
             persist_changes(&tx, &mut changes).await?;
             self.persist_publication(&tx, &state, &publication_plan)
@@ -2659,6 +2699,11 @@ impl SigningKeyRegistry for SeaOrmSigningKeyRegistry {
     }
 }
 
+/// Bootstrap the platform signing key into the registry.
+///
+/// # Errors
+///
+/// Returns an error if the candidate cannot be admitted or persisted.
 pub async fn bootstrap_platform_signing_key(
     registry: &SeaOrmSigningKeyRegistry,
     kid: &str,

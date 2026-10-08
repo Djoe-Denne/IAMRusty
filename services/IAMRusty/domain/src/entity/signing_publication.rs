@@ -29,7 +29,7 @@ pub const JWKS_CONSUMER_BYTES_MAX: usize = 1_048_576;
 pub const JWKS_SLOT_FRAME_BYTES_MAX: usize =
     JWKS_ENVELOPE_BYTES + SLOT_COUNT_GLOBAL * (SLOT_BYTES_MAX + 1);
 
-fn invalid() -> DomainError {
+const fn invalid() -> DomainError {
     DomainError::InvalidSigningKeyMaterial
 }
 fn capacity() -> DomainError {
@@ -47,6 +47,9 @@ pub struct SigningSlotCounts {
 }
 
 impl SigningSlotCounts {
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the counts violate the ratified slot caps.
     pub fn validate(&self) -> Result<(), DomainError> {
         if self.global_organization.checked_add(self.platform) != Some(self.global)
             || self.organization > self.global_organization
@@ -78,6 +81,7 @@ pub struct PreparedSigningPublicKey {
 impl PreparedSigningPublicKey {
     /// Effective provider binding comparison, independent of row/kid and PEM
     /// whitespace. Both components are already canonical; no RSA parse here.
+    #[must_use]
     pub fn same_binding(&self, a: &SigningKey, other: &Self, b: &SigningKey) -> bool {
         a.algorithm == b.algorithm
             && a.issuer == b.issuer
@@ -90,6 +94,10 @@ impl PreparedSigningPublicKey {
             && self.n == other.n
             && self.e == other.e
     }
+
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if metadata or public material cannot be prepared.
     pub fn prepare(key: &SigningKey) -> Result<Self, DomainError> {
         validate_metadata(key)?;
         let public = parse_signing_public_key(&key.public_key)?;
@@ -100,6 +108,10 @@ impl PreparedSigningPublicKey {
 
     /// Restore a writer-prepared record without parsing its PEM again. A changed
     /// binding/material or malformed canonical components fails closed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if persisted components fail closed.
     pub fn from_persisted(
         key: &SigningKey,
         n: String,
@@ -142,19 +154,26 @@ impl PreparedSigningPublicKey {
         })
     }
 
+    #[must_use]
     pub fn n(&self) -> &str {
         &self.n
     }
+    #[must_use]
     pub fn e(&self) -> &str {
         &self.e
     }
-    pub fn binding_fingerprint(&self) -> &[u8; 32] {
+    #[must_use]
+    pub const fn binding_fingerprint(&self) -> &[u8; 32] {
         &self.binding_fingerprint
     }
-    pub fn longest_entry_bytes(&self) -> usize {
+    #[must_use]
+    pub const fn longest_entry_bytes(&self) -> usize {
         self.longest_entry_bytes
     }
 
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the key is revoked or the binding no longer matches.
     pub fn project(&self, key: &SigningKey) -> Result<Jwk, DomainError> {
         if key.status == SigningKeyStatus::Revoked
             || fingerprint(key, &self.n, &self.e, self.longest_entry_bytes)?
@@ -262,6 +281,10 @@ fn fingerprint(
 }
 
 /// Validate the actual compact entry, not a bound inferred from issuer bytes.
+///
+/// # Errors
+///
+/// Returns [`DomainError`] if the compact entry exceeds [`SLOT_BYTES_MAX`].
 pub fn checked_entry_bytes(entry: &Jwk) -> Result<usize, DomainError> {
     let bytes = serde_json::to_vec(entry).map_err(|_| invalid())?.len();
     if bytes > SLOT_BYTES_MAX {
@@ -280,6 +303,7 @@ pub struct ValidatedJwksPublication {
 }
 
 impl ValidatedJwksPublication {
+    #[must_use]
     pub fn usage(&self) -> super::signing_key::SigningKeyPublicationUsage {
         let mut owners = BTreeMap::new();
         for key in &self.jwks.keys {
@@ -295,6 +319,10 @@ impl ValidatedJwksPublication {
             organization_epochs: owners,
         }
     }
+
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the entry set exceeds slot caps or is inconsistent.
     pub fn from_entries(entries: Vec<Jwk>) -> Result<Self, DomainError> {
         if entries.len() > SLOT_COUNT_GLOBAL {
             return Err(capacity());
@@ -354,6 +382,10 @@ impl ValidatedJwksPublication {
 
     /// Fail closed on corrupt, noncanonical, duplicate, unbounded or foreign
     /// fields. Missing/empty publication is not inferred from a parse error.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the payload is corrupt, noncanonical, or too large.
     pub fn from_compact_payload(payload: &str) -> Result<Self, DomainError> {
         if payload.len() > JWKS_SLOT_FRAME_BYTES_MAX {
             return Err(capacity());
@@ -365,15 +397,19 @@ impl ValidatedJwksPublication {
         }
         Ok(validated)
     }
+    #[must_use]
     pub fn payload(&self) -> &str {
         &self.compact_payload
     }
-    pub fn jwks(&self) -> &JwkSet {
+    #[must_use]
+    pub const fn jwks(&self) -> &JwkSet {
         &self.jwks
     }
-    pub fn counts(&self) -> SigningSlotCounts {
+    #[must_use]
+    pub const fn counts(&self) -> SigningSlotCounts {
         self.counts
     }
+    #[must_use]
     pub fn into_jwks(self) -> JwkSet {
         self.jwks
     }
@@ -431,15 +467,9 @@ mod tests {
         assert_eq!(11 + 191 * 4097, 782_538);
         assert_eq!(175 * 4097, 716_975);
         assert_eq!(786_432 - 11 - 716_975, 69_446);
-        assert!(69_446 >= 65_536);
-        assert!(782_538 <= 786_432);
-        assert!(786_432 < 1_048_576);
-        assert!(716_975 <= 720_896);
-        assert!(16 * 4097 <= 69_446);
-        assert!(
-            16 * 4097 > 65_536,
-            "do not pretend exactly64KiB fits sixteen worst entries"
-        );
+        // Frame inequalities (literals, not runtime): 69_446 >= 64KiB, compact
+        // envelope 782_538 <= 786_432 < 1MiB, org partition 716_975 <= 720_896,
+        // sixteen worst entries (16*4097) sit between 64KiB and 69_446.
         assert_eq!(JWKS_SLOT_FRAME_BYTES_MAX, 782_538);
     }
 
@@ -534,7 +564,7 @@ mod tests {
         for case in 0..9 {
             let mut changed = original.clone();
             match case {
-                0 => changed.provider_key_ref.push_str("x"),
+                0 => changed.provider_key_ref.push('x'),
                 1 => changed.provider_key_version = Some(7),
                 2 => changed.credential_ref = Some("other".into()),
                 3 => changed.issuer.push_str("/x"),

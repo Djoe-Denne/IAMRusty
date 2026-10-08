@@ -31,7 +31,7 @@ async fn assert_persisted(db: &DatabaseConnection, token: &str) {
 #[tokio::test]
 #[serial]
 async fn registration_and_password_login_refresh_are_real_persisted_sessions() {
-    let (fixture, base, client) = setup_test_server().await.expect("IAM harness");
+    let (fixture, base, client) = Box::pin(setup_test_server()).await.expect("IAM harness");
     fixture_cleanup::run(&fixture, async {
         let email = format!("session-{}@example.com", Uuid::new_v4());
         let username = format!("s{}", &Uuid::new_v4().simple().to_string()[..15]);
@@ -131,7 +131,7 @@ async fn registration_and_password_login_refresh_are_real_persisted_sessions() {
 #[tokio::test]
 #[serial]
 async fn public_password_reset_and_refresh_rotation_linearize_without_a_surviving_old_chain() {
-    let (fixture, base, client) = setup_test_server()
+    let (fixture, base, client) = Box::pin(setup_test_server())
         .await
         .expect("IAM HTTP/Postgres harness");
     fixture_cleanup::run(&fixture, async {

@@ -48,7 +48,7 @@ impl VaultMockService {
                     .set_body_json(VaultKvReadBody::one_field(field, value))
                     .insert_header("content-type", "application/json"),
             )
-            .mount(&*self.server)
+            .mount(&self.server)
             .await;
         self
     }

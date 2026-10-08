@@ -353,7 +353,7 @@ where
         if let Some(password_hash) = &user.password_hash {
             if !self
                 .password_service
-                .verify_password(&current_password, &password_hash)
+                .verify_password(&current_password, password_hash)
                 .await?
             {
                 return Err(PasswordResetError::IncorrectCurrentPassword);

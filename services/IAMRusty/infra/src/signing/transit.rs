@@ -1,4 +1,4 @@
-//! OpenBao Transit SigningProvider — Sign only, never export private key material.
+//! `OpenBao` Transit `SigningProvider` — `Sign` only, never export private key material.
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -22,7 +22,7 @@ pub(super) fn transport_constructions() -> usize {
     TRANSPORT_CONSTRUCTIONS.with(std::cell::Cell::get)
 }
 
-/// OpenBao / Vault Transit `POST /v1/transit/sign/{name}` adapter.
+/// `OpenBao` / Vault Transit `POST /v1/transit/sign/{name}` adapter.
 ///
 /// Never uses Cosign/`apparatus-p4-cosign` paths. Credentials come from
 /// [`WorkloadIdentity`] (typically [`crate::signing::StaticCredential`]).
@@ -121,7 +121,7 @@ impl TransitSigningProvider {
     fn endpoint(&self, operation: &str) -> Result<reqwest::Url, DomainError> {
         let mut url = reqwest::Url::parse(&self.base_url).map_err(|_| DomainError::InvalidToken)?;
         url.path_segments_mut()
-            .map_err(|_| DomainError::InvalidToken)?
+            .map_err(|()| DomainError::InvalidToken)?
             .pop_if_empty()
             .push("v1")
             .push("transit")
@@ -209,6 +209,10 @@ impl TransitSigningProvider {
 
     /// Rotate the same provider name exactly once. No retry after ambiguous I/O.
     /// Returns only a verified successor number, not an exclusive-creation claim.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] when the binding is stale, rotation fails, or the successor is ambiguous.
     pub async fn rotate_rsa2048_key(&self) -> Result<u32, DomainError> {
         let before = self.read_key().await?;
         require_versionable_rsa2048(&before)?;
@@ -225,7 +229,7 @@ impl TransitSigningProvider {
         let cred = self.workload.resolve(&self.token_ref).await?;
         let mut url = self.endpoint("keys")?;
         url.path_segments_mut()
-            .map_err(|_| DomainError::InvalidToken)?
+            .map_err(|()| DomainError::InvalidToken)?
             .push("rotate");
         let response = self
             .client
@@ -248,6 +252,10 @@ impl TransitSigningProvider {
 
     /// Enrollment verifies documented provider properties and this exact public,
     /// without using latest as the pin or claiming exclusive creation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] when the pinned public key is missing or incompatible.
     pub async fn enrollment_public_key(&self) -> Result<String, DomainError> {
         let data = self.read_key().await?;
         // Sign-only enrollment admits the full domain RSA range. Create/Rotate
@@ -316,7 +324,7 @@ fn require_versionable_rsa2048(data: &TransitReadKeyData) -> Result<(), DomainEr
     if data.key_type.as_deref() != Some("rsa-2048")
         || data.exportable != Some(false)
         || data.supports_signing != Some(true)
-        || data.latest_version.filter(|v| *v > 0).is_none()
+        || data.latest_version.is_none_or(|v| v == 0)
     {
         return Err(transit_error(
             "incompatible or non-versionable provider key",

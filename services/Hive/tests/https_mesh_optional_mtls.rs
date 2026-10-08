@@ -166,7 +166,7 @@ fn http_client() -> reqwest::Client {
         .unwrap()
 }
 
-async fn spawn_server(config: ServerConfig) -> tokio::task::JoinHandle<anyhow::Result<()>> {
+fn spawn_server(config: ServerConfig) -> tokio::task::JoinHandle<anyhow::Result<()>> {
     let router = create_prefixed_router(app_state(), Arc::new(ReadinessProbe::new("hive")));
     tokio::spawn(async move { serve_router(router, config).await })
 }
@@ -178,15 +178,17 @@ async fn wait_until_ready(
 ) {
     let start = Instant::now();
     loop {
-        if handle.is_finished() {
-            panic!("TLS server exited before becoming ready");
-        }
+        assert!(
+            !handle.is_finished(),
+            "TLS server exited before becoming ready"
+        );
         match client.get(url).send().await {
             Ok(_) => return,
             Err(err) => {
-                if start.elapsed() > Duration::from_secs(5) {
-                    panic!("TLS server not ready after 5s: {err}");
-                }
+                assert!(
+                    start.elapsed() <= Duration::from_secs(5),
+                    "TLS server not ready after 5s: {err}"
+                );
                 tokio::time::sleep(Duration::from_millis(50)).await;
             }
         }
@@ -216,8 +218,7 @@ async fn dual_bind_http_and_optional_mtls() {
         cleartext_port,
         tls_listen,
         pki.client_ca_path.clone(),
-    ))
-    .await;
+    ));
 
     let plain = http_client();
     wait_until_ready(&handle, &plain, &cleartext_url).await;

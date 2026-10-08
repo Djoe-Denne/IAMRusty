@@ -1,4 +1,4 @@
-//! SigningKey registry model (ADR-0304).
+//! `SigningKey` registry model (ADR-0304).
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -74,7 +74,7 @@ pub enum SigningProviderType {
     AwsKms,
     GcpKms,
     AzureKeyVault,
-    /// HTTP Sign / GetPublicKey adapter (ADR-0309). Not a cloud BYOKMS.
+    /// HTTP `Sign` / `GetPublicKey` adapter (ADR-0309). Not a cloud BYOKMS.
     RemoteHttp,
 }
 
@@ -119,7 +119,7 @@ impl std::str::FromStr for SigningProviderType {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SigningKey {
     pub id: Uuid,
-    /// Opaque public key id — never an org id, ARN, or OpenBao path.
+    /// Opaque public key id — never an org id, `ARN`, or `OpenBao` path.
     pub kid: String,
     pub algorithm: String,
     pub trust_scope: TrustScope,
@@ -146,24 +146,31 @@ pub struct SigningScope {
 }
 
 impl SigningScope {
-    pub fn platform() -> Self {
+    #[must_use]
+    pub const fn platform() -> Self {
         Self {
             trust_scope: TrustScope::Platform,
             organization_id: None,
         }
     }
-    pub fn organization(id: Uuid) -> Self {
+    #[must_use]
+    pub const fn organization(id: Uuid) -> Self {
         Self {
             trust_scope: TrustScope::Organization,
             organization_id: Some(id),
         }
     }
+    #[must_use]
     pub fn of(key: &SigningKey) -> Self {
         Self {
             trust_scope: key.trust_scope.clone(),
             organization_id: key.organization_id,
         }
     }
+    /// # Errors
+    ///
+    /// Returns an error if platform scope carries an organization id or
+    /// organization scope is missing one.
     pub fn validate(&self) -> Result<(), crate::error::DomainError> {
         if (self.trust_scope == TrustScope::Platform) != self.organization_id.is_none() {
             return Err(crate::error::DomainError::InvalidSigningKeyMaterial);
@@ -196,19 +203,22 @@ pub enum SigningKeyPreparation {
 }
 
 /// Probe evidence is constructed by the domain probe port, never by the writer.
+///
 /// Carries the scope revision read BEFORE provider I/O. Not Clone/retry evidence.
 pub struct ProbedSigningKey {
     key: SigningKey,
     before: SigningScopeSnapshot,
 }
 impl ProbedSigningKey {
-    pub(crate) fn new(key: SigningKey, before: SigningScopeSnapshot) -> Self {
+    pub(crate) const fn new(key: SigningKey, before: SigningScopeSnapshot) -> Self {
         Self { key, before }
     }
-    pub fn key(&self) -> &SigningKey {
+    #[must_use]
+    pub const fn key(&self) -> &SigningKey {
         &self.key
     }
-    pub fn before(&self) -> &SigningScopeSnapshot {
+    #[must_use]
+    pub const fn before(&self) -> &SigningScopeSnapshot {
         &self.before
     }
 }
@@ -226,6 +236,11 @@ pub struct SigningKeyPublicationSnapshot {
 impl SigningKeyPublicationSnapshot {
     /// Fixture/legacy adapter only. Production reads persisted, already validated
     /// public payloads; it never calls this PEM conversion adapter.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if public keys cannot be prepared or the JWKS payload
+    /// is invalid.
     pub fn from_fixture_keys(
         keys: Vec<SigningKey>,
         as_of: DateTime<Utc>,
@@ -259,16 +274,24 @@ pub enum SigningKeyAdmissionReason {
     EpochConflict,
 }
 
-pub fn admission_denied(reason: SigningKeyAdmissionReason) -> crate::error::DomainError {
+#[must_use]
+pub const fn admission_denied(reason: SigningKeyAdmissionReason) -> crate::error::DomainError {
     crate::error::DomainError::SigningKeyAdmissionDenied {
         reason,
         retry_after_seconds: None,
     }
 }
 
-/// RSA SPKI public parser with an explicit 8192-bit backend limit. rsa 0.9's
-/// DecodePublicKey default silently caps at 4096. Legacy small valid keys remain
-/// readable for auth; the NEW-material 2048 floor is enforced by admission only.
+/// RSA SPKI public parser with an explicit 8192-bit backend limit.
+///
+/// rsa 0.9's `DecodePublicKey` default silently caps at 4096. Legacy small
+/// valid keys remain readable for auth; the NEW-material 2048 floor is
+/// enforced by admission only.
+///
+/// # Errors
+///
+/// Returns an error if the PEM is not a valid RSA SPKI public key, or if the
+/// modulus exceeds the backend size bound.
 pub fn parse_signing_public_key(pem: &str) -> Result<rsa::RsaPublicKey, crate::error::DomainError> {
     let invalid = || crate::error::DomainError::InvalidSigningKeyMaterial;
     let (label, document) = rsa::pkcs8::Document::from_pem(pem).map_err(|_| invalid())?;
@@ -301,6 +324,7 @@ pub fn parse_signing_public_key(pem: &str) -> Result<rsa::RsaPublicKey, crate::e
 }
 
 /// Immutable, validated numeric policy explicitly ratified by the user (0310).
+///
 /// No unbounded/legacy constructor or environment disabling admission exists.
 #[derive(Clone, Debug)]
 pub struct SigningKeyLifecyclePolicy {
@@ -328,8 +352,10 @@ pub struct SigningKeyPublicationUsage {
     pub organization_epochs: std::collections::BTreeMap<Uuid, usize>,
 }
 
-/// Non-secret publication report. An unmeasurable snapshot requires recovery,
-/// not omission/eviction of keys or a global Active-authentication policy gate.
+/// Non-secret publication report.
+///
+/// An unmeasurable snapshot requires recovery, not omission/eviction of keys
+/// or a global Active-authentication policy gate.
 #[derive(Debug, Clone)]
 pub struct SigningKeyLifecyclePreflight {
     pub snapshot_key_count: usize,
@@ -340,11 +366,16 @@ pub struct SigningKeyLifecyclePreflight {
 impl SigningKeyLifecyclePolicy {
     /// Bounded evidence suffices: the fourth newest admission determines the
     /// same release deadline even when conservative legacy history exceeds four.
-    pub fn organization_churn_evidence_limit(&self) -> usize {
+    #[must_use]
+    pub const fn organization_churn_evidence_limit(&self) -> usize {
         self.max_new_organization_epochs
     }
 
     /// Shared TTL validation for root and pure snapshot checks.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the TTL is zero or cannot form a duration.
     pub fn access_token_retention(
         &self,
         ttl: u64,
@@ -363,12 +394,20 @@ impl SigningKeyLifecyclePolicy {
     }
 
     /// Constructor-only range check; snapshot evaluation uses its supplied DB clock.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the TTL is outside the remaining lifetime bound.
     pub fn validate_access_token_ttl(&self, ttl: u64) -> Result<(), crate::error::DomainError> {
         self.access_token_retention(ttl, Utc::now()).map(|_| ())
     }
 
     /// Pure evaluator for publication reporting.
     /// An unknown usage is recovery, never a successful truncated publication.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the finite policy or the access-token TTL is invalid.
     pub fn preflight_publication(
         &self,
         snapshot: &SigningKeyPublicationSnapshot,
@@ -401,7 +440,10 @@ impl SigningKeyLifecyclePolicy {
         Ok(policy)
     }
 
-    pub fn validate(&self) -> Result<(), crate::error::DomainError> {
+    /// # Errors
+    ///
+    /// Returns an error if the finite policy bounds are inconsistent.
+    pub const fn validate(&self) -> Result<(), crate::error::DomainError> {
         if self.max_jwks_bytes >= 1_048_576
             || self.max_jwks_bytes == 0
             || self.platform_reserve_bytes == 0
@@ -418,12 +460,20 @@ impl SigningKeyLifecyclePolicy {
     }
 
     /// New rows only; no legacy Active authentication check is added.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the key material cannot be prepared for JWKS.
     pub fn validate_new_key(&self, key: &SigningKey) -> Result<(), crate::error::DomainError> {
         crate::entity::signing_publication::PreparedSigningPublicKey::prepare(key).map(|_| ())
     }
 
     /// Compatibility diagnostic for fixture callers, now fixed-slot accounting.
     /// Production SQL admission/materialization never calls this PEM adapter.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the fixture keys cannot be converted into a publication.
     pub fn publication_usage(
         &self,
         keys: &[SigningKey],
@@ -439,6 +489,10 @@ impl SigningKeyLifecyclePolicy {
 
     /// Validate the simulated complete publication BEFORE any mutation. New kids
     /// charge history once, including later-revoked/expired rows; promotions do not.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the proposed keys violate admission policy.
     pub fn check_admission(
         &self,
         proposed: &[SigningKey],
@@ -487,6 +541,10 @@ impl SigningKeyLifecyclePolicy {
 
     /// Indexed DB evidence evaluated at the post-lock writer clock. Revocation,
     /// no-op and promotion do not call this with an organization admission.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if organization admission exceeds the churn window budget.
     pub fn check_churn(
         &self,
         history: &[SigningKeyAdmissionHistory],
@@ -523,6 +581,10 @@ impl SigningKeyLifecyclePolicy {
 }
 
 /// Require a pinned Transit version; missing and zero are never aliases for latest.
+///
+/// # Errors
+///
+/// Returns an error if the version is missing or zero.
 pub fn require_transit_key_version(version: Option<u32>) -> Result<u32, crate::error::DomainError> {
     version
         .filter(|v| *v > 0)
@@ -531,6 +593,7 @@ pub fn require_transit_key_version(version: Option<u32>) -> Result<u32, crate::e
 
 /// Configure equality: all effective bindings, normalized n/e; candidate identity
 /// and timestamps are deliberately not part of this no-op comparison.
+#[must_use]
 pub fn same_effective_signing_binding(a: &SigningKey, b: &SigningKey) -> bool {
     if a.algorithm != b.algorithm
         || a.issuer != b.issuer
@@ -705,7 +768,7 @@ mod admission_tests {
     }
     fn public_bits(bits: usize) -> String {
         let n = (rsa::BigUint::from(1u8) << (bits - 1)) + rsa::BigUint::from(3u8);
-        rsa::RsaPublicKey::new_with_max_size(n, rsa::BigUint::from(65537u32), 16_384)
+        rsa::RsaPublicKey::new_with_max_size(n, rsa::BigUint::from(65_537u32), 16_384)
             .unwrap()
             .to_public_key_pem(LineEnding::LF)
             .unwrap()
@@ -790,7 +853,7 @@ mod admission_tests {
         let candidate = key(Some(org));
         let full = policy
             .check_admission(
-                &[candidate.clone()],
+                std::slice::from_ref(&candidate),
                 &history,
                 Some(&candidate),
                 1800,
@@ -799,7 +862,7 @@ mod admission_tests {
             .unwrap_err();
         let bounded = policy
             .check_admission(
-                &[candidate.clone()],
+                std::slice::from_ref(&candidate),
                 &history[..policy.organization_churn_evidence_limit()],
                 Some(&candidate),
                 1800,
@@ -818,7 +881,7 @@ mod admission_tests {
                 p.platform_reserve_bytes,
                 p.max_reserved_jwk_bytes
             ),
-            (786432, 65536, 4096)
+            (786_432, 65_536, 4096)
         );
         assert_eq!(
             (
@@ -846,9 +909,12 @@ mod admission_tests {
             SigningKeyStatus::Retiring,
         ] {
             k.status = status;
-            let usage = p.publication_usage(&[k.clone()], 900, clock()).unwrap();
+            let usage = p
+                .publication_usage(std::slice::from_ref(&k), 900, clock())
+                .unwrap();
             let set =
-                crate::entity::token::JwkSet::from_registry_keys_checked(&[k.clone()]).unwrap();
+                crate::entity::token::JwkSet::from_registry_keys_checked(std::slice::from_ref(&k))
+                    .unwrap();
             assert_eq!(usage.actual_bytes, serde_json::to_vec(&set).unwrap().len());
             assert_eq!(usage.reserved_bytes, b + 1 + b"{\"keys\":[]}".len());
             assert_eq!(usage.organization_reserved_bytes, b + 1);
@@ -977,7 +1043,7 @@ mod admission_tests {
             4
         ];
         let err = p
-            .check_admission(&[k.clone()], &history, Some(&k), 900, clock())
+            .check_admission(std::slice::from_ref(&k), &history, Some(&k), 900, clock())
             .unwrap_err();
         assert!(matches!(
             err,
@@ -987,20 +1053,20 @@ mod admission_tests {
             }
         ));
         assert!(p
-            .check_admission(&[k.clone()], &history, None, 900, clock())
+            .check_admission(std::slice::from_ref(&k), &history, None, 900, clock())
             .is_ok());
         for entry in &mut history {
             entry.admitted_at = clock() - chrono::Duration::seconds(3600);
         }
         assert!(p
-            .check_admission(&[k.clone()], &history, Some(&k), 900, clock())
+            .check_admission(std::slice::from_ref(&k), &history, Some(&k), 900, clock())
             .is_ok());
         for entry in &mut history {
             entry.admitted_at += chrono::Duration::nanoseconds(1);
         }
         assert_eq!(
             reason(
-                p.check_admission(&[k.clone()], &history, Some(&k), 900, clock())
+                p.check_admission(std::slice::from_ref(&k), &history, Some(&k), 900, clock())
                     .unwrap_err()
             ),
             SigningKeyAdmissionReason::ChurnRate
@@ -1036,7 +1102,7 @@ mod admission_tests {
         let org_key = key(Some(org));
         let platform_key = key(None);
         assert!(p
-            .check_admission(&[org_key.clone(), platform_key], &[], None, 900, clock())
+            .check_admission(&[org_key, platform_key], &[], None, 900, clock())
             .is_ok());
         let reserved: Vec<_> = (0..176).map(|_| key(Some(Uuid::new_v4()))).collect();
         assert!(p

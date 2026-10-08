@@ -1,4 +1,4 @@
-//! ext_authz HTTP Check binary (ADR-0308). Overlay Envoy Kind stays commented.
+//! `ext_authz` HTTP Check binary (ADR-0308). Overlay Envoy `Kind` stays commented.
 #![allow(missing_docs)]
 
 mod tls_server;

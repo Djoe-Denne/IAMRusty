@@ -3,6 +3,7 @@
 //! Manifesto n'a pas conscience de Lazaret. T7 n'est pas affaibli.
 //! Lazaret expose l'identité hybride ; un jeton crypto-valide n'est pas une autorisation.
 
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 fn workspace_root() -> PathBuf {
@@ -17,12 +18,12 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in entries {
         let path = entry.expect("entrée lisible").path();
         if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            let name = path.file_name().and_then(OsStr::to_str).unwrap_or("");
             if name == "tests" || name == "target" {
                 continue;
             }
             collect_rs(&path, out);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+        } else if path.extension().and_then(OsStr::to_str) == Some("rs") {
             out.push(path);
         }
     }
@@ -77,7 +78,7 @@ fn concat_src(files: &[PathBuf]) -> String {
         .join("\n")
 }
 
-fn file_or_empty(path: &Path) -> &Path {
+const fn file_or_empty(path: &Path) -> &Path {
     path
 }
 

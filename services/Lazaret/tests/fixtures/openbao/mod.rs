@@ -1,7 +1,7 @@
-//! OpenBao testcontainer for Lazaret secret-resolver product proof (T12).
+//! `OpenBao` testcontainer for `Lazaret` secret-resolver product proof (T12).
 //!
 //! Container name: `lazaret_test-openbao`. Service-local; not `has_openbao` on
-//! the shared descriptor. Same image tag as docker-compose (`openbao/openbao:2.6.2`).
+//! the shared descriptor. Same image tag as `docker-compose` (`openbao/openbao:2.6.2`).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -43,7 +43,7 @@ impl TestOpenBaoContainer {
     }
 }
 
-/// Typed OpenBao fixture. Tests use [`Self::base_url`], [`Self::token`], and
+/// Typed `OpenBao` fixture. Tests use [`Self::base_url`], [`Self::token`], and
 /// [`Self::put_kv_v2`].
 pub struct TestOpenBao {
     /// Host port mapped to 8200.
@@ -56,7 +56,7 @@ impl TestOpenBao {
     ///
     /// # Errors
     ///
-    /// Returns an error if Docker cannot start OpenBao, the HTTP client cannot
+    /// Returns an error if `Docker` cannot start `OpenBao`, the HTTP client cannot
     /// be built, or `/v1/sys/health` never reports ready.
     pub async fn new() -> Result<Arc<Self>, Box<dyn std::error::Error>> {
         let port = get_or_create_test_openbao_container().await?;
@@ -76,7 +76,7 @@ impl TestOpenBao {
 
     /// Dev root token (`lazaret-dev-root`), same class as compose.
     #[must_use]
-    pub fn token(&self) -> &'static str {
+    pub const fn token() -> &'static str {
         ROOT_TOKEN
     }
 
@@ -101,7 +101,7 @@ impl TestOpenBao {
         let response = self
             .client
             .put(&url)
-            .header("X-Vault-Token", self.token())
+            .header("X-Vault-Token", Self::token())
             .header("Content-Type", "application/json")
             .body(body)
             .send()
@@ -131,9 +131,11 @@ impl TestOpenBao {
 
 async fn get_or_create_test_openbao_container() -> Result<u16, Box<dyn std::error::Error>> {
     let container_mutex = TEST_OPENBAO_CONTAINER.get_or_init(|| Arc::new(Mutex::new(None)));
-    let mut container_guard = container_mutex.lock().await;
-    if let Some(ref container) = *container_guard {
-        return Ok(container.port);
+    {
+        let container_guard = container_mutex.lock().await;
+        if let Some(ref container) = *container_guard {
+            return Ok(container.port);
+        }
     }
 
     cleanup_existing_openbao_container();
@@ -163,6 +165,11 @@ async fn get_or_create_test_openbao_container() -> Result<u16, Box<dyn std::erro
     info!("Starting OpenBao container on port {port}");
     let container = image.start().await?;
     let test_container = Arc::new(TestOpenBaoContainer { container, port });
+
+    let mut container_guard = container_mutex.lock().await;
+    if let Some(ref existing) = *container_guard {
+        return Ok(existing.port);
+    }
     *container_guard = Some(test_container);
     register_openbao_cleanup_handler();
     Ok(port)

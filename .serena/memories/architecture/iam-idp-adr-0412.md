@@ -1,10 +1,9 @@
-# ADR-0412 — transaction OAuth navigateur
+# IAM-IdP — ADR-0412 transaction OAuth navigateur
 
 Statut : Accepted. Réalité : Partial. Canon : docs/adr/0412-oauth-transaction-persistante-liee-navigateur.md ; voir le fichier ADR.
 
-- Cible ratifiée 2026-10-03 ; sources A/B/root transaction PostgreSQL, cookie noncehash, consume atomique et PKCE écrites. Aucun nouveau résultat intégré root/IT/E2E.
-- Exception humaine 2026-10-04 : GET/HEAD relink-callback exact github/gitlab configurés sans access JWT, autorisation transaction cookie/state ; START Link/Relink JWT plateforme, aucun wildcard/alias/non-browser.
-- Agrégat IamHttpSecurityContext instance-local partagé standalone/tests/monolith ; pré-DB policy/issuer/limiter, post-DB usecases.oauth.clone(), writer unique cleanup.
-- Purge toutes expirées bornée SKIP LOCKED, 60s/100 cap1000 ; watch instance-local, supervision/join/drain des handles, pas TTL+60 garanti sous panne.
-- Gates : suites IAM oauth_browser_transactions/oauth_cleanup_lifecycle/auth_transactions_postgres réellement exécutées puis navigateur/Envoy/replay sur kind-aiforall-local-full autorisé après IT ; SDK22/review statique ≠ preuve IAM.
-- Mise à jour 2026-10-04 — migrations aplaties : aucune donnée en production ; `oauth_transactions` et ses contraintes/index sont dans l'unique `m20220101_000001_initial_schema.rs`. Migrations incrémentales seulement quand un état persisté devra être préservé. Statut Accepted / réalité Partial inchangés ; aucune preuve IT/E2E ajoutée.
+- Cible ratifiée le 2026-10-03 : transaction writer PostgreSQL login/link/relink, cookie noncehash, consommation atomique inter-replicas et PKCE supporté.
+- Exception relink ratifiée le 2026-10-04 : GET/HEAD relink-callback exact github/gitlab configurés sans access JWT, autorisation transaction cookie/state ; START Link/Relink JWT plateforme, aucun alias/wildcard/non-browser.
+- IamHttpSecurityContext partagé standalone/tests/monolith ; writer unique et purge expirées bornée SKIP LOCKED, watch instance-local supervisé ; pas TTL+60 garanti sous panne/backlog. Schéma OAuth dans la migration IAM initiale unique.
+- 2026-10-08 : units + IT IAM vertes sur master, exécutées et confirmées par Djoé Denne ; attestation utilisateur, pas artefact CI archivé ni exécution de cet agent. Suites oauth_browser_transactions/oauth_cleanup_lifecycle/auth_transactions_postgres référencées par le canon.
+- E2E finale exact-route/Envoy NON attestée et explicitement restante ; Réalité Partial inchangée jusqu’à cette preuve. SDK22 et review statique ne la remplacent pas ; aucun runtime démarré dans cette réconciliation.

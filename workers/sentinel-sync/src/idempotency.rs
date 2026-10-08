@@ -47,6 +47,7 @@ pub struct InMemoryEventLedger {
 }
 
 impl InMemoryEventLedger {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -96,6 +97,12 @@ pub struct PostgresEventLedger {
 }
 
 impl PostgresEventLedger {
+    /// Connect to Postgres and create ledger tables if they are missing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database connection fails or table DDL cannot
+    /// be applied.
     pub async fn connect(database_url: &str) -> Result<Self> {
         let db = Database::connect(database_url).await?;
         let ledger = Self { db };
@@ -272,6 +279,11 @@ fn complete_visibility_revision(
 }
 
 /// Build a ledger from config.
+///
+/// # Errors
+///
+/// Returns an error if `backend` is unknown, if `postgres` is selected without
+/// `database_url`, or if connecting to Postgres fails.
 pub async fn build_ledger(config: &IdempotencyConfig) -> Result<Box<dyn EventLedger>> {
     match config.backend.as_str() {
         "in-memory" => Ok(Box::new(InMemoryEventLedger::new())),

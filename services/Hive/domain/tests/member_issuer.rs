@@ -45,9 +45,7 @@ fn member_matches_principal(
 ) -> bool {
     stored.organization_id == org
         && stored.user_id == user
-        && hive_domain::platform_issuer_aliases(principal_iss)
-            .iter()
-            .any(|iss| stored.issuer == *iss)
+        && hive_domain::platform_issuer_aliases(principal_iss).contains(&stored.issuer)
 }
 
 #[test]

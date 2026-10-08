@@ -90,7 +90,6 @@ async fn apply_due_once_inner(
                 component_id = %row.component_id,
                 "apparatus apply row failed"
             );
-            continue;
         }
     }
     Ok(())

@@ -81,7 +81,9 @@ async fn expired_row(db: &impl ConnectionTrait) -> uuid::Uuid {
 #[tokio::test]
 #[serial]
 async fn real_cleanup_failure_is_observable_redacted_and_retries_after_writer_recovers() {
-    let (fixture, _, _) = common::setup_test_server().await.expect("Postgres harness");
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
+        .await
+        .expect("Postgres harness");
     fixture_cleanup::run(&fixture, async {
     let db = fixture.db();
     // Publish the row and its failure seam together: the normal app actor is already live.
@@ -157,7 +159,9 @@ async fn real_cleanup_failure_is_observable_redacted_and_retries_after_writer_re
 #[tokio::test]
 #[serial]
 async fn stop_joins_cleanup_while_real_primary_io_is_blocked() {
-    let (fixture, _, _) = common::setup_test_server().await.expect("Postgres harness");
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
+        .await
+        .expect("Postgres harness");
     fixture_cleanup::run(&fixture, async {
         let db = fixture.db();
         expired_row(db.as_ref()).await;

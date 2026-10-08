@@ -50,8 +50,7 @@ async fn active_member(
 ) -> Result<Option<ProjectMember>, ApplicationError> {
     match member_service.get_member(project_id, user_id).await {
         Ok(member) if member.is_active() => Ok(Some(member)),
-        Ok(_) => Ok(None),
-        Err(DomainError::EntityNotFound { .. }) => Ok(None),
+        Ok(_) | Err(DomainError::EntityNotFound { .. }) => Ok(None),
         Err(error) => Err(ApplicationError::from(error)),
     }
 }

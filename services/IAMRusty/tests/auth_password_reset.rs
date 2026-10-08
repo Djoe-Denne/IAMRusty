@@ -27,9 +27,10 @@ use tokio::time::Duration;
 #[tokio::test]
 #[serial]
 async fn test_password_reset_request_existing_user_success() {
-    let (fixture, base_url, client, mock_event_publisher) = setup_test_server_with_mock_events()
-        .await
-        .expect("Failed to setup test server");
+    let (fixture, base_url, client, mock_event_publisher) =
+        Box::pin(setup_test_server_with_mock_events())
+            .await
+            .expect("Failed to setup test server");
 
     // Create a user with email/password authentication
     let user_email = "reset-test@example.com";
@@ -103,9 +104,10 @@ async fn test_password_reset_request_existing_user_success() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_request_nonexistent_email_security() {
-    let (_fixture, base_url, client, mock_event_publisher) = setup_test_server_with_mock_events()
-        .await
-        .expect("Failed to setup test server");
+    let (_fixture, base_url, client, mock_event_publisher) =
+        Box::pin(setup_test_server_with_mock_events())
+            .await
+            .expect("Failed to setup test server");
 
     // Request password reset for non-existent email
     let response = client
@@ -143,9 +145,10 @@ async fn test_password_reset_request_nonexistent_email_security() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_request_oauth_only_user_security() {
-    let (fixture, base_url, client, mock_event_publisher) = setup_test_server_with_mock_events()
-        .await
-        .expect("Failed to setup test server");
+    let (fixture, base_url, client, mock_event_publisher) =
+        Box::pin(setup_test_server_with_mock_events())
+            .await
+            .expect("Failed to setup test server");
 
     // Create a user that only has OAuth authentication (no password)
     let (_user, _provider_token) = DbFixtures::create_user_with_oauth_provider(
@@ -192,7 +195,7 @@ async fn test_password_reset_request_oauth_only_user_security() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_request_invalid_email_format() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -238,7 +241,7 @@ async fn test_password_reset_request_invalid_email_format() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_request_missing_email() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -261,7 +264,7 @@ async fn test_password_reset_request_missing_email() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_request_malformed_json() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -288,7 +291,7 @@ async fn test_password_reset_request_malformed_json() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_validate_valid_token() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -341,7 +344,7 @@ async fn test_password_reset_validate_valid_token() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_validate_expired_token() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -392,7 +395,7 @@ async fn test_password_reset_validate_expired_token() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_validate_used_token() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -443,7 +446,7 @@ async fn test_password_reset_validate_used_token() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_validate_invalid_token() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -474,7 +477,7 @@ async fn test_password_reset_validate_invalid_token() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_validate_missing_token() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -501,7 +504,7 @@ async fn test_password_reset_validate_missing_token() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_confirm_unauthenticated_success() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -592,7 +595,7 @@ async fn test_password_reset_confirm_unauthenticated_success() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_confirm_token_reuse_prevention() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -658,7 +661,7 @@ async fn test_password_reset_confirm_token_reuse_prevention() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_confirm_weak_password() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -715,7 +718,7 @@ async fn test_password_reset_confirm_weak_password() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_confirm_invalid_token() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -747,7 +750,7 @@ async fn test_password_reset_confirm_invalid_token() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_confirm_missing_fields() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -785,7 +788,7 @@ async fn test_password_reset_confirm_missing_fields() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_authenticated_success() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -889,7 +892,7 @@ async fn test_password_reset_authenticated_success() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_authenticated_wrong_current_password() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -953,7 +956,7 @@ async fn test_password_reset_authenticated_wrong_current_password() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_authenticated_no_auth_header() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -979,7 +982,7 @@ async fn test_password_reset_authenticated_no_auth_header() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_authenticated_invalid_token() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -1006,7 +1009,7 @@ async fn test_password_reset_authenticated_invalid_token() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_authenticated_weak_password() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -1075,7 +1078,7 @@ async fn test_password_reset_authenticated_weak_password() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_workflow_multiple_tokens() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -1160,7 +1163,7 @@ async fn test_password_reset_workflow_multiple_tokens() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_case_insensitive_email() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -1202,9 +1205,10 @@ async fn test_password_reset_case_insensitive_email() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_request_event_published_for_valid_user() {
-    let (fixture, base_url, client, mock_publisher) = setup_test_server_with_mock_events()
-        .await
-        .expect("Failed to setup test server with mock events");
+    let (fixture, base_url, client, mock_publisher) =
+        Box::pin(setup_test_server_with_mock_events())
+            .await
+            .expect("Failed to setup test server with mock events");
 
     // Clear any existing events
     mock_publisher.clear_events();
@@ -1261,9 +1265,10 @@ async fn test_password_reset_request_event_published_for_valid_user() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_request_no_event_for_nonexistent_email() {
-    let (_fixture, base_url, client, mock_publisher) = setup_test_server_with_mock_events()
-        .await
-        .expect("Failed to setup test server with mock events");
+    let (_fixture, base_url, client, mock_publisher) =
+        Box::pin(setup_test_server_with_mock_events())
+            .await
+            .expect("Failed to setup test server with mock events");
 
     // Clear any existing events
     mock_publisher.clear_events();
@@ -1305,9 +1310,10 @@ async fn test_password_reset_request_no_event_for_nonexistent_email() {
 #[tokio::test]
 #[serial]
 async fn test_password_reset_request_no_event_for_oauth_only_user() {
-    let (fixture, base_url, client, mock_publisher) = setup_test_server_with_mock_events()
-        .await
-        .expect("Failed to setup test server with mock events");
+    let (fixture, base_url, client, mock_publisher) =
+        Box::pin(setup_test_server_with_mock_events())
+            .await
+            .expect("Failed to setup test server with mock events");
 
     // Clear any existing events
     mock_publisher.clear_events();

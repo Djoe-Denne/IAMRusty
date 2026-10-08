@@ -5,6 +5,7 @@
 //! n'écrit pas de CR. Harness / publisher / plugin / `VERIFIED` ≠ admit.
 //! Pas d'HTTP, pas de kube/CRD (T10).
 
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -82,12 +83,12 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in entries {
         let path = entry.expect("entrée lisible").path();
         if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            let name = path.file_name().and_then(OsStr::to_str).unwrap_or("");
             if name == "target" || name == ".git" {
                 continue;
             }
             collect_rs(&path, out);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+        } else if path.extension().and_then(OsStr::to_str) == Some("rs") {
             out.push(path);
         }
     }
@@ -255,8 +256,9 @@ fn t7_admit_refuse_variants_stable_for_t8() {
         AdmitRefuse::ManifestNonconformant,
         AdmitRefuse::UnexpectedSignature,
         AdmitRefuse::MissingRuntimePolicy,
+        AdmitRefuse::PersistFailed,
     ];
-    assert_eq!(variants.len(), 4);
+    assert_eq!(variants.len(), 5);
     let (descriptor, report_digest, _) = passing_report_and_descriptor();
     assert_eq!(
         AdmitRefuse::if_digest_mismatch(&descriptor, &descriptor),

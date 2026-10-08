@@ -45,7 +45,9 @@ async fn count(db: &sea_orm::DatabaseConnection, user: Uuid) -> i64 {
 #[tokio::test]
 #[serial]
 async fn concurrent_resets_and_old_credential_issue_have_one_reset_and_no_surviving_old_session() {
-    let (fixture, _, _) = common::setup_test_server().await.expect("Postgres harness");
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
+        .await
+        .expect("Postgres harness");
     fixture_cleanup::run(&fixture, async {
     let db = fixture.db();
     let user = DbFixtures::user()
@@ -142,7 +144,9 @@ async fn concurrent_resets_and_old_credential_issue_have_one_reset_and_no_surviv
 #[tokio::test]
 #[serial]
 async fn reset_purge_failure_rolls_back_password_and_all_existing_sessions() {
-    let (fixture, _, _) = common::setup_test_server().await.expect("Postgres harness");
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
+        .await
+        .expect("Postgres harness");
     fixture_cleanup::run(&fixture, async {
     let db = fixture.db();
     let user = DbFixtures::user()

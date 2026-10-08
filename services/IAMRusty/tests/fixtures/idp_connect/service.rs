@@ -10,20 +10,17 @@ use url::Url;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 
-/// WireMock collaborator for IAM → IdP Connect (`/github-connect`, `/gitlab-connect`).
+/// `WireMock` collaborator for IAM → `IdP` Connect (`/github-connect`, `/gitlab-connect`).
 pub struct IdpConnectMockService {
     server: Arc<MockServer>,
-    _fixture: MockServerFixture,
+    fixture: MockServerFixture,
 }
 
 impl IdpConnectMockService {
     pub async fn new() -> Self {
         let fixture = MockServerFixture::new().await;
         let server = fixture.server();
-        Self {
-            server,
-            _fixture: fixture,
-        }
+        Self { server, fixture }
     }
 
     #[must_use]
@@ -32,7 +29,7 @@ impl IdpConnectMockService {
     }
 
     pub async fn reset(&self) {
-        self._fixture.reset().await;
+        self.fixture.reset().await;
     }
 
     /// Captured real outbound requests; callers must not print credential bodies.

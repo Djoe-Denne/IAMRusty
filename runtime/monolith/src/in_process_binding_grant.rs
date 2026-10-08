@@ -1,4 +1,4 @@
-//! InProcess Lazaret → Manifesto binding-grant adapter (ADR-0104).
+//! InProcess `Lazaret` → `Manifesto` binding-grant adapter (`ADR-0104`).
 //!
 //! Lives only in `oodhive-monolith`. Maps Manifesto reader DTOs → Lazaret
 //! domain snapshots. No HTTP, no JWT `manifesto-bindings`, no token.
@@ -59,7 +59,7 @@ fn map_snapshot(response: BindingGrantSnapshotResponse) -> BindingGrantSnapshot 
         grant_revision: response.grant_revision,
         declared: response.declared,
         consents: response.consents.into_iter().map(map_consent).collect(),
-        principal: response.principal.map(map_principal),
+        principal: response.principal.as_ref().map(map_principal),
     }
 }
 
@@ -71,7 +71,7 @@ fn map_consent(consent: CapabilityConsentSnapshot) -> CapabilityConsent {
     }
 }
 
-fn map_principal(membership: PrincipalMembershipSnapshot) -> PrincipalMembership {
+const fn map_principal(membership: &PrincipalMembershipSnapshot) -> PrincipalMembership {
     PrincipalMembership {
         user_id: membership.user_id,
         active: membership.active,
@@ -103,8 +103,9 @@ mod tests {
             component_id: Uuid,
             principal: Option<Uuid>,
         ) -> Result<BindingGrantSnapshotResponse, ApplicationError> {
-            match &self.snapshot {
-                Some(snapshot) => {
+            self.snapshot.as_ref().map_or_else(
+                || Err(ApplicationError::NotFound("binding".into())),
+                |snapshot| {
                     let mut out = snapshot.clone();
                     out.project_id = project_id;
                     out.component_id = component_id;
@@ -113,9 +114,8 @@ mod tests {
                         active: true,
                     });
                     Ok(out)
-                }
-                None => Err(ApplicationError::NotFound("binding".into())),
-            }
+                },
+            )
         }
     }
 

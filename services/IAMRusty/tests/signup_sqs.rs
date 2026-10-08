@@ -43,7 +43,7 @@ async fn test_signup_sqs_integration() {
     tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
 
     // Start the regular test server (it will pick up SQS config from environment)
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 

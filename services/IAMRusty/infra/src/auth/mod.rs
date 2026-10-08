@@ -1,4 +1,4 @@
-//! Federated IdP HTTP connector and password services
+//! Federated `IdP` HTTP connector and password services
 
 mod http_connector;
 mod password;

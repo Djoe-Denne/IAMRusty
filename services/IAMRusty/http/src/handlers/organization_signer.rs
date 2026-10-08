@@ -20,6 +20,19 @@ use uuid::Uuid;
 
 use crate::rate_limit::require_internal_service_token;
 
+/// Constructor arguments for [`SignerRouteContext`].
+pub struct SignerRouteContextParams {
+    pub registry: Arc<dyn SigningKeyRegistry<Error = DomainError>>,
+    pub identity_repo: Arc<dyn IdentityRepository<Error = DomainError>>,
+    pub public_base_url: String,
+    pub probe: Arc<dyn OrganizationSignerProbe>,
+    pub rotator: Arc<dyn OrganizationSignerRotator>,
+    pub pem_root: PathBuf,
+    pub expiration_seconds: u64,
+    pub skew_seconds: u64,
+    pub transit_base_url: Option<String>,
+}
+
 /// Runtime context for org-signer / org-identity internal routes.
 #[derive(Clone)]
 pub struct SignerRouteContext {
@@ -40,18 +53,18 @@ pub struct SignerRouteContext {
 impl SignerRouteContext {
     /// Build context and wire the application façade from the same ports.
     #[must_use]
-    pub fn new(
-        registry: Arc<dyn SigningKeyRegistry<Error = DomainError>>,
-        identity_repo: Arc<dyn IdentityRepository<Error = DomainError>>,
-        public_base_url: impl Into<String>,
-        probe: Arc<dyn OrganizationSignerProbe>,
-        rotator: Arc<dyn OrganizationSignerRotator>,
-        pem_root: PathBuf,
-        expiration_seconds: u64,
-        skew_seconds: u64,
-        transit_base_url: Option<String>,
-    ) -> Self {
-        let public_base_url = public_base_url.into();
+    pub fn new(params: SignerRouteContextParams) -> Self {
+        let SignerRouteContextParams {
+            registry,
+            identity_repo,
+            public_base_url,
+            probe,
+            rotator,
+            pem_root,
+            expiration_seconds,
+            skew_seconds,
+            transit_base_url,
+        } = params;
         let facade = Arc::new(OrganizationSignerFacadeImpl::new(
             registry.clone(),
             public_base_url.clone(),
@@ -108,7 +121,7 @@ pub struct OrganizationIdentityResponse {
     pub kind: String,
 }
 
-fn map_signer_error(err: DomainError) -> StatusCode {
+fn map_signer_error(err: &DomainError) -> StatusCode {
     match err {
         DomainError::SigningKeyAdmissionDenied { reason, .. } => match reason {
             iam_domain::entity::signing_key::SigningKeyAdmissionReason::EpochConflict => {
@@ -117,12 +130,12 @@ fn map_signer_error(err: DomainError) -> StatusCode {
             _ => StatusCode::TOO_MANY_REQUESTS,
         },
         DomainError::InvalidSigningKeyMaterial => StatusCode::BAD_REQUEST,
-        DomainError::BusinessRuleViolation(ref message)
+        DomainError::BusinessRuleViolation(message)
             if message == ISSUER_OWNED_BY_OTHER_ORGANIZATION =>
         {
             StatusCode::CONFLICT
         }
-        DomainError::AuthorizationError(ref message)
+        DomainError::AuthorizationError(message)
             if message.contains(NO_ACTIVE_ORGANIZATION_SIGNING_KEY) =>
         {
             StatusCode::NOT_FOUND
@@ -147,7 +160,7 @@ fn signer_error_response(err: DomainError) -> axum::response::Response {
         } => *retry_after_seconds,
         _ => None,
     };
-    let mut response = map_signer_error(err).into_response();
+    let mut response = map_signer_error(&err).into_response();
     if let Some(retry) = retry {
         if let Ok(value) = retry.to_string().parse() {
             response
@@ -159,11 +172,11 @@ fn signer_error_response(err: DomainError) -> axum::response::Response {
 }
 
 #[cfg(test)]
-fn map_rotate_error(err: DomainError) -> StatusCode {
+fn map_rotate_error(err: &DomainError) -> StatusCode {
     map_signer_error(err)
 }
 
-fn map_probe_error(err: DomainError) -> StatusCode {
+fn map_probe_error(err: &DomainError) -> StatusCode {
     match err {
         DomainError::InvalidSigningKeyMaterial => StatusCode::BAD_REQUEST,
         DomainError::AuthorizationError(_)
@@ -189,6 +202,10 @@ impl From<OrganizationSignerResult> for SignerResponse {
 /// POST `/internal/organizations/{org_id}/signer/configure`
 ///
 /// `org_slug` is trusted from Hive (internal token). Hive binds it to `Organization.slug`.
+///
+/// # Errors
+///
+/// Returns a mapped HTTP error if the internal token is rejected or configure fails.
 pub async fn configure_organization_signer(
     headers: HeaderMap,
     Path(org_id): Path<Uuid>,
@@ -216,6 +233,10 @@ pub async fn configure_organization_signer(
 }
 
 /// POST `/internal/organizations/{org_id}/signer/test`
+///
+/// # Errors
+///
+/// Returns a mapped HTTP error if the internal token is rejected or the probe fails.
 pub async fn test_organization_signer(
     headers: HeaderMap,
     Path(org_id): Path<Uuid>,
@@ -233,15 +254,19 @@ pub async fn test_organization_signer(
             DomainError::AuthorizationError(_)
             | DomainError::TokenValidationFailed(_)
             | DomainError::ProviderNotSupported(_)
-            | DomainError::BusinessRuleViolation(_) => map_probe_error(e),
-            DomainError::ExternalServiceError { .. } => map_probe_error(e),
-            _ => map_signer_error(e),
+            | DomainError::BusinessRuleViolation(_) => map_probe_error(&e),
+            DomainError::ExternalServiceError { .. } => map_probe_error(&e),
+            _ => map_signer_error(&e),
         }
     })?;
     Ok(Json(result.into()))
 }
 
 /// POST `/internal/organizations/{org_id}/signer/rotate`
+///
+/// # Errors
+///
+/// Returns a mapped HTTP error if the internal token is rejected or rotate fails.
 pub async fn rotate_organization_signer(
     headers: HeaderMap,
     Path(org_id): Path<Uuid>,
@@ -258,17 +283,29 @@ pub async fn rotate_organization_signer(
 }
 
 /// POST `/internal/organizations/{org_id}/signer/disable`
+///
+/// # Errors
+///
+/// Returns a mapped HTTP error if the internal token is rejected or disable fails.
 pub async fn disable_organization_signer(
     headers: HeaderMap,
     Path(org_id): Path<Uuid>,
     Extension(ctx): Extension<Arc<SignerRouteContext>>,
 ) -> Result<Json<SignerResponse>, StatusCode> {
     require_internal_service_token(&headers)?;
-    let result = ctx.facade.disable(org_id).await.map_err(map_signer_error)?;
+    let result = ctx
+        .facade
+        .disable(org_id)
+        .await
+        .map_err(|e| map_signer_error(&e))?;
     Ok(Json(result.into()))
 }
 
 /// POST `/internal/organizations/{org_id}/identities` — ensure org-managed identity.
+///
+/// # Errors
+///
+/// Returns a mapped HTTP error if the internal token is rejected or identity creation fails.
 pub async fn create_organization_managed_identity(
     headers: HeaderMap,
     Path(org_id): Path<Uuid>,
@@ -338,14 +375,14 @@ mod tests {
         });
         assert_eq!(response.headers()[axum::http::header::RETRY_AFTER], "7");
         assert_eq!(
-            map_signer_error(DomainError::SigningKeyAdmissionDenied {
+            map_signer_error(&DomainError::SigningKeyAdmissionDenied {
                 reason: SigningKeyAdmissionReason::EpochConflict,
                 retry_after_seconds: None,
             }),
             StatusCode::CONFLICT
         );
         assert_eq!(
-            map_signer_error(DomainError::InvalidSigningKeyMaterial),
+            map_signer_error(&DomainError::InvalidSigningKeyMaterial),
             StatusCode::BAD_REQUEST
         );
     }
@@ -375,17 +412,17 @@ mod tests {
         identity_repo: Arc<FakeIdentityRepo>,
         rotator: Arc<dyn OrganizationSignerRotator>,
     ) -> Arc<SignerRouteContext> {
-        Arc::new(SignerRouteContext::new(
-            registry,
-            identity_repo,
-            "http://127.0.0.1",
-            Arc::new(NoopProbe),
+        Arc::new(SignerRouteContext::new(SignerRouteContextParams {
+            registry: registry as Arc<dyn SigningKeyRegistry<Error = DomainError>>,
+            identity_repo: identity_repo as Arc<dyn IdentityRepository<Error = DomainError>>,
+            public_base_url: "http://127.0.0.1".to_string(),
+            probe: Arc::new(NoopProbe),
             rotator,
-            std::env::temp_dir(),
-            900,
-            60,
-            None,
-        ))
+            pem_root: std::env::temp_dir(),
+            expiration_seconds: 900,
+            skew_seconds: 60,
+            transit_base_url: None,
+        }))
     }
 
     #[derive(Default)]
@@ -404,24 +441,27 @@ mod tests {
             &self,
             scope: &iam_domain::entity::signing_key::SigningScope,
         ) -> Result<iam_domain::entity::signing_key::SigningScopeSnapshot, DomainError> {
-            let keys = self.keys.lock().unwrap();
-            let epochs = self.epochs.lock().unwrap();
-            let prepared = self.prepared.lock().unwrap();
-            Ok(iam_domain::entity::signing_key::SigningScopeSnapshot {
-                scope: scope.clone(),
-                revision: *epochs.get(&scope.organization_id).unwrap_or(&0),
-                active: keys
-                    .iter()
-                    .find(|key| {
-                        key.organization_id == scope.organization_id
-                            && key.status == SigningKeyStatus::Active
-                    })
-                    .cloned(),
-                pending: prepared
-                    .iter()
-                    .find(|p| p.key.organization_id == scope.organization_id)
-                    .cloned(),
-            })
+            let snapshot = {
+                let keys = self.keys.lock().unwrap();
+                let epochs = self.epochs.lock().unwrap();
+                let prepared = self.prepared.lock().unwrap();
+                iam_domain::entity::signing_key::SigningScopeSnapshot {
+                    scope: scope.clone(),
+                    revision: *epochs.get(&scope.organization_id).unwrap_or(&0),
+                    active: keys
+                        .iter()
+                        .find(|key| {
+                            key.organization_id == scope.organization_id
+                                && key.status == SigningKeyStatus::Active
+                        })
+                        .cloned(),
+                    pending: prepared
+                        .iter()
+                        .find(|p| p.key.organization_id == scope.organization_id)
+                        .cloned(),
+                }
+            };
+            Ok(snapshot)
         }
 
         async fn prepare_signing_key(
@@ -437,14 +477,21 @@ mod tests {
             let mut epochs = self.epochs.lock().unwrap();
             let mut prepared = self.prepared.lock().unwrap();
             let key = proof.key();
-            let revision = epochs.entry(key.organization_id).or_default();
-            if *revision != proof.before().revision {
+            if epochs.get(&key.organization_id).copied().unwrap_or(0) != proof.before().revision {
+                drop(keys);
+                drop(history);
+                drop(epochs);
+                drop(prepared);
                 return Err(DomainError::InvalidToken);
             }
             if keys
                 .iter()
                 .any(|row| row.issuer == key.issuer && row.organization_id != key.organization_id)
             {
+                drop(keys);
+                drop(history);
+                drop(epochs);
+                drop(prepared);
                 return Err(DomainError::BusinessRuleViolation(
                     ISSUER_OWNED_BY_OTHER_ORGANIZATION.into(),
                 ));
@@ -457,9 +504,18 @@ mod tests {
                     &existing.key,
                     key,
                 ) {
+                    drop(keys);
+                    drop(history);
+                    drop(epochs);
+                    drop(prepared);
                     return Err(DomainError::InvalidToken);
                 }
-                return Ok(SigningKeyPreparation::Pending(existing.clone()));
+                let pending = existing.clone();
+                drop(keys);
+                drop(history);
+                drop(epochs);
+                drop(prepared);
+                return Ok(SigningKeyPreparation::Pending(pending));
             }
             let now = Utc::now();
             let mut proposed = keys.clone();
@@ -476,13 +532,20 @@ mod tests {
                 admitted_at: now,
             });
             keys.push(key.clone());
-            *revision += 1;
-            let pending = PreparedSigningTransition {
-                key: key.clone(),
-                revision: *revision,
-                previous_active_kid: proof.before().active.as_ref().map(|key| key.kid.clone()),
+            let pending = {
+                let revision = epochs.entry(key.organization_id).or_default();
+                *revision += 1;
+                PreparedSigningTransition {
+                    key: key.clone(),
+                    revision: *revision,
+                    previous_active_kid: proof.before().active.as_ref().map(|key| key.kid.clone()),
+                }
             };
             prepared.push(pending.clone());
+            drop(keys);
+            drop(history);
+            drop(epochs);
+            drop(prepared);
             Ok(SigningKeyPreparation::Pending(pending))
         }
 
@@ -494,12 +557,19 @@ mod tests {
             let history = self.history.lock().unwrap();
             let mut epochs = self.epochs.lock().unwrap();
             let mut prepared = self.prepared.lock().unwrap();
-            let revision = epochs.entry(expected.key.organization_id).or_default();
-            if *revision != expected.revision
+            if epochs
+                .get(&expected.key.organization_id)
+                .copied()
+                .unwrap_or(0)
+                != expected.revision
                 || !prepared
                     .iter()
                     .any(|p| p.key == expected.key && p.revision == expected.revision)
             {
+                drop(keys);
+                drop(history);
+                drop(epochs);
+                drop(prepared);
                 return Err(DomainError::InvalidToken);
             }
             let now = Utc::now();
@@ -521,8 +591,12 @@ mod tests {
             iam_domain::entity::signing_key::SigningKeyLifecyclePolicy::new()?
                 .check_admission(&proposed, &history, None, 900, now)?;
             *keys = proposed;
-            *revision += 1;
+            *epochs.entry(expected.key.organization_id).or_default() += 1;
             prepared.retain(|p| p.key.id != committed.id);
+            drop(keys);
+            drop(history);
+            drop(epochs);
+            drop(prepared);
             Ok(committed)
         }
 
@@ -533,6 +607,8 @@ mod tests {
                 .iter()
                 .any(|row| row.id == key.id || row.kid == key.kid)
             {
+                drop(keys);
+                drop(history);
                 return Err(DomainError::InvalidSigningKeyMaterial);
             }
             let now = Utc::now();
@@ -558,6 +634,8 @@ mod tests {
                 .unwrap()
                 .entry(key.organization_id)
                 .or_default() += 1;
+            drop(keys);
+            drop(history);
             Ok(())
         }
 
@@ -570,8 +648,6 @@ mod tests {
                 admission_denied, same_effective_signing_binding, SigningKeyAdmissionHistory,
                 SigningKeyAdmissionReason, SigningKeyLifecyclePolicy,
             };
-            let mut keys = self.keys.lock().unwrap();
-            let mut history = self.history.lock().unwrap();
             let org = candidate
                 .organization_id
                 .ok_or(DomainError::InvalidSigningKeyMaterial)?;
@@ -580,21 +656,30 @@ mod tests {
             {
                 return Err(DomainError::InvalidSigningKeyMaterial);
             }
+            let mut keys = self.keys.lock().unwrap();
+            let mut history = self.history.lock().unwrap();
             let current = keys.iter().find(|key| {
                 key.organization_id == Some(org) && key.status == SigningKeyStatus::Active
             });
             if expected.is_some_and(|kid| current.map(|key| key.kid.as_str()) != Some(kid)) {
+                drop(keys);
+                drop(history);
                 return Err(admission_denied(SigningKeyAdmissionReason::EpochConflict));
             }
             if let Some(current) =
                 current.filter(|key| same_effective_signing_binding(key, candidate))
             {
-                return Ok(current.clone());
+                let cloned = current.clone();
+                drop(keys);
+                drop(history);
+                return Ok(cloned);
             }
             if keys
                 .iter()
                 .any(|key| key.issuer == candidate.issuer && key.organization_id != Some(org))
             {
+                drop(keys);
+                drop(history);
                 return Err(DomainError::BusinessRuleViolation(
                     ISSUER_OWNED_BY_OTHER_ORGANIZATION.into(),
                 ));
@@ -608,6 +693,8 @@ mod tests {
                     || key.kid != candidate.kid
                     || !same_effective_signing_binding(key, candidate)
             }) {
+                drop(keys);
+                drop(history);
                 return Err(admission_denied(SigningKeyAdmissionReason::EpochConflict));
             }
             let promotion = existing.is_some();
@@ -643,6 +730,8 @@ mod tests {
                     admitted_at: now,
                 });
             }
+            drop(keys);
+            drop(history);
             Ok(persisted)
         }
 
@@ -663,37 +752,43 @@ mod tests {
                 key.status = SigningKeyStatus::Revoked;
                 key.updated_at = now;
             }
-            Ok(keys
+            let revoked = keys
                 .iter()
                 .filter(|key| key.organization_id == Some(org))
                 .cloned()
-                .collect())
+                .collect();
+            drop(keys);
+            Ok(revoked)
         }
 
         async fn jwks_publication_snapshot(
             &self,
         ) -> Result<iam_domain::entity::signing_key::SigningKeyPublicationSnapshot, Self::Error>
         {
-            let keys = self.keys.lock().unwrap();
+            let cloned = {
+                let keys = self.keys.lock().unwrap();
+                keys.clone()
+            };
             iam_domain::entity::signing_key::SigningKeyPublicationSnapshot::from_fixture_keys(
-                keys.clone(),
+                cloned,
                 Utc::now(),
                 900,
             )
         }
 
         async fn find_by_kid(&self, kid: &str) -> Result<Option<SigningKey>, Self::Error> {
-            Ok(self
+            let found = self
                 .keys
                 .lock()
                 .unwrap()
                 .iter()
                 .find(|k| k.kid == kid)
-                .cloned())
+                .cloned();
+            Ok(found)
         }
 
         async fn find_active_platform_key(&self) -> Result<Option<SigningKey>, Self::Error> {
-            Ok(self
+            let found = self
                 .keys
                 .lock()
                 .unwrap()
@@ -703,42 +798,46 @@ mod tests {
                         && key.trust_scope == TrustScope::Platform
                         && key.organization_id.is_none()
                 })
-                .cloned())
+                .cloned();
+            Ok(found)
         }
 
         async fn confirm_active_for_emission(
             &self,
             expected: &SigningKey,
         ) -> Result<bool, Self::Error> {
-            let keys = self.keys.lock().unwrap();
-            Ok(keys
-                .iter()
-                .find(|key| key.id == expected.id)
-                .is_some_and(|key| {
-                    key.status == SigningKeyStatus::Active
-                        && expected.status == SigningKeyStatus::Active
-                        && key.kid == expected.kid
-                        && key.algorithm == expected.algorithm
-                        && key.issuer == expected.issuer
-                        && key.trust_scope == expected.trust_scope
-                        && key.organization_id == expected.organization_id
-                        && key.public_key == expected.public_key
-                        && key.provider_type == expected.provider_type
-                        && key.provider_key_ref == expected.provider_key_ref
-                        && key.provider_key_version == expected.provider_key_version
-                        && key.credential_ref == expected.credential_ref
-                }))
+            let confirmed = {
+                let keys = self.keys.lock().unwrap();
+                keys.iter()
+                    .find(|key| key.id == expected.id)
+                    .is_some_and(|key| {
+                        key.status == SigningKeyStatus::Active
+                            && expected.status == SigningKeyStatus::Active
+                            && key.kid == expected.kid
+                            && key.algorithm == expected.algorithm
+                            && key.issuer == expected.issuer
+                            && key.trust_scope == expected.trust_scope
+                            && key.organization_id == expected.organization_id
+                            && key.public_key == expected.public_key
+                            && key.provider_type == expected.provider_type
+                            && key.provider_key_ref == expected.provider_key_ref
+                            && key.provider_key_version == expected.provider_key_version
+                            && key.credential_ref == expected.credential_ref
+                    })
+            };
+            Ok(confirmed)
         }
 
         async fn list_jwks_keys(&self) -> Result<Vec<SigningKey>, Self::Error> {
-            Ok(self
+            let listed = self
                 .keys
                 .lock()
                 .unwrap()
                 .iter()
                 .filter(|k| k.status.in_jwks())
                 .cloned()
-                .collect())
+                .collect();
+            Ok(listed)
         }
 
         async fn update(&self, key: &SigningKey) -> Result<(), Self::Error> {
@@ -746,22 +845,27 @@ mod tests {
                 admission_denied, same_effective_signing_binding, SigningKeyAdmissionReason,
             };
             let mut keys = self.keys.lock().unwrap();
-            let slot = keys
-                .iter_mut()
-                .find(|row| row.id == key.id)
-                .ok_or_else(|| admission_denied(SigningKeyAdmissionReason::EpochConflict))?;
-            let transition = slot.status == key.status
-                || (slot.status == SigningKeyStatus::Active
+            let Some(idx) = keys.iter().position(|row| row.id == key.id) else {
+                drop(keys);
+                return Err(admission_denied(SigningKeyAdmissionReason::EpochConflict));
+            };
+            let transition = keys[idx].status == key.status
+                || (keys[idx].status == SigningKeyStatus::Active
                     && key.status == SigningKeyStatus::Retiring)
-                || (slot.status != SigningKeyStatus::Revoked
+                || (keys[idx].status != SigningKeyStatus::Revoked
                     && key.status == SigningKeyStatus::Revoked);
-            if slot.kid != key.kid || !same_effective_signing_binding(slot, key) || !transition {
+            if keys[idx].kid != key.kid
+                || !same_effective_signing_binding(&keys[idx], key)
+                || !transition
+            {
+                drop(keys);
                 return Err(admission_denied(SigningKeyAdmissionReason::EpochConflict));
             }
-            if slot.status != key.status {
-                slot.updated_at = Utc::now();
+            if keys[idx].status != key.status {
+                keys[idx].updated_at = Utc::now();
             }
-            slot.status = key.status.clone();
+            keys[idx].status = key.status.clone();
+            drop(keys);
             Ok(())
         }
 
@@ -769,25 +873,27 @@ mod tests {
             &self,
             organization_id: Uuid,
         ) -> Result<Vec<SigningKey>, Self::Error> {
-            Ok(self
+            let listed = self
                 .keys
                 .lock()
                 .unwrap()
                 .iter()
                 .filter(|k| k.organization_id == Some(organization_id))
                 .cloned()
-                .collect())
+                .collect();
+            Ok(listed)
         }
 
         async fn find_by_issuer(&self, issuer: &str) -> Result<Vec<SigningKey>, Self::Error> {
-            Ok(self
+            let listed = self
                 .keys
                 .lock()
                 .unwrap()
                 .iter()
                 .filter(|k| k.issuer == issuer)
                 .cloned()
-                .collect())
+                .collect();
+            Ok(listed)
         }
     }
 
@@ -809,14 +915,15 @@ mod tests {
         }
 
         async fn find_by_user_id(&self, user_id: Uuid) -> Result<Vec<Identity>, Self::Error> {
-            Ok(self
+            let listed = self
                 .rows
                 .lock()
                 .unwrap()
                 .values()
                 .filter(|i| i.user_id == user_id)
                 .cloned()
-                .collect())
+                .collect();
+            Ok(listed)
         }
 
         async fn create(&self, identity: &Identity) -> Result<Identity, Self::Error> {
@@ -1154,25 +1261,25 @@ mod tests {
     #[test]
     fn map_rotate_error_404_only_for_missing_active_key() {
         assert_eq!(
-            map_rotate_error(DomainError::AuthorizationError(
+            map_rotate_error(&DomainError::AuthorizationError(
                 "no active organization signing key".into()
             )),
             StatusCode::NOT_FOUND
         );
         assert_eq!(
-            map_rotate_error(DomainError::AuthorizationError(
+            map_rotate_error(&DomainError::AuthorizationError(
                 "Transit key name apparatus-p4-cosign is forbidden".into()
             )),
             StatusCode::BAD_REQUEST
         );
         assert_eq!(
-            map_rotate_error(DomainError::AuthorizationError(
+            map_rotate_error(&DomainError::AuthorizationError(
                 "PEM path must not contain '..'".into()
             )),
             StatusCode::BAD_REQUEST
         );
         assert_eq!(
-            map_rotate_error(DomainError::AuthorizationError(
+            map_rotate_error(&DomainError::AuthorizationError(
                 "RSA 2048 keygen failed: entropy".into()
             )),
             StatusCode::BAD_REQUEST

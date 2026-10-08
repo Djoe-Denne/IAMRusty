@@ -19,7 +19,7 @@ use serial_test::serial;
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_success() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -108,7 +108,7 @@ async fn test_complete_registration_success() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_invalid_token_signature() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -152,16 +152,15 @@ async fn test_complete_registration_invalid_token_signature() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_expired_token() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
     // Create an expired registration token using the utility function
     let user_id = uuid::Uuid::new_v4();
     let email = "test@example.com".to_string();
-    let (codec, issuer) = common::fixture_jwt_codec(&fixture)
-        .await
-        .expect("actual shared fixture codec and issuer");
+    let (codec, issuer) =
+        common::fixture_jwt_codec(&fixture).expect("actual shared fixture codec and issuer");
     let expired_token =
         utils::jwt::create_expired_registration_token_with_codec(user_id, email, &issuer, codec)
             .await
@@ -204,7 +203,7 @@ async fn test_complete_registration_expired_token() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_username_already_taken() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -263,7 +262,7 @@ async fn test_complete_registration_username_already_taken() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_invalid_username_format() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -328,7 +327,7 @@ async fn test_complete_registration_invalid_username_format() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_valid_username_formats() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -402,7 +401,7 @@ async fn test_complete_registration_valid_username_formats() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_malformed_request() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -474,7 +473,7 @@ async fn test_complete_registration_malformed_request() {
 #[tokio::test]
 #[serial]
 async fn test_registration_token_single_use() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -546,7 +545,7 @@ async fn test_registration_token_single_use() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_updates_user_record() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -612,7 +611,7 @@ async fn test_complete_registration_updates_user_record() {
 #[tokio::test]
 #[serial]
 async fn test_complete_registration_user_can_login_afterward() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();

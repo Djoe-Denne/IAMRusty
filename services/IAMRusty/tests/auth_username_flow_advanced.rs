@@ -36,7 +36,7 @@ fn decode_jwt_payload(jwt: &str) -> Result<Value, Box<dyn std::error::Error>> {
 #[tokio::test]
 #[serial]
 async fn test_registration_token_has_correct_structure() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -75,7 +75,7 @@ async fn test_registration_token_has_correct_structure() {
 #[tokio::test]
 #[serial]
 async fn test_expired_token_returns_400() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -105,7 +105,7 @@ async fn test_expired_token_returns_400() {
 #[tokio::test]
 #[serial]
 async fn test_jwks_endpoint_accessible() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -128,7 +128,7 @@ async fn test_jwks_endpoint_accessible() {
 #[tokio::test]
 #[serial]
 async fn test_same_email_retry_returns_new_token() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -173,7 +173,7 @@ async fn test_same_email_retry_returns_new_token() {
 #[tokio::test]
 #[serial]
 async fn test_user_id_consistent_across_retries() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -221,7 +221,7 @@ async fn test_user_id_consistent_across_retries() {
 #[tokio::test]
 #[serial]
 async fn test_username_availability_check() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -242,7 +242,7 @@ async fn test_username_availability_check() {
 #[tokio::test]
 #[serial]
 async fn test_taken_username_with_suggestions() {
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -274,7 +274,7 @@ async fn test_taken_username_with_suggestions() {
 #[tokio::test]
 #[serial]
 async fn test_username_format_validation() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -309,7 +309,7 @@ async fn test_username_format_validation() {
 #[tokio::test]
 #[serial]
 async fn test_email_validation_and_sanitization() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -353,7 +353,7 @@ async fn test_email_validation_and_sanitization() {
 #[tokio::test]
 #[serial]
 async fn test_username_injection_prevention() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -408,7 +408,7 @@ async fn test_username_injection_prevention() {
 #[tokio::test]
 #[serial]
 async fn test_no_user_enumeration_in_errors() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -446,7 +446,7 @@ async fn test_no_user_enumeration_in_errors() {
 #[tokio::test]
 #[serial]
 async fn test_oauth_first_flow_with_github() {
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 

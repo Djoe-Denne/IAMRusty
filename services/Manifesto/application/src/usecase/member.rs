@@ -13,7 +13,7 @@ use manifesto_domain::{
 use manifesto_events::{
     ManifestoDomainEvent, MemberAddedEvent, MemberPermissionsUpdatedEvent, MemberRemovedEvent,
     PermissionGrantedEvent, PermissionRevokedEvent, ProjectOwnershipTransferredEvent,
-    ResourcePermission,
+    ProjectOwnershipTransferredInput, ResourcePermission,
 };
 use rustycog::core::error::DomainError;
 use rustycog::events::{DomainEvent, EventPublisher};
@@ -882,16 +882,16 @@ impl MemberUseCase for MemberUseCaseImpl {
         project.updated_at = Utc::now();
 
         let event = ManifestoDomainEvent::ProjectOwnershipTransferred(
-            ProjectOwnershipTransferredEvent::new(
+            ProjectOwnershipTransferredEvent::new(ProjectOwnershipTransferredInput {
                 project_id,
-                requester_id,
-                request.user_id,
-                requester_id,
-                Utc::now(),
-                Some(project.owner_type.as_str().to_string()),
-                Some(current_owner.user_id),
-                Some(request.user_id),
-            ),
+                from_user_id: requester_id,
+                to_user_id: request.user_id,
+                transferred_by: requester_id,
+                transferred_at: Utc::now(),
+                owner_type: Some(project.owner_type.as_str().to_string()),
+                previous_owner_id: Some(current_owner.user_id),
+                new_owner_id: Some(request.user_id),
+            }),
         );
         let new_owner = if let Some(uow) = &self.authorization_uow {
             let (_project, _previous, new_owner) = uow

@@ -259,17 +259,20 @@ pub async fn reconcile_ready<S: DesiredStateSource>(
 /// Client kube, store JSON, ou config Manifesto incomplète.
 pub async fn run_controller() -> Result<(), ControllerError> {
     match HttpComponentsClient::from_env()? {
-        None => run_watch().await,
+        None => Box::pin(run_watch()).await,
         Some(source) => {
-            let watch = WorkloadReconciler::connect_default().await?;
-            let poll = WorkloadReconciler::connect_default().await?;
+            let watch = Box::pin(WorkloadReconciler::connect_default()).await?;
+            let poll = Box::pin(WorkloadReconciler::connect_default()).await?;
             let store_path = admission_store_path_from_env().map_err(|err| {
                 ControllerError::new(format!("APPARATUS_ADMISSION_STORE_PATH: {err}"))
             })?;
-            tokio::select! {
-                result = watch.run_watch() => result,
-                result = poll_ready_loop(source, poll, store_path) => result,
-            }
+            Box::pin(async move {
+                tokio::select! {
+                    result = watch.run_watch() => result,
+                    result = poll_ready_loop(source, poll, store_path) => result,
+                }
+            })
+            .await
         }
     }
 }

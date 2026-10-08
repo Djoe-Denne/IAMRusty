@@ -4,6 +4,8 @@
 //! VALID. Preuve isolation : exec/probe depuis le Pod plugin, pas un assert YAML.
 //! Tuer le plugin ne casse pas le canary `apparatus-system`.
 
+use std::ffi::OsStr;
+use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Output;
@@ -164,19 +166,19 @@ fn apply_record_without_status(
     let name = cr_name_for(descriptor);
     let iso = isolation();
     let mut yaml = String::new();
-    yaml.push_str(&format!("apiVersion: {GROUP}/{VERSION}\n"));
-    yaml.push_str(&format!("kind: {KIND}\n"));
+    let _ = write!(yaml, "apiVersion: {GROUP}/{VERSION}\n");
+    let _ = write!(yaml, "kind: {KIND}\n");
     yaml.push_str("metadata:\n");
-    yaml.push_str(&format!("  name: {name}\n"));
-    yaml.push_str(&format!("  namespace: {SYSTEM_NAMESPACE}\n"));
+    let _ = write!(yaml, "  name: {name}\n");
+    let _ = write!(yaml, "  namespace: {SYSTEM_NAMESPACE}\n");
     yaml.push_str("  labels:\n");
-    yaml.push_str(&format!("    \"{PROJECT_LABEL}\": \"{}\"\n", iso.project));
-    yaml.push_str(&format!("    \"{BINDING_LABEL}\": \"{}\"\n", iso.binding));
+    let _ = write!(yaml, "    \"{PROJECT_LABEL}\": \"{}\"\n", iso.project);
+    let _ = write!(yaml, "    \"{BINDING_LABEL}\": \"{}\"\n", iso.binding);
     yaml.push_str("spec:\n");
-    yaml.push_str(&format!("  descriptorDigest: {}\n", descriptor.as_str()));
-    yaml.push_str(&format!("  policyVersion: {POLICY_ID}\n"));
-    yaml.push_str(&format!("  reportDigest: {}\n", report_digest.as_str()));
-    yaml.push_str(&format!("  criImage: {cri_image}\n"));
+    let _ = write!(yaml, "  descriptorDigest: {}\n", descriptor.as_str());
+    let _ = write!(yaml, "  policyVersion: {POLICY_ID}\n");
+    let _ = write!(yaml, "  reportDigest: {}\n", report_digest.as_str());
+    let _ = write!(yaml, "  criImage: {cri_image}\n");
     let path = std::env::temp_dir().join(format!("{name}.yaml"));
     fs::write(&path, yaml).unwrap_or_else(|err| panic!("write CR yaml: {err}"));
     let path_s = path.to_string_lossy().into_owned();
@@ -399,12 +401,12 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in entries {
         let path = entry.expect("entrée lisible").path();
         if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            let name = path.file_name().and_then(OsStr::to_str).unwrap_or("");
             if name == "target" || name == ".git" {
                 continue;
             }
             collect_rs(&path, out);
-        } else if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+        } else if path.extension().and_then(OsStr::to_str) == Some("rs") {
             out.push(path);
         }
     }
@@ -463,7 +465,7 @@ async fn t11_no_schedule_without_admission_record() {
     );
 }
 
-/// CR présente hors phase VALID : pas de Pod (garde NotValid).
+/// CR présente hors phase VALID : pas de `Pod` (garde `NotValid`).
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn t11_no_schedule_when_admission_record_not_valid() {
@@ -500,7 +502,7 @@ async fn t11_plugin_exec_cannot_reach_transit_or_system() {
         .await
         .unwrap_or_else(|err| panic!("{err}"));
     let transit_url = format!("http://host.docker.internal:{}/v1/sys/health", transit.port);
-    let (_reconciler, pod_name, _descriptor) = schedule_plugin(&cluster).await;
+    let (_reconciler, pod_name, _descriptor) = Box::pin(schedule_plugin(&cluster)).await;
 
     let canary = canary_pod_name(&cluster);
     let local = exec_wget(
@@ -523,7 +525,7 @@ async fn t11_plugin_exec_cannot_reach_transit_or_system() {
 #[serial]
 async fn t11_delete_plugin_leaves_system_canary_ready() {
     let cluster = fixtures::kind::KindCluster::ensure().unwrap_or_else(|err| panic!("{err}"));
-    let (reconciler, pod_name, _descriptor) = schedule_plugin(&cluster).await;
+    let (reconciler, pod_name, _descriptor) = Box::pin(schedule_plugin(&cluster)).await;
     assert_canary_ready(&cluster);
     reconciler
         .delete_plugin_pod(&pod_name)

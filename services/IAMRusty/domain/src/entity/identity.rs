@@ -10,7 +10,7 @@ use crate::entity::user::User;
 
 /// UX person record (preferences, avatar, recovery). Persistence: table `users`.
 ///
-/// Not an AuthZ principal — that is [`Identity`] `(issuer, subject)`.
+/// Not an `AuthZ` principal — that is [`Identity`] `(issuer, subject)`.
 pub type HumanAccount = User;
 
 /// Kind of identity within a trust domain.
@@ -46,7 +46,7 @@ impl std::str::FromStr for IdentityKind {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Identity {
     pub id: Uuid,
-    /// FK to `users` (HumanAccount).
+    /// FK to `users` (`HumanAccount`).
     pub user_id: Uuid,
     pub issuer: String,
     pub subject: String,

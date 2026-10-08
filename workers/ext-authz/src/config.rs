@@ -1,8 +1,8 @@
-//! Runtime knobs for the ext_authz Check service.
+//! Runtime knobs for the `ext_authz` Check service.
 
 use std::time::Duration;
 
-/// Mesh AuthN configuration (JWKS URL + local cache intervals).
+/// Mesh `AuthN` configuration (JWKS URL + local cache intervals).
 #[derive(Debug, Clone)]
 pub struct ExtAuthzConfig {
     /// IAM JWKS URL (`GET` — cached locally, never per known `kid`).

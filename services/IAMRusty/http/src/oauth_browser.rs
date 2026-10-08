@@ -73,7 +73,7 @@ impl OAuthBrowserPolicy {
         Ok(())
     }
 
-    fn cookie_name(self) -> &'static str {
+    const fn cookie_name(self) -> &'static str {
         if self.local_http {
             "iam-oauth-browser"
         } else {
@@ -81,11 +81,11 @@ impl OAuthBrowserPolicy {
         }
     }
 
-    fn cookie_value<'a>(self, headers: &'a HeaderMap) -> Result<Option<&'a str>, &'static str> {
+    fn cookie_value(self, headers: &HeaderMap) -> Result<Option<&str>, &'static str> {
         let mut total = 0;
         let mut found = None;
         let mut pairs = 0;
-        for header in headers.get_all(header::COOKIE).iter() {
+        for header in headers.get_all(header::COOKIE) {
             total += header.as_bytes().len();
             if total > MAX_COOKIE_BYTES {
                 return Err("invalid OAuth browser cookie");
@@ -216,7 +216,7 @@ impl OAuthRouteContext {
                 pkce_required,
             })
             .await
-            .map_err(|error| transaction_error("start", error))
+            .map_err(|error| transaction_error("start", &error))
     }
 
     /// HMAC, route/provider/intention and browser binding precede the writer consume.
@@ -233,13 +233,13 @@ impl OAuthRouteContext {
     ) -> Result<ConsumedOAuthTransaction, AuthError> {
         let state =
             OAuthState::inspect(signed).map_err(|_| AuthError::oauth_invalid_state("callback"))?;
-        let permitted = match (intention, &state.operation) {
-            (CallbackIntent::LoginOrLink, OAuthOperation::Login | OAuthOperation::Link { .. }) => {
-                true
-            }
-            (CallbackIntent::Relink, OAuthOperation::Relink { .. }) => true,
-            _ => false,
-        };
+        let permitted = matches!(
+            (intention, &state.operation),
+            (
+                CallbackIntent::LoginOrLink,
+                OAuthOperation::Login | OAuthOperation::Link { .. }
+            ) | (CallbackIntent::Relink, OAuthOperation::Relink { .. })
+        );
         if !permitted || state.provider != provider.as_str() {
             return Err(AuthError::oauth_invalid_state("callback"));
         }
@@ -270,13 +270,13 @@ impl OAuthRouteContext {
                 expires_at: state.exp,
             })
             .await
-            .map_err(|error| transaction_error("callback", error))
+            .map_err(|error| transaction_error("callback", &error))
     }
 }
 
 fn transaction_error(
     operation: &str,
-    error: iam_application::usecase::oauth::OAuthError,
+    error: &iam_application::usecase::oauth::OAuthError,
 ) -> AuthError {
     match error {
         iam_application::usecase::oauth::OAuthError::Transaction(
@@ -356,6 +356,7 @@ mod tests {
         async fn create(&self, tx: &OAuthTransaction) -> Result<(), OAuthTransactionError> {
             let mut rows = self.rows.lock().unwrap();
             if rows.contains_key(&tx.state_hash) {
+                drop(rows);
                 return Err(OAuthTransactionError::InvalidTransaction);
             }
             rows.insert(
@@ -373,6 +374,7 @@ mod tests {
                     pkce_verifier: tx.pkce_verifier.clone(),
                 },
             );
+            drop(rows);
             Ok(())
         }
         async fn consume(
@@ -385,9 +387,11 @@ mod tests {
                 .get(&input.state_hash)
                 .is_some_and(|row| row.consumed_at.is_none() && row.matches(input))
             {
+                drop(rows);
                 return Ok(None);
             }
             let mut row = rows.remove(&input.state_hash).unwrap();
+            drop(rows);
             row.consumed_at = Some(chrono::Utc::now().timestamp());
             Ok(Some(row))
         }
@@ -458,7 +462,7 @@ mod tests {
             ..iam_configuration::security::SecurityConfig::default()
         };
         crate::oauth_state::configure_oauth_state_secret(
-            config
+            &config
                 .validate_oauth_state_secret("iam-oauth-state-hmac-test")
                 .unwrap(),
         )
@@ -786,7 +790,7 @@ mod tests {
             .await
             .unwrap();
         for (signed, headers, intention) in [
-            ("".to_string(), cookies.clone(), CallbackIntent::Relink),
+            (String::new(), cookies.clone(), CallbackIntent::Relink),
             (signed.clone(), HeaderMap::new(), CallbackIntent::Relink),
             (signed.clone(), cookies.clone(), CallbackIntent::LoginOrLink),
         ] {
@@ -868,7 +872,8 @@ mod tests {
 
     #[test]
     fn storage_failure_is_unavailable_not_a_credential_or_binding_oracle() {
-        let unavailable = transaction_error("callback", OAuthTransactionError::Storage.into());
+        let storage = OAuthTransactionError::Storage.into();
+        let unavailable = transaction_error("callback", &storage);
         assert!(matches!(
             unavailable,
             AuthError::OAuth {
@@ -876,8 +881,8 @@ mod tests {
                 ..
             }
         ));
-        let rejected =
-            transaction_error("callback", OAuthTransactionError::InvalidTransaction.into());
+        let invalid = OAuthTransactionError::InvalidTransaction.into();
+        let rejected = transaction_error("callback", &invalid);
         assert!(!format!("{rejected:?}").contains("nonce"));
     }
 }

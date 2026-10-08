@@ -103,7 +103,7 @@ fn create_invalid_signature_jwt_token(user_id: Uuid) -> String {
 #[serial]
 async fn test_internal_provider_token_github_success_returns_access_token() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -189,7 +189,7 @@ async fn test_internal_provider_token_github_success_returns_access_token() {
 #[serial]
 async fn test_internal_provider_token_gitlab_success_returns_access_token() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -249,7 +249,7 @@ async fn test_internal_provider_token_gitlab_success_returns_access_token() {
 #[serial]
 async fn test_internal_provider_token_returns_401_when_no_authorization_header() {
     // Setup test environment
-    let (_fixture, base_url, client) = setup_test_server()
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
 
@@ -272,7 +272,7 @@ async fn test_internal_provider_token_returns_401_when_no_authorization_header()
 #[serial]
 async fn test_internal_provider_token_returns_401_when_token_is_expired() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let _db = fixture.db();
@@ -306,7 +306,7 @@ async fn test_internal_provider_token_returns_401_when_token_is_expired() {
 #[serial]
 async fn test_internal_provider_token_returns_401_when_token_has_invalid_signature() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let _db = fixture.db();
@@ -340,7 +340,7 @@ async fn test_internal_provider_token_returns_401_when_token_has_invalid_signatu
 #[serial]
 async fn test_internal_provider_token_returns_422_when_provider_is_unsupported() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let _db = fixture.db();
@@ -379,7 +379,7 @@ async fn test_internal_provider_token_returns_422_when_provider_is_unsupported()
 #[serial]
 async fn test_internal_provider_token_returns_404_when_no_token_for_provider() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -434,7 +434,7 @@ async fn test_internal_provider_token_returns_404_when_no_token_for_provider() {
 #[serial]
 async fn test_internal_provider_token_returns_401_when_user_not_found() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let _db = fixture.db();
@@ -469,7 +469,7 @@ async fn test_internal_provider_token_returns_401_when_user_not_found() {
 #[serial]
 async fn test_internal_provider_token_returns_401_when_malformed_token() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let _db = fixture.db();
@@ -503,7 +503,7 @@ async fn test_internal_provider_token_returns_401_when_malformed_token() {
 #[serial]
 async fn test_internal_provider_token_case_insensitive_providers() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -554,7 +554,7 @@ async fn test_internal_provider_token_case_insensitive_providers() {
 #[serial]
 async fn test_internal_provider_token_different_users_different_tokens() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -647,7 +647,7 @@ async fn test_internal_provider_token_different_users_different_tokens() {
 #[serial]
 async fn test_internal_provider_token_user_with_multiple_providers() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();
@@ -712,7 +712,7 @@ async fn test_internal_provider_token_user_with_multiple_providers() {
 #[serial]
 async fn test_internal_provider_token_concurrent_requests_same_user() {
     // Setup test environment
-    let (fixture, base_url, client) = setup_test_server()
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let db = fixture.db();

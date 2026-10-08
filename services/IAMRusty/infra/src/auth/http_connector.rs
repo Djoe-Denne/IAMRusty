@@ -20,7 +20,7 @@ use std::time::Duration;
 /// Minimum HMAC secret length after trim (test.toml `iam-idp-connect-test-hmac` is 26 bytes).
 const MIN_HMAC_SECRET_LEN: usize = 16;
 
-/// Outbound IAM client for a single IdP Connect slug.
+/// Outbound IAM client for a single `IdP` Connect slug.
 pub struct HttpIdpConnector {
     http: reqwest::Client,
     base_url: String,
@@ -121,8 +121,8 @@ impl HttpIdpConnector {
         on_fail: FederatedOAuthError,
     ) -> Result<R, FederatedOAuthError>
     where
-        B: Serialize,
-        R: DeserializeOwned,
+        B: Serialize + Send + Sync,
+        R: DeserializeOwned + Send,
     {
         let url = format!("{}{path_suffix}", self.base_url);
         let parsed = reqwest::Url::parse(&url).map_err(|_| on_fail)?;
@@ -158,7 +158,7 @@ impl HttpIdpConnector {
 /// A structural PEM check runs BEFORE the platform TLS parser: on Windows the
 /// native-tls schannel backend decodes headerless base64-looking bytes through
 /// `CryptStringToBinaryA` and crashes the process with malformed input
-/// (STATUS_ACCESS_VIOLATION). Only well-formed `-----BEGIN CERTIFICATE-----`
+/// (`STATUS_ACCESS_VIOLATION`). Only well-formed `-----BEGIN CERTIFICATE-----`
 /// blocks ever reach [`reqwest::Certificate::from_pem`].
 ///
 /// # Errors

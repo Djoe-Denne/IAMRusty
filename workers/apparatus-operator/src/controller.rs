@@ -158,7 +158,7 @@ pub struct WorkloadReconciler {
 /// Explicit namespace mapping; digest/instance identity is unchanged.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ControllerNamespaces {
-    /// Namespace containing AdmissionRecord objects.
+    /// Namespace containing `AdmissionRecord` objects.
     system: String,
     /// Namespace containing plugin Pods and Services.
     plugins: String,
@@ -474,7 +474,7 @@ impl WorkloadReconciler {
         }
     }
 
-    fn admit_target(&self) -> Option<&crate::admit::AdmitTarget> {
+    const fn admit_target(&self) -> Option<&crate::admit::AdmitTarget> {
         self.schedule_admit_target.as_ref()
     }
 
@@ -874,13 +874,13 @@ fn existing_plugin_pod_matches(
         && pod_env(pod, "BINDING") == Some(isolation.binding.as_str())
         && pod_env(pod, "PROJECT_ID") == Some(isolation.project.as_str())
         && pod_env(pod, "RELEASE") == Some(digest.as_str())
-        && match enroll_url.map(str::trim).filter(|value| !value.is_empty()) {
-            None => true,
-            Some(url) => pod_env(pod, "LAZARET_ENROLL_URL") == Some(url),
-        }
+        && enroll_url
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map_or(true, |url| pod_env(pod, "LAZARET_ENROLL_URL") == Some(url))
 }
 
-/// Service ClusterIP du même nom que le Pod (ADR-0605).
+/// Service `ClusterIP` du même nom que le `Pod` (`ADR-0605`).
 #[must_use]
 pub fn plugin_cluster_ip_service(pod_name: &str, labels: BTreeMap<String, String>) -> Service {
     Service {
@@ -1059,10 +1059,8 @@ fn upsert_env(env: &mut Vec<EnvVar>, name: &str, value: String) {
 ///
 /// Voir [`WorkloadReconciler::run_watch`].
 pub async fn run_watch() -> Result<(), ControllerError> {
-    WorkloadReconciler::connect_default()
-        .await?
-        .run_watch()
-        .await
+    let reconciler = Box::pin(WorkloadReconciler::connect_default()).await?;
+    Box::pin(reconciler.run_watch()).await
 }
 
 /// Signe l'enveloppe T6, persiste `VALID` dans le JSON produit, puis applique
@@ -1120,12 +1118,13 @@ pub async fn sign_envelope_and_apply_from_env() -> Result<(), ControllerError> {
     store
         .bind_envelope(&record.descriptor_digest, &signed.reference)
         .map_err(|err| ControllerError::new(format!("bind_envelope: {err}")))?;
-    let isolation = match (
+    let isolation = if let (Some(project), Some(binding)) = (
         std::env::var("APPARATUS_PROJECT").ok(),
         std::env::var("APPARATUS_BINDING").ok(),
     ) {
-        (Some(project), Some(binding)) => Some(IsolationLabels::try_new(project, binding)?),
-        _ => None,
+        Some(IsolationLabels::try_new(project, binding)?)
+    } else {
+        None
     };
     let reconciler = WorkloadReconciler::connect_default().await?;
     reconciler
@@ -1150,18 +1149,25 @@ fn isolation_from_labels(
         .get(BINDING_LABEL)
         .map(String::as_str)
         .filter(|value| !value.is_empty());
-    match (project, binding) {
-        (Some(project), Some(binding)) => Ok(IsolationLabels {
+    if let (Some(project), Some(binding)) = (project, binding) {
+        Ok(IsolationLabels {
             project: project.to_owned(),
             binding: binding.to_owned(),
-        }),
-        _ => Err(ScheduleRefuse::MissingIsolation),
+        })
+    } else {
+        Err(ScheduleRefuse::MissingIsolation)
     }
 }
 
 /// Gate Cosign avant `pods.create` : ref absente ou verify KO → refuse.
 ///
 /// `injected` (tests) prime sur l'env. Env absentes + ref présente = refuse.
+///
+/// # Errors
+///
+/// Renvoie [`ScheduleRefuse::SignatureUnverified`] si la référence d'enveloppe
+/// est absente ou vide, si la vérification Cosign échoue, ou si l'environnement
+/// schedule ne permet pas de construire la cible.
 pub fn gate_schedule_signature(
     envelope_reference: Option<&str>,
     injected: Option<&crate::admit::AdmitTarget>,

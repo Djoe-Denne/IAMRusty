@@ -164,24 +164,34 @@ pub(super) fn resolve_pem_path(
 
 async fn challenge_pem(pem_root: &Path, key: &SigningKey) -> Result<(), DomainError> {
     let path = resolve_pem_path(pem_root, &key.provider_key_ref, key.organization_id)?;
-    let metadata = std::fs::metadata(&path).map_err(|e| {
+    let private_pem = tokio::task::spawn_blocking(move || {
+        let metadata = std::fs::metadata(&path).map_err(|e| {
+            DomainError::external_service_error(
+                "organization_signer_probe",
+                &format!("private key file missing or unreadable: {e}"),
+            )
+        })?;
+        if metadata.len() > MAX_PEM_BYTES {
+            return Err(path_policy_error("PEM file exceeds 16 KiB"));
+        }
+        let private_pem = std::fs::read_to_string(&path).map_err(|e| {
+            DomainError::external_service_error(
+                "organization_signer_probe",
+                &format!("private key file missing or unreadable: {e}"),
+            )
+        })?;
+        if private_pem.len() as u64 > MAX_PEM_BYTES {
+            return Err(path_policy_error("PEM file exceeds 16 KiB"));
+        }
+        Ok(private_pem)
+    })
+    .await
+    .map_err(|e| {
         DomainError::external_service_error(
             "organization_signer_probe",
-            &format!("private key file missing or unreadable: {e}"),
+            &format!("PEM read cancelled: {e}"),
         )
-    })?;
-    if metadata.len() > MAX_PEM_BYTES {
-        return Err(path_policy_error("PEM file exceeds 16 KiB"));
-    }
-    let private_pem = std::fs::read_to_string(&path).map_err(|e| {
-        DomainError::external_service_error(
-            "organization_signer_probe",
-            &format!("private key file missing or unreadable: {e}"),
-        )
-    })?;
-    if private_pem.len() as u64 > MAX_PEM_BYTES {
-        return Err(path_policy_error("PEM file exceeds 16 KiB"));
-    }
+    })??;
     let provider = PemSigningProvider::new(&private_pem, &key.public_key)?;
     verify_challenge_signature(&provider, &key.public_key).await
 }

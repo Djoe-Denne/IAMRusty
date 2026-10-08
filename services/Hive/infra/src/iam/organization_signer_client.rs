@@ -8,6 +8,8 @@ use hive_domain::port::service::{
 };
 use reqwest::Client;
 use rustycog::core::error::DomainError;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::debug;
@@ -17,7 +19,7 @@ use super::StaticCredential;
 
 const IAM_INTERNAL_CREDENTIAL_REF: &str = "iam-internal-token";
 
-/// HTTP client using `[iam_service]` base_url + [`WorkloadIdentity`] for `x-iam-internal-token`.
+/// HTTP client using `iam_service` `base_url` + [`WorkloadIdentity`] for `x-iam-internal-token`.
 #[derive(Clone)]
 pub struct HttpIamOrganizationSignerClient {
     base_url: String,
@@ -87,11 +89,11 @@ impl HttpIamOrganizationSignerClient {
         )
     }
 
-    async fn post_json<T: serde::de::DeserializeOwned>(
-        &self,
-        path: &str,
-        body: Option<&impl Serialize>,
-    ) -> Result<T, DomainError> {
+    async fn post_json<T, B>(&self, path: &str, body: Option<&B>) -> Result<T, DomainError>
+    where
+        T: DeserializeOwned + Send,
+        B: Serialize + Send + Sync,
+    {
         let cred = self.workload.resolve(&self.credential_ref).await?;
         let url = format!("{}{path}", self.base_url);
         debug!(%url, "IAM organization signer RPC");
@@ -141,8 +143,6 @@ impl HttpIamOrganizationSignerClient {
         })
     }
 }
-
-use serde::Serialize;
 
 #[async_trait]
 impl IamOrganizationSignerClient for HttpIamOrganizationSignerClient {
@@ -265,13 +265,13 @@ mod tests {
                     )
                     .await
                     .unwrap_err();
-                if status != 500 {
+                if status == 500 {
                     assert!(
-                        matches!(err,DomainError::ExternalServiceError {ref service,ref message} if service=="iam_service" && message==marker)
+                        matches!(err,DomainError::ExternalServiceError {ref message,..} if message!="signing_invalid_input")
                     );
                 } else {
                     assert!(
-                        matches!(err,DomainError::ExternalServiceError {ref message,..} if message!="signing_invalid_input")
+                        matches!(err,DomainError::ExternalServiceError {ref service,ref message} if service=="iam_service" && message==marker)
                     );
                 }
                 let requests = server.received_requests().await.unwrap();
@@ -279,7 +279,7 @@ mod tests {
                 let body: serde_json::Value = serde_json::from_slice(&requests[0].body).unwrap();
                 assert_eq!(
                     body.get("provider_key_version")
-                        .and_then(|value| value.as_u64()),
+                        .and_then(serde_json::Value::as_u64),
                     version.map(u64::from)
                 );
                 assert_eq!(body["org_slug"], "db-org");

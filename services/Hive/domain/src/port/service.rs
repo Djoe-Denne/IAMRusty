@@ -37,7 +37,7 @@ pub trait IamOrganizationSignerClient: Send + Sync {
     ) -> Result<OrganizationSignerResponse, DomainError>;
 }
 
-/// Request body for ConfigureOrganizationSigner (no raw cloud secrets in Hive events).
+/// Request body for `ConfigureOrganizationSigner` (no raw cloud secrets in Hive events).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigureOrganizationSignerRequest {
     pub provider_type: String,
@@ -77,11 +77,11 @@ impl std::fmt::Debug for WorkloadCredential {
 /// Port for obtaining s2s / KMS credentials without baking SA key JSON into Hive DB.
 ///
 /// Preference order (ADR-0307): OIDC WIF, then X509/mTLS, then
-/// `StaticCredential` last (OpenBao / config map). SPIFFE/SPIRE is not
+/// `StaticCredential` last (`OpenBao` / config map). SPIFFE/SPIRE is not
 /// a required adapter.
 #[async_trait]
 pub trait WorkloadIdentity: Send + Sync {
-    /// Resolve a named credential reference (config key, OpenBao path, …).
+    /// Resolve a named credential reference (config key, `OpenBao` path, …).
     ///
     /// # Errors
     ///

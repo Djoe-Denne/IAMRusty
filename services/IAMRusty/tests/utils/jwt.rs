@@ -39,12 +39,11 @@ impl FakeJwtCodec {
             .to_jwks_json()
     }
 
-    pub fn organization_token(&self, user_id: Uuid, owner: Uuid, issuer: &str) -> String {
+    pub fn organization_token(user_id: Uuid, owner: Uuid, issuer: &str) -> String {
         rustycog::testing::http::jwt::create_organization_rs256_jwt_token(user_id, owner, issuer)
     }
 
     pub fn organization_jwks(
-        &self,
         owner: Uuid,
         issuer: &str,
         status: rustycog::testing::http::jwt::TestSigningKeyStatus,

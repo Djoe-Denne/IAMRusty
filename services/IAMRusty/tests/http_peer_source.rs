@@ -12,15 +12,15 @@ use serial_test::serial;
 #[tokio::test]
 #[serial]
 async fn changing_untrusted_xff_cannot_change_the_actual_transport_source_budget() {
-    let mut limits = AuthRateLimitConfig::default();
-    limits.disabled = false;
-    limits.source_limit = 2;
-    limits.account_limit = 1000;
-    limits.trusted_proxies.clear();
-    let (_fixture, base, client) = common::setup_test_server_with_rate_limits(limits)
+    let limits = AuthRateLimitConfig {
+        source_limit: 2,
+        account_limit: 1000,
+        ..AuthRateLimitConfig::default()
+    };
+    let (fixture, base, client) = Box::pin(common::setup_test_server_with_rate_limits(limits))
         .await
         .expect("real listener with limiter explicitly enabled");
-    fixture_cleanup::run(&_fixture, async {
+    fixture_cleanup::run(&fixture, async {
     for (index, source) in ["198.51.100.1", "203.0.113.2", "192.0.2.3"]
         .into_iter()
         .enumerate()

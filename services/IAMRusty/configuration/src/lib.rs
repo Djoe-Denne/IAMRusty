@@ -1,6 +1,6 @@
 //! IAM service specific configuration
 //!
-//! This crate provides IAM-specific configuration structures including federated IdP
+//! This crate provides IAM-specific configuration structures including federated `IdP`
 //! connectors and JWT configuration, while re-exporting core configuration utilities from rustycog-config.
 
 // Re-export core configuration from rustycog-config
@@ -201,10 +201,10 @@ pub struct JwtConfig {
     /// HMAC secret for OAuth state (must not be the JWT secret)
     #[serde(default = "default_oauth_state_secret")]
     pub oauth_state_secret: String,
-    /// Optional OpenBao / Vault Transit base URL for org-signer mint + probe.
+    /// Optional `OpenBao` / Vault Transit base URL for org-signer mint + probe.
     #[serde(default)]
     pub transit_url: Option<String>,
-    /// Optional Transit token (StaticCredential secret). Prefer env / secret inject.
+    /// Optional Transit token (`StaticCredential` secret). Prefer env / secret inject.
     #[serde(default)]
     pub transit_token: Option<String>,
     /// Optional OIDC WIF / static workload identity (ADR-0307). Absent → static.
@@ -216,7 +216,7 @@ pub struct JwtConfig {
     /// Alias of [`Self::backend`] (`provider = "remote"` also selects remote HTTP).
     #[serde(default)]
     pub provider: Option<String>,
-    /// Remote Sign / GetPublicKey endpoint (ADR-0309). Absent → PEM / Transit default.
+    /// Remote Sign / `GetPublicKey` endpoint (`ADR-0309`). Absent → PEM / Transit default.
     #[serde(default)]
     pub remote: Option<RemoteSignerConfig>,
     /// Platform Transit binding; absence/zero is never an implicit latest pin.
@@ -288,6 +288,12 @@ pub struct AzureWorkloadConfig {
 }
 
 impl JwtConfig {
+    /// Return the platform Transit binding when `backend`/`provider` is `transit`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretError::InvalidFormat`] if Transit is selected but the
+    /// binding, key version, credential, or endpoint is missing or empty.
     pub fn platform_transit_binding(&self) -> Result<Option<&PlatformTransitConfig>, SecretError> {
         if !self
             .signing_backend()
@@ -301,11 +307,11 @@ impl JwtConfig {
         if binding.provider_key_version == 0
             || binding.provider_key_ref.trim().is_empty()
             || binding.credential_ref.trim().is_empty()
-            || !self
+            || !(self
                 .transit_url
                 .as_deref()
                 .is_some_and(|url| !url.trim().is_empty())
-                && !matches!(&self.secret, SecretStorage::Vault { url, .. } if !url.trim().is_empty())
+                || matches!(&self.secret, SecretStorage::Vault { url, .. } if !url.trim().is_empty()))
         {
             return Err(SecretError::InvalidFormat(
                 "invalid platform Transit binding".into(),
@@ -315,6 +321,11 @@ impl JwtConfig {
     }
 
     /// Validate provider selection without resolving/reading any private secret.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecretError::InvalidFormat`] if the selected backend, secret
+    /// storage, or endpoint is incompatible with `mode`.
     pub fn validate_signing_security(&self, mode: SecurityMode) -> Result<(), SecretError> {
         // Delegated RS256 may leave PEM storage entirely unused. Asking the
         // HMAC resolver to consume that PEM instead would read private RSA
@@ -337,12 +348,9 @@ impl JwtConfig {
             let url = self
                 .transit_url
                 .as_deref()
-                .or_else(|| {
-                    if let SecretStorage::Vault { url, .. } = &self.secret {
-                        Some(url.as_str())
-                    } else {
-                        None
-                    }
+                .or(match &self.secret {
+                    SecretStorage::Vault { url, .. } => Some(url.as_str()),
+                    _ => None,
                 })
                 .ok_or_else(|| SecretError::InvalidFormat("Transit endpoint required".into()))?;
             if mode == SecurityMode::Verified && !url.starts_with("https://") {
@@ -521,7 +529,7 @@ impl JwtConfig {
         if !self.remote_is_requested() {
             return Ok(None);
         }
-        let url = self.remote.as_ref().map(|r| r.url.trim()).unwrap_or("");
+        let url = self.remote.as_ref().map_or("", |r| r.url.trim());
         if url.is_empty() {
             return Err(SecretError::InvalidFormat(
                 "remote signer url absent — fail-closed".to_string(),
@@ -707,7 +715,7 @@ pub struct AppConfig {
     pub auth: AuthConfig,
     /// Database configuration
     pub database: DatabaseConfig,
-    /// Federated IdP connector registry (`[[idp.connectors]]`)
+    /// Federated `IdP` connector registry (`[[idp.connectors]]`)
     #[serde(default)]
     pub idp: IdpConfig,
     /// JWT configuration
@@ -747,7 +755,7 @@ fn default_jwt_audience() -> String {
     "aiforall".to_string()
 }
 
-fn default_oauth_state_secret() -> String {
+const fn default_oauth_state_secret() -> String {
     String::new()
 }
 

@@ -12,7 +12,7 @@ use fixtures::{DbFixtures, IdpConnectFixtures};
 use iam_domain::entity::signing_key::SigningKeyStatus;
 use rustycog::{
     http::UserIdExtractor,
-    testing::http::jwt::{TEST_JWT_AUDIENCE, TEST_RS256_PRIVATE_PEM},
+    testing::http::jwt::{test_rs256_private_pem, TEST_JWT_AUDIENCE},
 };
 use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use serde_json::{json, Value};
@@ -20,7 +20,7 @@ use serial_test::serial;
 use uuid::Uuid;
 
 fn sign(key: &iam_domain::entity::signing_key::SigningKey, victim: Uuid) -> String {
-    sign_with_pem(key, victim, TEST_RS256_PRIVATE_PEM)
+    sign_with_pem(key, victim, test_rs256_private_pem())
 }
 
 fn sign_with_pem(
@@ -54,10 +54,12 @@ async fn published_organization_signer_with_victim_sub_cannot_me_link_or_relink(
     organization.kid = iam_domain::entity::signing_key::opaque_kid();
     // Integration must seed REAL writer registry rows, configure RS256/JWKS trust,
     // bind platform issuer from this row and use the actual GET publisher route.
-    let (fixture, base, client) =
-        common::setup_test_server_with_signing_keys(&[platform.clone(), organization.clone()])
-            .await
-            .expect("RS256 IAM registry harness");
+    let (fixture, base, client) = Box::pin(common::setup_test_server_with_signing_keys(&[
+        platform.clone(),
+        organization.clone(),
+    ]))
+    .await
+    .expect("RS256 IAM registry harness");
     fixture_cleanup::run(&fixture, async {
         let victim = DbFixtures::user()
             .arthur()
@@ -85,7 +87,7 @@ async fn published_organization_signer_with_victim_sub_cannot_me_link_or_relink(
             organization.organization_id.expect("org").to_string()
         );
         let extractor =
-            UserIdExtractor::from_inline_jwks(&jwks.to_string(), Some(TEST_JWT_AUDIENCE))
+            UserIdExtractor::from_inline_jwks(jwks.to_string(), Some(TEST_JWT_AUDIENCE))
                 .expect("published snapshot");
         let principal = extractor
             .extract_principal(&org_token)
@@ -145,12 +147,12 @@ async fn published_organization_signer_with_victim_sub_cannot_me_link_or_relink(
 async fn post_boot_published_kid_resolves_through_live_url_refresh() {
     use iam_domain::port::repository::SigningKeyRegistry;
     use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
-    let (fixture, base, client) = common::setup_test_server()
+    let (fixture, base, client) = Box::pin(common::setup_test_server())
         .await
         .expect("real IAM listener boot");
     fixture_cleanup::run(&fixture, async {
         let victim = DbFixtures::user().arthur().commit(fixture.db()).await.expect("victim account");
-        let (writer, _) = common::fixture_signing_registry(&fixture).await.expect("same primary writer");
+        let (writer, _) = common::fixture_signing_registry(&fixture).expect("same primary writer");
         // Generate and admit AFTER boot: neither kid nor RSA material can be in
         // the boot seed. No warmup bearer or arbitrary 60-second wait is used.
         let private = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048).expect("distinct post-boot RSA");

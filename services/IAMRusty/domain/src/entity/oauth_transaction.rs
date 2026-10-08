@@ -22,6 +22,7 @@ pub enum OAuthOperation {
 }
 
 impl OAuthOperation {
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Login => "login",
@@ -30,6 +31,7 @@ impl OAuthOperation {
         }
     }
 
+    #[must_use]
     pub const fn target_user_id(&self) -> Option<Uuid> {
         match self {
             Self::Login => None,
@@ -103,18 +105,23 @@ impl std::fmt::Debug for ConsumedOAuthTransaction {
 }
 
 impl ConsumedOAuthTransaction {
-    pub fn provider(&self) -> &Provider {
+    #[must_use]
+    pub const fn provider(&self) -> &Provider {
         &self.transaction.provider
     }
-    pub fn operation(&self) -> &OAuthOperation {
+    #[must_use]
+    pub const fn operation(&self) -> &OAuthOperation {
         &self.transaction.operation
     }
+    #[must_use]
     pub fn target_user_id(&self) -> Option<Uuid> {
         self.operation().target_user_id()
     }
+    #[must_use]
     pub fn redirect_uri(&self) -> &str {
         &self.transaction.redirect_uri
     }
+    #[must_use]
     pub const fn expires_at(&self) -> i64 {
         self.transaction.expires_at
     }
@@ -206,6 +213,7 @@ impl OAuthTransaction {
 
     /// Defense against incorrect adapters: equality of hashes in application code
     /// is constant-time; the SQL writer checks these same bindings atomically.
+    #[must_use]
     pub fn matches(&self, input: &ConsumeOAuthTransaction) -> bool {
         let hash_equal = constant_time_equal(&self.nonce_hash, &input.nonce_hash)
             & constant_time_equal(&self.state_hash, &input.state_hash)
@@ -219,6 +227,7 @@ impl OAuthTransaction {
     }
 }
 
+#[must_use]
 pub fn hash_oauth_bytes(value: &[u8]) -> [u8; 32] {
     Sha256::digest(value).into()
 }
@@ -241,19 +250,20 @@ mod tests {
             if !(1..=1000).contains(&batch_size) {
                 return Err(OAuthTransactionError::InvalidTransaction);
             }
-            let mut slot = self.0.lock().unwrap();
-            if slot
-                .as_ref()
-                .is_some_and(|tx| tx.expires_at <= Utc::now().timestamp())
-            {
-                *slot = None;
-                Ok(1)
-            } else {
-                Ok(0)
-            }
+            let now = Utc::now().timestamp();
+            let purged = {
+                let mut slot = self.0.lock().unwrap();
+                if slot.as_ref().is_some_and(|tx| tx.expires_at <= now) {
+                    *slot = None;
+                    true
+                } else {
+                    false
+                }
+            };
+            Ok(u64::from(purged))
         }
         async fn create(&self, tx: &OAuthTransaction) -> Result<(), OAuthTransactionError> {
-            *self.0.lock().unwrap() = Some(OAuthTransaction {
+            let stored = OAuthTransaction {
                 id: tx.id,
                 nonce_hash: tx.nonce_hash,
                 state_hash: tx.state_hash,
@@ -264,7 +274,10 @@ mod tests {
                 expires_at: tx.expires_at,
                 consumed_at: None,
                 pkce_verifier: tx.pkce_verifier.clone(),
-            });
+            };
+            let mut slot = self.0.lock().unwrap();
+            *slot = Some(stored);
+            drop(slot);
             Ok(())
         }
         async fn consume(
@@ -273,9 +286,11 @@ mod tests {
         ) -> Result<Option<OAuthTransaction>, OAuthTransactionError> {
             let mut slot = self.0.lock().unwrap();
             if !slot.as_ref().is_some_and(|tx| tx.matches(input)) {
+                drop(slot);
                 return Ok(None);
             }
             let mut tx = slot.take().unwrap();
+            drop(slot);
             tx.consumed_at = Some(Utc::now().timestamp());
             Ok(Some(tx))
         }

@@ -76,7 +76,7 @@ mod signing_admission_mapping_tests {
             };
             for retry in [None, Some(17)] {
                 let response = ApiError::Domain(DomainError::SigningKeyAdmissionDenied {
-                    reason: reason.clone(),
+                    reason,
                     retry_after_seconds: retry,
                 })
                 .into_response();
@@ -399,123 +399,128 @@ impl IntoResponse for AuthError {
     }
 }
 
+fn domain_http(
+    status: StatusCode,
+    code: &'static str,
+    message: impl Into<String>,
+) -> (StatusCode, String, String) {
+    (status, code.into(), message.into())
+}
+
 fn map_domain_error(domain_error: DomainError) -> (StatusCode, String, String) {
     match domain_error {
-        DomainError::UserNotFound => (
-            StatusCode::NOT_FOUND,
-            "user_not_found".into(),
-            "User not found".into(),
-        ),
-        DomainError::ProviderNotSupported(msg) => (
-            StatusCode::BAD_REQUEST,
-            "provider_not_supported".into(),
-            msg,
-        ),
-        DomainError::ConnectorNotConfigured(provider) => (
+        DomainError::UserNotFound => {
+            domain_http(StatusCode::NOT_FOUND, "user_not_found", "User not found")
+        }
+        DomainError::ProviderNotSupported(msg) => {
+            domain_http(StatusCode::BAD_REQUEST, "provider_not_supported", msg)
+        }
+        DomainError::ConnectorNotConfigured(provider) => domain_http(
             StatusCode::UNPROCESSABLE_ENTITY,
-            "connector_not_configured".into(),
+            "connector_not_configured",
             format!("IdP connector is not configured for this provider: {provider}"),
         ),
-        DomainError::BusinessRuleViolation(msg) => (
+        DomainError::BusinessRuleViolation(msg) => {
+            domain_http(StatusCode::BAD_REQUEST, "business_rule_violation", msg)
+        }
+        DomainError::InvalidToken => {
+            domain_http(StatusCode::UNAUTHORIZED, "invalid_token", "Invalid token")
+        }
+        DomainError::TokenExpired => {
+            domain_http(StatusCode::UNAUTHORIZED, "token_expired", "Token expired")
+        }
+        DomainError::AuthorizationError(_) => domain_http(
+            StatusCode::UNAUTHORIZED,
+            "authorization_error",
+            "Authorization failed",
+        ),
+        DomainError::OAuth2Error(_) => domain_http(
             StatusCode::BAD_REQUEST,
-            "business_rule_violation".into(),
-            msg,
+            "oauth2_error",
+            "OAuth operation failed",
         ),
-        DomainError::InvalidToken => (
-            StatusCode::UNAUTHORIZED,
-            "invalid_token".into(),
-            "Invalid token".into(),
-        ),
-        DomainError::TokenExpired => (
-            StatusCode::UNAUTHORIZED,
-            "token_expired".into(),
-            "Token expired".into(),
-        ),
-        DomainError::AuthorizationError(_) => (
-            StatusCode::UNAUTHORIZED,
-            "authorization_error".into(),
-            "Authorization failed".into(),
-        ),
-        DomainError::OAuth2Error(_) => (
-            StatusCode::BAD_REQUEST,
-            "oauth2_error".into(),
-            "OAuth operation failed".into(),
-        ),
-        DomainError::UserProfileError(_) => (
+        DomainError::UserProfileError(_) => domain_http(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "user_profile_error".into(),
-            "User profile operation failed".into(),
+            "user_profile_error",
+            "User profile operation failed",
         ),
-        DomainError::NoTokenForProvider => (
+        DomainError::NoTokenForProvider => domain_http(
             StatusCode::NOT_FOUND,
-            "no_token_for_provider".into(),
-            "No token found for provider and user".into(),
+            "no_token_for_provider",
+            "No token found for provider and user",
         ),
-        DomainError::TokenGenerationFailed(_) => (
+        DomainError::TokenGenerationFailed(_) => domain_http(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "token_generation_failed".into(),
-            "Token generation failed".into(),
+            "token_generation_failed",
+            "Token generation failed",
         ),
-        DomainError::TokenValidationFailed(_) => (
+        DomainError::TokenValidationFailed(_) => domain_http(
             StatusCode::UNAUTHORIZED,
-            "token_validation_failed".into(),
-            "Token validation failed".into(),
+            "token_validation_failed",
+            "Token validation failed",
         ),
-        DomainError::RepositoryError(_) => (
+        DomainError::RepositoryError(_) => domain_http(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "repository_error".into(),
-            "Repository operation failed".into(),
+            "repository_error",
+            "Repository operation failed",
         ),
-        DomainError::UsernameTaken => (
+        other => map_domain_error_rest(other),
+    }
+}
+
+fn map_domain_error_rest(domain_error: DomainError) -> (StatusCode, String, String) {
+    match domain_error {
+        DomainError::UsernameTaken => domain_http(
             StatusCode::CONFLICT,
-            "username_taken".into(),
-            "Username already taken".into(),
+            "username_taken",
+            "Username already taken",
         ),
-        DomainError::InvalidUsername => (
+        DomainError::InvalidUsername => domain_http(
             StatusCode::UNPROCESSABLE_ENTITY,
-            "invalid_username".into(),
-            "Invalid username format".into(),
+            "invalid_username",
+            "Invalid username format",
         ),
-        DomainError::RegistrationAlreadyComplete => (
+        DomainError::RegistrationAlreadyComplete => domain_http(
             StatusCode::BAD_REQUEST,
-            "registration_already_complete".into(),
-            "Registration already completed".into(),
+            "registration_already_complete",
+            "Registration already completed",
         ),
-        DomainError::TokenServiceError(_) => (
+        DomainError::TokenServiceError(_) => domain_http(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "token_service_error".into(),
-            "Token service operation failed".into(),
+            "token_service_error",
+            "Token service operation failed",
         ),
-        DomainError::EventError(_) => (
+        DomainError::EventError(_) => domain_http(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "event_error".into(),
-            "Event operation failed".into(),
+            "event_error",
+            "Event operation failed",
         ),
-        DomainError::ExternalServiceError { .. } => (
+        DomainError::ExternalServiceError { .. } => domain_http(
             StatusCode::BAD_GATEWAY,
-            "external_service_error".into(),
-            "External service failed".into(),
+            "external_service_error",
+            "External service failed",
         ),
-        DomainError::TokenNotFound => (
+        DomainError::TokenNotFound => domain_http(
             StatusCode::UNAUTHORIZED,
-            "token_not_found".into(),
-            "Token not found".into(),
+            "token_not_found",
+            "Token not found",
         ),
         // Keep the generic API fallback aligned with the org-signer S-10 contract.
-        DomainError::SigningKeyAdmissionDenied { reason, .. } => (
+        DomainError::SigningKeyAdmissionDenied { reason, .. } => domain_http(
             if reason == iam_domain::entity::signing_key::SigningKeyAdmissionReason::EpochConflict {
                 StatusCode::CONFLICT
             } else {
                 StatusCode::TOO_MANY_REQUESTS
             },
-            "signing_key_admission_denied".into(),
-            "Signing key admission denied".into(),
+            "signing_key_admission_denied",
+            "Signing key admission denied",
         ),
-        DomainError::InvalidSigningKeyMaterial => (
+        DomainError::InvalidSigningKeyMaterial => domain_http(
             StatusCode::BAD_REQUEST,
-            "invalid_signing_key_material".into(),
-            "Invalid signing key material".into(),
+            "invalid_signing_key_material",
+            "Invalid signing key material",
         ),
+        _ => unreachable!("first match arm already covered this variant"),
     }
 }
 
