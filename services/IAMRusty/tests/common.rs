@@ -272,23 +272,16 @@ fn fixture_config_with_security(
     let host = database_url
         .host_str()
         .ok_or_else(|| anyhow::anyhow!("missing fixture DB host"))?;
-    config.database.host.clone_from(host);
+    config.database.host = host.to_owned();
     config.database.port = database_url
         .port()
         .ok_or_else(|| anyhow::anyhow!("missing fixture DB port"))?;
-    config
-        .database
-        .db
-        .clone_from(database_url.path().trim_start_matches('/'));
-    config
-        .database
-        .creds
-        .username
-        .clone_from(database_url.username());
+    config.database.db = database_url.path().trim_start_matches('/').to_owned();
+    config.database.creds.username = database_url.username().to_owned();
     let password = database_url
         .password()
         .ok_or_else(|| anyhow::anyhow!("missing fixture DB credential"))?;
-    config.database.creds.password.clone_from(password);
+    config.database.creds.password = password.to_owned();
     config.database.read_replicas.clear();
     if !explicit_security && config.security.mode != SecurityMode::IsolatedTest {
         return Err(anyhow::anyhow!(
