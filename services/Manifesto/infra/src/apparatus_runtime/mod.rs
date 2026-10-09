@@ -68,7 +68,7 @@ pub fn derived_operation_id(component_id: Uuid, generation: u64, verb: &str) -> 
     for (i, b) in verb.as_bytes().iter().enumerate() {
         let idx = i % 16;
         bytes[idx] ^= *b;
-        bytes[(idx + 7) % 16] ^= b.wrapping_add(i as u8);
+        bytes[(idx + 7) % 16] ^= b.wrapping_add(u8::try_from(i % 256).unwrap_or(0));
     }
     OperationId::from_bytes(bytes)
 }

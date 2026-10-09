@@ -80,7 +80,7 @@ impl ProjectUpdatedEvent {
     }
 }
 
-/// AuthZ fan-out for a v2 `project_deleted` event.
+/// `AuthZ` fan-out for a v2 `project_deleted` event.
 #[derive(Debug, Clone)]
 pub struct ProjectDeletedAuthz {
     pub project_id: Uuid,

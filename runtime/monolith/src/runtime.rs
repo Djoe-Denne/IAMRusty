@@ -155,7 +155,7 @@ async fn wait_for_first_background_task(
         let (result, index, remaining_tasks) = select_all(background_tasks.iter_mut()).await;
         drop(remaining_tasks);
         drop(background_tasks.swap_remove(index));
-        if let Ok(Ok(())) = &result {
+        if matches!(result, Ok(Ok(()))) {
             tracing::warn!("Monolith background task exited cleanly; HTTP listener continues");
         } else {
             return flatten_join_result("Monolith background task", result);
@@ -179,25 +179,24 @@ async fn drain_background_tasks(
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
     let mut first_error = None;
     while !tasks.is_empty() {
-        match tokio::time::timeout_at(deadline, select_all(tasks.iter_mut())).await {
-            Ok((result, index, remaining)) => {
-                drop(remaining);
-                drop(tasks.swap_remove(index));
-                let error = flatten_join_result("Monolith background task", result).err();
-                if first_error.is_none() {
-                    first_error = error;
-                }
+        if let Ok((result, index, remaining)) =
+            tokio::time::timeout_at(deadline, select_all(tasks.iter_mut())).await
+        {
+            drop(remaining);
+            drop(tasks.swap_remove(index));
+            let error = flatten_join_result("Monolith background task", result).err();
+            if first_error.is_none() {
+                first_error = error;
             }
-            Err(_) => {
-                for task in tasks.iter() {
-                    task.abort();
-                }
-                for task in tasks.drain(..) {
-                    let _ = task.await;
-                }
-                if first_error.is_none() {
-                    first_error = Some(anyhow::anyhow!("Monolith background drain timed out"));
-                }
+        } else {
+            for task in tasks.iter() {
+                task.abort();
+            }
+            for task in tasks.drain(..) {
+                let _ = task.await;
+            }
+            if first_error.is_none() {
+                first_error = Some(anyhow::anyhow!("Monolith background drain timed out"));
             }
         }
     }

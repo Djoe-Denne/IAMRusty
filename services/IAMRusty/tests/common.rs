@@ -32,7 +32,7 @@ struct IamTestListenerLease {
     app: Arc<IAMRustyApp>,
     shutdown: watch::Sender<bool>,
     task: tokio::task::JoinHandle<anyhow::Result<()>>,
-    _pem_files: Option<Arc<tempfile::TempDir>>,
+    pem_files: Option<Arc<tempfile::TempDir>>,
 }
 
 static IAM_TEST_LISTENERS: OnceLock<Mutex<Vec<IamTestListenerLease>>> = OnceLock::new();
@@ -272,16 +272,25 @@ fn fixture_config_with_security(
     let host = database_url
         .host_str()
         .ok_or_else(|| anyhow::anyhow!("missing fixture DB host"))?;
-    config.database.host = host.to_owned();
+    config.database.host.clear();
+    config.database.host.push_str(host);
     config.database.port = database_url
         .port()
         .ok_or_else(|| anyhow::anyhow!("missing fixture DB port"))?;
-    config.database.db = database_url.path().trim_start_matches('/').to_owned();
-    config.database.creds.username = database_url.username().to_owned();
+    let db_name = database_url.path().trim_start_matches('/');
+    config.database.db.clear();
+    config.database.db.push_str(db_name);
+    config.database.creds.username.clear();
+    config
+        .database
+        .creds
+        .username
+        .push_str(database_url.username());
     let password = database_url
         .password()
         .ok_or_else(|| anyhow::anyhow!("missing fixture DB credential"))?;
-    config.database.creds.password = password.to_owned();
+    config.database.creds.password.clear();
+    config.database.creds.password.push_str(password);
     config.database.read_replicas.clear();
     if !explicit_security && config.security.mode != SecurityMode::IsolatedTest {
         return Err(anyhow::anyhow!(
@@ -318,30 +327,29 @@ async fn start_owned_listener(
     publisher: Arc<MultiQueueEventPublisher<DomainError>>,
     pem_files: Option<Arc<tempfile::TempDir>>,
 ) -> anyhow::Result<(String, Client)> {
-    let pem_files = match pem_files {
-        Some(files) => Some(files),
-        None => {
-            // Public, deliberately non-secret/nonproduction RSA fixture. The
-            // SDK constants and IAM config/keys/test-platform.* are the SAME
-            // pair; this is not evidence of distinct keys or rotation. Real
-            // provider parsing/probing still runs on each isolated app boot.
-            use rustycog::testing::http::jwt::{test_rs256_private_pem, test_rs256_public_pem};
-            let files = Arc::new(tempfile::TempDir::new()?);
-            let private = files.path().join("private.pem");
-            let public = files.path().join("public.pem");
-            std::fs::write(&private, test_rs256_private_pem())?;
-            std::fs::write(&public, test_rs256_public_pem())?;
-            config.jwt.secret = SecretStorage::PemFile {
-                private_key_path: private.to_string_lossy().into_owned(),
-                public_key_path: public.to_string_lossy().into_owned(),
-                key_id: Some(iam_domain::entity::signing_key::opaque_kid()),
-            };
-            config.jwt.allowed_algorithms = vec!["RS256".into()];
-            config.jwt.backend = None;
-            config.jwt.provider = None;
-            config.jwt.remote = None;
-            Some(files)
-        }
+    let pem_files = if let Some(files) = pem_files {
+        Some(files)
+    } else {
+        // Public, deliberately non-secret/nonproduction RSA fixture. The
+        // SDK constants and IAM config/keys/test-platform.* are the SAME
+        // pair; this is not evidence of distinct keys or rotation. Real
+        // provider parsing/probing still runs on each isolated app boot.
+        use rustycog::testing::http::jwt::{test_rs256_private_pem, test_rs256_public_pem};
+        let files = Arc::new(tempfile::TempDir::new()?);
+        let private = files.path().join("private.pem");
+        let public = files.path().join("public.pem");
+        std::fs::write(&private, test_rs256_private_pem())?;
+        std::fs::write(&public, test_rs256_public_pem())?;
+        config.jwt.secret = SecretStorage::PemFile {
+            private_key_path: private.to_string_lossy().into_owned(),
+            public_key_path: public.to_string_lossy().into_owned(),
+            key_id: Some(iam_domain::entity::signing_key::opaque_kid()),
+        };
+        config.jwt.allowed_algorithms = vec!["RS256".into()];
+        config.jwt.backend = None;
+        config.jwt.provider = None;
+        config.jwt.remote = None;
+        Some(files)
     };
     Box::pin(start_owned_listener_with_keys(
         fixture,
@@ -442,7 +450,7 @@ async fn start_owned_listener_with_keys(
             app,
             shutdown,
             task,
-            _pem_files: pem_files,
+            pem_files,
         });
     let base = format!("http://{address}{SERVICE_PREFIX}");
     // Serving is not an auth proof; a bounded readiness wait only establishes the listener.
@@ -525,13 +533,17 @@ pub async fn setup_test_replica(
         let leases = listener_leases()
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let primary = leases
-            .iter()
-            .find(|lease| Arc::ptr_eq(&db, &lease.fixture_db) && !lease.task.is_finished())
-            .ok_or_else(|| {
-                anyhow::anyhow!("replica requires a live fixture-owned primary listener")
-            })?;
-        (primary.config.clone(), primary._pem_files.clone())
+        let cloned = {
+            let primary = leases
+                .iter()
+                .find(|lease| Arc::ptr_eq(&db, &lease.fixture_db) && !lease.task.is_finished())
+                .ok_or_else(|| {
+                    anyhow::anyhow!("replica requires a live fixture-owned primary listener")
+                })?;
+            (primary.config.clone(), primary.pem_files.clone())
+        };
+        drop(leases);
+        cloned
     };
     Ok(Box::pin(start_owned_listener(
         fixture,

@@ -129,7 +129,6 @@ fn map_signer_error(err: &DomainError) -> StatusCode {
             }
             _ => StatusCode::TOO_MANY_REQUESTS,
         },
-        DomainError::InvalidSigningKeyMaterial => StatusCode::BAD_REQUEST,
         DomainError::BusinessRuleViolation(message)
             if message == ISSUER_OWNED_BY_OTHER_ORGANIZATION =>
         {
@@ -140,7 +139,8 @@ fn map_signer_error(err: &DomainError) -> StatusCode {
         {
             StatusCode::NOT_FOUND
         }
-        DomainError::AuthorizationError(_)
+        DomainError::InvalidSigningKeyMaterial
+        | DomainError::AuthorizationError(_)
         | DomainError::ProviderNotSupported(_)
         | DomainError::BusinessRuleViolation(_)
         | DomainError::TokenValidationFailed(_)
@@ -151,24 +151,55 @@ fn map_signer_error(err: &DomainError) -> StatusCode {
     }
 }
 
-fn signer_error_response(err: DomainError) -> axum::response::Response {
-    use axum::response::IntoResponse;
-    let retry = match &err {
+/// Compact HTTP error for org-signer routes (`Retry-After` when supplied).
+#[derive(Debug)]
+pub struct SignerHttpError {
+    status: StatusCode,
+    retry_after_seconds: Option<u32>,
+}
+
+impl SignerHttpError {
+    #[must_use]
+    pub const fn status(&self) -> StatusCode {
+        self.status
+    }
+}
+
+impl From<StatusCode> for SignerHttpError {
+    fn from(status: StatusCode) -> Self {
+        Self {
+            status,
+            retry_after_seconds: None,
+        }
+    }
+}
+
+impl axum::response::IntoResponse for SignerHttpError {
+    fn into_response(self) -> axum::response::Response {
+        let mut response = self.status.into_response();
+        if let Some(retry) = self.retry_after_seconds {
+            if let Ok(value) = retry.to_string().parse() {
+                response
+                    .headers_mut()
+                    .insert(axum::http::header::RETRY_AFTER, value);
+            }
+        }
+        response
+    }
+}
+
+fn signer_error_response(err: &DomainError) -> SignerHttpError {
+    let retry_after_seconds = match err {
         DomainError::SigningKeyAdmissionDenied {
             retry_after_seconds,
             ..
         } => *retry_after_seconds,
         _ => None,
     };
-    let mut response = map_signer_error(&err).into_response();
-    if let Some(retry) = retry {
-        if let Ok(value) = retry.to_string().parse() {
-            response
-                .headers_mut()
-                .insert(axum::http::header::RETRY_AFTER, value);
-        }
+    SignerHttpError {
+        status: map_signer_error(err),
+        retry_after_seconds,
     }
-    response
 }
 
 #[cfg(test)]
@@ -176,14 +207,13 @@ fn map_rotate_error(err: &DomainError) -> StatusCode {
     map_signer_error(err)
 }
 
-fn map_probe_error(err: &DomainError) -> StatusCode {
+const fn map_probe_error(err: &DomainError) -> StatusCode {
     match err {
-        DomainError::InvalidSigningKeyMaterial => StatusCode::BAD_REQUEST,
-        DomainError::AuthorizationError(_)
+        DomainError::InvalidSigningKeyMaterial
+        | DomainError::AuthorizationError(_)
         | DomainError::TokenValidationFailed(_)
         | DomainError::ProviderNotSupported(_)
         | DomainError::BusinessRuleViolation(_) => StatusCode::BAD_REQUEST,
-        DomainError::ExternalServiceError { .. } => StatusCode::BAD_GATEWAY,
         _ => StatusCode::BAD_GATEWAY,
     }
 }
@@ -211,9 +241,8 @@ pub async fn configure_organization_signer(
     Path(org_id): Path<Uuid>,
     Extension(ctx): Extension<Arc<SignerRouteContext>>,
     Json(body): Json<ConfigureSignerBody>,
-) -> Result<Json<SignerResponse>, axum::response::Response> {
-    use axum::response::IntoResponse;
-    require_internal_service_token(&headers).map_err(IntoResponse::into_response)?;
+) -> Result<Json<SignerResponse>, SignerHttpError> {
+    require_internal_service_token(&headers).map_err(SignerHttpError::from)?;
     let result = ctx
         .facade
         .configure(
@@ -228,7 +257,7 @@ pub async fn configure_organization_signer(
             },
         )
         .await
-        .map_err(signer_error_response)?;
+        .map_err(|err| signer_error_response(&err))?;
     Ok(Json(result.into()))
 }
 
@@ -254,8 +283,8 @@ pub async fn test_organization_signer(
             DomainError::AuthorizationError(_)
             | DomainError::TokenValidationFailed(_)
             | DomainError::ProviderNotSupported(_)
-            | DomainError::BusinessRuleViolation(_) => map_probe_error(&e),
-            DomainError::ExternalServiceError { .. } => map_probe_error(&e),
+            | DomainError::BusinessRuleViolation(_)
+            | DomainError::ExternalServiceError { .. } => map_probe_error(&e),
             _ => map_signer_error(&e),
         }
     })?;
@@ -271,14 +300,13 @@ pub async fn rotate_organization_signer(
     headers: HeaderMap,
     Path(org_id): Path<Uuid>,
     Extension(ctx): Extension<Arc<SignerRouteContext>>,
-) -> Result<Json<SignerResponse>, axum::response::Response> {
-    use axum::response::IntoResponse;
-    require_internal_service_token(&headers).map_err(IntoResponse::into_response)?;
+) -> Result<Json<SignerResponse>, SignerHttpError> {
+    require_internal_service_token(&headers).map_err(SignerHttpError::from)?;
     let result = ctx
         .facade
         .rotate(org_id)
         .await
-        .map_err(signer_error_response)?;
+        .map_err(|err| signer_error_response(&err))?;
     Ok(Json(result.into()))
 }
 
@@ -353,26 +381,29 @@ mod tests {
 
     #[test]
     fn admission_errors_are_generic_and_retry_after_is_only_supplied_metadata() {
+        use axum::response::IntoResponse;
         use iam_domain::entity::signing_key::SigningKeyAdmissionReason;
         for reason in [
             SigningKeyAdmissionReason::Capacity,
             SigningKeyAdmissionReason::TenantEpochLimit,
             SigningKeyAdmissionReason::ChurnRate,
         ] {
-            let response = signer_error_response(DomainError::SigningKeyAdmissionDenied {
+            let response = signer_error_response(&DomainError::SigningKeyAdmissionDenied {
                 reason,
                 retry_after_seconds: None,
-            });
+            })
+            .into_response();
             assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
             assert!(response
                 .headers()
                 .get(axum::http::header::RETRY_AFTER)
                 .is_none());
         }
-        let response = signer_error_response(DomainError::SigningKeyAdmissionDenied {
+        let response = signer_error_response(&DomainError::SigningKeyAdmissionDenied {
             reason: SigningKeyAdmissionReason::ChurnRate,
             retry_after_seconds: Some(7),
-        });
+        })
+        .into_response();
         assert_eq!(response.headers()[axum::http::header::RETRY_AFTER], "7");
         assert_eq!(
             map_signer_error(&DomainError::SigningKeyAdmissionDenied {
@@ -1138,7 +1169,7 @@ mod tests {
 
         let rotator = Arc::new(StubRotator {
             registry: registry.clone(),
-            next_public_key: new_pub.to_string(),
+            next_public_key: new_pub,
         });
         let ctx = test_signer_ctx(
             registry.clone(),

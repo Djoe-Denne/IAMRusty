@@ -119,6 +119,7 @@ pub struct IAMRustyAppParts {
 }
 
 impl IAMRustyApp {
+    #[must_use]
     pub fn new(parts: IAMRustyAppParts) -> Self {
         let IAMRustyAppParts {
             app_state,
@@ -243,29 +244,26 @@ impl IAMRustyApp {
             };
         while !handles.is_empty() {
             let joined = tokio::time::timeout_at(deadline, select_all(handles.iter_mut())).await;
-            match joined {
-                Ok((result, index, remaining)) => {
-                    drop(remaining);
-                    drop(handles.swap_remove(index));
-                    let error = match result {
-                        Ok(Ok(())) => None,
-                        Ok(Err(error)) => Some(error),
-                        Err(_) => Some(anyhow::anyhow!("IAM background worker join failed")),
-                    };
-                    if first_error.is_none() {
-                        first_error = error;
-                    }
+            if let Ok((result, index, remaining)) = joined {
+                drop(remaining);
+                drop(handles.swap_remove(index));
+                let error = match result {
+                    Ok(Ok(())) => None,
+                    Ok(Err(error)) => Some(error),
+                    Err(_) => Some(anyhow::anyhow!("IAM background worker join failed")),
+                };
+                if first_error.is_none() {
+                    first_error = error;
                 }
-                Err(_) => {
-                    for handle in handles.iter() {
-                        handle.abort();
-                    }
-                    for handle in handles.drain(..) {
-                        let _ = handle.await;
-                    }
-                    if first_error.is_none() {
-                        first_error = Some(anyhow::anyhow!("IAM background drain timed out"));
-                    }
+            } else {
+                for handle in handles.iter() {
+                    handle.abort();
+                }
+                for handle in handles.drain(..) {
+                    let _ = handle.await;
+                }
+                if first_error.is_none() {
+                    first_error = Some(anyhow::anyhow!("IAM background drain timed out"));
                 }
             }
         }
@@ -283,7 +281,7 @@ pub async fn build_and_run(
     server_config: ServerConfig,
     maybe_event_publisher: Option<Arc<MultiQueueEventPublisher<DomainError>>>,
 ) -> Result<()> {
-    let app_state = build_app_state(config.clone(), maybe_event_publisher).await?;
+    let app_state = Box::pin(build_app_state(config.clone(), maybe_event_publisher)).await?;
     run_server(app_state, server_config).await
 }
 
@@ -363,13 +361,7 @@ fn setup_iam_identity_stack(
     config: &AppConfig,
     db_pool: &DbConnectionPool,
     signing_registry: Arc<SeaOrmSigningKeyRegistry>,
-) -> Result<(
-    IamRepos,
-    Arc<IdpConfig>,
-    OauthClients,
-    Arc<PasswordService>,
-    Arc<PasswordServiceAdapter>,
-)> {
+) -> Result<IamIdentityStack> {
     let repos = setup_repositories(db_pool, config.jwt.platform_issuer(), signing_registry);
     let idp = Arc::new(config.idp.clone());
     let oauth_clients = setup_oauth_clients(config)?;
@@ -650,6 +642,14 @@ struct IamRepos {
 struct OauthClients {
     by_slug: HashMap<Provider, Arc<dyn FederatedOAuthClient>>,
 }
+
+type IamIdentityStack = (
+    IamRepos,
+    Arc<IdpConfig>,
+    OauthClients,
+    Arc<PasswordService>,
+    Arc<PasswordServiceAdapter>,
+);
 
 struct OauthLinkDeps {
     session_writer: Arc<dyn AuthenticationSessionWriter>,
@@ -1088,36 +1088,34 @@ fn setup_signer_route_context(
     db: Arc<sea_orm::DatabaseConnection>,
     registry: Arc<SeaOrmSigningKeyRegistry>,
     pem_root: PathBuf,
-    transit: Option<TransitClientConfig>,
-) -> Result<Option<Arc<SignerRouteContext>>> {
+    transit: Option<&TransitClientConfig>,
+) -> Arc<SignerRouteContext> {
     let identity_repo = Arc::new(SeaOrmIdentityRepository::new(db));
     let mut probe = DefaultOrganizationSignerProbe::new(pem_root.clone())
         .with_local_pem_allowed(config.security.mode.allows_local_pem());
-    if let Some(ref t) = transit {
+    if let Some(t) = transit {
         probe = probe.with_transit(t.clone());
     }
     let rotator = Arc::new(DefaultOrganizationSignerRotator::new(RotateContext {
         registry: registry.clone()
             as Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>,
         pem_root: pem_root.clone(),
-        transit: transit.clone(),
+        transit: transit.cloned(),
         allow_local_pem: config.security.mode.allows_local_pem(),
     }));
-    Ok(Some(Arc::new(SignerRouteContext::new(
-        SignerRouteContextParams {
-            registry: registry.clone()
-                as Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>,
-            identity_repo: identity_repo
-                as Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>,
-            public_base_url: config.jwt.public_base_url.clone(),
-            probe: Arc::new(probe),
-            rotator: rotator as Arc<dyn iam_domain::port::OrganizationSignerRotator>,
-            pem_root,
-            expiration_seconds: config.jwt.expiration_seconds,
-            skew_seconds: JWKS_RETIRE_SKEW_SECONDS as u64,
-            transit_base_url: transit.as_ref().map(|t| t.base_url.clone()),
-        },
-    ))))
+    Arc::new(SignerRouteContext::new(SignerRouteContextParams {
+        registry: registry
+            as Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>,
+        identity_repo: identity_repo
+            as Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>,
+        public_base_url: config.jwt.public_base_url.clone(),
+        probe: Arc::new(probe),
+        rotator: rotator as Arc<dyn iam_domain::port::OrganizationSignerRotator>,
+        pem_root,
+        expiration_seconds: config.jwt.expiration_seconds,
+        skew_seconds: JWKS_RETIRE_SKEW_SECONDS as u64,
+        transit_base_url: transit.map(|t| t.base_url.clone()),
+    }))
 }
 
 async fn resolve_access_signing(
@@ -1125,7 +1123,7 @@ async fn resolve_access_signing(
     registry: &SeaOrmSigningKeyRegistry,
     platform_issuer: &str,
     pem_root: &Path,
-    transit: &Option<TransitClientConfig>,
+    transit: Option<&TransitClientConfig>,
     jwt_algorithm_config: Option<iam_configuration::JwtAlgorithm>,
 ) -> Result<(
     JwtAlgorithm,
@@ -1145,9 +1143,8 @@ async fn resolve_access_signing(
         .remote_http_endpoint()
         .map_err(|e| anyhow::anyhow!("remote signer: {e}"))?;
     Ok(if let Some(binding) = platform_transit {
-        let transit = transit
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("platform Transit unavailable; no fallback"))?;
+        let transit =
+            transit.ok_or_else(|| anyhow::anyhow!("platform Transit unavailable; no fallback"))?;
         let bits =
             platform_transit_signing_bits(registry, platform_issuer, binding, transit, pem_root)
                 .await?;
@@ -1328,26 +1325,26 @@ async fn setup_jwt(
     {
         return Err(anyhow::anyhow!("verified Transit requires HTTPS"));
     }
-    let signer_ctx = setup_signer_route_context(
+    let signer_ctx = Some(setup_signer_route_context(
         config,
         db,
         registry.clone(),
         pem_root.clone(),
-        transit.clone(),
-    )?;
+        transit.as_ref(),
+    ));
     let (jwt_algorithm, signing_bits) = resolve_access_signing(
         config,
         registry.as_ref(),
         &platform_issuer,
         &pem_root,
-        &transit,
+        transit.as_ref(),
         jwt_algorithm_config,
     )
     .await?;
     let _ = (platform_transit, remote_cfg);
 
     let mut token_service = JwtTokenService::with_refresh_expiration(
-        jwt_algorithm.clone(),
+        jwt_algorithm,
         config.jwt.expiration_seconds,
         config.jwt.refresh_token_expiration_seconds,
     )
@@ -1907,7 +1904,7 @@ mod tests {
             config.idp = IdpConfig {
                 connectors: vec![complete_connector("github")],
             };
-            match super::build_app_state(config, None).await {
+            match Box::pin(super::build_app_state(config, None)).await {
                 Ok(_) => panic!("empty OAuth state secret must fail closed at boot"),
                 Err(error) => assert!(
                     error.to_string().contains("OAuth state"),

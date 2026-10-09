@@ -23,14 +23,14 @@ const fn project_resource(project_id: Uuid) -> ResourceRef {
 #[tokio::test]
 #[serial]
 async fn org_less_user_joins_public_project_and_can_read_write() {
-    let (_fixture, base_url, client, openfga, _components) =
+    let (fixture, base_url, client, openfga, _components) =
         setup_test_server().await.expect("setup");
     let creator = Uuid::new_v4();
     let joiner = Uuid::new_v4();
     let creator_jwt = create_test_jwt_token(creator);
     let joiner_jwt = create_test_jwt_token(joiner);
 
-    let db = _fixture.db();
+    let db = fixture.db();
     let project = DbFixtures::project()
         .personal(creator)
         .public()

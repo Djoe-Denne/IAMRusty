@@ -131,11 +131,12 @@ impl TestOpenBao {
 
 async fn get_or_create_test_openbao_container() -> Result<u16, Box<dyn std::error::Error>> {
     let container_mutex = TEST_OPENBAO_CONTAINER.get_or_init(|| Arc::new(Mutex::new(None)));
-    {
+    let existing_port = {
         let container_guard = container_mutex.lock().await;
-        if let Some(ref container) = *container_guard {
-            return Ok(container.port);
-        }
+        (*container_guard).as_ref().map(|container| container.port)
+    };
+    if let Some(port) = existing_port {
+        return Ok(port);
     }
 
     cleanup_existing_openbao_container();
@@ -166,11 +167,18 @@ async fn get_or_create_test_openbao_container() -> Result<u16, Box<dyn std::erro
     let container = image.start().await?;
     let test_container = Arc::new(TestOpenBaoContainer { container, port });
 
-    let mut container_guard = container_mutex.lock().await;
-    if let Some(ref existing) = *container_guard {
-        return Ok(existing.port);
+    let existing_port = {
+        let mut container_guard = container_mutex.lock().await;
+        if let Some(ref existing) = *container_guard {
+            Some(existing.port)
+        } else {
+            *container_guard = Some(test_container);
+            None
+        }
+    };
+    if let Some(existing_port) = existing_port {
+        return Ok(existing_port);
     }
-    *container_guard = Some(test_container);
     register_openbao_cleanup_handler();
     Ok(port)
 }

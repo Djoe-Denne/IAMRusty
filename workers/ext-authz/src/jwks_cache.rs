@@ -28,7 +28,6 @@ impl KeyStatus {
     pub fn parse(raw: &str) -> Self {
         match raw.trim().to_ascii_lowercase().as_str() {
             "pending" => Self::Pending,
-            "revoked" => Self::Revoked,
             "retiring" => Self::Retiring,
             "active" => Self::Active,
             _ => Self::Revoked,
@@ -201,7 +200,7 @@ impl JwksCache {
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             guard
                 .last_fetch
-                .map_or(true, |at| at.elapsed() >= self.poll_interval)
+                .is_none_or(|at| at.elapsed() >= self.poll_interval)
         };
         if due {
             let _ = self.refresh_coalesced().await;

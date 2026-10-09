@@ -760,9 +760,9 @@ mod admission_tests {
             updated_at: clock(),
         }
     }
-    fn reason(error: DomainError) -> SigningKeyAdmissionReason {
+    fn reason(error: &DomainError) -> SigningKeyAdmissionReason {
         match error {
-            DomainError::SigningKeyAdmissionDenied { reason, .. } => reason,
+            DomainError::SigningKeyAdmissionDenied { reason, .. } => *reason,
             _ => panic!("expected typed admission outcome"),
         }
     }
@@ -1066,7 +1066,7 @@ mod admission_tests {
         }
         assert_eq!(
             reason(
-                p.check_admission(std::slice::from_ref(&k), &history, Some(&k), 900, clock())
+                &p.check_admission(std::slice::from_ref(&k), &history, Some(&k), 900, clock())
                     .unwrap_err()
             ),
             SigningKeyAdmissionReason::ChurnRate
@@ -1083,7 +1083,7 @@ mod admission_tests {
             .is_ok());
         assert_eq!(
             reason(
-                p.check_admission(&orgs, &[], None, 900, clock())
+                &p.check_admission(&orgs, &[], None, 900, clock())
                     .unwrap_err()
             ),
             SigningKeyAdmissionReason::TenantEpochLimit
@@ -1094,7 +1094,7 @@ mod admission_tests {
             .is_ok());
         assert_eq!(
             reason(
-                p.check_admission(&platform, &[], None, 900, clock())
+                &p.check_admission(&platform, &[], None, 900, clock())
                     .unwrap_err()
             ),
             SigningKeyAdmissionReason::Capacity
@@ -1110,7 +1110,7 @@ mod admission_tests {
             .is_ok());
         assert_eq!(
             reason(
-                p.check_admission(&reserved, &[], None, 900, clock())
+                &p.check_admission(&reserved, &[], None, 900, clock())
                     .unwrap_err()
             ),
             SigningKeyAdmissionReason::Capacity
@@ -1137,7 +1137,7 @@ mod admission_tests {
         assert!(filter_jwks_publication_keys_at(vec![k.clone()], 900, clock()).is_empty());
         assert_eq!(
             reason(
-                p.check_admission(&[k], &[], None, 900, clock())
+                &p.check_admission(&[k], &[], None, 900, clock())
                     .unwrap_err()
             ),
             SigningKeyAdmissionReason::Capacity

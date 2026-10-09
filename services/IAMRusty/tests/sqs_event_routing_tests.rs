@@ -77,14 +77,12 @@ async fn setup_sqs_test_server() -> Result<(TestFixture, String, Client), Box<dy
 
     let mut last_error: Option<String> = None;
     for _ in 1..=3 {
-        match try_setup_sqs_test_server().await {
+        let setup_error = match try_setup_sqs_test_server().await {
             Ok(result) => return Ok(result),
-            Err(error) => {
-                last_error = Some(error.to_string());
-                drop(error);
-                tokio::time::sleep(Duration::from_secs(2)).await;
-            }
-        }
+            Err(error) => error.to_string(),
+        };
+        last_error = Some(setup_error);
+        tokio::time::sleep(Duration::from_secs(2)).await;
     }
 
     Err(format!(

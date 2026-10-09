@@ -206,19 +206,24 @@ fn apply_fixture_database_url(
     database_url: &str,
 ) -> Result<(), anyhow::Error> {
     let db_url = reqwest::Url::parse(database_url)?;
-    config.database.host = db_url
+    let host = db_url
         .host_str()
-        .ok_or_else(|| anyhow!("missing fixture DB host"))?
-        .to_owned();
+        .ok_or_else(|| anyhow!("missing fixture DB host"))?;
+    config.database.host.clear();
+    config.database.host.push_str(host);
     config.database.port = db_url
         .port()
         .ok_or_else(|| anyhow!("missing fixture DB port"))?;
-    config.database.db = db_url.path().trim_start_matches('/').to_owned();
-    config.database.creds.username = db_url.username().to_owned();
-    config.database.creds.password = db_url
+    let db = db_url.path().trim_start_matches('/');
+    config.database.db.clear();
+    config.database.db.push_str(db);
+    config.database.creds.username.clear();
+    config.database.creds.username.push_str(db_url.username());
+    let password = db_url
         .password()
-        .ok_or_else(|| anyhow!("missing fixture DB credential"))?
-        .to_owned();
+        .ok_or_else(|| anyhow!("missing fixture DB credential"))?;
+    config.database.creds.password.clear();
+    config.database.creds.password.push_str(password);
     config.database.read_replicas.clear();
     Ok(())
 }

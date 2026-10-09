@@ -182,10 +182,7 @@ async fn spawn_manifesto_stub(body: serde_json::Value) -> ManifestoStub {
             };
             let mut buf = Vec::new();
             let mut tmp = [0u8; 512];
-            loop {
-                let Ok(n) = sock.read(&mut tmp).await else {
-                    break;
-                };
+            while let Ok(n) = sock.read(&mut tmp).await {
                 if n == 0 {
                     break;
                 }

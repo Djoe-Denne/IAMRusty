@@ -292,15 +292,14 @@ impl KvStore for PostgresKvStore {
 }
 
 fn run_sync<T>(fut: impl std::future::Future<Output = T>) -> Result<T, ApparatusError> {
-    match tokio::runtime::Handle::try_current() {
-        Ok(handle) => Ok(tokio::task::block_in_place(|| handle.block_on(fut))),
-        Err(_) => {
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .map_err(|_| store_failed())?;
-            Ok(runtime.block_on(fut))
-        }
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        Ok(tokio::task::block_in_place(|| handle.block_on(fut)))
+    } else {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|_| store_failed())?;
+        Ok(runtime.block_on(fut))
     }
 }
 

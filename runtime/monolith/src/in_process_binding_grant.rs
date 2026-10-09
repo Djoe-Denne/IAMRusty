@@ -1,6 +1,6 @@
-//! InProcess `Lazaret` → `Manifesto` binding-grant adapter (`ADR-0104`).
+//! `InProcess` `Lazaret` → `Manifesto` binding-grant adapter (`ADR-0104`).
 //!
-//! Lives only in `oodhive-monolith`. Maps Manifesto reader DTOs → Lazaret
+//! Lives only in `oodhive-monolith`. Maps `Manifesto` reader DTOs → `Lazaret`
 //! domain snapshots. No HTTP, no JWT `manifesto-bindings`, no token.
 
 use std::sync::Arc;
@@ -80,8 +80,8 @@ const fn map_principal(membership: &PrincipalMembershipSnapshot) -> PrincipalMem
 
 fn map_application_error(err: ApplicationError) -> GrantFetchError {
     match err {
-        ApplicationError::NotFound(_) => GrantFetchError::NotFound,
-        ApplicationError::Domain(DomainError::EntityNotFound { .. }) => GrantFetchError::NotFound,
+        ApplicationError::NotFound(_)
+        | ApplicationError::Domain(DomainError::EntityNotFound { .. }) => GrantFetchError::NotFound,
         other => GrantFetchError::Transport(other.to_string()),
     }
 }

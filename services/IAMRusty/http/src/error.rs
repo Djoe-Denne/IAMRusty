@@ -464,11 +464,11 @@ fn map_domain_error(domain_error: DomainError) -> (StatusCode, String, String) {
             "repository_error",
             "Repository operation failed",
         ),
-        other => map_domain_error_rest(other),
+        other => map_domain_error_rest(&other),
     }
 }
 
-fn map_domain_error_rest(domain_error: DomainError) -> (StatusCode, String, String) {
+fn map_domain_error_rest(domain_error: &DomainError) -> (StatusCode, String, String) {
     match domain_error {
         DomainError::UsernameTaken => domain_http(
             StatusCode::CONFLICT,
@@ -507,7 +507,8 @@ fn map_domain_error_rest(domain_error: DomainError) -> (StatusCode, String, Stri
         ),
         // Keep the generic API fallback aligned with the org-signer S-10 contract.
         DomainError::SigningKeyAdmissionDenied { reason, .. } => domain_http(
-            if reason == iam_domain::entity::signing_key::SigningKeyAdmissionReason::EpochConflict {
+            if *reason == iam_domain::entity::signing_key::SigningKeyAdmissionReason::EpochConflict
+            {
                 StatusCode::CONFLICT
             } else {
                 StatusCode::TOO_MANY_REQUESTS

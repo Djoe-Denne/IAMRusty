@@ -56,7 +56,7 @@ async fn publisher_rematerializes_on_deadline_before_responding() {
                 "UPDATE signing_jwks_publication SET as_of=(SELECT (updated_at AT TIME ZONE 'UTC')+make_interval(secs=>$2::double precision)-INTERVAL '5 seconds' FROM signing_keys WHERE id=$1),next_expiration=(SELECT (updated_at AT TIME ZONE 'UTC')+make_interval(secs=>$2::double precision) FROM signing_keys WHERE id=$1),dirty=$3 WHERE singleton=1",[key.id.into(),retention.into(),dirty.into()])).await.unwrap();
             tx.commit().await.unwrap();
             let before=fixture.db().query_one(Statement::from_string(DatabaseBackend::Postgres,"SELECT revision,dirty,payload,as_of,next_expiration,statement_timestamp() AS now FROM signing_jwks_publication WHERE singleton=1")).await.unwrap().unwrap();
-            assert_eq!(before.try_get::<i64>("","revision").unwrap() as u64,cached.revision);
+            assert_eq!(u64::try_from(before.try_get::<i64>("","revision").unwrap()).unwrap(),cached.revision);
             assert_eq!(before.try_get::<bool>("","dirty").unwrap(),dirty);
             let as_of:chrono::DateTime<chrono::FixedOffset>=before.try_get("","as_of").unwrap();
             let deadline:chrono::DateTime<chrono::FixedOffset>=before.try_get("","next_expiration").unwrap();
@@ -69,9 +69,9 @@ async fn publisher_rematerializes_on_deadline_before_responding() {
             let expected=iam_domain::entity::token::JwkSet::from_registry_keys_checked(std::slice::from_ref(&root)).unwrap();
             assert_eq!(actual,serde_json::to_value(expected).unwrap(),"expired Retiring must disappear in the handler's FIRST response, not only a later DB getter");
             let after=fixture.db().query_one(Statement::from_string(DatabaseBackend::Postgres,"SELECT revision,dirty,payload,next_expiration,access_token_ttl,retire_skew FROM signing_jwks_publication WHERE singleton=1")).await.unwrap().unwrap();
-            assert_eq!(after.try_get::<i64>("","revision").unwrap() as u64,cached.revision+1);assert!(!after.try_get::<bool>("","dirty").unwrap());
+            assert_eq!(u64::try_from(after.try_get::<i64>("","revision").unwrap()).unwrap(),cached.revision+1);assert!(!after.try_get::<bool>("","dirty").unwrap());
             assert!(after.try_get::<Option<chrono::DateTime<chrono::FixedOffset>>>("","next_expiration").unwrap().is_none());
-            assert_eq!(after.try_get::<i64>("","access_token_ttl").unwrap() as u64,ttl);assert_eq!(after.try_get::<i64>("","retire_skew").unwrap(),60);
+            assert_eq!(u64::try_from(after.try_get::<i64>("","access_token_ttl").unwrap()).unwrap(),ttl);assert_eq!(after.try_get::<i64>("","retire_skew").unwrap(),60);
             assert_eq!(serde_json::from_str::<serde_json::Value>(&after.try_get::<String>("","payload").unwrap()).unwrap(),actual);
             let retained=writer.find_by_kid(&key.kid).await.unwrap().unwrap();assert_eq!(retained.status,SigningKeyStatus::Retiring,"expiry must preserve immutable historical rows");
             assert_eq!(writer.find_active_platform_key().await.unwrap().unwrap(),root);

@@ -58,6 +58,7 @@ pub struct HiveCommandRegistryFactory;
 
 impl HiveCommandRegistryFactory {
     /// Create a command registry with all Hive commands registered
+    #[must_use]
     pub fn create_hive_registry(
         params: HiveCommandRegistryParams,
         command_config: &CommandConfig,

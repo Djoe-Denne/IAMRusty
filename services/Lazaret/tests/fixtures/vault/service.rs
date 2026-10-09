@@ -11,7 +11,7 @@ use super::resources::VaultKvReadBody;
 /// Wiremock Vault KV v2.
 pub struct VaultMockService {
     server: Arc<MockServer>,
-    _fixture: MockServerFixture,
+    fixture: MockServerFixture,
 }
 
 impl VaultMockService {
@@ -19,10 +19,7 @@ impl VaultMockService {
     pub async fn new() -> Self {
         let fixture = MockServerFixture::isolated().await;
         let server = fixture.server();
-        Self {
-            server,
-            _fixture: fixture,
-        }
+        Self { server, fixture }
     }
 
     /// Base URL for [`lazaret_infra::VaultHttpSecretResolver`].
@@ -55,6 +52,6 @@ impl VaultMockService {
 
     /// Wipe stubs.
     pub async fn reset(&self) {
-        self._fixture.reset().await;
+        self.fixture.reset().await;
     }
 }

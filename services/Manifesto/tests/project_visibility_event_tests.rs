@@ -228,7 +228,7 @@ impl MemberService for OwnerMemberService {
     }
 
     async fn count_active_members(&self, project_id: &Uuid) -> Result<i64, DomainError> {
-        Ok(if *project_id == self.project_id { 1 } else { 0 })
+        Ok(i64::from(*project_id == self.project_id))
     }
 
     async fn check_member_exists(
@@ -370,9 +370,9 @@ impl EventPublisher<DomainError> for RecordingEventPublisher {
     }
 }
 
-fn usecase(project: Project, publisher: Arc<RecordingEventPublisher>) -> ProjectUseCaseImpl {
+fn usecase(project: &Project, publisher: Arc<RecordingEventPublisher>) -> ProjectUseCaseImpl {
     usecase_with_checker(
-        &project,
+        project,
         publisher,
         Arc::new(InMemoryPermissionChecker::default()),
     )
@@ -437,7 +437,7 @@ async fn update_visibility_flip_emits_visibility_changed_then_updated() {
 async fn update_name_only_does_not_emit_visibility_changed() {
     let project = build_project(Visibility::Private);
     let publisher = Arc::new(RecordingEventPublisher::default());
-    let usecase = usecase(project.clone(), publisher.clone());
+    let usecase = usecase(&project, publisher.clone());
 
     usecase
         .update_project(
@@ -460,7 +460,7 @@ async fn publish_project_does_not_emit_visibility_changed() {
     let mut project = build_project(Visibility::Private);
     project.status = ProjectStatus::Draft;
     let publisher = Arc::new(RecordingEventPublisher::default());
-    let usecase = usecase(project.clone(), publisher.clone());
+    let usecase = usecase(&project, publisher.clone());
 
     usecase
         .publish_project(project.id, project.created_by)
@@ -474,7 +474,7 @@ async fn publish_project_does_not_emit_visibility_changed() {
 async fn update_to_public_without_admin_is_denied() {
     let project = build_project(Visibility::Private);
     let publisher = Arc::new(RecordingEventPublisher::default());
-    let usecase = usecase(project.clone(), publisher.clone());
+    let usecase = usecase(&project, publisher.clone());
 
     let result = usecase
         .update_project(
@@ -499,7 +499,7 @@ async fn update_to_public_without_admin_is_denied() {
 async fn get_private_is_denied_for_anonymous_and_allowed_for_owner() {
     let project = build_project(Visibility::Private);
     let publisher = Arc::new(RecordingEventPublisher::default());
-    let usecase = usecase(project.clone(), publisher);
+    let usecase = usecase(&project, publisher);
 
     match usecase.get_project(project.id, None).await {
         Err(ApplicationError::Domain(DomainError::PermissionDenied { .. })) => {}
@@ -517,7 +517,7 @@ async fn get_private_is_denied_for_anonymous_and_allowed_for_owner() {
 async fn get_public_is_allowed_for_anonymous() {
     let project = build_project(Visibility::Public);
     let publisher = Arc::new(RecordingEventPublisher::default());
-    let usecase = usecase(project.clone(), publisher);
+    let usecase = usecase(&project, publisher);
 
     let visible = usecase
         .get_project(project.id, None)

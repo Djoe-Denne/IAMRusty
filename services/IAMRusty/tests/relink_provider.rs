@@ -274,10 +274,10 @@ async fn test_relink_provider_callback_github_success() {
 #[serial]
 async fn test_relink_provider_callback_returns_400_without_browser_transaction() {
     // Setup test environment
-    let (_fixture, base_url, client) = Box::pin(setup_test_server())
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
-    fixture_cleanup::run(&_fixture, async {
+    fixture_cleanup::run(&fixture, async {
         // Make request without Authorization header
         let response = client
             .get(format!("{base_url}/api/auth/github/relink-callback"))
@@ -300,10 +300,10 @@ async fn test_relink_provider_callback_returns_400_without_browser_transaction()
 #[serial]
 async fn test_relink_provider_start_returns_401_when_token_is_expired() {
     // Setup test environment
-    let (_fixture, base_url, client) = Box::pin(setup_test_server())
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
-    fixture_cleanup::run(&_fixture, async {
+    fixture_cleanup::run(&fixture, async {
         // Create expired JWT token
         let user_id = Uuid::new_v4();
         let expired_token = create_expired_jwt_token_with_encoder(
@@ -336,10 +336,10 @@ async fn test_relink_provider_start_returns_401_when_token_is_expired() {
 #[serial]
 async fn test_relink_provider_callback_returns_422_when_provider_is_unsupported() {
     // Setup test environment
-    let (_fixture, base_url, client) = Box::pin(setup_test_server())
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
-    fixture_cleanup::run(&_fixture, async {
+    fixture_cleanup::run(&fixture, async {
         // Test unsupported providers
         let unsupported_providers = vec!["facebook", "twitter", "linkedin", "invalid"];
 

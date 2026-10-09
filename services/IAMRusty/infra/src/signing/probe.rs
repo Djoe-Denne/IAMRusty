@@ -1,4 +1,4 @@
-//! OrganizationSignerProbe adapter (ADR-0306 test-signer challenge).
+//! `OrganizationSignerProbe` adapter (ADR-0306 test-signer challenge).
 
 use async_trait::async_trait;
 use iam_domain::entity::signing_key::{SigningKey, SigningProviderType};
@@ -50,7 +50,7 @@ pub struct DefaultOrganizationSignerProbe {
 
 impl DefaultOrganizationSignerProbe {
     #[must_use]
-    pub fn new(pem_root: PathBuf) -> Self {
+    pub const fn new(pem_root: PathBuf) -> Self {
         Self {
             pem_root,
             transit: None,
@@ -59,7 +59,7 @@ impl DefaultOrganizationSignerProbe {
     }
 
     #[must_use]
-    pub fn with_local_pem_allowed(mut self, allowed: bool) -> Self {
+    pub const fn with_local_pem_allowed(mut self, allowed: bool) -> Self {
         self.allow_local_pem = allowed;
         self
     }
@@ -565,12 +565,11 @@ mod tests {
         let private_pem = private
             .to_pkcs8_pem(LineEnding::LF)
             .expect("pkcs8 encode")
-            .to_string();
+            .into_inner();
         let public_pem = private
             .to_public_key()
             .to_public_key_pem(LineEnding::LF)
-            .expect("spki encode")
-            .to_string();
+            .expect("spki encode");
         (private_pem, public_pem)
     }
 

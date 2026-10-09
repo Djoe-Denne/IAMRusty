@@ -1,4 +1,4 @@
-//! InProcess `Hive` → `IAM` organization-signer adapter (`ADR-0306`).
+//! `InProcess` `Hive` → `IAM` organization-signer adapter (`ADR-0306`).
 //!
 //! Lives only in `oodhive-monolith`. Maps Hive port DTOs ↔ IAM façade DTOs
 //! and `iam_domain::DomainError` → `rustycog::core::error::DomainError`.

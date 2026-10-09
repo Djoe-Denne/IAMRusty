@@ -530,7 +530,7 @@ const fn scope_name(scope: &TrustScope) -> &'static str {
         TrustScope::Organization => "organization",
     }
 }
-fn conflict() -> DomainError {
+const fn conflict() -> DomainError {
     admission_denied(SigningKeyAdmissionReason::EpochConflict)
 }
 
@@ -928,17 +928,17 @@ mod admission_tests {
                 last_insert_id: 0,
                 rows_affected: 1,
             }))
-            .append_query_results([issuer_projection(&rows)])
+            .append_query_results([issuer_projection(rows)])
             .append_query_results([rows.to_vec()])
-            .append_query_results([vec![snapshot_projection(&rows, as_of)]])
+            .append_query_results([vec![snapshot_projection(rows, as_of)]])
             .append_query_results([vec![clock]])
             .append_query_results([vec![facts]])
             .append_query_results([vec![slot_projection(
-                &rows,
+                rows,
                 rows.first().and_then(|row| row.organization_id),
                 as_of,
             )]])
-            .append_query_results([public_projection(&rows)]);
+            .append_query_results([public_projection(rows)]);
         if needs_churn {
             database.append_query_results([history])
         } else {
@@ -1750,7 +1750,7 @@ mod admission_tests {
         inserted.created_at = as_of.naive_utc();
         inserted.updated_at = as_of.naive_utc();
         for fail_insert in [false, true] {
-            let database = database(&[current.clone()], vec![], as_of)
+            let database = database(std::slice::from_ref(&current), vec![], as_of)
                 .append_query_results([vec![retired.clone()]]);
             let database = if fail_insert {
                 database

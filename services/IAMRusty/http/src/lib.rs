@@ -150,11 +150,11 @@ pub fn create_prefixed_router(
     probe: Arc<ReadinessProbe>,
     idp: Arc<IdpConfig>,
     signer: Option<Arc<SignerRouteContext>>,
-    security: Arc<IamHttpSecurityContext>,
+    security: &IamHttpSecurityContext,
 ) -> Router {
     Router::new().nest(
         SERVICE_PREFIX,
-        attach_ready(create_router(state, idp, signer, &security), probe),
+        attach_ready(create_router(state, idp, signer, security), probe),
     )
 }
 
@@ -172,7 +172,7 @@ pub async fn create_app_routes(
     security: Arc<IamHttpSecurityContext>,
 ) -> anyhow::Result<()> {
     rustycog::http::serve_router(
-        create_prefixed_router(state, probe, idp, signer, security),
+        create_prefixed_router(state, probe, idp, signer, &security),
         config,
     )
     .await

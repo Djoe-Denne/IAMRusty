@@ -30,6 +30,7 @@ pub struct HttpIdpConnector {
 impl std::fmt::Debug for HttpIdpConnector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HttpIdpConnector")
+            .field("http", &self.http)
             .field("base_url", &self.base_url)
             .field("hmac_key", &self.hmac_key)
             .finish()
@@ -410,7 +411,7 @@ mod tests {
         let server = MockServer::start().await;
         let client = isolated_client(&server);
         for invalid in [
-            "".to_owned(),
+            String::new(),
             "a".repeat(42),
             format!("{}=", "a".repeat(42)),
         ] {
@@ -422,7 +423,7 @@ mod tests {
             ));
         }
         for invalid in [
-            "".to_owned(),
+            String::new(),
             "v".repeat(42),
             "v".repeat(129),
             format!("{}!", "v".repeat(42)),

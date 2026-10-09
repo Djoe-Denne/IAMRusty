@@ -139,11 +139,9 @@ async fn setup_sqs_test_server() -> Result<(TestFixture, String, Client), Box<dy
                 if attempt == MAX_ATTEMPTS {
                     return Err(err);
                 }
-                drop(err);
-                tokio::time::sleep(std::time::Duration::from_millis(250 * u64::from(attempt)))
-                    .await;
             }
         }
+        tokio::time::sleep(std::time::Duration::from_millis(250 * u64::from(attempt))).await;
     }
 
     Err("exhausted SQS setup retries".into())

@@ -197,6 +197,12 @@ mod project_components {
     use sea_orm_migration::prelude::*;
 
     pub(super) async fn create(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+        create_project_components_table(manager).await?;
+        create_project_components_indexes(manager).await?;
+        Ok(())
+    }
+
+    async fn create_project_components_table(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         manager
             .create_table(
                 Table::create()
@@ -261,9 +267,10 @@ mod project_components {
                     )
                     .to_owned(),
             )
-            .await?;
+            .await
+    }
 
-        // Create unique constraint
+    async fn create_project_components_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         manager
             .create_index(
                 Index::create()
@@ -276,8 +283,6 @@ mod project_components {
                     .to_owned(),
             )
             .await?;
-
-        // Create indexes
         manager
             .create_index(
                 Index::create()
@@ -288,7 +293,6 @@ mod project_components {
                     .to_owned(),
             )
             .await?;
-
         manager
             .create_index(
                 Index::create()
@@ -300,7 +304,6 @@ mod project_components {
                     .to_owned(),
             )
             .await?;
-
         Ok(())
     }
 

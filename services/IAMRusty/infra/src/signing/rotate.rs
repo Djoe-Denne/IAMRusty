@@ -368,10 +368,10 @@ mod tests {
                     .iter()
                     .find(|p| SigningScope::of(&p.key) == SigningScope::of(key))
                 {
-                    if !same_effective_signing_binding(&existing.key, key) {
-                        Err(DomainError::InvalidToken)
-                    } else {
+                    if same_effective_signing_binding(&existing.key, key) {
                         Ok(SigningKeyPreparation::Pending(existing.clone()))
+                    } else {
+                        Err(DomainError::InvalidToken)
                     }
                 } else {
                     *revision += 1;
@@ -424,6 +424,7 @@ mod tests {
             let key = key.clone();
             prepared.retain(|p| p.key.id != key.id);
             *revision += 1;
+            drop((keys, epochs, prepared));
             Ok(key)
         }
         async fn jwks_publication_snapshot(
@@ -556,9 +557,11 @@ mod tests {
         }
 
         async fn update(&self, key: &SigningKey) -> Result<(), Self::Error> {
-            let mut keys = self.keys.lock().unwrap();
-            if let Some(slot) = keys.iter_mut().find(|k| k.id == key.id) {
-                *slot = key.clone();
+            {
+                let mut keys = self.keys.lock().unwrap();
+                if let Some(slot) = keys.iter_mut().find(|k| k.id == key.id) {
+                    *slot = key.clone();
+                }
             }
             Ok(())
         }
@@ -744,15 +747,134 @@ mod tests {
         (fixture, ctx, active)
     }
 
-    #[tokio::test]
-    async fn transit_rotation_pins_distinct_successor_and_proves_it_before_pending_insert() {
-        use base64::Engine;
-        use sha2::{Digest, Sha256};
+    async fn mount_transit_pin_mocks(
+        server: &wiremock::MockServer,
+        key_name: &str,
+        public: &'static str,
+        successor: String,
+        returned_version: i32,
+        b64: &str,
+    ) {
         use std::sync::atomic::{AtomicBool, Ordering};
         use wiremock::{
             matchers::{body_partial_json, method, path},
             Mock, ResponseTemplate,
         };
+        let rotated = Arc::new(AtomicBool::new(false));
+        let for_get = rotated.clone();
+        Mock::given(method("GET"))
+            .and(path(format!("/v1/transit/keys/{key_name}")))
+            .respond_with(move |_: &wiremock::Request| {
+                let latest = if for_get.load(Ordering::SeqCst) { 8 } else { 7 };
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"data":{
+                    "type":"rsa-2048","exportable":false,"supports_signing":true,
+                    "latest_version":latest,"keys":{"7":{"public_key":public},"8":{"public_key":successor}}
+                }}))
+            })
+            .mount(server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("/v1/transit/keys/{key_name}/rotate")))
+            .respond_with(move |_: &wiremock::Request| {
+                rotated.store(true, Ordering::SeqCst);
+                ResponseTemplate::new(204)
+            })
+            .mount(server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("/v1/transit/sign/{key_name}")))
+            .and(body_partial_json(serde_json::json!({"key_version":8})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data":{"signature":format!("vault:v{returned_version}:{b64}")}
+            })))
+            .mount(server)
+            .await;
+    }
+
+    async fn assert_pinned_transit_successor_overlap(
+        ctx: &RotateContext,
+        server: &wiremock::MockServer,
+        active: &SigningKey,
+        key_name: &str,
+        digest: &[u8],
+        b64: &str,
+        pending: PendingRotation,
+    ) {
+        use base64::Engine;
+        use sha2::Sha256;
+        assert_eq!(pending.pending.provider_key_ref, key_name);
+        assert_eq!(pending.pending.provider_key_version, Some(8));
+        assert_ne!(pending.pending.public_key, active.public_key);
+        assert_ne!(pending.pending.kid, active.kid);
+        assert!(!pending.pending.status.can_sign());
+        let published = ctx.registry.list_jwks_keys().await.unwrap();
+        assert_eq!(published.len(), 2);
+        assert_eq!(
+            published
+                .iter()
+                .find(|k| k.kid == active.kid)
+                .unwrap()
+                .status,
+            SigningKeyStatus::Active
+        );
+        let requests_before_resume = server.received_requests().await.unwrap().len();
+        let resumed = insert_pending_rotation(ctx, active).await.unwrap();
+        assert_eq!(resumed.pending, pending.pending);
+        assert_eq!(resumed.prepared.revision, pending.prepared.revision);
+        assert_eq!(
+            server.received_requests().await.unwrap().len(),
+            requests_before_resume,
+            "durable Pending resume must not Rotate or probe again"
+        );
+        assert_eq!(ctx.registry.list_jwks_keys().await.unwrap().len(), 2);
+        let promoted = promote_pending_rotation(ctx, pending).await.unwrap();
+        assert_eq!(promoted.provider_key_version, Some(8));
+        let overlap = ctx.registry.list_jwks_keys().await.unwrap();
+        assert_eq!(overlap.len(), 2);
+        assert_eq!(
+            overlap.iter().find(|k| k.kid == active.kid).unwrap().status,
+            SigningKeyStatus::Retiring
+        );
+        let json =
+            serde_json::to_value(JwkSet::from_registry_keys_checked(&overlap).unwrap()).unwrap();
+        assert_eq!(json["keys"].as_array().unwrap().len(), 2);
+        for entry in json["keys"].as_array().unwrap() {
+            assert!(entry.get("provider_key_ref").is_none());
+            assert!(entry.get("provider_key_version").is_none());
+        }
+        // Both distinct versions remain cryptographically usable offline
+        // during overlap; rotating Transit does not revoke an old signature.
+        let old_private =
+            RsaPrivateKey::from_pkcs8_pem(include_str!("../../../config/keys/test-platform.pem"))
+                .unwrap();
+        let old_signature = old_private
+            .sign(rsa::pkcs1v15::Pkcs1v15Sign::new::<Sha256>(), digest)
+            .unwrap();
+        for (key, signature) in [
+            (active.clone(), old_signature),
+            (
+                promoted,
+                base64::engine::general_purpose::STANDARD
+                    .decode(b64)
+                    .unwrap(),
+            ),
+        ] {
+            let public =
+                iam_domain::entity::signing_key::parse_signing_public_key(&key.public_key).unwrap();
+            public
+                .verify(
+                    rsa::pkcs1v15::Pkcs1v15Sign::new::<Sha256>(),
+                    digest,
+                    &signature,
+                )
+                .unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn transit_rotation_pins_distinct_successor_and_proves_it_before_pending_insert() {
+        use base64::Engine;
+        use sha2::{Digest, Sha256};
         let next_private = RsaPrivateKey::new(&mut rand::thread_rng(), 2048).unwrap();
         let next_public = next_private
             .to_public_key()
@@ -770,33 +892,15 @@ mod tests {
             let key_name = format!("org-{org}-fixture-key");
             let credential = format!("org-{org}-fixture-credential");
             let public = include_str!("../../../config/keys/test-platform.pub");
-            let rotated = Arc::new(AtomicBool::new(false));
-            let for_get = rotated.clone();
-            let successor = next_public.clone();
-            Mock::given(method("GET")).and(path(format!("/v1/transit/keys/{key_name}")))
-                .respond_with(move |_: &wiremock::Request| {
-                    let latest = if for_get.load(Ordering::SeqCst) { 8 } else { 7 };
-                    ResponseTemplate::new(200).set_body_json(serde_json::json!({"data":{
-                        "type":"rsa-2048","exportable":false,"supports_signing":true,
-                        "latest_version":latest,"keys":{"7":{"public_key":public},"8":{"public_key":successor}}
-                    }}))
-                }).mount(&server).await;
-            Mock::given(method("POST"))
-                .and(path(format!("/v1/transit/keys/{key_name}/rotate")))
-                .respond_with(move |_: &wiremock::Request| {
-                    rotated.store(true, Ordering::SeqCst);
-                    ResponseTemplate::new(204)
-                })
-                .mount(&server)
-                .await;
-            Mock::given(method("POST"))
-                .and(path(format!("/v1/transit/sign/{key_name}")))
-                .and(body_partial_json(serde_json::json!({"key_version":8})))
-                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "data":{"signature":format!("vault:v{returned_version}:{b64}")}
-                })))
-                .mount(&server)
-                .await;
+            mount_transit_pin_mocks(
+                &server,
+                &key_name,
+                public,
+                next_public.clone(),
+                returned_version,
+                &b64,
+            )
+            .await;
             let registry = Arc::new(FakeRegistry::default());
             let mut active = sample_active(org, public);
             active.provider_type = SigningProviderType::OpenBaoTransit;
@@ -827,76 +931,16 @@ mod tests {
                 assert_eq!(*registry.keys.lock().unwrap(), vec![active]);
                 continue;
             }
-            let pending = result.unwrap();
-            assert_eq!(pending.pending.provider_key_ref, key_name);
-            assert_eq!(pending.pending.provider_key_version, Some(8));
-            assert_ne!(pending.pending.public_key, active.public_key);
-            assert_ne!(pending.pending.kid, active.kid);
-            assert!(!pending.pending.status.can_sign());
-            let published = registry.list_jwks_keys().await.unwrap();
-            assert_eq!(published.len(), 2);
-            assert_eq!(
-                published
-                    .iter()
-                    .find(|k| k.kid == active.kid)
-                    .unwrap()
-                    .status,
-                SigningKeyStatus::Active
-            );
-            let requests_before_resume = server.received_requests().await.unwrap().len();
-            let resumed = insert_pending_rotation(&ctx, &active).await.unwrap();
-            assert_eq!(resumed.pending, pending.pending);
-            assert_eq!(resumed.prepared.revision, pending.prepared.revision);
-            assert_eq!(
-                server.received_requests().await.unwrap().len(),
-                requests_before_resume,
-                "durable Pending resume must not Rotate or probe again"
-            );
-            assert_eq!(registry.list_jwks_keys().await.unwrap().len(), 2);
-            let promoted = promote_pending_rotation(&ctx, pending).await.unwrap();
-            assert_eq!(promoted.provider_key_version, Some(8));
-            let overlap = registry.list_jwks_keys().await.unwrap();
-            assert_eq!(overlap.len(), 2);
-            assert_eq!(
-                overlap.iter().find(|k| k.kid == active.kid).unwrap().status,
-                SigningKeyStatus::Retiring
-            );
-            let json = serde_json::to_value(JwkSet::from_registry_keys_checked(&overlap).unwrap())
-                .unwrap();
-            assert_eq!(json["keys"].as_array().unwrap().len(), 2);
-            for entry in json["keys"].as_array().unwrap() {
-                assert!(entry.get("provider_key_ref").is_none());
-                assert!(entry.get("provider_key_version").is_none());
-            }
-            // Both distinct versions remain cryptographically usable offline
-            // during overlap; rotating Transit does not revoke an old signature.
-            let old_private = RsaPrivateKey::from_pkcs8_pem(include_str!(
-                "../../../config/keys/test-platform.pem"
-            ))
-            .unwrap();
-            let old_signature = old_private
-                .sign(rsa::pkcs1v15::Pkcs1v15Sign::new::<Sha256>(), &digest)
-                .unwrap();
-            for (key, signature) in [
-                (active.clone(), old_signature),
-                (
-                    promoted,
-                    base64::engine::general_purpose::STANDARD
-                        .decode(&b64)
-                        .unwrap(),
-                ),
-            ] {
-                let public =
-                    iam_domain::entity::signing_key::parse_signing_public_key(&key.public_key)
-                        .unwrap();
-                public
-                    .verify(
-                        rsa::pkcs1v15::Pkcs1v15Sign::new::<Sha256>(),
-                        &digest,
-                        &signature,
-                    )
-                    .unwrap();
-            }
+            assert_pinned_transit_successor_overlap(
+                &ctx,
+                &server,
+                &active,
+                &key_name,
+                &digest,
+                &b64,
+                result.unwrap(),
+            )
+            .await;
         }
     }
 

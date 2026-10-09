@@ -877,7 +877,7 @@ fn existing_plugin_pod_matches(
         && enroll_url
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .map_or(true, |url| pod_env(pod, "LAZARET_ENROLL_URL") == Some(url))
+            .is_none_or(|url| pod_env(pod, "LAZARET_ENROLL_URL") == Some(url))
 }
 
 /// Service `ClusterIP` du même nom que le `Pod` (`ADR-0605`).
@@ -1178,15 +1178,14 @@ pub fn gate_schedule_signature(
     else {
         return Err(ScheduleRefuse::SignatureUnverified);
     };
-    match injected {
-        Some(target) => crate::admit::verify_cosign_signature(target, reference)
-            .map_err(|_| ScheduleRefuse::SignatureUnverified),
-        None => {
-            let target = crate::admit::AdmitTarget::from_schedule_env()
-                .map_err(|_| ScheduleRefuse::SignatureUnverified)?;
-            crate::admit::verify_cosign_signature(&target, reference)
-                .map_err(|_| ScheduleRefuse::SignatureUnverified)
-        }
+    if let Some(target) = injected {
+        crate::admit::verify_cosign_signature(target, reference)
+            .map_err(|_| ScheduleRefuse::SignatureUnverified)
+    } else {
+        let target = crate::admit::AdmitTarget::from_schedule_env()
+            .map_err(|_| ScheduleRefuse::SignatureUnverified)?;
+        crate::admit::verify_cosign_signature(&target, reference)
+            .map_err(|_| ScheduleRefuse::SignatureUnverified)
     }
 }
 

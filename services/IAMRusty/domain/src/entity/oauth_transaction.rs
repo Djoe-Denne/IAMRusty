@@ -114,7 +114,7 @@ impl ConsumedOAuthTransaction {
         &self.transaction.operation
     }
     #[must_use]
-    pub fn target_user_id(&self) -> Option<Uuid> {
+    pub const fn target_user_id(&self) -> Option<Uuid> {
         self.operation().target_user_id()
     }
     #[must_use]

@@ -74,11 +74,11 @@ impl ScopedSigningProvider {
 
     fn require_scope_binding(&self, key: &SigningKey) -> Result<(), DomainError> {
         SigningScope::of(key).validate()?;
-        let same_platform_binding = key.trust_scope == TrustScope::Platform
+        let same_platform_binding = (key.trust_scope == TrustScope::Platform)
             && key.organization_id.is_none()
-            && key.provider_type == self.provider_type
-            && key.provider_key_ref == self.key_ref
-            && key.credential_ref == self.credential_ref;
+            && (key.provider_type == self.provider_type)
+            && (key.provider_key_ref == self.key_ref)
+            && (key.credential_ref == self.credential_ref);
         if !same_platform_binding {
             return Err(DomainError::InvalidSigningKeyMaterial);
         }

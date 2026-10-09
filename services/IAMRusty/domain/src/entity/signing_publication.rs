@@ -32,7 +32,7 @@ pub const JWKS_SLOT_FRAME_BYTES_MAX: usize =
 const fn invalid() -> DomainError {
     DomainError::InvalidSigningKeyMaterial
 }
-fn capacity() -> DomainError {
+const fn capacity() -> DomainError {
     admission_denied(SigningKeyAdmissionReason::Capacity)
 }
 

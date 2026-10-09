@@ -633,7 +633,7 @@ fn host_cli_ok(name: &str, arg: &str) -> bool {
     Command::new(name)
         .arg(arg)
         .output()
-        .map_or(false, |out| out.status.success())
+        .is_ok_and(|out| out.status.success())
 }
 
 fn docker_image_usable(image: &str) -> bool {
@@ -655,159 +655,185 @@ fn copy_archive_to_zot(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let creds = format!("{ZOT_PUSH_USER}:{ZOT_PUSH_PASSWORD}");
     match tool {
-        CopyTool::HostSkopeo => {
-            let archive = format!("docker-archive:{}", docker_host_path(tar)?);
-            let dest = format!("docker://127.0.0.1:{host_port}/{dest_tag}");
-            let out = Command::new("skopeo")
-                .args([
-                    "copy",
-                    "--dest-tls-verify=false",
-                    "--dest-creds",
-                    &creds,
-                    &archive,
-                    &dest,
-                ])
-                .output()
-                .map_err(|err| format!("skopeo copy: {err}"))?;
-            if !out.status.success() {
-                return Err(cmd_err(
-                    "skopeo copy zot",
-                    &out,
-                    "Docker/Kind must be running",
-                ));
-            }
-            Ok(())
-        }
-        CopyTool::HostCrane => {
-            let registry = format!("127.0.0.1:{host_port}");
-            let login = Command::new("crane")
-                .args([
-                    "auth",
-                    "login",
-                    "--insecure",
-                    "-u",
-                    ZOT_PUSH_USER,
-                    "-p",
-                    ZOT_PUSH_PASSWORD,
-                    &registry,
-                ])
-                .output()
-                .map_err(|err| format!("crane auth login: {err}"))?;
-            if !login.status.success() {
-                return Err(cmd_err(
-                    "crane auth login zot",
-                    &login,
-                    "Docker/Kind must be running",
-                ));
-            }
-            let dest = format!("{registry}/{dest_tag}");
-            let out = Command::new("crane")
-                .args(["push", "--insecure"])
-                .arg(tar)
-                .arg(&dest)
-                .output()
-                .map_err(|err| format!("crane push: {err}"))?;
-            if !out.status.success() {
-                return Err(cmd_err(
-                    "crane push zot",
-                    &out,
-                    "Docker/Kind must be running",
-                ));
-            }
-            Ok(())
-        }
-        CopyTool::DockerSkopeo => {
-            let host_tar = docker_host_path(tar)?;
-            let dest = format!("docker://host.docker.internal:{host_port}/{dest_tag}");
-            let out = Command::new("docker")
-                .args([
-                    "run",
-                    "--rm",
-                    "-v",
-                    &format!("{host_tar}:/img.tar:ro"),
-                    SKOPEO_IMAGE,
-                    "copy",
-                    "--dest-tls-verify=false",
-                    "--dest-creds",
-                    &creds,
-                    "docker-archive:/img.tar",
-                    &dest,
-                ])
-                .output()
-                .map_err(|err| format!("docker run skopeo: {err}"))?;
-            if !out.status.success() {
-                return Err(cmd_err(
-                    "docker run skopeo copy zot",
-                    &out,
-                    "Docker/Kind must be running",
-                ));
-            }
-            Ok(())
-        }
-        CopyTool::DockerCrane => {
-            let host_tar = docker_host_path(tar)?;
-            let cfg = std::env::temp_dir().join(format!("apparatus-p4-crane-cfg-{}", nonce_hex()));
-            std::fs::create_dir_all(&cfg)
-                .map_err(|err| format!("crane docker config dir: {err}"))?;
-            let host_cfg = docker_host_path(&cfg)?;
-            let registry = format!("host.docker.internal:{host_port}");
-            let login = Command::new("docker")
-                .args([
-                    "run",
-                    "--rm",
-                    "-e",
-                    "DOCKER_CONFIG=/cfg",
-                    "-v",
-                    &format!("{host_cfg}:/cfg"),
-                    CRANE_IMAGE,
-                    "auth",
-                    "login",
-                    "--insecure",
-                    "-u",
-                    ZOT_PUSH_USER,
-                    "-p",
-                    ZOT_PUSH_PASSWORD,
-                    &registry,
-                ])
-                .output()
-                .map_err(|err| format!("docker run crane auth login: {err}"))?;
-            if !login.status.success() {
-                return Err(cmd_err(
-                    "docker run crane auth login zot",
-                    &login,
-                    "Docker/Kind must be running",
-                ));
-            }
-            let dest = format!("{registry}/{dest_tag}");
-            let out = Command::new("docker")
-                .args([
-                    "run",
-                    "--rm",
-                    "-e",
-                    "DOCKER_CONFIG=/cfg",
-                    "-v",
-                    &format!("{host_cfg}:/cfg"),
-                    "-v",
-                    &format!("{host_tar}:/img.tar:ro"),
-                    CRANE_IMAGE,
-                    "push",
-                    "--insecure",
-                    "/img.tar",
-                    &dest,
-                ])
-                .output()
-                .map_err(|err| format!("docker run crane: {err}"))?;
-            let _ = std::fs::remove_dir_all(&cfg);
-            if !out.status.success() {
-                return Err(cmd_err(
-                    "docker run crane push zot",
-                    &out,
-                    "Docker/Kind must be running",
-                ));
-            }
-            Ok(())
-        }
+        CopyTool::HostSkopeo => copy_with_host_skopeo(tar, host_port, dest_tag, &creds)?,
+        CopyTool::HostCrane => copy_with_host_crane(tar, host_port, dest_tag)?,
+        CopyTool::DockerSkopeo => copy_with_docker_skopeo(tar, host_port, dest_tag, &creds)?,
+        CopyTool::DockerCrane => copy_with_docker_crane(tar, host_port, dest_tag)?,
     }
+    Ok(())
+}
+
+fn copy_with_host_skopeo(
+    tar: &Path,
+    host_port: u16,
+    dest_tag: &str,
+    creds: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let archive = format!("docker-archive:{}", docker_host_path(tar)?);
+    let dest = format!("docker://127.0.0.1:{host_port}/{dest_tag}");
+    let out = Command::new("skopeo")
+        .args([
+            "copy",
+            "--dest-tls-verify=false",
+            "--dest-creds",
+            creds,
+            &archive,
+            &dest,
+        ])
+        .output()
+        .map_err(|err| format!("skopeo copy: {err}"))?;
+    if !out.status.success() {
+        return Err(cmd_err(
+            "skopeo copy zot",
+            &out,
+            "Docker/Kind must be running",
+        ));
+    }
+    Ok(())
+}
+
+fn copy_with_host_crane(
+    tar: &Path,
+    host_port: u16,
+    dest_tag: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let registry = format!("127.0.0.1:{host_port}");
+    let login = Command::new("crane")
+        .args([
+            "auth",
+            "login",
+            "--insecure",
+            "-u",
+            ZOT_PUSH_USER,
+            "-p",
+            ZOT_PUSH_PASSWORD,
+            &registry,
+        ])
+        .output()
+        .map_err(|err| format!("crane auth login: {err}"))?;
+    if !login.status.success() {
+        return Err(cmd_err(
+            "crane auth login zot",
+            &login,
+            "Docker/Kind must be running",
+        ));
+    }
+    let dest = format!("{registry}/{dest_tag}");
+    let out = Command::new("crane")
+        .args(["push", "--insecure"])
+        .arg(tar)
+        .arg(&dest)
+        .output()
+        .map_err(|err| format!("crane push: {err}"))?;
+    if !out.status.success() {
+        return Err(cmd_err(
+            "crane push zot",
+            &out,
+            "Docker/Kind must be running",
+        ));
+    }
+    Ok(())
+}
+
+fn copy_with_docker_skopeo(
+    tar: &Path,
+    host_port: u16,
+    dest_tag: &str,
+    creds: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let host_tar = docker_host_path(tar)?;
+    let dest = format!("docker://host.docker.internal:{host_port}/{dest_tag}");
+    let out = Command::new("docker")
+        .args([
+            "run",
+            "--rm",
+            "-v",
+            &format!("{host_tar}:/img.tar:ro"),
+            SKOPEO_IMAGE,
+            "copy",
+            "--dest-tls-verify=false",
+            "--dest-creds",
+            creds,
+            "docker-archive:/img.tar",
+            &dest,
+        ])
+        .output()
+        .map_err(|err| format!("docker run skopeo: {err}"))?;
+    if !out.status.success() {
+        return Err(cmd_err(
+            "docker run skopeo copy zot",
+            &out,
+            "Docker/Kind must be running",
+        ));
+    }
+    Ok(())
+}
+
+fn copy_with_docker_crane(
+    tar: &Path,
+    host_port: u16,
+    dest_tag: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let host_tar = docker_host_path(tar)?;
+    let cfg = std::env::temp_dir().join(format!("apparatus-p4-crane-cfg-{}", nonce_hex()));
+    std::fs::create_dir_all(&cfg).map_err(|err| format!("crane docker config dir: {err}"))?;
+    let host_cfg = docker_host_path(&cfg)?;
+    let registry = format!("host.docker.internal:{host_port}");
+    let login = Command::new("docker")
+        .args([
+            "run",
+            "--rm",
+            "-e",
+            "DOCKER_CONFIG=/cfg",
+            "-v",
+            &format!("{host_cfg}:/cfg"),
+            CRANE_IMAGE,
+            "auth",
+            "login",
+            "--insecure",
+            "-u",
+            ZOT_PUSH_USER,
+            "-p",
+            ZOT_PUSH_PASSWORD,
+            &registry,
+        ])
+        .output()
+        .map_err(|err| format!("docker run crane auth login: {err}"))?;
+    if !login.status.success() {
+        return Err(cmd_err(
+            "docker run crane auth login zot",
+            &login,
+            "Docker/Kind must be running",
+        ));
+    }
+    let dest = format!("{registry}/{dest_tag}");
+    let out = Command::new("docker")
+        .args([
+            "run",
+            "--rm",
+            "-e",
+            "DOCKER_CONFIG=/cfg",
+            "-v",
+            &format!("{host_cfg}:/cfg"),
+            "-v",
+            &format!("{host_tar}:/img.tar:ro"),
+            CRANE_IMAGE,
+            "push",
+            "--insecure",
+            "/img.tar",
+            &dest,
+        ])
+        .output()
+        .map_err(|err| format!("docker run crane: {err}"))?;
+    let _ = std::fs::remove_dir_all(&cfg);
+    if !out.status.success() {
+        return Err(cmd_err(
+            "docker run crane push zot",
+            &out,
+            "Docker/Kind must be running",
+        ));
+    }
+    Ok(())
 }
 
 fn inspect_zot_digest(
@@ -1048,7 +1074,7 @@ fn bin_ok(name: &str) -> bool {
     Command::new(name)
         .arg("version")
         .output()
-        .map_or(false, |out| out.status.success())
+        .is_ok_and(|out| out.status.success())
 }
 
 fn cluster_exists(kind_bin: &Path) -> Result<bool, Box<dyn std::error::Error>> {

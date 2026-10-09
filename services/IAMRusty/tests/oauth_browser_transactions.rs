@@ -177,8 +177,8 @@ async fn browser_binding_provider_intention_expiry_and_replay_fail_before_connec
 #[tokio::test]
 #[serial]
 async fn two_tabs_share_browser_nonce_but_have_independent_consumable_transactions() {
-    let (_fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
-    fixture_cleanup::run(&_fixture, async {
+    let (fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
+    fixture_cleanup::run(&fixture, async {
         let idp = IdpConnectFixtures::service().await;
         idp.mock_github_happy_arthur().await;
         let client = browser_client();
@@ -447,10 +447,10 @@ async fn relink_start_requires_platform_auth_but_bound_callback_needs_no_bearer(
 async fn pkce_s256_survives_connector_authorize_and_token_exchange() {
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
     // Integration configures sender AND mock receiver capability explicitly.
-    let (_fixture, base, _) = Box::pin(common::setup_test_server_with_pkce())
+    let (fixture, base, _) = Box::pin(common::setup_test_server_with_pkce())
         .await
         .expect("PKCE-enabled IAM harness");
-    fixture_cleanup::run(&_fixture, async {
+    fixture_cleanup::run(&fixture, async {
         let idp = IdpConnectFixtures::service().await;
         idp.mock_github_happy_arthur().await;
         let client = browser_client();

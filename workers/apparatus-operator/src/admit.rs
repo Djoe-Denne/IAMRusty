@@ -289,63 +289,7 @@ pub async fn push_and_sign_envelope(
         target.registry_network.as_str()
     };
     let tagged = format!("{registry}/{}:{}", target.repository, target.tag);
-
-    let push_args = vec![
-        "push".to_owned(),
-        "--plain-http".to_owned(),
-        "--username".to_owned(),
-        target.auth.username.clone(),
-        "--password".to_owned(),
-        target.auth.password.clone(),
-        tagged.clone(),
-        "--artifact-type".to_owned(),
-        ENVELOPE_ARTIFACT_TYPE.to_owned(),
-        format!("envelope.json:{ENVELOPE_ARTIFACT_TYPE}"),
-    ];
-    let push = run_cli(
-        ORAS_BIN_ENV,
-        ORAS_IMAGE,
-        &target.docker_network,
-        &[],
-        &push_args,
-        Some(workdir.as_path()),
-    )?;
-    if !push.status.success() {
-        return Err(cli_failed("oras push", &push, &target.vault_token));
-    }
-
-    let desc_args = vec![
-        "manifest".to_owned(),
-        "fetch".to_owned(),
-        "--plain-http".to_owned(),
-        "--username".to_owned(),
-        target.auth.username.clone(),
-        "--password".to_owned(),
-        target.auth.password.clone(),
-        "--descriptor".to_owned(),
-        tagged,
-    ];
-    let desc = run_cli(
-        ORAS_BIN_ENV,
-        ORAS_IMAGE,
-        &target.docker_network,
-        &[],
-        &desc_args,
-        None,
-    )?;
-    if !desc.status.success() {
-        return Err(cli_failed(
-            "oras manifest fetch",
-            &desc,
-            &target.vault_token,
-        ));
-    }
-    let combined = format!(
-        "{}{}",
-        String::from_utf8_lossy(&push.stdout),
-        String::from_utf8_lossy(&desc.stdout)
-    );
-    let oci_digest = parse_oci_digest(&combined)?;
+    let oci_digest = oras_push_and_oci_digest(target, workdir.as_path(), &tagged)?;
     if oci_digest == envelope.descriptor_digest.as_str() {
         return Err(AdmitError::new(
             "OCI envelope digest unexpectedly equals catalog descriptor_digest",
@@ -368,6 +312,69 @@ pub async fn push_and_sign_envelope(
         artifact_type: ENVELOPE_ARTIFACT_TYPE.to_owned(),
         signature_verified,
     })
+}
+
+fn oras_push_and_oci_digest(
+    target: &AdmitTarget,
+    workdir: &Path,
+    tagged: &str,
+) -> Result<String, AdmitError> {
+    let push_args = vec![
+        "push".to_owned(),
+        "--plain-http".to_owned(),
+        "--username".to_owned(),
+        target.auth.username.clone(),
+        "--password".to_owned(),
+        target.auth.password.clone(),
+        tagged.to_owned(),
+        "--artifact-type".to_owned(),
+        ENVELOPE_ARTIFACT_TYPE.to_owned(),
+        format!("envelope.json:{ENVELOPE_ARTIFACT_TYPE}"),
+    ];
+    let push = run_cli(
+        ORAS_BIN_ENV,
+        ORAS_IMAGE,
+        &target.docker_network,
+        &[],
+        &push_args,
+        Some(workdir),
+    )?;
+    if !push.status.success() {
+        return Err(cli_failed("oras push", &push, &target.vault_token));
+    }
+
+    let desc_args = vec![
+        "manifest".to_owned(),
+        "fetch".to_owned(),
+        "--plain-http".to_owned(),
+        "--username".to_owned(),
+        target.auth.username.clone(),
+        "--password".to_owned(),
+        target.auth.password.clone(),
+        "--descriptor".to_owned(),
+        tagged.to_owned(),
+    ];
+    let desc = run_cli(
+        ORAS_BIN_ENV,
+        ORAS_IMAGE,
+        &target.docker_network,
+        &[],
+        &desc_args,
+        None,
+    )?;
+    if !desc.status.success() {
+        return Err(cli_failed(
+            "oras manifest fetch",
+            &desc,
+            &target.vault_token,
+        ));
+    }
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&push.stdout),
+        String::from_utf8_lossy(&desc.stdout)
+    );
+    parse_oci_digest(&combined)
 }
 
 /// GET Transit `keys/{name}` depuis le process hôte (reqwest, pas le CLI).

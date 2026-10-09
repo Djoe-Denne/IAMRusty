@@ -117,9 +117,8 @@ async fn handle_authorize(
     State(client): State<Arc<dyn FederatedOAuthClient>>,
     Json(req): Json<AuthorizeRequest>,
 ) -> impl IntoResponse {
-    let challenge = match req.pkce_challenge() {
-        Ok(challenge) => challenge,
-        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+    let Ok(challenge) = req.pkce_challenge() else {
+        return StatusCode::BAD_REQUEST.into_response();
     };
     json_or_bad_gateway(
         client

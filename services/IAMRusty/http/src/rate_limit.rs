@@ -428,8 +428,7 @@ mod tests {
         let limiter = mesh_limiter();
         let request = request_from("10.244.2.19:3000", "192.0.2.1");
         assert_eq!(limiter.source(&request), Err(StatusCode::FORBIDDEN));
-        let at_bound = std::iter::repeat("192.0.2.1")
-            .take(MAX_XFF_HOPS)
+        let at_bound = std::iter::repeat_n("192.0.2.1", MAX_XFF_HOPS)
             .collect::<Vec<_>>()
             .join(",");
         assert_eq!(
@@ -544,8 +543,7 @@ mod tests {
         for raw in [
             "unknown".to_owned(),
             "1".repeat(MAX_XFF_BYTES + 1),
-            std::iter::repeat("192.0.2.1")
-                .take(MAX_XFF_HOPS + 1)
+            std::iter::repeat_n("192.0.2.1", MAX_XFF_HOPS + 1)
                 .collect::<Vec<_>>()
                 .join(","),
         ] {
@@ -598,14 +596,12 @@ mod tests {
     fn concurrent_admission_never_exceeds_budget() {
         let limiter = Arc::new(limiter(8));
         let now = Instant::now();
-        let threads: Vec<_> = (0..32)
-            .map(|_| {
-                let limiter = limiter.clone();
-                std::thread::spawn(move || {
-                    limiter.take_slot(BucketKey::Source("192.0.2.1".parse().unwrap()), 2, now)
-                })
+        let threads: [_; 32] = std::array::from_fn(|_| {
+            let limiter = limiter.clone();
+            std::thread::spawn(move || {
+                limiter.take_slot(BucketKey::Source("192.0.2.1".parse().unwrap()), 2, now)
             })
-            .collect();
+        });
         assert_eq!(
             threads
                 .into_iter()
@@ -621,9 +617,9 @@ mod tests {
         let permits: Vec<_> = (0..8)
             .map(|_| limiter.concurrency.clone().try_acquire_owned().unwrap())
             .collect();
-        assert!(limiter.concurrency.clone().try_acquire_owned().is_err());
+        assert!(limiter.concurrency.try_acquire().is_err());
         drop(permits);
-        assert!(limiter.concurrency.clone().try_acquire_owned().is_ok());
+        assert!(limiter.concurrency.try_acquire().is_ok());
     }
 
     #[test]
