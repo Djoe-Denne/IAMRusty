@@ -562,10 +562,8 @@ mod tests {
         use rsa::RsaPrivateKey;
         let mut rng = StdRng::seed_from_u64(seed);
         let private = RsaPrivateKey::new(&mut rng, bits).expect("rsa keygen");
-        let private_pem = private
-            .to_pkcs8_pem(LineEnding::LF)
-            .expect("pkcs8 encode")
-            .into_inner();
+        let encoded = private.to_pkcs8_pem(LineEnding::LF).expect("pkcs8 encode");
+        let private_pem = encoded.to_string();
         let public_pem = private
             .to_public_key()
             .to_public_key_pem(LineEnding::LF)
