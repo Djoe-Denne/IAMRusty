@@ -62,3 +62,13 @@ cargo fmt
 Hook fmt : [`docs/CARGO_FMT_PRE_COMMIT.md`](docs/CARGO_FMT_PRE_COMMIT.md).
 
 Nouveau service : [`docs/guides/nouveau-service.md`](docs/guides/nouveau-service.md). Submodule rustycog : [`.agents/skills/rustycog-submodule/SKILL.md`](.agents/skills/rustycog-submodule/SKILL.md).
+
+## Sources du harness agents
+
+La boucle QA des profils OpenCode (plan, écriture, revue) s’appuie sur ces dépôts. Le pin produit reste celui de ce repository.
+
+- [Petr Kindlmann](https://github.com/petrkindlmann), [qa-skills](https://github.com/petrkindlmann/qa-skills) — risque impact × probabilité, plan et stratégie de test, génération et revue de tests.
+- [Nao](https://github.com/naodeng), [awesome-qa-skills](https://github.com/naodeng/awesome-qa-skills) — analyse de gaps (`test-gap-analysis`).
+- [Dragan Spiridonov](https://github.com/proffesor-for-testing), [agentic-qe](https://github.com/proffesor-for-testing/agentic-qe) — flotte QE (plan, gaps, investigation).
+- [AgenticTesting](https://github.com/AgenticTesting), [OpenTestingAI](https://github.com/AgenticTesting/OpenTestingAI) — séparation faits, inférences et décisions. Le modèle ISO/TMMi de ce dépôt n’est pas repris.
+- [Microsoft](https://github.com/microsoft), [Playwright](https://github.com/microsoft/playwright) — boucle planner, generator, healer ([Test Agents](https://playwright.dev/docs/test-agents)).
