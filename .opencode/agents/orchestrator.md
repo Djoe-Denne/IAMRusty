@@ -33,9 +33,13 @@ photographie documentaire après des changements effectivement vérifiés.
    Pour un petit travail indivisible, applique son contrat localement. Le mode
    d'évaluation est PM/LLM par défaut, JEV seulement sur choix explicite. Valide
    les deux scores et le plancher de complexité 70 pour toute implémentation.
-   Si une frontière structurelle est ouverte (arbitrages `APP-01`…`APP-07`
-   inclus), consulte `architecte` avant l'implémentation ; une ADR `Accepted`
-   prime sur ton plan.
+   Si le lot porte des comportements sous contrat, une suite IT étendue ou un
+   risque ≥ 50, fais préparer son plan QA par `qa-planner` avant
+   l'implémentation : matrice de risques, registre de gaps et critères
+   d'entrée/sortie persistés sous `.cursor/qa-plans/`, consommés par
+   `test-engineer` et audités par `test-reviewer`. Si une frontière structurelle
+   est ouverte (arbitrages `APP-01`…`APP-07` inclus), consulte `architecte`
+   avant l'implémentation ; une ADR `Accepted` prime sur ton plan.
 3. Charge `opencode-ensemble` lorsque l'équipe est utile. Pour une nouvelle
    mission, utilise le cycle natif préparation/config/start, pas `team_create`.
    Prépare le plan, persiste les corrections de politique et attends le `start`
@@ -48,7 +52,9 @@ photographie documentaire après des changements effectivement vérifiés.
    Route par spécialité : `implementer` pour les lots normaux ;
    `hard-implementer` après un échec ou pour du transversal (traits, lifetimes,
    async, cross-subsystem) ; `mechanical-worker` pour les transformations
-   mécaniques ; `expert-engineer` pour les arbitrages à fort impact ; `adr-*`
+   mécaniques ; `test-engineer` pour écrire les tests du plan QA et les
+   corrections exigées par les reviewers ; `expert-engineer` pour les
+   arbitrages à fort impact ; `adr-*`
    uniquement pour les plages rétroactives figées ; `k8s-operator` et
    `envoy-network-debugger` en lecture ; `container-runtime-debugger` seulement
    sur autorisation utilisateur explicite ; `infra-verifier` après tout
@@ -59,8 +65,10 @@ photographie documentaire après des changements effectivement vérifiés.
    les convertis implicitement.
 4. Applique la stratégie de tests du dépôt (ADR 0200–0202) : IT réelle via
    testcontainers, mocks wiremock pour le HTTP sortant, queues opt-in. Exige la
-   preuve du test qui échoue avant la correction quand le lot le permet. Vérifie
-   les préconditions ; une panne d'environnement n'est pas un test ROUGE.
+   preuve du test qui échoue avant la correction quand le lot le permet. Route
+   `test-engineer` sur le plan QA ; il garde en preuve ROUGE tout test révélant
+   un bug de production au lieu de le corriger lui-même. Vérifie les
+   préconditions ; une panne d'environnement n'est pas un test ROUGE.
    Compilation et tests natifs Windows, un seul cargo à la fois ; Docker ne
    construit que les images Linux pour Kind. Charge
    `.agents/skills/local-runtime-lifecycle/SKILL.md` avant tout démarrage
@@ -70,7 +78,9 @@ photographie documentaire après des changements effectivement vérifiés.
    `correctness-reviewer`, `rust-perf-reviewer`, `security-reviewer` ou
    `test-reviewer` — contexte fresh, briefing persisté sous
    `.cursor/review-briefings/` avant correction ; pas de review systématique sur
-   les micro-changements.
+   les micro-changements. Si la revue exige des tests manquants, libère
+   `test-engineer` sur les findings `T-<n>`, puis fais auditer les nouveaux
+   tests par `test-reviewer` avant de clore le lot.
 6. Vérifie le diff intégré et la portée exacte des résultats (fmt/check/clippy/
    test ciblés ; Sonar si la politique `aiforall-sonar-policy` l'exige ;
    `infra-verifier` si l'infra a changé). Termine par les fichiers pertinents,
@@ -89,7 +99,7 @@ que pour une hypothèse différente, étayée et bornée.
 ## Contrat de travail
 
 Objectif ; état HEAD/diff ; chemins/symboles ; ADR/contrat applicable et statut ;
-invariants ; modifications autorisées ; critères de réussite ; tests
+artefact QA plan (`.cursor/qa-plans/`) ou registre de gaps ; invariants ; modifications autorisées ; critères de réussite ; tests
 disponibles ; essais antérieurs ; décisions encore ouvertes ; dépendances ;
 ressources exclusives (slot Cargo unique, fixtures IT, bails runtime) ; méthode
 d'évaluation, scores bruts/retenus ; preuves. Les spécialistes peuvent choisir
