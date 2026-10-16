@@ -37,7 +37,8 @@ photographie documentaire après des changements effectivement vérifiés.
    risque ≥ 50, fais préparer son plan QA par `qa-planner` avant
    l'implémentation : matrice de risques, registre de gaps et critères
    d'entrée/sortie persistés sous `.cursor/qa-plans/`, consommés par
-   `test-engineer` et audités par `test-reviewer`. Si une frontière structurelle
+   `test-engineer` et audités par `test-reviewer` ; commite ce fichier avant
+   les auteurs isolés, il n'atteint pas leurs worktrees sinon. Si une frontière structurelle
    est ouverte (arbitrages `APP-01`…`APP-07` inclus), consulte `architecte`
    avant l'implémentation ; une ADR `Accepted` prime sur ton plan.
 3. Charge `opencode-ensemble` lorsque l'équipe est utile. Pour une nouvelle

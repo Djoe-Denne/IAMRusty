@@ -105,7 +105,9 @@ Persiste **un fichier par lot** : `.cursor/qa-plans/YYYYMMDD-<slug>.md` —
 état HEADbase, matrice de risques, registre de gaps, critères d'entrée/sortie,
 budget. C'est l'artefact que `test-engineer` implémente et que `test-reviewer`
 audite (ses findings référenceront `G-<n>`). Mets à jour le même fichier
-(statuts, append) au fil du lot ; ne crée pas de forks par revue. Retour au
+(statuts, append) au fil du lot ; ne crée pas de forks par revue. Le lead
+**commite ce fichier avant les auteurs isolés** : un fichier untracked ne se
+propage pas aux worktrees Ensemble (créés depuis HEAD). Retour au
 coordinateur : chemin du fichier, top 3 risques, gaps bloquants, critères de
 sortie, incertitudes et décisions restant à prendre.
 
