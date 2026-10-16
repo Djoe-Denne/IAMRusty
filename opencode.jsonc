@@ -11,14 +11,14 @@
   //   implementer : openai/gpt-6.1-sol#medium ; hard-implementer : #high
   //   expert-engineer : openai/gpt-6.1-sol#max (read-only)
   //   emergency-engineer (leaf) / emergency-thinker (takeover) : openai/gpt-6-astra#max
-  //   orchestrator inchangé : openai/gpt-6-luna#xhigh (default_agent)
+   //   Ensemble (2026-10-10) : build par défaut ; modèle du lead sélectionné en session.
   //   Autres modèles inchangés : openai/gpt-6.1-sol#xhigh
   //        (architecte, security-reviewer, adr-*) ; openai/gpt-6-astra#high
   //        (correctness-reviewer, rust-perf-reviewer)
   //   Tier 3 lecture/mécanique    : zai-coding-plan/glm-5.3-flash#max
   //        (secours : opencode-go/glm-5.3-flash#max)
   //        (Explore, mechanical-worker, test-reviewer)
-  "default_agent": "orchestrator",
+  "default_agent": "build",
   "skills": [
     ".agents/skills",
     ".cursor/skills"
@@ -30,39 +30,20 @@
     },
     "servers": {
       "grepai": {
-        "type": "local",
-        "command": [
-          "C:\\Users\\djden\\AppData\\Local\\Programs\\grepai\\grepai.exe",
-          "mcp-serve",
-          "C:\\Users\\djden\\source\\repos\\AIForAll"
-        ]
+        "type": "remote",
+        "url": "http://127.0.0.1:3062/mcp?tags=grepai",
+        "oauth": false
       },
       "serena": {
-        "type": "local",
-        "command": [
-          "powershell.exe",
-          "-NoProfile",
-          "-ExecutionPolicy",
-          "Bypass",
-          "-File",
-          "C:\\Users\\djden\\.config\\1mcp\\serena-proxy.ps1",
-          "-ProjectPath",
-          "C:\\Users\\djden\\source\\repos\\AIForAll"
-        ]
+        "type": "remote",
+        "url": "http://127.0.0.1:3062/mcp?tags=serena",
+        "oauth": false
       },
+      "qmd": { "type": "remote", "url": "http://127.0.0.1:3062/mcp?tags=qmd", "oauth": false },
       "kubernetes-mcp-server": {
-        "type": "local",
-        "command": [
-          "C:\\Program Files\\nodejs\\node.exe",
-          "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js",
-          "-y",
-          "kubernetes-mcp-server@0.0.67",
-          "--config",
-          "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\kubernetes-mcp.toml",
-          "--log-file",
-          "stderr",
-          "--disable-multi-cluster"
-        ]
+        "type": "remote",
+        "url": "http://127.0.0.1:3062/mcp?tags=kubernetes-mcp-server",
+        "oauth": false
       },
       "ig-mcp-server": {
         "type": "local",

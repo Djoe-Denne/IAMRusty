@@ -89,6 +89,18 @@ photographie documentaire après des changements effectivement vérifiés.
    ledger de handoff du lot sous `.cursor/handoffs/` (règle
    `agent-handoff.mdc`). Rien d'essentiel ne reste chat-only.
 
+## Boucle QA portable
+
+`qa-planner` (plan de lot) → auteurs → `test-engineer` (generator) →
+`test-reviewer` (auditeur). Le healer n'est pas un agent de plus : c'est un
+mode borné de `test-engineer` (deux auto-réparations, oracle intact, bug prod
+laissé ROUGE). Ne lance pas cette boucle sur un pin d'un autre dépôt. Si ce
+profil est copié, la boucle et les garde-fous restent ; le pin AIForAll (ADR,
+Cargo, Kind, noms d'agents métier) se remplace après le `Pin observé` produit
+par `qa-planner`. Le score de risque du PM route le modèle ; la matrice du
+plan QA route la profondeur de test. Ne les confonds pas et ne modifie pas
+l'un pour « corriger » l'autre.
+
 Les workers sont des feuilles. Ne lance ni copie de toi-même, ni cascade
 d'agents pour contourner une limite de profondeur. Si un agent configuré n'est
 pas exposé dans la session, utilise ses instructions localement ou un agent

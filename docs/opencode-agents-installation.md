@@ -1,6 +1,6 @@
 # Définitions d'agents et MCP sous OpenCode
 
-Photographie mise à jour le 2026-10-03. Origine : portage des définitions Cursor
+Routage Ensemble mis à jour le 2026-10-10. Origine : portage des définitions Cursor
 (`.cursor/agents/*.md`, `.cursor/mcp.json`) et Codex (`.codex/agents/*.toml`)
 vers les formats OpenCode V2 le 2026-10-02, puis politique OpenCode dédiée.
 `/nul` et `.tmp*` restent hors périmètre.
@@ -10,11 +10,52 @@ vers les formats OpenCode V2 le 2026-10-02, puis politique OpenCode dédiée.
 | Emplacement | Rôle |
 |---|---|
 | `opencode.jsonc` | Config projet : `default_agent`, MCP `grepai` / `serena` / `kubernetes-mcp-server` / `ig-mcp-server`, timeout `startup: 150000` (proxy Serena lent), `skills: [.agents/skills, .cursor/skills]` |
-| `.opencode/agents/*.md` | 22 définitions, harness inclus, format V2 : `description`, `mode`, `model`, `permissions`, corps = prompt système |
+| `.opencode/agents/*.md` | 20 définitions spécialisées, format V2 : `description`, `mode`, `model`, `permissions`, corps = prompt système |
 | `~/.config/opencode/opencode.json` | Config globale (toutes machines/projets) : MCP `qmd`, note plugins rtk-hook |
 
 Les skills sont découverts automatiquement depuis `.agents/skills/` et
 `.cursor/skills/` via la clé `skills` de `opencode.jsonc`.
+
+## Ensemble : continuité sans coordinateur intermédiaire
+
+La session racine utilise `build` par défaut. Elle travaille directement ou
+devient lead Ensemble selon les lots réellement indépendants. Les définitions
+OpenCode `orchestrator` et `agent-harness` sont retirées ; les autres clients
+conservent leurs profils historiques. Canon : `AGENTS.md` et le complément
+OpenCode de `.cursor/rules/00-agent-harness.mdc`.
+
+Le plugin local est déjà configuré globalement depuis
+`C:/Users/djden/source/repos/opencode-ensemble-session/dist` et les skills depuis
+le dossier `skills` du même checkout. Aucun doublon local n'est ajouté. Le skill
+`opencode-ensemble` et les outils `team_*` sont présents au catalogue observé.
+Cette configuration globale reste hors périmètre d'écriture du dépôt.
+
+- Invoquer `@opencode-ensemble <mission>`. Pas de taille d'équipe ni de pipeline
+  explorer/architecte/implementer obligatoire.
+- Continuer avec le même membre, ou changer de profil par handoff. Pour une
+  branche indépendante, hériter des découvertes par fork/checkpoint ; utiliser
+  compact_fork uniquement depuis une source distincte et inactive, pas pour
+  chaque enfant. Lire la référence de continuité du skill avant ces opérations.
+- Un fork n'est pas une mémoire live partagée. Le lead persiste les deltas dans
+  un ledger canonique passé par chemin absolu et transmet les changements aux
+  membres concernés. Les fichiers gitignored ne suivent pas les worktrees.
+- Reviewers fresh avec diff/contrats/faits, sans conclusions du développeur.
+  Le lead conserve intégration, validation finale, slot Cargo unique et baux infra.
+- L'index GrepAI canonique n'inclut pas les modifications non mergées des
+  worktrees temporaires : inspecter leurs fichiers/symboles. Héritage vers un
+  worktree seulement avec arbres propres et HEAD compatibles ; aucune mise à
+  l'écart automatique des changements utilisateur ni fallback silencieux.
+- Le bridge 1MCP mutualise les MCP ; il est distinct du bridge HTTP vers le
+  **même serveur OpenCode** pour le fork natif Ensemble. Le fork local découvre
+  maintenant automatiquement le serveur partagé existant et ses headers via
+  l'API publique OpenCode, en mémoire, sans démarrage de service ni secret dans
+  le dépôt. URL/auth explicites restent réservées aux serveurs privés. La
+  découverte authentifiée réelle et le fork d'équipe sont vérifiés : deux
+  agents read-only accèdent au MCP Kubernetes ; l'enfant restitue une balise
+  fournie seulement au parent depuis son historique natif hérité. Cela ne
+  valide pas l'accès à l'API du cluster, précédemment indisponible.
+- L'héritage évite de refaire l'analyse, mais peut encore facturer l'historique
+  en entrée. Aucun facteur d'économie garanti sans mesure.
 
 ## Politique modèles (utilisateur, 2026-10-03)
 
@@ -31,7 +72,8 @@ Mapping actuel OpenCode :
 - `hard-implementer` → `openai/gpt-6.1-sol#high`.
 - `expert-engineer` → `openai/gpt-6.1-sol#max`, toujours read-only.
 - `emergency-engineer` et `emergency-thinker` → `openai/gpt-6-astra#max`.
-- `orchestrator` → **`openai/gpt-6-luna#xhigh`**, défaut inchangé.
+- `build` (lead par défaut) → sélection habituelle du modèle en session ;
+  aucun nouveau modèle imposé. L'ancien profil Luna orchestrator est retiré.
 - Autres agents inchangés : `architecte`, `security-reviewer`, `adr-*` →
   `openai/gpt-6.1-sol#xhigh` ; `correctness-reviewer`, `rust-perf-reviewer` →
   `openai/gpt-6-astra#high` ; lecture/mécanique et debuggers infra → GLM Flash.
@@ -42,12 +84,11 @@ variant vérifié est `max`. Ce mapping ne prétend pas mesurer coût ou perform
 
 ## Modes et permissions V2
 
-- Tous les agents projet sont `mode: subagent`, sauf `orchestrator` et
-  `emergency-thinker` (`mode: all`). `orchestrator` reste `default_agent`. Dans une nouvelle session, il
-  est déjà le superviseur : il traite la requête directement, sans déléguer
-  à un second `orchestrator`. Le harness ne délègue vers cet agent que si un
-  autre agent ordinaire est primaire ; une reprise autorisée par thinker est
-  acceptée directement, sans rebond vers orchestrator.
+- Tous les agents projet sont `mode: subagent`, sauf `implementer`,
+  `hard-implementer` et `emergency-thinker` (`mode: all`). Les deux premiers
+  permettent un handoff séquentiel sans recréer la session ; modèles et
+  permissions restent inchangés. Mode all ne confère pas de leadership :
+  seul le lead Ensemble crée des membres, les membres restent des feuilles.
 - Champ `readonly`: remplacé par des règles `permissions` en liste
   ordonnée (`action` / `resource` / `effect`), dernier match gagne :
   - reviewers → `edit .cursor/review-briefings/**: allow`, `edit *: deny`
@@ -58,12 +99,10 @@ variant vérifié est `max`. Ce mapping ne prétend pas mesurer coût ou perform
   - `emergency-thinker` → `action: "*"`, `resource: "*"`, `effect: allow`
     (tous outils). Ce wildcard n'est ni consentement aux destructions, ni
     dérogation aux instructions prioritaires, à infra-safety ou au périmètre.
-- L'`orchestrator` primaire délègue via le tool `subagent`. S'il est lui-même
-  un sous-agent et ne peut pas imbriquer de délégation, il retourne un
-  `WORKER_REQUEST` complet ; le parent relaie le worker explicitement choisi
-  et retourne son résultat au contrôle actif, qui garde la validation finale.
-  La profondeur effective reste **1** : permissions complètes ne permettent
-  pas une imbrication supplémentaire. Aucun réglage de profondeur n'est modifié.
+- Aucun réglage de profondeur native n'est modifié. Les droits de lead/member
+  viennent d'Ensemble, pas du nom de profil ni de ses permissions. Handoff garde
+  identité, historique, tâches, répertoire et modèle sélectionné ; choisir le
+  modèle séparément si la politique du profil cible le nécessite.
 
 ### Reprise d'une tâche bloquée
 
@@ -71,7 +110,7 @@ variant vérifié est `max`. Ce mapping ne prétend pas mesurer coût ou perform
   coordination. `emergency-thinker` est l'exception : coordinateur temporaire,
   délégateur et investigateur/fixer direct dans le contrat fermé, pas worker quotidien.
 - Après **2 tentatives techniques substantielles infructueuses sans progrès
-  vérifiable sur le même blocage**, orchestrator doit transférer au thinker.
+  vérifiable sur le même blocage**, le lead/parent doit transférer au thinker.
   Une troisième est exceptionnellement permise pour une hypothèse différente,
   étayée et bornée ; **3 maximum**, puis transfert. Pas besoin de traverser
   toute la chaîne expert/emergency-engineer. Nouveau worker ou reformulation
@@ -83,11 +122,11 @@ variant vérifié est `max`. Ce mapping ne prétend pas mesurer coût ou perform
 - Le paquet contient objectif, contraintes/invariants/interdits, diff et base
   git, briefings, commandes exactes de reproduction/échec, validation, registre
   des hypothèses/actions/observations/alternatives éliminées/progrès et blocages.
-- Thinker devient propriétaire de coordination et validation finale ; le root
-  relaie ses résultats et WORKER_REQUEST nommés. L'ancien coordinateur suspend
-  analyse technique et validation redondantes jusqu'à fin/réaffectation par
-  l'utilisateur. À profondeur 1, le root relaie les demandes : pas de retry
-  imbriqué, d'appel récursif orchestrator/self/thinker ou de contournement de profondeur.
+- Sous Ensemble, le lead peut changer de profil par handoff en conservant son
+  leadership et son historique ; un membre demande ce transfert au lead et ne
+  s'autopromeut pas. Pas de second contrôle actif ni de validation redondante.
+  Hors Ensemble, le root relaie les WORKER_REQUEST nommés, dans les limites
+  natives : pas de retry imbriqué, de boucle self/thinker ni de bypass de profondeur.
 - Contradictions structurelles → `architecte` et décision humaine si nécessaire,
   jamais changement silencieux du contrat. Les autres workers restent leaves.
 - Cette règle est une **politique de prompt**, pas un compteur déterministe,
@@ -101,16 +140,14 @@ variant vérifié est `max`. Ce mapping ne prétend pas mesurer coût ou perform
 - Tester dans une **nouvelle session** après chargement de la configuration :
   les changements de prompt ne transforment pas rétroactivement l'agent
   primaire d'une session déjà ouverte.
-- Avec `orchestrator` comme agent primaire, vérifier qu'il supervise la
-  requête directement, sans sous-appel à `orchestrator`.
-- Si un autre agent ordinaire est primaire, vérifier le passage unique à
-  `orchestrator`. Si l'imbrication de workers est indisponible, le parent
-  relaie le `WORKER_REQUEST` sans changer le choix, puis rapporte le résultat
-   pour la validation finale par le contrôle actif.
-- Pour une reprise autorisée (ou thinker explicitement choisi comme primaire),
-  vérifier l'absence de rebond vers orchestrator et le relais au thinker.
-  Ces vérifications runtime sont manuelles ; elles ne sont pas réalisées par
-  la seule validation statique des fichiers.
+- Statique : valider JSONC et frontmatter, comparer modèles/permissions aux
+  définitions antérieures, vérifier le périmètre du diff et l'absence de sources
+  de skills/blocs dupliqués. Un second setup ne doit rien ajouter.
+- Runtime, uniquement sur autorisation explicite : vérifier une nouvelle session
+  build, un fork depuis une source de la même équipe et un handoff entre les deux
+  implementers. Vérifier rôle/répertoire/modèle et le ledger après les opérations.
+  Un échec d'héritage doit être explicite, sans repli fresh ou shared-directory.
+- Ces vérifications runtime ne sont pas réalisées par la validation statique.
 
 ## MCP
 

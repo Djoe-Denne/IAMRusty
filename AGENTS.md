@@ -1,9 +1,23 @@
 ## Handoff et continuité (décision 2026-10-07)
 
-Le harness est maintenant proportionné (`.cursor/rules/00-agent-harness.mdc`) : tâches simples/moyennes exécutées directement par la session racine ; `orchestrator` requis pour le multi-lots/parallèle/heavy. Contrats d'architecture : `docs/contracts/` (canon secondaire, écrits par `architecte`, référencés depuis les ADR).
+Le harness est proportionné (`.cursor/rules/00-agent-harness.mdc`). Sous OpenCode, la session racine exécute directement ou pilote Ensemble, sans orchestrateur intermédiaire. Les autres clients conservent leur routage historique. Contrats d'architecture : `docs/contracts/` (canon secondaire, écrits par `architecte`, référencés depuis les ADR).
 
-- Chaque agent écrit et lit le ledger de handoff du lot : `.cursor/handoffs/` (règle `.cursor/rules/agent-handoff.mdc`). Rien d'essentiel ne reste chat-only.
+- Chaque agent lit le ledger de handoff du lot : `.cursor/handoffs/` (règle `.cursor/rules/agent-handoff.mdc`). Sous Ensemble, les membres rendent leurs deltas et le lead les persiste sans écritures concurrentes. Rien d'essentiel ne reste chat-only.
 - Suite de travail sur un même lot = reprendre la session subagent existante (sessionID), pas un spawn neuf.
+
+<!-- ensemble-project-setup:policy:v1 -->
+## Coordination OpenCode / Ensemble (décision 2026-10-10)
+
+- Charger `opencode-ensemble` avant de coordonner une équipe. Travailler directement lorsqu'un seul agent suffit ; annoncer direct ou Ensemble. La racine devient le lead, sans coordinateur intermédiaire.
+- Le lead choisit profils, taille et dépendances selon les lots réellement indépendants. Aucun pipeline obligatoire. Chaque lot a un propriétaire, un périmètre, des invariants, un livrable et des critères de validation. Les décisions structurelles restent à `architecte`.
+- Découvrir une fois par périmètre : réutiliser sources et ledgers valides ; justifier toute nouvelle exploration. Lire la référence de continuité du skill avant héritage/handoff. Continuer avec le même membre ; handoff pour changer de spécialité dans la même session, fork pour une branche indépendante, checkpoint pour une frontière exclusive réelle, compact_fork depuis une source distincte et inactive. Ne pas compacter à nouveau pour chaque enfant.
+- Forks limités aux sources de l'équipe ; pas de synchronisation live des contextes. Le lead transmet les changements de contrat aux membres concernés et tient le ledger canonique (chemin absolu, base Git, faits/hypothèses distincts, décisions, tentatives, sources/sessionID). Entre équipes, réutiliser le ledger, sans promettre un héritage natif arbitraire.
+- Reviewers indépendants : contexte fresh, diff, contrats et faits vérifiés, sans conclusions du développeur. Reviews proportionnées à la surface du diff ; briefings persistés avant correction.
+- Seul le lead crée des membres. Un handoff garde rôle, tâches, répertoire et modèle sélectionné : il ne donne ni leadership ni isolation et n'applique pas automatiquement le modèle du profil cible. Respecter les modèles configurés ; expliciter une éventuelle sélection séparée. Les membres restent des feuilles, même avec mode all.
+- Worktrees isolés pour les écrivains indépendants ; héritage avec changement de répertoire uniquement sur arbres propres et HEAD compatibles. Préserver les changements utilisateur : aucun commit/stash/reset automatique ni repli silencieux vers fresh ou un répertoire partagé pour contourner une erreur. L'index GrepAI canonique n'inclut pas les modifications non mergées des worktrees temporaires : utiliser leurs fichiers/symboles pour celles-ci.
+- Le lead intègre et vérifie les résultats réels, coordonne l'unique slot Cargo Windows et les baux infra, et contrôle le cleanup avant de rendre. Pas de polling d'attente ni de validation redondante. L'héritage économise la redécouverte, pas nécessairement les tokens d'entrée.
+- Après deux tentatives techniques substantielles infructueuses sans progrès vérifiable sur le même blocage, transférer au `emergency-thinker` ; une troisième n'est permise que pour une hypothèse différente, étayée et bornée (maximum trois). Conserver le registre même après changement de membre. Attentes/autorisations/infra indisponible ne sont pas des tentatives. En équipe, le handoff du lead conserve son leadership ; un membre demande ce transfert au lead, sans s'attribuer la coordination. Le modèle Astra doit être sélectionné séparément si nécessaire.
+<!-- /ensemble-project-setup:policy -->
 
 ## Compilation et tests locaux (décision utilisateur 2026-10-07)
 

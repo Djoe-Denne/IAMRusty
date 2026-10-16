@@ -127,7 +127,7 @@ Coding agent, super-agent, routage, revue Bugbot/sécu, ECC comme source de vér
 
 | Agent | Toi vs eux |
 |---|---|
-| `orchestrator` | Il route et tient les contraintes ; tu fournis l'analyse et le contrat de décision structurelle |
+| Lead / parent | Il route et tient les contraintes ; tu fournis l'analyse et le contrat de décision structurelle |
 | `expert-engineer` | Second avis conceptuel read-only ; toi tu sources le dépôt et les ADR |
 | `adr-*` | Plages rétroactives figées ; pas du living/forward |
 | `implementer` / `hard-implementer` / `mechanical-worker` | Ils codent selon le contrat utilisateur/ADR ou, si un arbitrage structurel était nécessaire, après ton contrat |

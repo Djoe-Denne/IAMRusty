@@ -1,12 +1,21 @@
 ---
-description: Control plane — orchestrator requis pour le multi-lots/parallèle/heavy ; tâches simples/moyennes exécutées directement par la session racine
+description: Control plane proportionné — OpenCode utilise Ensemble ; autres clients conservent le routage historique
 alwaysApply: true
 ---
 
 # Agent harness
 
-Décision utilisateur 2026-10-07 : chaque délégation coûte une re-découverte
-complète du contexte. Le niveau de délégation est proportionné au travail.
+## Périmètre OpenCode (2026-10-10)
+
+Sous OpenCode, la politique Ensemble de `AGENTS.md` remplace le routage
+orchestrator ci-dessous : la racine travaille directement ou devient lead.
+Charger `opencode-ensemble` pour la coordination ; conserver ownership,
+briefings, ledger, validation et règles infra. Les profils OpenCode de
+coordination historiques sont retirés. Les sections suivantes décrivent le
+routage des autres clients, pas une obligation OpenCode.
+
+Décision utilisateur 2026-10-07 : une délégation vierge coûte une re-découverte
+du contexte. Le niveau de délégation est proportionné au travail.
 
 ## Routage proportionné
 

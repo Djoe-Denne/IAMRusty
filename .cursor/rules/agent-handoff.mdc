@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Handoff agents (décision utilisateur 2026-10-07)
 
-Chaque changement d'agent perd le contexte du précédent : session vierge,
+Une délégation vierge perd le contexte du précédent : session vierge,
 re-exploration, erreurs de réinterprétation. Contre-mesure : un **ledger de
 handoff** écrit dans le dépôt, obligatoire à la lecture et à l'écriture.
 
@@ -53,6 +53,31 @@ Format (sections stables, append-only par section) :
   matche plus), ou saturation de la session précédente.
 - Ne jamais reprendre une session au-delà de son bail : session ≠ propriété
   éternelle ; le bail reste celui défini par `local-runtime-lifecycle`.
+
+## Compléments OpenCode / Ensemble (2026-10-10)
+
+Ces compléments priment sur les obligations d'écriture et de reprise ci-dessus
+pour Ensemble ; les autres clients conservent leurs conventions.
+
+- Le lead crée le ledger dans la racine canonique et transmet son **chemin
+  absolu** : un fichier gitignored ne suit pas automatiquement les worktrees.
+  Le lead seul écrit le ledger commun ; chaque membre lit avant exploration et
+  rend un delta `HANDOFF_MARKDOWN` avant de terminer, même s'il peut écrire.
+  Les briefings conservent leur convention existante.
+- Ajouter base Git/HEAD, fichiers concernés, faits observés vs hypothèses,
+  registre des tentatives, et membre/profil/sessionID/source/mode de continuité.
+  Réexaminer seulement les preuves affectées par une dérive ; une hypothèse
+  n'est jamais une décision ni une preuve. Les reviewers vérifient indépendamment.
+- Réactiver le même membre pour la suite. Handoff pour le changement de profil
+  du même propriétaire ; fork pour un lot indépendant. Respecter les sources
+  de la même équipe, les frontières exclusives des checkpoints et les limites
+  de compact_fork décrites dans le skill. Une session arrêtée/archivée n'est pas
+  une garantie de réactivation : signaler le cas et choisir explicitement la suite.
+- Après fork, envoyer les nouvelles décisions seulement aux membres affectés.
+  Aucun partage live automatique du contexte, ni mémoire Context Mode implicite
+  entre sessions. Pour une autre équipe, le ledger fournit le relais durable.
+- Les écritures couplées restent chez un propriétaire ou sont séquencées par
+  dépendances ; le lead contrôle le diff intégré et la validation réelle.
 
 ## Rôle du handoff vs autres vecteurs
 
