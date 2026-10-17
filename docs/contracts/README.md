@@ -14,3 +14,8 @@ Conventions :
   l'architecte ouvre la mise à jour d'ADR (Proposed) et signale l'écart.
 - Le contrat est le vecteur du travail : `implementer`/`hard-implementer`
   reçoivent le chemin du fichier, pas un résumé de chat.
+
+Contrats :
+
+- [`0412-oauth-exact-route-envoy-proof.md`](0412-oauth-exact-route-envoy-proof.md)
+  — preuve E2E exact-route de l'ADR 0412. Ne promeut pas la Réalité.
