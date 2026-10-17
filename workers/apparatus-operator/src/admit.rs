@@ -1,20 +1,26 @@
 //! Signataire + registry P4 (feature `admit`).
 //!
 //! Pousse une enveloppe ORAS **non-CRI** et la signe avec Cosign + `OpenBao`
-//! Transit. ORAS et Cosign passent par `std::process::Command` (binaire hôte
-//! ou `docker run`). Le HTTP Transit (reqwest) vit **uniquement** ici — pas
+//! Transit. ORAS et Cosign passent par un enfant supervisé (binaire hôte ou
+//! `docker run`) dont l'argv ne contient pas le mot de passe registry. Le HTTP
+//! Transit (reqwest) vit **uniquement** ici — pas
 //! dans le worker de build. Ce module ne compile ni n'exécute le code auteur.
 
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{ExitStatus, Output};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
 use crate::digest::ReleaseDigest;
+
+mod cli_transport;
+
+#[cfg(test)]
+mod cli_transport_tests;
 
 /// Variable d'environnement pour un binaire Cosign hôte (sinon image Docker).
 pub const COSIGN_BIN_ENV: &str = "APPARATUS_COSIGN_BIN";
@@ -324,23 +330,15 @@ fn oras_push_and_oci_digest(
         "--plain-http".to_owned(),
         "--username".to_owned(),
         target.auth.username.clone(),
-        "--password".to_owned(),
-        target.auth.password.clone(),
+        "--password-stdin".to_owned(),
         tagged.to_owned(),
         "--artifact-type".to_owned(),
         ENVELOPE_ARTIFACT_TYPE.to_owned(),
         format!("envelope.json:{ENVELOPE_ARTIFACT_TYPE}"),
     ];
-    let push = run_cli(
-        ORAS_BIN_ENV,
-        ORAS_IMAGE,
-        &target.docker_network,
-        &[],
-        &push_args,
-        Some(workdir),
-    )?;
+    let push = invoke_oras(target, &push_args, Some(workdir))?;
     if !push.status.success() {
-        return Err(cli_failed("oras push", &push, &target.vault_token));
+        return Err(cli_failed("oras push", &push.status));
     }
 
     let desc_args = vec![
@@ -349,25 +347,13 @@ fn oras_push_and_oci_digest(
         "--plain-http".to_owned(),
         "--username".to_owned(),
         target.auth.username.clone(),
-        "--password".to_owned(),
-        target.auth.password.clone(),
+        "--password-stdin".to_owned(),
         "--descriptor".to_owned(),
         tagged.to_owned(),
     ];
-    let desc = run_cli(
-        ORAS_BIN_ENV,
-        ORAS_IMAGE,
-        &target.docker_network,
-        &[],
-        &desc_args,
-        None,
-    )?;
+    let desc = invoke_oras(target, &desc_args, None)?;
     if !desc.status.success() {
-        return Err(cli_failed(
-            "oras manifest fetch",
-            &desc,
-            &target.vault_token,
-        ));
+        return Err(cli_failed("oras manifest fetch", &desc.status));
     }
     let combined = format!(
         "{}{}",
@@ -446,20 +432,7 @@ fn validate_cri_pin(cri_image: &str) -> Result<(), AdmitError> {
 }
 
 fn sign_and_verify(target: &AdmitTarget, digest_ref: &str) -> Result<bool, AdmitError> {
-    let host_cosign = host_tool(COSIGN_BIN_ENV).is_some();
-    let vault_addr = if host_cosign {
-        target.vault_addr_host.as_str()
-    } else {
-        target.vault_addr_network.as_str()
-    };
     let key_uri = format!("hashivault://{}", target.transit_key);
-    let env_vars = [
-        ("VAULT_ADDR", vault_addr),
-        ("VAULT_TOKEN", target.vault_token.as_str()),
-        ("TRANSIT_SECRET_ENGINE_PATH", "transit"),
-        ("COSIGN_YES", "1"),
-    ];
-
     let sign_args = vec![
         "sign".to_owned(),
         "--yes".to_owned(),
@@ -468,22 +441,13 @@ fn sign_and_verify(target: &AdmitTarget, digest_ref: &str) -> Result<bool, Admit
         "--allow-http-registry".to_owned(),
         "--registry-username".to_owned(),
         target.auth.username.clone(),
-        "--registry-password".to_owned(),
-        target.auth.password.clone(),
         "--key".to_owned(),
         key_uri,
         digest_ref.to_owned(),
     ];
-    let signed = run_cli(
-        COSIGN_BIN_ENV,
-        COSIGN_IMAGE,
-        &target.docker_network,
-        &env_vars,
-        &sign_args,
-        None,
-    )?;
+    let signed = invoke_cosign(target, &sign_args)?;
     if !signed.status.success() {
-        return Err(cli_failed("cosign sign", &signed, &target.vault_token));
+        return Err(cli_failed("cosign sign", &signed.status));
     }
 
     verify_cosign_signature(target, digest_ref)?;
@@ -496,19 +460,7 @@ fn sign_and_verify(target: &AdmitTarget, digest_ref: &str) -> Result<bool, Admit
 ///
 /// `cosign verify` non-succès (y compris tag `.sig` fetchable mais crypto KO).
 pub fn verify_cosign_signature(target: &AdmitTarget, digest_ref: &str) -> Result<(), AdmitError> {
-    let host_cosign = host_tool(COSIGN_BIN_ENV).is_some();
-    let vault_addr = if host_cosign {
-        target.vault_addr_host.as_str()
-    } else {
-        target.vault_addr_network.as_str()
-    };
     let key_uri = format!("hashivault://{}", target.transit_key);
-    let env_vars = [
-        ("VAULT_ADDR", vault_addr),
-        ("VAULT_TOKEN", target.vault_token.as_str()),
-        ("TRANSIT_SECRET_ENGINE_PATH", "transit"),
-        ("COSIGN_YES", "1"),
-    ];
     let verify_args = vec![
         "verify".to_owned(),
         "--insecure-ignore-tlog".to_owned(),
@@ -516,27 +468,17 @@ pub fn verify_cosign_signature(target: &AdmitTarget, digest_ref: &str) -> Result
         "--allow-http-registry".to_owned(),
         "--registry-username".to_owned(),
         target.auth.username.clone(),
-        "--registry-password".to_owned(),
-        target.auth.password.clone(),
         "--key".to_owned(),
         key_uri,
         digest_ref.to_owned(),
     ];
-    let verified = run_cli(
-        COSIGN_BIN_ENV,
-        COSIGN_IMAGE,
-        &target.docker_network,
-        &env_vars,
-        &verify_args,
-        None,
-    )?;
+    let verified = invoke_cosign(target, &verify_args)?;
     if verified.status.success() {
         return Ok(());
     }
     Err(cli_failed(
         "cosign verify (Vault-compat Transit)",
-        &verified,
-        &target.vault_token,
+        &verified.status,
     ))
 }
 
@@ -563,66 +505,66 @@ pub fn signature_tag_exists(target: &AdmitTarget, digest_ref: &str) -> Result<bo
         "--plain-http".to_owned(),
         "--username".to_owned(),
         target.auth.username.clone(),
-        "--password".to_owned(),
-        target.auth.password.clone(),
+        "--password-stdin".to_owned(),
         sig_ref,
     ];
-    let output = run_cli(
-        ORAS_BIN_ENV,
-        ORAS_IMAGE,
-        &target.docker_network,
-        &[],
-        &args,
-        None,
-    )?;
+    let output = invoke_oras(target, &args, None)?;
     Ok(output.status.success())
 }
 
-fn run_cli(
-    bin_env: &str,
-    image: &str,
-    network: &str,
-    extra_env: &[(&str, &str)],
+fn invoke_oras(
+    target: &AdmitTarget,
     args: &[String],
     workdir: Option<&Path>,
 ) -> Result<Output, AdmitError> {
-    if let Some(bin) = host_tool(bin_env) {
-        let mut cmd = Command::new(&bin);
-        cmd.args(args);
-        for (key, value) in extra_env {
-            cmd.env(key, value);
-        }
-        if let Some(dir) = workdir {
-            cmd.current_dir(dir);
-        }
-        return cmd.output().map_err(|err| {
-            AdmitError::new(format!(
-                "cannot execute {} ({}): {err}",
-                bin.display(),
-                bin_env
-            ))
-        });
-    }
+    let frame = cli_transport::oras_password_frame(&target.auth.password);
+    let secrets = [target.auth.password.as_str(), target.vault_token.as_str()];
+    cli_transport::run_cli(cli_transport::RunRequest {
+        bin_env: ORAS_BIN_ENV,
+        image: ORAS_IMAGE,
+        network: &target.docker_network,
+        extra_env: &[],
+        args,
+        workdir,
+        stdin: Some(frame.as_slice()),
+        secrets: &secrets,
+    })
+}
 
-    let mut cmd = Command::new("docker");
-    cmd.args(["run", "--rm", "--network", network]);
-    for (key, value) in extra_env {
-        cmd.args(["-e", &format!("{key}={value}")]);
-    }
-    if let Some(dir) = workdir {
-        let host = docker_host_path(dir)?;
-        cmd.args(["-v", &format!("{host}:/work"), "-w", "/work"]);
-    }
-    cmd.arg(image);
-    cmd.args(args);
-    cmd.output().map_err(|err| {
-        AdmitError::new(format!(
-            "Docker cannot start helper {image}: {err}. Docker daemon must be running; image pull errors must not be ignored."
-        ))
+fn invoke_cosign(target: &AdmitTarget, args: &[String]) -> Result<Output, AdmitError> {
+    let host_cosign = host_tool(COSIGN_BIN_ENV).is_some();
+    let vault_addr = if host_cosign {
+        target.vault_addr_host.as_str()
+    } else {
+        target.vault_addr_network.as_str()
+    };
+    cli_transport::with_registry_config(target, |config_dir| {
+        let env_vars = [
+            ("VAULT_ADDR", vault_addr),
+            ("VAULT_TOKEN", target.vault_token.as_str()),
+            ("TRANSIT_SECRET_ENGINE_PATH", "transit"),
+            ("COSIGN_YES", "1"),
+            ("DOCKER_CONFIG", config_dir),
+        ];
+        let secrets = [target.auth.password.as_str(), target.vault_token.as_str()];
+        cli_transport::run_cli(cli_transport::RunRequest {
+            bin_env: COSIGN_BIN_ENV,
+            image: COSIGN_IMAGE,
+            network: &target.docker_network,
+            extra_env: &env_vars,
+            args,
+            workdir: None,
+            stdin: None,
+            secrets: &secrets,
+        })
     })
 }
 
 fn host_tool(bin_env: &str) -> Option<PathBuf> {
+    #[cfg(test)]
+    if let Some(forced) = cli_transport::forced_host(bin_env) {
+        return forced;
+    }
     std::env::var_os(bin_env).map(PathBuf::from)
 }
 
@@ -678,13 +620,8 @@ fn is_sha256_digest(value: &str) -> bool {
         && value.as_bytes()[7..].iter().all(u8::is_ascii_hexdigit)
 }
 
-fn cli_failed(op: &str, output: &Output, token: &str) -> AdmitError {
-    let stdout = redact(&String::from_utf8_lossy(&output.stdout), token);
-    let stderr = redact(&String::from_utf8_lossy(&output.stderr), token);
-    AdmitError::new(format!(
-        "{op} failed status={:?} stdout={stdout} stderr={stderr}",
-        output.status.code()
-    ))
+fn cli_failed(op: &str, status: &ExitStatus) -> AdmitError {
+    AdmitError::new(format!("{op} failed status={:?}", status.code()))
 }
 
 fn redact(text: &str, token: &str) -> String {
