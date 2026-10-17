@@ -34,11 +34,13 @@ const SYNTHETIC_CRI: &str = "ghcr.io/aiforall/reference-kv@sha256:0123456789abcd
 const ADMITTED_CRI: &str = "ghcr.io/aiforall/admitted@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
+    // Racine workspace réelle : CARGO_MANIFEST_DIR = workers/apparatus-operator ;
+    // f060d47 (refactor layout) a déplacé l'opérateur sous workers/ → deux remontées.
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
 }
 
 fn reference_kv_dir() -> PathBuf {
-    repo_root().join("apparatus-reference-kv")
+    repo_root().join("crates").join("apparatus-reference-kv")
 }
 
 fn reference_kv_manifest() -> PathBuf {

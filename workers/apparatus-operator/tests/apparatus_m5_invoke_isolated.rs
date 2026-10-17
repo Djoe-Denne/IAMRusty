@@ -60,11 +60,13 @@ const CANARY_LABEL: &str = "app=apparatus-system-canary";
 const CANARY_URL: &str = "http://apparatus-system-canary.apparatus-system.svc.cluster.local:8080/";
 
 fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
+    // Racine workspace réelle : CARGO_MANIFEST_DIR = workers/apparatus-operator ;
+    // f060d47 (refactor layout) a déplacé l'opérateur sous workers/ → deux remontées.
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
 }
 
 fn reference_kv_dir() -> PathBuf {
-    repo_root().join("apparatus-reference-kv")
+    repo_root().join("crates").join("apparatus-reference-kv")
 }
 
 fn descriptor_from_disk() -> ReleaseDigest {

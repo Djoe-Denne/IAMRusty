@@ -81,10 +81,10 @@ fn isolation() -> IsolationLabels {
 }
 
 fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("CARGO_MANIFEST_DIR a un parent (racine du dépôt)")
-        .to_path_buf()
+    // Racine workspace réelle (même mécanique que m1/m3/m4/m5) : CARGO_MANIFEST_DIR =
+    // workers/apparatus-operator ; f060d47 (refactor layout) a placé l'opérateur
+    // sous workers/ → deux remontées depuis le manifeste du paquet.
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
 }
 
 fn kubectl_text(out: &Output) -> String {
