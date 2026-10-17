@@ -264,9 +264,42 @@ hors lot, axe 2), `Cargo.toml` required-features (t6/m1 = `admit` ; m3/m4/m5/t10
    jour par le lead, hors axes.
 4. **Binaires hôtes (§8.3) : décision P2 à l'entrée**, selon la matrice §6.4 ; les deux modes
    valident « transport réel ». Buffers dans l'ordre de coupe §7.
+5. **Mode servi = fallback docker (P2, G-17.7 COVERED).** Env `APPARATUS_*_BIN` absentes à
+   l'entrée (consignées), binaires absents du PATH → fallback par construction. Preuves : delta
+   images `oras:v1.2.2` (33,8 MB) + `cosign:v2.4.3` (177 MB), 16 + 17 conteneurs helpers
+   create→start→die→destroy (un par hop, connect `apparatus_operator_test-net`), `docker ps -a`
+   post-run filtré sur les images pinées = **zéro résidu** → **G-17.9 prouvé par le mode servi
+   lui-même** (release cidfile id, stop/inspect/rm). Arm host-bin impossible en l'état (aucun
+   binaire hôte) ; re-arm reste du buffer le jour où des binaires hôtes sont installés.
+6. **ROUGE P2 — une seule famille, test-fixture (tracée, aucun correctif par le worker).**
+   Helpers `repo_root()` = `CARGO_MANIFEST_DIR + ".."` résolvent `workers/` au lieu de la
+   racine workspace depuis `f060d47` (« refactor(layout) », 2026-10-03, ancêtre de
+   `6f34b6d7`). Paniques à 0,00 s, **avant tout Docker** — pas un bug prod transport (t6 9/9
+   couvre G-17.1→6). Sites vérifiés lead :
+   - `tests/apparatus_m1_reference_kv_pin.rs:25-31` — vrai manifeste
+     `crates/apparatus-reference-kv/apparatus.toml` (existe, 402 B) ;
+   - `tests/apparatus_m3_install_fail_closed.rs:36-46` — même helper (panic via
+     `m1_descriptor_and_report()` :64-65, 2 tests filtrés) ;
+   - `tests/apparatus_m4_desired_state_bridge.rs:37-46` + `:123` (contexte docker build →
+     pointer `crates/apparatus-reference-kv`) ;
+   - `tests/apparatus_p4_t11_runtime.rs:83` — vrai `services/Manifesto` (tick.rs réel
+     `services/Manifesto/infra/src/apparatus_runtime/tick.rs`) + double préfixe
+     `workers/workers/…` à signaler à `:583` (chemin réel
+     `workers/apparatus-operator/src/controller.rs`).
+   Correctif : lot **P2-fix** (test-engineer, worktree isolé, commite lui-même) — harmoniser
+   les helpers vers la vraie racine workspace, aucune dilution d'invariant (les assertions
+   restent des cibles réelles), aucun `src/`, aucune doc, plan inchangé. Attendu post-fix :
+   m1 **1/1** ; secondaire filtré m3 **2/2**, m4 **1/1**, t11 **3/3**. t10 : statique dans le
+   lot ; fixer son helper **seulement si** même pattern `repo_root()`, sans l'exécuter (Kind).
+7. **Porte P3** : après merge de P2-fix + reprise des comptages par le lead sur master
+   (m1 + secondaire), la porte §6.5 est complète et P3 (correctness + test-reviewer) part.
+   t6 9/9 reste la preuve transport de référence (aucun re-run t6 exigé).
+
 
 
 
 - 2026-10-17 : création du plan (P1, base `6f34b6d7`, pin `41a86dba`). Contradiction Kind escaladée (§0, 15/31 tests). Matrice R-01…R-08, registre G-17.1…G-17.11, commandes exactes (§6.2), matrice de mode (§6.4), portes et budget. Aucun runtime, aucun cargo, aucun code écrit.
 - 2026-10-17 : audit lead complet (ancres spot-vérifiées, §9). Scope P2 tranché = transport-only (a) ; worktree P2 = false ; constat doc/environnement §8.2 maintenu hors lot. Plan commité par le lead avant toute admission P2.
+- 2026-10-17 (après P2 exécutée) : t6 **9/9** ; preuves zot réelles par hop (catalogue, artifactType, digest `sha256:b707d331…`, 4 tags `.sig` HTTP 200, verify positif + négatif) + preuve mode = fallback docker (G-17.7) ; G-17.9 zéro résidu helper. **ROUGE** une famille (helpers périmés f060d47) sur m1 + secondaire filtré — tracé et correctif cadrés §9.6 ; 15 tests Kind non exécutés (G-17.10 nominatif). Registre `.tmp/docker-resources-20261017.log` (10 entrées), evidence `.tmp/g17-*.log` + `g17-docker-events.txt` ; tiers `aiforall-local-control-plane` Up, non possédé, intouché.
+- 2026-10-17 (lead, post-P2) : décisions §9.5–§9.7 — mode fallback COVERED, ROUGE tracé + lot correctif P2-fix (test-only, 4 fichiers, t10 en statique conditionnelle) avant la porte P3.
 
