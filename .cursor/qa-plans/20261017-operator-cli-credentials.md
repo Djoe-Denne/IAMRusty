@@ -145,3 +145,4 @@ Tranchées par le lead après relecture. M4 les applique. Pas d'escalade utilisa
 
 - 2026-10-17 : création du plan (M2, base `329fec342400`). Matrice R-01…R-12, registre G-1…G-17, portes entrée/sortie, budget. Aucun test écrit, aucune gate lancée, aucun commit.
 - 2026-10-17 : décisions du lead en §8. G-6 confirmée, G-12 scindée (ACL Windows dans la gate, mode Unix en `cfg(unix)`), G-17 defer, mot de passe vide accepté, un seul Cargo.
+- 2026-10-17 : audit M8 sur `c2fe7172ccc4`, briefing `.cursor/review-briefings/20261017-operator-cli-credentials-tests.md`. G-1 à G-11 et G-13 à G-16 couverts. G-12 scindé comme au §8 (ACL Windows dans la gate, `cfg(unix)` écrit, non compilé ici). G-17 reste defer. Aucun T-n. S-1 (héritage `APPARATUS_*`) noté hors oracle G-6, non testé. Le tableau du registre ci-dessus n'est pas réécrit : il reste la photographie d'avant M4.
