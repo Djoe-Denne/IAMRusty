@@ -76,6 +76,8 @@ Apply nominal : `apply --server-side --field-manager=apparatus-it-fixtures -f <m
 
 ## 5. Canary causal et classification — PH-7
 
+Amendement post-revue sécurité S-1 : **Endpoints n'est pas la source indépendante d'identité du Pod**. Lire le Pod réellement référencé et vérifier namespace/name/metadata.uid, correspondance de l'IP choisie avec status.podIP/podIPs, Ready et absence de suppression, avant le contrôle positif puis à chaque revalidation avant/après wget. Même Endpoints stable avec IP falsifiée, UID/Ready/IP réelle discordants => échec sans H4 ; avant le négatif, pas de wget. Les tests régressent explicitement le scénario positif PodA / EndpointsB / timeout IPB et le remplacement du Pod sans changement d'Endpoints. Ne pas utiliser une seconde relecture du même Endpoints comme substitut à cette vérification Pod API.
+
 Fait vérifié par l'architecte : le port-forward existant m6 cible le Pod plugin, **pas** le canary. Le positif canary est donc à ajouter, pas à déclarer déjà présent.
 
 Même orchestration canary partagée entre m6 réel et les tests négatifs scriptés ; petit seam test-side dédié si nécessaire, distinct du port ensure. Ordre fail-loud :
@@ -94,6 +96,8 @@ Précision d'implémentation : positif et négatif visent exactement le **même 
 Négatifs test-side minimaux : readiness échouée, endpoints vides, positif échoué, cible atteinte, DNS/outillage/exec/routage non probants. Chacun bloque le succès et son marqueur ; les trois premiers empêchent même le wget. Le nominal partagé seul peut émettre le marqueur après toutes les préconditions et le classement accepté. Helpers de signal dans un module test-side neutre réutilisé par réel et oracle, sans duplication du flux m6.
 
 ## 6. Captures H1–H4 et confidentialité — PH-6
+
+Amendement post-revue S-2 : les égalités API image/digest gardent leur force mais doivent passer par une assertion/helper commun à m6 et à ses régressions, avec catégorie FAIL fixe et sans Debug des opérandes API. Sentinelles synthétiques dans les tests : le panic doit conserver la catégorie et l'échec mais jamais refléter image/digest reçu. Aucune extension de la campagne transportCLI/credentials de production.
 
 - H1 : image et digest `sha256:` suivi de 64 hex.
 - H2 : digest et statuts observés `VALID`, `Scheduled`.

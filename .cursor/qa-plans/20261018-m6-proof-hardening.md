@@ -115,6 +115,15 @@ Aucun item critique (15–25) : les pires combos (impact 5) ont une probabilité
 
 ## 5. Étape C — Registre obligation→test
 
+### Suite des revues statiques — décisions bornées
+
+- **S-1 MEDIUM / PH-7 : à corriger avant H4**. Pod API indépendant doit établir name/ns/UID/IP(s)/Ready/non-suppression avant positif et revalidations ; Endpoints stable falsifié, IP/UIDréelle discordants, PodnonReady/supprimé/remplacé avant/après wget doivent être refusés. Même orchestration réel/scripté, pas un test hors flux.
+- **S-2 HARDENING / PH-6 : à corriger avant captures**. Assertions API image/digest sans Debug d'opérandes via helper réellement utilisé par m6 et testé avec sentinelles synthétiques ; FAIL préservé, sentinelle absente.
+- **T-1 LOW : à corriger** dans les oracles fixture, bornes nom63/64 et catégories exactes avec zéro commande/FS. **T-3 LOW : à corriger** dans preuve, Podétranger et namespaceétranger rejetés tôt ; grouper avec S1sansdupliquer flux.
+- **T-2 LOW : GAP-accept explicite**, ownerlead. Impact : mutation du câblage réel var_os→var().ok() non détectée comportementalement par les oracles du seam ; nonUnicodewrapper réel prouvé statiquement seulement. Raison : garder zéro mutation d'envglobale et pas de nouvelle architecture de lectureenv pour ce risque borné ; allow-list limite tout effet au seul clusterautorisé, lecture directe du wrapper effectuée par deuxreviews. Réouverture : toute modification/refactor du wrapperrésolutionenv, ou lot dédié de test sousprocess/harnessenv isolé approuvé. Ne pas présenter N5nominal comme couverture nonUnicodewrapper.
+- **T-4 INFO : GAP-accept explicite**, ownerlead. Impact : futur drift subnet du fichier référence mort non détecté partest. Raison : zéro consommateurcode, alignement présent vérifié directement, la créationréelle utilise le canonops. Réouverture : dès consommation du YAML par un outil/code/test ou changement topologie/subnet ; ajouter alors gardeautomatisée. Aucun cluster créé depuis cette référence ici.
+- **C-1 LOW correctness : PENDING N5**, ownerlead, body404BusyBox réel à confirmer aprèsIT ; fauxéchecpossible seulement, aucun ajustement permissif avantobservation. LigneGNUréelle et auditcaptureslive restent aussi PENDING.
+
 ### Dette qualité préexistante — décision utilisateur explicite
 
 L'utilisateur choisit **« Différer la dette héritée »** après le Clippy strict m6 `--features admit,controller --test apparatus_m6_e2e_chain -- -D warnings` en échec sur 27 diagnostics dans `src` inchangé, avant analyse du test. Owner : lead/utilisateur pour futur lot qualité production distinct. Impact : **gate stricte m6 reste ROUGE**, aucune attestation de qualité stricte de cette cible ; oracles test-side stricts déjà verts ne prouvent pas la cible m6 stricte. Raison : corrections production hors périmètre de la campagne et sans régression fonctionnelle démontrée par ces diagnostics. Réouverture : lot qualité explicite, modification des sources concernées, ou besoin d'une gate stricte CI/pre-release qui exige leur correction.
