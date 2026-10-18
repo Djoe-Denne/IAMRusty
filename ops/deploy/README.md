@@ -49,7 +49,7 @@ Compose `just up` / `just health` inchangés (couche A).
 | Plugin pod isolé | ns `aiforall-plugins` (pas de SA privilégié) |
 | Operator schedule | ns `aiforall-apparatus`, SA `controller` (+ `admit-sign`) |
 | Adm-A `VALID` | **≠** Kyverno / Flux (n'émettent pas VALID) |
-| Cluster IT `apparatus-p4-it` | **≠** `aiforall-local` (ne pas retarget) |
+| Cible Kind du fixture IT | Défaut `aiforall-local` ; `APPARATUS_KIND_CLUSTER` est normalisé (trim), mais seule cette cible est autorisée. Le contexte `kind-aiforall-local`, `aiforall-local-full`, les noms protégés (`apparatus-p4-it`, `kind-apparatus-p4-it`, `rancher-desktop`) et toute autre cible sont refusés avant tout appel externe ; une valeur explicitement vide/invalide est une erreur. |
 | `workers/apparatus-operator/tests/apparatus_m5_invoke_isolated.rs` | Pont pédagogique M5 → Service Lazaret + plugin isolé |
 | `workers/apparatus-operator/tests/apparatus_m6_e2e_chain.rs` | Pont pédagogique M6 → chaîne admit/schedule/invoke |
-| Fixture `workers/apparatus-operator/tests/fixtures/kind/` | Intouchable ; Calico + nom `apparatus-p4-it` |
+| Fixture `workers/apparatus-operator/tests/fixtures/kind/` | `ensure()` réutilise uniquement `aiforall-local` existant avec Calico prêt et sans kindnet ; sinon échec explicite (fail-loud). Jamais de création/suppression de cluster ni d'installation de Calico par les tests ; le YAML est une référence seule alignée sur `ops/deploy/kind/cluster.yaml`. |

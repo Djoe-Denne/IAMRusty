@@ -2,7 +2,12 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: aiforall-local
 # CNI : Calico v3.29.7 (pin GitHub manifests/calico.yaml) installé par deploy-j2.ps1.
-# ≠ fixture IT apparatus-p4-it (tests/fixtures/kind/* intouchable ; IT Linux CI garde 192.168.0.0/16).
+# Fixture IT : défaut aiforall-local ; APPARATUS_KIND_CLUSTER est normalisé (trim),
+# mais seule cette cible est autorisée (pas le contexte kind-aiforall-local).
+# full, noms protégés (apparatus-p4-it, kind-apparatus-p4-it, rancher-desktop),
+# valeur explicitement vide/invalide ou autre cible : refus avant tout appel externe.
+# ensure() réutilise ce cluster avec Calico prêt ; sinon échec explicite (fail-loud),
+# jamais de création/suppression de cluster ni d'installation de Calico par les tests.
 # kindnet interdit : n'enforce pas NetworkPolicy ; conflit = STOP, jamais de reset.
 # Docker Desktop : host.docker.internal = 192.168.65.254 ∈ 192.168.0.0/16 → Calico
 # traite l'hôte comme un pod (Postgres pool timeout). Pin local = 10.244.0.0/16.

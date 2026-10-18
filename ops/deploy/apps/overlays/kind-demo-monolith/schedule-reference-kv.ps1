@@ -131,6 +131,8 @@ sha2 = "0.10.8"
 semver = "1.0.23"
 axum = { version = "0.8.4", features = ["macros", "json"] }
 tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "net", "signal"] }
+reqwest = { version = "0.12.0", features = ["json", "rustls-tls"] }
+rcgen = { version = "0.13.2", features = ["x509-parser"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

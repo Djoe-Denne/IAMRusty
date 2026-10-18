@@ -1,3 +1,5 @@
+# Référence seule, alignée sur ops/deploy/kind/cluster.yaml. La création du cluster
+# est une opération runtime (deploy-j2.ps1), jamais un effet des tests.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: aiforall-local
@@ -5,6 +7,6 @@ networking:
   # kindnet n'enforce pas NetworkPolicy. Calico est installé par le propriétaire du
   # cluster (deploy-j2.ps1) : KindCluster::ensure le vérifie, jamais l'installe.
   disableDefaultCNI: true
-  podSubnet: "192.168.0.0/16"
+  podSubnet: "10.244.0.0/16"
 nodes:
   - role: control-plane
