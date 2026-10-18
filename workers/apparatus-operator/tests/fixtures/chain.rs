@@ -32,17 +32,17 @@ use uuid::Uuid;
 
 use super::fixtures;
 
+#[path = "canary.rs"]
+pub mod canary;
+#[path = "evidence.rs"]
+pub mod evidence;
+
 /// Identité Apparatus de référence (descripteur 0002).
 pub const REFERENCE_KV_ID: &str = "io.aiforall.reference-kv";
 /// Nom d'image CRI (sans tag flottant).
 pub const CRI_IMAGE_NAME: &str = "apparatus-reference-kv";
 /// Tag de build local HTTP (invoke).
 pub const CRI_BUILD_TAG: &str = "apparatus-reference-kv:m6";
-/// Sélecteur canary T11.
-pub const CANARY_LABEL: &str = "app=apparatus-system-canary";
-/// URL canary Transit / system — sonde Kind, pas un scan T12.
-pub const CANARY_URL: &str =
-    "http://apparatus-system-canary.apparatus-system.svc.cluster.local:8080/";
 
 /// Racine du workspace (parent de `workers/apparatus-operator/`).
 #[must_use]
@@ -166,7 +166,7 @@ fn copy_tree(src: &Path, dst: &Path) {
 
 /// Build `Dockerfile.http` (serveur invoke). Skip si le tag existe déjà.
 pub fn docker_build_reference_kv_http() {
-    fixtures::assert_docker_running().unwrap_or_else(|err| panic!("{err}"));
+    fixtures::assert_docker_running().unwrap_or_else(|_| panic!("M6 FAIL Docker readiness"));
     let inspect = Command::new("docker")
         .args(["image", "inspect", CRI_BUILD_TAG])
         .output();
@@ -232,12 +232,10 @@ must_use_candidate = "allow"
         .args(["build", "-t", CRI_BUILD_TAG])
         .arg(&staging)
         .output()
-        .unwrap_or_else(|err| panic!("Docker daemon must be running (docker build: {err})"));
+        .unwrap_or_else(|_| panic!("M6 FAIL docker reference HTTP build spawn"));
     assert!(
         build.status.success(),
-        "docker build {CRI_BUILD_TAG}: {:?}\n{}",
-        build.status.code(),
-        String::from_utf8_lossy(&build.stderr)
+        "M6 FAIL docker reference HTTP build"
     );
 }
 
@@ -355,6 +353,162 @@ impl PortForward {
     #[must_use]
     pub const fn new(child: Child) -> Self {
         Self { child }
+    }
+
+    /// Confirms this owned child (not a coincidental third-party listener) bound.
+    fn wait_bound(&mut self, port: u16) -> Result<(), &'static str> {
+        use std::io::{BufRead, BufReader};
+        let stdout = self
+            .child
+            .stdout
+            .take()
+            .ok_or("forward stdout unavailable")?;
+        let (send, receive) = std::sync::mpsc::channel();
+        let reader = std::thread::spawn(move || {
+            let expected = format!("Forwarding from 127.0.0.1:{port} -> 8080");
+            let ready = BufReader::new(stdout)
+                .lines()
+                .next()
+                .is_some_and(|line| line.is_ok_and(|line| line == expected));
+            let _ = send.send(ready);
+        });
+        let ready = receive
+            .recv_timeout(Duration::from_secs(30))
+            .unwrap_or(false);
+        if !ready {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+        }
+        let _ = reader.join();
+        if !ready
+            || self
+                .child
+                .try_wait()
+                .map_err(|_| "forward state unavailable")?
+                .is_some()
+        {
+            return Err("owned canary forward failed");
+        }
+        Ok(())
+    }
+}
+
+/// Real collaborator adapter; the causal ordering lives only in `observe_canary`.
+pub struct RealCanary<'a> {
+    pub cluster: &'a fixtures::kind::KindCluster,
+    pub plugin_pod: &'a str,
+}
+
+#[async_trait]
+impl canary::CanaryPort for RealCanary<'_> {
+    async fn wait_ready(&mut self) -> Result<(), &'static str> {
+        let out = self
+            .cluster
+            .kubectl(&[
+                "wait",
+                "--for=condition=Ready",
+                "pod",
+                "-n",
+                "apparatus-system",
+                "-l",
+                canary::CANARY_LABEL,
+                "--timeout=30s",
+            ])
+            .map_err(|_| "canary wait spawn failed")?;
+        if !out.status.success() {
+            return Err("canary not ready");
+        }
+        Ok(())
+    }
+
+    async fn endpoints(&mut self) -> Result<Vec<u8>, &'static str> {
+        let out = self
+            .cluster
+            .kubectl(&[
+                "get",
+                "endpoints",
+                canary::CANARY_SERVICE,
+                "-n",
+                "apparatus-system",
+                "-o",
+                "json",
+            ])
+            .map_err(|_| "canary endpoints spawn failed")?;
+        if !out.status.success() {
+            return Err("canary endpoints failed");
+        }
+        Ok(out.stdout)
+    }
+
+    async fn positive_http(
+        &mut self,
+        target: &canary::CanaryTarget,
+    ) -> Result<canary::PositiveHttp, &'static str> {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0")
+            .map_err(|_| "canary port reservation failed")?;
+        let port = listener
+            .local_addr()
+            .map_err(|_| "canary local address failed")?
+            .port();
+        drop(listener);
+        let child = self
+            .cluster
+            .spawn_kubectl(&[
+                "port-forward",
+                "--address=127.0.0.1",
+                "-n",
+                "apparatus-system",
+                &target.pod,
+                &format!("{port}:8080"),
+            ])
+            .map_err(|_| "canary forward spawn failed")?;
+        let mut forward = PortForward::new(child);
+        forward.wait_bound(port)?;
+        let response = reqwest::Client::builder()
+            .no_proxy()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .map_err(|_| "canary HTTP client failed")?
+            .get(format!("http://127.0.0.1:{port}/"))
+            .send()
+            .await
+            .map_err(|_| "canary HTTP request failed")?;
+        let status = response.status().as_u16();
+        let body = response
+            .text()
+            .await
+            .map_err(|_| "canary HTTP body failed")?;
+        // Drop always kills and waits only our child, including all error exits.
+        drop(forward);
+        Ok(canary::PositiveHttp { status, body })
+    }
+
+    async fn wget(
+        &mut self,
+        target: &canary::CanaryTarget,
+    ) -> Result<canary::WgetOutput, &'static str> {
+        let url = target.url();
+        let out = self
+            .cluster
+            .kubectl(&[
+                "--request-timeout=20s",
+                "exec",
+                "-n",
+                "apparatus-plugins",
+                self.plugin_pod,
+                "--",
+                "sh",
+                "-c",
+                canary::WGET_SCRIPT,
+                "m6-canary",
+                &url,
+            ])
+            .map_err(|_| "canary exec spawn failed")?;
+        Ok(canary::WgetOutput {
+            code: out.status.code(),
+            stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+        })
     }
 }
 
@@ -532,25 +686,6 @@ pub fn invoke_body(binding: Uuid, operation: &str, params: serde_json::Value) ->
         operation: operation.to_owned(),
         params,
     }
-}
-
-/// HTTP 200/404 = canary atteint (T11 échoué).
-#[must_use]
-pub fn wget_reached_target(text: &str) -> bool {
-    let lower = text.to_ascii_lowercase();
-    lower.contains("http/1.") || lower.contains(" 200 ") || lower.contains(" 404 ")
-}
-
-/// Signaux de blocage `NetworkPolicy` (sonde Kind, pas T12).
-#[must_use]
-pub fn wget_blocked_signal(text: &str) -> bool {
-    let lower = text.to_ascii_lowercase();
-    lower.contains("download timed out")
-        || lower.contains("wget: timeout")
-        || lower.contains("connection refused")
-        || lower.contains("can't connect")
-        || lower.contains("network is unreachable")
-        || lower.contains("no route to host")
 }
 
 /// Hex CRI `@sha256:` (fail-loud si pin absent).

@@ -36,9 +36,8 @@ use uuid::Uuid;
 use chain::{
     active_component_json, admit_target, app_state, assert_descriptor_shape, catalog_envelope,
     cri_hex, descriptor_from_disk, docker_build_reference_kv_http, invoke_body, passing_input,
-    snapshot, spawn_manifesto_stub, wait_tcp, wget_blocked_signal, wget_reached_target,
-    workload_csr, CountingLocator, MemoryPort, NoopKv, PortForward, TempStorePath, CANARY_LABEL,
-    CANARY_URL, CRI_BUILD_TAG, CRI_IMAGE_NAME,
+    snapshot, spawn_manifesto_stub, wait_tcp, workload_csr, CountingLocator, MemoryPort, NoopKv,
+    PortForward, RealCanary, TempStorePath, CRI_BUILD_TAG, CRI_IMAGE_NAME,
 };
 
 #[allow(dead_code)]
@@ -54,16 +53,16 @@ async fn m6_e2e_0002_0008_chain() {
     let descriptor = descriptor_from_disk();
     assert_descriptor_shape(&descriptor);
     let catalog = descriptor.as_str();
-    eprintln!("M6 catalog digest (0002): {catalog}");
 
-    let cluster = fixtures::kind::KindCluster::ensure().unwrap_or_else(|err| panic!("{err}"));
+    let cluster = fixtures::kind::KindCluster::ensure()
+        .unwrap_or_else(|_| panic!("M6 FAIL cluster preconditions"));
     cluster
         .build_and_load_platform_plugin()
-        .unwrap_or_else(|err| panic!("{err}"));
+        .unwrap_or_else(|_| panic!("M6 FAIL platform image preparation"));
     docker_build_reference_kv_http();
     let cri_image = cluster
         .load_and_pin_image(CRI_BUILD_TAG, CRI_IMAGE_NAME)
-        .unwrap_or_else(|err| panic!("{err}"));
+        .unwrap_or_else(|_| panic!("M6 FAIL reference image preparation"));
     assert!(
         cri_image.contains("@sha256:"),
         "M1/M3 pin CRI @sha256 (pas latest): {cri_image}"
@@ -81,15 +80,13 @@ async fn m6_e2e_0002_0008_chain() {
 
     let stack = fixtures::SignRegistryStack::start()
         .await
-        .unwrap_or_else(|err| panic!("M1 SignRegistryStack zot+Transit: {err}"));
+        .unwrap_or_else(|_| panic!("M6 FAIL H1 registry/Transit startup"));
     let signed = push_and_sign_envelope(
         &admit_target(&stack),
         &catalog_envelope(descriptor.clone(), cri_image.clone()),
     )
     .await
-    .unwrap_or_else(|err| {
-        panic!("M1 push_and_sign_envelope (enveloppe zot, pas un skip M5): {err}")
-    });
+    .unwrap_or_else(|_| panic!("M6 FAIL H1 real push/sign/verify"));
     assert_eq!(
         signed.catalog_digest, descriptor,
         "identité catalogue = digest descripteur 0002"
@@ -119,6 +116,11 @@ async fn m6_e2e_0002_0008_chain() {
         signed.envelope_oci_digest
     );
     assert_eq!(signed.cri_image, cri_image);
+    eprintln!(
+        "{}",
+        chain::evidence::h1(catalog, &signed.envelope_oci_digest, &signed.cri_image)
+            .unwrap_or_else(|_| panic!("M6 FAIL H1 proof schema"))
+    );
 
     let (mut input, from_disk) = passing_input();
     assert_eq!(from_disk, descriptor, "passing_input = même digest 0002");
@@ -129,11 +131,11 @@ async fn m6_e2e_0002_0008_chain() {
     let stub =
         spawn_manifesto_stub(active_component_json(project_id, component_id, &descriptor)).await;
     let source = HttpComponentsClient::new(stub.base_url, project_id, None::<String>)
-        .unwrap_or_else(|err| panic!("HttpComponentsClient hors Manifesto src: {err}"));
+        .unwrap_or_else(|_| panic!("M6 FAIL desired-state HTTP client"));
     let ready = source
         .list_ready()
         .await
-        .unwrap_or_else(|err| panic!("GET /components (5 routes, list): {err}"));
+        .unwrap_or_else(|_| panic!("M6 FAIL desired-state HTTP list"));
     assert_eq!(
         ready,
         vec![ReadyBinding {
@@ -145,28 +147,32 @@ async fn m6_e2e_0002_0008_chain() {
     );
 
     let tmp = TempStorePath::new("valid-m1");
-    let mut store = PersistentAdmissionStore::open(&tmp.path).expect("open JSON produit");
-    let record = store.admit(input).expect("admit Adm-A JSON VALID");
+    let mut store = PersistentAdmissionStore::open(&tmp.path)
+        .unwrap_or_else(|_| panic!("M6 FAIL admission store open"));
+    let record = store
+        .admit(input)
+        .unwrap_or_else(|_| panic!("M6 FAIL admission validation"));
     assert_eq!(record.status, AdmissionStatus::Valid);
     assert_eq!(record.descriptor_digest, descriptor);
     store
         .bind_cri(&descriptor, &cri_image)
-        .expect("bind_cri pin CRI JSON");
+        .unwrap_or_else(|_| panic!("M6 FAIL bind CRI"));
     store
         .bind_envelope(&descriptor, &signed.reference)
-        .expect("bind_envelope ref T6");
+        .unwrap_or_else(|_| panic!("M6 FAIL bind envelope"));
     assert!(
         would_schedule(&store, &descriptor),
         "would_schedule VALID pour le digest catalogue"
     );
     drop(store);
-    let raw = fs::read_to_string(&tmp.path)
-        .unwrap_or_else(|err| panic!("JSON disque requis (pas InMemoryAdmissionStore): {err}"));
+    let raw =
+        fs::read_to_string(&tmp.path).unwrap_or_else(|_| panic!("M6 FAIL admission disk read"));
     assert!(
         raw.contains("VALID") && raw.contains(catalog),
-        "store produit JSON VALID+digest, pas mémoire seule: {raw}"
+        "M6 FAIL admission disk VALID/digest"
     );
-    let store = PersistentAdmissionStore::open(&tmp.path).expect("reopen JSON");
+    let store = PersistentAdmissionStore::open(&tmp.path)
+        .unwrap_or_else(|_| panic!("M6 FAIL admission store reopen"));
     let got = store
         .get(&descriptor)
         .expect("GET produit VALID pour ce digest");
@@ -176,37 +182,54 @@ async fn m6_e2e_0002_0008_chain() {
 
     let reconciler = WorkloadReconciler::connect(&cluster.kubeconfig, &tmp.path)
         .await
-        .unwrap_or_else(|err| panic!("{err}"))
+        .unwrap_or_else(|_| panic!("M6 FAIL reconciler connection"))
         .with_schedule_admit_target(admit_target(&stack));
     let pod_name = pod_name_for(&descriptor);
     let cr_name = cr_name_for(&descriptor);
     reconciler
         .delete_plugin_pod(&pod_name)
         .await
-        .unwrap_or_else(|err| panic!("{err}"));
+        .unwrap_or_else(|_| panic!("M6 FAIL owned plugin pre-cleanup"));
     reconciler
         .delete_admission_record(&descriptor)
         .await
-        .unwrap_or_else(|err| panic!("{err}"));
+        .unwrap_or_else(|_| panic!("M6 FAIL owned admission pre-cleanup"));
 
     let isolation = IsolationLabels::try_new(project_id.to_string(), component_id.to_string())
-        .expect("labels isolation");
-    let outcomes = reconcile_ready(&source, &reconciler, &store)
+        .unwrap_or_else(|_| panic!("M6 FAIL isolation labels"));
+    let outcomes = Box::pin(reconcile_ready(&source, &reconciler, &store))
         .await
-        .unwrap_or_else(|err| panic!("bridge M4→M3: {err}"));
+        .unwrap_or_else(|_| panic!("M6 FAIL desired-state scheduling"));
     assert_eq!(outcomes.len(), 1, "un binding ready");
-    match &outcomes[0] {
+    let schedule_status = match &outcomes[0] {
         ReconcileOutcome::Scheduled {
             pod_name: scheduled,
-        } => assert_eq!(*scheduled, pod_name),
-        ReconcileOutcome::Refused(refuse) => {
-            panic!("schedule attendu (JSON VALID), refus={refuse}")
+        } => {
+            assert_eq!(*scheduled, pod_name);
+            "Scheduled"
         }
-    }
+        ReconcileOutcome::Refused(_) => {
+            panic!("M6 FAIL schedule refused")
+        }
+    };
+    let admission_status = if got.status == AdmissionStatus::Valid {
+        "VALID"
+    } else {
+        "invalid"
+    };
+    eprintln!(
+        "{}",
+        chain::evidence::h2(
+            got.descriptor_digest.as_str(),
+            admission_status,
+            schedule_status
+        )
+        .unwrap_or_else(|_| panic!("M6 FAIL H2 proof schema"))
+    );
     reconciler
         .wait_pod_running(&pod_name, Duration::from_secs(180))
         .await
-        .unwrap_or_else(|err| panic!("{err}"));
+        .unwrap_or_else(|_| panic!("M6 FAIL plugin Running wait"));
 
     let image = cluster
         .kubectl(&[
@@ -218,7 +241,7 @@ async fn m6_e2e_0002_0008_chain() {
             "-o",
             "jsonpath={.spec.containers[0].image}",
         ])
-        .unwrap_or_else(|err| panic!("{err}"));
+        .unwrap_or_else(|_| panic!("M6 FAIL plugin image read"));
     let image_txt = String::from_utf8_lossy(&image.stdout).trim().to_owned();
     assert_eq!(
         image_txt, cri_image,
@@ -234,15 +257,15 @@ async fn m6_e2e_0002_0008_chain() {
             PLUGINS_NAMESPACE,
             "--show-labels",
         ])
-        .unwrap_or_else(|err| panic!("{err}"));
+        .unwrap_or_else(|_| panic!("M6 FAIL plugin labels read"));
     let labels_txt = String::from_utf8_lossy(&labels.stdout);
     assert!(
         labels_txt.contains(&format!("{PROJECT_LABEL}={}", isolation.project)),
-        "label projet: {labels_txt}"
+        "M6 FAIL project isolation label"
     );
     assert!(
         labels_txt.contains(&format!("{BINDING_LABEL}={}", isolation.binding)),
-        "label binding: {labels_txt}"
+        "M6 FAIL binding isolation label"
     );
 
     let cr = cluster
@@ -255,7 +278,7 @@ async fn m6_e2e_0002_0008_chain() {
             "-o",
             "jsonpath={.spec.descriptorDigest}",
         ])
-        .unwrap_or_else(|err| panic!("CR AdmissionRecord: {err}"));
+        .unwrap_or_else(|_| panic!("M6 FAIL AdmissionRecord read"));
     let cr_digest = String::from_utf8_lossy(&cr.stdout).trim().to_owned();
     assert_eq!(
         cr_digest, catalog,
@@ -270,12 +293,13 @@ async fn m6_e2e_0002_0008_chain() {
         cluster
             .spawn_kubectl(&[
                 "port-forward",
+                "--address=127.0.0.1",
                 "-n",
                 PLUGINS_NAMESPACE,
                 &pod_name,
                 &format!("{local_port}:{PLUGIN_INVOKE_PORT}"),
             ])
-            .unwrap_or_else(|err| panic!("{err}")),
+            .unwrap_or_else(|_| panic!("M6 FAIL plugin forward startup")),
     );
     wait_tcp(&format!("127.0.0.1:{local_port}"), Duration::from_secs(30));
     let plugin_url = format!("http://127.0.0.1:{local_port}");
@@ -286,7 +310,7 @@ async fn m6_e2e_0002_0008_chain() {
 
     let identity_body =
         WorkloadIdentity::try_new(Uuid::new_v4(), component_id, "release-1".to_owned(), 1, 1)
-            .expect("identity");
+            .unwrap_or_else(|_| panic!("M6 FAIL workload identity"));
     let enroll_port = Arc::new(MemoryPort::new(snapshot(
         project_id,
         component_id,
@@ -296,8 +320,11 @@ async fn m6_e2e_0002_0008_chain() {
     )));
     let cfg = IdentityConfig::default();
     let identity = Arc::new(IdentityService::new(
-        Arc::new(PlatformInternalCa::new().expect("ca")),
-        Arc::new(DedicatedSessionSigner::from_config(&cfg).expect("signer")),
+        Arc::new(PlatformInternalCa::new().unwrap_or_else(|_| panic!("M6 FAIL internal CA"))),
+        Arc::new(
+            DedicatedSessionSigner::from_config(&cfg)
+                .unwrap_or_else(|_| panic!("M6 FAIL session signer")),
+        ),
         Arc::new(InMemoryEnrollmentRegistry::new()),
         enroll_port,
         cfg.session_ttl_minutes,
@@ -310,12 +337,18 @@ async fn m6_e2e_0002_0008_chain() {
             project_id,
         })
         .await
-        .expect("enroll");
-    let cert = lazaret_domain::VerifiedClientCertificate::from_pem(&issued.pem).expect("cert");
-    let token = identity.issue_session(&cert).await.expect("session");
+        .unwrap_or_else(|_| panic!("M6 FAIL enrollment"));
+    let cert = lazaret_domain::VerifiedClientCertificate::from_pem(&issued.pem)
+        .unwrap_or_else(|_| panic!("M6 FAIL certificate verification"));
+    let token = identity
+        .issue_session(&cert)
+        .await
+        .unwrap_or_else(|_| panic!("M6 FAIL session issuance"));
 
-    let connectors =
-        Arc::new(NamedConnectorProxy::new(ConnectorRegistry::default()).expect("connectors"));
+    let connectors = Arc::new(
+        NamedConnectorProxy::new(ConnectorRegistry::default())
+            .unwrap_or_else(|_| panic!("M6 FAIL connectors")),
+    );
     let deny_grants = Arc::new(GrantService::new(Arc::new(MemoryPort::new(snapshot(
         project_id,
         component_id,
@@ -348,7 +381,7 @@ async fn m6_e2e_0002_0008_chain() {
     ));
     let deny_server =
         axum_test::TestServer::new(create_router(app_state(), identity.clone(), deny_invoke))
-            .expect("deny server");
+            .unwrap_or_else(|_| panic!("M6 FAIL deny server startup"));
     let denied = deny_server
         .post(&format!("/invoke?project_id={project_id}"))
         .add_header("Authorization", format!("Bearer {token}"))
@@ -358,16 +391,13 @@ async fn m6_e2e_0002_0008_chain() {
             serde_json::json!({"key": "k"}),
         ))
         .await;
-    assert_eq!(denied.status_code(), 403, "{}", denied.text());
-    assert_eq!(
-        hops.load(Ordering::SeqCst),
-        0,
-        "sans consentement : pas de hop INVOKE_PATH"
-    );
+    assert_eq!(denied.status_code(), 403, "M6 FAIL denied HTTP status");
+    let denied_hops = hops.load(Ordering::SeqCst);
+    assert_eq!(denied_hops, 0, "sans consentement : pas de hop INVOKE_PATH");
 
     let allow_server =
         axum_test::TestServer::new(create_router(app_state(), identity, allow_invoke))
-            .expect("allow server");
+            .unwrap_or_else(|_| panic!("M6 FAIL allow server startup"));
     let ok = allow_server
         .post(&format!("/invoke?project_id={project_id}"))
         .add_header("Authorization", format!("Bearer {token}"))
@@ -377,63 +407,33 @@ async fn m6_e2e_0002_0008_chain() {
             serde_json::json!({"key": "k"}),
         ))
         .await;
-    assert_eq!(ok.status_code(), 200, "{}", ok.text());
+    assert_eq!(ok.status_code(), 200, "M6 FAIL allowed HTTP status");
     assert!(
         hops.load(Ordering::SeqCst) >= 1,
         "grant allow doit localiser le plugin (INVOKE_PATH)"
     );
-    let body: serde_json::Value = ok.json();
-    assert_eq!(
-        body["result"]["hostname"].as_str(),
-        Some(pod_name.as_str()),
-        "POST /invoke hostname=pod (digest {catalog}): {body}"
-    );
-
-    let wget = cluster
-        .kubectl(&[
-            "--request-timeout=20s",
-            "exec",
-            "-n",
-            PLUGINS_NAMESPACE,
-            &pod_name,
-            "--",
-            "wget",
-            "-S",
-            "-T",
-            "5",
-            "-O",
-            "-",
-            CANARY_URL,
-        ])
-        .unwrap_or_else(|err| panic!("{err}"));
-    let wget_txt = format!(
-        "{}{}",
-        String::from_utf8_lossy(&wget.stdout),
-        String::from_utf8_lossy(&wget.stderr)
-    );
-    assert!(
-        !wget_txt.to_ascii_lowercase().contains("wget: not found"),
-        "wget doit rester dans l'image CRI: {wget_txt}"
-    );
-    assert!(
-        !wget_reached_target(&wget_txt),
-        "plugin ne doit pas joindre le canary system: {wget_txt}"
-    );
-    assert!(
-        wget_blocked_signal(&wget_txt) || !wget.status.success(),
-        "T11 Kind probe (wget {CANARY_URL}), pas un scan T12 de fichiers: {wget_txt}"
-    );
-
-    let _ = cluster.kubectl(&[
-        "wait",
-        "--for=condition=Ready",
-        "pod",
-        "-n",
-        SYSTEM_NAMESPACE,
-        "-l",
-        CANARY_LABEL,
-        "--timeout=30s",
-    ]);
+    let body: serde_json::Value =
+        serde_json::from_str(&ok.text()).unwrap_or_else(|_| panic!("M6 FAIL invoke JSON"));
+    let hostname = body["result"]["hostname"]
+        .as_str()
+        .unwrap_or_else(|| panic!("M6 FAIL hostname missing"));
+    let h3 = chain::evidence::h3(
+        denied.status_code().as_u16(),
+        ok.status_code().as_u16(),
+        denied_hops,
+        hops.load(Ordering::SeqCst),
+        hostname,
+        &pod_name,
+    )
+    .unwrap_or_else(|_| panic!("M6 FAIL H3 HTTP/hops/hostname proof"));
+    eprintln!("{h3}");
+    let observation = chain::canary::observe_canary(&mut RealCanary {
+        cluster: &cluster,
+        plugin_pod: &pod_name,
+    })
+    .await
+    .unwrap_or_else(|category| panic!("M6 FAIL H4 {category}"));
+    eprintln!("{}", observation.marker());
     drop(pf);
     drop(stack);
 }
