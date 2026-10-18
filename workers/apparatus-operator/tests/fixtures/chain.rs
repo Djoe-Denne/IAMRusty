@@ -440,6 +440,17 @@ impl canary::CanaryPort for RealCanary<'_> {
         Ok(out.stdout)
     }
 
+    async fn pod(&mut self, name: &str) -> Result<Vec<u8>, &'static str> {
+        let out = self
+            .cluster
+            .kubectl(&["get", "pod", name, "-n", "apparatus-system", "-o", "json"])
+            .map_err(|_| "canary Pod API spawn failed")?;
+        if !out.status.success() {
+            return Err("canary Pod API failed");
+        }
+        Ok(out.stdout)
+    }
+
     async fn positive_http(
         &mut self,
         target: &canary::CanaryTarget,

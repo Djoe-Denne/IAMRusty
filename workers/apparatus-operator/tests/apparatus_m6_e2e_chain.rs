@@ -243,9 +243,10 @@ async fn m6_e2e_0002_0008_chain() {
         ])
         .unwrap_or_else(|_| panic!("M6 FAIL plugin image read"));
     let image_txt = String::from_utf8_lossy(&image.stdout).trim().to_owned();
-    assert_eq!(
-        image_txt, cri_image,
-        "Pod image = pin CRI admis (JSON), ns={PLUGINS_NAMESPACE}"
+    chain::evidence::assert_api_equal(
+        &image_txt,
+        &cri_image,
+        chain::evidence::ApiObservation::PluginImage,
     );
 
     let labels = cluster
@@ -280,9 +281,10 @@ async fn m6_e2e_0002_0008_chain() {
         ])
         .unwrap_or_else(|_| panic!("M6 FAIL AdmissionRecord read"));
     let cr_digest = String::from_utf8_lossy(&cr.stdout).trim().to_owned();
-    assert_eq!(
-        cr_digest, catalog,
-        "CR descriptorDigest = digest catalogue 0002"
+    chain::evidence::assert_api_equal(
+        &cr_digest,
+        catalog,
+        chain::evidence::ApiObservation::AdmissionDigest,
     );
 
     let local_port = {

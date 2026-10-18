@@ -42,6 +42,7 @@ pub struct WgetOutput {
 pub trait CanaryPort {
     async fn wait_ready(&mut self) -> Result<(), &'static str>;
     async fn endpoints(&mut self) -> Result<Vec<u8>, &'static str>;
+    async fn pod(&mut self, name: &str) -> Result<Vec<u8>, &'static str>;
     async fn positive_http(&mut self, target: &CanaryTarget) -> Result<PositiveHttp, &'static str>;
     async fn wget(&mut self, target: &CanaryTarget) -> Result<WgetOutput, &'static str>;
 }
@@ -161,6 +162,7 @@ pub async fn observe_canary(port: &mut impl CanaryPort) -> Result<CanaryObservat
         .await
         .map_err(|_| "canary endpoints read failed")?;
     let target = ready_target(&endpoints)?;
+    verify_live_pod(port, &target).await?;
     let positive = port
         .positive_http(&target)
         .await
@@ -192,6 +194,57 @@ async fn revalidate(
         .map_err(|_| "canary endpoint revalidation failed")?;
     if ready_target(&endpoints)? != *expected {
         return Err("canary endpoint changed");
+    }
+    verify_live_pod(port, expected).await
+}
+
+async fn verify_live_pod(
+    port: &mut impl CanaryPort,
+    target: &CanaryTarget,
+) -> Result<(), &'static str> {
+    let raw = port
+        .pod(&target.pod)
+        .await
+        .map_err(|_| "canary Pod API read failed")?;
+    let pod: serde_json::Value =
+        serde_json::from_slice(&raw).map_err(|_| "canary Pod API invalid")?;
+    let metadata = &pod["metadata"];
+    let uid = metadata["uid"]
+        .as_str()
+        .and_then(|uid| uuid::Uuid::parse_str(uid).ok());
+    if pod["kind"] != "Pod"
+        || metadata["name"].as_str() != Some(target.pod.as_str())
+        || metadata["namespace"] != "apparatus-system"
+        || uid != Some(target.uid)
+    {
+        return Err("canary Pod identity mismatch");
+    }
+    if !metadata["deletionTimestamp"].is_null() {
+        return Err("canary Pod terminating");
+    }
+    let ready = pod["status"]["conditions"]
+        .as_array()
+        .is_some_and(|conditions| {
+            conditions
+                .iter()
+                .any(|condition| condition["type"] == "Ready" && condition["status"] == "True")
+        });
+    if !ready {
+        return Err("canary Pod not Ready");
+    }
+    let primary_ip = pod["status"]["podIP"]
+        .as_str()
+        .and_then(|ip| ip.parse::<IpAddr>().ok());
+    let secondary_ip_matches = pod["status"]["podIPs"].as_array().is_some_and(|addresses| {
+        addresses.iter().any(|address| {
+            address["ip"]
+                .as_str()
+                .and_then(|ip| ip.parse::<IpAddr>().ok())
+                == Some(target.ip)
+        })
+    });
+    if primary_ip != Some(target.ip) && !secondary_ip_matches {
+        return Err("canary Pod IP mismatch");
     }
     Ok(())
 }

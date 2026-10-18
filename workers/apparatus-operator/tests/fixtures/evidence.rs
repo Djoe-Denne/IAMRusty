@@ -1,5 +1,29 @@
 //! PH-6 closed public proof schema. Never dump arbitrary response/config/error text.
 
+#[derive(Clone, Copy)]
+pub enum ApiObservation {
+    PluginImage,
+    AdmissionDigest,
+}
+
+impl ApiObservation {
+    pub const fn failure_category(self) -> &'static str {
+        match self {
+            Self::PluginImage => "M6 FAIL plugin image mismatch",
+            Self::AdmissionDigest => "M6 FAIL AdmissionRecord digest mismatch",
+        }
+    }
+}
+
+/// S-2: retain strict equality without reflecting either API operand in a panic.
+///
+/// # Panics
+/// On unequal values, with only a closed failure category (never `Debug` operands).
+#[track_caller]
+pub fn assert_api_equal(actual: &str, expected: &str, observation: ApiObservation) {
+    assert!(actual == expected, "{}", observation.failure_category());
+}
+
 fn digest(value: &str) -> bool {
     value.strip_prefix("sha256:").is_some_and(|hex| {
         hex.len() == 64

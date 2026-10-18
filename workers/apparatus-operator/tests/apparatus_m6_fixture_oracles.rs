@@ -435,6 +435,23 @@ fn ph2_non_unicode_present_is_not_an_absent_default() {
 }
 
 #[test]
+fn t1_ph2_name_length_63_and_64_have_distinct_safe_categories_without_effects() {
+    // Mutation: removing the 63-byte bound changes the 64-byte rejection category.
+    for (length, category) in [(63, "cible non autorisée"), (64, "cible invalide")] {
+        let raw = "a".repeat(length);
+        let mut script = Script::nominal();
+        let error = ensure_with(Some(raw.as_ref()), None, &mut script)
+            .expect_err("T-1 rejected length boundary");
+        assert_eq!(error, category, "T-1 boundary {length}");
+        assert!(script.trace.is_empty(), "T-1 no command before rejection");
+        assert!(
+            script.file_reads.is_empty(),
+            "T-1 no filesystem read before rejection"
+        );
+    }
+}
+
+#[test]
 fn ph3_ph8_nominal_default_and_trim_use_dedicated_config_and_client_probes() {
     // Mutation: bare kubectl version, user kubeconfig, reordered CNI/apply or trim
     // removal fails exact boundary argv and the exported config assertions.
