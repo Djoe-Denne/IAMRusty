@@ -90,6 +90,9 @@ Ces ADR photographient le dépôt **tel qu’il est**. `Accepted` + `Implemented
 
 ### 0200 — Tests
 
+Contrat secondaire test-side : [m6 proof hardening](../contracts/20261018-m6-proof-hardening.md)
+(garde de cible, oracles de commandes, causalité canary et captures ; aucune modification des statuts/Réalités ADR).
+
 | ID | Décision | Réalité |
 |---|---|---|
 | [0200](0200-it-infra-reelle-rustycog-testing.md) | IT via serveur réel, DB réelle, harness `rustycog-testing` | Implemented |

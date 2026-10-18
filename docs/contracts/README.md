@@ -17,5 +17,8 @@ Conventions :
 
 Contrats :
 
+- [`20261018-m6-proof-hardening.md`](20261018-m6-proof-hardening.md)
+  — contrat test-side m6 : garde de cible, oracles CLI, canary et captures ; pas de promotion ADR.
+
 - [`0412-oauth-exact-route-envoy-proof.md`](0412-oauth-exact-route-envoy-proof.md)
   — preuve E2E exact-route de l'ADR 0412. Ne promeut pas la Réalité.

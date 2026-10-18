@@ -115,6 +115,8 @@ Aucun item critique (15–25) : les pires combos (impact 5) ont une probabilité
 
 ## 5. Étape C — Registre obligation→test
 
+Contrat N1 intégré : `docs/contracts/20261018-m6-proof-hardening.md` (version resserrée par le lead après livraison architecte round 2). Les nouvelles cibles sont auto-détectées si leur inclusion reste indépendante des features ; entrées `[[test]]` non obligatoires. Si une édition manifeste est prouvée nécessaire, N3 seul la réalise après arbitrage, jamais N2. Le buffer « re-run bogus » et les accepts initiaux PH-9/10/16 sont caducs : aucune cible réelle hors allow-list ; branche autorisée absente via port uniquement. Env présente non Unicode = invalide, pas absence. Le contrat précise aussi les signaux canary non probants (y compris no-route/unreachable) et les limites du positif port-forward.
+
 ### Amendement de relecture lead — obligatoire (2026-10-18)
 
 Les prescriptions suivantes **remplacent** les niveaux et acceptations insuffisants des lignes PH-2/3/4/5/8/9/10/16 ci-dessous. Ces lignes décrivent la proposition N0 initiale, pas des acceptations du lead. Le contrat N1 doit concrétiser le port de commandes test-side nécessaire ; aucune modification de production n'est autorisée par cet amendement.
