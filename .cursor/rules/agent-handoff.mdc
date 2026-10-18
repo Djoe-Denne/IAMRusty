@@ -79,6 +79,11 @@ pour Ensemble ; les autres clients conservent leurs conventions.
 - Les écritures couplées restent chez un propriétaire ou sont séquencées par
   dépendances ; le lead contrôle le diff intégré et la validation réelle.
 
+## Reprises natives et résultats retardés (retour m6 du 2026-10-18)
+- Un message envoyé à un membre déjà terminé peut être seulement **stocké** : ce n'est ni une admission ni une exécution. Pour une vraie reprise, utiliser le mécanisme de réveil explicite du harness ; si un doute utilisateur existe, vérifier une fois statut natif/admission et un fait récent (édition/log/commande), sans polling d'attente.
+- Un candidat retardé peut décrire un STOP déjà traité ; comparer session/message/candidat et ledger avant de redonner un GO. Ne pas créer un doublon ni déclarer le dernier bail exécuté sur cette seule notification.
+- Handoff natif confirmé ≠ audit commencé : fournir ensuite un GO borné si le membre attend ; conserver profil, modèle, rôle et périmètre dans le ledger. Pas de modèle implicite ni promotion en lead.
+
 ## Rôle du handoff vs autres vecteurs
 
 | Vecteur | Rôle |

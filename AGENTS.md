@@ -30,6 +30,8 @@ L’hôte est Windows : **la compilation et les tests développement tournent na
 
 ## Cycle de vie du runtime local
 
+- Campagnes de preuves Apparatus/IT/E2E : charger aussi `.agents/skills/aiforall-test-evidence/SKILL.md` avant le préflight. Inspecter les suppressions/remplacements transitifs du harness, pas seulement sa fonction `ensure`. Le cycle local m6 Pod/AdmissionRecord est accepté (2026-10-18), mais noms/digests ne prouvent jamais la propriété ; documenter les UID remplacés, ne pas annoncer une préservation globale ni autoriser implicitement un environnement distant/production.
+
 - Charger `.agents/skills/local-runtime-lifecycle/SKILL.md` avant démarrage ou fin de Docker/Kind/WSL, E2E, test local ou IT ; canon court : `.cursor/rules/local-runtime-lifecycle.mdc` (OpenCode n'applique pas automatiquement les MDC).
 - Runtime à la demande seulement : E2E/test manuel local → `kind-aiforall-local` (défaut) ou, uniquement sur autorisation user explicite (2026-10-04) pour un scénario full profile multi-nœuds, `kind-aiforall-local-full` ; IT → fixtures testcontainers du harness existant, jamais Kind ni migration Compose. Ne pas réveiller un runtime arrêté pour du travail documentaire/statique ; aucun démarrage de Kind pour l'E2E avant la fin des corrections et de la phase IT finale (les builds Windows / pure unit gates en cours d'implémentation restent autorisés — un slot cargo, ledger propre).
 - Le parent tient l'inventaire AVANT et le bail partagé des IDs créés/redémarrés explicitement pour la tâche ; ni nom ni image ne prouvent la propriété. Les workers rendent cet inventaire sans arrêter un runtime encore requis par le parent.

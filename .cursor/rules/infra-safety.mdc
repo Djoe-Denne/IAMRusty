@@ -26,4 +26,12 @@ Ne jamais écrire sur `kind-apparatus-p4-it` ni `rancher-desktop`. Tout autre co
 
 ## Destruction en environnement de test (décision utilisateur 2026-10-04)
 
+### Harness Apparatus m6 local (acceptation du 2026-10-18)
+- Le test peut supprimer/recréer un Pod plugin et un AdmissionRecord homonymes issus d'un run antérieur : **comportement local accepté par l'utilisateur après explication**, pas preuve de préservation des objets.
+- Avant lancement, inventorier les identités/UID ciblées et lire les appels transitifs de pré-suppression/reconcile ; distinguer réutilisation, remplacement et création. Un nom dérivé du digest n'établit ni ownership ni absence d'usage concurrent.
+- Ne pas conclure « aucune mutation » sur UID stable : les specs/labels peuvent changer. Ne pas étendre cet accord à production, contextes protégés, autre projet, nouveau run ou nettoyage global sans appliquer le périmètre/GO de la mission.
+- Après run : état technique, effets observés et autorisation sont trois conclusions distinctes ; un libtest vert ne suffit pas aux deux dernières.
+
+### Autorisation historique — portée conservée
+
 Rien n'est en production : sur le périmètre ci-dessus (clusters de test du projet `aiforall-local` / `aiforall-local-full`, namespaces, containers, volumes, migrations), la destruction/réinitialisation est **autorisée sans confirmation supplémentaire** dès que la ressource est identifiée comme ressource de test de ce projet — recréation de cluster comprise. Les règles 3–8 ci-dessus ne s'appliquent plus comme interdits absolus dans ce cadre : elles restent « pas d'automatisme aveugle ». Restent exclus sauf contre-ordre explicite : `kind-apparatus-p4-it`, `rancher-desktop`, et toute ressource non identifiée ou visiblement étrangère sur le daemon partagé (autre projet) — vérification rapide avant un nettoyage massif.
