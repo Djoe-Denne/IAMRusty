@@ -47,13 +47,13 @@ pub const CANARY_URL: &str =
 /// Racine du workspace (parent de `workers/apparatus-operator/`).
 #[must_use]
 pub fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
 /// Répertoire `crates/apparatus-reference-kv/`.
 #[must_use]
 pub fn reference_kv_dir() -> PathBuf {
-    repo_root().join("apparatus-reference-kv")
+    repo_root().join("crates").join("apparatus-reference-kv")
 }
 
 /// Digest descripteur 0002 du manifeste disque.
@@ -199,6 +199,8 @@ sha2 = "0.10.8"
 semver = "1.0.23"
 axum = { version = "0.8.4", features = ["macros", "json"] }
 tokio = { version = "1.44", features = ["rt-multi-thread", "macros", "net", "signal"] }
+reqwest = { version = "0.12.0", features = ["json", "rustls-tls"] }
+rcgen = { version = "0.13.2", features = ["x509-parser"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

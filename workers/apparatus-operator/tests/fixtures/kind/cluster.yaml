@@ -1,8 +1,9 @@
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
-name: apparatus-p4-it
+name: aiforall-local
 networking:
-  # kindnet n'enforce pas NetworkPolicy. Calico piné dans KindCluster::ensure.
+  # kindnet n'enforce pas NetworkPolicy. Calico est installé par le propriétaire du
+  # cluster (deploy-j2.ps1) : KindCluster::ensure le vérifie, jamais l'installe.
   disableDefaultCNI: true
   podSubnet: "192.168.0.0/16"
 nodes:

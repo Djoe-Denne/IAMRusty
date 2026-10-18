@@ -1,20 +1,33 @@
-//! Cluster Kind `apparatus-p4-it` (IT T10). Fail-loud si Docker/Kind absents.
+//! Cluster Kind cible (défaut `aiforall-local`, override `APPARATUS_KIND_CLUSTER`).
+//! Fail-loud si Docker/Kind absents ; jamais de création ni de destruction de cluster ici.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-/// Nom du cluster Kind singleton.
-pub const CLUSTER_NAME: &str = "apparatus-p4-it";
+/// Défaut du cluster Kind cible : le cluster plateforme partagé `aiforall-local`.
+pub const DEFAULT_CLUSTER_NAME: &str = "aiforall-local";
+/// Variable d'environnement pour overrider le cluster Kind cible (D-5 : CI Linux).
+pub const CLUSTER_NAME_ENV: &str = "APPARATUS_KIND_CLUSTER";
+
+/// Nom du cluster Kind cible — point de nommage unique du fixture.
+///
+/// L'appelant peut overrider via [`CLUSTER_NAME_ENV`] ; un cluster protégé
+/// (`kind-apparatus-p4-it`, `rancher-desktop`) doit rester hors de portée.
+#[must_use]
+pub fn cluster_name() -> String {
+    std::env::var(CLUSTER_NAME_ENV)
+        .ok()
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| DEFAULT_CLUSTER_NAME.to_owned())
+}
 /// Variable d'environnement pour un binaire Kind hors PATH.
 pub const KIND_BIN_ENV: &str = "APPARATUS_KIND_BIN";
 const WINDOWS_KIND: &str = r"C:\Users\djden\bin\kind.exe";
 const IMAGE_TAG: &str = "apparatus-p4-platform-plugin:t10";
 /// Calico piné (Kind standard `manifests/calico.yaml`, pas `latest`).
 const CALICO_VERSION: &str = "v3.29.7";
-const CALICO_MANIFEST_URL: &str =
-    "https://raw.githubusercontent.com/projectcalico/calico/v3.29.7/manifests/calico.yaml";
 
 /// Cluster Kind prêt : kubeconfig exporté, manifests operator appliqués.
 pub struct KindCluster {
@@ -24,14 +37,17 @@ pub struct KindCluster {
 }
 
 impl KindCluster {
-    /// Réutilise le cluster s'il existe, sinon le crée. Fail-loud Docker/Kind.
-    /// Installe Calico piné et attend Ready **avant** d'appliquer les `NetworkPolicy`.
-    /// Recrée le cluster si kindnet est détecté (interdit pour T11).
+    /// Réutilise le cluster s'il est conforme, sinon échoue loud. **Jamais destructif.**
+    /// Flux (D-2) : Docker → binaire kind → cluster présent (sinon `Err` explicite :
+    /// démarrer le runtime est une opération runtime, pas un effet de test) → kubeconfig
+    /// exporté (nom dérivé du point unique) → API up → kindnet interdit → Calico présent
+    /// (sinon `Err` : jamais d'installation Calico depuis le test) → CNI Ready → manifests.
     ///
     /// # Errors
     ///
-    /// Docker ou Kind injoignable, création Kind en échec, kubectl absent,
-    /// Calico non Ready, ou apply des manifests operator en échec.
+    /// Docker ou Kind injoignable, cluster Kind cible absent ou non conforme
+    /// (API down, kindnet détecté, calico-node absent, CNI non Ready), kubectl absent,
+    /// ou apply des manifests operator en échec.
     pub fn ensure() -> Result<Self, Box<dyn std::error::Error>> {
         super::assert_docker_running().map_err(|err| {
             let boxed: Box<dyn std::error::Error> =
@@ -39,32 +55,27 @@ impl KindCluster {
             boxed
         })?;
         let kind_bin = resolve_kind_bin()?;
-        if cluster_exists(&kind_bin)? {
-            let kubeconfig = export_kubeconfig(&kind_bin)?;
-            let probe = Self {
-                kind_bin: kind_bin.clone(),
-                kubeconfig,
-            };
-            let reusable = probe.wait_api_server().is_ok() && !probe.has_kindnet().unwrap_or(true);
-            if !reusable {
-                probe.delete_cluster()?;
-                create_cluster(&kind_bin)?;
-            }
-        } else {
-            create_cluster(&kind_bin)?;
+        let name = cluster_name();
+        if !cluster_exists(&kind_bin, &name)? {
+            return Err(format!(
+                "Docker/Kind must be running: cluster Kind `{name}` absent — démarrer le \
+                 runtime est une opération runtime, pas un effet de test"
+            )
+            .into());
         }
-        let kubeconfig = export_kubeconfig(&kind_bin)?;
+        let kubeconfig = export_kubeconfig(&kind_bin, &name)?;
         let cluster = Self {
             kind_bin,
             kubeconfig,
         };
         cluster.wait_api_server()?;
-        cluster.install_calico_and_wait()?;
+        cluster.assert_cni_ready()?;
         cluster.apply_operator_manifests()?;
         Ok(cluster)
     }
 
-    /// Applique `workers/apparatus-operator/k8s/*.yaml` et attend la CRD.
+    /// Applique `workers/apparatus-operator/k8s/*.yaml` en server-side
+    /// (`--field-manager=apparatus-it-fixtures`, D-6) et attend la CRD.
     ///
     /// # Errors
     ///
@@ -72,7 +83,13 @@ impl KindCluster {
     pub fn apply_operator_manifests(&self) -> Result<(), Box<dyn std::error::Error>> {
         let k8s = Path::new(env!("CARGO_MANIFEST_DIR")).join("k8s");
         let k8s_s = k8s.to_string_lossy().into_owned();
-        let apply = self.kubectl(&["apply", "-f", k8s_s.as_str()])?;
+        let apply = self.kubectl(&[
+            "apply",
+            "--server-side",
+            "--field-manager=apparatus-it-fixtures",
+            "-f",
+            k8s_s.as_str(),
+        ])?;
         if !apply.status.success() {
             return Err(cmd_err(
                 "kubectl apply operator manifests",
@@ -90,21 +107,6 @@ impl KindCluster {
             return Err(cmd_err(
                 "kubectl wait CRD AdmissionRecord",
                 &wait,
-                "Docker/Kind must be running",
-            ));
-        }
-        Ok(())
-    }
-
-    fn delete_cluster(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let out = Command::new(&self.kind_bin)
-            .args(["delete", "cluster", "--name", CLUSTER_NAME])
-            .output()
-            .map_err(|err| format!("Docker/Kind must be running (kind delete: {err})"))?;
-        if !out.status.success() {
-            return Err(cmd_err(
-                "kind delete cluster",
-                &out,
                 "Docker/Kind must be running",
             ));
         }
@@ -177,40 +179,10 @@ impl KindCluster {
         Ok(())
     }
 
-    fn set_calico_kind_env(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let deadline = Instant::now() + Duration::from_secs(90);
-        loop {
-            if self.has_calico_node()? {
-                let out = self.kubectl(&[
-                    "-n",
-                    "kube-system",
-                    "set",
-                    "env",
-                    "daemonset/calico-node",
-                    "FELIX_IGNORELOOSERPF=true",
-                ])?;
-                if out.status.success() {
-                    return Ok(());
-                }
-                if Instant::now() > deadline {
-                    return Err(cmd_err(
-                        "kubectl set env calico-node FELIX_IGNORELOOSERPF",
-                        &out,
-                        "Docker/Kind must be running",
-                    ));
-                }
-            } else if Instant::now() > deadline {
-                return Err(format!(
-                    "Docker/Kind must be running: calico-node DS absent after apply {CALICO_VERSION}"
-                )
-                .into());
-            }
-            std::thread::sleep(Duration::from_secs(2));
-        }
-    }
-
-    /// Installe Calico piné et attend Ready **avant** `k8s/04-networkpolicy.yaml`.
-    fn install_calico_and_wait(&self) -> Result<(), Box<dyn std::error::Error>> {
+    /// Vérifie la conformité CNI du cluster partagé, puis attend Ready **avant**
+    /// `k8s/04-networkpolicy.yaml`. **Jamais d'installation** : Calico appartient au
+    /// propriétaire du cluster (`deploy-j2.ps1`) ; kindnet est interdit (preuve T11).
+    fn assert_cni_ready(&self) -> Result<(), Box<dyn std::error::Error>> {
         if self.has_kindnet()? {
             return Err(
                 "Docker/Kind must be running: kindnet is forbidden for T11 NetworkPolicy proof"
@@ -218,22 +190,21 @@ impl KindCluster {
             );
         }
         if !self.has_calico_node()? {
-            eprintln!("apparatus-p4-it: apply Calico {CALICO_VERSION} ({CALICO_MANIFEST_URL})");
-            let apply = self.kubectl(&["apply", "-f", CALICO_MANIFEST_URL])?;
-            if !apply.status.success() {
-                return Err(cmd_err(
-                    "kubectl apply Calico",
-                    &apply,
-                    "Docker/Kind must be running",
-                ));
-            }
-            self.set_calico_kind_env()?;
+            return Err(format!(
+                "Docker/Kind must be running: calico-node absent sur `{}` — l'installation \
+                 Calico est une opération runtime (deploy-j2.ps1), pas un effet de test",
+                cluster_name()
+            )
+            .into());
         }
         self.wait_cni_ready()
     }
 
     fn wait_cni_ready(&self) -> Result<(), Box<dyn std::error::Error>> {
-        eprintln!("apparatus-p4-it: wait Calico + CoreDNS Ready ({CALICO_VERSION}, timeout 600s)");
+        eprintln!(
+            "{}: wait Calico + CoreDNS Ready ({CALICO_VERSION}, timeout 600s)",
+            cluster_name()
+        );
         self.wait_kubectl(
             &[
                 "rollout",
@@ -333,8 +304,9 @@ impl KindCluster {
                 "Docker/Kind must be running",
             ));
         }
+        let name = cluster_name();
         let load = Command::new(&self.kind_bin)
-            .args(["load", "docker-image", IMAGE_TAG, "--name", CLUSTER_NAME])
+            .args(["load", "docker-image", IMAGE_TAG, "--name", name.as_str()])
             .output()
             .map_err(|err| format!("Docker/Kind must be running (kind load: {err})"))?;
         if !load.status.success() {
@@ -344,7 +316,7 @@ impl KindCluster {
                 "Docker/Kind must be running",
             ));
         }
-        cri_pin_from_node(CLUSTER_NAME)
+        cri_pin_from_node(&name)
     }
 
     /// Preuve HTTP depuis un Pod Kind vers `url` (zot `/v2/` via `host.docker.internal`).
@@ -453,8 +425,9 @@ impl KindCluster {
         tag: &str,
         pin_name: &str,
     ) -> Result<String, Box<dyn std::error::Error>> {
+        let name = cluster_name();
         let load = Command::new(&self.kind_bin)
-            .args(["load", "docker-image", tag, "--name", CLUSTER_NAME])
+            .args(["load", "docker-image", tag, "--name", name.as_str()])
             .output()
             .map_err(|err| format!("Docker/Kind must be running (kind load: {err})"))?;
         if !load.status.success() {
@@ -464,7 +437,7 @@ impl KindCluster {
                 "Docker/Kind must be running",
             ));
         }
-        cri_pin_from_loaded_tag(CLUSTER_NAME, tag, pin_name)
+        cri_pin_from_loaded_tag(&name, tag, pin_name)
     }
 
     /// Mirror HTTP `host.docker.internal:{port}` dans containerd du nœud Kind.
@@ -473,7 +446,7 @@ impl KindCluster {
     ///
     /// Écriture `certs.d` ou redémarrage containerd en échec.
     pub fn ensure_zot_http_mirror(&self, port: u16) -> Result<(), Box<dyn std::error::Error>> {
-        let node = format!("{CLUSTER_NAME}-control-plane");
+        let node = format!("{}-control-plane", cluster_name());
         let hosts_dir = format!("/etc/containerd/certs.d/host.docker.internal:{port}");
         let hosts_file = format!("{hosts_dir}/hosts.toml");
         let contents = format!(
@@ -524,7 +497,7 @@ impl KindCluster {
     ///
     /// Image déjà présente (faux vert) ou `crictl` injoignable.
     pub fn assert_registry_cri_absent(cri_image: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let node = format!("{CLUSTER_NAME}-control-plane");
+        let node = format!("{}-control-plane", cluster_name());
         let out = node_exec(&node, &["crictl", "inspecti", cri_image])?;
         if out.status.success() {
             return Err(format!(
@@ -1077,7 +1050,7 @@ fn bin_ok(name: &str) -> bool {
         .is_ok_and(|out| out.status.success())
 }
 
-fn cluster_exists(kind_bin: &Path) -> Result<bool, Box<dyn std::error::Error>> {
+fn cluster_exists(kind_bin: &Path, name: &str) -> Result<bool, Box<dyn std::error::Error>> {
     let out = Command::new(kind_bin)
         .args(["get", "clusters"])
         .output()
@@ -1090,36 +1063,13 @@ fn cluster_exists(kind_bin: &Path) -> Result<bool, Box<dyn std::error::Error>> {
         ));
     }
     let names = String::from_utf8_lossy(&out.stdout);
-    Ok(names.lines().any(|line| line.trim() == CLUSTER_NAME))
+    Ok(names.lines().any(|line| line.trim() == name))
 }
 
-fn create_cluster(kind_bin: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let config = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/kind/cluster.yaml");
+fn export_kubeconfig(kind_bin: &Path, name: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let path = std::env::temp_dir().join(format!("{name}.kubeconfig"));
     let out = Command::new(kind_bin)
-        .args(["create", "cluster", "--name", CLUSTER_NAME, "--config"])
-        .arg(&config)
-        .output()
-        .map_err(|err| format!("Docker/Kind must be running (kind create: {err})"))?;
-    if out.status.success() {
-        return Ok(());
-    }
-    Err(cmd_err(
-        "kind create cluster",
-        &out,
-        "Docker/Kind must be running",
-    ))
-}
-
-fn export_kubeconfig(kind_bin: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let path = std::env::temp_dir().join("apparatus-p4-it.kubeconfig");
-    let out = Command::new(kind_bin)
-        .args([
-            "export",
-            "kubeconfig",
-            "--name",
-            CLUSTER_NAME,
-            "--kubeconfig",
-        ])
+        .args(["export", "kubeconfig", "--name", name, "--kubeconfig"])
         .arg(&path)
         .output()
         .map_err(|err| format!("Docker/Kind must be running (kind export kubeconfig: {err})"))?;
