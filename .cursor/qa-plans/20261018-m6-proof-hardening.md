@@ -115,7 +115,15 @@ Aucun item critique (15–25) : les pires combos (impact 5) ont une probabilité
 
 ## 5. Étape C — Registre obligation→test
 
+### Dette qualité préexistante — décision utilisateur explicite
+
+L'utilisateur choisit **« Différer la dette héritée »** après le Clippy strict m6 `--features admit,controller --test apparatus_m6_e2e_chain -- -D warnings` en échec sur 27 diagnostics dans `src` inchangé, avant analyse du test. Owner : lead/utilisateur pour futur lot qualité production distinct. Impact : **gate stricte m6 reste ROUGE**, aucune attestation de qualité stricte de cette cible ; oracles test-side stricts déjà verts ne prouvent pas la cible m6 stricte. Raison : corrections production hors périmètre de la campagne et sans régression fonctionnelle démontrée par ces diagnostics. Réouverture : lot qualité explicite, modification des sources concernées, ou besoin d'une gate stricte CI/pre-release qui exige leur correction.
+
+Poursuite autorisée sans masquer les diagnostics : recueillir Clippy m6 non strict (pas de `-A`, `allow` ou `cap-lints`), identifier toutes les provenances et traiter les nouveaux diagnostics test-side ; compiler/lister le diff final, puis revues/IT/E2E et captures réelles. Cette collecte non stricte **ne remplace pas** un succès strict. L'exception utilisateur sur cette dette connue n'autorise aucune autre réduction de gate ni un correctif de production automatique.
+
 Contrat N1 intégré : `docs/contracts/20261018-m6-proof-hardening.md` (version resserrée par le lead après livraison architecte round 2). Les nouvelles cibles sont auto-détectées si leur inclusion reste indépendante des features ; entrées `[[test]]` non obligatoires. Si une édition manifeste est prouvée nécessaire, N3 seul la réalise après arbitrage, jamais N2. Le buffer « re-run bogus » et les accepts initiaux PH-9/10/16 sont caducs : aucune cible réelle hors allow-list ; branche autorisée absente via port uniquement. Env présente non Unicode = invalide, pas absence. Le contrat précise aussi les signaux canary non probants (y compris no-route/unreachable) et les limites du positif port-forward.
+
+Précision PH-1 approuvée pendant N2 : comparer la **configuration effective**, pas une égalité textuelle aveugle de toutes les dépendances. Découvrir les sept deps workspace héritées par reference-kv ; vérifier versions/sources/options racine et union des features requises racine + déclaration crate. `tokio/net` est explicitement demandé par `crates/apparatus-reference-kv/Cargo.toml:23` et doit rester présent malgré son absence dans les features racine (`Cargo.toml:48`). Définitions reqwest/rcgen staging exactes racine ; aucun élargissement arbitraire des autres features. Ne pas recopier `workspace=true`/`optional=true` de la déclaration crate dans les définitions workspace staging. Oracles nominaux et 21 mutations de retrait (7 deps × 3 producteurs), plus mutations versions/options/features requises, dont retrait `tokio/net` ; diagnostic discriminant. Cette précision remplace « verbatim pour toute dep » de la ligne initiale PH-1.
 
 ### Amendement de relecture lead — obligatoire (2026-10-18)
 

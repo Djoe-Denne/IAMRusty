@@ -87,6 +87,8 @@ Même orchestration canary partagée entre m6 réel et les tests négatifs scrip
 
 Le positif via port-forward prouve la vie du canary et l'accès par le tunnel API/Pod ; **pas** kube-proxy, le dataplane Service, le DNS du plugin ou la causalité exclusive NetworkPolicy. Readiness + endpoints + positif ne dispensent donc pas de classifier le négatif.
 
+Précision d'implémentation : positif et négatif visent exactement le **même endpoint Pod/IP/port prêt et observé** ; un forward Service choisissant potentiellement un autre Pod ne suffit pas. Une IP numérique issue de l'API et validée peut retirer l'ambiguïté DNS ; revalider la cible si elle a changé. HTTP 404 ne vaut positif que s'il est la réponse attendue explicitement vérifiée du canary httpd vide sur ce Pod. Vérifier le type de wget réellement embarqué : les codes/diagnostics GNU et BusyBox ne sont pas interchangeables. Si l'oracle utilise GNU, locale C limitée à la commande, timeout/tries bornés, marqueurs exec début/fin/code stricts ; le code réseau 4 seul ne prouve rien. Toute réponse HTTP (y compris 404) dans le négatif prouve une cible atteinte et doit faire échouer l'attestation. Toute ambiguïté sur l'endpoint, le processus exec ou le type d'outil reste un échec non probant.
+
 **Précision lead par rapport au round 2** : `connection refused`, `can't connect`, `network is unreachable`, `no route to host`, échec DNS, wget absent, échec exec et timeout du transport kubectl sont **non probants**. Ne jamais les rebaptiser DROP prouvé. Un signal timeout wget explicitement identifié, avec cible vivante, exec valide et préconditions prouvées, peut attester l'observation bornée de blocage ; pas une certification globale de NetworkPolicy ou de tout le mesh. Si la sortie ne permet pas cette distinction, fail-loud « preuve non probante » ; pas de succès par défaut.
 
 Négatifs test-side minimaux : readiness échouée, endpoints vides, positif échoué, cible atteinte, DNS/outillage/exec/routage non probants. Chacun bloque le succès et son marqueur ; les trois premiers empêchent même le wget. Le nominal partagé seul peut émettre le marqueur après toutes les préconditions et le classement accepté. Helpers de signal dans un module test-side neutre réutilisé par réel et oracle, sans duplication du flux m6.
@@ -111,6 +113,8 @@ Les erreurs et panics elles-mêmes doivent respecter ce protocole ; l'obligation
 - Worktrees isolés disjoints ; un seul Cargo Windows à la fois, slot tenu par lead. `CARGO_TARGET_DIR=E:\cargo-target\AIForAll` env-only et chemin effectif prouvé. Pas de modification config Cargo ou gitlink.
 - Compilation/unités d'abord, IT finales ensuite, E2E m6 après ces gates et accord runtime explicite pour cette mission. Aucun run bonus historique ; registres contemporains et cleanup des seules ressources possédées.
 - Pas de contournement du hook de commit : livraison documentaire worktree bloquée os-206 intégrable dans le chemin canonique avec commit normal ; aucune réparation globale de hook/harness implicite.
+
+Exception utilisateur explicite (2026-10-18) : **un unique commit de livraison N3 avec `--no-verify`** est autorisé, après les vérifications ciblées, pour les huit fichiers test/fixture seulement et uniquement à cause de l'erreur Windows os206 du hook dans le chemin long. Aucun hook/config global modifié. Cette exception ne rend pas verte la dette Clippy m6 différée. Le lead vérifie empreintes/diff, intègre la livraison et fait le commit canonique avec le hook normal ; aucun autre contournement n'est autorisé.
 
 ## 8. Portes et portée
 
