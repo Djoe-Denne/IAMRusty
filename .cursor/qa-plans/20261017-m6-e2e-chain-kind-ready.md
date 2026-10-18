@@ -355,6 +355,19 @@ Ancres spot-vérifiées par le lead avant commit : `chain.rs:50` (un seul `..`) 
    prod logic). **Durcissement tracé hors lot** : `bin_ok("kubectl")` devrait sonder
    `kubectl version --client` (faux « not found » possible) — petit lot fixture futur, noté
    pour P6.
+10. **E-14 (P8-min suite, tranché lead après ROUGE run3 + vérification ancres)** :
+    run3 = révert :16 validé en runtime (COPY apparatus.toml OK + apt wget OK) mais échec au
+    build stage-1 : le **mini-workspace embarqué** (`chain.rs:181-216`, staging test-side) est
+    périmé — `crates/apparatus-reference-kv/Cargo.toml:11,24-25` hérite
+    `reqwest`/`rcgen = { workspace = true, optional = true }` (feature http), **absents** du
+    `[workspace.dependencies]` du staging (ne contient que serde/serde_json/toml/thiserror/
+    uuid/sha2/semver/axum/tokio) → parse fail. Le staging n'a JAMAIS compilé (la dérive était
+    masquée par le panic chain.rs à 0 s pré-fix). Correctif = **2 entrées verbatim** du
+    manifest racine (`Cargo.toml:88` reqwest 0.12.0 json/rustls-tls ; `:142` rcgen 0.13.2
+    x509-parser) ajoutées au `[workspace.dependencies]` du staging — zéro invention, zéro
+    autre changement. Décision : tranchable (mécanique, miroir, test-side) — pas une
+    contradiction structurelle non tranchable. Budget worker : auto-repair **#2 et dernier** ;
+    toute cause nouvelle après = STOP définitif + arbitrage user.
 
 ## 10. Journal des mises à jour
 
@@ -362,4 +375,5 @@ Ancres spot-vérifiées par le lead avant commit : `chain.rs:50` (un seul `..`) 
 - 2026-10-18 : création du plan (P4-(2), base `dad816e`, pin `41a86dba`, worktree false). Faits §1 vérifiés par lecture (fixture kind `mod.rs`/`cluster.yaml`, 17 occurrences grep, m6 intégral, chain.rs intégral, Cargo.toml, manifests k8s/ 6 fichiers, overlay J2 3 fichiers collés, glob testdata/crates) + git (HEAD, porcelain, gitlink) ; AUCUN runtime/cargo/kubectl touché. Matrice R-01…R-09 (critiques R-01/R-05, haut R-02), modes pour ≥10, registre E-1…E-12 tous GAP, design D-1…D-7, commandes §6.2, preuves par hop §6.3, inventaire §6.4, budget §8, barrières §7. Écriture via MCP context-mode (ctx_execute python fs) — aucune écriture shell.
 - 2026-10-18 (lead) : ancres spot-vérifiées (§9bis). GO P5 enregistré ; D-6 adopté (server-side, field-manager dédié, inventaire labels obligatoire) ; négatif bogus-cluster explicité comme étape P5 obligatoire ; résidus post-run laissés + delta tracé ; m5 --list hors lot ; worktree P5 = true ; ordre P5 figé. Plan commité par le lead avant publication P5.
 - 2026-10-18 (lead, après ROUGE run2) : §9bis.8/.9 — GO in-worktree pool-14 pour le révert P8-min de `Dockerfile.http:16` (régression f060d47, 3 consommateurs) ; re-run réel ensuite ; E-13 ajouté ; durcissement `bin_ok` noté hors lot pour P6.
+- 2026-10-18 (lead, après ROUGE run3) : §9bis.10 — E-14 tranché : staging chain.rs périmé (reqwest/rcgen absents du workspace.dependencies embarqué, hérités par la crate), 2 entrées verbatim racine (reqwest 0.12.0 json/rustls-tls, rcgen 0.13.2 x509-parser). Ancres vérifiées lead (chain.rs:192-201, crate Cargo.toml:11/24-25, root Cargo.toml:88/142). Auto-repair #2 et dernier du worker.
 
