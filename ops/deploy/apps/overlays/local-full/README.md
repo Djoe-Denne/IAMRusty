@@ -1,14 +1,18 @@
-# Local-full — source profile, parent execution only
+# Local-full — source profile and operator entrypoint
 
 Phase 2 implements an isolated **local** lab, not cloud/HA parity. No runtime,
 build, cargo, IT or E2E was executed by D. All commands below except `render`
-are for the parent **after integration and with the shared runtime lease**.
+are for the responsible operator **after integration, final IT, explicit runtime
+GO and with the session's runtime lease**. Start with the complete
+[operator procedure](../../../README.md): checked tool/build commands, fresh
+private outputs, initial leasev2, bootstrap, image pinning and separate validation.
 Legacy mesh/gold/J3 overlays remain separate; their host/hybrid limits remain.
 
 ## Dedicated cluster decision — explicit user authorization 2026-10-04
 
-**S-11 supersedes the earlier lease format below:** see
-[`cluster-anchor wiring`](../../../../../.cursor/review-briefings/20261004-package-d-cluster-anchor-wiring.md).
+**S-11 requires leasev2:** the public [operator procedure](../../../README.md)
+replaces the earlier parent-only lease instructions. No private review/campaign
+file is an execution prerequisite.
 **User decision 2026-10-04:** the native Win32 mechanism is removed. Operational
 helpers use the platform-neutral guard in `local_full_target.py`: fixed kubeconfig,
 closed context allowlist, exact control-plane endpoint before any kubectl GET,
@@ -31,7 +35,7 @@ these two cluster/context names, defaulting to legacy; full bootstrap selects th
 new name explicitly and rejects an old-context lease.
 
 Kind config: one control-plane + two workers, unchanged pinned node image;
-API loopback `127.0.0.1`, random port (`apiServerPort: 0`), never old 60787.
+API loopback `127.0.0.1`, random port (`apiServerPort: 0`), never a copied port.
 HTTP mapping **127.0.0.1:18080 → control-plane:30080 → Envoy Service:10000**.
 Only local-full patches the Service NodePort; legacy service/config unchanged.
 No 18443 TLS edge listener is invented (Envoy's current ingress listener is HTTP).
@@ -40,8 +44,13 @@ Future create first binds/releases loopback 18080; busy => STOP, never kill its 
 The API endpoint may be inventoried later with explicit full-context `config view`
 metadata; full `inventory` lists workloads/PVCs/Jobs/policies without Secret values.
 
-Before create, parent lease must specify `context`, `cluster`, `nodeContainerIds`
-(empty for an absent cluster pending actual inventory). Bootstrap records BEFORE
+Before create, the operator writes a new JSON with `version=2`, the full-only
+`context`/`cluster` pair, a lowercase 32-hex `task_id`,
+`anchor_state=pending_creation`, empty `nodeContainerIds` and the canonical
+`kubeconfig_path` under `approved_root/cluster-anchor-<task_id>/kubeconfig.yaml`.
+See the operator procedure for exclusive creation and private Windows ACLs.
+The anchor directory/kubeconfig must not exist; no `creation`, UID, ID, mapping,
+endpoint or hash is prefilled. Bootstrap records BEFORE
 full container IDs and creation attempt, then exact post-create new IDs/state by
 action delta, including partial failure. Labels/names alone never prove ownership.
 `resourceStates` and created-resource entries carry the full context/cluster.
@@ -67,7 +76,7 @@ nodes => STOP without deletion/replacement. No claim the new cluster exists yet.
   migrations. Lazaret remains one replica: its existing enrollment state is
   process-local. Single-node PostgreSQL/registry storage is persistence, not HA.
 
-## Offline render and parent entrypoint
+## Offline render and operator entrypoint
 
 Prerequisites: existing `kubectl` (built-in Kustomize), Python + PyYAML. Render
 never calls the API or Docker and prints only kind/name metadata:
@@ -81,6 +90,8 @@ python -B ops/deploy/render-local-full.py --output-dir <NEW-empty-directory>
 Output files include **known local-development** credentials/config; do not
 publish them as logs. Prepared private certificate inputs are never printed.
 `LoadRestrictionsNone` reads only trusted repository sources; no remote bases.
+The renderer's `offline-no-kubeconfig` path is deliberately nonexistent; do not
+create or repair it. Render success is not authorization or live runtime proof.
 
 The parent builds Linux artifacts once in Docker using the existing Dockerfiles;
 sentinel's runtime wrapper is `ops/deploy/build/Dockerfile.worker` (default binary
@@ -88,12 +99,17 @@ sentinel's runtime wrapper is `ops/deploy/build/Dockerfile.worker` (default bina
 existing Dockerfile. Nothing in this entrypoint implicitly builds/pulls/starts DD.
 
 ```powershell
-python -B ops/deploy/local-full-images.py --lease <parent.json> --output <NEW-images.json>
 # prepare-local-full-certs.sh requires openssl + explicit NEW LOCAL_FULL_CERT_DIR;
-# run only under the parent lease, not as an implicit deployment action.
-python -B ops/deploy/deploy-local-full.py deploy --lease <parent.json> --image-manifest <images.json> --cert-directory <prepared-certs>
-python -B ops/deploy/deploy-local-full.py inventory --lease <parent.json>
+# prepare certificates and render before the fresh initial lease, as in the guide.
+powershell.exe -NoProfile -File ops/deploy/bootstrap-local-full.ps1 -LeasePath <lease.json> -AfterFinalIT
+python -B ops/deploy/local-full-images.py --lease <lease.json> --output <NEW-images.json>
+python -B ops/deploy/deploy-local-full.py deploy --lease <lease.json> --image-manifest <images.json> --cert-directory <prepared-certs> --after-final-it
+python -B ops/deploy/deploy-local-full.py inventory --lease <lease.json>
 ```
+
+This is a command summary, not a standalone script (`<...>` denotes explicit
+operator inputs). The main guide checks every native exit code. Image pinning
+requires an already anchored lease; deploy's bootstrap only rechecks that anchor.
 
 Image manifest maps all nine exact source image references to full
 `:sha256-<64hex image ID>` tags, validated against Docker before Kind import.

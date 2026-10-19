@@ -29,7 +29,7 @@ Job `invoke-probe-j3` dans `aiforall-plugins` : **POST** `http://lazaret.aiforal
 
 Gold path Kind (ADR-0605) : `just prove-gold` — signup → POST components (catalogue pin digest) → T5 consents → VALID Adm-A → Pod+Service `plugin-{32hex}` → enroll workload → session mTLS → `kv.get` **200** in-cluster. Curl hôte `:8080` n'est **pas** la preuve.
 
-`LAZARET_PLUGIN_HOP__ENDPOINT_URL` et `reference-kv-plugin-service.yaml` = **dette** (hors kustomization nominale). Formule : `LAZARET_PLUGIN_HOP__USE_DNS_FORMULA=true`. Job `lazaret-enroll-reference-kv` = secours, pas l'étape G4.
+`LAZARET_PLUGIN_HOP__ENDPOINT_URL` et `reference-kv-plugin-service.yaml` = **dette** (hors kustomization nominale). Formule : `LAZARET_PLUGIN_HOP__USE_DNS_FORMULA=true`. Job `lazaret-enroll-reference-kv` = secours, pas l'étape G4. L'asset [reference-kv-plugin-service.yaml](../../../../../docs/history/ops/kind-demo-monolith/reference-kv-plugin-service.yaml) est une archive historique (dépôt : `docs/history/ops/kind-demo-monolith/`) ; `enroll-job.yaml` reste conservé à son chemin d'origine (consommé par `schedule-reference-kv.ps1:423`).
 
 En prod, remplacer le htpasswd zot par le robot du registre cible ; les env `APPARATUS_REGISTRY_*` restent les mêmes.
 

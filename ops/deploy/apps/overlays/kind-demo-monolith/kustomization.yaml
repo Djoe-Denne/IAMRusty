@@ -10,7 +10,8 @@ resources:
   - allow-oodhive-compose-egress-np.yaml
   - allow-oodhive-plugin-hop-egress-np.yaml
   - apparatus-plugins-np.yaml
-  # reference-kv-plugin-service.yaml = dette (URL manuelle). Nominal 0605 = Service operator nom=Pod.
+  # reference-kv-plugin-service.yaml = dette (URL manuelle, désormais archivée
+  # sous docs/history/ops/kind-demo-monolith/). Nominal 0605 = Service operator nom=Pod.
 patches:
   - path: patch-lazaret-scale.yaml
   - path: patch-lazaret-service.yaml

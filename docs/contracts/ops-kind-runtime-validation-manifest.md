@@ -325,6 +325,18 @@ Preuve commune **SOURCE**, jamais LIVE : audit A (graphe E1–E7), B (drivers/C1
 - deploy/apps/overlays/kind-demo-monolith/reference-kv-plugin-service.yaml
 - deploy/apps/overlays/kind-demo-monolith/seed-reference-kv-grants.sql
 
+> **Amendement 2026-10-19 (exécution I-références)** : la découverte
+> `schedule-reference-kv.ps1:423` (application littérale d'`enroll-job.yaml`,
+> consommateur script manqué par l'audit C) retire **`enroll-job.yaml`** du lot
+> archivé — un consommateur vivant est une capacité à préserver (précondition
+> de destination « confirmation capacité/références » non satisfaite pour ce
+> fichier). Liste archivée effective : **2/3** (`reference-kv-plugin-service.yaml`,
+> `seed-reference-kv-grants.sql` → `docs/history/ops/kind-demo-monolith/`),
+> revalidée par ≥2 recherches indépendantes chacune ; `enroll-job.yaml` reste
+> à son chemin d'origine. Découverte : pool-10 ; arbitrage : lead ; accord
+> utilisateur du 2026-10-19 portait sur la liste 3/3 — variation **restrictive**
+> (un fichier de plus conservé), notifiée.
+
 ## G1 — Bytecode Python suivi (7)
 
 - Rôle cache interpréteur ; producteur CPython3.13 lors d’anciens imports ; consommateurs Python possibles mais appels actuels python -B et aucune référence texte selon A/C.
