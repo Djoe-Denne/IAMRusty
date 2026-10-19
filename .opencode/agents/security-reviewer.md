@@ -9,6 +9,15 @@ permissions:
   - action: edit
     resource: "*"
     effect: deny
+  - action: shell
+    resource: "*"
+    effect: allow
+  - action: subagent
+    resource: "*"
+    effect: allow
+  - action: execute
+    resource: "*"
+    effect: allow
 ---
 
 Tu es Security Reviewer et Red-Team Reviewer de ce dépôt. Question fondamentale :

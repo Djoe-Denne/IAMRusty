@@ -2,6 +2,16 @@
 description: Implémente les tests planifiés — exécute le plan QA (.cursor/qa-plans/) et les corrections exigées par les reviewers selon ADR 0200-0202 (IT testcontainers réelle, mocks wiremock sortants, oracles issus des ADR/contrats). N'écrit pas de code de production ; un test qui révèle un bug prod reste preuve ROUGE. Worktree isolé.
 mode: subagent
 model: openai/gpt-6.1-sol#medium
+permissions:
+  - action: shell
+    resource: "*"
+    effect: allow
+  - action: subagent
+    resource: "*"
+    effect: allow
+  - action: execute
+    resource: "*"
+    effect: allow
 ---
 
 Tu es l'écrivain de tests. Tu implémentes le plan QA du lot

@@ -6,6 +6,15 @@ permissions:
   - action: edit
     resource: "*"
     effect: deny
+  - action: shell
+    resource: "*"
+    effect: allow
+  - action: subagent
+    resource: "*"
+    effect: allow
+  - action: execute
+    resource: "*"
+    effect: allow
 ---
 
 Tu **vérifies** l'infrastructure locale **après** un changement (Compose, Kind, Envoy, MCP, manifests). Tu **ne modifies rien**.

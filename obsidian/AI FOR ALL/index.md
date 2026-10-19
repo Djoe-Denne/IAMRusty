@@ -4,13 +4,12 @@ title: >-
 category: navigation
 tags: [index, navigation, wiki]
 summary: >-
-  Index wiki AIForAll au 27 sept. 2026 : P4 Kind V1 Implemented, IAM-IdP
-  0407–0411 Implemented, JWT 0304 Partial, gold path 0605 livré en réalité.
+  Index wiki AIForAll : architecture et services, plus campagnes G-17/m6 archivées au18octobre2026 avec preuves réelles et enseignements réutilisables.
 provenance:
   extracted: 0.75
   inferred: 0.23
   ambiguous: 0.02
-updated: 2026-09-27T09:20:00Z
+updated: 2026-10-18
 sources:
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
   - docs/adr/README.md
@@ -64,6 +63,16 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/manifesto/references/apparatus-implementation-plan]] — phases et preuves P0–P3.
 
 ## Recent Additions
+
+- [[projects/aiforall/references/mission-ops-kind-separation-20261019]] - mission Ensemble close : contrat+manifeste 150 fichiers, 3 lots I integrés, IT 5/5, revues BLOCK corrigées, dette churn ratifiée (#testing #docker #kubernetes #orchestration).
+
+- [[projects/aiforall/concepts/runtime-validation-separation]] - contrat D1-D6 : nominal local-full sous bail opérateur, quatre canaux de validation séparés, ownership unique par fichier.
+
+- [[projects/aiforall/concepts/testcontainers-resource-churn]] - dette ratifiée : 35-97 containers simultanés, flake de setup corrélé à la charge daemon, pistes de correction framework.
+
+- [[projects/aiforall/references/mission-m6-proof-hardening-20261018]] — campagne réelle clôturée, session et sous-agents archivés, H1–H4 et enseignements persistants ; O-LIVE-1 accepté localement.
+
+- [[projects/aiforall/references/mission-g17-m6-20261018]] — 19 sessions OpenCode, preuves G-17/m6, commentaires et ordre suivant ( #testing #rust #kubernetes).
 
 - [[journal/2026-10-03]] — preuve 0308 complète 35 OK ; IT Docker durcies ; migration Hive org-scope ; runtime local arrêté (+8,5 Go).
 - [[projects/aiforall/references/opencode-close-0308-2026-10-03]] — distillat de la session d'orchestration OpenCode.

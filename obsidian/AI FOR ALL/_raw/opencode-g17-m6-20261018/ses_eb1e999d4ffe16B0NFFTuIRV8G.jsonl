@@ -1,0 +1,1 @@
+{"id": "msg_14e16695c001tz1cn1L9yFYhqD", "role": "assistant", "seq": 7, "content": [{"type": "tool-metadata", "tool": "execute", "id": "chatcmpl-tool-a632a6c8fe22ffae"}, {"type": "tool-metadata", "tool": "shell", "id": "chatcmpl-tool-995a6795a7d2757f"}]}

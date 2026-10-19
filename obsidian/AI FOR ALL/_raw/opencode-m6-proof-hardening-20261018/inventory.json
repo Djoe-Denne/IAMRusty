@@ -1,0 +1,967 @@
+{
+  "created": "2026-10-18T17:36:56.130782+00:00",
+  "project": "aiforall",
+  "team": "mission-ce5af9225f72e1c6",
+  "root_session": "ses_eb1108de1ffeGnYdY0GIcFGTw8",
+  "scope": "Native projected visible user/assistant text; all mission members plus recursively listed native descendants; tool metadata only; no reasoning/system/compaction/provider state or tool payload; sanitized native CLI plus targeted redaction; evidence allowlist separately archived",
+  "completeness": "Point-in-time snapshots per session; fork-inherited messages may repeat across exports; no claim of raw event history or future continuous capture",
+  "sessions": [
+    {
+      "id": "ses_eb1108de1ffeGnYdY0GIcFGTw8",
+      "member": null,
+      "parent_id": null,
+      "title": null,
+      "agent": "build",
+      "native_projected_messages": 481,
+      "exported_messages": 416,
+      "roles": {
+        "user": 15,
+        "assistant": 401
+      },
+      "omitted": {
+        "tool-input-output-provider-state": 394,
+        "message:system": 3,
+        "part:reasoning": 420,
+        "message:idle": 27,
+        "message:synthetic": 34,
+        "message:compaction": 1
+      },
+      "snapshot_time": {
+        "created": 1792325677754,
+        "updated": 1792345011019,
+        "idle": 1792344413161,
+        "viewed": 1792344413161
+      },
+      "path": "_raw/opencode-m6-proof-hardening-20261018/sessions/ses_eb1108de1ffeGnYdY0GIcFGTw8.jsonl",
+      "bytes": 192356,
+      "sha256": "1da8ac1c10d0f354d7e83929bdc0119654669465a8e678d3ebaa24a81d274378"
+    },
+    {
+      "id": "ses_eb045489bffeAqrHre14pbtk29",
+      "member": "pool-9",
+      "parent_id": null,
+      "title": "[redacted:session-title:ses_eb045489bffeAqrHre14pbtk29]",
+      "agent": "test-engineer",
+      "native_projected_messages": 172,
+      "exported_messages": 150,
+      "roles": {
+        "user": 7,
+        "assistant": 143
+      },
+      "omitted": {
+        "message:agent-switched": 2,
+        "message:model-switched": 1,
+        "tool-input-output-provider-state": 146,
+        "message:location-switched": 3,
+        "message:system": 4,
+        "part:reasoning": 94,
+        "message:synthetic": 3,
+        "message:idle": 9
+      },
+      "snapshot_time": {
+        "created": 1792338999140,
+        "updated": 1792339857145,
+        "idle": 1792339857164
+      },
+      "path": "_raw/opencode-m6-proof-hardening-20261018/sessions/ses_eb045489bffeAqrHre14pbtk29.jsonl",
+      "bytes": 69684,
+      "sha256": "381dd1c39201228a27c09be68139d17238e10403a42e0246e947d708701d4e17"
+    },
+    {
+      "id": "ses_eb056175effexEzxZvrGKsaDYC",
+      "member": "pool-8",
+      "parent_id": "ses_eb1108de1ffeGnYdY0GIcFGTw8",
+      "title": "pool-8 (@security-reviewer teammate)",
+      "agent": "security-reviewer",
+      "native_projected_messages": 91,
+      "exported_messages": 86,
+      "roles": {
+        "user": 3,
+        "assistant": 83
+      },
+      "omitted": {
+        "message:agent-switched": 1,
+        "message:model-switched": 1,
+        "tool-input-output-provider-state": 90,
+        "part:reasoning": 63,
+        "message:idle": 3
+      },
+      "snapshot_time": {
+        "created": 1792337898276,
+        "updated": 1792343985729,
+        "idle": 1792343985745
+      },
+      "path": "_raw/opencode-m6-proof-hardening-20261018/sessions/ses_eb056175effexEzxZvrGKsaDYC.jsonl",
+      "bytes": 41326,
+      "sha256": "ad99278fc42318f5306161b5776ba9bc8e50332e905ba2219398422f767c4039"
+    },
+    {
+      "id": "ses_eb0566f45ffeXfFWLRUBjJCHac",
+      "member": "pool-7",
+      "parent_id": "ses_eb1108de1ffeGnYdY0GIcFGTw8",
+      "title": "pool-7 (@test-reviewer teammate)",
+      "agent": "test-reviewer",
+      "native_projected_messages": 59,
+      "exported_messages": 54,
+      "roles": {
+        "user": 3,
+        "assistant": 51
+      },
+      "omitted": {
+        "message:agent-switched": 1,
+        "message:model-switched": 1,
+        "part:reasoning": 36,
+        "tool-input-output-provider-state": 65,
+        "message:idle": 3
+      },
+      "snapshot_time": {
+        "created": 1792337875512,
+        "updated": 1792343901601,
+        "idle": 1792343901623
+      },
+      "path": "_raw/opencode-m6-proof-hardening-20261018/sessions/ses_eb0566f45ffeXfFWLRUBjJCHac.jsonl",
+      "bytes": 28437,
+      "sha256": "c05f19d0ddbcdb61e8a1d5884faafe2f02a6acb85cb51200ccf182bb4d668fb1"
+    },
+    {
+      "id": "ses_eb056c8f9ffe5VnlOEJUE1vEAg",
+      "member": "pool-6",
+      "parent_id": "ses_eb1108de1ffeGnYdY0GIcFGTw8",
+      "title": "pool-6 (@correctness-reviewer teammate)",
+      "agent": "infra-verifier",
+      "native_projected_messages": 64,
+      "exported_messages": 57,
+      "roles": {
+        "user": 4,
+        "assistant": 53
+      },
+      "omitted": {
+        "message:agent-switched": 2,
+        "message:model-switched": 1,
+        "part:reasoning": 50,
+        "tool-input-output-provider-state": 67,
+        "message:idle": 4
+      },
+      "snapshot_time": {
+        "created": 1792337852643,
+        "updated": 1792344070628,
+        "idle": 1792344070648
+      },
+      "path": "_raw/opencode-m6-proof-hardening-20261018/sessions/ses_eb056c8f9ffe5VnlOEJUE1vEAg.jsonl",
+      "bytes": 31739,
+      "sha256": "83ad2f09f0898ce91135445a6291949be6d30b91deb1ee0ede1f1f372f1f5b49"
+    },
+    {
+      "id": "ses_eb05a3c62ffed592AL8Qkqe4Zx",
+      "member": "pool-5",
+      "parent_id": "ses_eb1108de1ffeGnYdY0GIcFGTw8",
+      "title": "pool-5 (@test-engineer teammate)",
+      "agent": "test-engineer",
+      "native_projected_messages": 12,
+      "exported_messages": 9,
+      "roles": {
+        "user": 1,
+        "assistant": 8
+      },
+      "omitted": {
+        "message:agent-switched": 1,
+        "message:model-switched": 1,
+        "tool-input-output-provider-state": 7,
+        "part:reasoning": 3,
+        "message:idle": 1
+      },
+      "snapshot_time": {
+        "created": 1792337626291,
+        "updated": 1792337669088,
+        "idle": 1792337669110
+      },
+      "path": "_raw/opencode-m6-proof-hardening-20261018/sessions/ses_eb05a3c62ffed592AL8Qkqe4Zx.jsonl",
+      "bytes": 3778,
+      "sha256": "16899010eab19e9326baef0699254505b3f36591011ed2d643ba1b4a8facae40"
+    },
+    {
+      "id": "ses_eb0abcf7affe2B6F8JZ4SFwR1Q",
+      "member": "pool-4",
+      "parent_id": "ses_eb1108de1ffeGnYdY0GIcFGTw8",
+      "title": "pool-4 (@test-engineer teammate)",
+      "agent": "test-engineer",
+      "native_projected_messages": 126,
+      "exported_messages": 113,
+      "roles": {
+        "user": 5,
+        "assistant": 108
+      },
+      "omitted": {
+        "message:agent-switched": 1,
+        "message:model-switched": 1,
+        "tool-input-output-provider-state": 106,
+        "message:location-switched": 1,
+        "message:system": 2,
+        "part:reasoning": 69,
+        "message:synthetic": 3,
+        "message:idle": 5
+      },
+      "snapshot_time": {
+        "created": 1792332280199,
+        "updated": 1792337580222,
+        "idle": 1792337580242
+      },
+      "path": "_raw/opencode-m6-proof-hardening-20261018/sessions/ses_eb0abcf7affe2B6F8JZ4SFwR1Q.jsonl",
+      "bytes": 51353,
+      "sha256": "3085b80d777ef027e52048034e39c616d06f4006b6bee72f21dd2bb0cf11c9ad"
+    },
+    {
+      "id": "ses_eb0ac4bdbffeWQ6dKtsDI2dXX1",
+      "member": "pool-3",
+      "parent_id": "ses_eb1108de1ffeGnYdY0GIcFGTw8",
+      "title": "pool-3 (@test-engineer teammate)",
+      "agent": "test-engineer",
+      "native_projected_messages": 59,
+      "exported_messages": 49,
+      "roles": {
+        "user": 4,
+        "assistant": 45
+      },
+      "omitted": {
+        "message:agent-switched": 1,
+        "message:model-switched": 1,
+        "tool-input-output-provider-state": 51,
+        "message:location-switched": 1,
+        "message:system": 3,
+        "part:reasoning": 32,
+        "message:idle": 4
+      },
+      "snapshot_time": {
+        "created": 1792332248242,
+        "updated": 1792335286292,
+        "idle": 1792335286314
+      },
+      "path": "_raw/opencode-m6-proof-hardening-20261018/sessions/ses_eb0ac4bdbffeWQ6dKtsDI2dXX1.jsonl",
+      "bytes": 23366,
+      "sha256": "5cf530ae2102f2ba2aad6d24a43b39b546a4678cfd23fb9571f764a281d2d0d3"
+    },
+    {
+      "id": "ses_eb0bd24b6ffe5NZXWGMsSNTgqA",
+      "member": "pool-2",
+      "parent_id": "ses_eb1108de1ffeGnYdY0GIcFGTw8",
+      "title": "pool-2 (@architecte teammate)",
+      "agent": "architecte",
+      "native_projected_messages": 53,
+      "exported_messages": 49,
+      "roles": {
+        "user": 2,
+        "assistant": 47
+      },
+      "omitted": {
+        "message:agent-switched": 1,
+        "message:model-switched": 1,
+        "part:reasoning": 36,
+        "tool-input-output-provider-state": 59,
+        "message:idle": 2
+      },
+      "snapshot_time": {
+        "created": 1792331144158,
+        "updated": 1792331919108,
+        "idle": 1792331919124
+      },
+      "path": "_raw/opencode-m6-proof-hardening-20261018/sessions/ses_eb0bd24b6ffe5NZXWGMsSNTgqA.jsonl",
+      "bytes": 26365,
+      "sha256": "e0badb73117c36a14a7e3ed647f006158a67620bada1fe9b07bc223349c11875"
+    },
+    {
+      "id": "ses_eb10bed9effe0Ii3Ypk42l2LdY",
+      "member": "pool-1",
+      "parent_id": "ses_eb1108de1ffeGnYdY0GIcFGTw8",
+      "title": "pool-1 (@qa-planner teammate)",
+      "agent": "qa-planner",
+      "native_projected_messages": 26,
+      "exported_messages": 23,
+      "roles": {
+        "user": 1,
+        "assistant": 22
+      },
+      "omitted": {
+        "message:agent-switched": 1,
+        "message:model-switched": 1,
+        "part:reasoning": 22,
+        "tool-input-output-provider-state": 34,
+        "message:idle": 1
+      },
+      "snapshot_time": {
+        "created": 1792325980901,
+        "updated": 1792326315897,
+        "idle": 1792326315913
+      },
+      "path": "_raw/opencode-m6-proof-hardening-20261018/sessions/ses_eb10bed9effe0Ii3Ypk42l2LdY.jsonl",
+      "bytes": 13998,
+      "sha256": "ca146c6fc1689283d6ba6ccd4e84f42080f53a35965b42720c13b329bd189129"
+    }
+  ],
+  "artifacts": [
+    {
+      "source": ".agents/skills/aiforall-test-evidence/SKILL.md",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.agents/skills/aiforall-test-evidence/SKILL.md",
+      "bytes": 6086,
+      "sha256": "4413bbdf74c6d19b20232bc7c113303c0993cc03fe8c3a3a98b7b18635819b65",
+      "original_sha256": "4413bbdf74c6d19b20232bc7c113303c0993cc03fe8c3a3a98b7b18635819b65",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".cursor/handoffs/20261018-m6-proof-hardening-preparation.md",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.cursor/handoffs/20261018-m6-proof-hardening-preparation.md",
+      "bytes": 82744,
+      "sha256": "cb811c9de4dc721b7ef2da32473cf8dfc753b53dff5001695d2efdf6ec37fb1f",
+      "original_sha256": "cb811c9de4dc721b7ef2da32473cf8dfc753b53dff5001695d2efdf6ec37fb1f",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".cursor/qa-plans/20261018-m6-proof-hardening.md",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.cursor/qa-plans/20261018-m6-proof-hardening.md",
+      "bytes": 50782,
+      "sha256": "4c9ce193ad56bcd083f9fd579d4e1fbf1e9ca436e836c10a5135acc2bcd4fe6d",
+      "original_sha256": "4c9ce193ad56bcd083f9fd579d4e1fbf1e9ca436e836c10a5135acc2bcd4fe6d",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".cursor/review-briefings/20261018-m6-proof-hardening-correctness.md",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.cursor/review-briefings/20261018-m6-proof-hardening-correctness.md",
+      "bytes": 8081,
+      "sha256": "631967135b752035253baefbe1d21191701d17e8f84525cf1f3ad4baaab7efc8",
+      "original_sha256": "631967135b752035253baefbe1d21191701d17e8f84525cf1f3ad4baaab7efc8",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".cursor/review-briefings/20261018-m6-proof-hardening-infra.md",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.cursor/review-briefings/20261018-m6-proof-hardening-infra.md",
+      "bytes": 2574,
+      "sha256": "4fe7738f0230624aa3599f556e5778ae09653fe3fbf02475f233f526c3701748",
+      "original_sha256": "4fe7738f0230624aa3599f556e5778ae09653fe3fbf02475f233f526c3701748",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".cursor/review-briefings/20261018-m6-proof-hardening-security.md",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.cursor/review-briefings/20261018-m6-proof-hardening-security.md",
+      "bytes": 17028,
+      "sha256": "035fb3b3acb9d716c2e483e60bd036a6d05ce7a4f8d08718faa1308cb697b7f5",
+      "original_sha256": "035fb3b3acb9d716c2e483e60bd036a6d05ce7a4f8d08718faa1308cb697b7f5",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".cursor/review-briefings/20261018-m6-proof-hardening-tests.md",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.cursor/review-briefings/20261018-m6-proof-hardening-tests.md",
+      "bytes": 11974,
+      "sha256": "640e4602685f1e1535a50e0f61ead01f8bed0d60c8d2aeda9bf9daa4a491e582",
+      "original_sha256": "640e4602685f1e1535a50e0f61ead01f8bed0d60c8d2aeda9bf9daa4a491e582",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".cursor/rules/agent-handoff.mdc",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.cursor/rules/agent-handoff.mdc",
+      "bytes": 5404,
+      "sha256": "abae1cb520454253152e15863a934a5d6b9a883e094ef5cd99462c5b884b293f",
+      "original_sha256": "abae1cb520454253152e15863a934a5d6b9a883e094ef5cd99462c5b884b293f",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".cursor/rules/infra-safety.mdc",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.cursor/rules/infra-safety.mdc",
+      "bytes": 3270,
+      "sha256": "de9cc7740bc9f3645d267e071e9ad8ab91a740efb6d475cc7c24e0dc9a44e70e",
+      "original_sha256": "de9cc7740bc9f3645d267e071e9ad8ab91a740efb6d475cc7c24e0dc9a44e70e",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".opencode/missions/team_mvdsfk01_001c_0cfldw/model-policy.json",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.opencode/missions/team_mvdsfk01_001c_0cfldw/model-policy.json",
+      "bytes": 1152,
+      "sha256": "8c9f65a1f29ede5a392b31db85746c62478b9974975434cf0df7d63aa235366a",
+      "original_sha256": "8c9f65a1f29ede5a392b31db85746c62478b9974975434cf0df7d63aa235366a",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/docker-resources-20261018.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/docker-resources-20261018.log",
+      "bytes": 76051,
+      "sha256": "f0160bb6b1152d3e0e7d0f238e33fdc6180995bd6b4821d545b3e8b34d13e9ff",
+      "original_sha256": "f0160bb6b1152d3e0e7d0f238e33fdc6180995bd6b4821d545b3e8b34d13e9ff",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n2/n2-clippy-attempt1.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n2/n2-clippy-attempt1.log",
+      "bytes": 10044,
+      "sha256": "b19e841cee091e03da08620b4c0c6ec78b90290a3372e4b66d6fc34dd03f5cc5",
+      "original_sha256": "b19e841cee091e03da08620b4c0c6ec78b90290a3372e4b66d6fc34dd03f5cc5",
+      "transformed": false,
+      "original_encoding": "utf-16"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n2/n2-commit-attempt1.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n2/n2-commit-attempt1.log",
+      "bytes": 2492,
+      "sha256": "d160feec34198d34899a094b805e04a95358452bf2594d34a80857a630681222",
+      "original_sha256": "d160feec34198d34899a094b805e04a95358452bf2594d34a80857a630681222",
+      "transformed": false,
+      "original_encoding": "utf-16"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n2/n2-rustfmt.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n2/n2-rustfmt.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n2/n2-test-attempt1.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n2/n2-test-attempt1.log",
+      "bytes": 1642,
+      "sha256": "443c03dbbb01468a52e9ba1fb27e01d75bbaa2ab3907410a918da4ff532fab1b",
+      "original_sha256": "443c03dbbb01468a52e9ba1fb27e01d75bbaa2ab3907410a918da4ff532fab1b",
+      "transformed": false,
+      "original_encoding": "utf-16"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n2/n2-test-attempt2.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n2/n2-test-attempt2.log",
+      "bytes": 7500,
+      "sha256": "17591d4efbb6ffe484ced06c710ae497605d69d38dadea9397c6235b547597fd",
+      "original_sha256": "17591d4efbb6ffe484ced06c710ae497605d69d38dadea9397c6235b547597fd",
+      "transformed": false,
+      "original_encoding": "utf-16"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/clippy-m6-diagnostics-run1.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/clippy-m6-diagnostics-run1.log",
+      "bytes": 20335,
+      "sha256": "6786f3f5e368504fd0449d814ea9b3054dca2dc550c7ece84ed23d3f702563e5",
+      "original_sha256": "6786f3f5e368504fd0449d814ea9b3054dca2dc550c7ece84ed23d3f702563e5",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/clippy-m6-diagnostics-run2.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/clippy-m6-diagnostics-run2.log",
+      "bytes": 17329,
+      "sha256": "a6553db14ede1235a8d80051caf453224c5b8ea7d638393e1301f8c3851d3b04",
+      "original_sha256": "a6553db14ede1235a8d80051caf453224c5b8ea7d638393e1301f8c3851d3b04",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/clippy-m6-run1.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/clippy-m6-run1.log",
+      "bytes": 21517,
+      "sha256": "23f3c3daae20faf166fec8a74eb1dd58353072f1bfb5992ffe938f2e74ab20d0",
+      "original_sha256": "23f3c3daae20faf166fec8a74eb1dd58353072f1bfb5992ffe938f2e74ab20d0",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/clippy-oracles-run1.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/clippy-oracles-run1.log",
+      "bytes": 3374,
+      "sha256": "edd6db10f549ca34369c6c416127e798ce6b3bc1788f9a46718deb11f403e5a6",
+      "original_sha256": "edd6db10f549ca34369c6c416127e798ce6b3bc1788f9a46718deb11f403e5a6",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/clippy-oracles-run2.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/clippy-oracles-run2.log",
+      "bytes": 5829,
+      "sha256": "e8086d982e3a100b333b62d845fe35acfe72f9138aea19a3f7babb74b935ba1b",
+      "original_sha256": "e8086d982e3a100b333b62d845fe35acfe72f9138aea19a3f7babb74b935ba1b",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/clippy-oracles-run3.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/clippy-oracles-run3.log",
+      "bytes": 1106,
+      "sha256": "02803dfeba4e1968264909c3e4c63856ac235f369ef7146114f89b63b38eeba3",
+      "original_sha256": "02803dfeba4e1968264909c3e4c63856ac235f369ef7146114f89b63b38eeba3",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/fixture-oracles-run1.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/fixture-oracles-run1.log",
+      "bytes": 2037,
+      "sha256": "a6d89965ee9feabd83bee7f335c4918b5c7b6086f4355146ac1a16cf035b34ea",
+      "original_sha256": "a6d89965ee9feabd83bee7f335c4918b5c7b6086f4355146ac1a16cf035b34ea",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/fixture-oracles-run2.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/fixture-oracles-run2.log",
+      "bytes": 2071,
+      "sha256": "128134dbf8671f3ebde5314bc94be34fcabbd2d7f6f3ff91bbfc74828cfad0f4",
+      "original_sha256": "128134dbf8671f3ebde5314bc94be34fcabbd2d7f6f3ff91bbfc74828cfad0f4",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/m6-list-final.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/m6-list-final.log",
+      "bytes": 1598,
+      "sha256": "1fb1a8e470ededf42e56dc83e737509c293d532acd3c49684fbf644c1e7d94c4",
+      "original_sha256": "1fb1a8e470ededf42e56dc83e737509c293d532acd3c49684fbf644c1e7d94c4",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/m6-list-run1.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/m6-list-run1.log",
+      "bytes": 3906,
+      "sha256": "6cf3f6e4f6a6873c2e40106db93960904a69af6334aace3ce7abe078dfba25a6",
+      "original_sha256": "6cf3f6e4f6a6873c2e40106db93960904a69af6334aace3ce7abe078dfba25a6",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/MANIFEST.txt",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/MANIFEST.txt",
+      "bytes": 2457,
+      "sha256": "759c2c198b00554a60e7c445d5725c8979063e938a377961080118d14edee87e",
+      "original_sha256": "759c2c198b00554a60e7c445d5725c8979063e938a377961080118d14edee87e",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/metadata.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/metadata.log",
+      "bytes": 223,
+      "sha256": "6f6956b0d67305c49b9f2a0c500caffc8f1c8644dadfef53d0b37b8b8d62caf9",
+      "original_sha256": "6f6956b0d67305c49b9f2a0c500caffc8f1c8644dadfef53d0b37b8b8d62caf9",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/n3-tests.patch",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/n3-tests.patch",
+      "bytes": 97705,
+      "sha256": "f50275a2fcb6fcec2bb1eb05e5a222cbb80d301223636be9d61d09abfdf45eb6",
+      "original_sha256": "f50275a2fcb6fcec2bb1eb05e5a222cbb80d301223636be9d61d09abfdf45eb6",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/proof-oracles-run1.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/proof-oracles-run1.log",
+      "bytes": 1745,
+      "sha256": "ecc15660820328afda7e147c37effaed1ea7fc6f7f602e7a465575fed31f9c4c",
+      "original_sha256": "ecc15660820328afda7e147c37effaed1ea7fc6f7f602e7a465575fed31f9c4c",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/proof-oracles-run2.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/proof-oracles-run2.log",
+      "bytes": 1768,
+      "sha256": "97c593ba48b2b366ef48abc0d2ddd313e859010edad36dce1d55923dcdfb5786",
+      "original_sha256": "97c593ba48b2b366ef48abc0d2ddd313e859010edad36dce1d55923dcdfb5786",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/PROVENANCE.txt",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/PROVENANCE.txt",
+      "bytes": 3728,
+      "sha256": "2bfd01e2906b0f5e8f7af4bc2e082b0ba5f42bff6fe67dd80ac726f1f70ea0bc",
+      "original_sha256": "2bfd01e2906b0f5e8f7af4bc2e082b0ba5f42bff6fe67dd80ac726f1f70ea0bc",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/rustfmt-final.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/rustfmt-final.log",
+      "bytes": 49,
+      "sha256": "ae928260706bdd317aea1ae4a170503ee6ce5c285375cc5f6b9c1ad636cfb7b4",
+      "original_sha256": "ae928260706bdd317aea1ae4a170503ee6ce5c285375cc5f6b9c1ad636cfb7b4",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/rustfmt-lint7.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/rustfmt-lint7.log",
+      "bytes": 32,
+      "sha256": "dc55a6d9abbfc10ba1bec744b7fb09bac0379e64d377f123b3c4a340473dcc9c",
+      "original_sha256": "dc55a6d9abbfc10ba1bec744b7fb09bac0379e64d377f123b3c4a340473dcc9c",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/rustfmt-m6-diagnostics.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/rustfmt-m6-diagnostics.log",
+      "bytes": 39,
+      "sha256": "15a26e91c7d72a944c4577638cfda2b4f6542efaed316feb1cff101482cc67ab",
+      "original_sha256": "15a26e91c7d72a944c4577638cfda2b4f6542efaed316feb1cff101482cc67ab",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/rustfmt-resumed.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/rustfmt-resumed.log",
+      "bytes": 31,
+      "sha256": "e16a1023d4c4dcdf72737553d7919e8907d190cfa013064e34f1a2dd794e4682",
+      "original_sha256": "e16a1023d4c4dcdf72737553d7919e8907d190cfa013064e34f1a2dd794e4682",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/rustfmt.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/rustfmt.log",
+      "bytes": 53,
+      "sha256": "0313fe7814a380e3e0230ddae199116aac70a609320ae3975aa09b4b87a5cb09",
+      "original_sha256": "0313fe7814a380e3e0230ddae199116aac70a609320ae3975aa09b4b87a5cb09",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3/SOURCES.txt",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3/SOURCES.txt",
+      "bytes": 2140,
+      "sha256": "52c3afd3a9c6e99fdb8f87f8326d18604f83aeb142b009a8f90b1fcaf5f53140",
+      "original_sha256": "52c3afd3a9c6e99fdb8f87f8326d18604f83aeb142b009a8f90b1fcaf5f53140",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3-r1/clippy-m6-diagnostics-run1.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3-r1/clippy-m6-diagnostics-run1.log",
+      "bytes": 18883,
+      "sha256": "e8496e6cbb89658900c6533feff64dac48430570f234f6c40ae1b574c33f8c34",
+      "original_sha256": "e8496e6cbb89658900c6533feff64dac48430570f234f6c40ae1b574c33f8c34",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3-r1/clippy-oracles-run1.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3-r1/clippy-oracles-run1.log",
+      "bytes": 3424,
+      "sha256": "08c9750b0b34ee213cc96faf52c1ea4e2cc0ef88162ac807b3d14b151f64224a",
+      "original_sha256": "08c9750b0b34ee213cc96faf52c1ea4e2cc0ef88162ac807b3d14b151f64224a",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3-r1/clippy-oracles-run2.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3-r1/clippy-oracles-run2.log",
+      "bytes": 1102,
+      "sha256": "2796cbeed80d5597b16c436cbbefd26e7773d620f1a362fcca400b0d7f3e811d",
+      "original_sha256": "2796cbeed80d5597b16c436cbbefd26e7773d620f1a362fcca400b0d7f3e811d",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3-r1/fixture-run1.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3-r1/fixture-run1.log",
+      "bytes": 3696,
+      "sha256": "6b6b1f6c34befcf1fbcb8e3aa7c472a7c0b82af7d4cd8c3851a18abe783164de",
+      "original_sha256": "6b6b1f6c34befcf1fbcb8e3aa7c472a7c0b82af7d4cd8c3851a18abe783164de",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3-r1/m6-list-final.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3-r1/m6-list-final.log",
+      "bytes": 3171,
+      "sha256": "1a1302b2d6f6f051f2146edafbdbea6a446254b1a6affe3c14f719bcbf68b984",
+      "original_sha256": "1a1302b2d6f6f051f2146edafbdbea6a446254b1a6affe3c14f719bcbf68b984",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3-r1/MANIFEST.txt",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3-r1/MANIFEST.txt",
+      "bytes": 1555,
+      "sha256": "1f1cf7ccbcb610b036feb054c1cd95ffd21e6d9aa684bbc137b988357b7586c4",
+      "original_sha256": "1f1cf7ccbcb610b036feb054c1cd95ffd21e6d9aa684bbc137b988357b7586c4",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3-r1/metadata.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3-r1/metadata.log",
+      "bytes": 193,
+      "sha256": "7aec208369275ff71271de43dbdbc4b21b607a06c1cc45030cbc1160547a9df6",
+      "original_sha256": "7aec208369275ff71271de43dbdbc4b21b607a06c1cc45030cbc1160547a9df6",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3-r1/n3-r1-final.patch",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3-r1/n3-r1-final.patch",
+      "bytes": 22508,
+      "sha256": "737aea3d9638afd16f29c67d60622a7b03316ea45b6194ea0d8c07848a2d12f4",
+      "original_sha256": "737aea3d9638afd16f29c67d60622a7b03316ea45b6194ea0d8c07848a2d12f4",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3-r1/proof-run1.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3-r1/proof-run1.log",
+      "bytes": 2228,
+      "sha256": "05b5677751d356ce12d24b015ba67d49abc492311f4f38c46b1956f169caccaf",
+      "original_sha256": "05b5677751d356ce12d24b015ba67d49abc492311f4f38c46b1956f169caccaf",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3-r1/PROVENANCE.txt",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3-r1/PROVENANCE.txt",
+      "bytes": 4907,
+      "sha256": "0cb869a1a1a12b1ce4a99bcbb9d982cc6a9eabca3d44b13c3c9d780934a454f4",
+      "original_sha256": "0cb869a1a1a12b1ce4a99bcbb9d982cc6a9eabca3d44b13c3c9d780934a454f4",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3-r1/rustfmt-run1.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3-r1/rustfmt-run1.log",
+      "bytes": 33,
+      "sha256": "b105f22ec70a3b2dbae0bcabd1718dc29e7965ad35331e8213cca7902b91a00b",
+      "original_sha256": "b105f22ec70a3b2dbae0bcabd1718dc29e7965ad35331e8213cca7902b91a00b",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3-r1/rustfmt-run2.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3-r1/rustfmt-run2.log",
+      "bytes": 39,
+      "sha256": "87178081fc8f8de2630cdd7aa408c100fa0e93c6f97310cdac64aa087a3ee205",
+      "original_sha256": "87178081fc8f8de2630cdd7aa408c100fa0e93c6f97310cdac64aa087a3ee205",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/n3-r1/SOURCES.txt",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/n3-r1/SOURCES.txt",
+      "bytes": 1801,
+      "sha256": "08b5d8f1273e5aed4c0ef34e7443f94f7d42c3f2c3456a10d54dab2ef067d3e3",
+      "original_sha256": "08b5d8f1273e5aed4c0ef34e7443f94f7d42c3f2c3456a10d54dab2ef067d3e3",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/archive_proofs.py",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/archive_proofs.py",
+      "bytes": 2310,
+      "sha256": "b278d0818a9de392cd9998a2e50025049f8cb1fd6776d0181df2a1079fec6093",
+      "original_sha256": "b278d0818a9de392cd9998a2e50025049f8cb1fd6776d0181df2a1079fec6093",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/H1-H4.live.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/H1-H4.live.log",
+      "bytes": 565,
+      "sha256": "2b8efea746ae280be137ef690d973709875d5296f7a3b1f0c4520605ca4d21f7",
+      "original_sha256": "2b8efea746ae280be137ef690d973709875d5296f7a3b1f0c4520605ca4d21f7",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/LIVE-MANIFEST.json",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/LIVE-MANIFEST.json",
+      "bytes": 2229,
+      "sha256": "2d2a0d0ee298cfc44c0bb09392d11045e76231e9ee6c660c7d8d92c59d7cfbbb",
+      "original_sha256": "2d2a0d0ee298cfc44c0bb09392d11045e76231e9ee6c660c7d8d92c59d7cfbbb",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/m1-20261018T170851Z/before.json",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/m1-20261018T170851Z/before.json",
+      "bytes": 5384,
+      "sha256": "96f98a25a8f2fa766ea55c921a2b3f75726065732a620d70cc425874410db4ba",
+      "original_sha256": "96f98a25a8f2fa766ea55c921a2b3f75726065732a620d70cc425874410db4ba",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/m1-20261018T170851Z/cargo.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/m1-20261018T170851Z/cargo.log",
+      "bytes": 1299,
+      "sha256": "cfbaa348544937d36defaca8147898d1b7caa4baeb1cbe0124a1df30d50874c5",
+      "original_sha256": "cfbaa348544937d36defaca8147898d1b7caa4baeb1cbe0124a1df30d50874c5",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/m1-20261018T170851Z/result.json",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/m1-20261018T170851Z/result.json",
+      "bytes": 3888,
+      "sha256": "3b7637130bd146e2336876feae03989e75a837a1e4296460fccfdb759cecfe48",
+      "original_sha256": "3b7637130bd146e2336876feae03989e75a837a1e4296460fccfdb759cecfe48",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/m6-20261018T171224Z/before.json",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/m6-20261018T171224Z/before.json",
+      "bytes": 5531,
+      "sha256": "d7459031d31942ce67e51656076a0878463436fb1227984e684e3ec62954afea",
+      "original_sha256": "d7459031d31942ce67e51656076a0878463436fb1227984e684e3ec62954afea",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/m6-20261018T171224Z/cargo.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/m6-20261018T171224Z/cargo.log",
+      "bytes": 2156,
+      "sha256": "8174156cb84b68b0fa106c0e396e0243a23ffeea0dc893a60d85d9b8b7caa138",
+      "original_sha256": "8174156cb84b68b0fa106c0e396e0243a23ffeea0dc893a60d85d9b8b7caa138",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/m6-20261018T171224Z/result.json",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/m6-20261018T171224Z/result.json",
+      "bytes": 4027,
+      "sha256": "938d6ebe6bc060c27ac1b2f585cf3bc269a4d173238931063453a6c08b2dcfe3",
+      "original_sha256": "938d6ebe6bc060c27ac1b2f585cf3bc269a4d173238931063453a6c08b2dcfe3",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/n5-after-apparatus-plugins.txt",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/n5-after-apparatus-plugins.txt",
+      "bytes": 585,
+      "sha256": "956510ad4ecdf8c77b90fe78e06890bd7d6b90f1000e14759de346b86a473b5b",
+      "original_sha256": "956510ad4ecdf8c77b90fe78e06890bd7d6b90f1000e14759de346b86a473b5b",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/n5-after-apparatus-system.txt",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/n5-after-apparatus-system.txt",
+      "bytes": 1061,
+      "sha256": "6c09f6128a80e900d8025718555fa8ff9097c9c23a560f427fed44057861618d",
+      "original_sha256": "6c09f6128a80e900d8025718555fa8ff9097c9c23a560f427fed44057861618d",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/n5-before-apparatus-plugins.txt",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/n5-before-apparatus-plugins.txt",
+      "bytes": 585,
+      "sha256": "3040f2b3fe633bbc582c1319cb3448edf3153a4a1f742148d76996347950f2e2",
+      "original_sha256": "3040f2b3fe633bbc582c1319cb3448edf3153a4a1f742148d76996347950f2e2",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/n5-before-apparatus-system.txt",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/n5-before-apparatus-system.txt",
+      "bytes": 1061,
+      "sha256": "a56b240df5d58e9bd2cc3df116458da4bf288316135a20f94b5aa9742521a49e",
+      "original_sha256": "a56b240df5d58e9bd2cc3df116458da4bf288316135a20f94b5aa9742521a49e",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/PROTOCOL.md",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/PROTOCOL.md",
+      "bytes": 4670,
+      "sha256": "def34ef238dcc965993103aeb71236ddb36261357a28afdf536bddf069d3fcb2",
+      "original_sha256": "def34ef238dcc965993103aeb71236ddb36261357a28afdf536bddf069d3fcb2",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/run_phase.py",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/run_phase.py",
+      "bytes": 18855,
+      "sha256": "5f8ee16844a935e8fef8ed220112305ba172a0cbb77f04399b3ad00509b4ac88",
+      "original_sha256": "5f8ee16844a935e8fef8ed220112305ba172a0cbb77f04399b3ad00509b4ac88",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/t6-20261018T170538Z/before.json",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/t6-20261018T170538Z/before.json",
+      "bytes": 5238,
+      "sha256": "3ce10599b7287a261359c1e012d818411dedc3b7df583a577b8204ac569aa4d9",
+      "original_sha256": "3ce10599b7287a261359c1e012d818411dedc3b7df583a577b8204ac569aa4d9",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/t6-20261018T170538Z/cargo.log",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/t6-20261018T170538Z/cargo.log",
+      "bytes": 1709,
+      "sha256": "100536bdb8e6257954db3308ca87681519347a96c81e3b860af8e8f488a3ccfe",
+      "original_sha256": "100536bdb8e6257954db3308ca87681519347a96c81e3b860af8e8f488a3ccfe",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": ".tmp/m6-proof-hardening-20261018/runtime/t6-20261018T170538Z/result.json",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/.tmp/m6-proof-hardening-20261018/runtime/t6-20261018T170538Z/result.json",
+      "bytes": 3742,
+      "sha256": "4dbaa15b3c11438f62aa375ba8a07234038dc83e47c6e226901ed4eba7360755",
+      "original_sha256": "4dbaa15b3c11438f62aa375ba8a07234038dc83e47c6e226901ed4eba7360755",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": "AGENTS.md",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/AGENTS.md",
+      "bytes": 10011,
+      "sha256": "da958cc823705362e9b1ba6fcda41d8ad9cfba296df1fcc325b310c22a69a8b8",
+      "original_sha256": "da958cc823705362e9b1ba6fcda41d8ad9cfba296df1fcc325b310c22a69a8b8",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": "docs/contracts/20261018-m6-proof-hardening.md",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/docs/contracts/20261018-m6-proof-hardening.md",
+      "bytes": 15822,
+      "sha256": "d64e3c58a524fd8c38af60cd487edfc2107595370ba4e8e1d414856be9142507",
+      "original_sha256": "d64e3c58a524fd8c38af60cd487edfc2107595370ba4e8e1d414856be9142507",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": "docs/missions/20261018-apparatus-m6-proof-hardening-results.md",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/docs/missions/20261018-apparatus-m6-proof-hardening-results.md",
+      "bytes": 6193,
+      "sha256": "fd19f3bc121de9c6bb2074dd0a9be91a93f643bf92bffdc06d2300f29f72c080",
+      "original_sha256": "fd19f3bc121de9c6bb2074dd0a9be91a93f643bf92bffdc06d2300f29f72c080",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    },
+    {
+      "source": "docs/missions/20261018-apparatus-m6-proof-hardening.md",
+      "path": "_raw/opencode-m6-proof-hardening-20261018/evidence/docs/missions/20261018-apparatus-m6-proof-hardening.md",
+      "bytes": 13167,
+      "sha256": "cdf3fa1b340db58134ee9bc1504a84eb83da1c563a26fbff1f7a58b188d5c6a7",
+      "original_sha256": "cdf3fa1b340db58134ee9bc1504a84eb83da1c563a26fbff1f7a58b188d5c6a7",
+      "transformed": false,
+      "original_encoding": "utf-8-sig"
+    }
+  ],
+  "redactions": {
+    "pem-private": 0,
+    "jwt": 0,
+    "bearer-value": 0,
+    "kubeconfig-value": 0,
+    "credential-assignment": 0,
+    "credential-json": 0
+  }
+}

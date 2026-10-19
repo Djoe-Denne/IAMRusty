@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "providers": [
+    "cursor",
+    "openai",
+    "opencode",
+    "opencode-go",
+    "zai-coding-plan"
+  ],
+  "assessment": {
+    "complexity": [
+      "Low: local surface, clear requirements and established patterns.",
+      "High: crate interactions, ambiguous or cross-cutting contracts, or difficult reconstruction."
+    ],
+    "risk": [
+      "Low: isolated, reversible failure with limited impact.",
+      "High: secrets, authorization, persisted data, compatibility, or a false proof is at stake."
+    ]
+  },
+  "complexityBands": [
+    0,
+    61,
+    81,
+    101
+  ],
+  "riskBands": [
+    0,
+    61,
+    81,
+    101
+  ],
+  "groups": {
+    "glm-or-grok": [
+      {
+        "id": "zai-coding-plan/glm-5.3-flash",
+        "variant": "max"
+      },
+      {
+        "id": "cursor/grok-4.7",
+        "variant": "Grok 4.7 Extra High"
+      },
+      {
+        "id": "opencode-go/glm-5.3-flash",
+        "variant": "max"
+      }
+    ],
+    "grok-xhigh": [
+      {
+        "id": "cursor/grok-4.7",
+        "variant": "Grok 4.7 Extra High"
+      }
+    ],
+    "opus": [
+      {
+        "id": "cursor/claude-opus-5-5",
+        "variant": "Claude Opus 5.5 Max"
+      }
+    ]
+  },
+  "matrix": [
+    [
+      "glm-or-grok",
+      "grok-xhigh",
+      "opus"
+    ],
+    [
+      "grok-xhigh",
+      "grok-xhigh",
+      "opus"
+    ],
+    [
+      "opus",
+      "opus",
+      "opus"
+    ]
+  ]
+}

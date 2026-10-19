@@ -3,22 +3,51 @@ title: Lancer les tests Apparatus P4 (operator)
 category: skills
 tags: [testing, rust, kubernetes]
 sources:
+  - _raw/opencode-m6-proof-hardening-20261018/inventory.json
+  - .agents/skills/aiforall-test-evidence/SKILL.md
+  - _raw/opencode-g17-m6-20261018/inventory.json
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733/d5c0a4f7-e945-4de1-aa1c-8fa771ba9733.jsonl
   - workers/apparatus-operator/Cargo.toml
   - workers/apparatus-operator/tests/fixtures/kind/mod.rs
 summary: >-
-  IT operator : features admit,controller obligatoires pour T6/T10/T11 ;
-  --test-threads=1 ; Docker + Kind fail-loud. Kind Calico v3.29.7
-  (disableDefaultCNI). T11 vert 22 sept. Cosign fail-closed. 0008 Implemented (A-DEC) ; Kind V1 ; dette TCB.
+  Windows E:, IT9+1 et m6 réel1 avec H1–H4 ; préflight transitif des remplacements, captures sans secrets et limites d'attestation réseau.
 provenance:
   extracted: 0.90
   inferred: 0.08
   ambiguous: 0.02
 created: 2026-09-22T06:55:00Z
-updated: 2026-09-22T14:00:00Z
+updated: 2026-10-18
 ---
 
 # Lancer les tests Apparatus P4 (operator)
+
+> [!warning] Actualisation — 18 octobre 2026
+> Les commandes Kind historiques ci-dessous ne sont plus un runbook autorisé. `kind-apparatus-p4-it` est protégé ; les IT passent par testcontainers, jamais Kind. Seul l'E2E m6 explicitement autorisé a été exécuté sur `kind-aiforall-local`. Fixture désormais réutilisation/fail-loud, jamais create/delete/install Calico. Voir [[projects/aiforall/references/mission-g17-m6-20261018]].
+
+## Preuves récentes et procédure actuelle
+
+### Campagne de fiabilisation terminée le 18 octobre 2026
+- [[projects/aiforall/references/mission-m6-proof-hardening-20261018]] : codefd9c412,
+  oracles10+11, ITt6 9/9+m1 1/1, m6réel1/1 en51.07s surE:, zéro skip.
+- H1–H4 autonomes archivés et14empreintes vérifiées. Attentes BusyBox404 et GNU
+  timeout fermées par assertions runtime réelles ; pas certification DNS/mesh/Netpol globale.
+- **Fixtureensure non destructif ≠ scénarioentier non destructif** : m6 remplace
+  Podplugin/AdmissionRecord déterministes, comportement local accepté après
+  explication (O-LIVE-1), paspréservationglobale ni droitproduction.
+- Charger skillprojet `aiforall-test-evidence` + lifecycle avant futur préflight.
+  Kubeconfigdédié, registrestrictUTF8/CP1252/UTF16, IDs/UIDavantaprès, allow-list
+  d'archive sanscredentials ; pas de reprise automatique des scripts `.tmp`.
+- StrictClippym6prod rouge différé explicitement ; verts unit/IT/E2E ne l'effacent pas.
+
+### Photographie G-17 antérieure — ne pas confondre les deux runs
+
+- Hôte Windows, un seul Cargo ; target E: exigé pour les prochains runs, env-only sans éditer la config. Le run historique m6 de cette mission a utilisé C: (écart documenté).
+- G-17 t6 et m1 : `--features admit`, `--locked`, `--test-threads=1`, vrais binaires ORAS/Cosign ou images pinées ; 9/9 et 1/1.
+- m6 : `cargo test --locked -p apparatus-operator --features admit,controller --test apparatus_m6_e2e_chain -- --test-threads=1` ; 1/1, 311,79 s, kubeconfig exporté pour local.
+- Préconditions : GO de la mission, lifecycle chargé, Calico Ready et pas kindnet, registre contemporain, inventaire avant/après ; cluster absent/non conforme = STOP, pas de reconstruction.
+- Captures autonomes par hop manquantes dans cette preuve : tout prochain run doit réellement les produire sans secret et les archiver ; durcir readiness/endpoints du canary AVANT la sonde.
+
+## Historique septembre (preuves passées, pas des commandes à rejouer)
 
 Crate `apparatus-operator`. Canon : [[projects/manifesto/decisions/0008-apparatus-p4-k8s]]. Concept : [[projects/manifesto/concepts/apparatus-p4-operator]]. Harness : [[projects/aiforall/concepts/orchestrator-agent-harness]].
 

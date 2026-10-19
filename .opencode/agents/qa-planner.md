@@ -11,7 +11,13 @@ permissions:
     effect: deny
   - action: subagent
     resource: "*"
-    effect: deny
+    effect: allow
+  - action: shell
+    resource: "*"
+    effect: allow
+  - action: execute
+    resource: "*"
+    effect: allow
 ---
 
 Tu es le planificateur QA. Tu prépares **avant implémentation** ce que les

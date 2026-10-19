@@ -5,6 +5,7 @@ category: concepts
 tags: [architecture, rust, visibility/internal]
 aliases: [agent-harness, orchestrator]
 sources:
+  - _raw/opencode-g17-m6-20261018/inventory.json
   - .cursor/rules/00-agent-harness.mdc
   - .cursor/agents/orchestrator.md
   - .serena/memories/constraints/no-muse-spark.md
@@ -17,17 +18,29 @@ sources:
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/a340bab3-a47f-4710-af1e-3d4bff06e4a2/a340bab3-a47f-4710-af1e-3d4bff06e4a2.jsonl
   - .cursor/review-briefings/README.md
 summary: >-
-  Toute tâche projet passe par orchestrator. Reviewers sous
-  .cursor/review-briefings/. Forte caution = grok-4.7-xhigh.
+  Historique Cursor et actualisation OpenCode : racine directe ou lead Ensemble, policy approuvée, ownership et preuves persistantes.
 provenance:
   extracted: 0.86
   inferred: 0.14
   ambiguous: 0.00
 created: 2026-09-11T05:45:00Z
-updated: 2026-09-27T09:20:00Z
+updated: 2026-10-18
 ---
 
 # Harnais orchestrator Cursor
+
+> [!warning] Actualisation OpenCode — 18 octobre 2026
+> Les règles ci-dessous sont **historiques pour Cursor**, pas le routage OpenCode actuel. Sous OpenCode, la racine exécute directement ou devient lead Ensemble, sans orchestrateur intermédiaire (AGENTS.md). Policy mission native approuvée avant workers/runtime ; aucune sélection de modèle hors grille. Voir [[projects/aiforall/references/mission-g17-m6-20261018]].
+
+## Leçons de la mission G-17/m6
+
+- Persister QA, décisions, findings et preuves avant le handback ; un worker idle peut laisser un test enfant vivant. Vérifier notification/exit/résultat avant toute reprise.
+- Bloquer la tâche d'origine avant de la remplacer : le dispatcher peut sinon créer deux écrivains sur le même fichier.
+- Écrire via outil dédié, par incréments ; les here-strings shell géants ont bloqué plusieurs sessions. La commande observée est connue, sa cause d'infrastructure précise n'a pas été démontrée.
+- Le lead vérifie diff intégré, ressources et preuves réelles ; un dernier message optimiste ne remplace pas la livraison.
+- Dernière policy de cette mission : Luna none / GLM Flash max / **Sol 6.1 xhigh** ; Opus indisponible. C'est une photographie de mission, pas une configuration globale future.
+
+## Historique Cursor (ne pas appliquer comme obligation OpenCode)
 
 Installé le 10 septembre 2026 (commit `a72979a`). Règle always-on : `.cursor/rules/00-agent-harness.mdc`.
 

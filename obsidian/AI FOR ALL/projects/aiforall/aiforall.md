@@ -4,6 +4,8 @@ title: >-
 category: project
 tags: [platform, microservices, rust, visibility/internal]
 sources:
+  - _raw/opencode-m6-proof-hardening-20261018/inventory.json
+  - _raw/opencode-g17-m6-20261018/inventory.json
   - README.md
   - Cargo.toml
   - runtime/monolith/Cargo.toml
@@ -22,7 +24,7 @@ provenance:
   inferred: 0.16
   ambiguous: 0.04
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-10-01T16:45:00Z
+updated: 2026-10-18
 ---
 
 # AIForAll
@@ -37,7 +39,7 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 - Shared patterns live in [[concepts/shared-rust-microservice-sdk]]. The SDK tree is pinned as [[projects/aiforall/concepts/rustycog-git-submodule]].
 - August 2026 reviews show one hexagonal scaffold with remaining gaps on JWT/JWKS, errors, OpenAPI Hive, and OpenFGA wiring — [[concepts/architecture-coherence-across-services]]. Photograph rétroactive : [[projects/aiforall/decisions/index]].
 - Queue factories must surface rustycog no-ops on `/ready` — [[projects/aiforall/concepts/queue-readiness-signaling]].
-- Project work is routed through [[projects/aiforall/concepts/orchestrator-agent-harness]]. Architecture vivante : [[projects/aiforall/concepts/architecte-agent]].
+- Sous OpenCode, la racine travaille directement ou devient lead Ensemble, sans orchestrateur intermédiaire ; l'historique Cursor reste dans [[projects/aiforall/concepts/orchestrator-agent-harness]]. Architecture vivante : [[projects/aiforall/concepts/architecte-agent]].
 - Apparatus P0 crates live at workspace root ; P2 ticker is in Manifesto (**Implemented**) — [[projects/manifesto/concepts/apparatus-p2-reconciliation]] (ADR 0006). Frontière P3 : [[projects/lazaret/lazaret]] (ADR 0007 **Implemented** T1–T14b ; hors-jalon APP-05 / G/E / K8s-as-P3 / 2e proto). Moteur P4 : [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (ADR-0008 **Accepted** / **Implemented**, Kind V1 ; dette D-TRANSIT-TCB / D-ADMB / D-PROD). Gates préprod : [[projects/manifesto/decisions/0009-0011-gates-preprod]]. Mesh HTTPS : [[projects/aiforall/concepts/https-platform-mesh]]. Factory/host hors livré (ADR 0406).
 - Access JWT cible RS256 / JWKS : [[projects/aiforall/decisions/0304-access-jwt-trust]] (0304 Partial). Mesh AuthN : [[projects/aiforall/decisions/0308-mesh-authn-jwt]] (Partial, §7 Compose). Connecteurs IdP : [[projects/iamrusty/decisions/index]] (0407–0411 Implemented). Gold path Kind : [[projects/aiforall/decisions/0605-gold-path-kind]].
 
@@ -69,6 +71,10 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 - [[projects/manifesto/decisions/index]] — vague 1 Apparatus (0002–0008 Implemented ; 0001 Partial ; 0009–0011 Proposed)
 
 ## Recent history
+
+- [[projects/aiforall/references/mission-m6-proof-hardening-20261018]] — suite exécutée :21oracles, IT9+1 et m6réel1 surE:, H1–H4 archivés, revuesPASS bornés ; remplacementsK8slocaux acceptés et pièges promus en skill/règles, detteClippy conservée.
+
+- [[projects/aiforall/references/mission-g17-m6-20261018]] — photographie antérieure : G-17/m6 verts avec commentaires,19sessions archivées ; fiabilisation alors préparée, exécutée dans la référence suivante ci-dessus.
 
 - [[projects/aiforall/references/cursor-history-2026-09]]
 - [[projects/aiforall/references/cursor-history-2026-04-to-08]]

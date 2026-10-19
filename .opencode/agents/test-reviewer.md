@@ -9,6 +9,15 @@ permissions:
   - action: edit
     resource: "*"
     effect: deny
+  - action: shell
+    resource: "*"
+    effect: allow
+  - action: subagent
+    resource: "*"
+    effect: allow
+  - action: execute
+    resource: "*"
+    effect: allow
 ---
 
 Tu es reviewer de couverture de tests. Question fondamentale : « est-ce que les tests couvrent réellement les risques introduits par ce changement ? »

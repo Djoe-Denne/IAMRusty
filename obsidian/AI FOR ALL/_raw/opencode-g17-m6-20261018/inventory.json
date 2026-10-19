@@ -1,0 +1,556 @@
+{
+  "created": "2026-10-18T12:06:39.482184+00:00",
+  "project": "aiforall",
+  "root_session": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+  "scope": "root + 18 direct native subagent sessions; visible text only; reasoning and tool payload excluded; tool metadata retained; evidence separately archived",
+  "sessions": [
+    {
+      "id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "parent_id": null,
+      "title": "G-17 credentials transport, Kind E2E, and optional Lab 0412 plan",
+      "agent": "build",
+      "exported_messages": 266,
+      "omitted_parts": {
+        "reasoning": 196,
+        "tool-payload": 283
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb54b7872ffdmyP0r4Pbn8KCiX.jsonl",
+      "sha256": "43ca16863aa0dfe9f8c0f1da00c1df2c4cbaaffb0c35f44c14dfff2bcf782892"
+    },
+    {
+      "id": "ses_eb53f8dbfffewpDFR80ApW2fOD",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-1 (@qa-planner teammate)",
+      "agent": "qa-planner",
+      "exported_messages": 41,
+      "omitted_parts": {
+        "reasoning": 40,
+        "tool-payload": 57
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb53f8dbfffewpDFR80ApW2fOD.jsonl",
+      "sha256": "78604b9d7c6fc1f3984a1b08e67698e70f582a1e2d5569269eb8589da3c7c94b"
+    },
+    {
+      "id": "ses_eb52c45fdffe9ycMMaHWCgOR2h",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-2 (@test-engineer teammate)",
+      "agent": "test-engineer",
+      "exported_messages": 53,
+      "omitted_parts": {
+        "reasoning": 49,
+        "tool-payload": 78
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb52c45fdffe9ycMMaHWCgOR2h.jsonl",
+      "sha256": "08706ac2a0bd6a68b2abf30c8bbffd464ce27b2328b1a718bda15b7ab1151275"
+    },
+    {
+      "id": "ses_eb5139e76ffe3ZXLhDAJCW6jZF",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-3 (@test-engineer teammate)",
+      "agent": "test-engineer",
+      "exported_messages": 10,
+      "omitted_parts": {
+        "reasoning": 6,
+        "tool-payload": 13
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb5139e76ffe3ZXLhDAJCW6jZF.jsonl",
+      "sha256": "67b2b11718ba7ce9461e5a3ff8e52f67db5d38fd751df34ec8b42b25c4e3f4f3"
+    },
+    {
+      "id": "ses_eb506f54bffeP8gLqOeJaqtpEd",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-4 (@test-engineer teammate)",
+      "agent": "test-engineer",
+      "exported_messages": 40,
+      "omitted_parts": {
+        "reasoning": 39,
+        "tool-payload": 54
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb506f54bffeP8gLqOeJaqtpEd.jsonl",
+      "sha256": "06bee08f22f1026e74b91eb3d4486cef4d3c8179106a6c54cd4eac7d7a13a10a"
+    },
+    {
+      "id": "ses_eb4eb914bffe12nGl7CNDRSDi2",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-5 (@correctness-reviewer teammate)",
+      "agent": "correctness-reviewer",
+      "exported_messages": 34,
+      "omitted_parts": {
+        "reasoning": 31,
+        "tool-payload": 60
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb4eb914bffe12nGl7CNDRSDi2.jsonl",
+      "sha256": "9f273ab6b0e15181a52ca35da395570ab2e2a804d51caa4c0d7fe6bf3378cd1f"
+    },
+    {
+      "id": "ses_eb4e31a1bffeR6wkmLlCNOMHyl",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-6 (@test-reviewer teammate)",
+      "agent": "test-reviewer",
+      "exported_messages": 46,
+      "omitted_parts": {
+        "reasoning": 36,
+        "tool-payload": 45
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb4e31a1bffeR6wkmLlCNOMHyl.jsonl",
+      "sha256": "e85af38a11b1c10477af72014b9bfc676a8d15073f5eb143ea363c84b4a9bd5b"
+    },
+    {
+      "id": "ses_eb4d320d2ffeCfvUnCgi2JTIWc",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-7 (@qa-planner teammate)",
+      "agent": "qa-planner",
+      "exported_messages": 17,
+      "omitted_parts": {
+        "reasoning": 17,
+        "tool-payload": 30
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb4d320d2ffeCfvUnCgi2JTIWc.jsonl",
+      "sha256": "84f14468cd6cef224c83655fb3d2df6c56a44a57dab3cb5a3c38e8fd2d33317d"
+    },
+    {
+      "id": "ses_eb4a5be81ffe0WCvyi6ypQAQVK",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-8 (@qa-planner teammate)",
+      "agent": "qa-planner",
+      "exported_messages": 14,
+      "omitted_parts": {
+        "reasoning": 12,
+        "tool-payload": 31
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb4a5be81ffe0WCvyi6ypQAQVK.jsonl",
+      "sha256": "1c57364f2d92ccb1f5884dd44a98af3e7ff74cf1b49a7f4fbb421019956aa8b2"
+    },
+    {
+      "id": "ses_eb494c0adffeclZ3N3uUeR78xm",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-9 (@qa-planner teammate)",
+      "agent": "qa-planner",
+      "exported_messages": 4,
+      "omitted_parts": {
+        "reasoning": 5,
+        "tool-payload": 7
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb494c0adffeclZ3N3uUeR78xm.jsonl",
+      "sha256": "d5d6927b1e4811099a63398fe4d145cc9a9823b60d912ec4a2e4eaba28290280"
+    },
+    {
+      "id": "ses_eb1f63c5affeA4LcJlkaecDEpu",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-10 (@qa-planner teammate)",
+      "agent": "qa-planner",
+      "exported_messages": 12,
+      "omitted_parts": {
+        "reasoning": 12,
+        "tool-payload": 27
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb1f63c5affeA4LcJlkaecDEpu.jsonl",
+      "sha256": "5512202ff7689c02924afd3898b6c19de5109109c293fffda51c623cc49ea486"
+    },
+    {
+      "id": "ses_eb1f352c1ffe7PnuaRkfO6JPiZ",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-11 (@qa-planner teammate)",
+      "agent": "qa-planner",
+      "exported_messages": 34,
+      "omitted_parts": {
+        "reasoning": 34,
+        "tool-payload": 61
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb1f352c1ffe7PnuaRkfO6JPiZ.jsonl",
+      "sha256": "f10aa09cba4da4e8fd9f63ce7b1bca541654d6584b8f0fc770b62ee489913f42"
+    },
+    {
+      "id": "ses_eb1ea2fe2ffeNa0PLwiP5tQFD6",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-12 (@qa-planner teammate)",
+      "agent": "qa-planner",
+      "exported_messages": 0,
+      "omitted_parts": {
+        "reasoning": 1
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb1ea2fe2ffeNa0PLwiP5tQFD6.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "ses_eb1e999d4ffe16B0NFFTuIRV8G",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-13 (@qa-planner teammate)",
+      "agent": "qa-planner",
+      "exported_messages": 1,
+      "omitted_parts": {
+        "reasoning": 2,
+        "tool-payload": 2
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb1e999d4ffe16B0NFFTuIRV8G.jsonl",
+      "sha256": "8036c28874dc2fc9e9a5b0161059cda404cde4798f127b396b88e00994f9294b"
+    },
+    {
+      "id": "ses_eb1de7903ffeb0dYMbZBElM8F2",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-14 (@test-engineer teammate)",
+      "agent": "test-engineer",
+      "exported_messages": 94,
+      "omitted_parts": {
+        "reasoning": 69,
+        "tool-payload": 91
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb1de7903ffeb0dYMbZBElM8F2.jsonl",
+      "sha256": "75fcbc03393d4c23b18eebe91b1544427368e5d7c3579511c115eee2ef5dd861"
+    },
+    {
+      "id": "ses_eb1865a1effePjRFE3za9S7YlQ",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-15 (@test-engineer teammate)",
+      "agent": "test-engineer",
+      "exported_messages": 34,
+      "omitted_parts": {
+        "reasoning": 33,
+        "tool-payload": 46
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb1865a1effePjRFE3za9S7YlQ.jsonl",
+      "sha256": "ea98ae705d55c005ad15478ceccddd1d70ff26c95e377445d5b1cdb245622fe5"
+    },
+    {
+      "id": "ses_eb18075f0ffeynw2yoi8v8BdRI",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-16 (@correctness-reviewer teammate)",
+      "agent": "correctness-reviewer",
+      "exported_messages": 31,
+      "omitted_parts": {
+        "reasoning": 30,
+        "tool-payload": 45
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb18075f0ffeynw2yoi8v8BdRI.jsonl",
+      "sha256": "b9e53a17b5ea2071dd7c3ca141901a18f6a98626a74546be6aec9944586b3eb2"
+    },
+    {
+      "id": "ses_eb18034b7ffeS4wbpczCfoZv5r",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-17 (@infra-verifier teammate)",
+      "agent": "infra-verifier",
+      "exported_messages": 13,
+      "omitted_parts": {
+        "reasoning": 13,
+        "tool-payload": 29
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb18034b7ffeS4wbpczCfoZv5r.jsonl",
+      "sha256": "ad0cb6d4913255b99901889cdd498d4c2981d0991fd069de67a4d47c2be3a4a0"
+    },
+    {
+      "id": "ses_eb16e6dbbffetQwWTij4f1CgtR",
+      "parent_id": "ses_eb54b7872ffdmyP0r4Pbn8KCiX",
+      "title": "pool-18 (@test-reviewer teammate)",
+      "agent": "test-reviewer",
+      "exported_messages": 48,
+      "omitted_parts": {
+        "reasoning": 43,
+        "tool-payload": 55
+      },
+      "path": "_raw\\opencode-g17-m6-20261018\\ses_eb16e6dbbffetQwWTij4f1CgtR.jsonl",
+      "sha256": "a88eb9a85f384b772c82defb1840b4fec67004a683782231a65145fd408fd7b9"
+    }
+  ],
+  "artifacts": [
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\handoffs\\20261017-g17-e2e-chain-mission-prep.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.cursor\\handoffs\\20261017-g17-e2e-chain-mission-prep.md",
+      "sha256": "21dec3f162c80ee3e72ba3425d955369d3da192f625021f47548abb437bdf7a6",
+      "bytes": 48527
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\qa-plans\\20261017-operator-cli-credentials.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.cursor\\qa-plans\\20261017-operator-cli-credentials.md",
+      "sha256": "4485dda4bb71e745cacaa52b810f227dbeb5959abce108de3068c08d0e727d1a",
+      "bytes": 19881
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\qa-plans\\20261017-operator-cli-real-binary-transport.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.cursor\\qa-plans\\20261017-operator-cli-real-binary-transport.md",
+      "sha256": "c881314c592975de923e7d76b605668ea9259eafde8bc940c93660a78bedb68a",
+      "bytes": 41018
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\qa-plans\\20261017-m6-e2e-chain-kind-ready.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.cursor\\qa-plans\\20261017-m6-e2e-chain-kind-ready.md",
+      "sha256": "e1e0982f6a682f4597c5933349aa7f5786c2d23a540aa1fc2b393fd07a8cb95c",
+      "bytes": 61684
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\review-briefings\\20261017-operator-cli-credentials-correctness.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.cursor\\review-briefings\\20261017-operator-cli-credentials-correctness.md",
+      "sha256": "4f0a9a18af395e836127034103984e0100a1b8064681e2a832cd52ffeb3e7673",
+      "bytes": 12315
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\review-briefings\\20261017-operator-cli-credentials-rust-perf.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.cursor\\review-briefings\\20261017-operator-cli-credentials-rust-perf.md",
+      "sha256": "8aa668a287f1bbcedd3f7b8042056db548e40e547fbc97836ba442596f2d2264",
+      "bytes": 12482
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\review-briefings\\20261017-operator-cli-credentials-security.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.cursor\\review-briefings\\20261017-operator-cli-credentials-security.md",
+      "sha256": "20b61030d665d45d1adac6bd1b87f9220628e3fc9c928f81eb697a0cc38f6c9e",
+      "bytes": 14488
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\review-briefings\\20261017-operator-cli-credentials-tests.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.cursor\\review-briefings\\20261017-operator-cli-credentials-tests.md",
+      "sha256": "18dabb47fe0a7a938c8ce07b97bdd9e9b23d886d07b637c16b903f88a26fa8f6",
+      "bytes": 10074
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\review-briefings\\20261017-operator-cli-real-binary-transport-correctness.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.cursor\\review-briefings\\20261017-operator-cli-real-binary-transport-correctness.md",
+      "sha256": "e15baf47a2694fe20837a6c089b9f076ae4a51926407e84e631af1afeb6db5b4",
+      "bytes": 15119
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\review-briefings\\20261017-operator-cli-real-binary-transport-tests.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.cursor\\review-briefings\\20261017-operator-cli-real-binary-transport-tests.md",
+      "sha256": "59baae62d3f929d5fbf9fc776bd947834c4e035fd5a119f8f83ca564a17abfbb",
+      "bytes": 18570
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\review-briefings\\20261018-m6-e2e-chain-correctness.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.cursor\\review-briefings\\20261018-m6-e2e-chain-correctness.md",
+      "sha256": "1efa75a0b1d1e6aca63caeadab54b20a9a91c3e09aaa67969a7bd31ff6e59c5c",
+      "bytes": 12819
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\review-briefings\\20261018-m6-e2e-chain-infra.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.cursor\\review-briefings\\20261018-m6-e2e-chain-infra.md",
+      "sha256": "fab14ae8c367c1ba3b9414482ac30710c53d6cfc4ab4c559eab90ec1a16a0173",
+      "bytes": 5645
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\review-briefings\\20261018-m6-e2e-chain-review-request.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.cursor\\review-briefings\\20261018-m6-e2e-chain-review-request.md",
+      "sha256": "bf677f58fb8ba8d0d5c2e9885e691431f6c01c02c5c8c50e1f82185f27551134",
+      "bytes": 2588
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.cursor\\review-briefings\\20261018-m6-e2e-chain-tests.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.cursor\\review-briefings\\20261018-m6-e2e-chain-tests.md",
+      "sha256": "2a11a54b4a2f7f7b35eb36e02b19f1ccb0114cff6bf3a3088fea46c0817b9c05",
+      "bytes": 19669
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-lead-recovery-20261018.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-lead-recovery-20261018.md",
+      "sha256": "d0def6ebb8c3b8996f7937f48b29e367314e8e23fe814df0ec21e2c35786b3c1",
+      "bytes": 5557
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\docker-resources-20261017.log",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\docker-resources-20261017.log",
+      "sha256": "8bc8e66c35c4964bd993b6a34e60741c6bfd453dc4d140b1902f737444ec0ceb",
+      "bytes": 6164
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\docker-resources-20261018.log",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\docker-resources-20261018.log",
+      "sha256": "f258a1fd345c277e0bd07a1d22a6b06797df289b98d41388388e5aaa8be1a0da",
+      "bytes": 10767
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-appsys-after-run2.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-appsys-after-run2.txt",
+      "sha256": "f477bf1bb96fc79c708698fe13d3a25d09ca9acafeabf64b533d0b8eb848713f",
+      "bytes": 2002
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-appsys-before.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-appsys-before.txt",
+      "sha256": "c6dc1f3d6a267914f36ee4f1ecb2219f088a6ed539d7a7ca06dfd47de21ec127",
+      "bytes": 818
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-clusters-after-neg.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-clusters-after-neg.txt",
+      "sha256": "1113014d33565210460957d301e7117534d1b1d27d80ab2a687232eadccc1c33",
+      "bytes": 34
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-compile-list.log",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-compile-list.log",
+      "sha256": "691dc3ad8d825a1c5fb52496b6ecf775f1436f612f3b8e2ee43a61eaa72449f3",
+      "bytes": 37384
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-crd-after-run2.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-crd-after-run2.txt",
+      "sha256": "ae94c2478c5dd70f21b62184a5f256dd3f5c69e5004a002003c8951e6116bf9d",
+      "bytes": 238
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-crd-before.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-crd-before.txt",
+      "sha256": "7db4e5ba96c63f52064136876524f5b76f0860d4b73505c390246110a82206c9",
+      "bytes": 980
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-deploy-all-before.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-deploy-all-before.txt",
+      "sha256": "8501e27df126d3326d1a284224541fa1bd8035313c65edd88d6dc57dfbf6fd6c",
+      "bytes": 1912
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-ds-before.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-ds-before.txt",
+      "sha256": "f872fff6d3986372f926d37af36caf000bfe18649fb8e792e7bd375987faf558",
+      "bytes": 592
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-e2e-chain-run2.log",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-e2e-chain-run2.log",
+      "sha256": "21339ab52afe0397846af1a9a61ac6dc58636d67e492644030f0ff58f3421a00",
+      "bytes": 11084
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-e2e-chain-run3.log",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-e2e-chain-run3.log",
+      "sha256": "92ca8a6caa1478743709cee62882aa71a8c0f476b0de74af159ef63223551db4",
+      "bytes": 32504
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-e2e-chain-run4.log",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-e2e-chain-run4.log",
+      "sha256": "6033b54c1d1ea29cc3ee8863a2b57cd13f92968181ea0c2b8a4b114a11f5a9b1",
+      "bytes": 4090
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-e2e-chain.log",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-e2e-chain.log",
+      "sha256": "aade2bf39cf88762f72cd75f4e083d31ab520c507b6d51b6ae95fc998a630543",
+      "bytes": 4802
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-fmt-check.log",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-fmt-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-inventory-before.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-inventory-before.txt",
+      "sha256": "57369296be337528efc7286f4236bad33937807c2a795ad14d78921fc4cbf102",
+      "bytes": 8048
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-neg-cluster.log",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-neg-cluster.log",
+      "sha256": "b5b1f0c41ab6997f06005ba50bf7ec18995afbb58810b702426646a9f28604fb",
+      "bytes": 4990
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-netpol-after-run2.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-netpol-after-run2.txt",
+      "sha256": "5584b3cf7747005824fab5874b1e226a29e53d99b7c730d743121041c1a0fa65",
+      "bytes": 382
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-netpol-before.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-netpol-before.txt",
+      "sha256": "b58a4cd86c42e343c5412e45a10e536d0588cdcbe07a25b3e4e1c95792274083",
+      "bytes": 726
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-nodes-before.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-nodes-before.txt",
+      "sha256": "ab4692a13486c1e0dde803770a008a5666b4c33a4187cecd79c11efddde21f5c",
+      "bytes": 294
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-ns-after-run2.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-ns-after-run2.txt",
+      "sha256": "9ace159db94292739318ad4ae4f4c4e60abe109cacb84db4e81e7f78f31a1cf7",
+      "bytes": 2098
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-ns-before.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-ns-before.txt",
+      "sha256": "4a7e00e480d45ded29eb5df0783e98d5a3a8522e3c890cd3afbe2f34130ca09c",
+      "bytes": 1626
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-plugins-after-run2.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-plugins-after-run2.txt",
+      "sha256": "497706fdf2df026b4382ef60a4b84dc123feeecf32e4257bb3b20df946ccf388",
+      "bytes": 820
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-plugins-before.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-plugins-before.txt",
+      "sha256": "6fd0f15bd0bd0c2cdbe6c7764c9cf9822531c1c7eaf46f63ba3ac64ecf2939f5",
+      "bytes": 820
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\m6-svc-after-run2.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\m6-svc-after-run2.txt",
+      "sha256": "f71702fb8f82722f635eae5c7ad503d853d099928c49634f41a8a1becb31c6a6",
+      "bytes": 650
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-evidence-20261018-pool14\\MANIFEST.md",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-evidence-20261018-pool14\\MANIFEST.md",
+      "sha256": "411794b3b6f52b64f1deebc8c9332ce069e61ec2b3d31154be9c6cbc7b6f8de8",
+      "bytes": 1187
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-post-run4-appsys.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-post-run4-appsys.txt",
+      "sha256": "0c54bff6c0c57da16961ef3828ba8143347beb75639e970bdcd82de8b4998de1",
+      "bytes": 1171
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-post-run4-cr.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-post-run4-cr.txt",
+      "sha256": "80200b9b1cafd0e952442944fc4fc2c4b41cf081508c75118ea530dc2ff5d896",
+      "bytes": 165
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-post-run4-crd.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-post-run4-crd.txt",
+      "sha256": "3c0d20ab4c3196683825d2ce533e85b901ac72c6528604c6cb822800b0c95c94",
+      "bytes": 121
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-post-run4-dockerps.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-post-run4-dockerps.txt",
+      "sha256": "0b30fe4afb9fb4e25648f4ef7217af0fd9702288063d7a0a3644b921da96a6b3",
+      "bytes": 112
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-post-run4-ds.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-post-run4-ds.txt",
+      "sha256": "4bb750f6a6efda552fcb89c80f40b61ac7472e8caf65d5bee2a0522e3e5bec10",
+      "bytes": 298
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-post-run4-netpol.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-post-run4-netpol.txt",
+      "sha256": "36c9cee2a2ebadbd8e6f07351fd610226077df1a8431d0a06d09a4732e08b878",
+      "bytes": 79
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-post-run4-ns.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-post-run4-ns.txt",
+      "sha256": "c05e1721162e5b2e32380db534b8978997dc3fcd00436bc000a53d0257795243",
+      "bytes": 1051
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-post-run4-plugins.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-post-run4-plugins.txt",
+      "sha256": "4c854c8d7c27e036e8455506c6253f282f46b7ce2a1cde19f90dc04c675a5b41",
+      "bytes": 155
+    },
+    {
+      "source": "C:\\Users\\djden\\source\\repos\\AIForAll\\.tmp\\m6-post-run4-syspods.txt",
+      "archive": "_raw\\opencode-g17-m6-20261018\\evidence\\.tmp\\m6-post-run4-syspods.txt",
+      "sha256": "a53031e178710ff0adaec4e834081e42e13d564fd4525262e9ec187e64bb4ebf",
+      "bytes": 157
+    }
+  ]
+}

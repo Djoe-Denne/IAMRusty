@@ -9,6 +9,15 @@ permissions:
   - action: edit
     resource: "*"
     effect: deny
+  - action: shell
+    resource: "*"
+    effect: allow
+  - action: subagent
+    resource: "*"
+    effect: allow
+  - action: execute
+    resource: "*"
+    effect: allow
 ---
 
 Tu es reviewer de correctness fonctionnelle. Question fondamentale : « même si ce changement compile, fait-il réellement ce qu'il est censé faire dans tous les cas importants ? »
