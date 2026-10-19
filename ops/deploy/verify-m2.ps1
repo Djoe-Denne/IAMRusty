@@ -25,6 +25,7 @@ if ($missing.Count -gt 0) {
 }
 
 Write-Host "M2 : contexte $KindContext (jamais $ForbiddenContext)" -ForegroundColor Cyan
+Write-Warning 'M2 legacy (non nominal full) : sonde = validation explicite (ops/tests/manifests) ; overlay kind sans Job au lancement (separation runtime/validation).'
 
 Initialize-LocalKind
 
@@ -42,7 +43,7 @@ Invoke-Kubectl @('apply', '-k', 'ops/deploy/apps/overlays/kind')
 Invoke-Kubectl @('apply', '-k', 'ops/deploy/p4')
 Invoke-Kubectl @('wait', '--for=condition=available', 'deployment/lazaret', '-n', 'aiforall-gateway', '--timeout=180s')
 Invoke-Kubectl @('delete', 'job', 'invoke-probe', '-n', 'aiforall-plugins', '--ignore-not-found=true')
-Invoke-Kubectl @('apply', '-k', 'ops/deploy/apps/overlays/kind')
+Invoke-Kubectl @('apply', '-f', 'ops/tests/manifests/invoke-probe-job.yaml')
 Invoke-Kubectl @('wait', '--for=condition=complete', 'job/invoke-probe', '-n', 'aiforall-plugins', '--timeout=240s')
 
 Write-Host "NetworkPolicy + Services :" -ForegroundColor Cyan

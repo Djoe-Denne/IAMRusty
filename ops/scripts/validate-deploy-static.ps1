@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../deploy/common.ps1')
 $root = Get-AIForAllRoot $PSScriptRoot
 $failures = @()
-foreach ($script in (Get-ChildItem -LiteralPath (Join-Path $root 'ops/deploy') -Recurse -Filter '*.ps1')) {
+foreach ($script in (Get-ChildItem -LiteralPath @((Join-Path $root 'ops/deploy'), (Join-Path $root 'ops/tests')) -Recurse -Filter '*.ps1')) {
     $tokens = $null
     $errors = $null
     [void][Management.Automation.Language.Parser]::ParseFile($script.FullName, [ref]$tokens, [ref]$errors)
@@ -23,7 +23,11 @@ foreach ($relative in @(
     'ops/deploy/apps/overlays/kind-mesh/kustomization.yaml',
     'ops/deploy/apps/overlays/kind-demo-monolith/kustomization.yaml',
     'crates/apparatus-contracts/Cargo.toml',
-    'crates/apparatus-reference-kv/Dockerfile.http'
+    'crates/apparatus-reference-kv/Dockerfile.http',
+    'ops/tests/manifests/invoke-probe-job.yaml',
+    'ops/tests/it-native.ps1',
+    'ops/tests/test_local_full_target.py',
+    'ops/tests/legacy/prove-gold-path.ps1'
 )) {
     if (-not (Test-Path -LiteralPath (Join-Path $root $relative))) { $failures += "Missing nominal path: $relative" }
 }

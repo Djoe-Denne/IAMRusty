@@ -1,0 +1,56 @@
+{
+  "head": "427416b",
+  "source_sha256": "bdcde4a39b569d9cca81fb06c24cf7323d9b88f255317a2f91df1b1424eaf85d",
+  "functions": {
+    "obj": {
+      "raise": 0,
+      "if": 1,
+      "sha256": "9db063ca487c05c8a008c7504c9855c1165f0c616d4e2feedd8187dd12f513ea"
+    },
+    "owned": {
+      "raise": 1,
+      "if": 1,
+      "sha256": "07d9ae03653b5a53c863e3e88599759973d246b94bede84cf64440a61ffbea15"
+    },
+    "namespace_owned": {
+      "raise": 2,
+      "if": 2,
+      "sha256": "73d7bb561901f2f7bb0eba85019df2e636b068b8c473075ab17a177028e5a5b6"
+    },
+    "guarded_curl": {
+      "raise": 1,
+      "if": 1,
+      "sha256": "7374c05623731e3fd72ded3e8d12fd75872ce978c8fe32ee43e6b62c7018109a"
+    },
+    "probe": {
+      "raise": 4,
+      "if": 4,
+      "sha256": "5cbd3354cb91261904cb7129b26734a7d5b02c3a58244be71cbc2b6af46d1bfe"
+    },
+    "route_matrix": {
+      "raise": 8,
+      "if": 9,
+      "sha256": "4d144832c7602e534c4b10df749fcfc7e87613ad095732ca242f162186ea1225"
+    },
+    "domain_digest": {
+      "raise": 2,
+      "if": 2,
+      "sha256": "47595bbf4e1a5a11e232e029c0e9f5105a9484253b22d8bf222530383368ed88"
+    },
+    "snapshot": {
+      "raise": 6,
+      "if": 6,
+      "sha256": "758ba085c2d8689c76b0834bda9178482b026f48db050bd8c025eff6d4b569dc"
+    },
+    "run": {
+      "raise": 11,
+      "if": 16,
+      "sha256": "ecea002c82c87d580cab24bce861b475a20efb1c476740d536da7a088f94e77b"
+    },
+    "main": {
+      "raise": 0,
+      "if": 4,
+      "sha256": "573415ae12966ead1c841c027cb1fe865d8d8af12f0cdc4dc1babd26e54200f2"
+    }
+  }
+}

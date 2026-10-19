@@ -1,10 +1,11 @@
-"""Parent-final-only, lease-gated observations/probes. Never deploy/start/delete.
+"""Explicit lease-gated local-full validation; never deploy or seed.
 
 Requires parent-provisioned exact leased probe pods and completed D operations.
 No optional skips: a missing lease/resource/tool/fixture is a failure.
 """
 import argparse
 import hashlib
+import http.client
 import importlib.util
 import json
 import re
@@ -21,6 +22,165 @@ spec = importlib.util.spec_from_file_location("storage", ROOT / "ops/deploy/loca
 runtime = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runtime)
 CONTEXT = "kind-aiforall-local-full"
+BASE_URL = "http://127.0.0.1:18080"
+NAMESPACES = {"namespace": "aiforall-local-full", "apparatus_namespace": "aiforall-local-apparatus",
+              "plugins_namespace": "aiforall-local-plugins"}
+SMOKE_DEPLOYMENTS = ("postgres", "openfga", "redis", "localstack", "openbao", "mailhog",
+                     "component-catalog", "zot", "iam", "hive", "manifesto", "telegraph",
+                     "lazaret", "sentinel-sync", "ext-authz", "envoy-mesh")
+
+
+class ValidationBlocked(ValueError):
+    """An explicit prerequisite has no approved full setup; never a skip/PASS."""
+
+
+def strict_json(path):
+    def pairs(items):
+        value = {}
+        for key, item in items:
+            if key in value:
+                raise ValueError("duplicate JSON field")
+            value[key] = item
+        return value
+    return json.loads(path.read_text(encoding="utf-8-sig"), object_pairs_hook=pairs,
+                      parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite JSON value")))
+
+
+def read_environment(path):
+    value = strict_json(path)
+    required = {"version", "profile", "context", "cluster", "lease_path", "base_url", *NAMESPACES}
+    if not isinstance(value, dict) or not required <= value.keys() or value.keys() - required - {"public_ca_path"}:
+        raise ValueError("environment fields must match the v1 schema exactly")
+    if type(value["version"]) is not int or value["version"] != 1 or value["profile"] != "local-full":
+        raise ValueError("environment v1 local-full profile required")
+    if value["context"] != CONTEXT or value["cluster"] != "aiforall-local-full":
+        raise ValueError("foreign or contradictory environment target")
+    if value["base_url"] != BASE_URL or any(value[k] != v for k, v in NAMESPACES.items()):
+        raise ValueError("foreign or contradictory URL/namespaces")
+    for key in ("lease_path", "public_ca_path"):
+        if key in value and (not isinstance(value[key], str) or not Path(value[key]).is_absolute()):
+            raise ValueError("environment paths must be explicit and absolute")
+    return value
+
+
+def bind_environment(args):
+    if args.environment:
+        if any(getattr(args, key) is not None for key in ("lease", "namespace", "context")):
+            raise ValueError("environment cannot be combined with lease/namespace/context overrides")
+        args.environment_data = read_environment(args.environment)
+        args.lease = Path(args.environment_data["lease_path"])
+        args.namespace = args.environment_data["namespace"]
+        args.context = args.environment_data["context"]
+    else:
+        args.environment_data = None
+        if args.lease is None or args.namespace is None:
+            raise ValueError("explicit environment or legacy lease/namespace required")
+        args.context = args.context or CONTEXT
+    if args.action in {"smoke", "e2e", "prepare-probes", "cleanup-probes"} and not args.environment_data:
+        raise ValueError("this mode requires an explicit environment")
+
+
+def smoke(args, data):
+    # Only guarded GET/wait. Readiness is not business/AuthZ proof.
+    for namespace in NAMESPACES.values():
+        namespace_owned(data, namespace)
+        args.executed += 1
+    for namespace, name in [(args.namespace, name) for name in SMOKE_DEPLOYMENTS] + [
+            (NAMESPACES["apparatus_namespace"], "apparatus-operator")]:
+        deployment = owned(data, "Deployment", name, namespace)
+        runtime.kubectl("wait", "--for=condition=Available", "deployment/" + name,
+                        "-n", namespace, "--timeout=120s")
+        current = obj("Deployment", name, namespace)
+        if current["metadata"]["uid"] != deployment["metadata"]["uid"]:
+            raise AssertionError("deployment replaced during smoke")
+        desired = current["spec"].get("replicas", 1)
+        status = current.get("status", {})
+        if desired < 1 or status.get("observedGeneration", 0) < current["metadata"].get("generation", 1) or any(
+                status.get(key, 0) < desired for key in ("availableReplicas", "readyReplicas", "updatedReplicas")):
+            raise AssertionError("required deployment is not fully available")
+        args.executed += 1
+    claims = json.loads(runtime.kubectl("get", "pvc", "-n", args.namespace, "-o", "json"))["items"]
+    if not claims or any(p.get("status", {}).get("phase") != "Bound" for p in claims):
+        raise AssertionError("required persistent claims are not Bound")
+    args.executed += 1
+
+
+def public_cases(path):
+    cases = strict_json(path)
+    if not isinstance(cases, list) or not cases:
+        raise ValueError("nonempty explicit route cases required")
+    ids = set()
+    for case in cases:
+        if not isinstance(case, dict) or set(case) - {"id", "method", "path", "statuses", "json"}:
+            raise ValueError("unknown route case field")
+        identifier = case.get("id", "")
+        path = case.get("path", "")
+        if not isinstance(identifier, str) or not re.fullmatch(r"[a-z0-9-]{1,80}", identifier) or identifier in ids:
+            raise ValueError("unique nonsecret route case IDs required")
+        ids.add(identifier)
+        if not isinstance(case.get("method"), str) or case["method"] not in {"GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"} or not isinstance(path, str) or not path.startswith("/iam/") or any(
+                ord(c) <= 32 or ord(c) >= 127 for c in path) or "#" in path or "\\" in path:
+            raise ValueError("exact local IAM route required")
+        statuses = case.get("statuses")
+        if not isinstance(statuses, list) or not statuses or any(type(s) is not int or not 100 <= s <= 599 for s in statuses):
+            raise ValueError("explicit route statuses required")
+        if "json" in case and case["json"] != {}:
+            raise ValueError("public route matrix accepts empty validation bodies only")
+    return cases
+
+
+def public_route_matrix(args, data):
+    namespace_owned(data, args.namespace)
+    # Direct fixed loopback connection: no ambient proxies, redirects or URL joins.
+    # The authority rechecks endpoint/mapping/UID before EACH HTTP request.
+    for case in args.route_cases:
+        runtime.target().check()
+        connection = http.client.HTTPConnection("127.0.0.1", 18080, timeout=20)
+        try:
+            connection.request(case["method"], case["path"], body=b"{}" if "json" in case else None,
+                               headers={"Content-Type": "application/json"} if "json" in case else {})
+            response = connection.getresponse()
+            status = response.status
+            # Do not print or persist bodies, cookies, headers, or credentials.
+            if status not in case["statuses"]:
+                raise AssertionError("route matrix status mismatch (response redacted)")
+            args.executed += 1
+        finally:
+            connection.close()
+
+
+def explicit_probe_action(args, data):
+    # No approved full setup exists yet. Never reuse mutating legacy drivers.
+    inputs = strict_json(args.inputs) if args.inputs else None
+    if args.action == "cleanup-probes":
+        if inputs is not None and (not isinstance(inputs, dict) or set(inputs) != {"version", "created_resources"}
+                                   or type(inputs["version"]) is not int or inputs["version"] != 1
+                                   or inputs["created_resources"] != []):
+            raise ValidationBlocked("cleanup refused: no resources were created or attested by prepare-probes")
+        args.executed += 1
+        return  # Explicit no-op: prepare-probes has never created resources.
+    if not isinstance(inputs, dict) or type(inputs.get("version")) is not int or inputs["version"] != 1:
+        raise ValidationBlocked("private v1 inputs with declared operator state required")
+    raise ValidationBlocked("approved full setup/UID-attested probes unavailable; legacy seed/rollout forbidden")
+
+
+def git_revision():
+    directory = ROOT / ".git"
+    if directory.is_file():
+        directory = (ROOT / directory.read_text().strip().removeprefix("gitdir: ")).resolve()
+    head = (directory / "HEAD").read_text().strip()
+    if head.startswith("ref: "):
+        reference = head[5:]
+        common = (directory / (directory / "commondir").read_text().strip()).resolve() if (directory / "commondir").exists() else directory
+        ref = common / reference
+        if ref.exists():
+            head = ref.read_text().strip()
+        else:
+            head = next((line.split()[0] for line in (common / "packed-refs").read_text().splitlines()
+                         if line.endswith(" " + reference)), "")
+    if not re.fullmatch(r"[a-f0-9]{40}", head):
+        raise ValueError("Git source revision unavailable")
+    return head
 
 
 def obj(kind, name, namespace=None):
@@ -238,10 +398,13 @@ def run(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["network-policy", "route-matrix", "snapshot", "rollout-check", "recovery-check", "restore-check"])
-    parser.add_argument("--context", choices=[CONTEXT], default=CONTEXT)
-    parser.add_argument("--lease", type=Path, required=True)
-    parser.add_argument("--namespace", required=True)
+    parser.add_argument("action", choices=["smoke", "e2e", "prepare-probes", "cleanup-probes", "network-policy", "route-matrix", "snapshot", "rollout-check", "recovery-check", "restore-check"])
+    parser.add_argument("--environment", type=Path)
+    parser.add_argument("--suite", choices=["mesh-authn", "apparatus"])
+    parser.add_argument("--inputs", type=Path)
+    parser.add_argument("--context", choices=[CONTEXT])
+    parser.add_argument("--lease", type=Path)
+    parser.add_argument("--namespace")
     parser.add_argument("--deployment")
     parser.add_argument("--database")
     parser.add_argument("--database-pod")
@@ -250,26 +413,81 @@ def main():
     parser.add_argument("--output", type=Path)
     for option in ["allowed-namespace", "allowed-pod", "denied-namespace", "denied-pod", "service", "ca-path", "cert-path", "key-path"]:
         parser.add_argument("--" + option)
-    parser.add_argument("--port", type=int, default=10000)
-    parser.add_argument("--path", default="/iam/api/me")
+    parser.add_argument("--port", type=int)
+    parser.add_argument("--path")
     parser.add_argument("--tls-host")
     parser.add_argument("--cases", type=Path)
     args = parser.parse_args()
-    required = (["allowed_namespace", "allowed_pod", "denied_namespace", "denied_pod", "service", "ca_path", "cert_path", "key_path"]
-                if args.action == "network-policy" else ["allowed_namespace", "allowed_pod", "service", "ca_path", "cert_path", "key_path", "cases"]
-                if args.action == "route-matrix" else ["database", "database_pod", "invariant_sql"])
-    if args.action not in {"network-policy", "route-matrix", "restore-check"}:
-        required += ["deployment"]
-    required += ["output"] if args.action == "snapshot" else ([] if args.action in {"network-policy", "route-matrix"} else ["before"])
-    if any(getattr(args, name) is None for name in required):
-        parser.error("missing required action-specific fixture/evidence argument")
-    if not 1 <= args.port <= 65535 or not args.path.startswith("/"):
-        parser.error("invalid exact target")
-    if args.tls_host and not re.fullmatch(r"[a-z0-9.-]+", args.tls_host):
-        parser.error("invalid explicit TLS hostname")
-    with runtime.operation_lock(args.lease, "acceptance-" + args.action):
-        run(args)
+    args.executed = 0
+    expected = 1
+    revision = "NOT RUN"
+    try:
+        revision = git_revision()
+        bind_environment(args)
+        modern = args.action in {"smoke", "e2e", "prepare-probes", "cleanup-probes"} or (
+            args.action == "route-matrix" and args.environment_data is not None)
+        if modern:
+            legacy_options = ("allowed_namespace", "allowed_pod", "denied_namespace", "denied_pod", "service",
+                              "ca_path", "cert_path", "key_path", "tls_host", "port", "path", "deployment",
+                              "database", "database_pod", "invariant_sql", "before", "output")
+            if any(getattr(args, key) is not None for key in legacy_options):
+                raise ValueError("environment mode rejects legacy fixture/transport overrides")
+            if (args.cases and args.action != "route-matrix") or (args.suite and args.action != "e2e") or (
+                    args.inputs and args.action not in {"e2e", "prepare-probes", "cleanup-probes"}):
+                raise ValueError("ambiguous action-specific inputs")
+            if args.action == "route-matrix":
+                if not args.cases:
+                    raise ValidationBlocked("explicit route cases required")
+                args.route_cases = public_cases(args.cases)
+                expected = len(args.route_cases)
+            elif args.action == "smoke":
+                expected = len(NAMESPACES) + len(SMOKE_DEPLOYMENTS) + 2
+            elif args.action == "e2e" and (not args.suite or not args.inputs):
+                raise ValidationBlocked("explicit suite and private inputs required")
+            with runtime.operation_lock(args.lease, "acceptance-" + args.action):
+                data = runtime.lease(args.lease)
+                if args.action == "smoke":
+                    smoke(args, data)
+                elif args.action == "route-matrix":
+                    public_route_matrix(args, data)
+                else:
+                    explicit_probe_action(args, data)
+        else:
+            args.port = 10000 if args.port is None else args.port
+            args.path = "/iam/api/me" if args.path is None else args.path
+            required = (["allowed_namespace", "allowed_pod", "denied_namespace", "denied_pod", "service", "ca_path", "cert_path", "key_path"]
+                        if args.action == "network-policy" else ["allowed_namespace", "allowed_pod", "service", "ca_path", "cert_path", "key_path", "cases"]
+                        if args.action == "route-matrix" else ["database", "database_pod", "invariant_sql"])
+            if args.action not in {"network-policy", "route-matrix", "restore-check"}:
+                required += ["deployment"]
+            required += ["output"] if args.action == "snapshot" else ([] if args.action in {"network-policy", "route-matrix"} else ["before"])
+            if any(getattr(args, name) is None for name in required):
+                raise ValidationBlocked("missing required action-specific fixture/evidence argument")
+            if not 1 <= args.port <= 65535 or not args.path.startswith("/"):
+                raise ValueError("invalid exact target")
+            if args.tls_host and not re.fullmatch(r"[a-z0-9.-]+", args.tls_host):
+                raise ValueError("invalid explicit TLS hostname")
+            with runtime.operation_lock(args.lease, "acceptance-" + args.action):
+                run(args)
+                args.executed = 1
+    except Exception as error:
+        blocked = isinstance(error, (ValidationBlocked, ValueError, OSError, anchor_module.AnchorError))
+        executed = args.executed if blocked else min(expected, args.executed + 1)
+        print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action,
+                          "status": "BLOCKED" if blocked else "FAIL", "evidence": "NOT RUN" if not executed else "LIVE",
+                          "expected": expected, "executed": executed, "failed": 0 if blocked else 1,
+                          "blocked": max(0, expected - executed),
+                          "reason": str(error) if isinstance(error, ValidationBlocked) else
+                                    "validation rejected or failed (" + type(error).__name__ + "); response/credentials redacted"}))
+        return 2 if blocked else 1
+    print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action, "status": "PASS",
+                      "evidence": "NOT RUN" if args.action == "cleanup-probes" else "LIVE",
+                      "expected": expected, "executed": args.executed, "failed": 0, "blocked": 0,
+                      "scope": "readiness only; business/AuthZ NOT RUN" if args.action == "smoke" else
+                               "no resources created; cleanup no-op" if args.action == "cleanup-probes" else
+                               "LocalStack/MailHog/catalogue/OpenBao DEV/Zot are simulated dependencies; no production equivalence"}))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

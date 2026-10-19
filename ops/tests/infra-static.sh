@@ -5,6 +5,10 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$ROOT"
 PYTHON=${PYTHON:-python3}
 command -v "$PYTHON" >/dev/null || { echo 'Python required (set PYTHON to its executable)' >&2; exit 1; }
+# Windows hosts default to a legacy locale encoding for open()/stdin; UTF-8 mode
+# keeps YAML sources (BOM-tolerant) and kubectl render pipes byte-faithful. No
+# effect on Linux, where UTF-8 is already the default.
+export PYTHONUTF8=1
 command -v kubectl >/dev/null || { echo 'kubectl required for offline kustomize rendering' >&2; exit 1; }
 
 scripts=0
@@ -38,6 +42,24 @@ for path in paths:
 print(f'OK YAML syntax: {len(paths)} files')
 PY
 
+# Closed inventory: finding fewer overlays must never make the gate greener.
+"$PYTHON" - <<'PY'
+from pathlib import Path
+expected = {
+    'ops/deploy/apps/base',
+    'ops/deploy/apps/overlays/kind',
+    'ops/deploy/apps/overlays/kind-mesh',
+    'ops/deploy/apps/overlays/kind-demo-monolith',
+    'ops/deploy/apps/overlays/local-full',
+    'ops/deploy/apps/overlays/local-full/platform',
+    'ops/deploy/apps/overlays/local-full/apparatus',
+    'ops/deploy/p4',
+}
+actual = [p.parent.as_posix() for p in Path('ops/deploy').rglob('*')
+          if p.name in {'kustomization.yaml', 'kustomization.yml'}]
+if set(actual) != expected or len(actual) != len(expected):
+    raise SystemExit('Deployment kustomization inventory differs from the eight approved renders')
+PY
 renders=0
 while IFS= read -r -d '' manifest; do
   directory=$(dirname -- "$manifest")
@@ -56,5 +78,5 @@ print("OK rendered resource identities:", len(docs))
   printf 'OK offline render: %s\n' "$directory"
   renders=$((renders + 1))
 done < <(find ops/deploy -type f \( -name kustomization.yaml -o -name kustomization.yml \) -print0)
-[ "$renders" -gt 0 ] || { echo 'No deployment kustomizations found' >&2; exit 1; }
+[ "$renders" -eq 8 ] || { echo 'Expected exactly eight deployment renders' >&2; exit 1; }
 printf 'OK shell syntax: %s scripts; offline renders: %s\n' "$scripts" "$renders"

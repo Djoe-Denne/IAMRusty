@@ -1,14 +1,21 @@
 """Pure fake-command S-11 tests. Parent executes after source integration only."""
 import hashlib
+import importlib.util
 import json
 import os
 import tempfile
+import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 import yaml
-import local_full_target as anchor
+
+spec = importlib.util.spec_from_file_location(
+    "local_full_target", Path(__file__).resolve().parents[1] / "deploy/local_full_target.py")
+anchor = importlib.util.module_from_spec(spec)
+sys.modules["local_full_target"] = anchor
+spec.loader.exec_module(anchor)
 
 
 class FakeCommands:

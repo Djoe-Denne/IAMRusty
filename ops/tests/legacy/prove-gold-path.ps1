@@ -14,8 +14,9 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-. (Join-Path $PSScriptRoot '../../../common.ps1')
+. (Join-Path $PSScriptRoot '../../deploy/common.ps1')
 $RepoRoot = Get-AIForAllRoot $PSScriptRoot
+Write-Warning 'LEGACY non nominal: ADR-0605 monolith demonstration; mutates Jobs, network policies and environment. Not local-full validation.'
 Set-Location $RepoRoot
 
 $KindContext = 'kind-aiforall-local'

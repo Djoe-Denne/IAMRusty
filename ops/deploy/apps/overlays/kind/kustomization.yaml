@@ -3,7 +3,6 @@ kind: Kustomization
 resources:
   - ../../base
   - lazaret-invoke-configmap.yaml
-  - invoke-probe-job.yaml
 patches:
   - path: patch-lazaret-http.yaml
   - path: patch-plugin-http.yaml

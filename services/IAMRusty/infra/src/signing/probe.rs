@@ -581,7 +581,7 @@ mod tests {
 
     /// Loads the test-only RSA-8192 pair provisioned per environment through
     /// `IAMRUSTY_TEST_RSA8192_PEM_B64` (base64 of a PKCS#8 private PEM; see
-    /// `ops/scripts/generate-test-keys.sh`). Returns `None` when unset so
+    /// `services/IAMRusty/infra/tests/fixtures/generate-probe-keys.sh`). Returns `None` when unset so
     /// callers skip instead of keygenning oversize material. The key material
     /// is never logged.
     fn load_rsa8192_pair() -> Option<(String, String)> {
@@ -654,7 +654,7 @@ mod tests {
     async fn pem_challenge_accepts_rsa8192_pair() {
         let Some((private, public)) = load_rsa8192_pair() else {
             eprintln!(
-                "skipping: IAMRUSTY_TEST_RSA8192_PEM_B64 not set (bash ops/scripts/generate-test-keys.sh)"
+                "skipping: IAMRUSTY_TEST_RSA8192_PEM_B64 not set (bash services/IAMRusty/infra/tests/fixtures/generate-probe-keys.sh)"
             );
             return;
         };
@@ -713,7 +713,7 @@ mod tests {
 
         let Some((private, public)) = load_rsa8192_pair() else {
             eprintln!(
-                "skipping: IAMRUSTY_TEST_RSA8192_PEM_B64 not set (bash ops/scripts/generate-test-keys.sh)"
+                "skipping: IAMRUSTY_TEST_RSA8192_PEM_B64 not set (bash services/IAMRusty/infra/tests/fixtures/generate-probe-keys.sh)"
             );
             return;
         };
