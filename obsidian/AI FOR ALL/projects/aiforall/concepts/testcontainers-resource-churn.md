@@ -1,14 +1,15 @@
 ---
 title: >-
-  Churn des fixtures testcontainers — mesure, flake prouvé, pistes de correction
+  Churn des fixtures testcontainers — mesure, flake prouvé, correction engagée
 category: concepts
 tags: [testing, docker, rust, debt, visibility/internal]
 sources:
   - .serena/memories/architecture/it-testcontainers-resource-churn.md
   - .cursor/handoffs/20261018-ops-kind-runtime-validation-preparation.md
   - .cursor/qa-plans/20261019-ops-kind-runtime-validation-qa-plan.md
+  - docs/missions/20261019-it-fixtures-lifecycle.md
 summary: >-
-  Un cargo test IT spawn des dizaines de containers simultanés (35–97 mesurés), flake de setup corrélé à la charge du daemon ; teardown 2 temps, pistes bornées.
+  Un cargo test IT spawn des dizaines de containers simultanés (35–97 mesurés), flake de setup corrélé à la charge du daemon ; teardown 2 temps. Correction engagée 2026-10-19 (stop de campagne obligatoire, cap de parallélisme, guard exit-process) — comportements cibles marqués en attente d'intégration F1/F2/F3.
 provenance:
   extracted: 0.88
   inferred: 0.12
@@ -22,8 +23,12 @@ updated: 2026-10-19
 Dette structurelle ratifiée par l'utilisateur le 2026-10-19 (mission
 [[projects/aiforall/references/mission-ops-kind-separation-20261019]]) ;
 mémoire canonique : `.serena/memories/architecture/it-testcontainers-resource-churn.md`.
-**À corriger dans une mission dédiée au framework** — le contrat X3 de la
-mission ops interdisait d'écrire dans `rustycog-testing`.
+**Mission de correction dédiée lancée le 2026-10-19** :
+`docs/missions/20261019-it-fixtures-lifecycle.md` (F1 stop de campagne
+lanceur, F2 cycle de vie fixtures `rustycog-testing`, F3 cap de parallélisme,
+F4 règles et wiki — dont la présente note). Le contrat X3 de la mission ops
+interdisait d'écrire dans `rustycog-testing` ; ce verrou n'est levé que par
+cette nouvelle mission.
 
 ## Mesures observées (run réel iam 24m53 + finales 5 packages)
 
@@ -56,21 +61,38 @@ MAIS les singletons nommés (`lazaret_test-*`, `telegraph_test-smtp`) et les
 fixtures des packages n'ont **aucun stop automatique à la fin de la campagne**
 : 93 containers restés running après les IT finales, arrêtés manuellement par
 le lead (IDs complets depuis les ledgers `fixture-*.jsonl` — piège : `docker
-ps` tronque les IDs, utiliser `--no-trunc`). Chaque campagne doit inclure son
-stop possédé (règle registre : `.cursor/rules/docker-resource-registry.mdc`).
+ps` tronque les IDs, utiliser `--no-trunc`).
 
-## Pistes de correction (mission framework dédiée)
+**Règle adoptée le 2026-10-19** : chaque campagne IT inclut désormais son stop
+possédé — zéro container possédé running en fin de campagne, y compris sur
+échec (canon : `.cursor/rules/docker-resource-registry.mdc`, section
+« Campagnes IT testcontainers » ; rappel dans `AGENTS.md`).
+**Intégré et prouvé le 2026-10-19** : lanceur `it-native.ps1` (témoin Engine +
+propriété par ledger) et guard exit-process `rustycog-testing` ; campagne de
+preuve Manifesto+Hive : 74 créés / 74 retirés, pic 4, 0 flake.
 
-1. **Plafonner le parallélisme** : `RUST_TEST_THREADS` / sérialisation des
-   binaires IT — réduit le pic au prix de la durée.
-2. **Mutualisation par binaire** : passer l'acquisition par-test à par-binaire
-   là où l'isolation le permet (singletons `OnceLock<Arc<Mutex<...>>>`
-   existent déjà pour certains types) — réduit fortement le churn.
-3. **Stop possédé en fin de campagne** : intégrer au lanceur IT
-   (`it-native.ps1`) l'arrêt gracieux des IDs créés + nettoyage des `Exited(0)`
-   possédés (jamais par nom, jamais prune).
-4. **Profil opt-in court/long** : bornes de suites pour les gates fréquentes
-   vs campagne complète.
+## Corrections engagées (mission dédiée 20261019-it-fixtures-lifecycle)
+
+1. **Plafonner le parallélisme** → lot **F3** : cap reproductible du
+   parallélisme des tests (config `test-threads`/env dans le lanceur ou config
+   Cargo), documentée au README runtime. **Livré** : `RUST_TEST_THREADS=2`
+   par défaut, override `AIFORALL_IT_TEST_THREADS` ; re-corrélation : 0 flake
+   sur 74 créations (contre 2-3 avant mission).
+2. **Mutualisation par binaire** → lot **F2** (`rustycog-testing`, submodule) :
+   guard dédié à l'exit du process plutôt que Drop de static, mutualisation
+   par-binaire là où l'herméticité le permet ; singletons
+   `OnceLock<Arc<Mutex<...>>>` et `port = 0` + publication d'env conservés ;
+   bump du pin après publication côté repo rustycog. **Livré** : guard
+   exit-process (thread/runtime dédié, stop vérifié exact-ID, sans rm),
+   singletons nommés câblés ; pin `rustycog` `2f78d54` publié sur
+   Djoe-Denne/rustycog (GO utilisateur) puis bumpé.
+3. **Stop possédé en fin de campagne** → lot **F1** (`it-native.ps1`) :
+   collecte des IDs créés à la création, stop gracieux en fin de batch et sur
+   échec, retrait des `Exited(0)` possédés, rapport d'inventaire avant/après ;
+   règle canon adoptée en parallèle (voir section teardown). **Livré et
+   prouvé** : 74/74 retirés en campagne réelle, nœud Kind intact.
+4. **Profil opt-in court/long** : hors périmètre des lots F1–F4 ; piste
+   ouverte, non arbitrée.
 
 ## Contraintes non négociables
 

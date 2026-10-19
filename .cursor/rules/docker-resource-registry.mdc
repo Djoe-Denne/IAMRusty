@@ -1,5 +1,5 @@
 ---
-description: Registre texte temporaire de toutes les ressources Docker créées par les agents (images, conteneurs, volumes), gitignore, avec statut de suppression sûre — obligatoire avant tout nettoyage
+description: Registre texte temporaire de toutes les ressources Docker créées par les agents (images, conteneurs, volumes), gitignore, avec statut de suppression sûre — obligatoire avant tout nettoyage ; inclut le stop de fin de campagne IT testcontainers obligatoire et le piège des IDs tronqués (`--no-trunc`)
 alwaysApply: true
 ---
 
@@ -22,6 +22,7 @@ Toute ressource Docker créée par un agent ou sous-agent — image, conteneur, 
 
 Règles de contenu :
 - `id` = **ID retourné par la commande de création** (jamais un nom seul, jamais déduit). Exception volumes : `docker volume rm`/`inspect` identifient par **Name** — enregistrer le `Name` retourné à la création (preuve : réponse de `docker volume create` ou create-response du harness). Si la création est opaque (ID inconnu) : `id":"UNKNOWN"` et `safe_to_delete":"ask"` — collision = STOP.
+- **IDs complets uniquement** : `docker ps` (et `docker ps -a`) **tronquent les IDs par défaut** — tout recensement ou recoupement d'IDs depuis un listing exige `docker ps --no-trunc` ; la source de vérité reste l'ID retourné à la création (registre, ledgers `fixture-*.jsonl`). Un ID tronqué n'identifie pas une ressource : ne jamais stop/rm sur un ID partiel.
 - `safe_to_delete` :
   - `yes` = fixture de test possédée, arrêtée/éphémère, aucun état à préserver **et** aucun bail parent/autre agent actif ;
   - `no` = runtime actif, toolchain/cache à conserver (ex. compiler avec couches rustfmt/clippy, volumes cargo/target nommés), ou toute ressource encore requise par une campagne en cours ;
@@ -36,6 +37,17 @@ Règles de contenu :
 3. `no` et `ask` : jamais supprimés automatiquement — lister et demander arbitration user.
 4. Les ressources **sans ligne de registre** restent régies par `infra-safety.mdc` et `local-runtime-lifecycle.mdc` : non possédées, non touchées.
 5. Aucun prune global (`system/container/volume/image/builder prune`) n'est autorisé comme raccourci même si un registre existe ; le registre **complète** les règles existantes, il ne les remplace pas.
+
+## Campagnes IT testcontainers — stop de fin de campagne obligatoire
+
+Une campagne IT lancée sur les fixtures testcontainers (`it-native`, `cargo test -p <pkg> --tests`, ou équivalent) laisse **zéro container possédé running à sa fin**, y compris sur échec :
+
+- Les IDs des containers créés sont recueillis **à la création** (registre + ledgers de fixtures, IDs complets) ;
+- En fin de batch **et** sur échec : stop gracieux des containers possédés par IDs tracés, puis retrait des `Exited(0)` possédés ;
+- Rapport d'inventaire avant/après (attendu : zéro container possédé running restant) ;
+- Jamais par nom, jamais de prune ; les ressources sans ligne de registre restent non possédées (règles existantes).
+
+**[Intégré et prouvé — mission `docs/missions/20261019-it-fixtures-lifecycle.md`, 2026-10-19]** : l'automatisation du stop est livrée des deux côtés — lanceur `ops/tests/it-native.ps1` (témoin Engine + propriété par chaîne ledger frais, stop gracieux `--time -1`, retrait fail-closed des `Exited(0)` possédés, inventaires full-ID) et guard exit-process `rustycog-testing` (stop vérifié exact-ID, sans rm ; submodule `2f78d54`). Campagne de preuve Manifesto+Hive : 74 créés / 74 retirés, pic borné à 4, 0 flake, conteneurs étrangers intacts. La règle ci-dessus est outillée et applicable telle quelle.
 
 ## Rédaction (tous les agents)
 
