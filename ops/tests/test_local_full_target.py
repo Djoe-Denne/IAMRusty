@@ -7,7 +7,7 @@ import tempfile
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import yaml
 
@@ -179,6 +179,42 @@ class AnchorTests(unittest.TestCase):
         self.f.data["creation"]["before_ids"] = []
         self.f.data["context"] = "kind-apparatus-p4-it"
         self.refused_before_api()
+
+    def test_kubeconfig_outside_approved_root_zero_commands(self):
+        with tempfile.TemporaryDirectory() as outside:
+            self.f.data["kubeconfig_path"] = str((Path(outside) / "kubeconfig.yaml").resolve())
+            self.f.save()
+            with self.assertRaisesRegex(anchor.AnchorError, "^kubeconfig outside task-owned approved directory$"):
+                self.f.target(self.cmd).kubectl(["get", "nodes"], text=True)
+        self.assertEqual(self.cmd.calls, [])
+
+    def test_linked_or_reparse_kubeconfig_zero_commands(self):
+        # Model filesystem metadata, avoiding Windows symlink privileges or real links.
+        original_stat = Path.stat
+        for metadata in ("symlink", "reparse"):
+            with self.subTest(metadata=metadata):
+                def linked(path):
+                    return metadata == "symlink" and path == self.f.config_path
+
+                def attributes(path, *args, **kwargs):
+                    result = original_stat(path, *args, **kwargs)
+                    if metadata == "reparse" and path == self.f.config_path:
+                        result = Mock(wraps=result)
+                        result.st_file_attributes = anchor.stat.FILE_ATTRIBUTE_REPARSE_POINT
+                    return result
+
+                with patch.object(Path, "is_symlink", linked), patch.object(Path, "stat", attributes):
+                    with self.assertRaisesRegex(anchor.AnchorError, "^linked kubeconfig path forbidden$"):
+                        self.f.target(self.cmd).kubectl(["get", "nodes"], text=True)
+                self.assertEqual(self.cmd.calls, [])
+
+    def test_prefabricated_anchored_without_creation_attestation_zero_commands(self):
+        self.f.data.pop("creation")
+        self.f.save()
+        with self.assertRaisesRegex(anchor.AnchorError, "^exact task-created node delta not attested$"):
+            anchor.bootstrap(self.f.lease, "aiforall-local-full", "unused", True,
+                             self.cmd, self.f.root, lambda _: True)
+        self.assertEqual(self.cmd.calls, [])
 
     def test_command_override_zero_api_and_missing_privacy(self):
         for flag in ["-shttps://127.0.0.1:60999", "-ishttps://127.0.0.1:60999", "-ns", "--server=https://127.0.0.1:60999", "-s", "--context=kind-other", "--cluster=other", "--kubeconfig=other", "--insecure-skip-tls-verify=true", "--token=untrusted"]:

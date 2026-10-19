@@ -131,6 +131,7 @@ def public_cases(path):
 
 def public_route_matrix(args, data):
     namespace_owned(data, args.namespace)
+    args.oauth_login_unavailable = 0
     # Direct fixed loopback connection: no ambient proxies, redirects or URL joins.
     # The authority rechecks endpoint/mapping/UID before EACH HTTP request.
     for case in args.route_cases:
@@ -144,9 +145,21 @@ def public_route_matrix(args, data):
             # Do not print or persist bodies, cookies, headers, or credentials.
             if status not in case["statuses"]:
                 raise AssertionError("route matrix status mismatch (response redacted)")
+            if status == 422 and re.fullmatch(r"/iam/api/auth/[^/]+/login", case["path"]):
+                args.oauth_login_unavailable += 1
             args.executed += 1
         finally:
             connection.close()
+
+
+def public_coverage_report(args, status, evidence):
+    if args.action != "route-matrix" or args.environment is None:
+        return {}
+    return {"coverage": {
+        "public": {"status": status, "evidence": evidence},
+        "authenticated": {"status": "NOT RUN", "setup": "BLOCKED", "channel": "e2e --suite --inputs",
+                          "reason": "approved full authenticated setup unavailable"}},
+        "oauth_login_unavailable": getattr(args, "oauth_login_unavailable", 0)}
 
 
 def explicit_probe_action(args, data):
@@ -474,6 +487,7 @@ def main():
         blocked = isinstance(error, (ValidationBlocked, ValueError, OSError, anchor_module.AnchorError))
         executed = args.executed if blocked else min(expected, args.executed + 1)
         print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action,
+                          **public_coverage_report(args, "BLOCKED" if blocked else "FAIL", "NOT RUN" if not executed else "LIVE"),
                           "status": "BLOCKED" if blocked else "FAIL", "evidence": "NOT RUN" if not executed else "LIVE",
                           "expected": expected, "executed": executed, "failed": 0 if blocked else 1,
                           "blocked": max(0, expected - executed),
@@ -481,9 +495,11 @@ def main():
                                     "validation rejected or failed (" + type(error).__name__ + "); response/credentials redacted"}))
         return 2 if blocked else 1
     print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action, "status": "PASS",
+                      **public_coverage_report(args, "PASS", "LIVE"),
                       "evidence": "NOT RUN" if args.action == "cleanup-probes" else "LIVE",
                       "expected": expected, "executed": args.executed, "failed": 0, "blocked": 0,
                       "scope": "readiness only; business/AuthZ NOT RUN" if args.action == "smoke" else
+                               "public routes only; authenticated business/AuthZ NOT RUN (e2e setup BLOCKED)" if args.action == "route-matrix" and args.environment_data else
                                "no resources created; cleanup no-op" if args.action == "cleanup-probes" else
                                "LocalStack/MailHog/catalogue/OpenBao DEV/Zot are simulated dependencies; no production equivalence"}))
     return 0

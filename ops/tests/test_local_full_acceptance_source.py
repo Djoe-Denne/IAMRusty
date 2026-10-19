@@ -8,6 +8,7 @@ import io
 import json
 from pathlib import Path
 import tempfile
+import tomllib
 import unittest
 from unittest.mock import Mock, patch
 
@@ -174,6 +175,103 @@ class AcceptanceGuardTests(unittest.TestCase):
                 path.write_text(json.dumps([{**case, **change}]))
                 with self.assertRaises(ValueError):
                     module.public_cases(path)
+
+    def test_route_cases_coherent_with_deployed_full_profile(self):
+        module = self.load()
+        root = SOURCE.resolve().parents[2]
+        config = tomllib.loads((root / "ops/deploy/apps/overlays/local-full/config/iam.toml").read_text())
+        self.assertEqual(config["idp"]["connectors"], [])
+        full = module.public_cases(SOURCE.with_name("mesh-public-route-cases-local-full.json"))
+        connected = module.public_cases(SOURCE.with_name("mesh-public-route-cases.json"))
+        login_paths = {"/iam/api/auth/github/login", "/iam/api/auth/gitlab/login"}
+        # These are public OAuth entrypoints; the unknown-provider denial is not a login positive.
+        logins = [case for case in full if case["path"] in login_paths]
+        self.assertEqual({case["path"] for case in logins}, login_paths)
+        for case in full:
+            if case["path"].endswith("/login") and case["method"] in {"GET", "HEAD"}:
+                self.assertNotIn(303, case["statuses"], "redirect requires a configured connector")
+        self.assertEqual([case["statuses"] for case in logins], [[422], [422]])
+        self.assertEqual([case["statuses"] for case in connected if case["path"] in login_paths], [[303], [303]])
+        self.assertEqual([case for case in full if case["path"] not in login_paths],
+                         [case for case in connected if case["path"] not in login_paths])
+        args = argparse.Namespace(namespace="aiforall-local-full", executed=0, route_cases=logins,
+                                  action="route-matrix", environment=Path("environment.json"))
+        connection = Mock()
+        connection.getresponse.return_value.status = 422  # Handler oracle with connectors=[], not case-derived.
+        with patch.object(module, "namespace_owned"), patch.object(module.runtime, "target"), patch.object(
+                module.http.client, "HTTPConnection", return_value=connection):
+            module.public_route_matrix(args, {})
+            self.assertEqual((args.executed, args.oauth_login_unavailable), (2, 2))
+            self.assertEqual(module.public_coverage_report(args, "PASS", "LIVE")["oauth_login_unavailable"], 2)
+            connection.getresponse.return_value.status = 303
+            with self.assertRaisesRegex(AssertionError, "route matrix status mismatch"):
+                module.public_route_matrix(args, {})
+
+    def test_public_pass_never_claims_authenticated_coverage(self):
+        module = self.load()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cases = root / "cases.json"
+            cases.write_text(json.dumps([{"id": "jwks", "method": "GET",
+                                         "path": "/iam/.well-known/jwks.json", "statuses": [200]}]))
+            for status, code, public_status in [(200, 0, "PASS"), (401, 1, "FAIL")]:
+                with self.subTest(status=status):
+                    output = io.StringIO()
+                    connection = Mock()
+                    connection.getresponse.return_value.status = status
+                    with patch("sys.argv", [str(SOURCE), "route-matrix", "--environment", "environment.json",
+                                            "--cases", str(cases)]), patch.object(
+                            module, "read_environment", return_value=self.environment(root)), patch.object(
+                            module.runtime, "operation_lock", return_value=contextlib.nullcontext()), patch.object(
+                            module.runtime, "lease", return_value={}), patch.object(module, "namespace_owned"), patch.object(
+                            module.runtime, "target"), patch.object(module.http.client, "HTTPConnection", return_value=connection), contextlib.redirect_stdout(output):
+                        self.assertEqual(module.main(), code)
+                    report = json.loads(output.getvalue())
+                    self.assertEqual(report["coverage"]["public"], {"status": public_status, "evidence": "LIVE"})
+                    self.assertEqual(report["coverage"]["authenticated"], {
+                        "status": "NOT RUN", "setup": "BLOCKED", "channel": "e2e --suite --inputs",
+                        "reason": "approved full authenticated setup unavailable"})
+                    self.assertEqual(report["oauth_login_unavailable"], 0)
+
+    def test_kind_overlay_cannot_relink_validation_probe(self):
+        root = SOURCE.resolve().parents[2]
+        overlay = root / "ops/deploy/apps/overlays/kind/kustomization.yaml"
+        self.assertNotIn("invoke-probe", overlay.read_text())
+        self.assertTrue((root / "ops/tests/manifests/invoke-probe-job.yaml").is_file())
+
+    def test_openfga_fallback_uses_contract_mount_and_pinned_cli(self):
+        root = SOURCE.resolve().parents[2]
+        recipe = (root / "justfile").read_text().split("regenerate-openfga-model-json:\n", 1)[1].split("\n\n", 1)[0]
+        fallback = recipe.split("} else {", 1)[1]
+        command = next(line for line in fallback.splitlines() if "$model = docker run" in line)
+        self.assertIn('"${PWD}/ops/openfga:/work"', command)
+        self.assertIn("openfga/cli@sha256:31a565d14d1c5ca8170d3a2225eb66517d9f490539967bcb3421613c5e2538a4", command)
+        self.assertLess(fallback.index("if ($LASTEXITCODE -ne 0)"), fallback.index("Set-Content"))
+
+    def test_nominal_python_sources_have_no_historical_inputs(self):
+        root = SOURCE.resolve().parents[2]
+        # Lead ruling: test_*.py carry assertions about paths, not nominal imports.
+        files = sorted((root / "ops/deploy").glob("*.py")) + sorted(SOURCE.parent.glob("*.py"))
+        construction = ast.parse('self.root / ("cluster-anchor-" + d["task_id"]) / "kubeconfig.yaml"', mode="eval").body
+        construction_dump = ast.dump(construction, include_attributes=False)
+        for path in files:
+            if path.name.startswith("test_"):
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            allowed = set()
+            if path.name == "local_full_target.py":
+                for node in ast.walk(tree):
+                    if ast.dump(node, include_attributes=False) == construction_dump:
+                        allowed.update(id(child) for child in ast.walk(node) if isinstance(child, ast.Constant)
+                                       and child.value == "cluster-anchor-")
+                self.assertEqual(len(allowed), 1)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                    with self.subTest(path=path.name, line=node.lineno):
+                        for forbidden in ("tests/", ".tmp", ".cursor", "pool-", "cluster-anchor-"):
+                            if forbidden == "cluster-anchor-" and id(node) in allowed:
+                                continue
+                            self.assertNotIn(forbidden, node.value)
 
     def test_e2e_prepare_blocked_cleanup_is_separate_noop_never_deletes_unknown_resources(self):
         module = self.load()
