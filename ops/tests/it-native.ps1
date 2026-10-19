@@ -15,6 +15,18 @@ $packages = @{
     telegraph = 'telegraph-service'
     lazaret = 'lazaret-service'
 }
+function Resolve-ItTestThreads {
+    param([string]$Override)
+    if ([string]::IsNullOrEmpty($Override)) { return 2 }
+    $threads = 0
+    if ($Override -notmatch '^[0-9]+$' -or -not [int]::TryParse($Override, [ref]$threads) -or $threads -lt 1) {
+        throw 'AIFORALL_IT_TEST_THREADS must be a positive 32-bit integer; STOP before Cargo'
+    }
+    return $threads
+}
+# Validate before any runtime/observer startup or Cargo invocation. Ambient
+# RUST_TEST_THREADS is deliberately not the override for a reproducible default.
+$testThreads = Resolve-ItTestThreads $env:AIFORALL_IT_TEST_THREADS
 # The caller owns the single Cargo slot. This invocation owns ONLY IDs proved by
 # its fresh fixture ledgers, never a name match or a before/after inventory diff.
 Get-Command cargo -ErrorAction Stop | Out-Null
@@ -175,7 +187,7 @@ $observerBody = {
 }
 
 $previous = @{}
-foreach ($name in @('CARGO_TARGET_DIR', 'RUSTYCOG_TEST_RUNNER_MODE', 'RUSTYCOG_TEST_RUNNER_HOST', 'RUSTYCOG_TEST_RUN_ID', 'RUSTYCOG_TEST_LEDGER_DIR')) {
+foreach ($name in @('CARGO_TARGET_DIR', 'RUST_TEST_THREADS', 'RUSTYCOG_TEST_RUNNER_MODE', 'RUSTYCOG_TEST_RUNNER_HOST', 'RUSTYCOG_TEST_RUN_ID', 'RUSTYCOG_TEST_LEDGER_DIR')) {
     $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
 $beforeIds = @{}
@@ -207,6 +219,8 @@ try {
     $env:RUSTYCOG_TEST_RUNNER_HOST = $null
     $env:RUSTYCOG_TEST_RUN_ID = $runId
     $env:RUSTYCOG_TEST_LEDGER_DIR = $evidence
+    $env:RUST_TEST_THREADS = [string]$testThreads
+    Write-Host "IT libtest threads per binary: $testThreads (override: AIFORALL_IT_TEST_THREADS)"
     Write-Host "IT campaign $runId; evidence: $evidence; registry: $registry"
     foreach ($selected in $Suite) {
         & cargo test -p $packages[$selected] --tests

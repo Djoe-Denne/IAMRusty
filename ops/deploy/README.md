@@ -180,6 +180,18 @@ Contrôler chaque `$LASTEXITCODE` comme ci-dessus. Exit 0 seulement si toutes le
 
 **IT Windows, entrée distincte sans Kind** : `powershell.exe -NoProfile -File ops/tests/it-native.ps1 -Suite iam` (ou `hive`, `manifesto`, `telegraph`, `lazaret`). Le lanceur délègue à `cargo test -p <package-service> --tests`, un package à la fois, sans workspace implicite ni applicatif Docker. Les fixtures testcontainers existantes démarrent leurs dépendances tierces à la demande ; les IT ne nécessitent pas le profil full déployé. Un seul slot Cargo, target Windows sur E: ; elles précèdent le GO runtime.
 
+Le lanceur impose **`RUST_TEST_THREADS=2` par défaut**, quel que soit le nombre de CPU ou la valeur ambiante, pour borner les tests simultanés de chaque binaire libtest et limiter la pression de démarrage sur le daemon. Override explicite : **`AIFORALL_IT_TEST_THREADS`**, entier strictement positif sur 32 bits ; valeur invalide ⇒ STOP avant Cargo ou démarrage de l'observateur. La valeur effective est affichée avant les suites. `RUST_TEST_THREADS` est restaurée en `finally`, y compris sur échec ; l'override n'est pas modifié. Exemple dans la même session PowerShell :
+
+```powershell
+$previousThreadsOverride = $env:AIFORALL_IT_TEST_THREADS
+try {
+    $env:AIFORALL_IT_TEST_THREADS = '4'
+    & ./ops/tests/it-native.ps1 -Suite manifesto,hive
+} finally { $env:AIFORALL_IT_TEST_THREADS = $previousThreadsOverride }
+```
+
+Ce cap ne modifie ni l'herméticité ni les oracles et n'autorise jamais plusieurs Cargo simultanés. Il borne les tests actifs par binaire, **pas à lui seul tous les conteneurs accumulés** : l'arrêt de campagne et le cycle de vie des fixtures restent nécessaires. Les preuves et ledgers append-only de chaque invocation sont sous **`.tmp/itfixtures-<runid>/`** ; mesurer le pic et vérifier l'inventaire final plutôt que déduire un nombre de conteneurs du cap.
+
 Après succès **ou échec**, arrêter gracieusement uniquement les ressources possédées devenues inutiles et sans bail actif, par IDs/UID attestés ; vérifier et rapporter les fuites. Perte annoncée de leur mémoire volatile, aucune suppression/prune/reset ni extinction d'un runtime partagé inconnu. Conserver et signaler les ressources sans propriété prouvée. Ni les noms ni ce README n'autorisent une cible distante/production.
 
 ## Compatibilité legacy : milestones ADR-0603 (non nominaux)
