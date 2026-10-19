@@ -2,21 +2,19 @@
 //!
 //! Container name: `lazaret_test-redis`. Service-local; not `has_redis` on the shared descriptor.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt};
+use rustycog::testing::testcontainers::{self, runners::AsyncRunner, GenericImage, ImageExt};
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
 static TEST_REDIS_CONTAINER: OnceLock<Arc<Mutex<Option<Arc<TestRedisContainer>>>>> =
     OnceLock::new();
-static REDIS_CLEANUP_REGISTERED: AtomicBool = AtomicBool::new(false);
 
-/// Owns the `ContainerAsync`.
+/// Owns the supervised testcontainer.
 pub struct TestRedisContainer {
-    container: ContainerAsync<GenericImage>,
+    container: rustycog::testing::common::OwnedTestContainer,
     /// Mapped host port.
     pub port: u16,
 }
@@ -111,7 +109,13 @@ async fn get_or_create_test_redis_container() -> Result<u16, Box<dyn std::error:
         .with_mapped_port(port, testcontainers::core::ContainerPort::Tcp(6379));
 
     info!("Starting Redis container on port {port}");
-    let container = image.start().await?;
+    let container = rustycog::testing::common::start_service_testcontainer(
+        image.start(),
+        "redis",
+        "lazaret_test-redis",
+        port,
+    )
+    .await?;
     let test_container = Arc::new(TestRedisContainer { container, port });
 
     let existing_port = {
@@ -126,7 +130,6 @@ async fn get_or_create_test_redis_container() -> Result<u16, Box<dyn std::error:
     if let Some(existing_port) = existing_port {
         return Ok(existing_port);
     }
-    register_redis_cleanup_handler();
     Ok(port)
 }
 
@@ -139,11 +142,4 @@ fn cleanup_existing_redis_container() {
     let _ = Command::new("docker")
         .args(["rm", "-f", "lazaret_test-redis"])
         .output();
-}
-
-fn register_redis_cleanup_handler() {
-    if REDIS_CLEANUP_REGISTERED.swap(true, Ordering::SeqCst) {
-        return;
-    }
-    info!("Registering Redis test container cleanup handler");
 }

@@ -5,12 +5,12 @@
 
 use reqwest::Client;
 use rustycog::config::load_config_part;
+use rustycog::testing::testcontainers::{self, runners::AsyncRunner, GenericImage, ImageExt};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
 use telegraph_configuration::SmtpConfig;
-use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt};
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
@@ -36,7 +36,7 @@ pub struct EmailAddress {
 
 /// `MailHog` SMTP test container
 pub struct TestSmtpContainer {
-    container: ContainerAsync<GenericImage>,
+    container: rustycog::testing::common::OwnedTestContainer,
 }
 
 impl TestSmtpContainer {
@@ -119,7 +119,13 @@ impl TestSmtp {
         {
             let container_mutex = TEST_SMTP_CONTAINER.get_or_init(|| Arc::new(Mutex::new(None)));
             let mut container_guard = container_mutex.lock().await;
-            let container = image.start().await?;
+            let container = rustycog::testing::common::start_service_testcontainer(
+                image.start(),
+                "smtp",
+                "telegraph_test-smtp",
+                smtp_config.port,
+            )
+            .await?;
             *container_guard = Some(Arc::new(TestSmtpContainer { container }));
         }
 

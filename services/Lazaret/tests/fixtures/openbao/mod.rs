@@ -3,12 +3,11 @@
 //! Container name: `lazaret_test-openbao`. Service-local; not `has_openbao` on
 //! the shared descriptor. Same image tag as `docker-compose` (`openbao/openbao:2.6.2`).
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use reqwest::Client;
-use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt};
+use rustycog::testing::testcontainers::{self, runners::AsyncRunner, GenericImage, ImageExt};
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
@@ -21,11 +20,10 @@ const CONTAINER_PORT: u16 = 8200;
 
 static TEST_OPENBAO_CONTAINER: OnceLock<Arc<Mutex<Option<Arc<TestOpenBaoContainer>>>>> =
     OnceLock::new();
-static OPENBAO_CLEANUP_REGISTERED: AtomicBool = AtomicBool::new(false);
 
-/// Owns the `ContainerAsync`.
+/// Owns the supervised testcontainer.
 pub struct TestOpenBaoContainer {
-    container: ContainerAsync<GenericImage>,
+    container: rustycog::testing::common::OwnedTestContainer,
     /// Mapped host port.
     pub port: u16,
 }
@@ -164,7 +162,13 @@ async fn get_or_create_test_openbao_container() -> Result<u16, Box<dyn std::erro
         ]);
 
     info!("Starting OpenBao container on port {port}");
-    let container = image.start().await?;
+    let container = rustycog::testing::common::start_service_testcontainer(
+        image.start(),
+        "openbao",
+        CONTAINER_NAME,
+        port,
+    )
+    .await?;
     let test_container = Arc::new(TestOpenBaoContainer { container, port });
 
     let existing_port = {
@@ -179,7 +183,6 @@ async fn get_or_create_test_openbao_container() -> Result<u16, Box<dyn std::erro
     if let Some(existing_port) = existing_port {
         return Ok(existing_port);
     }
-    register_openbao_cleanup_handler();
     Ok(port)
 }
 
@@ -192,13 +195,6 @@ fn cleanup_existing_openbao_container() {
     let _ = Command::new("docker")
         .args(["rm", "-f", CONTAINER_NAME])
         .output();
-}
-
-fn register_openbao_cleanup_handler() {
-    if OPENBAO_CLEANUP_REGISTERED.swap(true, Ordering::SeqCst) {
-        return;
-    }
-    info!("Registering OpenBao test container cleanup handler");
 }
 
 fn encode_vault_path(path: &str) -> String {
