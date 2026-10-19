@@ -50,8 +50,21 @@ function Write-ItJsonLine {
     [IO.File]::AppendAllText($Path, (($Record | ConvertTo-Json -Compress -Depth 8) + "`n"), $utf8)
 }
 
+function Invoke-ItNative {
+    # Native stderr under redirected hosts (CI, background sessions) becomes an
+    # ErrorRecord; with $ErrorActionPreference='Stop' even harmless cargo
+    # progress lines abort the campaign. Bound the strictness to the explicit
+    # $LASTEXITCODE verdict checks below instead.
+    param([string[]]$NativeArgs)
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { return @(& docker @NativeArgs 2>&1) }
+    finally { $ErrorActionPreference = $prev }
+}
+
 function Get-ItInventory {
-    $lines = @(& docker ps -a --no-trunc --format '{{.ID}}|{{.State}}|{{.Status}}')
+    $lines = @((Invoke-ItNative @('ps', '-a', '--no-trunc', '--format', '{{.ID}}|{{.State}}|{{.Status}}')) |
+        Where-Object { $_ -is [string] })
     if ($LASTEXITCODE -ne 0) { throw 'Docker inventory failed; cleanup INCONCLUSIVE' }
     foreach ($line in $lines) {
         $parts = $line -split '\|', 3
@@ -204,7 +217,7 @@ try {
     $before = @(Get-ItInventory)
     foreach ($container in $before) { $beforeIds[$container.id] = $true }
     Write-ItJsonLine (Join-Path $evidence 'inventory.jsonl') @{ phase = 'before'; containers = $before }
-    $daemonTime = @(& docker info --format '{{.SystemTime}}')
+    $daemonTime = @((Invoke-ItNative @('info', '--format', '{{.SystemTime}}')) | Where-Object { $_ -is [string] })
     if ($LASTEXITCODE -ne 0 -or $daemonTime.Count -ne 1 -or -not $daemonTime[0]) { throw 'Cannot obtain daemon event cursor; STOP' }
     $observer = Start-Job -ScriptBlock $observerBody -ArgumentList $daemonTime[0], $evidence, $registry, $runId
     $readyDeadline = [DateTime]::UtcNow.AddSeconds(15)
@@ -223,8 +236,15 @@ try {
     Write-Host "IT libtest threads per binary: $testThreads (override: AIFORALL_IT_TEST_THREADS)"
     Write-Host "IT campaign $runId; evidence: $evidence; registry: $registry"
     foreach ($selected in $Suite) {
-        & cargo test -p $packages[$selected] --tests
-        $cargoExit = $LASTEXITCODE
+        # Cargo progress goes to stderr; the strictness bound lives in the
+        # verdict check, not in native stream handling.
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            & cargo test -p $packages[$selected] --tests 2>&1
+            $cargoExit = $LASTEXITCODE
+        }
+        finally { $ErrorActionPreference = $prevEap }
         if ($cargoExit -ne 0) { throw "Native integration suite failed: $selected (exit $cargoExit)" }
         if ($observer.State -ne 'Running' -or (Test-Path -LiteralPath (Join-Path $evidence 'observer-error'))) {
             throw 'Engine event witness failed during suite; cleanup INCONCLUSIVE'
@@ -238,9 +258,9 @@ finally {
         # still buffered by the streaming CLI. Do not use our host clock, nor
         # treat the Engine witness alone as permission to stop anything.
         if ($null -ne $observer) {
-            $endTime = @(& docker info --format '{{.SystemTime}}')
+            $endTime = @((Invoke-ItNative @('info', '--format', '{{.SystemTime}}')) | Where-Object { $_ -is [string] })
             if ($LASTEXITCODE -ne 0 -or $endTime.Count -ne 1 -or -not $endTime[0]) { throw 'Cannot obtain end cursor; cleanup INCONCLUSIVE' }
-            $events = @(& docker events --since $daemonTime[0] --until $endTime[0] --filter type=container --format '{{json .}}')
+            $events = @((Invoke-ItNative @('events', '--since', $daemonTime[0], '--until', $endTime[0], '--filter', 'type=container', '--format', '{{json .}}')) | Where-Object { $_ -is [string] })
             if ($LASTEXITCODE -ne 0) { throw 'Cannot drain Engine witness; cleanup INCONCLUSIVE' }
             $window = @{}
             foreach ($line in $events) {
@@ -337,11 +357,11 @@ finally {
                     continue
                 }
                 if ($present[0].state -ne 'exited') { throw "Owned fixture $id is not exited; retained" }
-                $exitState = @(& docker inspect --format '{{.State.Status}}|{{.State.ExitCode}}' $id)
+                $exitState = @((Invoke-ItNative @('inspect', '--format', '{{.State.Status}}|{{.State.ExitCode}}', $id)) | Where-Object { $_ -is [string] })
                 if ($LASTEXITCODE -ne 0 -or $exitState.Count -ne 1 -or $exitState[0] -notmatch '^exited\|-?\d+$') { throw "Cannot verify exited fixture $id" }
                 if ($exitState[0] -eq 'exited|0') {
                     Write-ItResource $id 'reclassified' 'yes' 'Campaign lease released; owned exited(0) fixture has no state to preserve' $owned[$id]
-                    & docker rm $id
+                    $removed = @((Invoke-ItNative @('rm', $id)) | Where-Object { $_ -is [string] })
                     if ($LASTEXITCODE -ne 0) { throw "Removal failed for exited(0) fixture $id" }
                     Write-ItResource $id 'removed' 'yes' 'Owned exited(0) fixture removed by full ID, without force or volumes' $owned[$id]
                     $removedCount++
