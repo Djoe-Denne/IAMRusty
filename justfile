@@ -79,7 +79,7 @@ monolith:
     & ./runtime/monolith/run-host.ps1
 
 # Preuves — index :
-#   just prove-gold                  = nominal Kind 0605
+#   just prove-gold                  = historique Kind 0605 (non nominal full)
 #   just prove-j1 / monolith-prove   = host J1
 #   runtime/monolith/prove-e2e-curl.ps1      = curl hôte ≠ preuve
 monolith-prove:
@@ -145,16 +145,20 @@ db-verify-emails TARGET_DB="iam_dev":
 # JSON alongside the DSL update.
 #
 # Uses the `fga` CLI when present on PATH; otherwise falls back to a
-# one-shot `docker run openfga/cli` so contributors do not need a local
-# install.
+# one-shot digest-pinned `docker run openfga/cli` so contributors do not need a
+# local install. The checked-in JSON is the output of this pinned CLI; local
+# CLI users must verify the same canonical diff before committing a DSL update.
 regenerate-openfga-model-json:
     @if (Get-Command fga -ErrorAction SilentlyContinue) { \
         Write-Host "Using local fga CLI" -ForegroundColor Cyan; \
-        fga model transform --file ops/openfga/model.fga | Set-Content -Path ops/openfga/model.json; \
+        $model = fga model transform --file ops/openfga/model.fga; \
+        if ($LASTEXITCODE -ne 0) { throw "fga model transform failed (exit $LASTEXITCODE); model.json unchanged" }; \
     } else { \
         Write-Host "Local fga CLI not found; running openfga/cli via docker" -ForegroundColor Cyan; \
-        docker run --rm -v "${PWD}/openfga:/work" -w /work openfga/cli model transform --file model.fga | Set-Content -Path ops/openfga/model.json; \
-    }
+        $model = docker run --rm -v "${PWD}/ops/openfga:/work" -w /work openfga/cli@sha256:31a565d14d1c5ca8170d3a2225eb66517d9f490539967bcb3421613c5e2538a4 model transform --file model.fga; \
+        if ($LASTEXITCODE -ne 0) { throw "docker fga model transform failed (exit $LASTEXITCODE); model.json unchanged" }; \
+    }; \
+    $model | Set-Content -Path ops/openfga/model.json -ErrorAction Stop
     @Write-Host "Wrote ops/openfga/model.json" -ForegroundColor Green
 
 # === Local Kubernetes (ADR-0603) ===========================================
@@ -191,13 +195,40 @@ deploy-mesh:
 deploy-local-full action="render" *args:
     python ./ops/deploy/deploy-local-full.py {{action}} {{args}}
 
+# Full-profile Linux delivery artifacts only. Requires the operator's runtime
+# lease/GO; no cluster creation, Compose startup, certificates or data seeding.
+# Each native exit is checked before invoking the next contractual command.
+kind-full-artifacts:
+    $env:DOCKER_DEFAULT_PLATFORM = 'linux/amd64'; \
+    docker compose -p aiforall build build-artifacts; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; \
+    docker compose -p aiforall --profile mesh build iam-service hive-service telegraph-service manifesto-service lazaret-service ext-authz; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; \
+    docker tag aiforall-lazaret-service:latest aiforall-lazaret-service:local-full; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; \
+    docker build --platform linux/amd64 -t aiforall-sentinel-sync:local-full -f ops/deploy/build/Dockerfile.worker .; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; \
+    docker build --platform linux/amd64 --provenance=false --sbom=false -t aiforall-apparatus-controller:j2 -f workers/apparatus-operator/Dockerfile.controller .; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; \
+    docker build --platform linux/amd64 --provenance=false -t aiforall-zot:gold -f ops/deploy/p4/Dockerfile.zot ops/deploy/p4; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+# Validation consumes an explicitly prepared environment; no deploy/bootstrap.
+kind-full-smoke environment:
+    python -B ops/tests/local-full-acceptance.py smoke --environment "{{environment}}"
+
+kind-full-curl environment cases:
+    python -B ops/tests/local-full-acceptance.py route-matrix --environment "{{environment}}" --cases "{{cases}}"
+
+kind-full-e2e environment suite inputs:
+    python -B ops/tests/local-full-acceptance.py e2e --environment "{{environment}}" --suite "{{suite}}" --inputs "{{inputs}}"
+
+# Native Windows testcontainers suites; caller owns the single Cargo slot.
+it-native suite:
+    & ./ops/tests/it-native.ps1 -Suite "{{suite}}"
+
 # Dette hors gold 0605 / 0008 — schedule manuel + Job enroll (0604). Pas une étape nominale.
 debt-schedule-reference-kv:
     Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./ops/deploy/apps/overlays/kind-demo-monolith/schedule-reference-kv.ps1
 
 # Preuves — index :
-#   just prove-gold                  = nominal Kind 0605
+#   just prove-gold                  = historique Kind 0605 (non nominal full)
 #   just prove-j1 / monolith-prove   = host J1
 #   runtime/monolith/prove-e2e-curl.ps1      = curl hôte ≠ preuve
 prove-gold:
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./ops/deploy/apps/overlays/kind-demo-monolith/prove-gold-path.ps1
+    @Write-Warning "Historique 0605 : prove-gold est non nominal full et conserve ses mutations legacy."
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./ops/tests/legacy/prove-gold-path.ps1

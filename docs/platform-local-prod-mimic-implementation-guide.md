@@ -29,12 +29,12 @@ Le Kind `aiforall-local` doit permettre d’**évaluer et tester** localement le
 | Surface | Fichier | Problème |
 |---|---|---|
 | zot | [ops/deploy/p4/zot.yaml](../ops/deploy/p4/zot.yaml) | `anonymousPolicy: ["read"]`. Un seul user htpasswd `signer`. Probe `GET /v2/` sans auth. |
-| Adm-A / operator | [ops/deploy/p4/admit-job.yaml](../ops/deploy/p4/admit-job.yaml), [ops/deploy/p4/operator.yaml](../ops/deploy/p4/operator.yaml), [prove-gold-path.ps1](../ops/deploy/apps/overlays/kind-demo-monolith/prove-gold-path.ps1) | `APPARATUS_VAULT_TOKEN=lazaret-dev-root` en clair. Operator verify Cosign via ce token. |
+| Adm-A / operator | [ops/deploy/p4/admit-job.yaml](../ops/deploy/p4/admit-job.yaml), [ops/deploy/p4/operator.yaml](../ops/deploy/p4/operator.yaml), [prove-gold-path.ps1 — historique 0605, non nominal full](../ops/tests/legacy/prove-gold-path.ps1) | `APPARATUS_VAULT_TOKEN=lazaret-dev-root` en clair. Operator verify Cosign via ce token. |
 | OpenBao | [ops/scripts/openbao-gold-seed.sh](../ops/scripts/openbao-gold-seed.sh), Compose | Une instance `-dev`. Seed root. Transit + KV sur le même bureau, **aucune** policy séparée. |
 | NP OpenBao | [ops/deploy/p4/allow-admit-zot-np.yaml](../ops/deploy/p4/allow-admit-zot-np.yaml) | egress `0.0.0.0/0:8200`. |
 | Catalogue | [runtime/monolith/component-catalog-server.js](../runtime/monolith/component-catalog-server.js) | `GET /api/components` sans auth, bind `0.0.0.0:9000`. |
 | Client catalogue | [services/Manifesto/infra/src/adapters/component_service_client.rs](../services/Manifesto/infra/src/adapters/component_service_client.rs) | Bearer **déjà** si `api_key` est Some. Config [services/Manifesto/configuration](../services/Manifesto/configuration/src/lib.rs) `component_service.api_key`. Gold ne le pose pas. |
-| Leftover | overlay `kind-demo-monolith` | `seed-reference-kv-grants.sql`, `enroll-job.yaml`, `reference-kv-plugin-service.yaml`, `just debt-schedule-reference-kv`. Hors kustomization nominale **en partie** ; encore exécutables. |
+| Leftover | démo legacy `kind-demo-monolith` | [seed SQL historique](history/ops/kind-demo-monolith/seed-reference-kv-grants.sql), [Service historique à URL manuelle](history/ops/kind-demo-monolith/reference-kv-plugin-service.yaml) archivés ; [enroll-job.yaml](../ops/deploy/apps/overlays/kind-demo-monolith/enroll-job.yaml) reste consommé par `just debt-schedule-reference-kv`. Hors nominal full, capacités legacy conservées. |
 
 Fixture IT zot (`workers/apparatus-operator/tests/fixtures/zot/config.json`) **intouchable** dans cette session (même règle que `fixtures/kind`).
 
@@ -71,7 +71,7 @@ Fixture IT zot (`workers/apparatus-operator/tests/fixtures/zot/config.json`) **i
 - [ops/deploy/p4/zot.yaml](../ops/deploy/p4/zot.yaml) : `anonymousPolicy: []` ; policy `reader` read-only ; `signer` inchangé en write. Deux lignes htpasswd (générer bcrypt, ne pas committer un mot de passe prod).
 - Secret(s) K8s consommés par Job admit (`APPARATUS_REGISTRY_USER/PASSWORD` = signer) et operator (user `reader` pour verify). Retirer les passwords en clair des manifests si présents.
 - Probe Ready : ne plus dépendre d’un `GET /v2/` anonyme 200.
-- [prove-gold-path.ps1](../ops/deploy/apps/overlays/kind-demo-monolith/prove-gold-path.ps1) : injecter les deux identités. Un GET anonyme `/v2/` ou `/v2/apparatus/envelope/tags/list` → **401**.
+- [prove-gold-path.ps1 — historique 0605, non nominal full](../ops/tests/legacy/prove-gold-path.ps1) : injecter les deux identités. Un GET anonyme `/v2/` ou `/v2/apparatus/envelope/tags/list` → **401**.
 
 ### Acceptation
 
@@ -125,7 +125,7 @@ OpenBao Compose doit **vérifier les JWT** des pods Kind :
 
 - [runtime/monolith/component-catalog-server.js](../runtime/monolith/component-catalog-server.js) : exiger `Authorization: Bearer <token>` (env `CATALOG_TOKEN` / équivalent). 401 sinon. JSON **inchangé**.
 - [runtime/monolith/run-component-catalog.ps1](../runtime/monolith/run-component-catalog.ps1) + `just component-catalog` : passer le token.
-- Monolithe J3 : poser `MANIFESTO_SERVICE__COMPONENT_SERVICE__API_KEY` (déjà câblé → Bearer). Même token. [prove-gold-path.ps1](../ops/deploy/apps/overlays/kind-demo-monolith/prove-gold-path.ps1) : le poll `GET :9000/api/components` doit envoyer le Bearer ; sans header → 401 (ne plus accepter 200 anonyme).
+- Monolithe J3 : poser `MANIFESTO_SERVICE__COMPONENT_SERVICE__API_KEY` (déjà câblé → Bearer). Même token. [prove-gold-path.ps1 — historique 0605, non nominal full](../ops/tests/legacy/prove-gold-path.ps1) : le poll `GET :9000/api/components` doit envoyer le Bearer ; sans header → 401 (ne plus accepter 200 anonyme).
 - IT Manifesto qui stubent le catalogue via wiremock : **ne pas** casser (le stub de test n’est pas le serveur Node). Si un IT tape le stub Node, lui donner le token.
 
 ### Acceptation
@@ -143,7 +143,7 @@ OpenBao Compose doit **vérifier les JWT** des pods Kind :
 
 ### Travail
 
-- Confirmer que [kustomization.yaml](../ops/deploy/apps/overlays/kind-demo-monolith/kustomization.yaml) **n’inclut pas** `reference-kv-plugin-service.yaml` / `enroll-job.yaml` / seed SQL.
+- Confirmer que [kustomization.yaml](../ops/deploy/apps/overlays/kind-demo-monolith/kustomization.yaml) **n’inclut pas** le [Service historique](history/ops/kind-demo-monolith/reference-kv-plugin-service.yaml), le [seed SQL historique](history/ops/kind-demo-monolith/seed-reference-kv-grants.sql) ni [enroll-job.yaml](../ops/deploy/apps/overlays/kind-demo-monolith/enroll-job.yaml) (ce dernier reste appliqué séparément par la recette legacy).
 - `just prove-gold` : `kubectl delete` best-effort du Service leftover `apparatus-reference-kv` s’il existe encore.
 - `just debt-schedule-reference-kv` reste le **seul** just visible pour l’ancien chemin ; bannières déjà présentes : les garder.
 - Ne pas supprimer les fichiers git s’ils documentent la dette ; ne plus les appeler depuis L1–L3.
@@ -182,7 +182,7 @@ OpenBao Compose doit **vérifier les JWT** des pods Kind :
 ## Fichiers d’entrée (session)
 
 - [ops/deploy/p4/zot.yaml](../ops/deploy/p4/zot.yaml), [admit-job.yaml](../ops/deploy/p4/admit-job.yaml), [operator.yaml](../ops/deploy/p4/operator.yaml), [allow-admit-zot-np.yaml](../ops/deploy/p4/allow-admit-zot-np.yaml)
-- [ops/deploy/apps/overlays/kind-demo-monolith/prove-gold-path.ps1](../ops/deploy/apps/overlays/kind-demo-monolith/prove-gold-path.ps1), [oodhive-monolith.yaml](../ops/deploy/apps/overlays/kind-demo-monolith/oodhive-monolith.yaml)
+- [ops/tests/legacy/prove-gold-path.ps1 — historique 0605, non nominal full](../ops/tests/legacy/prove-gold-path.ps1), [oodhive-monolith.yaml](../ops/deploy/apps/overlays/kind-demo-monolith/oodhive-monolith.yaml)
 - [ops/scripts/openbao-gold-seed.sh](../ops/scripts/openbao-gold-seed.sh), Compose OpenBao
 - [runtime/monolith/component-catalog-server.js](../runtime/monolith/component-catalog-server.js), [services/Manifesto/infra/src/adapters/component_service_client.rs](../services/Manifesto/infra/src/adapters/component_service_client.rs)
 - [ops/deploy/kind/cluster.yaml](../ops/deploy/kind/cluster.yaml) (CIDR : ne pas remettre `192.168.0.0/16`)

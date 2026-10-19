@@ -38,9 +38,10 @@ $script:ExcludeDirNames = @{
 
 function Show-Usage {
     Write-Host 'layout-rewrite : usage'
-    Write-Host '  powershell.exe -NoProfile -File ops/scripts/layout-rewrite/Rewrite-Layout.ps1'
-    Write-Host '  powershell.exe -NoProfile -File ops/scripts/layout-rewrite/Rewrite-Layout.ps1 -SelfCheck'
-    Write-Host '  powershell.exe -NoProfile -File ops/scripts/layout-rewrite/Rewrite-Layout.ps1 -Apply'
+    Write-Host '  Archive historique, non nominale pour le runtime :'
+    Write-Host '  powershell.exe -NoProfile -File docs/history/ops/layout-rewrite/Rewrite-Layout.ps1'
+    Write-Host '  powershell.exe -NoProfile -File docs/history/ops/layout-rewrite/Rewrite-Layout.ps1 -SelfCheck'
+    Write-Host '  powershell.exe -NoProfile -File docs/history/ops/layout-rewrite/Rewrite-Layout.ps1 -Apply'
     Write-Host '  options : -RepoRoot <chemin>  -Verbose  -ReportPath <fichier>'
     Write-Host '  defaut : dry-run (aucune ecriture). -Apply est bloque si les dossiers cibles n existent pas.'
 }
@@ -778,8 +779,10 @@ function Test-ExcludedDirName {
 function Test-IsToolkitDirRel {
     param([string]$Rel)
     $n = ConvertTo-SlashPath $Rel
+    # Historical toolkit locations remain excluded; also exclude the archive.
     if ($n -eq 'scripts/layout-rewrite' -or $n.StartsWith('scripts/layout-rewrite/')) { return $true }
     if ($n -eq 'ops/scripts/layout-rewrite' -or $n.StartsWith('ops/scripts/layout-rewrite/')) { return $true }
+    if ($n -eq 'docs/history/ops/layout-rewrite' -or $n.StartsWith('docs/history/ops/layout-rewrite/')) { return $true }
     return $false
 }
 

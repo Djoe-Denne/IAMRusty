@@ -147,6 +147,10 @@ temp/
 !.cursor/review-briefings/README.md
 !.cursor/review-briefings/TEMPLATE.md
 
+# Ops / generated Python caches
+__pycache__/
+*.py[cod]
+
 # TLS/SSL Certificates and Keys
 certs/
 *.pem

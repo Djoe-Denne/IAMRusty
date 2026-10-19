@@ -134,7 +134,7 @@ Chaîne IAM + `POST /manifesto/api/projects` + `POST …/components` `io.aiforal
 
 `PUT …/bindings/{id}/consents` Admin.
 
-**Acceptation** : GET binding montre consents ; `grant_revision` bump ; **zéro** `seed-reference-kv-grants.sql` dans le chemin d’acceptation.
+**Acceptation** : GET binding montre consents ; `grant_revision` bump ; **zéro** [seed SQL historique `seed-reference-kv-grants.sql`](history/ops/kind-demo-monolith/seed-reference-kv-grants.sql) dans le chemin d’acceptation.
 
 ### G3 — VALID produit (Adm-A)
 
@@ -164,7 +164,7 @@ Gold path = J3 : prouver depuis `aiforall-plugins` vers Service nest ([0604](adr
 
 ## Interdits
 
-- Seed SQL (`seed-reference-kv-grants.sql` et équivalents) comme **solution finale**
+- Seed SQL ([`seed-reference-kv-grants.sql` historique](history/ops/kind-demo-monolith/seed-reference-kv-grants.sql) et équivalents) comme **solution finale**
 - Admission manuscrite / Job schedule comme **seule** source VALID
 - Consumer events register → VALID
 - Second chemin curl qui **ne** parle **pas** au Lazaret qui enroll

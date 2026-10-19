@@ -1,5 +1,9 @@
 # Package D checkpoint — 2026-10-03
 
+> Archive historique (ancien chemin `ops/deploy/PACKAGE-D-CHECKPOINT.md`).
+> Photographie SOURCE, pas le guide nominal ni une preuve live actuelle.
+> Parcours actif : [README runtime](../../../ops/deploy/README.md).
+
 **Partial source changes, static evidence only. Not finding closure or a delivered local-full lab.** Baseline execution HEAD: `5348a63`. No runtime, cargo, build, deployment, live Secret reads or IT/E2E execution by this worker.
 
 ## Source changes and static evidence
@@ -31,7 +35,7 @@ Owned fixture/container IDs: **none**. No runtime started/restarted, so no worke
 The phase-1 sections above are historical evidence, not a second implementation
 pass. HEAD remains `5348a63`; external/shared owner edits and `.tmp-layout-rewrite/`
 were not reverted. Current detailed handoff:
-[`local-full/README.md`](apps/overlays/local-full/README.md).
+[`local-full/README.md`](../../../ops/deploy/apps/overlays/local-full/README.md).
 
 - I4/I8 source: new isolated `aiforall-local-full`, `aiforall-local-apparatus`,
   `aiforall-local-plugins` overlay. Real 4+1 standalone paths, in-Kind PG/FGA,
