@@ -1,0 +1,164 @@
+﻿# Plan QA — ops Kind : séparation runtime/validation (mission §7.Q)
+
+- **Statut** : plan de lot Q, produit 2026-10-19, qa-planner (pool-5). Aucun script exécuté, aucune écriture hors `.cursor/qa-plans/`.
+- **HEADbase** : préparation `80918ca30ce6624d297917ffc4c986744e70b1b7` ; contrats D (`ops-kind-runtime-validation-separation.md`, `ops-kind-runtime-validation-manifest.md`) intégrés par le lead en working tree. Le lead **commite ce fichier** avant les lots I (worktrees Ensemble naissent de HEAD).
+- **Entrées** : mission §§1,4,6–8 ; contrat D1–D6 + §« Gates et arbitrages » ; manifeste (150 enregistrements, intégrations atomiques R4↔V2, R9↔test déplacé, O2↔V3/H4, T1↔cfg(test), V1↔X1/X2) ; ledger consolidé A/B/C/D. Pré-checks faits au fichier par Q : validate-deploy-static.ps1:15–27 = 11 chemins exacts ✓ ; common.ps1:6–7 marqueur racine ✓ ; justfile:156 fallback `${PWD}/openfga` (bug) ✓ ; ci.yml:131–140 ✓ ; local_full_target.py:184–199,334–389 ✓ ; local-full-images.py:9–22 ✓ ; 8 kustomizations sous ops/deploy (glob) ✓.
+
+## 0. Pin observé — niveaux de test réellement possibles
+
+Faits vérifiés au dépôt (pas d'hypothèse) :
+
+- **Socle hermétique existant** : `ops/deploy/test_local_full_target.py` (fake-command S-11, 14 tests `AnchorTests`, zéro runtime, fixture lease JSON v2 + kubeconfig fabriqués) ; `ops/tests/test_local_full_acceptance_source.py` (AST + Mock sur `runtime.kubectl`).
+- **Checkers statiques existants** : `ops/scripts/validate-deploy-static.ps1` (parse PS + root discovery + 11 chemins) ; `ops/tests/infra-static.sh` (bash -n sur tout `ops/**.sh`, parse YAML sans impression des corps, kustomize render offline avec identité de ressource).
+- **IT natives** : `cargo test -p <pkg> --tests` par package (testcontainers), un seul slot Cargo, target E:. **Aucune IT sous Kind.**
+- **Niveau interdit** : tout test qui exige un cluster déployé ; la preuve live est NOT RUN jusqu'au GO (contrat §Gates).
+- Toutes les commandes de gate ci-dessous sont **distinctes de cargo test** (contrat : « Pas tout cargo »).
+
+## 1. Matrice de risques (bornée aux trois lots I)
+
+Impact = gravité d'échec (5 = adoption cluster étranger / fuite secret / garde neutralisée ; 3 = chemin cassé visible). Probabilité = churn de la zone, branches, parsing multi-langage, migrations de chemins. Churn élève la probabilité, jamais l'impact.
+
+| ID | Comportement / contrat touché | Imp | Prob | Score | Zone | Lot principal |
+|---|---|---|---|---|---|---|
+| RQ1 | Suite S-11 `local_full_target` survit au déplacement R9↔test (garde ancrage/UID/port/hash) | 5 | 4 | 20 | critique | I-validation |
+| RQ3 | Fermeture CI des rendus offline : aucune réduction silencieuse (8 kustomizations) | 4 | 4 | 16 | critique | I-validation (+ci I-réf.) |
+| RQ2 | Checker `validate-deploy-static` : 11 chemins conservés + full ajouté, assertion jamais retirée | 5 | 3 | 15 | critique | I-validation |
+| RQ7 | Interface `--environment` parsing strict (refus champs inconnus/URLs étrangères/contradictoires) | 4 | 3 | 12 | haut | I-validation |
+| RQ13 | Intégration atomique R4↔V2 : retrait du lien de sonde ET déplacement du payload | 4 | 3 | 12 | haut | I-runtime + I-validation |
+| RQ4 | Garde de contexte : full-only, CTX legacy `kind-aiforall-local`, `kind-apparatus-p4-it` interdit | 5 | 2 | 10 | haut | I-runtime |
+| RQ5 | Bail minimal D6 accepté / variantes refusées (writer parent) | 5 | 2 | 10 | haut | I-runtime |
+| RQ6 | Secrets jamais loggés (run redacted, rendus sans corps, rapports de validation) | 5 | 2 | 10 | haut | transverse |
+| RQ18 | Bash Windows natif : `infra-static.sh` exécutable sous Git Bash hôte (CI ubuntu:133 ne le prouve pas) | 3 | 3 | 9 | moyen | I-validation |
+| RQ10 | `it-native.ps1` : cargo `-p` par package, zéro `--workspace`, zéro Kind/Docker/seed | 3 | 3 | 9 | moyen | I-validation |
+| RQ12 | Parsing PS/Python/Bash après déplacements (fichiers déplacés = surface de régression) | 3 | 3 | 9 | moyen | les trois |
+| RQ8 | Imports historiques interdits dans le nominal (tests/.tmp/.cursor/ledger/pool-*) | 4 | 2 | 8 | moyen | I-runtime + I-validation |
+| RQ9 | Ordre bootstrap→images→deploy→inventory ; épinglage exige bail ancré | 4 | 2 | 8 | moyen | I-runtime |
+| RQ11 | FGA déterministe + consommateurs S1 inchangés (5 include_str, 6 path-reads) | 4 | 2 | 8 | moyen | I-références |
+| RQ14 | T1 : sortie privée explicite, plus d'append `.env`, secret CI préservé | 4 | 2 | 8 | moyen | I-validation (si accord) |
+| RQ15 | Préflight fail-loud : outil absent ⇒ échec, jamais skip silencieux | 3 | 2 | 6 | moyen | I-runtime |
+| RQ16 | Sorties/cleanup explicites : rapport counts, cleanup UID/IDs attestés seulement | 3 | 2 | 6 | moyen | I-validation |
+| RQ17 | Compat recettes legacy sans redirection vers full ; avertissement non nominal | 2 | 3 | 6 | moyen | I-références |
+
+### FMEA (items ≥ 10)
+
+| ID | Déclencheur | Blast radius | Détection actuelle | Mitigation actuelle | Gap |
+|---|---|---|---|---|---|
+| RQ1 | Déplacement `ops/deploy/test_local_full_target.py` → `ops/tests/` casse `import local_full_target` (sys.path) | La garde S-11 entière peut mourir silencieusement ; l'ancrage/UID/port redevient non prouvé | Aucune CI ne run ce test aujourd'hui sous ce chemin | Suite existe et est fake-command (zéro runtime) | Test de l'import post-déplacement + comptage d'assertions avant/après (G-A1) |
+| RQ3 | Déplacement/ajout d'un kustomization non reflété ; retrait d'un overlay du rendu | Rendu offline passe vert alors qu'un profil n'est plus rendu (réduction silencieuse) | `infra-static.sh:41–59` itère find() sans inventaire attendu | Fermeture actuelle correcte mais implicite | Inventaire attendu des 8 répertoires dans infra-static (G-A4) |
+| RQ2 | Maj manuelle de la liste de chemins : un des 11 omis ou un nouveau chemin ajouté sans fichier | Un chemin nominal supprimé reste invisible ; faux vert | Checker existe, liste exacte :15–27 | `throw` sur toute absence | Diff mécanique liste avant/après ≥ 11 (G-A5) |
+| RQ7 | Parsing permissif du descripteur `--environment` (champ inconnu ignoré, URL étrangère acceptée) | Un driver de validation touche un cluster/contexte non loué | Aucun test aujourd'hui (interface non implémentée) | Contrat §interface : refus explicites | Tests parsing strict + refus (G-A7) |
+| RQ13 | Deux écrivains : I-runtime retire le lien, I-validation déplace le payload, intégration non atomique | Overlay kind cassé (référence manquante) ou sonde exécutée au lancement | validate-deploy-static:22 teste seulement l'existence du kustomization | Intégration atomique manifestée | Gate post-intégration : render kind sans probe + payload présent (G-A9) |
+| RQ4 | Retour au CTX legacy dur (`kind-aiforall-local`) dans un nouveau chemin full | Déploiement/validation contre le mauvais cluster local | Test S-11:169–174 (alias protégé) + validation:20–21 ValidateSet | Gardes en place | Rien de nouveau si la suite S-11 reste verte ; garder le test (G-A1) |
+| RQ5 | Bail parent mal formé (task_id, kubeconfig_path hors approved_root, anchor_state préfabriqué) | Adoption d'un cluster/état étranger | Code :184–199,334–344 ; tests partiels | Fake-command S-11 | 3 variantes D6 non testées : symlink, hors approved_root, anchored préfabriqué (G-A3) |
+| RQ6 | Message d'erreur/print qui inclut contenu de clé/token/kubeconfig | Secret dans logs de validation, artefact de campagne | `run()` redacted :121–125 ; infra-static:17 sans corps ; aucun print de credential vu | Guards en place | Grep statique hermétique anti-log + oracle "redacted" sur messages d'erreur (G-A8) |
+
+## 2. Registre obligation → test
+
+Convention : état `COVERED` = preuve identifiée file:line + pourquoi ça prouve. `GAP` = actionnable (niveau, scénario, oracle, commande, effort). Obligations **explicites** = contrat §Gates ; **inférées** = déduites de D1–D6 (marquées, ne deviennent des specs qu'après confirmation lead).
+
+### 2.1 Transverses (gardes, secrets, fail-loud)
+
+| ID | Obligation | Vérification | Preuve existante | État | Gap actionnable |
+|---|---|---|---|---|---|
+| G-A1 | La garde cible complète (endpoint/UID/hash/override) reste prouvée après tout déplacement | Suite S-11 zéro runtime, assertions intactes | `ops/deploy/test_local_full_target.py:114–234` (14 tests : mauvais port avant API :114–122, UID stale avant mutation :136–142, re-check après UID :219–228, kind_load :230–234, pending attests/seals :186–197, refuse adoption :199–207) | COVERED (contenu) + GAP (transport) | G-A1 : après déplacement R9↔test, import adapté (pattern `local-full-acceptance.py:14–22`, `spec_from_file_location` vers `ops/deploy/local_full_target.py`), comptage tests ≥ 14. **Niveau** : fake-command unittest. **Oracle** : exit 0, ≥14 tests passés, zéro appel docker/kubectl réel (fixture FakeCommands n'accepte que les commandes attendues :54). **Commande** : `python -B ops/tests/test_local_full_target.py -v`. **Effort** : S |
+| G-A2 | Garde de contexte : full-only, contexte legacy et `kind-apparatus-p4-it` interdits avant tout API/lease | Parsing + refus | `local_full_target.py:184–185` (paire cluster/context fermée), `common.ps1:20–21` (ValidateSet), `:87–90` (topologie/cible full), test S-11:169–174 (alias protégé), `test_local_full_acceptance_source.py:40–46` (legacy refusé avant lease) | COVERED | Étendre à l'interface `--environment` : context/cluster contradictoires avec lease refusés (voir G-A7). |
+| G-A8 | Absence de secrets loggés dans tout message d'erreur/sortie de validation | Statique + hermétique | `local_full_target.py:121–125` (`output redacted`), `:268,292` (`output redacted`), `local-full-acceptance.py:59` (`response/credentials redacted`), `infra-static.sh:17` (corps jamais imprimés), `validate-deploy-static.ps1` (noms seulement) | COVERED (principe) + GAP (détection) | G-A8 : (a) grep statique : aucun `Write-Host/echo/print` sur contenu de fichier de clé/kubeconfig dans `ops/deploy/**`, `ops/scripts/**`, `ops/tests/**` (nouveau check `ops/tests/static-no-secret-logging.ps1` ou section validate-deploy-static) ; (b) 1 test hermétique : forcer `AnchorError` et assert message == variante redacted (pas de payload). **Niveau** : statique + unittest. **Oracle** : zéro match de pattern clé (BEGIN PRIVATE KEY, client-key-data, token) dans les sources de sortie ; message contient « redacted ». **Effort** : S |
+| G-A6 | Comportements fail-loud : outil absent/skip ⇒ non-zéro avec raison non secrète | Parsing + hermétique | `infra-static.sh:7–8` (command -v → exit 1 avec message), `bootstrap-local-full.ps1:3–4` (`Set-StrictMode`, Stop), `local_full_target.py:34` non applicable (Stop shell) | COVERED (principe) + GAP (interface) | G-A10 : interface `--environment` : skip obligatoire ⇒ non-zéro + raison ; exit 0 seulement si toutes obligations exécutées (contrat §interface). Test hermétique (G-A7). Préflight absent ⇒ échec : vérifier que le parcours nominal publié (I-runtime README) liste chaque outil avec un check `command -v` équivalent PS (`Get-Command`). **Oracle** : README contient check par outil ; interface : code≠0 si skip. **Effort** : M |
+| G-A9 | Ordre impératif build → certificats → bail → bootstrap → images → deploy → inventory, validation séparée | Statique (recettes/README) + hermétique | Contrat §parcours ; `local-full-images.py:19–25` (target.check() avant tout docker), `:21–22` (refuse overwrite) | COVERED (images) + GAP (séquenceur) | G-A9a : test hermétique du séquenceur `deploy-local-full.py` apply (fondation → deps → bootstrap/Jobs → apps ; migrations avant scale-out ; Jobs actifs refusés :186–189 cités ledger A) — fake `kubectl` ordonné. **Niveau** : fake-command. **Oracle** : ordre des appels exact ; refus si Job actif avant scale-out. **Effort** : M. G-A9b : README runtime contient la séquence complète avec commandes contractuelles (statique doc). **Effort** : S |
+| G-A12 | Imports historiques interdits dans le nominal (tests/, .tmp, .cursor, ledger mission, pool-*, sorties de campagne) | Statique + hermétique | Manifeste N4/N5 (sorties privées jamais réimportées) ; contrat §parcours « Aucun import de tests/, .tmp, .cursor, ledger, pool-* » (explicite) | GAP | G-A12 : source-guard AST/grep sur `ops/deploy/*.py`, `ops/tests/*.py`, recettes just ajoutées : aucune chaîne `tests/`, `.tmp`, `.cursor`, `pool-`, `cluster-anchor-` (sauf pattern contractuel `cluster-anchor-{task_id}` construit, jamais literal d'ancienne campagne). **Niveau** : statique (section de validate-deploy-static ou script Python de gate). **Oracle** : zéro correspondance ; exception = constante de construction du chemin du bail. **Effort** : S |
+
+### 2.2 I-runtime (entrypoints/manifests/certs/README, retrait lien sonde)
+
+| ID | Obligation | Vérification | Preuve existante | État | Gap actionnable |
+|---|---|---|---|---|---|
+| G-B1 | Marqueur racine inchangé (`Cargo.toml` + `ops/deploy/kind/cluster.yaml`, common.ps1:6–7) | Checker PS | `validate-deploy-static.ps1:8–13` (root discovery de chaque .ps1), `:20` (cluster.yaml listé) | COVERED | Aucun nouveau test ; commande de gate reste verte. Vérifier post-intégration que le checker est toujours exécuté en CI/local. |
+| G-B2 | Retrait du lien de sonde de `ops/deploy/apps/overlays/kind/kustomization.yaml`, payload conservé (couplage R4↔V2) | Rendu offline + statique | `ops/deploy/apps/overlays/kind/kustomization.yaml` (lien à retirer), payload V2 `invoke-probe-job.yaml` | GAP | G-B2 : gate post-intégration : (a) `kubectl kustomize apps/overlays/kind` ne référence plus invoke-probe (grep du rendu) ; (b) payload présent à destination `ops/tests/manifests/invoke-probe-job.yaml` ; (c) `verify-m2.ps1` (consommateur historique : manifeste V2) reste cohérent ou avertissement legacy. **Niveau** : statique (infra-static + grep). **Oracle** : rendu sans Job probe ; destination existe ; 8 kustomizations toujours rendues. **Effort** : S |
+| G-B3 | Bail opérateur D6 : JSON v2 minimal accepté pour création ; tout bail emprunté/legacy/lié/ambigu refusé ; rien préfabriqué | Hermetique fake-command | Code :184–199 (v2/paire fermée/task_id hex32/kubeconfig absolu canonique dans approved_root/symlink interdit/override ambiant interdit), :337–344 (refuse adoption), :346 (3 nœuds), :384 (UID en dernier) | COVERED partiel + GAP | G-A3 (3 variantes D6 non testées) : (n) bail pending minimal neuf accepté → bootstrap atteste endpoint puis scelle UID (déjà couvert :186–197, garder) ; (nég) kubeconfig_path pointant hors `approved_root` (:193–194), symlink/reparse (:195–197), anchor_state=anchored préfabriqué sans creation attested (:340–342). **Niveau** : fake-command unittest. **Oracle** : AnchorError exact, zéro appel API/docker/kind. **Effort** : S |
+| G-B4 | Certificats runtime : `prepare-local-full-certs.sh` (LOCAL_FULL_CERT_DIR neuf, syntaxe Bash), projection publique aux validateurs seulement | Parsing + statique | `ops/scripts/prepare-local-full-certs.sh:11–34` (ledger A), manifeste R8 | COVERED (parse via infra-static bash -n) + GAP | G-B4 : grep statique du script : (a) aucune écriture hors dir fourni ; (b) aucune clé privée dans stdout (echo/cat de matériel privé) ; (c) projection publique = certificat/cert chain seulement (lexer le script). **Niveau** : statique. **Oracle** : zéro `cat *key`, `echo "$(...key...)"` ; sorties limitées à paths. **Effort** : S |
+| G-B5 | README runtime documente build Linux (compose build sans up), bail, séquence, `it-native` en entrée distincte | Statique doc | Contrat §parcours nominal « à publier par I-runtime » | GAP | G-B5 : vérification statique du README : présence des 6 commandes contractuelles (build ×5/tag, certs, render, bootstrap, images, deploy, inventory), mention offline render par design (render-local-full.py:23–26 ne pas « réparer »), aucun chemin privé d'ancienne campagne. **Niveau** : statique doc-check (section validate-deploy-static ou script de gate). **Effort** : S |
+| G-B6 | Recettes just minces `kind-full-artifacts/smoke/curl/e2e` + `it-native` : arguments explicites, jamais startup caché | Statique justfile | Contrat §Migration « Ajouter recettes minces... jamais startup caché » | GAP | G-B6 : parse statique du justfile post-intégration : chaque recette délègue aux commandes contractuelles (acceptance.py/it-native.ps1), aucun `docker compose up`, `kind create`, seed dans la recette. **Niveau** : statique grep. **Oracle** : corps des recettes == délégation pure. **Effort** : S |
+
+### 2.3 I-validation (déplacements, interface --environment, it-native, checker)
+
+| ID | Obligation | Vérification | Preuve existante | État | Gap actionnable |
+|---|---|---|---|---|---|
+| G-A4 | Fermeture des rendus offline sans réduction silencieuse (inventaire attendu) | Statique bash | `infra-static.sh:41–59` (rend chaque kustomization trouvé, LoadRestrictionsNone, identité requise), 8 kustomizations glob vérifiés | COVERED (mécanique) + GAP (inventaire) | G-A4 : ajouter l'inventaire attendu (liste/count) des 8 répertoires : apps/base, apps/overlays/{kind,kind-mesh,kind-demo-monolith}, apps/overlays/local-full/{., platform, apparatus}, p4. Tout déplacement d'overlay ⇒ mise à jour explicite de la liste, jamais la disparition du check. **Niveau** : statique. **Oracle** : exit 0 avec « renders: 8 » ; toute divergence de liste = échec. **Effort** : S |
+| G-A5 | `validate-deploy-static.ps1` : couverture ≥ 11 chemins existants + chemins full/validation ajoutés | Checker PS | Liste exacte :15–27 (11 chemins confirmés au fichier) | GAP | G-A5 : après maj I-validation : diff mécanique des 11 (aucun retiré) + ajout attendu : `ops/tests/manifests/invoke-probe-job.yaml`, `ops/tests/it-native.ps1`, `ops/tests/test_local_full_target.py`, `ops/tests/legacy/prove-gold-path.ps1` (si déplacé), `ops/deploy/apps/overlays/kind/kustomization.yaml` (inchangé). **Niveau** : statique. **Oracle** : checker vert ; liste contient 11+chemins ajoutés ; test hermétique « la liste ne rétrécit pas » (fixture baseline dans un test ou assertion count ≥ 11 explicite). **Effort** : S |
+| G-A7 | Interface `--environment` : parsing strict ; smoke sans mutation ; curl via guarded path ; e2e prepare/cleanup séparés ; skip ⇒ non-zéro | Hermétique (AST + Mock) | Pattern existant `test_local_full_acceptance_source.py:18–46` (AST + Mock runtime.kubectl) ; driver `local-full-acceptance.py:14–22` (imports fixes D) | GAP | G-A7 : étendre la suite source-guard : (n) descripteur v1 valide accepté, base_url `http://127.0.0.1:18080`, namespaces full ; (nég) champ inconnu refusé, URL étrangère/contradictoire refusée, override ambigu refusé ; (nég) mode smoke ne contient aucun AST patch/rollout/set-env/create (statique) ; (n) cleanup-probes en action séparée jamais appelée par smoke/curl. **Niveau** : fake-command unittest + AST. **Oracle** : ValueError/exit≠0 pour chaque négatif ; smoke = kubectl get/wait seulement. **Effort** : M |
+| G-A10 | `it-native.ps1 -Suite <iam\|hive\|manifesto\|telegraph\|lazaret>` → `cargo test -p <pkg> --tests`, un package à la fois, zéro Kind/workspace/seed | Statique + IT réelle | Contrat §IT natives (explicite) ; ledgers B : aucune IT sous ops aujourd'hui | GAP | G-A10a : vérification statique du script : mapping suite→package exact (iam→iam-service, hive→hive-service, manifesto→manifesto-service, telegraph→telegraph-service, lazaret→lazaret-service), aucun `--workspace`, aucun `kind`/`docker run` applicatif. **Niveau** : statique. G-A10b : runs réels = 5 commandes IT natives (cargo test par package, slot unique) — c'est la gate IT finale, oracles = suites touchées vertes. **Effort** : S (statique) + IT existantes |
+| G-A11 | Déplacement `prove-gold-path.ps1` → `ops/tests/legacy/` : PSScriptRoot/sibling préservés, avertissement non nominal, recette mise à jour | Statique PS | Manifeste V3 (résolution racine explicite exigée) ; justfile:202–203 (recette transmise à I-références) | GAP | G-A11 : (a) parse PS (validate-deploy-static couvre ops/deploy → après déplacement le fichier est hors du Recurse :8 → l'ajouter à la liste de chemins (G-A5) et/ou étendre le Recurse parse à ops/tests) ; (b) grep : avertissement « non nominal » présent ; (c) justfile:203 référence le nouveau chemin (coordonné I-références). **Niveau** : statique. **Oracle** : syntaxe OK ; avertissement présent ; référence recette == destination. **Effort** : S |
+| G-A13 | `test_local_full_acceptance_source.py` reste vert : imports fixes du driver vers `ops/deploy/local_full_target.py` préservés (contrat D5) | Hermétique | `local-full-acceptance.py:14–22` (imports par chemin du repo, jamais PYTHONPATH) | COVERED | Commande de gate reste verte après déplacements ; aucune modification attendue du driver par I-validation sur ce point. |
+| G-A14 | Compatibilité legacy CLI (`--lease/--namespace` network-policy/snapshot/rollout-check/recovery-check/restore-check) : assertions/UID/verrous préservés | Hermétique AST | Contrat §interface « Conserver... Préserver assertions/UID/verrous » (explicite) | GAP | G-A14 : assertion AST de non-régression : les fonctions de compat gardent leurs gardes (nombre de `raise`/conditions de garde par fonction ≥ baseline capturée avant modification, ou liste blanche de symboles présents). **Niveau** : statique AST. **Oracle** : baseline respectée ; tout retrait d'assertion = échec. **Effort** : S |
+| G-A15 | T1 migration (SI accord humain) : `generate-probe-keys.sh` sortie privée explicite, pas d'append `.env`, injection IAMRUSTY_TEST_RSA8192_PEM_B64 + secret CI préservés, seuls commentaires cfg(test) de probe.rs touchés | Statique + IT native existante | `generate-test-keys.sh:22–25` (append .env à supprimer), `services/IAMRusty/infra/src/signing/probe.rs:256,583–588,657,716` (cfg(test)), secret CI IAMRUSTY_TEST_RSA8192_PEM_B64 (.github/workflows) | GAP (déferral d'accord) | G-A15 (si accord) : (a) grep nouveau script : `mktemp`/dir fourni par l'appelant, aucun append `>> .env` ; (b) grep probe.rs : variable d'injection inchangée, commentaires seulement ; (c) secret CI inchangé ; (d) IT native iam reste verte (cargo test -p iam-service). **Sans accord** : script reste en place + étiquette test-only (doc) — registre DEFER. **Effort** : S |
+
+### 2.4 I-références/historique (justfile, CI, .gitignore, archives)
+
+| ID | Obligation | Vérification | Preuve existante | État | Gap actionnable |
+|---|---|---|---|---|---|
+| G-C1 | Fallback justfile:156 corrigé : monte `${PWD}/ops/openfga`, branche CLI inchangée, pas de JSON partiel | Statique grep + (facultatif) transformation réelle | justfile:150–158 (bug confirmé audit C + lead) ; modèle S1 inchangé (contrat D2) | GAP | G-C1 : (a) grep : la branche fallback contient `ops/openfga:/work` ; (b) déterminisme FGA : `just regenerate-openfga-model-json` puis `git diff --exit-code -- ops/openfga/model.json` (générateur couvert, sortie canonique identique) ; (c) code de sortie contrôlé avant Set-Content (pas d'écriture sur échec). **Niveau** : statique + commande de gate (docker/fga — pas du runtime Kind). **Oracle** : diff vide sur model.json ; échec fga ⇒ aucun fichier écrit. **Effort** : S |
+| G-C2 | ci.yml:131–140 conserve `bash ops/tests/infra-static.sh`, pas de runtime/Cargo ajouté à ce job | Statique grep | ci.yml:131–140 vérifié | COVERED + GAP | G-C2 : vérifier post-intégration (a) la ligne run inchangée ; (b) zéro ajout de step runtime dans infra-static ; (c) fermeture inventaire (G-A4) cohérente avec ci. **Oracle** : grep exact. **Effort** : S |
+| G-C3 | `.gitignore` : `__pycache__/` + `*.py[cod]` ; sept `.pyc` retirés du suivi SI arbitrage routine | Statique git | Manifeste G1 (commit 080b5f4, zéro référence, appelateurs `python -B`) | GAP-DEFER | Retrait `.pyc` = arbitrage utilisateur de routine en cours. En cas d'accord : `git ls-files ops/deploy/__pycache__` vide + règles présentes. **Owner** : I-références. **Réouverture** : décision utilisateur. |
+| G-C4 | Archives H1/H2/H3/H4 SI accord : chemins/docs étiquetés historique, self-check H2 revalidé (aucune assertion retirée pour verdir) | Statique | Manifeste H1–H4 ; ledger B (layout self-check sur copie jetable) | GAP-DEFER | Accord utilisateur requis (liste ARCHIVE-HISTORY exacte). Si accord : grep étiquettes historiques sur liens qui pointent les archives ; self-check H2 reste complet post-déplacement. **Réouverture** : décision utilisateur. |
+| G-C5 | Docs/références inverses maj sans chemin cassé (README:30, PACKAGE-D:7,92, docs/skills) | Statique grep | Ledger C (oracle validate-deploy-static 15→11, maj docs) | GAP | G-C5 : après intégration : zéro référence doc vers un chemin supprimé/déplacé sans lien nouveau (grep chemins cités du manifeste dans docs/ + README runtime). **Niveau** : statique. **Oracle** : chaque chemin cité existe ou a un lien étiqueté historique. **Effort** : S |
+| G-C6 | Recettes legacy conservées sans redirection full ; prove-gold : avertissement non nominal ; justfile:199 doc mis en cohérence | Statique | Contrat §Migration (compat legacy explicite) ; contradiction justfile:199 exposée | COVERED (décision) + GAP | G-C6 : grep recettes `deploy-m1/m2/m3/j2/j3/mesh`/`debt-schedule-reference-kv` inchangées en cible ; avertissement prove-gold ; commentaire justfile:199 corrigé (0605 = historique, pas nominal). **Effort** : S |
+| G-C7 | `start-all.*` DEFER-UNKNOWN : investigation documentaire seulement, aucun changement de comportement | — | Manifeste U1 (2 recherches vides, usage humain non exclu) | GAP-DEFER | Aucun test ; investigation doc par I-références ; réouverture si consommateur trouvé. |
+| G-C8 | S1 OpenFGA : zéro écriture prévue ; consommateurs inchangés (5 include_str services, 6 path-reads IT Manifesto, TestOpenFga pin 41a86dba) | IT natives existantes = oracles de régression | Manifeste S1/X3 (file:line exacts) ; chemin inchangé par D2 | COVERED | Régression couverte par IT natives (manifesto/hive/telegraph) via it-native ; pas de nouveau test. La correction G-C1 ne touche pas S1 (just le fallback). |
+
+## 3. Commandes de gate (ordre conseillé à l'intégration)
+
+Statiques/tests de scripts (distinctes de cargo) — exécutables sur l'hôte Windows sans runtime :
+
+1. `powershell.exe -NoProfile -File ops/scripts/validate-deploy-static.ps1` — oracle : `PASS: deployment PowerShell syntax, root discovery and nominal paths (no runtime used).`
+2. `bash ops/tests/infra-static.sh` — oracle : `OK shell syntax: N scripts; offline renders: 8` + `OK YAML syntax` (N = tous les .sh de ops, pas de seuil implicite réduit). RQ18 : prouver l'exécution sous Git Bash Windows (hôte), car CI ubuntu:133 ne le prouve pas.
+3. `python -B ops/tests/test_local_full_target.py -v` — oracle : ≥ 14 tests OK, zéro commande inattendue.
+4. `python -B ops/tests/test_local_full_acceptance_source.py -v` — oracle : 4+ tests OK (étendus par G-A7).
+5. `python -B -m py_compile ops/deploy/*.py ops/tests/*.py` (nouveau, G-A12/parsing Python) — oracle : exit 0.
+6. Greps statiques des guards G-A8/G-A12 (section de validate-deploy-static ou script de gate dédié) — oracle : exit 0, zéro match.
+
+IT natives finales (slot Cargo unique, target E:, testcontainers, jamais Kind) — via `ops/tests/it-native.ps1 -Suite <s>` ou `cargo test -p <pkg> --tests` direct :
+
+7. `cargo test -p iam-service --tests` / `hive-service` / `manifesto-service` / `telegraph-service` / `lazaret-service` — oracle : suites vertes ; oracle de régression S1 = IT Manifesto p1_t5_acl, p2_t3_persist, p3_t1_absence, p3_t4_gateway, p3_t5_consent, p3_t6_kv + include_str des trois suites.
+
+## 4. Critères d'entrée / sortie
+
+**Entrée (commune)** : HEAD revalidé ≥ intégration D ; contrats committés ; arbitrage utilisateur connu pour T1 / ARCHIVE-HISTORY / `.pyc` (décide l'état des gaps DEFER) ; un seul slot Cargo libre ; aucune session docker/Kind requise pour les statiques.
+
+**Sortie I-runtime** : lien de sonde retiré avec payload déplacé (atomique) ; README runtime avec séquence contractuelle ; recettes minces conformes G-B6 ; suite S-11 verte ; aucun import historique (G-A12) ; zéro secret loggué.
+
+**Sortie I-validation** : déplacements test/sonde/legacy/G1 faits avec import adapté ; interface `--environment` implémentée + tests G-A7 verts ; it-native.ps1 conforme G-A10 ; checker ≥ 11+full ; inventaire rendus 8 (G-A4) ; AST baseline compat préservée (G-A14).
+
+**Sortie I-références** : justfile:156 corrigé + déterminisme FGA vérifié (G-C1) ; ci.yml inchangé fonctionnellement (G-C2) ; docs sans chemin cassé (G-C5) ; archives/pyc selon arbitrages (DEFER sinon).
+
+**Sortie globale** : suite focalisée verte (premier run ou triage) ; audit `test-reviewer` rendu (PASS ou findings traités) ; fmt/clippy sans régression ; code0 seulement si toutes obligations exécutées ; LIVE NOT RUN jusqu'au GO.
+
+## 5. Budget
+
+- Planifié (~75 %) : G-A1..A15, G-B1..B6, G-C1..C2, C5–C6, C8 — ~20 items d'effort S/M ; setup = adaptation imports + fixtures baseline (baseline AST/chiffres déjà au dépôt).
+- Buffer nommé (~25 %) : triage d'échecs d'intégration atomique (R4↔V2, R9↔test), réécriture de checker, arbitrage retour utilisateur.
+- Coupe si capacité insuffisante : les items moyen (RQ15–RQ17) passent en smoke/statique minimum ; jamais de coupe d'un item critique (RQ1–RQ3) ni du buffer.
+
+## 6. Gaps accept / defer (registre nommé)
+
+| Gap | Owner | Impact si non traité | Raison | Réouverture |
+|---|---|---|---|---|
+| T1 migration generate-test-keys (G-A15) | utilisateur → I-validation | fixture Rust continue d'écrire `.env` du repo (pollution, pas runtime) | accord humain requis (migration test-only) | décision utilisateur ; sinon étiquette test-only en place |
+| Retrait sept `.pyc` + ignore (G-C3) | utilisateur → I-références | dépôt pollué, zéro risque runtime | arbitrage de routine en cours | décision utilisateur |
+| ARCHIVE-HISTORY H1–H4 (G-C4) | utilisateur → I-références | historique reste en place (aucun risque) | accord humain requis avant migration | liste exacte ratifiée |
+| U1 start-all.* (G-C7) | I-références (doc) | aucun (DEFER-UNKNOWN documenté) | usage humain non excludable | consommateur trouvé ou décision |
+| N2 copies ignorées layout-rewrite | I-références | aucun (aucune suppression prévue) | contenu non inspecté, pas une permission | si un déplacement les affecte |
+| Live full (parcours opérateur réel) | lead + GO runtime | preuve live absente (SOURCE seulement) | gate §8.3 : GO explicite requis | après intégration + IT finales |
+| Bash Windows natif (RQ18) | I-validation (commande manuelle documentée) | CI verte n'implique pas Git Bash Windows | CI ubuntu prouve Bash Linux seulement | si échec Git Bash : fix infra-static portability |
+| A1–A9 (neuf points applicatifs) | hors mission | préconditions opérateur restent explicites | aucune modification applicative dans cette mission | lots séparés après arbitrage |
+
+## 7. Décisions humaines / incertitudes restantes
+
+1. T1 : migration vers fixtures IAMRusty ou étiquette test-only en place (bloque G-A15).
+2. `.pyc` : retrait du suivi + ignore (bloque G-C3).
+3. ARCHIVE-HISTORY : liste exacte H1–H4 (bloque G-C4).
+4. **Inférée** : le déplacement du test S-11 exige une adaptation d'import (pattern D5 légitime) — la forme exacte (sys.path vs spec_from_file_location) est un choix d'implémentation test-engineer, contrat de sécurité préservé.
+5. **Inférée** : la baseline AST de compat (G-A14) doit être capturée **avant** la première modification de `local-full-acceptance.py` par I-validation — le test-engineer enregistre la baseline au premier commit du lot.
+6. Contradiction justfile:199 (prove-gold dit « nominal ») et ADR0606:26 (compilation Docker) : documentées par D ; corrections doc = I-références ; aucune réécriture d'ADR.
+
+## 8. Frontières (hors périmètre de ce plan)
+
+Neuf points A (wiring namespace, admission/signature Zot, OAuth/PKCE, HA Lazaret, parité OpenBao, build Linux, writer leasev2 parent, hôte/réseau/Calico) = préconditions opérateur/hors mission — nommées, jamais maquillées. Scénario empêché ⇒ BLOCKED/NOT RUN, pas d'assertion supprimée ni d'extension silencieuse.

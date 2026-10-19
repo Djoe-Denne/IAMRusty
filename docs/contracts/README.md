@@ -22,3 +22,6 @@ Contrats :
 
 - [`0412-oauth-exact-route-envoy-proof.md`](0412-oauth-exact-route-envoy-proof.md)
   — preuve E2E exact-route de l'ADR 0412. Ne promeut pas la Réalité.
+
+- [`ops-kind-runtime-validation-separation.md`](ops-kind-runtime-validation-separation.md)
+  — séparation ops runtime/validation : nominal local-full, interface validation (smoke/curl/E2E), bail opérateur. Annexe manifeste de tri : [`ops-kind-runtime-validation-manifest.md`](ops-kind-runtime-validation-manifest.md). Proposed, lien secondaire vers l'ADR 0606 sans nouvelle ADR ; aucune commande exécutée.
