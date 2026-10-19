@@ -43,11 +43,29 @@ if (-not [IO.Path]::IsPathRooted($evidence) -or $runId -notmatch '^[A-Za-z0-9-]{
 }
 $registry = Join-Path $root ('.tmp/docker-resources-' + [DateTime]::UtcNow.ToString('yyyyMMdd') + '.log')
 $utf8 = New-Object System.Text.UTF8Encoding($false)
+# The witness job (separate process) and this session both append to the daily
+# registry. Without cross-process serialization two AppendAllText calls race at
+# EOF and split/corrupt a JSONL line, which the fail-closed hold path then
+# treats as an ambiguity. A named mutex serializes appends across processes.
+$registryMutexName = 'Global\AIForAll-DockerResources-Append'
+
+function Write-RegistryLine {
+    param([string]$Path, [string]$Line, [string]$EncodingSource = 'main')
+    $mutex = [Threading.Mutex]::new($false, $registryMutexName)
+    try {
+        if (-not $mutex.WaitOne(10000)) { throw "Registry append lock timeout ($EncodingSource); row not written" }
+        try { [IO.File]::AppendAllText($Path, $Line + "`n", $utf8) }
+        finally { $mutex.ReleaseMutex() }
+    }
+    finally { $mutex.Dispose() }
+}
 
 function Write-ItJsonLine {
     param([string]$Path, $Record)
     # Close/flush on every append. Never rewrite a fixture ledger or registry.
-    [IO.File]::AppendAllText($Path, (($Record | ConvertTo-Json -Compress -Depth 8) + "`n"), $utf8)
+    $line = $Record | ConvertTo-Json -Compress -Depth 8
+    if ($Path -eq $registry) { Write-RegistryLine -Path $Path -Line $line }
+    else { [IO.File]::AppendAllText($Path, $line + "`n", $utf8) }
 }
 
 function Invoke-ItNative {
@@ -150,9 +168,19 @@ function Get-ItRegistryHolds {
 # unrelated creations never adopts them. The cursor uses DAEMON time, not WSL/
 # Windows wall-clock time. Raw events contain no inspect environment/secrets.
 $observerBody = {
-    param($Since, $Directory, $Registry, $Run)
+    param($Since, $Directory, $Registry, $Run, $MutexName)
     $ErrorActionPreference = 'Stop'
     $encoding = New-Object System.Text.UTF8Encoding($false)
+    $appendWithLock = {
+        param($Path, $Text)
+        $m = [Threading.Mutex]::new($false, $MutexName)
+        try {
+            if (-not $m.WaitOne(10000)) { throw 'Registry append lock timeout (witness); row not written' }
+            try { [IO.File]::AppendAllText($Path, $Text, $encoding) }
+            finally { $m.ReleaseMutex() }
+        }
+        finally { $m.Dispose() }
+    }
     $client = New-Object System.Diagnostics.Process
     try {
         $client.StartInfo.FileName = (Get-Command docker -ErrorAction Stop).Source
@@ -181,9 +209,9 @@ $observerBody = {
                         safe_to_delete = 'ask'; safe_reason = 'Engine creation witness only; ownership awaits fixture ledger ID'
                         session_ledger = (Join-Path $Directory 'engine-events.jsonl')
                     }
-                    [IO.File]::AppendAllText($Registry, (($resource | ConvertTo-Json -Compress) + "`n"), $encoding)
+                    & $appendWithLock $Registry (($resource | ConvertTo-Json -Compress) + "`n")
                 }
-                [IO.File]::AppendAllText((Join-Path $Directory 'engine-events.jsonl'), (($record | ConvertTo-Json -Compress) + "`n"), $encoding)
+                & $appendWithLock (Join-Path $Directory 'engine-events.jsonl') (($record | ConvertTo-Json -Compress) + "`n")
                 $pending = $client.StandardOutput.ReadLineAsync()
             }
         }
@@ -219,7 +247,7 @@ try {
     Write-ItJsonLine (Join-Path $evidence 'inventory.jsonl') @{ phase = 'before'; containers = $before }
     $daemonTime = @((Invoke-ItNative @('info', '--format', '{{.SystemTime}}')) | Where-Object { $_ -is [string] })
     if ($LASTEXITCODE -ne 0 -or $daemonTime.Count -ne 1 -or -not $daemonTime[0]) { throw 'Cannot obtain daemon event cursor; STOP' }
-    $observer = Start-Job -ScriptBlock $observerBody -ArgumentList $daemonTime[0], $evidence, $registry, $runId
+    $observer = Start-Job -ScriptBlock $observerBody -ArgumentList $daemonTime[0], $evidence, $registry, $runId, $registryMutexName
     $readyDeadline = [DateTime]::UtcNow.AddSeconds(15)
     while (-not (Test-Path -LiteralPath (Join-Path $evidence 'observer-ready'))) {
         if ($observer.State -in @('Failed', 'Completed', 'Stopped') -or [DateTime]::UtcNow -gt $readyDeadline) {
