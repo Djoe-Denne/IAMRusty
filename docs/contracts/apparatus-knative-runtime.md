@@ -264,6 +264,141 @@ Cet inventaire est une proposition de changement, **pas l'affirmation que ces AP
 
 **Gel requis avant C/D/T :** types, endpoints et rôle auth, codes/raisons, hash canonique, CAS/epochs, garde legacy, migrations et bornes approuvés ensemble. « DTO à compléter côté consommateur » est interdit. Les fichiers de source listés ci-après sont des emplacements de modification future, pas du code livré par A.
 
+### 13.1 — Gel fin d'interface (complément ratifié le 2026-10-20)
+
+**Statut de cette seule annexe : Accepted le 2026-10-20 (ratification humaine explicite) — l'interface est gelée et consommable par C/D/T.** Elle complète le paquet B1/B3/B4/B5 ratifié, sans changer le Statut/Réalité de l'ADR ni du contrat, les huit routes, les frontières ou les claims existants. Les formes ci-dessous sont communes au producteur C et au consommateur D ; versions/champs inconnus rejetés, aucun fallback legacy. Les autres gates §15 restent en vigueur : pas de GO runtime, les preuves appartiennent à la campagne E.
+
+#### 13.1-A — Empreintes canoniques opération et effet
+
+**Valeur proposée.** `SHA-256(UTF8(JCS(input)))`, JCS **RFC 8785 intégral**, sans BOM, espace ajouté ni LF final ; résultat `sha256:` suivi de 64 hexadécimaux minuscules. Pas de hash de `Debug`, de `serde_json::to_string` ordinaire, de concaténation de champs ou de JSON simplement trié par ordre UTF-8 : JCS trie les propriétés selon UTF-16 et normalise les nombres selon son modèle IEEE-754. Le domaine ci-dessous est un champ obligatoire du préimage, jamais une option du caller.
+
+Profil lexical commun aux quatre blocs : UUID = `uuid::Uuid`, rendu canonique lower-case hyphenated ; compteurs nouveaux = `RuntimeCounterV1(u64)` dans `0..=i64::MAX`, sérialisés en **chaînes décimales sans signe ni zéro initial** (sauf `"0"`) pour conserver exactement les valeurs au-delà de 2^53 ; dates de contrôle = `RuntimeUnixMsV1(i64)` UTC depuis Unix epoch, non négatives, même encodage décimal string. `schema_version: u16` reste le nombre JSON `1`. Ces règles des DTO runtime et du préimage ne changent **pas** la représentation existante de `WorkloadIdentity`/`SessionClaims` : leur copie normalisée pour le hash est construite explicitement. Les digests de release restent `sha256:<64 hex minuscules>`.
+
+`RuntimeOperationHashInputV1` est **exactement** l'objet JSON suivant (toutes propriétés requises, aucune autre) :
+
+```text
+{
+  schema_version: 1,
+  domain: "urn:aiforall:apparatus:runtime:operation-hash:v1",
+  authorization_id: UUID, project_id: UUID,
+  source: { instance: UUID, binding: UUID, release: Digest,
+            generation: Counter, grant_revision: Counter },
+  source_revocation_epoch: Counter,
+  target: { binding_id: UUID, generation: Counter, release: Digest,
+            grant_revision: Counter, revocation_epoch: Counter },
+  operation_id: UUID, operation: String, payload: JSON,
+  deadline_unix_ms: UnixMs
+}
+```
+
+Lazaret remplit le contexte depuis l'identité vérifiée et le writer, après comparaison de `expected_generation` avec la génération cible ; `authorization_id` est le `jti` du ticket, pas `operation_id`. `operation` est la chaîne validée par le protocole existant, sans trim/case-fold ; `payload` est le contenu sémantique des `params` P0 (clé `payload` obligatoire sur le nouveau DTO, `null` autorisé), sans retrait de champs ni conversion de chaînes/base64. Tous UUID sont normalisés avant JCS. Dans le payload, chaînes sans normalisation Unicode/NFC ; rejet UTF-8/surrogates invalides, noms dupliqués **avant** construction d'un `Value`, NaN/Infinity et entiers hors `[-9007199254740991,9007199254740991]`. Les autres nombres suivent strictement JCS/binary64 ; les valeurs décimales exactes ou grands entiers métier doivent être des chaînes. La taille B5 est contrôlée sur le corps reçu avant parsing et sur le JSON canonique, sans augmenter sa borne. Ce profil est propre aux nouvelles routes ; P0 n'est pas réécrit.
+
+Couverture : opération/id/payload, source, cible/release/génération, grants et epochs source/cible, `jti`, deadline. Exclusions : certificat/session bruts, signatures/`kid`, headers/Host/trace, URL/projection/writer fence, Pod UID/Revision/instance **cible** inexistante avant réveil. `iss/aud/purpose/iat/exp` sont néanmoins protégés et validés par le JWS, pas ignorés parce qu'absents du préimage. L'instance cible est recoupée à accept et liée au contexte d'exécution B1/B4. Aucun digest auto-référent dans son propre préimage. D conserve l'empreinte émise associée au `jti` et ne fait jamais confiance au seul hash déclaré par le plugin.
+
+Pour un effet, même algorithme et mêmes règles, objet exact `RuntimeEffectHashInputV1 { schema_version:1, domain:"urn:aiforall:apparatus:runtime:effect-hash:v1", operation_sha256:Digest, execution_id:UUID, effect_id:UUID, instance_id:UUID, invoke:{binding_id:UUID, operation_id:UUID, operation:String, params:JSON} }`. Le contexte d'exécution authoritative relie cette empreinte aux epochs/deadline du ticket ; aucun contexte fourni librement par le plugin. Même identifiant d'effet + autre empreinte = `RUNTIME_ID_REUSED`, jamais une nouvelle réservation ; empreinte identique ne signifie pas autorisation de rejouer l'I/O.
+
+**Justification :** égalité de sens indépendante de l'ordre des clés, séparation opération/effet et absence d'arrondi des compteurs ; ni exactly-once ni autorisation issue du hash. **Surfaces :** C `crates/apparatus-contracts/src/runtime.rs` (types/profil partagé), D construction/vérification et accept/effects ; aucune modification de `protocol.rs`. **Oracles T :** vecteurs RFC 8785 (UTF-16, échappements, nombres/−0), vecteurs dorés communs C/D ; ordre/espaces JSON équivalents ⇒ même hash ; mutation de chaque champ couvert ⇒ hash différent ; doublons, versions/champs inconnus d'enveloppe, nombres interdits rejetés ; effet substitué/replay refusé.
+
+#### 13.1-B — Identités, rôles et profils cryptographiques
+
+**Valeurs proposées.** Les rôles de service sont des valeurs locales fermées de `RuntimeServiceRoleV1`, **pas** de nouveaux rôles/types OpenFGA ni un claim `roles` du caller :
+
+- `apparatus.runtime.projector.v1` : principal mTLS exact `spiffe://cluster.local/ns/aiforall-apparatus/sa/controller`.
+- `apparatus.runtime.lazaret.v1` : principal mTLS exact `spiffe://cluster.local/ns/aiforall-gateway/sa/gateway`.
+
+Ces SAN reprennent les namespace/SA des manifests `ops/deploy/p4/{operator,serviceaccounts}.yaml` et `ops/deploy/apps/base/lazaret.yaml` ; leur présence effective dans les certificats reste à valider par B/E. Le trust domain `cluster.local` est un choix explicite du profil initial, pas un wildcard ; mismatch ⇒ fermé, aucune réécriture des SA/issuer par C/D. Le rôle vient exclusivement du principal attesté par la terminaison mTLS de confiance et sa liaison au transport applicatif protégé. Aucun rôle/SAN transmis librement en header/body, certificat auto-signé ou bearer end-user n'est accepté. La seule identité du proxy intermédiaire n'est pas assimilée au service d'origine.
+
+Matrice exhaustive des huit routes, chemins relatifs au préfixe Manifesto, `project_id` obligatoire et recoupé :
+
+- `GET /internal/apparatus/runtime/bindings` : projector **ou** lazaret.
+- `GET /internal/apparatus/runtime/bindings/{binding_id}` : projector **ou** lazaret.
+- `POST …/{binding_id}/writer-lease` : projector **seul**.
+- `PUT …/{binding_id}/observation` : projector **seul**, preuve de bail/fence requise.
+- `PUT …/{binding_id}/instances/{instance_id}` : projector **seul**, preuve de bail/fence requise.
+- `POST …/{binding_id}/instances/{instance_id}/revoke` : lazaret **seul**.
+- `POST …/{binding_id}/effects/begin` : lazaret **seul**.
+- `POST …/{binding_id}/effects/{effect_id}/complete` : lazaret **seul**.
+
+Le rôle permet la fonction de contrôle, jamais l'invoke/I/O d'un utilisateur : consultations writer et ACL ∩ consentement ∩ politique B1/B4 restent obligatoires. Le monolithe n'obtient pas de rôle par loopback ; sans attestation équivalente du service d'origine, ces routes restent fermées.
+
+**JWS de délégation invoke**, profil littéral fermé : `iss="urn:aiforall:lazaret:apparatus-runtime:v1"`, `aud="urn:aiforall:apparatus:runtime:invoke:v1"` (chaîne unique), `purpose="apparatus.runtime.invoke.v1"`, `schema_version=1`. Header protégé à seules clés `alg`, `typ`, `kid` : `alg="RS256"`, `typ="apparatus-runtime-invoke+jwt"`, `kid` obligatoire ; aucun `none`/HS256, `jku`/`jwk`/`x5u` fourni par l'émetteur non approuvé, ni extension critique inconnue. `jti` = UUID `authorization_id` ; `operation_sha256` est l'empreinte A ; `source`, `source_revocation_epoch`, `project_id`, `target`, `operation_id`, `deadline_unix_ms` sont exactement les mêmes valeurs normalisées que A. `iat`/`exp` = NumericDate seconds entières ; `exp=floor(deadline_unix_ms/1000)`, `exp>iat`, durée au plus 30 s et jamais au-delà de la preuve caller ; refus dès `now>=exp` ou deadline atteinte, tolérance d'expiration **0 s**. Horloge non fiable ⇒ fermé.
+
+Clé invoke dédiée : RSA **3072 bits**, exposant **65537**, purpose provider `apparatus.runtime.invoke.v1`, signature privée via le port/provider approuvé. `kid="ari-v1-" + BASE64URL_NO_PAD(SHA256(RFC7638_JWK_THUMBPRINT_INPUT))` : **50 caractères ASCII** (préfixe 7 + thumbprint 43), calculé sur l'objet canonique RFC 7638 à seuls membres `e`, `kty=RSA`, `n` de la clé publique (entiers RSA base64url non paddés), pas un hash de thumbprint déjà haché, une valeur secrète ou un identifiant fictif. Aucun réemploi de clé enrollment, session, IAM ou signature d'artefact. Rotation proposée : nouvelle clé de signature toutes les **24 h** ; publication du nouveau catalogue public et acquittement des vérificateurs au moins **60 s avant** activation ; sinon pas d'activation. Ancienne clé en vérification seule jusqu'à **60 s après** sa dernière émission, puis retrait ; révocation d'urgence du `kid` prioritaire et fail-closed. Aucun catalogue découvert depuis le ticket ; clés publiques fournies par configuration/provider de confiance, refresh éventuel borné par la consultation B5. Une clé inconnue n'est jamais une raison d'accepter hors vérification. Ces durées de clé ne changent ni TTL ticket, ni certificat/session B5, ni le modèle CA ouvert de 0010.
+
+**Jeton projeté d'enrollment**, valeurs proposées du profil initial : `iss="https://kubernetes.default.svc.cluster.local"`, `aud=["urn:aiforall:apparatus:runtime:enrollment:v1"]` exactement ; `alg="RS256"`, clé RSA **au moins 2048 bits**, exposant **65537**, `kid` de l'issuer obligatoire, opaque ASCII `[A-Za-z0-9_-]{1,128}` et présent dans le jeu public explicitement approuvé. `sub=system:serviceaccount:<namespace>:<serviceaccount>` doit correspondre aux claims Pod/SA/namespace signés et à l'enregistrement authoritative B1 ; aucune identité de cible tirée du seul body. Durée réelle `exp-iat<=600 s`, expiration sans grâce ; pas d'audience API ni audience additionnelle.
+
+Le purpose vérificateur est `apparatus.runtime.enroll.v1`, **lié à cette audience et à cette route**, pas un claim `purpose` ajouté fictivement à un jeton que signe le cluster. L'issuer/les clés appartiennent à B/configuration Lazaret, **jamais à un client cluster ou une constante d'issuer sous les sources Manifesto**. Si l'issuer réel diffère, retour au gel/configuration humaine, pas acceptation du `iss` présenté ni reconfiguration automatique du cluster. Le jeu public est lié à ce déploiement/cluster ; un issuer de même nom d'un autre cluster ne partage pas la confiance. Rotation issuer pilotée par B : nouvelle clé approuvée avant émission, ancienne conservée au plus 600 s après dernière émission hors révocation d'urgence ; clé non approuvée/panne ⇒ refus, sans inventer son `kid` ni modifier le signer cluster ici.
+
+**Justification :** séparer permission de service, délégation métier et preuve Pod ; les valeurs sont publiques, pas des secrets, et `WorkloadIdentity`/`SessionClaims` restent inchangés. **Surfaces :** C enum/matrice d'auth des routes ; D ticket/enrollment, catalogue de clés et validations ; B configuration des preuves/principaux. **Oracles T :** matrice 8 routes × 2 rôles + principal tiers, header forgé et loopback ; mauvais iss/aud/purpose/typ/alg/kid, clé sous-dimensionnée, token multi-audience, échéance exacte et rotation ; aucun effet ni forward avant preuve et autorité valides.
+
+#### 13.1-C — CAS, bail, fence et curseur de liste
+
+**Formes proposées**, types Rust descriptifs à définir par C dans les contrats neutres (sans client cluster). `Counter`/`UnixMs` ci-dessous désignent les newtypes et leur encodage A ; JSON snake_case, `schema_version=1`, champs inconnus rejetés. Sur GET, `schema_version=1` est un paramètre requis ; sur commande, il est requis dans le body. Toutes propriétés de corps listées sont requises ; un `Option` sans valeur s'encode `null`, pas champ omis ni valeur implicite. Le paramètre query cursor est omis seulement pour la première page. Les identifiants projet/binding proviennent des query/path obligatoires, et toute copie dans la réponse/body doit coïncider.
+
+```rust
+RuntimeCasV1 { generation: RuntimeCounterV1, revocation_epoch: RuntimeCounterV1,
+               projection_version: RuntimeCounterV1, grant_revision: RuntimeCounterV1 }
+RuntimeLeaseProofV1 { lease_id: uuid::Uuid, holder_id: uuid::Uuid,
+                      writer_fence: RuntimeCounterV1 }
+RuntimeWriterLeaseRequestV1 { schema_version: u16, holder_id: uuid::Uuid,
+    expected: RuntimeCasV1, renew: Option<RuntimeLeaseProofV1> }
+RuntimeWriterLeaseV1 { schema_version: u16, project_id: uuid::Uuid, binding_id: uuid::Uuid,
+    proof: RuntimeLeaseProofV1, cas: RuntimeCasV1,
+    issued_at_unix_ms: RuntimeUnixMsV1, expires_at_unix_ms: RuntimeUnixMsV1 }
+RuntimeWriteGuardV1 { expected: RuntimeCasV1, lease: RuntimeLeaseProofV1 }
+RuntimeWriteAckV1 { schema_version: u16, project_id: uuid::Uuid, binding_id: uuid::Uuid,
+                    cas: RuntimeCasV1, writer_fence: RuntimeCounterV1 }
+RuntimeCursorV1(String) // opaque pour operator/Lazaret ; aucun état d'autorisation
+RuntimeBindingPageV1 { schema_version: u16, items: Vec<RuntimeBindingSnapshotV1>,
+                       next_cursor: Option<RuntimeCursorV1> }
+```
+
+`holder_id` = UUID v4 neuf par processus operator, jamais réutilisé après redémarrage. Fence = compteur **par projet/binding**, alloué sous verrou de ligne par le writer DB : premier grant `1`, strictement augmenté à chaque nouvelle acquisition/takeover, jamais réinitialisé au retrait/réinstallation ; tombstone conservé. Dépassement `i64::MAX` ⇒ fermé/erreur interne, pas de wraparound. Le bail lie principal projector, holder, lease UUID et fence. `renew=None` acquiert seulement en l'absence de bail vivant ; pour le même holder d'un bail encore vivant, renvoyer ce bail **sans l'étendre**. Autre holder vivant ⇒ `RUNTIME_LEASE_HELD`. `renew=Some(proof)` renouvelle seulement le bail courant non expiré dont principal/holder/lease/fence et CAS correspondent ; conserver lease/fence, jamais ressusciter un bail expiré.
+
+Durées proposées **à ratifier** : TTL serveur **10 000 ms**, renouvellement nominal toutes les **3 000 ms** ; aucun TTL libre du client. `expires_at=db_clock_after_lock+10000`, comparaison au `clock_timestamp()` DB après acquisition du verrou, pas au `now()` figé au début d'une transaction en attente ni à l'horloge du caller. À `db_clock>=expires_at`, bail perdu. Toute erreur/panne de renouvellement suspend nouvelles mutations/apply ; C abandonne son travail courant si perte de bail/fence, relit l'autorité avant une nouvelle acquisition. Un apply déjà en vol peut laisser le résiduel fermé documenté B3 ; aucun fencing atomique de l'API externe revendiqué.
+
+Guard obligatoire sur les PUT observation/instance : `(project,binding,generation,epoch,grant_revision,projection_version,holder,lease,fence)` relu atomiquement sur writer. Le fence ne remplace aucun compteur métier ni le contrôle d'UID/resourceVersion hors Manifesto. `projection_version` démarre à `1` à la matérialisation fermée et augmente pour tout changement logique/projection/instance visible ; génération/grant/epoch gardent leurs causes métier B3, sans inférence entre compteurs. Allocation/renouvellement du bail et journalisation begin/complete ne changent pas à eux seuls la version de projection. Revocation d'une seule instance ferme son entrée/tombstone sous le verrou ; elle n'invente pas une nouvelle génération ni ne réactive les autres. Aucune remise à zéro des versions/fences au backfill.
+
+Succès PUT ⇒ `RuntimeWriteAckV1` avec CAS courant. Répétition d'une projection/instance **strictement identique**, même fence vivant et contexte métier toujours courant : ack sans nouveau changement/version ; ce cas ne court-circuite jamais une révocation. Sinon CAS obsolète ⇒ `RUNTIME_STALE_STATE`, mauvais fence ⇒ `RUNTIME_FENCE_CONFLICT`, bail expiré/mauvaise lease ⇒ `RUNTIME_LEASE_LOST`. Observation/instance utilisable seulement si son `writer_fence` est le fence courant d'un bail vivant ; validité au plus `min(observed_at+5000, lease.expires_at)` ; cette borne complète, sans augmenter, la fraîcheur B5 de 5 s. Le rôle lazaret de revoke/begin/complete ne reçoit pas un faux bail projector : B4 sérialise ces commandes sous le verrou métier et vérifie leurs contextes/exécutions/réservations. Complete peut journaliser un engagement antérieur après révocation, mais ne réserve ni ne rejoue l'effet.
+
+**Curseur exact proposé :** chaîne ASCII `rcl1.<kid>.<p>.<mac>`, au plus **2048 octets** ; `p=BASE64URL_NO_PAD(UTF8(JCS(RuntimeListCursorPayloadV1)))`, `mac=BASE64URL_NO_PAD(HMAC-SHA256(K, UTF8("urn:aiforall:apparatus:runtime:cursor:v1") || 0x00 || ASCII(kid) || 0x00 || ASCII(p)))`. `K` = clé dédiée Manifesto **32 octets**, référencée depuis configuration secrète, jamais dans curseur/log/contrat ; `kid="rcl-v1-"+UUID v4 canonique` (43 caractères). Comparaison MAC constante ; encodage non canonique/clé inconnue ⇒ refus. Rotation proposée 24 h ; publier la clé suivante avant activation et garder la précédente en vérification 60 s après dernière émission ; aucune réutilisation de clé invoke/IAM.
+
+Payload exact : `RuntimeListCursorPayloadV1 { schema_version:u16, scan_id:Uuid, project_id:Uuid, principal:String, after_binding_id:Uuid, upper_binding_id:Uuid, page_size:u16, issued_at_unix_ms:UnixMs, expires_at_unix_ms:UnixMs }`. `principal` = SAN authentifié B, recoupé avec le caller courant ; TTL scan **60 000 ms**, sans prolongation de page en page ni grâce. Première page sans cursor : `page_size` défaut **100**, autorisé **1..=200** ; capturer le maximum `binding_id` du projet comme borne haute. Pages suivantes : `(after_binding_id, upper_binding_id]`, ordre UUID octets croissant, même projet/principal/page_size ; paramètre page_size contradictoire ⇒ curseur invalide. Dernière page `next_cursor=null`.
+
+Chaque page lit le writer courant, tombstones inclus ; ce n'est **pas** un snapshot transactionnel multi-page. Une insertion concurrente située avant le dernier UUID peut attendre le prochain scan complet ; jamais déduire un retrait de la seule absence dans une liste. Les commandes et autorisations relisent toujours le writer ; cursor ne rend ni une route ni un grant frais pendant 60 s. Expiration ⇒ nouveau scan, pas fallback sur la liste `ready` historique.
+
+**Justification :** exclusion distribuée vérifiable, compteurs sans ambiguïté et pagination bornée sans transformer un cursor en permission. Champs de bail/fence dans la migration additive C déjà inventoriée ; clé cursor en référence de configuration, pas nouvelle table de secrets. **Surfaces :** C DTO/port/writer/adapter HTTP et operator ; D consomme CAS/erreurs et n'acquiert pas de bail. **Oracles T :** concurrence de holders, expiration exacte/renouvellement après perte, redémarrage et fence monotone après retrait ; CAS retardé et PUT identique ; curseur falsifié/autre principal/projet/version, limite/TTL/ordre/pages et insertions concurrentes ; panne writer = pas d'allow ni suppression par absence.
+
+#### 13.1-D — Erreurs v1, mapping et absence de retries métier
+
+**Valeur proposée.** Ensemble fermé `RuntimeErrorCodeV1` ci-dessous, noms wire exacts en SCREAMING_SNAKE_CASE ; réponse d'erreur des **nouvelles routes internes Manifesto** : `RuntimeControlErrorV1 { schema_version:u16=1, code:RuntimeErrorCodeV1, retry_class:RuntimeRetryClassV1, effect_outcome:RuntimeEffectOutcomeV1 }`. `RuntimeRetryClassV1` wire = `never | read_only | reconcile_after_read` ; `RuntimeEffectOutcomeV1` = `not_started | may_have_started`. Aucun détail libre, secret, URL ou message SQL renvoyé ; diagnostic corrélé côté serveur seulement. Les nouveaux DTO runtime refusent versions/enum/champs inconnus. Une réponse d'autorité de version/code/formats inconnus devient chez D `RUNTIME_AUTHORITY_PROTOCOL_ERROR`, pas une erreur 400 imputée au caller ni un allow.
+
+Le public Lazaret conserve **exactement** `{"error": String}` et `InvokeHttpError` : les variantes avec chaîne (`BadRequest`, `Forbidden`, `BadGateway`) portent le nom du code converti **ASCII lower-case** (ex. `runtime_stale_state`), uniquement sur les nouvelles routes/gardes runtime. Les variantes sans chaîne gardent leurs littéraux existants : `Unauthorized` ⇒ `"unauthorized"`, `PayloadTooLarge` ⇒ `"payload too large"`, `Failed` ⇒ `"operation failed"` ; le code détaillé reste interne. Aucun nouveau champ public ni changement des raisons legacy non migrées. Codes finis et correspondances **HTTP interne → variante InvokeHttpError / HTTP public** :
+
+- `RUNTIME_INVALID_REQUEST`, `RUNTIME_UNSUPPORTED_VERSION`, `RUNTIME_CURSOR_INVALID` : **400 → BadRequest / 400**, `never`.
+- `RUNTIME_CURSOR_EXPIRED` : **400 → BadRequest / 400**, `reconcile_after_read` uniquement pour recommencer une liste sans ancien cursor.
+- `RUNTIME_UNAUTHENTICATED`, `RUNTIME_INVALID_PROOF` : **401 → Unauthorized / 401**, `never` (signature/issuer/audience/purpose/kid, session ou preuve expirée à l'entrée).
+- `RUNTIME_SERVICE_FORBIDDEN`, `RUNTIME_CALLER_FORBIDDEN`, `RUNTIME_BINDING_CLOSED`, `RUNTIME_RELEASE_NOT_ADMITTED`, `RUNTIME_IDENTITY_REVOKED`, `RUNTIME_HASH_MISMATCH`, `RUNTIME_LEGACY_DISABLED` : **403 → Forbidden / 403**, `never`. Hash syntaxiquement invalide relève de `RUNTIME_INVALID_REQUEST`, pas de ce mismatch.
+- `RUNTIME_BINDING_NOT_FOUND` : **404 → Forbidden / 403**, `never` ; authentifier/autoriser le rôle avant lookup, sans révéler l'existence d'un binding d'un autre projet au public.
+- `RUNTIME_STALE_STATE`, `RUNTIME_FENCE_CONFLICT`, `RUNTIME_LEASE_LOST` : **409 → Forbidden / 403**, `reconcile_after_read` **uniquement** pour le contrôle projector ; jamais retry d'invoke/accept/effet. Stale = génération/epoch/grant/version attendus discordants ; fence = fence non courant ; lease lost = bail expiré/lease-holder non concordant.
+- `RUNTIME_LEASE_HELD` : **409 → BadGateway / 502**, `reconcile_after_read` pour operator après fermeture de son ancienne tentative et relecture du bail ; pas de takeover d'un bail vivant.
+- `RUNTIME_REPLAY`, `RUNTIME_ID_REUSED` : **409 → Forbidden / 403**, `never`. Replay = ticket/effet déjà consommé non réutilisable ; id reused = identifiant réutilisé avec autre empreinte/contenu. Une répétition purement idempotente de report/complete retourne son ack conforme C/B4, pas une nouvelle exécution.
+- `RUNTIME_PAYLOAD_TOO_LARGE` : **413 → PayloadTooLarge / 413**, `never`.
+- `RUNTIME_AUTHORITY_UNAVAILABLE`, `RUNTIME_PROJECTION_UNAVAILABLE`, `RUNTIME_ROUTE_UNAVAILABLE`, `RUNTIME_CAPACITY_EXHAUSTED`, `RUNTIME_KEY_UNAVAILABLE` : **503 → BadGateway / 502**, `read_only`. Projection = absente/périmée/non observée ou route non établie, **pas** autorisation positive issue d'une ancienne vue ; clé indisponible = provider/configuration injoignable, distinct d'un kid présenté non approuvé (`INVALID_PROOF`).
+- `RUNTIME_DEADLINE_EXCEEDED` : **504 → BadGateway / 502**, `never` (deadline de l'opération admise atteinte ; aucune nouvelle échéance).
+- `RUNTIME_AUTHORITY_PROTOCOL_ERROR`, `RUNTIME_EFFECT_OUTCOME_UNKNOWN` : **502 → BadGateway / 502**, `never` ; le second impose `effect_outcome=may_have_started`.
+- `RUNTIME_COUNTER_EXHAUSTED`, `RUNTIME_INTERNAL` : **500 → Failed / 500**, `never` ; overflow arrête le binding/contrôle, jamais reset de compteur.
+
+Les huit routes internes retournent **200** sur succès (snapshot/page, bail, ack ou réservation selon la méthode), jamais un succès `QUEUED`/202 ; PUT/complete idempotents ne rejouent aucun effet. Les 404/409/503/504 ci-dessus ne sont introduits que pour les **huit nouvelles routes internes**, et font partie de cette proposition à ratifier ; ils ne deviennent pas de nouveaux statuts publics d'invoke et ne changent pas le contrat historique de `InvokeHttpError`. Le rôle est évalué avant ressource/curseur ; erreur de preuve ⇒ 401, identité authentifiée sans rôle/droit ⇒ 403.
+
+**Règle de retry normative :** `retry_class` décrit une possibilité de récupération, pas une commande de rejouer. `read_only` permet au plus **une** relecture supplémentaire de metadata GET dans le budget total de consultation B5 de **2 s** et la deadline existante ; pas de prolongation ou boucle. `reconcile_after_read` signifie fin/suspension du travail fenced, nouvelle lecture writer puis **nouvelle** tentative de metadata avec CAS/bail courants ; jamais réutiliser l'ancien guard ni obtenir un grant par retry. Nouveau scan après expiration n'autorise aucune absence→suppression.
+
+Aucun de ces codes n'autorise un retry automatique framework/ingress/client de `/runtime/invoke`, `/runtime/accept`, `/runtime/effects/invoke`, begin-effect ou d'une I/O. Les POST métier ne sont jamais rejoués automatiquement, même si une erreur porte `read_only`. Un timeout/débranchement après admission/envoi/réservation dont l'absence d'effet n'est pas prouvée impose `RUNTIME_EFFECT_OUTCOME_UNKNOWN`/`may_have_started` et `never`, même si la cause technique initiale était 503/504. Le client applique cette garde indépendamment du champ retry reçu. `not_started` ne peut être affirmé sur la seule absence de réponse ; un 502 public n'atteste jamais absence d'effet. Aucun code inconnu, saturation ou panne ne provoque fallback digest/local.
+
+**Justification :** distinguer refus courant, conflit de contrôle et indisponibilité sans agrandir l'API publique ou promettre une cancellation. **Surfaces :** C enum/erreur HTTP interne et guards/ports ; D adapter/mapping runtime `http/src/error.rs`, contrôle de retries et garde legacy ; T suites contracts/control/errors/effects prévues §14. **Oracles :** cas paramétré pour chaque code, raison wire exacte, status interne/public, version/code inconnu ; spies/effets réels prouvant zéro replay d'opération après timeout ambigu ; conflit metadata récupérable seulement après relecture, jamais ancien guard ; legacy migré refusé et legacy non migré inchangé.
+
+**Gel utilisable après ratification de 13.1 seulement :** C publie les types, codec et mappings ci-dessus comme unique source ; D ne crée aucune variante locale, T dérive ses vecteurs/cas de cette annexe. Les durées/identités supplémentaires ici sont proposées à l'humain, pas déjà acquises par l'Accept précédent ; les gates B5/§15 restent indépendantes. Aucun nouveau fichier partagé, route, événement, client cluster, migration destructive ou changement de claims n'est autorisé par cette complétion.
+
 ## 14. Attribution exclusive des fichiers — préalable à publication
 
 **Règle de fermeture : un fichier = un écrivain.** Les propriétaires ci-dessous sont les lots de mission, non des agents déjà lancés. C/D restent NO-GO sans Accept et gel du §13. Aucun des deux ne corrige le fichier de l'autre : il demande un delta au propriétaire. Tout fichier supplémentaire/partagé découvert retourne à A/lead pour attribution **avant** édition/publication ; pas de règle « premier à écrire ». Les arborescences sont exclusives avec l'exception `tests/` explicitement T ; les tests `#[cfg(test)]` dans un fichier de production appartiennent à son propriétaire, T fournit l'oracle/patch suggéré.
