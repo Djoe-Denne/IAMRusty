@@ -13,6 +13,21 @@ pub struct GrantService {
 }
 
 impl GrantService {
+    /// Receiving-binding runtime consent, with no fictional target identity.
+    pub async fn authorize_runtime_target(
+        &self,
+        project_id: uuid::Uuid,
+        target: &apparatus_contracts::runtime::RuntimeTargetV1,
+    ) -> Result<GrantDecision, GrantFetchError> {
+        let snapshot = self
+            .snapshots
+            .fetch(project_id, target.binding_id, None)
+            .await?;
+        Ok(lazaret_domain::grants::evaluate_runtime_target(
+            project_id, target, &snapshot,
+        ))
+    }
+
     /// Wire a snapshot port (HTTP in production, fake in tests).
     #[must_use]
     pub fn new(snapshots: Arc<dyn BindingGrantSnapshotPort>) -> Self {

@@ -341,6 +341,38 @@ impl PlatformInternalCa {
 }
 
 impl CertificateAuthority for PlatformInternalCa {
+    // ADR-0012 B5: runtime certificate validity is bounded to five minutes.
+    fn sign_runtime_csr(
+        &self,
+        csr_pem: &str,
+        ttl_seconds: u64,
+        binding: Uuid,
+    ) -> Result<IssuedCertificate, IdentityError> {
+        if ttl_seconds == 0 || ttl_seconds > 300 || csr_pem.contains("PRIVATE KEY") {
+            return Err(IdentityError::InvalidIdentity);
+        }
+        let mut csr = CertificateSigningRequestParams::from_pem(csr_pem)
+            .map_err(|_| IdentityError::InvalidCsr("runtime_csr_invalid".to_owned()))?;
+        if matches!(csr.params.is_ca, IsCa::Ca(_)) {
+            return Err(IdentityError::InvalidIdentity);
+        }
+        impose_client_identity(&mut csr.params, binding)?;
+        let now = OffsetDateTime::now_utc();
+        csr.params.not_before = now;
+        csr.params.not_after = now
+            .checked_add(Duration::seconds(
+                i64::try_from(ttl_seconds).map_err(|_| IdentityError::InvalidIdentity)?,
+            ))
+            .ok_or(IdentityError::InvalidIdentity)?;
+        let cert = csr
+            .signed_by(&self.cert, &self.key)
+            .map_err(|_| IdentityError::CaFailure("runtime_issuance_failed".to_owned()))?;
+        Ok(IssuedCertificate {
+            pem: cert.pem(),
+            der: cert.der().as_ref().to_vec(),
+        })
+    }
+
     fn sign_csr(
         &self,
         csr_pem: &str,
@@ -620,6 +652,40 @@ mod tests {
     fn platform_ca_cert_pem_excludes_private_key() {
         let pem = PlatformInternalCa::new().expect("platform ca").cert_pem();
         assert_cert_only(&pem);
+    }
+
+    #[test]
+    fn runtime_certificate_is_bounded_and_never_contains_private_key() {
+        let ca = PlatformInternalCa::new().expect("ca");
+        let key = KeyPair::generate().expect("workload key");
+        let csr = CertificateParams::new(vec!["caller.invalid".to_owned()])
+            .expect("params")
+            .serialize_request(&key)
+            .expect("csr")
+            .pem()
+            .expect("csr pem");
+        let binding = Uuid::new_v4();
+        let issued = ca
+            .sign_runtime_csr(&csr, 300, binding)
+            .expect("runtime cert");
+        assert_cert_only(&issued.pem);
+        let (_, parsed) = x509_parser::parse_x509_certificate(&issued.der).expect("x509");
+        assert_eq!(
+            parsed.validity().not_after.timestamp() - parsed.validity().not_before.timestamp(),
+            300
+        );
+        assert!(matches!(
+            ca.sign_runtime_csr(&csr, 301, binding),
+            Err(IdentityError::InvalidIdentity)
+        ));
+        assert!(matches!(
+            ca.sign_runtime_csr(&csr, 0, binding),
+            Err(IdentityError::InvalidIdentity)
+        ));
+        assert!(matches!(
+            ca.sign_runtime_csr(&key.serialize_pem(), 300, binding),
+            Err(IdentityError::InvalidIdentity)
+        ));
     }
 
     #[test]

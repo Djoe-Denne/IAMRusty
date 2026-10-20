@@ -21,3 +21,7 @@ pub use kv_redis::RedisKvStore;
 pub use manifesto_client::HttpBindingGrantClient;
 pub use secrets_deny::DeniedSecretResolver;
 pub use vault::VaultHttpSecretResolver;
+pub mod runtime_control;
+pub mod runtime_identity;
+pub mod runtime_store;
+pub mod runtime_ticket;

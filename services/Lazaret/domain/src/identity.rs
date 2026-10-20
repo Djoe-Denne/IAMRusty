@@ -200,6 +200,18 @@ pub trait CertificateAuthority: Send + Sync {
         ttl_hours: u64,
         binding: Uuid,
     ) -> Result<IssuedCertificate, IdentityError>;
+
+    /// Runtime certificates have a seconds-level bound; legacy CA adapters must
+    /// explicitly support it rather than rounding up to a legacy hourly TTL.
+    /// ADR-0012 B5 limits runtime certificates to five minutes.
+    fn sign_runtime_csr(
+        &self,
+        _csr_pem: &str,
+        _ttl_seconds: u64,
+        _binding: Uuid,
+    ) -> Result<IssuedCertificate, IdentityError> {
+        Err(IdentityError::InvalidIdentity)
+    }
 }
 
 /// Dedicated session token signer (never IAM HMAC).
@@ -246,6 +258,14 @@ pub trait EnrollmentStore: Send + Sync {
     /// Durable adapters map store failure to `None` (fail-closed session 401).
     #[must_use = "await the future"]
     async fn get(&self, fingerprint: &str) -> Option<WorkloadIdentity>;
+
+    /// Checked runtime classification; durable failures are not absence.
+    async fn get_checked(
+        &self,
+        fingerprint: &str,
+    ) -> Result<Option<WorkloadIdentity>, IdentityError> {
+        Ok(self.get(fingerprint).await)
+    }
 
     /// `true` when this binding already has a stored fingerprint (first-wins).
     ///

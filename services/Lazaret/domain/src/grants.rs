@@ -185,13 +185,60 @@ pub fn evaluate_grant(
     req: &GrantAuthorizationRequest,
     snapshot: &BindingGrantSnapshot,
 ) -> GrantDecision {
-    if Capability::from_str(&req.capability).is_err() {
+    evaluate_binding(
+        &BindingEvaluation {
+            capability: &req.capability,
+            project_id: req.project_id,
+            binding_id: req.identity.binding,
+            release: &req.identity.release,
+            generation: req.identity.generation,
+            grant_revision: req.identity.grant_revision,
+            origin: req.origin,
+        },
+        snapshot,
+    )
+}
+
+/// Evaluate the receiving binding without inventing a target instance/session.
+/// Uses the same policy/consent engine as ordinary capability authorization.
+#[must_use]
+pub fn evaluate_runtime_target(
+    project_id: Uuid,
+    target: &apparatus_contracts::runtime::RuntimeTargetV1,
+    snapshot: &BindingGrantSnapshot,
+) -> GrantDecision {
+    evaluate_binding(
+        &BindingEvaluation {
+            capability: Capability::RuntimeInvoke.as_str(),
+            project_id,
+            binding_id: target.binding_id,
+            release: target.release.as_str(),
+            generation: target.generation.get() as i64,
+            grant_revision: target.grant_revision.get() as i64,
+            origin: CallOrigin::Background,
+        },
+        snapshot,
+    )
+}
+
+struct BindingEvaluation<'a> {
+    capability: &'a str,
+    project_id: Uuid,
+    binding_id: Uuid,
+    release: &'a str,
+    generation: i64,
+    grant_revision: i64,
+    origin: CallOrigin,
+}
+
+fn evaluate_binding(req: &BindingEvaluation<'_>, snapshot: &BindingGrantSnapshot) -> GrantDecision {
+    if Capability::from_str(req.capability).is_err() {
         return deny(GrantDenyReason::UnknownCapability);
     }
-    if !snapshot.declared.iter().any(|name| name == &req.capability) {
+    if !snapshot.declared.iter().any(|name| name == req.capability) {
         return deny(GrantDenyReason::CapabilityNotDeclared);
     }
-    if snapshot.project_id != req.project_id || snapshot.component_id != req.identity.binding {
+    if snapshot.project_id != req.project_id || snapshot.component_id != req.binding_id {
         return deny(GrantDenyReason::ProjectMismatch);
     }
     if !project_is_operable(&snapshot.project_status) {
@@ -201,13 +248,13 @@ pub fn evaluate_grant(
         return deny(GrantDenyReason::ComponentInactive);
     }
     match snapshot.digest.as_deref() {
-        Some(digest) if digest == req.identity.release => {}
+        Some(digest) if digest == req.release => {}
         _ => return deny(GrantDenyReason::ReleaseNotAdmitted),
     }
-    if req.identity.generation != snapshot.desired_generation {
+    if req.generation != snapshot.desired_generation {
         return deny(GrantDenyReason::GenerationMismatch);
     }
-    if req.identity.grant_revision != snapshot.grant_revision {
+    if req.grant_revision != snapshot.grant_revision {
         return deny(GrantDenyReason::IdentityRevisionMismatch);
     }
     if let Some(reason) = consent_denial(req, snapshot) {
@@ -232,7 +279,7 @@ const fn component_is_active(status: &str) -> bool {
 }
 
 fn consent_denial(
-    req: &GrantAuthorizationRequest,
+    req: &BindingEvaluation<'_>,
     snapshot: &BindingGrantSnapshot,
 ) -> Option<GrantDenyReason> {
     let Some(consent) = snapshot
@@ -252,7 +299,7 @@ fn consent_denial(
 }
 
 fn principal_denial(
-    req: &GrantAuthorizationRequest,
+    req: &BindingEvaluation<'_>,
     snapshot: &BindingGrantSnapshot,
 ) -> Option<GrantDenyReason> {
     match req.origin {
@@ -321,6 +368,46 @@ mod tests {
             origin,
             project_id: Uuid::new_v4(),
         }
+    }
+
+    #[test]
+    fn receiving_runtime_binding_uses_the_same_live_consent_engine_without_instance_claim() {
+        use apparatus_contracts::runtime::{RuntimeCounterV1, RuntimeDigestV1, RuntimeTargetV1};
+        let mut request = allow_request(CallOrigin::Background);
+        request.capability = "runtime.invoke".to_owned();
+        request.declared = vec![request.capability.clone()];
+        request.identity.release = format!("sha256:{}", "a".repeat(64));
+        let mut snapshot = snapshot_for(&request, "active");
+        let target = RuntimeTargetV1 {
+            binding_id: request.identity.binding,
+            generation: RuntimeCounterV1::new(1).expect("counter"),
+            release: RuntimeDigestV1::new(request.identity.release.clone()).expect("digest"),
+            grant_revision: RuntimeCounterV1::new(0).expect("counter"),
+            revocation_epoch: RuntimeCounterV1::new(1).expect("counter"),
+        };
+        assert_eq!(
+            evaluate_runtime_target(request.project_id, &target, &snapshot),
+            GrantDecision::Allow
+        );
+        snapshot.consents[0].status = "revoked".to_owned();
+        assert_eq!(
+            evaluate_runtime_target(request.project_id, &target, &snapshot),
+            GrantDecision::Deny {
+                reason: GrantDenyReason::ConsentRevoked
+            }
+        );
+        assert_eq!(
+            evaluate_runtime_target(request.project_id, &target, &snapshot),
+            evaluate_grant(&request, &snapshot)
+        );
+        snapshot.consents[0].status = "consented".to_owned();
+        snapshot.declared.clear();
+        assert_eq!(
+            evaluate_runtime_target(request.project_id, &target, &snapshot),
+            GrantDecision::Deny {
+                reason: GrantDenyReason::CapabilityNotDeclared
+            }
+        );
     }
 
     #[test]

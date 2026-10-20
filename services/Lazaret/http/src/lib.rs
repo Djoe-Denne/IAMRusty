@@ -15,12 +15,17 @@ use rustycog::http::{AppState, PeerClientCertificate, RouteBuilder};
 mod error;
 mod handlers;
 mod invoke;
+mod runtime;
 
 /// Bounded-context path for standalone and monolith embedding.
 pub const SERVICE_PREFIX: &str = "/lazaret";
 
 fn is_session_path(path: &str) -> bool {
-    path == "/session" || path.strip_prefix(SERVICE_PREFIX) == Some("/session")
+    let relative = path.strip_prefix(SERVICE_PREFIX).unwrap_or(path);
+    matches!(
+        relative,
+        "/session" | "/runtime/invoke" | "/runtime/accept" | "/runtime/effects/invoke"
+    )
 }
 
 /// Map rustycog's accepted peer cert onto Lazaret's typed extension.
@@ -32,7 +37,7 @@ fn is_session_path(path: &str) -> bool {
 ///
 /// Tests may still inject [`VerifiedClientCertificate`] via `extensions_mut`;
 /// do not overwrite an existing value (T3/T10 in-process). Mapping runs only
-/// for `/session` and `{SERVICE_PREFIX}/session`.
+/// for workload-session/runtime admission paths, with or without the prefix.
 async fn map_peer_client_certificate(mut req: Request, next: Next) -> Response {
     if is_session_path(req.uri().path())
         && req
@@ -65,6 +70,15 @@ pub fn create_router(
         .layer(Extension(identity))
         .layer(Extension(invoke))
         .layer(axum::middleware::from_fn(map_peer_client_certificate))
+}
+
+/// Composition-root seam. A configured runtime deployment must attach the
+/// guarded service before serving; no request header/body can select this mode.
+pub fn with_runtime_session(
+    router: Router,
+    service: Arc<lazaret_application::runtime::RuntimeSessionService>,
+) -> Router {
+    router.layer(Extension(service))
 }
 
 /// Nest `inner` under [`SERVICE_PREFIX`] once.

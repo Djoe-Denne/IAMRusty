@@ -4,6 +4,8 @@ mod grants;
 mod identity;
 mod invoke;
 mod kv_lifecycle;
+pub mod runtime;
+pub mod runtime_cutover;
 
 use rustycog::command::{CommandRegistry, CommandRegistryBuilder};
 
