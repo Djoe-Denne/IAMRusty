@@ -399,6 +399,169 @@ Aucun de ces codes n'autorise un retry automatique framework/ingress/client de `
 
 **Gel utilisable après ratification de 13.1 seulement :** C publie les types, codec et mappings ci-dessus comme unique source ; D ne crée aucune variante locale, T dérive ses vecteurs/cas de cette annexe. Les durées/identités supplémentaires ici sont proposées à l'humain, pas déjà acquises par l'Accept précédent ; les gates B5/§15 restent indépendantes. Aucun nouveau fichier partagé, route, événement, client cluster, migration destructive ou changement de claims n'est autorisé par cette complétion.
 
+### 13.2 — Gel instances, discovery et noms (complément du 2026-10-20)
+
+**Statut de cette seule annexe : Accepted le 2026-10-20 (ratification humaine explicite) — publication du HEAD interface C/D/T autorisée.** §13.1 ratifiée à `fd94467` reste inchangée : compteurs/dates, JCS/hash, rôles/issuer/audience, CAS/fence/TTL, erreurs et absence de retries métier sont hérités. Les formes C lues dans `crates/apparatus-contracts/src/runtime.rs` sont des drafts, pas une source de ratification ; les validations/corrections ci-dessous tranchent seulement leurs gaps. Ni route supplémentaire, ni SQL inter-service, ni client cluster dans les types/Manifesto/Lazaret, ni changement de `WorkloadIdentity`/`SessionClaims`. Le statut/Réalité du paquet reste inchangé ; les autres gates §15 subsistent (pas de GO runtime, preuves en campagne E).
+
+#### 13.2-A — Gap 1 : lecture authoritative des instances dans GET binding
+
+**Choix proposé :** enrichir **le GET binding existant** et `RuntimeControlPort::get_binding`, sans neuvième route ni accès SQL de D. Le snapshot contient une page du registre d'instances, distincte des commandes de registration et de l'enrollment local Lazaret. Types neutres nouveaux, mêmes encodages/Options obligatoires et nullables que §13.1 :
+
+```rust
+RuntimeInstanceSelectorV1 = Page { cursor: Option<RuntimeInstanceCursorV1>, page_size: Option<u16> }
+    | ByPodUid { pod_uid: String } | ByInstanceId { instance_id: Uuid };
+RuntimePodIdentityV1 { pod_uid: String, revision_uid: String, namespace: String,
+                       service_account: String, service_account_uid: String }
+RuntimeInstanceKindV1 = Pod | LegacyFence; // wire: pod | legacy_fence
+RuntimeInstanceStateV1 = Current | Closed | Tombstone; // current | closed | tombstone
+RuntimeInstanceSnapshotV1 { schema_version: u16, project_id: Uuid, binding_id: Uuid,
+    instance_id: Uuid, kind: RuntimeInstanceKindV1, state: RuntimeInstanceStateV1,
+    cas: RuntimeCasV1, release: RuntimeDigestV1, pod: Option<RuntimePodIdentityV1>,
+    writer_fence: Option<RuntimeCounterV1>, observed_at_unix_ms: Option<RuntimeUnixMsV1>,
+    valid_until_unix_ms: Option<RuntimeUnixMsV1>, closed_at_unix_ms: Option<RuntimeUnixMsV1> }
+RuntimeInstancePageV1 { schema_version: u16, items: Vec<RuntimeInstanceSnapshotV1>,
+    next_cursor: Option<RuntimeInstanceCursorV1>, read_at_unix_ms: RuntimeUnixMsV1 }
+```
+
+Ajouter au `RuntimeBindingSnapshotV1` la propriété **requise** `instances: Option<RuntimeInstancePageV1>`. Sur `list_bindings`, elle vaut explicitement `null` (projection de liste, pas preuve d'absence), sans produit pages bindings × pages instances. Sur **GET binding**, elle est toujours non nulle, y compris si `items=[]`. Une propriété omise ou `null` sur ce GET est une erreur de protocole, jamais une liste vide déduite par D.
+
+Signature du port : `get_binding(caller, project_id, binding_id, instances: &RuntimeInstanceSelectorV1) -> RuntimeControlFuture<RuntimeBindingSnapshotV1>` (lifetimes selon le trait actuel). HTTP : conserver `GET /internal/apparatus/runtime/bindings/{binding_id}?schema_version=1&project_id=…` et ajouter `instances_mode` **requis**, parmi `page | by_pod_uid | by_instance_id`. `page` admet uniquement `instances_cursor`/`instances_page_size` ; `by_pod_uid` exige seulement `pod_uid`, `by_instance_id` seulement `instance_id`. Paramètres étrangers/combinaisons contradictoires rejetés. Aucun changement de rôle B : projector ou lazaret.
+
+Les modes exacts renvoient **0 ou 1** entrée (tous états inclus), `next_cursor=null` ; plusieurs correspondances ⇒ erreur de protocole, jamais « choisir la première ». Enrollment utilise exclusivement `ByPodUid`, /session et contrôles d'une identité connue `ByInstanceId`. D ne balaie pas les pages pour autoriser et ne déduit pas un droit d'une page partielle. Binding absent garde l'erreur §13.1 ; registre encore absent/périmé = fermé (`RUNTIME_PROJECTION_UNAVAILABLE` si la preuve est par ailleurs valide), mismatch cryptographique/mapping = `RUNTIME_INVALID_PROOF`, closed/tombstone = `RUNTIME_IDENTITY_REVOKED`.
+
+Pagination d'inventaire : bornes §13.1-C **inchangées**, défaut 100/max 200, plafond de corps runtime B5 ; une page peut être plus courte pour respecter les octets, mais doit fournir son next_cursor. Nouveau type opaque `RuntimeInstanceCursorV1`, enveloppe `rci1.<kid>.<p>.<mac>` ; codec/clés/rotation/2048 octets/TTL scan 60 s hérités de C, mais domaine MAC **`urn:aiforall:apparatus:runtime:instance-cursor:v1`**. Payload JCS exact : `{schema_version,scan_id,project_id,binding_id,principal,after_instance_id,upper_instance_id,page_size,issued_at_unix_ms,expires_at_unix_ms}` ; UUID octets croissants, borne haute capturée, tombstones inclus, aucune prolongation entre pages. Un cursor bindings `rcl1` n'est jamais accepté comme cursor instances, ni un cursor d'un autre binding/principal. Pas de snapshot transactionnel entre pages ni de suppression par absence.
+
+GET lit **le writer** : snapshot/CAS, sélection de lignes et horloge de lecture sont cohérents dans une même lecture transactionnelle. Pour `kind=pod,state=current`, `pod`, fence, observation et valid_until sont non nuls ; autoriser seulement si génération/epoch/grant/release correspondent au binding courant, fence courant/bail vivant et `now < valid_until <= min(observed_at+5000, lease.expires_at)`. Relecture à chaque enrollment/session et avant effet, aucun cache allow. Le `cas.projection_version` de la ligne trace son dernier changement, peut être inférieur au CAS du snapshot après mise à jour d'un autre replica : ce n'est pas un remplacement du CAS courant des commandes. Les autres composantes métier doivent correspondre ; ce détail n'affaiblit aucun CAS d'écriture §13.1-C.
+
+`current` signifie mapping opératoire courant, **pas credentials déjà délivrés ni permission métier**. Pour kind=pod, pod est toujours non nul ; current impose closed_at=null et fence/dates non nuls, closed/tombstone impose closed_at non nul et conserve les preuves/dates historiques (jamais utilisables pour allow). `closed`/`tombstone` n'autorisent jamais, même frais ; conserver les mappings historiques et `closed_at`. Aucune transition de ces états vers current pour le même instance_id/Pod UID. Un tombstone `kind=legacy_fence` créé par revoke B3 porte `pod/fence/observed_at/valid_until=null` et `closed_at` non nul : il ne fabrique pas de Pod. Une instance runtime current exige toujours `kind=pod`. Unicités durables `(project,binding,instance_id)` et `(project,binding,pod_uid)` ; aucune purge ni réaffectation à une autre génération/release.
+
+**Justification :** lookup borné et prouvable sans nouvelle frontière réseau, avec distinction non-lu/absence/fermé. **Surfaces :** C types/port, writer/GET et operator ; D adapter et revalidation enrollment/session ; B éventuel RBAC read-only ServiceAccount UID, sans écriture C sur les fichiers de B. **Oracles T :** singleton/multi-replica, absent/null/omission, tombstone legacy sans faux Pod, autre projet/binding, mutation pendant pagination, cursor croisé, perte de fence/expiration à 5 s, deux replicas dont un rafraîchi sans invalider arbitrairement l'autre ; aucune lecture stale autorisante.
+
+#### 13.2-B — Gap 2 : discovery Pod-bound, sans UUID client ni Pod patché
+
+**Choix proposé :** retenir la Downward API standard. C observe le Pod et sa chaîne d'ownership dès la création, réserve **une fois par Pod UID** un instance_id (UUID plateforme), puis écrit le mapping via PUT fenced. Un redémarrage d'operator relit ce mapping par `ByPodUid`, ne génère pas un autre identifiant pour le même Pod. C ne patche ni env/annotations des Pods enfants ni Secret par replica. Le template de Revision est identique entre replicas ; seul le kubelet fournit les valeurs Pod-specific.
+
+Le plugin lit son Pod UID, génère uniquement sa **clé privée/CSR**, et envoie enrollment avec projet/binding/Pod UID + jeton projeté + CSR. **Retirer `instance_id` du `RuntimeEnrollmentRequestV1`** ; pas même un champ Option ou un alias ignoré. D vérifie la preuve signée §13.1-B puis le GET binding `ByPodUid`. Il recoupe `pod_uid` avec `claims["kubernetes.io"]["pod"]["uid"]`, namespace, nom **et UID** de ServiceAccount signés, Revision UID observée, binding/génération/release et état/fence/fraîcheur. Le subject SA et les références CSR/env ne suffisent pas. C lit le ServiceAccount UID et l'owner chain avec ses droits, D n'interroge pas le cluster. Absence de registration ne crée aucune identité chez D.
+
+La réponse enrollment remet l'instance_id **trouvé côté plateforme** et le certificat lié à cette instance/CSR ; D conserve son registre dédié. Le CSR n'a pas besoin de connaître l'instance_id : son sujet n'est pas l'autorité, le signer lie le certificat à l'identité issue du registre et prouve la possession de la clé. Le plugin vérifie cohérence projet/binding/Pod UID, clé du certificat et échéance, garde clé/certificat/instance en mémoire, puis appelle `/session` avec cette identité. D refait le lookup `ByInstanceId` sur chaque /session runtime, même si certificat/session est cryptographiquement valide. Idempotence enrollment = même mapping Pod+empreinte CSR, jamais une identité choisie par le client.
+
+**Contrat de template plateforme exact, aucun alias legacy :**
+
+- `APPARATUS_RUNTIME_MODE=knative-v1`. Valeurs inconnues/incomplètes ⇒ configuration refusée/readiness false, pas de chemin legacy de secours.
+- `APPARATUS_RUNTIME_PROJECT_ID`, `APPARATUS_RUNTIME_BINDING_ID` : UUID canoniques du binding provenant de l'autorité.
+- `APPARATUS_RUNTIME_GENERATION` : Counter décimal ; `APPARATUS_RUNTIME_RELEASE` : digest descripteur admis. Ce sont des informations de configuration, jamais une preuve de grant.
+- `APPARATUS_RUNTIME_POD_UID` : `valueFrom.fieldRef { apiVersion:v1, fieldPath:metadata.uid }`.
+- `APPARATUS_RUNTIME_NAMESPACE` : même mécanisme, `metadata.namespace`.
+- `APPARATUS_RUNTIME_SERVICE_ACCOUNT` : même mécanisme, `spec.serviceAccountName`. Aucun instance_id calculé à partir de ces chaînes.
+- `APPARATUS_RUNTIME_LAZARET_BASE_URL` : **valeur obligatoire du profil plateforme** `lazaret_base_url`, URL HTTPS privée absolue, sans userinfo/query/fragment, préfixe canonique `/lazaret`, sans `/` final. Origine/port et CA explicitement approuvés par B, pas de défaut, URL caller/publisher, discovery de service ou port inventé dans C/D. Le client ajoute exclusivement `/runtime/enroll`, `/session`, `/runtime/accept`, `/runtime/effects/invoke` pour ce parcours. Tant que cette origine TLS n'est pas réellement configurée/prouvée, ce profil n'est pas ouvrable. Aucune nouvelle route d'instance/discovery.
+- `APPARATUS_RUNTIME_ENROLLMENT_TOKEN_PATH=/var/run/apparatus-runtime/enrollment/token`. Volume `apparatus-runtime-enrollment`, source `projected.sources[].serviceAccountToken { audience:"urn:aiforall:apparatus:runtime:enrollment:v1", expirationSeconds:600, path:"token" }`, mount répertoire en read-only **dans le user-container seulement**, pas `subPath` (rotation kubelet). Aucun token audience API ni automount par défaut.
+- `APPARATUS_RUNTIME_LAZARET_CA_PATH=/var/run/apparatus-runtime/trust/lazaret-ca.pem`. Volume `apparatus-runtime-trust`, ConfigMap publique plateforme référencée par le profil (`lazaret_public_ca_configmap`), item `ca.pem` projeté sous `lazaret-ca.pem`, mount read-only. Pas le token/CA API par défaut, pas une clé privée, pas un secret par digest ; vérification TLS/hostname obligatoire.
+
+Le `spec.template.spec` conserve `automountServiceAccountToken:false`, ServiceAccount plateforme contrôlé et sécurité non-root B2 ; permissions de fichier/FSGroup doivent permettre la lecture du seul mount autorisé sans élargir les privilèges. Les tokens de transport mesh, s'ils existent, restent distincts et ne sont pas montés comme preuve enrollment dans le plugin. B doit explicitement activer `config-features.data.kubernetes.podspec-fieldref="enabled"` (désactivé upstream 1.23.0) ; les volumes projetés/token et automount doivent passer le schéma/validation Serving épinglés. Pas d'un feature flag projeté inventé ni de mutation Pod maison : le schéma et `pkg/apis/serving/k8s_validation.go` de Serving `knative-v1.23.0` prennent en charge la projection de token. La preuve réelle reste B/E.
+
+**Interdits runtime :** aucun `APPARATUS_RUNTIME_INSTANCE_ID` statique en Revision ; aucun UUID d'identité généré par le plugin pour bootstrap/enrollment ; aucun fallback `BINDING`/`APPARATUS_BINDING`, `PROJECT_ID`/`APPARATUS_PROJECT`, `LAZARET_ENROLL_URL`, `LAZARET_CA_CERT_PATH` ou `INSTANCE`. Pas de lecture d'ancien fichier cert/key comme preuve d'enrollment, persistance d'UUID/clé sur disque, skip sur fichiers présents, ni « 409 donc continuer ». Côté D, le marqueur authoritative de migration et le registre de certificat imposent le mode : un binding migré ne peut se ré-enrôler via l'ancien `/enroll`, et une identité runtime dont la revalidation /session échoue ne retombe jamais sur le store/session legacy (`RUNTIME_LEGACY_DISABLED` selon §13.1). Le seul flag env client n'est pas cette garde serveur. Les helpers legacy `enroll_cfg_from_env`, `enroll_from_env_or_exit`, `enroll_workload` dans `reference-kv-http.rs` restent historiques pour leur profil : leur UUID client et fichiers ne sont pas reproduits dans le nouveau parcours. Les IDs métier d'opération/exécution conservent §13.1 ; ceci ne modifie aucun claim existant.
+
+**Justification :** identité distribuée par le registre à partir d'une preuve Pod-bound, sans cercle enrollment/Ready ni identité partagée par Revision. **Surfaces :** C projection Serving/registration ; D référence HTTP, enrollment et /session runtime ; B profil TLS/CA/feature flag/permissions et RBAC ; T fixtures. **Oracles :** deux replicas d'une Revision ⇒ Pod UID et instance_id distincts, nouvelle instance après zéro ; aucune env instance statique ; token/mapping d'un autre Pod/SA UID/Revision refusé, env falsifié n'accorde aucun droit ; tombstone/absence/panne fermés ; pas d'enrollment ignoré à cause d'un fichier ou d'un 409 ; publisher/caller ne choisit aucune origine ni identité.
+
+#### 13.2-C — Gap 3 : cible invoke nommée sans ambiguïté
+
+**Choix proposé :** nom Rust/wire unique **`target_binding_id`** dans `RuntimeInvokeRequestV1`, conformément à B1. Corriger le draft C `binding_id` ; aucun alias serde, conversion silencieuse ou valeur par défaut. La session identifie la source ; elle ne remplit jamais la cible manquante. Forme exacte retenue :
+
+```rust
+RuntimeInvokeRequestV1 { schema_version: u16, project_id: Uuid, target_binding_id: Uuid,
+    expected_generation: RuntimeCounterV1, operation_id: Uuid, operation: String,
+    payload: serde_json::Value, deadline_unix_ms: RuntimeUnixMsV1 }
+```
+
+`POST /runtime/invoke?project_id=…` conserve sa query ratifiée ; `body.project_id` doit lui être égal. `expected_generation` vient du caller et doit correspondre à l'autorité ; ni lui ni le délai demandé ne créent un grant. D calcule la deadline effective par le minimum du délai demandé, de now+30 s B5 et de la validité de la preuve source ; le ticket/hash/forward portent cette même valeur effective. Délai déjà épuisé ⇒ erreur §13.1, pas d'extension.
+
+Seul ce DTO de **demande de dispatch** change de nom de champ : `RuntimeTargetV1.binding_id`, le préimage JCS §13.1, les contextes/DTO internes et `RuntimeCapabilityInvokeV1.binding_id` conservent leurs noms et sémantiques gelés. Pas de mutation du vecteur doré de hash pour masquer un rename de DTO externe.
+
+**Justification :** rendre source≠cible visible dans le type, sans modifier le hash ratifié. **Surfaces :** C type/exports ; D handler/client et forwarding ; T fixtures de requêtes. **Oracles :** seulement `target_binding_id` accepté ; ancien `binding_id`, les deux noms ensemble ou champ absent ⇒ 400 ; autre projet/génération/cible refusé ; la source d'un ticket ne devient jamais sa cible par défaut.
+
+#### 13.2-D — Gap 4 : formes explicites, validées ou corrigées
+
+**Valeurs proposées.** `Uuid=uuid::Uuid`, `Value=serde_json::Value` ; Counter/UnixMs/Digest sont les newtypes §13.1-A. Tous champs requis, Options explicitement nullables, `schema_version=1`, rejet d'inconnus/doublons. Les enums sont fermés et snake_case. Les DTO/source/target/hash/ticket/lease/guard/ack/erreur déjà gelés en §13.1 restent identiques.
+
+Le draft `RuntimeBindingStateV1 { Closed, Active, Draining, Tombstone }` est retenu pour **ce contrôle interne seulement** (`closed|active|draining|tombstone`) ; seul active peut admettre de nouveaux invokes, jamais un état Manifesto public/event modifié. Draining/closed/tombstone ferment les nouvelles autorisations selon B4, sans empêcher la journalisation d'engagements antérieurs.
+
+**Corriger snapshot et séparer écriture/lecture d'observation :** un read ne renvoie pas le `RuntimeWriteGuardV1` de la commande ni un lease_id à D. Les huit routes/méthodes ne changent pas.
+
+```rust
+RuntimeBindingSnapshotV1 { schema_version: u16, project_id: Uuid, binding_id: Uuid,
+    cas: RuntimeCasV1, state: RuntimeBindingStateV1, release: RuntimeDigestV1, profile: String,
+    observation: Option<RuntimeObservationSnapshotV1>, instances: Option<RuntimeInstancePageV1> }
+RuntimeObservationV1 { schema_version: u16, project_id: Uuid, binding_id: Uuid,
+    guard: RuntimeWriteGuardV1, service_uid: String,
+    resource_generation: RuntimeCounterV1, observed_resource_generation: RuntimeCounterV1,
+    revision_uid: String, revision_name: String, release: RuntimeDigestV1, endpoint: String,
+    route_ready: bool, observed_at_unix_ms: RuntimeUnixMsV1 }
+RuntimeObservationSnapshotV1 { schema_version: u16, project_id: Uuid, binding_id: Uuid,
+    cas: RuntimeCasV1, writer_fence: RuntimeCounterV1, service_uid: String,
+    resource_generation: RuntimeCounterV1, observed_resource_generation: RuntimeCounterV1,
+    revision_uid: String, revision_name: String, release: RuntimeDigestV1, endpoint: String,
+    route_ready: bool, observed_at_unix_ms: RuntimeUnixMsV1, valid_until_unix_ms: RuntimeUnixMsV1 }
+RuntimeInstanceRegistrationV1 { schema_version: u16, project_id: Uuid, binding_id: Uuid,
+    instance_id: Uuid, guard: RuntimeWriteGuardV1, state: RuntimeInstanceStateV1,
+    pod_uid: String, revision_uid: String, namespace: String,
+    service_account: String, service_account_uid: String, release: RuntimeDigestV1,
+    observed_at_unix_ms: RuntimeUnixMsV1 }
+```
+
+`resource_generation` = metadata.generation Serving, `observed_resource_generation` = son observedGeneration, **pas** génération métier. `route_ready` atteste route/Revision désirées observées et admises par la plateforme, pas présence d'un Pod ni permission. Forward exige true, correspondance de ces générations, Revision/service UID et contexte métier/release courant, fence et fraîcheur ; faux/incomplet ⇒ projection indisponible. Le writer fixe `valid_until` et contrôle `observed_at<=db_now<observed_at+5000` pour rendre une observation current utilisable ; aucune date future du caller ni réécriture d'une vieille capture pour la rafraîchir.
+
+Registration current : mapping Pod/SA UID/Revision issu de l'observation C et release/génération du guard courants ; aucun UUID auteur ni retour de Ready requis. Ajouts explicites au draft : **`state` et `service_account_uid`**. Une fermeture/tombstone de Pod existant conserve ses identifiants/contexte historique et utilise un guard writer courant ; elle ne réaffecte pas le Pod UID à une autre instance/release/génération. PUT projector ne crée pas une entrée legacy_fence ; le POST revoke lazaret conserve ce cas §13.1. Replays/guards perdus et transitions closed→current restent refusés ; les écritures/invalidation augmentent la version de projection sous le même verrou.
+
+**Corriger enrollment ; réponse nouvelle explicitement définie, sur la route existante :**
+
+```rust
+RuntimeEnrollmentRequestV1 { schema_version: u16, project_id: Uuid, binding_id: Uuid,
+    pod_uid: String, csr_pem: String, projected_token: String }
+RuntimeEnrollmentResponseV1 { schema_version: u16, project_id: Uuid, binding_id: Uuid,
+    instance_id: Uuid, pod_uid: String, certificate_chain_pem: String,
+    expires_at_unix_ms: RuntimeUnixMsV1 }
+RuntimeAcceptRequestV1 { schema_version: u16, project_id: Uuid, binding_id: Uuid,
+    instance_id: Uuid, ticket: String, operation_id: Uuid, operation: String, payload: Value }
+RuntimeExecutionContextV1 { schema_version: u16, execution_id: Uuid, instance_id: Uuid,
+    authorization_id: Uuid, project_id: Uuid, source: RuntimeSourceV1,
+    source_revocation_epoch: RuntimeCounterV1, target: RuntimeTargetV1,
+    operation_sha256: RuntimeDigestV1, deadline_unix_ms: RuntimeUnixMsV1 }
+RuntimeEffectRequestV1 { schema_version: u16, execution_id: Uuid, effect_id: Uuid,
+                       invoke: RuntimeCapabilityInvokeV1 }
+RuntimeInstanceRevokeRequestV1 { schema_version: u16, expected: RuntimeCasV1, instance_id: Uuid }
+```
+
+`RuntimeAcceptRequestV1`, `RuntimeExecutionContextV1`, `RuntimeEffectRequestV1` et revoke sont **retenus tels que proposés dans le draft C** ; enrollment ne l'est **pas** pour `instance_id`. Response cert contient une chaîne publique/leaf et l'échéance réelle au plus 5 min B5 et selon politique CA existante, jamais clé privée/session implicite. Identité certifiée issue du registre, clé correspondant au CSR ; aucun choix de CA/clé générée côté serveur à la place du plugin ni clôture 0010. Enrollment/accept utilisent leurs body projet/binding recoupés avec preuve/registre/certificat ; ils n'ajoutent pas une query ou une route de discovery. Les huit routes internes gardent project_id query obligatoire.
+
+Accept : recouper body.instance_id/binding/projet avec la session mTLS runtime, l'entrée authoritative current et la cible du JWS, puis reconstruire le hash exact §13.1 avec ticket+opération/payload ; consommer l'autorisation par CAS. Le contexte d'exécution renvoyé/stocké par D lie cette instance cible à l'authorization_id ; une réponse au plugin n'autorise pas celui-ci à fournir librement ce contexte à l'autorité. À `/runtime/effects/invoke`, D retrouve ce contexte depuis **execution_id** dans son store et recoupe la session cible ; il n'accepte pas un champ `context` supplémentaire du plugin. Source/target/epochs/deadline et le hash ne viennent jamais de ces champs non attestés.
+
+**Begin et reservation du draft retenus ; complete corrigé pour distinguer résultat journalisé et diagnostic d'erreur :**
+
+```rust
+RuntimeBeginEffectRequestV1 { schema_version: u16, context: RuntimeExecutionContextV1,
+    effect_id: Uuid, effect_sha256: RuntimeDigestV1, invoke: RuntimeCapabilityInvokeV1 }
+RuntimeEffectReservationV1 { schema_version: u16, project_id: Uuid, binding_id: Uuid,
+    execution_id: Uuid, effect_id: Uuid, effect_sha256: RuntimeDigestV1,
+    deadline_unix_ms: RuntimeUnixMsV1 }
+RuntimeEffectCompletionStateV1 = Completed | Indeterminate; // completed | indeterminate
+RuntimeCompleteEffectRequestV1 { schema_version: u16, reservation: RuntimeEffectReservationV1,
+                                 completion_state: RuntimeEffectCompletionStateV1 }
+```
+
+Le champ draft **`effect_outcome: RuntimeEffectOutcomeV1` n'est pas retenu pour complete** : `not_started|may_have_started` est la taxonomie **d'erreur** ratifiée §13.1-D, incapable d'exprimer un résultat terminé. Cette enum d'erreur reste strictement inchangée. `completed` journalise une issue définitive du collaborateur (succès **ou** échec connu), pas forcément succès métier ; `indeterminate` conserve l'incertitude, sans retry d'I/O. Aucun résultat/secret libre dans complete ; le writer fixe sa date de journalisation.
+
+Begin est une assertion du **service Lazaret authentifié**, jamais un contexte signé par le plugin : C recoupe sous le verrou writer source/cible/grants/epochs, instance current, empreinte d'effet reconstruite et deadline, puis persiste contexte+réservation avant ack B4. L'absence de lecture SQL de la DB D n'autorise pas à traiter un contexte public comme trusted. La réservation renvoyée doit correspondre intégralement à la ligne persistée ; les copies projet/binding/effect_id coïncident avec query/path.
+
+Complete retrouve cette réservation, vérifie tous ses identifiants/hash/deadline et journalise seulement sa clôture. Il reste permis de constater un engagement antérieur après révocation/deadline, sans nouvelle permission ; aucun acquittement ne vaut bail projector vivant. Répétition identique ⇒ ack sans nouvel effet ; identifiant réutilisé/réservation substituée ou clôture terminale contradictoire ⇒ `RUNTIME_ID_REUSED`. Completed/indeterminate ne remettent jamais une réservation en attente pour réexécution. Si l'autorité ne peut confirmer une issue d'I/O, §13.1-D `RUNTIME_EFFECT_OUTCOME_UNKNOWN`/never s'applique ; aucun nouveau code ni statut public n'est ajouté.
+
+**Bornes/validation complémentaires proposées :** UID opaques (Pod/Revision/Service/SA) String non vide, au plus 128 octets UTF-8 sans caractères de contrôle, pas un parse UUID forcé ; namespace DNS label ≤63, service_account/revision_name DNS subdomain ≤253. `profile` est un identifiant plateforme connu, ASCII ≤128 ; endpoint URL ≤2048, appartenant au profil privé approuvé, jamais caller/publisher. `csr_pem`, `projected_token`, `ticket` au plus 16 KiB chacun ; chaîne certificat au plus 64 KiB. Borne totale corps B5 de 256 KiB conservée ; pas de clé/token/certificat privé dans logs, snapshots ou inventaire. Ces sous-bornes ne normalisent ni ne filtrent les données métier du payload JCS. Toute incohérence de mapping/clé/version/state est fermée, jamais réparée par génération d'UUID, choix d'un premier replica ou fallback local.
+
+**Justification :** valider les drafts fidèles tout en corrigeant les deux confusions lecture/commande et clôture/erreur, et rendre les champs nécessaires à la preuve explicites. **Surfaces :** C `crates/apparatus-contracts/src/runtime.rs`, port/writer/HTTP et migration additive de contrôle ; D DTO consommateurs, registre enrollment/exécution, handlers et référence HTTP ; T suites contracts/control/enrollment/effects/errors déjà attribuées §14. Champs SA UID, états, dates, unicités et tombstones s'intègrent aux migrations additives prévues, sans SQL direct inter-service, purge ou migration destructive.
+
+**Oracles T :** shapes exactes positive/négatives de chaque DTO, old binding_id/enrollment.instance_id/effect_outcome sur complete rejetés, read sans guard/lease_id ; correspondance chemin/query/body/context/réservation ; faux contexte envoyé par plugin refusé, begin rejeté après révocation même avec vieux snapshot ; complete identique idempotent, substitution/clôture contradictoire refusée, issue inconnue sans retry. Les vecteurs §13.1 JCS/erreurs restent oracles immuables ; WorkloadIdentity/SessionClaims et tests legacy non migrés ne changent pas.
+
+**Ordre de gel bloquant :** (1) humain ratifie 13.2, lead consigne/commite le complément ; (2) C seul réconcilie types/exports/port/codec cursor et publie le HEAD interface cohérent (pas le draft amputé du registre) ; (3) lead annonce ce HEAD à D/T ; D consomme sans copies/aliases et T aligne shapes/oracles ; (4) producteurs/adapters/template et implémentations sont vérifiés contre ces mêmes formes. L'absence de lecture instances dans GET binding ou de valeurs de profil/projection disponibles est un blocage, jamais un mock/store local de secours. Tout delta supplémentaire revient à l'architecte/lead avant publication ; pas de nouvel agent, GO runtime, fermeture B5/0009/0010 ou changement de Statut/Réalité par cette annexe.
+
 ## 14. Attribution exclusive des fichiers — préalable à publication
 
 **Règle de fermeture : un fichier = un écrivain.** Les propriétaires ci-dessous sont les lots de mission, non des agents déjà lancés. C/D restent NO-GO sans Accept et gel du §13. Aucun des deux ne corrige le fichier de l'autre : il demande un delta au propriétaire. Tout fichier supplémentaire/partagé découvert retourne à A/lead pour attribution **avant** édition/publication ; pas de règle « premier à écrire ». Les arborescences sont exclusives avec l'exception `tests/` explicitement T ; les tests `#[cfg(test)]` dans un fichier de production appartiennent à son propriétaire, T fournit l'oracle/patch suggéré.

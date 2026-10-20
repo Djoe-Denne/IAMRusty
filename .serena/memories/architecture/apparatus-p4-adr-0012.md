@@ -4,6 +4,8 @@ Canon : `docs/adr/0012-apparatus-http-knative-par-binding.md` ; contrat v1 : `do
 
 Annexe §13.1 du contrat **ratifiée le 2026-10-20** (hash JCS/SHA-256, identités/rôles, lease/fence/cursor, erreurs v1) — interface gelée et consommable par C/D/T ; Statut/Réalité inchangés.
 
+Annexe §13.2 **ratifiée le 2026-10-20** : lookup instances via GET binding borné (sélection Page/ByPodUid/ByInstanceId, fraîcheur ≤5 s, tombstones jamais allow), discovery Pod UID sans UUID client (instance_id retiré de la requête enrollment, retourné en réponse ; Downward API ; unicity par Pod UID), `target_binding_id` sans alias, DTO accept/context/begin/reservation/registration/complete précisés (completion_state distinct). HEAD interface C/D/T publication autorisée ; sans nouveau endpoint ni changement de Statut/Réalité.
+
 - Cible : Serving/KPA HTTP par projet × binding, pré-déclaration à zéro ; autorisation Lazaret avant réveil, pas de buffer/autoscaler maison. 0011 Rejected reste historique ; supersession de 0008 partielle, effective à l’Accept du 2026-10-20.
 - B1/B2 proposés : caller workload déjà vivant distinct de cible, nouvelles routes runtime/ticket et enrollment Pod UID↔Revision↔binding ; net-istio/Istio mTLS + gVisor à ratifier/qualifier, pas auth par headers. WorkloadIdentity/SessionClaims conservés.
 - B3/B4 proposés : writer Manifesto et stockage/port internes, CAS/epochs/tombstones ; accept après buffer et begin-effect sérialisé avec révocation. Effet engagé avant révocation peut finir ; compute/objet résiduel possible sans nouvelle autorisation, pas exactement-once/cancellation magique.
