@@ -4,12 +4,13 @@ use std::sync::Arc;
 
 use axum::extract::Extension;
 use axum::Json;
+use lazaret_application::runtime::RuntimeSessionService;
 use lazaret_application::{EnrollCommand, IdentityService};
 use lazaret_domain::{IdentityError, VerifiedClientCertificate, WorkloadIdentity};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::error::IdentityHttpError;
+use crate::error::{IdentityHttpError, SessionHttpError};
 
 #[derive(Deserialize)]
 struct EnrollRequest {
@@ -65,13 +66,18 @@ pub async fn enroll(
 pub async fn session(
     Extension(identity): Extension<Arc<IdentityService>>,
     cert: Option<Extension<VerifiedClientCertificate>>,
-) -> Result<Json<SessionResponse>, IdentityHttpError> {
+    runtime: Option<Extension<Arc<RuntimeSessionService>>>,
+) -> Result<Json<SessionResponse>, SessionHttpError> {
     let Some(Extension(cert)) = cert else {
-        return Err(IdentityHttpError::from(
-            IdentityError::MissingClientCertificate,
-        ));
+        return Err(IdentityError::MissingClientCertificate.into());
     };
-    let session_token = identity.issue_session(&cert).await?;
+    let session_token = match runtime {
+        Some(Extension(service)) => service
+            .issue_session(&cert)
+            .await
+            .map_err(SessionHttpError::from)?,
+        None => identity.issue_session(&cert).await?,
+    };
     Ok(Json(SessionResponse { session_token }))
 }
 

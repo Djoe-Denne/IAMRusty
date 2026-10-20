@@ -69,6 +69,41 @@ impl IntoResponse for IdentityHttpError {
     }
 }
 
+/// /session selects its server-owned registry mode, preserving historical
+/// identity reasons only on the non-migrated branch.
+pub enum SessionHttpError {
+    Legacy(IdentityHttpError),
+    Runtime(InvokeHttpError),
+}
+
+impl From<IdentityError> for SessionHttpError {
+    fn from(error: IdentityError) -> Self {
+        Self::Legacy(error.into())
+    }
+}
+
+impl From<lazaret_application::runtime::RuntimeSessionError> for SessionHttpError {
+    fn from(error: lazaret_application::runtime::RuntimeSessionError) -> Self {
+        match error {
+            lazaret_application::runtime::RuntimeSessionError::Legacy(error) => {
+                Self::Legacy(error.into())
+            }
+            lazaret_application::runtime::RuntimeSessionError::Runtime(code) => {
+                Self::Runtime(code.into())
+            }
+        }
+    }
+}
+
+impl IntoResponse for SessionHttpError {
+    fn into_response(self) -> Response {
+        match self {
+            Self::Legacy(error) => error.into_response(),
+            Self::Runtime(error) => error.into_response(),
+        }
+    }
+}
+
 /// HTTP mapping for [`InvokeError`].
 pub enum InvokeHttpError {
     /// 400

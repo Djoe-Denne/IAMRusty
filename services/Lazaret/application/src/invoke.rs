@@ -19,6 +19,16 @@ use crate::{GrantService, IdentityService};
 /// `None` keeps in-process dispatch (T7). Implementations must not call kube.
 #[async_trait]
 pub trait PluginEndpointLocator: Send + Sync {
+    /// Runtime resolution is always binding/version-bound and fallible. The
+    /// legacy `Option`/digest methods below are never a fallback for this path.
+    async fn locate_runtime(
+        &self,
+        snapshot: &apparatus_contracts::runtime::RuntimeBindingSnapshotV1,
+        target: &apparatus_contracts::runtime::RuntimeTargetV1,
+    ) -> Result<String, lazaret_domain::runtime::RuntimeError> {
+        crate::runtime::runtime_endpoint(snapshot, target)
+    }
+
     /// Return `http://host:port` for this binding, or `None` to stay in-process.
     async fn locate(&self, binding_id: &str, instance_id: &str) -> Option<String>;
 

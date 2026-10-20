@@ -155,6 +155,13 @@ async fn revoke_binding_async(db: &DatabaseConnection, binding: Uuid) -> Result<
 
 #[async_trait]
 impl EnrollmentStore for PostgresEnrollmentRegistry {
+    async fn get_checked(
+        &self,
+        fingerprint: &str,
+    ) -> Result<Option<WorkloadIdentity>, IdentityError> {
+        get_async(&self.db, fingerprint).await
+    }
+
     async fn put(
         &self,
         fingerprint: String,

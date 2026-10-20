@@ -32,6 +32,33 @@ pub struct IdentityService {
 }
 
 impl IdentityService {
+    /// Sign only after RuntimeSessionService has checked the live registry and
+    /// cutover guard. Runtime TTL never exceeds five minutes or the certificate.
+    pub(crate) fn sign_runtime_session(
+        &self,
+        identity: &WorkloadIdentity,
+        certificate_expires_at_unix_ms: i64,
+    ) -> Result<String, IdentityError> {
+        let now = Utc::now().timestamp();
+        let exp = now
+            .saturating_add(300)
+            .min(certificate_expires_at_unix_ms / 1000);
+        if exp <= now {
+            return Err(IdentityError::InvalidSession);
+        }
+        self.signer.sign(&SessionClaims {
+            instance: identity.instance,
+            binding: identity.binding,
+            release: identity.release.clone(),
+            generation: identity.generation,
+            grant_revision: identity.grant_revision,
+            aud: SESSION_AUDIENCE.to_owned(),
+            iss: SESSION_ISSUER.to_owned(),
+            exp,
+            iat: now,
+        })
+    }
+
     /// Wire CA, dedicated session signer, enrollment store, and live snapshot port.
     #[must_use]
     pub fn new(
