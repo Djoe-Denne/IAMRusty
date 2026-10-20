@@ -1,4 +1,9 @@
-use axum::{middleware, routing::get, Router};
+use axum::{
+    extract::DefaultBodyLimit,
+    middleware,
+    routing::{get, post, put},
+    Router,
+};
 use readiness::{attach_ready, ReadinessProbe};
 use rustycog::config::ServerConfig;
 use rustycog::http::{auth_middleware, AppState, RouteBuilder, UserIdExtractor};
@@ -7,6 +12,10 @@ use std::sync::Arc;
 
 pub mod error;
 pub mod handlers;
+pub mod runtime_service_origin;
+pub use runtime_service_origin::{
+    RejectRuntimeServiceOrigin, RuntimeServiceOriginAuth, RuntimeServiceOriginAuthenticator,
+};
 
 pub use error::HttpError;
 pub use handlers::*;
@@ -23,13 +32,70 @@ pub const SERVICE_PREFIX: &str = "/manifesto";
 ///
 /// The binding grant snapshot GET is verified with a dedicated platform
 /// extractor (`grant_snapshot_auth`), not IAM `[auth.jwt]`.
-pub fn create_router(state: AppState, grant_snapshot_auth: Arc<UserIdExtractor>) -> Router {
+pub fn create_router(
+    state: AppState,
+    grant_snapshot_auth: Arc<UserIdExtractor>,
+    runtime_origin_auth: RuntimeServiceOriginAuth,
+) -> Router {
     let builder = attach_project_routes(RouteBuilder::new(state.clone()).health_check());
     let builder = attach_component_routes(builder);
     let builder = attach_member_routes(builder);
     attach_permission_routes(builder)
         .into_router()
-        .merge(binding_snapshot_routes(state, grant_snapshot_auth))
+        .merge(binding_snapshot_routes(state.clone(), grant_snapshot_auth))
+        .merge(runtime_control_routes(state, runtime_origin_auth))
+}
+
+fn runtime_control_routes(
+    state: AppState,
+    runtime_origin_auth: RuntimeServiceOriginAuth,
+) -> Router {
+    use handlers::runtime_control::{
+        get_runtime_binding, list_runtime_bindings, runtime_begin_effect, runtime_complete_effect,
+        runtime_register_instance, runtime_report_observation, runtime_revoke_instance,
+        runtime_writer_lease,
+    };
+    Router::new()
+        .route(
+            "/internal/apparatus/runtime/bindings",
+            get(list_runtime_bindings),
+        )
+        .route(
+            "/internal/apparatus/runtime/bindings/{binding_id}",
+            get(get_runtime_binding),
+        )
+        .route(
+            "/internal/apparatus/runtime/bindings/{binding_id}/writer-lease",
+            post(runtime_writer_lease),
+        )
+        .route(
+            "/internal/apparatus/runtime/bindings/{binding_id}/observation",
+            put(runtime_report_observation),
+        )
+        .route(
+            "/internal/apparatus/runtime/bindings/{binding_id}/instances/{instance_id}",
+            put(runtime_register_instance),
+        )
+        .route(
+            "/internal/apparatus/runtime/bindings/{binding_id}/instances/{instance_id}/revoke",
+            post(runtime_revoke_instance),
+        )
+        .route(
+            "/internal/apparatus/runtime/bindings/{binding_id}/effects/begin",
+            post(runtime_begin_effect),
+        )
+        .route(
+            "/internal/apparatus/runtime/bindings/{binding_id}/effects/{effect_id}/complete",
+            post(runtime_complete_effect),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            runtime_origin_auth,
+            runtime_service_origin::authenticate_runtime_origin,
+        ))
+        .layer(DefaultBodyLimit::max(
+            apparatus_contracts::runtime::MAX_RUNTIME_BODY_BYTES,
+        ))
+        .with_state(state)
 }
 
 fn binding_snapshot_routes(state: AppState, grant_snapshot_auth: Arc<UserIdExtractor>) -> Router {
@@ -185,11 +251,15 @@ fn attach_permission_routes(builder: RouteBuilder) -> RouteBuilder {
 pub fn create_prefixed_router(
     state: AppState,
     grant_snapshot_auth: Arc<UserIdExtractor>,
+    runtime_origin_auth: RuntimeServiceOriginAuth,
     probe: Arc<ReadinessProbe>,
 ) -> Router {
     Router::new().nest(
         SERVICE_PREFIX,
-        attach_ready(create_router(state, grant_snapshot_auth), probe),
+        attach_ready(
+            create_router(state, grant_snapshot_auth, runtime_origin_auth),
+            probe,
+        ),
     )
 }
 
@@ -201,11 +271,12 @@ pub fn create_prefixed_router(
 pub async fn create_app_routes(
     state: AppState,
     grant_snapshot_auth: Arc<UserIdExtractor>,
+    runtime_origin_auth: RuntimeServiceOriginAuth,
     config: ServerConfig,
     probe: Arc<ReadinessProbe>,
 ) -> anyhow::Result<()> {
     rustycog::http::serve_router(
-        create_prefixed_router(state, grant_snapshot_auth, probe),
+        create_prefixed_router(state, grant_snapshot_auth, runtime_origin_auth, probe),
         config,
     )
     .await

@@ -201,12 +201,19 @@ impl Application {
         ) = setup_application(db, &config, event_publisher, permission_checker.clone()).await?;
 
         // Setup command registry
-        let command_registry = ManifestoCommandRegistryFactory::create_manifesto_registry(
-            project_usecase,
-            component_usecase,
-            member_usecase,
-            &config.command,
+        let runtime_control: Arc<dyn apparatus_contracts::runtime::RuntimeControlPort> = Arc::new(
+            manifesto_infra::apparatus_runtime::runtime_control::SqlRuntimeControl::new(
+                db_write.clone(),
+            ),
         );
+        let command_registry =
+            ManifestoCommandRegistryFactory::create_manifesto_registry_with_runtime(
+                project_usecase,
+                component_usecase,
+                member_usecase,
+                &config.command,
+                Some(runtime_control),
+            );
 
         // Create command service
         let command_service = Arc::new(GenericCommandService::new(Arc::new(command_registry)));
@@ -252,11 +259,19 @@ impl Application {
             let probe = self.readiness.clone();
             let grant_snapshot_auth = self.grant_snapshot_extractor.clone();
             let server_config = server_config.clone();
+            let runtime_origin_auth =
+                crate::runtime_service_origin::build_runtime_service_origin(&server_config)?;
 
             tokio::spawn(async move {
-                create_app_routes(state, grant_snapshot_auth, server_config, probe)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("HTTP server failed: {e}"))
+                create_app_routes(
+                    state,
+                    grant_snapshot_auth,
+                    runtime_origin_auth,
+                    server_config,
+                    probe,
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("HTTP server failed: {e}"))
             })
         };
 
@@ -353,7 +368,11 @@ impl Application {
 
     pub fn router(&self) -> Router {
         attach_ready(
-            create_router(self.state.clone(), self.grant_snapshot_extractor.clone()),
+            create_router(
+                self.state.clone(),
+                self.grant_snapshot_extractor.clone(),
+                Arc::new(manifesto_http_server::RejectRuntimeServiceOrigin),
+            ),
             self.readiness.clone(),
         )
     }

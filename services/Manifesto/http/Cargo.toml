@@ -12,6 +12,7 @@ manifesto-domain = { path = "../domain" }
 manifesto-application = { path = "../application" }
 manifesto-infra = { path = "../infra" }
 manifesto-configuration = { path = "../configuration" }
+apparatus-contracts = { path = "../../../crates/apparatus-contracts" }
 
 # Shared crates
 readiness = { path = "../../../crates/readiness" }
@@ -37,6 +38,5 @@ thiserror = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
-
 
 

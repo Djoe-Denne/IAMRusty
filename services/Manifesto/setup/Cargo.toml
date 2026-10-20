@@ -32,6 +32,7 @@ tokio = { workspace = true }
 
 # Utilities
 serde = { workspace = true }
+x509-parser = "0.16"
 
 # Error handling
 thiserror = { workspace = true }
