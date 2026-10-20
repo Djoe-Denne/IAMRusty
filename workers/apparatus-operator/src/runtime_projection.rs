@@ -237,6 +237,11 @@ impl ServingParentApi {
         } else {
             let parent: DynamicObject =
                 serde_json::from_value(desired).map_err(|_| RuntimeErrorCodeV1::RuntimeInternal)?;
+            if current.observation.is_some() {
+                // Missing Serving parent is not a zero-scale Pod: recreation
+                // requires a new approved preparation retaining old UID history.
+                return Err(RuntimeErrorCodeV1::RuntimeFenceConflict);
+            }
             self.parents
                 .create(&PostParams::default(), &parent)
                 .await

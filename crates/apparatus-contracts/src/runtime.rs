@@ -23,6 +23,89 @@ pub const WRITER_LEASE_RENEW_MS: i64 = 3_000;
 pub const OBSERVATION_TTL_MS: i64 = 5_000;
 pub const MAX_RUNTIME_BODY_BYTES: usize = 262_144;
 
+/// Internal maintenance data (§13.3-B), NOT an HTTP/queue body or a proof of
+/// operator/D provenance. No serde implementation is provided deliberately.
+#[derive(Clone, PartialEq)]
+pub struct RuntimeCutoverFenceV1 {
+    pub migration_id: Uuid,
+    pub project_id: Uuid,
+    pub binding_id: Uuid,
+    pub inventory_sha256: RuntimeDigestV1,
+    pub installed_at_unix_ms: RuntimeUnixMsV1,
+    pub observed_writer_cas: Option<RuntimeCasV1>,
+}
+
+/// Internal command data. Only the trusted local maintenance runner may invoke
+/// D; neither control role nor a deserialized caller obtains this privilege.
+#[derive(Clone, PartialEq)]
+pub struct InstallRuntimeLegacyFenceV1 {
+    pub schema_version: u16,
+    pub migration_id: Uuid,
+    pub project_id: Uuid,
+    pub binding_id: Uuid,
+    pub inventory_sha256: RuntimeDigestV1,
+}
+
+/// Installation receipt DATA, identical to D's committed fence record. It is
+/// NOT a verified maintenance capability: C must separately authenticate the
+/// operator, D/deployment/database provenance and durability before using it.
+pub type RuntimeLegacyFenceInstallationAckV1 = RuntimeCutoverFenceV1;
+
+#[derive(Clone, PartialEq)]
+pub struct RuntimeBindingCutoverPlanV1 {
+    pub schema_version: u16,
+    pub migration_id: Uuid,
+    pub project_id: Uuid,
+    pub binding_id: Uuid,
+    pub expected_generation: RuntimeCounterV1,
+    pub expected_grant_revision: RuntimeCounterV1,
+    pub release: RuntimeDigestV1,
+    pub profile: String,
+    pub profile_lock_sha256: RuntimeDigestV1,
+    pub inventory_sha256: RuntimeDigestV1,
+}
+
+#[derive(Clone, PartialEq)]
+pub struct FenceRuntimeBindingV1 {
+    pub plan: RuntimeBindingCutoverPlanV1,
+}
+
+#[derive(Clone, PartialEq)]
+pub struct PrepareRuntimeBindingV1 {
+    pub schema_version: u16,
+    pub migration_id: Uuid,
+    pub project_id: Uuid,
+    pub binding_id: Uuid,
+    pub expected: RuntimeCasV1,
+    pub drain_evidence_sha256: RuntimeDigestV1,
+}
+
+#[derive(Clone, PartialEq)]
+pub struct OpenRuntimeBindingV1 {
+    pub schema_version: u16,
+    pub migration_id: Uuid,
+    pub project_id: Uuid,
+    pub binding_id: Uuid,
+    pub expected: RuntimeCasV1,
+    pub service_uid: String,
+    pub revision_uid: String,
+    pub profile_lock_sha256: RuntimeDigestV1,
+}
+
+/// Local result for an explicitly authorized preparation; not a network bearer
+/// or an exception allowing ordinary closed/tombstoned bindings to be created.
+#[derive(Clone, PartialEq)]
+pub struct RuntimeBindingPreparationPermitV1 {
+    pub migration_id: Uuid,
+    pub project_id: Uuid,
+    pub binding_id: Uuid,
+    pub cas: RuntimeCasV1,
+    pub release: RuntimeDigestV1,
+    pub profile: String,
+    pub profile_lock_sha256: RuntimeDigestV1,
+    pub inventory_sha256: RuntimeDigestV1,
+}
+
 /// Validate an opaque Kubernetes UID without assuming it is a UUID.
 ///
 /// # Errors

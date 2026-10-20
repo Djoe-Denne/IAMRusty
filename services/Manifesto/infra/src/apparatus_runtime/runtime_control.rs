@@ -85,8 +85,19 @@ impl SqlRuntimeControl {
             return Err(error(RuntimeErrorCodeV1::RuntimeStaleState));
         }
         let state: String = row.try_get("", "state").map_err(db_error)?;
-        if state != "active" && state != "draining" {
+        let phase: Option<String> = row.try_get("", "cutover_phase").map_err(db_error)?;
+        if state != "active"
+            && state != "draining"
+            && !(state == "closed" && phase.as_deref() == Some("prepared"))
+        {
             return Err(error(RuntimeErrorCodeV1::RuntimeBindingClosed));
+        }
+        if row
+            .try_get::<Option<String>>("", "owned_service_uid")
+            .map_err(db_error)?
+            .is_some_and(|uid| uid != request.service_uid)
+        {
+            return Err(error(RuntimeErrorCodeV1::RuntimeFenceConflict));
         }
         if cas.generation != request.guard.expected.generation
             || cas.grant_revision != request.guard.expected.grant_revision
@@ -115,6 +126,15 @@ impl SqlRuntimeControl {
             .map(|row| same_observation(row, request))
             .transpose()?
             .unwrap_or(false);
+        if previous
+            .as_ref()
+            .map(|row| row.try_get::<String>("", "service_uid"))
+            .transpose()
+            .map_err(db_error)?
+            .is_some_and(|uid| uid != request.service_uid)
+        {
+            return Err(error(RuntimeErrorCodeV1::RuntimeFenceConflict));
+        }
         if !identical {
             if cas != request.guard.expected {
                 return Err(error(RuntimeErrorCodeV1::RuntimeStaleState));
@@ -144,6 +164,11 @@ impl SqlRuntimeControl {
                 [project_id.into(),binding_id.into(),sql_counter(cas.projection_version)?.into(),now.into()]))
                 .await.map_err(db_error)?;
         }
+        // First valid observation binds the actual create-response UID. Never
+        // replace it on a replay, a takeover, a missing object or a new digest.
+        txn.execute(Statement::from_sql_and_values(DbBackend::Postgres,
+            "UPDATE apparatus_runtime_bindings SET owned_service_uid=$3 WHERE project_id=$1 AND binding_id=$2 AND owned_service_uid IS NULL",
+            [project_id.into(),binding_id.into(),request.service_uid.clone().into()])).await.map_err(db_error)?;
         txn.commit().await.map_err(db_error)?;
         Ok(RuntimeWriteAckV1 {
             schema_version: 1,
@@ -419,7 +444,12 @@ pub async fn close_binding_in_transaction(
     } else {
         "closed"
     };
-    if state == next_state && generation == cas.generation && grant_revision == cas.grant_revision {
+    let phase: Option<String> = row.try_get("", "cutover_phase").map_err(db_error)?;
+    if phase.as_deref() != Some("prepared")
+        && state == next_state
+        && generation == cas.generation
+        && grant_revision == cas.grant_revision
+    {
         return Ok(());
     }
     let now = db_clock(txn).await?;
@@ -428,6 +458,7 @@ pub async fn close_binding_in_transaction(
     txn.execute(Statement::from_sql_and_values(
         DbBackend::Postgres,
         "UPDATE apparatus_runtime_bindings SET state=$3,generation=$4,grant_revision=$5, \
+         cutover_phase=CASE WHEN cutover_phase IS NULL THEN NULL ELSE 'fenced' END, \
          revocation_epoch=$6,projection_version=$7,lease_id=NULL,lease_holder=NULL, \
          lease_principal=NULL,lease_issued_at_ms=NULL,lease_expires_at_ms=NULL,updated_at_ms=$8 \
          WHERE project_id=$1 AND binding_id=$2",

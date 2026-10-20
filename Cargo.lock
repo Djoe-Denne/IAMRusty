@@ -4350,6 +4350,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "tokio",
  "uuid",
 ]
 
@@ -4423,6 +4424,7 @@ dependencies = [
  "sea-orm",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tempfile",
  "thiserror 2.0.18",
  "time",
@@ -4648,6 +4650,7 @@ name = "manifesto-application"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "apparatus-contracts",
  "async-trait",
  "chrono",
  "manifesto-configuration",
@@ -4705,6 +4708,7 @@ name = "manifesto-http_server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "apparatus-contracts",
  "axum 0.8.9",
  "manifesto-application",
  "manifesto-configuration",
@@ -4839,6 +4843,7 @@ dependencies = [
  "tokio",
  "tower 0.4.13",
  "tracing",
+ "x509-parser",
 ]
 
 [[package]]
