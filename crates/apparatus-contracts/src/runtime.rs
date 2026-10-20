@@ -23,6 +23,42 @@ pub const WRITER_LEASE_RENEW_MS: i64 = 3_000;
 pub const OBSERVATION_TTL_MS: i64 = 5_000;
 pub const MAX_RUNTIME_BODY_BYTES: usize = 262_144;
 
+/// Validate an opaque Kubernetes UID without assuming it is a UUID.
+///
+/// # Errors
+/// Rejects empty, oversized or control-bearing values.
+pub fn validate_runtime_uid(value: &str) -> Result<(), RuntimeErrorCodeV1> {
+    if value.is_empty() || value.len() > 128 || value.chars().any(char::is_control) {
+        return Err(RuntimeErrorCodeV1::RuntimeInvalidRequest);
+    }
+    Ok(())
+}
+
+/// Validate a Kubernetes DNS label/subdomain without normalizing caller data.
+///
+/// # Errors
+/// Rejects non-ASCII/lowercase names, empty labels and oversized DNS components.
+pub fn validate_runtime_dns_name(value: &str, subdomain: bool) -> Result<(), RuntimeErrorCodeV1> {
+    let max = if subdomain { 253 } else { 63 };
+    if value.is_empty() || value.len() > max || (!subdomain && value.contains('.')) {
+        return Err(RuntimeErrorCodeV1::RuntimeInvalidRequest);
+    }
+    for label in value.split('.') {
+        let bytes = label.as_bytes();
+        if bytes.is_empty()
+            || bytes.len() > 63
+            || !bytes[0].is_ascii_alphanumeric()
+            || !bytes[bytes.len() - 1].is_ascii_alphanumeric()
+            || !bytes
+                .iter()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || *b == b'-')
+        {
+            return Err(RuntimeErrorCodeV1::RuntimeInvalidRequest);
+        }
+    }
+    Ok(())
+}
+
 /// Parse a runtime envelope before serde can discard duplicate object keys.
 ///
 /// # Errors
@@ -271,6 +307,31 @@ where
     Option::deserialize(deserializer)
 }
 
+fn uid_string<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    let value = String::deserialize(deserializer)?;
+    validate_runtime_uid(&value).map_err(|_| serde::de::Error::custom("invalid opaque UID"))?;
+    Ok(value)
+}
+fn dns_label<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    let value = String::deserialize(deserializer)?;
+    validate_runtime_dns_name(&value, false)
+        .map_err(|_| serde::de::Error::custom("invalid DNS label"))?;
+    Ok(value)
+}
+fn dns_subdomain<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    let value = String::deserialize(deserializer)?;
+    validate_runtime_dns_name(&value, true)
+        .map_err(|_| serde::de::Error::custom("invalid DNS subdomain"))?;
+    Ok(value)
+}
+fn proof_string<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    let value = String::deserialize(deserializer)?;
+    if value.is_empty() || value.len() > 16_384 {
+        return Err(serde::de::Error::custom("invalid proof size"));
+    }
+    Ok(value)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct RuntimeDigestV1(String);
@@ -369,6 +430,31 @@ dto!(RuntimeListCursorPayloadV1 {
     issued_at_unix_ms: RuntimeUnixMsV1,
     expires_at_unix_ms: RuntimeUnixMsV1
 });
+
+impl RuntimeListCursorPayloadV1 {
+    /// Exact RFC 8785 cursor preimage, with finite schema/page/TTL bounds.
+    ///
+    /// # Errors
+    /// Rejects unsupported versions, invalid page sizes, malformed principal or
+    /// cursor lifetime. This codec never grants authority or freshness.
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, RuntimeErrorCodeV1> {
+        if self.schema_version != 1 {
+            return Err(RuntimeErrorCodeV1::RuntimeUnsupportedVersion);
+        }
+        if !(1..=200).contains(&self.page_size)
+            || self
+                .expires_at_unix_ms
+                .get()
+                .checked_sub(self.issued_at_unix_ms.get())
+                != Some(60_000)
+            || self.after_binding_id > self.upper_binding_id
+            || RuntimeServiceRoleV1::from_verified_principal(&self.principal).is_err()
+        {
+            return Err(RuntimeErrorCodeV1::RuntimeCursorInvalid);
+        }
+        serde_jcs::to_vec(self).map_err(|_| RuntimeErrorCodeV1::RuntimeCursorInvalid)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RuntimeServiceRoleV1 {
@@ -545,7 +631,8 @@ dto!(RuntimeBindingSnapshotV1 {
     #[serde(deserialize_with = "version")] schema_version: u16,
     project_id: Uuid, binding_id: Uuid, cas: RuntimeCasV1, state: RuntimeBindingStateV1,
     release: RuntimeDigestV1, profile: String,
-    #[serde(deserialize_with = "required_option")] observation: Option<RuntimeObservationV1>
+    #[serde(deserialize_with = "required_option")] observation: Option<RuntimeObservationSnapshotV1>,
+    #[serde(deserialize_with = "required_option")] instances: Option<RuntimeInstancePageV1>
 });
 dto!(RuntimeObservationV1 {
     #[serde(deserialize_with = "version")]
@@ -553,12 +640,137 @@ dto!(RuntimeObservationV1 {
     project_id: Uuid,
     binding_id: Uuid,
     guard: RuntimeWriteGuardV1,
+    #[serde(deserialize_with = "uid_string")]
     service_uid: String,
+    resource_generation: RuntimeCounterV1,
+    observed_resource_generation: RuntimeCounterV1,
+    #[serde(deserialize_with = "uid_string")]
     revision_uid: String,
+    #[serde(deserialize_with = "dns_subdomain")]
     revision_name: String,
+    release: RuntimeDigestV1,
     endpoint: String,
+    route_ready: bool,
     observed_at_unix_ms: RuntimeUnixMsV1
 });
+dto!(RuntimeObservationSnapshotV1 {
+    #[serde(deserialize_with = "version")]
+    schema_version: u16,
+    project_id: Uuid,
+    binding_id: Uuid,
+    cas: RuntimeCasV1,
+    writer_fence: RuntimeCounterV1,
+    service_uid: String,
+    resource_generation: RuntimeCounterV1,
+    observed_resource_generation: RuntimeCounterV1,
+    revision_uid: String,
+    revision_name: String,
+    release: RuntimeDigestV1,
+    endpoint: String,
+    route_ready: bool,
+    observed_at_unix_ms: RuntimeUnixMsV1,
+    valid_until_unix_ms: RuntimeUnixMsV1
+});
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RuntimeInstanceCursorV1(pub String);
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum RuntimeInstanceSelectorV1 {
+    Page {
+        #[serde(deserialize_with = "required_option")]
+        cursor: Option<RuntimeInstanceCursorV1>,
+        #[serde(deserialize_with = "required_option")]
+        page_size: Option<u16>,
+    },
+    ByPodUid {
+        pod_uid: String,
+    },
+    ByInstanceId {
+        instance_id: Uuid,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeInstanceKindV1 {
+    Pod,
+    LegacyFence,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeInstanceStateV1 {
+    Current,
+    Closed,
+    Tombstone,
+}
+dto!(RuntimePodIdentityV1 {
+    #[serde(deserialize_with = "uid_string")]
+    pod_uid: String,
+    #[serde(deserialize_with = "uid_string")]
+    revision_uid: String,
+    #[serde(deserialize_with = "dns_label")]
+    namespace: String,
+    #[serde(deserialize_with = "dns_subdomain")]
+    service_account: String,
+    #[serde(deserialize_with = "uid_string")]
+    service_account_uid: String
+});
+dto!(RuntimeInstanceSnapshotV1 {
+    #[serde(deserialize_with = "version")] schema_version: u16,
+    project_id: Uuid, binding_id: Uuid, instance_id: Uuid,
+    kind: RuntimeInstanceKindV1, state: RuntimeInstanceStateV1, cas: RuntimeCasV1, release: RuntimeDigestV1,
+    #[serde(deserialize_with = "required_option")] pod: Option<RuntimePodIdentityV1>,
+    #[serde(deserialize_with = "required_option")] writer_fence: Option<RuntimeCounterV1>,
+    #[serde(deserialize_with = "required_option")] observed_at_unix_ms: Option<RuntimeUnixMsV1>,
+    #[serde(deserialize_with = "required_option")] valid_until_unix_ms: Option<RuntimeUnixMsV1>,
+    #[serde(deserialize_with = "required_option")] closed_at_unix_ms: Option<RuntimeUnixMsV1>
+});
+dto!(RuntimeInstancePageV1 {
+    #[serde(deserialize_with = "version")] schema_version: u16,
+    items: Vec<RuntimeInstanceSnapshotV1>,
+    #[serde(deserialize_with = "required_option")] next_cursor: Option<RuntimeInstanceCursorV1>,
+    read_at_unix_ms: RuntimeUnixMsV1
+});
+dto!(RuntimeInstanceCursorPayloadV1 {
+    #[serde(deserialize_with = "version")]
+    schema_version: u16,
+    scan_id: Uuid,
+    project_id: Uuid,
+    binding_id: Uuid,
+    principal: String,
+    after_instance_id: Uuid,
+    upper_instance_id: Uuid,
+    page_size: u16,
+    issued_at_unix_ms: RuntimeUnixMsV1,
+    expires_at_unix_ms: RuntimeUnixMsV1
+});
+
+impl RuntimeInstanceCursorPayloadV1 {
+    /// Produce the exact instance-cursor JCS preimage, never a binding cursor.
+    ///
+    /// # Errors
+    /// Rejects invalid version, principal, ordering, page size or absolute TTL.
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, RuntimeErrorCodeV1> {
+        if self.schema_version != 1 {
+            return Err(RuntimeErrorCodeV1::RuntimeUnsupportedVersion);
+        }
+        if !(1..=200).contains(&self.page_size)
+            || self
+                .expires_at_unix_ms
+                .get()
+                .checked_sub(self.issued_at_unix_ms.get())
+                != Some(60_000)
+            || self.after_instance_id > self.upper_instance_id
+            || RuntimeServiceRoleV1::from_verified_principal(&self.principal).is_err()
+        {
+            return Err(RuntimeErrorCodeV1::RuntimeCursorInvalid);
+        }
+        serde_jcs::to_vec(self).map_err(|_| RuntimeErrorCodeV1::RuntimeCursorInvalid)
+    }
+}
 dto!(RuntimeInstanceRegistrationV1 {
     #[serde(deserialize_with = "version")]
     schema_version: u16,
@@ -566,10 +778,17 @@ dto!(RuntimeInstanceRegistrationV1 {
     binding_id: Uuid,
     instance_id: Uuid,
     guard: RuntimeWriteGuardV1,
+    state: RuntimeInstanceStateV1,
+    #[serde(deserialize_with = "uid_string")]
     pod_uid: String,
+    #[serde(deserialize_with = "uid_string")]
     revision_uid: String,
+    #[serde(deserialize_with = "dns_label")]
     namespace: String,
+    #[serde(deserialize_with = "dns_subdomain")]
     service_account: String,
+    #[serde(deserialize_with = "uid_string")]
+    service_account_uid: String,
     release: RuntimeDigestV1,
     observed_at_unix_ms: RuntimeUnixMsV1
 });
@@ -577,7 +796,7 @@ dto!(RuntimeInvokeRequestV1 {
     #[serde(deserialize_with = "version")]
     schema_version: u16,
     project_id: Uuid,
-    binding_id: Uuid,
+    target_binding_id: Uuid,
     expected_generation: RuntimeCounterV1,
     operation_id: Uuid,
     operation: String,
@@ -589,9 +808,22 @@ dto!(RuntimeEnrollmentRequestV1 {
     schema_version: u16,
     project_id: Uuid,
     binding_id: Uuid,
-    instance_id: Uuid,
+    #[serde(deserialize_with = "uid_string")]
+    pod_uid: String,
+    #[serde(deserialize_with = "proof_string")]
     csr_pem: String,
+    #[serde(deserialize_with = "proof_string")]
     projected_token: String
+});
+dto!(RuntimeEnrollmentResponseV1 {
+    #[serde(deserialize_with = "version")]
+    schema_version: u16,
+    project_id: Uuid,
+    binding_id: Uuid,
+    instance_id: Uuid,
+    pod_uid: String,
+    certificate_chain_pem: String,
+    expires_at_unix_ms: RuntimeUnixMsV1
 });
 dto!(RuntimeAcceptRequestV1 {
     #[serde(deserialize_with = "version")]
@@ -599,6 +831,7 @@ dto!(RuntimeAcceptRequestV1 {
     project_id: Uuid,
     binding_id: Uuid,
     instance_id: Uuid,
+    #[serde(deserialize_with = "proof_string")]
     ticket: String,
     operation_id: Uuid,
     operation: String,
@@ -652,8 +885,15 @@ dto!(RuntimeCompleteEffectRequestV1 {
     #[serde(deserialize_with = "version")]
     schema_version: u16,
     reservation: RuntimeEffectReservationV1,
-    effect_outcome: RuntimeEffectOutcomeV1
+    completion_state: RuntimeEffectCompletionStateV1
 });
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeEffectCompletionStateV1 {
+    Completed,
+    Indeterminate,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -810,6 +1050,7 @@ pub trait RuntimeControlPort: Send + Sync {
         caller: &'a RuntimeControlCallerV1,
         project_id: Uuid,
         binding_id: Uuid,
+        instances: &'a RuntimeInstanceSelectorV1,
     ) -> RuntimeControlFuture<'a, RuntimeBindingSnapshotV1>;
     fn writer_lease<'a>(
         &'a self,
