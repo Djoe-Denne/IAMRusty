@@ -2,6 +2,7 @@ pub use sea_orm_migration::prelude::*;
 
 mod m20241015_000001_initial_schema;
 mod m20261020_000001_apparatus_runtime_control;
+mod m20261020_000002_apparatus_runtime_admission;
 
 pub struct Migrator;
 
@@ -11,6 +12,7 @@ impl MigratorTrait for Migrator {
         vec![
             Box::new(m20241015_000001_initial_schema::Migration),
             Box::new(m20261020_000001_apparatus_runtime_control::Migration),
+            Box::new(m20261020_000002_apparatus_runtime_admission::Migration),
         ]
     }
 }

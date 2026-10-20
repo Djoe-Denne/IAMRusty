@@ -6,6 +6,7 @@ use apparatus_contracts::OperationId;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+pub mod admission_proof;
 mod cas;
 mod cleanup;
 pub mod in_process;

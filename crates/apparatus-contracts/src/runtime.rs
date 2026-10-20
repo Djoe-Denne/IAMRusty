@@ -23,6 +23,72 @@ pub const WRITER_LEASE_RENEW_MS: i64 = 3_000;
 pub const OBSERVATION_TTL_MS: i64 = 5_000;
 pub const MAX_RUNTIME_BODY_BYTES: usize = 262_144;
 
+pub const ADMISSION_ISSUER: &str = "urn:aiforall:apparatus:adm-a:v1";
+pub const ADMISSION_AUDIENCE: &str = "urn:aiforall:manifesto:apparatus-runtime:materialization:v1";
+pub const ADMISSION_PURPOSE: &str = "apparatus.runtime.admission-materialization.v1";
+pub const ADMISSION_TYP: &str = "apparatus-admission-materialization+jwt";
+pub const ADMISSION_CHALLENGE_TTL_MS: i64 = 60_000;
+pub const ADMISSION_PROOF_TTL_MS: i64 = 5_000;
+pub const MAX_ADMISSION_PROOF_BYTES: usize = 16_384;
+
+/// Maintenance-only action; not an additional runtime control route.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeAdmissionActionV1 {
+    Prepare,
+    Open,
+}
+
+/// Writer-issued intent. These bytes confer no maintenance privilege.
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeAdmissionChallengeV1 {
+    #[serde(deserialize_with = "version")]
+    pub schema_version: u16,
+    pub challenge_id: Uuid,
+    pub authority_id: Uuid,
+    pub installation_id: Uuid,
+    pub action: RuntimeAdmissionActionV1,
+    pub migration_id: Uuid,
+    pub project_id: Uuid,
+    pub binding_id: Uuid,
+    pub expected: RuntimeCasV1,
+    pub release: RuntimeDigestV1,
+    pub profile: String,
+    pub profile_lock_sha256: RuntimeDigestV1,
+    pub inventory_sha256: RuntimeDigestV1,
+    #[serde(deserialize_with = "required_option")]
+    pub service_uid: Option<String>,
+    #[serde(deserialize_with = "required_option")]
+    pub revision_uid: Option<String>,
+    pub issued_at_unix_ms: RuntimeUnixMsV1,
+    pub expires_at_unix_ms: RuntimeUnixMsV1,
+}
+
+/// Untrusted signed payload shape. Only the offline verifier may promote it to
+/// a local verified capability; deserialization is never a VALID decision.
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeAdmissionAttestationV1 {
+    #[serde(deserialize_with = "version")]
+    pub schema_version: u16,
+    pub iss: String,
+    pub aud: String,
+    pub purpose: String,
+    pub jti: Uuid,
+    pub iat: i64,
+    pub exp: i64,
+    pub challenge: RuntimeAdmissionChallengeV1,
+    pub record_id: Uuid,
+    pub admission_revision: RuntimeCounterV1,
+    pub policy_id: String,
+    pub report_sha256: RuntimeDigestV1,
+    pub envelope_reference: String,
+    pub cri_image: String,
+    pub observed_at_unix_ms: RuntimeUnixMsV1,
+    pub valid_until_unix_ms: RuntimeUnixMsV1,
+}
+
 /// Internal maintenance data (§13.3-B), NOT an HTTP/queue body or a proof of
 /// operator/D provenance. No serde implementation is provided deliberately.
 #[derive(Clone, PartialEq)]
