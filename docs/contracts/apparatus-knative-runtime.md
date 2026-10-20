@@ -135,7 +135,7 @@ Fermeture **0009** : 0012 **Accepted + Implemented**, preuves spécifiques scale
 
 ## 12. Annexes décisionnelles B1–B6 — propositions du lot A
 
-Les choix suivants complètent la v1 ; **tous restent à ratifier**, sans modification du Statut/Réalité de 0012. Ils prévalent sur les questions ouvertes des §§2–10 seulement après Accept humain. Les valeurs proposées ne sont ni des mesures ni des SLO acquis. Une restriction explicitement indiquée est un choix de périmètre à accepter, pas un trou à combler librement pendant le code. Les compatibilités non démontrées restent des gates techniques.
+Les choix suivants complètent la v1 ; **ratifiés par l'Accept humain du 2026-10-20** — les valeurs tiennent comme choix de conception, pas des SLO mesurés, et les mentions « à ratifier » ci-dessous se lisent « ratifié le 2026-10-20, sauf pins exacts » (spike séparé, condition d'entrée de B). Le Statut/Réalité de 0012 reste inchangé par ces choix (Accepted / Unimplemented). Une restriction explicitement indiquée est un choix de périmètre accepté, pas un trou à combler librement pendant le code. Les compatibilités non démontrées restent des gates techniques.
 
 ### B1 — Caller vivant distinct de la cible dormante ; enrollment par instance
 
