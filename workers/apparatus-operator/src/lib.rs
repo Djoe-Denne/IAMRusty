@@ -24,6 +24,15 @@ pub mod controller;
 #[cfg(feature = "controller")]
 pub mod desired_state;
 
+#[cfg(feature = "controller")]
+pub mod runtime_ownership;
+
+#[cfg(feature = "controller")]
+pub mod runtime_projection;
+
+#[cfg(feature = "controller")]
+pub mod runtime_observation;
+
 pub use admission::{
     admission_store_path_from_env, evaluate_admit, manifesto_register_does_not_admit,
     register_manifesto_release, would_schedule, AdmissionRecord, AdmissionStatus, AdmissionStore,

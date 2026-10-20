@@ -103,6 +103,8 @@ async fn select_due(db: &DatabaseConnection, now: DateTime<Utc>) -> Result<Vec<D
              FROM apparatus_bindings b \
              INNER JOIN project_components pc ON pc.id = b.component_id \
              WHERE b.source = 'managed' \
+               AND NOT EXISTS (SELECT 1 FROM apparatus_runtime_bindings r \
+                   WHERE r.project_id=pc.project_id AND r.binding_id=b.component_id) \
                AND b.desired_generation > b.observed_generation \
                AND (b.next_retry_at IS NULL OR b.next_retry_at <= $1) \
                AND NOT (b.next_retry_at IS NULL AND b.last_error_code IS NOT NULL)",

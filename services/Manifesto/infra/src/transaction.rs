@@ -111,6 +111,15 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
             let expected_revision = expected_persisted_revision(project.revision);
             lock_project_revision(&txn, project.id, expected_revision).await?;
             let saved = ProjectWriteRepositoryImpl::save_with_connection(&txn, &project).await?;
+            if project.status.as_str() != "active" {
+                crate::apparatus_runtime::runtime_control::close_project_in_transaction(
+                    &txn, project.id, false,
+                )
+                .await
+                .map_err(|_| {
+                    ApplicationError::Internal("runtime project fence failed".to_owned())
+                })?;
+            }
             for event in &events {
                 self.outbox
                     .record(&txn, event.as_ref())
@@ -275,6 +284,13 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
             })?;
         let result = async {
             lock_project_revision(&txn, project.id, project.revision).await?;
+            crate::apparatus_runtime::runtime_control::close_project_in_transaction(
+                &txn, project.id, true,
+            )
+            .await
+            .map_err(|_| {
+                ApplicationError::Internal("runtime project tombstone failed".to_owned())
+            })?;
             record_events(&self.outbox, &txn, &events).await?;
             ProjectWriteRepositoryImpl::delete_by_id_with_connection(&txn, &project.id).await?;
             Ok::<_, ApplicationError>(())
@@ -523,6 +539,14 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
                         ))
                     })?;
             }
+            crate::apparatus_runtime::runtime_control::fence_business_change(
+                &txn,
+                project_id,
+                component.id,
+                false,
+            )
+            .await
+            .map_err(|_| ApplicationError::Internal("runtime binding fence failed".to_owned()))?;
             record_events(&self.outbox, &txn, &events).await?;
             Ok::<_, ApplicationError>(saved)
         }
@@ -542,13 +566,23 @@ impl ProjectAuthorizationUnitOfWork for ProjectAuthorizationUnitOfWorkImpl {
             })?;
         let result = async {
             lock_project_row(&txn, project_id).await?;
+            let migrated = crate::apparatus_runtime::runtime_control::fence_business_change(
+                &txn,
+                project_id,
+                component_id,
+                true,
+            )
+            .await
+            .map_err(|_| {
+                ApplicationError::Internal("runtime binding tombstone failed".to_owned())
+            })?;
             if let Some(row) = crate::apparatus_outbox::load_binding_cleanup_row(&txn, component_id)
                 .await
                 .map_err(|e| {
                     ApplicationError::Internal(format!("failed to read apparatus binding: {e}"))
                 })?
             {
-                if crate::apparatus_outbox::cleanup_job_required(&row) {
+                if !migrated && crate::apparatus_outbox::cleanup_job_required(&row) {
                     crate::apparatus_outbox::insert_cleanup_job(
                         &txn,
                         component_id,
@@ -772,7 +806,10 @@ where
     Ok(())
 }
 
-async fn lock_project_row<C>(db: &C, project_id: uuid::Uuid) -> Result<(), ApplicationError>
+pub(crate) async fn lock_project_row<C>(
+    db: &C,
+    project_id: uuid::Uuid,
+) -> Result<(), ApplicationError>
 where
     C: ConnectionTrait,
 {

@@ -11,6 +11,7 @@ license.workspace = true
 manifesto-domain = { path = "../domain" }
 manifesto-configuration = { path = "../configuration" }
 manifesto-events = { path = "../../../crates/manifesto-events" }
+apparatus-contracts = { path = "../../../crates/apparatus-contracts" }
 
 # Shared crates
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
@@ -31,4 +32,3 @@ anyhow = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
-

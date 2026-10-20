@@ -20,6 +20,57 @@ use crate::controller::{
 };
 use crate::digest::ReleaseDigest;
 
+/// Writer-authoritative runtime pages. Distinct from the historical ready list:
+/// closed entries/tombstones are data, and absence never means removal.
+pub trait RuntimeDesiredStateSource: Send + Sync {
+    /// Fetch a bounded control page. No cached allow or digest reconstruction.
+    fn list_runtime_page<'a>(
+        &'a self,
+        cursor: Option<&'a apparatus_contracts::runtime::RuntimeCursorV1>,
+    ) -> apparatus_contracts::runtime::RuntimeControlFuture<
+        'a,
+        apparatus_contracts::runtime::RuntimeBindingPageV1,
+    >;
+}
+
+/// Project-scoped source using the neutral port; setup supplies the authenticated
+/// HTTP adapter. This is not an in-process production fallback to Manifesto.
+pub struct WriterRuntimeSource {
+    control: std::sync::Arc<dyn apparatus_contracts::runtime::RuntimeControlPort>,
+    project_id: Uuid,
+    caller: apparatus_contracts::runtime::RuntimeControlCallerV1,
+}
+
+impl WriterRuntimeSource {
+    /// Bind a configured transport to one authoritative project scope.
+    #[must_use]
+    pub fn new(
+        control: std::sync::Arc<dyn apparatus_contracts::runtime::RuntimeControlPort>,
+        project_id: Uuid,
+    ) -> Self {
+        Self {
+            control,
+            project_id,
+            caller: apparatus_contracts::runtime::RuntimeControlCallerV1 {
+                role: apparatus_contracts::runtime::RuntimeServiceRoleV1::Projector,
+            },
+        }
+    }
+}
+
+impl RuntimeDesiredStateSource for WriterRuntimeSource {
+    fn list_runtime_page<'a>(
+        &'a self,
+        cursor: Option<&'a apparatus_contracts::runtime::RuntimeCursorV1>,
+    ) -> apparatus_contracts::runtime::RuntimeControlFuture<
+        'a,
+        apparatus_contracts::runtime::RuntimeBindingPageV1,
+    > {
+        self.control
+            .list_bindings(&self.caller, self.project_id, cursor, Some(100))
+    }
+}
+
 /// Base URL Manifesto (`http://host:port` ou déjà suffixée `/manifesto`).
 pub const MANIFESTO_BASE_URL_ENV: &str = "APPARATUS_MANIFESTO_BASE_URL";
 /// `project_id` observé (UUID), obligatoire si [`MANIFESTO_BASE_URL_ENV`] est set.

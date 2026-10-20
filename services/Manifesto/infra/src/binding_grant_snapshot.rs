@@ -95,6 +95,9 @@ impl BindingConsentWriter for SqlBindingConsentWriter {
             .begin()
             .await
             .map_err(|error| map_db_write(&error))?;
+        // Same project -> domain binding -> runtime row lock order as component
+        // mutations and begin-effect. Consent cannot acknowledge before fencing.
+        crate::transaction::lock_project_row(&txn, project_id).await?;
         let bumped = txn
             .query_one(Statement::from_sql_and_values(
                 DbBackend::Postgres,
@@ -130,6 +133,14 @@ impl BindingConsentWriter for SqlBindingConsentWriter {
         ))
         .await
         .map_err(|error| map_db_write(&error))?;
+        crate::apparatus_runtime::runtime_control::fence_business_change(
+            &txn,
+            project_id,
+            component_id,
+            false,
+        )
+        .await
+        .map_err(|_| ApplicationError::Internal("runtime consent fence failed".to_owned()))?;
         let snapshot = load_snapshot(&txn, project_id, component_id, None).await?;
         txn.commit().await.map_err(|error| map_db_write(&error))?;
         Ok(snapshot)

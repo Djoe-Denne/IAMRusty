@@ -76,6 +76,24 @@ impl ManifestoCommandRegistryFactory {
         member_usecase: Arc<dyn MemberUseCase>,
         command_config: &CommandConfig,
     ) -> CommandRegistry {
+        Self::create_manifesto_registry_with_runtime(
+            project_usecase,
+            component_usecase,
+            member_usecase,
+            command_config,
+            None,
+        )
+    }
+
+    /// Explicit runtime wiring. None leaves control commands unregistered, never
+    /// substitutes a local/digest dispatcher or an in-memory authority.
+    pub fn create_manifesto_registry_with_runtime(
+        project_usecase: Arc<dyn ProjectUseCase>,
+        component_usecase: Arc<dyn ComponentUseCase>,
+        member_usecase: Arc<dyn MemberUseCase>,
+        command_config: &CommandConfig,
+        runtime_control: Option<Arc<dyn apparatus_contracts::runtime::RuntimeControlPort>>,
+    ) -> CommandRegistry {
         let mut builder = CommandRegistryBuilder::with_config(RegistryConfig::from_retry_config(
             &command_config.retry,
         ));
@@ -88,6 +106,15 @@ impl ManifestoCommandRegistryFactory {
 
         // Register member command handlers
         builder = Self::register_member_handlers(builder, member_usecase);
+
+        if let Some(control) = runtime_control {
+            let usecase = Arc::new(crate::usecase::RuntimeControlUseCase::new(control));
+            builder = builder.register::<super::RuntimeControlCommand, _>(
+                "apparatus_runtime_control_v1".to_owned(),
+                Arc::new(super::RuntimeControlCommandHandler::new(usecase)),
+                Arc::new(super::RuntimeControlCommandErrorMapper),
+            );
+        }
 
         builder.build()
     }

@@ -11,6 +11,7 @@ use super::{next_backoff, APPARATUS_ERROR_TEARDOWN_FAILED};
 
 struct DueJob {
     id: i64,
+    project_id: Uuid,
     component_id: Uuid,
 }
 
@@ -44,8 +45,10 @@ async fn select_due_jobs(
     let rows = db
         .query_all(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
-            "SELECT id, component_id FROM apparatus_cleanup_jobs \
+            "SELECT id, project_id, component_id FROM apparatus_cleanup_jobs j \
              WHERE completed_at IS NULL \
+               AND NOT EXISTS (SELECT 1 FROM apparatus_runtime_bindings r \
+                   WHERE r.project_id=j.project_id AND r.binding_id=j.component_id) \
                AND (next_retry_at IS NULL OR next_retry_at <= $1) \
                AND NOT (next_retry_at IS NULL AND last_error_code IS NOT NULL)",
             [now.into()],
@@ -55,6 +58,7 @@ async fn select_due_jobs(
     for row in rows {
         jobs.push(DueJob {
             id: row.try_get("", "id")?,
+            project_id: row.try_get("", "project_id")?,
             component_id: row.try_get("", "component_id")?,
         });
     }
@@ -67,6 +71,18 @@ async fn complete_job(
     now: DateTime<Utc>,
     job: &DueJob,
 ) -> Result<(), RuntimeApplyError> {
+    // Recheck after selection: a committed migration/tombstone permanently
+    // fences this historical cleanup path. Never delete a Serving child.
+    let migrated = db
+        .query_one(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT 1 FROM apparatus_runtime_bindings WHERE project_id=$1 AND binding_id=$2",
+            [job.project_id.into(), job.component_id.into()],
+        ))
+        .await?;
+    if migrated.is_some() {
+        return Ok(());
+    }
     let binding = BindingId::new(&job.component_id.to_string())
         .map_err(|error| RuntimeApplyError::Runtime(error.to_string()))?;
     if let Err(error) = runtime.teardown(&binding) {

@@ -1,8 +1,8 @@
 //! Taxonomie minimale des capacités Apparatus P0.
 //!
 //! Une capacité inconnue est un refus ferme ([`ApparatusError::UnknownCapability`]).
-//! P0 ne connaît que la lecture projet et le KV plateforme ; aucune capacité
-//! réseau n'existe, donc la référence KV ne peut pas en déclarer.
+//! La délégation runtime est médiée par Lazaret et ne donne aucun accès réseau
+//! brut ; les connecteurs restent les seules sorties réseau nommées.
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::str::FromStr;
@@ -23,6 +23,9 @@ pub enum Capability {
     StorageKvWrite,
     /// Appel sortant via un connecteur nommé admis par la plateforme (`connector.fetch`).
     ConnectorFetch,
+    /// Invoke another admitted runtime binding through Lazaret. Does not grant
+    /// raw network access or an arbitrary destination URL.
+    RuntimeInvoke,
 }
 
 impl Capability {
@@ -34,6 +37,7 @@ impl Capability {
             Self::StorageKvRead => "storage.kv.read",
             Self::StorageKvWrite => "storage.kv.write",
             Self::ConnectorFetch => "connector.fetch",
+            Self::RuntimeInvoke => "runtime.invoke",
         }
     }
 
@@ -45,6 +49,7 @@ impl Capability {
             Self::StorageKvRead,
             Self::StorageKvWrite,
             Self::ConnectorFetch,
+            Self::RuntimeInvoke,
         ]
     }
 
@@ -80,6 +85,7 @@ impl FromStr for Capability {
             "storage.kv.read" => Ok(Self::StorageKvRead),
             "storage.kv.write" => Ok(Self::StorageKvWrite),
             "connector.fetch" => Ok(Self::ConnectorFetch),
+            "runtime.invoke" => Ok(Self::RuntimeInvoke),
             other => Err(ApparatusError::UnknownCapability {
                 name: ApparatusError::truncate(other, 100),
             }),

@@ -9,6 +9,8 @@ use uuid::Uuid;
 mod cas;
 mod cleanup;
 pub mod in_process;
+pub mod runtime_control;
+pub mod runtime_cursor;
 mod tick;
 
 pub use cas::{write_bind_failure, write_observed};

@@ -28,7 +28,10 @@ pub async fn claim_binding(
              SET lease_epoch = lease_epoch + 1, \
                  lease_owner = $1, \
                  lease_expires_at = $2 \
-             WHERE component_id = $3 \
+              WHERE component_id = $3 \
+                AND NOT EXISTS (SELECT 1 FROM apparatus_runtime_bindings r \
+                    JOIN project_components pc ON pc.project_id=r.project_id AND pc.id=r.binding_id \
+                    WHERE pc.id=$3) \
                AND source = 'managed' \
                AND desired_generation > observed_generation \
                AND (lease_owner = '' OR lease_owner = $1 OR lease_expires_at <= $4) \
