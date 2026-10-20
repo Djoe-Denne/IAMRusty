@@ -66,7 +66,7 @@ Manifesto is the project-management service for AIForAll. Use `[[projects/rustyc
 
 Le rationnel reste [[projects/manifesto/concepts/apparatus-platform]]. **P0** : [[projects/manifesto/concepts/apparatus-p0-contracts]]. **P1** persistance : [[projects/manifesto/concepts/apparatus-p1-persistence]]. **P2** réconciliation in-process (**Implemented**) : [[projects/manifesto/concepts/apparatus-p2-reconciliation]]. **P3** frontière = [[projects/lazaret/lazaret]] (**Implemented**, A-DEC 2026-09-20). Moteur P4 = [[projects/manifesto/decisions/0008-apparatus-p4-k8s]] (**Accepted / Implemented**, Kind V1, crate [[projects/manifesto/concepts/apparatus-p4-operator]]). Gates préprod : [[projects/manifesto/decisions/0009-0011-gates-preprod]]. Factory / host restent hors livré (ADR 0406). Zéro token `k8s` sous `services/Manifesto/*/src`.
 
-Les ADR vague 1 0001–0008 sont **Accepted** ([[projects/manifesto/decisions/index]]). Réalité : 0002–0008 Implemented sauf **0001 Partial**. 0009–0011 sont Proposed / Unimplemented. Photographie service : ADR 0401 — [[projects/aiforall/decisions/0400-services-runtime]].
+Les ADR vague 1 0001–0008 sont **Accepted** ([[projects/manifesto/decisions/index]]). Réalité : **0001 Partial**, 0002–0008 Implemented. 0009/0010 et le mécanisme Serving/KPA 0012 restent Proposed / Unimplemented ; 0011 est **Rejected**, historique conservé. Aucune clôture pré-prod globale. Photographie service : ADR 0401 — [[projects/aiforall/decisions/0400-services-runtime]].
 
 ## Related
 

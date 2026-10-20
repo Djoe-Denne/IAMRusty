@@ -1,6 +1,6 @@
 # ADR-0011 : Le runtime plugin Apparatus V1 est un Pod par binding (clé projet × binding) ; l’operator P4 le crée, met au repos ou le détruit ; deux projets même digest d’enveloppe ⇒ deux Pods, sauf partage explicite
 
-- Statut : Proposed
+- Statut : Rejected
 - Réalité : Unimplemented
 - Date : 2026-09-26
 - Décideurs : (à remplir à l’acceptation)
@@ -8,6 +8,16 @@
 - SuperSède : aucune
 - SuperSédée par : —
 - Related : [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md), [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md), [0003](0003-apparatus-untrusted-plugin.md), [0004](0004-apparatus-capability-gateway.md), [0007](0007-apparatus-p3-capability-boundary-after-accept.md)
+
+## Rejet — 2026-10-19
+
+Rejet autorisé explicitement par l’utilisateur après présentation de la séquence « ancienne proposition Rejected + nouvelle ADR Proposed ». La gestion directe des Pods et du réveil HTTP par l’operator n’est plus la direction retenue ; [0012](0012-apparatus-http-knative-par-binding.md) propose Knative Serving/KPA par projet × binding, sans autoscaler ni proxy/queue HTTP maison.
+
+0012 remplace **cette proposition rejetée**, sans ratification implicite de son paquet détaillé. Ce rejet ne SuperSède pas 0008 et ne ferme ni 0009 ni 0010. La condition courante de fermeture de 0009 est définie dans [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md), pas dans le texte historique ci-dessous.
+
+## Proposition historique conservée
+
+**Tout le corps ci-dessous, jusqu’à la fin du fichier, est conservé intégralement comme proposition historique non applicable.** Ses mentions de 0011 comme mécanisme courant, ses conditions de fermeture de 0009 et son exclusion de Knative sont caduques ; elles ne décrivent ni le statut actuel de 0011 ni la cible proposée par 0012.
 
 `Accepted` ratifierait le **mécanisme** ci-dessous. `Réalité : Unimplemented` : ce mécanisme **n’est pas** dans le dépôt. Satisfaire cet ADR (`Accepted` **et** `Réalité : Implemented`) est **la condition de fermeture de la Réalité** de [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md). Cette ADR **ne SuperSède pas** [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md), [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md), [0003](0003-apparatus-untrusted-plugin.md), [0004](0004-apparatus-capability-gateway.md) ni [0007](0007-apparatus-p3-capability-boundary-after-accept.md).
 

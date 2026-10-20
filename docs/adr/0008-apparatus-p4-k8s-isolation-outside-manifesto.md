@@ -12,6 +12,10 @@
 
 Le compagnon `docs/adr/0008-app01-reconciliation.md` est la **méthode** de réconciliation α/β (2026-09-20), **pas** le canon. Inventaire de clôture (faits, pas nouvelle cible) : `docs/adr/0008-closeout.md`.
 
+### Note forward — 2026-10-19 ; Accept 2026-10-20
+
+[0012](0012-apparatus-http-knative-par-binding.md), **Accepted le 2026-10-20 / Unimplemented**, établit Serving/KPA par projet × binding pour les plugins HTTP. La supersession **partielle** de la gestion du runtime P4-core (Pod nu / clé digest / scaling par l’operator) est **inscrite et effective à cet Accept** ; 0012 et son contrat restent la cible du nouveau runtime jusqu’à preuves de campagne. 0008 reste **Accepted / Implemented** pour son historique P4-core, sans effacement des preuves ni passage global à `Superseded`. Cosign/Transit, Adm-A seule source de `VALID`, enveloppe ≠ image CRI, séparation des identités et operator+Jobs hors Manifesto restent. 0011 est désormais **Rejected**, proposition historique remplacée par 0012. La gate [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md) reste ouverte ; aucune clôture pré-prod ni de 0010 n’en découle.
+
 ## Contexte
 
 ADR-0003 **Accepted** exige quatre identités OS distinctes (plugin hors processus privilégiés ; workers Factory, admission/signature, contrôleur, gateway). ADR-0005 **Accepted** exige une admission indépendante du publisher, du plugin, du harness et de `VERIFIED` ; register Manifesto ≠ admit ; harness / `apparatus dev` jamais `VALID`/`VERIFIED`. ADR-0002 **Accepted** : identité d’installation = digest du descripteur, jamais `latest` ; Factory = P4. ADR-0004 / 0007 : `invoke` = Lazaret `POST /invoke` ; zéro identifiant `gateway` sous `services/Manifesto/*/src`.
