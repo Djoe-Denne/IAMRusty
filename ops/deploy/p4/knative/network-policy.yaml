@@ -1,0 +1,14 @@
+# Deliberate quarantine: no guessed ports/peers and no permissive placeholder.
+# Egress Lazaret and control-plane exceptions require ratified lock + amendment.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: apparatus-knative-default-deny
+  namespace: apparatus-plugins
+spec:
+  podSelector:
+    matchLabels:
+      apparatus.aiforall.dev/runtime: knative
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress: []

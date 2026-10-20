@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apparatus-knative-profile
+  namespace: apparatus-system
+data:
+  status: STATIC_ONLY_NOT_DEPLOYABLE
+  revision-template.yaml: |
+    # Input contract for C, NOT a rendered Service or a second writer of Serving children.
+    metadata:
+      labels:
+        apparatus.aiforall.dev/runtime: knative
+      annotations:
+        autoscaling.knative.dev/class: kpa.autoscaling.knative.dev
+        autoscaling.knative.dev/min-scale: "0"
+        autoscaling.knative.dev/initial-scale: "0"
+        autoscaling.knative.dev/max-scale: "2"
+        autoscaling.knative.dev/metric: concurrency
+        autoscaling.knative.dev/target: "1"
+        autoscaling.knative.dev/window: 60s
+        autoscaling.knative.dev/scale-to-zero-pod-retention-period: 30s
+        networking.knative.dev/visibility: cluster-local
+    spec:
+      containerConcurrency: 1
+      timeoutSeconds: 28
+      serviceAccountName: apparatus-runtime-plugin
+      automountServiceAccountToken: false
+      runtimeClassName: apparatus-gvisor
+      nodeSelector:
+        apparatus.aiforall.dev/pool: plugins
+      tolerations:
+        - key: apparatus.aiforall.dev/plugins
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      # No per-binding podAntiAffinity: multiple bindings may share a plugin node.
+      # Image, secretRefs and explicit audience-bound enrollment projection supplied by C.
+  budgets.yaml: |
+    revisions: {receivingTraffic: 1, draining: 1, podsPerBindingTotal: 4}
+    # Allocation sums to ratified totals, INCLUDING sandbox overhead.
+    resources:
+      user: {requestCpu: 250m, requestMemory: 256Mi, limitCpu: 500m, limitMemory: 512Mi}
+      queueProxy: {requestCpu: 50m, requestMemory: 64Mi, limitCpu: 100m, limitMemory: 128Mi}
+      transport: {requestCpu: 100m, requestMemory: 128Mi, limitCpu: 200m, limitMemory: 256Mi}
+      sandboxOverhead: {requestCpu: 100m, requestMemory: 64Mi, limitCpu: 200m, limitMemory: 128Mi}
+    temporaryVolumeBytes: 67108864
+    invokePayloadBytes: 262144
+    pendingRequestsPerBinding: 4
+    # Above two limits require verified STANDARD controls at pin; not implemented by this CM.
+    deadlinesSeconds: {caller: 35, lazaret: 30, ingressRevisionQueue: 28, startupEnrollmentTarget: 20, writerStep: 2, effect: 5, drain: 35}
+    ttlSeconds: {ticket: 30, observation: 5, enrollmentProjection: 600, runtimeCertificate: 300, journalAfterDeadline: 86400}
+    activeJournalEntriesPerBinding: 1000
+    idleSeconds: {stableWindow: 60, retention: 30, grace: 30}
+    retries: no_business_retry_after_ambiguous_send
+  trust-graph: |
+    Caller -> Lazaret authorizes BEFORE wake -> internal net-istio gateway ->
+    Activator -> queue-proxy -> user HTTP. Each immediate mesh hop authenticates
+    its own SPIFFE principal with STRICT mTLS; delegated authority is the signed
+    invocation ticket, never Host/Forwarded/XFCC/K-*/Apparatus headers alone.
+    Plugin -> Lazaret only for enrollment/accept/effects. No general DNS/Internet,
+    Kubernetes API, metadata or cross-plugin egress. Projected enrollment token
+    is explicit, audience-bound, reference-based; no default SA mount or secret values.
+    Kubelet readiness, autoscaler scraping and metrics use separate control ports,
+    NEVER an allow for the user port. NetworkPolicy cannot filter HTTP paths:
+    mesh L7 policy must restrict exact verified probe/metrics paths. All such
+    exceptions remain CLOSED until ports, paths, peer identities and node/SNAT
+    behavior are resolved in versions.lock.yaml and positively/negatively tested.
+    gVisor isolates user + queue-proxy + transport in the same sandbox; compatibility
+    and overhead accounting (including proxy bootstrap without SA automount) are
+    blockers, not claims. No header-trust fallback, proxy business sidecar, HPA,
+    KEDA or custom queue. No periodic warm-up. No retry resets absolute deadline.
+  ownership: |
+    Platform owns stack/config/policies. C's dedicated adapter owns only parent
+    Serving Services (fenced CAS/UID), never Revision/Deployment/ReplicaSet/Pod/
+    network Service children. Serving and Kubernetes controllers own children.
+    Legacy controller SA is NOT bound to the new adapter Role; legacy Pod writer
+    must be fenced before cutover. Flux must not manage per-binding Service fields.

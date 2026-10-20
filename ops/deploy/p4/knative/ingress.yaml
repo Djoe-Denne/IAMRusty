@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apparatus-knative-ingress-contract
+  namespace: apparatus-system
+data:
+  status: BLOCKED_TBD_SPIKE
+  ingress: net-istio_only
+  exposure: cluster_local_only
+  gateway: internal_only_no_LoadBalancer_NodePort_external_gateway_or_public_DNS
+  principal: Lazaret_only_verified_SPIFFE_identity_TBD_SPIKE
+  tls: STRICT_mTLS_every_immediate_hop_no_header_trust
+  implementation: |
+    No Gateway/Service/VirtualService emitted before the lock identifies the exact
+    net-istio config-istio gateway binding, private gateway selector, TLS/SDS
+    credential references and port map. Do not inherit an upstream public gateway.
+    Reject reserved identity/routing/enrollment headers at authenticated termination;
+    retain only validated/reissued values. L7 request-size/deadline/retry controls
+    and probe paths require the selected standard stack, not guessed Envoy patches.

@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# STATIC PREPARATION ONLY. Deliberately not included by ../kustomization.yaml.
+# No upstream installer, remote resources, images or binding Services until lock ratification.
+resources:
+  - profile.yaml
+  - serving-config.yaml
+  - ingress.yaml
+  - network-policy.yaml
+  - transport-policy.yaml
+  - runtimeclass.yaml
+  - placement.yaml
+  - quotas.yaml

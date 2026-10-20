@@ -1,0 +1,50 @@
+# Data document, NOT a Kubernetes resource; excluded from kustomization.
+schema: apparatus-knative-lock/v1
+status: BLOCKED_TBD_SPIKE
+publicationAllowed: false
+serving:
+  version: TBD_SPIKE
+  manifestSource: TBD_SPIKE # Official knative/serving release asset URL
+  manifestSha256: TBD_SPIKE
+images:
+  activator: TBD_SPIKE # Digest from verified Serving manifest
+  autoscaler: TBD_SPIKE
+  controller: TBD_SPIKE
+  webhook: TBD_SPIKE
+  queueProxy: TBD_SPIKE
+  transitiveInventory: TBD_SPIKE # ALL images, including jobs/helpers
+netIstio:
+  version: TBD_SPIKE
+  manifestSource: TBD_SPIKE # Official knative-extensions/net-istio release asset
+  manifestSha256: TBD_SPIKE
+  images: TBD_SPIKE
+istio:
+  version: TBD_SPIKE
+  artifactSource: TBD_SPIKE # Official Istio release and checksums
+  artifactSha256: TBD_SPIKE
+  images: TBD_SPIKE
+envoy:
+  version: TBD_SPIKE
+  imageDigest: TBD_SPIKE # Resolve from selected Istio proxy image, not independent upgrade
+gvisor:
+  version: TBD_SPIKE
+  artifactSource: TBD_SPIKE # Official runsc/containerd-shim binaries, not invented OCI digest
+  artifactSha256: TBD_SPIKE
+  handler: TBD_SPIKE # Node containerd runtime configuration must match RuntimeClass
+labMatrix:
+  kubernetes: TBD_SPIKE # Approved lab inventory + upstream compatibility documentation
+  calico: TBD_SPIKE
+  containerd: TBD_SPIKE
+  nodeOSKernel: TBD_SPIKE
+  servingNetIstioIstioGvisorCompatibility: TBD_SPIKE
+  namespacePoolCapacity: TBD_SPIKE # Inventory shared-system load before E
+qualification:
+  standardAggregatePendingLimitFour: TBD_SPIKE # Across Activator/queue-proxy replicas; STOP if unavailable
+  standardPayloadLimit262144: TBD_SPIKE
+  portsProbesMetricsAndMtls: TBD_SPIKE # Include kubelet/SNAT, mesh exclusions and positive/negative matrix
+  nativeRetriesAndAmbiguousDelivery: TBD_SPIKE
+  sandboxQueueProxyAndTransport: TBD_SPIKE
+  sbomAndSecurityAdvisories: TBD_SPIKE
+  transitiveArtifactsAndChecksums: TBD_SPIKE
+  humanRatification: TBD_SPIKE
+  realCompatibilityEvidence: TBD_SPIKE # Later campaign E, never inferred from static render

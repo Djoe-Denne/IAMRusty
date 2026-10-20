@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: knative-serving
+  labels:
+    apparatus.aiforall.dev/pool: system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-autoscaler
+  namespace: knative-serving
+data:
+  enable-scale-to-zero: "true"
+  allow-zero-initial-scale: "true"
+  min-scale: "0"
+  initial-scale: "0"
+  max-scale: "2"
+  max-scale-limit: "2"
+  stable-window: 60s
+  scale-to-zero-grace-period: 30s
+  scale-to-zero-pod-retention-period: 30s
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-network
+  namespace: knative-serving
+data:
+  ingress-class: istio.ingress.networking.knative.dev
+  default-external-scheme: https
