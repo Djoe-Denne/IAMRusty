@@ -5,35 +5,43 @@ metadata:
   namespace: apparatus-plugins
 automountServiceAccountToken: false
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: apparatus-serving-adapter
-  namespace: aiforall-apparatus
-automountServiceAccountToken: false
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: apparatus-serving-adapter
+  # EXACT legacy role identity: applying the approved Knative cutover replaces,
+  # rather than adds to, its old Pod/network-Service write permissions.
+  name: apparatus-controller-plugins
   namespace: apparatus-plugins
 rules:
   - apiGroups: [serving.knative.dev]
     resources: [services]
-    verbs: [create, get, list, watch, patch, delete]
+    verbs: [create, get, list, watch, update, delete]
+  - apiGroups: [serving.knative.dev]
+    resources: [configurations, revisions]
+    verbs: [get]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [serviceaccounts]
+    verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: apparatus-serving-adapter
+  name: apparatus-controller-plugins
   namespace: apparatus-plugins
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: apparatus-serving-adapter
+  name: apparatus-controller-plugins
 subjects:
   - kind: ServiceAccount
-    name: apparatus-serving-adapter
+    # §13.1-B literal SPIFFE principal uses this existing platform identity.
+    name: controller
     namespace: aiforall-apparatus
 ---
 apiVersion: v1
@@ -49,6 +57,19 @@ data:
     by this static overlay. Lock must map stack scheduling settings to system pool.
     Plugins tolerate dedicated plugin taint only. Several bindings per node allowed;
     no required pod anti-affinity. Inventory capacity/overhead before E.
-    Adapter uses explicit projected API credentials only; no role for children,
-    secrets, tokenreviews or nodes is granted here. Observation/enrollment RBAC
-    needs separately reviewed C interfaces, never wildcard escalation.
+    Origin identity is EXACTLY aiforall-apparatus/controller (§13.1-B), not a
+    new adapter SA or a generic mesh proxy. Plugin SA never automounts a token.
+    Parent Serving Service writes only; child/ServiceAccount observation is GET
+    (Pods additionally LIST/WATCH). No child writes, core network-Service writes,
+    Secrets, TokenReviews or Nodes permission is granted here.
+    CUTOVER GATE: keep this static overlay unapplied until the maintenance plan
+    has fenced/stopped legacy writers and inventoried every old RoleBinding.
+    This Role REPLACES apparatus-controller-plugins; permissions are additive
+    across RBAC bindings, so another granting role MUST NOT remain. Verify the
+    actual controller principal cannot create/patch/update/delete Pods, Deployments,
+    ReplicaSets, Revisions or core Services before enabling projection. Persist
+    evidence of the negative authorization checks in E, not a label assertion.
+    Fence the old p4 GitOps/reconciler too: reapplying ../rbac-plugins.yaml would
+    restore legacy write privileges. Do not merge both Role resources blindly
+    (duplicate resource IDs deliberately prevent a permissive Kustomize union).
+    No runtime/fencing operation is performed by this ConfigMap or static render.

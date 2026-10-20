@@ -73,5 +73,9 @@ data:
     Platform owns stack/config/policies. C's dedicated adapter owns only parent
     Serving Services (fenced CAS/UID), never Revision/Deployment/ReplicaSet/Pod/
     network Service children. Serving and Kubernetes controllers own children.
-    Legacy controller SA is NOT bound to the new adapter Role; legacy Pod writer
-    must be fenced before cutover. Flux must not manage per-binding Service fields.
+    The adapter Role reuses the legacy controller SA's role name
+    (apparatus-controller-plugins) and REPLACES its permissions at cutover:
+    parent-only Serving RBAC; legacy Pod writes are removed at cutover, after the
+    legacy Pod writer is fenced and the old GitOps writer is stopped. Naive union
+    of both role versions must be refused. Flux must not manage per-binding
+    Service fields.
