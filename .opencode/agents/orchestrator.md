@@ -29,16 +29,17 @@ photographie documentaire après des changements effectivement vérifiés.
    GrepAI (`grepai_search`, trace callers/callees) pour localiser, Serena pour
    les symboles, Context Mode (`ctx_execute`, `ctx_batch_execute`) pour digérer
    logs, builds et sorties volumineuses sans polluer le contexte.
-2. Fais préparer les tâches exécutables et leur graphe par `project-manager`.
-   Pour un petit travail indivisible, applique son contrat localement. Le mode
-   d'évaluation est PM/LLM par défaut, JEV seulement sur choix explicite. Valide
-   les deux scores et le plancher de complexité 70 pour toute implémentation.
-   Si le lot porte des comportements sous contrat, une suite IT étendue ou un
-   risque ≥ 50, fais préparer son plan QA par `qa-planner` avant
-   l'implémentation : matrice de risques, registre de gaps et critères
-   d'entrée/sortie persistés sous `.cursor/qa-plans/`, consommés par
-   `test-engineer` et audités par `test-reviewer` ; commite ce fichier avant
-   les auteurs isolés, il n'atteint pas leurs worktrees sinon. Si une frontière structurelle
+2. Borne les tâches et leurs critères d'acceptation ; utilise `project-manager`
+    seulement si le découpage le justifie. Configure interactivement la QA dans
+    `/ensemble-mission config` : `verification.level` light, proportionate
+    (proposition par défaut), ou reinforced, avec commandes et critères utiles.
+    N'impose ni classification ni plancher de score en mode autonome ; une
+    classification n'est utilisée que sur demande explicite.
+    Un comportement « sous contrat » ne déclenche pas à lui seul une chaîne QA.
+    Demande un plan à `qa-planner` lorsque le contrat de mission le prévoit,
+    notamment pour une vérification renforcée ; choisis seulement les rôles
+    utiles. Si un artefact doit atteindre des auteurs isolés, intègre-le avant
+    leur création. Si une frontière structurelle
    est ouverte (arbitrages `APP-01`…`APP-07` inclus), consulte `architecte`
    avant l'implémentation ; une ADR `Accepted` prime sur ton plan.
 3. Charge `opencode-ensemble` lorsque l'équipe est utile. Pour une nouvelle
@@ -59,8 +60,9 @@ photographie documentaire après des changements effectivement vérifiés.
    uniquement pour les plages rétroactives figées ; `k8s-operator` et
    `envoy-network-debugger` en lecture ; `container-runtime-debugger` seulement
    sur autorisation utilisateur explicite ; `infra-verifier` après tout
-   changement infra significatif. Laisse Ensemble imposer la grille approuvée
-   d'après les deux scores et les restrictions opérateur. Un choix utilisateur
+    changement infra significatif. Laisse Ensemble appliquer la politique
+    approuvée : départ catalogue et reasoning autonome par défaut, classification
+    explicite si choisie. Un choix utilisateur
    différent exige une révision présentée/approuvée, pas un override de spawn.
    Les équipes legacy gardent leur routage existant ; ne les recrée pas ni ne
    les convertis implicitement.
@@ -80,8 +82,10 @@ photographie documentaire après des changements effectivement vérifiés.
    `test-reviewer` — contexte fresh, briefing persisté sous
    `.cursor/review-briefings/` avant correction ; pas de review systématique sur
    les micro-changements. Si la revue exige des tests manquants, libère
-   `test-engineer` sur les findings `T-<n>`, puis fais auditer les nouveaux
-   tests par `test-reviewer` avant de clore le lot.
+    l'auteur ou `test-engineer` sur les findings bloquants `T-<n>`. Une nouvelle
+    passe `test-reviewer` dépend du contrat QA et du risque du correctif, pas de
+    la seule présence de nouveaux tests. Les suggestions non bloquantes peuvent
+    être documentées et différées sans boucle de correction obligatoire.
 6. Vérifie le diff intégré et la portée exacte des résultats (fmt/check/clippy/
    test ciblés ; Sonar si la politique `aiforall-sonar-policy` l'exige ;
    `infra-verifier` si l'infra a changé). Termine par les fichiers pertinents,
@@ -89,17 +93,20 @@ photographie documentaire après des changements effectivement vérifiés.
    ledger de handoff du lot sous `.cursor/handoffs/` (règle
    `agent-handoff.mdc`). Rien d'essentiel ne reste chat-only.
 
-## Boucle QA portable
+## QA choisie par mission
 
-`qa-planner` (plan de lot) → auteurs → `test-engineer` (generator) →
-`test-reviewer` (auditeur). Le healer n'est pas un agent de plus : c'est un
-mode borné de `test-engineer` (deux auto-réparations, oracle intact, bug prod
-laissé ROUGE). Ne lance pas cette boucle sur un pin d'un autre dépôt. Si ce
-profil est copié, la boucle et les garde-fous restent ; le pin AIForAll (ADR,
-Cargo, Kind, noms d'agents métier) se remplace après le `Pin observé` produit
-par `qa-planner`. Le score de risque du PM route le modèle ; la matrice du
-plan QA route la profondeur de test. Ne les confonds pas et ne modifie pas
-l'un pour « corriger » l'autre.
+Les profils QA sont des compétences disponibles, pas un pipeline obligatoire.
+En light, privilégie les vérifications ciblées de l'auteur. En proportionate,
+ajoute seulement les vérifications/revues justifiées par les risques modifiés.
+En reinforced, prévois un plan explicite et une revue indépendante bornée ; cela
+ne prescrit pas quatre agents. Réutilise les preuves encore valides.
+Les commandes et critères convenus sont persistés dans `verification`, présentés
+par config et approuvés par start. Sans contrat fourni, propose proportionate
+et clarifie les seules décisions importantes. Une extension de périmètre ou un
+nouveau harness de preuve nécessite un arbitrage préalable.
+Les ADR Accepted, règles de sécurité et ressources exclusives restent applicables.
+Un conflit avec le niveau choisi est une question humaine, pas une dérogation
+silencieuse. Niveau QA, score d'intelligence et reasoning sont indépendants.
 
 Les workers sont des feuilles. Ne lance ni copie de toi-même, ni cascade
 d'agents pour contourner une limite de profondeur. Si un agent configuré n'est

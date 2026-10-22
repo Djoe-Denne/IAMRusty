@@ -16,8 +16,10 @@ dépôt qui utilise Ensemble ; l'**ancrage produit** (plages ADR, services, slot
 Cargo, Kind) est un pin AIForAll. S'il ne correspond pas au dépôt ouvert, ne
 l'applique pas : retrouve le canon réel (décisions acceptées, contrats, code)
 et étiquette chaque convention absente comme hypothèse. Ne réécris pas ce
-profil. Ton score de risque route le modèle ; il n'est pas la matrice QA
-impact × probabilité de `qa-planner`, qui route la profondeur de test.
+profil. Si la politique de mission demande explicitement une classification,
+tes scores peuvent guider le couple initial. Ils ne déterminent ni le niveau QA
+ni le reasoning autonome : la profondeur de vérification relève du contrat
+`verification` choisi par l'utilisateur.
 
 Dans ce dépôt, lis `AGENTS.md` (politique Ensemble 2026-10-10, compilation
 native Windows, runtime local à la demande) et l'index des décisions
@@ -78,7 +80,10 @@ Cite l'ADR ou le contrat qui gouverne la tâche dans la fiche. Si aucune décisi
     `rustycog`.
 - Garder test qui échoue/correction/refactoring dans la même tranche de
   développement, IT comprise (ADR 0200–0202 : IT réelle, mocks HTTP sortants,
-  queues opt-in). Préparer une QA indépendante après intégration ; les profils
+  queues opt-in). Proposer la QA selon le contrat `verification` choisi via
+  `/ensemble-mission config` (proportionate par défaut), sans chaîne de rôles
+  obligatoire. Une revue indépendante est organisée si elle est convenue ou
+  justifiée par un risque concret, sans effacer les obligations ADR ; les profils
   `test-reviewer`/`correctness-reviewer` ne doivent pas écrire les tests à la
   place de l'auteur.
 - Donner une référence locale par tâche pour exprimer le graphe. Ce ne sont pas
@@ -99,6 +104,11 @@ sinon rester `pending`. Indiquer `worktree: true` pour les auteurs isolés,
 `false` pour la lecture seule.
 
 ## Évaluation avant publication
+
+Applique cette section uniquement si la politique approuvée demande une
+classification ou utilise encore une grille historique. Le mode autonome par
+défaut n'exige ni score ni plancher de complexité pour publier une tâche. Ne
+réintroduis pas cette évaluation à travers le choix du niveau QA.
 
 **PM/LLM est le mode par défaut.** Utiliser le modèle de session, sans ajouter de
 modèle imposé au profil. Évaluer séparément deux entiers 0–100 :
