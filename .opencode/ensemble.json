@@ -1,4 +1,37 @@
 {
+  "businessProfiles": {
+    "extensions": {
+      "operator": {
+        "description": "Operate or diagnose an existing runtime or deterministic harness within its explicit authorization, without lead authority."
+      }
+    },
+    "byAgent": {
+      "adr-events-authz": "documentalist",
+      "adr-hexagonal-rustycog": "documentalist",
+      "adr-platform-quality": "documentalist",
+      "adr-services-runtime": "documentalist",
+      "adr-testing-strategy": "documentalist",
+      "architecte": "architect",
+      "container-runtime-debugger": "operator",
+      "correctness-reviewer": "reviewer",
+      "emergency-engineer": "developer",
+      "emergency-thinker": "supervisor",
+      "envoy-network-debugger": "operator",
+      "expert-engineer": "architect",
+      "hard-implementer": "developer",
+      "implementer": "developer",
+      "infra-verifier": "qa",
+      "k8s-operator": "operator",
+      "mechanical-worker": "developer",
+      "orchestrator": "supervisor",
+      "project-manager": "pm",
+      "qa-planner": "qa",
+      "rust-perf-reviewer": "reviewer",
+      "security-reviewer": "reviewer",
+      "test-engineer": "qa",
+      "test-reviewer": "reviewer"
+    }
+  },
   "autoDispatch": true,
   "autoScale": true
 }
