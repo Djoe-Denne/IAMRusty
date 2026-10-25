@@ -28,3 +28,6 @@ Contrats :
 
 - [`ops-kind-runtime-validation-separation.md`](ops-kind-runtime-validation-separation.md)
   — séparation ops runtime/validation : nominal local-full, interface validation (smoke/curl/E2E), bail opérateur. Annexe manifeste de tri : [`ops-kind-runtime-validation-manifest.md`](ops-kind-runtime-validation-manifest.md). Proposed, lien secondaire vers l'ADR 0606 sans nouvelle ADR ; aucune commande exécutée.
+
+- [`telegraph-notification-outbox.md`](telegraph-notification-outbox.md)
+  — Proposed : notification/livraison/outbox same-txn, disabled/no-op suspendu, cycle de vie SQS cancellation-safe autorisé (sous-lot T2 préalable), oracles AC1–AC7 ; prépare l'ADR complémentaire 0313, sans modifier 0301.
