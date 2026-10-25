@@ -7744,7 +7744,6 @@ dependencies = [
  "rustycog-framework",
  "serde",
  "serde_json",
- "telegraph-events",
  "thiserror 2.0.18",
  "tokio",
  "tokio-test",
@@ -7814,6 +7813,7 @@ dependencies = [
  "telegraph-application",
  "telegraph-configuration",
  "telegraph-domain",
+ "telegraph-events",
  "tera",
  "thiserror 2.0.18",
  "tokio",
@@ -7827,6 +7827,7 @@ name = "telegraph-migration"
 version = "0.1.0"
 dependencies = [
  "async-std",
+ "rustycog-framework",
  "sea-orm-migration",
 ]
 
@@ -7865,6 +7866,7 @@ dependencies = [
  "telegraph-application",
  "telegraph-configuration",
  "telegraph-domain",
+ "telegraph-events",
  "telegraph-http_server",
  "telegraph-infra",
  "telegraph-migration",

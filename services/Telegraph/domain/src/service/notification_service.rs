@@ -2,9 +2,7 @@ use crate::entity::communication::{CommunicationMode, NotificationCommunication}
 use crate::entity::delivery::MessageDelivery;
 use crate::error::DomainError;
 use crate::port::repository::NotificationRepository;
-use rustycog::events::{DomainEvent, EventPublisher};
 use std::sync::Arc;
-use telegraph_events::{NotificationCreatedEvent, TelegraphDomainEvent};
 use uuid::Uuid;
 
 #[async_trait::async_trait]
@@ -46,43 +44,14 @@ pub trait NotificationService: Send + Sync {
 
 pub struct NotificationServiceImpl<NR> {
     notification_repo: Arc<NR>,
-    event_publisher: Arc<dyn EventPublisher<DomainError>>,
 }
 
 impl<NR> NotificationServiceImpl<NR>
 where
     NR: Send + Sync,
 {
-    pub const fn new(
-        notification_repo: Arc<NR>,
-        event_publisher: Arc<dyn EventPublisher<DomainError>>,
-    ) -> Self {
-        Self {
-            notification_repo,
-            event_publisher,
-        }
-    }
-
-    async fn publish_notification_created(
-        &self,
-        notification: &NotificationCommunication,
-    ) -> Result<(), DomainError> {
-        let notification_id = notification.id.ok_or_else(|| {
-            DomainError::internal_error("Notification created without an assigned id")
-        })?;
-        let user_id = notification.recipient.user_id.ok_or_else(|| {
-            DomainError::event_processing_error(
-                "Cannot publish NotificationCreated without a recipient user id",
-            )
-        })?;
-        let created_at = notification.created_at.unwrap_or_else(chrono::Utc::now);
-        let event = TelegraphDomainEvent::NotificationCreated(NotificationCreatedEvent::new(
-            notification_id,
-            user_id,
-            created_at,
-        ));
-        let domain_ev: Box<dyn DomainEvent> = event.into();
-        self.event_publisher.publish(domain_ev.as_ref()).await
+    pub const fn new(notification_repo: Arc<NR>) -> Self {
+        Self { notification_repo }
     }
 }
 
@@ -95,12 +64,9 @@ where
         &self,
         notification: NotificationCommunication,
     ) -> Result<NotificationCommunication, DomainError> {
-        let created = self
-            .notification_repo
+        self.notification_repo
             .create_notification(notification)
-            .await?;
-        self.publish_notification_created(&created).await?;
-        Ok(created)
+            .await
     }
 
     async fn create_notification_with_delivery(
@@ -108,12 +74,9 @@ where
         notification: NotificationCommunication,
         delivery_mode: CommunicationMode,
     ) -> Result<(NotificationCommunication, MessageDelivery), DomainError> {
-        let created = self
-            .notification_repo
+        self.notification_repo
             .create_notification_with_delivery(notification, delivery_mode)
-            .await?;
-        self.publish_notification_created(&created.0).await?;
-        Ok(created)
+            .await
     }
 
     async fn create_delivery(

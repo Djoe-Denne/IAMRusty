@@ -8,6 +8,7 @@ use rustycog::command::GenericCommandService;
 use rustycog::config::ServerConfig;
 use rustycog::db::DbConnectionPool;
 use rustycog::http::{AppState, UserIdExtractor};
+use rustycog::outbox::OutboxRecorder;
 use rustycog::permission::{
     CachedPermissionChecker, MetricsPermissionChecker, OpenFgaPermissionChecker, PermissionChecker,
 };
@@ -281,7 +282,7 @@ async fn setup_notification_service(
 ) -> Result<(Arc<dyn NotificationService>, SignaledPublisher<DomainError>), anyhow::Error> {
     let notification_read_repo = NotificationReadRepositoryImpl::new(db_pool.get_read_connection());
     let notification_write_repo =
-        NotificationWriteRepositoryImpl::new(db_pool.get_write_connection());
+        NotificationWriteRepositoryImpl::new(db_pool.get_write_connection(), OutboxRecorder::new());
     let notification_repo = CombinedNotificationRepositoryImpl::new(
         Arc::new(notification_read_repo),
         Arc::new(notification_write_repo),
@@ -294,10 +295,7 @@ async fn setup_notification_service(
     )
     .await
     .map_err(|e| anyhow::anyhow!("Failed to create event publisher: {e}"))?;
-    let notification_service = Arc::new(NotificationServiceImpl::new(
-        Arc::new(notification_repo),
-        signaled_publisher.publisher.clone(),
-    ));
+    let notification_service = Arc::new(NotificationServiceImpl::new(Arc::new(notification_repo)));
     Ok((notification_service, signaled_publisher))
 }
 

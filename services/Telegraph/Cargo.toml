@@ -57,6 +57,7 @@ tower = { workspace = true }
 tower-http = { workspace = true }
 
 [dev-dependencies]
+telegraph-events = { path = "../../crates/telegraph-events" }
 tokio = { workspace = true }
 axum-test = { workspace = true }
 tokio-test = { workspace = true }

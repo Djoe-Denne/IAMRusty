@@ -50,14 +50,19 @@ pub trait NotificationReadRepository: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait NotificationWriteRepository: Send + Sync {
-    /// Create a notification
+    /// Atomically create a notification and its durable `NotificationCreated`
+    /// intention. Success commits both, even when publication is suspended.
+    /// Validation or persistence failure commits neither; this port never
+    /// publishes directly. An ambiguous commit cannot promise zero writes.
     #[must_use = "await the future"]
     async fn create_notification(
         &self,
         notification: NotificationCommunication,
     ) -> Result<NotificationCommunication, DomainError>;
 
-    /// Create a notification and its delivery record atomically.
+    /// Atomically create a notification, its delivery, and exactly one durable
+    /// `NotificationCreated` intention on the writer, or commit none of them.
+    /// Publication availability must not change the creation result.
     #[must_use = "await the future"]
     async fn create_notification_with_delivery(
         &self,
