@@ -199,6 +199,65 @@ mod tests {
         }
     }
 
+    async fn c2_health(port: u16) -> Result<String, String> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        tokio::time::timeout(Duration::from_secs(1), async {
+            let mut socket = tokio::net::TcpStream::connect(("127.0.0.1", port)).await?;
+            socket
+                .write_all(b"GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .await?;
+            let mut response = String::new();
+            socket.read_to_string(&mut response).await?;
+            Ok::<_, std::io::Error>(response)
+        })
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| error.to_string())
+    }
+
+    // C-2 / QA compatibility item 2: callers agree with the legacy cached port.
+    #[tokio::test]
+    async fn shared_startup_port_zero_serves_health_on_actual_port() {
+        let config = rustycog::config::ServerConfig {
+            host: "127.0.0.1".into(),
+            port: 0,
+            tls_enabled: false,
+            ..Default::default()
+        };
+        let expected = config.actual_port();
+        let router = axum::Router::new().route(
+            "/health",
+            axum::routing::get(|| async { ([("x-c2-witness", "shared-startup")], "healthy") }),
+        );
+        let mut http = start_owned_http(router, config)
+            .await
+            .expect("real shared startup");
+        let bound = http.local_addrs()[0];
+        let actual_health = c2_health(bound.port()).await;
+        let expected_health = c2_health(expected).await;
+        let mut tasks = Vec::new();
+        let joined = shutdown_owned_runtime(&mut tasks, &mut http, async { Ok(()) }).await;
+        eprintln!("HTTP_C2 expected={expected} bound={bound} actual={actual_health:?} expected_health={expected_health:?} joined={joined:?} cleanup=true");
+        assert!(
+            joined.is_ok(),
+            "shared HTTP runtime must join before the port oracle"
+        );
+        assert!(tasks.is_empty());
+        assert!(
+            actual_health.unwrap().starts_with("HTTP/1.1 200"),
+            "precondition: the real shared startup serves health"
+        );
+        assert_eq!(
+            bound.port(),
+            expected,
+            "C-2: shared callers must bind actual_port()"
+        );
+        let response =
+            expected_health.expect("C-2: health must be reachable on expected actual_port");
+        assert!(response.starts_with("HTTP/1.1 200"));
+        assert!(response.contains("x-c2-witness: shared-startup\r\n"));
+    }
+
     #[tokio::test]
     async fn observes_already_finished_error_and_panic_without_filtering() {
         for panic in [false, true] {
