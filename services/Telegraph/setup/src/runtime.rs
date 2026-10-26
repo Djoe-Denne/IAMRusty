@@ -60,6 +60,48 @@ pub async fn shutdown_owned_tasks(
     let started = Instant::now();
     let grace = started + Duration::from_secs(5);
     let deadline = started + Duration::from_secs(6);
+    shutdown_owned_tasks_until(tasks, stop, grace, deadline).await
+}
+
+/// Stop HTTP and business tasks concurrently under the same absolute budget.
+/// # Errors
+/// Preserves both groups' failures and never attests an unobserved HTTP join.
+pub async fn shutdown_owned_runtime(
+    tasks: &mut Vec<BackgroundTask>,
+    http: &mut rustycog::http::OwnedHttpServer,
+    stop: impl Future<Output = anyhow::Result<()>>,
+) -> anyhow::Result<rustycog::http::HttpShutdownReport> {
+    let started = Instant::now();
+    let grace = started + Duration::from_secs(5);
+    let deadline = started + Duration::from_secs(6);
+    http.request_shutdown(rustycog::http::HttpShutdownBudget::new(grace, deadline)?);
+    let (background, http) = tokio::join!(
+        shutdown_owned_tasks_until(tasks, stop, grace, deadline),
+        http.join(),
+    );
+    match http {
+        Ok(report) => {
+            background?;
+            if report.forced {
+                tracing::warn!("HTTP shutdown required forced cancellation");
+            }
+            Ok(report)
+        }
+        Err(error) => match background {
+            Ok(()) => Err(error),
+            Err(background) => Err(anyhow::anyhow!(
+                "{background:#}; HTTP cleanup also failed: {error:#}"
+            )),
+        },
+    }
+}
+
+async fn shutdown_owned_tasks_until(
+    tasks: &mut Vec<BackgroundTask>,
+    stop: impl Future<Output = anyhow::Result<()>>,
+    grace: Instant,
+    deadline: Instant,
+) -> anyhow::Result<()> {
     let _abort_on_cancel = OwnedTaskAbortGuard::new(tasks);
     let mut errors = Vec::new();
     match timeout_at(grace, stop).await {

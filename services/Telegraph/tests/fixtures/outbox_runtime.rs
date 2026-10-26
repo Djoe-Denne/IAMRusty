@@ -17,7 +17,7 @@ use telegraph_infra::repository::{
     NotificationWriteRepositoryImpl,
 };
 use telegraph_setup::{
-    runtime::{shutdown_owned_tasks, BackgroundTask, OwnedTaskAbortGuard},
+    runtime::{shutdown_owned_runtime, BackgroundTask, OwnedTaskAbortGuard},
     TelegraphApp,
 };
 use uuid::Uuid;
@@ -27,7 +27,7 @@ pub struct RunningApp {
     pub url: String,
     pub tasks: Vec<BackgroundTask>,
     _abort: OwnedTaskAbortGuard,
-    http_stop: tokio::sync::oneshot::Sender<()>,
+    http: rustycog::http::OwnedHttpServer,
 }
 
 impl RunningApp {
@@ -35,36 +35,36 @@ impl RunningApp {
         let app = Box::pin(TelegraphApp::new(config))
             .await
             .expect("real setup");
-        let mut tasks = app.start_background_tasks();
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let tasks = app.start_background_tasks();
+        let abort = OwnedTaskAbortGuard::new(&tasks);
+        let http = rustycog::http::start_router_owned(
+            axum::Router::new().nest(telegraph_http_server::SERVICE_PREFIX, app.router()),
+            rustycog::config::ServerConfig {
+                host: "127.0.0.1".into(),
+                port: 0,
+                tls_enabled: false,
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("owned HTTP startup");
         let url = format!(
             "http://{}{}/",
-            listener.local_addr().unwrap(),
+            http.local_addrs()[0],
             telegraph_http_server::SERVICE_PREFIX
         );
-        let router = axum::Router::new().nest(telegraph_http_server::SERVICE_PREFIX, app.router());
-        let (http_stop, stopped) = tokio::sync::oneshot::channel();
-        tasks.push(tokio::spawn(async move {
-            tokio::select! {
-                result = axum::serve(listener, router) => result.map_err(Into::into),
-                _ = stopped => Ok(()),
-            }
-        }));
-        let abort = OwnedTaskAbortGuard::new(&tasks);
         Self {
             app,
             url: url.trim_end_matches('/').to_string(),
             tasks,
             _abort: abort,
-            http_stop,
+            http,
         }
     }
 
     pub async fn stop(mut self) {
         let started = tokio::time::Instant::now();
-        let stop = self.http_stop;
-        shutdown_owned_tasks(&mut self.tasks, async {
-            let _ = stop.send(());
+        shutdown_owned_runtime(&mut self.tasks, &mut self.http, async {
             self.app.stop_background_tasks().await
         })
         .await

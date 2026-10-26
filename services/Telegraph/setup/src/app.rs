@@ -1,7 +1,7 @@
 //! Application setup for Telegraph
 
 use crate::runtime::{
-    combine_results, flatten_join_result, shutdown_owned_tasks, wait_for_background_failure,
+    combine_results, shutdown_owned_runtime, shutdown_owned_tasks, wait_for_background_failure,
     OwnedTaskAbortGuard,
 };
 use axum::Router;
@@ -31,7 +31,7 @@ use telegraph_domain::{
     service::NotificationServiceImpl, CommunicationFactory, DomainError, EmailService,
     EventExtractor, EventProcessor, NotificationService, TemplateService,
 };
-use telegraph_http_server::{create_app_routes, create_router};
+use telegraph_http_server::{create_prefixed_router, create_router};
 use telegraph_infra::{
     communication::EmailAdapter,
     event::processors::{CompositeEventProcessor, EventHandlerConfig},
@@ -165,32 +165,33 @@ impl TelegraphApp {
     pub async fn run(&self, config: ServerConfig) -> Result<(), anyhow::Error> {
         let mut background_tasks = self.start_background_tasks();
 
-        // Start axum server in a separate task
-        info!("Starting HTTP server in parallel task");
-        let mut server_handle = {
-            let state = self.state.clone();
-            let probe = self.readiness.clone();
-            let config = config.clone();
-            let mut stop = self.background_stop.subscribe();
-            tokio::spawn(async move {
-                tokio::select! {
-                    result = create_app_routes(state, config, probe) => result,
-                    () = wait_for_stop(&mut stop) => Ok(()),
-                }
-            })
-        };
         let _abort_background_on_cancel = OwnedTaskAbortGuard::new(&background_tasks);
-        let _abort_http_on_cancel = OwnedTaskAbortGuard::new(std::slice::from_ref(&server_handle));
-        let (result, server_finished) = tokio::select! {
-            signal = tokio::signal::ctrl_c() => (signal.map_err(Into::into), false),
-            result = wait_for_background_failure(&mut background_tasks) => (result, false),
-            result = &mut server_handle => (flatten_join_result("Telegraph HTTP", result), true),
+        let mut http = match rustycog::http::start_router_owned(
+            create_prefixed_router(self.state.clone(), self.readiness.clone()),
+            config,
+        )
+        .await
+        {
+            Ok(http) => http,
+            Err(error) => {
+                return combine_results(
+                    Err(error),
+                    shutdown_owned_tasks(&mut background_tasks, self.stop_background_tasks()).await,
+                )
+            }
         };
-        if !server_finished {
-            background_tasks.push(server_handle);
-        }
-        let cleanup =
-            shutdown_owned_tasks(&mut background_tasks, self.stop_background_tasks()).await;
+        let result = tokio::select! {
+            signal = tokio::signal::ctrl_c() => signal.map_err(Into::into),
+            result = wait_for_background_failure(&mut background_tasks) => result,
+            result = http.wait_for_server_exit() => result.and_then(|()| Err(anyhow::anyhow!("Telegraph HTTP exited unexpectedly"))),
+        };
+        let cleanup = shutdown_owned_runtime(
+            &mut background_tasks,
+            &mut http,
+            self.stop_background_tasks(),
+        )
+        .await
+        .map(|_| ());
         info!("Telegraph service shut down complete");
         combine_results(result, cleanup)
     }
