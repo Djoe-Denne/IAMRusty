@@ -1,18 +1,25 @@
 //! Application setup for Telegraph
 
+use crate::runtime::{
+    combine_results, flatten_join_result, shutdown_owned_tasks, wait_for_background_failure,
+    OwnedTaskAbortGuard,
+};
 use axum::Router;
 use readiness::{
-    attach_ready, create_signaled_multi_queue_event_publisher, ReadinessProbe, SignaledPublisher,
+    attach_ready, create_signaled_multi_queue_event_publisher, ComponentStatus, ReadinessProbe,
+    SignaledPublisher,
 };
 use rustycog::command::GenericCommandService;
 use rustycog::config::ServerConfig;
 use rustycog::db::DbConnectionPool;
+use rustycog::events::ConcreteEventPublisher;
 use rustycog::http::{AppState, UserIdExtractor};
-use rustycog::outbox::OutboxRecorder;
+use rustycog::outbox::{OutboxConfig, OutboxDispatcher, OutboxRecorder};
 use rustycog::permission::{
     CachedPermissionChecker, MetricsPermissionChecker, OpenFgaPermissionChecker, PermissionChecker,
 };
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use telegraph_application::{
@@ -35,14 +42,16 @@ use telegraph_infra::{
     },
     template::TeraTemplateService,
 };
-use tracing::{error, info};
+use tracing::info;
 
 /// Telegraph application context
 pub struct TelegraphApp {
-    config: TelegraphConfig,
     state: AppState,
     event_consumer: Arc<EventConsumer>,
     readiness: Arc<ReadinessProbe>,
+    dispatcher: Option<Arc<OutboxDispatcher<DomainError>>>,
+    background_stop: tokio::sync::watch::Sender<bool>,
+    background_started: AtomicBool,
 }
 
 impl TelegraphApp {
@@ -71,6 +80,22 @@ impl TelegraphApp {
 
         let (notification_service, signaled_publisher) =
             Box::pin(setup_notification_service(&db_pool, &config)).await?;
+        // Never give a no-op's successful return permission to mark durable rows
+        // published. The factory status AND the concrete transport are required.
+        let dispatcher = if matches!(signaled_publisher.status, ComponentStatus::Live { .. })
+            && !matches!(
+                signaled_publisher.transport.as_ref(),
+                ConcreteEventPublisher::NoOp(_)
+            ) {
+            Some(Arc::new(OutboxDispatcher::new(
+                db_pool.clone(),
+                signaled_publisher.publisher.clone(),
+                OutboxConfig::default(),
+            )))
+        } else {
+            info!(status = ?signaled_publisher.status, "Telegraph outbox dispatch suspended; intentions remain durable");
+            None
+        };
         let communication_factory = setup_communication_factory(&config)?;
         let event_handler_config = EventHandlerConfig {
             event_mapping: setup_event_mapping(&config)?,
@@ -122,10 +147,12 @@ impl TelegraphApp {
         );
 
         Ok(Self {
-            config,
             event_consumer: Arc::new(event_consumer),
             state,
             readiness,
+            dispatcher,
+            background_stop: tokio::sync::watch::channel(false).0,
+            background_started: AtomicBool::new(false),
         })
     }
 
@@ -133,15 +160,10 @@ impl TelegraphApp {
     ///
     /// # Errors
     ///
-    /// Returns an error when the event consumer task is missing, the HTTP server
-    /// fails, or a background task panics.
+    /// Returns an error when an active background task exits unexpectedly, the
+    /// HTTP server fails, or bounded cleanup fails.
     pub async fn run(&self, config: ServerConfig) -> Result<(), anyhow::Error> {
         let mut background_tasks = self.start_background_tasks();
-        let Some(mut consumer_handle) = background_tasks.pop() else {
-            return Err(anyhow::anyhow!(
-                "Telegraph event consumer task was not started"
-            ));
-        };
 
         // Start axum server in a separate task
         info!("Starting HTTP server in parallel task");
@@ -149,72 +171,28 @@ impl TelegraphApp {
             let state = self.state.clone();
             let probe = self.readiness.clone();
             let config = config.clone();
+            let mut stop = self.background_stop.subscribe();
             tokio::spawn(async move {
-                if let Err(e) = create_app_routes(state, config, probe).await {
-                    error!("HTTP server failed: {e}");
-                    return Err(e);
+                tokio::select! {
+                    result = create_app_routes(state, config, probe) => result,
+                    () = wait_for_stop(&mut stop) => Ok(()),
                 }
-                Ok(())
             })
         };
-
-        info!(
-            "Telegraph service started successfully - both event consumer and HTTP server are running"
-        );
-
-        // A disabled queue uses a no-op consumer that returns immediately.
-        // That completion must not stop the HTTP server.
-        let shutdown_result: Result<(), anyhow::Error> = loop {
-            tokio::select! {
-                _ = tokio::signal::ctrl_c() => {
-                    info!("Shutdown signal received, stopping Telegraph service");
-                    break Ok(());
-                }
-                result = &mut consumer_handle, if !consumer_handle.is_finished() => {
-                    match result {
-                        Ok(Ok(())) => {
-                            info!("Event consumer completed; HTTP server keeps running");
-                        }
-                        Ok(Err(e)) => {
-                            error!("Event consumer failed: {e}");
-                            break Err(anyhow::anyhow!("Event consumer failed: {e}"));
-                        }
-                        Err(e) => {
-                            error!("Event consumer task panicked: {e}");
-                            break Err(anyhow::anyhow!("Event consumer task panicked: {e}"));
-                        }
-                    }
-                }
-                result = &mut server_handle => {
-                    break match result {
-                        Ok(Ok(())) => {
-                            info!("HTTP server completed successfully");
-                            Ok(())
-                        }
-                        Ok(Err(e)) => {
-                            error!("HTTP server failed: {e}");
-                            Err(anyhow::anyhow!("HTTP server failed: {e}"))
-                        }
-                        Err(e) => {
-                            error!("HTTP server task panicked: {e}");
-                            Err(anyhow::anyhow!("HTTP server task panicked: {e}"))
-                        }
-                    };
-                }
-            }
+        let _abort_background_on_cancel = OwnedTaskAbortGuard::new(&background_tasks);
+        let _abort_http_on_cancel = OwnedTaskAbortGuard::new(std::slice::from_ref(&server_handle));
+        let (result, server_finished) = tokio::select! {
+            signal = tokio::signal::ctrl_c() => (signal.map_err(Into::into), false),
+            result = wait_for_background_failure(&mut background_tasks) => (result, false),
+            result = &mut server_handle => (flatten_join_result("Telegraph HTTP", result), true),
         };
-
-        // Stop event consumer gracefully
-        self.stop_background_tasks().await;
-        if !consumer_handle.is_finished() {
-            consumer_handle.abort();
+        if !server_finished {
+            background_tasks.push(server_handle);
         }
-        if !server_handle.is_finished() {
-            server_handle.abort();
-        }
-
+        let cleanup =
+            shutdown_owned_tasks(&mut background_tasks, self.stop_background_tasks()).await;
         info!("Telegraph service shut down complete");
-        shutdown_result
+        combine_results(result, cleanup)
     }
 
     pub fn router(&self) -> Router {
@@ -227,20 +205,85 @@ impl TelegraphApp {
     }
 
     pub fn start_background_tasks(&self) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
-        info!("Starting event consumer in parallel task");
-        let event_consumer = self.event_consumer.clone();
-
-        vec![tokio::spawn(async move {
-            event_consumer
-                .start()
-                .await
-                .map_err(|e| anyhow::anyhow!("Telegraph event consumer failed: {e}"))
-        })]
+        // Rebuild the app to resume after shutdown: never reset stop beneath an
+        // existing consumer/dispatcher or run two dispatchers on this writer.
+        if self.background_started.swap(true, Ordering::SeqCst) {
+            return vec![tokio::spawn(async {
+                anyhow::bail!("Telegraph background tasks already started")
+            })];
+        }
+        self.background_stop.send_replace(false);
+        let mut tasks = Vec::new();
+        if matches!(
+            self.event_consumer.transport_status(),
+            ComponentStatus::Live { .. }
+        ) && !self.event_consumer.is_noop()
+        {
+            let consumer = self.event_consumer.clone();
+            let stop = self.background_stop.subscribe();
+            tasks.push(tokio::spawn(async move {
+                consumer
+                    .start()
+                    .await
+                    .map_err(|error| anyhow::anyhow!("Telegraph consumer failed: {error}"))?;
+                if !*stop.borrow() {
+                    anyhow::bail!("Active Telegraph consumer exited unexpectedly");
+                }
+                Ok(())
+            }));
+        }
+        if let Some(dispatcher) = &self.dispatcher {
+            let dispatcher = dispatcher.clone();
+            let mut stop = self.background_stop.subscribe();
+            tasks.push(tokio::spawn(async move {
+                tokio::select! {
+                    result = dispatcher.start() => {
+                        result.map_err(|error| anyhow::anyhow!("Telegraph dispatcher failed: {error}"))?;
+                        if !*stop.borrow() {
+                            anyhow::bail!("Active Telegraph dispatcher exited unexpectedly");
+                        }
+                        Ok(())
+                    }
+                    () = wait_for_stop(&mut stop) => Ok(()),
+                }
+            }));
+        }
+        tasks
     }
 
-    pub async fn stop_background_tasks(&self) {
-        if let Err(e) = self.event_consumer.stop().await {
-            error!("Failed to stop event consumer: {e}");
+    /// Request both stops; the runtime owner bounds and joins all tasks.
+    ///
+    /// # Errors
+    /// Returns consumer or dispatcher stop failures without hiding either.
+    pub async fn stop_background_tasks(&self) -> anyhow::Result<()> {
+        self.background_stop.send_replace(true);
+        let consumer = async {
+            self.event_consumer
+                .stop()
+                .await
+                .map_err(|error| anyhow::anyhow!("Telegraph consumer stop: {error}"))
+        };
+        let dispatcher = async {
+            if let Some(dispatcher) = &self.dispatcher {
+                dispatcher
+                    .stop()
+                    .await
+                    .map_err(|error| anyhow::anyhow!("Telegraph dispatcher stop: {error}"))?;
+            }
+            Ok(())
+        };
+        let (consumer, dispatcher) = tokio::join!(consumer, dispatcher);
+        combine_results(consumer, dispatcher)
+    }
+}
+
+async fn wait_for_stop(stop: &mut tokio::sync::watch::Receiver<bool>) {
+    loop {
+        if *stop.borrow_and_update() {
+            return;
+        }
+        if stop.changed().await.is_err() {
+            return;
         }
     }
 }

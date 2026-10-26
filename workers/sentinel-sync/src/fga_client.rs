@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
 use uuid::Uuid;
 
@@ -130,6 +130,23 @@ pub struct OpenFgaWriteClient {
     http: reqwest::Client,
 }
 
+// Keep status/body attached to the actual Write response. Classifying the
+// rendered anyhow string alone also accepted auth/availability failures which
+// merely happened to mention a legacy marker.
+#[derive(Debug, thiserror::Error)]
+#[error("OpenFGA write returned {status}: {body}")]
+struct OpenFgaWriteFailure {
+    status: reqwest::StatusCode,
+    body: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OpenFgaErrorBody {
+    code: String,
+    message: String,
+}
+
 impl OpenFgaWriteClient {
     /// Build an HTTP client for the configured `OpenFGA` store.
     ///
@@ -197,7 +214,7 @@ impl OpenFgaWriteClient {
         if !status.is_success() {
             let text = response.text().await.unwrap_or_default();
             warn!(status = %status, body = %text, "OpenFGA write returned non-success status");
-            return Err(anyhow!("OpenFGA write returned {status}: {text}"));
+            return Err(OpenFgaWriteFailure { status, body: text }.into());
         }
 
         debug!(
@@ -243,7 +260,7 @@ impl OpenFgaWriteClient {
         }
         match self.write(&writes, &deletes).await {
             Ok(()) => Ok(()),
-            Err(error) if is_idempotent_tuple_error(&error) => {
+            Err(error) if is_idempotent_tuple_error(&error, &writes, &deletes) => {
                 self.write_per_tuple_idempotent(&writes, &deletes).await
             }
             Err(error) => Err(error),
@@ -265,7 +282,7 @@ impl OpenFgaWriteClient {
     async fn write_one_idempotent(&self, writes: &[Tuple], deletes: &[Tuple]) -> Result<()> {
         match self.write(writes, deletes).await {
             Ok(()) => Ok(()),
-            Err(error) if is_idempotent_tuple_error(&error) => Ok(()),
+            Err(error) if is_idempotent_tuple_error(&error, writes, deletes) => Ok(()),
             Err(error) => Err(error),
         }
     }
@@ -332,11 +349,62 @@ impl OpenFgaWriteClient {
     }
 }
 
-fn is_idempotent_tuple_error(error: &anyhow::Error) -> bool {
-    let text = error.to_string();
-    text.contains("cannot_write_tuple_which_already_exists")
-        || text.contains("cannot_delete_tuple_which_does_not_exist")
-        || text.contains("cannot_delete_unknown_tuple")
+fn is_idempotent_tuple_error(error: &anyhow::Error, writes: &[Tuple], deletes: &[Tuple]) -> bool {
+    const DUPLICATE: &str = "cannot_write_tuple_which_already_exists";
+    const MISSING: &str = "cannot_delete_tuple_which_does_not_exist";
+    const UNKNOWN: &str = "cannot_delete_unknown_tuple";
+    const INVALID: &str = "write_failed_due_to_invalid_input";
+
+    let Some(failure) = error.downcast_ref::<OpenFgaWriteFailure>() else {
+        return false;
+    };
+    if failure.status != reqwest::StatusCode::BAD_REQUEST {
+        return false;
+    }
+    let body = match serde_json::from_str::<OpenFgaErrorBody>(&failure.body) {
+        Ok(body) => body,
+        Err(_) => {
+            // Preserve a historical bare error marker, but never arbitrary
+            // text, malformed JSON, or a composite response containing one.
+            let marker = failure.body.trim();
+            if ![DUPLICATE, MISSING, UNKNOWN].contains(&marker) {
+                return false;
+            }
+            OpenFgaErrorBody {
+                code: marker.into(),
+                message: marker.into(),
+            }
+        }
+    };
+    let write_effect = !writes.is_empty()
+        && [INVALID, DUPLICATE].contains(&body.code.as_str())
+        && (body.message == DUPLICATE
+            || tuple_error_message_matches(&body.message, writes, TupleEffect::Present));
+    let delete_effect = !deletes.is_empty()
+        && [INVALID, MISSING, UNKNOWN].contains(&body.code.as_str())
+        && ([MISSING, UNKNOWN].contains(&body.message.as_str())
+            || tuple_error_message_matches(&body.message, deletes, TupleEffect::Absent));
+    write_effect || delete_effect
+}
+
+enum TupleEffect {
+    Present,
+    Absent,
+}
+
+fn tuple_error_message_matches(message: &str, tuples: &[Tuple], effect: TupleEffect) -> bool {
+    let (prefix, action) = match effect {
+        TupleEffect::Present => ("cannot write a tuple which already exists", "write"),
+        TupleEffect::Absent => ("cannot delete a tuple which does not exist", "delete"),
+    };
+    tuples.iter().any(|tuple| {
+        let key = TupleKey::from(tuple);
+        message
+            == format!(
+                "{prefix}: user: '{}', relation: '{}', object: '{}': invalid {action} input",
+                key.user, key.relation, key.object,
+            )
+    })
 }
 
 #[must_use]
@@ -385,6 +453,27 @@ pub fn wildcard_reconcile_ops(desired: &[(Uuid, bool)]) -> (Vec<Tuple>, Vec<Tupl
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn idempotent_classifier_rejects_unattributed_error_text() {
+        let tuple = Tuple::user("notification", Uuid::new_v4(), "recipient", Uuid::new_v4());
+        for text in [
+            "OpenFGA write request failed: cannot_write_tuple_which_already_exists",
+            "OpenFGA write returned 400 Bad Request: cannot_write_tuple_which_already_exists",
+        ] {
+            let error = anyhow!(text);
+            assert!(!is_idempotent_tuple_error(
+                &error,
+                std::slice::from_ref(&tuple),
+                &[]
+            ));
+            assert_eq!(
+                error.to_string(),
+                text,
+                "transport/unattributed errors stay observable"
+            );
+        }
+    }
 
     #[test]
     fn reconcile_ops_writes_wanted_wildcards_and_deletes_unwanted() {
