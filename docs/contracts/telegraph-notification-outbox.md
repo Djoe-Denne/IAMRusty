@@ -94,7 +94,7 @@ Le claim partagé observé n'établit pas un contrat de fencing multi-worker. Po
 
 Le propriétaire du runtime surveille tous les résultats, y compris panic/JoinError. Une sortie attendue disabled/no-op ne tue pas HTTP ; une sortie inattendue d'une tâche active est un échec supervisé. Le dispatcher partagé journalise ses erreurs de cycle et conserve les erreurs de publication en DB : les tests ne doivent pas attendre un Err de `start()` pour chaque panne réseau. Les erreurs de démarrage, panics et arrêts sont contextualisées et rendues, pas seulement perdues dans un handle détaché.
 
-Déclencher l'arrêt du consumer et du dispatcher, puis attendre **tous** les handles possédés. En monolithe, inclure ces handles dans la supervision et le drain existants ; ne pas appeler `TelegraphApp::run()`. L'erreur d'origine et les erreurs de cleanup restent observables. Le cleanup HTTP possède également son handle (abort éventuel puis join), sans tâche orpheline après le retour ordonné.
+Déclencher l'arrêt du consumer et du dispatcher, puis attendre **tous** les handles possédés. En monolithe, inclure ces handles dans la supervision et le drain existants ; ne pas appeler `TelegraphApp::run()`. L'erreur d'origine et les erreurs de cleanup restent observables. Le cleanup HTTP possède son groupe de descendants, pas seulement le handle serveur : admission, annulation et jointure suivent le [contrat HTTP C-1](http-runtime-owned-shutdown.md), §5.3 ci-dessous, sans tâche orpheline après le retour ordonné.
 
 ### 5.2 Annulation sûre : sous-lot framework préalable T2
 
@@ -119,6 +119,16 @@ Portée exacte : tâches async Tokio annulables et runtime qui continue à les e
 Tests framework ciblés obligatoires : arrêt normal ; stop pendant long-poll ; handler async bloqué ; annulation/drop du parent ; erreur terminale et panique enfant avec un frère actif. Dans chaque cas, témoin RAII de destruction/fin de **chaque** enfant et absence d'activité après arrêt ; erreurs observées et aucun message acquitté avant succès. Réutiliser l'infra/tests existants ; helpers/futures de test locaux autorisés pour forcer les entrelacements, pas un nouveau harness. Le long-poll réel est recoupé en T3 sur la fixture SQS existante. Archiver les noms/commandes réels et rouge/correction/vert, puis T3 réutilise cette preuve avec AC7 standalone/monolithe.
 
 Intégration selon le skill `rustycog-submodule` : inventaire Git/propriété avant toute mutation du dépôt framework ; travail isolé dans le dépôt source rustycog autorisé par le lead, sans checkout/stash/reset/commit des changements utilisateur préexistants. Commit du seul correctif possédé, publication du SHA sur le remote avant intégration du gitlink AIForAll (mode `160000`). Épingler exactement ce SHA revu, pas `--remote` vers un HEAD mouvant ; préserver `[patch.crates-io]` vers `rustycog`, sans copie vendor ni patch vers un sibling. Le lead coordonne accès, intégration et pin ; aucune publication/pin n'est exécutée par T1. Le lot atomicité et T3 consomment le SHA réellement intégré. Un accès externe refusé reste un blocage, pas une autorisation d'écrire ailleurs.
+
+### 5.3 Extension HTTP SDK autorisée — C-1
+
+L'utilisateur a choisi **Autoriser HTTP SDK**, rapport53 : API additive bornée sur pile existante, tests ciblés, publication/pin exact et adoption Telegraph standalone/monolithe. Cette autorisation est distincte du sous-lot SQS §5.2 et de l'exception Sentinel §6.1 ; pas nouveau backend/harness, refonte, baisse d'AC7 ou Accept implicite.
+
+Contrat à intégrer avant correction : [propriétaire HTTP et arrêt AC7](http-runtime-owned-shutdown.md), référencé par [ADR0503 Proposed / Unimplemented](../adr/0503-http-runtime-owned-shutdown.md). Le caller conserve le propriétaire ; sortie serveur et jointure exhaustive sont distinctes. Connexions, requêtes, bodies/streams, exécuteur HTTP/2 et handshakes pertinents entrent dans le budget commun six secondes stop inclus. Drop ordonne l'annulation sans promettre un async join ; graceful illimité et parent joint seuls ne suffisent pas. Préserver serve_router legacy, TLS/mTLS/dual-bind et protocoles.
+
+**E1 rouge réel est acquis**, baseline historique aa400f3/SDK129dcc1, puis intégré dans b291eee3b7537bfa02cebb5df844d5b4ca2019bf ; blob221abe3fc7a1b751c8a1d574b422f767ee68abca, rapports55/57. 0PASS/1FAILED/0ignored/4filtered : shutdownOk et parent terminé, RAII handler0 au retour, mutation tardive1 après libération ; cleanup avant assertion. Aucun SDKfix livré, C-1 reste ouvert. L'entrée E1 est intégrée ; l'implémentation reste bloquée jusqu'à intégration du contrat/API. Pas besoin de relancer E1 pour écrire ce contrat.
+
+Références dépôt principal : `.cursor/review-briefings/20261026T1704Z-correctness-telegraph-outbox-t4-aa400f3.md` et `.cursor/qa-plans/20261026-http-ac7-c1.md`. QA ciblée via cibles existantes, loopback sans Docker ; préserver les deux docs T5 staged ailleurs. AC1–AC7, exclusions exactes §5.2, §6.1/§6.2, ADR0313 Proposed et0301 Partial restent inchangés.
 
 ## 6. Raccordement test-only à Sentinel (T3)
 

@@ -70,7 +70,7 @@ Les identifiants ne sont **pas** un seul compteur global. Plages thématiques :
 | **0200–0299** | Tests (IT vs unitaires, mocks vs infra réelle) | Rétroactif |
 | **0300–0399** | Événements, outbox, AuthN/AuthZ | 0300–0303 : rétroactif ; **0304** Accepted / Partial ; **0305** Accepted / Implemented ; **0306** Accepted / Partial ; **0307** Accepted / Implemented ; **0308–0309** Accepted / Partial ; **0310** Accepted / Partial (calcul/capacité partiellement supersédés par 0312) ; **0311–0312** Accepted / Implemented (ratification 2026-10-08) |
 | **0400–0499** | Services du workspace et runtimes | 0400–0406 : rétroactif Vague 2 ; **0407+ : vivant IAM-IdP** (`Accepted` / `Implemented`) |
-| **0500–0599** | Config, CI, qualité, framework rustycog | Rétroactif |
+| **0500–0599** | Config, CI, qualité, framework rustycog | 0500–0502 : rétroactif ; 0503 : living Proposed / Unimplemented |
 | **0600–0699** | Cloud / IaC / GitOps / topologie cluster | **Vague 4 living** (`Proposed` / `Unimplemented`) |
 
 Nouveau fichier : prochain entier **libre dans sa plage**, pas `0006` pour un sujet hexagonal. Ne pas réécrire 0001–0005.
@@ -143,6 +143,9 @@ Contrat secondaire test-side : [m6 proof hardening](../contracts/20261018-m6-pro
 | [0500](0500-config-typee-et-compose-local.md) | Config typée `rustycog-config` + Compose local | Implemented |
 | [0501](0501-qualite-fmt-clippy-sonar.md) | fmt / Clippy / Sonar comme politique de dépôt | Partial |
 | [0502](0502-rustycog-framework-feature-gated.md) | rustycog = framework feature-gated (submodule), pas un service | Implemented |
+| [0503](0503-http-runtime-owned-shutdown.md) | Le runtime HTTP possède et joint ses descendants avant de déclarer son arrêt terminé | Proposed / Unimplemented |
+
+**0503** : forward, hors photographie rétroactive ; [contrat HTTP](../contracts/http-runtime-owned-shutdown.md). Périmètre autorisé par rapport53, pas ratification. E1 rouge exécuté sur aa400f3/SDK129dcc1 puis intégré b291eee ; C-1 ouvert, aucun correctif SDK acquis. Prochain libre plateforme : **0504+**.
 
 ## Vague 3 — IAM living / IdP fédérés (0407+, hors Apparatus)
 
