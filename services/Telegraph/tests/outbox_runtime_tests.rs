@@ -76,27 +76,23 @@ async fn http_shutdown_destroys_inflight_handler_before_return_without_late_muta
             }),
         )
     };
-    // serve_router owns the bind, so reserve an ephemeral address just as the
-    // existing HTTPS tests do. A bind/connect failure is setup, not C-1 proof.
-    let reservation = std::net::TcpListener::bind("127.0.0.1:0")?;
-    let address = reservation.local_addr()?;
     let config = rustycog::config::ServerConfig {
-        host: address.ip().to_string(),
-        port: address.port(),
+        host: "127.0.0.1".to_string(),
+        port: 0,
         tls_enabled: false,
         ..Default::default()
     };
-    drop(reservation);
+    // E2 / G-1: same owner and cleanup helper adopted by standalone and host.
+    // The historical legacy E1 source/log remains archived unchanged.
+    let mut http = rustycog::http::start_router_owned(router, config).await?;
+    let address = http.local_addrs()[0];
     let (stop, stopped) = tokio::sync::oneshot::channel();
     let parent_destroyed = Arc::new(AtomicUsize::new(0));
     let parent_owner = PollerOwner(parent_destroyed.clone());
     let mut tasks = vec![tokio::spawn(async move {
         let _owner = parent_owner;
-        // Same select/drop ownership boundary as TelegraphApp::run and host.
-        tokio::select! {
-            result = rustycog::http::serve_router(router, config) => result,
-            _ = stopped => Ok(()),
-        }
+        let _ = stopped.await;
+        Ok(())
     })];
     let setup = tokio::time::timeout(Duration::from_secs(3), async {
         let mut socket = loop {
@@ -118,7 +114,7 @@ async fn http_shutdown_destroys_inflight_handler_before_return_without_late_muta
     .await;
 
     let started = tokio::time::Instant::now();
-    let shutdown = shutdown_owned_tasks(&mut tasks, async {
+    let shutdown = telegraph_setup::runtime::shutdown_owned_runtime(&mut tasks, &mut http, async {
         stop.send(())
             .map_err(|()| anyhow::anyhow!("HTTP parent already stopped"))
     })
@@ -163,7 +159,10 @@ async fn http_shutdown_destroys_inflight_handler_before_return_without_late_muta
         return Err(error.context("HTTP setup, not a production red"));
     }
     cleanup.map_err(|error| anyhow::anyhow!("HTTP request cleanup timeout: {error}"))??;
-    shutdown?;
+    assert!(
+        shutdown?.forced,
+        "blocked handler requires force, not parent-only completion"
+    );
     assert_eq!(
         destroyed_after_cleanup, 1,
         "request owner cleaned before assertion"

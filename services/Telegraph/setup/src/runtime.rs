@@ -300,4 +300,68 @@ mod tests {
         .to_string();
         assert!(error.contains("original") && error.contains("cleanup"));
     }
+
+    /// G-1/G-5: one absolute deadline covers the real HTTP owner AND stop.
+    #[tokio::test]
+    async fn owned_http_and_pending_stop_share_budget_and_destroy_request() {
+        use tokio::io::AsyncWriteExt;
+        let destroyed = Arc::new(AtomicUsize::new(0));
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let router = axum::Router::new().route(
+            "/owned",
+            axum::routing::get({
+                let (destroyed, entered) = (destroyed.clone(), entered.clone());
+                move || {
+                    let owner = Destroyed(destroyed.clone());
+                    let entered = entered.clone();
+                    async move {
+                        let _owner = owner;
+                        entered.notify_one();
+                        std::future::pending::<()>().await;
+                        "unreachable"
+                    }
+                }
+            }),
+        );
+        let mut http = rustycog::http::start_router_owned(
+            router,
+            rustycog::config::ServerConfig {
+                host: "127.0.0.1".into(),
+                port: 0,
+                tls_enabled: false,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let mut socket = tokio::net::TcpStream::connect(http.local_addrs()[0])
+            .await
+            .unwrap();
+        socket
+            .write_all(b"GET /owned HTTP/1.1\r\nHost: localhost\r\n\r\n")
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(1), entered.notified())
+            .await
+            .unwrap();
+        let started = Instant::now();
+        let mut tasks = Vec::new();
+        let result = shutdown_owned_runtime(&mut tasks, &mut http, std::future::pending()).await;
+        let elapsed = started.elapsed();
+        let at_return = destroyed.load(Ordering::SeqCst);
+        drop(socket);
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("stop exceeded grace"));
+        assert!(
+            elapsed < Duration::from_secs(6),
+            "stop must not receive a second budget: {elapsed:?}"
+        );
+        assert_eq!(
+            at_return, 1,
+            "real HTTP handler must be destroyed despite stop timeout"
+        );
+        assert!(http.join().await.unwrap().forced);
+    }
 }

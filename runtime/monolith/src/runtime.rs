@@ -234,4 +234,71 @@ mod tests {
             assert!(task.await.unwrap_err().is_cancelled());
         }
     }
+
+    /// G-5: host composition and its adopted cleanup operate a real listener.
+    #[tokio::test]
+    async fn monolith_composed_http_owner_force_destroys_nested_request() {
+        use tokio::io::AsyncWriteExt;
+        let destroyed = Arc::new(AtomicUsize::new(0));
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let telegraph = axum::Router::new().route(
+            "/owned",
+            axum::routing::get({
+                let (destroyed, entered) = (destroyed.clone(), entered.clone());
+                move || {
+                    let owner = Owner(destroyed.clone());
+                    let entered = entered.clone();
+                    async move {
+                        let _owner = owner;
+                        entered.notify_one();
+                        std::future::pending::<()>().await;
+                        "unreachable"
+                    }
+                }
+            }),
+        );
+        let router = compose_routes(
+            MonolithRouters {
+                telegraph,
+                iam: axum::Router::new(),
+                hive: axum::Router::new(),
+                manifesto: axum::Router::new(),
+                lazaret: axum::Router::new(),
+            },
+            Arc::new(readiness::ReadinessProbe::new("monolith-owned-test")),
+        );
+        let mut http = rustycog::http::start_router_owned(
+            router,
+            rustycog::config::ServerConfig {
+                host: "127.0.0.1".into(),
+                port: 0,
+                tls_enabled: false,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let mut socket = tokio::net::TcpStream::connect(http.local_addrs()[0])
+            .await
+            .unwrap();
+        socket
+            .write_all(b"GET /telegraph/owned HTTP/1.1\r\nHost: localhost\r\n\r\n")
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(1), entered.notified())
+            .await
+            .unwrap();
+        let started = tokio::time::Instant::now();
+        let mut background = Vec::new();
+        let report = shutdown_owned_runtime(&mut background, &mut http, async { Ok(()) }).await;
+        let elapsed = started.elapsed();
+        let at_return = destroyed.load(Ordering::SeqCst);
+        drop(socket);
+        assert!(report.unwrap().forced);
+        assert_eq!(
+            at_return, 1,
+            "nested admitted handler cannot outlive host cleanup"
+        );
+        assert!(elapsed < Duration::from_secs(6));
+    }
 }
