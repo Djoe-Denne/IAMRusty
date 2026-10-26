@@ -62,6 +62,23 @@ impl RunningApp {
         }
     }
 
+    /// QA compatibility item 3: HTTP is owned separately from business parents.
+    pub async fn assert_http_healthy(&self) {
+        let address = self.http.local_addrs()[0];
+        assert_eq!(
+            self.url,
+            format!("http://{address}{}", telegraph_http_server::SERVICE_PREFIX),
+            "fixture URL must address its retained HTTP owner"
+        );
+        let response = reqwest::Client::new()
+            .get(format!("{}/health", self.url))
+            .timeout(Duration::from_secs(2))
+            .send()
+            .await
+            .expect("owned HTTP health is reachable");
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+    }
+
     pub async fn stop(mut self) {
         let started = tokio::time::Instant::now();
         shutdown_owned_runtime(&mut self.tasks, &mut self.http, async {

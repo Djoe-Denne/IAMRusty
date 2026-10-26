@@ -452,9 +452,10 @@ async fn user_email_verified_routes_same_event_through_sentinel_and_real_authori
         let mut runtime = RunningApp::start(real.clone()).await;
         assert_eq!(
             runtime.tasks.len(),
-            3,
+            2,
             "both transports remain Live even when the queue is absent"
         );
+        runtime.assert_http_healthy().await;
         let user_id = Uuid::new_v4();
         let other = Uuid::new_v4();
         let event = IamDomainEvent::UserEmailVerified(UserEmailVerifiedEvent {

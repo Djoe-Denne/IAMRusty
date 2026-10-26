@@ -219,7 +219,12 @@ async fn disabled_and_factory_degraded_noop_preserve_intentions_and_http_then_re
             signaled.status == ComponentStatus::Disabled
         });
         let app = RunningApp::start(suspended).await;
-        assert_eq!(app.tasks.len(), 1, "only HTTP: neither no-op is spawned");
+        assert_eq!(
+            app.tasks.len(),
+            0,
+            "no consumer or dispatcher parent for either no-op"
+        );
+        app.assert_http_healthy().await;
         let created = service(db.clone())
             .create_notification(notification())
             .await
@@ -250,7 +255,12 @@ async fn disabled_and_factory_degraded_noop_preserve_intentions_and_http_then_re
             .is_success());
         app.stop().await;
         let live = RunningApp::start(real.clone()).await;
-        assert_eq!(live.tasks.len(), 3, "consumer, dispatcher, HTTP");
+        assert_eq!(
+            live.tasks.len(),
+            2,
+            "consumer and dispatcher; HTTP owned separately"
+        );
+        live.assert_http_healthy().await;
         let published = wait_status(db.as_ref(), id, STATUS_PUBLISHED).await;
         assert_eq!(published.event_id, before.event_id);
         assert_eq!(published.payload_json, before.payload_json);
