@@ -24,6 +24,164 @@ use telegraph_domain::NotificationService;
 use telegraph_infra::event::TelegraphErrorMapper;
 use telegraph_setup::runtime::shutdown_owned_tasks;
 
+struct HttpRequestOwner {
+    destroyed: Arc<AtomicUsize>,
+    dropped: Arc<tokio::sync::Notify>,
+}
+
+impl Drop for HttpRequestOwner {
+    fn drop(&mut self) {
+        self.destroyed.fetch_add(1, Ordering::SeqCst);
+        self.dropped.notify_one();
+    }
+}
+
+/// C-1 / E1: joining the HTTP parent must also destroy its in-flight request.
+#[tokio::test]
+#[serial]
+async fn http_shutdown_destroys_inflight_handler_before_return_without_late_mutation(
+) -> anyhow::Result<()> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let entered = Arc::new(tokio::sync::Notify::new());
+    let release = Arc::new(tokio::sync::Notify::new());
+    let dropped = Arc::new(tokio::sync::Notify::new());
+    let destroyed = Arc::new(AtomicUsize::new(0));
+    let mutations = Arc::new(AtomicUsize::new(0));
+    let router = {
+        let (entered, release, dropped, destroyed, mutations) = (
+            entered.clone(),
+            release.clone(),
+            dropped.clone(),
+            destroyed.clone(),
+            mutations.clone(),
+        );
+        axum::Router::new().route(
+            "/c1-inflight",
+            axum::routing::get(move || {
+                let (entered, release, dropped, destroyed, mutations) = (
+                    entered.clone(),
+                    release.clone(),
+                    dropped.clone(),
+                    destroyed.clone(),
+                    mutations.clone(),
+                );
+                async move {
+                    let _owner = HttpRequestOwner { destroyed, dropped };
+                    entered.notify_one();
+                    release.notified().await;
+                    mutations.fetch_add(1, Ordering::SeqCst);
+                    axum::http::StatusCode::NO_CONTENT
+                }
+            }),
+        )
+    };
+    // serve_router owns the bind, so reserve an ephemeral address just as the
+    // existing HTTPS tests do. A bind/connect failure is setup, not C-1 proof.
+    let reservation = std::net::TcpListener::bind("127.0.0.1:0")?;
+    let address = reservation.local_addr()?;
+    let config = rustycog::config::ServerConfig {
+        host: address.ip().to_string(),
+        port: address.port(),
+        tls_enabled: false,
+        ..Default::default()
+    };
+    drop(reservation);
+    let (stop, stopped) = tokio::sync::oneshot::channel();
+    let parent_destroyed = Arc::new(AtomicUsize::new(0));
+    let parent_owner = PollerOwner(parent_destroyed.clone());
+    let mut tasks = vec![tokio::spawn(async move {
+        let _owner = parent_owner;
+        // Same select/drop ownership boundary as TelegraphApp::run and host.
+        tokio::select! {
+            result = rustycog::http::serve_router(router, config) => result,
+            _ = stopped => Ok(()),
+        }
+    })];
+    let setup = tokio::time::timeout(Duration::from_secs(3), async {
+        let mut socket = loop {
+            match tokio::net::TcpStream::connect(address).await {
+                Ok(socket) => break socket,
+                Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused => {
+                    anyhow::ensure!(!tasks[0].is_finished(), "HTTP server exited during setup");
+                    tokio::task::yield_now().await;
+                }
+                Err(error) => return Err(error.into()),
+            }
+        };
+        socket
+            .write_all(b"GET /c1-inflight HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+            .await?;
+        entered.notified().await;
+        Ok::<_, anyhow::Error>(socket)
+    })
+    .await;
+
+    let started = tokio::time::Instant::now();
+    let shutdown = shutdown_owned_tasks(&mut tasks, async {
+        stop.send(())
+            .map_err(|()| anyhow::anyhow!("HTTP parent already stopped"))
+    })
+    .await;
+    let elapsed = started.elapsed();
+    let destroyed_at_return = destroyed.load(Ordering::SeqCst);
+    let mutations_at_return = mutations.load(Ordering::SeqCst);
+
+    // Always release and observe the request before asserting the red oracle.
+    // On the old SDK this lets the detached handler finish instead of leaking it.
+    release.notify_one();
+    let mut response = Vec::new();
+    let setup = setup
+        .map_err(|error| anyhow::anyhow!("HTTP entry setup timeout: {error}"))
+        .and_then(std::convert::identity);
+    let (setup_error, cleanup) = match setup {
+        Ok(mut socket) => {
+            let cleanup = tokio::time::timeout(Duration::from_secs(3), async {
+                if destroyed.load(Ordering::SeqCst) == 0 {
+                    dropped.notified().await;
+                }
+                socket.read_to_end(&mut response).await?;
+                socket.shutdown().await?;
+                Ok::<_, anyhow::Error>(())
+            })
+            .await;
+            (None, cleanup)
+        }
+        Err(error) => (Some(error), Ok(Ok(()))),
+    };
+    // Defensive cleanup of any parent left behind by a shutdown error.
+    for task in &tasks {
+        task.abort();
+    }
+    for task in tasks.drain(..) {
+        let _ = tokio::time::timeout(Duration::from_secs(1), task).await;
+    }
+    let destroyed_after_cleanup = destroyed.load(Ordering::SeqCst);
+    let mutations_after_cleanup = mutations.load(Ordering::SeqCst);
+    eprintln!("C1_E1 elapsed_ms={} shutdown={shutdown:?} destroyed_at_return={destroyed_at_return} mutations_at_return={mutations_at_return} destroyed_after_cleanup={destroyed_after_cleanup} mutations_after_cleanup={mutations_after_cleanup} parent_destroyed={} response_bytes={}", elapsed.as_millis(), parent_destroyed.load(Ordering::SeqCst), response.len());
+    if let Some(error) = setup_error {
+        return Err(error.context("HTTP setup, not a production red"));
+    }
+    cleanup.map_err(|error| anyhow::anyhow!("HTTP request cleanup timeout: {error}"))??;
+    shutdown?;
+    assert_eq!(
+        destroyed_after_cleanup, 1,
+        "request owner cleaned before assertion"
+    );
+    assert_eq!(
+        parent_destroyed.load(Ordering::SeqCst),
+        1,
+        "HTTP parent joined"
+    );
+    assert!(
+        elapsed < Duration::from_secs(6),
+        "C-1 global six-second budget exceeded: {elapsed:?}"
+    );
+    assert_eq!((destroyed_at_return, mutations_after_cleanup - mutations_at_return), (1, 0),
+        "C-1: HTTP shutdown returned before destroying the handler, permitting mutation after return");
+    Ok(())
+}
+
 #[tokio::test]
 #[serial]
 async fn disabled_and_factory_degraded_noop_preserve_intentions_and_http_then_rebuild_drains() {
