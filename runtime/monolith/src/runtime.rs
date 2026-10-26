@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use telegraph_setup::runtime::{
-    combine_results, shutdown_owned_runtime, shutdown_owned_tasks, wait_for_background_failure,
-    OwnedTaskAbortGuard,
+    combine_results, shutdown_owned_runtime, shutdown_owned_tasks, start_owned_http,
+    wait_for_background_failure, OwnedTaskAbortGuard,
 };
 #[cfg(test)]
 use tokio::task::JoinHandle;
@@ -95,7 +95,7 @@ pub async fn run() -> anyhow::Result<()> {
 
     let _abort_iam = OwnedTaskAbortGuard::new(&iam_tasks);
     let _abort_background = OwnedTaskAbortGuard::new(&background_tasks);
-    let server = rustycog::http::start_router_owned(router, server).await;
+    let server = start_owned_http(router, server).await;
     let (result, mut http) = match server {
         Ok(mut http) => {
             let result = tokio::select! {

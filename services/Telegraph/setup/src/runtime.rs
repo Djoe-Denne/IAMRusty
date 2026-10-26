@@ -9,6 +9,17 @@ use tokio::time::{timeout_at, Instant};
 
 pub type BackgroundTask = JoinHandle<anyhow::Result<()>>;
 
+/// Start the shared standalone and monolith HTTP owner.
+///
+/// # Errors
+/// Returns listener or TLS startup failures from the SDK.
+pub async fn start_owned_http(
+    router: axum::Router,
+    config: rustycog::config::ServerConfig,
+) -> anyhow::Result<rustycog::http::OwnedHttpServer> {
+    rustycog::http::start_router_owned(router, config).await
+}
+
 /// Abort every owned parent if the supervising future itself is cancelled.
 /// SQS parents in the pinned SDK own their pollers cancellation-safely.
 pub struct OwnedTaskAbortGuard(Vec<AbortHandle>);

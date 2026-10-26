@@ -1,8 +1,8 @@
 //! Application setup for Telegraph
 
 use crate::runtime::{
-    combine_results, shutdown_owned_runtime, shutdown_owned_tasks, wait_for_background_failure,
-    OwnedTaskAbortGuard,
+    combine_results, shutdown_owned_runtime, shutdown_owned_tasks, start_owned_http,
+    wait_for_background_failure, OwnedTaskAbortGuard,
 };
 use axum::Router;
 use readiness::{
@@ -166,7 +166,7 @@ impl TelegraphApp {
         let mut background_tasks = self.start_background_tasks();
 
         let _abort_background_on_cancel = OwnedTaskAbortGuard::new(&background_tasks);
-        let mut http = match rustycog::http::start_router_owned(
+        let mut http = match start_owned_http(
             create_prefixed_router(self.state.clone(), self.readiness.clone()),
             config,
         )
