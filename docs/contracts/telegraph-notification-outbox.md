@@ -122,13 +122,26 @@ Intégration selon le skill `rustycog-submodule` : inventaire Git/propriété av
 
 ## 6. Raccordement test-only à Sentinel (T3)
 
-Ne démarrer ni le binaire Sentinel ni toute la plateforme. Ajouter si nécessaire **uniquement une dev-dependency** de `telegraph-service` vers `workers/sentinel-sync` (crate `sentinel-sync`) et `telegraph-events`. Sa lib expose déjà `handler`, `translator`, `idempotency`, `fga_client`. Aucun changement production Sentinel ; ce raccordement ne nécessite aucun changement framework supplémentaire au sous-lot §5.2.
+Ne démarrer ni le binaire Sentinel ni toute la plateforme. Ajouter si nécessaire **uniquement une dev-dependency** de `telegraph-service` vers `workers/sentinel-sync` (crate `sentinel-sync`) et `telegraph-events`. Sa lib expose déjà `handler`, `translator`, `idempotency`, `fga_client`. Aucun changement production Sentinel hors exception étroite autorisée au §6.1 ; ce raccordement ne nécessite aucun changement framework supplémentaire au sous-lot §5.2.
 
 Construire dans la fixture de test le vrai `SyncEventHandler::new` avec : `TelegraphTranslator::new()`, `InMemoryEventLedger::new()` derrière `Arc<dyn EventLedger>`, et `OpenFgaWriteClient::new(openfga.client_config())`. La fixture expose le client config du **même** store/modèle OpenFGA réel que le checker HTTP. Pas de tuple préchargé, `allow`, `allow_all`, fake Check ou translator appelé à la place du handler. Cache Check désactivé (`cache_ttl_seconds=0`).
 
 La frontière test-only reçoit le **message réellement lu sur SQS**. Son corps contient l'enveloppe transport (event_id/event_type/aggregate_id/occurred_at/version/data/metadata), dont `data` contient le JSON enum Telegraph. Désérialiser ce `data` en `TelegraphDomainEvent`, vérifier la concordance IDs/type avec l'enveloppe et l'outbox, puis appeler le vrai trait `EventHandler::handle_event` avec cet événement. Aucune reconstruction par `NotificationCreatedEvent::new` à partir d'une ligne SQL : cela régénérerait une identité et casserait la preuve de corrélation. Le parseur SQS partagé est privé ; ne pas le rendre public pour ce seul test.
 
 Cette jonction prouve transport réel → bytes reçus → vrai handler → vrai droit ; elle ne prouve pas le lifecycle du processus Sentinel ni son consumer daemon. Le test supprime/acquitte le message reçu selon la fixture seulement après succès du handler. Un rejeu réutilise les mêmes bytes et le même event_id.
+
+### 6.1 Exception autorisée — classifier idempotent Sentinel
+
+Autorisation humaine persistée dans `.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/36-autorisation-sentinel-ac6.md` (option du rapport 35) : correctif minimal du classifier, tests positifs/négatifs et revue indépendante bornée. Cette exception ne ratifie pas l'ADR 0313 (`Proposed`) et ne change pas la réalité `Partial` de l'ADR 0301.
+
+- **Surface production exclusive** : classifier et gestion d'erreur idempotente dans `workers/sentinel-sync/src/fga_client.rs`, plus les tests strictement nécessaires, colocalisés ou dans les cibles existantes. Préserver les formats historiques reconnus ; aucune extension générale du worker.
+- **Cas réel à couvrir** : après une première écriture réussie, OpenFGA 1.5 renvoie HTTP 400, code `write_failed_due_to_invalid_input`, message `cannot write a tuple which already exists ... invalid write input`. Reconnaître ce motif idempotent précis dans le contexte pertinent de l'opération `write_idempotent`, ainsi que les formats historiques à marqueurs underscored sous leur contexte pertinent. Croiser statut/code et motif avec l'opération concernée ; ni tout HTTP 400, ni une simple mention de doublon/tuple dans un message arbitraire ne vaut succès.
+- **Échecs conservés** : autres 400, authn/authz, indisponibilité et réponse ambiguë ou insuffisamment attribuable à l'effet idempotent attendu restent propagés comme erreurs. Ne pas absorber une erreur composite dont le succès de l'effet demandé n'est pas établi.
+- **Témoins ciblés** : conserver la preuve rouge AC6 existante du run `t3-routing-2ebb73f602484bdf` ; ajouter avant correction, quand possible, les témoins rouges du classifier. Tests positifs sur le format réel et les formats historiques ; négatifs sur les autres 400, code ou message hors contexte, authn/authz, indisponibilité et ambiguïté. Conserver leurs erreurs observables, pas seulement l'absence de panic. Rapporter noms/commandes réels et rouge/correction/vert sans réécrire la preuve initiale.
+- **Oracle AC6 inchangé** : rejouer les mêmes bytes et le même event_id via le vrai `SyncEventHandler`, puis refaire le passage avec ledger mémoire neuf contre le même tuple OpenFGA réel. Aucun skip mémoire substitué ; tuple destinataire seul et aucun nouveau métier. AC1–AC7 restent intégralement requis, sans diminution d'assertions.
+- **Gate après diff** : revue indépendante limitée au correctif et aux tests livrés, notamment faux positifs du classifier et conservation du replay réel. Les résultats HTTP/résilience annoncés séparément ne constituent ni une vérification de cette exception ni un PASS global ; le lead les recoupe sans relance documentaire.
+
+Hors scope : API publique, backend, harness ou framework nouveaux/modifiés pour cette exception, refonte du ledger, exactly-once et déduplication IAM. Tout besoin dépassant cette surface revient au lead avant extension.
 
 ## 7. Oracles AC1–AC7 et propriétaires
 
