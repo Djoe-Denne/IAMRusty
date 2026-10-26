@@ -15,8 +15,13 @@ pub type BackgroundTask = JoinHandle<anyhow::Result<()>>;
 /// Returns listener or TLS startup failures from the SDK.
 pub async fn start_owned_http(
     router: axum::Router,
-    config: rustycog::config::ServerConfig,
+    mut config: rustycog::config::ServerConfig,
 ) -> anyhow::Result<rustycog::http::OwnedHttpServer> {
+    // Preserve the legacy caller's cached port; SDK port 0 remains ephemeral.
+    // In TLS mode port 0 still means no cleartext listener.
+    if !config.tls_enabled && config.port == 0 {
+        config.port = config.actual_port();
+    }
     rustycog::http::start_router_owned(router, config).await
 }
 
