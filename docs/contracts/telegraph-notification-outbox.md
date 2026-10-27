@@ -235,3 +235,111 @@ Sources de la base examinée :
 - Limite de couverture : sous-module rustycog absent du worktree ; les corps `OutboxRecorder::record`, `OutboxDispatcher::{start,claim_batch,publish_claimed,mark_failed}`, `SqsEventConsumer::{start,stop}`, sérialisation SQS et fixture OpenFGA ont été consultés via Serena sur la racine canonique partagée, sans la reconfigurer. **T2/T3 revalident le pin réellement disponible** avant de coder ; seul le sous-lot cancellation-safe du §5.2 et son pin sont autorisés. Le lead a ensuite confirmé le pin exact `6c63b65c23e26b8f83f1c6f63d656ef31c7591d0` et sqs.rs propre, ce qui consolide le constat de lifecycle sans constituer un test.
 
 Gates avant GO T2 : validation/intégration du contrat par le lead ; arbitrage explicite disabled/no-op (recommandation suspendre) ; ratification de la frontière atomique et de la migration ; ratification du budget QA 6 s et des interfaces de lifecycle. La direction cancellation-safe est autorisée par arbitrage utilisateur ; le sous-lot framework/tests/pin précède le code atomicité Telegraph. Sa livraison puis les preuves AC7 T3 restent des gates, pas des faits acquis. Aucune acceptation autonome, aucune promotion globale de 0301 ou de la garantie IAM.
+
+## 10. Photographie locale et preuves bornées — 2026-10-27
+
+### État courant après recherche et nettoyage
+
+Cette section est documentaire : les décisions normatives et AC1–AC7 restent
+inchangées. Les sous-sections chronologiques suivantes conservent les résultats
+et autorisations **historiques**, pas des consignes actives de relance.
+
+La recommandation retenue conserve les leases SQL et vérifie la reprise après
+l'éligibilité persistée. Aucun changement de production contraire n'a été trouvé :
+pas de drain ajouté, unlock anticipé, lease raccourcie ou budget d'essais réinitialisé.
+Conserver les corrections transactionnelles, NoOp et HTTP ainsi que les deux
+témoins composant complémentaires et l'oracle firstFAILED106. Le dispatcher SDK
+reste inchangé depuis le pin129 ; le SDK HTTP d60 testé/revu est désormais publié
+sur la branche dédiée `mission-telegraph-ac7-zlfadf`, SHA distant vérifié. La
+livraison consomme ce commit exact par gitlink, sans changement de branche principale.
+
+Après nettoyage et vérification, le run `post-expiry122-6412a9c40ae64bf4` réussit :
+1 PASS/0 échec/0 ignoré/6 filtrés, Cargo0,41,02s libtest. Il atteste15 cycles avant
+éligibilité et1 après,1 nouveau claim après expiration,1 succès réel du transport,
+1 message SQS corrélé, mêmes identités/payload et comptes métier inchangés.
+Les observations terminent30,244094s après l'entrée de reconstruction, avant la
+deadline fixe54,989538s ; cleanup inclus dans la phase bornée61s. Le premier
+lancement invalide reste historique, pas remplacé par un faux succès rétroactif.
+IAM25s et toutes les configurations restent inchangés. Ce résultat composant
+seul ne validait pas la verticale finale ni la publication/pin.
+Le contrôle fixe25s depuis reconstruction n'est pas un SLA produit couvrant toute
+lease30s ; l'arrêt local6s ne libère pas nécessairement un claim durable.
+
+La validation verticale finale134, autorisée séparément, est désormais acquise :
+`vertical134-06bd9d7e772c4370`,1 PASS/0 échec/0 ignoré/6 filtrés,25,39s libtest,
+Cargo0/lanceur0. Source test80cce027 compilée/revue indépendamment, production
+inchangée : reconstruction et réception/validation SQS sous D fixe<=55s selon
+éligibilité persistée, IAM25s/arrêt6s/oracles métier conservés. Ce run trouve E
+déjà passée : R0/D25s, observations terminées266736µs après t0, puis vrais
+replay/ledger neuf/tuple unique/HTTP403sansmutation et200 destinataire atteints.
+Nominal et panne sont attestés par deux marqueurs corrélés. Il ne prétend pas
+reproduire une lease encore active dans cette verticale ou expliquer109.
+Les branches d'erreur/timeout de reconstruction sont revues statiquement, pas
+toutes forcées en runtime ; panic arbitraire/annulation extérieure restent hors
+garantie générale de jointure. Clippy strict antérieur non vert et Sonar non
+exécuté restent des réserves, aucun PASS QA global ou Accept ADR déduit.
+Cleanup134 recoupé :4 créés/3 absents/1 SMTP Exited(2) ASK/2 volumes opaques ASK,
+0 possédé actif,15 préexistants conservés. Preuves et livraison : rapports139/140.
+
+Contrôle frais de fin :4 fixtures créées,3 absentes,1 SMTP Exited(2) conservée ASK,
+2 volumes opaques ASK,0 possédée active/Cargo0 ;14 préexistants conservés.
+Le registre corrige en append-only la classification générique yes du SMTP en ASK.
+Desktop/WSL conservés pour workload étranger ; RAM non mesurée. Preuves et bilan
+borné : rapport132 du dossier de mission, archives privées du run sous TI/.tmp.
+
+La cause exacte109 reste inconnue ;110 et117 ne la reconstituent pas. Les rouges,
+sources et résultats archivés restent conservés. Aucun PASS composant ne vaut
+acceptation globale, preuve des droits/replay ou livraison du SDK.
+
+### Historique de preuve — non opératoire
+
+Cette photographie actualise les états historiques des §§5.3/9 sans modifier AC1–AC7 ni effacer leurs rouges. T3 outbox est intégrée à `aa400f38608e92a34c463f1f89b02168f8364440` ; l'état HTTP ultérieur est AI `1f2dd30af52a707ceb4abc2fbea3f963307c246f` / SDK local `d60a88b2f2f499768a807941a1b4c80c9a366b3f`. Ce dernier n'est pas publié et le gitlink reste `129dcc1575e7dd59b4c7935de0b3794dbb7e7d07` : ne pas assimiler checkout testé et pin livré. ADR 0313 et 0503 restent Proposed ; ADR 0301 reste Partial, notamment pour l'écart IAM.
+
+### Outbox et transport : preuves historiques conservées
+
+Le writer commun enregistre notification/livraison éventuelle/outbox avant commit ; aucun publish post-commit ne conditionne le résultat métier. Migration additionnelle, sélection Live/non-NoOp et suspension sans faux published sont livrées. La reconstruction sur la même DB reste soumise à la gate verticale finale ci-dessous. Les preuves SQL T2 sont **7 PASS au premier run puis 1 PASS ciblé après correction du nom de table de faute**, pas un run unique 8/8. SDK SQS : 16 tests ; setup : 6 ; monolithe : 2 après correction de fixture IAM. Runtime : 4 dont unité SMTP ; HTTP : 16 dont unité SMTP ; résilience : 2 dont unité SMTP. Ne pas sommer ces répétitions en taux global. Classifier Sentinel : 1 PASS/4 FAILED avant correction, puis 5 PASS et 3 unités privées PASS ; rouge réel de replay conservé.
+
+Le run vertical `t3-exp3-6125e6e3d1d54e21` donne 1 PASS/0 ignoré/6 filtrés/exit 0, nominal et après panne. Il conserve bytes/event_id, nouvelle instance même DB, vrai handler/FGA, replay ledger neuf, tuple unique et 403 sans mutation/200 destinataire. Calibration §6.2 inchangée : INBOUND initialement 30 s, relue à 5 s avant première app, SQL 25 s absolues. Les timeouts de `t3-ac6-063b92d1c2bb4ce2` et `t3-diag-508dac8b6c2442f4` restent inexpliqués, sans correctif SQS revendiqué ; l'alternative d'ordre du rapport 46 n'a pas été exécutée. Ni SLA 5 s ni preuve équivalente à visibilité 30 s.
+
+### HTTP : correctifs locaux et limites de validation
+
+Le défaut E1 réellement rouge sur aa400f3/SDK129 reste historique : parent terminé et shutdown Ok ne prouvaient pas la destruction du handler avant retour. La correction additive du [contrat HTTP](http-runtime-owned-shutdown.md) est désormais adoptée localement en standalone et monolithe : owner distinct, admission/annulation/jointure exhaustive sous budget commun stop inclus ; Drop n'attend pas et ne constitue pas un succès. Les corrections RP-1/RP-2 et C-1 ont leurs preuves/revues ciblées acquises ; elles ne valent pas validation de toute la plateforme.
+
+Les 13 preuves loopback antérieures restent bornées, sans rerun documentaire. La revue indépendante finale du 2026-10-26 à 21:08Z ferme C-2/C-3 sur AI1f2dd30/SDKd60 : C-2 port 0 cleartext, même test rouge puis vert sur le vrai helper ; C-3 CONNECT HTTP/2, comparatif causal avec même suffixe TESTS (baseline composite explicitement non committée), rouge puis vert. Le vert couvre négociation/routage, pas le lifetime de tout upgrade arbitraire. Les tests setup/host sur source finale donnent chacun 1 PASS/0 ignoré ; ce ne sont pas des lancements full app avec DB ou plateforme complète. Aucun protocole global, startup cancellation, TLS invalide, driver panic ou resserrement d'échéances non exercé n'est implicitement validé.
+
+### IT finales et nouveaux blocages — état du 2026-10-27
+
+Le run `http-final-it-4d513ab1f63f499b` (rapport 97), AI1f2dd30/SDKd60, a exécuté les deux scénarios adaptés :
+
+- `outbox_runtime_tests::disabled_and_factory_degraded_noop_preserve_intentions_and_http_then_rebuild_drains` : 1 PASS/0 ignoré/4 filtrés/exit 0 ;
+- `notification_created_routing_test::user_email_verified_routes_same_event_through_sentinel_and_real_authorization_after_publisher_recovery` : 0 PASS/1 FAILED/0 ignoré/6 filtrés/exit 101, sur `failed.next_attempt_at > chrono::Utc::now()`. Ce rouge reste conservé ; les valeurs temporelles exactes de cette exécution ne sont pas disponibles.
+
+Le NoOp atteint les cardinalités 0 handle métier suspendu / 2 actifs, owner HTTP distinct et health réel, avec les oracles durables conservés. Aucun vert vertical final n'est déduit du vert historique exp3 ou de cette réussite NoOp.
+
+Diagnostic autorisé unique 105, `vertical-diagnostic-55c9f7ba9837411b`, AI1f2/SDKd60 : 0 PASS/1 FAILED/0 ignoré/6 filtrés/exit 101, même comparaison en échec. Sur la même ligne failed, next_attempt_at−updated_at vaut 4,999997 s ; environ 4,926 s restent à la lecture précoce, mais l'échéance est dépassée d'environ 1,058 s à la comparaison tardive après le sampler passif de 12 s. Cela établit une vérification trop tardive dans **ce run**, pas une cause rétroactivement mesurée pour 97 ni un défaut de production démontré. La suite reprise/replay/droits n'a pas été exécutée dans 105.
+
+La correction temporelle test-only autorisée en106 est intégrée et revue PASS borné : contrôler une date strictement future à l'heure courante dès la première lecture FAILED, dans la future SQL possédée, sous la même deadline absolue25s et sampler inchangé. Ni heure artificielle ni simple `next_at > updated_at` ; ligne absente, erreur SQL ou échéance atteinte font échouer le test. Les contrôles d'identité, erreur, tentatives, persistance, reconstruction, replay, unicité et HTTP403/200 restent conservés, sans snapshot entier figé.
+
+L'unique validation106 est consommée : `vertical-validation106-ac5ddb9998204cdb`, AI1f2 + testSHA `6ac7be0e9e220a501241a0b48bf261c6fd7e14aa921ab098dbbfa29e7df071e1`, SDKd60 propre/index129 inchangé. Résultat : **0 PASS/1 FAILED/0 ignoré/6 filtrés**,50,11s libtest,Cargo101. Le contrôle temporel est franchi, ainsi que les vérifications d'erreur/tentatives/identité avant arrêt. La destination est rétablie et l'application reconstruite, puis `wait_status(PUBLISHED)` expire sous sa limite existante de25s (test556, fixture `outbox_runtime.rs:147`). Aucun changement de production/délais ni relance ; fin reprise/replay/droits du cas panne non atteinte. Le PASS de revue du test ne transforme pas cette exécution en succès.
+
+Le rapport109 distingue une nouvelle frontière de blocage : ancien dispatcher en arrêt, prise en charge SQL et nouvelle instance. La piste d'un verrou publishing de30s face à l'attente de25s reste **hypothèse**, pas cause établie : état et dates exacts de la ligne à cette frontière manquent ; un log de mise à jour annulée ne prouve pas seul l'état persisté. Ni correctif de production ni allongement du délai n'en découlent.
+
+Le diagnostic passif autorisé par110 est consommé : `recovery-diagnostic110-eee8e8b73232492b`, AI1f2/SDKd60, source instrumentée isolée SHA préfixe `5f02f067`, **1 PASS/0 FAILED/0 ignoré/6 filtrés**, 25,76s libtest, Cargo0/launcher0. Production, assertions, délais, backoff, sampler et visibilité inchangés ; aucun autre test exécuté. Le scénario complet atteint publication, replay et vrais contrôles FGA/HTTP403/200 après panne et reconstruction.
+
+Observations sur la même ligne, le même événement et le même agrégat : projection après arrêt failed/attempts1/locked_byNULL/locked_untilNULL, première lecture après reconstruction identique, puis published/attempts2/sans verrou environ109ms après entrée dans l'attente. L'arrêt mesuré dure environ1,491ms dans ce run, pas une borne du pire cas. **La course soupçonnée en109 n'est pas observée** : ce vert prouve ce chemin réussi, ni la cause du timeout109 ni la fiabilité de tous les ordonnancements. L'instrumentation peut modifier le timing ; rouge109 conservé, hypothèse lock30/wait25 ni démontrée ni réfutée globalement.
+
+L'enquête initiale RO, l'auteur et l'analyse du contraste ont confirmé un effort natif high (rapports112/113/116), sans en déduire une preuve comportementale supplémentaire. Le contraste confirme deux chemins différents autour de l'arrêt : candidat trouvé par l'ancien worker juste avant le stop109, contre failed sans verrou aux captures110 puis reprise par le nouveau worker. La cause historique109 reste inconnue ; le cas d'un verrou maintenu après claim est désormais démontré prospectivement par117, sans établir une perte, un défaut d'accès ou une tâche locale orpheline. SDKd60 local non publié/index129 inchangé ; publication et pin final restent bloqués. Le produit conserve le correctif temporel106 (verticalSHA6ac7) et le témoin117, pas l'instrumentation110 isolée.
+
+Le témoin contrôlé `controlled-claim117-695e9e1ccbdd409c` est exécuté une seule fois : **1 PASS/0 FAILED/0 ignoré/5 filtrés**,35,65s libtest,Cargo0/launcher0. SourceSHA403e8c90/patch99ecdf11, revue indépendante bornée favorable, aucun changement production/délais. ClaimSQL terminé, annulation locale possédée, publisher et parent détruits/joints ; même ligne publishing/attempts1/ancienworker/verrou30s. Le nouveau pilote composant fait13sélections réelles commencées et terminées,0claim,13états corrélés inchangés ; aucun message observé lors de la sonde SQS ponctuelle. Fenêtre25001ms, terminée avec environ4,984s de verrou restant. Ce PASS atteste le pronostic du composant, **pas une publication sous25s**, ni la cause historique109, l'application entière, le SQL interrompu ou l'envoi après expiration. Le rouge109 n'est pas remplacé ; aucune exécution, correction ou publication supplémentaire autorisée. Une consultation du canon détermine la prochaine proposition bornée avant tout nouvel essai.
+
+Avis architectural121, lecture seule/high : §3 et AC3 prévoient déjà la reprise après expiration du claim ; AC7 exige la jointure locale sous6s, pas la libérationSQL immédiate. Le contrôle PUBLISHED25s depuis reconstruction ne couvre pas tous les états légalement retardés par lease30s et n'est pas un SLA produit ; le rouge exécuté109 reste inchangé. L'utilisateur autorise explicitement en122 une préparation tests-only puis une seule preuve composant post-expiration : t0 à l'entrée de reconstruction incluse, résiduel R mesuré une fois sur locked_until/next_at avec0<=R<=30s, deadline fixe t0+R+25s<=t0+55s, sans reset et cleanup6s inchangé. IAM25s, production/configuration et critères d'identité/transport restent inchangés. La source compilée et revue445f729a corrige T-1 par contrôle strict après le dernier await. Sa tentative `component-post-expiry122-72aba6ce2cf643b2` s'arrête en initialisation : runID du lanceur41caractères rejeté par le maximum40 du contextefixture, aucun conteneur ou marqueur de preuve, libtest0PASS/1FAIL/0ignored/6filtered/0,00s. **La preuve après expiration reste absente**, ce n'est pas un échec fonctionnel produit. Le préfixe est corrigé à31caractères et validé avantCargo, sans changerSDK/test/budgets ; une exécution de remplacement nécessite encore l'accord humain127. Aucune nouvelle verticale ou publication couverte ; toute reprise immédiate à l'arrêt demanderait un mandat produit/concurrence distinct.
+
+### Provenance, ressources et réserves
+
+Preuves brutes privées : archives `.tmp/telegraph-outbox-{t2,t3}-evidence/manifest.json`, summaries et notes de validation ; rapports97/105/109/110/115 et briefings HTTP/tests conservés par le lead. Preuves110 sous TI/.tmp/recovery-diagnostic110-results-eee8e8b73232492b/, dix copies aux empreintes vérifiées puis cleanup indépendant ; source/patch/compilation/plan archivés séparément. Ce ne sont pas des liens publics ni une invitation à publier les logs/ledgers. Clippy strict Sentinel et fmt ciblé ont des logs verts ; Clippy Telegraph (deux dead_code configuration) et SDK (diagnostics préexistants) restent non verts, sans masque. Sonar non exécuté ; aucun quitus QA global ni Accept ADR déduit.
+
+Cleanup97 vérifié : 8 créés/6 retirés, 2 SMTP Exited(2) ASK, 4 volumes opaques ASK, 0 possédé actif, 8 préexistants inchangés. Cleanup105 : 4 créés/3 absents, 1 SMTP Exited(2) ASK, 2 volumes ASK, 0 possédé actif/Cargo0, 10 préexistants inchangés. Cleanup109 indépendamment vérifié : 4 créés/3 absents, 1 SMTP Exited(2) ASK, 2 volumes ASK, 0 possédé actif/Cargo0, 11 préexistants mêmes identités/états. Cleanup110 indépendamment vérifié : 4 créés/3 absents, 1 SMTP Exited(2) ASK, 2 volumes opaques ASK, 0 possédé actif/Cargo0, 12 préexistants mêmes identités/états. Node étranger préservé ; aucun arrêt global Docker/WSL ni suppression de volume. Comptes séparés, sans adoption des préexistants ni taux global de réussite.
+
+Cleanup117 indépendamment vérifié : 4 créés/3 absents, 1 SMTP Exited(2) ASK, 2 volumes opaques ASK, 0 possédé actif/Cargo0, 13 préexistants mêmes identités/états. Preuves privéesTI/.tmp/controlled-claim117-695e9e1ccbdd409c/, dont lead-cleanup-verification.json ; source/patch/compilation et revue archivés séparément. Aucun bilan de campagne n'autorise à adopter les ressources anciennes ou à présumer un inventaire futur.
+
+Le rollup historique T3 (47créés/40retirés/7SMTPExited(2)ASK/16volumes opaquesUNKNOWNask/0possédé running) n'est pas l'inventaire des campagnes97/105/109 ou du diagnostic110. Les comptes restent séparés ; preuves109 sous TI/.tmp/vertical-validation106-ac5ddb9998204cdb/ (archives privées). Desktop global retenu pour le workload étranger, RAM non mesurée ; aucune suppression/prune nouvelle revendiquée. Limites inchangées : essais finis, pas exactly-once/déduplication IAM/backfill/fencing multi-worker, pas annulation d'effets distants, pas arrêt synchrone non coopératif/spawn_blocking/kill OS garanti.

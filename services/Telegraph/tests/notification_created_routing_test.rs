@@ -334,6 +334,37 @@ async fn inbound_snapshot_schedule(
     }
 }
 
+// G-T1 (authorization106): check scheduling when FAILED is first observed,
+// not after the independent 12s broker sampler has completed.
+async fn assert_first_failed_retry_is_future(
+    db: &sea_orm::DatabaseConnection,
+    id: Uuid,
+    deadline: tokio::time::Instant,
+) {
+    tokio::time::timeout_at(deadline, async {
+        loop {
+            let failed = rustycog::outbox::entity::OutboxEvents::find()
+                .filter(rustycog::outbox::entity::Column::AggregateId.eq(id))
+                .one(db)
+                .await
+                .unwrap_or_else(|_| panic!("first FAILED SQL observation failed: notification={id}"))
+                .expect("committed notification must have a durable outbox row");
+            if failed.status == STATUS_FAILED {
+                let observed_at = chrono::Utc::now();
+                assert!(
+                    failed.next_attempt_at > observed_at,
+                    "first FAILED must schedule a future retry: notification={id}, event={}, attempts={}, next_attempt_at={}, observed_at={observed_at}",
+                    failed.event_id, failed.attempts, failed.next_attempt_at,
+                );
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("first FAILED must be observed within the existing IAM commit deadline");
+}
+
 async fn assert_business_counts(db: &sea_orm::DatabaseConnection, user_id: Uuid, id: Uuid) {
     assert_eq!(
         notifications::Entity::find()
@@ -359,6 +390,119 @@ async fn assert_business_counts(db: &sea_orm::DatabaseConnection, user_id: Uuid,
             .unwrap(),
         1
     );
+}
+
+// G-134-O: recovery only. Keep the actual parents and HTTP owner available for
+// an observed cleanup if startup or observation exhausts the fixed deadline.
+struct Recovery134 {
+    app: telegraph_setup::TelegraphApp,
+    tasks: Vec<telegraph_setup::runtime::BackgroundTask>,
+    _abort: telegraph_setup::runtime::OwnedTaskAbortGuard,
+    http: rustycog::http::OwnedHttpServer,
+    url: String,
+}
+
+impl Recovery134 {
+    async fn start(
+        config: telegraph_configuration::TelegraphConfig,
+        deadline: tokio::time::Instant,
+    ) -> anyhow::Result<Self> {
+        // No business parent exists while the fallible factory is awaited.
+        let app = tokio::time::timeout_at(
+            deadline,
+            Box::pin(telegraph_setup::TelegraphApp::new(config)),
+        )
+        .await
+        .map_err(|_| anyhow::anyhow!("134 application factory exceeded D"))?
+        .map_err(|_| anyhow::anyhow!("134 application factory failed"))?;
+        anyhow::ensure!(
+            tokio::time::Instant::now() < deadline,
+            "134 factory completed after D"
+        );
+        let mut tasks = app.start_background_tasks();
+        let abort = telegraph_setup::runtime::OwnedTaskAbortGuard::new(&tasks);
+        // SDK startup owns partial listeners through RAII; no await follows its
+        // coordinator spawn. Parent handles stay HERE, outside this timeout.
+        let http = tokio::time::timeout_at(
+            deadline,
+            rustycog::http::start_router_owned(
+                axum::Router::new().nest(telegraph_http_server::SERVICE_PREFIX, app.router()),
+                rustycog::config::ServerConfig {
+                    host: "127.0.0.1".into(),
+                    port: 0,
+                    tls_enabled: false,
+                    ..Default::default()
+                },
+            ),
+        )
+        .await;
+        let http = match http {
+            Ok(Ok(http)) => http,
+            result => {
+                let reason = if result.is_err() { "timeout" } else { "error" };
+                let cleanup = telegraph_setup::runtime::shutdown_owned_tasks(&mut tasks, async {
+                    app.stop_background_tasks().await
+                })
+                .await;
+                return telegraph_setup::runtime::combine_results(
+                    Err(anyhow::anyhow!("134 HTTP startup {reason}")),
+                    cleanup,
+                )
+                .map(|()| unreachable!());
+            }
+        };
+        let url = format!(
+            "http://{}{}",
+            http.local_addrs()[0],
+            telegraph_http_server::SERVICE_PREFIX
+        );
+        let owner = Self {
+            app,
+            tasks,
+            _abort: abort,
+            http,
+            url,
+        };
+        if tokio::time::Instant::now() >= deadline || owner.tasks.len() != 2 {
+            let cleanup = owner.stop().await;
+            return telegraph_setup::runtime::combine_results(
+                Err(anyhow::anyhow!(
+                    "134 startup late or missing active parents"
+                )),
+                cleanup,
+            )
+            .map(|()| unreachable!());
+        }
+        Ok(owner)
+    }
+
+    async fn stop(mut self) -> anyhow::Result<()> {
+        let started = tokio::time::Instant::now();
+        telegraph_setup::runtime::shutdown_owned_runtime(&mut self.tasks, &mut self.http, async {
+            self.app.stop_background_tasks().await
+        })
+        .await?;
+        anyhow::ensure!(
+            self.tasks.is_empty() && started.elapsed() < Duration::from_secs(6),
+            "134 recovery cleanup did not join within6s"
+        );
+        Ok(())
+    }
+}
+
+// G-134-E: a measurement precondition, never extra time added to D.
+fn recovery134_clock(
+    t0: tokio::time::Instant,
+    utc0: chrono::DateTime<chrono::Utc>,
+) -> anyhow::Result<()> {
+    let elapsed = chrono::Duration::from_std(t0.elapsed())?;
+    let difference = chrono::Utc::now().signed_duration_since(utc0 + elapsed);
+    anyhow::ensure!(
+        difference >= -chrono::Duration::milliseconds(100)
+            && difference <= chrono::Duration::milliseconds(100),
+        "134 PRECONDITION: UTC/monotonic clocks diverged by more than100ms"
+    );
+    Ok(())
 }
 
 #[tokio::test]
@@ -449,13 +593,14 @@ async fn user_email_verified_routes_same_event_through_sentinel_and_real_authori
                 .await
                 .unwrap();
         }
-        let mut runtime = RunningApp::start(real.clone()).await;
+        let mut runtime = Some(RunningApp::start(real.clone()).await);
+        let mut recovered = None;
         assert_eq!(
-            runtime.tasks.len(),
+            runtime.as_ref().unwrap().tasks.len(),
             2,
             "both transports remain Live even when the queue is absent"
         );
-        runtime.assert_http_healthy().await;
+        runtime.as_ref().unwrap().assert_http_healthy().await;
         let user_id = Uuid::new_v4();
         let other = Uuid::new_v4();
         let event = IamDomainEvent::UserEmailVerified(UserEmailVerifiedEvent {
@@ -472,6 +617,9 @@ async fn user_email_verified_routes_same_event_through_sentinel_and_real_authori
                 let sql = async {
                     let created = stored_notification(db.as_ref(), user_id, deadline).await;
                     tracing::info!(publisher_outage = outage, %user_id, notification_id = %created.id, elapsed_ms = wait_started.elapsed().as_millis(), "Expected IAM notification committed");
+                    if outage {
+                        assert_first_failed_retry_is_future(db.as_ref(), created.id, deadline).await;
+                    }
                     created
                 };
                 // Both futures are owned by this select; no detached sampler.
@@ -480,7 +628,7 @@ async fn user_email_verified_routes_same_event_through_sentinel_and_real_authori
                 let (created, ()) = tokio::join!(sql, inbound_snapshot_schedule(fixture.sqs(), outage, wait_started, deadline));
                 created
             } => created,
-            result = telegraph_setup::runtime::wait_for_background_failure(&mut runtime.tasks) => {
+            result = telegraph_setup::runtime::wait_for_background_failure(&mut runtime.as_mut().unwrap().tasks) => {
                 panic!("Owned runtime exited before IAM commit (publisher_outage={outage}): {result:?}");
             }
         };
@@ -496,19 +644,18 @@ async fn user_email_verified_routes_same_event_through_sentinel_and_real_authori
                 .is_empty(),
             "no grant preloaded for new UUID"
         );
-        if outage {
+        let (published, messages) = if outage {
             let failed = wait_status(db.as_ref(), created.id, STATUS_FAILED).await;
             assert!(failed.attempts > 0 && failed.attempts < 20);
             assert!(failed
                 .last_error
                 .as_deref()
                 .is_some_and(|error| !error.is_empty()));
-            assert!(failed.next_attempt_at > chrono::Utc::now());
             assert_eq!(failed.event_id, durable.event_id);
             assert_eq!(failed.payload_json, durable.payload_json);
             // Destroy the first instance and its state; reconstruct on the SAME
             // writer only after restoring that one real destination.
-            runtime.stop().await;
+            runtime.take().unwrap().stop().await;
             let queue = fixture
                 .sqs()
                 .client
@@ -518,16 +665,159 @@ async fn user_email_verified_routes_same_event_through_sentinel_and_real_authori
                 .await
                 .unwrap();
             assert!(queue.queue_url().is_some());
-            runtime = RunningApp::start(real.clone()).await;
-        }
-        let published = wait_status(db.as_ref(), created.id, STATUS_PUBLISHED).await;
+            // G-134-E/D: starts BEFORE eligibility SQL and application factory.
+            let t0 = tokio::time::Instant::now();
+            let utc0 = chrono::Utc::now();
+            let eligible =
+                tokio::time::timeout_at(t0 + Duration::from_secs(25), row(db.as_ref(), created.id))
+                    .await
+                    .expect("134 PRECONDITION: bootstrap eligibility SQL exceeded25s");
+            assert!(
+                tokio::time::Instant::now() < t0 + Duration::from_secs(25),
+                "134 PRECONDITION: bootstrap SQL completed at/after25s"
+            );
+            recovery134_clock(t0, utc0).expect("134 clock precondition");
+            assert_eq!(
+                (
+                    eligible.id,
+                    eligible.event_id,
+                    eligible.aggregate_id,
+                    eligible.version
+                ),
+                (durable.id, durable.event_id, created.id, durable.version)
+            );
+            assert_eq!(eligible.payload_json, durable.payload_json);
+            assert!(
+                eligible.attempts > 0 && eligible.attempts < 20,
+                "134 PRECONDITION: retry budget unavailable"
+            );
+            let eligibility = match eligible.status.as_str() {
+                rustycog::outbox::entity::STATUS_PUBLISHING => {
+                    assert!(
+                        eligible
+                            .locked_by
+                            .as_deref()
+                            .is_some_and(|owner| !owner.is_empty()),
+                        "134 PRECONDITION: publishing owner missing"
+                    );
+                    Some(
+                        eligible
+                            .locked_until
+                            .expect("134 PRECONDITION: publishing expiry missing"),
+                    )
+                }
+                rustycog::outbox::entity::STATUS_PENDING | STATUS_FAILED => {
+                    assert!(
+                        eligible.locked_by.is_none() && eligible.locked_until.is_none(),
+                        "134 PRECONDITION: retry state has incompatible lock"
+                    );
+                    Some(eligible.next_attempt_at)
+                }
+                STATUS_PUBLISHED => {
+                    assert!(
+                        eligible.locked_by.is_none() && eligible.locked_until.is_none(),
+                        "134 PRECONDITION: published state still locked"
+                    );
+                    None // No invented E: already published still requires real SQS bytes.
+                }
+                _ => panic!("134 PRECONDITION: unsupported durable status"),
+            };
+            let residual = eligibility.map_or(Duration::ZERO, |at| {
+                at.signed_duration_since(utc0)
+                    .to_std()
+                    .unwrap_or(Duration::ZERO)
+            });
+            assert!(
+                residual <= Duration::from_secs(30),
+                "134 PRECONDITION: residual exceeds30s"
+            );
+            let deadline = t0 + residual + Duration::from_secs(25);
+            let deadline_utc =
+                utc0 + chrono::Duration::from_std(residual + Duration::from_secs(25)).unwrap();
+            tracing::info!(t0_utc = %utc0, eligibility_utc = ?eligibility,
+                residual_us = residual.as_micros(), deadline_utc = %deadline_utc,
+                deadline_us = deadline.duration_since(t0).as_micros(), event_id = %durable.event_id,
+                "134 fixed recovery budget before reconstruction");
+            let rebuilt = Recovery134::start(real.clone(), deadline)
+                .await
+                .expect("134 owned reconstruction");
+            let observation = tokio::time::timeout_at(deadline, async {
+                recovery134_clock(t0, utc0)?;
+                let published = loop {
+                    let state = rustycog::outbox::entity::OutboxEvents::find_by_id(durable.id)
+                        .one(db.as_ref()).await.map_err(|_| anyhow::anyhow!("134 durable SQL unavailable"))?
+                        .ok_or_else(|| anyhow::anyhow!("134 durable intention disappeared"))?;
+                    anyhow::ensure!(state.event_id == durable.event_id && state.aggregate_id == created.id
+                        && state.version == durable.version && state.payload_json == durable.payload_json,
+                        "134 durable identity/version/payload changed");
+                    if state.status == STATUS_PUBLISHED { break state; }
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                };
+                let messages = fixture.sqs().receive_messages_from_queue(OUTBOUND, 10, 2)
+                    .await.map_err(|_| anyhow::anyhow!("134 real SQS receive failed"))?;
+                anyhow::ensure!(messages.len() == 1, "134 expected exactly one real SQS message");
+                let bytes = messages[0].body().ok_or_else(|| anyhow::anyhow!("134 SQS body missing"))?;
+                let envelope: serde_json::Value = serde_json::from_str(bytes)
+                    .map_err(|_| anyhow::anyhow!("134 actual SQS envelope invalid"))?;
+                anyhow::ensure!(envelope["event_type"] == "notification_created"
+                    && envelope["event_id"] == durable.event_id.to_string()
+                    && envelope["aggregate_id"] == created.id.to_string()
+                    && envelope["version"] == durable.version && envelope["data"] == durable.payload_json,
+                    "134 actual SQS identity/version/payload mismatch");
+                let received: TelegraphDomainEvent = serde_json::from_value(envelope["data"].clone())
+                    .map_err(|_| anyhow::anyhow!("134 actual SQS event invalid"))?;
+                let TelegraphDomainEvent::NotificationCreated(payload) = &received;
+                anyhow::ensure!(received.event_id() == durable.event_id && payload.user_id == user_id
+                    && payload.notification_id == created.id && payload.created_at == created.created_at,
+                    "134 actual event recipient/notification/timestamp mismatch");
+                let notifications = notifications::Entity::find().filter(notifications::Column::UserId.eq(user_id))
+                    .count(db.as_ref()).await.map_err(|_| anyhow::anyhow!("134 notification count unavailable"))?;
+                let deliveries = notification_deliveries::Entity::find()
+                    .filter(notification_deliveries::Column::NotificationId.eq(created.id)).count(db.as_ref()).await
+                    .map_err(|_| anyhow::anyhow!("134 delivery count unavailable"))?;
+                let intentions = rustycog::outbox::entity::OutboxEvents::find()
+                    .filter(rustycog::outbox::entity::Column::AggregateId.eq(created.id)).count(db.as_ref()).await
+                    .map_err(|_| anyhow::anyhow!("134 intention count unavailable"))?;
+                anyhow::ensure!((notifications, deliveries, intentions) == (1, 1, 1), "134 business counts changed");
+                recovery134_clock(t0, utc0)?;
+                // T-1/G-134-D: strict completion AFTER the final covered await.
+                let completed_at = tokio::time::Instant::now();
+                anyhow::ensure!(completed_at < deadline, "134 observations completed at/after D");
+                tracing::info!(t0_utc = %utc0, eligibility_utc = ?eligibility, residual_us = residual.as_micros(),
+                    deadline_utc = %deadline_utc, deadline_us = deadline.duration_since(t0).as_micros(),
+                    completion_us = completed_at.duration_since(t0).as_micros(), event_id = %durable.event_id,
+                    "134 fixed recovery observations completed before D");
+                Ok::<_, anyhow::Error>((published, messages))
+            }).await;
+            match observation {
+                Ok(Ok(result)) => {
+                    recovered = Some(rebuilt);
+                    result
+                }
+                result => {
+                    let cleanup = rebuilt.stop().await;
+                    cleanup.expect("134 failed observation cleanup");
+                    match result {
+                        Err(_) => panic!("134 fixed recovery deadline exceeded"),
+                        Ok(Err(error)) => panic!("134 recovery observation failed: {error}"),
+                        Ok(Ok(_)) => unreachable!("successful observation matched above"),
+                    }
+                }
+            }
+        } else {
+            // Nominal deadlines and receive are deliberately unchanged.
+            let published = wait_status(db.as_ref(), created.id, STATUS_PUBLISHED).await;
+            assert_eq!(published.event_id, durable.event_id);
+            assert_eq!(published.payload_json, durable.payload_json);
+            let messages = fixture
+                .sqs()
+                .receive_messages_from_queue(OUTBOUND, 10, 2)
+                .await
+                .unwrap();
+            (published, messages)
+        };
         assert_eq!(published.event_id, durable.event_id);
         assert_eq!(published.payload_json, durable.payload_json);
-        let messages = fixture
-            .sqs()
-            .receive_messages_from_queue(OUTBOUND, 10, 2)
-            .await
-            .unwrap();
         assert_eq!(messages.len(), 1);
         let bytes = messages[0].body().expect("real SQS body");
         let envelope: serde_json::Value = serde_json::from_str(bytes).unwrap();
@@ -577,7 +867,11 @@ async fn user_email_verified_routes_same_event_through_sentinel_and_real_authori
         assert_eq!(tuples[0].relation, "recipient");
         assert_eq!(tuples[0].object, object);
         let client = reqwest::Client::new();
-        let url = format!("{}/api/notifications/{}/read", runtime.url, created.id);
+        let base_url = recovered.as_ref().map_or_else(
+            || runtime.as_ref().unwrap().url.as_str(),
+            |owner| owner.url.as_str(),
+        );
+        let url = format!("{base_url}/api/notifications/{}/read", created.id);
         let before = notifications::Entity::find_by_id(created.id)
             .one(db.as_ref())
             .await
@@ -649,6 +943,11 @@ async fn user_email_verified_routes_same_event_through_sentinel_and_real_authori
             .expect("persist bounded correlation witness");
             output.flush().expect("flush correlation witness");
         }
-        runtime.stop().await;
+        if let Some(recovered) = recovered {
+            recovered.stop().await.expect("134 final owned cleanup");
+        }
+        if let Some(runtime) = runtime {
+            runtime.stop().await;
+        }
     }
 }
