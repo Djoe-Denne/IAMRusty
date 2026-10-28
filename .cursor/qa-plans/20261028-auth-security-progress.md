@@ -69,6 +69,12 @@ Nouveaux noms déclarés avant run : `iam_http_verifier_requires_explicit_princi
 
 Séquence prévue : oracle Cell contre le helper setup existant pour un ROUGE fonctionnel avant correction lorsque la compilation le permet, puis configuration/setup et témoins. Commandes sous futur créneau dédié : `cargo test --locked -p iam-configuration --lib` ; `cargo test --locked -p iam-setup --lib <sélecteur nommé>` ; `cargo test --locked -p iam-setup --test seeded_verifier_configuration` ; checks IAM/monolithe selon état des branches, fmt ciblé et Clippy pertinents. Le monolithe global ne peut pas être déclaré vert avec les anciens consommateurs ; compilation seule/erreur fixture ne sont pas un oracle fonctionnel.
 
+### Troisième gate applicatif et fixtures SDK
+
+Après restitution du micro-batch IAM, prochain créneau exclusif pool-3 : `cargo check --locked -p hive-service --tests` après attribution db.rs (compilation seule), puis `cargo test --locked -p hive-domain --test member_issuer` pour les règles d'autorité modifiées. Pas de PG/FGA ou queue exécutés par ces commandes.
+
+Dans le même bail, sous réserve des préconditions déjà décrites : baseline de la suite SDK existante `--features http,testing --lib http::jwt_handler::jwt_rs256_tests::`, qualification séparée des fixtures invalides, correction test-only autorisée et même suite VERT, fmt SDK. Pas de changement de production/assertions pour obtenir VERT. SDK publié72845d9 immuable ; nouveau commit local test-only, sans push ou pin non publié. Cette extension ferme un gap connu d'appelants de l'API modifiée, pas une nouvelle infrastructure.
+
 ### Plan navigateur approuvé, configuration finale temporairement gelée
 
 Noms inscrits avant campagnes statiques : `test_full_http_downstream_preserves_internal_mtls_and_shared_tls`, `test_proof_registry_drives_exact_relink_exemption`, `test_proof_origin_redirects_pkce_and_private_connector`, `test_forward_rejects_foreign_target_bind_service_and_mapping_before_api`, `test_forward_requires_owned_service_and_stops_only_owned_pid`, `test_simulator_consumes_code_once_and_verifies_s256_client_redirect`, `test_simulator_receives_real_authorize_token_profile_without_secret_output` ; négatifs TTL/corps/bindings et assertions du scénario JS selon plan auteur.
