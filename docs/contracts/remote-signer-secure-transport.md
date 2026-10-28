@@ -1,11 +1,12 @@
 # Contrat ratifié — transport sécurisé du signataire distant
 
-- Statut : **Accepted / Unimplemented** ; ratification explicite du lead le 2026-10-28 sous délégation utilisateur de la mission auth v1, après examen des deux propositions architecte. Aucun test fonctionnel déduit de la ratification.
+- Statut : **Accepted / Partial** ; ratification explicite du lead le 2026-10-28 sous délégation utilisateur de la mission auth v1. Implémentation transport intégrée et tests ciblés exécutés ; revue globale et qualification combinée avec les autres corrections restent à faire. Aucun test fonctionnel déduit de la seule ratification.
 - Date : 2026-10-28. Auteur : architecte, lot `arch-signataire`.
 - Jalon : clôture sécurité AuthN / IAM signing, hors P-Apparatus.
 - Base examinée : application `c72ae362b950c63d6736a6818c68babc5a8d6f40` ; SDK/gitlink `d60a88b2f2f499768a807941a1b4c80c9a366b3f`.
 - Canon : [0309](../adr/0309-remote-signer.md) **Accepted / Partial**, [0311](../adr/0311-crypto-privee-deleguee-aux-providers.md) **Accepted / Implemented** ; [0304](../adr/0304-jwt-acces-plateforme-rs256-jwks.md), [0306](../adr/0306-hive-iam-configuration-signature.md), [0307](../adr/0307-workload-identity-port.md).
 - Réalité de ce contrat : exigences non encore implémentées ni testées par ce lot documentaire. Aucun changement de Statut/Réalité des ADR.
+- Actualisation après livraison : le lot documentaire ci-dessus est historique ; l'implémentation du transport a ensuite été livrée au commit `17c9cfd75ed59aee62d7894db5462a036259dae7`, intégrée par le lead avec identité des sept fichiers vérifiée. Configuration29 tests, protocole19 tests, client TLS2 tests PASS, aucun ignored ; limites et preuves dans le ledger de mission. Ces tests ne qualifient pas Envoy, un HSM ou la production. ADR0309 reste Accepted / Partial.
 
 ## 1. Décision, alternatives et seuil ADR
 

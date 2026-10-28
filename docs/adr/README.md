@@ -113,7 +113,7 @@ Contrat secondaire test-side : [m6 proof hardening](../contracts/20261018-m6-pro
 | [0306](0306-hive-iam-configuration-signature.md) | Config signature org = commande synchrone Hive→IAM ; pas de secret dans les events | Accepted / Partial |
 | [0307](0307-workload-identity-port.md) | WorkloadIdentity = port ; SPIFFE évalué, pas dépendance obligatoire | Accepted / Implemented |
 | [0308](0308-mesh-authn-jwt.md) | Mesh/gateway AuthN JWT → principal `(iss, sub)` | Accepted / Partial |
-| [0309](0309-remote-signer.md) | Remote signer = Sign / GetPublicKey ; [contrat transport sécurisé](../contracts/remote-signer-secure-transport.md) ratifié, non implémenté | Accepted / Partial |
+| [0309](0309-remote-signer.md) | Remote signer = Sign / GetPublicKey ; [transport sécurisé](../contracts/remote-signer-secure-transport.md) intégré et tests ciblés verts, qualification globale restante | Accepted / Partial |
 | [0310](0310-admission-epochs-budget-jwks.md) | Admission writer atomique des epochs ; budgets/réserve et quotas conservés ; calcul/capacité partiellement supersédés par 0312 le 2026-10-08 | Accepted / Partial |
 | [0311](0311-crypto-privee-deleguee-aux-providers.md) | Crypto privée JWT déléguée ; PEM dev explicite ; version provider épinglée | Accepted / Implemented |
 | [0312](0312-admission-jwks-par-slots-bornes.md) | Slots JWKS bornés ; réserve/atomicité conservées ; constantes ratifiées et prouvées | Accepted / Implemented |

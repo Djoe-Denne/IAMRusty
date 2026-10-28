@@ -1522,12 +1522,13 @@ async fn remote_signing_bits(
     let workload =
         compose_workload_identity(config.jwt.workload.as_ref(), static_secret, "remote-signer")
             .map_err(|e| anyhow::anyhow!("jwt.workload / jwt.remote.token invalid: {e}"))?;
-    let provider = RemoteSigningProvider::new(
+    let provider = RemoteSigningProvider::new_with_security_mode(
         &remote.url,
         &remote.key_id,
         "RS256",
         "remote-signer",
         workload,
+        config.security.mode,
     )
     .map_err(|e| anyhow::anyhow!("remote signing provider: {e}"))?;
     let public_key = provider

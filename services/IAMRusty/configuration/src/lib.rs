@@ -327,6 +327,24 @@ impl JwtConfig {
     /// Returns [`SecretError::InvalidFormat`] if the selected backend, secret
     /// storage, or endpoint is incompatible with `mode`.
     pub fn validate_signing_security(&self, mode: SecurityMode) -> Result<(), SecretError> {
+        if let Some(remote) = self.remote_http_endpoint()? {
+            validate_remote_signer_endpoint(&remote.url, &remote.key_id, mode)?;
+            if !self.remote_workload_usable(remote) {
+                return Err(SecretError::InvalidFormat(
+                    "invalid remote signer workload configuration".into(),
+                ));
+            }
+            if mode == SecurityMode::Verified
+                && self
+                    .allowed_algorithms
+                    .iter()
+                    .any(|algorithm| !algorithm.trim().eq_ignore_ascii_case("RS256"))
+            {
+                return Err(SecretError::InvalidFormat(
+                    "verified remote signer requires RS256 only".into(),
+                ));
+            }
+        }
         // Delegated RS256 may leave PEM storage entirely unused. Asking the
         // HMAC resolver to consume that PEM instead would read private RSA
         // before discovering it is not an independent legacy HMAC secret.
@@ -510,11 +528,61 @@ impl JwtConfig {
             .filter(|s| !s.is_empty())
     }
 
+    fn remote_workload_usable(&self, remote: &RemoteSignerConfig) -> bool {
+        let workload = self.workload.as_ref();
+        let provider = workload
+            .and_then(|workload| workload.provider.as_deref())
+            .unwrap_or("static")
+            .trim()
+            .to_ascii_lowercase();
+        let populated = |fields: &[&str]| fields.iter().all(|field| !field.trim().is_empty());
+        match provider.as_str() {
+            "" | "static" => remote
+                .token
+                .as_deref()
+                .is_some_and(|token| !token.trim().is_empty()),
+            "aws" => workload
+                .and_then(|workload| workload.aws.as_ref())
+                .is_some_and(|config| {
+                    populated(&[
+                        &config.token_url,
+                        &config.subject_token_file,
+                        &config.role_arn,
+                        &config.role_session_name,
+                        &config.audience,
+                    ])
+                }),
+            "gcp" => workload
+                .and_then(|workload| workload.gcp.as_ref())
+                .is_some_and(|config| {
+                    populated(&[
+                        &config.token_url,
+                        &config.subject_token_file,
+                        &config.audience,
+                    ])
+                }),
+            "azure" => workload
+                .and_then(|workload| workload.azure.as_ref())
+                .is_some_and(|config| {
+                    populated(&[
+                        &config.token_url,
+                        &config.subject_token_file,
+                        &config.tenant_id,
+                        &config.client_id,
+                        &config.scope,
+                    ])
+                }),
+            _ => false,
+        }
+    }
+
     /// Whether config selects the remote HTTP signer (ADR-0309).
     #[must_use]
     pub fn remote_is_requested(&self) -> bool {
-        self.signing_backend()
-            .is_some_and(|s| s.eq_ignore_ascii_case("remote"))
+        [self.backend.as_deref(), self.provider.as_deref()]
+            .into_iter()
+            .flatten()
+            .any(|selection| selection.trim().eq_ignore_ascii_case("remote"))
     }
 
     /// Remote signer block when `backend`/`provider` = `remote`.
@@ -528,6 +596,20 @@ impl JwtConfig {
     pub fn remote_http_endpoint(&self) -> Result<Option<&RemoteSignerConfig>, SecretError> {
         if !self.remote_is_requested() {
             return Ok(None);
+        }
+        let selections: Vec<_> = [self.backend.as_deref(), self.provider.as_deref()]
+            .into_iter()
+            .flatten()
+            .map(str::trim)
+            .filter(|selection| !selection.is_empty())
+            .collect();
+        if selections
+            .iter()
+            .any(|selection| !selection.eq_ignore_ascii_case("remote"))
+        {
+            return Err(SecretError::InvalidFormat(
+                "ambiguous remote signer selection".into(),
+            ));
         }
         let url = self.remote.as_ref().map_or("", |r| r.url.trim());
         if url.is_empty() {
@@ -578,6 +660,55 @@ impl JwtConfig {
     }
 }
 
+/// Validate a remote signing destination before resolving credentials or doing I/O.
+///
+/// # Errors
+/// Returns an opaque [`SecretError::InvalidFormat`] for forbidden destinations or key IDs.
+pub fn validate_remote_signer_endpoint(
+    base: &str,
+    key_id: &str,
+    mode: SecurityMode,
+) -> Result<url::Url, SecretError> {
+    let invalid =
+        || SecretError::InvalidFormat("invalid remote signer endpoint configuration".into());
+    if base.trim() != base
+        || base.chars().any(|c| c.is_control() || c == '\\')
+        || key_id.trim().is_empty()
+        || matches!(key_id, "." | "..")
+    {
+        return Err(invalid());
+    }
+    let url = url::Url::parse(base).map_err(|_| invalid())?;
+    let authority = base
+        .split_once("://")
+        .ok_or_else(invalid)?
+        .1
+        .split(['/', '?', '#'])
+        .next()
+        .ok_or_else(invalid)?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host().is_none()
+        || authority.contains('@')
+        || authority.ends_with(':')
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(invalid());
+    }
+    if url.scheme() == "http" {
+        let literal_loopback = authority == "127.0.0.1"
+            || authority.starts_with("127.0.0.1:")
+            || authority == "[::1]"
+            || authority.starts_with("[::1]:");
+        if mode == SecurityMode::Verified || !literal_loopback {
+            return Err(invalid());
+        }
+    }
+    Ok(url)
+}
+
 impl Default for JwtConfig {
     fn default() -> Self {
         Self {
@@ -606,6 +737,119 @@ impl Default for JwtConfig {
 #[cfg(test)]
 mod signing_security_tests {
     use super::*;
+
+    fn remote_configuration(url: &str) -> JwtConfig {
+        JwtConfig {
+            backend: Some("remote".into()),
+            allowed_algorithms: vec!["RS256".into()],
+            remote: Some(RemoteSignerConfig {
+                url: url.into(),
+                key_id: "isolated-key".into(),
+                token: Some("isolated-static-credential".into()),
+            }),
+            ..unreadable_pem()
+        }
+    }
+
+    #[test]
+    fn remote_endpoint_security_modes_are_explicit() {
+        for mode in [
+            SecurityMode::Verified,
+            SecurityMode::LocalInsecure,
+            SecurityMode::IsolatedTest,
+        ] {
+            let valid = remote_configuration("https://signer.example/prefix");
+            assert!(valid.validate_signing_security(mode).is_ok());
+            for local in ["http://127.0.0.1:1234/prefix", "http://[::1]:1234"] {
+                assert_eq!(
+                    remote_configuration(local)
+                        .validate_signing_security(mode)
+                        .is_ok(),
+                    mode != SecurityMode::Verified
+                );
+            }
+            for invalid in [
+                "http://localhost:1234",
+                "http://signer.example",
+                "http://192.168.1.1",
+                "relative",
+                "ftp://signer.example",
+                "https:///",
+                "https://signer.example:65536",
+                "https://user@signer.example",
+                "https://@signer.example",
+                "https://user:pass@signer.example",
+                "https://signer.example?",
+                "https://signer.example#",
+                " https://signer.example",
+                "https://signer.example ",
+                "https://signer.example/\npath",
+                "https://signer.example\\path",
+            ] {
+                assert!(
+                    remote_configuration(invalid)
+                        .validate_signing_security(mode)
+                        .is_err(),
+                    "invalid endpoint admitted in {mode:?}"
+                );
+            }
+            for (backend, provider) in [
+                ("remote", "transit"),
+                ("transit", "remote"),
+                ("pem", "remote"),
+                ("remote", "pem"),
+            ] {
+                let mut ambiguous = valid.clone();
+                ambiguous.backend = Some(backend.into());
+                ambiguous.provider = Some(provider.into());
+                assert!(ambiguous.validate_signing_security(mode).is_err());
+                assert!(ambiguous.remote_http_endpoint().is_err());
+            }
+            let mut alias = valid.clone();
+            alias.backend = None;
+            alias.provider = Some(" remote ".into());
+            assert!(alias.validate_signing_security(mode).is_ok());
+            assert!(alias.remote_http_endpoint().unwrap().is_some());
+            alias.backend = Some(" ".into());
+            assert!(alias.remote_http_endpoint().unwrap().is_some());
+            alias.provider = None;
+            assert!(alias.remote_http_endpoint().unwrap().is_none());
+            for key_id in ["", " ", ".", ".."] {
+                let mut invalid = valid.clone();
+                invalid.remote.as_mut().unwrap().key_id = key_id.into();
+                assert!(invalid.validate_signing_security(mode).is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn remote_verified_requires_rs256_only() {
+        for algorithms in [vec!["HS256"], vec!["PS256"], vec!["RS256", " HS256 "]] {
+            let mut jwt = remote_configuration("https://signer.example");
+            jwt.allowed_algorithms = algorithms.into_iter().map(str::to_owned).collect();
+            assert!(jwt
+                .validate_signing_security(SecurityMode::Verified)
+                .is_err());
+        }
+        let jwt = remote_configuration("https://signer.example");
+        assert!(jwt
+            .validate_signing_security(SecurityMode::Verified)
+            .is_ok());
+        let mut implicit_rs256 = jwt;
+        implicit_rs256.allowed_algorithms.clear();
+        assert!(implicit_rs256
+            .validate_signing_security(SecurityMode::Verified)
+            .is_ok());
+        // An absent allowlist already means RS256-only in the effective
+        // verifier, without resolving the deliberately unreadable PEM.
+        let verifier = implicit_rs256.http_verifier_auth().unwrap();
+        assert_eq!(verifier.jwt.allowed_algorithms, vec!["RS256"]);
+        assert!(verifier.jwt.hs256_secret.is_none());
+        assert_eq!(
+            verifier.jwt.issuer.as_deref(),
+            Some(implicit_rs256.platform_issuer().as_str())
+        );
+    }
 
     fn unreadable_pem() -> JwtConfig {
         JwtConfig {
