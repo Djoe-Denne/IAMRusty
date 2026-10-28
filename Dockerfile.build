@@ -23,10 +23,13 @@ WORKDIR /usr/src
 COPY . .
 
 ENV CARGO_TERM_COLOR=never
+# Keep Linux delivery artifacts in their cache, not the copied Windows target-dir.
+# Cargo's configured 24 jobs remain unchanged.
+ENV CARGO_TARGET_DIR=/usr/src/target
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,id=aiforall-workspace-target-bookworm,target=/usr/src/target \
-    cargo build --release \
+    cargo build --release --locked \
     && mkdir -p /opt/release \
     && find /usr/src/target/release -maxdepth 1 -type f ! -name '*.d' -exec cp {} /opt/release/ \;
 

@@ -16,6 +16,18 @@ SOURCE = Path(__file__).with_name("local-full-acceptance.py")
 
 
 class AcceptanceGuardTests(unittest.TestCase):
+    def test_linux_delivery_build_keeps_24_jobs_and_its_own_target(self):
+        root = SOURCE.parents[2]
+        config = tomllib.loads((root / ".cargo/config.toml").read_text(encoding="utf-8"))
+        self.assertEqual(config["build"]["jobs"], 24)
+        self.assertEqual(config["build"]["target-dir"], r"E:\cargo-target\AIForAll")
+        build = (root / "Dockerfile.build").read_text(encoding="utf-8")
+        self.assertIn("ENV CARGO_TARGET_DIR=/usr/src/target", build)
+        self.assertIn("target=/usr/src/target", build)
+        self.assertIn("find /usr/src/target/release", build)
+        self.assertIn("cargo build --release --locked", build)
+        self.assertNotIn("CARGO_BUILD_JOBS", build)
+
     def load(self):
         spec = importlib.util.spec_from_file_location("acceptance_guard_test", SOURCE)
         module = importlib.util.module_from_spec(spec)

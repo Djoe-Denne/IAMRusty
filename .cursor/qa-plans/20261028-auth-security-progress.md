@@ -66,6 +66,73 @@ zéro test exécuté ; log `.tmp/auth-hive-signer-compile-a42a9afe4a1b4797b5333d
 Deuxième progrès vérifié aprèsOOM (avec typedunit sentinel), sanscacheclean ou
 override24jobs. Ne pas lancerlesIT avantintégrationcorrectifsfinaux.
 
+S-1 livré455306d puis intégré4b2ceb5, quatre sources/tests buffers byte-exact.
+Application2PASS0ignored/3filtrés, domaine4PASS0ignored/13filtrés ; mutation de
+la seule garde organisation⇒1PASS1FAIL, restauration exacte SHA256⇒2PASS. C'est
+une preuve de discrimination de l'oracle, PAS une baseline historique de
+l'ancienne signature. Logs UTF8 recoupés et copiés par allowlist sept fichiers
+vers `.tmp/auth-s1-pool17-proof-455306d`, empreintes identiques. Hookfmt canon
+normalvert. Unités/probes vraidomaine, aucunePG/FGA/file qualifiée par ces runs.
+
+Prochain bail18 exclusif accordé APRÈS restitution17 et intégrationroot :
+une fois septoracles source figés, organization_api_tests--no-run puis seulement
+remote_deadline_is_shared_between_identity_and_http -- --exact. PasDocker/ITPG,
+pasprod, unbinaryparcommande24jobs ; rootn'exécuteaucunCargo/hook en parallèle.
+
+## Compatibilité de l'isolation des fixtures Hive avec la migration irréversible
+
+Constat statique nouveau au préflight transitive : HiveTestDescriptor::run_migrations_down
+(tests/common.rs72–78) appelle encore Migrator::down(None). La nouvelle migration
+refuse volontairement tout down. SDKTestDatabase partage un même container/URL
+par processus, avale cette erreur puis appelle up (database.rs93–106/125–131).
+Une fois les deux migrations appliquées, up ne nettoie donc plus les lignes.
+Risque de contamination intertests, pas un défaut de provenance production ou
+un échec runtime observé. Ne pas changer le down production ou le SDK générique.
+
+Correction locale test-only attribuée : dans le seul HiveTestDescriptor, recréer
+le schéma de la fixture jetable exclusivement possédée via Migrator::fresh, puis
+up générique inchangé/no-op ; aucun usage sur DB vivante. SeaORM migration1.1.20
+résolu : fresh drop tables/types puis exec_up, contrairement à refresh qui passe
+par down (source locale migrator.rs193–215/275–357 vérifiée). Cette opération ne
+sera exécutée que dans les PG testcontainers tracés au préflightIT final.
+Nouveau test nommé avant run : `fixture_schema_reset_clears_rows_and_reapplies_owner_provenance`
+dans organization_api_tests.rs : ligne avant reset, reset via vrai descriptor,
+ligne absente/schemaowner_issuer et deux migrations présents, insertion légitime
+ensuite possible ; refusdown production testé séparément et inchangé. Aucun
+nouveau harness/deps/config runtime. Après sourcefigée, seul no-run affecté à
+requalifier, pas rerun remoteT4 inchangé ; les huit oracles restent à exécuter
+en campagnefinale pour les septPG, hors seulT4déjàvert.
+
+## Préflight statique de la livraison Linux (sans Docker)
+
+Dockerfile.build copie le contexte incluant .cargo/config.toml, dont target-dir
+est WindowsE:, mais collecte les binaires sous /usr/src/target/release. Aucun
+overrideLinuxdansleDockerfile oudockerfile-specificignore trouvé. Nom avant run :
+`test_linux_delivery_build_keeps_24_jobs_and_its_own_target` dans la suite source
+existante test_local_full_acceptance_source.py : conserver jobs24/targetWindows
+config locale, ENV CARGO_TARGET_DIR Linux verscachecollecté, cargo release locked.
+Baseline sourceguard puis petitpatchDockerfile uniquement, même sélection et
+suiteexistante. Ce n'est pas une preuve de build Linux réel. Images aprèsIT,
+depuis un worktree livraison propre HEAD+SDK exacts, jamais contextecanon dirty
+contenant .tmp/.worktrees/inputs privés ; pas de nouveau script/harness ou testDocker.
+
+Résultat sourceguardLinux : baseline1FAILENVabsent, puis1PASS et23PASSsuite
+(0.341s). Recheckinfra statique demandé au reviewer14, buildLinux réel nonexécuté.
+
+Livraison18 finale bbeb7da (parentff63cd4) : huitoracles ; troisfichiersdetests
+dontcommonfreshfixture-only, SDKinchangé/pin74e8. LogsUTF16LE recoupés parhelper
+strict : no-runHive initial10.60s et final17.62s, zérotest ; T4remote1PASS/0ignored/
+19filtrés/13.59stest (38.34scompile), nonrejoué. SeptPGrestentnonexécutés.
+
+Deux chaînes SQL complémentaires à réaligner AVANTIT : snapshots signer_writer_snapshot
+et last_principal_event pointent encore sur tablelegacyoutbox_events. Writeractuel
+HiveOutboxUnitOfWork→OutboxRecorder etentitéSDKécrivent rustycog_outbox_events
+(transaction.rs11, setup/app.rs354, rustycog-outbox/entity.rs12). Remplacer seulement
+table danscesdeuxhelpers, assertionsintactes. Sélecteurs existants
+recognized_same_sub_distinct_issuers_do_not_share_organization_admin et
+hive_membership_and_projection_preserve_target_issuer. Ce n'est pas unROUGEIT
+exécuté ; uncountsurtablelegacyvide serait unoraclefaussement rassurant.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et
