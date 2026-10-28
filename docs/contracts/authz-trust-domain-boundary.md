@@ -122,3 +122,23 @@ Ces précisions d'ownership n'ajoutent aucune frontière métier à la décision
 Oracle complémentaire inscrit avant exécution : `qualified_principal_encoding_preserves_utf8_and_size_bound` (1/256 octets valides, 257 refusé, UTF-8 multioctets exact, pas de troncature). Vérification de source lead : sujet complet maximal 387 octets, sous TupleKey.user max512 de l'API épinglée par la fixture OpenFGA v1.5.0 ; aucun test serveur réalisé par cette vérification.
 
 Attribution complémentaire après inventaire du WIP applicatif : `services/Hive/application/tests/command_coverage.rs` et `services/Hive/tests/sqs_event_routing_tests.rs`, uniquement pour adapter les constructions DTO/events et leurs assertions d'issuer au contrat. Ces fichiers ne donnent pas autorisation de modifier un protocole de queue, d'activer une queue opt-in ou de réécrire le harness. Les tests d'intégration réels demeurent soumis au préflight et au créneau Cargo convenus.
+
+### Sous-lot de raccordement IAM, après intégration remote
+
+Le correctif remote est désormais intégré (`6b6d364`) et son auteur arrêté.
+Le lead peut attribuer le raccordement IAM à un implementer isolé, sans édition
+concurrente du lot identités. Entrées : SDK publié `72845d9` et ce contrat ratifié.
+Périmètre : configuration/lib.rs et setup/app.rs, uniquement transport des champs
+PrincipalPolicy explicites depuis `[auth.jwt]` et validation avant l'I/O de
+signature ; tests de configuration/setup affectés ; cinq TOML IAM existants et
+le seul `ops/deploy/apps/overlays/local-full/config/iam.toml` pour déclarer la
+policy de leur autorité effective. Les sources OAuth/remote, les profils du
+navigateur en cours d'arbitrage et le gitlink restent hors édition de ce sous-lot.
+
+Préserver les helpers de vérification pure et les règles crypto déjà testées ;
+ne pas inventer une plateforme depuis HS issuer, Host, JWKS ou un secret. Les
+deux champs explicites requis par le SDK doivent être réellement consommés,
+absence/invalidité refusées au composition root. La compatibilité historique
+ne devient jamais true implicitement, y compris dans les fixtures. Les valeurs
+des TOML doivent être cohérentes avec l'autorité effectivement signée, sans
+changer public_base_url ni le schéma produit pour faire passer les tests.
