@@ -1,5 +1,20 @@
 # Registre QA de progression — sécurité authentification
 
+## Correction du statut du forwarding — plan avant run
+
+Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et
+CLI0. Nouveau test nommé
+test_forward_cli_propagates_child_failure_and_preserves_owned_interrupt dans la
+suite cible existante, faux enfant/target seulement (aucun socket/API/processus).
+Témoins exit0⇒0, exit1⇒1 opaque et KeyboardInterrupt volontaire⇒0 ; baseline puis
+petite correction main et même sélection, enfin suite target complète. La garde
+UID et le cleanup par seul handle restent inchangés et couverts par tests existants.
+
+Exécution lead : baseline du nouveau test FAIL0!=1 pour enfant exit1, puis même
+test PASS après contrôle du retour process.wait dans main. Témoins exit0 et
+interruption volontaire passent sans altérer le cleanup. Suite target complète
+**21PASS**,0.256s. Aucun subprocessus kubectl réel, socket ou runtime utilisé.
+
 Le plan de mission approuvé reste la référence de portée. Ce registre nomme les nouveaux tests avant leurs runs et conserve les preuves reçues, sans déclencher toute la liste de référence ni créer une infrastructure.
 
 ## SDK — batch auteur Windows natif

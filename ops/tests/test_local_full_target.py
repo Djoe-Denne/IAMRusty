@@ -7,7 +7,7 @@ import tempfile
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import yaml
 
@@ -168,6 +168,33 @@ class AnchorTests(unittest.TestCase):
                 with target.oauth_forward(launcher=launcher):
                     self.fail("foreign UID accepted")
         launcher.assert_not_called()
+
+    def test_forward_cli_propagates_child_failure_and_preserves_owned_interrupt(self):
+        for outcome, expected in ((0, 0), (1, 1), (KeyboardInterrupt, 0)):
+            with self.subTest(outcome=outcome):
+                target = MagicMock()
+                process = Mock()
+                target.oauth_forward.return_value.__enter__.return_value = process
+                target.oauth_forward.return_value.__exit__.return_value = False
+                if outcome is KeyboardInterrupt:
+                    process.wait.side_effect = KeyboardInterrupt
+                else:
+                    process.wait.return_value = outcome
+                arguments = ["local_full_target.py", "oauth-forward", "--lease", str(self.f.lease),
+                             "--cluster", "aiforall-local-full"]
+                with patch.object(anchor, "LocalClusterTargetAnchor", return_value=target), \
+                        patch.object(anchor.sys, "argv", arguments), patch("builtins.print") as output:
+                    self.assertEqual(anchor.main(), expected)
+                process.wait.assert_called_once_with()
+                target.oauth_forward.assert_called_once_with()
+                target.kubectl.assert_not_called()
+                target.kind_load.assert_not_called()
+                if expected:
+                    output.assert_called_once_with(
+                        "STOP: target anchor validation/operation failed (redacted); no adoption/reset",
+                        file=anchor.sys.stderr)
+                else:
+                    output.assert_not_called()
 
     def test_wrong_loopback_alias_zero_get_mutation_and_kind(self):
         self.f.config["clusters"][0]["cluster"]["server"] = "https://127.0.0.1:60999"

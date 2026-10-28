@@ -479,7 +479,8 @@ def main():
                     raise AnchorError("OAuth forward accepts only its fixed target and parent lease")
                 with target.oauth_forward() as process:
                     try:
-                        process.wait()
+                        if process.wait() != 0:
+                            raise AnchorError("owned OAuth forward failed")
                     except KeyboardInterrupt:
                         pass  # Context manager stops only this invocation's child.
             else:
