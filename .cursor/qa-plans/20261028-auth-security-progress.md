@@ -101,6 +101,37 @@ Inventaire Kustomize vérifié9historiques+proof=10, aucune exclusion Knative.
 
 ### Qualification finale à libérer après intégration des auteurs
 
+Publication SDK776 réalisée après revue fresh des oracles, sans changement de
+production/assertions : branche mission avancée FF depuis728, ls-remote exact.
+Pin canonique2b0ea47, config Serena étrangère préservée par SHA256. Les19PASS
+auteur restent distincts de la revue statique et du module TLS exécuté au canon.
+
+Nouveaux sélecteurs annoncés par l'auteur avant le bailAPP final :
+`cargo test --locked -p hive-domain --lib sync_service::principal_tests::` :
+auto_invite_owner_requires_exact_platform_provenance,
+historical_auto_invite_job_rechecks_owner_before_provider,
+sync_without_auto_invite_accepts_foreign_or_unresolved_owner,
+non_inviting_job_creation_does_not_require_platform_owner ; ainsi que
+Manifestoapplication public_only_read_never_looks_up_members_or_org_admin et
+HiveHTTP member_principal_ambiguity_is_conflict_without_identity_echo. Pas encore
+de résultat reçu à cette ligne. Handler sentinel de projection est aussi attribué,
+ses noms effectifs à annoncer avant run, ROUGE avant correction si faisable.
+
+Browser auteur a nommé avant ses runs :
+test_oauth_proof_keeps_8080_authority_and_exact_18080_redirects,
+test_oauth_registry_redirect_is_independent_of_platform_public_base_url,
+test_proof_origin_redirects_pkce_and_private_connector,
+test_proof_private_inputs_drive_hash_without_secret_output. Livraison rapportée
+9c114db : alignment10, target20, simulator5, SAN4 PASS ; acceptance21/22 avec
+oracle source périmé utilisant ancien scalaire Suite au lieu du selected réel
+de la boucle. Micro-correction attribuée dans ce test existant (sans toucher le
+runner), même suite seulement à requalifier ; pas de faux ROUGE produit.
+
+Le profil livré est une préparation : secrets privés par run en Secret/create
+only, trustbundle via init image IAM identique et SSL_CERT_FILE process-local.
+Backend TLS réellement livré, confiance effective et refus nom/CA, navigateur
+réel et corrélation des négatifs avant IAM restent NON PROUVÉS.
+
 Ne pas démarrer runtime ou IT pendant les éditions de production. Après livraison
 app/lab intégrée, geler l'arbre compilé et effectuer check des six packages de
 référence, fmt ciblé/global avec résultat réel et Clippy utile. Revue sécurité
