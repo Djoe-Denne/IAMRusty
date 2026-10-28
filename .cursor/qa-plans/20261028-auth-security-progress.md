@@ -168,6 +168,16 @@ Log `.tmp/auth-org-test-registration-e7c0c8a4-fb3f-4301-b52c-945bab2056ad.log`.
 Le casauthréactivé ajouteunhuitièmetémoinPG pertinent àla sélectionfinale ;
 T4remote resteunitaire1PASSdistinct. AucunchangementproductiondepuisS1.
 
+Préflight de la suitefermée it-nativeHive : sqs_event_routing_tests possède son
+propre descriptor privé (59–64), seul autre appelMigrator::down(None) dans
+Hivetests aprèsscanexact. Même correctionlocaleMigrator::fresh, sanschangement
+des sixoracles ni du downprod. Le fichier activeHIVE_QUEUE__ENABLED dansson
+seulprocess(27–30) et utilisePG/SQS/FGA réels : la suiteHivecomplète exécutera
+donc ces sixcas, ce n'est pas unskip ni une activationglobale. Parentregistre/
+inventairesdoiventtracerLocalStackcommePG/FGA. Pasnouvellefixture/harness.
+Sélecteurs existants routes_organization_* / routes_member_* ; compilation
+ciblée--no-run avantcampagne, évaluationréelleparfixtureexistanteaprèsgates.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et

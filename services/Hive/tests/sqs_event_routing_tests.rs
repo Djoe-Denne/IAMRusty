@@ -60,7 +60,9 @@ impl ServiceTestDescriptor<TestFixture> for HiveSqsTestDescriptor {
         &self,
         connection: &sea_orm::DatabaseConnection,
     ) -> anyhow::Result<()> {
-        Migrator::down(connection, None).await?;
+        // This private descriptor uses the same disposable fixture database.
+        // Keep production provenance rollback forbidden while resetting tests.
+        Migrator::fresh(connection).await?;
         Ok(())
     }
 
