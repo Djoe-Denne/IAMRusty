@@ -1,5 +1,8 @@
 [logging]
 level = "info"
+[principal]
+platform_issuer = "http://127.0.0.1:8080/iam"
+allow_historical_platform_issuer = false
 [openfga]
 scheme = "http"
 host = "openfga"

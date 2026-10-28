@@ -84,3 +84,36 @@ impl SentinelSyncConfig {
         Ok(config)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::SentinelSyncConfig;
+    use rustycog::config::{Config, File, FileFormat};
+
+    #[test]
+    fn local_full_default_projection_policy_is_explicit_and_aligned() {
+        let source =
+            include_str!("../../../ops/deploy/apps/overlays/local-full/config/sentinel.toml");
+        let config: SentinelSyncConfig = Config::builder()
+            .add_source(File::from_str(source, FileFormat::Toml))
+            .build()
+            .unwrap()
+            .try_deserialize()
+            .unwrap();
+        assert_eq!(
+            config.principal.platform_issuer,
+            "http://127.0.0.1:8080/iam"
+        );
+        assert!(!config.principal.allow_historical_platform_issuer);
+        assert!(rustycog::permission::PrincipalPolicy::new(
+            config.principal.platform_issuer.clone(),
+            config.principal.allow_historical_platform_issuer,
+        )
+        .is_ok());
+
+        // Absence must still fail closed, rather than acquiring a default.
+        let mut without_policy = serde_json::to_value(&config).unwrap();
+        without_policy.as_object_mut().unwrap().remove("principal");
+        assert!(serde_json::from_value::<SentinelSyncConfig>(without_policy).is_err());
+    }
+}

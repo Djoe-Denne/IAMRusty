@@ -37,6 +37,30 @@ def load_deployer():
 
 
 class BrowserAlignmentTests(unittest.TestCase):
+    def test_local_full_default_projection_policy_is_explicit_and_aligned(self):
+        expected = {"platform_issuer": "http://127.0.0.1:8080/iam",
+                    "allow_historical_platform_issuer": False}
+        for proof in (False, True):
+            with self.subTest(oauth_proof=proof):
+                objects = load_renderer().render("projectionpolicyvalidation", oauth_proof=proof)
+                app = next(obj for obj in objects if obj["kind"] == "Deployment"
+                           and obj["metadata"]["name"] == "sentinel-sync")
+                pod = app["spec"]["template"]["spec"]
+                container = pod["containers"][0]
+                mount = next(item for item in container["volumeMounts"]
+                             if item["mountPath"] == "/app/config/sentinel-sync.toml")
+                volume = next(item for item in pod["volumes"] if item["name"] == mount["name"])
+                config = next(obj for obj in objects if obj["kind"] == "ConfigMap"
+                              and obj["metadata"]["name"] == volume["configMap"]["name"])
+                policy = tomllib.loads(config["data"][mount["subPath"]])["principal"]
+                self.assertEqual(policy, expected)
+                for field, value in expected.items():
+                    name = "SENTINEL_SYNC_PRINCIPAL__" + field.upper()
+                    overrides = [item for item in container.get("env", []) if item["name"] == name]
+                    self.assertLessEqual(len(overrides), 1)
+                    if overrides:
+                        self.assertEqual(overrides[0].get("value"), str(value).lower())
+
     def test_full_http_downstream_preserves_internal_mtls_and_shared_tls(self):
         source = yaml.safe_load_all((ROOT / "ops/deploy/apps/overlays/kind-mesh/envoy-mesh.yaml").read_text())
         original = next(obj for obj in source if obj["kind"] == "ConfigMap")

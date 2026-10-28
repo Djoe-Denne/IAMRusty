@@ -1,5 +1,31 @@
 # Registre QA de progression — sécurité authentification
 
+## Fermeture des findings finaux (avant runs)
+
+S-2 : `test_local_full_default_projection_policy_is_explicit_and_aligned` dans
+test_oauth_browser_alignment_source.py : rendu défaut et OAuth, fichier réellement
+monté puis env effectives, couple exact8080/false et absence d'ambiguïté. Baseline
+défaut sans principal doit échouer, puis même test et suite ciblée.
+`config::tests::local_full_default_projection_policy_is_explicit_and_aligned`
+dans sentinel-sync : Config/File réel désérialise la TOML montée, PrincipalPolicy
+validate ; sans table principal la désérialisation reste refusée. Pas env globale,
+réseau, testcontainer ou champ optionnel. Commande future après préflight :
+`cargo test --locked -p sentinel-sync --lib config::tests::` (jobs24 inchangés).
+
+S-2 résultat root : baselinePython KeyError principal, puis suitealignment11PASS
+(2.377s) ; unitétypedRust1PASS/0ignored/49filtrés (24.65scompile), log
+`.tmp/auth-s2-sentinel-3f5b713fc4ae4615b8b7349fca0ef70e.log`, exit0. Parse réel
+du fichier monté et refus sansprincipal prouvés sans runtime tiers. Nouveau
+gate ciblé unique aprèsOOM réussi à24jobs ; le grosbatch précédent resteFAILenv.
+Fmtglobalroot etdiffcheck aprèscorrectifPASS. La preuve live de révocation reste
+ouverte. SDK74e8 publiéexact/FF etcheckoutcanon sélectionné, diff+2lignes revu
+parlesdeuxreviewers et63PASSdéjàvalables ; aucunrerunSDKredondant.
+
+T-1/T-2/T-3 et T-4 : noms/sélecteurs du briefing tests2219Z attribués à pool-18,
+deux fichiers de tests seulement ; runs conditionnés au bail Cargo/IT du lead.
+S-1 régression nommée au briefing2222Z attribuée à pool-17 ; plan refs/port existant
+avant production et zéro save/outbox sur refus. Aucun gros batch --tests relancé.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et
