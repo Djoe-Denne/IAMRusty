@@ -163,3 +163,19 @@ en backfill de lignes historiques ou en attestation pour une entrée externe.
 Les scénarios d'autorité étrangère ou de provenance absente doivent pouvoir
 déclarer leur propre issuer ou None explicitement, sans être masqués par ce
 témoin positif. Aucun changement du cycle de vie DB/testcontainers ou des queues.
+
+### Compatibilité des fixtures SDK RS256 sous feature testing
+
+Attribution au même auteur SDK : `rustycog-http/src/jwt_rs256_tests.rs`, seulement
+fixtures/factories de test, pour fournir les deux champs policy explicites aux
+constructeurs déjà utilisés. Les assertions crypto/issuer/seed/algorithmes ne
+sont ni retirées ni affaiblies. Default historique false ; true uniquement dans
+le test nommé de fenêtre historique iamrusty, jamais comme défaut global.
+Les helpers purs restent purs : employer les constructeurs configurés existants
+quand le test exige aussi une vue UUID plateforme. Aucun code de production SDK,
+manifeste, lock, nouveau helper public ou harness autorisé par cette attribution.
+
+Le commit72845d9 publié reste immuable. Cette adaptation, si nécessaire après
+preuve du gap, sera un nouveau commit test-only soumis à vérification et décision
+de publication du lead, puis sélection exacte du gitlink. Aucun nouveau HEAD
+non publié ne peut remplacer le pin déjà autorisé.
