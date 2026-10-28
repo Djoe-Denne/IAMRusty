@@ -45,6 +45,27 @@ six organisations datées, toutes pages1+terminale ; snapshot exact cardinalité
 etensemble+acteur+owner ; WIF/HTTP7+7 refus9–13s/positif1+1, unRawSigner/opération.
 Compilation/test par binaire cible et bail séparé, aucune nouvelle dépendance.
 
+Complément T-3 requis par la bascule ratifiée (gap explicite du reviewer, pas
+une nouvelle campagne) : `owner_issuer_upgrade_preserves_legacy_rows_without_backfill`
+dans le même fichierHive. Sur fixture PG dédiée et transaction rollback existante,
+préparer effectivement l'ancien schéma initial et des lignes antérieures SANS
+colonne owner_issuer ; appliquer la vraie migration additive puis vérifier rows/
+UUID/owner/membership/index et owner_issuerNULL, pas de stamping automatique.
+Ne pas confondre insertionNone aprèsmigration et preuve d'upgrade ; aucun nouvel
+outil de migration/runtime ou changement de prod. Sélection `owner_issuer_` réunit
+ce test et le refusdowngrade, préflightIT final obligatoire comme les autresPG.
+
+Précompilation ciblée aprèsOOM, sourcecanon c53e8f6 gelée :
+`cargo test --locked -p hive-service --test organization_signer_permissions --no-run`.
+Le test collision principal est inchangé par auteurs17/18 et sera exécuté dans
+la campagne réelle, pas ici. Un seul binaire à lier,24jobsconfig inchangés ; pas
+startDocker/testfixture par --no-run. Ce contrôle ne qualifie aucun refusHTTP/FGA.
+
+Résultat ciblé36.12s/exit0, binaire organization_signer_permissions produit,
+zéro test exécuté ; log `.tmp/auth-hive-signer-compile-a42a9afe4a1b4797b5333de08d52a352.log`.
+Deuxième progrès vérifié aprèsOOM (avec typedunit sentinel), sanscacheclean ou
+override24jobs. Ne pas lancerlesIT avantintégrationcorrectifsfinaux.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et
