@@ -66,6 +66,48 @@ pub struct ApparatusConfig {
     /// HS256 verifier for the privileged binding grant snapshot GET.
     #[serde(default)]
     pub grant_snapshot_auth: GrantSnapshotAuthConfig,
+    #[serde(default)]
+    pub runtime_control: RuntimeControlConfig,
+}
+
+/// Separate explicit runtime mode. False is not permission to ignore persisted
+/// fences: setup refuses that combination instead of restarting a legacy path.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeControlConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub maintenance_enabled: bool,
+    #[serde(default)]
+    pub authority_id: Option<String>,
+    #[serde(default)]
+    pub installation_id: Option<String>,
+    #[serde(default)]
+    pub profile: Option<String>,
+    #[serde(default)]
+    pub profile_lock_sha256: Option<String>,
+    #[serde(default)]
+    pub endpoint_scheme: Option<String>,
+    #[serde(default)]
+    pub endpoint_port: Option<u16>,
+    #[serde(default)]
+    pub allowed_repositories: Vec<String>,
+    #[serde(default)]
+    pub admission_keys: Vec<RuntimeAdmissionPublicKeyConfig>,
+}
+
+/// Public trust only; never private-key/Transit/JWKS discovery configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeAdmissionPublicKeyConfig {
+    pub authority_id: String,
+    pub installation_id: String,
+    pub issuer: String,
+    pub audience: String,
+    pub purpose: String,
+    pub kid: String,
+    pub public_key_pem_path: String,
 }
 
 /// Platform-service JWT for `GET /api/projects/{project_id}/bindings/{component_id}`.

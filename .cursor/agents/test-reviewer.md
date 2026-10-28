@@ -30,7 +30,7 @@ git diff
 → les tests couvrent-ils ces risques ?
 ```
 
-Contexte élargi progressivement : `LOCAL` / `CROSS_FILE` / `CROSS_MODULE`. Utilise GrepAI / Serena pour trouver les tests associés aux symboles modifiés, pas de lecture exhaustive du dossier `tests/`.
+Contexte élargi progressivement : `LOCAL` / `CROSS_FILE` / `CROSS_MODULE`. Appliquer le contrat MCP d'`AGENTS.md` et charger `aiforall-mcp-workflow` pour trouver les tests associés. Vérifier tests/fixtures/cfg et scénarios négatifs : zéro résultat ne prouve pas l'absence. Pas de lecture exhaustive ni d'édition applicative.
 
 ## Ce que tu cherches
 

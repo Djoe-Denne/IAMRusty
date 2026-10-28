@@ -289,6 +289,9 @@ pub trait EnrollmentStore: Send + Sync {
 /// Workload identity failures.
 #[derive(Debug, Error)]
 pub enum IdentityError {
+    /// Server-owned bootstrap/cutover guard refusal; never a caller mode flag.
+    #[error("runtime admission guard refused")]
+    RuntimeGuard(apparatus_contracts::runtime::RuntimeErrorCodeV1),
     /// Private key material was present in an enrollment request.
     #[error("private key material is not accepted")]
     PrivateKeyNotAccepted,

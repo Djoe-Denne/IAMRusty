@@ -12,6 +12,7 @@
       }
     },
     "grepai": {
+      "disabled": true,
       "command": "C:\\Users\\djden\\AppData\\Local\\Programs\\grepai\\grepai.exe",
       "args": [
         "mcp-serve",
@@ -30,6 +31,9 @@
         "-ProjectPath",
         "C:\\Users\\djden\\source\\repos\\AIForAll"
       ]
+    },
+    "rust-code-mcp": {
+      "url": "http://127.0.0.1:3062/mcp?tags=rust-code-mcp"
     },
     "kubernetes-mcp-server": {
       "type": "stdio",

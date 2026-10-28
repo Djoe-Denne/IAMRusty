@@ -1,0 +1,28 @@
+{
+  "gaps": ["G-1", "G-4", "G-8"],
+  "contract": "apparatus-knative-runtime §13.4-A",
+  "positive_arrange": "Explicit independently qualified, already living source Pod/instance from authoritative runtime registry; distinct target is at zero. This arrangement is not a product bootstrap mechanism.",
+  "cases": [
+    { "case": "legacy_valid_certificate_and_session_target_migrated", "expected": "RUNTIME_LEGACY_DISABLED", "tickets": 0, "forwards": 0, "source_materializations": 0 },
+    { "case": "authenticated_D_assertion_and_legacy_fence_only", "expected": "denied_before_begin", "effects": 0 },
+    { "case": "source_binding_migrated_but_no_current_pod", "expected": "denied", "tickets": 0, "forwards": 0 },
+    { "case": "all_bindings_migrated_all_at_zero", "expected": "no_go", "seed_pods": 0, "warmup_requests": 0 },
+    { "case": "source_runtime_closed_or_expired", "expected": "denied_without_legacy_fallback", "tickets": 0 },
+    { "case": "source_store_unavailable_not_absent", "expected": "denied_without_legacy_fallback", "tickets": 0 },
+    { "case": "source_and_target_are_same_binding", "expected": "denied", "forwards": 0 },
+    { "case": "caller_supplied_source_project_does_not_match_store", "expected": "denied", "forwards": 0 },
+    { "case": "source_revoked_between_ticket_and_begin", "expected": "no_new_effect", "effects": 0 },
+    { "case": "caller_lost_after_restore_old_snapshot_session_still_valid_cryptographically", "expected": "denied_without_stale_allow", "forwards": 0 }
+  ],
+  "positive_lookup": {
+    "project_source": "runtime fingerprint store",
+    "selector": "ByInstanceId",
+    "source_kind": "pod",
+    "source_state": "current",
+    "binding_state": "active",
+    "maximum_observation_age_ms": 5000,
+    "requires_live_fence": true,
+    "requires_source_and_target_acl_consent_policy": true
+  },
+  "forbidden_bootstrap": ["self invoke", "seed Pod", "legacy UUID exchange", "min scale override", "hidden source materialization", "legacy_fence promoted to current", "warmup or fabricated session"]
+}

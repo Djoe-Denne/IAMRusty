@@ -466,6 +466,7 @@ impl AdmissionStore for PersistentAdmissionStore {
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct DiskStore {
     #[serde(default)]
     records: Vec<DiskRecord>,

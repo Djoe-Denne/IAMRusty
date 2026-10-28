@@ -173,6 +173,21 @@ async fn quota(
 
 #[async_trait]
 impl RuntimeStore for PostgresRuntimeStore {
+    async fn has_cutover_fences(&self) -> Result<bool, RuntimeErrorCodeV1> {
+        let row = self
+            .db
+            .query_one(statement(
+                "SELECT EXISTS
+            (SELECT 1 FROM apparatus_runtime_cutover_fences) AS installed",
+                vec![],
+            ))
+            .await
+            .map_err(unavailable)?
+            .ok_or(RuntimeErrorCodeV1::RuntimeInternal)?;
+        row.try_get("", "installed")
+            .map_err(|_| RuntimeErrorCodeV1::RuntimeInternal)
+    }
+
     async fn list_cutover_fences(
         &self,
         project_id: Uuid,

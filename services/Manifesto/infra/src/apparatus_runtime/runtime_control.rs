@@ -19,6 +19,7 @@ use uuid::Uuid;
 
 mod begin;
 mod completion;
+pub mod maintenance;
 mod port;
 mod read;
 mod registry;
@@ -434,6 +435,9 @@ pub async fn close_binding_in_transaction(
         return Ok(());
     };
     let cas = row_cas(&row)?;
+    txn.execute(Statement::from_sql_and_values(DbBackend::Postgres,
+        "UPDATE apparatus_runtime_admission_challenges SET invalidated=true WHERE project_id=$1 AND binding_id=$2 AND consumed_at_unix_ms IS NULL",
+        [project_id.into(), binding_id.into()])).await.map_err(db_error)?;
     if generation < cas.generation || grant_revision < cas.grant_revision {
         return Err(error(RuntimeErrorCodeV1::RuntimeStaleState));
     }

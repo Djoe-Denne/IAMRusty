@@ -79,7 +79,7 @@ impl RuntimeSessionService {
             )),
             (None, Some(identity)) => {
                 self.admission
-                    .require_legacy(identity.binding)
+                    .require_legacy_identity(&identity)
                     .await
                     .map_err(RuntimeSessionError::Runtime)?;
                 // No RuntimeControlPort call on this branch. The local writer
@@ -133,6 +133,7 @@ impl RuntimeInvocationService {
         server_ca: reqwest::Certificate,
     ) -> Result<Self, RuntimeError> {
         let http = reqwest::Client::builder()
+            .use_rustls_tls()
             .identity(identity)
             .add_root_certificate(server_ca)
             .redirect(reqwest::redirect::Policy::none())

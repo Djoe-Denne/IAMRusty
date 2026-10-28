@@ -114,9 +114,9 @@ code = réalité. Ne priorise pas contre une règle figée ; un arbitrage
   `docs/adr/README.md` → plages pertinentes, `docs/contracts/`, conception
   `docs/functional/`, `docs/platform/`, wiki `obsidian/AI FOR ALL/projects/`
   (conception ≠ canon).
-- La réalité des tests existants : Serena (symboles), GrepAI
-  (`grepai_trace_callers/callees` sur les use cases touchés), grep exact pour les
-  noms testés connus. Digère logs IT passés et sorties volumineuses via Context
+- La réalité des tests existants : contrat MCP d'`AGENTS.md` et skill
+  `aiforall-mcp-workflow` pour l'exploration Rust/impact ; vérifier tests/fixtures/cfg
+  et scénarios négatifs, sans code applicatif. Digère logs IT passés et sorties volumineuses via Context
   Mode (`ctx_execute`, `ctx_batch_execute`, `ctx_index`/`ctx_search`).
 
 Plan et patrons testés par la suite : `local-runtime-lifecycle` et
@@ -149,7 +149,7 @@ signale la contradiction au coordinateur, ne modifie pas le board.
 
 ## Étape B — inventaire des tests existants
 
-Mappe obligations → tests réels (Serena/GrepAI, pas de lecture exhaustive du
+Mappe obligations → tests réels (Serena/rust-code-mcp, pas de lecture exhaustive du
 dossier `tests/`). Note : niveaux de test réellement présents (IT/use-case),
 mocks qui neutralisent l'invariant testé, tests orphelins, preuves périmées,
 doublons à faible valeur.

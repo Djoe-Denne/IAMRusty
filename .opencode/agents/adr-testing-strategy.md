@@ -41,7 +41,7 @@ Documenter **comment** ce dépôt teste vraiment : harness partagé, fixtures, m
 - `services/IAMRusty/docs/TESTING_GUIDE.md`, `FIXTURES_GUIDE.md`, `KAFKA_EVENT_TESTING_GUIDE.md`
 - `*/tests/common.rs`, `*/tests/fixtures/**`, `*/config/test.toml`
 - `rustycog/rustycog-testing/` (`test_server`, kafka/sqs/openfga testcontainers, wiremock)
-- QMD `aiforall-wiki` via MCP ; GrepAI
+- Contrat MCP d'`AGENTS.md` et skill `aiforall-mcp-workflow` pour explorer le Rust, y compris tests/fixtures/cfg. QMD `aiforall-wiki` via MCP. ADR par outils fichiers, sans code applicatif.
 
 ## Points à vérifier dans le code (ne pas affirmer sans preuve)
 

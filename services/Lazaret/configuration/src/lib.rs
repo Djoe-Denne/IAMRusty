@@ -191,6 +191,10 @@ pub struct ConnectorEntry {
 /// Main application configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
+    /// Opt-in runtime transport. Negative legacy fences remain enforced even
+    /// when this feature is disabled; disabling is never a rollback to legacy.
+    #[serde(default)]
+    pub runtime: RuntimeConfig,
     /// HTTP server bind.
     pub server: ServerConfig,
     /// JWT consumer (`hs256_secret`, issuer, audience) for rustycog `UserIdExtractor` only.
@@ -226,6 +230,22 @@ pub struct AppConfig {
     /// Optional isolated-plugin HTTP hop. Empty `endpoint_url` → in-process dispatch.
     #[serde(default)]
     pub plugin_hop: PluginHopConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    /// Trusted platform URL including the Manifesto prefix, HTTPS only.
+    #[serde(default)]
+    pub manifesto_base_url: String,
+    /// Platform mTLS client leaf/key PEM path (never sent to a plugin).
+    #[serde(default)]
+    pub client_identity_pem_path: String,
+    /// Explicit platform server CA PEM path; no caller-selected discovery.
+    #[serde(default)]
+    pub server_ca_pem_path: String,
 }
 
 /// Locator config for the Lazaret → plugin HTTP hop (M5).

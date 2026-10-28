@@ -1,13 +1,31 @@
 ﻿{
     "version":  1,
     "stats":  {
-                  "total_sources_ingested":  1318,
-                  "total_pages":  223,
+                  "total_sources_ingested":  1333,
+                  "total_pages":  247,
+                  "total_pages_scope": "markdown excluding dot/underscore files and directories; includes navigation and log; recounted 2026-10-27",
                   "last_commit_synced":  "2473baa7a54595931a4eff76a33431f56776db20"
               },
     "projects":  {
                      "aiforall":  {
                                       "source_cwd":  "C:/Users/djden/source/repos/AIForAll",
+                                      "scoped_ingest_20261027": {
+                                          "at": "2026-10-27T19:27:11.468Z",
+                                          "scope": "Telegraph outbox mission only; lead ledger and written subagent deliveries, not all commits or exhaustive native transcripts",
+                                          "commit": "39024b2b445ae9e35f9ad148ea754995f8baab18",
+                                          "sdk_commit": "d60a88b2f2f499768a807941a1b4c80c9a366b3f",
+                                          "inventory": "_sources/opencode-telegraph-outbox-20261027/inventory.json",
+                                          "inventory_sha256": "86808ce625f1cc28880f8a19e23f76ac44b61e95b4b65ec335b9d127218c2e52",
+                                          "written_sources": 14,
+                                          "native_sessions_exported": 0,
+                                          "pages_created": 5,
+                                          "pages_updated": 8,
+                                          "navigation_updated": 1,
+                                          "previous_recorded_pages": 223,
+                                          "actual_content_pages_before": 242,
+                                          "taxonomy": "absent-existing-tags",
+                                          "obsidian_cli": "unavailable-filesystem-fallback"
+                                      },
                                       "last_synced":  "2026-10-03T15:10:00Z",
                                       "last_commit_synced":  "2473baa7a54595931a4eff76a33431f56776db20",
                                       "sync_note":  "session 2026-10-03 : preuve 0308 35 OK (S2S verts, migration Hive role_permissions, isolement certs) ; gitlink rustycog toujours dirty, commit pause",
@@ -40,7 +58,12 @@
                                                              "journal/2026-09-27.md",
                                                              "projects/aiforall/references/mission-g17-m6-20261018.md",
                                                              "projects/aiforall/concepts/orchestrator-agent-harness.md",
-                                                             "projects/aiforall/references/mission-m6-proof-hardening-20261018.md"
+                                                             "projects/aiforall/references/mission-m6-proof-hardening-20261018.md",
+                                                             "projects/aiforall/references/mission-telegraph-outbox-20261027.md",
+                                                             "projects/telegraph/concepts/durable-notification-publication.md",
+                                                             "projects/aiforall/skills/proving-leased-outbox-recovery.md",
+                                                             "projects/rustycog/references/rustycog-outbox.md",
+                                                             "projects/rustycog/references/rustycog-http.md"
                                                          ],
                                       "last_scoped_sync":  {
                                                                "at":  "2026-10-18T17:39:25Z",
@@ -65,6 +88,87 @@
                                   }
                  },
     "sources":  {
+        "C:/Users/djden/source/repos/AIForAll/obsidian/AI FOR ALL/_sources/opencode-telegraph-outbox-20261027/inventory.json": {
+            "ingested_at": "2026-10-27T19:27:11.468Z",
+            "size_bytes": 7699,
+            "modified_at": "2026-10-27T19:27:11.471Z",
+            "content_hash": "sha256:86808ce625f1cc28880f8a19e23f76ac44b61e95b4b65ec335b9d127218c2e52",
+            "source_type": "mission_evidence_bundle",
+            "project": "aiforall",
+            "tracking_scope": "14 exact written source snapshots individually tracked below and in inventory; no native transcript export or hidden reasoning",
+            "pages_created": ["projects/aiforall/references/mission-telegraph-outbox-20261027.md", "projects/telegraph/concepts/durable-notification-publication.md", "projects/aiforall/skills/proving-leased-outbox-recovery.md", "projects/rustycog/references/rustycog-outbox.md", "projects/rustycog/references/rustycog-http.md"],
+            "pages_updated": ["projects/telegraph/telegraph.md", "projects/telegraph/references/telegraph-service.md", "projects/telegraph/references/telegraph-http-and-notification-api.md", "projects/telegraph/references/telegraph-entity-model.md", "projects/telegraph/references/index.md", "projects/telegraph/references/telegraph-testing-and-smtp-fixtures.md", "projects/aiforall/decisions/0300-events-authz.md", "projects/aiforall/aiforall.md", "index.md"]
+        },
+        "C:/Users/djden/source/repos/AIForAll/.cursor/handoffs/20261025-telegraph-notification-outbox.md": {
+            "ingested_at": "2026-10-27T19:27:11.468Z", "size_bytes": 102581, "modified_at": "2026-10-27T19:17:53.726Z",
+            "content_hash": "sha256:797227dd5def8801c7508f1586621a1e411fc68019bcf7de32be5694d8cd6e31", "source_type": "document", "project": "aiforall",
+            "pages_created": ["projects/aiforall/references/mission-telegraph-outbox-20261027.md"], "pages_updated": ["projects/aiforall/aiforall.md"]
+        },
+        "C:/Users/djden/source/repos/AIForAll/.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/121-contrat-reprise-apres-expiration-et-choix-qa.md": {
+            "ingested_at": "2026-10-27T19:27:11.468Z", "size_bytes": 6724, "modified_at": "2026-10-27T11:56:30.843Z",
+            "content_hash": "sha256:eb7e5dd92879c3ce059bbe36b7a3bdebf545d56602038a32c31448c21c60b2d8", "source_type": "document", "project": "aiforall",
+            "pages_created": ["projects/aiforall/skills/proving-leased-outbox-recovery.md", "projects/rustycog/references/rustycog-outbox.md"], "pages_updated": ["projects/aiforall/decisions/0300-events-authz.md"]
+        },
+        "C:/Users/djden/source/repos/AIForAll/.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/129-recherche-web-patterns-outbox-et-arret.md": {
+            "ingested_at": "2026-10-27T19:27:11.468Z", "size_bytes": 13086, "modified_at": "2026-10-27T14:57:32.711Z",
+            "content_hash": "sha256:207c24131cc6edc568dd12e0da0f6549c634163c660f511517372fcd4cd78f6f", "source_type": "document", "project": "aiforall",
+            "pages_created": ["projects/rustycog/references/rustycog-outbox.md"], "pages_updated": []
+        },
+        "C:/Users/djden/source/repos/AIForAll/.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/132-reprise-apres-expiration-prouvee.md": {
+            "ingested_at": "2026-10-27T19:27:11.468Z", "size_bytes": 3780, "modified_at": "2026-10-27T15:23:30.523Z",
+            "content_hash": "sha256:47f410d321db068436e6fb5c81c8e14de924ae47dd397230739ea994695427b6", "source_type": "document", "project": "aiforall",
+            "pages_created": ["projects/aiforall/references/mission-telegraph-outbox-20261027.md"], "pages_updated": ["projects/telegraph/references/telegraph-testing-and-smtp-fixtures.md"]
+        },
+        "C:/Users/djden/source/repos/AIForAll/.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/136-plan-de-reconstruction-bornee-valide.md": {
+            "ingested_at": "2026-10-27T19:27:11.468Z", "size_bytes": 1721, "modified_at": "2026-10-27T18:55:48.040Z",
+            "content_hash": "sha256:8cf5b86843db0bae1c11d8399b5351e48325e7dea49726c5b36c17447a912a2f", "source_type": "document", "project": "aiforall",
+            "pages_created": ["projects/rustycog/references/rustycog-http.md"], "pages_updated": ["projects/telegraph/references/telegraph-service.md"]
+        },
+        "C:/Users/djden/source/repos/AIForAll/.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/139-validation-verticale-reussie.md": {
+            "ingested_at": "2026-10-27T19:27:11.468Z", "size_bytes": 3436, "modified_at": "2026-10-27T19:10:00.770Z",
+            "content_hash": "sha256:578ed1b368bc4d783a01e67a0068b42d746fbdebeff5c372be99632240479a6c", "source_type": "document", "project": "aiforall",
+            "pages_created": ["projects/aiforall/references/mission-telegraph-outbox-20261027.md"], "pages_updated": ["projects/telegraph/references/telegraph-http-and-notification-api.md", "projects/telegraph/references/telegraph-testing-and-smtp-fixtures.md"]
+        },
+        "C:/Users/djden/source/repos/AIForAll/.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/141-livraison-terminee-avec-reserves-explicites.md": {
+            "ingested_at": "2026-10-27T19:27:11.468Z", "size_bytes": 5251, "modified_at": "2026-10-27T19:14:47.639Z",
+            "content_hash": "sha256:c85c650c9759c1726fa8b85676c24620565697d258d14b5d3a0a2319b4e5726d", "source_type": "document", "project": "aiforall",
+            "pages_created": ["projects/aiforall/references/mission-telegraph-outbox-20261027.md"], "pages_updated": ["projects/aiforall/aiforall.md"]
+        },
+        "C:/Users/djden/source/repos/AIForAll/.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/142-commit-et-push-application-gitlink-inclus.md": {
+            "ingested_at": "2026-10-27T19:27:11.468Z", "size_bytes": 1720, "modified_at": "2026-10-27T19:17:53.724Z",
+            "content_hash": "sha256:1ddb88c750a3d8e22134c2b2a2a35550a28af3e06425449ff43677225a4e4809", "source_type": "document", "project": "aiforall",
+            "pages_created": ["projects/aiforall/references/mission-telegraph-outbox-20261027.md"], "pages_updated": ["projects/aiforall/aiforall.md"]
+        },
+        "C:/Users/djden/source/repos/AIForAll/.cursor/review-briefings/20261027-tests-vertical134-80cce027.md": {
+            "ingested_at": "2026-10-27T19:27:11.468Z", "size_bytes": 3733, "modified_at": "2026-10-27T19:06:29.662Z",
+            "content_hash": "sha256:0dae50847a6c7407140ffe6dee8453c941d33ce23d21cffa81d6153b53f7eee3", "source_type": "document", "project": "aiforall",
+            "pages_created": ["projects/aiforall/skills/proving-leased-outbox-recovery.md"], "pages_updated": ["projects/telegraph/references/telegraph-testing-and-smtp-fixtures.md"]
+        },
+        "C:/Users/djden/source/repos/AIForAll/.worktrees/ti/docs/contracts/telegraph-notification-outbox.md": {
+            "ingested_at": "2026-10-27T19:27:11.468Z", "size_bytes": 58682, "modified_at": "2026-10-27T19:11:52.346Z",
+            "content_hash": "sha256:523d547b18f6d6d2d93745582626ca28de980a23a0d0a0237ecfdbef6ee3dd7e", "source_type": "document", "project": "aiforall",
+            "pages_created": ["projects/telegraph/concepts/durable-notification-publication.md", "projects/rustycog/references/rustycog-outbox.md"], "pages_updated": ["projects/telegraph/telegraph.md", "projects/telegraph/references/telegraph-entity-model.md", "projects/aiforall/decisions/0300-events-authz.md"]
+        },
+        "C:/Users/djden/source/repos/AIForAll/.worktrees/ti/docs/contracts/http-runtime-owned-shutdown.md": {
+            "ingested_at": "2026-10-27T19:27:11.468Z", "size_bytes": 14449, "modified_at": "2026-10-26T18:35:54.582Z",
+            "content_hash": "sha256:4cef0f76c743db151c65863ac1d7c8029d5e5ec1ed09320b8d87a08987597f4c", "source_type": "document", "project": "aiforall",
+            "pages_created": ["projects/rustycog/references/rustycog-http.md"], "pages_updated": ["projects/telegraph/references/telegraph-service.md", "projects/telegraph/telegraph.md"]
+        },
+        "C:/Users/djden/source/repos/AIForAll/.worktrees/ti/docs/platform/events-outbox.md": {
+            "ingested_at": "2026-10-27T19:27:11.468Z", "size_bytes": 9053, "modified_at": "2026-10-27T19:11:52.345Z",
+            "content_hash": "sha256:e9f15b109cd8e8affc3c234d7019ba86aaeef88bbb8000657396e4b2c7606d47", "source_type": "document", "project": "aiforall",
+            "pages_created": ["projects/telegraph/concepts/durable-notification-publication.md"], "pages_updated": ["projects/aiforall/decisions/0300-events-authz.md"]
+        },
+        "C:/Users/djden/source/repos/AIForAll/.worktrees/ti/.tmp/vertical-final134-inputs/candidate134-handoff.md": {
+            "ingested_at": "2026-10-27T19:27:11.468Z", "size_bytes": 4984, "modified_at": "2026-10-27T19:00:03.168Z",
+            "content_hash": "sha256:003bbe3c72f30be3ac9d1798eec4ee34da82e32f9c12b4d4dfbbc85f7cc2143f", "source_type": "document", "project": "aiforall",
+            "pages_created": ["projects/aiforall/skills/proving-leased-outbox-recovery.md"], "pages_updated": []
+        },
+        "C:/Users/djden/source/repos/AIForAll/.cursor/qa-plans/20261027-vertical-post-expiry134.md": {
+            "ingested_at": "2026-10-27T19:27:11.468Z", "size_bytes": 2449, "modified_at": "2026-10-27T19:14:47.641Z",
+            "content_hash": "sha256:e98dfa1c7845c5a43b7e6bf844f6878ab68f701fce2013f6ffd419938846ad24", "source_type": "document", "project": "aiforall",
+            "pages_created": ["projects/aiforall/skills/proving-leased-outbox-recovery.md"], "pages_updated": ["projects/telegraph/references/telegraph-testing-and-smtp-fixtures.md"]
+        },
                     "C:/Users/djden/source/repos/AIForAll/obsidian/AI FOR ALL/_raw/opencode-m6-proof-hardening-20261018/inventory.json":  {
                                                                                                                                               "ingested_at":  "2026-10-18T17:39:25Z",
                                                                                                                                               "size_bytes":  45268,
@@ -26037,5 +26141,5 @@
                                                                                                                                                                         ]
                                                                                                                                                   }
                 },
-    "last_updated":  "2026-10-19T11:01:05.7811582Z"
+    "last_updated":  "2026-10-27T19:27:11.468Z"
 }

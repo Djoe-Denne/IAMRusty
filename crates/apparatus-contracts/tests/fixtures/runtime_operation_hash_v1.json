@@ -1,0 +1,31 @@
+{
+  "gap": "G-7",
+  "contract": "apparatus-knative-runtime §13.1-A",
+  "scenario": "kv.get across two bindings with exact counter above 2^53",
+  "expected_sha256": "sha256:b28338f2eeb30c609c532e02cab0f0d3ae92c072480c24d9de6ef833c4a034a8",
+  "input": {
+    "schema_version": 1,
+    "domain": "urn:aiforall:apparatus:runtime:operation-hash:v1",
+    "authorization_id": "00000000-0000-4000-8000-000000000001",
+    "project_id": "00000000-0000-4000-8000-000000000003",
+    "source": {
+      "instance": "00000000-0000-4000-8000-000000000005",
+      "binding": "00000000-0000-4000-8000-000000000004",
+      "release": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generation": "1",
+      "grant_revision": "9007199254740993"
+    },
+    "source_revocation_epoch": "2",
+    "target": {
+      "binding_id": "00000000-0000-4000-8000-000000000006",
+      "generation": "3",
+      "release": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "grant_revision": "4",
+      "revocation_epoch": "5"
+    },
+    "operation_id": "00000000-0000-4000-8000-000000000002",
+    "operation": "kv.get",
+    "payload": { "key": "runtime-cold-state" },
+    "deadline_unix_ms": "1700000030000"
+  }
+}

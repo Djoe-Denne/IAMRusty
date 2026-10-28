@@ -5,7 +5,6 @@
 
 use apparatus_contracts::runtime::{RuntimeBindingSnapshotV1, RuntimeErrorCodeV1};
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 
 /// Server preconditions used by replace/delete, never force-apply/adoption.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,13 +18,9 @@ pub struct ServingMutationPreconditions {
 /// Stable parent name is per project/binding, not per shared release digest.
 #[must_use]
 pub fn serving_name(snapshot: &RuntimeBindingSnapshotV1) -> String {
-    let mut hash = Sha256::new();
-    hash.update(b"urn:aiforall:apparatus:serving-name:v1\0");
-    hash.update(snapshot.project_id.as_bytes());
-    hash.update(snapshot.binding_id.as_bytes());
     // Leave room for a deterministic Revision suffix under the DNS-label limit.
     // Ownership checks below still recoup both complete UUIDs, never this name alone.
-    format!("ar-{}", &hex::encode(hash.finalize())[..32])
+    apparatus_contracts::runtime::runtime_serving_name(snapshot.project_id, snapshot.binding_id)
 }
 
 /// Validate a live object against authoritative ownership before mutation.

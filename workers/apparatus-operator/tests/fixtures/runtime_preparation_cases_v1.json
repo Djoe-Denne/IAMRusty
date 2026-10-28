@@ -1,0 +1,33 @@
+{
+  "gaps": ["G-3", "G-5", "G-8"],
+  "contract": "apparatus-knative-runtime §13.4-B",
+  "proof_level": "A future injected clock/API test proves sequencing only. Real Serving ownership and confinement remain separate E evidence.",
+  "clock_bounds_ms": {
+    "deadline_from_before_create": 30000,
+    "discovery_deadline_from_before_create": 28000,
+    "minimum_round_spacing": 1000,
+    "maximum_round_duration": 2000,
+    "maximum_rounds": 28,
+    "report_and_confirmation_total": 2000,
+    "lease_ttl": 10000,
+    "lease_nominal_renewal": 3000
+  },
+  "cases": [
+    { "case": "create_uid_then_delayed_revision", "partial_reports": 0, "creates": 1, "requires": "first complete observation with returned UID" },
+    { "case": "complete_observation_route_not_ready", "report_allowed": true, "open_allowed": false },
+    { "case": "ready_observation_arrives_later", "open_allowed": "only separate explicit writer command with current authority" },
+    { "case": "create_takes_2500_ms", "global_deadline_ms": 30000, "deadline_reset_at_create_response": false },
+    { "case": "metadata_incomplete_at_28000_ms", "report_fabricated": false, "closed": true, "residual_deleted": false },
+    { "case": "deadline_at_30000_ms", "extra_confirmation_window": false, "second_create": false },
+    { "case": "lease_or_cas_lost_during_metadata_read", "stop_immediately": true, "renew_expired_lease": false },
+    { "case": "create_timeout_or_409_or_missing_uid", "adopt_by_name_label_fence": false, "second_create": false },
+    { "case": "same_name_parent_replaced_with_foreign_uid", "report_allowed": false, "foreign_object_deleted": false },
+    { "case": "old_configuration_revision_or_foreign_owner_chain", "report_allowed": false, "child_mutation": false },
+    { "case": "put_committed_ack_lost", "maximum_confirmation_gets": 1, "requires": "same complete authoritative UID/plan/context/fence and remaining budget" },
+    { "case": "put_not_committed_ack_lost", "closed": true, "invented_authority": false, "second_create": false },
+    { "case": "crash_before_first_complete_report", "restart_adopts_residual": false, "requires": "manual inventory and separate approved maintenance" },
+    { "case": "crash_after_first_report_committed", "resume": "known authoritative UID only with current CAS/live fence" },
+    { "case": "old_observation_capture_reused_as_heartbeat", "refresh_allowed": false, "authorization_expires": true }
+  ],
+  "non_oracles": ["thirty seconds bounds waiting not residual lifetime", "resourceVersion is opaque not locally incremented", "a local UID file is not durable ownership", "report success is not implicit Open", "no child Serving mutation or automatic deletion"]
+}

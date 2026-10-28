@@ -16,9 +16,12 @@ Skill **services** (pas le SDK). Pour rustycog-framework, voir
 `rustycog/.cursor/skills/rustycog-sonar-parallel/SKILL.md`.
 
 Lots file-disjoint, claim écrit avant toute édition. Mutex = package Cargo ×
-`{src|tests}`. Un seul `cargo` Windows à la fois, en `-j 1` : `-j 2` et
-`jobs = 12` ont provoqué un OOM LLVM (os error 1455). Pas de cargo pendant
-que d’autres lots éditent. Pas de compilation dans Docker.
+`{src|tests}`. Un seul `cargo` Windows à la fois, avec **24 jobs de compilation**
+via `.cargo/config.toml`, selon `AGENTS.md` (décision utilisateur 2026-10-25).
+Ne pas imposer `-j 1`, `-j 2` ou un `CARGO_BUILD_JOBS` contradictoire : les
+anciennes limites liées aux OOM LLVM (os error 1455) sont historiques. Si la
+pression mémoire réapparaît, demander un arbitrage avant de réduire les jobs.
+Pas de cargo pendant que d’autres lots éditent. Pas de compilation dans Docker.
 
 ## Mécanique (faire)
 

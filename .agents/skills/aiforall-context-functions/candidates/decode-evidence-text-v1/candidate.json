@@ -1,0 +1,26 @@
+{
+  "id": "decode-evidence-text-v1",
+  "status": "promoted",
+  "purpose": "Décoder strictement et sous limite des octets UTF-8 ou UTF-16 LE/BE de preuves textuelles.",
+  "reuseRationale": "Factoriser la gestion fragile des BOM et logs Windows sans remplacement silencieux, devinette Latin1 ou suppression de NUL.",
+  "existingToolsChecked": ["readEvidence (UTF-8 fichiers uniquement)", "TextDecoder natif (primitive utilisée, sans contrat de limites/BOM/options combiné)", "classifyCommandResult (ne décode pas les logs)"],
+  "provenance": {
+    "taskReference": "Telegraph outbox; context-ingest144; rapport 144",
+    "date": "2026-10-28",
+    "calls": [
+      {"sessionID": "ses_e861568eaffeA9IJpxMS8EF3ZD", "id": "call_50c61d96c74d4042bab4df16d545c158", "contextCodeSha256": "a3fc1c05d59d087815730834b639388b49f50c3e617d79f1407be36782848ac8"},
+      {"sessionID": "ses_e8621599affencObo79oD19K2Z", "id": "call_bf7cfb629c8b46a68a5819244bcac3a1", "contextCodeSha256": "45ddce0000201f023046638ac6e8f7276eadb9b8ba6e402095808717257eeba5"}
+    ],
+    "correction": "call_03e37613d0ac4ad5ab52f61a5ab597b8 : SyntaxError de chaîne newline ; version corrigée chr(10) a produit les résumés rouge/vert. Un test décodé FAILED n'est pas un échec du script d'analyse.",
+    "attribution": "Arguments littéraux concordants avec code Context Mode complet retourné, résultat attribué manuellement. Logique de décodage réécrite strictement ; fallback Latin1 historique volontairement non repris."
+  },
+  "parameters": {"bytes": "Uint8Array ou Buffer", "options": "{encoding?: auto|utf-8|utf-16le|utf-16be, maxBytes?: 1..16777216 (default 1048576), allowNul?: boolean (default false)}"},
+  "returns": "{encoding, encodingSource, bomBytes, byteLength, text}; erreurs à codes stables, sans copie de données privées.",
+  "dependencies": ["Node >=18; CommonJS; TextDecoder global; aucun paquet tiers"],
+  "sideEffects": [],
+  "scopeAndPermissions": "Octets déjà autorisés ; aucune lecture fichier, commande ou interprétation du résultat métier. Ne pas imprimer un texte privé sans filtrage.",
+  "files": {"implementation": "../../scripts/decode-evidence.cjs", "tests": "../../scripts/decode-evidence.test.cjs"},
+  "checksActuallyRun": ["Relecture code/tests avant exécution", "node --check sur les deux fichiers : exit 0", "node --test function.test.cjs : exit 0 (13 tests déclarés)", "Import CommonJS et 3 assertions synthétiques dans Context Mode/Bun : PASS"],
+  "knownLimits": ["Sans BOM, auto utilise UTF-8 ; UTF-16 doit être explicite", "Pas de Latin1, UTF32, heuristique de codec ou décodage avec remplacement", "Préfixe UTF32 rejeté même s'il pouvait représenter UTF16 suivi de NUL", "Une seule BOM retirée ; retours ligne et BOM internes préservés", "Texte borné par les octets d'entrée, non expurgé et non résumé", "Entrée déjà allouée ; pas de garantie de snapshot contre mutation concurrente d'un SharedArrayBuffer"],
+  "promotion": {"reviewReference": "../../VALIDATION.md#promotion-explicitement-autorisée-le-2026-10-28", "testEvidence": "../../VALIDATION.md (49 PASS intégrés)", "contextModeEvidence": "../../VALIDATION.md (10 assertions Bun 1.4.2)", "catalogueId": "decode-evidence-text"}
+}

@@ -4,21 +4,31 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Error;
+use apparatus_contracts::runtime::RuntimeControlPort;
 use axum::Router;
 use lazaret_application::{
     empty_command_registry, EmptyPluginLocator, GrantService, IdentityService, InvokeService,
     NamespacedDigestDnsPluginLocator, PluginEndpointLocator, StaticPluginLocator,
 };
+use lazaret_application::{
+    runtime::{RuntimeIdentityAuthority, RuntimeSessionService},
+    runtime_cutover::{LegacyDirectoryGuard, RuntimeCutoverGuard},
+};
 use lazaret_configuration::AppConfig;
+use lazaret_domain::runtime::{RuntimeAdmissionGuard, RuntimeStore};
 use lazaret_domain::{
     AsyncKvStore, BindingGrantSnapshotPort, ConnectorRegistry, EnrollmentStore, IdentityError,
     SecretResolver,
 };
-use lazaret_http::{create_app_routes, create_prefixed_router, create_router};
+use lazaret_http::{create_prefixed_router, create_router, with_runtime_session};
 use lazaret_infra::{
     build_identity_service, DeniedSecretResolver, HttpBindingGrantClient, KvPurgeEventConsumer,
     NamedConnectorProxy, PlatformInternalCa, PostgresKvStore, RedisKvStore,
     VaultHttpSecretResolver,
+};
+use lazaret_infra::{
+    runtime_control::{DisabledRuntimeControl, HttpRuntimeControl},
+    runtime_store::PostgresRuntimeStore,
 };
 use readiness::{attach_ready, ComponentStatus, ReadinessProbe};
 use rustycog::command::GenericCommandService;
@@ -48,6 +58,10 @@ pub struct Application {
     /// Live Manifesto grant consult (no HTTP call until [`GrantService::authorize`]).
     pub grant_service: Arc<GrantService>,
     invoke: Arc<InvokeService>,
+    session_service: Arc<RuntimeSessionService>,
+    /// Closed at every process start. Only the authenticated local maintenance
+    /// runner may reconcile it; no HTTP flag, empty index or persistent seal opens it.
+    pub runtime_cutover_guard: Option<Arc<RuntimeCutoverGuard>>,
     kv_event_consumer: Option<Arc<KvPurgeEventConsumer>>,
 }
 
@@ -67,6 +81,7 @@ impl Application {
         let db = DbConnectionPool::new(&config.database).await?;
         let db_write = db.get_write_connection();
         let kv_conn = db_write.clone();
+        let runtime = build_runtime_admission(&config, db_write.clone()).await?;
 
         let command_registry = empty_command_registry();
         let command_service = Arc::new(GenericCommandService::new(Arc::new(command_registry)));
@@ -80,8 +95,18 @@ impl Application {
 
         let state = AppState::new(command_service, user_id_extractor, permission_checker);
         let (snapshots, _) = resolve_binding_grant_snapshots(&config, injected_snapshots)?;
-        let (identity, ca) = build_identity_service(&config.identity, snapshots.clone(), &kv_conn)
-            .map_err(|e| anyhow::anyhow!("Invalid identity configuration: {e}"))?;
+        let (mut identity, ca) =
+            build_identity_service(&config.identity, snapshots.clone(), &kv_conn)
+                .map_err(|e| anyhow::anyhow!("Invalid identity configuration: {e}"))?;
+        Arc::get_mut(&mut identity)
+            .ok_or_else(|| anyhow::anyhow!("identity_shared_before_guard_install"))?
+            .install_legacy_admission_guard(runtime.admission.clone())?;
+        let session_service = Arc::new(RuntimeSessionService::new(
+            identity.clone(),
+            runtime.store,
+            Arc::new(RuntimeIdentityAuthority::new(runtime.control)),
+            runtime.admission.clone(),
+        ));
         ensure_boot_tls(&ca, &config.server)
             .map_err(|e| anyhow::anyhow!("Invalid TLS material: {e}"))?;
         let grant_service = Arc::new(GrantService::new(snapshots));
@@ -90,15 +115,22 @@ impl Application {
         let connectors = build_named_connectors(&config)?;
         let kv_event_consumer =
             maybe_kv_event_consumer(&config.queue, kv.clone(), identity.enrollment_store()).await?;
-        let invoke = Arc::new(InvokeService::new_with_locator(
-            identity.clone(),
-            grant_service.clone(),
-            kv,
-            secrets,
-            connectors,
-            plugin_endpoint_locator(&config)?,
-        ));
-        let readiness = build_readiness(db_write, kv_event_consumer.as_ref());
+        let invoke = Arc::new(
+            InvokeService::new_with_locator(
+                identity.clone(),
+                grant_service.clone(),
+                kv,
+                secrets,
+                connectors,
+                plugin_endpoint_locator(&config)?,
+            )
+            .with_legacy_admission_guard(runtime.admission),
+        );
+        let readiness = build_readiness(
+            db_write,
+            kv_event_consumer.as_ref(),
+            runtime.cutover.as_ref(),
+        );
 
         tracing::info!("Lazaret application initialized successfully");
 
@@ -109,6 +141,8 @@ impl Application {
             identity,
             grant_service,
             invoke,
+            session_service,
+            runtime_cutover_guard: runtime.cutover,
             kv_event_consumer,
         })
     }
@@ -122,14 +156,7 @@ impl Application {
         let background_tasks = self.start_background_tasks();
         if background_tasks.is_empty() {
             tracing::info!("Starting Lazaret HTTP server...");
-            return create_app_routes(
-                self.state,
-                server_config,
-                self.readiness,
-                self.identity,
-                self.invoke,
-            )
-            .await;
+            return rustycog::http::serve_router(self.prefixed_router(), server_config).await;
         }
 
         run_http_with_background(self, server_config, background_tasks).await
@@ -137,13 +164,16 @@ impl Application {
 
     /// Unprefixed router for monolith `.nest`.
     pub fn router(&self) -> Router {
-        attach_ready(
-            create_router(
-                self.state.clone(),
-                self.identity.clone(),
-                self.invoke.clone(),
+        with_runtime_session(
+            attach_ready(
+                create_router(
+                    self.state.clone(),
+                    self.identity.clone(),
+                    self.invoke.clone(),
+                ),
+                self.readiness.clone(),
             ),
-            self.readiness.clone(),
+            self.session_service.clone(),
         )
     }
 
@@ -152,11 +182,14 @@ impl Application {
     /// The monolith must call [`Self::router`] then nest the prefix once.
     /// Nesting this router again yields `/lazaret/lazaret` (tests assert 404).
     pub fn prefixed_router(&self) -> Router {
-        create_prefixed_router(
-            self.state.clone(),
-            self.readiness.clone(),
-            self.identity.clone(),
-            self.invoke.clone(),
+        with_runtime_session(
+            create_prefixed_router(
+                self.state.clone(),
+                self.readiness.clone(),
+                self.identity.clone(),
+                self.invoke.clone(),
+            ),
+            self.session_service.clone(),
         )
     }
 
@@ -192,6 +225,55 @@ impl Application {
             }
         }
     }
+}
+
+struct RuntimeSetup {
+    store: Arc<dyn RuntimeStore>,
+    control: Arc<dyn RuntimeControlPort>,
+    admission: Arc<dyn RuntimeAdmissionGuard>,
+    cutover: Option<Arc<RuntimeCutoverGuard>>,
+}
+
+async fn build_runtime_admission(
+    config: &AppConfig,
+    db: Arc<DatabaseConnection>,
+) -> Result<RuntimeSetup, Error> {
+    let store: Arc<dyn RuntimeStore> = Arc::new(PostgresRuntimeStore::new(db));
+    // A missing/unavailable directory is never converted to an empty one.
+    let installed = store
+        .has_cutover_fences()
+        .await
+        .map_err(|_| anyhow::anyhow!("runtime_directory_unavailable"))?;
+    if !config.runtime.enabled {
+        if installed {
+            anyhow::bail!("runtime_disabled_with_existing_cutover");
+        }
+        return Ok(RuntimeSetup {
+            store: store.clone(),
+            control: Arc::new(DisabledRuntimeControl),
+            admission: Arc::new(LegacyDirectoryGuard::new(store)),
+            cutover: None,
+        });
+    }
+    let identity_pem = std::fs::read(&config.runtime.client_identity_pem_path)
+        .map_err(|_| anyhow::anyhow!("runtime_client_identity_unavailable"))?;
+    let server_ca_pem = std::fs::read(&config.runtime.server_ca_pem_path)
+        .map_err(|_| anyhow::anyhow!("runtime_server_ca_unavailable"))?;
+    let identity = reqwest::Identity::from_pem(&identity_pem)
+        .map_err(|_| anyhow::anyhow!("runtime_client_identity_invalid"))?;
+    let server_ca = reqwest::Certificate::from_pem(&server_ca_pem)
+        .map_err(|_| anyhow::anyhow!("runtime_server_ca_invalid"))?;
+    let control: Arc<dyn RuntimeControlPort> = Arc::new(
+        HttpRuntimeControl::new(&config.runtime.manifesto_base_url, identity, server_ca)
+            .map_err(|code| anyhow::anyhow!("runtime_control_configuration_invalid: {code:?}"))?,
+    );
+    let guard = Arc::new(RuntimeCutoverGuard::new(store.clone(), control.clone()));
+    Ok(RuntimeSetup {
+        store,
+        control,
+        admission: guard.clone(),
+        cutover: Some(guard),
+    })
 }
 
 /// Resolve Manifesto binding-grant snapshots (ADR-0104).
@@ -352,10 +434,21 @@ async fn maybe_kv_event_consumer(
 fn build_readiness(
     db_write: Arc<DatabaseConnection>,
     consumer: Option<&Arc<KvPurgeEventConsumer>>,
+    runtime: Option<&Arc<RuntimeCutoverGuard>>,
 ) -> Arc<ReadinessProbe> {
     let mut probe = ReadinessProbe::new("lazaret")
         .with_database(db_write)
         .with_publisher(ComponentStatus::Disabled, None);
+    if let Some(guard) = runtime {
+        probe = probe.with_liveness("runtime_bootstrap", guard.readiness_liveness());
+        // No runtime deployment is Ready merely because its cutover directory
+        // reconciled. The concrete signing provider awaits the ratified §13.6
+        // lifecycle; replace this closed check only when that provider is wired.
+        probe = probe.with_liveness(
+            "runtime_signing_provider",
+            Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        );
+    }
     match consumer {
         Some(consumer) if consumer.is_noop() => {
             probe = probe.with_consumer(consumer.transport_status().clone(), None);
@@ -382,13 +475,10 @@ async fn run_http_with_background(
     background_tasks: Vec<tokio::task::JoinHandle<anyhow::Result<()>>>,
 ) -> Result<(), Error> {
     let mut server_handle = {
-        let state = app.state.clone();
-        let readiness = app.readiness.clone();
-        let identity = app.identity.clone();
-        let invoke = app.invoke.clone();
+        let router = app.prefixed_router();
         let server_config = server_config.clone();
         tokio::spawn(async move {
-            create_app_routes(state, server_config, readiness, identity, invoke)
+            rustycog::http::serve_router(router, server_config)
                 .await
                 .map_err(|e| anyhow::anyhow!("HTTP server failed: {e}"))
         })

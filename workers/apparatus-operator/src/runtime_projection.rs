@@ -19,6 +19,26 @@ use sha2::{Digest, Sha256};
 use crate::runtime_ownership::mutation_preconditions;
 use crate::runtime_ownership::serving_name;
 
+mod observation;
+mod preparation;
+pub use observation::RuntimePodObservationCursor;
+pub use preparation::{PreparationWindow, ServingEndpointPolicy, ServingEndpointTransport};
+
+/// Qualified local admission reader. Implementations must re-read current
+/// authoritative decision/key policy, not return a store snapshot loaded at
+/// controller startup. There is deliberately no adapter for a cached store.
+pub trait CurrentServingAdmissionSource: Send + Sync {
+    /// Return current independent Adm-A evidence, refusing withdrawn/uncertain
+    /// decisions. This does not transfer admission authority to the controller.
+    ///
+    /// # Errors
+    /// Missing/stale/withdrawn or unavailable authority fails closed.
+    fn load_current(
+        &self,
+        digest: &crate::digest::ReleaseDigest,
+    ) -> Result<crate::admission::AdmissionRecord, RuntimeErrorCodeV1>;
+}
+
 /// Kubernetes adapter restricted to parent Serving Services in the plugin pool.
 /// Does not hold APIs for Pods, Deployments, Revisions or network Services.
 pub struct ServingParentApi {
@@ -31,9 +51,12 @@ pub struct ServingRuntimeBridge {
     holder_id: uuid::Uuid,
     control: std::sync::Arc<dyn RuntimeControlPort>,
     parents: ServingParentApi,
-    admission: std::sync::Arc<dyn AdmissionStore + Send + Sync>,
+    admission: std::sync::Arc<dyn CurrentServingAdmissionSource>,
     admit_target: std::sync::Arc<crate::admit::AdmitTarget>,
     profile: ServingPlatformProfile,
+    pending_instances: tokio::sync::Mutex<
+        std::collections::BTreeMap<(uuid::Uuid, uuid::Uuid, String), uuid::Uuid>,
+    >,
 }
 
 impl ServingRuntimeBridge {
@@ -42,7 +65,7 @@ impl ServingRuntimeBridge {
     pub fn new(
         control: std::sync::Arc<dyn RuntimeControlPort>,
         parents: ServingParentApi,
-        admission: std::sync::Arc<dyn AdmissionStore + Send + Sync>,
+        admission: std::sync::Arc<dyn CurrentServingAdmissionSource>,
         admit_target: std::sync::Arc<crate::admit::AdmitTarget>,
         profile: ServingPlatformProfile,
     ) -> Self {
@@ -53,6 +76,7 @@ impl ServingRuntimeBridge {
             admission,
             admit_target,
             profile,
+            pending_instances: tokio::sync::Mutex::new(std::collections::BTreeMap::new()),
         }
     }
 
@@ -77,17 +101,25 @@ impl ServingRuntimeBridge {
             .get_binding(&caller, snapshot.project_id, snapshot.binding_id, &selector)
             .await
             .map_err(|error| error.code)?;
+        if matches!(
+            current.state,
+            RuntimeBindingStateV1::Closed | RuntimeBindingStateV1::Draining
+        ) {
+            // The wire snapshot intentionally has no preparation phase. A
+            // prepared closed binding must not be mistaken for cleanup work.
+            return Ok(None);
+        }
         let image = if current.state == RuntimeBindingStateV1::Active {
             let admission = self.admission.clone();
             let target = self.admit_target.clone();
             let verify_snapshot = current.clone();
             Some(
                 tokio::task::spawn_blocking(move || {
-                    AdmittedServingImage::verify(
-                        admission.as_ref(),
-                        &verify_snapshot,
-                        Some(target.as_ref()),
-                    )
+                    let digest =
+                        crate::digest::ReleaseDigest::new(verify_snapshot.release.as_str())
+                            .map_err(|_| RuntimeErrorCodeV1::RuntimeReleaseNotAdmitted)?;
+                    let record = admission.load_current(&digest)?;
+                    AdmittedServingImage::verify_record(record, &digest, Some(target.as_ref()))
                 })
                 .await
                 .map_err(|_| RuntimeErrorCodeV1::RuntimeReleaseNotAdmitted)??,
@@ -171,6 +203,9 @@ impl ServingParentApi {
         image: &AdmittedServingImage,
         profile: &ServingPlatformProfile,
     ) -> Result<DynamicObject, RuntimeErrorCodeV1> {
+        if profile.approved_lock.is_none() || profile.serving_endpoint.is_none() {
+            return Err(RuntimeErrorCodeV1::RuntimeKeyUnavailable);
+        }
         let name = serving_name(snapshot);
         let existing = self.parents.get_opt(&name).await.map_err(kube_error)?;
         let selector = RuntimeInstanceSelectorV1::Page {
@@ -342,6 +377,8 @@ pub struct ServingPlatformProfile {
     profile_id: String,
     lazaret_base_url: String,
     lazaret_public_ca_configmap: String,
+    approved_lock: Option<apparatus_contracts::runtime::RuntimeDigestV1>,
+    serving_endpoint: Option<ServingEndpointPolicy>,
 }
 
 impl ServingPlatformProfile {
@@ -383,7 +420,33 @@ impl ServingPlatformProfile {
             profile_id,
             lazaret_base_url,
             lazaret_public_ca_configmap,
+            approved_lock: None,
+            serving_endpoint: None,
         })
+    }
+
+    /// Bind B's separately approved immutable lock and private endpoint policy.
+    /// This setup-only value is never deserialized from a control request.
+    #[must_use]
+    pub fn with_approved_preparation(
+        mut self,
+        lock: apparatus_contracts::runtime::RuntimeDigestV1,
+        endpoint: ServingEndpointPolicy,
+    ) -> Self {
+        self.approved_lock = Some(lock);
+        self.serving_endpoint = Some(endpoint);
+        self
+    }
+
+    pub(crate) fn check_endpoint(
+        &self,
+        snapshot: &RuntimeBindingSnapshotV1,
+        endpoint: &str,
+    ) -> Result<(), RuntimeErrorCodeV1> {
+        self.serving_endpoint
+            .as_ref()
+            .ok_or(RuntimeErrorCodeV1::RuntimeKeyUnavailable)?
+            .validate(snapshot, endpoint)
     }
 }
 
@@ -392,6 +455,7 @@ impl ServingPlatformProfile {
 pub struct AdmittedServingImage {
     image: String,
     descriptor: String,
+    record: Option<crate::admission::AdmissionRecord>,
 }
 
 impl AdmittedServingImage {
@@ -411,18 +475,28 @@ impl AdmittedServingImage {
         let record = store
             .get(&digest)
             .ok_or(RuntimeErrorCodeV1::RuntimeReleaseNotAdmitted)?;
-        if record.descriptor_digest != digest || record.policy_version != POLICY_ID {
+        Self::verify_record(record, &digest, target)
+    }
+
+    fn verify_record(
+        record: crate::admission::AdmissionRecord,
+        digest: &crate::digest::ReleaseDigest,
+        target: Option<&crate::admit::AdmitTarget>,
+    ) -> Result<Self, RuntimeErrorCodeV1> {
+        if &record.descriptor_digest != digest || record.policy_version != POLICY_ID {
             return Err(RuntimeErrorCodeV1::RuntimeReleaseNotAdmitted);
         }
         gate_schedule_signature(record.envelope_reference.as_deref(), target)
             .map_err(|_| RuntimeErrorCodeV1::RuntimeReleaseNotAdmitted)?;
         let image = record
             .cri_image
+            .clone()
             .ok_or(RuntimeErrorCodeV1::RuntimeReleaseNotAdmitted)?;
         validate_cri_pin(&image).map_err(|_| RuntimeErrorCodeV1::RuntimeReleaseNotAdmitted)?;
         Ok(Self {
             image,
             descriptor: digest.as_str().to_owned(),
+            record: Some(record),
         })
     }
 }
@@ -439,10 +513,22 @@ pub fn serving_parent(
     profile: &ServingPlatformProfile,
     fence: RuntimeCounterV1,
 ) -> Result<Value, RuntimeErrorCodeV1> {
+    render_parent(snapshot, image, profile, fence, None)
+}
+
+fn render_parent(
+    snapshot: &RuntimeBindingSnapshotV1,
+    image: &AdmittedServingImage,
+    profile: &ServingPlatformProfile,
+    fence: RuntimeCounterV1,
+    preparation: Option<&apparatus_contracts::runtime::RuntimeBindingPreparationPermitV1>,
+) -> Result<Value, RuntimeErrorCodeV1> {
     if snapshot.schema_version != 1 {
         return Err(RuntimeErrorCodeV1::RuntimeUnsupportedVersion);
     }
-    if snapshot.state != RuntimeBindingStateV1::Active {
+    if let Some(permit) = preparation {
+        preparation::validate_permit(snapshot, profile, permit)?;
+    } else if snapshot.state != RuntimeBindingStateV1::Active {
         return Err(RuntimeErrorCodeV1::RuntimeBindingClosed);
     }
     if snapshot.cas.generation.get() == 0
@@ -470,6 +556,8 @@ pub fn serving_parent(
         "metadata":{"name":name,"namespace":"apparatus-plugins","labels":labels,
             "annotations":{"networking.knative.dev/visibility":"cluster-local",
                 "apparatus.aiforall.dev/generation":snapshot.cas.generation.get().to_string(),
+                "apparatus.aiforall.dev/profile":snapshot.profile,
+                "apparatus.aiforall.dev/profile-lock":profile.approved_lock.as_ref().map_or("", |lock| lock.as_str()),
                 "apparatus.aiforall.dev/writer-fence":fence.get().to_string()}},
         "spec":{"template":{"metadata":{"name":revision_name,"labels":labels,"annotations":{
             "autoscaling.knative.dev/class":"kpa.autoscaling.knative.dev",
@@ -551,6 +639,7 @@ mod tests {
         let image = AdmittedServingImage {
             image: format!("registry.test/ref@{release}"),
             descriptor: release,
+            record: None,
         };
         let profile = ServingPlatformProfile::new(
             "test-profile".to_owned(),

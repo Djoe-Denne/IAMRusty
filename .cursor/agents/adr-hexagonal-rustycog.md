@@ -36,8 +36,8 @@ Documenter l’architecture hexagonale **déjà en place** pour IAMRusty, Hive, 
 - `obsidian/AI FOR ALL/skills/building-rustycog-services.md` (si présent)
 - `Cargo.toml` workspace ; crates `services/IAMRusty/*`, `services/Hive/*`, `services/Telegraph/*`, `services/Manifesto/*`
 - `rustycog/Cargo.toml` (features : command, db, events, http, outbox, permission, testing, logger, config, core, server)
-- QMD collection `aiforall-wiki` via CLI `qmd` (jamais MCP QMD)
-- GrepAI pour ports (`domain/**/port`), factories, `GenericCommandService`
+- QMD collection `aiforall-wiki` via MCP en priorité ; repli selon le contrat local.
+- Contrat MCP d'`AGENTS.md` et skill `aiforall-mcp-workflow` pour explorer le Rust : ports (`domain/**/port`), factories, `GenericCommandService`. ADR par outils fichiers, sans code applicatif.
 
 ## Format (identique à `docs/adr/template.md` et 0001)
 

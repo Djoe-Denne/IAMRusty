@@ -28,3 +28,7 @@ Prefer this repo's validation conventions. For Rust, when applicable, choose the
 - Local choices made
 - Validation commands and results
 - Any design challenge that the orchestrator must resolve
+
+## Code intelligence and editing — AIForAll
+
+Apply root `AGENTS.md` **Contrat MCP local**; load `aiforall-mcp-workflow` before Rust exploration/impact/symbol edits (file fallback: `.agents/skills/aiforall-mcp-workflow/SKILL.md`). Verify consumers/worktree coverage and retain behavioural checks. Keep the 8B resident; a tool outage does not authorize structural redesign or an unchecked rewrite.

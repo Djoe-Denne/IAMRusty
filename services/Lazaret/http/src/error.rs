@@ -15,6 +15,8 @@ struct ErrorBody {
 
 /// HTTP mapping for identity failures.
 pub enum IdentityHttpError {
+    /// Runtime taxonomy for an irreversible legacy-admission fence.
+    Runtime(InvokeHttpError),
     /// 400
     BadRequest(String),
     /// 401
@@ -38,6 +40,7 @@ impl IdentityHttpError {
 impl From<IdentityError> for IdentityHttpError {
     fn from(value: IdentityError) -> Self {
         match value {
+            IdentityError::RuntimeGuard(code) => Self::Runtime(code.into()),
             IdentityError::PrivateKeyNotAccepted
             | IdentityError::InvalidCsr(_)
             | IdentityError::InvalidIdentity
@@ -59,6 +62,7 @@ impl From<IdentityError> for IdentityHttpError {
 impl IntoResponse for IdentityHttpError {
     fn into_response(self) -> Response {
         let (status, message) = match self {
+            Self::Runtime(error) => return error.into_response(),
             Self::BadRequest(message) => (StatusCode::BAD_REQUEST, message),
             Self::Unauthorized(message) => (StatusCode::UNAUTHORIZED, message),
             Self::Conflict(message) => (StatusCode::CONFLICT, message),
@@ -123,6 +127,7 @@ pub enum InvokeHttpError {
 impl From<InvokeError> for InvokeHttpError {
     fn from(value: InvokeError) -> Self {
         match value {
+            InvokeError::RuntimeGuard(code) => code.into(),
             InvokeError::Unauthorized => Self::Unauthorized,
             InvokeError::Forbidden(reason) => Self::Forbidden(reason.to_string()),
             InvokeError::BadRequest(message) => Self::BadRequest(message),

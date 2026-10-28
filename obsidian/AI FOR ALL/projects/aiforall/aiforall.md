@@ -4,6 +4,7 @@ title: >-
 category: project
 tags: [platform, microservices, rust, visibility/internal]
 sources:
+  - _sources/opencode-telegraph-outbox-20261027/inventory.json
   - _raw/opencode-m6-proof-hardening-20261018/inventory.json
   - _raw/opencode-g17-m6-20261018/inventory.json
   - README.md
@@ -17,14 +18,13 @@ sources:
   - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
   - docs/adr/0007-closeout.md
 summary: >-
-  Workspace RustyCog. P2 et P3 Implemented. ADR-0008 Accepted / Implemented
-  (Kind V1). JWT 0304 Partial. Mesh 0308 Partial (§7 Compose). Gold path 0605 livré en réalité. Factory/host hors livré.
+  Plateforme RustyCog : Apparatus P2/P3, mesh/JWT partiels et Telegraph durable livré avec propriétaire HTTP, preuves ciblées et réserves qualité.
 provenance:
-  extracted: 0.80
-  inferred: 0.16
+  extracted: 0.84
+  inferred: 0.12
   ambiguous: 0.04
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-10-18
+updated: 2026-10-27T19:27:11Z
 ---
 
 # AIForAll
@@ -71,6 +71,9 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 - [[projects/manifesto/decisions/index]] — vague 1 Apparatus (0002–0008 Implemented ; 0001 Partial ; 0009–0011 Proposed)
 
 ## Recent history
+
+- [[projects/aiforall/references/mission-telegraph-outbox-20261027]] — transaction writer commune, NoOp suspendu, owner HTTP, reprise après lease puis verticaleSQS/OpenFGA/replay/403/200 ; commit39024b2 et SDKd60 publiés avec gitlink exact. Clippy antérieur/Sonar/CI restent des réserves, statuts ADR non promus.
+- [[projects/telegraph/concepts/durable-notification-publication]] et [[projects/aiforall/skills/proving-leased-outbox-recovery]] — contrat livré et protocole de preuve distinct du SLA produit.
 
 - [[projects/aiforall/references/mission-m6-proof-hardening-20261018]] — suite exécutée :21oracles, IT9+1 et m6réel1 surE:, H1–H4 archivés, revuesPASS bornés ; remplacementsK8slocaux acceptés et pièges promus en skill/règles, detteClippy conservée.
 

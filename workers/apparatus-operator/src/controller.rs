@@ -1063,6 +1063,85 @@ pub async fn run_watch() -> Result<(), ControllerError> {
     Box::pin(reconciler.run_watch()).await
 }
 
+/// Explicit runtime observation loop, consumed ONLY by a separately approved
+/// startup composition. The legacy run_watch/run_controller path is not silently
+/// redirected. Listing discovers candidates; every act re-reads the writer.
+/// No preparation permit is synthesized, no Open/warm-up or absence deletion.
+pub async fn run_runtime_controller(
+    source: std::sync::Arc<dyn crate::desired_state::RuntimeDesiredStateSource>,
+    bridge: std::sync::Arc<crate::runtime_projection::ServingRuntimeBridge>,
+    mut shutdown: tokio::sync::watch::Receiver<bool>,
+) -> Result<(), apparatus_contracts::runtime::RuntimeErrorCodeV1> {
+    use crate::runtime_projection::RuntimePodObservationCursor;
+    use apparatus_contracts::runtime::{RuntimeBindingStateV1, RuntimeErrorCodeV1};
+    let mut cursor = None;
+    let mut progress = std::collections::BTreeMap::new();
+    let mut interval = tokio::time::interval(std::time::Duration::from_millis(2000));
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    loop {
+        if *shutdown.borrow() {
+            return Ok(());
+        }
+        tokio::select! {
+            changed=shutdown.changed()=>{if changed.is_err()||*shutdown.borrow(){return Ok(());}continue;},
+            _=interval.tick()=>{},
+        }
+        let page = match tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            source.list_runtime_page(cursor.as_ref()),
+        )
+        .await
+        {
+            Ok(Ok(page)) => page,
+            _ => {
+                cursor = None;
+                continue;
+            } // no inferred deletion after a broken scan
+        };
+        if page.items.len() > 200 {
+            return Err(RuntimeErrorCodeV1::RuntimeAuthorityProtocolError);
+        }
+        for binding in page.items {
+            if *shutdown.borrow() {
+                return Ok(());
+            }
+            if binding.state == RuntimeBindingStateV1::Tombstone {
+                progress.remove(&(binding.project_id, binding.binding_id));
+                continue;
+            }
+            if binding.observation.is_none() {
+                continue;
+            } // crash-before-report: manual inventory only
+            if binding.state != RuntimeBindingStateV1::Active {
+                let _ = bridge
+                    .refresh_known_parent(binding.project_id, binding.binding_id)
+                    .await;
+                continue;
+            }
+            if progress.len() >= 2000
+                && !progress.contains_key(&(binding.project_id, binding.binding_id))
+            {
+                return Err(RuntimeErrorCodeV1::RuntimeCapacityExhausted);
+            }
+            let state = progress
+                .entry((binding.project_id, binding.binding_id))
+                .or_insert_with(RuntimePodObservationCursor::default);
+            // Errors suspend only this binding. Cursor hints never revoke an
+            // unseen Pod, manufacture enrollment or retry a different UUID.
+            let _ = bridge
+                .observe_instances_once(binding.project_id, binding.binding_id, state)
+                .await;
+            // Registration advances projection_version. Publish the complete
+            // route capture LAST against the resulting full CAS; otherwise every
+            // successful Pod renewal would immediately stale our own route.
+            let _ = bridge
+                .refresh_known_parent(binding.project_id, binding.binding_id)
+                .await;
+        }
+        cursor = page.next_cursor;
+    }
+}
+
 /// Signe l'enveloppe T6, persiste `VALID` dans le JSON produit, puis applique
 /// la CR Kind (binaire admit, features `admit`+`controller`).
 ///

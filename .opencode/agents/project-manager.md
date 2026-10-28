@@ -2,6 +2,45 @@
 description: Décompose une mission AIForAll en tâches exécutables parallélisables, évalue complexité et risque par LLM ou JEV et applique le plancher développement à 70/100.
 mode: subagent
 permissions:
+  - action: execute
+    resource: "*"
+    effect: allow
+  - action: rust_code_mcp_*
+    resource: "*"
+    effect: allow
+  - action: serena_*
+    resource: "*"
+    effect: allow
+  - action: qmd_*
+    resource: "*"
+    effect: allow
+  - action: context_mode_*
+    resource: "*"
+    effect: allow
+  - action: kubernetes_mcp_server_*
+    resource: "*"
+    effect: allow
+  - action: ig_mcp_server_*
+    resource: "*"
+    effect: allow
+  - action: playwright_*
+    resource: "*"
+    effect: allow
+  - action: harness_facade_*
+    resource: "*"
+    effect: allow
+  - action: browser_*
+    resource: "*"
+    effect: allow
+  - action: classify_x86*
+    resource: "*"
+    effect: allow
+  - action: jev_ask*
+    resource: "*"
+    effect: allow
+  - action: opencode_*
+    resource: "*"
+    effect: allow
   - action: subagent
     resource: "*"
     effect: deny
@@ -45,10 +84,9 @@ Retrouve le déjà-décidé avant de découper, et ancre chaque fiche dessus :
    précis, puis `docs/functional/`, `docs/platform/`, wiki
    `obsidian/AI FOR ALL/projects/<service>/` — conception, pas canon. Une note
    `status: proposed` n'est pas une ADR `Accepted`.
-3. **Réalité du code** : GrepAI (`grepai_search`, `grepai_trace_callers`/
-   `grepai_trace_callees`) pour « où/comment fonctionne X », Serena pour
-   définitions et références de symboles ; grep exact réservé aux renames et
-   chaînes littérales. Digère logs, ADR longs, docs et sorties de tests via
+3. **Réalité du code** : contrat MCP d'`AGENTS.md` et skill `aiforall-mcp-workflow`
+   pour l'exploration Rust/impact, sans implémentation ni conclusions tirées
+   d'un seul résultat vide. Digère logs, ADR longs, docs et sorties de tests via
    Context Mode (`ctx_execute`, `ctx_batch_execute`, `ctx_index`/`ctx_search`)
    et ne remonte au plan que conclusions et chemins.
 

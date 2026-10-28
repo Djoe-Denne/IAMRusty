@@ -1,0 +1,10 @@
+{
+  "collection": "aiforall-wiki",
+  "refreshed": false,
+  "reason": "Installed updateCollections() clears a cache and lists all collections without a collection filter; global update was not authorized or run",
+  "observed_implementation": "@tobilu/qmd dist/cli/qmd.js lines 701-721 and dispatch 4092-4093",
+  "commands_run": ["qmd skill show", "qmd --help"],
+  "commands_not_run": ["qmd update", "qmd embed", "clear_runtime", "clear_cache"],
+  "global_configuration_changed": false,
+  "resident_backend_stopped": false
+}

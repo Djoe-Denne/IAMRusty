@@ -1,0 +1,82 @@
+{
+  "gap": "G-7",
+  "contract": "apparatus-knative-runtime §13.2",
+  "invoke": {
+    "schema_version": 1,
+    "project_id": "00000000-0000-4000-8000-000000000003",
+    "target_binding_id": "00000000-0000-4000-8000-000000000006",
+    "expected_generation": "3",
+    "operation_id": "00000000-0000-4000-8000-000000000002",
+    "operation": "kv.get",
+    "payload": null,
+    "deadline_unix_ms": "1700000030000"
+  },
+  "enrollment": {
+    "schema_version": 1,
+    "project_id": "00000000-0000-4000-8000-000000000003",
+    "binding_id": "00000000-0000-4000-8000-000000000006",
+    "pod_uid": "runtime-pod-alpha",
+    "csr_pem": "fixture-csr-not-a-cryptographic-proof",
+    "projected_token": "fixture-token-not-a-cryptographic-proof"
+  },
+  "complete": {
+    "schema_version": 1,
+    "reservation": {
+      "schema_version": 1,
+      "project_id": "00000000-0000-4000-8000-000000000003",
+      "binding_id": "00000000-0000-4000-8000-000000000006",
+      "execution_id": "00000000-0000-4000-8000-000000000010",
+      "effect_id": "00000000-0000-4000-8000-000000000011",
+      "effect_sha256": "sha256:4a29e8861b08dd8c82d873b25c3cb003f948469dce7fdb9fc1c55e86922b6399",
+      "deadline_unix_ms": "1700000030000"
+    },
+    "completion_state": "completed"
+  },
+  "binding_empty_instances": {
+    "schema_version": 1,
+    "project_id": "00000000-0000-4000-8000-000000000003",
+    "binding_id": "00000000-0000-4000-8000-000000000006",
+    "cas": { "generation": "3", "revocation_epoch": "5", "projection_version": "13", "grant_revision": "4" },
+    "state": "active",
+    "release": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "profile": "knative-v1",
+    "observation": null,
+    "instances": { "schema_version": 1, "items": [], "next_cursor": null, "read_at_unix_ms": "1700000001000" }
+  },
+  "current_pod_instance": {
+    "schema_version": 1,
+    "project_id": "00000000-0000-4000-8000-000000000003",
+    "binding_id": "00000000-0000-4000-8000-000000000006",
+    "instance_id": "00000000-0000-4000-8000-000000000012",
+    "kind": "pod",
+    "state": "current",
+    "cas": { "generation": "3", "revocation_epoch": "5", "projection_version": "12", "grant_revision": "4" },
+    "release": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "pod": {
+      "pod_uid": "runtime-pod-alpha",
+      "revision_uid": "runtime-revision-shared",
+      "namespace": "apparatus-plugins",
+      "service_account": "apparatus-runtime",
+      "service_account_uid": "runtime-service-account-platform"
+    },
+    "writer_fence": "15",
+    "observed_at_unix_ms": "1700000000000",
+    "valid_until_unix_ms": "1700000005000",
+    "closed_at_unix_ms": null
+  },
+  "legacy_tombstone": {
+    "schema_version": 1,
+    "project_id": "00000000-0000-4000-8000-000000000003",
+    "binding_id": "00000000-0000-4000-8000-000000000006",
+    "instance_id": "00000000-0000-4000-8000-000000000014",
+    "kind": "legacy_fence",
+    "state": "tombstone",
+    "cas": { "generation": "2", "revocation_epoch": "4", "projection_version": "10", "grant_revision": "3" },
+    "release": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "pod": null,
+    "writer_fence": null,
+    "observed_at_unix_ms": null,
+    "valid_until_unix_ms": null,
+    "closed_at_unix_ms": "1700000000000"
+  }
+}

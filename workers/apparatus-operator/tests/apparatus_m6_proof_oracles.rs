@@ -379,6 +379,25 @@ fn ph6_closed_h1_h2_h3_markers_use_values_and_reject_secret_shaped_input() {
     }
 }
 
+/// G-13: transport/deadline errors cannot stand in for authorization denial.
+#[test]
+fn g13_h3_transport_failure_never_proves_authorization_denied() {
+    let hostname = format!("plugin-{}", "a".repeat(32));
+    for transport_status in [0, 408, 502, 503, 504] {
+        assert_eq!(
+            evidence::h3(transport_status, 200, 0, 1, &hostname, &hostname)
+                .expect_err("G-13 transport failure is not a 403 denial"),
+            "H3 observation invalid",
+            "G-13 status {transport_status} must not produce success evidence"
+        );
+    }
+    assert_eq!(
+        evidence::h3(403, 200, 0, 1, &hostname, &hostname)
+            .expect("G-13 explicit denial and live positive control"),
+        format!("M6 H3 denied_http=403 allowed_http=200 denied_hops=0 allowed_hops=1 hostname={hostname}")
+    );
+}
+
 fn pod_fault(scenario: &str) -> (Result<Vec<u8>, &'static str>, &'static str) {
     let mut pod: serde_json::Value =
         serde_json::from_slice(POD).expect("S-1 independent Pod fixture");

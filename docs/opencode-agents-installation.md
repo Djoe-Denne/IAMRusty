@@ -9,7 +9,7 @@ vers les formats OpenCode V2 le 2026-10-02, puis politique OpenCode dédiée.
 
 | Emplacement | Rôle |
 |---|---|
-| `opencode.jsonc` | Config projet : `default_agent`, MCP `grepai` / `serena` / `kubernetes-mcp-server` / `ig-mcp-server`, timeout `startup: 150000` (proxy Serena lent), `skills: [.agents/skills, .cursor/skills]` |
+| `opencode.jsonc` | Config projet : `default_agent`, MCP `rust-code-mcp` / `serena` / `qmd` / infrastructure locale, `grepai` désactivé, timeout `startup: 150000`, `skills: [.agents/skills, .cursor/skills]` |
 | `.opencode/agents/*.md` | 20 définitions spécialisées, format V2 : `description`, `mode`, `model`, `permissions`, corps = prompt système |
 | `~/.config/opencode/opencode.json` | Config globale (toutes machines/projets) : MCP `qmd`, note plugins rtk-hook |
 
@@ -41,7 +41,7 @@ Cette configuration globale reste hors périmètre d'écriture du dépôt.
   membres concernés. Les fichiers gitignored ne suivent pas les worktrees.
 - Reviewers fresh avec diff/contrats/faits, sans conclusions du développeur.
   Le lead conserve intégration, validation finale, slot Cargo unique et baux infra.
-- L'index GrepAI canonique n'inclut pas les modifications non mergées des
+- Les index canoniques n'incluent pas les modifications non mergées des
   worktrees temporaires : inspecter leurs fichiers/symboles. Héritage vers un
   worktree seulement avec arbres propres et HEAD compatibles ; aucune mise à
   l'écart automatique des changements utilisateur ni fallback silencieux.
@@ -151,19 +151,22 @@ variant vérifié est `max`. Ce mapping ne prétend pas mesurer coût ou perform
 
 ## MCP
 
-| Serveur | OpenCode | Cursor | Codex |
-|---|---|---|---|
-| `grepai` | ✔ `opencode.jsonc` | ✔ `.cursor/mcp.json` | ✔ |
-| `serena` (proxy 1MCP) | ✔ | ✔ | ✔ |
-| `kubernetes-mcp-server` | ✔ | ✔ | — |
-| `ig-mcp-server` (Inspektor Gadget, read-only) | ✔ | ✔ | — |
-| `qmd` | ✔ global `~/.config/opencode/opencode.json` | — | — |
-| `context-mode` | **—** (plugin TS des autres plateformes, pas un serveur stdio MCP) | ✔ | ✔ |
+- `rust-code-mcp` : backend natif partagé via 1MCP port 3062 ; exposé dans les
+  configurations projet OpenCode, Cursor et Codex. Recherche Rust et graphe HIR.
+- `grepai` : désactivé uniquement pour AIForAll (2026-10-24), anciens index et
+  autres projets conservés. Aucun fallback automatique.
+- `serena` : connexion projet partagée des trois clients, édition symbolique
+  prioritaire directement inscrite dans leurs profils écrivains.
+- `qmd` : conservé, configuration OpenCode globale et serveur projet ; notes et
+  connaissances restent dans QMD/Obsidian, sans migration vers l'index Rust.
+- `kubernetes-mcp-server` et `ig-mcp-server` : inchangés, lecture seule et périmètre
+  local prévu dans AGENTS.md.
+- `context-mode` : MCP global dans OpenCode V2, utilisé via Code Mode pour les
+  sorties volumineuses. Ne pas réinstaller le plugin TS V1 incompatible ni
+  prétendre que Code Mode seul remplace ce MCP. Autres clients inchangés.
 
-`context-mode` s'installe comme **plugin TS** OpenCode
-(`~/.config/opencode/plugins/`), pas comme serveur MCP stdio — décision
-2026-10-02 : sauté pour ce projet, le pattern « analyser dans le sandbox »
-est couvert par Code Mode natif d'OpenCode.
+Détails et rollback : [rust-code-mcp](rust-code-mcp.md). Les configurations MCP
+et profils sont rechargés par OpenCode sans redémarrage global du service.
 
 ## Accès auth OpenAI
 

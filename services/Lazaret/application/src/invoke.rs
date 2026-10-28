@@ -175,6 +175,9 @@ impl PluginEndpointLocator for DigestDnsPluginLocator {
 /// Errors from [`InvokeService`].
 #[derive(Debug, Error)]
 pub enum InvokeError {
+    /// Preserve the closed runtime taxonomy for old-token/cutover bypass guards.
+    #[error("runtime admission guard refused")]
+    RuntimeGuard(apparatus_contracts::runtime::RuntimeErrorCodeV1),
     /// Missing/invalid Lazaret session.
     #[error("unauthorized")]
     Unauthorized,
@@ -242,6 +245,7 @@ pub struct InvokeService {
     connectors: Arc<dyn ConnectorProxy>,
     locator: Arc<dyn PluginEndpointLocator>,
     http: reqwest::Client,
+    legacy_admission: Option<Arc<dyn lazaret_domain::runtime::RuntimeAdmissionGuard>>,
 }
 
 impl InvokeService {
@@ -287,7 +291,19 @@ impl InvokeService {
             connectors,
             locator,
             http,
+            legacy_admission: None,
         }
+    }
+
+    /// Composition-root-only guard for every legacy invoke, including digest
+    /// routing and local dispatch. Runtime effects use their separate admission.
+    #[must_use]
+    pub fn with_legacy_admission_guard(
+        mut self,
+        guard: Arc<dyn lazaret_domain::runtime::RuntimeAdmissionGuard>,
+    ) -> Self {
+        self.legacy_admission = Some(guard);
+        self
     }
 
     /// Verify session, live grant, then dispatch P0 operations.
@@ -306,6 +322,12 @@ impl InvokeService {
     ) -> Result<InvokeResponse, InvokeError> {
         request.validate().map_err(map_contract_error)?;
         let proof = self.identity.verify_session(session_token)?;
+        if let Some(guard) = &self.legacy_admission {
+            guard
+                .require_legacy_identity(&proof.identity)
+                .await
+                .map_err(InvokeError::RuntimeGuard)?;
+        }
         if request.binding_id.as_str() != proof.identity.binding.to_string() {
             return Err(InvokeError::Forbidden(GrantDenyReason::ProjectMismatch));
         }

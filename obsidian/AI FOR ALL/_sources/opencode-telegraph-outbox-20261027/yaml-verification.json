@@ -1,0 +1,7 @@
+{
+  "parser": "Python PyYAML safe_load",
+  "pages_checked": 14,
+  "scope": "five created pages, eight updated pages and root index frontmatter",
+  "failures": [],
+  "status": "PASS"
+}

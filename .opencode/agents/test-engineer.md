@@ -58,7 +58,7 @@ intermédiaires valent plus que le volume de tests :
 Garde-fous : pas de code avant les étapes 1–3 du plan ; assertions sur
 l'observable, pas sur la mécanique interne ; pas d'assertion du seul type
 « pas d'exception » ou vérité tautologique ; chaque symbole, helper et fixture
-appelé existe vraiment (Serena / GrepAI, ou l'équivalent du dépôt) avant de
+appelé existe vraiment (Serena / rust-code-mcp, selon sa couverture) avant de
 déclarer fini ; le test ciblé a été exécuté. Trace chaque test vers son
 `G-<n>` ou `T-<n>`. Données spécifiques au projet, pas un boilerplate générique.
 Si le code de prod et les tests viennent du même contexte d'agent, dis-le dans
@@ -105,7 +105,7 @@ fonctionnalité cassée, et tu le déclares comme tel.
 2. **L'oracle vient des ADR/contrats/plan QA**, jamais recopié de la branche
    d'implémentation : assert le contrat observable (payload d'événement, code
    HTTP, tuple FGA, ligne outbox, état DB), pas la mécanique interne.
-3. **Vérifie chaque API via Serena/GrepAI** (définition réelle, usages
+3. **Vérifie chaque API via Serena/rust-code-mcp** (définition réelle, usages
    existants) : n'invente aucun helper, aucune méthode, aucun champ. Utilise
    les fixtures existantes avant d'en écrire.
 4. **Chaque test écrit s'exécute** : `cargo test -p <pkg> <filter>` focalisé —
@@ -147,3 +147,7 @@ runtime encore requis par le lead.
 Code de production, fix de bug, refactorisation au-delà du test, spawn
 d'agents, modification du board ou des briefings, élargissement de scope aux
 fichiers non test/fixture/config-de-test.
+
+## Intelligence et édition — AIForAll
+
+Appliquer le **Contrat MCP local** d'`AGENTS.md` et charger `aiforall-mcp-workflow` avant exploration Rust/impact/édition symbolique (repli de lecture : `.agents/skills/aiforall-mcp-workflow/SKILL.md`). Vérifier aussi la couverture tests/cfg et l'état réel du worktree. Toute ancienne mention GrepAI se lit Rust MCP ici. Aucun repli n'autorise de code de production ni ne remplace les tests. Garder le 8B résident, sans dispenser du cleanup des fixtures.

@@ -31,6 +31,49 @@ pub const ADMISSION_CHALLENGE_TTL_MS: i64 = 60_000;
 pub const ADMISSION_PROOF_TTL_MS: i64 = 5_000;
 pub const MAX_ADMISSION_PROOF_BYTES: usize = 16_384;
 
+/// Deterministic private Serving parent name. This locator is never ownership
+/// evidence: writer-recorded UID checks remain mandatory on every mutation.
+pub fn runtime_serving_name(project_id: Uuid, binding_id: Uuid) -> String {
+    let mut hash = Sha256::new();
+    hash.update(b"urn:aiforall:apparatus:serving-name:v1\0");
+    hash.update(project_id.as_bytes());
+    hash.update(binding_id.as_bytes());
+    format!("ar-{}", &format!("{:x}", hash.finalize())[..32])
+}
+
+/// Closed initial-profile OCI pin syntax, independent of any registry client.
+/// A syntactically valid pin is not an approved repository/admission decision.
+pub fn validate_runtime_oci_pin(value: &str) -> Result<(), RuntimeErrorCodeV1> {
+    let invalid = RuntimeErrorCodeV1::RuntimeReleaseNotAdmitted;
+    if value.len() > 2048 || !value.is_ascii() {
+        return Err(invalid);
+    }
+    let (repository, digest) = value.split_once('@').ok_or(invalid)?;
+    RuntimeDigestV1::new(digest.to_owned()).map_err(|_| invalid)?;
+    let (host, path) = repository.split_once('/').ok_or(invalid)?;
+    let host = if let Some((name, port)) = host.split_once(':') {
+        let number = port.parse::<u16>().map_err(|_| invalid)?;
+        if number == 0 || number.to_string() != port {
+            return Err(invalid);
+        }
+        name
+    } else {
+        host
+    };
+    validate_runtime_dns_name(host, true).map_err(|_| invalid)?;
+    if path.split('/').any(|part| {
+        part.is_empty()
+            || part == "."
+            || part == ".."
+            || !part
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"._-".contains(&b))
+    }) {
+        return Err(invalid);
+    }
+    Ok(())
+}
+
 /// Maintenance-only action; not an additional runtime control route.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -63,6 +106,57 @@ pub struct RuntimeAdmissionChallengeV1 {
     pub revision_uid: Option<String>,
     pub issued_at_unix_ms: RuntimeUnixMsV1,
     pub expires_at_unix_ms: RuntimeUnixMsV1,
+}
+
+impl RuntimeAdmissionChallengeV1 {
+    /// Structural intent validation only, never evidence that this nonce was
+    /// actually issued by the writer or approved by a maintenance actor.
+    pub fn validate(&self) -> Result<(), RuntimeErrorCodeV1> {
+        if self.schema_version != 1 {
+            return Err(RuntimeErrorCodeV1::RuntimeUnsupportedVersion);
+        }
+        if [
+            self.challenge_id,
+            self.authority_id,
+            self.installation_id,
+            self.migration_id,
+            self.project_id,
+            self.binding_id,
+        ]
+        .iter()
+        .any(Uuid::is_nil)
+            || self.profile.is_empty()
+            || self.profile.len() > 128
+            || !self.profile.is_ascii()
+            || self
+                .issued_at_unix_ms
+                .get()
+                .checked_add(ADMISSION_CHALLENGE_TTL_MS)
+                != Some(self.expires_at_unix_ms.get())
+        {
+            return Err(RuntimeErrorCodeV1::RuntimeInvalidProof);
+        }
+        match self.action {
+            RuntimeAdmissionActionV1::Prepare
+                if self.service_uid.is_none() && self.revision_uid.is_none() =>
+            {
+                Ok(())
+            }
+            RuntimeAdmissionActionV1::Open => {
+                validate_runtime_uid(
+                    self.service_uid
+                        .as_deref()
+                        .ok_or(RuntimeErrorCodeV1::RuntimeInvalidProof)?,
+                )?;
+                validate_runtime_uid(
+                    self.revision_uid
+                        .as_deref()
+                        .ok_or(RuntimeErrorCodeV1::RuntimeInvalidProof)?,
+                )
+            }
+            _ => Err(RuntimeErrorCodeV1::RuntimeInvalidProof),
+        }
+    }
 }
 
 /// Untrusted signed payload shape. Only the offline verifier may promote it to

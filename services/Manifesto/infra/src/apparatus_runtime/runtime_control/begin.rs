@@ -245,7 +245,7 @@ impl SqlRuntimeControl {
     }
 }
 
-async fn require_consent(
+pub(super) async fn require_consent(
     txn: &DatabaseTransaction,
     domain: &QueryResult,
     binding_id: Uuid,

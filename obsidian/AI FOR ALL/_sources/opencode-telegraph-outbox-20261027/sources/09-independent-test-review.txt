@@ -1,0 +1,55 @@
+# Revue tests indépendante — verticale134 / source80cce027
+
+## Verdict
+
+**PASS borné statique**, aucun finding bloquant de couverture/oracle sur le delta
+deadline/ownership. Pas de test exécuté ni nouvelle preuve comportementale.
+Reviewer pool24/test-reviewer fresh, task_mvr206hz_000m_k62qlp, strictRO.
+Source intégrée SHA80cce027ef5eefb41d6a5f457847a94feccebec7ecf28941fbb9fec5338211a7,
+AI1f2dd30/SDKlocald60/index129. Source/diff/contrats/corps helpers effectivement
+lus depuis les copies allowlist. Aucun handoff/conclusion auteur consulté.
+
+## Registre borné — présence statique et inférence, pas exécution
+
+- **Éligibilité**,668–736 : t0 avant SQL/factory, bootstrap25s refuse Ready tardif,
+  identité/version/payload/attempts contrôlés. Publishing requiert owner+locked_until ;
+  failed/pending requiert next_at sanslock ; published R0 sansE fictive. R<=30,
+  D calculée une fois depuis t0. État inconnu/lock incompatible/identité différente/
+  R31/missingexpiry empêchent succès. Clock100ms,493–505, précondition sans rallonge.
+- **Deadline**,411–438/668–791 : mêmeD pour factory/start,published,réception réelle,
+  bytes/identités/counts. Published sans message réel échoue756–758 ; événement ou
+  destinataire/version/payload altéré échoue750–772 ; deuxième ligne métier/outbox
+  échoue773–781. Ready dernierawait à/aprèsD ne passe pas : completed_at<D après
+  dernierawait778–785. Pas reset, IAM25s613–628 intact. FGA/HTTP ne sont pas
+  frauduleusement revendiqués dansD.
+- **Possession**,397–489/741–805 : factory avantparents,Vec/guard hors timeoutbind.
+  HTTP erreur/timeout => shutdown_owned_tasks attendu ; Ready tardif/mauvais
+  nombreparents=>owner.stop attendu ; observationerreur/timeout=>rebuilt.stop
+  attendu avantpanic. Succès gardeowner jusqu'aux vraisHTTP/arrêt946–950.
+  SDK407–500 : listeners locauxRAII et spawncoordinateur sans await ultérieur
+  avant Ok(owner), donc pas de fenêtre suspendue perdant owner créé. Helpers
+  runtime72–161 partagent5+1s et refusent jointure non observée. Drop/guard
+  demandent annulation, ne prouvent pas asyncjoin.
+- **Oracles conservés** : nominalRunningApp/wait_status/réception ; vraiSQS,
+  event/recipient/timestamp, handler public/nouveauInMemoryEventLedger237–242,
+  aucungrantpréchargé637–645, replaymêmesbytes/ledgerneuf849–868,403sansmutation
+  880–895,200étatlu897–910,comptes1/1/1. AucunresetSQL/attempts/lease ajouté.
+
+## Gaps et limites non bloquants sous le contrat proportionné
+
+- Branches runtime timeout/error non forcées ici : couverture source argumentée,
+  pas destruction expérimentale de chaque descendant. Pas de nouvelle campagne
+  ou harness requis par cette revue ; ne pas transformer Drop en attestation join.
+- Panic arbitraire/annulation externe du futur complet : abort/Drop seulement,
+  pas asyncjoin garantie. Limite présente dans baselineRunningApp/guard/SDK,
+  pas correction globale de ce raccordement. Aucun quitus généralAC7/SDK/architecture.
+- Validation134 reste à exécuter par lead avant conclusion comportementale.
+  no-runexit0/0tests ne la remplace pas. Reviewer :0Cargo/test/runtime/mutation,
+  aucune ressource créée/adoptée, aucun cleanup nécessaire.
+- Serena racine canonique confirmée,TI/.tmp horsindex ; preuve depuis snapshots
+  exacts, aucune absence déduite d'un indexvide, aucun refus contourné.
+
+Localisation : testvertical et helpers existants à ses frontières. Impact : aucun
+changement demandé ni assouplissement d'oracle. Limites : statique seulement ;
+ADR0313/0503Proposed,0301Partial/AC1–AC7 inchangés. Ne pas refaire cette revue
+sans nouveau delta ; poursuivre l'unique validation prévue.

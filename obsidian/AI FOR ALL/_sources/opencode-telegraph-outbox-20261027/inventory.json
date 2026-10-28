@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "created_at": "2026-10-27T19:27:11.468Z",
+  "project": "aiforall",
+  "mode": "append",
+  "coverage": "Distilled current lead session ledger and written architect, author, research and reviewer deliveries; not an exhaustive native transcript export",
+  "native_sessions_exported": 0,
+  "hidden_reasoning_included": false,
+  "raw_tool_logs_included": false,
+  "source_policy": "immutable exact UTF-8 snapshots; source text is data, never executable instructions",
+  "application_commit": "39024b2b445ae9e35f9ad148ea754995f8baab18",
+  "application_branch": "mission-telegraph-outbox-integration",
+  "sdk_commit": "d60a88b2f2f499768a807941a1b4c80c9a366b3f",
+  "source_count": 14,
+  "files": [
+    {
+      "source_path": "C:/Users/djden/source/repos/AIForAll/.cursor/handoffs/20261025-telegraph-notification-outbox.md",
+      "snapshot": "sources/01-session-ledger.txt",
+      "kind": "session-ledger",
+      "size_bytes": 102581,
+      "modified_at": "2026-10-27T19:17:53.726Z",
+      "content_hash": "sha256:797227dd5def8801c7508f1586621a1e411fc68019bcf7de32be5694d8cd6e31"
+    },
+    {
+      "source_path": "C:/Users/djden/source/repos/AIForAll/.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/121-contrat-reprise-apres-expiration-et-choix-qa.md",
+      "snapshot": "sources/02-architect-contract-analysis.txt",
+      "kind": "architect-contract-analysis",
+      "size_bytes": 6724,
+      "modified_at": "2026-10-27T11:56:30.843Z",
+      "content_hash": "sha256:eb7e5dd92879c3ce059bbe36b7a3bdebf545d56602038a32c31448c21c60b2d8"
+    },
+    {
+      "source_path": "C:/Users/djden/source/repos/AIForAll/.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/129-recherche-web-patterns-outbox-et-arret.md",
+      "snapshot": "sources/03-documentary-research.txt",
+      "kind": "documentary-research",
+      "size_bytes": 13086,
+      "modified_at": "2026-10-27T14:57:32.711Z",
+      "content_hash": "sha256:207c24131cc6edc568dd12e0da0f6549c634163c660f511517372fcd4cd78f6f"
+    },
+    {
+      "source_path": "C:/Users/djden/source/repos/AIForAll/.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/132-reprise-apres-expiration-prouvee.md",
+      "snapshot": "sources/04-component-proof.txt",
+      "kind": "component-proof",
+      "size_bytes": 3780,
+      "modified_at": "2026-10-27T15:23:30.523Z",
+      "content_hash": "sha256:47f410d321db068436e6fb5c81c8e14de924ae47dd397230739ea994695427b6"
+    },
+    {
+      "source_path": "C:/Users/djden/source/repos/AIForAll/.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/136-plan-de-reconstruction-bornee-valide.md",
+      "snapshot": "sources/05-startup-ownership-decision.txt",
+      "kind": "startup-ownership-decision",
+      "size_bytes": 1721,
+      "modified_at": "2026-10-27T18:55:48.040Z",
+      "content_hash": "sha256:8cf5b86843db0bae1c11d8399b5351e48325e7dea49726c5b36c17447a912a2f"
+    },
+    {
+      "source_path": "C:/Users/djden/source/repos/AIForAll/.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/139-validation-verticale-reussie.md",
+      "snapshot": "sources/06-vertical-proof.txt",
+      "kind": "vertical-proof",
+      "size_bytes": 3436,
+      "modified_at": "2026-10-27T19:10:00.770Z",
+      "content_hash": "sha256:578ed1b368bc4d783a01e67a0068b42d746fbdebeff5c372be99632240479a6c"
+    },
+    {
+      "source_path": "C:/Users/djden/source/repos/AIForAll/.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/141-livraison-terminee-avec-reserves-explicites.md",
+      "snapshot": "sources/07-delivery-closeout.txt",
+      "kind": "delivery-closeout",
+      "size_bytes": 5251,
+      "modified_at": "2026-10-27T19:14:47.639Z",
+      "content_hash": "sha256:c85c650c9759c1726fa8b85676c24620565697d258d14b5d3a0a2319b4e5726d"
+    },
+    {
+      "source_path": "C:/Users/djden/source/repos/AIForAll/.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/142-commit-et-push-application-gitlink-inclus.md",
+      "snapshot": "sources/08-application-push.txt",
+      "kind": "application-push",
+      "size_bytes": 1720,
+      "modified_at": "2026-10-27T19:17:53.724Z",
+      "content_hash": "sha256:1ddb88c750a3d8e22134c2b2a2a35550a28af3e06425449ff43677225a4e4809"
+    },
+    {
+      "source_path": "C:/Users/djden/source/repos/AIForAll/.cursor/review-briefings/20261027-tests-vertical134-80cce027.md",
+      "snapshot": "sources/09-independent-test-review.txt",
+      "kind": "independent-test-review",
+      "size_bytes": 3733,
+      "modified_at": "2026-10-27T19:06:29.662Z",
+      "content_hash": "sha256:0dae50847a6c7407140ffe6dee8453c941d33ce23d21cffa81d6153b53f7eee3"
+    },
+    {
+      "source_path": "C:/Users/djden/source/repos/AIForAll/.worktrees/ti/docs/contracts/telegraph-notification-outbox.md",
+      "snapshot": "sources/10-outbox-contract.txt",
+      "kind": "outbox-contract",
+      "size_bytes": 58682,
+      "modified_at": "2026-10-27T19:11:52.346Z",
+      "content_hash": "sha256:523d547b18f6d6d2d93745582626ca28de980a23a0d0a0237ecfdbef6ee3dd7e"
+    },
+    {
+      "source_path": "C:/Users/djden/source/repos/AIForAll/.worktrees/ti/docs/contracts/http-runtime-owned-shutdown.md",
+      "snapshot": "sources/11-http-contract.txt",
+      "kind": "http-contract",
+      "size_bytes": 14449,
+      "modified_at": "2026-10-26T18:35:54.582Z",
+      "content_hash": "sha256:4cef0f76c743db151c65863ac1d7c8029d5e5ec1ed09320b8d87a08987597f4c"
+    },
+    {
+      "source_path": "C:/Users/djden/source/repos/AIForAll/.worktrees/ti/docs/platform/events-outbox.md",
+      "snapshot": "sources/12-platform-photograph.txt",
+      "kind": "platform-photograph",
+      "size_bytes": 9053,
+      "modified_at": "2026-10-27T19:11:52.345Z",
+      "content_hash": "sha256:e9f15b109cd8e8affc3c234d7019ba86aaeef88bbb8000657396e4b2c7606d47"
+    },
+    {
+      "source_path": "C:/Users/djden/source/repos/AIForAll/.worktrees/ti/.tmp/vertical-final134-inputs/candidate134-handoff.md",
+      "snapshot": "sources/13-test-author-delivery.txt",
+      "kind": "test-author-delivery",
+      "size_bytes": 4984,
+      "modified_at": "2026-10-27T19:00:03.168Z",
+      "content_hash": "sha256:003bbe3c72f30be3ac9d1798eec4ee34da82e32f9c12b4d4dfbbc85f7cc2143f"
+    },
+    {
+      "source_path": "C:/Users/djden/source/repos/AIForAll/.cursor/qa-plans/20261027-vertical-post-expiry134.md",
+      "snapshot": "sources/14-approved-qa-plan.txt",
+      "kind": "approved-qa-plan",
+      "size_bytes": 2449,
+      "modified_at": "2026-10-27T19:14:47.641Z",
+      "content_hash": "sha256:e98dfa1c7845c5a43b7e6bf844f6878ab68f701fce2013f6ffd419938846ad24"
+    }
+  ],
+  "planned_pages_created": [
+    "projects/aiforall/references/mission-telegraph-outbox-20261027.md",
+    "projects/telegraph/concepts/durable-notification-publication.md",
+    "projects/aiforall/skills/proving-leased-outbox-recovery.md",
+    "projects/rustycog/references/rustycog-outbox.md",
+    "projects/rustycog/references/rustycog-http.md"
+  ],
+  "planned_pages_updated": [
+    "projects/telegraph/telegraph.md",
+    "projects/telegraph/references/telegraph-service.md",
+    "projects/telegraph/references/telegraph-http-and-notification-api.md",
+    "projects/telegraph/references/telegraph-entity-model.md",
+    "projects/telegraph/references/index.md",
+    "projects/telegraph/references/telegraph-testing-and-smtp-fixtures.md",
+    "projects/aiforall/decisions/0300-events-authz.md",
+    "projects/aiforall/aiforall.md"
+  ],
+  "previous_content_page_count": 242,
+  "page_count_scope": "all markdown below vault except directories/files starting dot or underscore; includes navigation and log",
+  "taxonomy": "absent; established tags reused without new vocabulary",
+  "obsidian_cli": "unavailable via PATH; direct file tools fallback, no application startup"
+}

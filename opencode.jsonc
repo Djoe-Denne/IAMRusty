@@ -3,9 +3,9 @@
   // Config projet OpenCode (AIForAll) — portage des définitions Cursor
   // (.cursor/agents/*.md, .cursor/mcp.json) dans les formats OpenCode V2.
   //
-  // Distinction Réalité vs réel : les serveurs MCP ci-dessous sont les mêmes
-  // que .cursor/mcp.json MINUS context-mode, qui reste un plugin TS des autres
-  // plateformes (pas un serveur stdio MCP) — voir docs/opencode-agents-installation.md.
+  // rust-code-mcp + Serena : intelligence Rust / édition symbolique.
+  // GrepAI est désactivé uniquement ici. Context Mode reste le MCP global V2,
+  // pas un plugin TS à réinstaller ; QMD/Obsidian restent les connaissances.
   //
   // Politique OpenCode dédiée, évolution utilisateur 2026-10-03 :
   //   implementer : openai/gpt-6.1-sol#medium ; hard-implementer : #high
@@ -29,10 +29,16 @@
       "startup": 150000
     },
     "servers": {
+      "rust-code-mcp": {
+        "type": "remote",
+        "url": "http://127.0.0.1:3062/mcp?tags=rust-code-mcp",
+        "oauth": false
+      },
       "grepai": {
         "type": "remote",
         "url": "http://127.0.0.1:3062/mcp?tags=grepai",
-        "oauth": false
+        "oauth": false,
+        "disabled": true
       },
       "serena": {
         "type": "remote",

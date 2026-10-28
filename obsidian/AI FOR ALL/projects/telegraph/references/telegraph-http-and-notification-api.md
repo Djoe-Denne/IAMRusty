@@ -3,6 +3,7 @@ title: Telegraph HTTP and Notification API
 category: references
 tags: [reference, api, notifications, visibility/internal]
 sources:
+  - _sources/opencode-telegraph-outbox-20261027/inventory.json
   - services/Telegraph/openspecs.yaml
   - services/Telegraph/http/src/lib.rs
   - services/Telegraph/http/src/handlers/notification.rs
@@ -11,13 +12,13 @@ sources:
   - services/Telegraph/application/src/usecase/notification.rs
   - services/Telegraph/domain/src/service/notification_service.rs
   - ops/openfga/model.fga
-summary: Telegraph-specific HTTP behavior layered on top of RustyCog's shared route and permission model, including its notification-only live surface and ownership checks.
+summary: Telegraph notification API with OpenFGA recipient enforcement, durable NotificationCreated publication and real SQS/replay/403-without-mutation/200 proof.
 provenance:
-  extracted: 0.72
-  inferred: 0.14
-  ambiguous: 0.14
+  extracted: 0.84
+  inferred: 0.08
+  ambiguous: 0.08
 created: 2026-04-14T18:18:24.0602572Z
-updated: 2026-04-19T12:08:26.9393504Z
+updated: 2026-10-27T19:27:11Z
 ---
 
 # Telegraph HTTP and Notification API
@@ -35,8 +36,10 @@ This page assumes the shared `[[projects/rustycog/references/rustycog-http]]` ro
 - `http/src/lib.rs` wires those three notification endpoints through `rustycog_http::RouteBuilder`, marks them authenticated, and uses `.with_permission_on(Permission::Write, "notification")` on the mark-read route.
 - Notification handlers build typed commands, attach `CommandContext::with_user_id()`, and map validation, business, not-found, unauthorized, and internal failures into HTTP status codes.
 - `NotificationUseCaseImpl` handles pagination defaults, `per_page <= 100`, unread filtering, and response shaping for the notification read model.
-- Ownership is enforced twice: the centralized `PermissionChecker` resolves `notification:{id}#recipient@user:{user_id}` against OpenFGA (tuples are written by [[projects/sentinel-sync/sentinel-sync]] when Telegraph starts publishing `NotificationCreated`), and `NotificationServiceImpl::mark_notification_as_read()` still returns an unauthorized domain error if the record belongs to someone else.
-- Until Telegraph wires its notification outbox into the queue, the OpenFGA store has no recipient tuples and the route layer falls back to the in-domain ownership check inside `NotificationServiceImpl`. ^[ambiguous]
+- Ownership has two checks: `PermissionChecker` resolves `notification:{id}#recipient@user:{user_id}` against OpenFGA, and `NotificationServiceImpl::mark_notification_as_read()` also rejects a record owned by another user. The domain check is not a fallback that bypasses a permission-middleware deny.
+- Telegraph now records `NotificationCreated` in the business transaction and publishes it through the durable outbox. [[projects/sentinel-sync/sentinel-sync]] consumes the actual event and writes the recipient tuple. The earlier April note describing missing outbox and an HTTP fallback is superseded by this delivery.
+- The final vertical test validates no preloaded recipient grant, actual SQS bytes through the public handler, replay with a fresh ledger and a unique tuple. Another user's mark-read returns **403 without mutation**; the recipient obtains **200**. See [[projects/aiforall/references/mission-telegraph-outbox-20261027]].
+- HTTP lifetime ownership is separate from this permission proof: [[projects/rustycog/references/rustycog-http]] documents the adopted owner, actual bound port0 and bounded stop/join semantics.
 - `http/src/handlers/communication.rs` defines richer direct-send DTOs for email, notification, and SMS payloads, but the live route table does not register those handlers. ^[ambiguous]
 - The unregistered direct-send DTOs are best treated as future product surface, not as the default extension path for new event-driven delivery work; Telegraph's live feature additions belong on the queue path unless the HTTP contract intentionally changes. ^[inferred]
 

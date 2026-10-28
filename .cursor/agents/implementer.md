@@ -32,3 +32,7 @@ If a new architectural decision appears, stop that part and escalate. Do not dec
 - Local choices made (only those you had to make)
 - Validation commands and results
 - Residual risks or decisions the orchestrator must take
+
+## Code intelligence and editing — AIForAll
+
+Apply root `AGENTS.md` **Contrat MCP local**; load `aiforall-mcp-workflow` before Rust exploration/impact/symbol edits (file fallback: `.agents/skills/aiforall-mcp-workflow/SKILL.md`). Check consumers and actual coverage before cross-file edits; retain behavioural validation. Keep the 8B resident. Tool fallback never expands your role or permissions.

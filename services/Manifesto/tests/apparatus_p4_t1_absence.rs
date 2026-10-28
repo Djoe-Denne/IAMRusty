@@ -79,13 +79,57 @@ fn hits_case_insensitive(
         }
         let content = std::fs::read_to_string(file).expect("fichier lisible");
         for (idx, line) in content.lines().enumerate() {
-            if line.to_lowercase().contains(needle) && !allow_line.iter().any(|a| line.contains(a))
-            {
+            if forbidden_line(line, needle, allow_line) {
                 hits.push(format!("{}:{}: {}", file.display(), idx + 1, line.trim()));
             }
         }
     }
     hits
+}
+
+fn forbidden_line(line: &str, needle: &str, allow_line: &[&str]) -> bool {
+    line.to_lowercase().contains(needle) && !allow_line.iter().any(|a| line.contains(a))
+}
+
+/// G-9: a clean production scan is meaningful only if its detector still detects.
+#[test]
+fn g9_absence_detector_rejects_mixed_case_cluster_tokens_in_synthetic_corpus() {
+    for (line, needle) in [
+        ("use KubernetesClient;", "kubernetes"),
+        ("let client = K8S::new();", "k8s"),
+        ("// kubernetes access is forbidden here", "kubernetes"),
+    ] {
+        assert!(
+            forbidden_line(line, needle, &[]),
+            "G-9 detector missed forbidden {needle:?} in {line:?}"
+        );
+    }
+    assert!(!forbidden_line(
+        "let runtime = binding_runtime;",
+        "k8s",
+        &[]
+    ));
+}
+
+/// G-9: an allowlisted line must not disable detection on a different line.
+#[test]
+fn g9_absence_detector_allowlist_is_case_sensitive_and_line_local() {
+    let allow = ["APPROVED_COMMENT"];
+    assert!(!forbidden_line(
+        "// APPROVED_COMMENT kubernetes",
+        "kubernetes",
+        &allow
+    ));
+    assert!(forbidden_line(
+        "use kubernetes::Client;",
+        "kubernetes",
+        &allow
+    ));
+    assert!(forbidden_line(
+        "// approved_comment kubernetes",
+        "kubernetes",
+        &allow
+    ));
 }
 
 fn apparatus_runtime_trait_block() -> String {

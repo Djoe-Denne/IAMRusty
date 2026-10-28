@@ -4,7 +4,10 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
 };
 
 use apparatus_contracts::runtime::*;
@@ -50,6 +53,7 @@ pub struct RuntimeCutoverGuard {
     control: Arc<dyn RuntimeControlPort>,
     // Per-process readiness only, NEVER distributed writer fencing.
     readiness: Mutex<BootstrapReadiness>,
+    live: Arc<AtomicBool>,
 }
 
 struct BootstrapReadiness {
@@ -68,6 +72,7 @@ impl RuntimeCutoverGuard {
                 ready: false,
                 exhausted: false,
             }),
+            live: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -77,11 +82,18 @@ impl RuntimeCutoverGuard {
             .is_ok_and(|state| state.ready && !state.exhausted)
     }
 
+    /// Health projection only. Authorization always checks the mutex state and
+    /// writer directory, never this liveness flag.
+    pub fn readiness_liveness(&self) -> Arc<AtomicBool> {
+        self.live.clone()
+    }
+
     pub fn close(&self) {
         let _ = self.close_generation();
     }
 
     fn close_generation(&self) -> Result<u64, RuntimeError> {
+        self.live.store(false, Ordering::Release);
         let mut state = self
             .readiness
             .lock()
@@ -203,6 +215,7 @@ impl RuntimeCutoverGuard {
             return Err(RuntimeError::RuntimeProjectionUnavailable);
         }
         state.ready = true;
+        self.live.store(true, Ordering::Release);
         Ok(())
     }
 
@@ -215,8 +228,63 @@ impl RuntimeCutoverGuard {
     }
 }
 
+/// Runtime-off profile: preserve ordinary legacy decisions, but always consult
+/// the durable negative directory under the install/admission lock. Missing or
+/// unavailable SQL is an error, never an empty/allow fallback.
+pub struct LegacyDirectoryGuard {
+    store: Arc<dyn RuntimeStore>,
+}
+
+impl LegacyDirectoryGuard {
+    pub fn new(store: Arc<dyn RuntimeStore>) -> Self {
+        Self { store }
+    }
+}
+
+#[async_trait]
+impl RuntimeAdmissionGuard for LegacyDirectoryGuard {
+    async fn require_legacy_identity(
+        &self,
+        identity: &lazaret_domain::WorkloadIdentity,
+    ) -> Result<(), RuntimeError> {
+        if self
+            .store
+            .enrollment_by_instance(identity.instance)
+            .await?
+            .is_some()
+        {
+            return Err(RuntimeError::RuntimeLegacyDisabled);
+        }
+        self.require_legacy(identity.binding).await
+    }
+    async fn require_runtime(&self, _: &RuntimeEnrollment) -> Result<(), RuntimeError> {
+        Err(RuntimeError::RuntimeProjectionUnavailable)
+    }
+    async fn require_binding(&self, _: Uuid, _: Uuid) -> Result<(), RuntimeError> {
+        Err(RuntimeError::RuntimeProjectionUnavailable)
+    }
+    async fn require_legacy(&self, binding_id: Uuid) -> Result<(), RuntimeError> {
+        self.store.admit_legacy(binding_id).await
+    }
+}
+
 #[async_trait]
 impl RuntimeAdmissionGuard for RuntimeCutoverGuard {
+    async fn require_legacy_identity(
+        &self,
+        identity: &lazaret_domain::WorkloadIdentity,
+    ) -> Result<(), RuntimeError> {
+        self.require_ready()?;
+        if self
+            .store
+            .enrollment_by_instance(identity.instance)
+            .await?
+            .is_some()
+        {
+            return Err(RuntimeError::RuntimeLegacyDisabled);
+        }
+        self.require_legacy(identity.binding).await
+    }
     async fn require_runtime(&self, enrollment: &RuntimeEnrollment) -> Result<(), RuntimeError> {
         if enrollment.closed {
             return Err(RuntimeError::RuntimeIdentityRevoked);

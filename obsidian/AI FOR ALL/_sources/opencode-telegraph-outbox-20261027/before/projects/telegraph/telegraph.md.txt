@@ -1,0 +1,77 @@
+---
+title: >-
+  Telegraph
+category: project
+tags: [communication, events, notifications, visibility/internal]
+sources:
+  - README.md
+  - services/Telegraph/openspecs.yaml
+  - services/Telegraph/setup/src/app.rs
+  - services/Telegraph/infra/src/event/consumer.rs
+  - services/Telegraph/http/src/lib.rs
+summary: >-
+  Telegraph : notifications et files. T14b : HTTPS compose port 8445,
+  CA mesh optionnelle (pas rustls required).
+provenance:
+  extracted: 0.73
+  inferred: 0.17
+  ambiguous: 0.10
+created: 2026-04-14T18:18:24.0602572Z
+updated: 2026-09-20T10:35:00Z
+---
+
+# Telegraph
+
+## Indexes
+
+- [[projects/telegraph/concepts/index]] — concepts
+- [[projects/telegraph/skills/index]] — skills
+- [[projects/telegraph/references/index]] — references
+
+`Telegraph` is the communication service in the AIForAll workspace. Use `[[projects/rustycog/references/index]]` for the shared service shell; use this page and the linked Telegraph references for the event-routing, descriptor, delivery, and notification behaviors that Telegraph adds on top of that baseline.
+
+## RustyCog Baseline
+
+- `[[projects/rustycog/references/index]]` is the canonical map for the shared command, config, HTTP, permission, event, DB, and testing crates used by Telegraph.
+- `[[references/rustycog-service-construction]]` and `[[skills/building-rustycog-services]]` describe the default RustyCog service assembly flow that Telegraph reuses.
+- Read `[[projects/rustycog/references/rustycog-command]]`, `[[projects/rustycog/references/rustycog-config]]`, `[[projects/rustycog/references/rustycog-events]]`, `[[projects/rustycog/references/rustycog-http]]`, and `[[projects/rustycog/references/rustycog-testing]]` for the shared runtime mechanics.
+
+## Service-Specific Differences
+
+- Telegraph runs two entry paths in parallel: an SQS-backed consumer that reacts to IAM events and an authenticated HTTP API that serves stored notification state.
+- Event payloads are transformed into user-facing output through `[[projects/telegraph/concepts/descriptor-driven-communications]]`, where per-event TOML descriptors and Tera templates determine whether an event yields email, in-app notification content, or both.
+- Queue events flow through `[[projects/telegraph/concepts/queue-driven-command-processing]]`, so async consumers and HTTP handlers both delegate into the same RustyCog command runtime instead of bypassing it.
+- The notification API follows the shared `[[concepts/centralized-authorization-service]]` pattern: the route layer asks the OpenFGA-backed `PermissionChecker` whether the caller is a `notification#recipient`. Tuples are written by [[projects/sentinel-sync/sentinel-sync]] when Telegraph starts publishing `NotificationCreated` events.
+- Runtime behavior depends on `[[concepts/structured-service-configuration]]`, especially the split between transport-level `queue` settings and Telegraph-specific `queues.*` event routing and `communication.*` delivery settings.
+- The root repo overview and some Telegraph config/model surfaces still describe SMS alongside email and notifications, but the currently wired processor composite only registers email and notification handlers. ^[ambiguous]
+- Queue command failures still flatten to `ServiceError::infrastructure` — the only **divergent** error verdict in [[concepts/architecture-coherence-across-services]].
+- Queue boot should go through [[projects/aiforall/concepts/queue-readiness-signaling]] so a rustycog no-op is visible on `/ready`.
+- Integration tests: one `#[path = "fixtures/mod.rs"]` in `tests/common.rs` (Sonar `duplicate_mod`). See [[projects/aiforall/skills/fixing-sonar-clippy-in-services]].
+- T14b (HEAD `a27ea5b`) : HTTPS compose via dual-bind rustycog, hôte **8445**, CA mesh distincte de Lazaret, client cert **optionnel**. Preuve `services/Telegraph/tests/https_mesh_optional_mtls.rs`. Concept : [[projects/aiforall/concepts/https-platform-mesh]].
+
+## Related
+
+- [[projects/rustycog/references/index]] - Canonical shared framework map that the service pages below build on.
+- [[projects/telegraph/references/telegraph-service]] - Code-backed overview of Telegraph's crate layout, shared dependencies, and parallel runtime shape.
+- [[projects/telegraph/references/telegraph-entity-model]] - Communication, template, and delivery entities owned by Telegraph.
+- [[projects/telegraph/references/telegraph-runtime-and-configuration]] - `TELEGRAPH_*` config loading, queue routing, template paths, and local runtime drift.
+- [[projects/telegraph/references/telegraph-http-and-notification-api]] - The live notification route table, ownership checks, and OpenAPI drift.
+- [[projects/telegraph/references/telegraph-event-processing]] - SQS consumption, command dispatch, descriptor loading, and delivery-mode routing.
+- [[projects/telegraph/references/telegraph-testing-and-smtp-fixtures]] - Real SQS, SMTP, DB, and JWT-backed integration tests.
+- [[projects/telegraph/skills/building-event-driven-notification-services]] - Reusable workflow for building Telegraph-style communication services.
+- [[projects/aiforall/concepts/https-platform-mesh]] — T14b HTTPS + CA client optionnelle.
+
+## Open Questions
+
+- The root `README.md` says Telegraph runs on port `8081` in the shared stack, while `services/Telegraph/docker-compose.yml` exposes `8080:8080`. Conflict to resolve. ^[ambiguous]
+- The repo overview says IAMRusty publishes to `user-events`, while Telegraph's own queue-routing examples are keyed under `test-user-events`; the naming split needs a single operator-facing story. Conflict to resolve. ^[ambiguous]
+- `http/src/handlers/communication.rs` defines richer send-message DTOs, but the live route table only exposes notification read-model endpoints. ^[ambiguous]
+
+## Sources
+
+- [[projects/rustycog/references/index]]
+- [[projects/telegraph/references/telegraph-service]]
+- [[projects/telegraph/references/telegraph-runtime-and-configuration]]
+- [[projects/telegraph/references/telegraph-http-and-notification-api]]
+- [[projects/telegraph/references/telegraph-event-processing]]
+- [[projects/telegraph/references/telegraph-testing-and-smtp-fixtures]]

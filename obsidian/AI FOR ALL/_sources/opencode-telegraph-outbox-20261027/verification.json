@@ -1,0 +1,79 @@
+{
+  "at": "2026-10-27T19:37:58.627Z",
+  "status": "PASS",
+  "pages_created": 5,
+  "pages_updated": 8,
+  "navigation_updated": 1,
+  "sources_verified": 14,
+  "previous_source_entries_preserved": 1318,
+  "total_sources": 1333,
+  "total_content_pages": 247,
+  "summaries": [
+    {
+      "page": "projects/aiforall/references/mission-telegraph-outbox-20261027.md",
+      "chars": 158
+    },
+    {
+      "page": "projects/telegraph/concepts/durable-notification-publication.md",
+      "chars": 150
+    },
+    {
+      "page": "projects/aiforall/skills/proving-leased-outbox-recovery.md",
+      "chars": 155
+    },
+    {
+      "page": "projects/rustycog/references/rustycog-outbox.md",
+      "chars": 173
+    },
+    {
+      "page": "projects/rustycog/references/rustycog-http.md",
+      "chars": 161
+    },
+    {
+      "page": "projects/telegraph/telegraph.md",
+      "chars": 155
+    },
+    {
+      "page": "projects/telegraph/references/telegraph-service.md",
+      "chars": 178
+    },
+    {
+      "page": "projects/telegraph/references/telegraph-http-and-notification-api.md",
+      "chars": 154
+    },
+    {
+      "page": "projects/telegraph/references/telegraph-entity-model.md",
+      "chars": 158
+    },
+    {
+      "page": "projects/telegraph/references/index.md",
+      "chars": 117
+    },
+    {
+      "page": "projects/telegraph/references/telegraph-testing-and-smtp-fixtures.md",
+      "chars": 139
+    },
+    {
+      "page": "projects/aiforall/decisions/0300-events-authz.md",
+      "chars": 155
+    },
+    {
+      "page": "projects/aiforall/aiforall.md",
+      "chars": 144
+    },
+    {
+      "page": "index.md",
+      "chars": 151
+    }
+  ],
+  "new_link_count": 51,
+  "incoming": {
+    "projects/aiforall/references/mission-telegraph-outbox-20261027.md": 13,
+    "projects/telegraph/concepts/durable-notification-publication.md": 8,
+    "projects/aiforall/skills/proving-leased-outbox-recovery.md": 8,
+    "projects/rustycog/references/rustycog-outbox.md": 7,
+    "projects/rustycog/references/rustycog-http.md": 7
+  },
+  "errors": [],
+  "limit": "Checks this ingest only; preexisting broken links outside the changed set and exhaustive native transcripts are not audited"
+}

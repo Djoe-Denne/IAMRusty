@@ -106,6 +106,7 @@ pub struct Application {
     /// Dedicated HS256 extractor for the binding grant snapshot GET.
     pub grant_snapshot_extractor: Arc<UserIdExtractor>,
     binding_grant_snapshots: Option<Arc<dyn manifesto_application::BindingGrantSnapshotReader>>,
+    runtime_maintenance: crate::runtime_maintenance::RuntimeMaintenanceRunner,
 }
 
 impl Application {
@@ -127,11 +128,31 @@ impl Application {
         config: AppConfig,
         maybe_event_publisher: Option<Arc<dyn EventPublisher<DomainError>>>,
     ) -> Result<Self, Error> {
+        Self::new_with_runtime_maintenance(
+            config,
+            maybe_event_publisher,
+            crate::runtime_maintenance::RuntimeMaintenanceOverrides::default(),
+        )
+        .await
+    }
+
+    /// Explicit setup injection; there is no HTTP/body/queue route to these
+    /// overrides and no default authenticated maintenance channel.
+    pub async fn new_with_runtime_maintenance(
+        config: AppConfig,
+        maybe_event_publisher: Option<Arc<dyn EventPublisher<DomainError>>>,
+        maintenance: crate::runtime_maintenance::RuntimeMaintenanceOverrides,
+    ) -> Result<Self, Error> {
         tracing::info!("Initializing Manifesto application...");
 
         // Setup database connection
         let db = setup_database(&config).await?;
         let db_write = db.get_write_connection();
+        // Refuse false-config/persistent-fence rollback BEFORE any legacy tick
+        // or consumer is started, not after a background task has escaped.
+        let runtime_maintenance = crate::runtime_maintenance::RuntimeMaintenanceRunner::new(
+            crate::runtime_maintenance::compose(db_write.clone(), &config, maintenance).await?,
+        );
         let tick_interval = manifesto_infra::apparatus_runtime::APPARATUS_TICK_INTERVAL;
         let apparatus_runtime = start_apparatus_runtime(
             db_write.clone(),
@@ -237,6 +258,7 @@ impl Application {
         tracing::info!("Manifesto application initialized successfully");
 
         Ok(Self {
+            runtime_maintenance,
             config,
             state,
             apparatus_event_consumer,
@@ -380,6 +402,12 @@ impl Application {
     #[must_use]
     pub fn readiness(&self) -> Arc<ReadinessProbe> {
         self.readiness.clone()
+    }
+
+    /// Local setup runner only. This is not exposed by router()/HTTP/queue and
+    /// still requires the separately verified maintenance channel for each act.
+    pub fn runtime_maintenance(&self) -> &crate::runtime_maintenance::RuntimeMaintenanceRunner {
+        &self.runtime_maintenance
     }
 
     /// Binding-grant snapshot reader (ADR-0104 `InProcess` injection).

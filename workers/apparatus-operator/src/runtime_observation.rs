@@ -5,6 +5,21 @@ use apparatus_contracts::runtime::{
     RuntimeBindingSnapshotV1, RuntimeErrorCodeV1, RuntimeInstanceStateV1, RuntimePodIdentityV1,
     RuntimeUnixMsV1,
 };
+
+/// Attempt-local identity history. Not serializable or recoverable from labels.
+#[derive(Default)]
+pub(crate) struct PreparationChainUids {
+    configuration: Option<String>,
+    revision: Option<String>,
+}
+
+fn bind_chain_uid(previous: &mut Option<String>, current: &str) -> Result<(), RuntimeErrorCodeV1> {
+    if previous.as_deref().is_some_and(|old| old != current) {
+        return Err(RuntimeErrorCodeV1::RuntimeFenceConflict);
+    }
+    *previous = Some(current.to_owned());
+    Ok(())
+}
 use k8s_openapi::{
     api::{
         apps::v1::{Deployment, ReplicaSet},
@@ -55,6 +70,21 @@ impl ObservedRuntimePod {
         observed_binding: &RuntimeBindingSnapshotV1,
         lease: &apparatus_contracts::runtime::RuntimeWriterLeaseV1,
     ) -> Result<apparatus_contracts::runtime::RuntimeWriteAckV1, RuntimeErrorCodeV1> {
+        let mut pending = None;
+        self.register_with_pending(control, caller, observed_binding, lease, &mut pending)
+            .await
+    }
+
+    /// Controller-owned uncertain attempt ID survives later scans. Re-reading
+    /// ByPodUid never allocates a second ID after a timed-out/ambiguous write.
+    pub(crate) async fn register_with_pending(
+        &self,
+        control: &dyn apparatus_contracts::runtime::RuntimeControlPort,
+        caller: &apparatus_contracts::runtime::RuntimeControlCallerV1,
+        observed_binding: &RuntimeBindingSnapshotV1,
+        lease: &apparatus_contracts::runtime::RuntimeWriterLeaseV1,
+        pending: &mut Option<uuid::Uuid>,
+    ) -> Result<apparatus_contracts::runtime::RuntimeWriteAckV1, RuntimeErrorCodeV1> {
         use apparatus_contracts::runtime::{
             RuntimeInstanceKindV1, RuntimeInstanceRegistrationV1, RuntimeInstanceSelectorV1,
             RuntimeWriteGuardV1, RuntimeWriterLeaseRequestV1,
@@ -86,8 +116,11 @@ impl ObservedRuntimePod {
             return Err(RuntimeErrorCodeV1::RuntimeAuthorityProtocolError);
         }
         let instance_id = match instances.items.as_slice() {
-            [] => uuid::Uuid::new_v4(),
+            [] => *pending.get_or_insert_with(uuid::Uuid::new_v4),
             [known] => {
+                if pending.is_some_and(|id| id != known.instance_id) {
+                    return Err(RuntimeErrorCodeV1::RuntimeIdReused);
+                }
                 if known.project_id != current.project_id
                     || known.binding_id != current.binding_id
                     || known.kind != RuntimeInstanceKindV1::Pod
@@ -169,6 +202,129 @@ pub struct RuntimePodObserver {
 }
 
 impl RuntimePodObserver {
+    /// Capture only complete real metadata, independent of Pod readiness. Missing
+    /// fields/desired Revision are incomplete; identity substitution is an error.
+    pub(crate) async fn preparation_metadata(
+        &self,
+        snapshot: &RuntimeBindingSnapshotV1,
+        parent_uid: &str,
+        revision_name: &str,
+        image: &str,
+        guard: &apparatus_contracts::runtime::RuntimeWriteGuardV1,
+        profile: &crate::runtime_projection::ServingPlatformProfile,
+        chain: &mut PreparationChainUids,
+    ) -> Result<Option<apparatus_contracts::runtime::RuntimeObservationV1>, RuntimeErrorCodeV1>
+    {
+        let unavailable = RuntimeErrorCodeV1::RuntimeProjectionUnavailable;
+        let name = crate::runtime_ownership::serving_name(snapshot);
+        let parent = self
+            .parents
+            .get_opt(&name)
+            .await
+            .map_err(|_| unavailable)?
+            .ok_or(RuntimeErrorCodeV1::RuntimeFenceConflict)?;
+        let json = serde_json::to_value(&parent).map_err(|_| unavailable)?;
+        crate::runtime_ownership::mutation_preconditions(&json, snapshot, parent_uid)?;
+        if parent.data["spec"]["template"]["metadata"]["name"] != revision_name
+            || parent
+                .metadata
+                .annotations
+                .as_ref()
+                .and_then(|values| values.get("apparatus.aiforall.dev/generation"))
+                != Some(&snapshot.cas.generation.get().to_string())
+        {
+            return Err(RuntimeErrorCodeV1::RuntimeStaleState);
+        }
+        let Some(revision) = self
+            .revisions
+            .get_opt(revision_name)
+            .await
+            .map_err(|_| unavailable)?
+        else {
+            return Ok(None);
+        };
+        let revision_uid = uid(&revision.metadata)?;
+        bind_chain_uid(&mut chain.revision, revision_uid)?;
+        let configuration_ref = controller_owner(
+            &revision.metadata,
+            "serving.knative.dev/v1",
+            "Configuration",
+        )?;
+        let configuration = self
+            .configurations
+            .get_opt(&configuration_ref.name)
+            .await
+            .map_err(|_| unavailable)?
+            .ok_or(RuntimeErrorCodeV1::RuntimeFenceConflict)?;
+        let configuration_uid = uid(&configuration.metadata)?;
+        bind_chain_uid(&mut chain.configuration, configuration_uid)?;
+        if configuration_uid != configuration_ref.uid {
+            return Err(RuntimeErrorCodeV1::RuntimeFenceConflict);
+        }
+        let owner = controller_owner(&configuration.metadata, "serving.knative.dev/v1", "Service")?;
+        if owner.uid != parent_uid || owner.name != name {
+            return Err(RuntimeErrorCodeV1::RuntimeFenceConflict);
+        }
+        let containers = revision.data["spec"]["containers"]
+            .as_array()
+            .ok_or(unavailable)?;
+        let users: Vec<_> = containers
+            .iter()
+            .filter(|container| container["name"] == "user-container")
+            .collect();
+        if users.len() != 1 || users[0]["image"] != image {
+            return Err(RuntimeErrorCodeV1::RuntimeReleaseNotAdmitted);
+        }
+        let Some(resource_generation) = parent
+            .metadata
+            .generation
+            .and_then(|n| u64::try_from(n).ok())
+        else {
+            return Ok(None);
+        };
+        let Some(observed_generation) = parent.data["status"]["observedGeneration"].as_u64() else {
+            return Ok(None);
+        };
+        let Some(endpoint) = parent.data["status"]["address"]["url"].as_str() else {
+            return Ok(None);
+        };
+        profile.check_endpoint(snapshot, endpoint)?;
+        let ready_conditions: Vec<_> = parent.data["status"]["conditions"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|condition| condition["type"] == "Ready")
+            .collect();
+        let route_ready = resource_generation == observed_generation
+            && parent.data["status"]["latestCreatedRevisionName"] == revision_name
+            && parent.data["status"]["latestReadyRevisionName"] == revision_name
+            && ready_conditions.len() == 1
+            && ready_conditions[0]["status"] == "True";
+        let utc_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| unavailable)?
+            .as_millis();
+        let observed_at = RuntimeUnixMsV1::new(i64::try_from(utc_ms).map_err(|_| unavailable)?)?;
+        Ok(Some(apparatus_contracts::runtime::RuntimeObservationV1 {
+            schema_version: 1,
+            project_id: snapshot.project_id,
+            binding_id: snapshot.binding_id,
+            guard: guard.clone(),
+            service_uid: parent_uid.to_owned(),
+            resource_generation: apparatus_contracts::runtime::RuntimeCounterV1::new(
+                resource_generation,
+            )?,
+            observed_resource_generation: apparatus_contracts::runtime::RuntimeCounterV1::new(
+                observed_generation,
+            )?,
+            revision_uid: revision_uid.to_owned(),
+            revision_name: revision_name.to_owned(),
+            release: snapshot.release.clone(),
+            endpoint: endpoint.to_owned(),
+            route_ready,
+            observed_at_unix_ms: observed_at,
+        }))
+    }
     /// Reuse the operator's configured client, never pass it into Manifesto.
     #[must_use]
     pub fn new(client: Client) -> Self {

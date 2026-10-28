@@ -56,6 +56,7 @@ tower = { workspace = true }
 tower-http = { workspace = true }
 
 [dev-dependencies]
+rsa = { workspace = true }
 tokio = { workspace = true }
 axum-test = { workspace = true }
 tokio-test = { workspace = true }
@@ -88,5 +89,4 @@ rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["ful
 apparatus-events = { path = "../../crates/apparatus-events" }
 apparatus-contracts = { path = "../../crates/apparatus-contracts" }
 readiness = { path = "../../crates/readiness" }
-
 

@@ -1,0 +1,27 @@
+{
+  "gaps": ["G-3", "G-4", "G-8", "G-12"],
+  "contract": "apparatus-knative-runtime §13.5-C",
+  "proof_level": "Real PostgreSQL writer, independent RS256 test issuer, pinned public verifier; real Adm-A store for export/single-writer evidence",
+  "cases": [
+    { "case": "prepare_then_open", "requires": "different writer-issued action/challenge and fresh Adm-A proof per act" },
+    { "case": "same_challenge_two_concurrent_prepare", "successful_consumptions": 1, "prepared_commits": 1 },
+    { "case": "challenge_replay_after_success", "expected": "RUNTIME_REPLAY", "additional_prepared_commits": 0 },
+    { "case": "prepare_proof_reused_for_open", "expected": "refused", "open_commits": 0 },
+    { "case": "challenge_superseded_by_new_intention", "expected": "refused", "old_intention_consumed": false },
+    { "case": "cas_changes_during_export_or_writer_lock_wait", "expected": "RUNTIME_STALE_STATE", "open_commits": 0 },
+    { "case": "proof_expires_during_writer_lock_wait", "expected": "refused", "open_commits": 0 },
+    { "case": "key_revoked_after_preflight_before_commit", "expected": "refused", "open_commits": 0 },
+    { "case": "valid_signature_missing_profile_lock", "expected": "refused", "open_commits": 0 },
+    { "case": "valid_profile_lock_missing_attestation", "expected": "RUNTIME_RELEASE_NOT_ADMITTED", "prepared_commits": 0 },
+    { "case": "operator_signature_or_iam_invoke_key_substituted", "expected": "RUNTIME_INVALID_PROOF", "prepared_commits": 0 },
+    { "case": "prepared_commit_ack_lost", "resume": "read journal and current authority, no second consumption" },
+    { "case": "transaction_rolls_back_after_verification", "resume": "explicit bounded maintenance, never automatic replay" },
+    { "case": "withdrawal_versus_concurrent_open", "requires": "release guard then writer closures durable before Adm-A withdrawal commit", "stale_open_commits": 0 },
+    { "case": "higher_revision_arrives_after_negative_guard", "automatic_reopen": false },
+    { "case": "record_identity_changes_or_revision_decreases", "expected": "refused", "counter_reset": false },
+    { "case": "C_or_AdmA_restored_with_old_journal", "requires": "pending challenges invalidated and high-watermarks reconciled before readiness" },
+    { "case": "operator_transports_unsigned_runner_json_or_dot_sig_presence", "prepared_commits": 0, "valid_decisions_created_by_transport": 0 }
+  ],
+  "failure_atomicity": "Challenge consumption and prepared/opened state occur in the same SQL commit; no independently committed proof-accepted window.",
+  "non_oracles": ["200 is not VALID", "pure syntax test is not crypto proof", "signature does not qualify mesh/sandbox", "transport never mints admission", "expired proof never erases negative guard"]
+}

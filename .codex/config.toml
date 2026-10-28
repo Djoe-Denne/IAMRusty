@@ -1,4 +1,5 @@
 [mcp_servers.grepai]
+enabled = false
 command = 'C:\Users\djden\AppData\Local\Programs\grepai\grepai.exe'
 args = [
     "mcp-serve",
@@ -10,3 +11,7 @@ command = 'powershell.exe'
 args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", 'C:\Users\djden\.config\1mcp\serena-proxy.ps1', "-ProjectPath", 'C:\Users\djden\source\repos\AIForAll']
 cwd = 'C:\Users\djden\source\repos\AIForAll'
 startup_timeout_sec = 90
+
+[mcp_servers.rust-code-mcp]
+url = "http://127.0.0.1:3062/mcp?tags=rust-code-mcp"
+startup_timeout_sec = 150

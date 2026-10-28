@@ -1,0 +1,30 @@
+{
+  "id": "compare-owned-container-inventories-v1",
+  "status": "promoted",
+  "purpose": "Comparer deux inventaires complets déjà capturés et une liste explicite d'identités possédées.",
+  "reuseRationale": "Éviter les conclusions de préservation ou de fin de campagne basées sur des IDs tronqués, des données absentes ou des listes de sortie coupées.",
+  "existingToolsChecked": ["readEvidence", "classifyCommandResult", "collectIndependentReads", "Docker CLI: collecte seulement, non appelée ici"],
+  "provenance": {
+    "taskReference": "Telegraph outbox; context-ingest144; rapport 144",
+    "date": "2026-10-28",
+    "sessionID": "ses_e8c83903cffdV6os9tq6b6HYc7",
+    "calls": [
+      {"id": "call_90edd4ae5cd34ef2871ecb43bc62b261", "contextCodeSha256": "341fa84027e77f832da3df3150231ebdf90ec1a9e91ed70119725ea199ab1c32"},
+      {"id": "call_99645e1af77640a497d1e7360e21870a", "contextCodeSha256": "a15482debd7f01b8291b1077db19fb86f764dfddb2bd7baf1c6495410ef5009a"}
+    ],
+    "attribution": "Arguments littéraux concordants avec code Context Mode complet retourné ; résultats de préservation et absence d'owned running observés. Réécriture pure, scripts historiques non rejoués."
+  },
+  "parameters": {
+    "input": "{before: rows[], after: rows[], ownedIds: string[], beforeComplete: true, afterComplete: true}",
+    "row": "{id: lowercase full 64hex, state: created|running|paused|restarting|removing|exited|dead}",
+    "options": "{idKey?: string, stateKey?: string, maxRecords?: 1..100000 (default 10000 per array), maxOutputItems?: 1..1000 (default 20 per category)}"
+  },
+  "returns": "status inconclusive si complétude non déclarée ; sinon compared avec comptes complets, listes bornées, conflits de propriété, états actifs/terminaux/transitoires/absents et changements préexistants.",
+  "dependencies": ["Node >=18; CommonJS; aucun paquet tiers"],
+  "sideEffects": [],
+  "scopeAndPermissions": "Données déjà autorisées uniquement. Aucun Docker, lecture fichier, registry, stop ou suppression. Déclaration ownedIds fournie par l'appelant, pas une preuve indépendante de propriété.",
+  "files": {"implementation": "../../scripts/compare-inventories.cjs", "tests": "../../scripts/compare-inventories.test.cjs"},
+  "checksActuallyRun": ["Relecture code/tests avant exécution", "node --check sur les deux fichiers : exit 0", "node --test function.test.cjs : exit 0 (10 tests déclarés)", "Import CommonJS et 4 assertions synthétiques dans Context Mode/Bun : PASS"],
+  "knownLimits": ["Snapshots non atomiques et complétude non vérifiable par le helper", "Comparaison ID/état seulement ; pas de volumes, exit codes, contenu ou baux", "ownedAbsent ne démontre ni qui a supprimé ni quand", "Aucun verdict global de cleanup ou autorisation de suppression", "Sorties coupées signalées, comptes non coupés", "Entrées JS ordinaires de confiance ; pas un confinement face aux getters/proxies hostiles"],
+  "promotion": {"reviewReference": "../../VALIDATION.md#promotion-explicitement-autorisée-le-2026-10-28", "testEvidence": "../../VALIDATION.md (49 PASS intégrés)", "contextModeEvidence": "../../VALIDATION.md (10 assertions Bun 1.4.2)", "catalogueId": "compare-owned-container-inventories"}
+}

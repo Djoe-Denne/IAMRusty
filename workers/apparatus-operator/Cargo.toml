@@ -74,7 +74,10 @@ required-features = ["admit", "controller"]
 [dependencies]
 apparatus-contracts = { path = "../../crates/apparatus-contracts" }
 hex = { workspace = true }
-sha2 = { workspace = true }
+sha2 = { workspace = true, features = ["oid"] }
+rsa = { workspace = true }
+base64 = { workspace = true }
+serde_jcs = "=0.2.0"
 toml = { workspace = true }
 uuid = { workspace = true }
 reqwest = { workspace = true, optional = true }
@@ -95,11 +98,13 @@ tokio = { workspace = true, optional = true, features = [
 futures = { workspace = true, optional = true }
 
 [dev-dependencies]
+axum = { workspace = true }
+tower = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
 serial_test = { workspace = true }
 testcontainers = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time", "net", "io-util"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time", "net", "io-util", "test-util"] }
 async-trait = { workspace = true }
 axum-test = { workspace = true }
 rcgen = { workspace = true }

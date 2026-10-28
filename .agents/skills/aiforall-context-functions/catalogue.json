@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "module": "scripts/helpers.cjs",
+  "runner": "scripts/run.cjs",
+  "functions": [
+    {
+      "id": "read-evidence",
+      "export": "readEvidence",
+      "status": "validated",
+      "purpose": "Lire et comparer des extraits choisis, annotés par ligne, avec préflight et succès partiels.",
+      "cli": true,
+      "parameters": {
+        "root": "racine absolue du checkout autorisé",
+        "files": "1..50 objets {path: relatif, ranges?: [{start: entier >=1, end: entier >=start}]}",
+        "maxOutputChars": "entier 1..2000000, défaut 12000, contenu cumulé",
+        "maxFileBytes": "entier 1..67108864, défaut 1048576",
+        "maxTotalBytes": "entier 1..67108864, défaut 8388608"
+      },
+      "returns": "{ok, partial, truncated, bytesRead, entries: [{path, status, lineCount?, content?, truncated?, error?}]}",
+      "limits": "UTF-8 texte ; ni recherche de symboles ni autorisation de lire des fichiers sensibles ; limites de sortie explicites, pas de preuve d'absence si coupée.",
+      "evidence": "VALIDATION.md"
+    },
+    {
+      "id": "classify-command",
+      "export": "classifyCommandResult",
+      "status": "validated",
+      "purpose": "Classer un résultat de processus sans l'exécuter ni déverser stdout/stderr.",
+      "cli": true,
+      "parameters": {
+        "result": "objet {status: entier|null, signal?: string|null, error?: {code?: string}}",
+        "options": "{noMatchExitCodes?: entier[], diagnosticText?: texte explicitement non secret, maxDiagnosticChars?: entier 1..10000}"
+      },
+      "returns": "{ok, kind, exitCode, signal, errorCode, diagnostic?}",
+      "limits": "noMatchExitCodes=[1] pour rg seulement ; aucun diagnostic brut inclus par défaut.",
+      "evidence": "VALIDATION.md"
+    },
+    {
+      "id": "collect-independent-reads",
+      "export": "collectIndependentReads",
+      "status": "validated",
+      "purpose": "Attendre toutes les lectures indépendantes et préserver chaque valeur/erreur avec son label.",
+      "cli": false,
+      "parameters": {"operations": "1..100 objets {label: unique non vide, run: fonction de lecture}"},
+      "returns": "Promise de [{label, status: fulfilled|rejected, value?|error?}]",
+      "limits": "Module seulement ; aucune mutation, inspection des erreurs métier fulfilled laissée à l'appelant ; filtrer les valeurs avant impression.",
+      "evidence": "VALIDATION.md"
+    },
+    {
+      "id": "compare-owned-container-inventories",
+      "export": "compareOwnedContainerInventories",
+      "status": "validated",
+      "purpose": "Comparer des inventaires complets déjà capturés sans appeler Docker ni autoriser une suppression.",
+      "cli": true,
+      "parameters": {
+        "inventory": "{before: rows[], after: rows[], ownedIds: full64hex[], beforeComplete: true, afterComplete: true}; rows={id, state}; argument direct du module",
+        "options": "{idKey?, stateKey?, maxRecords?: 1..100000 (défaut 10000 par tableau), maxOutputItems?: 1..1000 (défaut 20 par catégorie)}"
+      },
+      "returns": "{status: inconclusive, reason} ou {status: compared, counts, listes bornées, preexistingUnchanged, allOwnedTerminalOrAbsent, truncated}",
+      "limits": "La CLI reçoit {inventory, options} (stdin max 64KiB). IDs complets minuscules. Complétude/propriété déclarées par l'appelant, snapshots non atomiques ; ID/état uniquement, sans volumes/exit codes/baux. Aucun verdict global de cleanup.",
+      "evidence": "VALIDATION.md"
+    },
+    {
+      "id": "decode-evidence-text",
+      "export": "decodeEvidenceText",
+      "status": "validated",
+      "purpose": "Décoder strictement des octets de preuve UTF-8/UTF-16 avec gestion explicite des BOM et limites.",
+      "cli": false,
+      "parameters": {
+        "bytes": "Uint8Array ou Buffer",
+        "options": "{encoding?: auto|utf-8|utf-16le|utf-16be, maxBytes?: 1..16777216 (défaut 1048576), allowNul?: boolean (défaut false)}"
+      },
+      "returns": "{encoding, encodingSource, bomBytes, byteLength, text}; sinon erreur à code stable",
+      "limits": "Module seulement pour conserver l'entrée binaire typée. Sans BOM auto utilise UTF-8 ; aucun Latin1/remplacement silencieux. NUL refusé sauf option, UTF32 refusé, une BOM retirée, retours ligne préservés. Aucune lecture fichier ou expurgation de données privées.",
+      "evidence": "VALIDATION.md"
+    }
+  ]
+}

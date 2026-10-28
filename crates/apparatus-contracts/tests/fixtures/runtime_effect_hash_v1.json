@@ -1,0 +1,20 @@
+{
+  "gap": "G-7",
+  "contract": "apparatus-knative-runtime §13.1-A",
+  "scenario": "binding-scoped KV effect bound to execution and target instance",
+  "expected_sha256": "sha256:4a29e8861b08dd8c82d873b25c3cb003f948469dce7fdb9fc1c55e86922b6399",
+  "input": {
+    "schema_version": 1,
+    "domain": "urn:aiforall:apparatus:runtime:effect-hash:v1",
+    "operation_sha256": "sha256:b28338f2eeb30c609c532e02cab0f0d3ae92c072480c24d9de6ef833c4a034a8",
+    "execution_id": "00000000-0000-4000-8000-000000000010",
+    "effect_id": "00000000-0000-4000-8000-000000000011",
+    "instance_id": "00000000-0000-4000-8000-000000000012",
+    "invoke": {
+      "binding_id": "00000000-0000-4000-8000-000000000006",
+      "operation_id": "00000000-0000-4000-8000-000000000013",
+      "operation": "kv.put",
+      "params": { "key": "runtime-cold-state", "value": "survives-zero" }
+    }
+  }
+}

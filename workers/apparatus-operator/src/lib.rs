@@ -18,6 +18,9 @@ pub mod digest;
 #[cfg(feature = "admit")]
 pub mod admit;
 
+#[cfg(feature = "admit")]
+pub mod admission_materialization;
+
 #[cfg(feature = "controller")]
 pub mod controller;
 

@@ -34,3 +34,7 @@ If implementation would change a component boundary or imposed constraint, stop 
 - Local choices made (only those you had to make)
 - Validation commands and results
 - Residual risks or decisions the lead/parent must take
+
+## Code intelligence and editing — AIForAll
+
+Follow the **Contrat MCP local** in root `AGENTS.md`; load `aiforall-mcp-workflow` before Rust exploration/impact/symbol edits (authorized file-read fallback: `.agents/skills/aiforall-mcp-workflow/SKILL.md`). Check consumers before cross-file edits, use the permitted operation suited to actual coverage, and retain behavioural validation. Keep the 8B resident; tool fallback does not expand your role or permissions.

@@ -33,7 +33,7 @@ Documenter config, runtime local, CI/qualité, et le rôle de rustycog comme **f
 - `rustycog/Cargo.toml`, `rustycog/README.md`
 - `.gitmodules` / skill `rustycog-submodule`
 - Wiki `concepts/structured-service-configuration.md` si présent
-- QMD ; GrepAI
+- Contrat MCP d'`AGENTS.md` et skill `aiforall-mcp-workflow` pour l'exploration Rust ; connaissances via QMD. ADR par outils fichiers, sans code applicatif.
 - Mémoire Serena `sonar-clippy-2026-09-09` : gate `new_coverage` 64.1% vs 80% ; hotspot 0 ; un expect Hive marqué false-positive
 
 ## Vérifications

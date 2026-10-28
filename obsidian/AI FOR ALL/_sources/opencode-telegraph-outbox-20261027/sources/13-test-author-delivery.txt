@@ -1,0 +1,68 @@
+# Candidate134 — préparation seule / décision lead136
+
+## Provenance et propriété
+- Session pool23, contexte neuf explicitement assumé ; pas héritage pool14.
+- Phase native implementation/high confirmée par team_handoff ; modèle inchangé.
+- Base attestée : AI1f2dd30 / SDKlocald60 propre / index129 mode160000.
+- Source canonique TI ET copie de départ : SHA256 `6ac7be0e9e220a501241a0b48bf261c6fd7e14aa921ab098dbbfa29e7df071e1`.
+- Ancienne instrumentation110 et archives pool14 intouchées ; aucune production,
+  fixture, SDK, config ou source canonique modifiée. Aucun commit/pin/publication.
+
+## Livrables privés, à inspecter avant intégration par le lead
+- `candidate134.rs` : SHA256 `80cce027ef5eefb41d6a5f457847a94feccebec7ecf28941fbb9fec5338211a7`.
+- `candidate134.patch` : diff unifié exact depuis6ac7, +284/-18 ; SHA256 `5609ad3ec6dbd1d6752d2bff02752a7339a2da015f7efe61df2c81985944261c`.
+- `candidate134-tool.patch` : enveloppe ToolPatch vers l'unique chemin autorisé,
+  SHA256 `fb09308c4a539f720bee67e0ab2788a24185e6745d43aaab9fa8f3c9baa2e4d9`.
+- Aucun de ces deux patches n'a été appliqué à la source canonique.
+
+## Contrat → scénario → oracle → traduction
+- Obligation explicite : autorisation134 amendée136 ; AC1–AC7 inchangés.
+- G-134-E : même intention après stop/restauration, t0 avant SQL/factory/start ;
+  bootstrap SQL strictement avant t0+25s, identités/version/payload et budget
+  d'essais vérifiés. E=locked_until publishing, sinon next_attempt_at failed/pending.
+  État published : E absent, R=0, vraie réception SQS toujours obligatoire.
+  Lock absent/incompatible, état inconnu ou horloges incohérentes échouent explicitement.
+- G-134-D / T-1 : R=max(0,E−UTCt0)<=30s, D=t0+R+25s une seule fois, donc <=55s.
+  Factory/startup, attente SQL published locale100ms, SQS réel, validation complète
+  de l'enveloppe/payload et trois comptes partagent D. Completion strictement <D
+  après la dernière await ; tolérance UTC/monotone100ms = précondition, pas rallonge.
+- G-134-O : annuler simplement RunningApp::start perdrait les jointures.
+  Raccordement privé Recovery134 autorisé136 : app.new avant parents sous D,
+  Vec/OwnedTaskAbortGuard conservés hors timeout HTTP, propriétaire HTTP retenu.
+  Échec HTTP : shutdown_owned_tasks existant avant retour ; startup tardif ou
+  observation échouée : shutdown_owned_runtime existant avant panic. Stop6s inchangé.
+  Le succès conserve l'owner jusqu'aux vrais droits HTTP et au stop final.
+- Bugs plausibles attrapés : lease ignorée, budget renouvelé, Ready achevé après D,
+  faux published sans vrais bytes, identité régénérée, comptes métier supplémentaires.
+
+## Constance vérifiée statiquement
+- Préfixe classifiers/fixtures locales/helpers existants inchangé ; mêmes noms de tests.
+- Sampler0/1/3/6/12 et assert_first_failed_retry_is_future inchangés textuellement.
+- Chaîne bytes→handler→ack→replays mêmes bytes/ledger neuf→tuple unique inchangée.
+- Bloc DB/HTTP403 sans mutation/HTTP200/comptes/preuve finale inchangé.
+- IAM25s, visibilité5, backoff/leases/configuration/grâce/stop non modifiés.
+- Nominal garde le même RunningApp/start/health/wait_status25s/receive10,2/stop ;
+  Option sert seulement à transférer l'ownership de l'ancienne app lors de la panne.
+- Diagnostics110 non réintroduits ; aucun test global ni nouvelle cible.
+- Relecture : KEEP candidat ciblé, sous réserve de compilation canonique et revue.
+  Pas de test fonctionnel déclaré vert ; aucun oracle issu d'un comportement observé.
+  L'auteur a lu la production pour vérifier les APIs/ownership, sans l'avoir écrite.
+
+## Commandes réellement exécutées et limites
+- Copy-Item baseline→candidate : succès, hash initial6ac7.
+- rustfmt --edition 2021 --config skip_children=true .tmp/vertical-final134-inputs/candidate134.rs : exit0.
+- Génération difflib des deux patches : exit0.
+- Analyses Context Mode : SHA256/constance ci-dessus ; un premier script de
+  restitution a échoué sur échappement, corrigé avec String.fromCharCode(10), exit0.
+- AUCUN Cargo, compilation, Clippy/Sonar, test fonctionnel, Docker/Kind/WSL ou runtime.
+  UNE validation134 NON consommée. Aucun nouveau ROUGE ni PASS fonctionnel inféré.
+- Source canonique revérifiée6ac7 après préparation. Candidat existe sur disque.
+- Serena racine canonique vérifiée ; TI exclu/non couvert (find_symbol=[]),
+  lecture des sources TI et snapshots exacts à la place. Refus gitdirs externes respecté.
+
+## HANDOFF_MARKDOWN
+Préparation test-only136 terminée sous .tmp uniquement. Lead : inspecter/apppliquer
+le delta au seul fichier autorisé, vérifier hash et provenance, fmt/compilation cible
+--no-run Windows jobs24 sous son bail, puis revue indépendante du delta. Exécution
+verticale unique seulement au préflight/GO du lead. Aucun test exécuté chez l'auteur.
+Inventaire fixtures/cleanup : zéro ressource créée, aucun ID possédé, aucun cleanup.

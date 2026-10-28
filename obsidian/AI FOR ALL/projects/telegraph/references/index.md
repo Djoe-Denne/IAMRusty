@@ -2,13 +2,15 @@
 title: Telegraph References Index
 category: navigation
 tags: [index, references, communication]
+sources:
+  - _sources/opencode-telegraph-outbox-20261027/inventory.json
 summary: >-
-  Telegraph-owned reference pages that assume RustyCog for shared runtime mechanics and focus on the service's event, delivery, and notification deltas.
+  Telegraph references : entities, API and delivery, durable outbox, owned HTTP and scoped SQS/OpenFGA recovery proofs.
 provenance:
-  extracted: 0.92
-  inferred: 0.06
+  extracted: 0.94
+  inferred: 0.04
   ambiguous: 0.02
-updated: 2026-04-19T12:08:26.9393504Z
+updated: 2026-10-27T19:27:11Z
 ---
 
 # Telegraph References
@@ -23,6 +25,12 @@ Use `[[projects/rustycog/references/index]]` for shared command, config, HTTP, q
 - [[projects/telegraph/references/telegraph-testing-and-smtp-fixtures]]
 
 ## See Also
+
+- [[projects/telegraph/concepts/durable-notification-publication]] — same writer transaction, transport gate and durable eligibility.
+- [[projects/aiforall/skills/proving-leased-outbox-recovery]] — a fixed recovery deadline without weakening transport or access oracles.
+- [[projects/aiforall/references/mission-telegraph-outbox-20261027]] — delivered commits, architect/author/reviewer contributions and explicit proof limits.
+- [[projects/rustycog/references/rustycog-outbox]] — recorder, leases and retries.
+- [[projects/rustycog/references/rustycog-http]] — HTTP owner and observed stop/join.
 
 - [[projects/rustycog/references/index]] — Canonical RustyCog crate map.
 - [[references/rustycog-service-construction]] — Shared service-construction baseline that Telegraph specializes.

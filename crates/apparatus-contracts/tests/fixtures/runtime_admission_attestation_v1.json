@@ -1,0 +1,62 @@
+{
+  "gap": "G-7",
+  "contract": "apparatus-knative-runtime §13.5",
+  "proof_status": "Unsigned claim fixture; not an attestation or authority. Real independent test signer and pinned verifier still required.",
+  "protected_header_literals": {
+    "alg": "RS256",
+    "typ": "apparatus-admission-materialization+jwt"
+  },
+  "kid_derivation": "ara-v1- plus RFC7638 RSA public thumbprint; test signer must add exactly kid to protected_header_literals from its real public key",
+  "claims": {
+    "schema_version": 1,
+    "iss": "urn:aiforall:apparatus:adm-a:v1",
+    "aud": "urn:aiforall:manifesto:apparatus-runtime:materialization:v1",
+    "purpose": "apparatus.runtime.admission-materialization.v1",
+    "jti": "00000000-0000-4000-8000-000000000031",
+    "iat": 1700000000,
+    "exp": 1700000005,
+    "challenge": {
+      "schema_version": 1,
+      "challenge_id": "00000000-0000-4000-8000-000000000031",
+      "authority_id": "00000000-0000-4000-8000-000000000032",
+      "installation_id": "00000000-0000-4000-8000-000000000033",
+      "action": "prepare",
+      "migration_id": "00000000-0000-4000-8000-000000000021",
+      "project_id": "00000000-0000-4000-8000-000000000003",
+      "binding_id": "00000000-0000-4000-8000-000000000006",
+      "expected": { "generation": "3", "revocation_epoch": "5", "projection_version": "13", "grant_revision": "4" },
+      "release": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "profile": "knative-v1",
+      "profile_lock_sha256": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "inventory_sha256": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "service_uid": null,
+      "revision_uid": null,
+      "issued_at_unix_ms": "1700000000000",
+      "expires_at_unix_ms": "1700000060000"
+    },
+    "record_id": "00000000-0000-4000-8000-000000000034",
+    "admission_revision": "17",
+    "policy_id": "apparatus-p4-conformance/v1",
+    "report_sha256": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "envelope_reference": "registry.test/apparatus/envelopes@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "cri_image": "registry.test/apparatus/reference-kv@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "observed_at_unix_ms": "1700000000000",
+    "valid_until_unix_ms": "1700000005000"
+  },
+  "boundary_cases": [
+    { "db_now_ms": "1700000000000", "freshness": "within_window_not_authority_by_itself" },
+    { "db_now_ms": "1700000004999", "freshness": "within_window_not_authority_by_itself" },
+    { "db_now_ms": "1700000005000", "freshness": "expired_without_grace" },
+    { "db_now_ms": "1699999999999", "freshness": "future_observation_refused" },
+    { "db_now_ms": "1700000060000", "freshness": "challenge_expired_not_reusable" }
+  ],
+  "substitution_pointers": [
+    "/iss", "/aud", "/purpose", "/jti", "/challenge/authority_id", "/challenge/installation_id",
+    "/challenge/action", "/challenge/challenge_id", "/challenge/migration_id", "/challenge/project_id",
+    "/challenge/binding_id", "/challenge/expected/generation", "/challenge/expected/revocation_epoch",
+    "/challenge/expected/projection_version", "/challenge/expected/grant_revision", "/challenge/release",
+    "/challenge/profile", "/challenge/profile_lock_sha256", "/challenge/inventory_sha256",
+    "/challenge/service_uid", "/challenge/revision_uid", "/record_id", "/admission_revision",
+    "/policy_id", "/report_sha256", "/envelope_reference", "/cri_image"
+  ]
+}

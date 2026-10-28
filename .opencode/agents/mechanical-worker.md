@@ -29,3 +29,7 @@ If a new architectural decision appears, stop and escalate. Do not decide it qui
 - What was done (one short paragraph)
 - Validation commands and outcomes
 - Any blocker or ambiguity (do not guess)
+
+## Code intelligence and editing — AIForAll
+
+Apply root `AGENTS.md` **Contrat MCP local** and load `aiforall-mcp-workflow` for Rust exploration/impact/symbol edits (file fallback: `.agents/skills/aiforall-mcp-workflow/SKILL.md`). A known rename needs consumer checks, not a semantic search ritual or broad text substitution. Keep the 8B resident; fallback never expands the specified mechanical task.

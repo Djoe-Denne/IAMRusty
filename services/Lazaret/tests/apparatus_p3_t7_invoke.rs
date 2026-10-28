@@ -360,6 +360,18 @@ async fn t7_named_connector_rejects_raw_url_and_allows_admitted_name() {
         .await;
     assert_eq!(internal.status_code(), 400);
 
+    // G-10: malformed requests must be rejected before any outbound HTTP effect.
+    // A transport failure at the supplied raw URL would not establish rejection.
+    let requests = connector_mock
+        .server()
+        .received_requests()
+        .await
+        .expect("requests");
+    assert!(
+        requests.is_empty(),
+        "G-10 rejected request reached connector: {requests:?}"
+    );
+
     let ok = server
         .post(&format!("/invoke?project_id={project_id}"))
         .add_header("Authorization", format!("Bearer {token}"))
@@ -372,6 +384,16 @@ async fn t7_named_connector_rejects_raw_url_and_allows_admitted_name() {
     assert_eq!(ok.status_code(), 200, "{}", ok.text());
     let body: serde_json::Value = ok.json();
     assert_eq!(body["result"]["body"], "pong");
+    let requests = connector_mock
+        .server()
+        .received_requests()
+        .await
+        .expect("requests");
+    assert_eq!(
+        requests.len(),
+        1,
+        "G-10 positive control must reach connector exactly once"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

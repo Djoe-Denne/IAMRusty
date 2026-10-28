@@ -1,0 +1,1444 @@
+# Telegraph notification outbox — préparation
+
+## ÉTAT COURANT — prioritaire sur tous les constats historiques ci-dessous
+
+- **142PUBLICATIONAPPLICATIONTERMINÉE à demande explicite utilisateur.**
+  Commit39024b2b445ae9e35f9ad148ea754995f8baab18 déjà existant,tousarbrespropres ;
+  aucuncommitvide/forceaddignored. Push --set-upstream origin
+  HEAD:refs/heads/mission-telegraph-outbox-integration exit0,newbranche,
+  originDjoe-Denne/IAMRustyconfirmé,lsremoteaprèsexact39024b2/upstreamconfiguré.
+  GitlinkHEAD160000d60a88b2f2f499768a807941a1b4c80c9a366b3f confirmé et SDKdistant
+  mêmeSHAmission-telegraph-ac7-zlfadf recontrôléavantpush. Gitstatusaprèsvide.
+  Pasforce/main/PRmerge/déploiement/testsupplémentaire. Rapport142/logprivéinputs/
+  ai-publication142.log. Réserve141 «applicationnonpoussée» levée ; autresréserves
+  Clippy/Sonar/CIetressourcesASKinchangées,pasPASSglobalnouveau.
+
+- **Demande utilisateur finale : «commit et push tout gitlink inclut».**
+  Préflight frais : application et SDK propres, aucun staged/untracked visible ;
+  commit39024b2 déjà présent avec gitlink160000d60. Rien à recommitter, aucun
+  fichier ignoré/log privé forcé. SDK branche distante mission-telegraph-ac7-zlfadf
+  =d60 exact confirmé. Origin application configuré github.com/Djoe-Denne/IAMRusty.git,
+  branchecourante mission-telegraph-outbox-integration absente du distant (ls-remote0,
+  résultatvide). Push normal de HEAD vers cette branche et setupupstream autorisés,
+  pas main/force/PRmerge. Aucun pre-push hook présent ; aucune nouvelle vérification
+  comportementale ou modification source nécessaire.
+
+- **141LIVRAISON PÉRIMÈTRE TERMINÉE / réserves explicites.** CommitAIlocal
+  39024b2b445ae9e35f9ad148ea754995f8baab18,5cheminsmissionseuls,hooknormal
+  cargo fmt --all -- --check0sansnoverify. GitstatusAIetSDKvides ;HEADpin160000
+  d60a88b2f2f499768a807941a1b4c80c9a366b3fexactPUBLIÉbranchemissionSDK,lsremote
+  aprèscommitconfirme ;mainSDKintouché,pasforce. Sourcevertical80cce/composant445f
+  inchangéeshashrecoupé,Cargo0,30taskscompleted/0activevérifiéunefois.
+  Composant132etvertical139/revue138acquisdansportéeciblée ;Clippystrictantérieur
+  nonvert/SonarCIdistantenonexécutés=réserves,pasPASSglobal/ADRpromotion.
+  ApplicationcommitLOCALNONPOUSSÉ,pasdéploiement. Runtimeowned0running/registry
+  cleanuprecoupé ;SMTPnonzero/volumesASK/workloadétrangerintacts,RAMnonmesurée.
+  Rapport141/plan/QAactualisés ;archives/worktreeshistoriquespréservés,pascleanup
+  destructiféquipeoucommitforcéinstrumentation110. Missionnativeencoremarquéerunning
+  carcontrôlescommand-only : aucunecommandehumaineclose/startinvoquéeàlaplaceuser.
+
+- **140SDKPUBLIÉexact/pinindexpréparé.** Origindépôtattenduvérifiéavantpush,
+  pushnormald60:refs/heads/mission-telegraph-ac7-zlfadf FF129->d60exit0,ls-remote
+  après exactd60. MainSDKintouché,pasforce ;stderrGitaffichéNativeCommandError
+  PowerShellmaisexit0+remoterecoupé,pasfaussepanne. Loginputs/sdk-publication139.log.
+  Autorisation53publicationpinrelue. RootAIHEAD1f2/indexAVANTvide vérifiés puis
+  stageSEULS5fichiersmission (2docs/2tests/gitlink),1210+19-,cachedcheck0,
+  gitlink160000d60exactpublié. Aucunuserchangeajouté/stash/reset/checkoutfrère.
+  Docsréconciliéesvertical139/pubd60,résultatsancienshistorique/ADRstatutsinchangés.
+  BailCargoLEADhookcommitfmtallnormal,aucunautreCargo ;siéchecpasnoverify/globalfmt
+  contournement. CommitAIpasencoreacquis,rapport140décritpréparationexacte.
+
+- LivraisonSDKaprès139 : préflightfraisSDKcleanHEADd60/Cargo0,branchemissiondistante
+  `mission-telegraph-ac7-zlfadf` exactement129dcc1. Ancêtre129->d60déjàvérifié,
+  cible dédiée initialeconservée,pasmain/force. Leadva publier SHAexact d60 sur
+  cettebranchepuisvérifierls-remote avantpinmode160000. Autorisation53publicationpin
+  relueexplicitement,aucunepromotionADRniQAglobaldéduite. Checkout/frèreutilisateur
+  intouchés ; pas de mélange avec branchescandidats non testées.
+
+- **139VERTICAL134PASSunique.** Runvertical134-06bd9d7e772c4370,1PASS/0FAIL/0ignored/
+  6filtered,25,39slibtest,Cargo0/lanceur0. Deuxmarqueurspreuvenominal+panne,
+  sameevent/notification/bytes,realSQS/handlerFGA,replayfreshledger/tupleunique,
+  HTTP403sansmutation/200destinataire/lu. Epasséeavantt0doncR0/D25s,completion266736us
+  <D,reconstructionincluse. Pasleaseactiveobservéedanscetteverticale :132couvre
+  séparémentpostexpiry,109causetoujoursinconnue. Source80cce027/SDKd60inchangés.
+  Recoupementcleanupfraislead4créés/3absents/1SMTPadddf12fExited2ASK/2volumesopaquesASK,
+  0ownedrunning/0unknownnew,15préexistantsmêmesIDsétats/138volumespréservés/140après.
+  Archivesrunlog/summary/bail/ledger/beforeafter/lead-cleanup-verification.json,
+  registry20261027contemporain ;DesktopWSLconservéspourétranger/RAMnonmesurée.
+  Rapport139persisté ;blocagefonctionnelverticallevédansportéeciblée,pasPASSglobal.
+  Autorisationinitiale53 inclutSDKHTTPpublicationpinexact,àtraitermaintenantaprès
+  refs/preuvesvérifiées,pasnouveauGOartificiel.Paspushencore,Clippy/Sonarrestentlimites.
+
+- **138revuePASSborné/préflightuniquevalidation.** Pool24freshROtask_mvr206hz_000m_k62qlp
+  PASSstatique0findingbloquant ;E/R/D,T1postawait,ownershipstartup/observationet
+  oraclesconservéscouvertsparsource/inférence,0test. Gapsbranchesruntimeerreur/
+  panicexterneDrop≠joinexplicitessansnouveauharness. Revuecanonique20261027-tests-
+  vertical134-80cce027.md+INDEXpersistésavantvalidation. Freshpréflightsource80cce/
+  lanceur88f87437inchangésAI1f2SDKd60clean,diff/nodecheck0,Cargo0jobs24targetEnooverride.
+  Desktopdéjàactif15préexistants1étrangerrunningpréservés. Rapport138/admission
+  TI/.tmp/vertical-final134-inputs/run-admission138.mdpersistésavantUNrunautorisé.
+  BailLEADCargoWindowsunique+seulescréationsfixtures ;cleanupowned0runningattendu,
+  aucunautretest/pubpin/rerunauto. Attendre notificationrun,paspolling.
+  Invocation effective : node .tmp/vertical-final134-inputs/run-vertical134.cjs,
+  shell sh_17ec2aec6001yJjx60Rzb4XmDt ; uniqueautorisation134consomméeàcedépart,
+  résultatetcleanupàattendreavanttoutautreCargo/livraison. AucunstopDesktopWSL.
+
+- **137compilationPASSborne/pasdetest.** Source134intégrée80cce027identique,
+  rustfmtcheck0/diffcheck0/no-runverticalCargo0en30,76s,0tests/Cargo0après.
+  Logsinputs/integrated-no-run.log+summary.json,fmtsousmêmedossier. Auteurdélivre
+  seulementcandidat.tmp,aucundiffbrancheàmerger/nouveauréglagemerge_appliedtouché.
+  Briefreviewcanonique20261027-vertical134-deadline-and-ownership.md persistéet
+  copiébrief-review134.md SHAb6a45bb0avanttask ;copieQA/sourceallowlistexactes,
+  aucuneconclusionauteurtransmise. RevueFRESHtest-reviewer task_mvr206hz_000m_k62qlp
+  publiéeROsansCargo/runtime, sourcesgelées. SlotCargoLEADlibéré ;UNrun134NONconsommé,
+  attente findingsavantpréflight. Pasnouveaureviewerperfsécu/pipelineglobal.
+
+- **Candidat134INTÉGRÉ exact.** Rapportpool23candidate.tmpreçu,patchinspectéet
+  appliquéparleadoutilpatch ; sourcecanoniqueSHA80cce027ef5eefb41d6a5f457847a94feccebec7ecf28941fbb9fec5338211a7
+  identiquecandidat ;delta6ac7+284/-18. Seulverticaltest,pasprod/SDK/fixture.
+  NouveauRecovery134privétestlocalgardehandles/HTTPownerets'arrêteexplicitement
+  suréchecobservation/startup ;E/R/DfixedetT1postdernierawait,nominalchaînedroits
+  conservésàinspecterparreviewindépendant. DiffcheckOK/SDKclean/Cargo0/jobs24targetE.
+  BailCargoLEAD pour fmtcheck+compilationvertical--no-run UNIQUEMENT ouvert,
+  aucunruntime/testeffectif. Reviewconsommateuraprèscompilationintégréeetbriefpersisté.
+
+- Notifications natives répétées «Undelivered team reports» sans rapport nouveau :
+  team_results() et filtréfrompool23 retournent No unread messages. Contrôle
+  ponctuelteam_viewpool23 : mêmesession ses_e814f014cffeecN3C9nir6oKx7 busy,
+  test-engineer ; pasrecréation/nudgesenboucle ni fauxrésultat/timeoutdéduit.
+  Candidat134attenduaprèsGO136 ; aucunCargo/test/runtimenouveau ni livrableintégré.
+
+- Lanceurvertical134 PRÉPARÉnonexécuté enparallèledu candidat : copie du lanceur
+  corrigé122versTI/.tmp/vertical-final134-inputs/run-vertical134.cjs,4deltas
+  ciblés(prefixvertical134=28 caractères,targetvertical,
+  filtreexacttestconfirméligne397,classificationnonzeroASKaucleanup). Guard40
+  conservé,node --check OK,SHA88f87437a91b6c501433f74d44df4a9d1669da11c3fa3dc75cacbb4769686c98.
+  Aucunstart/test/Cargoruntime,uniquevalidationNONCONSOMMÉE,runaprèsrevue+préflight.
+
+- **Plan136validélead / candidat134.** Pool23litcorpssourceexactes/hashvérifiés,
+  SeranaTI[]couvertureexclueconstatée/fichiersutilisés. PlanE/R/Dfixed+déjàpublishedR0
+  validé. Risquereconstruction : timeoutRunningAppstartseulperdJoinHandlesparents
+  malgréabortguard ; rejeté. Détailtest-localautoriséseulvertical : appelerappnew
+  avantparents,sousD,puisgarderVec/guard/HTTPowneretcleanup6expliciteavecfonctions
+  publiquesexistantes. Pasnouveaufixture/API/backend/harnesspartagé, nominalintact.
+  Contrat134amendéAVANTcandidat ;production/fixtureSDKintouchés. Auteurproduit
+  candidat+delta.tmpseulsdepuis6ac7 ;leadintègre/compilecanoniqueensuite. PasCargo
+  auteurnirun, autorisationvalidation134toujoursnonconsommée. Reviewcibléeowner+D
+  consommateursnonpubliésavantintégration. SDKinventaire135achevéparsubstitutionlead.
+
+- **Préparation134en cours / inventaireSDK135.** Pool23a reçu copiespolitiquectx,
+  ledgerétat85lignes,préflightGitfrais et setupapp/runtime/sdkownedserver exacts
+  sousTIinputs ; pascontournementdesrefus external_directory gitdir/policy.
+  Préflightlead AI1f2/SDKd60clean/index129mode160000, vertical6ac7inchangé.
+  Pool14readinessROmêmesHEAD/sonvertical5f02confirmés,intouchés,pasaffectation134.
+  Recherchepool22aprèsrepriseencoreinactiveaucunfinalrécupérable : leadsubstitueRO,
+  pasrésultatd’agentinventé. SDKd60propre8commitsHTTPdepuis129,aucunoutbox,
+  detachedHEADseule,origin/mainlive41a86dbconnuLOCALetancêtredeD60(exit0inverse1),
+  pasdivergencenécessitantmerge/force,maispermissionpushNONtestée. Rapport135.
+  Aucuncheckout/fetch/push/pin/Cargo/runtime,pasnouvellecampagneClippySonar.
+  SkillsSonaranciens-j1/activateprojectNONappliquéscontrecanonjobs24/noactivate.
+
+- Continuité134 : admissionnativepool23aSTOPcorrectement0edit/Cargo/runtime, car
+  briefexigeaitpool14. Messageforcepool14reprendROmaisn'affectepas134 ; tentative
+  team_spawn(namepool14,claim134) refuse «already exists», aucun fallback. Aucun
+  outilexposéde réaffectation. Décision explicitelead de repliécrit : continuerla
+  sessionpool23déjàadmise/contextefreshassuméàpartirdessnapshots6ac7+QA, pasfaux
+  héritage, pasmodèleroutéoverridé. Brief134amendéavantreprise ;pool14restepourRO,
+  aucuneproductionniancieninstrument110touché. Planauteur/root/SDKtoujoursgates.
+
+- **Autorisation134 après rapport133 : «Adapter la preuve complète».** Préparation
+  test-only, compilationciblée,revue puisUNEvalidationverticale ultérieure ; pasprod/pubpin.
+  E/R/D fixe<=55s inclutreconstruction+waitpub+réception/validationSQS, IAM25s/stop6
+  etoraclesbusiness/replay/FGA403200inchangés. QA canonique
+  `.cursor/qa-plans/20261027-vertical-post-expiry134.md` +briefcomplet/copies5sources
+  dansTI/.tmp/vertical-final134-inputs créésAVANTadmission,testbase6ac7hashvérifié.
+  task_mvr1g9bq_0002_ozw23g publié pourcontinuationpool14 ; si autreworker STOP.
+  Planlocal/root/source/SDKàconfirmeravantmutationsource,CargoBAILNONOUVERT,
+  aucunrun134consommé ; reviewerconsommateurnonpubliéavantintégration.
+
+- **Reprise utilisateur après132 : «reprends».** Reprendre les suites restantes
+  de mission, pas rejouer les preuves acquises ni considérer le composant comme
+  quitus vertical/global. En parallèle du cadrage vertical, recherche RO de
+  disponibilitépublicationSDK admise task_mvqyq8pr_0000_eaa72e (general fresh,
+  worktreefalse/final_response, aucune mutation/push/pin/runtime). Pas de modèle
+  forcé, QAproportionate inchangée.
+  Sourcevertical6ac7 lignes544–556 : stop/restauration/rebuild puis wait_status25s
+  inchangé ; l'oracle ne couvre toujours pas tout claim30s. L'autorisation122
+  du budgetE/R/55s était explicitement composant seul. Ne pas rerun aveugle ou
+  appliquer silencieusement ce budget à la verticale : cadrer l'arbitrage QA
+  explicite avant édition/exécution, sans changer produit ni IAM25s.
+
+- **Résultat132 / tranche ciblée terminée.** Unique invocation raccordée131 :
+  run post-expiry122-6412a9c40ae64bf4,1 PASS/0 FAIL/0 ignored/6 filtered,41,02s
+  libtest,Cargo0/lanceur0. Source445f/SDKd60 inchangés ;15cyclesavantE/1après,
+ 16 commencés=terminés,1claim aprèsE (~187ms),1succes transport/1message corrélé,
+  identité/payload/comptes inchangés. Observationsfin30,244094s<D54,989538s depuis
+  reconstruction incluse ; phasecleanup30,244s, parentsancien/nouveau détruits/joints.
+  Pas preuvewholeapp/courseSQL109/verticaleFGAreplayHTTP ;109 reste inconnu etrouge.
+  Recoupementfraislead :4créés/3absents/1SMTP168c9240 Exited(2)ASK/2volumesopaquesASK,
+  0ownedrunning/0unknownnew/Cargo0,14préexistants mêmesIDsétats/136volumespréservés,
+  138volumesaprès. LauncherSMTPclassyes générique corrigéparligneappend-onlyASK,
+  aucune suppressionadditionnelle. Desktop/WSLretenus workloadétranger/RAMnonmesurée.
+  Preuves `.tmp/post-expiry122-6412a9c40ae64bf4/` log/summary/bail/fixtureledger/
+  beforeafter/lead-cleanup-verification.json ; registrydocker20261027 contemporain.
+  Rapport132,plan et docsphotoactualisés ;pasnouvellecampagne/revue/pubpin/Accept/globalPASS.
+  Contrôle final git diff --check OK,SDKpropre/test445finchangé. Tâcheplan
+  task_mvqtl9kf_000n_avf04w clôturée pour LIVRABLESUBSTITUTIONLEAD intégré,
+  pas résultatPMinventé ; tâcheT5documentaire task_mvo2evlb_0007_pk88da clôturée
+  aprèsréconciliationlead, pasclôturemission. AucuneattenteactivedePM/runtime.
+
+- **Nettoyage vérifié / raccordement131.** PM repris sans résultat récupérable
+  une seconde fois ; aucun livrable accepté. Lead révise directement le plan courant,
+  informe t5 du transfert documentaire, réconcilie plateforme et photographie du
+  contrat (historique explicitement non opératoire), aucun changement normatif/Rust.
+  SHA composant445f/vertical6ac7/dispatcher888/lanceura77 inchangés ; diffcheck et
+  node --check OK. Deux témoins conservés car garanties complémentaires.
+  Demande utilisateur de reconnecter après nettoyage appliquée au SEUL composant
+  post-expiration, une invocation, pas verticale/pub/pin ni rerun automatique.
+  Rapport131 et `.tmp/component-post-expiry122-run-inputs/reconnect131-admission.md`
+  persistés avant départ. Préflight frais : Desktop déjà actif,14 préexistants,
+  étranger40201bda running préservé, aucunCargo/overridejobs, jobs24/targetE vérifiés.
+  Bail Cargo unique + seules créations futures du lanceur, deadline fixe<=55s,
+  cleanup6/phase61, aucune adoption. Attendre notification du run ; ne pas poller.
+  Invocation lancée : `node .tmp/component-post-expiry122-run-inputs/run-component122.cjs`,
+  shell background `sh_17df3dc4f0019jYCPzlMSlrKre`. Aucun second Cargo autorisé.
+
+- **Direction utilisateur après recherche129 — nettoyage et révision du plan.**
+  Appliquer la recommandation minimale : conserver les leases et aligner la preuve
+  sur l'éligibilité persistée. Auditer et retirer les changements contraires ou
+  devenus inutiles, sans effacer preuves, changements utilisateur ni corrections
+  utiles. Faire réviser le plan par le PM ; reconnecter la validation ciblée
+  seulement après intégration et vérification du nettoyage. Cette direction
+  autorise audit, plan et nettoyage, pas une campagne libre ni une publication.
+  La question127 reste de côté ; aucun run avant vérification du nettoyage et
+  délimitation explicite de l'exécution restante dans le plan révisé.
+  État observé : AI HEAD1f2dd30, SDKd60 propre, cinq chemins modifiés ; 764 lignes
+  de tests composant à examiner, sans présumer qu'elles sont toutes superflues.
+  Préserver AC1–AC7, transaction/NoOp, corrections HTTP et oracle firstFAILED106 ;
+  pas de drain ajouté, unlock aveugle, lease raccourcie ou retries réinitialisés.
+  PM admis nativement : task_mvqtl9kf_000n_avf04w, pool-21/project-manager fresh,
+  lecture seule sans worktree ni modèle/score forcé. Rapport130 persisté.
+  Audit supplémentaire : diff SDK129→d60 sur rustycog-outbox vide ; SHA dispatcher
+  888769e031e367e6fa72a248230b071fa073a72c4413c194184eb7f995007124 inchangé.
+  Aucun changement configuration ni cycle dispatcher dans app.rs depuis aa400f3 ;
+  le diff app porte sur le propriétaire HTTP déjà corrigé. Les helpers117 sont
+  consommés par122. Ne pas supprimer117 par simple taille : il contrôle aussi
+  l'ancien propriétaire/verrou pendant la fenêtre, contrairement aux seules
+  assertions d'identité intermédiaires122. Nettoyage à borner après plan PM ;
+  aucun nouveau Cargo/test/runtime, aucun consommateur de nettoyage encore publié.
+  Retour système PM : membre devenu inactif sans final response récupérable,
+  tâche non complétée ; aucun plan accepté ou résultat supposé. team_view confirme
+  même session ses_e8218874dffeE84tQ2aXJuJuz5 ready/project-manager. Reprise ciblée
+  envoyée au même membre par team_message(force:true), sans nouvelle admission,
+  nouveau contexte ou mutation. `opencode export --help` indisponible dans PATH ;
+  pas de réparation harness engagée. Attendre son résultat avant consommateurs.
+
+- **RÉSULTATWEB129** pool20GENERALfreshterminé/task_mvqsmvbv_000i_xksswrcomplétée,
+  rechercheROWEBsourcesprimairesréelles ; leadrecoupeAWSoutbox/TokioShutdown/
+  PG18Cancel/Tokioselect1.52.3(4fetchOK+passages). Optionprioritaire=alignerpreuve
+  suréligibilitépersistée(deadlinefixe bornée),pasnouvellearchitecture/unlock.
+  Draincoopératifborné5/6candidatnormalshutdownNONnécessitéprodprouvée,nepasjuste
+  supprimerselect(batch25/sleep/resetstop). Restitutionimmédiate/tokenSQL≠fencingSQS
+  plusrisquée/horsmandat ; idempotenceavalnécessaire,SQLlease30≠SQSvisibility5.
+  109causeinconnue/110vertnoncausal/117leaseprouvée/122preuveABSENTE(runIDparam)
+  restentdistincts. Effortdocagentnonattesté,nepasinventerHIGH. AUCUNcode/test/build/
+  runtime/pubpin/changementcanonproduitpourWEB,parentsrapport/ledgerseuls.
+  **PAUSE128MAINTENUE**,question127deCÔTÉpasreposéepasGOdéduit ; repriseexige
+  décisionhumaineDISTINCTE,aucunepermissionrunrestanteautomatique.
+
+- Suite128 : WEB task_mvqsmvbv_000i_xksswr ADMISEnativementpool20 GENERAL/FRESH
+  (documentalisteprofilspécifiquenonexposé,substitutionannoncée),workingvérifié1fois.
+  Brief+.8copiesTI/.tmp/outbox-web-research128-inputs préparésavanttask/hashvérifiés,
+  Cargo.lockluROversionsTokio1.52.3/SQLx0.8.6/SeaORM1.1.20/aws-sdk-sqs1.100.0.
+  Pause128transmiseauworkeractif,nativeroutage/catalogueinchangés,highsouhaité
+  dansenveloppepasencoreconfirmé. RendreWEBsourcesprimairescomparaisonoptions
+  simplesSÛRES,aucunautretest/code/runtime/pub/pin/GO127déduit.
+
+- **PAUSEHUMAINE128** user«garde cette question de côté maintenant»(replacement127),
+  demande rechercheWEBparagentdocumentation/prendston temps/patternssolutionsconnues.
+  PASautorisationremplacement/rerun/sourcefix ; gelerexécutions etmutationsappli/test,
+  pasreposer127avant synthèse, reprise exigeGOdistinct. RechercheROWEBfreshprofil
+  general(documentalistedisponible,substitutionexplicite),feuille/pasagentsenCascade,
+  sourcesprimaires/patternsoutboxleaseSQL≠SQSvisibility/cancel/drain/idempotence.
+  Parentpersistreport/ledgeruniquement,pascanonproduit/code/runtime/QA élargie.
+
+- Rapport127 : tentative12272aba6ce2cf643b2 Cargo101/libtest0PASS1FAIL0ignored6filtered
+  0.00s,fixture setupfailedAVANTpreuve/markers/containers. CAUSEpréconditionLANCEUR
+  vérifiée : runID41>limite40fixture_runtime173–177,endpointOpenFGAavantcréation.
+  PASrougefonctionnelprod/AC3. Corrigépréfixepost-expiry122=>31+garde40avantCargo,
+  syntax0/casstatiquesvalidés,SHAnewa77dba1d ; inversiondelta=SHAold7edcd014exact.
+  Source445f/revue/compilationinchangées ;aucunrerun/nouvellecompile/runtime.
+  Cleanupindépendant0créés/0ledger/0ownedrunning/Cargo0/14préexistantsétatspréservés/
+  volumesidentiques,persistécampagneavecprecondition-diagnosis. Marqueur/rougecommande
+  ancienpréservésPASreset. Demandehumaine127pourUNEexécutionremplacementmême445f/
+  mêmesbornes,max55depuisrebuild,cleanup6/IAM25inchangés,pasvertical/pubpin.
+
+- Rapport126 : SAMEpool19recheckT1 PASSborné,RÉSOLUsur445f(static/inference,0test),
+  brief20261027T1423Z-tests-post-expiry122-t1-recheck+INDEXpersistés. Parentfmt/diff0,
+  SDKd60clean/AI1f2/Cargo0/jobs24E/sansoverride/source445fconfirmés. FraisDocker14
+  préexistants/1étrangerrunning/aucunadopté. Leadouvre bailUNrun122déjàautorisé,
+  lanceurSHA7edcd014prefixfiltreonly/syntax0,admissionmarquéeavantlancement.
+  Dfixet0+R+25<=55constructionincluse,cleanup6/phase61,IAM25inchangés. Pasautrerun/
+  prodfix/vertical/pubpin/globalshutdown ; verdictàattendreavantclôtureAC3contrôlé.
+
+- Rapport125 : T-1correctifINTÉGRÉ exact445f729a/delta20961fe9/fullpatch403dc5b2c7c,
+  3hunkscontrôleSTRICTpostdernierawait+completed_atretourné/trace ; no-run0(10.60s)
+  diffcheck0,9artefactsTI/.tmp/component-post-expiry122-T1-integrated.0test/runtime.
+  RecheckT1UNIQUEMENT task_mvqryt8t_000f_7cwn31 réaffectéMÊMEpool19/session/contexte
+  indépendantsansfresh,source/4inputsnouveauxhashvérifiésAVANTadmission,old0d50/base403
+  préservés. Revuesidle15/17terminéeslibérées sansforçage/runtime. RUN122NONCONSOMMÉ
+  avantrecheck+préflight,bornesE/R/D/IAM/stopinchangées,pasprodfix/pubpin/globalPASS.
+
+- Suite124 : task_mvqrs8zf_000d_10753y réaffectéeMÊMEpool14/session/branche/root,
+  contextconservé/sourceauteur0d50confirmée/review-T1.mdlocalhashavantadmission,
+  confirmationenvoyéeavantphasehigh. Préparationfixpostcountsawait+fmt/no-runonly.
+  Recheckconsommateurnonpubliéavantintégrationsourcecorrigée ; RUN122intactbloqué.
+
+- Rapport124 : reviewerpool19 BLOCKuniqueT-1(MEDIUMpreuve)surcandidate0d50 :
+  derniercounts.awaitpeutfiniraprèsDtimeout_atinnerready,sanspostcheckavantOk ;
+  phase<=61n'attestepasobservation<D. ContreexempleinférenceNONexécuté,aucunbugprod.
+  Brief20261027T1413Z-tests-component-post-expiry122-1f2dd30+INDEX PERSISTÉSAVANT
+  correction. Mêmeauteurtest-engineeràréaffecternativementT-1postdernierawait+
+  completed_atéventuel,fmt/no-runseul,puisintégration+recheckindépendantborné.
+  RUN122NONCONSOMMÉbloqué,pasfrontièrerunsupplémentaire/newharness/délai/prod/pubpin.
+
+- Rapport123 : preuve122 INTÉGRÉE exactsource0d50bb5d/patchbcbaba79/base403,
+  +442lignesuniqueoutboxruntime,117strictementinchangé. AuteurHIGH/fmt/no-run0
+  27.06s/Cargo0,0test/runtime.8artefactsarchivésTI/.tmp/component-post-expiry122-
+  integrated/sourcehashdiffcheck0. RevueindépendanteFRESHtest-reviewer task_mvqriylt_
+  0008_zb17jv admiseaprèsbrief20261027-post-expiry122+11copiesTIhashavanttask.
+  BudgetE/R/D/crossclock/claimsnewworker/realsuccessbytescounts1/0/1/cleanupàexaminer.
+  UNrun122NONCONSOMMÉavantverdict/source/préflightbail,aucunvertical/pubpin.
+
+- Suite122 : task_mvqr4705_0006_qhvjvh RÉAFFECTÉEnativementauMÊMEpool14/session/
+  branche/root sansfresh/override,workingvérifiéunefois.8inputs122QA121120base403/
+  logsummary117policycopiésSHAAVANTadmission,baselineauteurTI403exacte. Confirmation
+  transmiseavantphase/high+edit,typosdescriptifsansportéecorrigéesparmessage.
+  Contratphoto122permission explicite,enpréparation/pasexécuté. RUN122NONCONSOMMÉ.
+
+- **AUTORISATION122** userchoisit«Prouver après expiration» après121 : préparation
+  tests-onlypuisUNcomposantpostexpiry. BorneEXPRESSÉMENTchangéeQA:t0entréeREBUILD,
+  Eétatmesuré,R=max0(E−t0UTC)<=30s,Dfixe=t0monotone+R+25<=55s,constructionincluse,
+  pasreset ; cleanupstop6s/phase<=61s,IAM25unchangé. Pasnouvelleverticale/pub/pin/
+  prodfix/SDK/config/harness. QAplan20261027-component-post-expiry122-onceintégré
+  AVANTadmission,owneruniqueoutbox_runtime_testsbaseline403e8c90,117préservé.
+  Mêmepool14continuationnativeHIGHàconfirmer avantedit,préparationfmt/no-runseule,
+  puisinspectionlead/archivage/intégration/préflight etUNrun122NONCONSOMMÉ.
+
+- Rapport121 : ARCHITECTEpool18freshROterminéHIGHnatifconfirmé. Canon§3/AC3prévoit
+  repriseaprèslockexpiry ; AC7budget6local≠libérationSQLimmédiate,25sIAM≠SLA25pub.
+  AlignementQAéligibilitémesurée+bornefixe n'estpasnouvellearchitecture maiscritère
+  temporelmodifié nécessiteautorisationhumaineexplicite. PropositionMINIMALEUN
+  témoincomposantpostexpiry : t0entréeREBUILDconstructionincluse,Elock_untilou
+  next_at,Rmax0E−t0UTC<=30s,Dmonotone=t0+R+25<=55s,cleanup6=>phase<=61s,pasreset.
+  Préserver117/oraclesIDsbytes/activitéavantaprèsE/pasreclaimavantE ; pasprodconfig/
+  deadlineIAM25/stop6changés. Verticalefinale/pubpinNONautorisésparproposition.
+  Repriseimmédiatearrêtseraitautremandatpersisté/concurrentrisquedoublons,pasautofix.
+  AUCUNrunactuellementautorisérestant ; prochainarbitragehumainrapport121.
+
+- Suite120 : task_mvqmhthd_0004_sscmxe ARCHITECTEfreshROadmise,16inputscanonsources/
+  preuvescopiésTI/.tmp/architecture-recovery120-inputs/hashavantpublication. Avis
+  attendu frontièreQAéligibilitéexpiryvsnouvelleexigenceprod, pasécritureADR/source/
+  statutpromu/QAglobal/test. Docsphotographie2pathsactualisées117/limites/paspreuve
+  aprèséchéance/pubpinbloqués, AC1–7inchangés. AUCUNrunrestantautorisé.
+
+- Rapport120 **RUN117 CONSOMMÉ PASSdiagnostique**,695e9e1ccbdd409c1PASS/0FAIL/
+  0ignored/5filtered35.65s/Cargo0launcher0. Vraiclaimcommitté,publisher/propriétaire
+  annulésjointsdétruits ; rowpublishing/attempt1/ancienlocked_by/lock30sconservés.
+  Nouveaupilote13cyclesstarted=completed=observed,0claims,13snapshotsinchangés,
+  aucunmessageobservésondeSQS ; fenêtre25001ms+cleanupfinit~4.984sAVANTexpiry.
+  Mécanismeprospectifprouvé,pasvaleurs109/wholeapp/SQLinflight/envoiaprèsexpiry.
+  Cleanupindépendant4créés/3absents/1SMTPExited2ASK/2volumesASK/0ownedrunning/
+  Cargo0/13préexistantsétatspréservés,JSONpersistécampagne+registryappendASK.
+  AUCUNrunautorisérestant. ConsultationarchitecturalebornéeROcanon/preuvesavant
+  propositionarbitrageQAprèsexpiryvsnouvelleexigencearrêt, pascode/délais/pubpin.
+
+- Rapport119 : revuefreshpool17 PASSborné statique sansfinding ; persistée
+  20261027-tests-controlled-claim117+INDEX/tâcherevuecomplétée. Parentfmt--check0/
+  diffcheck0/source403e8c90/SDKd60clean/Cargo0/jobs24E vérifiés. Préflight13préexistants/
+  1étrangerrunning,aucunadopté. Lanceurcomponent117SHAdcbeb083syntax0,uniquecible
+  outbox_runtime+filtrecontrolled_committed_claim_cancellation_keeps_default_lock_
+  through_25s_observation. Leadouvre bailUNrun117 déjàautorisé,admissionmarquéeavant
+  lancement,pasretryvertical/prodfix/pubpin/globalshutdown. PASScomposant≠clôture109.
+
+- Rapport118 : témoin117 INTÉGRÉ exactsource403e8c90/patch99ecdf11/base008a9737,
+  +316lignesonlyoutbox_runtime_tests/ancienssourceexacthorsajout. AuteurHIGH/fmt/
+  2no-run0(final12.64s),0test/runtime.12artefactsarchivésTI/.tmp/controlled-claim117-
+  integrated. Diffcheck0. RevueindépendanteFRESHtest-reviewer task_mvqm2ajz_0000_ey1lby
+  admiseaprèsbrief20261027-controlled-claim117+10copieslocalesTIvérifiéesavanttask.
+  FauxPASSinactivité/cyclepartiel/délaisonde/cleanupàexamineravantUNrun117intact.
+  PasSDK/prod/verticaledit,109resteROUGE/SDKlocalpubpinbloqués.
+
+- Suite117 : task_mvqloafu_000v_i4yt9h admise MÊMEpool14/sessionbranche/root,
+  sansfresh/override ;6inputslochauxtestcontrolled117copiésSHAavantpublication,
+  componentbase008a9737identiqueTIauteur. Confirmationadmissionenvoyée,higheffectif
+  etpréparationàvenir ;0test/runtime117. Contratphotographieactualisepermission117,
+  pascritèresAC/délais. Verticalauteur5f02préservé/temporaire, produit6ac7inchangé.
+
+- **AUTORISATION117** user choisit«Autoriser le test contrôlé»après116 : unseul
+  témoincomposantvraiSQL/fixturesinterfacesexistantes,claimterminé->publisher
+  suspendu->annulationpossédée->rebuildmêmeDB,lock30s/observation25sinchangés.
+  QAplan20261027-controlled-claim-cancellation117-onceintégré AVANTadmission.
+  Scopeuniqueoutbox_runtime_tests.rs,testexistantspréservés,pasverticalmodifié/
+  hookSDK/newharness/prodfix/timeoutaugmenté/pubpin. OracleduTÉMOINnefermePAS109.
+  Auteurpréparationfmt/no-runseulement,puisinspectionlead/intégration/hash/préflight
+  etUNrun117NONCONSOMMÉ. Même pool14continuationnativeHIGHàconfirmerpréédition.
+
+- Rapport116 : analysecontraste mêmeexpertpool16 HIGHnatifconfirméterminéeRO.
+  109anciencandidat~20msavantstop/claimlogpendantarrêtissueSQLinconnue ;110sans
+  nouveauclaimancienobservé/failed1locksNULLpoststop puisnouveauworkerpublished2.
+  Vert110nefermePAS109 ; risque25snonrobustesurtousordonnancements≠perte/droits/
+  fuiteAC7prouvée/SLA25produitinventé. LeadROconfirme surfacesdéjàexistantes :
+  EventPublisherinjectable+SuspendedPublisher/testoutbox_runtime293–399(lock100ms).
+  ProposearbitragepourUNnouveautémoincomposantcontrôlé utilisantinterfacesfixtures
+  existantes/verrou30s/observation25s/annulationexplicitée, pasnouveauhookSDK/prod/
+  simulationSQL/retryvertical/timeoutaugmenté. AUCUNnouveaurunautoriséàcestade.
+
+- DeltaDOC115 reçuT5ee37da5f puisINTÉGRÉlead2docsactuels, rouges109/vert110etlimites
+  explicites, aucuneinstrumentation110produit. Diffcheck0/testlead6ac7inchangé.
+  Analysecontrastepool16encoreattendue ; pascommit/pub/pin/rerunautorisé.
+
+- Suite115 : task_mvqhraw4_000r_68zqce admise nativement auMÊMEpool16 contexte
+  conservé/workingvérifié,6nouveauxinputs110115copiésTIhashvérifiés,highàconfirmer
+  avantanalyse. T5continuationdoc115depuisCOPIESdocsactuelsintégrésfournies+faits115,
+  pasancienpatchstaging. Autorisationrun110consommée, aucunrun/productionnouveau.
+
+- Rapport115 **DIAGNOSTIC110 CONSOMMÉ VERT**, eee8e8b73232492b1PASS/0FAIL/0ignored/
+  6filtered25.76s/Cargo0launcher0. AprèsstoprowFAILED/attempts1/locksNULL, après
+  rebuildidem puisPUBLISHEDattempts2~109msaprèswaitentry. Mêmerow/event/aggregate,
+  tailreplay/FGA/HTTPparscénariocompletPASS. COURSESUPPOSÉENONOBSERVÉE, pascause109
+  prouvée niquitusglobal/pub. Cleanupindépendant4créés/3absents/1SMTPExited2ASK/
+  2volumesASK/0ownedrunning/Cargo0/12préexistantsétatspréservés,archivesTI/.tmp/
+  recovery-diagnostic110-results-eee8...10copiessha+cleanupJSON. Aucunrunautorisé
+  restant ; suiteROmêmeexpertHIGHcontraste109/110 avantdécisionnécessaire,pasprodedit.
+
+- Rapport114 : instrumentation110pool14 préparéeHIGHconfirmé/--no-run0(31.42s),
+  uniqueverticaltestsource5f02f067/prefix6ac7préservélead. Leadinspecte266lignespatch,
+  hashes511a9d0e(depuis6ac7)/09d3cd05(depuis1f2)recoupés,9artefactsarchivésTI/.tmp/
+  recovery-diagnostic110-approved,fixtureidentiqueSDKclean. Préflight12préexistants/
+  1étrangerrunning/Cargo0/jobs24E/sansoverride. Lanceurpool14recovery110SHA0d74c2a5
+  syntax0,seulpréfixechangévs105unique. Leadouvre bailUNrun110 autorisé, admission
+  marquéeavantlancement ; pasretestNoOp/retry/prodfix/pubpin/arrêtglobal.
+
+- Suite113 : aprèsfinalBLOCKED/idlepool14, task_mvqhg8l9_000p_ocooss publiée SANSfresh,
+  dépendenquête112terminée ; dispatchnatifRÉUTILISEPOOL14 mêmebranche/root/session,
+  working+taskvérifiésunefois. Confirmationd'admissionenvoyée AVANTnouvelhandoff
+  phase/effort(résultatattendu). Scopepréparationdiagnostic110+fmt/no-runseulement,
+  source6ac7/inputs7déjàvérifiés,pasnouveauteur/override/selfclaim. Run110intact.
+
+- Rapport113 : pool14litplan110/112 puis handoffhighREFUSÉ«autonomous task
+  assignment» caranciennetâchecomplétée. 0edit/Cargo/runtime110. Lead ne contourne
+  pas ; demandetourBLOCKED->idle puiscontinuationnativeSANSfreshpourréutilisation
+  même session. Pas selfclaim/modèleoverride/DBedit. Highexpert112acquis distinct,
+  run110 NONCONSOMMÉ ; blocageadministratifpas tentative technique de diagnostic.
+
+- Rapport112 : pool16freshhard-implementer enquêteROterminée ; effort natifHIGH
+  acceptéavantanalyse viahandoffphaseimplementation(reasoninghigh), modèleinchangé.
+  Chronologieancienclaimcandidat53.528/stop53.548/updateclaimlog0rows53.549 puis
+  nouveauworker13SELECTvides/ligneencorelisible. Hypothèseclaimannulélock30s reste
+  nonprouvée, alternatives listées ; waitPUB25s commencebienAPRÈSrebuild.
+  PlanQA20261027-recovery-diagnostic110-once INTÉGRÉavantinstrumentation : réutiliser
+  lectures, UNEprojectionSQLsûre post-stopconcurrenteCreateQueue/opportuniste100ms
+  sansattenterestauration, suivirowwaitPUBboucle25sinchangée. Même pool14préparation
+  test-only+fmt/no-run puisinspectionlead/préflight/UNrun110 NONCONSOMMÉ.
+
+- Rapport111 : photographie factuelle des deux docs INTÉGRÉE TI depuis3propositionsT5
+  consolidées, sansstagingauteur/ACstructuremodifiés ; docsplatformevents-outbox+
+  contratoutboxsection10date27oct/lienancrecorrigé. Diffcheck0/sourceTEST6ac7inchangée.
+  État intégré4paths :2docs,testcorrigé,SDKcheckoutpréexistant. Aucuncommit/pub/pin,
+  stats historiques/97/105/109séparés, verrouhypothèse/110sansrésultat explicites.
+  Enquêtepool16freshROen cours, effortélevédemandéconfirmationattendue ; run110
+  NONCONSOMMÉ. Originaux/stagedT5préservés, pasclôturenativedoctantquerésultat110inconnu.
+
+- **AUTORISATION110** user : «Lance un diagnostic», choisir type/contexte et
+  raisonnement assez élevé. Lead choisit hard-implementer FRESH, enquête RO source/
+  logs et plan discriminant arrêt/reconstruction, effortélevé DANSenveloppenative
+  àconfirmer avanttravailsubstantiel, pas modèle/scoreoverride. Ensuite même
+  test-engineerinstrumentationseulement aprèsplanintégré, puisinspectionlead/
+  préflight et UNrun diagnostic distinctNONCONSOMMÉ. Production/assertions/délais/
+  sampler/backoffinchangés, pascorrectifautomatique/publication. Hypothèselock30s
+  n'estpasimposéeaucandidat ; faits109séparés. Pasemergencyautomatique sansdeux
+  essaisinfructueuxsansprogrès surcemêmeblocage.
+
+- Rapport109 **VALIDATION106 CONSOMMÉE ROUGE**, ac5ddb9998204cdb0PASS/1FAIL/
+  0ignored/6filtered,50.11s/Cargo101. Contrôletemporel106franchi, failedattemptserror/
+  identitéfranchis, stop+destinationrestaurée+appreconstruite ; timeout25s attendre
+  PUBLISHED(test556/fixture147). Tailpanne replay/authnonatteint. Pasrelance/prodfix.
+  Hypothèse courseclaim/arrêt etlock30>wait25 issue lectures source+chronologie,
+  PASCAUSEPROUVÉE fautevaleursSQLfrontièrestop/rebuild. Serena rootcanoniqueconfirmée,
+  dispatcherSHAidentique888769e...vsTI, symboles ciblés lus ; fixturesTIhorsindex.
+  Cleanupindépendantpersisté danscampagne :4créés/3absents/1SMTPExited2ASK/
+  0ownedrunning/Cargo0/11préexistantsétatspréservés/2volumesASK. SDKd60local/pin129,
+  pubbloquée. Décisiondistincteproposée109 : diagnosticpassifunique frontièrearrêt/
+  reprise sanschangementproduction/assertion/délais, ou conserverblocage.
+
+- Rapport108 : revuefreshpool15 PASSborné sansfinding/suggestion, persistée
+  20261027T0841Z-tests-temporal-oracle106-1f2dd30+INDEX, task000c0khmvfcomplétée.
+  Leadfmt--check0/diffcheck0/source6ac7be0e/SDKd60clean/Cargo0 vérifiés.
+  Préflightruntimefrais11préexistants/1étrangerrunning/aucunadopté. LanceurTI
+  validation106prefix+verticalseule, SHAd88da023syntax0. Leadouvre bail pour
+  UNEvalidation106 déjàautorisée, sourceintégrée/revue ; admissionmarquéeavant
+  lancement, cleanupidentitésseules, pasNoOp/retry/pub/prodfix/arrêtglobal.
+
+- Rapport107 correction106 INTÉGRÉE au lead par patchlivrénoncommitté, sourceSHA
+  6ac7be0e/patchceb2b730, +34/-1unique test, sourceexactementégale auteurcompilé.
+  fmt/no-run0(12.42s)/diffcheck0/Cargo0 ; 8artefactsarchivésTI/.tmp/vertical-temporal-
+  correction106-integrated. Première copie demandaitfmt-check.jsonabsent, reprise
+  bornée préserve/vérifiecopies ; pasfmt-checkinventé. Revuefresh pool15test-reviewer
+  task_mvqfk78y_000c_0khmvf admise aprèsbriefcanonique20261027-temporal-oracle106,
+  copieslocalesvérifiéesfournies sansconclusionsauteur. UNEvalidation106 toujours
+  NONCONSOMMÉEavantrevue/préflight. Propositiondocs105106 nonintégrée/aucunpubpin.
+
+- **AUTORISATION106** : utilisateur choisit «Corriger le contrôle temporel» après
+  rapport105. Correction du moment d'observation tests-only, examen indépendant,
+  puis UNE validation verticale complète distincte du diagnostic105 consommé.
+  Production/délais/backoff/sampler/visibilité/replay/auth inchangés, pas simple
+  >updated_at/heure ancienne, pas rerun automatique/publication. Même pool14
+  reprend préparation+fmt/no-run seulement ; lead intégration/revue avant run.
+
+- Rapport105 **DIAGNOSTIC UNIQUE CONSOMMÉ**, campagne55c9f7ba9837411b : 0PASS/1FAIL/
+  0ignored/6filtered,25.05s, même assertion future_date. Early FAILED lit next_at
+  encore4.926s futur ; next_at−updated_at=4.999997s ; même ligne à assertion12.084s,
+  devenue1.058s passée. Vérification trop tardive PROUVÉE pour ce run, pas valeurs
+  du97 inventées ni absence globale de bugprod. Tail reprise/replay/auth non exécuté.
+  Aucun prod edit/retry/publication. ArchivesTI/.tmp/vertical-diagnostic-results-55c9...
+  10fichiershashvérifiés. Cleanup indépendant :4créés/3absents/1SMTPExited2ASK,
+  0ownedrunning/Cargo0/10préexistants états préservés/2volumesopaquesASK.
+  Prochaine correction test+validation unique nécessite décision humaine distincte,
+  proposée105 ; pas simple >updated_at ni hausse backoff/délais/oracles affaiblis.
+
+- Rapport104 : préparation pool14 inspectée par lead, source edc39c12/patch8a6bdd65
+  vérifiés et archivés dans TI/.tmp/vertical-diagnostic-approved-20261027 ; fmt/no-run
+  réussis. Sampler exact, suffixe replay/FGA/HTTP exact, assertion heure courante
+  conservée ; configuration effective poll2/base5/max20 confirmée. Aucun prod edit.
+  Lanceur existant adapté à une cible verticale et registre historique TI, syntaxe0,
+  SHA030ae4a7. Préflight frais Docker actif/10 préexistants/1 étranger running,
+  Cargo0/jobs24/targetE:. Lead prend bail pour UNE exécution autorisée100, puis
+  cleanup par IDs possédés ; pas arrêt global/NoOp/rerun/correctif automatique.
+
+- Rapport103 **PRÉPARATIONNATIVEadmise** task_mvqeqrwk_0001_nde57b pool14test-engineer
+  freshEXPLICITE/sessione8394fdf6ffePhQfgzP7VROkqv/rootisolé. AI1f2/SDKd60clean
+  ownerf21b/pin129inchangé vérifiésICI ;11inputscopieshash+aliasesQAledger/sessionmove.
+  GOtest-onlyinstrumentation+fmt/target--no-run APRÈSgateSOURCE, pasRUN/DockerIT.
+  Rununiquehumain100 NONCONSOMMÉavantinspectionlead/préflightruntime/bailfrais.
+  Pasfauxhéritagepool12détaché/pasoverridecatalogue/prodedit/oracle/pinpub.
+
+- Rapport102 : reprisenativepool12retourSTOP«sessionnotinateam» aprèsrestart,
+  aucunedit/shell/Cargo/runtime. Pasgatecontournée/DBpluginmuté. Substitution
+  EXPLICITEàadmettretest-engineerfreshisolééquipeexistante (pasfauxhéritage),
+  handoffcontrat100/diag98/source1f2SDKd60/QA20261027diagnostic-once avantcode.
+  Ancienauteurstoppé/artefactspréservés, rununiqueTOUJOURSNONCONSOMMÉ ; préparation
+  +fmt/--no-runseulementavantinspectionlead/préflight/bail/GOeffectif.
+
+- Rapport101 : aprèsrestart missionrunningv2confirmée. team_messagepool12force
+  QUEUED/notspawned => PASauteuractif déduit. RepriseOUTILsubagentMÊMEsession
+  ses_e8621599affencObo79oD19K2Z/test-engineer retournéworkingbackground,pasnewmodel/
+  fresh/DBedit. Rootpool12sourceactualisécontrôléd36->AI1f2(SDKd60clean/index129),
+  inputsautorisation100+diagnostic98+ledger/politique4copieshashvérifiées.
+  GOpréparationTESTONLY+fmt/--no-rununiquement,pasDockerIT/testexécuté ; rununique
+  NONCONSOMMÉavantinspectionparent+préflight/bailfrais+GOexplicite.
+
+- **AUTORISATIONHUMAINEdiagnosticunique** aprèsrapport99 : option«Autoriser(Recommended)».
+  Rapport100 fixe1runvertical+observationsSQLpassives,test/production/assertion/délais/
+  backoff/sampler/calibrationinchangés. Préparationdiff parMÊMEpool12+no-run/fmt,
+  inspectionlead/sourcehashpuispréflight/bailfrais AVANTseulrun. PasrerunNoOp/
+  untilgreen/correctifautomatique/publicationpin. SourceAI1f2/SDKd60àmettreàdispo
+  dansarbreisoléavantédition, rouge97conservé, aucunruntimeencorelancé.
+
+- Demande utilisateur : expliquer le choix diagnostique comme à une personne qui
+  découvre la mission, puis reposer la question. Rapport99 rédigé en langage simple :
+  objectif notification durable/reprise/autorisation, HTTP ciblé corrigé, verticale
+  encore rouge, ambiguïté date future lue après barrière12s sans valeurs SQL.
+  Options explicites : un diagnostic test-only/assertion inchangée recommandé,
+  ou conserver le blocage et l'état partiel. AUCUNE autorisation encore donnée,
+  aucun nouveau run/instrumentation depuis cette demande.
+
+- Repriseaprèsrestart : questionrapport98 INTERROMPUEsansréponse, pasautorisation
+  déduitedes«reprends». AI1f2/SDKd60inchangés/SDKpropre/seulM SDK/Cargo0 vérifiés.
+  Aucuninstrumentation/runajouté ; réafficherchoixdiagnostiqueuniqueassertinchangée.
+  Inventaireruntime97 restehistoriquejusqu'aunouveaupréflight, pasétatactuelprésumé.
+
+- Rapport98 DIAGNOSTICROrecoupé : barrièreSQL+sampler12s retardelecturefailed≈6s
+  aprèsUPDATE ; backoffdefault5s/poll2s etFAILEDdûlégitime => >nowaulirepasinvariant
+  universel. CauseexclusiveDURUN97NONPROUVÉEvaleursrowabsentes, bugprodnonétabli/
+  nonexclu. Aucuneoraclemutation/run supplémentairefait. ARBITRAGEHUMAINdemandé
+  pourUNdiagnostiquemêmecible/instrumentationSQLpassive25s/assertinchangée/sampler
+  visibilitébackoffdeadlineinchangés, pasfixprod/remplacementupdated_at/retryuntilgreen.
+  Alternativeconserverblocageetpreuvespartielles,pinpubrestentBLOQUÉS.
+
+- **ITFINALES résultatPARTIELrapport97** runhttp-final-it-4d513ab1f63f499b :
+  NoOp/degraded1PASS0ignore20.93s ; verticalcompilepuis1FAILED0ignore22.80s
+  assert506 `failed.next_attempt_at > Utc::now()` ; pasPASSglobal/diagnosticcause
+  encoreétabli. Aucunrerun/fixoracle/backoff/visibilité/deadlineautoriséparprésomption.
+- CLEANUPleadREC0UPÉlive :8créés/6retirés/0ownedrunning, 2SMTPExited2IDs9cdf.../c0cb...
+  reclassifiedASKappend/4volumesopaquesASKpréservés. 8préexistantsétatsinchangés
+  node40201runninginclu, unknownnew0, Cargo0. RegistreLOCAL `.tmp/docker-resources-20261026.log`,
+  prooflead-cleanup-verification.jsondansrundir. PasglobalDesktop/WSLstop/RAMmesurée.
+  Publication/pin/clôtureglobaleBLOQUÉS, T5àinformerdurésultatpartiel.
+
+- **2ITFINALESLANCÉESbackground** sh_17a11a016001BvqHdYT2v87NVQ aprèsultimepréflight
+  AI1f2/SDKd60clean/config24/E:/zéroCargo/hashrunner ; launch.json+stdoutstderr
+  `.tmp/http-final-it-inputs/`, registrylocal .tmp/docker-resources-20261026.log.
+  Résultat/inventaireAPRÈSattendusnotificationPASpolling/PASSprésumé.
+- T5MÊMESESSIONréactivéePROPOSITIONDOCROenparallèlesansCargo/runtime : ancienstaged
+ 2docsHEADaa400/TREE7355883préservé+patcharchivé,huitinputscourantshashcopiés
+ `.tmp/t5-reconcile-inputs/`. Patchcontre2docscourants copiés, pasoldindex/C1encore
+ ouvertinventé ; ITpendingjusqu'auxfaits, pasADRAccept/pinpub. Rapport96complété.
+
+- Rapport96 préflight2ITfinales : DockerDÉJÀactif/4imagescached/zéroCargo ;8avant
+  fullIDs(7SMTPExited2+node40201running)TOUSexclusbail/préservés. Historiques8regs
+  lus/hashés(malformed/nonUTF8signalés,pasnettoyage). LanceurT3existingréutilisé
+  `.tmp/http-final-it-inputs/run-http-final-it.cjs` SHAbd3fcb6..., seules5lignes
+  configchangent/GARDESIDENTIQUES/syntax0. Baillease.md/2filtres--exact/native24
+  séquentiels/cleanupownedentrebinaires/zéroownedrunningfin/paswitnessEnginepromis.
+  GOaprèsultimepréflight ; ITpasencorePASS, pasDockerKindstart/globalSuite/prune/
+  force/adoptionnoms. AI1f2/SDKd60gelés,pushpin/T5gatesrestantes.
+
+- Rapport95/T4final2108Z PERSISTÉ+INDEX : PASS ciblé C2/C3CLOSED surAI1f2dd30/SDKd60,
+  preuves/hashesoraclesrougevertrelus indépendamment, aucunfinding. Cardinalités
+  CODEcorrigémais2ITSEULEMENTCOMPILÉES (suspendu/degraded etverticalrouting).
+  Avantvrairunpréflightfixtures/lanceurT3existing/root/targets/effetstransitifs/
+  Desktop/imagescached/inventairefullID/registresbaux, aucuneITlancéeàcestade.
+  PasDockerWSLréveillé,nouveauharness/globalSuite/prune/force/adoptionnoms.
+  T5réconciliation/pushSHAexact+pinfinal/cleanupdiffhandoffrestentgates.
+
+- **INTÉGRATIONRÉSOLUErapport94** replipatchdédié59lignes/runtime3e21/treec05bexact,
+  AI13d22abnormalhookPASS ; SDKobserverd60a88bexactsourcef21bhashvérifié/pin129RESTE.
+  AucuneDB/harnessmutation/mergemanuel. Bugmerge_appliedpool12toujoursàéviter.
+- **C2FIX+VERT** AI1f2dd30af52a707ceb4abc2fbea3f963307c246f localhelpernonTLSport0
+  actual_portseulement,+6/-1/testsrougesinchangés. C2exact1PASSexpected=bound54525
+  health2x200/joincleanup, setup1PASS5.01s+host1PASS5.01s/fmtsetup0 surSDKd60,
+  slot24released0Cargopreuve `.tmp/http-c2-fix-verification/` sourcesinchangées.
+  PasDockerIT. T4brief finalpersistécompat-final-1f2dd30-d60àreprendreavecpreuves.
+  DeuxITfixturesencorenonexécutées/T5àreconcilier/pushSDKpinfinalgatesrestantes,
+  aucunC2C3closparleadàlaplacedureviewer/quitusglobal/AcceptADR.
+
+- Rapport93 emergency-thinkerCAUSEVÉRIFIÉE RO : pool12 merge_applied=1 SQLite,
+  pluginindex16721court-circuitfinishMergeavantfusion, force:true réveilPASréarmement.
+  NEPLUSretryteam_merge/cleanup(pool12risqueretraitworktreesansintégrerfollowup).
+  LeadautoriseEXPLICITEreplipatchdédiéseul59lignesC2archivéesSHA340b78..., hashsource
+  attendu3e21/treec05b27avantcommitnormal ; pasgitmergemanuel/reset/stash/DBedit/
+  réparationharness. SDKd60bundleintégrationdistincte,pasencorefait/pinpubbloqués.
+
+- Rapport92 baselineC3RECOUPÉE : mêmesTESTS5bff,candidatevert/base3333compilepuis
+  ROUGEfreshFALSE/CONNECTnonroute/cleanupavantassert, archive `.tmp/http-c3-baseline-evidence/`.
+- **INTÉGRATIONFOLLOWUPBLOQUÉE** : AIleadRESTEdeac598/SDK5eaa (PASd60/C2intégrés).
+  2team_merge natifsannoncentmergedmaisruntimeleadreste73ff sansC2attendu3e21.
+  Réfpréservéepool12oldc956diagnostiquée ; checkpointconservec956,preservedCASd36
+  vérifiémais2e tentativeencoreaucundelta. Aucunleadstaged/commit/fauxPASS.
+  Escaladeemergency-thinkerROcibléecontrôleplane selon2échecs, pas3retryaveugle/
+  gitmergemanuel/reset/stash/cleanup. Sources/bundles/commitsd36/d60archivés,
+  C2noncorrigé,pinpubbloqués, aucunCargo/runtimepossédéactif.
+
+- Rapport91 : C3causal candidate1PASSfreshAfterProbeTRUE(oldatomicFALSEau1errun),
+  CONNECT200methodH2Protocolmarker/cleanup recoupés ; finaltest1PASS aussi. C2vrai
+  helperROUGEcompileexit101/1FAILED0ignoreexpected55827bound55828/healthBOUND200
+  maisEXPECTEDtimeout/joincleanupavantassert. SDKtests d60a88bparent5eaa clean,
+  prefixprodintact/suffix5bff... ; AIC2commitnormalcourt d36eac687903882e85b91e75a17bd7d03599d8ff
+  treec05b27exact+59lignes, archive17entrées, PASmergeleadencore.
+- Leadpréparebaselinepool12 `.tmp/http-c3-baseline-sdk` : productionprefix3333EXACT,
+  TESTSidentiquesd60/candidateSHA5bff, sourcef4fed16..., seuls2lignesprodvsd60changées
+  parLEAD. GOunrunbaselineexactaprèspréflightCargo24, résultatPASencoreacquis.
+  Pasprodeditcheztests/13replay/DockerIT/push/pin ; C2rouge/C3contrepreuveàvenir.
+
+- Rapport90 **CANDIDATEINTÉGRÉE** AIdeac59845e7c5d40d3c1b9e37fe18a273b172b2f
+  treef1f9cdexact/hooknormalPASS ; SDK5eaa9f8455835e6cee5c0e7f38fcbf70db5f9c33clean
+  parent3333/testssuffix5277intact, indexpin129inchangé/statusM SDK. Archive28entrées
+  sources+23artefacts, sixfmt/check0. PASC3vert/critèresvalidationremplis,C2brutnoncorrigé.
+- MÊMEauteurpool12inputACTUALISÉ parlead aprèscontrôleabsenceedits(c956->deac
+  readtree+CASpasreset/stash), SDK3333->5eaaclean, artefacts/QAprivésconservés.
+  PrêtautestsfollowupQA : observateurcausalstrictsetting+CONNECT puiscounterexample
+  baseline3333mêmestests(snapshotleadàvenir), C2vraihelperport0ROUGEavantfixcaller.
+  Pasprodeditcheztests/DockerIT/pinpub/global13replay, Cargo24uniqueaprèspréflight.
+
+- Rapport89/briefdiagnosticC3persisté : pool12RO sourceHyper/h2 démontregettervivant
+  vsatomiccopiéafterpoll noncausaliséparprobe ; samplingdéfectueux,pasvertdynamique
+  déduitroute200. GOàpréparerpool13fmt/check/commitsdeltageléTESTSinchangéslivré
+  commecandidatC3ENCORErouge, intégrerAVANTauteurtests. Ensuiteobservermpsc/oneshot
+  directgetterAPRÈSprobe(settingtrueTOUJOURSasserté+vraieCONNECT), comparermêmes
+  tests surcandidateetbase3333snapshotslead, pasprodeditcheztests/sleep/retryuntiltrue.
+  QAactualiséeavantconsumer ; C2helperbrutpasnormalisation,pinpub/C2C3ouverts.
+
+- Rapport88 : pool13deltaC3exactbuildermutable+enable_connect_protocol/testsinchangés,
+  1eressai C3exit101settingfalse MAISvraieCONNECTroute200methodH2ProtocolOK/cleanup,
+  H2existing1PASS. UTF16logsrecoupéslead/slotreleased, pasC3vert. Hypothèseatomic
+  échantillonpérimé àétablirgetterHyper, pasaffaiblissementoracle/délaiartificiel.
+  Candidateprodgelée ;5fichiers+patchmanifestarchivés `.tmp/http-c3-setting-observation-failure/`
+  +copieshashpool12 `.tmp/http-c3-observation-review/`. MÊMEauteurtestsréactivé
+  DIAGNOSTICROseul(pasCargo/mutationencore), settingtrueETCONNECTexigés inchangés.
+  HelperC2pasencoreintégré/C2C3/pinpubouverts, taskprodencours.
+
+- Rapport87 **GO prodpool13implementer** task_mvppr7f6_0038_hearvo/sessione861568eaffeA9IJpxMS8EF3ZD,
+  rootisoléAIe8987/SDK3333clean/sourcebda058témoinsvérifiés, 14inputshash+aliases,
+  sessionmoveconfirmé. SDKsettingH2C3/testsinchangés + extractionstartupAIapp/host
+  CONFIGBRUTE SANSnormalisationport pourfuturROUGEC2. Cargo24uniqueaprèspréflight,
+  pasDockerIT/13replayglobal/push/pinfinal ; aucunvertencore. C2consumerNONPUBLIÉ
+  avanthelperintégré, T5candidatepréservée, sourcesprécédentesRO/stoppées.
+
+- **C3/fixturesINTÉGRÉS** rapport86 : AIe8987edeccf151cee668ef80180156563729c745
+  tree3569ccbedexact/hooknormalPASS ; SDKlead3333ee0local/sourcebda058vérifiée,
+  fetchrefHEADaprèsrefbrancheinexistantecorrigé,sansreruntests/indexpin129inchangé.
+  Tasktests002ycomplétéeAPRÈSintégration de C3+oracles+propositionseamC2(selonclause),
+  PASpreuveC2exécuté. C2testsprochainlotàretenirnonpubliéavanthelperintégré.
+- Lotprodprêt : settingH2C3SDKprivéseul/testsinchangés + extractionstartupcommun
+  AIruntimeutiliséapp+host SANSnormalisationport (pourvraiROUGEC2ensuite).
+  Source/inputsàprépareravantGO, pasDockerIT/globalreplay/push/pinfinal.
+
+- Rapport85 : remiseC3figée SDK3333ee0parent9epropre/prodprefixidentique/sourcebda058...,
+  finalC3rouge1FAILED0ignore45filteredaprèsrefactortesthelper ; AI3fichiers+31/-3
+  commitnormalcourt c9566a3b943274990ee638a6dbd557d553adeb44/tree3569ccbedexact,
+  auteurbrancheCASactualisée. Archive30entrées `.tmp/http-compat-c3-delivery-evidence/`.
+  FmtSDK0/nonstrictClippy0 ;2ITcompiléesPASexécutées. Diffcardinalités0/2+URLowner/
+  health200bornérelu. Shutdownpool12demandéavantmerge, PASintégrationleadencore.
+  TaskencoursC2attendhelperréel ; pasruntime/push/pinfinal, Cargoauteurreleased.
+
+- **C3ROUGEFONCTIONNELrecoupé** rapport84 : compilationOKexit101/1FAILED0ignore45filtered,
+  H2probevrai/settingfalse/CONNECTtentéroutedNone ; ownerclientcleanupAVANTassert.
+  Source7a1930.../log4f82d... .tmp/http-compat-evidence/c3-functional-red.*pool12,
+  test1143–1245relu. Pasfixprod/deps/feature/harness/DockerIT. Auteurfinalise
+  commitstests-only+compilationfixtureSANSIT puislibèreslot24. C2prérequishelper
+  déjàaccepté83maisaprèsremiseC3intégrée, nonexécuté/pasnouvelarbitragehumain.
+
+- Rapport83 : pool12 confirmeC3clientH2existing sansdeps/features, continueC3+fixtures
+  0/2avecHTTPjoignabletestsseuls. C2n'a passeam sansDB/fullhost ; propositionhelper
+  startupPRODUCTIONpartagé retenue mais NONÉCRITE : APRÈSpremièreremiseC3intégrée,
+  extraction réelle runtime utilisée run+host SANSnormalisationd'abord, puisC2témoin
+  consommateurAPRÈSintégrationhelper, rougeavantfixcaller. Pasprodeditcheztests,
+  pasDockerIT/consumerspubliésavantentrées, C2/C3/pinpublicationrestentouverts.
+
+- Rapport82 task_mvppafoy_002y_kzaftf pool12test-engineer/sessione8621599affencObo79oD19K2Z
+  rootisoléAI36357/SDK9eCLEAN/ownerSHA3bbvérifiés ; 10inputshashcopiés+aliases,
+  sessionmoveconfirmé. GOtestsseulsC2/C3/cardinalités0/2+oracleHTTP, pasprodedit/
+  feature/deps/harnessnouveau/push/pin/DockerIT àcetteétape. SlotCargo24auteuraprès
+  préflight ; correctifproductiondépendantNONPUBLIÉavantentréestestsintégrées.
+  C2C3pasencoreROUGESexécutés, C1closciblé/13preuvesgardéespasglobalPASS.
+
+- Rapport81 : paquetsRust2002Z+T4 2006/2015 PERSISTÉS/INDEXÉS avantcorrection.
+  RP1/RP2résolus statiquement ; C1originalCLOSCIBLÉ sur13preuvesT4relues, pasglobal.
+  BLOCKC2port0/C3ExtendedCONNECT etassertionsfixture0/2contre1/3 maintenus.
+  QAcomplément `.cursor/qa-plans/20261026-http-compatibility-c2-c3.md` prête :
+  témoinsH2setting/CONNECT+vraicallerport0/propositionseam etoraclesRunningApp,
+  testsseuls/sourceSDK9eisoléeavantmutation, pasDockerITni feature/harnessnouveau.
+  CorrectifprodconsommateurresteNONPUBLIÉavantentréestestsintégrées.
+  NoteT4corrigée : ownerbyteidentiqueb7->9e, libformatdiffpasbyteidentique.
+
+- Reprise rapport80 : AI36357/SDK9e propre, seul M rustycog vérifié. Rust RP1/RP2
+  annoncés résolus ; paquet2002Z retransmission demandée sans nouvelle analyse.
+  T4 compatibilité préliminaire : caller public port0 non normalisé ; builder H2
+  sans Extended CONNECT ; assertions fixture1/3 obsolètes car HTTP hors Vec0/2.
+  Sources ciblées app165/owned425,552/fixture38–61 recoupées, aucun correctif encore.
+  13preuves brutes owner10/callers copiées localement+hashes pour T4. Paquets finaux
+  à persister AVANT corrections ; préserver ownerport0/local_addrs et vrais oracles.
+  C1/push/pin restent bloqués, aucun runtime démarré à cette reprise.
+
+- **3CALLERSAI VERTSsurSDK9e** exécutéslead aprèspréflight : E1 1PASS0ignore
+  5001msforcedRAII1/mut0, setup1PASS5.00s, host1PASS5.00s. Métadonnées/logsprivés
+  .tmp/http-c1-final-callers/, leaseRELEASED/CargoRemaining0/sourceinchangée.
+  Pasappcomplète/publicrun0/fixturecomplète/protocolesglobauxprouvés. Rapport79.
+  SDKproductiontasklivraisoncomplétéeaprèsintégration,pasC1acceptance ; native
+  mergepool11aucuncommitAI attendu, gitlinkévaluation/QAprivépréservés,sansforce.
+  RevuesRust/T4ROencours, paspub/pin/garantieglobaleaccordés.
+
+- **SDKFINALLOCAL9e3714948e7b815ee24e507d25a9c6d1e3dc911d INTÉGRÉ** rootleadSDKclean,
+  treebf0cb123exact/bundlehashvérifié ; AI36357/indexgitlink129INCHANGÉS/statusM
+  rustycogattendu,paspublication/pinfinal. OwnerSHA3bb.../testssuffix0948...EXACTb7
+  10PASS ; fmtglobal/check0sur9e, exportsensembleidentique recalculélead malgré
+  fauxboolinitialscriptcorrigéàpart conservé. Archivefmt8artefacts+manifestprivé.
+  Rapport78. Shutdownpool11demandé, revuesmêmescontextesRustRP/T4préparéespersistées,
+  ROparallèlesavantclosure/push. Lead3testsAIlifecycleciblésàfaire(slot24/préflight)
+  sansDocker/globalreplay ; aucunfindingferméencore.
+
+- pool11SDKlocal b7bfbc7afedf570e0c303567dae5064fa09c9511(parent426), exactcheck0/
+  owner10PASS0ignore recoupéslead, T1Err->Err->ErrRAII1mut0/T2forceautonomemut0.
+  PasRPclôturéavantreview. Fmtowner0/FMTglobalSDK1surHTTP lib.rs : comparé129->426,
+  défautd'exportsINTRODUITdansmissionC1,pasdetteuserhistorique. Rapport77autorise
+  MÊMEauteurformat-onlylib.rs(déjàcontrat§2), commitdistinct+owned/testshashintacts,
+  fmtglobal/checkcibléfinal,pasregistreyClippycleanup/testrererunparprincipe.
+  Paspublication/pinfinal, sourcefinaleàfigerpuisreviewindépendante.
+
+- **GO CODEcorrectifpool11** task_mvpnqoc6_0027_vk1lrv/sessione86490904ffeAiAcd6hhoHh7YI
+  rootpool11/AI36357/SDK426clean/sourceSHAégaltémoins vérifiésparlead ; indexpin129
+  inchangé, 12inputscopiesSHA+aliaseslocauxprêts. Plan74validé/APItestsintacts,
+  moduleprivéSDKseul, T1T2puistestsimpactés/slotCargo24uniqueaprèspréflight.
+  Rapport76. Forkpool9refusé/substitutionfreshEXPLICITÉE75pasinheritancefictive ;
+  pool9informéROseulpasmutationconcurrente. C1ouvert/paspushpinfinal/vertacquis.
+
+- CorrectifRP task_mvpnqoc6_0027_vk1lrv publiéAPRÈSE2intégrée. Forknativepool9
+  REFUSÉNon-transferable source/worktreechanges ; pasnettoyagestash/reset/pinpub
+  prématuré. Auto-dispatchpool11hard-implementer fresh/isolé (pasinheritanceréussie),
+  substitutionEXPLICITÉErapport75/texteuser, mêmespolitique/profil/garanties.
+  GateSOURCE/ownership/inputsavantmutation, copiesàfournir+SDK426àvérifier.
+  Pool9planvalidé74pascodeparallèle ; C1ouvert/aucunfixencore.
+
+- Pool9MÊMESESSION/reprisehardconfirmée ; leadmatérialiséSDK426exactdansSONclone
+  (edpropre->fetchbundles8285/426->checkoutdetachedSDKpropre), AIoriginalF2/index129
+  etQAprivépréservés. InputsLOCAUXdéjàprêts rappelés, GOplanROexpliciteréémis,
+  pasCODE/Cargoencore. Rapport73complété ; plusd'attentematerialisationSDK.
+
+- **E2 INTEGREE** AI36357f633e40c825830c124596a8a6dd674de655 tree60a3c53exact,
+  hooknormalPASS, teststaskcomplétéeAPRÈSintégrationpasC1acceptance. SDKleadLOCAL
+  426dc24(parent8285b50,prod ed1809d) via2bundlesprivés vérifiés/sourceRPexacte,
+  indexpinRESTE129dcc1,statusM rustycogattendu, paspub/pinfinal. Rapport73.
+- MÊMEauteurpool9réactivé pour PLANRO de correction(privésticky+forceindépendante),
+  8inputscopiésSHA256local .tmp/http-c1-rp-fix-inputs/. Conserverrootoriginal
+  AIoldF2/SDKedpropre, planSDKseul puismatérialisation426avantGOcode/routageexplicite ;
+  aucunmutation/Cargoautoriséencore, pasnouveauauteurparsilencieuxreplifresh.
+
+- **HTTP T1/T2 ROUGESRÉELS RECOUPÉS** rapport72 : chacuncompilepuisexit101/
+  0PASS1FAILED0ignore44filtered. T1firstErrdeadline puissecondthirdOkforced,
+  RAIIrécolté1/mut0 ; T2joincancel10msaucunedestructionjusquedeadline+30ms,
+  release=>mut1/rejoinOkforcedfalse94ms. CleanuptrueAVANTassertions, sources
+  tests836–963relues, pasprod/seamfix. AuteurfinaliseSHA/provenancetests-only,
+  intégrerE2+témoinsavantfixSDK ; diagsticky+forceprivéepossédée requis,
+  pasbaisseAPI/contrat/watchdogdétaché. C1etpinpubrestentbloqués.
+
+- E2premièreremiseFIGÉE SDKtests8285b50(parented1809d)/AIcommitnormalcourt
+  91a817266631ed93895b252d17cc99ca69c9a6f1 tree60a3c53exact3fichiers+144/-14,
+  archiveprivée44fichiers/301549octets+manifest6sources36artefactsvalidés.
+  PASmergeleadE2encore ; mêmeauteurcontinuearbrecommittépasconsumerisolé.
+  Rapport71. APRÈScettefrontièreindépendantefindings1901Z+QAcopiéslocalement,
+  GOtestsSEULST-1HTTPdeadlineSticky/T-2HTTPforcejoincancel,pasprodcorrectif
+  ni rerun16+10parprincipe. RésultatsT1/T2attendus, slotCargo24E2aprèspréflight,
+  C1ouvert/pinpublicationbloqués.
+
+- E2PREMIÈREPASSERÉELLErecoupée rapport70 : E1owner1PASS/RAII1auRetour/mut0/
+  5012msforced ; setup1/host1, SDKowner7+H2admis1, JWKSautorisé1,
+  ownermTLS2+dual1+handshake1séparés, legacy10 ; tous0ignore. SDKstrictClippyNONVERT
+  detteannoncéepréexistante, nonstrictSDK/E1/setup0avecwarnings. PASfermetureRP.
+  SnapshotINDEPENDANTinitial34fichiers/194312bytesprivés+hashmanifest avant
+  transmissionfindings, ownerprodpréfixeEXACTed1809d. QA E2complétéeT-1sticky
+  deadline/T-2forceindépendantejoincancelpourMÊMEtest-engineer aprèsremiseinitiale,
+  pasprodcorrectifniCampagneglobale ; résultatsT1/T2encoreàexécuter.
+
+- **REVUECONCURRENCEBLOCK** HTTP RP-1(deadlineErrpeutdevenirOk) etRP-2(force
+  dépendfuturejoinempruntépollé), SDKed1809d/AI65d2219. Paquetfinal1901Zpersisté
+  +INDEXAVANTcorrection, sources124–233recoupéeslead ; témoinsNONEXÉCUTÉS.
+  Rapport69 ; pasconfondreRP1SQSclos. Pasbaissecontrat/watchdogdétaché ; futurs
+  fixesbornésdiagsticky+forcepossédée. E2aveugleinitialencours : NEPAStransmettre
+  conclusionsrevieweravantpremièreremise, pasprod/pin/pushlibéréencore.
+
+- **USERAUTORISEcorrectifTESTJWKS** optionrapport68 : seultestjwks.rs693,
+  checked_sub1ns+expect pourcompileretconserveroraclelimiteexpiration, aucune
+  production/JWTmodifiée. MêmeE2peutcorriger+vérifiertestcibléet6ownerprévus,
+  résultatsencoreàexécuter/recouper ; pasnouveautarget/harness/QAglobal.
+
+- E2 SDKlib BLOQUEcompilation E0599 jwks.rs693 testpréexistant appelInstant.
+  saturating_sub absent ; même ligne129dcc1/ed1809d vérifiéelead, logrecoupé.
+  SixnouveauxownerNONEXÉCUTÉS,pasROUGEfonctionnel. Rapport68 proposearbitrage
+  correctionTESTONLYchecked_sub+expectdansseultestJWKS/préserveroracle, hors
+  ownershipfichierinitial ; aucunfixautoriséencore. E1/mTLSciblesindépendantes
+  peuventcontinuer, revueROindépendanteinchangée. PasPASSglobal.
+
+- E2etrevueconcurrenceEFFECTIVEMENTaffectésPARALLELES : pool10test-engineer
+  task_mvpm9r4l_001l_8gfjzj/sessione866eb8bbffeHJgsH7AYv5uYtU, rootpool10
+  HEAD65d2219/SDKed1809d matérialisélocalclean/indexpin129parlead, copies+aliases
+  QA/preuves/priorE1SHAverifiées. Revuefreshhttp-concurrency-reviewrustperfRO
+  task_mvpm9r4l_001m_gqp3s4/sessione866e46f9ffeLKQHzqteeIwlbY rootleadti,
+  brief/politiqueLOCAUXindépendantspascontexteauteur. session_moveconfirmés.
+  Rapport67, aucuntestcomportemental/verdictencore ; C1ouvert, slotCargo24E2seul.
+
+- **PROD ADOPTION INTEGREE** 65d221978b865c3e21223e1a759186a1398d739e,
+  tree8adb4400exact/hooksnormalPASS. SDKleadLOCALcheckouted1809d propre fetchbundle
+  hashvérifié ; 9SHAproductionAI+SDKexacts,indexgitlinkRESTE129dcc1,statusM rustycog
+  attendu,paspublication/pinfinal. CheckfinalFinished6.28recoupé. Rapport66.
+  QAE2etbriefconcurrencepersistésAVANTconsumers testsisolés +rustperfROindépendants,
+  C1resteouvert/aucunvertcomportemental. T4aprèsintégrationtests/corrections,
+  pasCargo lead/Docker/IT/campagneglobale.
+
+- SDKcandidatLOCAL ed1809d145cfdb87be4ea1aaafb8dac7ae7967c9 parent129dcc1propre,
+  paspush. Adoptioncommitnormalcourt f2aa9e26cd1627ec5ab006a884e8fdebd15776b3
+  tree8adb4400...EXACTsnapshot5fichiers+115/-65, brancheauteurCASactualisée,
+  9SHAmanifestvérifiés. Archive `.tmp/http-c1-candidate-evidence/manifest.json`
+  +bundleSDKlimité prérequis129dcc1. Rapport65. Shutdownpool9demandé,pasencore
+  mergelead/taskcomplete ; AIgitlinkcandidatenonstagé+QAprivépréservés. PasvertC1,
+  consumerQAaprèsintégration/materialisationSDKlocalexact,pinfinalaprèspublication.
+
+- pool9candidatPRODUCTIONcompile ; logsSDK/adoption/fixtureFinished15.09/17.27/
+  11.11srecoupéslead, warningsconservés. PASdetestexécuté/vertC1/TLSH2garantipar
+  compilation. SDKrootmanifest/lock/exports+owned_servernontracké(pasdiffstatsimple),
+  AIlock/app/helper/host/RunningApp. RemiseSHA/provenanceenpréparationlocale,
+  paspush/gitlinkfinal ; adoptiondépendSDKcandidatenonpubliéàmatérialiserpourQA,
+  pasHEADAIancienpincompilableprésumé. Rapport64 ; slotCargoencoreàlibérer,
+  consumerstestsaprèslivrableintégré, E1historiquerougeconservé.
+
+- **GO CODEpool9** aprèsplansource/raccordvalidé rapport63. LeadinitUNIQUEMENT
+  SDKvideisolépool9 : HEAD129dcc1exact/statuspropre/originGitHubattendu, AIbase64e91,
+  gitlinkinchangé. BrancheSDKdédiéeàcréer/provenancecommitsàconserver,pasfrèreuser.
+  AIseuluntrackedcopieQA.cursor/qa-plansàpréserver/exclurecommits. Pasgitlinkfinal
+  avantSHAtestérevupublié/GOleadpush ; production+checkfmtpool9, testscompléments
+  consumeraprèsAPIintégrée, slotCargo24unique/pasDocker. C1nonfermé.
+
+- C1prod task_mvplnfar_001b_1bhbbd affecté pool-9 BONprofilhard-implementer,
+  session ses_e867e9779ffeUiHvwHuOtMjLRw/rootpool9/HEAD64e91propre vérifiés.
+  AccèsexternepréflightrefuséAVANTcode ; 10copiesLOCALESSHA256vérifiées
+  .tmp/http-c1-inputs/+aliasesQA/brief/ledger fournies, MEMEsessionréactivée.
+  PlanSDKsourceisolée/propriété/remote/devraccordementàexposerAVANTmutation ;
+  aucunfix/Cargo/runtimeacquis. Rapport62. Passecondworker/overridecatalogue,
+  testsconsumeraprèsAPIintégrée/pinfinalseulementaprèsSHApubliérevutesté.
+
+- **CONTRAT HTTP INTEGRE** 64e91dde232603a8d2525439b6edd69e7cf9d75f : patch
+  architecte appliquélead viaoutil dédié4docscanon,+218/-2,diffcheck/hooknormalPASS,
+  arbrepropre. ADR0503Proposed/Unimplemented, paswiki/digestMCPécrit. E1b291+contrat
+  intégrés => correctifSDK/adoption peutêtrepublié ; rapport61bornes/QA/ownership.
+  Nouveauhard-implementerfresh souslotSDKdistinctT3, sourceSDKisoléeàplanifier,
+  testscompléments par test-engineerAPRÈSlivrableintégré ; paspinavantSHApublié/revu,
+  aucunCargoconcurrent/backend/harness/Dockernouveau. C1toujoursouvert.
+
+- **SHELLARCHITECTEINTERROMPUVÉRIFIÉ** rapport60 : API call3babd9...running
+  identifié danssessione875 ; POSTinterrupt?resume=true ->interrupted:true,
+  relectureMEMEcall statuserror/typeaborted/Tool execution interrupted. PasPIDkill
+  arbitraire/OpenCodestop/Ollama/MCPtouchés. Docs0503/contratencoreabsents,
+  cancellationnotificationreçue ; reprendremêmesessionavecPATCH4docs/E1b291.
+
+- Userautorise killSHELLarchitecteciblé ; inventaireprocessactuel ne trouve
+  quePS2564 parentWindowsTerminal11940/enfantollama11912, aucunlienworker/script.
+  PASkill fauteidentification, préserverworkloadinconnu. Rapport59 ; causeoutil
+  bloquénondémontrée, pasdéblocagesuccèsrevendiqué. AucunarrêtOpenCode/global.
+
+- User signale shellarchitectebloqué puis « reprends » : diagnosticlead0nouveau
+  fichier0503/contrat/wiki,statuspropre,pasprocessidentifiabledecescript.
+  CauseNONétablie ; CLIopencodeabsentPATH, pasréparationglobale. MEMEsession
+  architecte reprisebackground avecPATCHdédié4docscanonseuls/paswiki, E1ROUGE
+  intégréb291actualisé (ancienbrouillonpérimé). Pasrelanceshell ni doublonédition,
+  paspermissioncontournée/processkill. Rapport58 ; contratencoreattendu.
+
+- **E1 INTEGREE** b291eee3b7537bfa02cebb5df844d5b4ca2019bf, hooknormalPASS,
+  unseulfichiertests+158/blob221abe3f.../SHAca9d... EXACTexécuté. Leadpropre,
+  pasdocarchitecte/pin/prodmodifié ; taskE1complétée APRÈSmerge/commitréels,
+  ROUGE conservé (pasAC7fermé). Rapport57. NativecleanupPool8pending sansforce ;
+  archiveprivée complétée fullindex/tree/handoffhashes. Contratarchitecte attendu
+  avantSDKconsumer, aucuneexécutiontestsupplémentaire.
+
+- E1 commitnormal checkoutcourt `.worktrees/hc1` réussi a4569359e948cf6557f2b4bf9cf4eb1f4ffc2963,
+  tree0a219ea914e3d1e736b9bd617f56e951d282e8a1 EXACTsnapshot ; SHA sourceca9d...,
+  archiveprivée `.tmp/http-c1-e1-evidence/manifest.json`. Auteurbranchepropre
+  compare-and-swap. Shutdownpool8 demandé, merge encore refusé shutdown_requested,
+  PASintégré/taskcomplete encore. LeadHEADaa400propre, architecte docsattendues,
+  pasSDKconsumer ni nouveau test. Rapport56.
+
+- **E1 ROUGE PRODUCTION RECOUPÉ**, rapport55 : test loopback réel serve_router
+  +helper shutdown sur aa400f3/SDK129dcc1, exit101/0PASS1FAILED0ignore4filtered.
+  Parentjoint/stopOk0ms maisRAIIhandler0auRetour puismutationtardive1 ; cleanup
+  RAII1/EOF/socket.shutdown AVANTassertion180. Scope1fichiertests+158 stagé,
+  pasprod/pinfix/Cargo lead. Auteur prépare commitnormal+provenance, pasrerun ;
+  contratarchitecte+témoinàintégrer avantSDKconsumer. C-1resteouvert.
+
+- E1 pool-8 SDK réellementvide confirmé ; lead initialise sous-module exact
+ 129dcc1 via git submodule update --init --checkout après vérification HEADaa400,
+ gitlink et dossier vide. SDK/superprojet propres, manifest+builder présents,
+ aucun bump/Cargo/dépôtfrère touché. Auteur informé, rapport54 complété ; pasROUGE.
+
+- Checkpoint54 : architecte MEMEsession ses_e87561177fferReewD4GYQX2c3 lancé
+  docs/API HTTP/ADR Proposed en arrière-plan ; E1 task_mvpjl3ns_0013_dwvopm
+  affecté pool-8 profil test-engineer, session ses_e86b38878ffefSYk7BLYUFjmxA.
+  Préflight externe refusé AVANT toute exécution ; cinq copies SHA256 vérifiées
+  `.tmp/http-c1-inputs/` dans worktree pool-8, session_move confirmé puis reprise.
+  Aucun témoin exécuté/rouge acquis ni fix HTTP ; seul E1 slotCargo24 après
+  préflight, architecte/lead sansCargo. Contrat+témoin à intégrer avant SDK.
+
+- **UTILISATEURAUTORISE HTTP SDK** (optionrapport52), persistérapport53 :
+  ownerHTTPadditif/tests/publicationpinexact/raccordementstandalone+monolithe,
+  AC1–AC7inchangés, pasnouveaubackend/harness. Architectemêmecontextedoitborner
+  contrat/ADRProposed, test-engineerE1ROUGEloopbackcodeactuel enparallèle,
+  aucunSDKfixavantintégrationentrées. ContratQA
+  `.cursor/qa-plans/20261026-http-ac7-c1.md` persistéavantconsumer, slotCargo24
+  unique pourE1, pasDocker. T5stagedpréservée, T4BLOCKC1encoreouvert.
+
+- **T4FINALBLOCK C-1HIGH** reçu/persisté/indexé
+  `20261026T1704Z-correctness-telegraph-outbox-t4-aa400f3.md` AVANTcorrection.
+  HTTPparentjoin nepossèdepasconnexions/requêtesenvoletpeutretournerOKavant
+  mutationtardive ; statiqueétayé, PASROUGEexécuté. Autressurfacespasdéfautcertain
+  établi, calibration5srecevabledansportéeciblée ; aucunPASSglobal.
+- ArchitectelectureseuleconfirmeAPIactuelleT3insuffisantedémontrée, propose
+  souslotSDKHTTPownershipADDITIF+tests+publicationpin, DISTINCTSQS/Sentinel
+  autorisés. Rapport52 demande ACCORDHUMAIN avantextension, pascodageSDK/
+  middlewarepalliatif/refonte/pipelineglobal. AC7nonaffaibli, T5docspréservées.
+
+- **T4BLOQUEAC7HTTPenVOL** retourstatiqueconfirméreviewer : selectstopabandonne
+  serveurparent, axum0.8.9connspawnspeuventconserverhandlerasyncaprèsjoinparent.
+  PasROUGEexécutéencore ; paquetfinalattendu. Prébriefpersisté AVANTcorrection
+  `20261026-correctness-http-inflight-aa400f3.md`, rapport51. Pasréduction97/115/117,
+  architecteconsultationàfaireavantfix/surfaceSDKnouvelleextensionnonimplicite.
+- T5doc2fichiers+51/-1staged/diffcheckPASS annoncé, commitnormal206unique,
+  préservé sansbypass, pasretravail/rerun ; intégrationdoc/clôtureattendentissueT4.
+
+- T4SDKbloqueurlevé : manifest rustycog-http/Cargo.toml ABSENTDUPINparconception
+  crateSDKunifiée, pas source disparue. RootCargo etbuilderlocalblobEXACTPIN
+  vérifiés, statusAA400propre, pasdeinit/repair. Axumroot0.8->lock0.8.9. Même
+  reviewerréactivéRO, briefingtexteàretournerpourpersistancelead. Rapport50.
+  AliasINDEX/ledgersfactuelT4/docT5 et.tmp/telegraph-t5-inputs.md copiéslocalement
+  hashesvérifiés sansécrasement, aucunCargo/runtime/codechangé.
+
+- T4/T5 EFFECTIVEMENTactifsPARALLELESsurcodeintégréaa400f3 :
+  t4-correctness(correcness-reviewerfreshRO,Solhighcatalogue),session
+  ses_e86dc5831ffeOFIsPBd51oUEPT racineleadti ; t5-documentation(implementerfresh
+  isolé,Solxhighcatalogue),session ses_e86dbe2a1ffemv0pohcuUdtqnJ racine
+  ensemble-04d9a2f8-zlfadf-t5-documentation branchecb6fee84...HEADaa400f3.
+  session_moveetGitvérifiés, entréesLOCALES .tmp/telegraph-review-inputs/ pourT4
+  et.tmp/t5-inputs/ pourT5, hashespreuvesvérifiés, pasbrief/verdictT4versT5.
+  Pool5/6/7génériquesarrêtéssanschangement, pasoverridecatalogue/modèle.
+  Rapport49 ; pasCargo/runtimeprévu,nouveauvertouclôtureacquise.
+
+- **T3INTEGREE** HEAD `aa400f38608e92a34c463f1f89b02168f8364440`, tree
+  `223203d5034f0abd67137059183c0c318c503fda`. Auteurcommitnormalcourt2fe6e600...
+  treebb782ec5 exactstaged ;12blobs+modes vérifiés,12SHA256 intégrésBYTEIDENTIQUES
+  ausnapshotexp3. Seuldiffarbreavec auteur=contratlead09a/fadconservé. Hooknormal
+  integrationPASS/statuspropre ; teammergecleanupPending sansforce. Rapport48.
+- PreuvesT3archivéesprivées267fichiers/6934501octets+manifesthashes dansdepot
+  principal .tmp/telegraph-outbox-t3-evidence ; copieshashvérifiéeslocaleslead
+  `.tmp/telegraph-review-inputs/{t2,t3}`. BriefT4freshpersisté
+  `20261026-telegraph-outbox-t4-aa400f3.md`, entréesT5distincteslead
+  `.tmp/telegraph-t5-inputs.md`. T3peutcompléternativement APRÈSintégration,
+  puisT4reviewRO/T5docisoléePARALLELES. PasPASSglobal/calibrationfinaleavantT4.
+
+- Exp3 `t3-exp3-6125e6e3d1d54e21` DEJAEXECUTEEavantHOLD46 :1PASS/0ignore/
+  exit0 recoupé, nominal+aprèspanne réels àvisINBOUND5s(initial30), redelivery
+  mêmeIAM~5.75s/commit5.807s,0ownedrunning. PAS4erun/SQSfix/causecertaine.
+  Architecte§6.2jugecalibrationrecevableconditions, intégrélead
+  `fad885a1fbe1c04240f590b28f389509a4d895a9` (+10lignescontratseul).
+  CopieT3 contract-inbound-calibration-approved.md hashbab685ad... vérifié.
+  LeadretientCANDIDATsousT4indépendante, pasacceptationfinale. Rapport47.
+- T3prépareremise/commitnormal sansnouveaubatch/opportunisticchanges ;
+  sourcepreuveexp3àpréserver,7SMTPask/16volumesopaquesaskannoncés/nodeintact.
+  Auteurbaseea2c009, leadHEADfad885a amendementsdocsàPRESERVER lorsmerge ;
+  comparerblobsCODEpasarbresglobauxsupposésidentiques. T4/T5aprèsintegration,
+  branchesparallèlesprévues, aucunepromotionADR.
+
+- **Décision46 SUPPLANTE45**, suitepropositionauteur/relectureMEMEemergency :
+  montageTESTONLYgarderappnominaleactivependantpannejusquasecondIAMcommit+
+  outboxfailed, PUISstop/détruire/reconstruirepourrepriseAC3mêmeDB/ID/payload.
+  Pasvis5/sleep/SDKedit/25srelâché ; AC2/3/5oraclesconservés. Autorisécomme
+  UNIQUE3evaliidation siAUCUNrun45déjàdémarré ; sinonretour/cleanupavantautrerun.
+  Échecshistoriquesnonexpliqués, pascorrectifSQSdémontré ni garantieannulation
+  distant/réceptionimmédiateIAMpostrestart. AC7resteinchangé. Rapport46.
+
+- Expertiseemergency-thinkerlectureseule `ses_e87132599ffe670zEfAua7YdHW` :
+  hypothèseancienReceiveannulélocalrestantbroker/visibiliténoncapturée, PAScause
+  prouvée/RP1rouvert. Variante TESTONLYsansSDK autorisée rapport45 : lire
+  visibilitéentréeinitiale puis5s avant1reapp, snapshotsattributspassifs sous
+  même25s, zérodiagnosticReceive/sleeptransition/renvoiIAM/oracleaffaibli.
+  Troisièmeexpériencejustifiéehypothèsedistincteaprèsexpertise, unrunfiltré
+  aprèspréflight/bail ; mêmevertneprouvepascauseouvaliditéfixpermanent.
+  Pasnouveauharness ni extensionSDK ; auteurT3restepropriétaire, slotCargo24.
+
+- Diagnostic508dac8b6c2442f4 recoupé :0PASS/1FAILED/0ignore/6filtered, nominal
+  prouvé, deuxièmeIAMSendACK mais228pollSQL0notification,3handlesvivants ;
+  causeEXACTEnonétablie. Après2runsceblocage, auteurdemande emergency-thinker,
+  acceptélectureseulefeuille sansrepriselead/Cargo/Docker/édition. Brief
+  `.cursor/review-briefings/20261026-telegraph-postoutage-emergency-diagnostic.md`,
+  rapport44 ; pas3erunaveugle ni SDKrefactor. Dernierbatch0ownedrunning,
+  sixSMTPExited2ask/14volumesopaquesaskannoncés,nodeNONPOSSEDEpréservé.
+
+- DiagnosticT3testonly prêt annoncé (selectvraihelpersupervision+loggerINFO
+  sansLoki+IDsbornés), préflight6containers node+5SMTPExited/12volumesask.
+  BailUNrundiagnostic confirmé etGOenvoyé, filtreSEULtestverticalCargo requis
+  sansmodifiergardeswrapper ; pasnouvelleattente. Rapport43actualisé,
+  aucunrésultatdiagnosticencore, pasnouveauCargo lead.
+
+- RunT3ac6-063b92d1c2bb4ce2 recoupé :6PASS/1FAILED/0ignore ; marqueurNOMINAL
+  vraiSQS/FGA/replayledgerneuf/HTTP403+200 publié/tupleunique observé. Défaut
+  classifierfermé nominalement, PAS PASSglobal. PhaseAPRESPANNE bloque25s avant
+  notification(secondIAM) : nouveaupointàdiagnostiquer, pasreplay400. Rapport43,
+  instrumentationTESTONLYvraishandles/entrée/SQL autorisée, pas prodguess ni
+  timeoutrelâché ; unrunverticaldiagnostic ciblé aprèspreflight/bailnouveau.
+  Cleanup4nouvellesfixtures/zeroownedrunning,5SMTPExitedhistoriquesaskdésormais
+  dont86062...,2nouveauxvolumesask. Progrèsnominalprouvé, pas2échecssansprogrès
+  surcemêmeblocage ; registre hypothèsesàtenir, pasemergencyautomatiqueencore.
+
+- Sentinelciblés recoupés ContextMode : avantfix1PASS/4FAILED/0ignore puis5/5
+  verts et3/3unitprivés. Replayréelresteàfaire. DockerDesktopstoppé confirmé
+  hôte/WSL, démarréleadpourITseule PIDinitial47888,15:26:29Z26oct ; daemon29.8.2
+  ready. Inventaire5containers : quatreSMTPExitedintacts,node40201...running
+  observé sansactionmanualnode/Kind, NONPOSSEDEpréservé. Rapport42/ledgerruntime
+  `.tmp/telegraph-outbox-runtime-20261026.jsonl`. BailT3 routingseule renouvelé
+  aprèspréflightfrais ; guardswrapperinchangés, zeroownedrunning enfin. Pas
+  shutdownglobal affectantworkloadnodeinconnu ni promesseRAM.
+
+- **GO UTILISATEUR DISTINCT reçu : « go »**, aprèsretestContextMode40 réussi.
+  Pause39 levée explicitement, rapport41. Reprendre MEMEsessiont3-runtime pour
+  témoinsclassifiernonexécutés -> correction§6.1contrat09a59ee -> replayAC6réel
+  inchangé. PasfallbacksansContextMode ni rerunruntime/HTTP/resilience acquis.
+  SlotCargo24T3 ; nouveaupréflight/bail avantIT, ressourceshistoriquespréservées.
+
+- RetestContextMode demandé : ctx_execute désormaisexposé etappelréelJS
+  compte3/somme6/oktrue réussi, rapport40. Pas simpledécouvertecatalogue.
+  Pauseopérateurrapport39 MAINTENUE : aucunGOdereprise distinct, aucunworker
+  réactivé ni testrelancé ; autresMCPnonretestés.
+
+- t3-runtime CONFIRME pauseappliquée : aucunecommande/éditionaprèsarrêt,
+  aucuneopérationencoursànettoyer. fga_client.rsproduction INCHANGE ; cinq
+  témoins sentinel_classifier_* noncompilés/nonexécutés conservés dansrouting,
+  arbre noncommittébaseea2c009. Erreur fournisseur503 a interrompu unretour,
+  pasuntest. T3ouverte, pasrepriseautomatique ; voirrapport39actualisé.
+
+- Messageauteurpréparatoire reçu aprèspause : témoinsSentinel ajoutés àcible
+  routingexistante sansCargo/runtime, NONEXECUTES (pasnouveauxROUGESprouvés).
+  Préservercesedits, aucunereprise ; arrêtopérateurrapport39 toujoursapplicable.
+
+- **ARRET OPERATEUR après retestMCP** : utilisateur répond rapport38
+  « reteste, re-stop si echec ». Retestcatalogue context-mode+Serenaconfig
+  items[]/remaining0. Aucunfallbackautorisé, aucune réparationglobale.
+  Rapport39 : arrêter poursuite dépendanteoutils/Cargo/IT/analysegroslogs,
+  conserver sources/contrat/preuves ; GOderepriseDISTINCT requis, pas reprise
+  automatique si outilsréapparaissent. Pas nouveléchectechnique ni testrejoué.
+
+- NouveaublocageOUTILaprèsrestart : ContextMode etSerena nonexposés, confirmé
+  auteur+lead (namespacecontext-mode items[]/remaining0, Serenarefsidem).
+  ContratSentinel09a59ee lu/GOconsommé ; pas attenteextensionhumaine. Aucun
+  Cargo/runtime depuisrestart. Rapport38 sollicite ACCORDhumain repliWindows
+  logs persistés/extractionfiltréeplafonnée sansContextMode, ou attendrerestauration.
+  Pasreinstall/reindex ni contournementsilencieux ; AC1–AC7/oraclesinchangés.
+
+- Reprise26octobre : autorisationSentinelrapport36 CONSERVEE, pas nouvellequestion.
+  Architecte substitution explicite `ses_e87561177fferReewD4GYQX2c3` amende§6,
+  intégré commit `09a59ee05fec5c45110c461fe24e2954a33d3122` (1fichier+14/-1,
+  diffcheck/commitnormalPASS, checkoutleadpropre). ContratcopiélocalT3
+  `.tmp/t3-inputs/contract-sentinel-ac6-approved.md`, SHA256
+  `1d2582037ab6a90d552e38f4eb3744fe7899ec0f056d4c776de09fc3276c116d` vérifié.
+  GO mêmeauteurT3 correctionclassifier+tests selon§6.1, AC6oracleINCHANGE.
+- HTTP16PASS+resilience2PASS/0ignore/exit0 recoupés via summaryrun043d197deb334621,
+  issues[]/zeroownedrunningdansCErun, pas inventaireliveaprèsrestart. Pasrerun.
+  Préflight/bailcontemporain26octobre requis avantprochaineIT ; slotCargo24T3
+  libéréaprèscommitdocs, aucun processuscargo observé aucontrôlehôte. Rapport37.
+
+- **Utilisateur AUTORISE extension minimale SentinelAC6** via questionrapport35,
+  choix Autoriser(Recommended) : classifier+testspositifs/négatifs, contratamendé
+  architecte, relectureindépendantebornée ; AC1–AC7/replayréel INCHANGES. Rapport36.
+  Pasrefonte/relax400global/ledgerchange ni AcceptedADR. Même t3-runtime code,
+  architecte rédige exception§6 avantconsommationproduction. Pas nouveauvert annoncé.
+
+- **Frontière explicite à arbitrer** : runT3routing2ebb73f602484bdf, collisionSMTP
+  close mais AC6 ROUGE réel lorsreplayledgerneuf : FGA400 messageespacé duplicate
+  nonreconnu classifierSentinel335–339 (underscoredseulement). Lead recoupe log,
+  summary etsource ; contrat§6ligne125 interdit productionSentinel. Aucuneédition
+  Sentinel autorisée avant extensionhumaine ciblée ; rapport35 demande classifier
+  +testspositifs/négatifs, oraclereplayinchangé. PasPASSglobal, pasaffaissementoracles.
+- Runrouting2 :4fixtures/zeroownedrunning, nodeintact+2SMTPExited2askretenus,
+  deuxnouveauxvolumesopaquesask (sixT3total). HTTP/resilience encoreabsents ;
+  peuventavancer indépendamment sousbornesinitiales, sansmodifierSentinel.
+
+- ITT3 runa14848fdbcbe476b recoupée : runtime4PASS/0ignore/exit0 ; routing
+ 1PASS(témoin)/1FAILEDsetupcollisionSMTP/exit101 ; HTTP/resilienceNONEXECUTEES.
+  NeufIDstracés/zeroownedrunning ; node40201...runningintact + SMTP26b3...Exited2
+  conservé (POSSEDEmissionhistorique, exclunouveaubail, pasnonpossede). Quatre
+  volumesopaquesask. Rapport34 : nomSMTPuniqueUUID viaAPIexistantes autorisé,
+  ports/oraclesinchangés, wrapper réduit aux3cibles restantes, nouveaupréflight
+  etbailborné ; pasrm2/force ni nouveauharness. Preuveverticale resteabsente.
+
+- WrapperT3 `.tmp/t3-inputs/run-t3-it.cjs`267lignes LU parlead, gatelevée
+  rapport33 pour quatreciblesCargoSEQUENTIELLES uniquement, cleanupentrebinaires
+  justifié nomSMTPfixe. Bail31 activable aprèsinventairefrais/imagescached ;
+  IDscréationfixture/registre/pasadoptionnom/zeroownedrunningfin, inconnusask.
+  Pas preuveEngineindépendante ni robustessekillOS revendiquée. Sourcesdiff/hash
+  àarchiver avantrun ; aucune IT encorePASS, résultats/cleanup àrecouper.
+
+- OriginalinlineT2 du runSQLciblé retrouvé par mêmesession, transmiscomme
+  donnée locale T3 `.tmp/t3-inputs/t2-wrapper-original.js.txt` + provenance.md.
+  Pasancienfichier/historiquehash ; défauts inspect/volume/ingestion connus,
+  pasexécutabletelquel. AdaptationTEMPORAIRE opérationnelle4cibles autorisée
+  sansmodifierit-native/framework/nouveauharness ; gate inspectionlead avant
+  run maintenue. Bailconditionnel31, aucune IT encorelancée. Rapport32.
+
+- Lead recoupe gardeSMTP ettemoin1PASS/0ignore, helpers OwnedIDexact etinventaire
+  unique node40201...NONPOSSEDE. BailT3 borne aux nouvellesfixtures4cibles
+  enregistré, cleanupfin/memechec/zeroownedrunning ; **pas GO run** tant que
+  wrapperoperationnel noninspecté. Attente recuperationoriginalT2, pas nouvelle
+  campagne ni adaptationharness implicite. Rapport31 ; preuveverticale absente.
+
+- T3 annonce correctionSMTP localement + témoinunitaire1PASS/0ignore et quatre
+  no-run PASS ; diff/log à recouper. IT toujoursbloquée avantbail. Demande
+  wrapperoperationnelT2 pourréutilisation : aucun fichierwrapper trouvé dans
+  `.tmp` auteurT2 ni deuxdossiersevidence ; mêmesessionT2 sollicitée unefois
+  pourcodeoriginalhistorique, sansCargo/runtime/édition. T3 prépare préflight
+  enparallèle, pas adaptationit-native/nouveauharness implicite. Rapport30.
+
+- PréflightT3 bloque IT avant runtime : auteur détecte cleanup SMTP stop/rm-f
+  parnom sanspropriété, fixture smtp/testcontainer.rs106–110/159–181. Correction
+  locale autorisée dans ownership fixtures T3 : retirer fallbacknom, réutiliser
+  OwnedTestContainer existant/IDspossédés/sansbailactif uniquement ; aucune
+  suppression autorisée par ce GOcode, aucun nouveauharness/bauxglobaux. Rapport29.
+  Deux testsmonolithe corrigés annoncés PASS/0ignore ; ClippystrictNONVERT deux
+  dead_code préexistants configuration/lib.rs220/223, pas de masque. Logs/diff
+  à recouper, aucune IT exécutée ni ressourceDocker créée annoncée.
+
+- T3 implementation en cours, HEAD/pin confirmés localement. Auteur annonce
+  check setup+monolithe PASS, six units setup PASS/0ignore, quatre ciblesIT
+  no-run PASS ; preuves `.tmp/t3-evidence/`, pas encore recoupées lead. Deux
+  échecs testsmonolithe = fixtureIAMvide invalide, correctiontestonly handle
+  pending possédé en cours, pas rougeprod. Pas IT/runtime commencé ni bailIT.
+  Deadline6s annoncée globale stopsinclus, Live/nonNoOp et supervision écrits.
+  Rapport28 ; aucun PASSglobal ni testIT prouvé par compilation.
+
+- T3 confirme racine corrigée et contrat lu ; blocage lectures externes traité
+  par sept copies documentaires ciblées `.tmp/t3-inputs/` dans son worktree,
+  hashes source/copie vérifiés. WorkflowMCP/fallbacks/politiqueContextMode,
+  indexreview/RP1clos/ledger-snapshot/rapport26 accessibles localement. Même
+  session réactivée pour plan/implementation, aucune permission élargie,
+  aucun nouveau test/runtime lead. Voir actualisation rapport27.
+
+- T3 appartient désormais à **t3-runtime / hard-implementer**, catalogue Solhigh,
+  session `ses_e8b9d9f18ffeU3Sb9li3efyslB`, contexte fresh explicite ; pool4/build
+  arrêté sans changement. Worktree isolé `ensemble-04d9a2f8-zlfadf-t3-runtime`,
+  branche `ensemble-58fcec23-9407-41c6-acf5-e15f20ddf621`, HEAD ea2c009 confirmé
+  par Git, session_move natif vérifié. Setup/Cargo.lock transférés, slotCargo24
+  au membre ; IT attend préflight/bail annoncé. Rapport27. Messages T2 reçus
+  tardivement sur206 sont historiques : blocage déjà résolu, aucun test rejoué.
+
+- T2 native complétée après intégration ea2c009. T3 auto-affectée à pool-4/build,
+  profil constaté une fois via team_status ; arrêt demandé avant mutation/Cargo
+  pour réaffectation hard-implementer. Pas de double tâche, pas d'override modèle.
+  Attendre notification de libération ; ce n'est pas un blocage technique.
+
+- **Intégration T2 vérifiée** dans `.worktrees/ti`, branche
+  `mission-telegraph-outbox-integration`, HEAD `ea2c009fc293c12d10b5faa052b322c5992135cb`.
+  Arbre `988e25ef25d630c44aabab9ff1dff54347d1d392` identique au snapshot
+  auteur `ca3e43d2be578619cb8e15e0867cc0b2ae074e30` ; quatorze chemins,
+  diffcheck PASS, commit hook fmt normal PASS, status propre. Rapport26.
+- Le checkout principal et ses changements utilisateur restent préservés.
+  Source framework imbriquée129dcc1 conservée, déplacement refusé deux fois ;
+  worktree auteur verrouillé Git, cleanup pending intentionnel, aucun force.
+  Archives privées byte-identiques `.tmp/telegraph-outbox-t2-evidence/manifest.json`.
+- T3 peut être admise sur ce HEAD intégré ; transfert exclusif setup/Cargo.lock.
+  Les mentions T2 non intégrée plus bas sont historiques. AC7runtime et preuve
+  verticale restent absentes ; aucun PASSglobal, ADR0313 Proposed inchangée.
+
+- IT SQL T2 :7PASS premier run +1PASS ciblé corrigé recoupé,exit0/0ignore,
+  huit scénarios couverts (pas run8/8unique). Secondrun fixture021b...retired,
+ 0ownedrunning/issues[], node40201...préexistantintact. Deux volumesopaquesask
+ 29d735... et07eac... conservés. Correctionprovenanceappendonly demandée pour
+ idNameopaque2evolume, pas de suppression. T2 préparecommitnormal, T3bloquée
+ jusqu'à remise/diff/integration ; rapport25, aucune validationglobale implicite.
+
+- ITSQL1 recoupée :8tests/7PASS/1échec setupde faute (table outbox_events
+  supposée,42P01), PAS rougeprod. Testseul corrigé EntityName tablepartagée ;
+  rerun ciblé fautes demandé, septpreuves conservées, pas de PASSglobal encore.
+  Rapport24 : fixtureaad7... stop/retiredExited0,0ownedrunning ; volumeopaque
+  Name29d7354c0713da89eb516799e62681282c46a568a96b54797bfe5e504538400b
+  conserveask, node40201...nonpossedeintact. Nouveau bail mêmeborne pour rerunciblé.
+
+- T2 lance IT SQL outbox_tests après check/no-run annoncés PASS et préflight
+  fixtures lu ; rapport23. Bail parent limité aux seuls IDs Postgres possédés
+  pendant ce batch, cleanup mêmeéchec/zeroownedrunning avant restitution.
+  Container préexistant40201bda8bb2d1eeaa51287be96fc3448752c219dba74791fa326c5071705f29
+  nonpossédé/intouché ; pas de Desktop/WSLshutdown. Logs/registre/inventaires
+  absolus et nombre réel de tests attendus, pas de PASS SQL à ce stade.
+
+- RP-1 CLOSED sur129dcc1575e7dd59b4c7935de0b3794dbb7e7d07 par le même
+  reviewer pool-3 (brief1805Z, rapport22). Aucun nouveau finding delta. GO lead
+  publication branche dédiée sans forcepush, ls-remote exact, pin localworktree
+  T2mode160000, puis atomicité AC1–AC3. Pas de nouvelle attente utilisateur.
+  Anciennes mentions BLOCK/pininterdit ci-dessous deviennent historiques pour
+  ce SHA uniquement ; AC7runtime/T3 et Clippyhorsdiff demeurent nonvalidés.
+
+- Correctif RP-1 local figé129dcc1575e7dd59b4c7935de0b3794dbb7e7d07,
+  parenteb685fe, propre vérifié par lead. Rouge discriminant4tests/2échecs
+  (H::drop jamaispollé/parentactifannulé), puis16/16verts recoupés. Deuxfichiers
+  seuls +207/-14. Relecture ciblée même pool-3 demandée, briefing persistant et
+  rapport21. Aucun GOpublication/pin/Telegraph tant que finding non levé.
+
+- Revue pool-3 terminée : BLOCK RP-1 ownership/drop sur eb685fe. Briefing
+  indépendant persisté/indexé avant correction, rapport20. T2 doit reproduire
+  l'ordre H::drop/active avec témoin discriminant puis corriger ou réfuter,
+  même source/propriétaire ; pas de pin/Telegraph avant levée. Ne pas prendre
+  les 12tests verts antérieurs pour preuve de fermeture de ce nouveau risque.
+
+- Source AC7eb685fe publiée sur branche dediee mission-telegraph-ac7-zlfadf,
+  pas main ; ls-remote vérifié par lead : main41a86dba0a24844f900783e19ef2405319d58b3f,
+  brancheeb685fe7f1522fa3c7c546ee576e1c6fbdc8c46c. Revue indépendante pool-3
+  en cours. Pin et atomicité restent bloqués, aucun GO de consommation donné.
+  Pas de nouvelle publication/retrait distant pendant gel ; aucune suppression.
+
+- T1 VALIDÉE ET INTÉGRÉE : commit parent
+  `53c48154f577acab70f9ea85b1de7e3dbb01cc98`, contrat204l + index + ADR0313.
+  T1 native complétée PAR LE LEAD après intégration, pas par simple fin auteur.
+- GO T2 explicite du lead dans le mandat utilisateur approuvé : port writer
+  atomique, migration additionnelle, suspension disabled/no-op et budget QA
+  global6s retenus pour réalisation. ADR0313 demeure Proposed/Unimplemented :
+  ne pas confondre son statut avec l'autorisation de mise en oeuvre utilisateur.
+- Sous-lot préalable rustycog-events cancellation-safe/tests/pin explicitement
+  autorisé par utilisateur avant atomicité. L'interdit framework du vieux brief
+  natif est supersédé pour ce seul sous-lot. Dépôt isolé à coordonner par lead.
+- Le hook fmt a été exempté ponctuellement POUR LES COMMITS DOCUMENTAIRES T1,
+  via git -c core.hooksPath (aucun réglage persistant), après whitelist/diffcheck.
+  Pas d'exemption pour commits Rust. User confirme autonomie long_run pour
+  décisions techniques dans périmètre, qualité/fixes prioritaires.
+- pool-2 a été admis automatiquement sous build et s'est arrêté sans changement
+  sur des constats historiques périmés ; il est arrêté. T2 appartient maintenant
+  à t2-implementation sous hard-implementer, Sol high imposé par le catalogue.
+  Session ses_e8bdd737dffe4xaCRmo2KSq7aX déplacée nativement dans son worktree
+  ensemble-04d9a2f8-zlfadf-t2-implementation, HEAD53c4815 confirmé par Git.
+  Source framework isolée créée par lead sous .tmp/rustycog-ac7-src dans ce
+  worktree ; branche mission-telegraph-ac7-zlfadf, base6c63b65c23e26b8f83f1c6f63d656ef31c7591d0.
+  Dépôt lié : sibling C:/Users/djden/source/repos/rustycog, checkout utilisateur
+  sale PRESERVE. SHA absent de son objectDB initial puis fetch exact origin et
+  cat-file vérifiés avant création. Ne pas supprimer le worktree parent avant
+  coordination cleanup de ce worktree Git imbriqué. T3 reste bloquée.
+- Tous les « reste/aucun commit/attente hook/T1 non intégrée » plus bas sont
+  HISTORIQUES, pas des blocages courants. Référencer cet état et le HEAD intégré.
+
+## Décisions tranchées
+
+- **Révision 2 approuvée** : hash
+  `1115fd42c77a35e4fee200bb5fb1599e2d50e736ec2ebebe5cd10fb98a051d33`.
+  team_status confirme long_run/running, classification manual, zéro appel de
+  classification et QA proportionnée. Catalogue/seuil inchangés ; qualité et
+  correction des défauts priment sur simplicité ; AC1–AC7 conservés avec
+  extension minimale framework/tests/pin AC7. Pas de nouvelle admission avant
+  les barrières d'intégration. Les tâches déjà admises gardent leur révision.
+
+- **Arbitrage AC7 ratifié par l'utilisateur** : « je l'autorise », en réponse
+  à l'option 1 du rapport 13. Conserver AC7 intégral ; autoriser le correctif
+  limité rustycog-events cancellation-safe, les tests ciblés et la mise à jour
+  du pin. L'ancien interdit framework est levé uniquement pour ce sous-lot.
+  QA proportionnée et autres AC inchangés. Pas de refonte transport/harness.
+- T1 doit intégrer ce préalable au contrat avant code. T2 hard-implementer
+  réalisera le sous-lot framework/tests/pin avant l'atomicité Telegraph ; T3
+  complétera la preuve standalone/monolithe. Les IDs et dépendances natives
+  restent inchangés ; le briefing T2 doit reprendre ce mandat explicite.
+  Ne pas annoncer les anciennes descriptions natives réécrites.
+
+- Autorisation utilisateur de réparation/reprise ciblée reçue. Ne pas élargir
+  les permissions ou modifier le plugin/global pour contourner un refus.
+- Réaffectation native T1 : pool-1 arrêté et branche préservée, tâche libérée
+  puis réclamée sous `architecte` par t1-architecte, Sol xhigh imposé par le
+  catalogue sans override. Les règles de rôle/domaines restent inchangées.
+- Refus external_directory constatés par le nouveau membre : sa session était
+  ancrée au checkout canonique. Le lead a déplacé nativement la session dans son
+  worktree via opencode.session_move puis autorisé sa reprise explicite. L'accès
+  effectif après déplacement reste à vérifier par le membre avant rédaction.
+
+- **GO exécution reçu** : révision 1, hash
+  `0627e318dab75999745110ed20bccbdc38cfb5cf9f41eac620b0321495a8d280`.
+  Appliquer la politique effectivement approuvée, sans override modèle/profil.
+  Le plan importé reste inchangé, notamment T2 fresh après contrat T1 intégré.
+
+- **Décision utilisateur la plus récente, prioritaire** : retrait de la
+  proposition de fork T1 vers T2 et de toute correction différée. Suivre le plan
+  natif importé strictement : T2 fresh à partir du contrat/rapport écrit T1 ;
+  T3 reprend de préférence T2 selon les modalités déjà importées ; T4/T5 fresh.
+  implementation-plan.md est marqué retiré, pas une instruction d'admission.
+
+### Historique supersédé sur la continuité
+
+- Mandat utilisateur du 2026-10-25 : conserver le plan s'il correspond à la
+  stratégie de continuité discutée, sinon le corriger. Pas de GO exécution.
+- Plan corrigé :
+  `C:/Users/djden/source/repos/AIForAll/.opencode/missions/team_mvo1md2x_0000_zlfadf/implementation-plan.md`.
+- Proposition désormais retirée : T1 fresh ; T2 fork natif de T1 après contrat validé/intégré ; T3 poursuit
+  avec le propriétaire et la session T2 ; T4 reviewer fresh ; T5 doc fresh.
+- T1 -> T2 -> T3 -> (T4 || T5), avec snapshot code figé pour T4.
+
+## Fait
+
+- T2 rapporte consommation du préalable après GO22 : publication FF branche
+  dédiée eb685fe→129dcc1, ls-remote exact, submodule propre worktree détaché129dcc1
+  et index mode160000129dcc1. Canonique/sibling/main annoncés intacts.
+  Atomicité/migration/setup minimal et huit scénarios SQL écrits localement ;
+  format/check/compilationtests en cours sans runtime. Aucun test SQL déclaré
+  exécuté ou PASS à ce stade ; préflight/registre requis avant IT. Ces éléments
+  auteur seront recoupés au diff/commit intégré, pas transformés en preuve verte.
+
+- T2 confirme publication branche avant réception du gel : aucune violation
+  du gel établie. Prépare AC1–AC3 sans mutation : SQL-only descriptor et cargo
+  target direct, plan faults/rollback/reprise/migration. Détail local approuvé
+  par lead : normaliser created_at aux microsecondes PostgreSQL avant event et
+  insert, tester nanos et microsecondes exactes. Réponse stockée, membre non
+  réveillé avant verdict indépendant ; aucun GO atomicité/pin donné.
+
+- Préalable framework AC7 figé propre au commit eb685fe7f1522fa3c7c546ee576e1c6fbdc8c46c
+  (base6c63b65), seuls sqs.rs+sqs_lifecycle_tests.rs. Lead recoupe rouge1test
+  exécuté/échoué timeout1.02s et vert12/12 (9lifecycle+3anciens). Clippy échoue
+  sur4diagnostics lib.rs nonmodifié ; pas de PASSglobal ni correctionhorsscope.
+  Rapport19 et briefing indépendant persistés. Publication/pin en attente revue.
+- Revue task_mvo4inb4_000z_8b18u7 : pool-3, rust-perf-reviewer, session
+  ses_e8bd05a1affeGdQcNFDaq8JO4C. Refus initial external_directory corrigé par
+  session_move vers la source framework puis GOforce même session. Lectureseule,
+  aucun Cargo. Pas de verdict technique encore reçu, ne pas confondre refus
+  initial avec revue échouée ou nouvelle tentative de correction technique.
+
+- T2 confirme préflight local : HEAD53c48154f577acab70f9ea85b1de7e3dbb01cc98,
+  status propre, submodule non initialisé au pin6c63b65. Impact Telegraph lu,
+  constructeurs production dans setup_notification_service ; APIs recorder et
+  migration vérifiées au canonique. Phase native implementation/high activée.
+  Config locale jobs2 détectée, passage ciblé à24 autorisé avant premier Cargo.
+  Aucun Cargo/runtime ou changement atomicité annoncé à ce point ; préalable
+  framework maintenu avant cette mutation.
+
+- T1 rédigée : contrat204l + 2 index, staged3Markdown/+209 lignes, contrôlé
+  par lead via git dans worktree architecte ; cached diff --check PASS. Commit
+  bloqué par .githooks/pre-commit (cargo fmt --all -- --check, erreur Windows206
+  rapportée par auteur). Aucun commit/T1 intégré. Rapport16 demande exemption
+  de hook pour un seul commit documentaire ; ne pas bypass sans accord humain.
+
+- Rapport 13 : écart AC7 recoupé par lead sur pin rustycog
+  `6c63b65c23e26b8f83f1c6f63d656ef31c7591d0`, identique au gitlink parent,
+  sqs.rs sans diff. start possède seulement des handles locaux, stop flag ;
+  le drain monolithe abort les parents après 5s. Risque de pollers détachés sur
+  annulation parent établi statiquement, pas reproduit par test. Arbitrage
+  utilisateur requis : correctif framework cancellation-safe + tests/pin, ou
+  réduction explicite AC7 à l'arrêt coopératif. Ne pas annoncer un PASS AC7
+  original ni toucher au framework avant cette décision. L'architecte poursuit
+  les autres AC avec ce choix structurel explicitement ouvert.
+
+- Répartition documentaire T1 communiquée (rapport 12) : architecte écrit le
+  contrat/index autorisés mais retourne ADR Proposed/digest/wiki en texte si
+  ces artefacts excèdent ses capacités. Ne pas créer ADR numérotée sans digest
+  MCP même tour. Le lead dispose de write_memory et assurera création ADR et
+  digest ensemble à intégration, sur le texte de l'architecte. Le wiki reste
+  une proposition non écrite hors ownership ; pas d'ingestion implicite.
+
+- Préflight Git T1 effectué par le lead dans le worktree architecte :
+  git rev-parse --show-toplevel confirme la racine allouée ; HEAD
+  `93e376c5530a439aaafe61a64d3e881865c1acf1` ; branche
+  `ensemble-efe74926-2262-4e7e-bb66-f51c7b081bd1` ; status --porcelain vide.
+  Quatre commandes exit 0, stderr vide. Preuve transmise au même membre avec
+  GO de reprise. Le membre ne doit pas relire le gitdir externe refusé.
+  Le déplacement de session a déjà rendu les fichiers locaux accessibles.
+
+- Retour final T1 : failed avant rédaction, zéro changement/commit/Cargo/runtime.
+  Entrées AC1–AC7 et chemin absolu ensuite persistées dans
+  `.opencode/missions/team_mvo1md2x_0000_zlfadf/t1-inputs.md` ; message stocké
+  sans réveil du membre terminé. Le manque d'entrées n'est plus un arbitrage
+  utilisateur : reste le profil build vs architecte. Rapport 09 en attente de
+  décision utilisateur ; pas de réactivation ni d'ouverture de T2 entre-temps.
+
+- Lecture des cinq tâches importées et du contrat Ensemble de continuité.
+- Plan et rapport 05 persistés. Pas de modification des tâches natives,
+  de la politique modèles ou du code ; pas de worker ni de test lancé.
+- Base source observée pendant la découverte :
+  `93e376c5530a439aaafe61a64d3e881865c1acf1`, non revalidée par ce patch documentaire.
+
+## Reste
+
+- Enregistrer la restriction utilisateur OpenAI Luna/Sol dans le seul brouillon
+  de mission et présenter config avant toute approbation start.
+- À l'admission : vérifier Git/HEAD et disponibilité native ; enregistrer les
+  sessions réelles de T1/T2. Aucun ID futur n'est inféré depuis la session PM.
+
+## Pièges / ne pas refaire
+
+- Le descriptif natif T2 fresh fait autorité. Ne pas appliquer l'ancien
+  amendement de fork et ne pas poursuivre une réparation du patch natif.
+- Fork != copie de fichiers non intégrés, ni synchronisation live.
+- Pas de fallback fresh, changement modèle, stash/reset ou commit utilisateur
+  silencieux pour contourner un blocage de continuité.
+
+## Sessions
+
+- Propriétaire courant T1 : t1-architecte, profil architecte confirmé.
+  Session : `ses_e8bf4690cffeQakkQ72dTWT9Jc`.
+  Worktree : `C:/Users/djden/.local/share/opencode/worktree/186749/ensemble-04d9a2f8-zlfadf-t1-architecte`.
+  Branche : `ensemble-efe74926-2262-4e7e-bb66-f51c7b081bd1`.
+  Même session réveillée par team_message(force:true) après session_move réussi.
+  Pas de handoff de profil ni modèle explicite. Rapport 10 décrit la portée
+  vérifiée de la réparation et les limites encore en attente.
+
+- Admission automatique observée après GO : pool-1 possède T1, état working.
+  Worktree : `C:/Users/djden/.local/share/opencode/worktree/186749/ensemble-04d9a2f8-zlfadf-pool-1`.
+  Statut affiché agent build ; demande de confirmation du profil natif et de
+  compatibilité avec le mandat architecte transmise avant décision structurante.
+  Aucun second membre créé. Aucun identifiant natif T1 ou modèle effectif
+  n'est inféré de la seule admission.
+
+- Préparation PM importée : `ses_e8c105ef6ffeMYtpy2DqPiBKdh`.
+- Aucun membre supplémentaire créé manuellement par le lead.

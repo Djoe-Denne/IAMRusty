@@ -33,6 +33,10 @@ tokio = { workspace = true }
 # Utilities
 serde = { workspace = true }
 x509-parser = "0.16"
+rsa = { workspace = true }
+uuid = { workspace = true }
+sha2 = { workspace = true }
+base64 = { workspace = true }
 
 # Error handling
 thiserror = { workspace = true }

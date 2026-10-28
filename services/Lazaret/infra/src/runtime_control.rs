@@ -15,6 +15,96 @@ pub struct HttpRuntimeControl {
     client: reqwest::Client,
 }
 
+/// No network authority in the runtime-off profile; never an allow fallback.
+pub struct DisabledRuntimeControl;
+
+fn disabled<'a, T: Send + 'a>() -> RuntimeControlFuture<'a, T> {
+    Box::pin(async {
+        Err(local_error(
+            RuntimeErrorCodeV1::RuntimeAuthorityUnavailable,
+            false,
+        ))
+    })
+}
+
+impl RuntimeControlPort for DisabledRuntimeControl {
+    fn list_bindings<'a>(
+        &'a self,
+        _: &'a RuntimeControlCallerV1,
+        _: Uuid,
+        _: Option<&'a RuntimeCursorV1>,
+        _: Option<u16>,
+    ) -> RuntimeControlFuture<'a, RuntimeBindingPageV1> {
+        disabled()
+    }
+    fn get_binding<'a>(
+        &'a self,
+        _: &'a RuntimeControlCallerV1,
+        _: Uuid,
+        _: Uuid,
+        _: &'a RuntimeInstanceSelectorV1,
+    ) -> RuntimeControlFuture<'a, RuntimeBindingSnapshotV1> {
+        disabled()
+    }
+    fn writer_lease<'a>(
+        &'a self,
+        _: &'a RuntimeControlCallerV1,
+        _: Uuid,
+        _: Uuid,
+        _: &'a RuntimeWriterLeaseRequestV1,
+    ) -> RuntimeControlFuture<'a, RuntimeWriterLeaseV1> {
+        disabled()
+    }
+    fn report_observation<'a>(
+        &'a self,
+        _: &'a RuntimeControlCallerV1,
+        _: Uuid,
+        _: Uuid,
+        _: &'a RuntimeObservationV1,
+    ) -> RuntimeControlFuture<'a, RuntimeWriteAckV1> {
+        disabled()
+    }
+    fn register_instance<'a>(
+        &'a self,
+        _: &'a RuntimeControlCallerV1,
+        _: Uuid,
+        _: Uuid,
+        _: Uuid,
+        _: &'a RuntimeInstanceRegistrationV1,
+    ) -> RuntimeControlFuture<'a, RuntimeWriteAckV1> {
+        disabled()
+    }
+    fn revoke_instance<'a>(
+        &'a self,
+        _: &'a RuntimeControlCallerV1,
+        _: Uuid,
+        _: Uuid,
+        _: Uuid,
+        _: &'a RuntimeInstanceRevokeRequestV1,
+    ) -> RuntimeControlFuture<'a, RuntimeWriteAckV1> {
+        disabled()
+    }
+    fn begin_effect<'a>(
+        &'a self,
+        _: &'a RuntimeControlCallerV1,
+        _: Uuid,
+        _: Uuid,
+        _: &'a RuntimeBeginEffectRequestV1,
+    ) -> RuntimeControlFuture<'a, RuntimeEffectReservationV1> {
+        disabled()
+    }
+    fn complete_effect<'a>(
+        &'a self,
+        _: &'a RuntimeControlCallerV1,
+        _: Uuid,
+        _: Uuid,
+        _: Uuid,
+        _: &'a RuntimeCompleteEffectRequestV1,
+    ) -> RuntimeControlFuture<'a, RuntimeWriteAckV1> {
+        disabled()
+    }
+}
+
 impl HttpRuntimeControl {
     /// Build from platform-controlled configuration, never caller request fields.
     pub fn new(
@@ -38,13 +128,28 @@ impl HttpRuntimeControl {
         );
         base.set_path(&path);
         let client = reqwest::Client::builder()
+            // Identity::from_pem is rustls-specific. With reqwest's default
+            // native-tls feature also enabled, backend selection is not implicit.
+            .use_rustls_tls()
             .identity(identity)
             .add_root_certificate(server_ca)
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
             .timeout(Duration::from_secs(2))
             .build()
-            .map_err(|_| RuntimeErrorCodeV1::RuntimeInternal)?;
+            .map_err(|error| {
+                use std::error::Error as _;
+                // Builder errors have no request URL. Preserve the TLS cause
+                // without serializing the identity, CA, PEM or any credential.
+                if let Some(cause) = error.source() {
+                    tracing::error!(component = "runtime_control", phase = "client_build",
+                        cause = %cause, "runtime_transport_configuration_failed");
+                } else {
+                    tracing::error!(component = "runtime_control", phase = "client_build",
+                        cause = %error, "runtime_transport_configuration_failed");
+                }
+                RuntimeErrorCodeV1::RuntimeInternal
+            })?;
         Ok(Self { base, client })
     }
 
@@ -358,6 +463,19 @@ impl RuntimeControlPort for HttpRuntimeControl {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn protected_adapter_accepts_pem_identity_with_both_tls_backends_enabled() {
+        // Constructor regression only: no socket, server trust, or mTLS
+        // authorization is claimed by building this local test identity.
+        let issued = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
+            .expect("test certificate");
+        let certificate = issued.cert.pem();
+        let pem = format!("{certificate}{}", issued.key_pair.serialize_pem());
+        let identity = reqwest::Identity::from_pem(pem.as_bytes()).expect("PEM identity");
+        let ca = reqwest::Certificate::from_pem(certificate.as_bytes()).expect("CA syntax");
+        assert!(HttpRuntimeControl::new("https://localhost/manifesto", identity, ca).is_ok());
+    }
 
     #[test]
     fn command_transport_failure_is_ambiguous_and_never_retryable() {

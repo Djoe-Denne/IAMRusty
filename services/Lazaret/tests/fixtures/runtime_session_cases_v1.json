@@ -1,0 +1,27 @@
+{
+  "gaps": ["G-1", "G-4", "G-8", "G-10"],
+  "contract": "apparatus-knative-runtime §13.3-B",
+  "proof_level": "real HTTP/TLS and local PostgreSQL writer; outgoing RuntimeControlPort HTTP may be observed separately",
+  "cases": [
+    { "case": "legacy_nonmigrated_valid_bootstrap", "runtime_store": "absent", "legacy_store": "present", "cutover_fence": "absent", "bootstrap": "complete", "session": "legacy_unchanged", "runtime_gets": 0 },
+    { "case": "legacy_fenced_before_prepare", "runtime_store": "absent", "legacy_store": "present", "cutover_fence": "durable", "writer_binding": "absent", "session": "denied_no_signature", "legacy_fallback": false },
+    { "case": "legacy_migrated_tombstone", "runtime_store": "absent", "legacy_store": "present", "cutover_fence": "durable", "writer_binding": "tombstone", "session": "denied_no_signature", "legacy_fallback": false },
+    { "case": "runtime_current", "runtime_store": "present", "cutover_fence": "durable", "selector": "by_instance_id", "lookup_project_source": "runtime_store", "session": "only_after_current_authority" },
+    { "case": "runtime_closed_certificate", "runtime_store": "closed", "legacy_store": "present", "session": "denied_no_signature", "legacy_fallback": false },
+    { "case": "runtime_store_error_not_absence", "runtime_store": "error", "legacy_store": "present", "session": "denied_no_signature", "legacy_fallback": false },
+    { "case": "same_fingerprint_in_both_stores", "runtime_store": "present", "legacy_store": "present", "session": "denied_no_signature", "legacy_fallback": false },
+    { "case": "runtime_missing_local_cutover_fence", "runtime_store": "present", "cutover_fence": "absent", "session": "denied_no_signature", "legacy_fallback": false },
+    { "case": "runtime_wrong_project_mapping", "runtime_store": "present", "cutover_fence": "other_project", "session": "denied_no_signature", "legacy_fallback": false },
+    { "case": "bootstrap_project_inventory_incomplete", "runtime_store": "absent", "legacy_store": "present", "bootstrap": "incomplete", "session": "denied_no_signature" },
+    { "case": "database_restored_with_old_persistent_seal", "runtime_store": "absent", "legacy_store": "present", "bootstrap": "must_reconcile_current_writer", "session": "denied_until_reconciled" }
+  ],
+  "durability_scenarios": [
+    "install D fence commits before C prepare; legacy admission waiting on same D lock cannot linearize afterward",
+    "crash after D commit before acknowledgment; identical maintenance retry retains denial",
+    "C 404, timeout, empty instance page or tombstone cannot remove D refusal",
+    "already-issued legacy session cannot bypass fence via invoke, capability or local locator",
+    "second D replica and restart read same writer fence; no cached negative permission",
+    "contradictory project or inventory on install conflicts without overwriting durable refusal"
+  ],
+  "non_oracles": ["transport failure alone is not authorization denial", "no private signer inspection substitutes observable session refusal and writer state", "caller source gap 9 remains closed pending ratification"]
+}

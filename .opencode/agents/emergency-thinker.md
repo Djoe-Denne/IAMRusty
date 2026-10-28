@@ -34,3 +34,7 @@ Use proportionate repo validation and compressed evidence through Context Mode. 
 ## Return
 
 Give a short final report: root cause, what earlier attempts missed, files changed and bounded choices, exact validation/evidence, unresolved blockers and decisions requiring the user. You own this final technical judgment while the takeover is active.
+
+## Code intelligence and editing — AIForAll
+
+Apply root `AGENTS.md` **Contrat MCP local** and load `aiforall-mcp-workflow` before Rust exploration/impact/symbol edits (file fallback: `.agents/skills/aiforall-mcp-workflow/SKILL.md`). Preserve the attempt ledger, check consumers before authorized fixes, and retain behavioural validation. Keep the 8B resident; escalation does not waive coverage, permissions or fallback limits.

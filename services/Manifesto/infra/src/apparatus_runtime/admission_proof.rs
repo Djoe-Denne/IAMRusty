@@ -10,7 +10,11 @@ use rsa::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
+use std::sync::Arc;
+use tokio::sync::{OwnedRwLockReadGuard, RwLock};
 use uuid::Uuid;
+
+type PinnedKeys = Vec<(PinnedRuntimeAdmissionKey, String)>;
 
 /// Local immutable proof, constructible only by this verifier module. A proof
 /// does not bypass writer challenge consumption, negative guards or profile lock.
@@ -18,6 +22,9 @@ pub struct VerifiedRuntimeAdmissionV1 {
     claims: RuntimeAdmissionAttestationV1,
     kid: String,
     fingerprint: [u8; 32],
+    // Held until the caller commits/rolls back its SQL transaction. Key removal
+    // is serialized with the actual act, not just a stale preflight check.
+    _key_policy_lease: OwnedRwLockReadGuard<PinnedKeys>,
 }
 impl VerifiedRuntimeAdmissionV1 {
     pub fn claims(&self) -> &RuntimeAdmissionAttestationV1 {
@@ -61,7 +68,7 @@ pub struct PinnedRuntimeAdmissionKey {
 }
 
 pub struct PinnedRuntimeAdmissionProofVerifier {
-    keys: Vec<(PinnedRuntimeAdmissionKey, String)>,
+    keys: Arc<RwLock<PinnedKeys>>,
     allowed_repositories: Vec<String>,
 }
 
@@ -86,7 +93,14 @@ impl PinnedRuntimeAdmissionProofVerifier {
             || allowed_repositories.iter().any(|r| {
                 r.is_empty()
                     || r.contains('@')
-                    || r.contains(':')
+                    || !r.is_ascii()
+                    || !r.bytes().all(|b| {
+                        b.is_ascii_lowercase() || b.is_ascii_digit() || b".-_/:".contains(&b)
+                    })
+                    || !r.contains('/')
+                    || r.split('/')
+                        .skip(1)
+                        .any(|segment| segment.is_empty() || segment.contains(':'))
                     || r.contains('*')
                     || r.ends_with('/')
             })
@@ -118,13 +132,23 @@ impl PinnedRuntimeAdmissionProofVerifier {
             configured.push((key, kid));
         }
         Ok(Self {
-            keys: configured,
+            keys: Arc::new(RwLock::new(configured)),
             allowed_repositories,
         })
     }
 
+    /// Trusted setup/maintenance key withdrawal. Existing guarded transactions
+    /// finish before this returns; subsequent verification cannot use the key.
+    /// No expiry grace, discovery or alternate algorithm is installed.
+    pub async fn revoke_key(&self, kid: &str) {
+        self.keys
+            .write()
+            .await
+            .retain(|(_, current)| current != kid);
+    }
+
     fn pinned_reference(&self, value: &str) -> bool {
-        if value.len() > 2048 || !value.is_ascii() {
+        if validate_runtime_oci_pin(value).is_err() {
             return false;
         }
         let Some((repository, digest)) = value.split_once('@') else {
@@ -145,6 +169,7 @@ impl RuntimeAdmissionProofVerifier for PinnedRuntimeAdmissionProofVerifier {
         now: RuntimeUnixMsV1,
     ) -> Result<VerifiedRuntimeAdmissionV1, RuntimeErrorCodeV1> {
         let invalid = RuntimeErrorCodeV1::RuntimeInvalidProof;
+        expected.validate().map_err(|_| invalid)?;
         if compact.len() > MAX_ADMISSION_PROOF_BYTES || !compact.is_ascii() {
             return Err(invalid);
         }
@@ -164,8 +189,12 @@ impl RuntimeAdmissionProofVerifier for PinnedRuntimeAdmissionProofVerifier {
         if header.alg != "RS256" || header.typ != ADMISSION_TYP {
             return Err(invalid);
         }
-        let (key, _) = self
+        let keys = self
             .keys
+            .clone()
+            .try_read_owned()
+            .map_err(|_| RuntimeErrorCodeV1::RuntimeKeyUnavailable)?;
+        let (key, _) = keys
             .iter()
             .find(|(_, kid)| kid == &header.kid)
             .ok_or(RuntimeErrorCodeV1::RuntimeKeyUnavailable)?;
@@ -247,6 +276,7 @@ impl RuntimeAdmissionProofVerifier for PinnedRuntimeAdmissionProofVerifier {
             claims,
             kid: header.kid,
             fingerprint: Sha256::digest(compact.as_bytes()).into(),
+            _key_policy_lease: keys,
         })
     }
 }

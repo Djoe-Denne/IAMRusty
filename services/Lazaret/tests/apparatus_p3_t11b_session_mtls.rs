@@ -2,6 +2,12 @@
 //!
 //! T3/T10 stay in-process (`extensions_mut`). This file talks to `serve_router`.
 
+mod common;
+#[path = "fixtures/runtime_control_tls.rs"]
+mod runtime_control_tls;
+#[path = "fixtures/runtime_session_dispatch.rs"]
+mod runtime_session_dispatch;
+
 use std::net::TcpListener;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -86,6 +92,13 @@ struct LiveServer {
     handle: tokio::task::JoinHandle<()>,
     base: String,
     ca: Arc<PlatformInternalCa>,
+    server_ca: reqwest::Certificate,
+}
+
+impl Drop for LiveServer {
+    fn drop(&mut self) {
+        self.handle.abort();
+    }
 }
 
 fn install_crypto() {
@@ -287,17 +300,7 @@ async fn wait_until_ready(
 
 async fn spawn_live(identity: &WorkloadIdentity, project_id: Uuid) -> LiveServer {
     install_crypto();
-    let dir = tempfile::tempdir().expect("tempdir");
     let ca = Arc::new(PlatformInternalCa::new().expect("platform ca"));
-    let ca_path = dir.path().join("client-ca.crt");
-    std::fs::write(&ca_path, ca.cert_pem()).expect("write ca pem");
-
-    let (server_cert, server_key) = self_signed_server();
-    let cert_path = dir.path().join("server.crt");
-    let key_path = dir.path().join("server.key");
-    std::fs::write(&cert_path, server_cert.pem()).expect("write server cert");
-    std::fs::write(&key_path, server_key.serialize_pem()).expect("write server key");
-
     let identity_svc = identity_service(ca.clone(), identity, project_id);
     let invoke = invoke_stub(identity_svc.clone());
     let router = create_prefixed_router(
@@ -306,6 +309,26 @@ async fn spawn_live(identity: &WorkloadIdentity, project_id: Uuid) -> LiveServer
         identity_svc,
         invoke,
     );
+    serve_live_router(router, ca, false).await
+}
+
+async fn serve_live_router(
+    router: axum::Router,
+    ca: Arc<PlatformInternalCa>,
+    require_client_cert: bool,
+) -> LiveServer {
+    install_crypto();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let ca_path = dir.path().join("client-ca.crt");
+    std::fs::write(&ca_path, ca.cert_pem()).expect("write ca pem");
+
+    let (server_cert, server_key) = self_signed_server();
+    let server_ca =
+        reqwest::Certificate::from_pem(server_cert.pem().as_bytes()).expect("server trust");
+    let cert_path = dir.path().join("server.crt");
+    let key_path = dir.path().join("server.key");
+    std::fs::write(&cert_path, server_cert.pem()).expect("write server cert");
+    std::fs::write(&key_path, server_key.serialize_pem()).expect("write server key");
 
     let port = ephemeral_port();
     let config = ServerConfig {
@@ -315,20 +338,26 @@ async fn spawn_live(identity: &WorkloadIdentity, project_id: Uuid) -> LiveServer
         tls_cert_path: cert_path.to_string_lossy().into_owned(),
         tls_key_path: key_path.to_string_lossy().into_owned(),
         tls_client_ca_path: ca_path.to_string_lossy().into_owned(),
-        tls_require_client_cert: false,
+        tls_require_client_cert: require_client_cert,
         tls_port: port,
     };
     let handle = tokio::spawn(async move {
         serve_router(router, config).await.expect("serve_router");
     });
     let base = format!("https://127.0.0.1:{port}");
-    let probe = https_client(None);
+    let (probe_csr, probe_key) = workload_csr();
+    let probe_cert = ca
+        .sign_csr(&probe_csr, 1, Uuid::new_v4())
+        .expect("probe client certificate");
+    let probe_identity = format!("{}{probe_key}", probe_cert.pem);
+    let probe = https_client(Some(probe_identity.as_bytes()));
     wait_until_ready(&handle, &probe, &format!("{base}/lazaret/health")).await;
     LiveServer {
         _dir: dir,
         handle,
         base,
         ca,
+        server_ca,
     }
 }
 

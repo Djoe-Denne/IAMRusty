@@ -3,6 +3,7 @@ title: Telegraph Testing and SMTP Fixtures
 category: references
 tags: [reference, testing, fixtures, visibility/internal]
 sources:
+  - _sources/opencode-telegraph-outbox-20261027/inventory.json
   - services/Telegraph/config/test.toml
   - services/Telegraph/tests/common.rs
   - services/Telegraph/tests/notification_http_endpoints_test.rs
@@ -12,13 +13,13 @@ sources:
   - services/Telegraph/tests/fixtures/smtp/service.rs
   - services/Telegraph/tests/fixtures/smtp/resources.rs
   - services/Telegraph/tests/fixtures/smtp/testcontainer.rs
-summary: Telegraph-specific testing notes layered on top of RustyCog's shared harness, including the wiremock-backed SmtpService fake, the MailHog testcontainer for protocol-level checks, and the end-to-end SQS + notification flows.
+summary: Telegraph real-infrastructure tests, SMTP fixture distinctions, durable recovery timing, SQS/OpenFGA/HTTP oracles and cleanup by owned IDs.
 provenance:
-  extracted: 0.78
-  inferred: 0.14
-  ambiguous: 0.08
+  extracted: 0.86
+  inferred: 0.08
+  ambiguous: 0.06
 created: 2026-04-14T18:18:24.0602572Z
-updated: 2026-04-22T16:20:59Z
+updated: 2026-10-27T19:27:11Z
 ---
 
 # Telegraph Testing and SMTP Fixtures
@@ -50,8 +51,18 @@ Telegraph keeps **two parallel SMTP fixtures** and chooses between them per test
 - Inspection helpers `received_requests`, `verify_email_sent(subject, recipient)`, and `email_count` read from `MockServer::received_requests` so tests can assert on what the service actually sent.
 - Typed `SmtpResponse`/`SmtpAuthRequest`/`SmtpEmail`/`SmtpCapabilities` DTOs in `resources.rs` provide ready-made SMTP response codes (`service_ready`, `ok`, `auth_success`, `auth_failed`, `mailbox_unavailable`, `closing`) and pre-built emails (`user_signup_welcome`, `password_reset_request`, `email_verification`).
 - **`TestSmtp`** (`services/Telegraph/tests/fixtures/smtp/testcontainer.rs`) is the heavier path: a real MailHog container started via `testcontainers` with the test-config SMTP port mapped through to MailHog's 1025, plus the API port pinned at 8025. It exposes `get_emails`, `email_count`, `has_email(subject, recipient)`, and `clear_emails` by calling MailHog's HTTP API at `/api/v1/messages`, parsing the MIME structure into `TestEmail` values.
-- `TestSmtpContainer` and the global `OnceLock<Mutex<Option<Arc<TestSmtpContainer>>>>` keep the container singleton across the suite; `cleanup_existing_smtp_container` shells out to `docker stop`/`docker rm -f telegraph_test-smtp` as a fallback to avoid leaked containers between runs.
-- The choice between the two: use `SmtpService` when the test asserts on what Telegraph would send under controlled response shapes; use `TestSmtp` when the test needs a real SMTP listener and round-trip parsing of the wire-level output. Follow [[skills/stubbing-http-with-wiremock]] for the wiremock side.
+- The April snapshot described a named-container cleanup fallback. It is not an operator authorization or the current cleanup contract: the October mission tracks exact IDs from fresh fixture ledgers, checks leases and preserves preexisting identities. Do not infer ownership from a name or image, or generalize cleanup to unowned containers.
+- The HTTP-modeled `SmtpService` does not prove real SMTP framing. Use the real MailHog/testcontainers path for protocol-level evidence; [[skills/stubbing-http-with-wiremock]] concerns outbound HTTP collaborators, not replacement of SQL/SQS/SMTP protocol fidelity.
+
+## Durable notification proof — October 2026
+
+The component and full vertical use real PostgreSQL, SQS and OpenFGA fixtures with explicitly enabled transport. They are native Windows tests, one Cargo at a time with **24 jobs** configured and target E:, not application builds/tests in Docker or Kind.
+
+[[projects/aiforall/skills/proving-leased-outbox-recovery]] separates SQL lease30s, SQS inbound visibility5s and local stop6s. Observe a future retry date at first FAILED, not after the independent12s sampler; recovery uses one persisted-eligibility deadline with a strict check after its final await. The reconstructed owner must retain join handles on timeout, not only request abort.
+
+The final vertical passes nominal and outage/rebuild with real bytes, public Sentinel handler/OpenFGA, fresh-ledger replay, unique tuple,403 without mutation and200 recipient. The component's1/0/1 row counts are not the vertical's1/1/1. Static review and `--no-run` remain distinct from execution. Results and hashes: [[projects/aiforall/references/mission-telegraph-outbox-20261027]].
+
+Each campaign ends with zero owned containers running. The final run preserved a SMTP Exited(2) fixture and two opaque volumes as ASK; this is not a clean-exit SMTP claim or permission to delete them. The15 preexisting container IDs/states were unchanged. No global Desktop/WSL shutdown was performed because a foreign workload remained active; RAM was not measured.
 
 ## Open Questions
 

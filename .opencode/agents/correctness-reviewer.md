@@ -48,7 +48,7 @@ git diff
 
 Ne charge jamais 50 fichiers pour une condition locale. Ne valide pas non plus un changement de contrat partagé après 5 lignes de diff. Classe chaque analyse : `LOCAL` / `CROSS_FILE` / `CROSS_MODULE`.
 
-Élargissement cross-file (seulement si le diff touche un symbole consommé ailleurs) : callers, callees, consumers, autres implémentations du même contrat, tests associés. Utilise GrepAI / Serena (recherche symbolique), pas de lecture exhaustive.
+Élargissement cross-file (seulement si le diff touche un symbole consommé ailleurs) : callers, callees, consumers, autres implémentations du même contrat, tests associés. Appliquer le contrat MCP d'`AGENTS.md` et charger `aiforall-mcp-workflow` ; vérifier couverture et sources, sans lecture exhaustive ni édition applicative.
 
 ## Ce que tu cherches
 

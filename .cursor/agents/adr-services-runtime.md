@@ -43,7 +43,7 @@ Hors members (à vérifier) : `apparatus-events` (crate sur disque). rustycog = 
 - `runtime/monolith/src/`, `workers/sentinel-sync/` (sentinel-sync = 0303 ; ici seulement le citer comme non-hexagonal)
 - `services/Manifesto/infra/src/transaction.rs`, CAS/membership (mémoire Serena : mutation = membership DB ; CAS revision)
 - `crates/apparatus-contracts/`, `crates/apparatus-reference-kv/`
-- QMD ; GrepAI
+- Contrat MCP d'`AGENTS.md` et skill `aiforall-mcp-workflow` pour l'exploration Rust ; connaissances via QMD. ADR par outils fichiers, sans code applicatif.
 
 ## 0401 points sensibles (preuve code)
 

@@ -14,6 +14,8 @@ lazaret-infra = { path = "../infra" }
 lazaret-configuration = { path = "../configuration" }
 lazaret-migration = { path = "../migration" }
 readiness = { path = "../../../crates/readiness" }
+apparatus-contracts = { path = "../../../crates/apparatus-contracts" }
+reqwest = { workspace = true }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 axum = { workspace = true }
 tokio = { workspace = true }

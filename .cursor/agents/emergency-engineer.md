@@ -30,3 +30,7 @@ Treat this invocation as rare and costly. Be decisive, evidence-driven, and narr
 - Local or escalated design choices
 - Validation commands and results
 - Remaining risks
+
+## Code intelligence and editing — AIForAll
+
+Apply root `AGENTS.md` **Contrat MCP local** and load `aiforall-mcp-workflow` before Rust exploration/impact/symbol edits (file fallback: `.agents/skills/aiforall-mcp-workflow/SKILL.md`). Verify consumers before targeted fixes and retain behavioural checks. Keep the 8B resident. Emergency status does not waive permissions, coverage or fallback limits.

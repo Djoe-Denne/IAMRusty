@@ -4,13 +4,14 @@ title: >-
 category: navigation
 tags: [index, navigation, wiki]
 summary: >-
-  Index wiki AIForAll : architecture et services, plus campagnes G-17/m6 archivées au18octobre2026 avec preuves réelles et enseignements réutilisables.
+  Index AIForAll : architecture, services, campagnes G-17/m6 et livraison Telegraph durable avec preuves ciblées, SDK/pin publiés et réserves explicites.
 provenance:
-  extracted: 0.75
-  inferred: 0.23
+  extracted: 0.85
+  inferred: 0.13
   ambiguous: 0.02
-updated: 2026-10-18
+updated: 2026-10-27T19:27:11Z
 sources:
+  - _sources/opencode-telegraph-outbox-20261027/inventory.json
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
   - docs/adr/README.md
   - docs/apparatus-p0-implementation-prompt.md
@@ -40,7 +41,7 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/iamrusty/iamrusty]] — IAM and OAuth
 - [[projects/hive/hive]] — organizations and permissions
 - [[projects/hive-events/hive-events]] — Hive domain events
-- [[projects/telegraph/telegraph]] — notifications and communication
+- [[projects/telegraph/telegraph]] — notifications durables, publication outbox et HTTP possédé
 - [[projects/manifesto/manifesto]] — project-service MVP and RustyCog blueprint
 - [[projects/lazaret/lazaret]] — P3 capability/data boundary (ADR-0007 Implemented T1–T14b)
 - [[projects/rustycog/rustycog]] — shared Rust SDK (crate map: [[projects/rustycog/references/index]])
@@ -63,6 +64,12 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/manifesto/references/apparatus-implementation-plan]] — phases et preuves P0–P3.
 
 ## Recent Additions
+
+- [[projects/aiforall/references/mission-telegraph-outbox-20261027]] — session et livrables de sous-agents distillés ; preuves composant/verticale distinctes, commit et gitlink publiés, réserves conservées ( #events #testing #reference).
+- [[projects/telegraph/concepts/durable-notification-publication]] — notification, livraison éventuelle et événement dans la même transaction ; NoOp suspendu sans faux succès ( #events #notifications #architecture).
+- [[projects/aiforall/skills/proving-leased-outbox-recovery]] — éligibilité persistée, deadline fixe et contrôle après dernier await, sans réduire la lease ( #testing #events #rust).
+- [[projects/rustycog/references/rustycog-outbox]] — référence restaurée : recorder, durabilité, leases et limites de livraison ( #reference #events).
+- [[projects/rustycog/references/rustycog-http]] — référence restaurée : owner HTTP, port 0, shutdown/jointure et limites de Drop ( #reference #api).
 
 - [[projects/aiforall/references/mission-ops-kind-separation-20261019]] - mission Ensemble close : contrat+manifeste 150 fichiers, 3 lots I integrés, IT 5/5, revues BLOCK corrigées, dette churn ratifiée (#testing #docker #kubernetes #orchestration).
 
@@ -131,9 +138,9 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/aiforall/concepts/rustycog-git-submodule]] — rustycog is a pinned gitlink, not a vendored tree.
 - [[projects/aiforall/skills/running-parallel-sonar-lanes]] — file-disjoint Sonar agent lanes.
 - [[projects/aiforall/references/cursor-history-2026-04-to-08]] — distilled Cursor sessions since the April wiki wave.
-- [[projects/rustycog/rustycog]] — hub restored (crate reference pages still missing on disk).
+- [[projects/rustycog/rustycog]] — hub restored ; références outbox et HTTP restaurées en octobre, autres pages de crates à vérifier.
 - [[journal/2026-08-31]] — catch-up ingest note.
-- [[projects/rustycog/references/rustycog-outbox]] — transactional outbox bridge with Mermaid flow and sequence diagrams for DB-backed event durability.
+- [[projects/rustycog/references/rustycog-outbox]] — transaction métier commune, dispatcher, éligibilité persistée et limites des leases.
 - [[projects/aiforall/roadmap]] — near-term focus on Sentinel Sync tests, DB transaction-load verification, and the RustyCog Events outbox pattern.
 - [[projects/rustycog/references/rustycog-events]] — SQS fanout now uses per-event destination queues and multi-queue consumer polling in RustyCog.
 - [[projects/aiforall/skills/running-aiforall-runtime-modes]] — operational workflow for microservice and `oodhive-monolith` runtime modes.

@@ -1,0 +1,37 @@
+{
+  "gaps": ["G-3", "G-7"],
+  "contract": "apparatus-knative-runtime §13.1-B/§13.3-A",
+  "proof_level": "real application TLS handshake required; extension injection is middleware-only evidence",
+  "principals": {
+    "projector": "spiffe://cluster.local/ns/aiforall-apparatus/sa/controller",
+    "lazaret": "spiffe://cluster.local/ns/aiforall-gateway/sa/gateway",
+    "proxy": "spiffe://cluster.local/ns/aiforall-mesh/sa/relay",
+    "foreign_trust_domain": "spiffe://foreign.local/ns/aiforall-apparatus/sa/controller"
+  },
+  "routes": [
+    { "method": "GET", "path": "/internal/apparatus/runtime/bindings", "roles": ["projector", "lazaret"] },
+    { "method": "GET", "path": "/internal/apparatus/runtime/bindings/{binding_id}", "roles": ["projector", "lazaret"] },
+    { "method": "POST", "path": "/internal/apparatus/runtime/bindings/{binding_id}/writer-lease", "roles": ["projector"] },
+    { "method": "PUT", "path": "/internal/apparatus/runtime/bindings/{binding_id}/observation", "roles": ["projector"] },
+    { "method": "PUT", "path": "/internal/apparatus/runtime/bindings/{binding_id}/instances/{instance_id}", "roles": ["projector"] },
+    { "method": "POST", "path": "/internal/apparatus/runtime/bindings/{binding_id}/instances/{instance_id}/revoke", "roles": ["lazaret"] },
+    { "method": "POST", "path": "/internal/apparatus/runtime/bindings/{binding_id}/effects/begin", "roles": ["lazaret"] },
+    { "method": "POST", "path": "/internal/apparatus/runtime/bindings/{binding_id}/effects/{effect_id}/complete", "roles": ["lazaret"] }
+  ],
+  "transport_cases": [
+    { "case": "opaque_passthrough_preserves_original_service_leaf", "allowed_origin": true },
+    { "case": "relay_terminates_then_presents_generic_proxy_leaf_with_forged_xfcc", "allowed_origin": false },
+    { "case": "http_loopback_with_authorized_origin_header", "allowed_origin": false },
+    { "case": "bearer_grant_snapshot_without_client_certificate", "allowed_origin": false },
+    { "case": "approved_ca_but_wrong_service_san", "allowed_origin": false },
+    { "case": "authorized_san_but_unknown_ca", "allowed_origin": false },
+    { "case": "authorized_san_but_expired_certificate", "allowed_origin": false },
+    { "case": "two_distinct_spiffe_uri_sans", "allowed_origin": false },
+    { "case": "cn_only_without_uri_san", "allowed_origin": false },
+    { "case": "plugin_enrollment_certificate", "allowed_origin": false },
+    { "case": "foreign_trust_domain_with_matching_namespace_and_service_account", "allowed_origin": false },
+    { "case": "preinjected_peer_extension_without_handshake", "allowed_origin": false }
+  ],
+  "negative_oracle": "No writer mutation; TLS rejection may precede HTTP. Never require an HTTP response from a failed TLS handshake.",
+  "positive_oracle": "Original approved service certificate reaches Manifesto listener, then exact route role and writer checks still apply. Origin authentication alone is not a 200 oracle."
+}

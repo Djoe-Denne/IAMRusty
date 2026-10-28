@@ -41,7 +41,7 @@ Documenter le contrat d'événements, l'outbox, l'authn/authz **actuels**.
 - `ops/openfga/`
 - Manifesto ACL / `transaction.rs` / membership DB (ne pas confondre ACL instance et FGA projet)
 - `docs/project/Archi.md` = historique 2024–2025, **caduc en partie** — ne pas le traiter comme vérité 2026 sans recouper le code
-- QMD `aiforall-wiki` ; GrepAI (`outbox`, `EventPublisher`, `OpenFga`)
+- Appliquer le contrat MCP d'`AGENTS.md` et charger `aiforall-mcp-workflow` pour l'exploration Rust. QMD `aiforall-wiki` ; pistes Rust : `outbox`, `EventPublisher`, `OpenFga`. Les ADR restent éditées par outils fichiers, sans code applicatif.
 
 ## Vérifications obligatoires
 

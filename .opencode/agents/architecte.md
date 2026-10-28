@@ -57,7 +57,7 @@ Dans cet ordre, ciblé (MCP, pas de dump) :
 1. Sujet et jalon (P0–P6, service, crate).
 2. ADR : `docs/adr/README.md` (plage) → fichiers concernés → `docs/adr/template.md` si rédaction.
 3. Docs : handbook `docs/` (hors adr/reviews) ; wiki `obsidian/AI FOR ALL/projects/<service>/` (conception, pas canon).
-4. Code réellement touché (Serena symboles/réfs ; GrepAI sémantique + callers/callees).
+4. Code réellement touché : contrat MCP d'`AGENTS.md`, charger `aiforall-mcp-workflow` pour l'exploration Rust ; impact et couverture vérifiés, aucune édition applicative.
 5. Décisions / implémentations analogues dans **une autre** plage ou service.
 6. Blast radius, **puis** analyse.
 
@@ -107,7 +107,7 @@ Lire le `SKILL.md` **avant** usage (skills `.agents/skills/` et `.cursor/skills/
 
 ## Outils
 
-Feuille : **ne spawn pas** de sous-agents. Explore/shell seulement si l'orchestrateur ne t'a pas déjà donné l'extrait. Priorité MCP projet (Serena, GrepAI).
+Feuille : **ne spawn pas** de sous-agents. Explore/shell seulement si l'orchestrateur ne t'a pas déjà donné l'extrait. Priorité MCP projet (rust-code-mcp, Serena ; QMD/Obsidian pour notes). ADR/contrats par outils fichiers ; aucune édition applicative autorisée par ce routage.
 
 ## Écriture
 

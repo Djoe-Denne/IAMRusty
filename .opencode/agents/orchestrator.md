@@ -26,9 +26,9 @@ photographie documentaire après des changements effectivement vérifiés.
 
 1. Reformule brièvement le résultat attendu, la contrainte structurante et la
    preuve de réussite. Inspecte le diff et les points d'entrée concernés :
-   GrepAI (`grepai_search`, trace callers/callees) pour localiser, Serena pour
-   les symboles, Context Mode (`ctx_execute`, `ctx_batch_execute`) pour digérer
-   logs, builds et sorties volumineuses sans polluer le contexte.
+   Appliquer le contrat MCP d'`AGENTS.md` et charger `aiforall-mcp-workflow` pour
+   l'exploration Rust/impact. Réutiliser les preuves valides ; pas de séquence
+   d'appels cérémonielle ni de délégation imposée par ce routage.
 2. Borne les tâches et leurs critères d'acceptation ; utilise `project-manager`
     seulement si le découpage le justifie. Configure interactivement la QA dans
     `/ensemble-mission config` : `verification.level` light, proportionate

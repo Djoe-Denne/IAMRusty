@@ -249,9 +249,99 @@ impl std::fmt::Display for AdmitError {
 impl std::error::Error for AdmitError {}
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct EnvelopeDocument {
     descriptor_digest: String,
     cri_image: String,
+}
+
+/// Re-verify the actual signed OCI manifest and its sole envelope blob, not
+/// merely the existence of a `.sig` tag or an independently supplied CRI pin.
+/// This is Adm-A's costly check; callers must re-read their authoritative record
+/// afterwards under the same inter-process mutation lock.
+pub fn verify_materialization_envelope(
+    target: &AdmitTarget,
+    reference: &str,
+    descriptor: &ReleaseDigest,
+    cri_image: &str,
+) -> Result<(), AdmitError> {
+    use sha2::{Digest as _, Sha256};
+    apparatus_contracts::runtime::validate_runtime_oci_pin(reference)
+        .map_err(|_| AdmitError::new("non-canonical envelope reference"))?;
+    apparatus_contracts::runtime::validate_runtime_oci_pin(cri_image)
+        .map_err(|_| AdmitError::new("non-canonical CRI reference"))?;
+    validate_cri_pin(cri_image)?;
+    validate_cri_pin(reference)?;
+    let (repository, manifest_digest) = reference
+        .split_once('@')
+        .ok_or_else(|| AdmitError::new("invalid envelope pin"))?;
+    if repository != format!("{}/{}", target.registry_host, target.repository)
+        && repository != format!("{}/{}", target.registry_network, target.repository)
+    {
+        return Err(AdmitError::new("envelope repository is not approved"));
+    }
+    verify_cosign_signature(target, reference)?;
+    let mut args = vec![
+        "manifest".to_owned(),
+        "fetch".to_owned(),
+        "--plain-http".to_owned(),
+        "--username".to_owned(),
+        target.auth.username.clone(),
+        "--password-stdin".to_owned(),
+        reference.to_owned(),
+    ];
+    let manifest = invoke_oras(target, &args, None)?;
+    if !manifest.status.success()
+        || manifest.stdout.len() > 65_536
+        || format!("sha256:{}", hex::encode(Sha256::digest(&manifest.stdout))) != manifest_digest
+    {
+        return Err(AdmitError::new("envelope manifest integrity failed"));
+    }
+    let document: serde_json::Value =
+        apparatus_contracts::runtime::parse_runtime_json(&manifest.stdout)
+            .map_err(|_| AdmitError::new("invalid envelope manifest"))?;
+    if document["artifactType"] != ENVELOPE_ARTIFACT_TYPE {
+        return Err(AdmitError::new("wrong envelope artifact type"));
+    }
+    let layers = document["layers"]
+        .as_array()
+        .filter(|layers| layers.len() == 1)
+        .ok_or_else(|| AdmitError::new("ambiguous envelope layers"))?;
+    let layer = &layers[0];
+    let digest = layer["digest"]
+        .as_str()
+        .ok_or_else(|| AdmitError::new("envelope layer digest absent"))?;
+    ReleaseDigest::new(digest).map_err(|_| AdmitError::new("invalid envelope layer pin"))?;
+    if layer["mediaType"] != ENVELOPE_ARTIFACT_TYPE
+        || layer["size"].as_u64().is_none_or(|size| size > 65_536)
+    {
+        return Err(AdmitError::new("invalid envelope layer"));
+    }
+    args = vec![
+        "blob".to_owned(),
+        "fetch".to_owned(),
+        "--plain-http".to_owned(),
+        "--username".to_owned(),
+        target.auth.username.clone(),
+        "--password-stdin".to_owned(),
+        "--output".to_owned(),
+        "-".to_owned(),
+        format!("{repository}@{digest}"),
+    ];
+    let blob = invoke_oras(target, &args, None)?;
+    if !blob.status.success()
+        || blob.stdout.len() > 65_536
+        || layer["size"].as_u64() != Some(blob.stdout.len() as u64)
+        || format!("sha256:{}", hex::encode(Sha256::digest(&blob.stdout))) != digest
+    {
+        return Err(AdmitError::new("envelope blob integrity failed"));
+    }
+    let envelope: EnvelopeDocument = apparatus_contracts::runtime::parse_runtime_json(&blob.stdout)
+        .map_err(|_| AdmitError::new("invalid envelope document"))?;
+    if envelope.descriptor_digest != descriptor.as_str() || envelope.cri_image != cri_image {
+        return Err(AdmitError::new("envelope descriptor/CRI binding mismatch"));
+    }
+    Ok(())
 }
 
 /// Pousse l'enveloppe non-CRI et la signe (Cosign + Transit).

@@ -1,0 +1,29 @@
+{
+  "gap": "G-7",
+  "contract": "apparatus-knative-runtime §13.1-A/C",
+  "valid_counters": ["0", "1", "9007199254740993", "9223372036854775807"],
+  "invalid_counters": [null, false, 0, 1, "", "00", "01", "+1", "-1", "1.0", "1e0", " 1", "1 ", "9223372036854775808"],
+  "valid_unix_ms": ["0", "1700000030000", "9223372036854775807"],
+  "invalid_unix_ms": [null, 0, "-1", "01", "+0", "9223372036854775808"],
+  "invalid_versions": [null, "1", 0, 2, 65536],
+  "raw_payloads_rejected_before_value": [
+    "{\"key\":\"first\",\"key\":\"second\"}",
+    "{\"nested\":{\"key\":1,\"key\":2}}",
+    "{\"number\":9007199254740992}",
+    "{\"number\":-9007199254740992}",
+    "{\"number\":NaN}",
+    "{\"number\":Infinity}",
+    "{\"text\":\"\\ud800\"}"
+  ],
+  "cas_distinct_fields": {
+    "generation": "11",
+    "revocation_epoch": "12",
+    "projection_version": "13",
+    "grant_revision": "14"
+  },
+  "lease_distinct_fence": {
+    "lease_id": "00000000-0000-4000-8000-000000000007",
+    "holder_id": "00000000-0000-4000-8000-000000000008",
+    "writer_fence": "15"
+  }
+}

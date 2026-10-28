@@ -1,0 +1,17 @@
+{
+  "id": "replace-with-unique-slug",
+  "status": "candidate",
+  "purpose": "",
+  "reuseRationale": "",
+  "existingToolsChecked": [],
+  "provenance": {"taskReference": "non-secret reference only", "date": "YYYY-MM-DD"},
+  "parameters": {},
+  "returns": "",
+  "dependencies": [],
+  "sideEffects": [],
+  "scopeAndPermissions": "",
+  "files": {"implementation": "function.cjs", "tests": "function.test.cjs"},
+  "checksActuallyRun": [],
+  "knownLimits": [],
+  "promotion": {"reviewReference": null, "testEvidence": null, "contextModeEvidence": null}
+}

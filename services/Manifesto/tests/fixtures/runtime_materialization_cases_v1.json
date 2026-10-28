@@ -1,0 +1,47 @@
+{
+  "gaps": ["G-3", "G-4", "G-8"],
+  "contract": "apparatus-knative-runtime §13.3-C",
+  "proof_level": "PostgreSQL transactions for writer; real Serving API for ownership/cutoff; no mock Kubernetes confinement claim",
+  "execution_gate": "B5/profile-dependent positive opening remains nonmeasurable until approved profile lock and verified maintenance channel",
+  "plan_identity": {
+    "migration_id": "00000000-0000-4000-8000-000000000021",
+    "project_id": "00000000-0000-4000-8000-000000000003",
+    "binding_id": "00000000-0000-4000-8000-000000000006",
+    "expected_generation": "3",
+    "expected_grant_revision": "4"
+  },
+  "stages": [
+    { "act": "install_D_legacy_fence", "observable": "D denial durable before acknowledgment; no C runtime insertion yet" },
+    { "act": "FenceRuntimeBindingV1", "observable": "C closed/fenced for this binding only; no Serving creation permit" },
+    { "act": "PrepareRuntimeBindingV1", "observable": "C closed/prepared; projection incremented; scoped preparation permit only" },
+    { "act": "OpenRuntimeBindingV1", "observable": "Explicit current-authority commit only; exclusive runtime mode, never legacy eligibility" }
+  ],
+  "negative_cases": [
+    "unverified maintenance channel disables command, even if caller supplies d_ack=true",
+    "legacy business binding still active",
+    "D acknowledgment absent or wrong deployment/inventory",
+    "another project/binding/release/generation/grant",
+    "inventory incomplete or shared consumers not accounted for",
+    "admission not exactly VALID; command-supplied status does not change authority",
+    "unknown profile or missing immutable approved lock",
+    "open before prepare or before first Service UID attached",
+    "same-name foreign Service or substituted attached Service UID",
+    "old Revision UID, route not Ready or unequal API resource generations",
+    "observation expired exactly at observed_at plus 5000 milliseconds",
+    "lease expires while open waits for writer lock",
+    "revocation/grant/release changes while open waits for writer lock",
+    "report, lease or delayed event alone attempts to open",
+    "closing hook on unmaterialized binding attempts implicit insertion",
+    "late preparation permit after CAS change attempts create",
+    "same migration_id with changed inventory or plan content"
+  ],
+  "recovery_cases": [
+    "two concurrent opens versus revoke: no stale allow or double dispatch",
+    "crash after each durable stage: resume by journal and current authority, never reset fence/counters",
+    "crash after own Service apply before report: prove original UID or STOP; no adoption",
+    "refresh one replica does not invalidate unrelated current replica solely by row projection version",
+    "retirement and rollback preserve D denial, C marker, old commitments and other binding data"
+  ],
+  "zero_oracle": "Preparation/open need no target Pod, enrollment or warmup; Service observation is not workload allocation evidence. Real E campaign observes all transient Pod/sidecar creation.",
+  "forbidden_shortcuts": ["new HTTP maintenance endpoint", "JSON acknowledgment as trusted capability", "C SQL access to D database", "Kubernetes client in Manifesto", "unratified caller source bootstrap"]
+}

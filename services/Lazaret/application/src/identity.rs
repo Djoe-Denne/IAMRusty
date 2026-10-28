@@ -29,6 +29,7 @@ pub struct IdentityService {
     snapshots: Arc<dyn BindingGrantSnapshotPort>,
     session_ttl_minutes: u64,
     cert_ttl_hours: u64,
+    legacy_admission: Option<Arc<dyn lazaret_domain::runtime::RuntimeAdmissionGuard>>,
 }
 
 impl IdentityService {
@@ -76,7 +77,21 @@ impl IdentityService {
             snapshots,
             session_ttl_minutes,
             cert_ttl_hours,
+            legacy_admission: None,
         }
+    }
+
+    /// Install once at composition time, before sharing the service. There is no
+    /// disable/replace operation and no request-controlled mode selection.
+    pub fn install_legacy_admission_guard(
+        &mut self,
+        guard: Arc<dyn lazaret_domain::runtime::RuntimeAdmissionGuard>,
+    ) -> Result<(), IdentityError> {
+        if self.legacy_admission.is_some() {
+            return Err(IdentityError::InvalidIdentity);
+        }
+        self.legacy_admission = Some(guard);
+        Ok(())
     }
 
     /// Shared enrollment registry (same Arc the event consumer must use).
@@ -101,6 +116,12 @@ impl IdentityService {
     /// or CA errors.
     pub async fn enroll(&self, command: EnrollCommand) -> Result<IssuedCertificate, IdentityError> {
         reject_private_key_material(&command.csr_pem)?;
+        if let Some(guard) = &self.legacy_admission {
+            guard
+                .require_legacy_identity(&command.identity)
+                .await
+                .map_err(IdentityError::RuntimeGuard)?;
+        }
         let snapshot = self
             .snapshots
             .fetch(command.project_id, command.identity.binding, None)
@@ -145,6 +166,12 @@ impl IdentityService {
             .get(&cert.fingerprint_sha256())
             .await
             .ok_or(IdentityError::NotEnrolled)?;
+        if let Some(guard) = &self.legacy_admission {
+            guard
+                .require_legacy_identity(&identity)
+                .await
+                .map_err(IdentityError::RuntimeGuard)?;
+        }
         let now = Utc::now().timestamp();
         let ttl_minutes =
             i64::try_from(self.session_ttl_minutes).map_err(|_| IdentityError::InvalidIdentity)?;

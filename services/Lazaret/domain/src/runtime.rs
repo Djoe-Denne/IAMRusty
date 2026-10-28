@@ -94,12 +94,17 @@ pub trait RuntimeAdmissionGuard: Send + Sync {
     async fn require_binding(&self, project_id: Uuid, binding_id: Uuid)
         -> Result<(), RuntimeError>;
     async fn require_legacy(&self, binding_id: Uuid) -> Result<(), RuntimeError>;
+    async fn require_legacy_identity(
+        &self,
+        identity: &WorkloadIdentity,
+    ) -> Result<(), RuntimeError>;
 }
 
 /// Durable registry and one-use authorization journal. Every successful issuance
 /// is journaled before forwarding; every accept is a database CAS, not a mutex.
 #[async_trait]
 pub trait RuntimeStore: Send + Sync {
+    async fn has_cutover_fences(&self) -> Result<bool, RuntimeError>;
     async fn list_cutover_fences(
         &self,
         project_id: Uuid,
