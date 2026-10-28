@@ -1062,6 +1062,9 @@ where
     F: FnOnce() -> Result<iam_configuration::AuthConfig>,
 {
     config
+        .validate_principal_policy()
+        .map_err(|e| anyhow::anyhow!("Invalid HTTP principal policy: {e}"))?;
+    config
         .jwt
         .validate_signing_security(config.security.mode)
         .map_err(|e| anyhow::anyhow!("Invalid signing provider configuration: {e}"))?;
@@ -1295,13 +1298,12 @@ async fn setup_jwt(
     Arc<iam_infra::token::RegistrationTokenServiceImpl>,
     Option<Arc<SignerRouteContext>>,
 )> {
-    let mut http_verifier_auth = signing_auth_after_policy(config, || {
-        config.jwt.http_verifier_auth().map_err(|e| {
+    let http_verifier_auth = signing_auth_after_policy(config, || {
+        config.http_verifier_auth().map_err(|e| {
             tracing::error!("JWT verifier config invalid: {e}");
             anyhow::anyhow!("JWT verifier config invalid: {e}")
         })
     })?;
-    http_verifier_auth.mesh = config.auth.mesh.clone();
     let platform_transit = config
         .jwt
         .platform_transit_binding()
@@ -1949,8 +1951,54 @@ mod tests {
     }
 
     #[test]
+    fn iam_http_verifier_requires_explicit_principal_policy_before_signing_io() {
+        let mut config = AppConfig::default();
+        config.security.mode = SecurityMode::Verified;
+        config.jwt.backend = Some("remote".into());
+        config.jwt.remote = Some(iam_configuration::RemoteSignerConfig {
+            url: "https://remote.example".into(),
+            key_id: "platform".into(),
+            token: Some("explicit-fixture-credential".into()),
+        });
+        config.jwt.allowed_algorithms = vec!["RS256".into()];
+        let expected = config.jwt.platform_issuer();
+        for (issuer, historical) in [
+            (None, None),
+            (Some(expected.clone()), None),
+            (None, Some(false)),
+            (Some(String::new()), Some(false)),
+            (Some(format!(" {expected}")), Some(false)),
+            (Some("x".repeat(257)), Some(false)),
+            (Some(format!("{expected}/")), Some(false)),
+            (Some(expected.to_uppercase()), Some(false)),
+            (Some("https://foreign.example/iam".into()), Some(false)),
+        ] {
+            config.auth.jwt.platform_issuer = issuer;
+            config.auth.jwt.allow_historical_platform_issuer = historical;
+            let invoked = std::cell::Cell::new(false);
+            let result = signing_auth_after_policy(&config, || {
+                invoked.set(true);
+                Ok(iam_configuration::AuthConfig::default())
+            });
+            assert!(result.is_err(), "missing/invalid policy must fail closed");
+            assert!(!invoked.get(), "policy must precede signing I/O callback");
+        }
+        config.auth.jwt.platform_issuer = Some(expected);
+        config.auth.jwt.allow_historical_platform_issuer = Some(false);
+        let invoked = std::cell::Cell::new(false);
+        signing_auth_after_policy(&config, || {
+            invoked.set(true);
+            Ok(iam_configuration::AuthConfig::default())
+        })
+        .expect("explicit valid policy reaches callback");
+        assert!(invoked.get());
+    }
+
+    #[test]
     fn verified_mixed_pem_is_rejected_before_the_verifier_resolution_callback() {
         let mut config = AppConfig::default();
+        config.auth.jwt.platform_issuer = Some(config.jwt.platform_issuer());
+        config.auth.jwt.allow_historical_platform_issuer = Some(false);
         config.security.mode = SecurityMode::Verified;
         config.jwt.secret = SecretStorage::PemFile {
             private_key_path: "must-not-read/private.pem".into(),
@@ -1996,6 +2044,8 @@ mod tests {
     fn delegated_pem_hmac_is_rejected_before_resolution_but_independent_hmac_is_preserved() {
         for backend in ["transit", "remote"] {
             let mut config = AppConfig::default();
+            config.auth.jwt.platform_issuer = Some(config.jwt.platform_issuer());
+            config.auth.jwt.allow_historical_platform_issuer = Some(false);
             config.security.mode = SecurityMode::Verified;
             config.jwt.backend = Some(backend.into());
             if backend == "transit" {
@@ -2009,7 +2059,7 @@ mod tests {
                 config.jwt.remote = Some(iam_configuration::RemoteSignerConfig {
                     url: "https://remote.example".into(),
                     key_id: "platform".into(),
-                    token: None,
+                    token: Some("explicit-fixture-credential".into()),
                 });
             }
             config.jwt.secret = SecretStorage::PemFile {
@@ -2018,17 +2068,17 @@ mod tests {
                 key_id: None,
             };
             config.jwt.allowed_algorithms = vec!["RS256".into(), "HS256".into()];
+            let expected_denial = if backend == "remote" {
+                "verified remote signer requires RS256 only"
+            } else {
+                "invalid delegated signing secret configuration"
+            };
             let calls = std::cell::Cell::new(0);
             let result = signing_auth_after_policy(&config, || {
                 calls.set(calls.get() + 1);
                 config.jwt.http_verifier_auth().map_err(Into::into)
             });
-            assert!(
-                result
-                    .unwrap_err()
-                    .to_string()
-                    .contains("invalid delegated signing secret configuration")
-            );
+            assert!(result.unwrap_err().to_string().contains(expected_denial));
             assert_eq!(
                 calls.get(),
                 0,
@@ -2048,7 +2098,7 @@ mod tests {
                     alias_result
                         .unwrap_err()
                         .to_string()
-                        .contains("invalid delegated signing secret configuration"),
+                        .contains(expected_denial),
                     "padded/lowercase HS256 alias must hit the delegated guard: {alias:?}"
                 );
                 assert_eq!(
@@ -2071,6 +2121,11 @@ mod tests {
             config.jwt.secret = SecretStorage::PlainText {
                 value: "explicit-nonproduction-HMAC-fixture".into(),
             };
+            // A secure remote signer is RS256-only. Exercise the independent
+            // HMAC helper only in the explicitly isolated compatibility window.
+            if backend == "remote" {
+                config.security.mode = SecurityMode::IsolatedTest;
+            }
             let auth = signing_auth_after_policy(&config, || {
                 config.jwt.http_verifier_auth().map_err(Into::into)
             })
@@ -2084,8 +2139,7 @@ mod tests {
                 Some("independent-legacy-HMAC-issuer")
             );
             assert_eq!(auth.jwt.allowed_algorithms, vec!["RS256", "HS256"]);
-            // This helper preserves config semantics, NOT delivery of distinct
-            // mixed issuers through the still-pinned SDK constructor.
+            // Crypto verification alone does not grant a platform UUID view.
         }
     }
 
@@ -2185,6 +2239,8 @@ mod tests {
             ..iam_configuration::JwtConfig::default()
         };
         let mut auth = jwt.http_verifier_auth().expect("legacy IAM config");
+        auth.jwt.platform_issuer = Some(jwt.platform_issuer());
+        auth.jwt.allow_historical_platform_issuer = Some(false);
         assert_eq!(auth.jwt.allowed_algorithms, vec!["HS256"]);
         assert!(auth.jwt.jwks_url.is_none());
         assert_eq!(

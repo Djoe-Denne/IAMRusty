@@ -983,6 +983,48 @@ pub struct AppConfig {
 }
 
 // Default value functions
+impl AppConfig {
+    /// Validate explicit HTTP authorization provenance against the signing authority.
+    ///
+    /// # Errors
+    ///
+    /// Returns an opaque configuration error for absent, invalid or inconsistent policy.
+    /// This check never resolves secrets or contacts a signing provider.
+    pub fn validate_principal_policy(&self) -> Result<(), SecretError> {
+        let (Some(issuer), Some(historical)) = (
+            self.auth.jwt.platform_issuer.as_ref(),
+            self.auth.jwt.allow_historical_platform_issuer,
+        ) else {
+            return Err(SecretError::InvalidFormat(
+                "PRINCIPAL_POLICY_UNAVAILABLE".into(),
+            ));
+        };
+        rustycog::permission::PrincipalPolicy::new(issuer.clone(), historical)
+            .map_err(|_| SecretError::InvalidFormat("PRINCIPAL_INVALID".into()))?;
+        if issuer != &self.jwt.platform_issuer() {
+            return Err(SecretError::InvalidFormat(
+                "PRINCIPAL_INVALID: policy does not match signing authority".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Build the HTTP verifier with explicit deployment policy and mesh settings.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error before secret resolution if policy is missing or inconsistent,
+    /// or forwards the existing cryptographic verifier configuration error.
+    pub fn http_verifier_auth(&self) -> Result<AuthConfig, SecretError> {
+        self.validate_principal_policy()?;
+        let mut auth = self.jwt.http_verifier_auth()?;
+        auth.jwt.platform_issuer = self.auth.jwt.platform_issuer.clone();
+        auth.jwt.allow_historical_platform_issuer = self.auth.jwt.allow_historical_platform_issuer;
+        auth.mesh = self.auth.mesh.clone();
+        Ok(auth)
+    }
+}
+
 const fn default_jwt_expiration() -> u64 {
     900 // 15 minutes
 }
@@ -1158,6 +1200,58 @@ pub fn generate_default_config() -> Result<String, ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn iam_http_policy_is_explicit_and_checked_before_secret_resolution() {
+        let mut config = AppConfig::default();
+        config.jwt.secret = SecretStorage::PemFile {
+            private_key_path: "must-not-read/private.pem".into(),
+            public_key_path: "must-not-read/public.pem".into(),
+            key_id: None,
+        };
+        for (issuer, historical, code) in [
+            (None, None, "PRINCIPAL_POLICY_UNAVAILABLE"),
+            (
+                Some(config.jwt.platform_issuer()),
+                None,
+                "PRINCIPAL_POLICY_UNAVAILABLE",
+            ),
+            (None, Some(false), "PRINCIPAL_POLICY_UNAVAILABLE"),
+            (Some("".into()), Some(false), "PRINCIPAL_INVALID"),
+            (
+                Some(" https://platform.example/iam".into()),
+                Some(false),
+                "PRINCIPAL_INVALID",
+            ),
+            (Some("x".repeat(257)), Some(false), "PRINCIPAL_INVALID"),
+            (
+                Some("https://foreign.example/iam".into()),
+                Some(false),
+                "PRINCIPAL_INVALID",
+            ),
+        ] {
+            config.auth.jwt.platform_issuer = issuer;
+            config.auth.jwt.allow_historical_platform_issuer = historical;
+            assert!(config
+                .http_verifier_auth()
+                .unwrap_err()
+                .to_string()
+                .contains(code));
+        }
+        config.auth.jwt.platform_issuer = Some(config.jwt.platform_issuer());
+        config.auth.jwt.allow_historical_platform_issuer = Some(false);
+        let auth = config
+            .http_verifier_auth()
+            .expect("RS256 verifier never resolves PEM");
+        assert_eq!(auth.jwt.platform_issuer, config.auth.jwt.platform_issuer);
+        assert_eq!(auth.jwt.allow_historical_platform_issuer, Some(false));
+        let pure = config
+            .jwt
+            .http_verifier_auth()
+            .expect("pure crypto helper remains available");
+        assert!(pure.jwt.platform_issuer.is_none());
+        assert!(pure.jwt.allow_historical_platform_issuer.is_none());
+    }
 
     #[test]
     fn test_app_config_default() {

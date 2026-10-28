@@ -17,6 +17,8 @@ port = 8081
 tls_enabled = false
 
 [auth.jwt]
+platform_issuer = "http://127.0.0.1:8081/iam"
+allow_historical_platform_issuer = false
 audience = "aiforall"
 jwks_url = "http://127.0.0.1:8081/iam/.well-known/jwks.json"
 allowed_algorithms = ["RS256"]

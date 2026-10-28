@@ -17,6 +17,8 @@ tls_key_path = "/app/certs/iam-service.key"
 tls_client_ca_path = "/app/certs/ca.crt"
 
 [auth.jwt]
+platform_issuer = "http://127.0.0.1:8080/iam"
+allow_historical_platform_issuer = false
 audience = "aiforall"
 # Host process. IAM injects its JWKS in memory; this URL is not fetched in-process.
 jwks_url = "http://127.0.0.1:8080/iam/.well-known/jwks.json"
