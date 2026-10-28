@@ -42,25 +42,29 @@ pub struct SyncResult {
 
 #[async_trait::async_trait]
 pub trait SyncService: Send + Sync {
-    /// Start a persisted sync job for an external link.
+    /// Start a persisted sync job for an external link belonging to the organization.
     ///
     /// # Errors
     ///
-    /// Returns [`DomainError`] if the link is missing, sync is disabled, a job is already running, or persistence fails.
+    /// Returns [`DomainError`] if the link is missing or belongs to another organization,
+    /// sync is disabled, a job is already running, or persistence fails.
     async fn start_sync_job(
         &self,
+        organization_id: Uuid,
         external_link_id: Uuid,
         job_type: SyncJobType,
         requested_by_user_id: Uuid,
     ) -> Result<SyncJob, DomainError>;
 
-    /// Build a sync job without persisting it.
+    /// Build a sync job for an organization's external link without persisting it.
     ///
     /// # Errors
     ///
-    /// Returns [`DomainError`] if the link is missing, sync is disabled, or a job is already running.
+    /// Returns [`DomainError`] if the link is missing or belongs to another organization,
+    /// sync is disabled, or a job is already running.
     async fn prepare_sync_job(
         &self,
+        organization_id: Uuid,
         external_link_id: Uuid,
         job_type: SyncJobType,
         requested_by_user_id: Uuid,
@@ -224,13 +228,15 @@ where
     IS: InvitationService,
     PC: ExternalProviderClient,
 {
-    /// Build a sync job without persisting it.
+    /// Build a sync job for an organization's external link without persisting it.
     ///
     /// # Errors
     ///
-    /// Returns [`DomainError`] if the link is missing, sync is disabled, or a job is already running.
+    /// Returns [`DomainError`] if the link is missing or belongs to another organization,
+    /// sync is disabled, or a job is already running.
     async fn prepare_sync_job(
         &self,
+        organization_id: Uuid,
         external_link_id: Uuid,
         job_type: SyncJobType,
         _requested_by_user_id: Uuid,
@@ -239,6 +245,7 @@ where
             .external_link_repo
             .find_by_id(&external_link_id)
             .await?
+            .filter(|link| link.organization_id == organization_id)
             .ok_or_else(|| {
                 DomainError::entity_not_found("ExternalLink", &external_link_id.to_string())
             })?;
@@ -263,19 +270,26 @@ where
         Ok(SyncJob::new(external_link_id, job_type, None))
     }
 
-    /// Start a persisted sync job for an external link.
+    /// Start a persisted sync job for an external link belonging to the organization.
     ///
     /// # Errors
     ///
-    /// Returns [`DomainError`] if the link is missing, sync is disabled, a job is already running, or persistence fails.
+    /// Returns [`DomainError`] if the link is missing or belongs to another organization,
+    /// sync is disabled, a job is already running, or persistence fails.
     async fn start_sync_job(
         &self,
+        organization_id: Uuid,
         external_link_id: Uuid,
         job_type: SyncJobType,
         requested_by_user_id: Uuid,
     ) -> Result<SyncJob, DomainError> {
         let sync_job = self
-            .prepare_sync_job(external_link_id, job_type, requested_by_user_id)
+            .prepare_sync_job(
+                organization_id,
+                external_link_id,
+                job_type,
+                requested_by_user_id,
+            )
             .await?;
         self.sync_job_repo.save(&sync_job).await
     }

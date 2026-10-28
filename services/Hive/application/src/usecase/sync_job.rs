@@ -101,7 +101,12 @@ impl SyncJobUseCase for SyncJobUseCaseImpl {
         let job = if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
             let job = self
                 .sync_service
-                .prepare_sync_job(request.external_link_id, job_type, requested_by_user_id)
+                .prepare_sync_job(
+                    organization_id,
+                    request.external_link_id,
+                    job_type,
+                    requested_by_user_id,
+                )
                 .await?;
             let started_at = chrono::Utc::now();
             let event = HiveDomainEvent::SyncJobStarted(SyncJobStartedEvent::new(
@@ -115,7 +120,12 @@ impl SyncJobUseCase for SyncJobUseCaseImpl {
         } else {
             let job = self
                 .sync_service
-                .start_sync_job(request.external_link_id, job_type, requested_by_user_id)
+                .start_sync_job(
+                    organization_id,
+                    request.external_link_id,
+                    job_type,
+                    requested_by_user_id,
+                )
                 .await?;
             let started_at = chrono::Utc::now();
             self.publish_sync_job_started_event(
@@ -147,3 +157,7 @@ impl SyncJobUseCase for SyncJobUseCaseImpl {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "usecase_sync_job_tests.rs"]
+mod tests;

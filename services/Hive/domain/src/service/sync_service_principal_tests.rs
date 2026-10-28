@@ -160,7 +160,12 @@ async fn non_inviting_job_creation_does_not_require_platform_owner() {
     for issuer in [Some(FOREIGN), None] {
         let (service, probe) = fixture(issuer);
         let job = service
-            .start_sync_job(probe.link.id, SyncJobType::MembersOnly, Uuid::new_v4())
+            .start_sync_job(
+                probe.link.organization_id,
+                probe.link.id,
+                SyncJobType::MembersOnly,
+                Uuid::new_v4(),
+            )
             .await
             .expect("scheduling a job does not express an invitation intent");
         assert_eq!(job.organization_external_link_id, probe.link.id);
