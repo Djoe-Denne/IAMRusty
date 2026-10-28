@@ -109,3 +109,14 @@ Contradictions explicites : 0305 Implemented ne couvre pas son schéma FGA Non d
 ## Annexe — intégration lead
 
 Consommateur documentaire : **corriger-identites**, non publié par cet auteur. Entrées nécessaires : texte ADR/contrat explicitement ratifié, HEAD documentaire intégré, SDK exact et ownership des consommateurs confirmé. Ligne d’index à intégrer par le lead : `0314 | Conserver l’autorité du principal dans les sujets et projections OpenFGA | Accepted / Unimplemented | contrat authz-trust-domain-boundary`.
+
+### Attributions ciblées du lead après inventaire du consommateur — 2026-10-28
+
+Ces précisions d'ownership n'ajoutent aucune frontière métier à la décision ratifiée :
+- Les targets SDK `permission_middleware` et `mesh_gateway_auth` sont déclarées dans Cargo.toml mais leurs fichiers réels sont `rustycog-http/tests/permission_middleware_tests.rs` et `rustycog-http/tests/mesh_gateway_auth.rs`. Ils sont attribués sans renommage ; `AuthUser`/`OptionalAuthUser` résident dans middleware_auth.rs, pas dans le module JSON extractors.
+- `workers/sentinel-sync/src/main.rs` est attribué uniquement pour injecter la PrincipalPolicy explicite dans HiveTranslator ; pas de refonte du worker ni du protocole de queue.
+- `services/{GitHubConnect,GitLabConnect,Lazaret}/setup/src/app.rs`, leurs champs de configuration strictement nécessaires et TOML de ces services sont attribués uniquement pour le plumbing de PrincipalPolicy/constructeurs SDK. Ne déduire aucune plateforme du Host, du secret HMAC, du JWKS ou d'un simple issuer HS256. Lazaret HTTP est workload-only selon l'inventaire : aucune nouvelle garde HumanAccount, route, permission, session workload ou migration à y inventer.
+- `services/IAMRusty/configuration/src/lib.rs::http_verifier_auth` et l'éventuel wiring de policy IAM restent brokerisés par le lead après intégration du lot remote et disponibilité du SDK qualifié. Le consommateur identités n'édite pas ce fichier en concurrence ; sa compilation/qualification globale reste une vérification intégrée ultérieure, pas une raison de choisir une policy permissive.
+- Les helpers SDK legacy de vérification pure peuvent conserver leur API sans policy. Ils ne constituent pas une voie HTTP UUID-only autorisée : sans injection explicite, refus local, sans déduction de plateforme. La validation de configuration des composition roots demeure fail-closed.
+
+Oracle complémentaire inscrit avant exécution : `qualified_principal_encoding_preserves_utf8_and_size_bound` (1/256 octets valides, 257 refusé, UTF-8 multioctets exact, pas de troncature). Vérification de source lead : sujet complet maximal 387 octets, sous TupleKey.user max512 de l'API épinglée par la fixture OpenFGA v1.5.0 ; aucun test serveur réalisé par cette vérification.
