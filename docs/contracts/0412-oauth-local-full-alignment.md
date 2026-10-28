@@ -32,7 +32,7 @@ un autre cluster ou un protocole non-browser dépasserait ce choix.
 - **Navigateur→Envoy : HTTP local uniquement**, sans certificat client, sans proxy qui contourne Envoy et sans tolérance TLS globale. Le mapping hôte reste lié à `127.0.0.1`, pas `0.0.0.0`. Ce n'est pas une qualification d'edge TLS/production.
 - **Envoy→ext-authz/IAM/Hive/Telegraph/Manifesto : mTLS inchangé.** CA, certificat client `envoy-mesh`, SNI et vérification précise des noms serveur restent. Le correctif séparé d'identité serveur Envoy doit être intégré avant transfert de ces fichiers ; ne pas écraser ses matchers SAN.
 - Les services restent en mode principal mesh : seuls les headers recréés par la passerelle et son certificat client autorisent le principal. Lua strip `x-principal-*`, ext_authz HTTP, `failure_mode_allow: false`, audiences/issuer et fraîcheur maximale 60 s ne changent pas.
-- `jwt.public_base_url` IAM du profil de preuve = **`http://127.0.0.1:18080`**. Ne pas modifier mécaniquement `jwt.issuer`, `audience` ou les URLs JWKS internes : l'origine navigateur n'est pas l'identité du trust domain.
+- `jwt.public_base_url` IAM reste **`http://127.0.0.1:8080`**, ainsi que l'autorité plateforme exacte `http://127.0.0.1:8080/iam` et ses policies explicites/false. Le navigateur est réellement sur18080 ; ses redirects sont configurés séparément par le registry. Voir le [complément d'autorité ratifié](0412-oauth-proof-authority-alignment.md), qui corrige l'ancienne exigence public_base_url18080 après vérification des corps. Aucun alias ni changement de `jwt.issuer`, audience ou JWKS internes.
 - IAM reste explicitement `security.mode = local_insecure` pour cette exception HTTP. Cookie **`iam-oauth-browser`**, host-only `127.0.0.1`, `Path=/iam; HttpOnly; SameSite=Lax; Max-Age=600`, sans `Secure` ni `Domain`. Aucun cookie injecté par le pilote, aucun cookie de remplacement au callback. Pas de variante `__Host-` annoncée comme prouvée.
 - Les callbacks enregistrés sont exactement `http://127.0.0.1:18080/iam/api/auth/gitlab/callback` et `http://127.0.0.1:18080/iam/api/auth/gitlab/relink-callback`, identiques chez IAM et GitLabConnect. Ni `localhost`, ni `8080`, ni slash final, ni alias. Ne pas changer Host/schéma par un header pour les faire accepter.
 
@@ -154,9 +154,10 @@ les cookies Secure, une edge TLS, le vrai vendor, HA ou la production.
 7. `ops/tests/mesh-public-route-cases-local-full.json`, `ops/tests/test_local_full_acceptance_source.py` : séparer les attentes provider absent du profil par défaut et provider activé en campagne, conserver les négatifs ; ce tableau HTTP n'est jamais la preuve navigateur.
 
 Attribution de compatibilité du lead après inventaire du consommateur :
-`ops/tests/infra-static.sh`, uniquement ajout du neuvième overlay de preuve à
-l'inventaire fermé et au nombre attendu de rendus. Conserver les huit entrées
-historiques et vérifier l'entrée opt-in supplémentaire, sans ignorer de rendu,
+`ops/tests/infra-static.sh`, uniquement ajout de l'overlay de preuve à
+l'inventaire fermé et au nombre attendu de rendus. Inventaire vérifié ensuite :
+neuf entrées historiques, dont `ops/deploy/p4/knative` déjà suivi ; total **dix**
+avec oauth-proof. Conserver toutes les entrées et vérifier l'opt-in, sans ignorer de rendu,
 relâcher l'égalité d'inventaire ou ajouter une nouvelle infrastructure de tests.
 
 Les sources `ops/deploy/mesh/envoy.yaml` et

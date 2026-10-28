@@ -179,3 +179,29 @@ Le commit72845d9 publié reste immuable. Cette adaptation, si nécessaire après
 preuve du gap, sera un nouveau commit test-only soumis à vérification et décision
 de publication du lead, puis sélection exacte du gitlink. Aucun nouveau HEAD
 non publié ne peut remplacer le pin déjà autorisé.
+
+Précondition de compilation de cette suite : attribution additionnelle du seul
+import `parse_jwks_document` dans `rustycog-http/src/jwks_seed_tests.rs` (bloc
+`use super`). La baseline compile aussi ce module malgré son filtre RSA et
+échoue E0425 avant tout test. Aucun autre corps, assertion ou contrat JWKS
+n'est changé par cette correction mécanique de test.
+
+### Application de la frontière UUID-only à l'auto-invitation interne
+
+Le chemin `SyncServiceImpl::process_external_member_for_sync` appelle
+`InvitationService::create_invitation_by_email` avec le seul UUID du propriétaire.
+La garde HTTP ne protège pas ce consommateur interne. Appliquer ici la même
+PrincipalPolicy déjà ratifiée et injectée depuis Hive setup : lorsque
+`auto_invite` est activé, refuser un propriétaire absent/incompatible avant
+persistance du job et avant tout appel fournisseur en exécution. Conserver
+l'autorité exacte et les erreurs opaques ; pas d'inférence depuis le demandeur
+ou le Host. La synchronisation sans auto-invitation demeure admissible : aucun
+bannissement global des organisations étrangères. Pas de changement du protocole
+InvitationService, schéma, cache ou stockage. Il s'agit de fermer un appelant
+interne de la frontière existante, pas de créer un nouveau mécanisme d'autorisation.
+
+Ownership du même auteur : garde privée SyncService, wiring setup, constructions
+et tests existants affectés. Témoins avant exécution : propriétaire plateforme
+valide accepté, étranger/None refusés sans job ni fournisseur, auto-invite=false
+préservé, job historique relu et refusé avant appel si son propriétaire est devenu
+incompatible. Nommer les sélecteurs avant run ; aucun runtime/IT implicite.
