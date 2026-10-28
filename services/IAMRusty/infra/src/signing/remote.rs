@@ -271,13 +271,17 @@ mod remote_signer_fixtures;
 #[cfg(test)]
 mod tests {
     use super::remote_signer_fixtures::service::{serve_raw, Framing, RawResponse};
-    use super::*;
+    use super::{remote_client_builder, RemoteSigningProvider};
     use crate::signing::StaticCredential;
+    use iam_domain::port::SigningProvider;
     use rcgen::{
         BasicConstraints, Certificate, CertificateParams, DnType, ExtendedKeyUsagePurpose, IsCa,
         KeyPair, KeyUsagePurpose,
     };
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
 
     fn ca(name: &str) -> (Certificate, KeyPair) {
         let mut params = CertificateParams::new(Vec::<String>::new()).unwrap();
