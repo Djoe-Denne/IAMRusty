@@ -71,6 +71,54 @@ Séquence prévue : oracle Cell contre le helper setup existant pour un ROUGE fo
 
 ### Troisième gate applicatif et fixtures SDK
 
+Résultats Gate3 : Hive-service --tests compile PASS, member_issuer7PASS ; SDK
+baseline bloquée E0425 par import de test avant tout run, puis baseline19 dont11
+fixtures refusées faute de policy, puis19PASS/0ignored après adaptation test-only.
+Nouveau commit local77672b8 parent72845d9, deux fichiers ; fmtSDK PASS. Revue
+indépendante bornée demandée sur snapshot propre avant publication séparée.
+
+Créneau lead suivant nommé avant run : `cargo test --locked -p iam-infra --lib
+signing::remote::tests::`. Justification : couvrir les imports explicites du
+module TLS intégrés après le run auteur et leur combinaison avec IAM/SDK pincés.
+Le module privé ne lance que des sockets loopback/TLS, aucun testcontainer.
+Arbre canon gelé ; slot unique restitué par auteur et réservé au lead.
+
+Résultat réellement exécuté au canon (IAMc98b6ea/SDK72845d9) : **2PASS/0FAIL/
+0ignored**,133 autres units filtrées,46.61s compilation et0.18s tests. Bon nom de
+certificat et refus redirection downgrade couverts par ces deux tests. Warnings
+de fixtures non utilisées rapportés, aucun nouveau testcontainer/runtime tiers.
+Slot lead restitué avant nouveau bail applicatif pool-3.
+
+### Décision navigateur finale, avant ses runs de profil
+
+Contrat architecte v2 ratifié au21ea615 : origine navigateur18080 mais
+public_base_url/autorité8080 préservés, policies explicites8080/false et deux
+callbacks18080 uniques côté IAM et GitLabConnect. Oracles nommés dans
+`docs/contracts/0412-oauth-proof-authority-alignment.md`, notamment rendu effectif,
+registry indépendant du port de signature et scénario P1–P3/N1–N3. Sélectionner
+ceux utiles au delta, pas exécuter toute une nouvelle matrice par principe.
+Inventaire Kustomize vérifié9historiques+proof=10, aucune exclusion Knative.
+
+### Qualification finale à libérer après intégration des auteurs
+
+Ne pas démarrer runtime ou IT pendant les éditions de production. Après livraison
+app/lab intégrée, geler l'arbre compilé et effectuer check des six packages de
+référence, fmt ciblé/global avec résultat réel et Clippy utile. Revue sécurité
+indépendante du diff intégré et revue des oracles adversariaux, contextes fresh,
+briefings avec vrais HEAD/diff avant correction ; pas de revue parent redondante.
+
+Préparation statique du runtime seulement à ce stade : le lanceur existant
+`ops/tests/it-native.ps1` prend une liste fermée de suites, pas une sélection de
+targets. Il assure les témoins Engine, registre à création et cleanup possédé.
+Préférer sa campagne Hive/IAM couvrant les composition roots touchés plutôt
+qu'un nouveau wrapper. Vérifier le choix final des suites après diff intégré,
+les opt-ins queues laissés désactivés et les tests réellement exécutés/ignorés.
+Les ressources existantes ne deviennent pas possédées par leur nom. Sources
+transitives consultées : Hive common (PG+OpenFGA, pas SQS) et fixture_runtime
+ledger exclusif/fullIDs, collision fail-closed sans adoption. Inspection finale
+des effets et préconditions reste à faire sur le pin exact retenu avant lancement.
+Kind/full et navigateur réel seulement après IT finales ; aucun lancement ici.
+
 Après restitution du micro-batch IAM, prochain créneau exclusif pool-3 : `cargo check --locked -p hive-service --tests` après attribution db.rs (compilation seule), puis `cargo test --locked -p hive-domain --test member_issuer` pour les règles d'autorité modifiées. Pas de PG/FGA ou queue exécutés par ces commandes.
 
 Dans le même bail, sous réserve des préconditions déjà décrites : baseline de la suite SDK existante `--features http,testing --lib http::jwt_handler::jwt_rs256_tests::`, qualification séparée des fixtures invalides, correction test-only autorisée et même suite VERT, fmt SDK. Pas de changement de production/assertions pour obtenir VERT. SDK publié72845d9 immuable ; nouveau commit local test-only, sans push ou pin non publié. Cette extension ferme un gap connu d'appelants de l'API modifiée, pas une nouvelle infrastructure.

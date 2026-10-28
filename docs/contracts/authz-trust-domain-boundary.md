@@ -193,7 +193,7 @@ Le chemin `SyncServiceImpl::process_external_member_for_sync` appelle
 La garde HTTP ne protège pas ce consommateur interne. Appliquer ici la même
 PrincipalPolicy déjà ratifiée et injectée depuis Hive setup : lorsque
 `auto_invite` est activé, refuser un propriétaire absent/incompatible avant
-persistance du job et avant tout appel fournisseur en exécution. Conserver
+tout appel fournisseur et toute mutation d'exécution. Conserver
 l'autorité exacte et les erreurs opaques ; pas d'inférence depuis le demandeur
 ou le Host. La synchronisation sans auto-invitation demeure admissible : aucun
 bannissement global des organisations étrangères. Pas de changement du protocole
@@ -202,6 +202,32 @@ interne de la frontière existante, pas de créer un nouveau mécanisme d'autori
 
 Ownership du même auteur : garde privée SyncService, wiring setup, constructions
 et tests existants affectés. Témoins avant exécution : propriétaire plateforme
-valide accepté, étranger/None refusés sans job ni fournisseur, auto-invite=false
+valide accepté, étranger/None refusés sans mutation d'exécution ni fournisseur, auto-invite=false
 préservé, job historique relu et refusé avant appel si son propriétaire est devenu
 incompatible. Nommer les sélecteurs avant run ; aucun runtime/IT implicite.
+
+Précision après lecture des signatures : prepare/start_sync_job ne reçoit pas
+auto_invite, et aucune intention d'inviter n'est persistée. La création de ce
+job non invitant reste admise ; ne pas ajouter une clé JSON, un paramètre public
+ou un refus global pour satisfaire une précondition inexistante. Le contrôle
+porte sur `sync_members(job_id, auto_invite)` avec son booléen réel, avant
+fournisseur, transition d'état, audit d'exécution et invocation d'invitation.
+Un job préexistant est donc lui aussi recontrôlé lors de son exécution invitante.
+
+### Propagation du refus de projection jusqu'au ledger existant
+
+Constat source : `workers/sentinel-sync/src/handler.rs::translate` avale les
+erreurs des traducteurs puis `handle_event` peut compléter un événement Hive
+comme non pertinent. Cela contredit le refus/quarantaine visible déjà exigé.
+Attribution au même auteur : ce handler et ses tests affectés, uniquement pour
+propager une erreur d'événement revendiqué vers `fail_delivery` et l'erreur de
+service existantes, sans tuple write ni complete/ack réussi. `Ok(None)` d'un
+événement réellement inconnu garde sa sémantique actuelle ; le trait Translator
+réserve Err à un échec après revendication. Aucun protocole de queue, nouvelle
+DLQ ou stockage ajouté. Codes de refus opaques/stables, pas de payload, credential
+ou issuer contrôlé reflété dans les logs/erreurs persistées.
+
+Témoins nommés avant run : propriétaire non résolu et suppression legacy sans
+principaux donnent ledger failed, zéro write/complete ; événement qualifié donne
+write/completed, rejeu idempotent ; événement inconnu et traducteurs existants
+préservés. Preuve ROUGE sur le handler existant si faisable avant correction.
