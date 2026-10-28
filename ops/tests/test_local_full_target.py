@@ -118,6 +118,57 @@ class AnchorTests(unittest.TestCase):
         self.assertEqual(self.cmd.api(), [])
         self.assertEqual(self.cmd.kind_actions(), [])
 
+    def test_forward_rejects_foreign_target_bind_service_and_mapping_before_api(self):
+        for change in ({"namespace": "foreign"}, {"service": "iam"},
+                       {"bind": "0.0.0.0"}, {"bind": "localhost"}, {"mapping": "18082:8080"}):
+            with self.subTest(change=change), patch.object(anchor.socket, "socket") as probe:
+                with self.assertRaisesRegex(anchor.AnchorError, "before any probe"):
+                    with self.f.target(self.cmd).oauth_forward(**change):
+                        self.fail("foreign forward accepted")
+                probe.assert_not_called()
+                self.assertEqual(self.cmd.calls, [])
+        with self.assertRaises(anchor.AnchorError):
+            anchor.parse_kubectl_operation(["port-forward", "service/oauth-idp-simulator", "18081:8080"])
+
+    def test_forward_requires_owned_service_and_stops_only_owned_pid(self):
+        self.f.data["namespaceUids"] = {"aiforall-local-full": "owned-namespace"}
+        entry = dict(kind="Service", name="oauth-idp-simulator", namespace="aiforall-local-full",
+                     uid="owned-service", context="kind-aiforall-local-full", cluster="aiforall-local-full")
+        self.f.data["ownedResources"] = [entry]
+        self.f.save()
+        value = dict(metadata=dict(uid="owned-service"), spec=dict(type="ClusterIP",
+                     selector={"app.kubernetes.io/name": "oauth-idp-simulator"},
+                     ports=[dict(port=8080, targetPort=8080)]))
+        target = self.f.target(self.cmd)
+        process = Mock(pid=12345)
+        process.poll.return_value = None
+        launcher = Mock(return_value=process)
+        with patch.object(target, "check"), patch.object(target, "kubectl", side_effect=[
+                "owned-namespace", json.dumps(value)]), patch.object(anchor.socket, "socket"):
+            with target.oauth_forward(launcher=launcher) as child:
+                self.assertIs(child, process)
+                marker = json.loads(target.path.with_name(target.path.name + ".oauth-forward").read_text())
+                self.assertEqual((marker["pid"], marker["service_uid"]), (12345, "owned-service"))
+        if os.name == "nt":
+            process.send_signal.assert_called_once_with(anchor.signal.CTRL_BREAK_EVENT)
+            process.terminate.assert_not_called()
+        else:
+            process.terminate.assert_called_once_with()
+        process.wait.assert_called_once_with(timeout=15)
+        self.assertFalse(target.path.with_name(target.path.name + ".oauth-forward").exists())
+        command = launcher.call_args.args[0]
+        self.assertEqual(command, target.prefix() + ["port-forward", "-n", "aiforall-local-full",
+                         "service/oauth-idp-simulator", "--address", "127.0.0.1", "18081:8080"])
+        # A foreign Service with the same name never launches a child.
+        value["metadata"]["uid"] = "foreign-service"
+        launcher.reset_mock()
+        with patch.object(target, "check"), patch.object(target, "kubectl", side_effect=[
+                "owned-namespace", json.dumps(value)]):
+            with self.assertRaisesRegex(anchor.AnchorError, "Service UID not owned"):
+                with target.oauth_forward(launcher=launcher):
+                    self.fail("foreign UID accepted")
+        launcher.assert_not_called()
+
     def test_wrong_loopback_alias_zero_get_mutation_and_kind(self):
         self.f.config["clusters"][0]["cluster"]["server"] = "https://127.0.0.1:60999"
         self.f.write_config()

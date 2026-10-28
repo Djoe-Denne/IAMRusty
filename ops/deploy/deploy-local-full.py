@@ -7,6 +7,7 @@ import re
 import subprocess
 import uuid
 from pathlib import Path
+from local_full_target import private_file
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTEXT = "kind-aiforall-local-full"
@@ -111,6 +112,49 @@ def secret(name, values):
             "type": "Opaque", "data": {key: base64.b64encode(value).decode() for key, value in values.items()}}
 
 
+def oauth_inputs(path):
+    if not path or not path.is_file() or path.is_symlink() or not private_file(path):
+        raise ValueError("private read-only OAuth proof input and private parent directory required")
+    # Duplicate JSON keys must not silently select credentials/configuration.
+    def unique(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError("ambiguous private OAuth proof input")
+            value[key] = item
+        return value
+    if path.stat().st_size > 4096:
+        raise ValueError("private OAuth proof input exceeds bound")
+    return renderer.validate_proof_inputs(json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique))
+
+
+def oauth_cert_inputs(path, run_id):
+    mesh = path / "mesh"
+    public = (mesh / "ca.crt").read_bytes()
+    leaf = {"tls.crt": (mesh / "gitlab-connect.crt").read_bytes(),
+            "tls.key": (mesh / "gitlab-connect.key").read_bytes()}
+    # New per-run objects, never copies of the parent CA or gateway private key.
+    objects = [secret("oauth-proof-public-ca-" + run_id, {"ca.crt": public}),
+               secret("oauth-proof-connector-tls-" + run_id, leaf)]
+    digest = hashlib.sha256(public + leaf["tls.crt"] + leaf["tls.key"]).hexdigest()
+    return objects, digest
+
+
+def preflight_oauth_objects(objects, data):
+    for obj in objects:
+        name = obj["metadata"]["name"]
+        if not (name.startswith("oauth-proof-") or name in {"gitlab-connect", "oauth-idp-simulator"}):
+            continue
+        if obj["kind"] == "Secret":
+            continue  # CREATE only later: collision fails without GET/overwrite.
+        uid = k("get", obj["kind"], name, "-n", "aiforall-local-full", "--ignore-not-found", "-o", "jsonpath={.metadata.uid}")
+        if uid and not any(entry.get("kind") == obj["kind"] and entry.get("name") == name
+                           and entry.get("namespace") == "aiforall-local-full" and entry.get("uid") == uid
+                           and entry.get("context") == CONTEXT and entry.get("cluster") == CLUSTER
+                           for entry in data.get("ownedResources", [])):
+            raise ValueError("existing OAuth proof resource UID not explicitly owned")
+
+
 def verify_images(images):
     runtime.target().check()
     for image in set(images.values()):
@@ -136,7 +180,13 @@ def configure_api_policy():
 def deploy_locked(args):
     images = json.loads(args.image_manifest.read_text())
     mesh, identity, cert_hash = cert_inputs(args.cert_directory)
-    objects = renderer.render(uuid.uuid4().hex[:16], images, cert_hash)
+    inputs = oauth_inputs(args.oauth_proof_input_file) if args.oauth_proof else None
+    if args.oauth_proof_input_file and not args.oauth_proof:
+        raise ValueError("private proof input requires --oauth-proof")
+    run_id = inputs["run_id"] if inputs else uuid.uuid4().hex[:16]
+    proof_certs, proof_cert_hash = oauth_cert_inputs(args.cert_directory, run_id) if inputs else ([], "")
+    objects = renderer.render(run_id, images, cert_hash + proof_cert_hash, args.oauth_proof, inputs)
+    objects += proof_certs
     capability_sources = {}
     if args.isolated_plugins:
         required = {
@@ -182,6 +232,8 @@ def deploy_locked(args):
     preflight_cluster_objects(objects, args, data)
     verify_images(images)
     prepare_namespaces(args, data)
+    if args.oauth_proof:
+        preflight_oauth_objects(objects, data)
     # No concurrent bootstrap or migration runs in this exclusive namespace.
     for namespace in NAMESPACES:
         active = k("get", "jobs", "-n", namespace, "-o", "jsonpath={.items[*].status.active}")
@@ -211,6 +263,8 @@ def deploy_locked(args):
         else:
             groups["foundation"].append(obj)
     groups["foundation"] += [secret("platform-mesh-certs", mesh), secret("lazaret-identity-ca", identity)]
+    proof_secrets = [obj for obj in groups["foundation"] if obj["kind"] == "Secret" and obj["metadata"]["name"].startswith("oauth-proof-")]
+    groups["foundation"] = [obj for obj in groups["foundation"] if obj not in proof_secrets]
     try:
         if original_replicas and not args.confirm_quiesce:
             raise ValueError("existing owned deployment: --confirm-quiesce required before serial migration/rollout")
@@ -220,6 +274,8 @@ def deploy_locked(args):
                 k("scale", "deployment/" + name, "-n", namespace, "--replicas=0")
                 k("wait", "--for=delete", "pod", "-n", namespace,
                   "-l", "app.kubernetes.io/name=" + name, "--timeout=180s")
+        for obj in proof_secrets:
+            runtime.create(obj, args, data)  # No overwrite/adoption of existing secrets, even a same-name one.
         apply(groups["foundation"])
         record_resources(groups["foundation"], args, data)
         configure_api_policy()
@@ -269,12 +325,16 @@ def main():
     parser.add_argument("--namespace-wiring-confirmed", action="store_true")
     parser.add_argument("--confirm-quiesce", action="store_true")
     parser.add_argument("--after-final-it", action="store_true")
+    parser.add_argument("--oauth-proof", action="store_true")
+    parser.add_argument("--oauth-proof-input-file", type=Path)
     args = parser.parse_args()
     if args.action == "render":
         # No runtime inspection, startup or API contact. Source secrets remain
         # in render artifacts; report only resource kind/name metadata.
         images = json.loads(args.image_manifest.read_text()) if args.image_manifest else None
-        objects = renderer.render("staticvalidation", images)
+        if args.oauth_proof_input_file:
+            raise ValueError("offline render does not accept private runtime inputs")
+        objects = renderer.render("staticvalidation", images, oauth_proof=args.oauth_proof)
         if args.output_dir:
             args.output_dir.mkdir(parents=True, exist_ok=True)
             file = args.output_dir / "local-full.json"

@@ -2,6 +2,12 @@
 # Parent execution only. Create fresh, separate local transport/workload CAs.
 # Refuse any pre-existing content; no key/leaf overwrite or automatic rotation.
 set -eu
+oauth_proof=false
+case "${1-}" in
+  '') [ "$#" -eq 0 ] || exit 1 ;;
+  --oauth-proof) [ "$#" -eq 1 ] || exit 1; oauth_proof=true ;;
+  *) echo 'unsupported certificate preparation option' >&2; exit 1 ;;
+esac
 : "${LOCAL_FULL_CERT_DIR:?set an explicit new directory}"
 if [ -e "$LOCAL_FULL_CERT_DIR" ]; then
   echo 'certificate output path already exists; no overwrite' >&2
@@ -31,5 +37,10 @@ done
 for name in envoy-mesh ext-authz mesh-client; do
   leaf "$LOCAL_FULL_CERT_DIR/mesh" "$name" "DNS:$name,DNS:$name.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1"
 done
+if [ "$oauth_proof" = true ]; then
+  # New directory only: never append to/rotate any existing campaign inputs.
+  # Consumers select this leaf/key and the public CA, never CA/gateway keys.
+  leaf "$LOCAL_FULL_CERT_DIR/mesh" gitlab-connect 'DNS:gitlab-connect,DNS:gitlab-connect.aiforall-local-full.svc.cluster.local'
+fi
 leaf "$LOCAL_FULL_CERT_DIR/workload" server 'DNS:lazaret-service,DNS:lazaret,DNS:lazaret.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1'
 echo 'created separate local-full CA/leaf material; contents not printed; parent owns directory'

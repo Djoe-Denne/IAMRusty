@@ -192,8 +192,12 @@ class AcceptanceGuardTests(unittest.TestCase):
                 self.assertNotIn(303, case["statuses"], "redirect requires a configured connector")
         self.assertEqual([case["statuses"] for case in logins], [[422], [422]])
         self.assertEqual([case["statuses"] for case in connected if case["path"] in login_paths], [[303], [303]])
-        self.assertEqual([case for case in full if case["path"] not in login_paths],
-                         [case for case in connected if case["path"] not in login_paths])
+        disabled_relinks = {"/iam/api/auth/github/relink-callback?code=fixed-invalid-test-code",
+                            "/iam/api/auth/gitlab/relink-callback?code=fixed-invalid-test-code"}
+        self.assertEqual([case["statuses"] for case in full if case["path"] in disabled_relinks], [[401, 403], [401, 403]])
+        self.assertEqual([case["statuses"] for case in connected if case["path"] in disabled_relinks], [[400], [400]])
+        self.assertEqual([case for case in full if case["path"] not in login_paths | disabled_relinks],
+                         [case for case in connected if case["path"] not in login_paths | disabled_relinks])
         args = argparse.Namespace(namespace="aiforall-local-full", executed=0, route_cases=logins,
                                   action="route-matrix", environment=Path("environment.json"))
         connection = Mock()
@@ -324,13 +328,14 @@ class AcceptanceGuardTests(unittest.TestCase):
         source = SOURCE.with_name("it-native.ps1").read_text()
         for suite in ("iam", "hive", "manifesto", "telegraph", "lazaret"):
             self.assertIn(f"{suite} = '{suite}-service'", source)
-        self.assertIn("& cargo test -p $packages[$Suite] --tests", source)
+        self.assertIn("foreach ($selected in $Suite)", source)
+        self.assertIn("& cargo test -p $packages[$selected] --tests", source)
         self.assertIn("$LASTEXITCODE -ne 0", source)
         for forbidden in ("--workspace", "docker run", "kind create", "compose up", "seed"):
             self.assertNotIn(forbidden, source)
         self.assertIn("E:\\cargo-target\\AIForAll", source)
 
-    def test_closed_offline_render_inventory_is_exactly_eight(self):
+    def test_closed_offline_render_inventory_is_exactly_ten(self):
         root = SOURCE.resolve().parents[2]
         source = (root / "ops/tests/infra-static.sh").read_text()
         blocks = source.split("<<'PY'\n")[1:]
@@ -338,9 +343,11 @@ class AcceptanceGuardTests(unittest.TestCase):
         expected = next(ast.literal_eval(node.value) for node in inventory.body if isinstance(node, ast.Assign)
                         and any(isinstance(t, ast.Name) and t.id == "expected" for t in node.targets))
         actual = {p.parent.relative_to(root).as_posix() for p in (root / "ops/deploy").rglob("kustomization.yaml")}
-        self.assertEqual(len(expected), 8)
+        self.assertEqual(len(expected), 10)
+        self.assertIn("ops/deploy/apps/overlays/local-full/oauth-proof", expected)
+        self.assertIn("ops/deploy/p4/knative", expected)
         self.assertEqual(expected, actual)
-        self.assertIn('[ "$renders" -eq 8 ]', source)
+        self.assertIn('[ "$renders" -eq 10 ]', source)
         self.assertIn("len(actual) != len(expected)", source)
 
     def test_legacy_gold_root_and_private_test_key_helper_migration(self):

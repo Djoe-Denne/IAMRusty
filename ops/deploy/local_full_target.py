@@ -1,11 +1,13 @@
 """S-11 single PS/Python authority: alias is never API identity. No ambient config."""
 import argparse
 import base64
+import contextlib
 import hashlib
 import ipaddress
 import json
 import os
 import re
+import signal
 import socket
 import stat
 import subprocess
@@ -323,6 +325,69 @@ class LocalClusterTargetAnchor:
             raise AnchorError("image import requires all leased nodes running")
         self.runner(["kind", "load", "docker-image", image, "--name", self.data["cluster"]], text=True, timeout=180, env=self.environment())
 
+    @contextlib.contextmanager
+    def oauth_forward(self, namespace="aiforall-local-full", service="oauth-idp-simulator",
+                      bind="127.0.0.1", mapping="18081:8080", *, launcher=subprocess.Popen):
+        """One foreground, owned child only; no generic kubectl forward authority.
+
+        A stale marker is a STOP requiring parent inspection, never PID adoption.
+        Cleanup uses the child handle created in this invocation, not a PID lookup.
+        """
+        if (self.data["cluster"] != "aiforall-local-full" or namespace != "aiforall-local-full"
+                or service != "oauth-idp-simulator" or bind != "127.0.0.1" or mapping != "18081:8080"):
+            raise AnchorError("unsupported OAuth forward target before any probe")
+        marker = self.path.with_name(self.path.name + ".oauth-forward")
+        process = None
+        # Exclusive lifetime marker also prevents two child creators sharing a lease.
+        with marker.open("x", encoding="utf-8") as ownership:
+            try:
+                self.check()
+                namespace_uid = self.kubectl(["get", "namespace", namespace, "-o", "jsonpath={.metadata.uid}"], text=True, timeout=30).strip()
+                if not namespace_uid or self.data.get("namespaceUids", {}).get(namespace) != namespace_uid:
+                    raise AnchorError("OAuth forward namespace UID not owned")
+                value = json.loads(self.kubectl(["get", "service", service, "-n", namespace, "-o", "json"], text=True, timeout=30))
+                uid = value.get("metadata", {}).get("uid")
+                if not uid or not any(entry.get("kind") == "Service" and entry.get("name") == service
+                                      and entry.get("namespace") == namespace and entry.get("uid") == uid
+                                      and entry.get("context") == self.data["context"]
+                                      and entry.get("cluster") == self.data["cluster"]
+                                      for entry in self.data.get("ownedResources", [])):
+                    raise AnchorError("OAuth forward Service UID not owned")
+                spec = value.get("spec", {})
+                ports = spec.get("ports", [])
+                if (spec.get("type", "ClusterIP") != "ClusterIP"
+                        or spec.get("selector") != {"app.kubernetes.io/name": service}
+                        or len(ports) != 1 or ports[0].get("port") != 8080
+                        or ports[0].get("targetPort") != 8080 or ports[0].get("protocol", "TCP") != "TCP"):
+                    raise AnchorError("OAuth forward Service binding differs")
+                with socket.socket() as probe:
+                    probe.bind((bind, 18081))  # Occupied => STOP, never kill owner.
+                self.check()
+                command = self.prefix() + ["port-forward", "-n", namespace, "service/" + service,
+                                            "--address", bind, mapping]
+                process = launcher(command, env=self.environment(), stdin=subprocess.DEVNULL,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                   creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
+                json.dump({"task_id": self.data["task_id"], "context": self.data["context"],
+                           "service_uid": uid, "namespace_uid": namespace_uid,
+                           "pid": process.pid, "bind": bind, "mapping": mapping,
+                           "ownership": "live-child-handle-only"}, ownership)
+                ownership.flush()
+                yield process
+            finally:
+                if process is not None:
+                    if process.poll() is None:
+                        if os.name == "nt":
+                            process.send_signal(signal.CTRL_BREAK_EVENT)
+                        else:
+                            process.terminate()  # SIGTERM to sole child handle, no PID adoption.
+                    try:
+                        process.wait(timeout=15)
+                    except subprocess.TimeoutExpired:
+                        raise AnchorError("owned OAuth forward stop blocked; parent must inspect marker") from None
+                ownership.close()
+                marker.unlink()  # Our marker only, after cleanup (or before any child existed).
+
 
 def persist(path, data):
     temporary = path.with_name(path.name + ".anchor-update")
@@ -391,7 +456,7 @@ def bootstrap(path, cluster, config, after_final_it=False, runner=run, root=None
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["check", "kubectl", "kind-load", "bootstrap"])
+    parser.add_argument("action", choices=["check", "kubectl", "kind-load", "bootstrap", "oauth-forward"])
     parser.add_argument("--lease", type=Path, required=True)
     parser.add_argument("--cluster", choices=list(ALLOWED), required=True)
     parser.add_argument("--config", type=Path)
@@ -409,6 +474,14 @@ def main():
                 if len(rest) != 1:
                     raise AnchorError("one immutable image argument required")
                 target.kind_load(rest[0])
+            elif args.action == "oauth-forward":
+                if rest or args.config or args.after_final_it:
+                    raise AnchorError("OAuth forward accepts only its fixed target and parent lease")
+                with target.oauth_forward() as process:
+                    try:
+                        process.wait()
+                    except KeyboardInterrupt:
+                        pass  # Context manager stops only this invocation's child.
             else:
                 # PowerShell pipelines are passed through without argument/JSON
                 # logging; callers only consume known metadata/object names.

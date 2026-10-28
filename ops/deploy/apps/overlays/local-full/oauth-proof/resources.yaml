@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: gitlab-connect, namespace: aiforall-local-full}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app.kubernetes.io/name: gitlab-connect}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: gitlab-connect}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: gitlab-connect
+          image: aiforall-gitlab-connect-service:latest
+          imagePullPolicy: Never
+          env: [{name: RUST_ENVIRONMENT, value: development}]
+          ports: [{name: https, containerPort: 8443}]
+          readinessProbe: {tcpSocket: {port: https}, periodSeconds: 5}
+          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 500m, memory: 256Mi}}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          volumeMounts:
+            - {name: config, mountPath: /app/config/development.toml, subPath: development.toml, readOnly: true}
+            - {name: certs, mountPath: /app/certs, readOnly: true}
+      volumes:
+        - {name: config, secret: {secretName: oauth-proof-gitlab-config}}
+        - {name: certs, secret: {secretName: oauth-proof-connector-tls}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: gitlab-connect, namespace: aiforall-local-full}
+spec:
+  selector: {app.kubernetes.io/name: gitlab-connect}
+  ports: [{name: https, port: 8443, targetPort: https}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: oauth-idp-simulator, namespace: aiforall-local-full}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app.kubernetes.io/name: oauth-idp-simulator}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: oauth-idp-simulator}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: provider
+          image: python:3.12.9-alpine3.21@sha256:28b8a72c4e0704dd2048b79830e692e94ac2d43d30c914d54def6abf74448a4e
+          command: [python, -B, /scripts/oauth-idp-simulator.py]
+          env: [{name: OAUTH_PROOF_INPUT_FILE, value: /inputs/provider.json}]
+          ports: [{name: http, containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /observations, port: http}, periodSeconds: 5}
+          resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {cpu: 200m, memory: 128Mi}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          volumeMounts:
+            - {name: script, mountPath: /scripts, readOnly: true}
+            - {name: inputs, mountPath: /inputs, readOnly: true}
+      volumes:
+        - {name: script, configMap: {name: oauth-proof-simulator}}
+        - {name: inputs, secret: {secretName: oauth-proof-inputs}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: oauth-idp-simulator, namespace: aiforall-local-full}
+spec:
+  selector: {app.kubernetes.io/name: oauth-idp-simulator}
+  ports: [{name: http, port: 8080, targetPort: 8080}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: oauth-proof-iam-egress, namespace: aiforall-local-full}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: iam}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: gitlab-connect}}}]
+      ports: [{protocol: TCP, port: 8443}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: oauth-proof-connector, namespace: aiforall-local-full}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: gitlab-connect}}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {app.kubernetes.io/name: iam}}}]
+      ports: [{protocol: TCP, port: 8443}]
+  egress:
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: oauth-idp-simulator}}}]
+      ports: [{protocol: TCP, port: 8080}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: oauth-proof-provider, namespace: aiforall-local-full}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: oauth-idp-simulator}}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {app.kubernetes.io/name: gitlab-connect}}}]
+      ports: [{protocol: TCP, port: 8080}]

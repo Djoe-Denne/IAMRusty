@@ -1,0 +1,53 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # Kustomize rejects an ancestor as a base (cycle protection). Keep the exact
+  # four resources of local-full, not a second shared/base profile mutation.
+  - ../namespaces.yaml
+  - ../platform
+  - ../apparatus
+  - ../plugins.yaml
+  - resources.yaml
+secretGenerator:
+  - name: oauth-proof-iam-config
+    namespace: aiforall-local-full
+    files: [development.toml=iam.toml]
+  - name: oauth-proof-gitlab-config
+    namespace: aiforall-local-full
+    files: [development.toml=gitlab.toml]
+configMapGenerator:
+  - name: oauth-proof-simulator
+    namespace: aiforall-local-full
+    files:
+      - oauth-idp-simulator.py=../../../../../tests/support/oauth-idp-simulator.py
+patches:
+  - target: {kind: Deployment, name: iam}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: iam}
+      spec:
+        template:
+          spec:
+            securityContext: {fsGroup: 1000}
+            initContainers:
+              - name: oauth-proof-trust
+                image: aiforall-iam-service:latest
+                imagePullPolicy: Never
+                command: [sh, -ec, 'cat /etc/ssl/certs/ca-certificates.crt /public-ca/ca.crt > /trust/ca-bundle.pem']
+                securityContext: {runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+                resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {cpu: 100m, memory: 32Mi}}
+                volumeMounts:
+                  - {name: oauth-proof-public-ca, mountPath: /public-ca, readOnly: true}
+                  - {name: oauth-proof-trust, mountPath: /trust}
+            containers:
+              - name: iam
+                env:
+                  - {name: SSL_CERT_FILE, value: /oauth-proof-trust/ca-bundle.pem}
+                volumeMounts:
+                  - {name: oauth-proof-config, mountPath: /app/config/development.toml, subPath: development.toml, readOnly: true}
+                  - {name: oauth-proof-trust, mountPath: /oauth-proof-trust, readOnly: true}
+            volumes:
+              - {name: oauth-proof-config, secret: {secretName: oauth-proof-iam-config}}
+              - {name: oauth-proof-public-ca, secret: {secretName: oauth-proof-public-ca}}
+              - {name: oauth-proof-trust, emptyDir: {}}

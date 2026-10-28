@@ -1,0 +1,27 @@
+[server]
+host = "0.0.0.0"
+port = 8080
+tls_enabled = true
+tls_port = 8443
+tls_cert_path = "/app/certs/tls.crt"
+tls_key_path = "/app/certs/tls.key"
+# This HMAC hop does not require an mTLS client the IAM adapter cannot provide.
+tls_require_client_cert = false
+[auth.jwt]
+platform_issuer = "http://127.0.0.1:8080/iam"
+allow_historical_platform_issuer = false
+audience = "aiforall"
+jwks_url = "http://iam:8080/iam/.well-known/jwks.json"
+allowed_algorithms = ["RS256"]
+[logging]
+level = "info"
+[gitlab]
+client_id = "__OAUTH_PROOF_CLIENT_ID__"
+client_secret = "__OAUTH_PROOF_CLIENT_SECRET__"
+hmac_secret = "__OAUTH_PROOF_HMAC__"
+pkce_supported = true
+transport_security = "isolated_test"
+auth_url = "http://localhost:18081/oauth/authorize"
+token_url = "http://oauth-idp-simulator:8080/oauth/token"
+user_url = "http://oauth-idp-simulator:8080/api/v4/user"
+redirect_uris = ["http://127.0.0.1:18080/iam/api/auth/gitlab/callback", "http://127.0.0.1:18080/iam/api/auth/gitlab/relink-callback"]

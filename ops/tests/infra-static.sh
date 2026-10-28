@@ -53,12 +53,14 @@ expected = {
     'ops/deploy/apps/overlays/local-full',
     'ops/deploy/apps/overlays/local-full/platform',
     'ops/deploy/apps/overlays/local-full/apparatus',
+    'ops/deploy/apps/overlays/local-full/oauth-proof',
     'ops/deploy/p4',
+    'ops/deploy/p4/knative',
 }
 actual = [p.parent.as_posix() for p in Path('ops/deploy').rglob('*')
           if p.name in {'kustomization.yaml', 'kustomization.yml'}]
 if set(actual) != expected or len(actual) != len(expected):
-    raise SystemExit('Deployment kustomization inventory differs from the eight approved renders')
+    raise SystemExit('Deployment kustomization inventory differs from the ten approved renders')
 PY
 renders=0
 while IFS= read -r -d '' manifest; do
@@ -78,5 +80,5 @@ print("OK rendered resource identities:", len(docs))
   printf 'OK offline render: %s\n' "$directory"
   renders=$((renders + 1))
 done < <(find ops/deploy -type f \( -name kustomization.yaml -o -name kustomization.yml \) -print0)
-[ "$renders" -eq 8 ] || { echo 'Expected exactly eight deployment renders' >&2; exit 1; }
+[ "$renders" -eq 10 ] || { echo 'Expected exactly ten deployment renders (including opt-in OAuth proof)' >&2; exit 1; }
 printf 'OK shell syntax: %s scripts; offline renders: %s\n' "$scripts" "$renders"

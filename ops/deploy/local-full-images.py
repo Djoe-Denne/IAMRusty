@@ -8,20 +8,26 @@ from local_full_target import LocalClusterTargetAnchor
 
 SOURCES = ["aiforall-iam-service:latest", "aiforall-hive-service:latest", "aiforall-telegraph-service:latest",
            "aiforall-manifesto-service:latest", "aiforall-lazaret-service:local-full", "aiforall-sentinel-sync:local-full",
-           "aiforall-ext-authz:local", "aiforall-apparatus-controller:j2", "aiforall-zot:gold"]
+            "aiforall-ext-authz:local", "aiforall-apparatus-controller:j2", "aiforall-zot:gold"]
+
+
+def source_images(oauth_proof=False):
+    """Only an explicit proof profile adds the real connector, never a mock."""
+    return SOURCES + (["aiforall-gitlab-connect-service:latest"] if oauth_proof else [])
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--lease", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--oauth-proof", action="store_true")
     args = parser.parse_args()
     target = LocalClusterTargetAnchor(args.lease, expected_cluster="aiforall-local-full")
     target.check()
     if args.output.exists():
         raise ValueError("image manifest exists; refuse overwrite")
     result = {}
-    for source in SOURCES:
+    for source in source_images(args.oauth_proof):
         target.check()
         inspected = subprocess.run(["docker", "image", "inspect", "--format", "{{.Id}}", source], capture_output=True, text=True, timeout=30)
         image_id = inspected.stdout.strip()
@@ -34,7 +40,7 @@ def main():
         result[source] = content_image
     with args.output.open("x", encoding="utf-8") as target:
         json.dump(result, target, indent=2)
-    print("pinned 9 prebuilt image IDs; no build/pull/runtime startup performed")
+    print("pinned " + str(len(result)) + " prebuilt image IDs; no build/pull/runtime startup performed")
 
 
 if __name__ == "__main__":
