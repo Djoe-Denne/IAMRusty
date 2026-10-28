@@ -6,13 +6,36 @@ Statut ADR : Accepted. Réalité ADR : Partial. Ce fichier ne les modifie pas.
 Il rend exécutable, plus tard, la preuve E2E encore ouverte. Il n'est pas le lab,
 pas un harness, et pas une autorisation de démarrer Kind pour le rédiger.
 
+## Alignement ratifié du 2026-10-28 — non encore implémenté
+
+**Ratification explicite du lead sous délégation utilisateur, campagne non exécutée.** Le [contrat d'alignement local-full](0412-oauth-local-full-alignment.md)
+précise le listener, les origines, le vrai connecteur GitLab, son fournisseur
+simulé et les contrôles discriminants. La cible ci-dessous reste inchangée :
+HTTP loopback `18080`, navigateur réel, contexte full, P1–P3/N1–N3.
+
+**Contradiction source vérifiée à la base `c72ae362` :** local-full importe
+`kind-mesh/envoy-mesh.yaml`, dont `listener_mesh:10000` exige TLS et un certificat
+client. `render-local-full.py::render` réécrit les namespaces et les exemptions
+relink, pas ce transport. Le rendu historique de 112 objets ne réalise donc
+pas l'entrée HTTP annoncée. Ce n'est ni une preuve navigateur, ni un motif pour
+substituer `https`, `18443`, le legacy ou une clé client dans le navigateur.
+
+Décision ratifiée : rendre **ce seul listener downstream local-full**
+HTTP dans le renderer existant ; conserver les sources mesh partagées en TLS,
+les filtres et matchers, et les hops internes TLS/mTLS avec vérification des
+identités serveur. Activer le connecteur et sa simulation par un profil de
+preuve explicite, sans modifier `connectors=[]` par défaut. Le lead a examiné et
+ratifié ce texte et son complément ; leur intégration précède les consommateurs.
+Aucun changement de Statut ou Réalité ADR ici. **Pas de nouvelle ADR 0413** :
+la cible Accepted et ses exceptions locales ne changent pas.
+
 ## Décision
 
 La preuve qui peut autoriser `Réalité : Implemented` est un parcours
 navigateur, entré par l'Envoy du contexte `kind-aiforall-local-full`, sur les
 routes déjà présentes dans le dépôt, avec un connecteur `github` ou `gitlab`
-activé. Le profil local-full livré avec `connectors=[]` est un échec de cette
-preuve.
+activé. Le profil local-full livré avec `connectors=[]` ne satisfait pas cette
+preuve : prérequis absent, pas preuve rouge d'un défaut OAuth.
 
 La conséquence ADR ligne 37 (navigateur / `kind-aiforall-local-full`, 3 nœuds)
 n'est pas amendée. Aucune ADR 0413 n'est ouverte.
@@ -29,7 +52,7 @@ est déjà couvert par les IT citées. La phrase de la ligne 37 reste dans l'ADR
 | Cluster | `aiforall-local-full` |
 | Topologie | 1 control-plane + 2 workers |
 | Entrée HTTP | `127.0.0.1:18080` → control-plane `30080` → Envoy `10000` |
-| Listener | HTTP. Pas de listener TLS `18443` à inventer |
+| Listener cible, non encore réalisé par le rendu de référence | HTTP. Pas de listener TLS `18443` à inventer |
 
 Liste close de contextes de ce dépôt : `kind-aiforall-local` ou
 `kind-aiforall-local-full`. Cette preuve utilise le second, déjà nommé par
@@ -69,6 +92,12 @@ authentifié.
 Exact-route veut dire : la requête entre par cet Envoy, et l'effet d'authz est
 celui du matcher ci-dessus, pas celui d'un accès direct au pod ni du seul
 préfixe `/iam/`. Les routes n'ont pas de nom Envoy : l'oracle est cet effet.
+
+Attention à la configuration **finalement rendue et chargée** :
+`render-local-full.py::render` retire les exemptions exactes relink des slugs
+non configurés. Avec `connectors=[]`, les deux exemptions ci-dessus ne sont
+donc pas conservées. Le profil de preuve doit retenir celle de son slug
+configuré, sans ouvrir les START Link/Relink ni ajouter d'alias.
 
 Routes applicatives correspondantes (`services/IAMRusty/http/src/lib.rs`) :
 
@@ -112,7 +141,7 @@ preuve. Désactiver PKCE alors que ce connecteur est `pkce_supported` pour faire
 passer le run est un échec. L'échec PKCE lui-même n'est pas redemandé : il est
 déjà dans les IT.
 
-## Déjà prouvé — ne pas redemander
+## Preuve historique réutilisable — ne pas redemander sans cause
 
 Suites IAM : `oauth_browser_transactions`, `oauth_cleanup_lifecycle`,
 `auth_transactions_postgres`. Elles couvrent le rejeu inter-replicas, le cookie
@@ -187,24 +216,29 @@ suppression de volume, de namespace ou de cluster.
 Ledger compact, sans secret, avant les opérations longues. Kind reste éteint
 pour écrire ou relire ce contrat.
 
-## Hors scope
+## Hors scope du lot documentaire initial
 
 Lab 0412, script, images Linux, fixture IdP, gold path 0605, code applicatif,
 `workers/apparatus-operator`, `rustycog`, `.cargo/config.toml`, harness Python,
 promotion de Réalité, Accept de 0606, gates Apparatus 0009–0011.
 
+La mission de correction et qualification approuvée autorise ses futurs lots de
+laboratoire/preuve uniquement dans l'allowlist du contrat d'alignement ratifié,
+après leurs prérequis. Cette liste historique ne constitue ni un refus de ces
+lots ni une autorisation générale de modifier le produit ou Apparatus.
+
 ## Décisions laissées ouvertes
 
-1. Slug de campagne : `github` ou `gitlab`. Un seul suffit.
-2. IdP simulé ou vendor réel, pour ce slug activé.
+1. Slug ratifié pour cette campagne : `gitlab`.
+2. Fournisseur simulé borné derrière le vrai connecteur, sans compte personnel.
 3. Pilote interactif ou CDP, tant que le moteur est un navigateur.
 4. Hypothèse non retenue : `kind-aiforall-local`, deux IAM, curl, au plus 3
    conteneurs. La retenir changerait la ligne 37 et demanderait un amendement
    Proposed séparé (prochain libre services/runtimes : 0413). Il n'est pas
-   écrit. Elle reste en attente d'un choix humain.
+   écrit. Elle n'est pas retenue et n'est pas une étape en attente de GO.
 5. Cookie `Secure` / `__Host-iam-oauth-browser` et listener TLS : hors de ce
    mapping HTTP. Les prouver ne fait pas partie de ce verdict.
-6. Forme du lab et de la fixture : à écrire plus tard, contre cette matrice.
+6. Forme du lab et de la fixture : bornée par le contrat d'alignement ratifié ; implémentation et preuves restent à livrer contre cette matrice.
 
 ## Sources
 
@@ -217,3 +251,5 @@ promotion de Réalité, Accept de 0606, gates Apparatus 0009–0011.
   `connectors=[]`.
 - `ops/deploy/kind/cluster-local-full.yaml` : `hostPort` 18080, `containerPort` 30080.
 - ADR 0606 Proposed : frontière de lab, non Acceptée ici.
+
+- Ratification du 2026-10-28 : [alignement et allowlist](0412-oauth-local-full-alignment.md), Accepted / Unimplemented ; validation documentaire seulement, aucun nouveau run.

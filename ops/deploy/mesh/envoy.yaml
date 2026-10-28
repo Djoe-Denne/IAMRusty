@@ -190,6 +190,10 @@ static_resources:
             validation_context:
               trusted_ca:
                 filename: /etc/envoy/certs/ca.crt
+              match_typed_subject_alt_names:
+                - san_type: DNS
+                  matcher:
+                    exact: ext-authz
       load_assignment:
         cluster_name: ext_authz
         endpoints:
@@ -218,6 +222,10 @@ static_resources:
             validation_context:
               trusted_ca:
                 filename: /etc/envoy/certs/ca.crt
+              match_typed_subject_alt_names:
+                - san_type: DNS
+                  matcher:
+                    exact: iam-service
       load_assignment:
         cluster_name: iam
         endpoints:
@@ -246,6 +254,10 @@ static_resources:
             validation_context:
               trusted_ca:
                 filename: /etc/envoy/certs/ca.crt
+              match_typed_subject_alt_names:
+                - san_type: DNS
+                  matcher:
+                    exact: hive-service
       load_assignment:
         cluster_name: hive
         endpoints:
@@ -274,6 +286,10 @@ static_resources:
             validation_context:
               trusted_ca:
                 filename: /etc/envoy/certs/ca.crt
+              match_typed_subject_alt_names:
+                - san_type: DNS
+                  matcher:
+                    exact: telegraph-service
       load_assignment:
         cluster_name: telegraph
         endpoints:
@@ -302,6 +318,10 @@ static_resources:
             validation_context:
               trusted_ca:
                 filename: /etc/envoy/certs/ca.crt
+              match_typed_subject_alt_names:
+                - san_type: DNS
+                  matcher:
+                    exact: manifesto-service
       load_assignment:
         cluster_name: manifesto
         endpoints:

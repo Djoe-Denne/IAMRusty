@@ -197,6 +197,10 @@ data:
                 validation_context:
                   trusted_ca:
                     filename: /etc/envoy/certs/ca.crt
+                  match_typed_subject_alt_names:
+                    - san_type: DNS
+                      matcher:
+                        exact: ext-authz.aiforall-gateway.svc.cluster.local
           load_assignment:
             cluster_name: ext_authz
             endpoints:
@@ -224,6 +228,10 @@ data:
                 validation_context:
                   trusted_ca:
                     filename: /etc/envoy/certs/ca.crt
+                  match_typed_subject_alt_names:
+                    - san_type: DNS
+                      matcher:
+                        exact: iam.aiforall-platform.svc.cluster.local
           load_assignment:
             cluster_name: iam
             endpoints:
@@ -251,6 +259,10 @@ data:
                 validation_context:
                   trusted_ca:
                     filename: /etc/envoy/certs/ca.crt
+                  match_typed_subject_alt_names:
+                    - san_type: DNS
+                      matcher:
+                        exact: hive.aiforall-platform.svc.cluster.local
           load_assignment:
             cluster_name: hive
             endpoints:
@@ -278,6 +290,10 @@ data:
                 validation_context:
                   trusted_ca:
                     filename: /etc/envoy/certs/ca.crt
+                  match_typed_subject_alt_names:
+                    - san_type: DNS
+                      matcher:
+                        exact: telegraph.aiforall-platform.svc.cluster.local
           load_assignment:
             cluster_name: telegraph
             endpoints:
@@ -305,6 +321,10 @@ data:
                 validation_context:
                   trusted_ca:
                     filename: /etc/envoy/certs/ca.crt
+                  match_typed_subject_alt_names:
+                    - san_type: DNS
+                      matcher:
+                        exact: manifesto.aiforall-platform.svc.cluster.local
           load_assignment:
             cluster_name: manifesto
             endpoints:
