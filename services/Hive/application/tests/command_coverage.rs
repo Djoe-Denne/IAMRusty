@@ -123,6 +123,7 @@ fn member_invitation_sync_and_link_commands_cover_types_and_mappers() {
     let org_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
     let request = AddMemberRequest {
+        issuer: None,
         user_id: Uuid::new_v4(),
         roles: vec![MemberRole {
             organization_id: org_id,
@@ -155,6 +156,7 @@ fn member_invitation_sync_and_link_commands_cover_types_and_mappers() {
         org_id,
         request.user_id,
         &UpdateMemberRolesRequest {
+            issuer: None,
             roles: request.roles.clone(),
         },
         user_id,

@@ -31,6 +31,7 @@ impl OrganizationMapper {
             description: model.description,
             avatar_url: model.avatar_url,
             owner_user_id: model.owner_user_id,
+            owner_issuer: model.owner_issuer,
             settings: model.settings,
             signing_profile_id: model.signing_profile_id,
             signing_status: model.signing_status,
@@ -48,6 +49,7 @@ impl OrganizationMapper {
             description: ActiveValue::Set(organization.description.clone()),
             avatar_url: ActiveValue::Set(organization.avatar_url.clone()),
             owner_user_id: ActiveValue::Set(organization.owner_user_id),
+            owner_issuer: ActiveValue::Set(organization.owner_issuer.clone()),
             settings: ActiveValue::Set(organization.settings.clone()),
             signing_profile_id: ActiveValue::Set(organization.signing_profile_id),
             signing_status: ActiveValue::Set(organization.signing_status.clone()),
@@ -128,6 +130,7 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
     async fn find_by_user_membership(
         &self,
         user_id: &Uuid,
+        issuer: &str,
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Organization>, DomainError> {
@@ -139,6 +142,7 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
         let organizations = Organizations::find()
             .inner_join(OrganizationMembers)
             .filter(organization_members::Column::UserId.eq(*user_id))
+            .filter(organization_members::Column::Issuer.eq(issuer))
             .filter(organization_members::Column::Status.eq("Active"))
             .order_by(organizations::Column::CreatedAt, Order::Desc)
             .paginate(self.db.as_ref(), u64::from(page_size))
@@ -154,7 +158,7 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
 
     async fn search_by_name(
         &self,
-        user_id: Option<Uuid>,
+        principal: Option<rustycog::permission::PrincipalRef>,
         name_pattern: &str,
         page: u32,
         page_size: u32,
@@ -164,7 +168,10 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
             name_pattern,
             page,
             page_size,
-            user_id.unwrap_or_default()
+            principal
+                .as_ref()
+                .map(|actor| actor.subject)
+                .unwrap_or_default()
         );
 
         let mut query = Organizations::find();
@@ -175,11 +182,17 @@ impl OrganizationReadRepository for OrganizationReadRepositoryImpl {
         let mut access_condition: Condition =
             Condition::all().add(Expr::cust("settings->>'visibility' = 'Public'"));
 
-        if let Some(user_id) = user_id {
+        if let Some(principal) = principal {
+            principal
+                .validate()
+                .map_err(|_| DomainError::invalid_input("PRINCIPAL_INVALID"))?;
             query = query.left_join(organization_members::Entity);
-            access_condition = Condition::any()
-                .add(access_condition)
-                .add(organization_members::Column::UserId.eq(user_id));
+            access_condition = Condition::any().add(access_condition).add(
+                Condition::all()
+                    .add(organization_members::Column::UserId.eq(principal.subject))
+                    .add(organization_members::Column::Issuer.eq(principal.issuer))
+                    .add(organization_members::Column::Status.eq("Active")),
+            );
         }
 
         let name_condition = organizations::Column::Name.like(&like_pattern);
@@ -357,23 +370,24 @@ impl OrganizationReadRepository for OrganizationRepositoryImpl {
     async fn find_by_user_membership(
         &self,
         user_id: &Uuid,
+        issuer: &str,
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Organization>, DomainError> {
         self.read_repo
-            .find_by_user_membership(user_id, page, page_size)
+            .find_by_user_membership(user_id, issuer, page, page_size)
             .await
     }
 
     async fn search_by_name(
         &self,
-        user_id: Option<Uuid>,
+        principal: Option<rustycog::permission::PrincipalRef>,
         name_pattern: &str,
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Organization>, DomainError> {
         self.read_repo
-            .search_by_name(user_id, name_pattern, page, page_size)
+            .search_by_name(principal, name_pattern, page, page_size)
             .await
     }
 

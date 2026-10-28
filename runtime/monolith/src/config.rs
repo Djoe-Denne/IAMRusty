@@ -24,6 +24,15 @@ pub fn load_monolith_config() -> anyhow::Result<MonolithConfig> {
     let hive = hive_configuration::load_config()?;
     let manifesto = manifesto_configuration::load_config()?;
     let mut lazaret = lazaret_configuration::load_config()?;
+    validate_principal_policies(
+        &iam.jwt.platform_issuer(),
+        &[
+            &hive.auth.jwt,
+            &telegraph.auth.jwt,
+            &manifesto.auth.jwt,
+            &lazaret.auth.jwt,
+        ],
+    )?;
 
     let server = match overlay_tls_from_env() {
         None => ServerConfig {
@@ -77,6 +86,68 @@ pub fn load_monolith_config() -> anyhow::Result<MonolithConfig> {
         manifesto,
         lazaret,
     })
+}
+
+fn validate_principal_policies(
+    expected_platform_issuer: &str,
+    configs: &[&rustycog::config::JwtAuthConfig],
+) -> anyhow::Result<()> {
+    let mut historical_window = None;
+    for config in configs {
+        let issuer = config
+            .platform_issuer
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("PRINCIPAL_POLICY_UNAVAILABLE"))?;
+        let historical = config
+            .allow_historical_platform_issuer
+            .ok_or_else(|| anyhow::anyhow!("PRINCIPAL_POLICY_UNAVAILABLE"))?;
+        rustycog::permission::PrincipalPolicy::new(issuer, historical)?;
+        if issuer != expected_platform_issuer
+            || historical_window.is_some_and(|previous| previous != historical)
+        {
+            anyhow::bail!("PRINCIPAL_INVALID");
+        }
+        historical_window = Some(historical);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod principal_policy_tests {
+    use super::*;
+
+    #[test]
+    fn monolith_principal_policy_is_explicit_and_consistent() {
+        let configured = rustycog::config::JwtAuthConfig {
+            platform_issuer: Some("https://platform.example/iam".into()),
+            allow_historical_platform_issuer: Some(false),
+            ..Default::default()
+        };
+        assert!(validate_principal_policies(
+            "https://platform.example/iam",
+            &[&configured, &configured]
+        )
+        .is_ok());
+        let mut foreign = configured.clone();
+        foreign.platform_issuer = Some("https://independent.example/iam".into());
+        assert!(validate_principal_policies(
+            "https://platform.example/iam",
+            &[&configured, &foreign]
+        )
+        .is_err());
+        foreign = configured.clone();
+        foreign.allow_historical_platform_issuer = Some(true);
+        assert!(validate_principal_policies(
+            "https://platform.example/iam",
+            &[&configured, &foreign]
+        )
+        .is_err());
+        assert!(validate_principal_policies(
+            "https://platform.example/iam",
+            &[&Default::default()]
+        )
+        .is_err());
+    }
 }
 
 struct OverlayTls {

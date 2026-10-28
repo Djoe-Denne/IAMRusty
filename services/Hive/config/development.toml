@@ -14,6 +14,8 @@ tls_key_path = "/app/certs/hive-service.key"
 tls_client_ca_path = "/app/certs/ca.crt"
 
 [auth.jwt]
+platform_issuer = "http://127.0.0.1:8080/iam"
+allow_historical_platform_issuer = false
 audience = "aiforall"
 # Host process. Compose overrides with HIVE_AUTH__JWT__JWKS_URL=http://iam-service:8080/...
 jwks_url = "http://127.0.0.1:8080/iam/.well-known/jwks.json"

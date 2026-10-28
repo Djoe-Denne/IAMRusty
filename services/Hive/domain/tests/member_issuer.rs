@@ -49,12 +49,13 @@ fn member_matches_principal(
 }
 
 #[test]
-fn member_stored_iamrusty_found_when_querying_platform_url() {
+fn legacy_platform_grants_require_provenance() {
     let org = Uuid::new_v4();
     let user = Uuid::new_v4();
     let stored = OrganizationMember::new(org, user, hive_domain::HISTORICAL_PLATFORM_ISSUER, None);
     let query_iss = "http://127.0.0.1:8081/iam";
-    assert!(member_matches_principal(&stored, org, query_iss, user));
+    assert!(!member_matches_principal(&stored, org, query_iss, user));
+    assert!(member_matches_principal(&stored, org, "iamrusty", user));
 }
 
 #[test]
@@ -67,20 +68,20 @@ fn member_stored_other_org_issuer_not_found_for_platform_url() {
 }
 
 #[test]
-fn add_member_treats_either_platform_issuer_as_already_member() {
+fn add_member_duplicate_detection_is_exact_issuer_only() {
     let requested = "http://127.0.0.1:8081/iam";
     let issuers = hive_domain::membership_lookup_issuers(requested);
     assert_eq!(issuers[0], requested);
-    assert!(issuers
+    assert!(!issuers
         .iter()
         .any(|iss| iss == hive_domain::HISTORICAL_PLATFORM_ISSUER));
 }
 
 #[test]
-fn platform_url_issuer_aliases_include_iamrusty() {
+fn arbitrary_issuer_ending_in_iam_is_never_platform_provenance() {
     let aliases = hive_domain::platform_issuer_aliases("http://127.0.0.1/iam");
     assert!(aliases.iter().any(|iss| iss == "http://127.0.0.1/iam"));
-    assert!(aliases.iter().any(|iss| iss == "iamrusty"));
+    assert!(!aliases.iter().any(|iss| iss == "iamrusty"));
 }
 
 #[test]

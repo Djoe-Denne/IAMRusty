@@ -32,6 +32,311 @@ use wiremock::{
 
 const OUTBOUND: &str = "test-telegraph-outbound";
 
+// Handler-level delivery regressions reuse the existing outbound Write fixture
+// below, not the container-backed vertical fixture used by the service ITs.
+mod sentinel_principal_delivery {
+    use super::{
+        classifier_client, Arc, BaseEvent, DomainEvent, EventHandler, InMemoryEventLedger,
+        SyncEventHandler, Uuid,
+    };
+    use rustycog::{
+        core::error::ServiceError,
+        permission::{PrincipalPolicy, PrincipalRef, Subject},
+    };
+    use sentinel_sync::{
+        idempotency::EventLedger,
+        translator::{hive::HiveTranslator, Translator, TupleDelta},
+    };
+    use std::{
+        collections::HashMap,
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            Mutex,
+        },
+    };
+
+    const PLATFORM: &str = "https://platform.example/iam";
+    const ORGANIZATION: &str = "https://organization.example/iam";
+
+    #[derive(Debug, Clone)]
+    struct DeliveryEvent {
+        base: BaseEvent,
+        payload: serde_json::Value,
+    }
+
+    impl DomainEvent for DeliveryEvent {
+        fn event_type(&self) -> &str {
+            &self.base.event_type
+        }
+        fn event_id(&self) -> Uuid {
+            self.base.event_id
+        }
+        fn aggregate_id(&self) -> Uuid {
+            self.base.aggregate_id
+        }
+        fn occurred_at(&self) -> chrono::DateTime<chrono::Utc> {
+            self.base.occurred_at
+        }
+        fn version(&self) -> u32 {
+            self.base.version
+        }
+        fn metadata(&self) -> HashMap<String, String> {
+            self.base.metadata.clone()
+        }
+        fn to_json(&self) -> Result<String, ServiceError> {
+            Ok(
+                serde_json::json!({"event_type": self.base.event_type, "data": self.payload})
+                    .to_string(),
+            )
+        }
+    }
+
+    fn event(kind: &str, issuer: Option<&str>) -> DeliveryEvent {
+        let organization = Uuid::new_v4();
+        let base = BaseEvent::new(kind.into(), organization);
+        let mut payload = serde_json::to_value(&base).unwrap();
+        let fields = payload.as_object_mut().unwrap();
+        fields.insert("organization_id".into(), organization.to_string().into());
+        fields.insert("organization_name".into(), "Fixture".into());
+        fields.insert("organization_slug".into(), "fixture".into());
+        fields.insert("owner_user_id".into(), Uuid::new_v4().to_string().into());
+        fields.insert(
+            "created_at".into(),
+            serde_json::to_value(base.occurred_at).unwrap(),
+        );
+        if let Some(issuer) = issuer {
+            fields.insert("owner_issuer".into(), issuer.into());
+        }
+        DeliveryEvent { base, payload }
+    }
+
+    #[derive(Default)]
+    struct DeliveryLedger {
+        inner: InMemoryEventLedger,
+        completed: AtomicUsize,
+        failed: AtomicUsize,
+        errors: Mutex<Vec<String>>,
+    }
+
+    #[async_trait::async_trait]
+    impl EventLedger for DeliveryLedger {
+        async fn begin(&self, id: Uuid) -> anyhow::Result<bool> {
+            self.inner.begin(id).await
+        }
+        async fn complete(&self, id: Uuid) -> anyhow::Result<()> {
+            self.completed.fetch_add(1, Ordering::SeqCst);
+            self.inner.complete(id).await
+        }
+        async fn fail(&self, id: Uuid, error: &str) -> anyhow::Result<()> {
+            self.failed.fetch_add(1, Ordering::SeqCst);
+            self.errors.lock().unwrap().push(error.into());
+            self.inner.fail(id, error).await
+        }
+        async fn begin_visibility_change(&self, id: Uuid, revision: i64) -> anyhow::Result<bool> {
+            self.inner.begin_visibility_change(id, revision).await
+        }
+        async fn complete_visibility_change(&self, id: Uuid, revision: i64) -> anyhow::Result<()> {
+            self.inner.complete_visibility_change(id, revision).await
+        }
+    }
+
+    fn translators() -> Vec<Arc<dyn Translator>> {
+        vec![Arc::new(HiveTranslator::new(
+            PrincipalPolicy::new(PLATFORM, false).unwrap(),
+        ))]
+    }
+
+    #[tokio::test]
+    async fn sentinel_principal_legacy_owner_is_failed_without_effects() {
+        let (fixture, client) = classifier_client(200, serde_json::json!({})).await;
+        let ledger = Arc::new(DeliveryLedger::default());
+        let handler = SyncEventHandler::new(translators(), ledger.clone(), client);
+        let event = event("organization_created", None);
+        let error = handler
+            .handle_event(Box::new(event.clone()))
+            .await
+            .expect_err(
+                "missing owner issuer must remain retryable, never be acknowledged as a no-op",
+            );
+        assert!(error.to_string().contains("EVENT_PRINCIPAL_UNRESOLVED"));
+        assert_eq!(ledger.failed.load(Ordering::SeqCst), 1);
+        assert_eq!(ledger.completed.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            *ledger.errors.lock().unwrap(),
+            ["EVENT_PRINCIPAL_UNRESOLVED"]
+        );
+        assert!(ledger.begin(event.event_id()).await.unwrap());
+        assert!(fixture
+            .server()
+            .received_requests()
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn sentinel_principal_legacy_deletion_is_failed_without_effects() {
+        let (fixture, client) = classifier_client(200, serde_json::json!({})).await;
+        let ledger = Arc::new(DeliveryLedger::default());
+        let handler = SyncEventHandler::new(translators(), ledger.clone(), client);
+        let mut event = event("organization_deleted", Some(ORGANIZATION));
+        event.payload["member_user_ids"] = serde_json::json!([Uuid::new_v4()]);
+        event.payload["deleted_by_user_id"] = serde_json::json!(Uuid::new_v4());
+        event.payload["deleted_at"] = serde_json::to_value(event.base.occurred_at).unwrap();
+        // The owner is qualified, but no member_principals snapshot exists.
+        let error = handler
+            .handle_event(Box::new(event.clone()))
+            .await
+            .expect_err("a UUID-only historical list cannot authorize cross-authority deletion");
+        assert!(error.to_string().contains("EVENT_PRINCIPAL_UNRESOLVED"));
+        assert_eq!(ledger.failed.load(Ordering::SeqCst), 1);
+        assert_eq!(ledger.completed.load(Ordering::SeqCst), 0);
+        assert!(ledger.begin(event.event_id()).await.unwrap());
+        assert!(fixture
+            .server()
+            .received_requests()
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn sentinel_principal_qualified_event_writes_and_replay_is_idempotent() {
+        let (fixture, client) = classifier_client(200, serde_json::json!({})).await;
+        let ledger = Arc::new(DeliveryLedger::default());
+        let handler = SyncEventHandler::new(translators(), ledger.clone(), client);
+        let event = event("organization_created", Some(ORGANIZATION));
+        handler.handle_event(Box::new(event.clone())).await.unwrap();
+        handler.handle_event(Box::new(event.clone())).await.unwrap();
+        assert_eq!(ledger.failed.load(Ordering::SeqCst), 0);
+        assert_eq!(ledger.completed.load(Ordering::SeqCst), 1);
+        assert!(!ledger.begin(event.event_id()).await.unwrap());
+        let requests = fixture.server().received_requests().await.unwrap();
+        assert_eq!(
+            requests.len(),
+            1,
+            "completed replay must not write tuples again"
+        );
+        let sent: serde_json::Value = serde_json::from_slice(&requests[0].body).unwrap();
+        let owner: Uuid = serde_json::from_value(event.payload["owner_user_id"].clone()).unwrap();
+        let subject = Subject::from_principal(
+            PrincipalRef::new(ORGANIZATION, owner).unwrap(),
+            &PrincipalPolicy::new(PLATFORM, false).unwrap(),
+        )
+        .unwrap()
+        .to_string();
+        assert!(subject.starts_with("user:p1."));
+        assert_eq!(sent["writes"]["tuple_keys"][0]["user"], subject);
+        assert_eq!(sent["writes"]["tuple_keys"][0]["relation"], "owner");
+        assert_eq!(
+            sent["writes"]["tuple_keys"][0]["object"],
+            format!("organization:{}", event.aggregate_id())
+        );
+    }
+
+    #[tokio::test]
+    async fn sentinel_principal_unknown_event_remains_completed_noop() {
+        let (fixture, client) = classifier_client(200, serde_json::json!({})).await;
+        let ledger = Arc::new(DeliveryLedger::default());
+        let handler = SyncEventHandler::new(translators(), ledger.clone(), client);
+        let event = event("unrelated_fixture_event", None);
+        handler.handle_event(Box::new(event.clone())).await.unwrap();
+        assert_eq!(ledger.failed.load(Ordering::SeqCst), 0);
+        assert_eq!(ledger.completed.load(Ordering::SeqCst), 1);
+        assert!(!ledger.begin(event.event_id()).await.unwrap());
+        assert!(fixture
+            .server()
+            .received_requests()
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    struct ErrorTranslator;
+    impl Translator for ErrorTranslator {
+        fn name(&self) -> &'static str {
+            "fixture"
+        }
+        fn translate(&self, _: &serde_json::Value) -> anyhow::Result<Option<TupleDelta>> {
+            Err(anyhow::anyhow!(
+                "untrusted-issuer://credential-canary/payload"
+            ))
+        }
+    }
+
+    struct LaterTranslator(Arc<AtomicUsize>);
+    impl Translator for LaterTranslator {
+        fn name(&self) -> &'static str {
+            "later-fixture"
+        }
+        fn translate(&self, _: &serde_json::Value) -> anyhow::Result<Option<TupleDelta>> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Ok(Some(TupleDelta::default()))
+        }
+    }
+
+    #[tokio::test]
+    async fn sentinel_principal_writer_error_is_opaque() {
+        let (fixture, client) = classifier_client(
+            503,
+            serde_json::json!({
+                "message": "untrusted-issuer://credential-canary/payload"
+            }),
+        )
+        .await;
+        let ledger = Arc::new(DeliveryLedger::default());
+        let handler = SyncEventHandler::new(translators(), ledger.clone(), client);
+        let event = event("organization_created", Some(ORGANIZATION));
+        let error = handler
+            .handle_event(Box::new(event.clone()))
+            .await
+            .expect_err("writer rejection stays retryable without echoing the response body");
+        assert!(error.to_string().contains("OPENFGA_WRITE_FAILED"));
+        assert!(!error.to_string().contains("credential-canary"));
+        assert_eq!(*ledger.errors.lock().unwrap(), ["OPENFGA_WRITE_FAILED"]);
+        assert_eq!(ledger.failed.load(Ordering::SeqCst), 1);
+        assert_eq!(ledger.completed.load(Ordering::SeqCst), 0);
+        assert!(ledger.begin(event.event_id()).await.unwrap());
+        assert_eq!(fixture.server().received_requests().await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn sentinel_principal_translator_error_is_opaque() {
+        let (fixture, client) = classifier_client(200, serde_json::json!({})).await;
+        let ledger = Arc::new(DeliveryLedger::default());
+        let later_calls = Arc::new(AtomicUsize::new(0));
+        let handler = SyncEventHandler::new(
+            vec![
+                Arc::new(ErrorTranslator),
+                Arc::new(LaterTranslator(later_calls.clone())),
+            ],
+            ledger.clone(),
+            client,
+        );
+        let event = event("claimed_fixture_event", None);
+        let error = handler
+            .handle_event(Box::new(event))
+            .await
+            .expect_err("claimed translator failure must not be acknowledged");
+        assert!(error.to_string().contains("EVENT_TRANSLATION_FAILED"));
+        assert!(!error.to_string().contains("credential-canary"));
+        assert_eq!(*ledger.errors.lock().unwrap(), ["EVENT_TRANSLATION_FAILED"]);
+        assert_eq!(ledger.failed.load(Ordering::SeqCst), 1);
+        assert_eq!(ledger.completed.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            later_calls.load(Ordering::SeqCst),
+            0,
+            "a claimed error must not fall through to another translator"
+        );
+        assert!(fixture
+            .server()
+            .received_requests()
+            .await
+            .unwrap()
+            .is_empty());
+    }
+}
+
 fn duplicate_message(tuple: &Tuple) -> String {
     format!(
         "cannot write a tuple which already exists: user: '{}:{}', relation: '{}', object: '{}:{}': invalid write input",

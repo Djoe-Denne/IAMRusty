@@ -16,6 +16,7 @@ pub struct Model {
     pub description: Option<String>,
     pub avatar_url: Option<String>,
     pub owner_user_id: Uuid,
+    pub owner_issuer: Option<String>,
     pub settings: Value,
     pub signing_profile_id: Option<Uuid>,
     pub signing_status: Option<String>,

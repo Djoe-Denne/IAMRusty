@@ -14,6 +14,9 @@ pub struct Organization {
     pub description: Option<String>,
     pub avatar_url: Option<String>,
     pub owner_user_id: Uuid,
+    /// None is unresolved legacy provenance, never the current caller's issuer.
+    #[serde(default)]
+    pub owner_issuer: Option<String>,
     pub settings: Value,
     /// UX-only IAM signing profile id (ADR-0306) — never a secret.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -48,6 +51,7 @@ impl Organization {
             description,
             avatar_url: None,
             owner_user_id,
+            owner_issuer: None,
             settings: serde_json::json!({
                 "visibility": "Private",
             }),

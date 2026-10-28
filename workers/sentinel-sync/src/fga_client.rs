@@ -23,6 +23,26 @@ pub struct Tuple {
 }
 
 impl Tuple {
+    /// Use the SDK's single canonical identity codec for writes and deletes.
+    pub fn for_subject(
+        object_type: impl Into<String>,
+        object_id: Uuid,
+        relation: impl Into<String>,
+        subject: rustycog::permission::Subject,
+    ) -> Self {
+        let wire = subject.to_string();
+        Self {
+            object_type: object_type.into(),
+            object_id: object_id.to_string(),
+            relation: relation.into(),
+            user_type: "user".into(),
+            user_id: wire
+                .strip_prefix("user:")
+                .expect("SDK Subject always has user type")
+                .into(),
+        }
+    }
+
     /// Tuple with a `user:{uuid}` subject.
     pub fn user(
         object_type: impl Into<String>,

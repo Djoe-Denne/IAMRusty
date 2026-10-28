@@ -55,6 +55,9 @@ tower = { workspace = true }
 tower-http = { workspace = true }
 
 [dev-dependencies]
+# Local, independent RS256 identities for the authority-collision regression.
+jsonwebtoken.workspace = true
+rsa.workspace = true
 tokio = { workspace = true }
 axum-test = { workspace = true }
 tokio-test = { workspace = true }

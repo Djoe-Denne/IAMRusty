@@ -324,6 +324,24 @@ pub async fn setup_test_server_with_iam_service(
     ),
     Box<dyn std::error::Error>,
 > {
+    setup_test_server_with_auth_and_iam(iam, None).await
+}
+
+/// Same real harness and lifecycle, with an explicit verifier configuration for
+/// recognized-authority regressions. Does not replace the permission checker.
+pub async fn setup_test_server_with_auth_and_iam(
+    iam: hive_configuration::IamServiceConfig,
+    auth: Option<rustycog::config::AuthConfig>,
+) -> Result<
+    (
+        HiveTestFixture,
+        String,
+        Client,
+        TestOpenFga,
+        rustycog::config::AuthConfig,
+    ),
+    Box<dyn std::error::Error>,
+> {
     // Never reset migrations underneath another live owned listener.
     reclaim_finished_owned_listeners().await;
     if !owned_listeners()
@@ -347,6 +365,10 @@ pub async fn setup_test_server_with_iam_service(
     let mut config = rustycog::config::load_config_fresh::<AppConfig>()?;
     apply_fixture_database_url(&mut config, &database.database_url)?;
     config.iam_service = iam;
+    if let Some(auth) = auth {
+        config.auth = auth;
+    }
+    config.openfga.cache_ttl_seconds = Some(0);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
     config.server.host = "127.0.0.1".into();

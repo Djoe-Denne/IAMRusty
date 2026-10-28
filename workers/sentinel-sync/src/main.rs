@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
         Arc::from(build_ledger(&config.idempotency).await?);
 
     let translators: Vec<Arc<dyn sentinel_sync::translator::Translator>> = vec![
-        Arc::new(HiveTranslator::new()),
+        Arc::new(HiveTranslator::new(config.principal.clone())),
         Arc::new(ManifestoTranslator::new()),
         Arc::new(IamTranslator::new()),
         Arc::new(TelegraphTranslator::new()),

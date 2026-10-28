@@ -10,6 +10,7 @@ use crate::{
     service::{invitation_service::InvitationService, organization_service::OrganizationService},
 };
 use rustycog::core::error::DomainError;
+use rustycog::permission::{PrincipalPolicy, PrincipalRef};
 
 /// Domain service for sync job management
 pub struct SyncServiceImpl<SR, LR, OR, OS, IS, PC>
@@ -27,6 +28,7 @@ where
     organization_service: Arc<OS>,
     invitation_service: Arc<IS>,
     provider_client: Arc<PC>,
+    principal_policy: Arc<PrincipalPolicy>,
 }
 
 /// Result of a member sync operation
@@ -100,6 +102,7 @@ where
         organization_service: Arc<OS>,
         invitation_service: Arc<IS>,
         provider_client: Arc<PC>,
+        principal_policy: Arc<PrincipalPolicy>,
     ) -> Self {
         Self {
             sync_job_repo,
@@ -108,6 +111,7 @@ where
             organization_service,
             invitation_service,
             provider_client,
+            principal_policy,
         }
     }
 
@@ -364,6 +368,20 @@ where
                 )
             })?;
 
+        // Re-read authoritative owner provenance even for historical jobs.
+        // Reject UUID-only invitations before contacting the external provider.
+        let organization = self
+            .organization_repo
+            .find_by_id(&external_link.organization_id)
+            .await?
+            .ok_or_else(|| {
+                DomainError::entity_not_found(
+                    "Organization",
+                    &external_link.organization_id.to_string(),
+                )
+            })?;
+        require_auto_invite_owner(&self.principal_policy, &organization, auto_invite)?;
+
         // Get members from external provider
         let provider_source = external_link
             .provider_source
@@ -380,18 +398,6 @@ where
             members_invited: 0,
             errors: Vec::new(),
         };
-
-        // Get organization for owner information
-        let organization = self
-            .organization_repo
-            .find_by_id(&external_link.organization_id)
-            .await?
-            .ok_or_else(|| {
-                DomainError::entity_not_found(
-                    "Organization",
-                    &external_link.organization_id.to_string(),
-                )
-            })?;
 
         // Create invitation
         let invitation_message = Some(format!(
@@ -415,3 +421,28 @@ where
         Ok(result)
     }
 }
+
+fn require_auto_invite_owner(
+    policy: &PrincipalPolicy,
+    organization: &Organization,
+    auto_invite: bool,
+) -> Result<(), DomainError> {
+    if !auto_invite {
+        return Ok(());
+    }
+    let incompatible = || DomainError::permission_denied("PRINCIPAL_INCOMPATIBLE");
+    let issuer = organization
+        .owner_issuer
+        .as_deref()
+        .ok_or_else(incompatible)?;
+    let owner =
+        PrincipalRef::new(issuer, organization.owner_user_id).map_err(|_| incompatible())?;
+    policy
+        .platform_user_id(&owner)
+        .map_err(|_| incompatible())?;
+    Ok(())
+}
+
+#[cfg(test)]
+#[path = "sync_service_principal_tests.rs"]
+mod principal_tests;

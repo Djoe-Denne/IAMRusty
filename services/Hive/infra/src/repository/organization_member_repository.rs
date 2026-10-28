@@ -9,7 +9,7 @@ use hive_domain::port::repository::{
 use rustycog::core::error::DomainError;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
-    Order, PaginatorTrait, QueryFilter, QueryOrder,
+    Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -104,19 +104,21 @@ impl OrganizationMemberReadRepositoryImpl {
     where
         C: ConnectionTrait,
     {
-        let aliases = hive_domain::platform_issuer_aliases(issuer);
         let models = OrganizationMembers::find()
             .filter(organization_members::Column::OrganizationId.eq(*organization_id))
-            .filter(organization_members::Column::Issuer.is_in(aliases))
+            .filter(organization_members::Column::Issuer.eq(issuer))
             .filter(organization_members::Column::UserId.eq(*user_id))
+            .limit(2)
             .all(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        let model = models
-            .iter()
-            .find(|m| m.issuer == issuer)
-            .or_else(|| models.first());
+        if models.len() > 1 {
+            return Err(DomainError::BusinessRuleViolation {
+                rule: "MEMBER_PRINCIPAL_AMBIGUOUS".into(),
+            });
+        }
+        let model = models.first();
 
         match model {
             Some(model) => Ok(Some(OrganizationMemberMapper::to_domain(model)?)),
@@ -139,15 +141,21 @@ impl OrganizationMemberReadRepositoryImpl {
     where
         C: ConnectionTrait,
     {
-        let member = OrganizationMembers::find()
+        let members = OrganizationMembers::find()
             .filter(organization_members::Column::OrganizationId.eq(*organization_id))
             .filter(organization_members::Column::UserId.eq(*user_id))
-            .one(db)
+            .limit(2)
+            .all(db)
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;
 
-        match member {
-            Some(model) => Ok(Some(OrganizationMemberMapper::to_domain(&model)?)),
+        if members.len() > 1 {
+            return Err(DomainError::BusinessRuleViolation {
+                rule: "MEMBER_PRINCIPAL_AMBIGUOUS".into(),
+            });
+        }
+        match members.first() {
+            Some(model) => Ok(Some(OrganizationMemberMapper::to_domain(model)?)),
             None => Ok(None),
         }
     }

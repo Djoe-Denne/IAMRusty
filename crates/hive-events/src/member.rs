@@ -75,6 +75,8 @@ pub struct MemberRemovedEvent {
     pub user_id: Uuid,
     pub user_email: String,
     pub removed_by_user_id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub removed_by_issuer: Option<String>,
     pub removed_at: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub issuer: Option<String>,
@@ -174,6 +176,7 @@ impl MemberRemovedEvent {
             user_id,
             user_email,
             removed_by_user_id,
+            removed_by_issuer: None,
             removed_at,
             issuer: None,
         }

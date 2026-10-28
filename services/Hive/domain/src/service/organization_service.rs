@@ -77,6 +77,7 @@ pub trait OrganizationService: Send + Sync {
     async fn list_user_organizations(
         &self,
         user_id: &Uuid,
+        issuer: &str,
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Organization>, DomainError>;
@@ -89,7 +90,7 @@ pub trait OrganizationService: Send + Sync {
     async fn search_organizations(
         &self,
         name_pattern: &str,
-        _user_id: Option<Uuid>,
+        principal: Option<rustycog::permission::PrincipalRef>,
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Organization>, DomainError>;
@@ -128,6 +129,17 @@ where
         organization: &Organization,
         issuer: &str,
     ) -> Result<Organization, DomainError> {
+        rustycog::permission::PrincipalRef::new(issuer, organization.owner_user_id)
+            .map_err(|_| DomainError::invalid_input("PRINCIPAL_INVALID"))?;
+        if organization
+            .owner_issuer
+            .as_deref()
+            .is_some_and(|owner| owner != issuer)
+        {
+            return Err(DomainError::invalid_input("PRINCIPAL_INVALID"));
+        }
+        let mut organization = organization.clone();
+        organization.owner_issuer = Some(issuer.to_owned());
         // Business rule: Check if organization with same slug already exists
         if self
             .organization_repo
@@ -140,7 +152,7 @@ where
             ));
         }
 
-        let saved_org = self.organization_repo.save(organization).await?;
+        let saved_org = self.organization_repo.save(&organization).await?;
 
         // Create default system roles for the organization
         let default_roles = self
@@ -252,11 +264,12 @@ where
     async fn list_user_organizations(
         &self,
         user_id: &Uuid,
+        issuer: &str,
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Organization>, DomainError> {
         self.organization_repo
-            .find_by_user_membership(user_id, page, page_size)
+            .find_by_user_membership(user_id, issuer, page, page_size)
             .await
     }
 
@@ -264,12 +277,12 @@ where
     async fn search_organizations(
         &self,
         name_pattern: &str,
-        user_id: Option<Uuid>,
+        principal: Option<rustycog::permission::PrincipalRef>,
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Organization>, DomainError> {
         self.organization_repo
-            .search_by_name(user_id, name_pattern, page, page_size)
+            .search_by_name(principal, name_pattern, page, page_size)
             .await
     }
 }

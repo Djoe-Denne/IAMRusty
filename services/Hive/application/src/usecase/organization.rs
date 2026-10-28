@@ -60,6 +60,7 @@ pub trait OrganizationUseCase: Send + Sync {
         organization_id: Uuid,
         request: &UpdateOrganizationRequest,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<OrganizationResponse, ApplicationError>;
 
     /**
@@ -72,6 +73,7 @@ pub trait OrganizationUseCase: Send + Sync {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<(), ApplicationError>;
 
     /**
@@ -83,6 +85,7 @@ pub trait OrganizationUseCase: Send + Sync {
     async fn list_organizations(
         &self,
         user_id: Uuid,
+        issuer: &str,
         pagination: &PaginationRequest,
     ) -> Result<OrganizationListResponse, ApplicationError>;
 
@@ -95,13 +98,15 @@ pub trait OrganizationUseCase: Send + Sync {
     async fn search_organizations(
         &self,
         request: &OrganizationSearchRequest,
-        user_id: Option<Uuid>,
+        principal: Option<rustycog::permission::PrincipalRef>,
     ) -> Result<OrganizationListResponse, ApplicationError>;
 }
 
 pub struct OrganizationUseCaseImpl {
     organization_service: Arc<dyn OrganizationService>,
-    member_service: Arc<dyn MemberService>,
+    // Retain the existing constructor/lifetime contract. Deletion now reads
+    // authoritative membership through the writer UoW, never this read service.
+    _member_service: Arc<dyn MemberService>,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
     outbox_unit_of_work: Option<Arc<dyn HiveOutboxUnitOfWork>>,
 }
@@ -115,7 +120,7 @@ impl OrganizationUseCaseImpl {
     ) -> Self {
         Self {
             organization_service,
-            member_service,
+            _member_service: member_service,
             event_publisher,
             outbox_unit_of_work: None,
         }
@@ -129,7 +134,7 @@ impl OrganizationUseCaseImpl {
     ) -> Self {
         Self {
             organization_service,
-            member_service,
+            _member_service: member_service,
             event_publisher,
             outbox_unit_of_work: Some(outbox_unit_of_work),
         }
@@ -173,21 +178,23 @@ impl OrganizationUseCaseImpl {
         &self,
         organization: &Organization,
     ) -> Result<(), ApplicationError> {
-        let event = HiveDomainEvent::OrganizationCreated(OrganizationCreatedEvent::new(
+        let mut event = OrganizationCreatedEvent::new(
             organization.id,
             organization.name.clone(),
             organization.slug.clone(),
             organization.owner_user_id,
             organization.created_at,
-        ));
-
-        self.record_or_publish_event(event.into()).await
+        );
+        event.owner_issuer = organization.owner_issuer.clone();
+        self.record_or_publish_event(HiveDomainEvent::OrganizationCreated(event).into())
+            .await
     }
 
     fn organization_updated_event(
         organization: &Organization,
         request: &UpdateOrganizationRequest,
         user_id: Uuid,
+        issuer: &str,
     ) -> HiveDomainEvent {
         let updated_fields = vec![
             if request.name.is_some() {
@@ -215,13 +222,18 @@ impl OrganizationUseCaseImpl {
         .filter(|field| *field != String::new())
         .collect::<Vec<String>>();
 
-        HiveDomainEvent::OrganizationUpdated(OrganizationUpdatedEvent::new(
+        let mut event = OrganizationUpdatedEvent::new(
             organization.id,
             organization.name.clone(),
             updated_fields,
             user_id,
             Utc::now(),
-        ))
+        );
+        event
+            .base
+            .metadata
+            .insert("updated_by_issuer".into(), issuer.to_owned());
+        HiveDomainEvent::OrganizationUpdated(event)
     }
 
     /// Publish organization updated event
@@ -230,30 +242,12 @@ impl OrganizationUseCaseImpl {
         organization: &Organization,
         request: &UpdateOrganizationRequest,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<(), ApplicationError> {
         self.record_or_publish_event(
-            Self::organization_updated_event(organization, request, user_id).into(),
+            Self::organization_updated_event(organization, request, user_id, issuer).into(),
         )
         .await
-    }
-
-    /// Publish organization deleted event
-    async fn publish_organization_deleted_event(
-        &self,
-        organization: &Organization,
-        member_user_ids: Vec<Uuid>,
-        user_id: Uuid,
-    ) -> Result<(), ApplicationError> {
-        let event = HiveDomainEvent::OrganizationDeleted(OrganizationDeletedEvent::new(
-            organization.id,
-            organization.name.clone(),
-            organization.owner_user_id,
-            member_user_ids,
-            user_id,
-            Utc::now(),
-        ));
-
-        self.record_or_publish_event(event.into()).await
     }
 }
 
@@ -266,24 +260,33 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
         issuer: &str,
     ) -> Result<OrganizationResponse, ApplicationError> {
         // Create the organization
-        let organization = Organization::new(
+        let mut organization = Organization::new(
             request.name.clone(),
             request.slug.clone(),
             request.description.clone(),
             user_id,
         )
         .map_err(ApplicationError::Domain)?;
+        rustycog::permission::PrincipalRef::new(issuer, user_id).map_err(|_| {
+            ApplicationError::Domain(DomainError::invalid_input("PRINCIPAL_INVALID"))
+        })?;
+        organization.owner_issuer = Some(issuer.to_owned());
 
         let saved_org = if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
-            let event = HiveDomainEvent::OrganizationCreated(OrganizationCreatedEvent::new(
+            let mut event = OrganizationCreatedEvent::new(
                 organization.id,
                 organization.name.clone(),
                 organization.slug.clone(),
                 organization.owner_user_id,
                 organization.created_at,
-            ));
+            );
+            event.owner_issuer = organization.owner_issuer.clone();
             outbox_unit_of_work
-                .create_organization(organization, issuer.to_string(), event.into())
+                .create_organization(
+                    organization,
+                    issuer.to_string(),
+                    HiveDomainEvent::OrganizationCreated(event).into(),
+                )
                 .await?
         } else {
             let saved_org = self
@@ -317,7 +320,11 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
         organization_id: Uuid,
         request: &UpdateOrganizationRequest,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<OrganizationResponse, ApplicationError> {
+        rustycog::permission::PrincipalRef::new(issuer, user_id).map_err(|_| {
+            ApplicationError::Domain(DomainError::invalid_input("PRINCIPAL_INVALID"))
+        })?;
         let updated_organization = if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
             let mut organization = self
                 .organization_service
@@ -336,7 +343,7 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
             if let Some(new_settings) = request.settings.clone() {
                 organization.update_settings(new_settings);
             }
-            let event = Self::organization_updated_event(&organization, request, user_id);
+            let event = Self::organization_updated_event(&organization, request, user_id, issuer);
             outbox_unit_of_work
                 .update_organization(organization, event.into())
                 .await?
@@ -352,8 +359,13 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
                 )
                 .await
                 .map_err(ApplicationError::Domain)?;
-            self.publish_organization_updated_event(&updated_organization, request, user_id)
-                .await?;
+            self.publish_organization_updated_event(
+                &updated_organization,
+                request,
+                user_id,
+                issuer,
+            )
+            .await?;
             updated_organization
         };
 
@@ -364,7 +376,16 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
         &self,
         organization_id: Uuid,
         user_id: Uuid,
+        issuer: &str,
     ) -> Result<(), ApplicationError> {
+        rustycog::permission::PrincipalRef::new(issuer, user_id).map_err(|_| {
+            ApplicationError::Domain(DomainError::invalid_input("PRINCIPAL_INVALID"))
+        })?;
+        let outbox_unit_of_work = self.outbox_unit_of_work.as_ref().ok_or_else(|| {
+            ApplicationError::internal_error(
+                "Authoritative membership writer required for organization deletion",
+            )
+        })?;
         // Get organization for event
         let organization = self
             .organization_service
@@ -372,33 +393,21 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
             .await
             .map_err(ApplicationError::Domain)?;
 
-        let members = self
-            .member_service
-            .list_active_members(organization_id)
-            .await
-            .map_err(ApplicationError::Domain)?;
-        let member_user_ids = members.iter().map(|member| member.user_id).collect();
-
-        if let Some(outbox_unit_of_work) = &self.outbox_unit_of_work {
-            let event = HiveDomainEvent::OrganizationDeleted(OrganizationDeletedEvent::new(
-                organization.id,
-                organization.name.clone(),
-                organization.owner_user_id,
-                member_user_ids,
-                user_id,
-                Utc::now(),
-            ));
-            outbox_unit_of_work
-                .delete_organization(organization_id, event.into())
-                .await?;
-        } else {
-            self.organization_service
-                .delete_organization(organization_id)
-                .await
-                .map_err(ApplicationError::Domain)?;
-            self.publish_organization_deleted_event(&organization, member_user_ids, user_id)
-                .await?;
-        }
+        let mut event = OrganizationDeletedEvent::new(
+            organization.id,
+            organization.name.clone(),
+            organization.owner_user_id,
+            Vec::new(),
+            user_id,
+            Utc::now(),
+        );
+        event
+            .base
+            .metadata
+            .insert("deleted_by_issuer".into(), issuer.to_owned());
+        outbox_unit_of_work
+            .delete_organization(organization_id, event)
+            .await?;
 
         Ok(())
     }
@@ -406,11 +415,15 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
     async fn list_organizations(
         &self,
         user_id: Uuid,
+        issuer: &str,
         pagination: &PaginationRequest,
     ) -> Result<OrganizationListResponse, ApplicationError> {
+        rustycog::permission::PrincipalRef::new(issuer, user_id).map_err(|_| {
+            ApplicationError::Domain(DomainError::invalid_input("PRINCIPAL_INVALID"))
+        })?;
         let organizations = self
             .organization_service
-            .list_user_organizations(&user_id, pagination.page(), pagination.page_size())
+            .list_user_organizations(&user_id, issuer, pagination.page(), pagination.page_size())
             .await
             .map_err(ApplicationError::Domain)?;
 
@@ -439,13 +452,13 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
     async fn search_organizations(
         &self,
         request: &OrganizationSearchRequest,
-        user_id: Option<Uuid>,
+        principal: Option<rustycog::permission::PrincipalRef>,
     ) -> Result<OrganizationListResponse, ApplicationError> {
         let organizations = self
             .organization_service
             .search_organizations(
                 &request.query,
-                user_id,
+                principal,
                 request.page.unwrap_or(1),
                 request.page_size.unwrap_or(10),
             )

@@ -12,6 +12,29 @@ use crate::{
     ApplicationError,
 };
 
+fn member_operation_error(error: ApplicationError, fallback: &'static str) -> CommandError {
+    use rustycog::core::error::DomainError;
+    let code = match &error {
+        ApplicationError::Domain(DomainError::BusinessRuleViolation { rule })
+            if rule == "MEMBER_PRINCIPAL_AMBIGUOUS" =>
+        {
+            "MEMBER_PRINCIPAL_AMBIGUOUS"
+        }
+        ApplicationError::Domain(DomainError::InvalidInput { message })
+            if message == "PRINCIPAL_INVALID" =>
+        {
+            "PRINCIPAL_INVALID"
+        }
+        ApplicationError::Domain(DomainError::PermissionDenied { message })
+            if message == "PRINCIPAL_INCOMPATIBLE" =>
+        {
+            "PRINCIPAL_INCOMPATIBLE"
+        }
+        _ => fallback,
+    };
+    CommandError::business(code, error.to_string())
+}
+
 // Add Member Command
 #[derive(Debug, Clone)]
 pub struct AddMemberCommand {
@@ -78,7 +101,7 @@ impl CommandHandler<AddMemberCommand> for AddMemberCommandHandler {
                 &command.issuer,
             )
             .await
-            .map_err(|e| CommandError::business("add_member_failed", e.to_string()))
+            .map_err(|e| member_operation_error(e, "add_member_failed"))
     }
 }
 
@@ -90,6 +113,7 @@ pub struct RemoveMemberCommand {
     pub user_id: Uuid,
     pub removed_by_user_id: Uuid,
     pub issuer: String,
+    pub target_issuer: String,
 }
 
 impl RemoveMemberCommand {
@@ -100,13 +124,21 @@ impl RemoveMemberCommand {
         removed_by_user_id: Uuid,
         issuer: impl Into<String>,
     ) -> Self {
+        let issuer = issuer.into();
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
             user_id,
             removed_by_user_id,
-            issuer: issuer.into(),
+            target_issuer: issuer.clone(),
+            issuer,
         }
+    }
+
+    #[must_use]
+    pub fn with_target_issuer(mut self, issuer: String) -> Self {
+        self.target_issuer = issuer;
+        self
     }
 }
 
@@ -141,9 +173,15 @@ impl RemoveMemberCommandHandler {
 impl CommandHandler<RemoveMemberCommand> for RemoveMemberCommandHandler {
     async fn handle(&self, command: RemoveMemberCommand) -> Result<(), CommandError> {
         self.member_usecase
-            .remove_member(command.organization_id, command.user_id, &command.issuer)
+            .remove_member(
+                command.organization_id,
+                command.user_id,
+                &command.target_issuer,
+                command.removed_by_user_id,
+                &command.issuer,
+            )
             .await
-            .map_err(|e| CommandError::business("remove_member_failed", e.to_string()))
+            .map_err(|e| member_operation_error(e, "remove_member_failed"))
     }
 }
 
@@ -220,7 +258,7 @@ impl CommandHandler<ListMembersCommand> for ListMembersCommandHandler {
                 &command.issuer,
             )
             .await
-            .map_err(|e| CommandError::business("list_members_failed", e.to_string()))
+            .map_err(|e| member_operation_error(e, "list_members_failed"))
     }
 }
 
@@ -232,6 +270,7 @@ pub struct GetMemberCommand {
     pub user_id: Uuid,
     pub requesting_user_id: Option<Uuid>,
     pub issuer: String,
+    pub target_issuer: String,
 }
 
 impl GetMemberCommand {
@@ -242,13 +281,21 @@ impl GetMemberCommand {
         requesting_user_id: Option<Uuid>,
         issuer: impl Into<String>,
     ) -> Self {
+        let issuer = issuer.into();
         Self {
             command_id: Uuid::new_v4(),
             organization_id,
             user_id,
             requesting_user_id,
-            issuer: issuer.into(),
+            target_issuer: issuer.clone(),
+            issuer,
         }
+    }
+
+    #[must_use]
+    pub fn with_target_issuer(mut self, issuer: String) -> Self {
+        self.target_issuer = issuer;
+        self
     }
 }
 
@@ -291,9 +338,10 @@ impl CommandHandler<GetMemberCommand> for GetMemberCommandHandler {
                 command.user_id,
                 requester_id,
                 &command.issuer,
+                &command.target_issuer,
             )
             .await
-            .map_err(|e| CommandError::business("get_member_failed", e.to_string()))
+            .map_err(|e| member_operation_error(e, "get_member_failed"))
     }
 }
 
@@ -367,7 +415,7 @@ impl CommandHandler<UpdateMemberCommand> for UpdateMemberCommandHandler {
                 &command.issuer,
             )
             .await
-            .map_err(|e| CommandError::business("update_member_failed", e.to_string()))
+            .map_err(|e| member_operation_error(e, "update_member_failed"))
     }
 }
 

@@ -6,7 +6,7 @@ use hive_application::{
     GetRoleCommand, ListRolesCommand, MemberRole, MemberRoleListResponse, PaginationRequest,
 };
 use rustycog::command::CommandContext;
-use rustycog::http::{AppState, AuthUser};
+use rustycog::http::{AppState, AuthPrincipal};
 use rustycog::permission::ResourceId;
 
 use crate::error::HttpError;
@@ -20,13 +20,15 @@ use crate::error::HttpError;
 pub async fn list_roles(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
-    auth_user: AuthUser,
+    auth_user: AuthPrincipal,
     Query(pagination): Query<PaginationRequest>,
 ) -> Result<Json<MemberRoleListResponse>, HttpError> {
     tracing::info!("Listing roles for organization: {}", organization_id);
 
     let command = ListRolesCommand::new(organization_id.id(), pagination);
-    let context = CommandContext::new().with_user_id(auth_user.user_id);
+    let context = CommandContext::new()
+        .with_user_id(auth_user.principal.subject)
+        .with_metadata("principal_issuer".into(), auth_user.principal.issuer);
 
     let result = state
         .command_service
@@ -48,7 +50,7 @@ pub async fn list_roles(
 pub async fn get_role(
     State(state): State<AppState>,
     Path((organization_id, role_id)): Path<(ResourceId, ResourceId)>,
-    auth_user: AuthUser,
+    auth_user: AuthPrincipal,
 ) -> Result<Json<MemberRole>, HttpError> {
     tracing::info!(
         "Getting role {} from organization: {}",
@@ -57,7 +59,9 @@ pub async fn get_role(
     );
 
     let command = GetRoleCommand::new(organization_id.id(), role_id.id());
-    let context = CommandContext::new().with_user_id(auth_user.user_id);
+    let context = CommandContext::new()
+        .with_user_id(auth_user.principal.subject)
+        .with_metadata("principal_issuer".into(), auth_user.principal.issuer);
 
     let result = state
         .command_service

@@ -13,12 +13,17 @@ use crate::dto::{role::MemberRole, PaginationResponse};
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct AddMemberRequest {
     pub user_id: Uuid,
+    /// Defaults only to the verified actor's exact authority.
+    #[serde(default)]
+    pub issuer: Option<String>,
     pub roles: Vec<MemberRole>,
 }
 
 /// DTO for updating a member's role or status
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct UpdateMemberRolesRequest {
+    #[serde(default)]
+    pub issuer: Option<String>,
     pub roles: Vec<MemberRole>,
 }
 

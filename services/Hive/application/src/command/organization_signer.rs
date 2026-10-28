@@ -404,6 +404,7 @@ mod tests {
         async fn find_by_user_membership(
             &self,
             _: &Uuid,
+            _: &str,
             _: u32,
             _: u32,
         ) -> Result<Vec<Organization>, DomainError> {
@@ -412,7 +413,7 @@ mod tests {
 
         async fn search_by_name(
             &self,
-            _: Option<Uuid>,
+            _: Option<rustycog::permission::PrincipalRef>,
             _: &str,
             _: u32,
             _: u32,

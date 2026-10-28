@@ -22,6 +22,7 @@ async fn add_member_requires_auth() {
 
     let new_user = Uuid::new_v4();
     let body = AddMemberRequest {
+        issuer: None,
         user_id: new_user,
         roles: vec![MemberRole {
             organization_id: org.id,
@@ -67,6 +68,7 @@ async fn add_member_forbidden_for_read_only_member() {
 
     let new_user = Uuid::new_v4();
     let body = AddMemberRequest {
+        issuer: None,
         user_id: new_user,
         roles: vec![MemberRole {
             organization_id: org.id,
@@ -108,6 +110,7 @@ async fn add_member_happy_path_by_owner() {
 
     let new_user = Uuid::new_v4();
     let body = AddMemberRequest {
+        issuer: None,
         user_id: new_user,
         roles: vec![MemberRole {
             organization_id: org.id,
@@ -127,6 +130,7 @@ async fn add_member_happy_path_by_owner() {
     let member: MemberResponse = res.json().await.unwrap();
     assert_eq!(member.organization_id, org.id);
     assert_eq!(member.user_id, new_user);
+    assert_eq!(member.issuer, TEST_JWT_ISSUER);
 
     // Assert in DB
     let got = organization_members::Entity::find_by_id(member.id)

@@ -249,6 +249,7 @@ async fn routes_member_joined_to_sentinel_sync_queue() {
         .expect("failed to grant organization write");
 
     let body = AddMemberRequest {
+        issuer: None,
         user_id: new_user_id,
         roles: vec![MemberRole {
             organization_id: org.id,
@@ -379,6 +380,7 @@ async fn routes_member_roles_updated_to_sentinel_sync_queue() {
         .post(format!("{server_url}/api/organizations/{}/members", org.id))
         .header("Authorization", format!("Bearer {token}"))
         .json(&AddMemberRequest {
+            issuer: None,
             user_id: member_user_id,
             roles: vec![MemberRole {
                 organization_id: org.id,
@@ -399,6 +401,7 @@ async fn routes_member_roles_updated_to_sentinel_sync_queue() {
         ))
         .header("Authorization", format!("Bearer {token}"))
         .json(&hive_application::dto::member::UpdateMemberRolesRequest {
+            issuer: None,
             roles: vec![MemberRole {
                 organization_id: org.id,
                 resource: "organization".to_string(),

@@ -177,3 +177,110 @@ pub async fn enforce_world_read_or_principal(
         "Public-read is not available for this project",
     ))
 }
+
+#[cfg(test)]
+mod public_only_tests {
+    use super::*;
+    use manifesto_domain::value_objects::MemberSource;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct MemberProbe(AtomicUsize);
+    impl MemberProbe {
+        fn touched(&self) -> DomainError {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            DomainError::permission_denied(
+                "Public-only read must not enter a UUID-only member lookup",
+            )
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl MemberService for MemberProbe {
+        async fn get_member(&self, _: Uuid, _: Uuid) -> Result<ProjectMember, DomainError> {
+            Err(self.touched())
+        }
+        async fn add_member(&self, _: ProjectMember) -> Result<ProjectMember, DomainError> {
+            Err(self.touched())
+        }
+        async fn update_member(&self, _: ProjectMember) -> Result<ProjectMember, DomainError> {
+            Err(self.touched())
+        }
+        async fn remove_member(
+            &self,
+            _: &Uuid,
+            _: &Uuid,
+            _: Option<i64>,
+        ) -> Result<(), DomainError> {
+            Err(self.touched())
+        }
+        async fn list_members(
+            &self,
+            _: &Uuid,
+            _: Option<MemberSource>,
+            _: bool,
+            _: u32,
+            _: u32,
+        ) -> Result<Vec<ProjectMember>, DomainError> {
+            Err(self.touched())
+        }
+        async fn count_active_members(&self, _: &Uuid) -> Result<i64, DomainError> {
+            Err(self.touched())
+        }
+        async fn check_member_exists(&self, _: &Uuid, _: &Uuid) -> Result<bool, DomainError> {
+            Err(self.touched())
+        }
+    }
+
+    struct OrgAdminProbe(AtomicUsize);
+    #[async_trait::async_trait]
+    impl PermissionChecker for OrgAdminProbe {
+        async fn check(
+            &self,
+            _: Subject,
+            _: Permission,
+            _: ResourceRef,
+        ) -> Result<bool, DomainError> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Ok(true) // Would allow if a foreign UUID accidentally reached this branch.
+        }
+    }
+
+    #[tokio::test]
+    async fn public_only_read_never_looks_up_members_or_org_admin() {
+        let member_probe = Arc::new(MemberProbe(AtomicUsize::new(0)));
+        let org_probe = Arc::new(OrgAdminProbe(AtomicUsize::new(0)));
+        let members: Arc<dyn MemberService> = member_probe.clone();
+        let checker: Arc<dyn PermissionChecker> = org_probe.clone();
+        for (visibility, status, expected) in [
+            (Visibility::Public, ProjectStatus::Active, true),
+            (Visibility::Private, ProjectStatus::Active, false),
+            (Visibility::Public, ProjectStatus::Suspended, false),
+        ] {
+            let project = Project::builder()
+                .name("authority-public-read".into())
+                .owner_type(OwnerType::Organization)
+                .owner_id(Uuid::new_v4())
+                .created_by(Uuid::new_v4())
+                .visibility(visibility)
+                .status(status)
+                .build()
+                .unwrap();
+            // HTTP's explicit public-only view of a foreign principal supplies
+            // no local UUID; anonymous callers use the same public-only gate.
+            assert_eq!(
+                enforce_world_read_or_principal(&project, None, &members, &checker)
+                    .await
+                    .is_ok(),
+                expected
+            );
+            assert_eq!(
+                caller_can_read_component(&project, Uuid::new_v4(), None, &members, &checker)
+                    .await
+                    .unwrap(),
+                expected
+            );
+        }
+        assert_eq!(member_probe.0.load(Ordering::SeqCst), 0);
+        assert_eq!(org_probe.0.load(Ordering::SeqCst), 0);
+    }
+}

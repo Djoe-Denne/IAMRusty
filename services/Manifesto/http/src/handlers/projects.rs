@@ -10,7 +10,7 @@ use manifesto_application::{
     ResumeProjectCommand, SuspendProjectCommand, UpdateProjectCommand, UpdateProjectRequest,
 };
 use rustycog::command::CommandContext;
-use rustycog::http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
+use rustycog::http::{AppState, AuthUser, OptionalAuthPrincipal, ValidatedJson};
 use rustycog::permission::ResourceId;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -61,17 +61,12 @@ pub async fn create_project(
 pub async fn get_project(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
-    auth_user: OptionalAuthUser,
+    auth_user: OptionalAuthPrincipal,
 ) -> Result<Json<ProjectResponse>, HttpError> {
     tracing::info!("Getting project: {}", project_id);
 
-    let user_id = auth_user.user_id();
+    let (user_id, context) = super::public_read_identity(&auth_user);
     let command = GetProjectCommand::new(project_id.id(), user_id);
-    let mut context = CommandContext::new();
-
-    if let Some(user_id) = user_id {
-        context = context.with_user_id(user_id);
-    }
 
     let result = state
         .command_service
@@ -91,17 +86,12 @@ pub async fn get_project(
 pub async fn get_project_detail(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
-    auth_user: OptionalAuthUser,
+    auth_user: OptionalAuthPrincipal,
 ) -> Result<Json<ProjectDetailResponse>, HttpError> {
     tracing::info!("Getting project details: {}", project_id);
 
-    let user_id = auth_user.user_id();
+    let (user_id, context) = super::public_read_identity(&auth_user);
     let command = GetProjectDetailCommand::new(project_id.id(), user_id);
-    let mut context = CommandContext::new();
-
-    if let Some(user_id) = user_id {
-        context = context.with_user_id(user_id);
-    }
 
     let result = state
         .command_service
@@ -171,7 +161,7 @@ pub async fn delete_project(
 /// Returns [`HttpError`] if the command fails (authorization, validation, or persistence).
 pub async fn list_projects(
     State(state): State<AppState>,
-    auth_user: OptionalAuthUser,
+    auth_user: OptionalAuthPrincipal,
     Query(params): Query<ProjectQueryParams>,
 ) -> Result<Json<ProjectListResponse>, HttpError> {
     tracing::info!(
@@ -182,7 +172,7 @@ pub async fn list_projects(
         params.search
     );
 
-    let user_id = auth_user.user_id();
+    let (user_id, context) = super::public_read_identity(&auth_user);
     let command = ListProjectsCommand::new(
         params.owner_type,
         params.owner_id,
@@ -191,11 +181,6 @@ pub async fn list_projects(
         user_id,
         params.pagination,
     );
-    let mut context = CommandContext::new();
-
-    if let Some(user_id) = user_id {
-        context = context.with_user_id(user_id);
-    }
 
     let result = state
         .command_service

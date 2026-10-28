@@ -28,6 +28,7 @@ pub trait OrganizationReadRepository: Send + Sync {
     async fn find_by_user_membership(
         &self,
         user_id: &Uuid,
+        issuer: &str,
         page: u32,
         page_size: u32,
     ) -> Result<Vec<Organization>, DomainError>;
@@ -36,7 +37,7 @@ pub trait OrganizationReadRepository: Send + Sync {
     #[must_use = "await the future"]
     async fn search_by_name(
         &self,
-        user_id: Option<Uuid>,
+        principal: Option<rustycog::permission::PrincipalRef>,
         name_pattern: &str,
         page: u32,
         page_size: u32,

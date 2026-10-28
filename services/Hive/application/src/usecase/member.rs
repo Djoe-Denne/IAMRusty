@@ -40,6 +40,8 @@ pub trait MemberUseCase: Send + Sync {
         organization_id: Uuid,
         user_id: Uuid,
         issuer: &str,
+        removed_by_user_id: Uuid,
+        removed_by_issuer: &str,
     ) -> Result<(), ApplicationError>;
 
     /// Update a member's role
@@ -68,6 +70,7 @@ pub trait MemberUseCase: Send + Sync {
         user_id: Uuid,
         requester_id: Uuid,
         issuer: &str,
+        target_issuer: &str,
     ) -> Result<MemberResponse, ApplicationError>;
 }
 
@@ -225,6 +228,7 @@ impl MemberUseCaseImpl {
         user_email: &str,
         removed_by_user_id: Uuid,
         issuer: &str,
+        removed_by_issuer: &str,
     ) -> Result<(), ApplicationError> {
         let event = HiveDomainEvent::MemberRemoved({
             let mut e = MemberRemovedEvent::new(
@@ -236,6 +240,7 @@ impl MemberUseCaseImpl {
                 Utc::now(),
             );
             e.issuer = Some(issuer.to_string());
+            e.removed_by_issuer = Some(removed_by_issuer.to_owned());
             e
         });
 
@@ -282,6 +287,10 @@ impl MemberUseCase for MemberUseCaseImpl {
         user_id: Uuid,
         issuer: &str,
     ) -> Result<MemberResponse, ApplicationError> {
+        let target_issuer = request.issuer.as_deref().unwrap_or(issuer);
+        rustycog::permission::PrincipalRef::new(target_issuer, request.user_id).map_err(|_| {
+            ApplicationError::Domain(DomainError::invalid_input("PRINCIPAL_INVALID"))
+        })?;
         // Get organization for validation and events
         let organization = self
             .organization_service
@@ -317,14 +326,14 @@ impl MemberUseCase for MemberUseCaseImpl {
                     roles,
                     Utc::now(),
                 );
-                e.issuer = Some(issuer.to_string());
+                e.issuer = Some(target_issuer.to_string());
                 e
             });
             outbox_unit_of_work
                 .add_member(
                     organization_id,
                     request.user_id,
-                    issuer.to_string(),
+                    target_issuer.to_string(),
                     role_permissions.clone(),
                     Some(user_id),
                     event.into(),
@@ -336,7 +345,7 @@ impl MemberUseCase for MemberUseCaseImpl {
                 .add_member(
                     organization_id,
                     request.user_id,
-                    issuer,
+                    target_issuer,
                     role_permissions.clone(),
                     Some(user_id),
                 )
@@ -355,6 +364,8 @@ impl MemberUseCase for MemberUseCaseImpl {
         organization_id: Uuid,
         user_id: Uuid,
         issuer: &str,
+        removed_by_user_id: Uuid,
+        removed_by_issuer: &str,
     ) -> Result<(), ApplicationError> {
         // Get organization for validation and events
         let organization = self
@@ -370,10 +381,11 @@ impl MemberUseCase for MemberUseCaseImpl {
                     organization.name.clone(),
                     user_id,
                     "user@example.com".to_string(),
-                    user_id,
+                    removed_by_user_id,
                     Utc::now(),
                 );
                 e.issuer = Some(issuer.to_string());
+                e.removed_by_issuer = Some(removed_by_issuer.to_owned());
                 e
             });
             outbox_unit_of_work
@@ -389,8 +401,9 @@ impl MemberUseCase for MemberUseCaseImpl {
                 &organization.name,
                 user_id,
                 "user@example.com",
-                user_id,
+                removed_by_user_id,
                 issuer,
+                removed_by_issuer,
             )
             .await?;
         }
@@ -458,13 +471,14 @@ impl MemberUseCase for MemberUseCaseImpl {
         user_id: Uuid,
         requester_id: Uuid,
         issuer: &str,
+        target_issuer: &str,
     ) -> Result<MemberResponse, ApplicationError> {
         self.require_org_member(organization_id, requester_id, issuer)
             .await?;
 
         let member = self
             .member_service
-            .get_member(organization_id, user_id, issuer)
+            .get_member(organization_id, user_id, target_issuer)
             .await
             .map_err(ApplicationError::Domain)?;
 
@@ -479,6 +493,10 @@ impl MemberUseCase for MemberUseCaseImpl {
         requester_id: Uuid,
         issuer: &str,
     ) -> Result<MemberResponse, ApplicationError> {
+        let target_issuer = request.issuer.as_deref().unwrap_or(issuer);
+        rustycog::permission::PrincipalRef::new(target_issuer, user_id).map_err(|_| {
+            ApplicationError::Domain(DomainError::invalid_input("PRINCIPAL_INVALID"))
+        })?;
         let organization = self
             .organization_service
             .get_organization(&organization_id)
@@ -497,7 +515,12 @@ impl MemberUseCase for MemberUseCaseImpl {
 
         let member = self
             .member_service
-            .update_member_roles(organization_id, user_id, issuer, role_permissions.clone())
+            .update_member_roles(
+                organization_id,
+                user_id,
+                target_issuer,
+                role_permissions.clone(),
+            )
             .await
             .map_err(ApplicationError::Domain)?;
 

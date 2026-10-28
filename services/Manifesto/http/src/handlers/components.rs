@@ -9,7 +9,7 @@ use manifesto_application::{
     UpdateComponentStatusCommand,
 };
 use rustycog::command::CommandContext;
-use rustycog::http::{AppState, AuthUser, OptionalAuthUser, ValidatedJson};
+use rustycog::http::{AppState, AuthUser, OptionalAuthPrincipal, ValidatedJson};
 use rustycog::permission::ResourceId;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -84,7 +84,7 @@ pub async fn get_component(
     State(state): State<AppState>,
     Path((project_id, component_id)): Path<(ResourceId, ResourceId)>,
     Query(alias): Query<BindingAliasQuery>,
-    auth_user: OptionalAuthUser,
+    auth_user: OptionalAuthPrincipal,
 ) -> Result<Json<ComponentResponse>, HttpError> {
     tracing::info!(
         "Getting component {} for project {}",
@@ -93,13 +93,8 @@ pub async fn get_component(
     );
 
     let resolved = resolve_apparatus_binding_alias(component_id.id(), &alias)?;
-    let user_id = auth_user.user_id();
+    let (user_id, context) = super::public_read_identity(&auth_user);
     let command = GetComponentCommand::new(project_id.id(), resolved, user_id);
-    let mut context = CommandContext::new();
-
-    if let Some(user_id) = user_id {
-        context = context.with_user_id(user_id);
-    }
 
     let result = state
         .command_service
@@ -119,17 +114,12 @@ pub async fn get_component(
 pub async fn list_components(
     State(state): State<AppState>,
     Path(project_id): Path<ResourceId>,
-    auth_user: OptionalAuthUser,
+    auth_user: OptionalAuthPrincipal,
 ) -> Result<Json<ComponentListResponse>, HttpError> {
     tracing::info!("Listing components for project {}", project_id);
 
-    let user_id = auth_user.user_id();
+    let (user_id, context) = super::public_read_identity(&auth_user);
     let command = ListComponentsCommand::new(project_id.id(), user_id);
-    let mut context = CommandContext::new();
-
-    if let Some(user_id) = user_id {
-        context = context.with_user_id(user_id);
-    }
 
     let result = state
         .command_service

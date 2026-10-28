@@ -10,7 +10,7 @@ use hive_application::{
     RotateOrganizationSignerCommand, TestOrganizationSignerCommand,
 };
 use rustycog::command::CommandContext;
-use rustycog::http::{AppState, AuthUser};
+use rustycog::http::{AppState, AuthPrincipal};
 use rustycog::permission::ResourceId;
 
 use crate::error::HttpError;
@@ -44,12 +44,17 @@ fn map_cmd(e: &rustycog::command::CommandError) -> HttpError {
 pub async fn configure_organization_signer(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
-    auth_user: AuthUser,
+    auth_user: AuthPrincipal,
     Json(request): Json<ConfigureOrganizationSignerHttpRequest>,
 ) -> Result<Json<OrganizationSignerHttpResponse>, HttpError> {
-    let command =
-        ConfigureOrganizationSignerCommand::new(organization_id.id(), request, auth_user.user_id);
-    let context = CommandContext::new().with_user_id(auth_user.user_id);
+    let command = ConfigureOrganizationSignerCommand::new(
+        organization_id.id(),
+        request,
+        auth_user.principal.subject,
+    );
+    let context = CommandContext::new()
+        .with_user_id(auth_user.principal.subject)
+        .with_metadata("principal_issuer".into(), auth_user.principal.issuer);
     let result = state
         .command_service
         .execute(command, context)
@@ -66,10 +71,13 @@ pub async fn configure_organization_signer(
 pub async fn test_organization_signer(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
-    auth_user: AuthUser,
+    auth_user: AuthPrincipal,
 ) -> Result<Json<OrganizationSignerHttpResponse>, HttpError> {
-    let command = TestOrganizationSignerCommand::new(organization_id.id(), auth_user.user_id);
-    let context = CommandContext::new().with_user_id(auth_user.user_id);
+    let command =
+        TestOrganizationSignerCommand::new(organization_id.id(), auth_user.principal.subject);
+    let context = CommandContext::new()
+        .with_user_id(auth_user.principal.subject)
+        .with_metadata("principal_issuer".into(), auth_user.principal.issuer);
     let result = state
         .command_service
         .execute(command, context)
@@ -86,10 +94,13 @@ pub async fn test_organization_signer(
 pub async fn rotate_organization_signer(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
-    auth_user: AuthUser,
+    auth_user: AuthPrincipal,
 ) -> Result<Json<OrganizationSignerHttpResponse>, HttpError> {
-    let command = RotateOrganizationSignerCommand::new(organization_id.id(), auth_user.user_id);
-    let context = CommandContext::new().with_user_id(auth_user.user_id);
+    let command =
+        RotateOrganizationSignerCommand::new(organization_id.id(), auth_user.principal.subject);
+    let context = CommandContext::new()
+        .with_user_id(auth_user.principal.subject)
+        .with_metadata("principal_issuer".into(), auth_user.principal.issuer);
     let result = state
         .command_service
         .execute(command, context)
@@ -106,10 +117,13 @@ pub async fn rotate_organization_signer(
 pub async fn disable_organization_signer(
     State(state): State<AppState>,
     Path(organization_id): Path<ResourceId>,
-    auth_user: AuthUser,
+    auth_user: AuthPrincipal,
 ) -> Result<Json<OrganizationSignerHttpResponse>, HttpError> {
-    let command = DisableOrganizationSignerCommand::new(organization_id.id(), auth_user.user_id);
-    let context = CommandContext::new().with_user_id(auth_user.user_id);
+    let command =
+        DisableOrganizationSignerCommand::new(organization_id.id(), auth_user.principal.subject);
+    let context = CommandContext::new()
+        .with_user_id(auth_user.principal.subject)
+        .with_metadata("principal_issuer".into(), auth_user.principal.issuer);
     let result = state
         .command_service
         .execute(command, context)

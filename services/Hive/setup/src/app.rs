@@ -118,6 +118,14 @@ impl Application {
         tracing::info!("Initializing Hive application...");
         let iam_signer_client = overrides.iam_organization_signer;
 
+        // Share the verifier's exact policy with internal UUID-only consumers.
+        let user_id_extractor = UserIdExtractor::new(config.auth.clone())
+            .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {e}"))?;
+        let principal_policy = user_id_extractor
+            .principal_policy()
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("PRINCIPAL_POLICY_UNAVAILABLE"))?;
+
         // Setup database connection
         let db = setup_database(&config).await?;
         let db_write = db.get_write_connection();
@@ -149,7 +157,13 @@ impl Application {
             role_usecase,
             iam_signer_client,
             organization_repo,
-        ) = setup_application(db, &config, event_publisher, iam_signer_client)?;
+        ) = setup_application(
+            db,
+            &config,
+            event_publisher,
+            iam_signer_client,
+            principal_policy,
+        )?;
 
         // Setup command registry
         let command_registry = HiveCommandRegistryFactory::create_hive_registry(
@@ -168,10 +182,6 @@ impl Application {
 
         // Create command service
         let command_service = Arc::new(GenericCommandService::new(Arc::new(command_registry)));
-
-        // RS256 JWKS verifier (`[auth.jwt]` with jwks_url / allowed_algorithms).
-        let user_id_extractor = UserIdExtractor::new(config.auth.clone())
-            .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {e}"))?;
 
         // Centralized permission checker (OpenFGA). Built once and shared
         // across every request through `AppState`. The checker chain is:
@@ -328,6 +338,7 @@ fn setup_application(
     config: &AppConfig,
     event_publisher: Arc<dyn EventPublisher<DomainError>>,
     iam_signer_client: Option<IamSignerClient>,
+    principal_policy: Arc<rustycog::permission::PrincipalPolicy>,
 ) -> Result<ApplicationUseCases, Error> {
     let (
         organization_service,
@@ -338,7 +349,7 @@ fn setup_application(
         sync_service,
         iam_signer_client,
         organization_repo,
-    ) = setup_domain(&db, config, iam_signer_client)?;
+    ) = setup_domain(&db, config, iam_signer_client, principal_policy)?;
 
     let outbox_unit_of_work = Arc::new(HiveOutboxUnitOfWorkImpl::new(db, OutboxRecorder));
 
@@ -397,6 +408,7 @@ fn setup_domain(
     db: &DbConnectionPool,
     config: &AppConfig,
     iam_signer_client: Option<IamSignerClient>,
+    principal_policy: Arc<rustycog::permission::PrincipalPolicy>,
 ) -> Result<DomainServices, Error> {
     let (
         organization_repo,
@@ -452,6 +464,7 @@ fn setup_domain(
         organization_service.clone(),
         invitation_service.clone(),
         provider_client,
+        principal_policy,
     ));
 
     let organization_repo_dyn: Arc<dyn hive_domain::OrganizationRepository> = organization_repo;

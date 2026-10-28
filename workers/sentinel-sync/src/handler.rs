@@ -40,16 +40,28 @@ impl SyncEventHandler {
 
     /// Try every translator in order until one claims the event. Returns the
     /// resulting delta (possibly empty) or `None` if no translator recognized
-    /// the payload.
-    fn translate(&self, raw_event: &serde_json::Value) -> Option<(TupleDelta, &'static str)> {
+    /// the payload. A claimed failure must never fall through to another
+    /// translator or become a completed unknown-event no-op.
+    fn translate(
+        &self,
+        raw_event: &serde_json::Value,
+    ) -> Result<Option<(TupleDelta, &'static str)>, &'static str> {
         for translator in &self.translators {
             match translator.translate(raw_event) {
-                Ok(Some(delta)) => return Some((delta, translator.name())),
+                Ok(Some(delta)) => return Ok(Some((delta, translator.name()))),
                 Ok(None) => {}
-                Err(e) => warn!(translator = translator.name(), error = %e, "translator error"),
+                Err(error) => {
+                    // Translator errors may contain untrusted payload fields.
+                    // Preserve only the principal-resolution code we own.
+                    return Err(if error.to_string() == "EVENT_PRINCIPAL_UNRESOLVED" {
+                        "EVENT_PRINCIPAL_UNRESOLVED"
+                    } else {
+                        "EVENT_TRANSLATION_FAILED"
+                    });
+                }
             }
         }
-        None
+        Ok(None)
     }
 
     async fn complete_event(&self, event_id: Uuid) -> Result<(), ServiceError> {
@@ -76,8 +88,8 @@ impl SyncEventHandler {
     }
 
     async fn fail_delivery(&self, event_id: Uuid, error_message: &str) {
-        if let Err(ledger_error) = self.ledger.fail(event_id, error_message).await {
-            warn!(event_id = %event_id, error = %ledger_error, "failed to mark event delivery as failed");
+        if self.ledger.fail(event_id, error_message).await.is_err() {
+            warn!(event_id = %event_id, code = "EVENT_LEDGER_FAILURE", "failed to mark event delivery as failed");
         }
     }
 
@@ -200,7 +212,14 @@ impl EventHandler for SyncEventHandler {
             return Ok(());
         }
 
-        let Some((delta, translator_name)) = self.translate(&raw) else {
+        let translated = match self.translate(&raw) {
+            Ok(translated) => translated,
+            Err(code) => {
+                self.fail_delivery(event_id, code).await;
+                return Err(ServiceError::internal(code));
+            }
+        };
+        let Some((delta, translator_name)) = translated else {
             if is_manifesto_event_type(&event_type) {
                 let error_message = format!("manifesto event {event_type} could not be decoded");
                 self.fail_delivery(event_id, &error_message).await;
@@ -223,14 +242,16 @@ impl EventHandler for SyncEventHandler {
             return Ok(());
         }
 
-        if let Err(error) = self
+        if self
             .fga
             .write_idempotent(&delta.writes, &delta.deletes)
             .await
+            .is_err()
         {
-            let error_message = format!("OpenFGA write failed: {error}");
-            self.fail_delivery(event_id, &error_message).await;
-            return Err(ServiceError::infrastructure(&error_message));
+            // FGA error bodies may echo subjects or other caller-controlled
+            // values. Keep both delivery ledger and outward errors opaque.
+            self.fail_delivery(event_id, "OPENFGA_WRITE_FAILED").await;
+            return Err(ServiceError::infrastructure("OPENFGA_WRITE_FAILED"));
         }
 
         self.complete_with_lifecycle(event_id, visibility_order.as_ref())

@@ -399,6 +399,7 @@ pub struct OrganizationFixtureBuilder {
     description: Option<String>,
     avatar_url: Option<String>,
     owner_user_id: Uuid,
+    owner_issuer: Option<String>,
     settings: serde_json::Value,
 }
 
@@ -420,6 +421,8 @@ impl OrganizationFixtureBuilder {
             description: Some("Seeded org".to_string()),
             avatar_url: None,
             owner_user_id: Uuid::new_v4(),
+            // Explicit provenance for NEW platform API fixtures, not a backfill.
+            owner_issuer: Some(TEST_JWT_ISSUER.to_owned()),
             settings: serde_json::json!({}),
         }
     }
@@ -460,6 +463,13 @@ impl OrganizationFixtureBuilder {
         self
     }
 
+    /// Explicitly model unresolved legacy or a foreign owner for negative tests.
+    #[must_use]
+    pub fn owner_issuer(mut self, issuer: Option<String>) -> Self {
+        self.owner_issuer = issuer;
+        self
+    }
+
     #[must_use]
     pub fn settings(mut self, settings: serde_json::Value) -> Self {
         self.settings = settings;
@@ -483,6 +493,7 @@ impl OrganizationFixtureBuilder {
             description: Set(self.description),
             avatar_url: Set(self.avatar_url),
             owner_user_id: Set(self.owner_user_id),
+            owner_issuer: Set(self.owner_issuer),
             settings: Set(self.settings),
             signing_profile_id: Set(None),
             signing_status: Set(None),

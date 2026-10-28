@@ -171,6 +171,7 @@ pub struct UpdateOrganizationCommand {
     pub organization_id: Uuid,
     pub request: UpdateOrganizationRequest,
     pub user_id: Uuid,
+    pub issuer: Option<String>,
 }
 
 impl UpdateOrganizationCommand {
@@ -181,7 +182,14 @@ impl UpdateOrganizationCommand {
             organization_id,
             request,
             user_id,
+            issuer: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_issuer(mut self, issuer: String) -> Self {
+        self.issuer = Some(issuer);
+        self
     }
 }
 
@@ -229,8 +237,16 @@ impl CommandHandler<UpdateOrganizationCommand> for UpdateOrganizationCommandHand
         &self,
         command: UpdateOrganizationCommand,
     ) -> Result<OrganizationResponse, CommandError> {
+        let issuer = command.issuer.as_deref().ok_or_else(|| {
+            CommandError::authentication("PRINCIPAL_REQUIRED", "Principal authority required")
+        })?;
         self.organization_usecase
-            .update_organization(command.organization_id, &command.request, command.user_id)
+            .update_organization(
+                command.organization_id,
+                &command.request,
+                command.user_id,
+                issuer,
+            )
             .await
             .map_err(|e| CommandError::business("update_failed", e.to_string()))
     }
@@ -245,6 +261,7 @@ pub struct DeleteOrganizationCommand {
     pub command_id: Uuid,
     pub organization_id: Uuid,
     pub user_id: Uuid,
+    pub issuer: Option<String>,
 }
 
 impl DeleteOrganizationCommand {
@@ -254,7 +271,14 @@ impl DeleteOrganizationCommand {
             command_id: Uuid::new_v4(),
             organization_id,
             user_id,
+            issuer: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_issuer(mut self, issuer: String) -> Self {
+        self.issuer = Some(issuer);
+        self
     }
 }
 
@@ -290,8 +314,11 @@ impl DeleteOrganizationCommandHandler {
 #[async_trait]
 impl CommandHandler<DeleteOrganizationCommand> for DeleteOrganizationCommandHandler {
     async fn handle(&self, command: DeleteOrganizationCommand) -> Result<(), CommandError> {
+        let issuer = command.issuer.as_deref().ok_or_else(|| {
+            CommandError::authentication("PRINCIPAL_REQUIRED", "Principal authority required")
+        })?;
         self.organization_usecase
-            .delete_organization(command.organization_id, command.user_id)
+            .delete_organization(command.organization_id, command.user_id, issuer)
             .await
             .map_err(|e| CommandError::business("delete_failed", e.to_string()))
     }
@@ -305,6 +332,7 @@ impl CommandHandler<DeleteOrganizationCommand> for DeleteOrganizationCommandHand
 pub struct ListOrganizationsCommand {
     pub command_id: Uuid,
     pub user_id: Uuid,
+    pub issuer: Option<String>,
     pub pagination: PaginationRequest,
 }
 
@@ -314,8 +342,15 @@ impl ListOrganizationsCommand {
         Self {
             command_id: Uuid::new_v4(),
             user_id,
+            issuer: None,
             pagination,
         }
+    }
+
+    #[must_use]
+    pub fn with_issuer(mut self, issuer: String) -> Self {
+        self.issuer = Some(issuer);
+        self
     }
 }
 
@@ -354,8 +389,11 @@ impl CommandHandler<ListOrganizationsCommand> for ListOrganizationsCommandHandle
         &self,
         command: ListOrganizationsCommand,
     ) -> Result<OrganizationListResponse, CommandError> {
+        let issuer = command.issuer.as_deref().ok_or_else(|| {
+            CommandError::authentication("PRINCIPAL_REQUIRED", "Principal authority required")
+        })?;
         self.organization_usecase
-            .list_organizations(command.user_id, &command.pagination)
+            .list_organizations(command.user_id, issuer, &command.pagination)
             .await
             .map_err(|e| CommandError::business("list_failed", e.to_string()))
     }
@@ -370,6 +408,7 @@ pub struct SearchOrganizationsCommand {
     pub command_id: Uuid,
     pub request: OrganizationSearchRequest,
     pub user_id: Option<Uuid>,
+    pub principal: Option<rustycog::permission::PrincipalRef>,
 }
 
 impl SearchOrganizationsCommand {
@@ -379,7 +418,15 @@ impl SearchOrganizationsCommand {
             command_id: Uuid::new_v4(),
             request,
             user_id,
+            principal: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_principal(mut self, principal: rustycog::permission::PrincipalRef) -> Self {
+        self.user_id = Some(principal.subject);
+        self.principal = Some(principal);
+        self
     }
 }
 
@@ -418,8 +465,14 @@ impl CommandHandler<SearchOrganizationsCommand> for SearchOrganizationsCommandHa
         &self,
         command: SearchOrganizationsCommand,
     ) -> Result<OrganizationListResponse, CommandError> {
+        if command.user_id.is_some() && command.principal.is_none() {
+            return Err(CommandError::authentication(
+                "PRINCIPAL_REQUIRED",
+                "Principal authority required",
+            ));
+        }
         self.organization_usecase
-            .search_organizations(&command.request, command.user_id)
+            .search_organizations(&command.request, command.principal)
             .await
             .map_err(|e| CommandError::business("search_failed", e.to_string()))
     }

@@ -17,6 +17,8 @@ pub struct OrganizationCreatedEvent {
     pub organization_name: String,
     pub organization_slug: String,
     pub owner_user_id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner_issuer: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -41,10 +43,22 @@ pub struct OrganizationDeletedEvent {
     pub organization_name: String,
     #[serde(default)]
     pub owner_user_id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner_issuer: Option<String>,
+    /// None identifies an unresolved legacy payload, not an empty membership.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub member_principals: Option<Vec<MemberPrincipal>>,
     #[serde(default)]
     pub member_user_ids: Vec<Uuid>,
     pub deleted_by_user_id: Uuid,
     pub deleted_at: DateTime<Utc>,
+}
+
+/// Target membership identity captured before the writer deletes its source row.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MemberPrincipal {
+    pub issuer: String,
+    pub user_id: Uuid,
 }
 
 // =============================================================================
@@ -66,6 +80,7 @@ impl OrganizationCreatedEvent {
             organization_name,
             organization_slug,
             owner_user_id,
+            owner_issuer: None,
             created_at,
         }
     }
@@ -106,6 +121,8 @@ impl OrganizationDeletedEvent {
             organization_id,
             organization_name,
             owner_user_id,
+            owner_issuer: None,
+            member_principals: None,
             member_user_ids,
             deleted_by_user_id,
             deleted_at,

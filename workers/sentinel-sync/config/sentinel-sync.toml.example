@@ -7,6 +7,11 @@
 [logging]
 level = "info"
 
+[principal]
+# Set to the same exact, deployment-pinned issuer as each service's auth.jwt.
+platform_issuer = "http://127.0.0.1:8081/iam"
+allow_historical_platform_issuer = false
+
 [openfga]
 # scheme/host/port are split (instead of a single api_url string) to mirror
 # the [database] / [queue] convention. Set port = 0 to ask

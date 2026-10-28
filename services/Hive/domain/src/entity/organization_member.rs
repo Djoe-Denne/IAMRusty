@@ -161,34 +161,22 @@ impl OrganizationMember {
 /// Historical platform issuer used by SQL backfill and HS256 tests (ADR-0305).
 pub const HISTORICAL_PLATFORM_ISSUER: &str = "iamrusty";
 
-/// Platform IAM issuer URLs end with `/iam` and are not org-scoped (`/iam/orgs/`).
+/// URL shape is never platform provenance (ADR-0314).
 #[must_use]
-pub fn is_platform_url_issuer(issuer: &str) -> bool {
-    issuer.ends_with("/iam") && !issuer.contains("/iam/orgs/")
+pub const fn is_platform_url_issuer(_issuer: &str) -> bool {
+    false
 }
 
-/// Issuers to try for membership lookup / duplicate detection.
-///
-/// Org-managed issuers (`/iam/orgs/`) are never aliased. Platform URL
-/// issuers also match historical `iamrusty` rows.
+/// Exact lookup only. Historical rows require an attested migration, never a
+/// request-time URL-shape alias.
 #[must_use]
 pub fn platform_issuer_aliases(issuer: &str) -> Vec<String> {
-    if issuer.contains("/iam/orgs/") {
-        return vec![issuer.to_string()];
-    }
-    if issuer == HISTORICAL_PLATFORM_ISSUER || is_platform_url_issuer(issuer) {
-        let mut aliases = vec![issuer.to_string()];
-        if issuer != HISTORICAL_PLATFORM_ISSUER {
-            aliases.push(HISTORICAL_PLATFORM_ISSUER.to_string());
-        }
-        return aliases;
-    }
     vec![issuer.to_string()]
 }
 
 /// Issuers to try for membership lookup / duplicate detection.
 ///
-/// Exact `principal.iss` first; if it is a platform URL, also try `iamrusty`.
+/// Only the exact authority is admissible in current membership lookups.
 #[must_use]
 pub fn membership_lookup_issuers(principal_iss: &str) -> Vec<String> {
     platform_issuer_aliases(principal_iss)

@@ -16,6 +16,8 @@ pub struct SentinelSyncConfig {
     pub queue: QueueConfig,
     /// `OpenFGA` server the worker writes tuples into.
     pub openfga: OpenFgaConfig,
+    /// Same explicit deployment provenance as each HTTP consumer.
+    pub principal: rustycog::permission::PrincipalPolicy,
     /// Idempotency ledger configuration.
     #[serde(default)]
     pub idempotency: IdempotencyConfig,
@@ -73,6 +75,12 @@ impl SentinelSyncConfig {
                     .try_parsing(true),
             );
 
-        builder.build()?.try_deserialize::<Self>()
+        let config = builder.build()?.try_deserialize::<Self>()?;
+        rustycog::permission::PrincipalPolicy::new(
+            config.principal.platform_issuer.clone(),
+            config.principal.allow_historical_platform_issuer,
+        )
+        .map_err(|error| rustycog::config::ConfigError::Message(error.to_string()))?;
+        Ok(config)
     }
 }

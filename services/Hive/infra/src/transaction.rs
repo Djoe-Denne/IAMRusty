@@ -9,7 +9,7 @@ use rustycog::core::error::DomainError;
 use rustycog::db::DbConnectionPool;
 use rustycog::events::DomainEvent;
 use rustycog::outbox::OutboxRecorder;
-use sea_orm::DatabaseTransaction;
+use sea_orm::{ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, QuerySelect};
 use uuid::Uuid;
 
 use crate::repository::{
@@ -236,10 +236,23 @@ impl HiveOutboxUnitOfWorkImpl {
 impl HiveOutboxUnitOfWork for HiveOutboxUnitOfWorkImpl {
     async fn create_organization(
         &self,
-        organization: Organization,
+        mut organization: Organization,
         issuer: String,
         event: Box<dyn DomainEvent + 'static>,
     ) -> Result<Organization, ApplicationError> {
+        rustycog::permission::PrincipalRef::new(&issuer, organization.owner_user_id).map_err(
+            |_| ApplicationError::Domain(DomainError::invalid_input("PRINCIPAL_INVALID")),
+        )?;
+        if organization
+            .owner_issuer
+            .as_deref()
+            .is_some_and(|owner| owner != issuer)
+        {
+            return Err(ApplicationError::Domain(DomainError::invalid_input(
+                "PRINCIPAL_INVALID",
+            )));
+        }
+        organization.owner_issuer = Some(issuer.clone());
         let txn = self.begin().await?;
         let result = async {
             let saved = Self::persist_new_organization(&txn, &organization, &issuer).await?;
@@ -269,10 +282,61 @@ impl HiveOutboxUnitOfWork for HiveOutboxUnitOfWorkImpl {
     async fn delete_organization(
         &self,
         organization_id: Uuid,
-        event: Box<dyn DomainEvent + 'static>,
+        mut event: hive_domain::OrganizationDeletedEvent,
     ) -> Result<(), ApplicationError> {
         let txn = self.begin().await?;
         let result = async {
+            use crate::repository::entity::{organization_members, organizations};
+            let organization = organizations::Entity::find_by_id(organization_id)
+                .lock_exclusive()
+                .one(&txn)
+                .await
+                .map_err(|_| {
+                    ApplicationError::internal_error("failed to lock organization writer")
+                })?
+                .ok_or_else(|| {
+                    ApplicationError::Domain(DomainError::entity_not_found(
+                        "Organization",
+                        &organization_id.to_string(),
+                    ))
+                })?;
+            let owner_issuer = organization.owner_issuer.ok_or_else(|| {
+                ApplicationError::Domain(DomainError::invalid_input("EVENT_PRINCIPAL_UNRESOLVED"))
+            })?;
+            rustycog::permission::PrincipalRef::new(&owner_issuer, organization.owner_user_id)
+                .map_err(|_| {
+                    ApplicationError::Domain(DomainError::invalid_input(
+                        "EVENT_PRINCIPAL_UNRESOLVED",
+                    ))
+                })?;
+            let members = organization_members::Entity::find()
+                .filter(organization_members::Column::OrganizationId.eq(organization_id))
+                .all(&txn)
+                .await
+                .map_err(|_| {
+                    ApplicationError::internal_error(
+                        "failed to snapshot organization member principals",
+                    )
+                })?;
+            let mut principals = Vec::with_capacity(members.len());
+            for member in members {
+                rustycog::permission::PrincipalRef::new(&member.issuer, member.user_id).map_err(
+                    |_| {
+                        ApplicationError::Domain(DomainError::invalid_input(
+                            "EVENT_PRINCIPAL_UNRESOLVED",
+                        ))
+                    },
+                )?;
+                principals.push(hive_domain::MemberPrincipal {
+                    issuer: member.issuer,
+                    user_id: member.user_id,
+                });
+            }
+            event.organization_id = organization_id;
+            event.owner_user_id = organization.owner_user_id;
+            event.owner_issuer = Some(owner_issuer);
+            event.member_user_ids = principals.iter().map(|member| member.user_id).collect();
+            event.member_principals = Some(principals);
             MemberRoleWriteRepositoryImpl::delete_by_organization_with_connection(
                 &txn,
                 &organization_id,
@@ -285,7 +349,11 @@ impl HiveOutboxUnitOfWork for HiveOutboxUnitOfWorkImpl {
             .await?;
             OrganizationWriteRepositoryImpl::delete_by_id_with_connection(&txn, &organization_id)
                 .await?;
-            self.record(&txn, event.as_ref()).await?;
+            self.record(
+                &txn,
+                &hive_domain::HiveDomainEvent::OrganizationDeleted(event),
+            )
+            .await?;
             Ok(())
         }
         .await;

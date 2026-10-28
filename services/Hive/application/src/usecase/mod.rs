@@ -31,7 +31,7 @@ pub trait HiveOutboxUnitOfWork: Send + Sync {
     async fn delete_organization(
         &self,
         organization_id: Uuid,
-        event: Box<dyn DomainEvent + 'static>,
+        event: hive_events::OrganizationDeletedEvent,
     ) -> Result<(), ApplicationError>;
 
     async fn add_member(

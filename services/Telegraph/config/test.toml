@@ -6,6 +6,8 @@ port = 8081
 tls_enabled = false
 
 [auth.jwt]
+platform_issuer = "http://127.0.0.1:8081/iam"
+allow_historical_platform_issuer = true
 hs256_secret = "rustycog-test-hs256-secret"
 issuer = "iamrusty"
 audience = "aiforall"

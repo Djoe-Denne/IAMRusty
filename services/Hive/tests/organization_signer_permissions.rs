@@ -17,6 +17,184 @@ use wiremock::{Mock, Request, ResponseTemplate};
 
 const RPC_CREDENTIAL: &str = "SentinelABC-fixed-Hive-IAM-test-credential";
 
+struct RecognizedAuthority {
+    issuer: String,
+    organization: Option<Uuid>,
+    kid: String,
+    jwk: serde_json::Value,
+    encoding: jsonwebtoken::EncodingKey,
+}
+
+impl RecognizedAuthority {
+    fn new(issuer: &str, organization: Option<Uuid>) -> Self {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+        use rsa::{
+            pkcs8::{EncodePrivateKey, LineEnding},
+            traits::PublicKeyParts,
+        };
+        use rustycog::testing::http::jwt::CanonicalJwk;
+        let private =
+            rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048).expect("local test RSA key");
+        let public = rsa::RsaPublicKey::from(&private);
+        let canonical = match organization {
+            Some(id) => CanonicalJwk::organization(issuer, id),
+            None => CanonicalJwk::platform(issuer),
+        };
+        let kid = canonical.kid().to_owned();
+        let mut jwk = serde_json::to_value(canonical).unwrap();
+        jwk["n"] = URL_SAFE_NO_PAD.encode(public.n().to_bytes_be()).into();
+        jwk["e"] = URL_SAFE_NO_PAD.encode(public.e().to_bytes_be()).into();
+        let pem = private.to_pkcs8_pem(LineEnding::LF).unwrap();
+        let encoding = jsonwebtoken::EncodingKey::from_rsa_pem(pem.as_bytes()).unwrap();
+        Self {
+            issuer: issuer.into(),
+            organization,
+            kid,
+            jwk,
+            encoding,
+        }
+    }
+
+    fn token(&self, subject: Uuid) -> String {
+        let now = chrono::Utc::now().timestamp();
+        let mut claims = serde_json::json!({
+            "iss": self.issuer, "sub": subject, "aud": TEST_JWT_AUDIENCE,
+            "iat": now, "exp": now + 300, "jti": Uuid::new_v4(),
+        });
+        if let Some(organization) = self.organization {
+            claims["org"] = organization.to_string().into();
+        }
+        let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
+        header.kid = Some(self.kid.clone());
+        header.typ = Some(rustycog::http::ACCESS_TOKEN_TYP.into());
+        jsonwebtoken::encode(&header, &claims, &self.encoding).unwrap()
+    }
+}
+
+async fn signer_writer_snapshot(
+    fixture: &HiveTestFixture,
+    organization: Uuid,
+) -> serde_json::Value {
+    use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
+    fixture.db().query_one(Statement::from_sql_and_values(DatabaseBackend::Postgres,
+        "SELECT jsonb_build_object('organization', (SELECT to_jsonb(o) FROM organizations o WHERE o.id=$1), 'members', (SELECT COALESCE(jsonb_agg(to_jsonb(m) ORDER BY m.id), '[]'::jsonb) FROM organization_members m WHERE m.organization_id=$1), 'outbox_count', (SELECT COUNT(*) FROM outbox_events)) AS state",
+        [organization.into()])).await.unwrap().unwrap().try_get("", "state").unwrap()
+}
+
+#[tokio::test]
+#[serial]
+async fn recognized_same_sub_distinct_issuers_do_not_share_organization_admin() {
+    use rustycog::{
+        config::{AuthConfig, JwtAuthConfig},
+        permission::{PrincipalPolicy, PrincipalRef},
+    };
+    let platform = RecognizedAuthority::new("https://platform.example/iam", None);
+    let org1 = RecognizedAuthority::new("https://org1.example/iam", Some(Uuid::new_v4()));
+    let org2 = RecognizedAuthority::new("https://org2.example/iam", Some(Uuid::new_v4()));
+    let jwks = MockServerFixture::isolated().await;
+    Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/jwks"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({"keys": [platform.jwk, org1.jwk, org2.jwk]})),
+        )
+        .mount(&jwks.server())
+        .await;
+    let auth = AuthConfig {
+        jwt: JwtAuthConfig {
+            platform_issuer: Some(platform.issuer.clone()),
+            allow_historical_platform_issuer: Some(false),
+            issuer: Some(platform.issuer.clone()),
+            audience: Some(TEST_JWT_AUDIENCE.into()),
+            jwks_url: Some(format!("{}/jwks", jwks.base_url())),
+            allowed_algorithms: vec!["RS256".into()],
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let same_sub = Uuid::new_v4();
+    let tokens = [
+        platform.token(same_sub),
+        org1.token(same_sub),
+        org2.token(same_sub),
+    ];
+    let policy = PrincipalPolicy::new(&platform.issuer, false).unwrap();
+    let authorities = [&platform, &org1, &org2];
+    let subjects: Vec<_> = authorities
+        .iter()
+        .map(|authority| {
+            Subject::from_principal(
+                PrincipalRef::new(&authority.issuer, same_sub).unwrap(),
+                &policy,
+            )
+            .unwrap()
+        })
+        .collect();
+    // Recognition is positive and independent of permissions. A 401 must never
+    // masquerade as a successful collision denial.
+    let verifier = rustycog::http::UserIdExtractor::new(auth.clone()).unwrap();
+    for (authority, token) in authorities.iter().zip(tokens.iter()) {
+        let principal = verifier
+            .extract_principal(token)
+            .await
+            .expect("each independent JWT must be recognized");
+        assert_eq!(principal.sub, same_sub);
+        assert_eq!(principal.iss, authority.issuer);
+    }
+    let iam = IamSignerMockService::new().await;
+    let (fixture, base, client, openfga, _) = Box::pin(
+        common::setup_test_server_with_auth_and_iam(iam.config(), Some(auth)),
+    )
+    .await
+    .unwrap();
+    with_cleanup(&fixture, async {
+        let organization = DbFixtures::create_org_with_owner(fixture.db().as_ref(), same_sub).await.unwrap();
+        let other = DbFixtures::create_org_with_owner(fixture.db().as_ref(), same_sub).await.unwrap();
+        let resource = ResourceRef::new("organization", organization.id);
+        let endpoint = format!("{base}/api/organizations/{}/signer/configure", organization.id);
+        let body = serde_json::json!({
+            "provider_type": "pem_file", "provider_key_ref": format!("{}/fixture.pem", organization.id),
+            "provider_key_version": 7, "public_key": rustycog::testing::http::jwt::test_rs256_public_pem(),
+            "organization_id": other.id, "org_slug": other.slug,
+        });
+        iam.configure(organization.id, Uuid::new_v4(), &platform.issuer).await;
+        openfga.allow(subjects[0].clone(), Permission::Admin, resource).await.unwrap();
+        let positive = client.post(&endpoint).bearer_auth(&tokens[0]).json(&body).send().await.unwrap();
+        assert_eq!(positive.status(), 200);
+        assert_eq!(iam.received_requests().await.len(), 1);
+        for index in [1usize, 2] {
+            let before = signer_writer_snapshot(&fixture, organization.id).await;
+            let rpc_before = iam.received_requests().await.len();
+            let response = client.post(&endpoint).bearer_auth(&tokens[index]).json(&body).send().await.unwrap();
+            assert_eq!(response.status(), 403, "recognized foreign principal must reach a denial, never an authentication rejection");
+            assert_eq!(iam.received_requests().await.len(), rpc_before, "denial must precede IAM RPC");
+            assert!(before == signer_writer_snapshot(&fixture, organization.id).await, "denial must not mutate Hive/outbox");
+        }
+        // Each organization authority can act with its own legitimate grant.
+        // Revoking it never revokes the platform or the other organization.
+        for index in [1usize, 2] {
+            openfga.allow(subjects[index].clone(), Permission::Admin, resource).await.unwrap();
+            let rpc_before = iam.received_requests().await.len();
+            assert_eq!(client.post(&endpoint).bearer_auth(&tokens[index]).json(&body).send().await.unwrap().status(), 200);
+            assert_eq!(iam.received_requests().await.len(), rpc_before + 1);
+        }
+        openfga.deny(subjects[1].clone(), Permission::Admin, resource).await.unwrap();
+        let before = signer_writer_snapshot(&fixture, organization.id).await;
+        let rpc_before = iam.received_requests().await.len();
+        assert_eq!(client.post(&endpoint).bearer_auth(&tokens[1]).json(&body).send().await.unwrap().status(), 403);
+        assert_eq!(iam.received_requests().await.len(), rpc_before);
+        assert!(before == signer_writer_snapshot(&fixture, organization.id).await, "revoked principal must not mutate writer/outbox");
+        for index in [0usize, 2] {
+            assert_eq!(client.post(&endpoint).bearer_auth(&tokens[index]).json(&body).send().await.unwrap().status(), 200);
+        }
+        for request in iam.received_requests().await {
+            assert_eq!(request.url.path(), format!("/iam/internal/organizations/{}/signer/configure", organization.id));
+            let sent: serde_json::Value = serde_json::from_slice(&request.body).unwrap();
+            assert_eq!(sent["org_slug"], organization.slug, "body organization must not replace exact authorized path");
+        }
+    }).await;
+}
+
 #[tokio::test]
 #[serial]
 async fn admin_transit_missing_or_zero_version_maps_iam400_without_hive_mutation_and_provider502_stays500(

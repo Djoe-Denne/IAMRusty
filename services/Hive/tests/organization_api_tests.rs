@@ -22,6 +22,40 @@ use common::{fixtures::db::DbFixtures, setup_test_server, Permission, ResourceRe
 
 #[tokio::test]
 #[serial]
+async fn unresolved_legacy_owner_cannot_be_deleted_or_projected() {
+    use futures::FutureExt;
+    use std::panic::AssertUnwindSafe;
+    let (fixture, base, client, openfga) = Box::pin(setup_test_server()).await.unwrap();
+    let result = AssertUnwindSafe(async {
+        let user = Uuid::new_v4();
+        let token = create_jwt_token(user);
+        // Deliberately unresolved history, not the fixture's explicit default.
+        let organization = DbFixtures::organization().owner_user_id(user).owner_issuer(None)
+            .commit(fixture.db().as_ref()).await.unwrap();
+        openfga.allow(Subject::new(user), Permission::Admin, ResourceRef::new("organization", organization.id)).await.unwrap();
+        let count_statement = || Statement::from_string(DbBackend::Postgres, "SELECT COUNT(*) AS count FROM outbox_events".to_owned());
+        let before: i64 = fixture.db().query_one(count_statement()).await.unwrap().unwrap().try_get("", "count").unwrap();
+        let response = client.delete(format!("{base}/api/organizations/{}", organization.id))
+            .bearer_auth(token).send().await.unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "authorized request must reach unresolved writer provenance, not an authentication denial");
+        assert!(response.text().await.unwrap().contains("EVENT_PRINCIPAL_UNRESOLVED"));
+        let remaining = organizations::Entity::find_by_id(organization.id).one(fixture.db().as_ref()).await.unwrap().unwrap();
+        assert!(remaining == organization, "unresolved owner must leave the whole writer row unchanged");
+        let after: i64 = fixture.db().query_one(count_statement()).await.unwrap().unwrap().try_get("", "count").unwrap();
+        assert_eq!(before, after, "unresolved owner must not emit a projection event");
+    }).catch_unwind().await;
+    let cleanup = common::cleanup_test_servers(&fixture).await;
+    if let Err(panic) = result {
+        std::panic::resume_unwind(panic);
+    }
+    assert!(
+        cleanup.is_ok(),
+        "owned Hive listeners must join before releasing the parent lease"
+    );
+}
+
+#[tokio::test]
+#[serial]
 async fn create_organization_happy_path() {
     let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();
