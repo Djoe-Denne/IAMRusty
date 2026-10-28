@@ -21,6 +21,7 @@ sea-orm = { workspace = true }
 
 # Events
 iam-events = { path = "../../../crates/iam-events" }
+telegraph-events = { path = "../../../crates/telegraph-events" }
 
 # HTTP client
 reqwest = { workspace = true }

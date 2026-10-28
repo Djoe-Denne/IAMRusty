@@ -1,5 +1,6 @@
 use anyhow::Result;
-use chrono::Utc;
+use chrono::{SubsecRound, Utc};
+use rustycog::{core::error::ServiceError, outbox::OutboxRecorder};
 use sea_orm::sea_query::Expr;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, TransactionTrait};
 use std::sync::Arc;
@@ -15,53 +16,59 @@ use telegraph_domain::entity::{
 };
 use telegraph_domain::error::DomainError;
 use telegraph_domain::port::repository::NotificationWriteRepository;
+use telegraph_events::{NotificationCreatedEvent, TelegraphDomainEvent};
 
 /// Repository for writing notifications
 #[derive(Clone)]
 pub struct NotificationWriteRepositoryImpl {
     db: Arc<DatabaseConnection>,
+    recorder: OutboxRecorder,
 }
 
 impl NotificationWriteRepositoryImpl {
     #[must_use]
-    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-}
-
-#[async_trait::async_trait]
-impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
-    /// Create a new notification
-    async fn create_notification(
-        &self,
-        notification: NotificationCommunication,
-    ) -> Result<NotificationCommunication, DomainError> {
-        debug!(
-            "Creating notification for user: {:?}",
-            notification.recipient.user_id
-        );
-
-        let active_model = mappers::to_infra_notification(notification)?;
-
-        let result = notifications::Entity::insert(active_model)
-            .exec_with_returning(self.db.as_ref())
-            .await
-            .map_err(|e| {
-                DomainError::infrastructure_error(format!("Failed to create notification: {e}"))
-            })?;
-
-        mappers::to_domain_notification(result)
+    pub const fn new(db: Arc<DatabaseConnection>, recorder: OutboxRecorder) -> Self {
+        Self { db, recorder }
     }
 
-    async fn create_notification_with_delivery(
+    /// Both public creations share this single writer transaction. Assemble and
+    /// validate the caller's result before recording/committing, so no fallible
+    /// mapping or event identity construction is required after commit.
+    async fn create_atomically<T, F>(
         &self,
-        notification: NotificationCommunication,
-        delivery_mode: CommunicationMode,
-    ) -> Result<(NotificationCommunication, MessageDelivery), DomainError> {
-        debug!(
-            "Creating notification and delivery for user: {:?}",
-            notification.recipient.user_id
+        mut notification: NotificationCommunication,
+        delivery_mode: Option<CommunicationMode>,
+        assemble: F,
+    ) -> Result<T, DomainError>
+    where
+        F: FnOnce(NotificationCommunication, Option<MessageDelivery>) -> Result<T, DomainError>,
+    {
+        let user_id = notification.recipient.user_id.ok_or_else(|| {
+            DomainError::invalid_recipient("User ID is required for notifications")
+        })?;
+        let notification_id = notification.id.unwrap_or_else(Uuid::new_v4);
+        // Match PostgreSQL TIMESTAMPTZ precision before building the event,
+        // including for caller-supplied values (the existing SQL mapping also
+        // stores microseconds). Never substitute another timestamp after insert.
+        let created_at = notification
+            .created_at
+            .unwrap_or_else(Utc::now)
+            .trunc_subsecs(6);
+        notification.id = Some(notification_id);
+        notification.created_at = Some(created_at);
+        notification.updated_at = Some(
+            notification
+                .updated_at
+                .unwrap_or(created_at)
+                .trunc_subsecs(6),
         );
+        notification.is_read = Some(notification.is_read.unwrap_or(false));
+        let model = mappers::to_infra_notification(notification)?;
+        let event = TelegraphDomainEvent::NotificationCreated(NotificationCreatedEvent::new(
+            notification_id,
+            user_id,
+            created_at,
+        ));
 
         let txn = self.db.begin().await.map_err(|e| {
             DomainError::infrastructure_error(format!(
@@ -70,8 +77,7 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
         })?;
 
         let result = async {
-            let notification_model = mappers::to_infra_notification(notification)?;
-            let notification_row = notifications::Entity::insert(notification_model)
+            let notification_row = notifications::Entity::insert(model)
                 .exec_with_returning(&txn)
                 .await
                 .map_err(|e| {
@@ -79,22 +85,47 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
                 })?;
 
             let notification = mappers::to_domain_notification(notification_row)?;
-            let notification_id = notification.id.ok_or_else(|| {
-                DomainError::internal_error("notification missing id after persist")
+            if notification.id != Some(notification_id)
+                || notification.recipient.user_id != Some(user_id)
+                || notification.created_at != Some(created_at)
+            {
+                return Err(DomainError::infrastructure_error(
+                    "Persisted notification identity/timestamp does not match its event",
+                ));
+            }
+            let delivery = if let Some(mode) = delivery_mode {
+                let delivery = MessageDelivery::new(notification_id, mode);
+                let delivery_id = delivery.id;
+                let delivery_row =
+                    notification_deliveries::Entity::insert(mappers::to_infra_delivery(delivery))
+                        .exec_with_returning(&txn)
+                        .await
+                        .map_err(|e| {
+                            DomainError::infrastructure_error(format!(
+                                "Failed to create delivery record: {e}"
+                            ))
+                        })?;
+                let delivery = mappers::to_domain_delivery(delivery_row)?;
+                if delivery.message_id != notification_id || delivery.id != delivery_id {
+                    return Err(DomainError::infrastructure_error(
+                        "Persisted delivery identity does not match notification",
+                    ));
+                }
+                Some(delivery)
+            } else {
+                None
+            };
+            let created = assemble(notification, delivery)?;
+            self.recorder.record(&txn, &event).await.map_err(|error| {
+                let context = format!("Failed to record notification creation: {error}");
+                match error {
+                    ServiceError::Infrastructure { .. } => {
+                        DomainError::infrastructure_error(context)
+                    }
+                    _ => DomainError::internal_error(context),
+                }
             })?;
-            let delivery = MessageDelivery::new(notification_id, delivery_mode);
-            let delivery_model = mappers::to_infra_delivery(delivery);
-            let delivery_row = notification_deliveries::Entity::insert(delivery_model)
-                .exec_with_returning(&txn)
-                .await
-                .map_err(|e| {
-                    DomainError::infrastructure_error(format!(
-                        "Failed to create delivery record: {e}"
-                    ))
-                })?;
-            let delivery = mappers::to_domain_delivery(delivery_row)?;
-
-            Ok::<_, DomainError>((notification, delivery))
+            Ok::<_, DomainError>(created)
         }
         .await;
 
@@ -117,6 +148,37 @@ impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
                 Err(error)
             }
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl NotificationWriteRepository for NotificationWriteRepositoryImpl {
+    async fn create_notification(
+        &self,
+        notification: NotificationCommunication,
+    ) -> Result<NotificationCommunication, DomainError> {
+        self.create_atomically(notification, None, |notification, _| Ok(notification))
+            .await
+    }
+
+    async fn create_notification_with_delivery(
+        &self,
+        notification: NotificationCommunication,
+        delivery_mode: CommunicationMode,
+    ) -> Result<(NotificationCommunication, MessageDelivery), DomainError> {
+        self.create_atomically(
+            notification,
+            Some(delivery_mode),
+            |notification, delivery| {
+                let delivery = delivery.ok_or_else(|| {
+                    DomainError::infrastructure_error(
+                        "Notification transaction did not create its required delivery",
+                    )
+                })?;
+                Ok((notification, delivery))
+            },
+        )
+        .await
     }
 
     /// Mark notification as read

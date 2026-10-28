@@ -10,7 +10,6 @@ license.workspace = true
 # Events abstraction
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 iam-events = { path = "../../../crates/iam-events" }
-telegraph-events = { path = "../../../crates/telegraph-events" }
 
 # Utility
 serde = { workspace = true }
@@ -38,4 +37,4 @@ tokio = { workspace = true }
 mockall = { workspace = true }
 rstest = { workspace = true }
 tokio-test = { workspace = true }
-claims = { workspace = true } 
+claims = { workspace = true }

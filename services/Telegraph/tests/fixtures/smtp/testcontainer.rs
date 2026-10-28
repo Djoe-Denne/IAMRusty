@@ -17,6 +17,57 @@ use tracing::{debug, info, warn};
 /// Global test SMTP container instance
 static TEST_SMTP_CONTAINER: OnceLock<Arc<Mutex<Option<Arc<TestSmtpContainer>>>>> = OnceLock::new();
 
+// Same Arc lease rule as the shared fixtures. Keep the slot intact when a
+// consumer is active; an empty slot provides no identity to clean up.
+fn take_unshared_smtp<T>(slot: &mut Option<Arc<T>>) -> Result<Option<T>, Arc<T>> {
+    let Some(owned) = slot.take() else {
+        return Ok(None);
+    };
+    match Arc::try_unwrap(owned) {
+        Ok(owned) => Ok(Some(owned)),
+        Err(shared) => {
+            *slot = Some(shared.clone());
+            Err(shared)
+        }
+    }
+}
+
+#[cfg(test)]
+mod ownership_tests {
+    use super::take_unshared_smtp;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    #[derive(Debug)]
+    struct Owner(Arc<AtomicUsize>);
+    impl Drop for Owner {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn smtp_unknown_and_active_consumers_are_preserved_without_cleanup() {
+        let mut unknown: Option<Arc<Owner>> = None;
+        assert!(take_unshared_smtp(&mut unknown).unwrap().is_none());
+        let destroyed = Arc::new(AtomicUsize::new(0));
+        let mut slot = Some(Arc::new(Owner(destroyed.clone())));
+        let consumer = slot.as_ref().unwrap().clone();
+        let active = take_unshared_smtp(&mut slot).unwrap_err();
+        assert!(Arc::ptr_eq(slot.as_ref().unwrap(), &consumer));
+        assert_eq!(destroyed.load(Ordering::SeqCst), 0);
+        drop(active);
+        drop(consumer);
+        let owned = take_unshared_smtp(&mut slot).unwrap().unwrap();
+        assert!(slot.is_none());
+        assert_eq!(destroyed.load(Ordering::SeqCst), 0);
+        drop(owned);
+        assert_eq!(destroyed.load(Ordering::SeqCst), 1);
+    }
+}
+
 /// Test email structure for verification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestEmail {
@@ -41,24 +92,18 @@ pub struct TestSmtpContainer {
 
 impl TestSmtpContainer {
     /// Stop and remove the container
-    pub async fn cleanup(self) {
-        info!("Stopping and removing test SQS LocalStack container");
-        if let Err(e) = self.container.stop().await {
-            warn!("Failed to stop SQS container: {}", e);
-        } else {
-            info!("SQS container stopped successfully");
-        }
-        if let Err(e) = self.container.rm().await {
-            warn!("Failed to remove SQS container: {}", e);
-        } else {
-            info!("SQS container removed successfully");
-        }
-        info!("Test SQS container cleanup completed");
+    pub async fn cleanup(self) -> Result<(), Box<dyn std::error::Error>> {
+        info!("Stopping the owned SMTP container by its tracked ID");
+        self.container.stop().await?;
+        self.container.rm().await?;
+        Ok(())
     }
 }
 
 /// `MailHog` SMTP test container
 pub struct TestSmtp {
+    // Keep the existing Arc ownership lease alive for every fixture consumer.
+    _container: Arc<TestSmtpContainer>,
     pub smtp_port: u16,
     pub api_port: u16,
     pub host: String,
@@ -76,7 +121,7 @@ impl TestSmtp {
         info!("Creating new MailHog SMTP test container");
 
         let smtp_config = load_config_part::<SmtpConfig>("communication.email.smtp")?;
-        let () = Self::get_or_create_smtp_container(&smtp_config).await?;
+        let owned = Self::get_or_create_smtp_container(&smtp_config).await?;
 
         // Use the configured ports directly since we mapped them
         let smtp_port = smtp_config.port;
@@ -86,6 +131,7 @@ impl TestSmtp {
         let client = Client::new();
 
         let container = Arc::new(Self {
+            _container: owned,
             smtp_port,
             api_port,
             host,
@@ -94,6 +140,7 @@ impl TestSmtp {
 
         // Wait for MailHog to be ready
         container.wait_for_ready().await?;
+        container._container.container.ready()?;
 
         info!(
             "MailHog SMTP test container ready - SMTP: {}:{}, API: {}:{}",
@@ -105,83 +152,60 @@ impl TestSmtp {
 
     async fn get_or_create_smtp_container(
         smtp_config: &SmtpConfig,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<Arc<TestSmtpContainer>, Box<dyn std::error::Error>> {
         Self::cleanup_container().await?;
 
+        // A prior test process may retain a diagnostic Exited(nonzero) fixture.
+        // Do not adopt/remove it by name: isolate this new, independently owned
+        // creation using the existing supervised named-fixture API.
+        let container_name = format!("telegraph_test-smtp-{}", uuid::Uuid::new_v4().simple());
         let image = GenericImage::new("mailhog/mailhog", "latest")
-            .with_container_name("telegraph_test-smtp")
+            .with_container_name(&container_name)
             .with_mapped_port(
                 smtp_config.port,
                 testcontainers::core::ContainerPort::Tcp(1025),
             )
             .with_mapped_port(8025, testcontainers::core::ContainerPort::Tcp(8025));
 
-        {
+        let owned = {
             let container_mutex = TEST_SMTP_CONTAINER.get_or_init(|| Arc::new(Mutex::new(None)));
             let mut container_guard = container_mutex.lock().await;
             let container = rustycog::testing::common::start_service_testcontainer(
                 image.start(),
                 "smtp",
-                "telegraph_test-smtp",
+                &container_name,
                 smtp_config.port,
             )
             .await?;
-            *container_guard = Some(Arc::new(TestSmtpContainer { container }));
-        }
+            let owned = Arc::new(TestSmtpContainer { container });
+            *container_guard = Some(owned.clone());
+            owned
+        };
 
-        Ok(())
+        Ok(owned)
     }
 
     /// Cleanup SMTP container (for test cleanup).
     ///
     /// # Errors
     ///
-    /// Returns an error if taking the container lock fails. Docker cleanup errors are logged.
+    /// Returns an error for active fixture consumers or unverified owned teardown.
+    /// Unknown containers are never discovered, adopted or removed by name.
     pub async fn cleanup_container() -> Result<(), Box<dyn std::error::Error>> {
         let container_mutex = TEST_SMTP_CONTAINER.get();
         if let Some(container_mutex) = container_mutex {
             let mut container_guard = container_mutex.lock().await;
-            if let Some(container_arc) = container_guard.take() {
-                info!("Manually cleaning up test SMTP container");
-
-                match Arc::try_unwrap(container_arc) {
-                    Ok(container) => {
-                        container.cleanup().await;
-                        info!("Test SMTP container cleanup completed");
-                    }
-                    Err(_) => {
-                        warn!("Could not cleanup SMTP container: still has references");
-                    }
+            match take_unshared_smtp(&mut container_guard) {
+                Ok(Some(container)) => container.cleanup().await?,
+                Ok(None) => {}
+                Err(container) => {
+                    container.container.deferred();
+                    return Err("SMTP cleanup deferred: active fixture consumers".into());
                 }
             }
         }
-
-        // Fallback cleanup using Docker commands
-        Self::cleanup_existing_smtp_container();
+        rustycog::testing::common::join_fixture_creations().await?;
         Ok(())
-    }
-
-    /// Clean up any existing SMTP containers
-    fn cleanup_existing_smtp_container() {
-        use std::process::Command;
-
-        debug!("Checking for existing SMTP LocalStack test containers");
-
-        let containers = ["telegraph_test-smtp"];
-
-        for container_name in &containers {
-            // Stop the container
-            let _ = Command::new("docker")
-                .args(["stop", container_name])
-                .output();
-
-            // Remove the container
-            let _ = Command::new("docker")
-                .args(["rm", "-f", container_name])
-                .output();
-
-            debug!("Cleaned up container: {}", container_name);
-        }
     }
 
     /// Wait for `MailHog` to be ready

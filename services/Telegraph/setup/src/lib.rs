@@ -5,6 +5,7 @@
 
 pub mod app;
 pub mod config;
+pub mod runtime;
 
 // Re-export commonly used types
 pub use app::*;

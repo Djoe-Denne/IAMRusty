@@ -57,6 +57,8 @@ tower = { workspace = true }
 tower-http = { workspace = true }
 
 [dev-dependencies]
+sentinel-sync = { path = "../../workers/sentinel-sync" }
+telegraph-events = { path = "../../crates/telegraph-events" }
 tokio = { workspace = true }
 axum-test = { workspace = true }
 tokio-test = { workspace = true }
