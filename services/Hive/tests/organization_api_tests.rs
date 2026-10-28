@@ -1191,6 +1191,8 @@ async fn search_organizations_is_public_and_returns_results() {
     assert!(!body["organizations"].as_array().unwrap().is_empty());
 }
 
+#[tokio::test]
+#[serial]
 async fn update_and_delete_require_auth() {
     let (fixture, server_url, client, _openfga) = setup_test_server().await.unwrap();
     let owner_id = Uuid::new_v4();

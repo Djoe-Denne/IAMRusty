@@ -140,6 +140,34 @@ aucuneassertionaffaiblie. Logs7fichiers archivés parallowlistetSHA256 sous
 Retenir17.62scompilefinal(no-run), T4 1PASS/0ignored ; pas septPGPASS implicite.
 QualificationT1/T2/T3/resetpg toujoursouverte, tâcheoraclesnonferméeavantpreuves.
 
+Canonfinale03fddcfigéaprèsintégration : slotCargoLEADuniquereprisdepuis18.
+Gatesannoncésavantlancement, tousséquentiels24jobs/E: : check--locked6composants
+deréférence (nouveaugardeSync), puis no-runHive organisation_signer_permissions,
+member_update_api_tests etorganization_api_tests (deuxSQLcorrigées/commonfresh et
+nouvelleAPIintégrée), puisClippy4packagesall-targets2lintsderéférence au nouveau
+testremote. AucunPG/fixturetestexécutépar--no-run. PasrerunSDK63/remote19/T4par
+principe ; preuvesexactesdéjàvalidesréutilisées. RechecksRO16oracles/14Docker
+pendantgel ; correctionsultérieuresattendentfinCargo avantmutationsources.
+
+Gates e03 terminés : check6exit0/4.76s, Hivesigner--no-run19.70s, member12.11s,
+org11.18s, Clippy4all-targetsexit0/3.99s ; zéroPGexécuté/aucunOOM. Logs
+auth-integrated-*référencésauledger, warningspréexistantsconservés, pas2lintsvisés.
+
+Warningexamined : update_and_delete_require_auth fonctionn'étaitpasenregistrée
+en#[tokio::test], DÉJÀà8fa (comparaisonsourcevérifiée), mêmesassertions401.
+Réactiver seulement#[tokio::test]+#[serial] avantcettefonctionexistante. Nouveau
+sélecteur nommé iciAVANTrun : `update_and_delete_require_auth`. Contrôle
+`cargo test --locked -p hive-service --test organization_api_tests -- --list`
+prouveenregistrementdesoraclesetdel'anciendéfaut, sans exécuterfixtures. La
+fonction préexistante non testée ne constituepas unPASS antérieur niunerégression
+introduitepar18. Pasnouveautestharness/production/assertionsaffaiblies.
+
+List-onlyréel : exit0/7.24scompile, **23tests enregistrés**, tousseptoraclesPG
+initiaux +update_and_delete_require_auth présents. Zérofixture/testPGexécuté.
+Log `.tmp/auth-org-test-registration-e7c0c8a4-fb3f-4301-b52c-945bab2056ad.log`.
+Le casauthréactivé ajouteunhuitièmetémoinPG pertinent àla sélectionfinale ;
+T4remote resteunitaire1PASSdistinct. AucunchangementproductiondepuisS1.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et
