@@ -153,6 +153,12 @@ les cookies Secure, une edge TLS, le vrai vendor, HA ou la production.
 6. Nouveaux `ops/tests/support/oauth-idp-simulator.py`, `ops/tests/oauth-browser-local-full.js`, `ops/tests/test_oauth_browser_alignment_source.py`, `ops/tests/test_oauth_idp_simulator.py` : fixture/test/scénario uniquement. Le fichier JS est une séquence pour le pilote existant, pas un nouveau runner/framework installé.
 7. `ops/tests/mesh-public-route-cases-local-full.json`, `ops/tests/test_local_full_acceptance_source.py` : séparer les attentes provider absent du profil par défaut et provider activé en campagne, conserver les négatifs ; ce tableau HTTP n'est jamais la preuve navigateur.
 
+Attribution de compatibilité du lead après inventaire du consommateur :
+`ops/tests/infra-static.sh`, uniquement ajout du neuvième overlay de preuve à
+l'inventaire fermé et au nombre attendu de rendus. Conserver les huit entrées
+historiques et vérifier l'entrée opt-in supplémentaire, sans ignorer de rendu,
+relâcher l'égalité d'inventaire ou ajouter une nouvelle infrastructure de tests.
+
 Les sources `ops/deploy/mesh/envoy.yaml` et
 `ops/deploy/apps/overlays/kind-mesh/envoy-mesh.yaml` restent sous ownership du
 correctif SAN séparé ; ce lot ne retire pas leur TLS. Configuration/service
