@@ -153,3 +153,13 @@ hive-service, sans nouvelle version/checksum/provider. Le lock remote déjà
 intégré doit être préservé à la réunion des branches ; aucun update général.
 Cette attribution ne permet ni édition implicite du SDK publié, ni lancement
 d'IT, de queue ou de runtime avant préflight et créneau dédiés.
+
+Attribution complémentaire : `services/Hive/tests/fixtures/db.rs`, uniquement
+le constructeur d'organisations de test et ses champs d'autorité. Pour ses
+nouvelles organisations plateforme, la provenance explicite peut être
+`Some(TEST_JWT_ISSUER)` : ce même fichier importe déjà cette autorité de fixture
+et l'utilise pour ses nouveaux membres. Ne pas transformer ce défaut de fixture
+en backfill de lignes historiques ou en attestation pour une entrée externe.
+Les scénarios d'autorité étrangère ou de provenance absente doivent pouvoir
+déclarer leur propre issuer ou None explicitement, sans être masqués par ce
+témoin positif. Aucun changement du cycle de vie DB/testcontainers ou des queues.
