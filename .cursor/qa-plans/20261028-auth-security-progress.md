@@ -26,6 +26,25 @@ deux fichiers de tests seulement ; runs conditionnés au bail Cargo/IT du lead.
 S-1 régression nommée au briefing2222Z attribuée à pool-17 ; plan refs/port existant
 avant production et zéro save/outbox sur refus. Aucun gros batch --tests relancé.
 
+Propreté du warning introduit : helper privé member.rs publish_member_removed_event
+passe de huit à sept arguments en réutilisant &Organization déjà chargée, sans
+nouveau DTO/validation/ordre d'effets. Serena confirme un seul appel dans
+remove_member, sans autre fichier affecté ; UUID/nom identiques à ces deux champs.
+Contrôle avant run : `cargo clippy --locked -p hive-application --lib --no-deps --
+-W clippy::too_many_arguments -W clippy::future_not_send -W clippy::too_many_lines`.
+Pas nouvelle infrastructure ni allowlint ; garde et événement inchangés, testsIT
+membership prévus restent utiles. Sources root gelées pour cette commande.
+
+Résultat Clippy ciblé11.96s/exit0 ; aucun too_many_arguments/future_not_send/
+too_many_lines, warnings préexistants glob/unused conservés. Log
+`.tmp/auth-member-clippy-5500ef3ab61044b7ba4eeab3163e1387.log`. Pas preuveIT déduite.
+
+Plan18 examiné avant edits : nouveau test `owner_issuer_down_refuses_without_modifying_data`
+ajouté aux deux `initial_schema_` existants et T1/T2/T4 déjà nommés. Tableau de
+six organisations datées, toutes pages1+terminale ; snapshot exact cardinalité
+etensemble+acteur+owner ; WIF/HTTP7+7 refus9–13s/positif1+1, unRawSigner/opération.
+Compilation/test par binaire cible et bail séparé, aucune nouvelle dépendance.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et

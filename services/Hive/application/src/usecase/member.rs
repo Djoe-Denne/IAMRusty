@@ -6,7 +6,7 @@ use uuid::Uuid;
 use hive_domain::{
     entity::{PermissionLevel, RolePermission},
     service::{MemberService, OrganizationService},
-    OrganizationMember,
+    Organization, OrganizationMember,
 };
 use hive_events::{
     HiveDomainEvent, MemberJoinedEvent, MemberRemovedEvent, MemberRolesUpdatedEvent, Role,
@@ -222,8 +222,7 @@ impl MemberUseCaseImpl {
     /// Publish member removed event
     async fn publish_member_removed_event(
         &self,
-        organization_id: Uuid,
-        organization_name: &str,
+        organization: &Organization,
         user_id: Uuid,
         user_email: &str,
         removed_by_user_id: Uuid,
@@ -232,8 +231,8 @@ impl MemberUseCaseImpl {
     ) -> Result<(), ApplicationError> {
         let event = HiveDomainEvent::MemberRemoved({
             let mut e = MemberRemovedEvent::new(
-                organization_id,
-                organization_name.to_string(),
+                organization.id,
+                organization.name.clone(),
                 user_id,
                 user_email.to_string(),
                 removed_by_user_id,
@@ -397,8 +396,7 @@ impl MemberUseCase for MemberUseCaseImpl {
                 .await
                 .map_err(ApplicationError::Domain)?;
             self.publish_member_removed_event(
-                organization_id,
-                &organization.name,
+                &organization,
                 user_id,
                 "user@example.com",
                 removed_by_user_id,
