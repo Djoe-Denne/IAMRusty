@@ -117,6 +117,18 @@ HiveHTTP member_principal_ambiguity_is_conflict_without_identity_echo. Pas encor
 de résultat reçu à cette ligne. Handler sentinel de projection est aussi attribué,
 ses noms effectifs à annoncer avant run, ROUGE avant correction si faisable.
 
+Attribution handlertests précisée avant run dans le fichier Telegraph existant
+notification_created_routing_test.rs, aucune dépendance ajoutée. Sélecteur
+`cargo test --locked -p telegraph-service --test notification_created_routing_test sentinel_principal_` :
+sentinel_principal_legacy_owner_is_failed_without_effects,
+sentinel_principal_legacy_deletion_is_failed_without_effects,
+sentinel_principal_qualified_event_writes_and_replay_is_idempotent,
+sentinel_principal_unknown_event_remains_completed_noop,
+sentinel_principal_translator_error_is_opaque. Baseline handler puis correction
+et même sélection ; unités WireMock/ledger, pas un OpenFGA réel ou les IT du
+reste du fichier. Les quatre oracles Sync ont été renforcés depuis74c4349 et
+doivent être rerun au même sélecteur ; les anciens4PASS ne leur sont pas attribués.
+
 Browser auteur a nommé avant ses runs :
 test_oauth_proof_keeps_8080_authority_and_exact_18080_redirects,
 test_oauth_registry_redirect_is_independent_of_platform_public_base_url,
@@ -127,10 +139,31 @@ oracle source périmé utilisant ancien scalaire Suite au lieu du selected réel
 de la boucle. Micro-correction attribuée dans ce test existant (sans toucher le
 runner), même suite seulement à requalifier ; pas de faux ROUGE produit.
 
+Gap supplémentaire vérifié par lecture jwks_seed_tests.rs22–32/130/325 : sa
+factory de configuration n'a pas encore de policy explicite, donc des positifs
+du constructeur et des négatifs de seed peuvent être invalides/vacuement verts.
+Attribution de deux champs à la factory seulement, nouveau commit test-only.
+Sélection à exécuter après son bail APP (slot exclusif explicite) :
+`cargo test --manifest-path rustycog/Cargo.toml --locked --features http,testing --lib http::`,
+baseline puis même sélection après adaptation et fmt SDK. Oracles JWKS existants
+incluant seed vide/snapshots/fraîcheur/binding, pas de nouvelle infrastructure.
+Les19PASS précédents ne leur sont pas attribués. Aucun testcontainer/ignore trouvé
+dans le périmètre rustycog-http/src ; modules gated jwt_handler/jwks seulement.
+
 Le profil livré est une préparation : secrets privés par run en Secret/create
 only, trustbundle via init image IAM identique et SSL_CERT_FILE process-local.
 Backend TLS réellement livré, confiance effective et refus nom/CA, navigateur
 réel et corrélation des négatifs avant IAM restent NON PROUVÉS.
+
+Après intégration laboratoire36ffab6 et IAMc98b6ea, run lead ciblé annoncé :
+`python -B -m unittest discover -s ops/tests -p test_oauth_browser_alignment_source.py`.
+Justification distincte du run auteur : le rendu réel utilise maintenant aussi
+les champs policy du configIAM de base intégré après sa branche435376f ;
+contrôler l'assemblage final et absence de conflit/duplication. Aucun runtime,
+aucun Cargo ou secret réel, Kustomize hors ligne en mémoire seulement.
+
+Résultat canon réellement exécuté :10 tests, exit0,1.975s ; aucune panne ou
+preuve réseau déduite. Les autres suites auteur identiques ne sont pas rejouées.
 
 Ne pas démarrer runtime ou IT pendant les éditions de production. Après livraison
 app/lab intégrée, geler l'arbre compilé et effectuer check des six packages de

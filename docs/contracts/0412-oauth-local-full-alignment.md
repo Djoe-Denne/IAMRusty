@@ -1,6 +1,6 @@
 # Contrat ratifié — aligner la preuve OAuth navigateur sur l'entrée HTTP local-full
 
-- Statut : **Accepted / Unimplemented**, ratification explicite du lead le 2026-10-28 sous délégation utilisateur de cette mission après examen des alternatives, transports, allowlist et oracles. Aucune preuve de campagne déduite de la ratification ; ADR0412 reste Accepted / Partial.
+- Statut : **Accepted / Partial**, ratification explicite du lead le 2026-10-28 sous délégation utilisateur après examen des alternatives, transports, allowlist et oracles. Assemblage opt-in intégré au36ffab6, tests statiques ciblés verts ; campagne navigateur, confiance TLS de l'image exacte et Envoy réel non exécutés. Aucune preuve de campagne déduite du rendu ; ADR0412 reste Accepted / Partial.
 - Canon secondaire : [contrat exact-route 0412](0412-oauth-exact-route-envoy-proof.md), référencé par [ADR 0412](../adr/0412-oauth-transaction-persistante-liee-navigateur.md) **Accepted / Partial**.
 - Invariants : [0308](../adr/0308-mesh-authn-jwt.md) **Accepted / Partial**, [0408](../adr/0408-connecteurs-idp-services-http.md), [0409](../adr/0409-confiance-callback-oauth-idp-connect.md), [0411](../adr/0411-idp-provider-slug-registry-fail-closed.md). [0606](../adr/0606-local-full-kind-isole.md) reste **Proposed / Partial**.
 - Base examinée : application `c72ae362b950c63d6736a6818c68babc5a8d6f40`, gitlink SDK `d60a88b2f2f499768a807941a1b4c80c9a366b3f`. Aucun changement SDK requis par cette proposition.

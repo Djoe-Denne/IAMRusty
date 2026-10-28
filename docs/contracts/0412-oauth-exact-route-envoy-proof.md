@@ -6,7 +6,12 @@ Statut ADR : Accepted. Réalité ADR : Partial. Ce fichier ne les modifie pas.
 Il rend exécutable, plus tard, la preuve E2E encore ouverte. Il n'est pas le lab,
 pas un harness, et pas une autorisation de démarrer Kind pour le rédiger.
 
-## Alignement ratifié du 2026-10-28 — non encore implémenté
+## Alignement ratifié du 2026-10-28 — assemblage intégré, preuve réseau restante
+
+Le profil opt-in et son scénario moteur sont intégrés au36ffab6. Tests ciblés
+de configuration/fixtures réussis, mais aucun navigateur, Envoy live ou trust
+TLS de l'image IAM exacte exécuté à ce jalon. Les verdicts de cette matrice
+restent à établir ; les tests source ne sont pas une campagne P1–P3/N1–N3.
 
 **Ratification explicite du lead sous délégation utilisateur, campagne non exécutée.** Le [contrat d'alignement local-full](0412-oauth-local-full-alignment.md)
 précise le listener, les origines, le vrai connecteur GitLab, son fournisseur

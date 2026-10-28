@@ -231,3 +231,29 @@ Témoins nommés avant run : propriétaire non résolu et suppression legacy san
 principaux donnent ledger failed, zéro write/complete ; événement qualifié donne
 write/completed, rejeu idempotent ; événement inconnu et traducteurs existants
 préservés. Preuve ROUGE sur le handler existant si faisable avant correction.
+
+Attribution de test précise :
+`services/Telegraph/tests/notification_created_routing_test.rs` pour les seules
+régressions privées `sentinel_principal_*` du handler. Ce fichier dispose déjà
+du worker et de WireMock : réutiliser le client HTTP sortant et un ledger privé
+minimal ; pas de nouvelle dev-dependency ou harness. Sélection unitaire fermée,
+sans exécuter les IT existantes du fichier. Cela prouve le traitement du refus
+et l'absence d'appel sortant, pas la sémantique du serveur OpenFGA réel ; celle-ci
+reste couverte par les IT Hive finales.
+
+### Fermeture des autres appelants de test du constructeur SDK
+
+La factory `jwks_seed_tests.rs::auth` garde encore la nouvelle policy à None et
+alimente des positifs/negatifs du constructeur configuré (notamment seed vide
+autoritatif). Attribution supplémentaire au même auteur : ajouter seulement
+platform_issuer=TEST_PLATFORM_ISSUER et historique=false à cette factory, sans
+modifier ses oracles de binding/cache/seed/temps/empty. Les tests du helper pur
+ne reçoivent aucun nouveau droit de production. Nouveau commit test-only après
+le776 publié, jamais réécriture ; publication/pin exacts par le lead seulement.
+
+Pour fermer le gap d'appelants au lieu de multiplier les sous-filtres, qualifier
+la sélection existante `--features http,testing --lib http::` après vérification
+de ses effets : les deux modules gated sont JWT RS256 et JWKS seed, WireMock et
+horloge privée seulement, aucun testcontainer trouvé dans rustycog-http/src.
+Une fixture invalide n'est pas un défaut cryptographique ; ne pas permettre
+qu'elle rende un négatif vacuement vert. Assertions et positifs restent intacts.
