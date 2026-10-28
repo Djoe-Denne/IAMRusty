@@ -142,3 +142,14 @@ absence/invalidité refusées au composition root. La compatibilité historique
 ne devient jamais true implicitement, y compris dans les fixtures. Les valeurs
 des TOML doivent être cohérentes avec l'autorité effectivement signée, sans
 changer public_base_url ni le schéma produit pour faire passer les tests.
+
+### Clés distinctes du test de collision
+
+Attribution du lead : `services/Hive/Cargo.toml`, uniquement dev-dependencies
+`jsonwebtoken.workspace` et `rsa.workspace` déjà résolues. Elles servent à
+générer trois clés de test réellement indépendantes, pas trois kids sur la même
+clé. Cargo.lock : au plus les deux références correspondantes du package
+hive-service, sans nouvelle version/checksum/provider. Le lock remote déjà
+intégré doit être préservé à la réunion des branches ; aucun update général.
+Cette attribution ne permet ni édition implicite du SDK publié, ni lancement
+d'IT, de queue ou de runtime avant préflight et créneau dédiés.
