@@ -70,7 +70,7 @@ Les identifiants ne sont **pas** un seul compteur global. Plages thématiques :
 | **0200–0299** | Tests (IT vs unitaires, mocks vs infra réelle) | Rétroactif |
 | **0300–0399** | Événements, outbox, AuthN/AuthZ | 0300–0303 : rétroactif ; **0304** Accepted / Partial ; **0305** Accepted / Implemented ; **0306** Accepted / Partial ; **0307** Accepted / Implemented ; **0308–0309** Accepted / Partial ; **0310** Accepted / Partial (calcul/capacité partiellement supersédés par 0312) ; **0311–0312** Accepted / Implemented (ratification 2026-10-08) |
 | **0400–0499** | Services du workspace et runtimes | 0400–0406 : rétroactif Vague 2 ; **0407+ : vivant IAM-IdP** (`Accepted` / `Implemented`) |
-| **0500–0599** | Config, CI, qualité, framework rustycog | 0500–0502 : rétroactif ; 0503 : living Proposed / Unimplemented |
+| **0500–0599** | Config, CI, qualité, framework rustycog | 0500–0502 : rétroactif ; 0503 : living Proposed / Implemented (périmètre HTTP borné) |
 | **0600–0699** | Cloud / IaC / GitOps / topologie cluster | **Vague 4 living** (`Proposed` / `Unimplemented`) |
 
 Nouveau fichier : prochain entier **libre dans sa plage**, pas `0006` pour un sujet hexagonal. Ne pas réécrire 0001–0005.
@@ -122,7 +122,7 @@ Contrat secondaire test-side : [m6 proof hardening](../contracts/20261018-m6-pro
 
 **0304** : `Accepted` / `Partial`. **0305** : `Accepted` / `Implemented`. **0306** : `Accepted` / `Partial` (amendement transport 2026-09-27 ; InProcess monolithe présent dans le working tree via setter nommé ; motif sac plateforme → [0104](0104-outbound-overrides-composition-root.md) Proposed / Partial). **0307** : `Accepted` / `Implemented`. **0308–0309** : `Accepted` / `Partial` (0308, 2026-10-02 : e2e = Kind ; IT hors Kind ; isoprod = Kind. Refresh JWKS 60 s staging/prod, 2 s local/Kind/tests ; staleness max 60 s. S2S token/revoke = cert `envoy-mesh` + en-tête interne. Les mentions « pas encore codé », défaut300 et gitlink2290 sont historiques : nouvelles sources caches60/trust/transport et SDK ca2e35f publié/sélectionné existent, SDK22 purs PASS selon parent. **Pas Implemented** pour 0308–0309 : la preuve mesh/E2E reste hors de l’attestation units + IT IAM du 2026-10-08 ; admission/capacité livrées selon 0312, sans clôture sécurité globale S-10 dans ce lot. 0309 : remote HTTP digest-only + wiremock ; vendor HSM Non décidé — **pas Implemented**). 0304 complète [0302](0302-authn-jwt-authz-openfga.md) : ne SuperSède **pas** 0302 entière (AuthZ OpenFGA, Bearer, `aud` restent) — **seulement** la décision « `iss=iamrusty` unique » **à l’implémentation** (cible issuer par trust domain). Related : Account/trust [0305](0305-account-identity-trust-domain.md), config signer [0306](0306-hive-iam-configuration-signature.md).
 
-**0313** : [outbox atomique Telegraph](0313-telegraph-notification-outbox-atomique.md), **Proposed / Unimplemented** ; [contrat](../contracts/telegraph-notification-outbox.md). Notification, livraison éventuelle et intention `NotificationCreated` dans la même transaction writer ; publication suspendue sur disabled/no-op. Sous-lot cancellation-safe SQS autorisé explicitement avant implémentation Telegraph. 0301 demeure Accepted / Partial ; aucune promotion ni acceptation par cet index. Prochain libre events/authz : **0314+** (la mention 0313+ ci-dessus est historique).
+**0313** : [outbox atomique Telegraph](0313-telegraph-notification-outbox-atomique.md), **Proposed / Implemented** ; [contrat](../contracts/telegraph-notification-outbox.md). Notification, livraison éventuelle et intention `NotificationCreated` dans la même transaction writer ; publication suspendue sur disabled/no-op. Code et preuves de reprise/SQS/OpenFGA/replay/403/200 livrés ; application39024b2 et SDKd60a88b intégrés aux branches principales (réconciliation2026-10-28). **0301 reste Accepted / Partial**, écart IAM inchangé ; sa mention Telegraph sans outbox est désormais explicitement historique. Aucun Accept implicite de0313. Prochain libre events/authz : **0314+** (la mention0313+ ci-dessus est historique).
 
 ### 0400 — Services et runtimes
 
@@ -143,9 +143,9 @@ Contrat secondaire test-side : [m6 proof hardening](../contracts/20261018-m6-pro
 | [0500](0500-config-typee-et-compose-local.md) | Config typée `rustycog-config` + Compose local | Implemented |
 | [0501](0501-qualite-fmt-clippy-sonar.md) | fmt / Clippy / Sonar comme politique de dépôt | Partial |
 | [0502](0502-rustycog-framework-feature-gated.md) | rustycog = framework feature-gated (submodule), pas un service | Implemented |
-| [0503](0503-http-runtime-owned-shutdown.md) | Le runtime HTTP possède et joint ses descendants avant de déclarer son arrêt terminé | Proposed / Unimplemented |
+| [0503](0503-http-runtime-owned-shutdown.md) | Le runtime HTTP possède et joint ses descendants avant de déclarer son arrêt terminé | Proposed / Implemented |
 
-**0503** : forward, hors photographie rétroactive ; [contrat HTTP](../contracts/http-runtime-owned-shutdown.md). Périmètre autorisé par rapport53, pas ratification. E1 rouge exécuté sur aa400f3/SDK129dcc1 puis intégré b291eee ; C-1 ouvert, aucun correctif SDK acquis. Prochain libre plateforme : **0504+**.
+**0503** : forward, hors photographie rétroactive ; [contrat HTTP](../contracts/http-runtime-owned-shutdown.md). Propriétaire SDK et adoption Telegraph standalone/listener monolithe livrés, compatibilités port0/Extended CONNECT corrigées et revues ; correctif C-1 acquis dans ce périmètre. E1 rouge historique conservé avec ses verts ciblés ultérieurs. SDKd60a88b et application39024b2 intégrés aux branches principales ; pas d'Accept, de garantie nouvelle pour les callers legacy ou de validation qualité globale. Prochain libre plateforme : **0504+**.
 
 ## Vague 3 — IAM living / IdP fédérés (0407+, hors Apparatus)
 

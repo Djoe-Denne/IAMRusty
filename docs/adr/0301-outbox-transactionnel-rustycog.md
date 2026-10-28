@@ -10,6 +10,23 @@
 
 `Accepted` ratifie une cible. Le champ `Réalité` indique séparément ce que le code du dépôt réalise.
 
+## Suivi factuel — Telegraph livré, 2026-10-28
+
+Les sections suivantes conservent la photographie rétroactive du2026-09-12,
+pas une description du Telegraph courant. Depuis [0313](0313-telegraph-notification-outbox-atomique.md)
+(Proposed / Implemented), notification, livraison éventuelle et intention
+NotificationCreated partagent la transaction writer Telegraph. Le transport
+disabled/degraded suspend le dispatcher sans faux published ; reprise après
+lease, vrai SQS, projection OpenFGA, replay et droits403/200 sont prouvés dans le
+périmètre de la livraison. Voir son [contrat](../contracts/telegraph-notification-outbox.md)
+et le [contrôle d'intégration aux branches principales](../../.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/150-mission-et-sdk-integres-aux-branches-principales.md).
+
+**0301 reste Accepted / Partial** : l'écart IAM de transaction séparée n'est pas
+résolu. Les mentions « Telegraph sans outbox » et « introduire un outbox » ci-dessous
+sont historiques ; elles ne nient pas la livraison ultérieure et ne ratifient pas
+0313. Pas de réécriture de la décision rétroactive, de backfill ou de garantie
+exactly-once implicite.
+
 ## Contexte
 
 Publier directement sur la file après un `COMMIT` métier ouvre « persist OK / publish perdu ». Inversement, prendre la file pour source de vérité inverse le modèle : le bus n’est qu’un transport (0300).

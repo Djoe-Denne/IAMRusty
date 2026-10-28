@@ -1,10 +1,10 @@
 # Contrat d'implémentation — propriétaire HTTP et arrêt AC7
 
 - Version 1 — 2026-10-26 ; périmètre autorisé par rapport 53.
-- Canon décisionnel : [ADR 0503 Proposed / Unimplemented](../adr/0503-http-runtime-owned-shutdown.md).
+- Canon décisionnel : [ADR 0503 Proposed / Implemented](../adr/0503-http-runtime-owned-shutdown.md), périmètre HTTP borné, réconciliation2026-10-28.
 - Contrat parent : [Telegraph notification outbox](telegraph-notification-outbox.md), §5 et AC7.
 - Baseline historique du défaut/E1 : aa400f38608e92a34c463f1f89b02168f8364440 / SDK129dcc1575e7dd59b4c7935de0b3794dbb7e7d07.
-- HEAD documentaire après intégration E1 : b291eee3b7537bfa02cebb5df844d5b4ca2019bf ; C-1 ouvert, aucun correctif SDK livré.
+- HEAD documentaire historique après E1 : b291eee3b7537bfa02cebb5df844d5b4ca2019bf ; C-1 était alors ouvert. État livré : SDKd60a88b et application39024b2, intégrés aux branches principales (voir §9).
 
 ## 1. Autorité, preuve acquise et gate
 
@@ -12,7 +12,7 @@ Le rapport 53 autorise le correctif HTTP SDK et ses consommateurs bornés, pas l
 
 **E1 rouge réel est acquis et intégré** : `http_shutdown_destroys_inflight_handler_before_return_without_late_mutation`, cible `services/Telegraph/tests/outbox_runtime_tests.rs`, source blob `221abe3fc7a1b751c8a1d574b422f767ee68abca`. Exécution baseline : 0 PASS / 1 FAILED / 0 ignored / 4 filtered, exit 101 ; compilation réussie. Shutdown Ok, parent terminé, RAII handler 0 au retour, puis mutation tardive 1 après libération. RAII/EOF/socket nettoyés avant assertion rouge. Aucun Docker, correctif SDK ou preuve du monolithe complet n'en est déduit.
 
-E1 et ce contrat/API doivent être intégrés avant implémentation SDK ou publication de consommateurs. E1 est déjà intégré dans b291eee ; **ne pas le qualifier d'attendu ni le relancer pour écrire ce contrat**. Conserver logs et provenance historiques. Le contrat reste l'entrée documentaire à intégrer.
+E1 et ce contrat/API devaient être intégrés avant implémentation SDK ou publication de consommateurs ; cette séquence est accomplie. E1 était intégré dans b291eee ; **ne pas le relancer pour réconcilier ce contrat**. Conserver logs et provenance historiques. Les exigences suivantes restent inchangées ; les mentions de préparation et futures validations sont le protocole historique, pas des gates encore ouvertes après livraison.
 
 AC1–AC7, replay Sentinel à ledger neuf, calibration INBOUND5s et rouges historiques restent inchangés. Les deux docs T5 staged ailleurs sont hors propriété ; ne pas les écraser ni les intégrer implicitement.
 
@@ -35,7 +35,7 @@ Pas de nouveau harness/service/backend, changement events/outbox/Sentinel, migra
 
 ## 3. API additive minimale
 
-Exports sous `rustycog::http`. Signatures contractuelles, non encore livrées :
+Exports sous `rustycog::http`. Signatures contractuelles livrées dans le SDKd60a88b :
 
 ```rust
 pub async fn start_router_owned(
@@ -136,4 +136,17 @@ Fixés : API additive, propriétaire caller, observation parent distincte de joi
 
 Tout besoin d'API générique, nouveau backend/harness/cible, désactivation de protocole ou oracle réduit revient au lead avant changement.
 
-E1 rouge exécuté et intégré dans b291eee ; aucun correctif SDK livré ; C-1/AC7 restent ouverts. ADR0503 et0313 Proposed, ADR0301 Partial. Sources : finding T4 final, QA C-1, rapports53/55/57 ; SDK unifié builder.rs236–299 ; callers setup/app.rs165–195, setup/runtime.rs49–103, monolith/runtime.rs95–127 et fixture outbox_runtime.rs33–74.
+État historique à la rédaction : E1 rouge intégré dans b291eee, correctif SDK pas encore livré et C-1/AC7 ouverts. Cette photographie est dépassée par §9, pas effacée. ADR0503 et0313 restent Proposed, ADR0301 Partial. Sources initiales : finding T4, QA C-1, rapports53/55/57 ; les anciennes plages de lignes décrivent cette baseline, pas une localisation actuelle garantie.
+
+## 9. Livraison et portée de preuve — 2026-10-28
+
+API/propriétaire SDKd60a88b, adoption standalone/monolithe et raccordements tests
+livrés ; code application39024b2. Intégrations master66c16f1 et SDK main9e9ef27,
+gitlink mode160000 d60a88b ; [vérification150](../../.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/150-mission-et-sdk-integres-aux-branches-principales.md).
+Les preuves HTTP ciblées et leurs SHA successifs sont référencés dans [ADR0503](../adr/0503-http-runtime-owned-shutdown.md) (rapports77/79/95), les preuves finales de parcours dans [bilan141](../../.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/141-livraison-terminee-avec-reserves-explicites.md).
+
+Le correctif C-1 et le périmètre AC7 livrés ne valent ni test runtime de toutes les
+courses/erreurs ni nouvelle garantie async join de Drop ou des callers legacy.
+Les5s de grâce/6s globales sont inchangées. Dettes Clippy, Sonar/CI non exécutés,
+hors-scope effets distants et garanties produit restent explicites. Aucun nouveau
+Cargo/runtime pour ce suivi documentaire et aucun Accept implicite des ADR.

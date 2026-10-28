@@ -1,10 +1,17 @@
 # Contrat — création et publication durable des notifications Telegraph
 
-- État : **Proposed**, soumis au lead et à ratification humaine ; ne vaut ni Accept ni GO T2.
+- État décisionnel : **Proposed**, ratification humaine distincte ; implémentation autorisée et livrée, sans Accept implicite (réconciliation2026-10-28).
 - Date : 2026-10-25 ; jalon : fiabilité Telegraph (hors P0–P6 Apparatus).
 - Base examinée : `93e376c5530a439aaafe61a64d3e881865c1acf1` (Git du worktree vérifié par le lead).
 - Canon : [0301](../adr/0301-outbox-transactionnel-rustycog.md), [0300](../adr/0300-crates-events-contrat-sans-transport.md), [0102](../adr/0102-setup-composition-root.md), [0200](../adr/0200-it-infra-reelle-rustycog-testing.md), [0201](../adr/0201-mocks-http-sortant-seulement.md), [0202](../adr/0202-transport-opt-in-queues-desactivees.md), [0303](../adr/0303-sentinel-sync-worker-fga.md).
-- Décision complémentaire recommandée : **ADR-0313**, à matérialiser par le lead avec son digest Serena au même tour. Aucun fichier ADR-0313 n'est créé par ce contrat. 0301 reste sa photographie Accepted / Partial, inchangée.
+- Décision complémentaire : [ADR-0313 Proposed / Implemented](../adr/0313-telegraph-notification-outbox-atomique.md), matérialisée avec son digest. 0301 reste Accepted / Partial pour l'écart IAM ; ses mentions Telegraph sans outbox sont historiques.
+
+État de livraison : application39024b2 et SDKd60a88b intégrés respectivement à
+AIForAll master et RustyCog main ; voir le [rapport150](../../.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/150-mission-et-sdk-integres-aux-branches-principales.md).
+Les sections de préparation et gates ci-dessous décrivent le déroulé historique
+et les exigences conservées, pas des permissions restant à obtenir pour une
+implémentation déjà livrée. Les preuves finales et limites restent celles du
+[bilan141](../../.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/141-livraison-terminee-avec-reserves-explicites.md) ; la publication initialement locale décrite par ce bilan est dépassée par le rapport150.
 
 ## 1. Décision et frontières
 
