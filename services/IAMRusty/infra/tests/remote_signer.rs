@@ -249,6 +249,130 @@ impl WorkloadIdentity for SuspendedIdentity {
     }
 }
 
+struct DelayedIdentity {
+    delay: std::time::Duration,
+    resolutions: AtomicUsize,
+    credential: StaticCredential,
+}
+
+#[async_trait::async_trait]
+impl WorkloadIdentity for DelayedIdentity {
+    async fn resolve(&self, reference: &str) -> Result<WorkloadCredential, DomainError> {
+        self.resolutions.fetch_add(1, Ordering::SeqCst);
+        // Deliberate collaborator latency, not a sleep used to synchronize a test.
+        tokio::time::sleep(self.delay).await;
+        self.credential.resolve(reference).await
+    }
+}
+
+struct RemoteDeadlineObservation {
+    result: Result<Vec<u8>, DomainError>,
+    elapsed: std::time::Duration,
+    requests: usize,
+    resolutions: usize,
+}
+
+async fn observe_cumulative_remote_deadline(
+    public: bool,
+    delay: std::time::Duration,
+) -> RemoteDeadlineObservation {
+    use remote_signer_fixtures::service::{Framing, RawResponse, RawSigner};
+    use std::time::Instant;
+
+    let mut response = RawResponse::ok(
+        serde_json::json!({"signature": "AQ==", "public_key": test_rs256_public_pem()})
+            .to_string()
+            .into_bytes(),
+        Framing::Length,
+    );
+    response.header_delay = delay;
+    // RawSigner accepts one connection: each Sign/GET operation gets its own
+    // existing fixture, including when the two observations run concurrently.
+    let raw = RawSigner::start(response).await;
+    let identity = Arc::new(DelayedIdentity {
+        delay,
+        resolutions: AtomicUsize::new(0),
+        credential: StaticCredential::from_pair("ref", "synthetic-deadline-credential").unwrap(),
+    });
+    let provider = RemoteSigningProvider::new_with_security_mode(
+        &raw.url,
+        "key",
+        "RS256",
+        "ref",
+        identity.clone(),
+        SecurityMode::IsolatedTest,
+    )
+    .unwrap();
+    let start = Instant::now();
+    let result = if public {
+        provider.public_key().await.map(String::into_bytes)
+    } else {
+        provider.sign_digest(&[0; 32]).await
+    };
+    let observation = RemoteDeadlineObservation {
+        result,
+        elapsed: start.elapsed(),
+        requests: raw.requests.load(Ordering::SeqCst),
+        resolutions: identity.resolutions.load(Ordering::SeqCst),
+    };
+    raw.shutdown().await;
+    observation
+}
+
+// T-4: resetting the 10s budget after WIF would incorrectly succeed at 14s.
+#[tokio::test]
+async fn remote_deadline_is_shared_between_identity_and_http() {
+    use std::time::Duration;
+
+    for (delay, succeeds) in [
+        (Duration::from_secs(1), true),
+        (Duration::from_secs(7), false),
+    ] {
+        let (sign, public) = tokio::join!(
+            observe_cumulative_remote_deadline(false, delay),
+            observe_cumulative_remote_deadline(true, delay),
+        );
+        for (operation, observation, expected) in [
+            ("Sign", sign, vec![1]),
+            (
+                "GetPublicKey",
+                public,
+                test_rs256_public_pem().trim().as_bytes().to_vec(),
+            ),
+        ] {
+            assert_eq!(
+                observation.resolutions, 1,
+                "{operation} must resolve credentials once"
+            );
+            assert_eq!(
+                observation.requests, 1,
+                "{operation} must reach HTTP after successful WIF, without retries"
+            );
+            if succeeds {
+                assert_eq!(
+                    observation
+                        .result
+                        .expect("cumulative 1s WIF + 1s HTTP must succeed"),
+                    expected,
+                    "{operation} positive witness must return the exact signer material"
+                );
+            } else {
+                assert!(
+                    observation.result.is_err(),
+                    "{operation} must reject cumulative 7s WIF + 7s HTTP"
+                );
+                // Existing Windows scheduling tolerance, not a new service SLA.
+                assert!(
+                    (Duration::from_secs(9)..Duration::from_secs(13))
+                        .contains(&observation.elapsed),
+                    "{operation} must share a single 10s deadline; elapsed {:?}",
+                    observation.elapsed
+                );
+            }
+        }
+    }
+}
+
 #[tokio::test]
 async fn remote_operation_deadline_covers_identity_and_body() {
     use remote_signer_fixtures::service::{Framing, RawResponse, RawSigner};

@@ -133,6 +133,13 @@ recognized_same_sub_distinct_issuers_do_not_share_organization_admin et
 hive_membership_and_projection_preserve_target_issuer. Ce n'est pas unROUGEIT
 exécuté ; uncountsurtablelegacyvide serait unoraclefaussement rassurant.
 
+Troisfichiers18intégrésvia team_merge natif etcomparés bufferbrut au bbeb7da :
+3/3identiques ; correctionrootcomplémentaire = seulesdeuxchaînes SQL ci-dessus,
+aucuneassertionaffaiblie. Logs7fichiers archivés parallowlistetSHA256 sous
+`.tmp/auth-oracles-pool18-proof-bbeb7da`, décodageUTF16LEstrict des troislogsCargo.
+Retenir17.62scompilefinal(no-run), T4 1PASS/0ignored ; pas septPGPASS implicite.
+QualificationT1/T2/T3/resetpg toujoursouverte, tâcheoraclesnonferméeavantpreuves.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et

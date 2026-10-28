@@ -8,17 +8,486 @@ use serial_test::serial;
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
-use hive_application::dto::organization::{CreateOrganizationRequest, OrganizationResponse};
+use hive_application::dto::organization::{
+    CreateOrganizationRequest, OrganizationListResponse, OrganizationResponse,
+};
 use hive_infra::repository::entity::organizations;
 use hive_infra::repository::entity::{external_links, external_providers};
 use hive_infra::repository::entity::{
     organization_member_role_permissions, organization_members, permissions, resources,
     role_permissions,
 };
-use hive_migration::{Migrator, MigratorTrait};
+use hive_migration::{Migrator, MigratorTrait, SchemaManager};
 
 mod common;
 use common::{fixtures::db::DbFixtures, setup_test_server, Permission, ResourceRef, Subject};
+
+async fn with_organization_oracle_cleanup<T>(
+    fixture: &common::HiveTestFixture,
+    body: impl std::future::Future<Output = T>,
+) -> T {
+    use futures::FutureExt;
+    use std::panic::AssertUnwindSafe;
+
+    let result = AssertUnwindSafe(body).catch_unwind().await;
+    let cleanup = common::cleanup_test_servers(fixture).await;
+    if cleanup.is_err() {
+        eprintln!(
+            "fixture-owned Hive listener cleanup failed; parent lease reconciliation required"
+        );
+    }
+    match result {
+        Ok(value) => {
+            assert!(
+                cleanup.is_ok(),
+                "owned Hive listeners must join after oracle"
+            );
+            value
+        }
+        Err(panic) => std::panic::resume_unwind(panic),
+    }
+}
+
+async fn insert_qualified_oracle_member(
+    db: &impl ConnectionTrait,
+    organization: Uuid,
+    user: Uuid,
+    issuer: &str,
+    status: &str,
+) -> organization_members::Model {
+    let now = chrono::Utc::now();
+    // The existing member builder always inserts the historical issuer. Insert
+    // the actual qualified key atomically, including when that UUID already exists.
+    organization_members::ActiveModel {
+        id: Set(Uuid::new_v4()),
+        organization_id: Set(organization),
+        user_id: Set(user),
+        issuer: Set(issuer.to_owned()),
+        status: Set(status.to_owned()),
+        invited_by_user_id: Set(None),
+        invited_at: Set(None),
+        joined_at: Set(Some(now)),
+        created_at: Set(now),
+        updated_at: Set(now),
+    }
+    .insert(db)
+    .await
+    .expect("qualified membership fixture must preserve the full unique key")
+}
+
+fn recognized_oracle_authority(issuer: &str, user: Uuid) -> (serde_json::Value, String) {
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+    use rsa::{
+        pkcs8::{EncodePrivateKey, LineEnding},
+        traits::PublicKeyParts,
+    };
+    use rustycog::testing::http::jwt::{CanonicalJwk, TEST_JWT_AUDIENCE};
+
+    // Same independent-key and canonical issuer binding as the signer IT, not
+    // two unrecognized JWTs whose authentication failures could hide a leak.
+    let organization = Uuid::new_v4();
+    let private = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048).unwrap();
+    let public = rsa::RsaPublicKey::from(&private);
+    let canonical = CanonicalJwk::organization(issuer, organization);
+    let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
+    header.kid = Some(canonical.kid().to_owned());
+    header.typ = Some(rustycog::http::ACCESS_TOKEN_TYP.to_owned());
+    let mut jwk = serde_json::to_value(canonical).unwrap();
+    jwk["n"] = URL_SAFE_NO_PAD.encode(public.n().to_bytes_be()).into();
+    jwk["e"] = URL_SAFE_NO_PAD.encode(public.e().to_bytes_be()).into();
+    let pem = private.to_pkcs8_pem(LineEnding::LF).unwrap();
+    let encoding = jsonwebtoken::EncodingKey::from_rsa_pem(pem.as_bytes()).unwrap();
+    let now = chrono::Utc::now().timestamp();
+    let claims = serde_json::json!({
+        "iss": issuer, "sub": user, "org": organization,
+        "aud": TEST_JWT_AUDIENCE, "iat": now, "exp": now + 300,
+        "jti": Uuid::new_v4(),
+    });
+    (
+        jwk,
+        jsonwebtoken::encode(&header, &claims, &encoding).unwrap(),
+    )
+}
+
+async fn organization_oracle_auth(
+    issuers: [&str; 2],
+    user: Uuid,
+) -> (
+    rustycog::testing::wiremock::MockServerFixture,
+    rustycog::config::AuthConfig,
+    [String; 2],
+) {
+    use rustycog::{
+        config::{AuthConfig, JwtAuthConfig},
+        testing::{http::jwt::TEST_JWT_AUDIENCE, wiremock::MockServerFixture},
+    };
+    use wiremock::{
+        matchers::{method, path},
+        Mock, ResponseTemplate,
+    };
+
+    let [(jwk_a, token_a), (jwk_b, token_b)] =
+        issuers.map(|issuer| recognized_oracle_authority(issuer, user));
+    let jwks = MockServerFixture::isolated().await;
+    Mock::given(method("GET"))
+        .and(path("/jwks"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({"keys": [jwk_a, jwk_b]})),
+        )
+        .mount(&jwks.server())
+        .await;
+    let auth = AuthConfig {
+        jwt: JwtAuthConfig {
+            platform_issuer: Some("https://platform.example/iam".into()),
+            allow_historical_platform_issuer: Some(false),
+            issuer: Some("https://platform.example/iam".into()),
+            audience: Some(TEST_JWT_AUDIENCE.into()),
+            jwks_url: Some(format!("{}/jwks", jwks.base_url())),
+            allowed_algorithms: vec!["RS256".into()],
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let tokens = [token_a, token_b];
+    let verifier = rustycog::http::UserIdExtractor::new(auth.clone()).unwrap();
+    for (issuer, token) in issuers.into_iter().zip(&tokens) {
+        let principal = verifier
+            .extract_principal(token)
+            .await
+            .expect("each authority must be positively recognized before HTTP isolation checks");
+        assert_eq!(principal.sub, user);
+        assert_eq!(principal.iss, issuer);
+    }
+    (jwks, auth, tokens)
+}
+
+async fn organization_oracle_ids(
+    client: &reqwest::Client,
+    url: &str,
+    token: Option<&str>,
+    page: u32,
+    size: u32,
+) -> Vec<Uuid> {
+    let mut request = client
+        .get(url)
+        .query(&[("page", page), ("page_size", size)]);
+    if let Some(token) = token {
+        request = request.bearer_auth(token);
+    }
+    let response = request.send().await.unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "authorized page {page} of {url}"
+    );
+    response
+        .json::<OrganizationListResponse>()
+        .await
+        .unwrap()
+        .organizations
+        .into_iter()
+        .map(|organization| organization.id)
+        .collect()
+}
+
+async fn assert_organization_oracle_pages(
+    client: &reqwest::Client,
+    url: &str,
+    token: Option<&str>,
+    expected: &[Uuid],
+) {
+    assert_eq!(
+        organization_oracle_ids(client, url, token, 0, 100).await,
+        expected,
+        "complete authorized IDs before checking single-item pages"
+    );
+    // The existing HTTP search test explicitly uses page=0. Exercise that same
+    // indexing, not the unrelated/inconsistent total-items metadata.
+    for (page, ids) in expected
+        .iter()
+        .map(|id| vec![*id])
+        .chain(std::iter::once(Vec::new()))
+        .enumerate()
+    {
+        let page = u32::try_from(page).unwrap();
+        assert_eq!(
+            organization_oracle_ids(client, url, token, page, 1).await,
+            ids,
+            "filtering must precede pagination, including terminal empty page {page}"
+        );
+    }
+}
+
+// T-1: exact issuer isolation must apply to the writer query before pagination.
+#[tokio::test]
+#[serial]
+async fn organization_lists_and_search_scope_exact_issuer_before_pagination() {
+    let issuers = ["https://alpha.example/iam", "https://beta.example/iam"];
+    let user = Uuid::new_v4();
+    let (jwks, auth, tokens) = organization_oracle_auth(issuers, user).await;
+    let iam = hive_configuration::IamServiceConfig {
+        base_url: jwks.base_url(),
+        api_key: "synthetic-unused-list-oracle-credential".into(),
+        ..Default::default()
+    };
+    let (fixture, base, client, _openfga, _) =
+        Box::pin(common::setup_test_server_with_auth_and_iam(iam, Some(auth)))
+            .await
+            .unwrap();
+    with_organization_oracle_cleanup(&fixture, async {
+        let marker = format!("issuer-scope-{}", Uuid::new_v4());
+        let rows = [
+            ("beta-new", Some((issuers[1], "Active"))),
+            ("alpha-new", Some((issuers[0], "Active"))),
+            ("inactive", Some((issuers[0], "Inactive"))),
+            ("public", None),
+            ("alpha-old", Some((issuers[0], "Active"))),
+            ("beta-old", Some((issuers[1], "Active"))),
+        ];
+        let mut ids = Vec::new();
+        let newest = chrono::Utc::now();
+        for ((label, member), age) in rows.into_iter().zip(0_i64..) {
+            let organization = DbFixtures::organization()
+                .name(format!("{marker}-{label}"))
+                .settings(serde_json::json!({"visibility": if label == "public" { "Public" } else { "Private" }}))
+                .commit(fixture.db().as_ref()).await.unwrap();
+            let mut dated = organization.into_active_model();
+            dated.created_at = Set(newest - chrono::Duration::days(age));
+            let organization = dated.update(fixture.db().as_ref()).await.unwrap();
+            if let Some((issuer, status)) = member {
+                insert_qualified_oracle_member(fixture.db().as_ref(), organization.id, user, issuer, status).await;
+            }
+            ids.push(organization.id);
+        }
+        let list = format!("{base}/api/organizations");
+        let search = format!("{base}/api/organizations/search?query={marker}");
+        assert_eq!(client.get(&list).send().await.unwrap().status(), StatusCode::UNAUTHORIZED);
+        for (index, private_ids, search_ids) in [
+            (0, [ids[1], ids[4]], [ids[1], ids[3], ids[4]]),
+            (1, [ids[0], ids[5]], [ids[0], ids[3], ids[5]]),
+        ] {
+            assert_organization_oracle_pages(&client, &list, Some(&tokens[index]), &private_ids).await;
+            assert_organization_oracle_pages(&client, &search, Some(&tokens[index]), &search_ids).await;
+        }
+        assert_organization_oracle_pages(&client, &search, None, &[ids[3]]).await;
+    }).await;
+}
+
+async fn organization_deleted_oracle_events(
+    db: &impl ConnectionTrait,
+    organization: Uuid,
+) -> Vec<hive_events::HiveDomainEvent> {
+    db.query_all(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "SELECT payload_json FROM rustycog_outbox_events WHERE aggregate_id=$1 AND event_type=$2",
+        [organization.into(), "organization_deleted".into()],
+    ))
+    .await
+    .unwrap()
+    .into_iter()
+    .map(|row| {
+        let payload: serde_json::Value = row.try_get("", "payload_json").unwrap();
+        serde_json::from_value(payload).expect("typed event from the real writer outbox")
+    })
+    .collect()
+}
+
+async fn assert_deleted_organization_oracle_rows(
+    db: &impl ConnectionTrait,
+    organization: Uuid,
+    member_ids: &[Uuid],
+) {
+    assert!(
+        organizations::Entity::find_by_id(organization)
+            .one(db)
+            .await
+            .unwrap()
+            .is_none(),
+        "DELETE must remove the organization writer row"
+    );
+    assert!(
+        organization_members::Entity::find()
+            .filter(organization_members::Column::OrganizationId.eq(organization))
+            .all(db)
+            .await
+            .unwrap()
+            .is_empty(),
+        "DELETE must remove every issuer-qualified membership writer row"
+    );
+    assert!(
+        role_permissions::Entity::find()
+            .filter(role_permissions::Column::OrganizationId.eq(organization))
+            .all(db)
+            .await
+            .unwrap()
+            .is_empty(),
+        "DELETE must remove organization role rows"
+    );
+    assert!(
+        organization_member_role_permissions::Entity::find()
+            .filter(
+                organization_member_role_permissions::Column::MemberId
+                    .is_in(member_ids.iter().copied())
+            )
+            .all(db)
+            .await
+            .unwrap()
+            .is_empty(),
+        "DELETE must remove all member-role assignments"
+    );
+}
+
+fn assert_organization_deleted_oracle_snapshot(
+    events: &[hive_events::HiveDomainEvent],
+    writer: &organizations::Model,
+    members: &[organization_members::Model],
+    actor: Uuid,
+) {
+    assert_eq!(
+        events.len(),
+        1,
+        "exactly one deletion event must be committed"
+    );
+    let hive_events::HiveDomainEvent::OrganizationDeleted(event) = &events[0] else {
+        panic!("organization_deleted outbox row must decode to OrganizationDeleted");
+    };
+    assert_eq!(event.organization_id, writer.id);
+    assert_eq!(event.organization_name, writer.name);
+    assert_eq!(event.owner_user_id, writer.owner_user_id);
+    assert_eq!(event.owner_issuer, writer.owner_issuer);
+    assert_eq!(event.deleted_by_user_id, actor);
+    assert_eq!(
+        event
+            .base
+            .metadata
+            .get("deleted_by_issuer")
+            .map(String::as_str),
+        Some(rustycog::testing::http::jwt::TEST_JWT_ISSUER),
+        "actor provenance must remain separate from owner and member authorities"
+    );
+    let expected: HashSet<_> = members
+        .iter()
+        .map(|member| (member.issuer.clone(), member.user_id))
+        .collect();
+    assert_eq!(
+        expected.len(),
+        members.len(),
+        "fixture principals must be distinct qualified pairs"
+    );
+    let principals = event
+        .member_principals
+        .as_ref()
+        .expect("new writer event must qualify every member");
+    let actual: HashSet<_> = principals
+        .iter()
+        .map(|member| (member.issuer.clone(), member.user_id))
+        .collect();
+    assert_eq!(
+        actual, expected,
+        "outbox must preserve exact writer principal pairs, not actor authority"
+    );
+    assert_eq!(
+        principals.len(),
+        members.len(),
+        "set equality must not hide duplicates or UUID-only merging"
+    );
+    let mut legacy_ids = event.member_user_ids.clone();
+    let mut writer_ids: Vec<_> = members.iter().map(|member| member.user_id).collect();
+    legacy_ids.sort_unstable();
+    writer_ids.sort_unstable();
+    assert_eq!(
+        legacy_ids, writer_ids,
+        "legacy UUID view must retain both same-UUID member entries"
+    );
+}
+
+// T-2: the outbox snapshot comes from PG, never the actor or a UUID-deduplicated set.
+#[tokio::test]
+#[serial]
+async fn organization_delete_outbox_preserves_all_qualified_writer_principals() {
+    let (fixture, base, client, openfga) = Box::pin(setup_test_server()).await.unwrap();
+    with_organization_oracle_cleanup(&fixture, async {
+        let db = fixture.db();
+        let owner = Uuid::new_v4();
+        let actor = Uuid::new_v4();
+        let same_member = Uuid::new_v4();
+        let organization = DbFixtures::organization()
+            .owner_user_id(owner)
+            .owner_issuer(Some("https://owner.example/iam".into()))
+            .commit(db.as_ref())
+            .await
+            .unwrap();
+        for (user, issuer) in [
+            (owner, "https://owner.example/iam"),
+            (same_member, "https://alpha.example/iam"),
+            (same_member, "https://beta.example/iam"),
+        ] {
+            insert_qualified_oracle_member(db.as_ref(), organization.id, user, issuer, "Active")
+                .await;
+        }
+        let members = organization_members::Entity::find()
+            .filter(organization_members::Column::OrganizationId.eq(organization.id))
+            .order_by_asc(organization_members::Column::Id)
+            .all(db.as_ref())
+            .await
+            .unwrap();
+        let role = DbFixtures::role_permission()
+            .organization_id(organization.id)
+            .permission_id("read")
+            .resource_id("organization")
+            .name("qualified-oracle-reader")
+            .commit(db.as_ref())
+            .await
+            .unwrap();
+        for member in &members {
+            DbFixtures::member_role_permission_link()
+                .member_id(member.id)
+                .role_permission_id(role.id)
+                .commit(db.as_ref())
+                .await
+                .unwrap();
+        }
+        let writer = organizations::Entity::find_by_id(organization.id)
+            .one(db.as_ref())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            members.len(),
+            3,
+            "fixture must include owner and both same-UUID authorities"
+        );
+        assert!(
+            organization_deleted_oracle_events(db.as_ref(), organization.id)
+                .await
+                .is_empty()
+        );
+        openfga
+            .allow(
+                Subject::new(actor),
+                Permission::Admin,
+                ResourceRef::new("organization", organization.id),
+            )
+            .await
+            .unwrap();
+        let response = client
+            .delete(format!("{base}/api/organizations/{}", organization.id))
+            .bearer_auth(create_jwt_token(actor))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "distinct authorized actor must reach the writer DELETE"
+        );
+        let events = organization_deleted_oracle_events(db.as_ref(), organization.id).await;
+        assert_organization_deleted_oracle_snapshot(&events, &writer, &members, actor);
+        let member_ids: Vec<_> = members.iter().map(|member| member.id).collect();
+        assert_deleted_organization_oracle_rows(db.as_ref(), organization.id, &member_ids).await;
+    })
+    .await;
+}
 
 #[tokio::test]
 #[serial]
@@ -33,7 +502,7 @@ async fn unresolved_legacy_owner_cannot_be_deleted_or_projected() {
         let organization = DbFixtures::organization().owner_user_id(user).owner_issuer(None)
             .commit(fixture.db().as_ref()).await.unwrap();
         openfga.allow(Subject::new(user), Permission::Admin, ResourceRef::new("organization", organization.id)).await.unwrap();
-        let count_statement = || Statement::from_string(DbBackend::Postgres, "SELECT COUNT(*) AS count FROM outbox_events".to_owned());
+        let count_statement = || Statement::from_string(DbBackend::Postgres, "SELECT COUNT(*) AS count FROM rustycog_outbox_events".to_owned());
         let before: i64 = fixture.db().query_one(count_statement()).await.unwrap().unwrap().try_get("", "count").unwrap();
         let response = client.delete(format!("{base}/api/organizations/{}", organization.id))
             .bearer_auth(token).send().await.unwrap();
@@ -242,12 +711,17 @@ async fn initial_schema_round_trip_recreates_scoped_index_and_rollback_preserves
     let before = role_permission_scope_state(&txn).await;
     assert!(!before.0.is_empty() && !before.1.is_empty());
 
-    // There is one initial migration, not an incremental index migration:
-    // down drops the schema; the outer transaction protects the shared DB.
-    Migrator::down(&txn, Some(1)).await.unwrap();
+    // T-3: exercise the actual initial migration, not the newer provenance
+    // migration whose downgrade intentionally refuses to erase authority.
+    let initial = Migrator::migrations()
+        .into_iter()
+        .find(|migration| migration.name() == "m20240101_000001_initial_schema")
+        .expect("registered initial Hive migration");
+    let manager = SchemaManager::new(&txn);
+    initial.down(&manager).await.unwrap();
     assert_role_permission_schema_dropped(&txn).await;
 
-    Migrator::up(&txn, Some(1)).await.unwrap();
+    initial.up(&manager).await.unwrap();
     let recreated = role_permission_scope_state(&txn).await;
     assert!(recreated.0.is_empty() && recreated.1.is_empty());
     assert_eq!(
@@ -278,11 +752,282 @@ async fn initial_schema_down_drops_cross_org_roles_and_rollback_preserves_rows()
 
     // Flattening removed the downgrade to a global uniqueness index. Even
     // cross-org combinations are dropped by down of the initial schema.
-    Migrator::down(&txn, Some(1)).await.unwrap();
+    // T-3: keep the historical dropped-table oracle, targeting the initial
+    // schema explicitly instead of the latest owner_issuer migration.
+    let initial = Migrator::migrations()
+        .into_iter()
+        .find(|migration| migration.name() == "m20240101_000001_initial_schema")
+        .expect("registered initial Hive migration");
+    initial.down(&SchemaManager::new(&txn)).await.unwrap();
     assert_role_permission_schema_dropped(&txn).await;
     txn.rollback().await.unwrap();
     assert_eq!(role_permission_scope_state(db.as_ref()).await, before);
     cleanup_scoped_role_test_organizations(db.as_ref(), vec![first.id, second.id]).await;
+}
+
+async fn organization_migration_oracle_snapshot(
+    db: &impl ConnectionTrait,
+) -> HashMap<String, serde_json::Value> {
+    let mut snapshot = HashMap::new();
+    // Fixed Hive schema allowlist, including outbox and the migration ledger.
+    // Row JSON is ordered independently of physical layout and never printed.
+    for table in [
+        "organizations",
+        "organization_members",
+        "organization_member_role_permissions",
+        "role_permissions",
+        "permissions",
+        "resources",
+        "organization_invitations",
+        "external_links",
+        "external_providers",
+        "sync_jobs",
+        "outbox_events",
+        "seaql_migrations",
+    ] {
+        // Retain the snapshot's logical key while querying the actual migrated
+        // SDK table; there is no physical table named outbox_events.
+        let physical_table = if table == "outbox_events" {
+            "rustycog_outbox_events"
+        } else {
+            table
+        };
+        let sql = format!(
+            "SELECT COALESCE(jsonb_agg(row_data ORDER BY row_data::text), '[]'::jsonb) AS snapshot \
+             FROM (SELECT to_jsonb(source) AS row_data FROM {physical_table} source) AS source_rows"
+        );
+        let row = db
+            .query_one(Statement::from_string(DbBackend::Postgres, sql))
+            .await
+            .unwrap()
+            .unwrap();
+        snapshot.insert(table.to_owned(), row.try_get("", "snapshot").unwrap());
+    }
+    for (key, sql) in [
+        ("columns", "SELECT COALESCE(jsonb_agg(to_jsonb(c) ORDER BY c.table_name, c.ordinal_position), '[]'::jsonb) AS snapshot FROM information_schema.columns c WHERE c.table_schema = current_schema()"),
+        ("indexes", "SELECT COALESCE(jsonb_agg(to_jsonb(i) ORDER BY i.tablename, i.indexname), '[]'::jsonb) AS snapshot FROM pg_indexes i WHERE i.schemaname = current_schema()"),
+    ] {
+        let row = db.query_one(Statement::from_string(DbBackend::Postgres, sql))
+            .await.unwrap().unwrap();
+        snapshot.insert(key.to_owned(), row.try_get("", "snapshot").unwrap());
+    }
+    snapshot
+}
+
+// Descriptor compatibility: each serial fixture must start clean even though
+// the production owner_issuer migration deliberately forbids downgrade.
+#[tokio::test]
+#[serial]
+async fn fixture_schema_reset_clears_rows_and_reapplies_owner_provenance() {
+    use rustycog::testing::ServiceTestDescriptor;
+
+    let descriptor = std::sync::Arc::new(common::HiveTestDescriptor);
+    let fixture = Box::pin(common::HiveTestFixture::new(descriptor.clone()))
+        .await
+        .unwrap();
+    with_organization_oracle_cleanup(&fixture, async {
+        let db = fixture.db();
+        let owner = Uuid::new_v4();
+        let organization = DbFixtures::create_org_with_owner(db.as_ref(), owner).await.unwrap();
+        insert_qualified_oracle_member(db.as_ref(), organization.id, owner,
+            "https://independent-reset.example/iam", "Active").await;
+        db.execute(Statement::from_sql_and_values(DbBackend::Postgres,
+            "INSERT INTO rustycog_outbox_events \
+             (id,event_id,event_type,aggregate_id,version,occurred_at,payload_json,metadata_json,status) \
+             VALUES ($1,$2,'fixture_reset_probe',$3,1,now(),'{}'::jsonb,'{}'::jsonb,'pending')",
+            [Uuid::new_v4().into(), Uuid::new_v4().into(), organization.id.into()],
+        )).await.unwrap();
+        let populated = organization_migration_oracle_snapshot(db.as_ref()).await;
+        let cleared_tables = ["organizations", "organization_members", "role_permissions",
+            "organization_member_role_permissions", "outbox_events"];
+        for table in cleared_tables {
+            assert!(!populated[table].as_array().unwrap().is_empty(), "reset witness must populate {table}");
+        }
+        // No listener/worker was started: this acts only on this fixture's PG.
+        descriptor.run_migrations_down(db.as_ref()).await.expect("real private descriptor reset");
+        let reset = organization_migration_oracle_snapshot(db.as_ref()).await;
+        for table in cleared_tables {
+            assert!(reset[table].as_array().unwrap().is_empty(), "private fixture reset must clear {table}");
+        }
+        let owner_columns: Vec<_> = reset["columns"].as_array().unwrap().iter()
+            .filter(|column| column["table_name"] == "organizations" && column["column_name"] == "owner_issuer")
+            .collect();
+        assert_eq!(owner_columns.len(), 1, "reset must reapply additive owner provenance");
+        assert_eq!(owner_columns[0]["is_nullable"], "YES");
+        let mut versions: Vec<_> = reset["seaql_migrations"].as_array().unwrap().iter()
+            .map(|row| row["version"].as_str().unwrap()).collect();
+        versions.sort_unstable();
+        assert_eq!(versions, vec!["m20240101_000001_initial_schema", "m20261028_000002_owner_issuer"],
+            "both actual Hive migrations must be recorded after reset");
+        assert_eq!(role_permission_scope_indexes(db.as_ref()).await,
+            vec![String::from("idx_role_permissions_org_unique_combo")]);
+        descriptor.run_migrations_up(db.as_ref()).await.expect("generic fixture up after fresh");
+        let after_up = organization_migration_oracle_snapshot(db.as_ref()).await;
+        assert!(after_up == reset, "the generic up step after fresh must be a data/schema/ledger no-op");
+        let inserted = DbFixtures::organization().id(organization.id).slug(organization.slug.clone())
+            .owner_user_id(owner).commit(db.as_ref()).await.expect("same primary/unique keys must be reusable");
+        let member = insert_qualified_oracle_member(db.as_ref(), inserted.id, owner,
+            rustycog::testing::http::jwt::TEST_JWT_ISSUER, "Active").await;
+        let stored = organizations::Entity::find_by_id(inserted.id).one(db.as_ref()).await.unwrap().unwrap();
+        assert!(stored == inserted, "new legitimate organization must round-trip after reset");
+        assert_eq!(stored.owner_issuer.as_deref(), Some(rustycog::testing::http::jwt::TEST_JWT_ISSUER));
+        let members = organization_members::Entity::find().all(db.as_ref()).await.unwrap();
+        assert_eq!(members, vec![member], "only the new qualified membership may remain");
+    }).await;
+}
+
+fn assert_legacy_owner_upgrade_snapshot(
+    mut before: HashMap<String, serde_json::Value>,
+    mut after: HashMap<String, serde_json::Value>,
+) {
+    let is_owner_column = |column: &serde_json::Value| {
+        column["table_name"] == "organizations" && column["column_name"] == "owner_issuer"
+    };
+    assert!(
+        before["columns"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|column| !is_owner_column(column)),
+        "legacy rows must really predate the owner_issuer column"
+    );
+    let columns = after.get_mut("columns").unwrap().as_array_mut().unwrap();
+    let added: Vec<_> = columns
+        .iter()
+        .filter(|column| is_owner_column(column))
+        .collect();
+    assert_eq!(
+        added.len(),
+        1,
+        "additive upgrade must introduce the provenance column"
+    );
+    assert_eq!(
+        added[0]["is_nullable"], "YES",
+        "unresolved historical owners must remain representable"
+    );
+    columns.retain(|column| !is_owner_column(column));
+    for row in before["organizations"].as_array().unwrap() {
+        assert!(
+            row.get("owner_issuer").is_none(),
+            "old writer rows must not already contain provenance"
+        );
+    }
+    for row in after
+        .get_mut("organizations")
+        .unwrap()
+        .as_array_mut()
+        .unwrap()
+    {
+        assert_eq!(
+            row.as_object_mut().unwrap().remove("owner_issuer"),
+            Some(serde_json::Value::Null),
+            "neither ambiguous nor apparently-platform ownership may be automatically stamped"
+        );
+    }
+    // Compare every original value, independent of JSON aggregation order after
+    // adding a column. Only that new, explicitly NULL field is excluded.
+    for snapshot in [&mut before, &mut after] {
+        snapshot
+            .get_mut("organizations")
+            .unwrap()
+            .as_array_mut()
+            .unwrap()
+            .sort_by_key(|row| row["id"].as_str().unwrap().to_owned());
+    }
+    assert!(after == before,
+        "upgrade must preserve all legacy values, UUIDs, owners, memberships, indexes, other columns and migration ledger");
+}
+
+// T-3 upgrade gap: existing rows must cross the real additive migration, not be
+// inserted with NULL provenance only after the new schema has already run.
+#[tokio::test]
+#[serial]
+async fn owner_issuer_upgrade_preserves_legacy_rows_without_backfill() {
+    // Existing PG/FGA fixture only: no application listener or HTTP/outbox call
+    // runs against the transient old schema. All DDL/data are rolled back.
+    let fixture = Box::pin(common::HiveTestFixture::new(std::sync::Arc::new(
+        common::HiveTestDescriptor,
+    )))
+    .await
+    .unwrap();
+    with_organization_oracle_cleanup(&fixture, async {
+        let db = fixture.db();
+        let original = organization_migration_oracle_snapshot(db.as_ref()).await;
+        let txn = db.begin().await.unwrap();
+        let initial = Migrator::migrations().into_iter()
+            .find(|migration| migration.name() == "m20240101_000001_initial_schema")
+            .expect("registered initial Hive migration");
+        initial.down(&SchemaManager::new(&txn)).await.unwrap();
+        initial.up(&SchemaManager::new(&txn)).await.unwrap();
+        let legacy = [
+            (Uuid::new_v4(), Uuid::new_v4(), "ambiguous-owner"),
+            (Uuid::new_v4(), Uuid::new_v4(), "apparently-platform-owner"),
+        ];
+        for (id, owner, label) in legacy {
+            txn.execute(Statement::from_sql_and_values(DbBackend::Postgres,
+                r#"INSERT INTO organizations
+                   (id, name, slug, description, avatar_url, owner_user_id, settings,
+                    signing_status, created_at, updated_at)
+                   VALUES ($1, $2, $3, 'historical description', 'https://legacy.example/avatar.png',
+                           $4, '{"visibility":"Private","legacy":"preserve"}'::jsonb, 'active',
+                           '2024-01-02T03:04:05Z'::timestamptz, '2024-06-07T08:09:10Z'::timestamptz)"#,
+                [id.into(), label.into(), format!("legacy-upgrade-{id}").into(), owner.into()],
+            )).await.unwrap();
+            insert_qualified_oracle_member(&txn, id, owner,
+                rustycog::testing::http::jwt::TEST_JWT_ISSUER, "Active").await;
+        }
+        // A same-UUID second authority makes one owner's provenance ambiguous;
+        // the seemingly platform-only owner must not be guessed/backfilled either.
+        insert_qualified_oracle_member(&txn, legacy[0].0, legacy[0].1,
+            "https://independent-legacy.example/iam", "Active").await;
+        let before = organization_migration_oracle_snapshot(&txn).await;
+        let provenance = Migrator::migrations().into_iter()
+            .find(|migration| migration.name() == "m20261028_000002_owner_issuer")
+            .expect("registered additive owner provenance migration");
+        provenance.up(&SchemaManager::new(&txn)).await.unwrap();
+        let migrated = organizations::Entity::find().all(&txn).await.unwrap();
+        let after = organization_migration_oracle_snapshot(&txn).await;
+        txn.rollback().await.unwrap();
+        let restored = organization_migration_oracle_snapshot(db.as_ref()).await;
+        assert!(restored == original, "outer rollback must restore the whole original fixture database");
+        assert_eq!(migrated.len(), legacy.len(), "upgrade must retain every historical organization");
+        for (id, owner, _) in legacy {
+            let row = migrated.iter().find(|row| row.id == id).expect("historical organization UUID must survive");
+            assert_eq!(row.owner_user_id, owner);
+            assert!(row.owner_issuer.is_none(), "upgrade must not infer an owner authority from memberships or platform configuration");
+        }
+        assert_legacy_owner_upgrade_snapshot(before, after);
+    }).await;
+}
+
+// T-3: refusing authority loss must not replace the two initial-schema oracles.
+#[tokio::test]
+#[serial]
+async fn owner_issuer_down_refuses_without_modifying_data() {
+    let (fixture, base, client, _openfga) = Box::pin(setup_test_server()).await.unwrap();
+    with_organization_oracle_cleanup(&fixture, async {
+        let owner = Uuid::new_v4();
+        let token = create_jwt_token(owner);
+        let organization = create_scoped_role_test_organization(&client, &base, &token, "provenance-down").await;
+        insert_qualified_oracle_member(fixture.db().as_ref(), organization.id, owner,
+            "https://independent-owner.example/iam", "Active").await;
+        let before = organization_migration_oracle_snapshot(fixture.db().as_ref()).await;
+        assert!(!before["organizations"].as_array().unwrap().is_empty());
+        assert!(!before["outbox_events"].as_array().unwrap().is_empty(), "exercise nonempty transactional outbox");
+        assert_eq!(role_permission_scope_indexes(fixture.db().as_ref()).await,
+            vec![String::from("idx_role_permissions_org_unique_combo")]);
+        let txn = fixture.db().begin().await.unwrap();
+        let provenance = Migrator::migrations().into_iter()
+            .find(|migration| migration.name() == "m20261028_000002_owner_issuer")
+            .expect("registered additive owner provenance migration");
+        let result = provenance.down(&SchemaManager::new(&txn)).await;
+        let during = organization_migration_oracle_snapshot(&txn).await;
+        txn.rollback().await.unwrap();
+        let after = organization_migration_oracle_snapshot(fixture.db().as_ref()).await;
+        assert!(result.is_err(), "provenance downgrade must refuse without a coordinated authority rollback");
+        assert!(during == before, "refusal must not mutate any writer data, column, index or migration ledger inside the transaction");
+        assert!(after == before, "refusal and outer rollback must preserve the original persisted database snapshot");
+    }).await;
 }
 
 async fn assert_role_permission_schema_dropped(db: &impl ConnectionTrait) {

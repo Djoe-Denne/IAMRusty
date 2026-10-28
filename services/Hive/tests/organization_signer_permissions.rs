@@ -77,7 +77,7 @@ async fn signer_writer_snapshot(
 ) -> serde_json::Value {
     use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
     fixture.db().query_one(Statement::from_sql_and_values(DatabaseBackend::Postgres,
-        "SELECT jsonb_build_object('organization', (SELECT to_jsonb(o) FROM organizations o WHERE o.id=$1), 'members', (SELECT COALESCE(jsonb_agg(to_jsonb(m) ORDER BY m.id), '[]'::jsonb) FROM organization_members m WHERE m.organization_id=$1), 'outbox_count', (SELECT COUNT(*) FROM outbox_events)) AS state",
+        "SELECT jsonb_build_object('organization', (SELECT to_jsonb(o) FROM organizations o WHERE o.id=$1), 'members', (SELECT COALESCE(jsonb_agg(to_jsonb(m) ORDER BY m.id), '[]'::jsonb) FROM organization_members m WHERE m.organization_id=$1), 'outbox_count', (SELECT COUNT(*) FROM rustycog_outbox_events)) AS state",
         [organization.into()])).await.unwrap().unwrap().try_get("", "state").unwrap()
 }
 

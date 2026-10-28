@@ -73,8 +73,11 @@ impl ServiceTestDescriptor<HiveTestFixture> for HiveTestDescriptor {
         &self,
         connection: &sea_orm::DatabaseConnection,
     ) -> anyhow::Result<()> {
-        println!("Running migrations down");
-        Migrator::down(connection, None).await?;
+        // This descriptor receives only the fixtures' owned disposable PG.
+        // Reset isolation without invoking the forbidden production authority
+        // downgrade; fresh reapplies both migrations before the generic up step.
+        println!("Resetting disposable Hive fixture schema");
+        Migrator::fresh(connection).await?;
         Ok(())
     }
 

@@ -167,7 +167,7 @@ async fn last_principal_event(
     use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
     let payload: serde_json::Value = fixture.db().query_one(Statement::from_sql_and_values(
         DatabaseBackend::Postgres,
-        "SELECT payload_json FROM outbox_events WHERE aggregate_id=$1 AND event_type=$2 ORDER BY created_at DESC LIMIT 1",
+        "SELECT payload_json FROM rustycog_outbox_events WHERE aggregate_id=$1 AND event_type=$2 ORDER BY created_at DESC LIMIT 1",
         [organization.into(), event_type.to_owned().into()],
     )).await.unwrap().unwrap().try_get("", "payload_json").unwrap();
     serde_json::from_value(payload).expect("typed Hive event persisted in real outbox")
