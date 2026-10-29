@@ -3,6 +3,8 @@ title: "Authentification — qualification locale du 29 octobre 2026"
 category: references
 tags: [security, architecture, visibility/internal]
 sources:
+  - docs/reviews/20261029-auth-security-final-evidence.md
+  - docs/missions/20261029-auth-security-publication.md
   - docs/contracts/20261029-auth-security-qualified-state.md
   - .cursor/handoffs/20261028-auth-security-closure.md
   - docs/missions/20261029-k6-recherche-et-enchainement.md
@@ -47,6 +49,14 @@ Production, haute disponibilité, deux répliques live et projections runtime ex
 La qualification matérielle HSM est une dette acceptée non bloquante pour les futures campagnes k6, pas une capacité réalisée. ADR 0309 conserve Accepted/Partial. [[projects/aiforall/decisions/0308-mesh-authn-jwt]] conserve également son statut propre.
 
 ## Provenance et exclusions
+
+Les conclusions de sécurité et d'infrastructure sont maintenant versionnées dans
+`docs/reviews/20261029-auth-security-final-evidence.md`, sans les sorties brutes.
+Le document `docs/missions/20261029-auth-security-publication.md` trace la
+publication et les arbitrages d'intégration : les livrables des worktrees sont
+à intégrer, pas leurs dossiers techniques ; l'alternative ADR0315 a été écartée
+explicitement au profit du contrat remote ratifié. Les versions Proposed restées
+dans ces arbres ne remplacent pas les documents ratifiés de master.
 
 Sources canoniques : contrat qualifié et ledger de clôture cités en frontmatter. Ils référencent les revues et preuves détaillées. Aucun JWT, cookie, code OAuth, clé, profil navigateur, journal brut privé ni raisonnement interne d'agent n'est ingéré. Les futures missions sont documentées dans le dossier `docs/missions/20261029-k6-*`, pas admises par cette ingestion.
 

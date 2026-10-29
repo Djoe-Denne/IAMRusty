@@ -23,6 +23,14 @@ Documentation d’implémentation et de parcours métier pour ce workspace. Le v
 - [guides/jwt-consommateur.md](guides/jwt-consommateur.md) — recette `[auth.jwt]` + tests
 - [guides/permissions.md](guides/permissions.md) — UUID profond vs `with_permission_on_param`
 - [guides/tests-integration.md](guides/tests-integration.md) — harness, OpenFGA réel, fixtures
+- [guides/livrables-durables-et-worktrees.md](guides/livrables-durables-et-worktrees.md) — publier les livrables réutilisables des worktrees, sans les données temporaires
+
+## Campagnes et limites de preuve
+
+- [État qualifié de l'authentification](contracts/20261029-auth-security-qualified-state.md) — portée locale et limites production/HA/HSM
+- [Publication et réconciliation des livrables](missions/20261029-auth-security-publication.md) — intégration des worktrees, alternatives écartées et traces restant locales
+- [Conclusions des revues finales](reviews/20261029-auth-security-final-evidence.md) — sécurité et recevabilité des preuves, sans logs ni secrets
+- [Trois missions k6 proposées](missions/20261029-k6-recherche-et-enchainement.md) — préparation uniquement, pas campagne exécutée
 
 ## Parcours métier
 

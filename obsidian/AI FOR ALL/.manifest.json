@@ -1,7 +1,7 @@
 ﻿{
     "version":  1,
     "stats":  {
-                  "total_sources_ingested":  1337,
+                  "total_sources_ingested":  1339,
                   "total_pages":  250,
                   "total_pages_scope": "markdown excluding dot/underscore files and directories; includes navigation and log; recounted 2026-10-29",
                   "last_commit_synced":  "2473baa7a54595931a4eff76a33431f56776db20"
@@ -88,6 +88,26 @@
                                   }
                  },
     "sources":  {
+        "docs/reviews/20261029-auth-security-final-evidence.md": {
+            "ingested_at": "2026-10-29",
+            "size_bytes": 4929,
+            "modified_at": "2026-10-29T18:00:52.428Z",
+            "content_hash": "sha256:a06743beae2ef2b4b8996de9266fe819cfb5dd2a0d02bd983d405a72bc3775ba",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/references/auth-security-closure-20261029.md"]
+        },
+        "docs/missions/20261029-auth-security-publication.md": {
+            "ingested_at": "2026-10-29",
+            "size_bytes": 4395,
+            "modified_at": "2026-10-29T18:00:52.428Z",
+            "content_hash": "sha256:104f23d624fedbaa0204aa95895c969cccb6db1ac4e8e65ea6cd952e001630c3",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/references/auth-security-closure-20261029.md"]
+        },
         "docs/contracts/20261029-auth-security-qualified-state.md": {
             "ingested_at": "2026-10-29",
             "size_bytes": 6791,
