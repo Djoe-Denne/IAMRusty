@@ -30,6 +30,8 @@ Documentation d’implémentation et de parcours métier pour ce workspace. Le v
 - [État qualifié de l'authentification](contracts/20261029-auth-security-qualified-state.md) — portée locale et limites production/HA/HSM
 - [Publication et réconciliation des livrables](missions/20261029-auth-security-publication.md) — intégration des worktrees, alternatives écartées et traces restant locales
 - [Conclusions des revues finales](reviews/20261029-auth-security-final-evidence.md) — sécurité et recevabilité des preuves, sans logs ni secrets
+- [Propositions AuthZ conservées](reviews/20261029-authz-proposals-carried-forward.md) — deux précisions historiques préservées sans modifier les décisions ratifiées
+- [Revue de conservation des worktrees](reviews/20261029-worktree-consolidation.md) — comparaison des livraisons, corrections finales conservées et limites des preuves
 - [Trois missions k6 proposées](missions/20261029-k6-recherche-et-enchainement.md) — préparation uniquement, pas campagne exécutée
 
 ## Parcours métier

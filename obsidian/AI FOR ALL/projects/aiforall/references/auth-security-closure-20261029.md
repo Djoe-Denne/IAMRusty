@@ -3,6 +3,8 @@ title: "Authentification — qualification locale du 29 octobre 2026"
 category: references
 tags: [security, architecture, visibility/internal]
 sources:
+  - docs/reviews/20261029-authz-proposals-carried-forward.md
+  - docs/reviews/20261029-worktree-consolidation.md
   - docs/reviews/20261029-auth-security-final-evidence.md
   - docs/missions/20261029-auth-security-publication.md
   - docs/contracts/20261029-auth-security-qualified-state.md
@@ -49,6 +51,14 @@ Production, haute disponibilité, deux répliques live et projections runtime ex
 La qualification matérielle HSM est une dette acceptée non bloquante pour les futures campagnes k6, pas une capacité réalisée. ADR 0309 conserve Accepted/Partial. [[projects/aiforall/decisions/0308-mesh-authn-jwt]] conserve également son statut propre.
 
 ## Provenance et exclusions
+
+La consolidation complémentaire fait l'objet d'une revue statique indépendante
+dans `docs/reviews/20261029-worktree-consolidation.md` : pas de perte fonctionnelle
+bloquante établie en conservant les versions finales. Deux précisions de l'ancien
+contrat Proposed (liaison store FGA/autorité et invitations UUID account-only)
+sont reprises dans `docs/reviews/20261029-authz-proposals-carried-forward.md`.
+Architecte en est l'auteur ; le lead ratifie leur **conservation documentaire
+uniquement**. Elles ne deviennent ni exigences Accepted ni nouveaux tests exécutés.
 
 Les conclusions de sécurité et d'infrastructure sont maintenant versionnées dans
 `docs/reviews/20261029-auth-security-final-evidence.md`, sans les sorties brutes.

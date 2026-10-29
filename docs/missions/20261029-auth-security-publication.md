@@ -71,3 +71,26 @@ La règle réutilisable est décrite dans
 [Livrables durables et worktrees](../guides/livrables-durables-et-worktrees.md).
 Aucun nouveau code, test fonctionnel ou runtime n'est ajouté par cette
 réconciliation documentaire ; les résultats antérieurs restent datés et bornés.
+
+## Consolidation complémentaire des branches
+
+Après demande explicite de fusion, les onze résidus non committés ont été
+préservés par des commits de livraison sur leurs branches existantes. Une revue
+indépendante de contenu a comparé ces snapshots au canon052817d : aucune perte
+fonctionnelle bloquante établie ; conserver les versions finales évite de
+réintroduire des limites Admin, mappings de ports, oracles PATCH ou pins SDK
+antérieurs. Les différences Manifesto sont seulement des fins de ligne, normalisées
+selon les attributs Git dans le commit1f4f886, sans changement de contenu normalisé.
+
+La revue a retrouvé deux précisions Proposed absentes du contrat principal. Leur
+[conservation non normative](../reviews/20261029-authz-proposals-carried-forward.md)
+a été rédigée par architecte puis explicitement ratifiée par le lead **pour leur
+conservation seulement**. Aucune nouvelle exigence Accepted ni qualification
+implicite de migration, d’invitation ou de tests.
+
+Les instantanés historiques restent distincts des versions à publier. Les
+contrôles fmt tentés dans leurs longs chemins Windows ont échoué en environnement
+(erreur206 ou exécution indéterminée), jamais présentés comme PASS. Le contrôle
+exact `cargo fmt --all -- --check` a réussi depuis la racine canonique courte.
+Il qualifie le format de la version conservée, pas celui des anciens snapshots.
+Aucune nouvelle campagne fonctionnelle n’est déduite de cette consolidation.

@@ -1,7 +1,7 @@
 ﻿{
     "version":  1,
     "stats":  {
-                  "total_sources_ingested":  1339,
+                  "total_sources_ingested":  1341,
                   "total_pages":  250,
                   "total_pages_scope": "markdown excluding dot/underscore files and directories; includes navigation and log; recounted 2026-10-29",
                   "last_commit_synced":  "2473baa7a54595931a4eff76a33431f56776db20"
@@ -88,6 +88,26 @@
                                   }
                  },
     "sources":  {
+        "docs/reviews/20261029-authz-proposals-carried-forward.md": {
+            "ingested_at": "2026-10-29",
+            "size_bytes": 6751,
+            "modified_at": "2026-10-29T19:39:00.630Z",
+            "content_hash": "sha256:592c601b00cf89ebcd70b6115f9178bc8da09c7a1f582a58fae74d40466ed0e5",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/references/auth-security-closure-20261029.md"]
+        },
+        "docs/reviews/20261029-worktree-consolidation.md": {
+            "ingested_at": "2026-10-29",
+            "size_bytes": 4697,
+            "modified_at": "2026-10-29T19:40:47.193Z",
+            "content_hash": "sha256:d4721f463f85332bedbb89f6d7f092d4bbde4269639d7a58f5e9391199e90a28",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/references/auth-security-closure-20261029.md"]
+        },
         "docs/reviews/20261029-auth-security-final-evidence.md": {
             "ingested_at": "2026-10-29",
             "size_bytes": 4929,
@@ -100,9 +120,9 @@
         },
         "docs/missions/20261029-auth-security-publication.md": {
             "ingested_at": "2026-10-29",
-            "size_bytes": 4395,
-            "modified_at": "2026-10-29T18:00:52.428Z",
-            "content_hash": "sha256:104f23d624fedbaa0204aa95895c969cccb6db1ac4e8e65ea6cd952e001630c3",
+            "size_bytes": 5886,
+            "modified_at": "2026-10-29T19:39:00.632Z",
+            "content_hash": "sha256:f0b83bca7ce2ceaee53061d100119c8d52a389fe98ccc6795e2b14b028e35560",
             "source_type": "document",
             "project": "aiforall",
             "pages_created": [],
