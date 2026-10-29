@@ -1,6 +1,6 @@
 # Politique explicite du vérificateur service grant-snapshot Manifesto
 
-- Version 1, 2026-10-29. Auteur : architecte/pool-4 ; **Accepted / Unimplemented**.
+- Version 1, 2026-10-29. Auteur : architecte/pool-4 ; **Accepted / Partial** : code intégré, unitaires et IT ciblées natives vérifiés ; livraison Linux et démarrage de l'image corrigée encore non qualifiés.
 - Ratification explicite par le lead, sous délégation utilisateur, après lecture intégrale du document architecte de 80 lignes et examen des sources, alternatives, compatibilité et oracles. Aucune preuve de démarrage réussi n'en est déduite.
 - Canon : [ADR0314](../adr/0314-principal-authority-through-openfga.md) et [frontière AuthZ](authz-trust-domain-boundary.md). Précision locale d'un consommateur service distinct, sans supersession ni nouvelle ADR.
 - Source : application fad3f8d97f5ebfbf4470aff5663974b451266b82, SDK02e5db23aac6016aab062c3078696d5f7fd464ef. L'auteur a vérifié les sources, pas le runtime. Original architecte conservé dans son worktree sous ce même chemin.

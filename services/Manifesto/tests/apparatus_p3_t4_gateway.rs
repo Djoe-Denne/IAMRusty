@@ -34,9 +34,13 @@ struct PlatformGrantSnapshotClaims {
 }
 
 fn create_platform_grant_snapshot_jwt() -> String {
+    create_platform_grant_snapshot_jwt_for_actor(Uuid::new_v4())
+}
+
+fn create_platform_grant_snapshot_jwt_for_actor(actor_id: Uuid) -> String {
     let now = chrono::Utc::now();
     let claims = PlatformGrantSnapshotClaims {
-        sub: Uuid::new_v4().to_string(),
+        sub: actor_id.to_string(),
         iss: GRANT_SNAPSHOT_ISSUER.to_owned(),
         aud: GRANT_SNAPSHOT_AUDIENCE.to_owned(),
         exp: (now + chrono::Duration::hours(1)).timestamp(),
@@ -167,7 +171,9 @@ async fn t4_snapshot_returns_consented_cap_from_db() {
     )
     .await;
 
-    let jwt = create_platform_grant_snapshot_jwt();
+    let service_actor = Uuid::new_v4();
+    assert_ne!(service_actor, owner_id);
+    let jwt = create_platform_grant_snapshot_jwt_for_actor(service_actor);
     let response = client
         .get(snapshot_url(
             &base_url,
@@ -200,6 +206,39 @@ async fn t4_snapshot_returns_consented_cap_from_db() {
     assert_eq!(declared[0], "project.read");
     assert_eq!(body["principal"]["user_id"], owner_id.to_string());
     assert_eq!(body["principal"]["active"], true);
+
+    // The service UUID is not a member; substituting the JWT sub for the query
+    // would turn the preceding active-member assertion into a refusal/false.
+    let response = client
+        .get(snapshot_url(
+            &base_url,
+            project.id(),
+            component.id(),
+            Some(service_actor),
+        ))
+        .bearer_auth(&jwt)
+        .send()
+        .await
+        .expect("GET service actor intersection");
+    assert_eq!(response.status(), 200);
+    let actor_body: serde_json::Value = response.json().await.expect("JSON");
+    assert_eq!(
+        actor_body["principal"]["user_id"],
+        service_actor.to_string()
+    );
+    assert_eq!(actor_body["principal"]["active"], false);
+
+    let response = client
+        .get(snapshot_url(&base_url, project.id(), component.id(), None))
+        .bearer_auth(&jwt)
+        .send()
+        .await
+        .expect("GET snapshot without intersection");
+    assert_eq!(response.status(), 200);
+    let full_body: serde_json::Value = response.json().await.expect("JSON");
+    assert!(full_body["principal"].is_null());
+    assert_eq!(full_body["consents"], body["consents"]);
+    assert_eq!(full_body["grant_revision"], body["grant_revision"]);
 }
 
 #[tokio::test]

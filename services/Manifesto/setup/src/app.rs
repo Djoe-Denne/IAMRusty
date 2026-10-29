@@ -463,21 +463,31 @@ impl Application {
 ///
 /// # Errors
 ///
-/// Returns an error if the HS256 secret is missing or empty (fail closed).
+/// Returns an opaque error if the dedicated key, issuer/audience or explicit
+/// service principal policy is missing or invalid (fail closed).
 fn grant_snapshot_user_id_extractor(config: &AppConfig) -> Result<Arc<UserIdExtractor>, Error> {
     let auth = &config.apparatus.grant_snapshot_auth;
+    auth.validate()?;
     let extractor = UserIdExtractor::new(AuthConfig {
         jwt: JwtAuthConfig {
             hs256_secret: auth.hs256_secret.clone(),
             issuer: Some(auth.issuer.clone()),
             audience: Some(auth.audience.clone()),
+            // This policy is local to the service GET, not the IAM account routes.
+            platform_issuer: auth.service_principal_issuer.clone(),
+            allow_historical_platform_issuer: Some(false),
+            allowed_algorithms: vec!["HS256".to_owned()],
             ..JwtAuthConfig::default()
         },
         ..AuthConfig::default()
     })
-    .map_err(|e| anyhow::anyhow!("Invalid grant snapshot auth configuration: {e}"))?;
+    .map_err(|_| anyhow::anyhow!("Invalid grant snapshot auth configuration"))?;
     Ok(Arc::new(extractor))
 }
+
+#[cfg(test)]
+#[path = "../../tests/fixtures/grant_snapshot_service_policy.rs"]
+mod grant_snapshot_service_policy_tests;
 
 /// Setup database connection
 async fn setup_database(config: &AppConfig) -> Result<DbConnectionPool, Error> {

@@ -123,6 +123,10 @@ pub struct GrantSnapshotAuthConfig {
     /// Expected `aud` claim.
     #[serde(default = "default_grant_snapshot_audience")]
     pub audience: String,
+    /// Explicit authority attestation for this service-only UUID actor view.
+    /// Never inherited from the IAM policy or inferred from the HS256 issuer.
+    #[serde(default)]
+    pub service_principal_issuer: Option<String>,
 }
 
 impl Default for GrantSnapshotAuthConfig {
@@ -131,7 +135,43 @@ impl Default for GrantSnapshotAuthConfig {
             hs256_secret: None,
             issuer: default_grant_snapshot_issuer(),
             audience: default_grant_snapshot_audience(),
+            service_principal_issuer: None,
         }
+    }
+}
+
+/// Opaque startup failure; configuration values and key material are not exposed.
+#[derive(Debug, Clone, Copy, thiserror::Error)]
+#[error("Invalid grant snapshot auth configuration")]
+pub struct GrantSnapshotAuthConfigError;
+
+impl GrantSnapshotAuthConfig {
+    /// Validate the dedicated service verifier without normalizing authority names.
+    ///
+    /// # Errors
+    ///
+    /// Returns an opaque error for missing key material, invalid issuer/audience,
+    /// or an absent, invalid or mismatched explicit service authority.
+    pub fn validate(&self) -> Result<(), GrantSnapshotAuthConfigError> {
+        let issuer = self
+            .service_principal_issuer
+            .as_ref()
+            .ok_or(GrantSnapshotAuthConfigError)?;
+        rustycog::permission::PrincipalPolicy::new(issuer.clone(), false)
+            .map_err(|_| GrantSnapshotAuthConfigError)?;
+        if issuer != &self.issuer
+            || self.issuer.is_empty()
+            || self.issuer.trim() != self.issuer
+            || self.audience.is_empty()
+            || self.audience.trim() != self.audience
+            || self
+                .hs256_secret
+                .as_ref()
+                .is_none_or(|secret| secret.trim().is_empty())
+        {
+            return Err(GrantSnapshotAuthConfigError);
+        }
+        Ok(())
     }
 }
 
@@ -365,4 +405,110 @@ impl HasOpenFgaConfig for ManifestoConfig {
 /// Returns [`ConfigError`] when required files or environment values cannot be loaded.
 pub fn load_config() -> Result<ManifestoConfig, ConfigError> {
     load_config_fresh::<ManifestoConfig>()
+}
+
+#[cfg(test)]
+mod grant_snapshot_policy_tests {
+    use super::*;
+
+    #[test]
+    fn grant_snapshot_requires_explicit_service_principal_policy() {
+        let valid = GrantSnapshotAuthConfig {
+            hs256_secret: Some("fixture-only-key".to_owned()),
+            service_principal_issuer: Some("aiforall-platform".to_owned()),
+            ..GrantSnapshotAuthConfig::default()
+        };
+        assert!(valid.validate().is_ok());
+        assert!(GrantSnapshotAuthConfig::default()
+            .service_principal_issuer
+            .is_none());
+        let deserialized: GrantSnapshotAuthConfig = toml::from_str("").unwrap();
+        assert!(deserialized.service_principal_issuer.is_none());
+        assert!(deserialized.validate().is_err());
+        for issuer in ["custom-service".to_owned(), "é".repeat(128)] {
+            assert!(GrantSnapshotAuthConfig {
+                issuer: issuer.clone(),
+                service_principal_issuer: Some(issuer),
+                ..valid.clone()
+            }
+            .validate()
+            .is_ok());
+        }
+
+        for issuer in [
+            None,
+            Some(String::new()),
+            Some(" ".to_owned()),
+            Some(" aiforall-platform".to_owned()),
+            Some("aiforall-platform ".to_owned()),
+            Some("https://platform.example/iam".to_owned()),
+            Some("x".repeat(257)),
+            Some("é".repeat(129)),
+        ] {
+            let config = GrantSnapshotAuthConfig {
+                service_principal_issuer: issuer,
+                ..valid.clone()
+            };
+            let error = config.validate().unwrap_err();
+            assert_eq!(
+                error.to_string(),
+                "Invalid grant snapshot auth configuration"
+            );
+            assert_eq!(format!("{error:?}"), "GrantSnapshotAuthConfigError");
+        }
+        // Even equal crypto/policy fields must pass the shared authority validator.
+        for issuer in ["x".repeat(257), "é".repeat(129), " padded ".to_owned()] {
+            assert!(GrantSnapshotAuthConfig {
+                issuer: issuer.clone(),
+                service_principal_issuer: Some(issuer),
+                ..valid.clone()
+            }
+            .validate()
+            .is_err());
+        }
+        for value in ["", " ", " padded", "padded "] {
+            for config in [
+                GrantSnapshotAuthConfig {
+                    issuer: value.to_owned(),
+                    ..valid.clone()
+                },
+                GrantSnapshotAuthConfig {
+                    audience: value.to_owned(),
+                    ..valid.clone()
+                },
+            ] {
+                assert_eq!(
+                    config.validate().unwrap_err().to_string(),
+                    "Invalid grant snapshot auth configuration"
+                );
+            }
+        }
+        for secret in [None, Some(String::new()), Some(" \t".to_owned())] {
+            assert!(GrantSnapshotAuthConfig {
+                hs256_secret: secret,
+                ..valid.clone()
+            }
+            .validate()
+            .is_err());
+        }
+        // All three shipped configurations explicitly attest the service authority,
+        // without borrowing the different global HumanAccount authority.
+        for source in [
+            include_str!("../../config/default.toml"),
+            include_str!("../../config/development.toml"),
+            include_str!("../../config/test.toml"),
+        ] {
+            let config: ManifestoConfig = toml::from_str(source).unwrap();
+            let service = &config.apparatus.grant_snapshot_auth;
+            assert_eq!(
+                service.service_principal_issuer.as_deref(),
+                Some("aiforall-platform")
+            );
+            assert!(service.validate().is_ok());
+            assert_ne!(
+                config.auth.jwt.platform_issuer.as_deref(),
+                service.service_principal_issuer.as_deref()
+            );
+        }
+    }
 }

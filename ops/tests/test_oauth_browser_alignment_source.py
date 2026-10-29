@@ -5,6 +5,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -87,6 +88,90 @@ class BrowserAlignmentTests(unittest.TestCase):
         self.assertEqual([f["name"] for f in filters], [
             "envoy.filters.http.lua", "envoy.filters.http.ext_authz", "envoy.filters.http.router"])
         self.assertFalse(filters[1]["typed_config"]["failure_mode_allow"])
+
+    def test_public_post_auth_routes_use_six_exact_matches_without_widening_bypass(self):
+        source = (ROOT / "ops/deploy/apps/overlays/kind-mesh/envoy-mesh.yaml").read_text()
+        mesh = next(obj for obj in yaml.safe_load_all(source) if obj["kind"] == "ConfigMap")
+        config = yaml.safe_load(mesh["data"]["envoy.yaml"])
+        manager = config["static_resources"]["listeners"][0]["filter_chains"][0]["filters"][0]["typed_config"]
+        routes = manager["route_config"]["virtual_hosts"][0]["routes"]
+        paths = [
+            "/iam/api/auth/resend-verification",
+            "/iam/api/auth/complete-registration",
+            "/iam/api/auth/password/reset-request",
+            "/iam/api/auth/password/reset-validate",
+            "/iam/api/auth/password/reset-confirm",
+            "/iam/api/token/refresh",
+        ]
+        expected = [{
+            "match": {"path": path, "headers": [{"name": ":method", "string_match": {"exact": "POST"}}]},
+            "route": {"cluster": "iam"},
+            "typed_per_filter_config": {"envoy.filters.http.ext_authz": {
+                "@type": "type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute",
+                "disabled": True,
+            }},
+        } for path in paths]
+        self.assertEqual([route for route in routes if route["match"].get("path") in paths], expected)
+        self.assertEqual(routes[4:10], expected)
+        fallback_index = next(i for i, route in enumerate(routes) if route["match"].get("prefix") == "/iam/")
+        self.assertLess(9, fallback_index)
+        fallback = {"match": {"prefix": "/iam/"}, "route": {"cluster": "iam"}}
+        self.assertEqual(routes[fallback_index], fallback)
+        self.assertEqual(routes[3]["match"], {
+            "safe_regex": {"google_re2": {}, "regex": "^/iam/api/auth/(verify|username/check|[^/]+/(login|callback))$"},
+            "headers": [{"name": ":method", "string_match": {
+                "safe_regex": {"google_re2": {}, "regex": "^(GET|HEAD)$"}}}],
+        })
+        rejected_regex = (
+            "^/iam/(api/auth/(resend-verification|complete-registration|password/"
+            "(reset-request|reset-validate|reset-confirm))|api/token/refresh)$"
+        )
+        self.assertNotIn(rejected_regex, source)
+        self.assertNotIn("max_program_size", source)
+        self.assertNotIn("re2.", source)
+        self.assertNotIn("layered_runtime", config)
+
+        def first_match(method, path):
+            # Source-level first-match checks, not an Envoy execution oracle.
+            for route in routes:
+                match = route["match"]
+                if "path" in match:
+                    matched = path == match["path"]
+                elif "prefix" in match:
+                    matched = path.startswith(match["prefix"])
+                else:
+                    matched = re.fullmatch(match["safe_regex"]["regex"], path) is not None
+                if not matched:
+                    continue
+                for header in match.get("headers", []):
+                    self.assertEqual(header["name"], ":method")
+                    value = header["string_match"]
+                    matched = (method == value["exact"] if "exact" in value else
+                               re.fullmatch(value["safe_regex"]["regex"], method) is not None)
+                    if not matched:
+                        break
+                if matched:
+                    return route
+            return None
+
+        for path, route in zip(paths, expected, strict=True):
+            with self.subTest(method="POST", path=path):
+                self.assertEqual(first_match("POST", path), route)
+            for method in ("GET", "HEAD", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE", "CONNECT", "post"):
+                with self.subTest(method=method, path=path):
+                    self.assertEqual(first_match(method, path), fallback)
+            for neighbor in (
+                path + "/", path + "suffix", path + "/suffix",
+                path.rsplit("/", 1)[0] + "/" + path.rsplit("/", 1)[1].upper(),
+                path.replace("/api/", "/API/", 1),
+                path.replace("/api/", "//api/", 1),
+                path.replace("/api/", "/api-neighbor/", 1),
+                path.replace("/iam/", "/iam-neighbor/", 1),
+                path.replace("/iam/", "/IAM/", 1),
+            ):
+                with self.subTest(method="POST", path=neighbor):
+                    self.assertEqual(first_match("POST", neighbor),
+                                     fallback if neighbor.startswith("/iam/") else None)
 
     def test_downstream_conversion_rejects_ambiguous_or_foreign_listener(self):
         renderer = load_renderer()

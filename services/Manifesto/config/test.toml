@@ -105,3 +105,4 @@ cache_ttl_seconds = 0
 hs256_secret = "manifesto-grant-snapshot-test-hs256"
 issuer = "aiforall-platform"
 audience = "manifesto-bindings"
+service_principal_issuer = "aiforall-platform"

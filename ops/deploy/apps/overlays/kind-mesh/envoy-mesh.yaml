@@ -92,9 +92,52 @@ data:
                                   "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
                                   disabled: true
                             - match:
-                                safe_regex:
-                                  google_re2: {}
-                                  regex: '^/iam/(api/auth/(resend-verification|complete-registration|password/(reset-request|reset-validate|reset-confirm))|api/token/refresh)$'
+                                path: /iam/api/auth/resend-verification
+                                headers: [{name: ':method', string_match: {exact: POST}}]
+                              route:
+                                cluster: iam
+                              typed_per_filter_config:
+                                envoy.filters.http.ext_authz:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                                  disabled: true
+                            - match:
+                                path: /iam/api/auth/complete-registration
+                                headers: [{name: ':method', string_match: {exact: POST}}]
+                              route:
+                                cluster: iam
+                              typed_per_filter_config:
+                                envoy.filters.http.ext_authz:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                                  disabled: true
+                            - match:
+                                path: /iam/api/auth/password/reset-request
+                                headers: [{name: ':method', string_match: {exact: POST}}]
+                              route:
+                                cluster: iam
+                              typed_per_filter_config:
+                                envoy.filters.http.ext_authz:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                                  disabled: true
+                            - match:
+                                path: /iam/api/auth/password/reset-validate
+                                headers: [{name: ':method', string_match: {exact: POST}}]
+                              route:
+                                cluster: iam
+                              typed_per_filter_config:
+                                envoy.filters.http.ext_authz:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                                  disabled: true
+                            - match:
+                                path: /iam/api/auth/password/reset-confirm
+                                headers: [{name: ':method', string_match: {exact: POST}}]
+                              route:
+                                cluster: iam
+                              typed_per_filter_config:
+                                envoy.filters.http.ext_authz:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                                  disabled: true
+                            - match:
+                                path: /iam/api/token/refresh
                                 headers: [{name: ':method', string_match: {exact: POST}}]
                               route:
                                 cluster: iam

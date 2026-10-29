@@ -1,5 +1,98 @@
 # Registre QA de progression — sécurité authentification
 
+## Envoy RE2 — correction compatible, plan avant code/run
+
+Cause live confirmée et briefing persisté : regex publique ligne97 excède la
+limite de compilation RE2 dans Envoy1.31.2. Ne pas relever cette limite.
+Régression nommée AVANT code/run :
+`test_public_post_auth_routes_use_six_exact_matches_without_widening_bypass`
+dans test_oauth_browser_alignment_source.py. Vérifier les six paths POST exacts
+équivalents à l'ancienne regex, cluster IAM et disabled ext-authz inchangés, position
+avant le fallback /iam/, absence de cette regex, limites runtime non relevées.
+Témoins négatifs : autres méthodes, suffixes, slash/casse/préfixes voisins ne
+profitent pas de ce bypass ; les autres routes et transports restent identiques.
+Baseline ancienne config rouge, postimage verte et suite d'alignement/rendus offline.
+La preuve live ultérieure est le démarrage Envoy, pas un calcul RE2 simulé.
+Oracles SAN/browser distincts toujours ouverts. Aucun nouveau framework/container
+de validation, aucune modification IAM/Manifesto/SDK, pas de Secret lu.
+
+Envoy candidat24 : baseline sur YAML exact ef4bc1f par substitution de lecture RO,
+1FAIL/0ERROR attendu ; candidat1PASS puis suite12PASS2.564s zéro skip. Le test est
+source-level, pas moteur Envoy. Comparaison structurelle indépendante du lead :
+ancien matcher index4 remplacé par six copies à paths exacts ; tous autres champs
+du bootstrap et autres documents YAML strictement identiques. Copies canon des
+deux postimages exactes en octets, SHA YAML1631a45a.../testa5d6555f..., diffcheck0.
+Recheck sécurité du seul delta Envoy demandé au même reviewer fresh Manifesto.
+
+## Campagne d'intégration Manifesto — sélection finale avant exécution
+
+Choix proportionné : réutiliser UNE campagne native du runner existant
+`ops/tests/it-native.ps1 -Suite manifesto`, pas de nouveau sélecteur/harness.
+Le composition root et les trois configurations changent pour toutes les fixtures
+de ce service ; cette campagne couvre leurs consommateurs partagés et inclut
+P3T4/P3T5 réels. Ni IAM/Hive déjà prouvés ni tout workspace ne sont rejoués.
+Le runner exécute réellement cargo test -p manifesto-service --tests (sans flag
+--locked) ; ne pas annoncer à tort la commande ciblée --locked de référence.
+Cargo.lock, runner, config Cargo et neuf postimages intégrées gelés par SHA avant /
+après ; check --locked consommateurs déjà vert, aucune dépendance changée.
+
+Préflight : unCargo Windows, jobs24/E:, SDK02e5, Engine exact, contexte desktop-linux
+sans override. Descriptors Manifesto relus : PG/FGA réels, migrations dans leur PG
+jetable, SQS uniquement binaire dédié opt-in ; aucun Kind ou contexte protégé.
+Lifecycle runner inchangé : inventaire préalable, témoin Engine contemporain,
+registres complets, corrélation avec nouveaux ledgers d'incarnation, cleanup finally
+seulement IDs possédés ; retrait normal des Exited(0) attestés, nonzero conservés,
+aucun prune/force/volume. Les trois nœuds du labo et autres ressources préexistantes
+ne deviennent pas fixtures de la campagne. Après run : compteurs exacts, failures /
+ignored / filtered / retours anticipés à distinguer, inventaire et fuites à vérifier.
+Pas de livraison Linux ni mutation du laboratoire pendant cette campagne.
+
+Résultat campagne complète : arrêt compilation Cargo101, zéro test exécuté.
+Premier défaut établi LNK1102 mémoire insuffisante (linkerHostx64), puis E0463 ;
+pas de défaut fonctionnel prouvé. Aucun os206, zérofixturecréée, inventaire23/23
+IDs+états inchangé, zéro owned-running/new-unowned/cleanupissue. Source gelée
+inchangée, y compris lockfile. Preuves auth-manifesto-it-ce7d6d2112ce429aa42e84e509203079
+et itfixtures-it-0c33ce196e984a8f964ffacdd70b39fb. Mesure mémoire après échec
+10.85GiB disponibles/61.56, engagement96.69/125.56, pas preuve du pic.
+
+Reprise décidée : conserver24jobs et uniqueCargo, sélectionner un binaire à la
+fois (P3T4 puisP3T5) pour limiter les linkers concurrents, pasrelancer44binaires.
+Extension compatible et fermée du runner existant, pas nouvellefixture/runtime :
+option TestBinary autorise seulement apparatus_p3_t4_gateway ou apparatus_p3_t5_consent
+avec Suite=manifesto unique ; absent conserve exactement le chemin historique.
+Validation avant touteprobe, branche ciblée cargo test --locked -p manifesto-service
+--test <binaire>, sans -j/--jobs ou modification des threads. Lifecycle inchangé.
+Nouveau contrôle AVANT code/run : test-it-native-selection.ps1, pur PowerShell/AST,
+positifs sélection/default, refus autres suites/noms/injections/ambiguïtés et
+exercice de la branche réelle avec Cargo fake (aucunexe/API). Contrôles existants
+threads/stop/failclosed réutilisés ; pas de nouvelle infrastructure.
+
+Sélecteur implémenté dans le runner existant, défaut inchangé ; contrôle AST neuf
+PASS (2 positifs, 3 défauts, 10 refus et trois branches Cargo fake), contrôles
+threads/stop/stop-failclosed existants tousPASS. Aucune commande Cargo/Docker réelle
+par ces contrôles ; lifecycle/registre/cleanup inchangés. Prochaine invocation
+réelle sélectionnée : it-native.ps1 -Suite manifesto -TestBinary apparatus_p3_t4_gateway,
+puis P3T5 seulement après résultat/diagnostic. Cargo24jobs conservé ; un binaire à
+lier dans chaque commande, pas de promesse que cette mesure résout toute pression.
+
+Sélection P3T4 réelle réussie : 8PASS/0FAIL/0ignored/0filtered, exécution9.04s
+(compilation en plus), Cargo24jobs conservé ; source/lock/runner inchangés pendant
+run. PG/FGA réels, fixture2créées/2retirées, pic2, inventaire23→23 mêmespréexistants,
+zéroownedrunning/newunowned/cleanupissue. Preuves auth-manifesto-it-64ad164e...
+et itfixtures-it-3dfb6550d23b4642ae5f3721fb31b8fe. Les32lignes "skipping" sont
+toutes des notices PostgreSQL "already exists, skipping", pas des tests omis ;
+aucun indicateur de test skipped trouvé. La suite complète initiale reste non
+exécutée, ne pas la convertir en PASS. P3T5 est maintenant le prochain binaire.
+
+P3T5 réelle réussie : 7PASS/0FAIL/0ignored/0filtered,7.69s exécution ; source gelée
+inchangée. Deuxfixturescréées/2retirées, pic2, inventaire23→23 préexistantsconservés,
+zérofuite/newunowned/cleanupissue. Preuves auth-manifesto-it-69e648d1... et
+itfixtures-it-4dd192585843467fbdc1967229ca891b. Les24mentionsskipping sont toutes
+noticesPGalreadyexists, pas omission de tests. Total ciblé15ITPASS, pasfullsuitePASS.
+Les24jobs et threads existants sont restés inchangés. Revue indépendante25 Envoy
+PASSstatique borné sur SHA exacts ; recheck14 sélecteurITPASSstatique, lifecycle
+inchangé, aucune exécutionparreviewers. Briefings persistés avantlivraison.
+
 ## Identifiant de clé du laboratoire — plan avant correction
 
 ## Manifesto : vérificateur service dédié — plan avant code/run
@@ -21,6 +114,25 @@ nouveau framework. Réutiliser units configuration/setup, HTTP réel existant et
 P3T4/P3T5 si touchées. Ajouter les noms de tout autre test avant son premier run.
 Sources/test sont écrits par l'auteur, unique Cargo au lead ; pas run Kind pour IT.
 La preuve source n'est pas la preuve du redémarrage de l'image corrigée.
+
+Premier batch Manifesto natif sur canon ef4bc1f+sept fichiers gelés :
+`cargo fmt --all -- --check` PASS6.90s ;
+`cargo test --locked -p manifesto-configuration --lib` : 1PASS/0FAIL/0ignored/0filtered,
+42.66s avec compilation ;
+`cargo test --locked -p manifesto-setup --lib grant_snapshot_service_policy_tests` :
+4PASS/0FAIL/0ignored/0filtered, 43.34s avec compilation. Les quatre oracles nommés
+sont réellement exécutés et verts, pas seulement compilés. Aucun réseau/runtime.
+Logs.tmp auth-manifesto-{fmt,configuration,setup}-20261029.log ; décodage strict
+avec helper validé (UTF16LE pour logs PS des tests). Première extraction avait
+une faute de regex JS avant lecture, corrigée sans relancer Cargo ni les tests.
+Revue sécurité fresh du diff intégré en cours. Prochain check sélectionné selon
+consommateurs : `cargo check --locked -p manifesto-service -p oodhive-monolith`.
+Pas de rerun des quatre autres services inchangés ni du SDK par principe.
+
+Check sélectionné terminé exit0 :
+`cargo check --locked -p manifesto-service -p oodhive-monolith`, natifWindows,
+log.tmp/auth-manifesto-monolith-check-20261029.log. Ceci vérifie la compilation
+des consommateurs, pas les IT/runtime. L'arbre Rust est resté gelé pendant le run.
 
 ### Régression de format de clé IAM
 
@@ -47,6 +159,13 @@ diffcheck0 ; comparaison TOML confirme seul kid changé. Deux rendus offline
 offline, pas ConfigMap de base) porte le kid conforme. Aucune lecture Secret live.
 Hook fmt de livraison worker échoue os206, pas un défaut fonctionnel ou une
 permission de désactiver le hook ; aucun commit worker. Worktree/staged préservés.
+
+Livraisoncanon ef4bc1f : hook normal cargo fmt PASS. Reprise runtime ciblée IAM
+exit0/ready, même binairecf02c4a, DeploymentUID inchangé, nouveau Poddf614d2c...
+réellement prêt. Hypothèse causale config validée au runtime. Secretconfig neuf
+UIDef3f1b84... enregistré à CREATE, aucun GET Secret ni suppression prédécesseur.
+Preuve session6b7.../iam-kid-recovery-95b120ae2da749238c0ee2a507520be7/summary.json.
+Cela ne prouve pas signature/login, Envoy ou navigateur. Recheck infra borné demandé.
 
 ## Fermeture des findings finaux (avant runs)
 

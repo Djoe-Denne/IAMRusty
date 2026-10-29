@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('iam', 'hive', 'manifesto', 'telegraph', 'lazaret')]
-    [string[]]$Suite
+    [string[]]$Suite,
+    [string]$TestBinary
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -24,9 +25,19 @@ function Resolve-ItTestThreads {
     }
     return $threads
 }
+function Resolve-ItTestBinary {
+    param([string[]]$Suites, [string]$Binary)
+    if ([string]::IsNullOrEmpty($Binary)) { return '' }
+    if ($Suites.Count -ne 1 -or $Suites[0] -ne 'manifesto' -or
+        $Binary -cnotin @('apparatus_p3_t4_gateway', 'apparatus_p3_t5_consent')) {
+        throw 'Named IT selection requires exactly one Manifesto suite and an approved binary; STOP before runtime'
+    }
+    return $Binary
+}
 # Validate before any runtime/observer startup or Cargo invocation. Ambient
 # RUST_TEST_THREADS is deliberately not the override for a reproducible default.
 $testThreads = Resolve-ItTestThreads $env:AIFORALL_IT_TEST_THREADS
+$testBinary = Resolve-ItTestBinary -Suites $Suite -Binary $TestBinary
 # The caller owns the single Cargo slot. This invocation owns ONLY IDs proved by
 # its fresh fixture ledgers, never a name match or a before/after inventory diff.
 Get-Command cargo -ErrorAction Stop | Out-Null
@@ -269,7 +280,12 @@ try {
         $prevEap = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
         try {
-            & cargo test -p $packages[$selected] --tests 2>&1
+            if ($testBinary) {
+                & cargo test --locked -p $packages[$selected] --test $testBinary 2>&1
+            }
+            else {
+                & cargo test -p $packages[$selected] --tests 2>&1
+            }
             $cargoExit = $LASTEXITCODE
         }
         finally { $ErrorActionPreference = $prevEap }
