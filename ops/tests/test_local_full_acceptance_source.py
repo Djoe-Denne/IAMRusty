@@ -10,12 +10,30 @@ from pathlib import Path
 import tempfile
 import tomllib
 import unittest
+import yaml
 from unittest.mock import Mock, patch
 
 SOURCE = Path(__file__).with_name("local-full-acceptance.py")
 
 
 class AcceptanceGuardTests(unittest.TestCase):
+    def test_localstack_internal_bootstrap_uses_loopback_but_advertises_service_host(self):
+        platform = SOURCE.parents[1] / "deploy/apps/overlays/local-full/platform"
+        resources = list(yaml.safe_load_all((platform / "dependencies.yaml").read_text(encoding="utf-8")))
+        deployment = next(obj for obj in resources if obj.get("kind") == "Deployment" and obj["metadata"]["name"] == "localstack")
+        container = deployment["spec"]["template"]["spec"]["containers"][0]
+        advertised = next(item["value"] for item in container["env"] if item["name"] == "LOCALSTACK_HOST")
+        self.assertEqual(advertised, "localstack:4566")
+        config = yaml.safe_load((platform / "kustomization.yaml").read_text(encoding="utf-8"))
+        init = next(item for item in config["configMapGenerator"] if item["name"] == "localstack-init")["literals"][0]
+        with self.subTest(boundary="bootstrap"):
+            self.assertIn("awslocal --endpoint-url=http://127.0.0.1:4566 sqs create-queue", init)
+        with self.subTest(boundary="readiness"):
+            probe = container["readinessProbe"]["exec"]["command"][2]
+            self.assertEqual(probe.count("awslocal --endpoint-url=http://127.0.0.1:4566 sqs get-queue-url"), 2)
+            self.assertIn("sentinel-sync-events", probe)
+            self.assertIn("telegraph-events", probe)
+
     def test_linux_delivery_build_keeps_24_jobs_and_its_own_target(self):
         root = SOURCE.parents[2]
         config = tomllib.loads((root / ".cargo/config.toml").read_text(encoding="utf-8"))

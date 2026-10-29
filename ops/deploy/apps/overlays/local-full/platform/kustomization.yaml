@@ -50,7 +50,7 @@ configMapGenerator:
       - catalog.json=../../../../../../runtime/monolith/component-catalog.json
   - name: localstack-init
     literals:
-      - "init-aws.sh=#!/bin/sh\nset -eu\nfor q in telegraph-events user-events lazaret-kv-events sentinel-sync-events; do awslocal sqs create-queue --queue-name \"$q\" >/dev/null; done\n"
+      - "init-aws.sh=#!/bin/sh\nset -eu\nfor q in telegraph-events user-events lazaret-kv-events sentinel-sync-events; do awslocal --endpoint-url=http://127.0.0.1:4566 sqs create-queue --queue-name \"$q\" >/dev/null; done\n"
 patches:
   - path: patches.yaml
   - target:

@@ -676,6 +676,39 @@ Le bootstrap ne déploie ici que le CNI public épinglé. Aucun nouveau verdict
 fonctionnel ni permission cible n'est créé ; finding bloquant éventuel arrête
 les admissions suivantes. Pas de pipeline de rôles ou attente de GO utilisateur.
 
+### LocalStack — boucle de disponibilité, plan avant correction
+
+Déploiement OAuth arrêté exit1 sur second rollout de dépendance (301.42s),
+applications/bootstrap pas encore appliqués. Sept dépendancesReady, LocalStack
+Running/nonReady. API health localhost : SQS running, hookREADY init-aws.sh ERROR.
+Script monté0555,160octets, shebangLF correct, sansBOM/CRLF/backslash-n littéral.
+awslocal implicite tente http://localstack:4566 et échoue à connecter (10.88s) ;
+même GET explicite127.0.0.1:4566 obtient NonExistentQueue : serveur vivant, files
+absentes. Cause compatible avec service sans endpointReady pendant son bootstrap.
+
+Nouveau test source nommé AVANT baseline/run :
+`test_localstack_internal_bootstrap_uses_loopback_but_advertises_service_host`
+dans test_local_full_acceptance_source.py. Vérifier init ET deux lectures de la
+sonde sur endpointloopback explicite, tout en gardant LOCALSTACK_HOST=localstack:4566.
+Baseline rouge, correction des deux seules configurations puis sélection/suite.
+Pas de changement Rust/SDK/binaire, nouveau service ou probe simulant un succès.
+La preuve réelle sera hookREADY réussi et les deux files présentes sur même API.
+
+Reprise runtime bornée après integration : patchUID du ConfigMap init et du seul
+DeploymentLocalStack possédés, rollout attendu et UID Pods avant/après tracés.
+Conserver files/données/Secrets, pas delete/reset ; poursuivre bootstrap/apps à
+partir des helpers existants, pas rerun intégral recréant les secrets exclusifs.
+
+Baseline : deux sous-tests rouges (bootstrap/readiness). Après correction des
+deux configurations, sélection1PASS puis suite25PASS/0.294s, zéro skip. Rendu
+Kustomize réel offline des profils local-full et oauth-proof : exit0,112/122objets,
+ConfigMap générée localstack-init-b56fgd6t65 et deux appels de sonde loopback.
+Première analyse supposait un nom sans hash et a levé StopIteration ; commande
+de rendu réussie mais analyse corrigée, aucun accès API ou source modifiée pour
+contourner cet échec. Le nom généré change légitimement avec le script : la reprise
+créera la nouvelle ConfigMap depuis le rendu et patchera le Deployment possédé
+vers cette référence exacte, sans écraser/supprimer l'ancienne ConfigMap.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et

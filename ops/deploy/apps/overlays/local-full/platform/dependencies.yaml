@@ -75,7 +75,7 @@ spec:
           resources: {requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: "1", memory: 768Mi}}
           ports: [{name: sqs, containerPort: 4566}]
           readinessProbe:
-            exec: {command: [sh, -ec, "awslocal sqs get-queue-url --queue-name sentinel-sync-events >/dev/null && awslocal sqs get-queue-url --queue-name telegraph-events >/dev/null"]}
+            exec: {command: [sh, -ec, "awslocal --endpoint-url=http://127.0.0.1:4566 sqs get-queue-url --queue-name sentinel-sync-events >/dev/null && awslocal --endpoint-url=http://127.0.0.1:4566 sqs get-queue-url --queue-name telegraph-events >/dev/null"]}
             periodSeconds: 5
             timeoutSeconds: 5
           startupProbe: {httpGet: {path: /_localstack/health, port: sqs}, periodSeconds: 5, failureThreshold: 60}
