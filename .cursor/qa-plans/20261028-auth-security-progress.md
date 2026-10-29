@@ -178,6 +178,65 @@ inventairesdoiventtracerLocalStackcommePG/FGA. Pasnouvellefixture/harness.
 Sélecteurs existants routes_organization_* / routes_member_* ; compilation
 ciblée--no-run avantcampagne, évaluationréelleparfixtureexistanteaprèsgates.
 
+Préparation mémoire de la campagne fermée existante : metadataCargo a identifié
+les cibles IAM/Hive sansfeature requise. Pour nepasréintroduire le pic de linkage
+du batchayantéchoué1455, précompiler CHAQUEcible test/bin de ces deuxpackages
+séparément, toujours24jobs internes etE:, --locked --no-run. Inventaire/plan/logs
+résultats séparés sous.tmp ; premier échec stoppe la séquence, aucunefixture
+exécutée. Ce n'est pas un nouveauharness : lesIT seront ensuite exécutées par
+ops/tests/it-native.ps1 -Suite hive,iam inchangé, qui réutilise cesartefacts.
+Sourceba21a3cgelée, SDK74e8publié, aucun autreCargo/hook. Lesdeuxbinaryqueues
+optent localement selonleurssources, pas d'overrideglobalpourforcerKafka/SQS.
+
+### Résultat de précompilation et lancement IT réel
+
+Notification reçue :54/54 cibles compilées, exit0 ;773 secondes cumulées dans
+summary.json. Les54 logs recoupés : marqueur exit0 présent, aucun résultat de
+test, aucune erreur1455/allocation. HEADba21a3c et SDK74e8 inchangés, jobs24 et
+targetE: conservés. Cela résout le blocage de préparation mémoire, pas les oracles
+fonctionnels. Preuves : .tmp/native-it-precompile-f2b93d6ed7f644e58f0a00b69dd7db32/.
+
+Commande réelle suivante déjà approuvée :
+`& ./ops/tests/it-native.ps1 -Suite @('hive','iam')`.
+Runner existant inchangé, un Cargo à la fois, threads libtest par défaut2 ;
+aucun --ignored. Auth negative réactivé et huit témoinsPG inclus, routageSQS
+exécuté par ses binaires, signupKafka/SQSignored explicitement hors preuve.
+Le runner enregistre les IDs à la création, inventaires et témoin Engine puis
+arrête gracieusement les seules fixtures possédées et retire les Exited(0).
+Aucune ressource préexistante adoptée ; leur mémoire volatile reste préservée.
+Secrets et sorties brutes restent dans les preuves privées, restitution filtrée.
+
+### Première campagne réelle : Hive vert, IAM arrêté sur configuration de fixture
+
+Campagne it-00687e1bb02b42b78c45e0f712e442a6, sourceba21/SDK74e8 : Hive67PASS,
+dont23 organisations et3 collision/signataire ; aucunignored Hive. IAM s'arrête
+dans organization_account_guard : le témoin publié n'atteint aucune assertion
+de route, car setup_test_server_with_signing_keys échoue au boot avec
+PRINCIPAL_INVALID: policy does not match signing authority. L'autre cas de ce
+binaire passe ; les ciblesIAM suivantes n'ont pas été exécutées. PasPASPIAMglobal.
+
+Cause localisée : helper privé common.rs modifie jwt.public_base_url etjwt.issuer
+pour la clé plateforme réelle, mais conserve auth.jwt.platform_issuer de la
+configuration habituelle. Le validateur de production refuse correctement cette
+incohérence (configuration/lib.rs993–1007), avant démarrage. Pas de défaut démontré
+de la garde de compte. Serena références vide pour ce module de tests ; grep exact
+recoupe4 consommateurs : organization_account_guard,public_refresh_expired_access,
+registration_usage_boundary,signing_epoch_writer. Couverture de l'index limitée.
+
+Correction test-only prévue : dans ce seul helper, aligner explicitement la policy
+HTTP sur l'issuer exact de la clé plateforme et déclarer historical=false, comme
+la fixture dédiée le demande. Aucunfallback, alias ou changementvalidateur/prod.
+Conserver les assertions positives/négatives des4 consommateurs. Avant nouvelIT,
+précompiler seulement les41 ciblesIAM du plan existant une par une à24jobs, puis
+reprendre `it-native.ps1 -Suite iam` inchangé ; ne pas rejouer Hive dont aucune
+source n'est touchée. Nouveaux sélecteurs non nécessaires : oracles existants nommés
+ci-dessus, déjà dans le plan de campagne.
+
+Cleanup vérifié sur échec :40 créations/40 retraits,0 possédéprésent/running,
+0 inconnue/issuecleanup/nouvelle étrangère ; pic3 possédés (4total avec préexistant).
+Les20 conteneurs préexistants ont mêmesIDs et états après. AucunarrêtDocker/WSL
+de propriété inconnue ; registre .tmp/docker-resources-20261028.log.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et

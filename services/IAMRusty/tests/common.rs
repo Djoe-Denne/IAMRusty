@@ -674,6 +674,9 @@ pub async fn setup_test_server_with_signing_keys(
     let mut config = fixture_config(&fixture)?;
     config.jwt.public_base_url = origin.to_owned();
     config.jwt.issuer = platform.issuer.clone();
+    // This fixture changes the signing authority; keep its HTTP policy exact.
+    config.auth.jwt.platform_issuer = Some(platform.issuer.clone());
+    config.auth.jwt.allow_historical_platform_issuer = Some(false);
     let pem_files = Arc::new(tempfile::TempDir::new()?);
     let private = pem_files.path().join("private.pem");
     let public = pem_files.path().join("public.pem");
