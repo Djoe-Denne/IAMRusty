@@ -473,7 +473,12 @@ mod missing_client_tests {
             StubUser,
             StubTokens,
             StubEmails,
-            TokenService::new(Arc::new(StubEncoder), Duration::hours(1)),
+            TokenService::new(
+                Arc::new(StubEncoder),
+                Duration::hours(1),
+                crate::entity::token::DEFAULT_JWT_ISSUER.to_owned(),
+                crate::entity::token::DEFAULT_JWT_AUDIENCE.to_owned(),
+            ),
             Arc::new(HashMap::new()),
         );
         let provider = Provider::parse_slug("github").expect("github slug");

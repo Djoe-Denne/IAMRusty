@@ -171,6 +171,81 @@ async fn rs256_encode_jwks_and_extractor_accept() {
     );
 }
 
+/// Explicit legacy claims remain refused; the domain mint must use the same
+/// configured authority as the access mint. Independent bounded registry fixtures
+/// preserve all signing-epoch and final emission checks.
+#[tokio::test]
+async fn oauth_domain_mint_and_configured_access_mint_with_url_issuer() {
+    let make_codec = || {
+        rs256_token_service(
+            Arc::new(pem_provider()) as Arc<dyn SigningProvider>,
+            JwkSet {
+                keys: vec![fixture_jwk()],
+            },
+        )
+    };
+    let legacy = iam_domain::service::token_service::TokenService::new(
+        Arc::new(make_codec()),
+        chrono::Duration::hours(1),
+        iam_domain::entity::token::DEFAULT_JWT_ISSUER.to_owned(),
+        DEFAULT_JWT_AUDIENCE.to_owned(),
+    );
+    let user_id = Uuid::new_v4();
+    let result = legacy
+        .generate_token(&user_id.to_string(), "oauth-proof")
+        .await;
+    assert!(
+        matches!(
+            result,
+            Err(iam_domain::error::DomainError::TokenGenerationFailed(_))
+        ),
+        "LEGACY_MINT_WAS_NOT_REJECTED_TOKEN_GENERATION"
+    );
+    let domain = iam_domain::service::token_service::TokenService::new(
+        Arc::new(make_codec()),
+        chrono::Duration::hours(1),
+        PLATFORM_ISSUER.to_owned(),
+        DEFAULT_JWT_AUDIENCE.to_owned(),
+    );
+    let token = domain
+        .generate_token(&user_id.to_string(), "oauth-proof")
+        .await
+        .unwrap_or_else(|_| panic!("CONFIGURED_DOMAIN_MINT_REJECTED"));
+    let jwks = serde_json::to_string(&JwkSet {
+        keys: vec![fixture_jwk()],
+    })
+    .expect("public fixture JWKS");
+    let extractor = UserIdExtractor::from_inline_jwks(&jwks, Some(DEFAULT_JWT_AUDIENCE))
+        .expect("configured verifier");
+    let principal = extractor
+        .extract_principal(&token)
+        .await
+        .unwrap_or_else(|_| panic!("CONFIGURED_DOMAIN_SIGNATURE_NOT_ACCEPTED"));
+    assert!(
+        principal.sub == user_id && principal.iss == PLATFORM_ISSUER,
+        "CONFIGURED_DOMAIN_PRINCIPAL_MISMATCH"
+    );
+    let payload = jwt_part_json(&token, 1);
+    assert!(
+        payload["iss"] == PLATFORM_ISSUER
+            && payload["aud"] == DEFAULT_JWT_AUDIENCE
+            && payload["sub"] == user_id.to_string()
+            && payload.get("org").is_none(),
+        "CONFIGURED_DOMAIN_CLAIMS_MISMATCH"
+    );
+    let wrong_audience = UserIdExtractor::from_inline_jwks(&jwks, Some("other-audience"))
+        .expect("negative verifier");
+    assert!(
+        wrong_audience.extract_principal(&token).await.is_err(),
+        "MISMATCHED_AUDIENCE_ACCEPTED"
+    );
+    let configured = make_codec();
+    let access =
+        iam_domain::port::service::AuthTokenService::generate_access_token(&configured, user_id)
+            .await;
+    assert!(access.is_ok(), "CONFIGURED_ACCESS_MINT_NOT_ACCEPTED");
+}
+
 #[test]
 fn jwks_from_registry_keys_skips_invalid_pem_keeps_good_keys() {
     use chrono::Utc;

@@ -8,14 +8,23 @@ use std::sync::Arc;
 pub struct TokenService {
     token_encoder: Arc<dyn JwtTokenEncoder>,
     token_duration: Duration,
+    issuer: String,
+    audience: String,
 }
 
 impl TokenService {
-    /// Create a new token service
-    pub fn new(token_encoder: Arc<dyn JwtTokenEncoder>, token_duration: Duration) -> Self {
+    /// Create a token service with the authority validated by the composition root.
+    pub fn new(
+        token_encoder: Arc<dyn JwtTokenEncoder>,
+        token_duration: Duration,
+        issuer: String,
+        audience: String,
+    ) -> Self {
         Self {
             token_encoder,
             token_duration,
+            issuer,
+            audience,
         }
     }
 
@@ -29,7 +38,13 @@ impl TokenService {
         user_id: &str,
         username: &str,
     ) -> Result<String, DomainError> {
-        let claims = TokenClaims::new(user_id, username, self.token_duration);
+        let claims = TokenClaims::new_with_issuer_audience(
+            user_id,
+            username,
+            self.token_duration,
+            &self.issuer,
+            &self.audience,
+        );
 
         self.token_encoder
             .encode(&claims)
@@ -60,7 +75,7 @@ impl TokenService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entity::token::{JwkSet, TokenClaims};
+    use crate::entity::token::{JwkSet, TokenClaims, DEFAULT_JWT_AUDIENCE, DEFAULT_JWT_ISSUER};
     use crate::error::DomainError;
     use crate::port::service::JwtTokenEncoder;
     use chrono::{Duration, Utc};
@@ -118,7 +133,12 @@ mod tests {
     #[fixture]
     fn token_service(token_duration: Duration) -> TokenService {
         let mock_encoder = MockTokenEnc::new();
-        TokenService::new(Arc::new(mock_encoder), token_duration)
+        TokenService::new(
+            Arc::new(mock_encoder),
+            token_duration,
+            DEFAULT_JWT_ISSUER.to_owned(),
+            DEFAULT_JWT_AUDIENCE.to_owned(),
+        )
     }
 
     mod token_service_creation {
@@ -129,7 +149,12 @@ mod tests {
         fn new_creates_token_service_with_correct_duration(token_duration: Duration) {
             let mock_encoder = MockTokenEnc::new();
 
-            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
+            let service = TokenService::new(
+                Arc::new(mock_encoder),
+                token_duration,
+                DEFAULT_JWT_ISSUER.to_owned(),
+                DEFAULT_JWT_AUDIENCE.to_owned(),
+            );
 
             assert_eq!(service.token_duration, token_duration);
         }
@@ -139,7 +164,12 @@ mod tests {
         fn new_stores_token_encoder(token_duration: Duration) {
             let mock_encoder = MockTokenEnc::new();
 
-            let _service = TokenService::new(Arc::new(mock_encoder), token_duration);
+            let _service = TokenService::new(
+                Arc::new(mock_encoder),
+                token_duration,
+                DEFAULT_JWT_ISSUER.to_owned(),
+                DEFAULT_JWT_AUDIENCE.to_owned(),
+            );
 
             // Test passes if no panic occurs during creation
         }
@@ -164,7 +194,12 @@ mod tests {
                 .times(1)
                 .returning(move |_| Ok(expected_token_clone.clone()));
 
-            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
+            let service = TokenService::new(
+                Arc::new(mock_encoder),
+                token_duration,
+                DEFAULT_JWT_ISSUER.to_owned(),
+                DEFAULT_JWT_AUDIENCE.to_owned(),
+            );
 
             let result = service
                 .generate_token(&sample_user_id, &sample_username)
@@ -190,11 +225,21 @@ mod tests {
                 .withf(move |claims: &TokenClaims| {
                     claims.sub == user_id_clone
                         && claims.username == username_clone
+                        && claims.iss == "https://configured-authority.example/iam"
+                        && claims.aud == "explicit-nondefault-audience"
+                        && claims.org.is_none()
+                        && !claims.jti.is_empty()
+                        && claims.exp - claims.iat == token_duration.num_seconds()
                         && claims.exp > Utc::now().timestamp() // Token should expire in the future
                 })
                 .returning(|_| Ok("token".to_string()));
 
-            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
+            let service = TokenService::new(
+                Arc::new(mock_encoder),
+                token_duration,
+                "https://configured-authority.example/iam".to_owned(),
+                "explicit-nondefault-audience".to_owned(),
+            );
 
             let result = service
                 .generate_token(&sample_user_id, &sample_username)
@@ -216,7 +261,12 @@ mod tests {
                 .times(1)
                 .returning(|_| Err(DomainError::InvalidToken));
 
-            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
+            let service = TokenService::new(
+                Arc::new(mock_encoder),
+                token_duration,
+                DEFAULT_JWT_ISSUER.to_owned(),
+                DEFAULT_JWT_AUDIENCE.to_owned(),
+            );
 
             let result = service
                 .generate_token(&sample_user_id, &sample_username)
@@ -252,7 +302,12 @@ mod tests {
                 .times(1)
                 .returning(|_| Ok("token".to_string()));
 
-            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
+            let service = TokenService::new(
+                Arc::new(mock_encoder),
+                token_duration,
+                DEFAULT_JWT_ISSUER.to_owned(),
+                DEFAULT_JWT_AUDIENCE.to_owned(),
+            );
 
             let result = service.generate_token(user_id, username).await;
 
@@ -283,7 +338,12 @@ mod tests {
                 .times(1)
                 .returning(move |_| Ok(expected_claims_clone.clone()));
 
-            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
+            let service = TokenService::new(
+                Arc::new(mock_encoder),
+                token_duration,
+                DEFAULT_JWT_ISSUER.to_owned(),
+                DEFAULT_JWT_AUDIENCE.to_owned(),
+            );
 
             let result = service.validate_token(&sample_jwt_token);
 
@@ -302,7 +362,12 @@ mod tests {
                 .times(1)
                 .returning(|_| Err(DomainError::TokenExpired));
 
-            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
+            let service = TokenService::new(
+                Arc::new(mock_encoder),
+                token_duration,
+                DEFAULT_JWT_ISSUER.to_owned(),
+                DEFAULT_JWT_AUDIENCE.to_owned(),
+            );
 
             let result = service.validate_token(&sample_jwt_token);
 
@@ -322,7 +387,12 @@ mod tests {
                 .times(1)
                 .returning(|_| Err(DomainError::InvalidToken));
 
-            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
+            let service = TokenService::new(
+                Arc::new(mock_encoder),
+                token_duration,
+                DEFAULT_JWT_ISSUER.to_owned(),
+                DEFAULT_JWT_AUDIENCE.to_owned(),
+            );
 
             let result = service.validate_token(&sample_jwt_token);
 
@@ -345,7 +415,12 @@ mod tests {
                 .times(1)
                 .returning(|_| Err(DomainError::RepositoryError("Database error".to_string())));
 
-            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
+            let service = TokenService::new(
+                Arc::new(mock_encoder),
+                token_duration,
+                DEFAULT_JWT_ISSUER.to_owned(),
+                DEFAULT_JWT_AUDIENCE.to_owned(),
+            );
 
             let result = service.validate_token(&sample_jwt_token);
 
@@ -375,7 +450,12 @@ mod tests {
                 .times(1)
                 .returning(|_| Err(DomainError::InvalidToken));
 
-            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
+            let service = TokenService::new(
+                Arc::new(mock_encoder),
+                token_duration,
+                DEFAULT_JWT_ISSUER.to_owned(),
+                DEFAULT_JWT_AUDIENCE.to_owned(),
+            );
 
             let result = service.validate_token(invalid_token);
 
@@ -399,7 +479,12 @@ mod tests {
                 .times(1)
                 .returning(move || expected_jwks_clone.clone());
 
-            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
+            let service = TokenService::new(
+                Arc::new(mock_encoder),
+                token_duration,
+                DEFAULT_JWT_ISSUER.to_owned(),
+                DEFAULT_JWT_AUDIENCE.to_owned(),
+            );
 
             let result = service.jwks();
 
@@ -415,7 +500,12 @@ mod tests {
                 .times(1)
                 .returning(|| JwkSet { keys: vec![] });
 
-            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
+            let service = TokenService::new(
+                Arc::new(mock_encoder),
+                token_duration,
+                DEFAULT_JWT_ISSUER.to_owned(),
+                DEFAULT_JWT_AUDIENCE.to_owned(),
+            );
 
             let _result = service.jwks();
 
@@ -452,7 +542,12 @@ mod tests {
                 .times(1)
                 .returning(move |_| Ok(expected_claims_clone.clone()));
 
-            let service = TokenService::new(Arc::new(mock_encoder), token_duration);
+            let service = TokenService::new(
+                Arc::new(mock_encoder),
+                token_duration,
+                DEFAULT_JWT_ISSUER.to_owned(),
+                DEFAULT_JWT_AUDIENCE.to_owned(),
+            );
 
             // Generate token
             let generate_result = service

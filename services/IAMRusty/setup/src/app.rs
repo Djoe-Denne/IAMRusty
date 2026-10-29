@@ -561,6 +561,7 @@ where
             token_service: token_service.clone(),
             registration_token_service,
             outbox_unit_of_work,
+            audience: config.jwt.audience.clone(),
         },
     );
     let oauth = Arc::new(OAuthRouteContext {
@@ -663,6 +664,7 @@ struct OauthLinkDeps {
     registration_token_service: Arc<iam_infra::token::RegistrationTokenServiceImpl>,
     identity_repo: Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>,
     platform_issuer: String,
+    audience: String,
 }
 
 struct AuthRegistrationDeps<EP> {
@@ -691,6 +693,7 @@ struct IamUsecasesDeps<EP> {
     token_service: Arc<JwtTokenService>,
     registration_token_service: Arc<iam_infra::token::RegistrationTokenServiceImpl>,
     outbox_unit_of_work: Arc<IamOutboxUnitOfWorkImpl>,
+    audience: String,
 }
 
 fn setup_oauth_and_link(
@@ -708,13 +711,19 @@ fn setup_oauth_and_link(
         registration_token_service,
         identity_repo,
         platform_issuer,
+        audience,
     } = deps;
     let clients = Arc::new(clients.by_slug);
     let oauth_service = iam_domain::service::oauth_service::OAuthService::new(
         user_repo.clone(),
         token_repo_login,
         user_email_repo.clone(),
-        iam_domain::service::TokenService::new(token_service.clone(), Duration::hours(1)),
+        iam_domain::service::TokenService::new(
+            token_service.clone(),
+            Duration::hours(1),
+            platform_issuer.clone(),
+            audience,
+        ),
         clients.clone(),
     );
     let oauth = Arc::new(
@@ -831,6 +840,7 @@ struct ProviderUserTokenDeps {
         Arc<dyn iam_domain::port::repository::SigningKeyRegistry<Error = DomainError>>,
     identity_repo: Arc<dyn iam_domain::port::repository::IdentityRepository<Error = DomainError>>,
     platform_issuer: String,
+    audience: String,
     access_token_expiration_seconds: u64,
 }
 
@@ -850,6 +860,7 @@ fn setup_provider_user_token(
         signing_key_registry,
         identity_repo,
         platform_issuer,
+        audience,
         access_token_expiration_seconds,
     } = deps;
     let token_repo_provider = CombinedTokenRepository::new(
@@ -863,6 +874,8 @@ fn setup_provider_user_token(
         iam_domain::service::token_service::TokenService::new(
             token_service.clone(),
             Duration::hours(1),
+            platform_issuer.clone(),
+            audience,
         ),
         Arc::new(HashMap::new()),
     );
@@ -904,6 +917,7 @@ where
         token_service,
         registration_token_service,
         outbox_unit_of_work,
+        audience,
     } = deps;
     let IamRepos {
         user_repo,
@@ -932,6 +946,7 @@ where
         registration_token_service: registration_token_service.clone(),
         identity_repo: identity_repo.clone(),
         platform_issuer: platform_issuer.clone(),
+        audience: audience.clone(),
     });
     let (login_auth, registration, password_reset) = setup_auth_registration_password(
         db_pool,
@@ -961,6 +976,7 @@ where
             signing_key_registry,
             identity_repo,
             platform_issuer,
+            audience,
             access_token_expiration_seconds: token_service.access_token_expiration_seconds(),
         },
     );

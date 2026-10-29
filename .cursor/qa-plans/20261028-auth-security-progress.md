@@ -331,6 +331,102 @@ log `.tmp/auth-ingress-oauth-profile-tests-20261029.log`. Helper9b0/manifest/re�
 constante de compatibilité inchangés ; recheck borné demandé même reviewer avant
 reprise, aucun nouveau résultat réseau revendiqué.
 
+Revue1424Z PASSstatique puis opération ingress corrigée réellement exécutée :
+exit0/136.671s/PASS_LAB_INGRESS_ONLY. GETlogin303+nonce+redirect attendus ; trois
+routes protégées403 sans cookie, compteurIAM inchangé durant négatifs. ACK62929
+et UID/spec correspondent au journal et au postmetadata ;25NP comparées, seule
+entréeT/32TCP10000 attendue ajoutée,24autres préservées. Envoy identité/epoch
+cohérents, marqueurs temporaires fermés. Dossier7be2f636… ; aucune preuve SAN ou
+navigateur déduite. Infra-verifier analyse indépendante des artefacts requise.
+
+Oracle SANréel exécuté UNEfois wrapper7da5/source3c2 : PASS/exit0/93.778s.
+Bon303/handshake2/SAN0 ; mauvaisnom signé mêmeCA503/handshake2/SAN1, autreerreur0
+stable ; bonrestauré303/handshake3/SAN1/erreur0. Envoy mêmePod/epoch0, deuxrollouts
+IAMUID tracésdf614→236607→377006, patchsecretUIDtesté sansGETSecret. Restauration
+patch+rollout+HTTPpositif attestée ; dossierSAN31e176… . Ceci qualifie le refus
+de nom par Envoy dans ce laboratoire, pasbrowser/production ou touteslesfrontières.
+
+Préparation runtime de la matrice navigateur existante : script parent temporaire
+auth-browser-runtime-20261029.py, sans scénario nouveau. Chrome installé, profil
+créé neuf sous bail, CDP9222loopback etforwardexistant18081 doivent être libres ;
+aucun navigateur étranger adopté. SnapshotAdminAVANT, forwardcontext existant,
+IdPbefore/after bornés etrunIdexact, puis fermetureforward AVANTAdminaprès.
+Seule l'enveloppeJS déjà autorisée crée/ferme son contexte et exécute scénario
+inchangé. Stopfile local ou plafond6min, fermetureWindowsWM_CLOSE des seules
+fenêtresPIDchild Chrome possédé, aucunstopglobal/adoptionPID ; écheccleanup signalé.
+Pasinstallation/nouvellefixture/service/proxy/modificationglobale/SecretGET.
+Les compteursréels seront corrélés ; aucunPASSdu simplelancementdéduit.
+
+Browser : SyntaxErrorinitial(';'final) avant scénario corrigée dans SEULEenveloppe,
+fonctionexistante inchangée et hashreconstructionvérifié. Une exécutionfonctionnelle
+réelle ensuite échoue assertionopaque ; PASVALIDÉ. IdP4compteurssuccès0→2 etIAMrq+5,
+Envoymêmeidentité/epoch0. Hypothèseaprèssecondlogin/prérelink àlocaliser, paspreuve
+positiveP1–P3niN1–N3. Chrome/contexte/forwardfermés, observationsavant/aprèsarchivées.
+Aucunrerunaveugle ni changement des assertions autorisé par cette panne.
+
+Diagnostic ciblé avant replay : unloginHTTPcomptepreuveexistant, redirections
+strictementbornées3hops/URLexactes, pourvérifierbooléensshape/issuer/audience/email/
+cookieprérelink ; aucunevaleursecrèteémise. Ceclientn'estPASunnavigateur et leGET
+authmutetransaction/session : pasread-onlyniacceptancematrix. PasregistrationPOST
+ouBearer. Hypothèseàtester : unepréconditionaprèssecondloginestcontradictoire,
+sansélargirautorisationbrowserunsafeàd'autrescodes.
+
+DiagnosticHTTPpremierretourHTTPErrorinsuffisammentclassifié conservéa195... ;
+secondavecSEULstatus/pathcapturés :401callback EXACT(9383fde...), pasbody/URLquery.
+Localisationvérifiée, causeinternenonprouvée. AnalysecodeREADONLYdéléguéetask005t,
+aucunreplaybrowseroufixprodavantcauseetcritères. Pasd'assertionclaimaud/iss
+réellementexécutéepuisqueréponse401 ; touteslesacceptancesbrowserrestentouvertes.
+
+Diagnostic31causalreçu : mintdomaineutilisateurcompletTokenClaims::new→issuerlegacy,
+codecRS256exigeissuerURL, contradiction avantaccessmint/sessionwriter ; mapping401.
+Hypothèsefortementcausaleétablieauxsources, pasencorereproductionexécutée.
+Testsnommés AVANT implémentation/run :
+- oauth_domain_mint_and_configured_access_mint_with_url_issuer ;
+- oauth_registration_completion_then_second_login_uses_configured_authority.
+RéutilisercodecRS256/registrefixtureexistantsrs256_jwks_roundtrip,pasnouvelleinfra.
+Témoinmintconfiguréacceptéopposéaurefusmintlegacy, sortiesferméesnonsecrètes ; puis
+régression202→completion→callback200 sousissuerURL/RS256. Ne pasassouplircodecclé/
+registre/fences pourpasser. Préciserarchitectureavantmodifcontrat/responsabilité.
+
+Diagnosticcodec réel exécuté Windows, sourceapp3c2+testWIPseul :
+`cargo test --locked -p iam-infra --test rs256_jwks_roundtrip oauth_domain_mint_and_configured_access_mint_with_url_issuer -- --exact --nocapture`
+EXIT0 :1PASS/0failed/0ignored/2filtered, .03s (process61.739s incl.compile).
+Ancienmintdomaine refuséTokenGenerationFailed, témoinaccessmintconfiguréACCEPTÉ.
+CePASSestunDIAGNOSTICd'uncheminfautif, PAScorrection/login200 ni suiteglobale.
+Fixturecodec/registre/PEMtestexistants,sansPostgres/testcontainers/nouveauruntime.
+Log.tmp/oauth-issuer-codec-repro-60177b82f8b144709486e9b7fba428f6.log.
+Fmtinitial1diffnewlineawaitdansnouveautest puispatchformatseul ; fmtfinalexit0.
+TestSHAlivréWIPe69c6861f8a54572f3f3cd5d58b522e522cb39a9d4fccb72e39ef60e1de432f6.
+24jobs/E:/slotCargouniquepréservés ; paspreuveROUGEfonctionnelleprésentéeàpartir
+d'écheccompile. Aucunprodavantcontratarchitecteratifié, aucunreplaybrowser.
+
+Contratarchitecte86lignes ratifié AVANTprod, API4args/5fichiers appliqués. Postimage
+validéepargatespursWindows séquentiels :
+- iam-domain --lib service::token_service :19PASS/0ignored/34filtered,26.533sprocess ;
+- iam-infra --test rs256_jwks_roundtrip :3PASS/0ignored/0filtered,17.286sprocess ;
+- cargo check --locked -p iam-service :exit0,21.013s ; fmtallcheckexit0,2.273s.
+Logs0–3/results.json sousoauth-authority-pure-gates-b32a2d267d104b209b787fb33687e637.
+Signature/principal/iss/aud/sub/noorg du mintdomaineconfiguré et wrongaudience
+refusée couverts, legacyrefuséexpliciteconservé, unitmockaudiencenondefault et
+durée/jti/org/unencode renforcés. RégressionIT202completionsecondlogin+refresh/
+replay écriteNONexécutée. Aucune fixture/Docker lancée par cesgates ; cadre24jobs/E:.
+Revueindépendante freshtask0064 RO5fichiersgelés, pasverdictavantsonrapport.
+
+CompilationnativecibléedelaNOUVELLEIT(aucunrun) : cargo test--locked-piam-service
+--testoauth_browser_transactions--no-run EXIT0/43.820s, exécutable334067b96f04b614
+surE:. Log.tmp/oauth-second-login-compile-4c9f8ed848c54327a03fa9ebae6dec74.log.
+0testexécuté/0fixturecréée ; cePASScompile nevalidePASrégression. Source5hashes
+gelésinchangés, slotCargo24jobsrestitué, pasKind/browser/image.
+
+AmendementQAarchitecte20lignes lu et RATIFIÉ AVANTOPS : seul couple exactcase
+iam/oauth_browser_transactions dans resolverit-native ; deuxfichiersOPS fermés,
+aucunchangementobservation/registre/cleanup/Cargobranch/threads/jobs. Gatepréinscrit
+`powershell.exe -NoProfile -File ops/tests/test-it-native-selection.ps1` àétendre
+positifsIAM/anciensManifesto/vide, refuscase/espaces/croisés/suitesrépétées/paths/
+options/injection,zéronatif, placementavantprobes, vraiebrancheargvexacte.
+RunITfuturaprèsrevuecore/gate/préflight : it-native.ps1 -Suite iam -TestBinary
+oauth_browser_transactions, neufcasexistantsincluantnouveaurégression ; pas toutIAM.
+
 ## Plafond server_info v2 — plan avant code/run
 
 Amendement architecte v2 lu et explicitement ratifié : plafondFIXE131072B,

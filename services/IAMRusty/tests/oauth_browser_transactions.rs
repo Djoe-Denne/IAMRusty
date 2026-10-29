@@ -251,6 +251,64 @@ async fn oauth_registration_returns_persisted_refresh_without_fixture_token_inse
 
 #[tokio::test]
 #[serial]
+async fn oauth_registration_completion_then_second_login_uses_configured_authority() {
+    let (fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
+    fixture_cleanup::run(&fixture, async {
+        let idp = IdpConnectFixtures::service().await;
+        idp.mock_github_happy_arthur().await;
+        let client = browser_client();
+        let before = exchange_count(&idp).await;
+        let (registration_state, cookie) = start(&client, &base, None).await;
+        let registration = callback(&client, &base, "github/callback", &registration_state, Some(&cookie)).await;
+        assert!(registration.status() == 202, "initial OAuth registration not accepted");
+        let registration: Value = registration.json().await.expect("registration JSON");
+        let complete = client.post(format!("{base}/api/auth/complete-registration"))
+            .json(&json!({"registration_token": registration["registration_token"], "username": "secondoauthlogin"}))
+            .send().await.expect("complete registration");
+        assert!(complete.status() == 200, "registration completion failed");
+        assert!(exchange_count(&idp).await == before + 2, "registration exchange count mismatch");
+        let (login_state, same_cookie) = start(&client, &base, Some(&cookie)).await;
+        assert!(login_state != registration_state && same_cookie == cookie,
+            "second login must use a new transaction and the same browser binding");
+        let login = callback(&client, &base, "github/callback", &login_state, Some(&same_cookie)).await;
+        assert!(login.status() == 200, "complete OAuth user must log in with configured authority");
+        let session: Value = login.json().await.expect("login JSON");
+        assert!(session["operation"] == "login", "unexpected OAuth operation");
+        let access = session["access_token"].as_str().expect("access token present");
+        let refresh = session["refresh_token"].as_str().expect("refresh token present");
+        assert!(!access.is_empty() && !refresh.is_empty(), "session tokens absent");
+        let config = iam_configuration::load_config_fresh::<iam_configuration::AppConfig>()
+            .expect("test authority configuration");
+        let jwks = client.get(format!("{base}/.well-known/jwks.json"))
+            .send().await.expect("public JWKS request");
+        assert!(jwks.status() == 200, "JWKS unavailable");
+        let jwks = jwks.text().await.expect("public JWKS");
+        let verifier = rustycog::http::UserIdExtractor::from_inline_jwks(&jwks, Some(&config.jwt.audience))
+            .expect("configured verifier");
+        let principal = verifier.extract_principal(access).await
+            .unwrap_or_else(|_| panic!("login access signature or authority refused"));
+        assert!(principal.iss == config.jwt.platform_issuer()
+            && session["user"]["id"] == principal.sub.to_string(), "login principal mismatch");
+        let hash = iam_domain::entity::token::RefreshToken::hash_token(refresh);
+        let row = fixture.db().query_one(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT COUNT(*) AS count FROM refresh_tokens WHERE token = $1 AND user_id = $2 AND is_valid",
+            [hash.into(), principal.sub.into()],
+        )).await.expect("persisted session query").expect("session count row");
+        assert!(row.try_get::<i64>("", "count").expect("count") == 1, "login refresh not persisted");
+        assert!(exchange_count(&idp).await == before + 4, "second login must exchange and fetch profile");
+        let after = exchange_count(&idp).await;
+        for consumed in [&registration_state, &login_state] {
+            assert_denied_without_exchange(
+                callback(&client, &base, "github/callback", consumed, Some(&same_cookie)).await,
+                &idp, after,
+            ).await;
+        }
+    }).await;
+}
+
+#[tokio::test]
+#[serial]
 async fn replica_race_consumes_the_browser_transaction_once() {
     let (fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
     fixture_cleanup::run(&fixture, Box::pin(async {

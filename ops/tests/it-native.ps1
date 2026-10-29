@@ -28,9 +28,12 @@ function Resolve-ItTestThreads {
 function Resolve-ItTestBinary {
     param([string[]]$Suites, [string]$Binary)
     if ([string]::IsNullOrEmpty($Binary)) { return '' }
+    if ($Suites.Count -eq 1 -and $Suites[0] -ceq 'iam' -and $Binary -ceq 'oauth_browser_transactions') {
+        return $Binary
+    }
     if ($Suites.Count -ne 1 -or $Suites[0] -ne 'manifesto' -or
         $Binary -cnotin @('apparatus_p3_t4_gateway', 'apparatus_p3_t5_consent')) {
-        throw 'Named IT selection requires exactly one Manifesto suite and an approved binary; STOP before runtime'
+        throw 'Named IT selection requires one exact approved suite/binary pair; STOP before runtime'
     }
     return $Binary
 }
