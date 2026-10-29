@@ -184,6 +184,8 @@ async fn assert_platform_receiver(base: &str, issuer: &str, access: &str) {
         jwt: JwtAuthConfig {
             allowed_algorithms: vec!["RS256".into()],
             issuer: Some(issuer.into()),
+            platform_issuer: Some(issuer.into()),
+            allow_historical_platform_issuer: Some(false),
             audience: Some(rustycog::testing::http::jwt::TEST_JWT_AUDIENCE.into()),
             jwks_url: Some(format!("{base}/.well-known/jwks.json")),
             ..JwtAuthConfig::default()

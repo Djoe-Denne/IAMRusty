@@ -237,6 +237,51 @@ Cleanup vérifié sur échec :40 créations/40 retraits,0 possédéprésent/runn
 Les20 conteneurs préexistants ont mêmesIDs et états après. AucunarrêtDocker/WSL
 de propriété inconnue ; registre .tmp/docker-resources-20261028.log.
 
+Recoupement nominatif des10 lignesPASS exactes : huit témoins organisationsPG
+(T1/T2/deuxinitialschema/upgrade/refusdown/reset/authnegative), collision entre
+autorités et acteur/cible projection membership tous exécutés et verts. AvecT4
+remote déjàvert etrevue indépendante des oracles, la tâche de fermeture des quatre
+lacunes est maintenant complétée. La suiteIAM et les preuves Envoy/navigateur ne
+sont pas englobées par cette clôture bornée.
+
+Recompilation après correction de fixture0ae4222 :41/41 ciblesIAM exit0,
+636s cumulées ; les41 logs confirment le targetWindowsE:, aucunOOM, aucun test.
+La faute du champ descriptif target_dir du plan initial est documentée dans
+metadata-correction.json, pas un override effectif. Recheck test-reviewer ciblé
+PASS statique sansfinding, assertions4consommateurs intactes.
+Reprise réelle autorisée suivante : `it-native.ps1 -Suite iam` uniquement,
+sources0ae/SDK74e8 figées et cleanup/inventaires identiques àla premièrecampagne.
+
+### Reprise IAM : premier défaut fermé, second arrangement de récepteur localisé
+
+Campagne it-c2e84f197dbb4268b355f511b3591796 : organization_account_guard2PASS,
+public_refresh_expired_access etregistration_usage_boundary1PASSchacun ; la cause
+précédente est effectivement corrigée, sansmodifier leurs assertions. La suite
+avance jusqu'à signing_admission :3PASS/2FAIL. Les2échecs arrivent dans le helper
+assert_platform_receiver au constructeurSDK, errorPRINCIPAL_POLICY_UNAVAILABLE,
+pas sur un résultat de quota ou de signature. Les cibles suivantes restent non
+exécutées ; aucunPASSIAMglobal.
+
+Cause source : l'unique JwtAuthConfig construit directement dans IAMtests ne
+déclare pas les2champs obligatoires de principal, malgré issuer déjà connu.
+Recherche exacte de toutes les constructions JwtAuthConfig/AuthConfig et
+UserIdExtractor::new dans IAMtests : ce seul site ; autres receivers inlineJWKS
+déjàexécutés avec succès. Serena retrouve les3appels des2tests en échec.
+Correction test-only : platform_issuer=Some(issuer.into()), historical=false,
+sansmodifier extraction, URLJWKS, assertions de publication/quotas ouproduction.
+Sélecteurs existants nommés : les2tests d'admission du dernier budget et du17e
+slot plateforme. Compiler uniquement signing_admission--no-run, pas41cibles.
+
+La reprise reste via `it-native.ps1 -Suite iam` existant : interfaceferméeaux
+suites, aucunfiltredebinaires. Choix borné de garder son inventaire/cleanup prouvés
+plutôt qu'ajouter un nouveau runner oumodifierl'infrastructure de tests. Ce coût
+de reprise des anciens cas est imposé par cette interface, pas un nouveau gate
+global. Hive67PASS toujours réutilisé sans rerun. Compte d'essais : progrès réel
+sur le précédent frontier (garde2PASS), nouveau défaut de fixture indépendant.
+
+Cleanup reprise :30created/30removed,0ownedprésent/running,0issue/unknown/unowned,
+picowned1 ;20préexistants mêmesIDs/états après. Registre contemporain du runner.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et
