@@ -49,4 +49,13 @@ Une vérification de chemins ou de fins de ligne seule n'établit pas l'équival
 fonctionnelle. Préciser les lots couverts ; ne pas prétendre avoir audité tout
 ancien worktree enregistré dans Git.
 
+## Clôture obligatoire du lot
+
+Règle projet : `AGENTS.md`, section « Fin de mission — intégration, publication et
+nettoyage (2026-10-29) », rappelée dans `.cursor/rules/mission-closeout.mdc`.
+La fin d'une mission comprend l'intégration de toutes ses branches, le commit et
+le push vérifiés sur la branche principale, puis le nettoyage de ses branches et
+worktrees et l'archivage natif. Une sauvegarde seule ou un tableau de tâches vert
+ne remplace aucune de ces étapes. Un blocage restant doit être annoncé comme tel.
+
 Exemple : [réconciliation de la campagne authentification](../missions/20261029-auth-security-publication.md).

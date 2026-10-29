@@ -1,0 +1,25 @@
+---
+description: Fin de mission AIForAll — fusion de toutes les branches du lot, commit/push vérifiés, puis nettoyage et archivage
+alwaysApply: true
+---
+
+# Fin de mission obligatoire — AIForAll
+
+Canon unique : `AGENTS.md`, section « Fin de mission — intégration, publication et
+nettoyage (2026-10-29) ». Cette règle s'applique uniquement à ce projet.
+
+- Toutes les branches créées pour la mission doivent être résolues et fusionnées
+  dans la branche principale effective (`master` ici), puis les livrables durables
+  commités et poussés ; contrôler la référence distante.
+- Les worktrees ne sont pas des livrables : intégrer leur travail utile avant
+  retrait, sans publier les secrets, logs ou données temporaires.
+- Les validations et la résolution des versions remplacées restent obligatoires ;
+  pas de fusion aveugle ni de succès déduit d'une simple présence de fichiers.
+- Après publication vérifiée : agents arrêtés, branches/worktrees temporaires
+  retirés, inventaires contrôlés et équipe archivée nativement.
+- Préserver le checkout principal et le travail étranger. Un arbre modifié doit
+  avoir une sauvegarde récupérable vérifiée et une autorisation de suppression.
+- Une étape bloquée doit être signalée avec preuve et condition de reprise ;
+  la mission ne peut pas être déclarée entièrement clôturée.
+
+Checklist opérationnelle : `docs/guides/livrables-durables-et-worktrees.md`.
