@@ -417,6 +417,44 @@ mêmesélection1PASS etfullsuite23PASS/0.356s, sansDocker. Patch2builders limit�
 ENVtargetLinux+--locked, pasderéduction24jobs ouchangementRustbase. Infra14recheck
 RO demandéavantbuild ; côtéapplicationRust/SDK/authaucundelta aprèsITnative.
 
+Contexte Gitproprea7+SDK02e5 créé maisgatedetransfert arrêtéAVANTDocker : il
+contient .opencode/missions historiquementSUIVI (225fichiers), pasune copie du
+runprivécourant. .tmp/.worktrees absents, gitstatuspropre ; nomdedossierseulne
+prouvepascontentsecret. Décisionhygienebornée : nepaslire/supprimercesarchives,
+lesexclure ducontextbuildaveclesautresétatsagents/temp/worktrees via lesdeux
+Dockerignore applicables (globaletcontroller-specific). Ce n'estpasuneditdes
+configurationsMCPglobales ouunepermissiondebuilderdepuiscanon dirty.
+Nouveau sourceguard nomméavantbaseline :
+test_linux_delivery_context_excludes_agent_state_and_worktrees ; vérifierexclusions
+explicites .tmp/.worktrees/.opencode/.cursor/.serena/obsidian/**/.git danslesdeux
+filtres. MêmeconditionGitpropre+SHAexacte, puisavancerleworktreepossédépropreau
+commitdecesfiltres,aucunreset/nettoyageadoption. NouveauDockerbuildtoujoursNONlancé.
+
+Exclusionscontexte : baseline1test/2subtestsFAIL puis1PASS etsuite24PASS/0.267s.
+Les filtres sontdesfichiersversionnés du dépôtuniquement ; aucun répertoirede
+mission/sourcehistorique luoueffacé. La gardeGitpropreestmaintenue ; .tmp et
+.worktrees doiventresterabsentsduworktreelivraison, .opencodehistoriquesuivi est
+présentmaisexcluparDockerignoreapplicable. PasunepreuvebuildLinuxeffectif.
+
+Précision de provenance après préparationducommit : .dockerignorecanonique est
+unfichierLOCAL PRÉEXISTANT IGNORÉ, nonversionné ; gitaddl'arefusé (pasunrefusde
+permissionoutil). Aucunforceadd/embarquementdesoncontenuétranger. Nosseuleslignes
+ajoutées yontétéretiréesparpatchciblé,contenuantérieurconservé. Routecompatible :
+nouveautemplateversionné ops/deploy/build/delivery-context-ignore.txt demission,
+copieexclusive vers .dockerignore dansSEULworktreelivraisonpossédé, hashidentique
+autemplate. Controller-specificresteversionnéetcomplété. Sourceguardvisecetemplate
+etlefiltrespecific, paslaforeignconfig. Gitpropre etsourcesHEAD/SDKexacts restent
+obligatoires ; seulinputgénéréignoréautorisé = copiedufiltreversionné, identité
+documentée. Aucuninputprivé/clé/preuve copiée. Troisautresfichiersintentionnels
+avaientétéstagéspargitaddpartiel ; nepasreset/unstageétrangers, contrôlerwhitelist.
+
+Templateownedfinal etsourceguard24PASS/0.255s, canonical.localDockerignore non
+suivi/ignoré confirmé ; template.txt nonignoré, aucunforceadd. Documentation du
+build précise copieexclusive/hash etpréservationdufichierlocalétranger. Lecommit
+de livraison contienttemplate/filtrespecific/test/QA/README seulement, pas.le
+Dockerignorelocal. La copie dansleworktreepropreestuninputdemétadonnéesdéterministe
+dufichierversionné, pasunecopie d'artefactsprivés etpasuneinstallation/runnertest.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et

@@ -1,6 +1,9 @@
 **/target
 .git
 **/.git
+.tmp
+.worktrees
+.opencode
 .cursor
 .serena
 obsidian

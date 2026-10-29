@@ -41,6 +41,18 @@ class AcceptanceGuardTests(unittest.TestCase):
         spec.loader.exec_module(module)
         return module
 
+    def test_linux_delivery_context_excludes_agent_state_and_worktrees(self):
+        root = SOURCE.parents[2]
+        required = {".tmp", ".worktrees", ".opencode", ".cursor", ".serena", "obsidian", "**/.git"}
+        for path in ["ops/deploy/build/delivery-context-ignore.txt",
+                     "workers/apparatus-operator/Dockerfile.controller.dockerignore"]:
+            with self.subTest(dockerignore=path):
+                rules = {line.strip().rstrip("/")
+                         for line in (root / path).read_text(encoding="utf-8").splitlines()
+                         if line.strip() and not line.lstrip().startswith("#")}
+                self.assertTrue(required <= rules,
+                                f"{path}: missing private-state exclusions {sorted(required - rules)}")
+
     def test_no_direct_process_or_ambient_kubectl_path(self):
         tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
         for node in ast.walk(tree):

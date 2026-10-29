@@ -75,6 +75,17 @@ function Write-NewJson([string]$Path, $Value) {
 
 Après GO, construire les images **Linux de livraison pour Kind**, pas les tests de développement. Ces six commandes contractuelles utilisent les Dockerfiles existants, **sans `compose up`** ni service applicatif Docker démarré :
 
+Exécuter ces builds depuis un **worktree Git de livraison propre**, avec le
+gitlink SDK exact matérialisé, jamais depuis le workspace canonique contenant
+des preuves privées ou modifications utilisateur. Avant tout transfert Docker,
+créer exclusivement dans ce worktree une copie de
+`ops/deploy/build/delivery-context-ignore.txt` sous le nom `.dockerignore` et
+comparer leurs SHA256. Refuser un fichier destination préexistant ; ne pas copier
+le `.dockerignore` local ignoré du workspace canonique. Le Dockerignore spécifique
+du controller applique les mêmes exclusions d'états d'agents et de worktrees.
+Cette copie de métadonnées versionnées est le seul input généré admis ici ; elle
+ne contient ni certificat, secret, kubeconfig ou sortie de campagne.
+
 ```powershell
 $env:DOCKER_DEFAULT_PLATFORM = 'linux/amd64'
 docker compose -p aiforall build build-artifacts
