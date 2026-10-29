@@ -1126,6 +1126,361 @@ class EnvoyAdminTests(unittest.TestCase):
         self.assertEqual(json.loads(self.marker.read_text()), marker)
 
 
+class FakeTupleCommands(FakeEnvoyAdminCommands):
+    """Endpoint-aware identity fake; diagnostic argv are separately asserted."""
+    def __init__(self, fixture, incarnation):
+        super().__init__(fixture, incarnation)
+        self.names = {fixture.ids[0]: "aiforall-local-full-control-plane",
+                      fixture.ids[1]: "aiforall-local-full-worker",
+                      fixture.ids[2]: "aiforall-local-full-worker2"}
+        self.addresses = {container_id: "172.18.0." + str(index + 2)
+                          for index, container_id in enumerate(fixture.ids)}
+        self.network = (self.names[fixture.ids[1]] + '\n10.244.1.4\n[{"ip":"10.244.1.4"}]\nfalse\n'
+            '[{"name":"http","containerPort":10000,"protocol":"TCP"}]\nenvoy-mesh\n')
+        self.service = ('owned-service\nenvoy-mesh\naiforall-local-full\nNodePort\n10.96.0.42\n'
+            '["10.96.0.42"]\nCluster\nCluster\n{"app.kubernetes.io/name":"envoy-mesh"}\n'
+            '[{"name":"http","port":10000,"protocol":"TCP","targetPort":"http","nodePort":30080}]\n')
+        self.node = "owned-node\naiforall-local-full-worker\n172.18.0.3\n"
+        self.backend = "nf_tables"
+        self.diagnostics = []
+        self.mutate = lambda cmd, value: value
+
+    def __call__(self, cmd, **kwargs):
+        if cmd[:2] == ["docker", "exec"]:
+            self.calls.append(cmd)
+            self.diagnostics.append(cmd)
+            if cmd[3:] == ["conntrack", "--version"]:
+                value = "conntrack v1.4.7 (conntrack-tools)\n"
+            elif cmd[3:] == ["iptables", "--version"]:
+                value = "iptables v1.8.11 (" + self.backend + ")\n"
+            elif cmd[3:] in (["test", "-d", "/sys/module/nf_conntrack"],
+                              ["test", "-d", "/sys/module/nf_conntrack_netlink"]):
+                value = ""
+            else:
+                raise AssertionError("unexpected diagnostic argv")
+        elif cmd[:2] == ["docker", "inspect"] and cmd[3] != anchor.METADATA:
+            self.calls.append(cmd)
+            name = self.names[cmd[-1]]
+            value = json.dumps(dict(id=cmd[-1], hostname=name, name="/" + name, ipv4=self.addresses[cmd[-1]]))
+        else:
+            value = super().__call__(cmd, **kwargs)
+            if cmd[0] == "kubectl":
+                args = cmd[5:]
+                if args[:2] == ["get", "pod"] and "{.spec.nodeName}" in cmd[-1]:
+                    value = ("owned-pod\nenvoy-mesh-abc-def\naiforall-local-full\n" + self.network
+                             + "2026-10-29T01:02:03Z\n")
+                elif args[:2] == ["get", "node"]:
+                    value = self.node
+                elif args[:2] == ["get", "service"]:
+                    value = self.service
+        return self.mutate(cmd, value)
+
+
+class FakeTuplePipe(io.BytesIO):
+    def __init__(self, value, broken=False):
+        super().__init__(value)
+        self.bytes_read, self.read_sizes, self.broken = 0, [], broken
+
+    def read(self, size):
+        self.read_sizes.append(size)
+        if self.broken:
+            raise OSError("PRIVATE-TUPLE-SENTINEL")
+        value = super().read(size)
+        self.bytes_read += len(value)
+        return value
+
+
+class EnvoyTuplePreflightTests(unittest.TestCase):
+    """The two predeclared tooling-only oracles; no native command/network."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        env = patch.dict(os.environ, {}, clear=True)
+        env.start()
+        self.addCleanup(env.stop)
+        self.f = Fixture(self.temp.name)
+        self.f.data["namespaceUids"] = {"aiforall-local-full": "owned-namespace"}
+        self.f.data["ownedResources"] = [dict(kind=kind, name="envoy-mesh", uid=uid,
+            namespace="aiforall-local-full", context="kind-aiforall-local-full", cluster="aiforall-local-full")
+            for kind, uid in (("Deployment", "owned-deployment"), ("Service", "owned-service"))]
+        self.f.save()
+        self.incarnation = dict(container_id="containerd://" + "e" * 64, restart_count=0,
+                                image_id="docker.io/envoyproxy/envoy@sha256:" + "f" * 64)
+        self.attestation = dict(pod="envoy-mesh-abc-def", namespace_uid="owned-namespace", pod_uid="owned-pod",
+            container="envoy", owner_chain=[dict(kind="ReplicaSet", name="envoy-mesh-abc", uid="owned-rs"),
+                dict(kind="Deployment", name="envoy-mesh", uid="owned-deployment")], incarnation=self.incarnation,
+            node_uid="owned-node", service_uid="owned-service")
+        self.cmd = FakeTupleCommands(self.f, self.incarnation)
+        self.target = self.f.target(self.cmd)
+        self.children = []
+        self.streams = None
+        self.blocked = self.ignore_stop = self.broken_pipe = False
+        self.exit_status = lambda command: 0
+        self.acl_result = "yes\n"
+        self.on_launch = lambda: None
+        launcher = patch.object(anchor.subprocess, "Popen", side_effect=self.launch)
+        self.launcher = launcher.start()
+        self.addCleanup(launcher.stop)
+        for module, name in ((anchor.subprocess, "run"), (anchor.socket, "create_connection"),
+                             (anchor.http.client, "HTTPConnection"), (anchor.os, "kill")):
+            guard = patch.object(module, name, side_effect=AssertionError("unexpected live operation"))
+            guard.start()
+            self.addCleanup(guard.stop)
+
+    def launch(self, command, **kwargs):
+        self.assertEqual(kwargs["stdin"], anchor.subprocess.DEVNULL)
+        self.assertEqual(kwargs["stdout"], anchor.subprocess.PIPE)
+        self.assertEqual(kwargs["stderr"], anchor.subprocess.PIPE)
+        self.assertEqual(kwargs["bufsize"], 0)
+        self.assertNotIn("shell", kwargs)
+        self.on_launch()
+        if self.streams is None:
+            # Existing fake verifies endpoint/context and supplies only projections.
+            value = self.acl_result if command[0] == "powershell.exe" else self.cmd(command, **kwargs)
+            out, err = value.encode() if isinstance(value, str) else value, b""
+        else:
+            out, err = self.streams
+        process = Mock(stdout=FakeTuplePipe(out, self.broken_pipe), stderr=FakeTuplePipe(err))
+        state = [None if self.blocked else self.exit_status(command)]
+        process.poll.side_effect = lambda: state[0]
+        def stop(*_):
+            if not self.ignore_stop:
+                state[0] = -15
+        def kill():
+            state[0] = -9
+        def wait(timeout):
+            self.assertGreaterEqual(timeout, 0)
+            self.assertLessEqual(timeout, 5)
+            if state[0] is None:
+                raise anchor.subprocess.TimeoutExpired("PRIVATE-TUPLE-SENTINEL", timeout)
+            return state[0]
+        process.send_signal.side_effect = stop
+        process.terminate.side_effect = stop
+        process.kill.side_effect = kill
+        process.wait.side_effect = wait
+        self.children.append(process)
+        return process
+
+    def capture(self, **changes):
+        return self.target.envoy_tuple_tooling_preflight(**{**self.attestation, **changes})
+
+    def assert_closed(self):
+        for process in self.children:
+            self.assertIsNotNone(process.poll())
+            self.assertTrue(process.stdout.closed)
+            self.assertTrue(process.stderr.closed)
+            process.wait.assert_called()
+
+    def assert_opaque_failure(self, operation):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            with self.assertRaises(anchor.AnchorError) as caught:
+                operation()
+        self.assertNotIn("PRIVATE-TUPLE-SENTINEL", str(caught.exception) + stdout.getvalue() + stderr.getvalue())
+        self.assertIsNone(caught.exception.__cause__)
+        self.assert_closed()
+
+    def test_envoy_tuple_preflight_rejects_missing_tools_modules_and_foreign_nodes_before_dump(self):
+        expected = [["docker", "exec", self.f.ids[0], "conntrack", "--version"],
+            ["docker", "exec", self.f.ids[1], "iptables", "--version"],
+            ["docker", "exec", self.f.ids[0], "test", "-d", "/sys/module/nf_conntrack"],
+            ["docker", "exec", self.f.ids[0], "test", "-d", "/sys/module/nf_conntrack_netlink"]]
+        for backend in ("nf_tables", "legacy"):
+            with self.subTest(backend=backend):
+                self.cmd.backend = backend
+                self.cmd.mutate = lambda cmd, value: value.replace("\n", "\r\n") if backend == "legacy" else value
+                self.cmd.diagnostics.clear()
+                result = self.capture()
+                self.assertEqual(self.cmd.diagnostics, expected)
+                self.assertEqual(result["status"], "TOOLING_PREFLIGHT_ONLY")
+                self.assertEqual(result["iptables_backend"], backend)
+                self.assertEqual(result["conntrack_version"], "1.4.7")
+                self.assertEqual(result["identity"]["worker_container_id"], self.f.ids[1])
+                self.assertEqual(result["identity"]["node_uid"], "owned-node")
+                self.assertEqual(result["identity"]["node_internal_ipv4"], "172.18.0.3")
+                self.assertEqual(result["identity"]["pod_ipv4"], "10.244.1.4")
+                self.assertNotIn("NAT_BINDING", json.dumps(result))
+                self.assert_closed()
+        self.cmd.mutate = lambda cmd, value: value
+        # Invalid caller grammar/attestation: not even an anchor/identity process.
+        invalid = [dict(pod="foreign"), dict(container="sidecar"), dict(namespace_uid="foreign"),
+            dict(node_uid=[]), dict(service_uid=""), dict(owner_chain=[]), dict(incarnation={}),
+            dict(incarnation={**self.incarnation, "restart_count": True})]
+        for changes in invalid:
+            with self.subTest(invalid=changes):
+                self.launcher.reset_mock()
+                self.assert_opaque_failure(lambda: self.capture(**changes))
+                self.launcher.assert_not_called()
+        for free in (dict(argv=["conntrack", "-L"]), dict(worker_id=self.f.ids[1]),
+                     dict(control_plane_id=self.f.ids[0]), dict(table="filter"), dict(filter="tcp"),
+                     dict(callback=lambda: None)):
+            with self.subTest(free=tuple(free)):
+                self.launcher.reset_mock()
+                with self.assertRaises(TypeError):
+                    self.target.envoy_tuple_tooling_preflight(**self.attestation, **free)
+                self.launcher.assert_not_called()
+        self.target.data["cluster"] = "aiforall-local"
+        self.launcher.reset_mock()
+        self.assert_opaque_failure(self.capture)
+        self.launcher.assert_not_called()
+        self.target.data["cluster"] = "aiforall-local-full"
+        resources = self.target.data["ownedResources"]
+        self.target.data["ownedResources"] = resources[:1]
+        self.launcher.reset_mock()
+        self.assert_opaque_failure(self.capture)
+        self.launcher.assert_not_called()
+        self.target.data["ownedResources"] = resources
+        # Missing binary, permission refusal and either missing resident module:
+        # no later command, no dump/netlink/install/fallback is attempted.
+        for failure in range(1, 5):
+            with self.subTest(missing_or_refused=failure):
+                self.cmd.diagnostics.clear()
+                self.exit_status = lambda cmd: (127 if failure <= 2 else 1) if cmd == expected[failure - 1] else 0
+                self.assert_opaque_failure(self.capture)
+                self.assertEqual(self.cmd.diagnostics, expected[:failure])
+        self.exit_status = lambda command: 0
+        for output in ("conntrack v1.4.8 (conntrack-tools)\n", "1.4.7\n",
+                       "conntrack v1.4.7 (conntrack-tools)\nPRIVATE-TUPLE-SENTINEL"):
+            with self.subTest(conntrack=output):
+                self.cmd.diagnostics.clear()
+                self.cmd.mutate = lambda cmd, value: output if cmd[3:] == ["conntrack", "--version"] else value
+                self.assert_opaque_failure(self.capture)
+                self.assertEqual(self.cmd.diagnostics, expected[:1])
+        self.cmd.mutate = lambda cmd, value: value
+        self.cmd.backend = "unknown"
+        self.cmd.diagnostics.clear()
+        self.assert_opaque_failure(self.capture)
+        self.assertEqual(self.cmd.diagnostics, expected[:2])
+        self.cmd.backend = "nf_tables"
+        network, node = self.cmd.network, self.cmd.node
+        for name in ("aiforall-local-full-control-plane", "foreign-worker"):
+            with self.subTest(foreign_or_cp_node=name):
+                self.cmd.network = network.replace("aiforall-local-full-worker", name)
+                self.cmd.node = "owned-node\n" + name + "\n172.18.0.2\n"
+                self.cmd.diagnostics.clear()
+                self.assert_opaque_failure(self.capture)
+                self.assertEqual(self.cmd.diagnostics, [])
+        self.cmd.network, self.cmd.node = network, node
+        other_name = self.cmd.names[self.f.ids[2]]
+        other_address = self.cmd.addresses[self.f.ids[2]]
+        self.cmd.names[self.f.ids[2]] = self.cmd.names[self.f.ids[1]]
+        self.cmd.addresses[self.f.ids[2]] = self.cmd.addresses[self.f.ids[1]]
+        self.cmd.diagnostics.clear()
+        self.assert_opaque_failure(self.capture)
+        self.assertEqual(self.cmd.diagnostics, [])
+        self.cmd.names[self.f.ids[2]] = other_name
+        self.cmd.addresses[self.f.ids[2]] = other_address
+        # Identity projection errors before diagnostic exec, and the SAME changes
+        # after all four execs. None may return a stale successful attestation.
+        mutations = [
+            lambda cmd, v: v.replace("10.244.1.4", "10.244.1.5") if cmd[5:7] == ["get", "pod"] else v,
+            lambda cmd, v: v.replace("owned-node", "foreign-node") if cmd[5:7] == ["get", "node"] else v,
+            lambda cmd, v: v.replace("172.18.0.3", "172.18.0.99") if cmd[5:7] == ["get", "node"] else v,
+            lambda cmd, v: v + "172.18.0.99\n" if cmd[5:7] == ["get", "node"] else v,
+            lambda cmd, v: v.replace("owned-service", "foreign-service") if cmd[5:7] == ["get", "service"] else v,
+            lambda cmd, v: v.replace('"nodePort":30080', '"nodePort":30081') if cmd[5:7] == ["get", "service"] else v,
+            lambda cmd, v: v.replace("Cluster", "Local") if cmd[5:7] == ["get", "service"] else v,
+            lambda cmd, v: v.replace("owned-deployment", "foreign-deployment") if cmd[5:7] == ["get", "replicaset"] else v,
+            lambda cmd, v: v.replace("owned-deployment", "foreign-deployment") if cmd[5:7] == ["get", "deployment"] else v,
+            lambda cmd, v: v.replace(self.incarnation["container_id"], "containerd://" + "1" * 64) if cmd[5:7] == ["get", "pod"] else v,
+            lambda cmd, v: v.replace("\t0\t", "\t1\t") if cmd[5:7] == ["get", "pod"] else v,
+            lambda cmd, v: v.replace(self.incarnation["image_id"], "sha256:" + "2" * 64) if cmd[5:7] == ["get", "pod"] else v,
+            lambda cmd, v: v.replace('"hostname": "aiforall-local-full-worker"', '"hostname": "foreign-worker"') if cmd[:2] == ["docker", "inspect"] else v,
+            lambda cmd, v: v.replace('"ipv4": "172.18.0.3"', '"ipv4": "172.18.0.99"') if cmd[:2] == ["docker", "inspect"] else v,
+            lambda cmd, v: v.replace('"ipv4": "172.18.0.3"', '"ipv4": null') if cmd[:2] == ["docker", "inspect"] else v,
+            lambda cmd, v: v.replace('"running": true', '"running": false') if cmd[:2] == ["docker", "inspect"] else v,
+            lambda cmd, v: v.replace('"HostPort": "18080"', '"HostPort": "18081"') if cmd[:2] == ["docker", "inspect"] else v,
+            lambda cmd, v: v + " " + "1" * 64 if cmd[:2] == ["docker", "ps"] else v,
+            lambda cmd, v: v.replace('"ip":"10.244.1.4"', '"ip":"10.244.1.4"},{"ip":"10.244.1.6"') if cmd[5:7] == ["get", "pod"] else v,
+            lambda cmd, v: v + "PRIVATE-TUPLE-SENTINEL\n" if cmd[5:7] == ["get", "service"] else v,
+            lambda cmd, v: v.replace('"nodePort":30080', '"nodePort":30080,"nodePort":30080') if cmd[5:7] == ["get", "service"] else v,
+        ]
+        for mutation in mutations:
+            # A different but valid Pod IP is permitted initially, never as drift.
+            for post in ((True,) if mutation is mutations[0] else (False, True)):
+                with self.subTest(mutation=mutations.index(mutation), post=post):
+                    self.cmd.diagnostics.clear()
+                    self.cmd.mutate = lambda cmd, value: mutation(cmd, value) if not post or len(self.cmd.diagnostics) == 4 else value
+                    self.assert_opaque_failure(self.capture)
+                    self.assertEqual(self.cmd.diagnostics, expected if post else [])
+        self.cmd.mutate = lambda cmd, value: value
+        self.f.data["control_plane_container_id"] = "1" * 64
+        self.f.save()
+        self.cmd.diagnostics.clear()
+        self.assert_opaque_failure(self.capture)
+        self.assertEqual(self.cmd.diagnostics, [])
+
+    def test_envoy_tuple_bounds_and_failures_never_echo_private_output(self):
+        # Exercise the actual byte reader, not a fake pre-truncated run() result.
+        for size in (16384, 16385, 200000):
+            for stream in (0, 1):
+                with self.subTest(size=size, stream=stream):
+                    self.children.clear()
+                    prefix = b"PRIVATE-TUPLE-SENTINEL"
+                    value = prefix + b"x" * (size - len(prefix))
+                    self.streams = (value, b"") if stream == 0 else (b"", value)
+                    child = anchor._EnvoyTupleChild(anchor.time.monotonic() + 30)
+                    if size == 16384 and stream == 0:
+                        self.assertEqual(len(child.run(["private-fake-command"])), 16384)
+                        self.assert_closed()
+                    else:
+                        self.assert_opaque_failure(lambda: child.run(["private-fake-command"]))
+                    pipe = (self.children[0].stdout, self.children[0].stderr)[stream]
+                    self.assertLessEqual(pipe.bytes_read, 16385)
+                    self.assertTrue(all(0 < count <= 1024 for count in pipe.read_sizes))
+        for streams in ((b"\xffPRIVATE-TUPLE-SENTINEL", b""), (b"", b"\xffPRIVATE-TUPLE-SENTINEL")):
+            self.streams = streams
+            self.assert_opaque_failure(self.capture)
+        self.streams = (b"PRIVATE-TUPLE-SENTINEL", b"")
+        self.broken_pipe = True
+        self.assert_opaque_failure(self.capture)
+        self.broken_pipe = False
+        # Native spawn refusal: never consult another runner after rejection.
+        with patch.object(anchor.subprocess, "Popen", side_effect=PermissionError("PRIVATE-TUPLE-SENTINEL")) as refused:
+            self.assert_opaque_failure(self.capture)
+            refused.assert_called_once()
+        # Command timeout, including ignored graceful stop -> kill ONLY this child.
+        for ignored in (False, True):
+            self.children.clear()
+            self.blocked, self.ignore_stop = True, ignored
+            clock = [0.0]
+            def ticking():
+                clock[0] += 0.05
+                return clock[0]
+            with patch.object(anchor.time, "monotonic", side_effect=ticking):
+                self.assert_opaque_failure(self.capture)
+            self.assertLessEqual(clock[0], 5.1)
+            self.assertEqual(len(self.children), 1)
+            self.assertEqual(self.children[0].kill.called, ignored)
+        self.blocked = self.ignore_stop = False
+        self.streams = None
+        # Overall snapshot deadline applies even if EACH process exits promptly.
+        clock = [0.0]
+        self.on_launch = lambda: clock.__setitem__(0, clock[0] + 1)
+        with patch.object(anchor.time, "monotonic", side_effect=lambda: clock[0]):
+            self.assert_opaque_failure(self.capture)
+        self.assertLessEqual(clock[0], 30)
+        self.on_launch = lambda: None
+        if os.name == "nt":
+            # The default Owner/Access guard must use the SAME bounded child,
+            # never escape to the existing generic 30s PowerShell runner.
+            privacy = self.target.privacy
+            self.target.privacy = anchor.private_file
+            self.cmd.mutate = lambda cmd, value: value
+            self.assertEqual(self.capture()["status"], "TOOLING_PREFLIGHT_ONLY")
+            self.assert_closed()
+            for refused in ("no\n", "PRIVATE-TUPLE-SENTINEL", b"\xffPRIVATE-TUPLE-SENTINEL", "x" * 16385):
+                self.acl_result = refused
+                self.cmd.diagnostics.clear()
+                self.assert_opaque_failure(self.capture)
+                self.assertEqual(self.cmd.diagnostics, [])
+            self.acl_result = "yes\n"
+            self.target.privacy = privacy
+        # Opaque unknown projection data must never appear in a successful result.
+        self.cmd.mutate = lambda cmd, value: value + "PRIVATE-TUPLE-SENTINEL" if cmd[:2] == ["docker", "inspect"] else value
+        self.assert_opaque_failure(self.capture)
+
+
 class WindowsAclBindingTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "native Windows PowerShell boundary")
     def test_windows_kubectl_pipeline_preserves_payload_and_target_arguments(self):

@@ -537,6 +537,121 @@ class _EnvoyAdminForward:
             raise AnchorError("INCONCLUSIVE: Admin cleanup blocked; retain private marker") from None
 
 
+class _EnvoyTupleChild:
+    """Private bounded transport for this preflight, never a caller-supplied runner."""
+    def __init__(self, deadline):
+        self.deadline = deadline
+        self.process = None
+        self.threads = []
+        self.command_deadline = deadline
+
+    def run(self, command, **kwargs):
+        self.command_deadline = min(self.deadline, time.monotonic() + 5)
+        if self.command_deadline - time.monotonic() <= 0.5:
+            raise AnchorError("tuple preflight deadline exceeded")
+        output = [bytearray(), bytearray()]
+        failed = threading.Event()
+
+        def drain(index, pipe):
+            try:
+                while True:
+                    # Including the overflow witness, never read more than 16385B.
+                    chunk = pipe.read(min(1024, 16385 - len(output[index])))
+                    if not chunk:
+                        return
+                    output[index].extend(chunk)
+                    if len(output[index]) > 16384:
+                        failed.set()
+                        return
+            except Exception:
+                failed.set()
+
+        try:
+            self.process = subprocess.Popen(command, env=kwargs.get("env"), stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
+            self.threads = []
+            for index, pipe in enumerate((self.process.stdout, self.process.stderr)):
+                thread = threading.Thread(target=drain, args=(index, pipe), daemon=True)
+                self.threads.append(thread)
+                thread.start()
+            while self.process.poll() is None or any(thread.is_alive() for thread in self.threads):
+                # Reserve cleanup time INSIDE the command/snapshot budget.
+                remaining = self.command_deadline - time.monotonic() - 0.5
+                if failed.is_set() or remaining <= 0:
+                    raise AnchorError("tuple command unavailable")
+                failed.wait(min(0.02, remaining))
+            out, err = (bytes(value).decode("utf-8", errors="strict") for value in output)
+            if failed.is_set() or self.process.poll() != 0 or err:
+                raise AnchorError("tuple command unavailable")
+            if time.monotonic() >= self.command_deadline - 0.5:
+                raise AnchorError("tuple command deadline exceeded")
+            return out.replace("\r\n", "\n").replace("\r", "\n")
+        finally:
+            self.close()
+
+    def close(self):
+        if self.process is None:
+            return
+        remaining = lambda: max(0, self.command_deadline - time.monotonic())
+        failed = False
+        try:
+            if self.process.poll() is None:
+                try:
+                    if os.name == "nt":
+                        self.process.send_signal(signal.CTRL_BREAK_EVENT)
+                    else:
+                        self.process.terminate()
+                    self.process.wait(timeout=min(0.1, remaining()))
+                except Exception:
+                    # Only our returned child handle, never a PID/name/process tree.
+                    self.process.kill()
+            # Even an expired budget must close an already-exited child/pipes.
+            self.process.wait(timeout=remaining())
+        except Exception:
+            failed = True
+        finally:
+            # A failed wait/close/join must not skip the other owned resources.
+            for pipe in (self.process.stdout, self.process.stderr):
+                try:
+                    pipe.close()
+                except Exception:
+                    failed = True
+            for thread in self.threads:
+                try:
+                    thread.join(timeout=remaining())
+                    if thread.is_alive():
+                        failed = True
+                except Exception:
+                    failed = True
+        try:
+            failed = failed or self.process.poll() is None
+        except Exception:
+            failed = True
+        if failed:
+            raise AnchorError("INCONCLUSIVE: tuple child cleanup blocked") from None
+        self.process = None
+        self.threads = []
+
+
+def _tuple_windows_script(child, script, path):
+    # Same path binding as _windows_path_script, but bounded by THIS snapshot.
+    data = base64.b64encode(str(path).encode("utf-8")).decode("ascii")
+    prefix = ("$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';"
+              "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);"
+              "$p=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + data + "'));")
+    encoded = base64.b64encode((prefix + script).encode("utf-16-le")).decode("ascii")
+    return child.run(["powershell.exe", "-NoProfile", "-EncodedCommand", encoded])
+
+
+def _tuple_private_file(child, path):
+    if os.name != "nt":
+        return private_file(path)
+    # Preserve the existing Owner/Access-only guard, without its 30s subprocess.
+    script = "$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value;$ok=$true;foreach($f in @($p,(Split-Path -Parent $p))){$a=Get-Acl -LiteralPath $f;if($a.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $sid){$ok=$false};foreach($r in $a.Access){if($r.AccessControlType -eq 'Allow' -and $r.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -notin @($sid,'S-1-5-18')){$ok=$false}}};if(-not (Get-Item -LiteralPath $p).IsReadOnly){$ok=$false};if($ok){'yes'}else{'no'}"
+    return _tuple_windows_script(child, script, path).strip() == "yes"
+
+
 class LocalClusterTargetAnchor:
     def __init__(self, lease_path, runner=run, root=None, privacy=private_file, expected_cluster=None):
         self.path = Path(lease_path)
@@ -882,6 +997,150 @@ class LocalClusterTargetAnchor:
         except Exception:
             raise AnchorError("INCONCLUSIVE: Envoy Admin snapshot unavailable; output redacted; inspect marker if present") from None
         return result
+
+    def _envoy_tuple_identity(self, pod, namespace_uid, pod_uid, owners, incarnation, node_uid, service_uid, deadline):
+        """Only fixed identity projections, bracketed by the existing full anchor."""
+        if json.loads(self.path.read_text(encoding="utf-8-sig"), object_pairs_hook=unique_json) != self.data:
+            raise AnchorError("tuple lease changed")
+        # Reuse, do not duplicate/reinterpret the existing namespace, controller
+        # and sole-container incarnation authority. Its runner is bounded here.
+        self._envoy_admin_identity(pod, namespace_uid, pod_uid, owners, incarnation, deadline)
+
+        def get(kind, name, fields, namespaced=True):
+            args = ["get", kind, name] + (["-n", "aiforall-local-full"] if namespaced else [])
+            return self.runner(self.prefix() + args + ["-o", fields], env=self.environment(),
+                               text=True, stdin=subprocess.DEVNULL).splitlines()
+
+        def ipv4(value):
+            address = ipaddress.IPv4Address(value)
+            if (str(address) != value or address.is_unspecified or address.is_loopback
+                    or address.is_multicast or address.is_link_local):
+                raise AnchorError("tuple IPv4 projection refused")
+            return str(address)
+
+        base = ('jsonpath={.metadata.uid}{"\\n"}{.metadata.name}{"\\n"}{.metadata.namespace}{"\\n"}')
+        network = ('{.spec.nodeName}{"\\n"}{.status.podIP}{"\\n"}{.status.podIPs}{"\\n"}'
+            '{.spec.hostNetwork}{"\\n"}{.spec.containers[0].ports}{"\\n"}'
+            '{.metadata.labels.app\\.kubernetes\\.io/name}{"\\n"}'
+            '{.status.containerStatuses[0].state.running.startedAt}{"\\n"}')
+        lines = get("pod", pod, base + network)
+        if (len(lines) != 10 or lines[:3] != [pod_uid, pod, "aiforall-local-full"]
+                or not _log_name(lines[3]) or _admin_json(lines[5].encode()) != [{"ip": lines[4]}]
+                or lines[6] not in {"", "false"} or lines[8] != "envoy-mesh"
+                or _admin_json(lines[7].encode()) != [{"name": "http", "containerPort": 10000, "protocol": "TCP"}]
+                or not re.fullmatch(r"[0-9]{4}-[0-9T:.+-]{10,40}Z", lines[9])):
+            raise AnchorError("tuple Pod network projection refused")
+        node_name, pod_ip, started_at = lines[3], ipv4(lines[4]), lines[9]
+        node = get("node", node_name, 'jsonpath={.metadata.uid}{"\\n"}{.metadata.name}{"\\n"}'
+            '{range .status.addresses[?(@.type=="InternalIP")]}{.address}{"\\n"}{end}', False)
+        if len(node) != 3 or node[:2] != [node_uid, node_name]:
+            raise AnchorError("tuple Node identity changed")
+        node_ip = ipv4(node[2])
+        workers = []
+        # The full lab uses Kind's fixed Docker network. Missing/other networking
+        # is not guessed or discovered through a broad inspect/network fallback.
+        hostname_format = ('{"id":{{json .Id}},"hostname":{{json .Config.Hostname}},"name":{{json .Name}},'
+                           '"ipv4":{{json .NetworkSettings.Networks.kind.IPAddress}}}')
+        for container_id in self.data["nodeContainerIds"]:
+            meta = self.metadata(container_id)
+            if (meta["role"] == "control-plane" and (meta.get("ports") or {}).get("30080/tcp") != [
+                    {"HostIp": "127.0.0.1", "HostPort": "18080"}]):
+                raise AnchorError("tuple full-lab NodePort publication changed")
+            value = _admin_json(self.runner(["docker", "inspect", "--format", hostname_format,
+                container_id], text=True).encode())
+            if (set(value) != {"id", "hostname", "name", "ipv4"} or value["id"] != container_id
+                    or not isinstance(value["hostname"], str) or not isinstance(value["name"], str)):
+                raise AnchorError("tuple Docker node projection refused")
+            docker_ip = ipv4(value["ipv4"])
+            if value["hostname"] == node_name or value["name"] == "/" + node_name:
+                if (value["hostname"] != node_name or value["name"] != "/" + node_name
+                        or docker_ip != node_ip or meta["role"] != "worker" or meta["running"] is not True):
+                    raise AnchorError("tuple Envoy Node is not a running leased worker")
+                workers.append(container_id)
+        if len(workers) != 1:
+            raise AnchorError("tuple worker binding missing or ambiguous")
+        service = get("service", "envoy-mesh", base + '{.spec.type}{"\\n"}{.spec.clusterIP}{"\\n"}'
+            '{.spec.clusterIPs}{"\\n"}{.spec.externalTrafficPolicy}{"\\n"}'
+            '{.spec.internalTrafficPolicy}{"\\n"}{.spec.selector}{"\\n"}{.spec.ports}{"\\n"}')
+        if (len(service) != 10 or service[:4] != [service_uid, "envoy-mesh", "aiforall-local-full", "NodePort"]
+                or service[6:8] != ["Cluster", "Cluster"]
+                or _admin_json(service[5].encode()) != [service[4]]
+                or _admin_json(service[8].encode()) != {"app.kubernetes.io/name": "envoy-mesh"}
+                or _admin_json(service[9].encode()) != [{"name": "http", "port": 10000,
+                    "protocol": "TCP", "targetPort": "http", "nodePort": 30080}]):
+            raise AnchorError("tuple Service projection refused")
+        cluster_ip = ipv4(service[4])
+        self._uid_check()
+        return {"namespace_uid": namespace_uid, "pod": pod, "pod_uid": pod_uid,
+            "owner_chain": owners, "container": "envoy", **incarnation, "started_at": started_at,
+            "pod_ipv4": pod_ip, "node_uid": node_uid, "node_name": node_name, "node_internal_ipv4": node_ip,
+            "worker_container_id": workers[0], "control_plane_container_id": self.data["control_plane_container_id"],
+            "service_uid": service_uid, "service_cluster_ipv4": str(cluster_ip),
+            "host_port": 18080, "node_port": 30080, "service_port": 10000, "pod_port": 10000,
+            "traffic_policy": "Cluster"}
+
+    def envoy_tuple_tooling_preflight(self, *, pod, namespace_uid, pod_uid, container, owner_chain,
+                                     incarnation, node_uid, service_uid):
+        """Tooling only: no tuple/route/rule read, NAT verdict, repair or fallback.
+
+        Parent supplies prior workload/Node/Service identities, NEVER Docker IDs or
+        commands. Four diagnostic execs, once, in contract order. All subprocesses
+        in this operation use the same 30s budget and 16KiB/stream capture.
+        """
+        valid_uid = lambda value: isinstance(value, str) and bool(re.fullmatch(r"[A-Za-z0-9-]{1,128}", value))
+        if (self.data["cluster"] != "aiforall-local-full" or self.data["context"] != "kind-aiforall-local-full"
+                or container != "envoy" or not _log_name(pod) or not pod.startswith("envoy-mesh-")
+                or any(not valid_uid(uid) for uid in (namespace_uid, pod_uid, node_uid, service_uid))
+                or self.data.get("namespaceUids", {}).get("aiforall-local-full") != namespace_uid
+                or not isinstance(owner_chain, (list, tuple)) or len(owner_chain) != 2
+                or any(not isinstance(owner, dict) or set(owner) != {"kind", "name", "uid"}
+                    or not _log_name(owner["name"]) or not valid_uid(owner["uid"]) for owner in owner_chain)
+                or owner_chain[0]["kind"] != "ReplicaSet" or not owner_chain[0]["name"].startswith("envoy-mesh-")
+                or owner_chain[1]["kind"] != "Deployment" or owner_chain[1]["name"] != "envoy-mesh"
+                or not isinstance(incarnation, dict) or set(incarnation) != {"container_id", "restart_count", "image_id"}
+                or not isinstance(incarnation["container_id"], str)
+                or not re.fullmatch(r"(?:containerd|docker|cri-o)://[a-f0-9]{64}", incarnation["container_id"])
+                or type(incarnation["restart_count"]) is not int or not 0 <= incarnation["restart_count"] <= 2**31 - 1
+                or not isinstance(incarnation["image_id"], str)
+                or not re.fullmatch(r"[A-Za-z0-9._:/@-]{0,400}sha256:[a-f0-9]{64}", incarnation["image_id"])):
+            raise AnchorError("tuple preflight attestation required before any probe")
+        owners, incarnation = tuple(dict(owner) for owner in owner_chain), dict(incarnation)
+        if (len({namespace_uid, pod_uid, node_uid, service_uid, *(owner["uid"] for owner in owners)}) != 6
+                or any(not any(isinstance(entry, dict) and all(entry.get(key) == value for key, value in {
+                    **resource, "namespace": "aiforall-local-full", "context": self.data["context"],
+                    "cluster": self.data["cluster"]}.items()) for entry in self.data.get("ownedResources", []))
+                    for resource in (owners[1], {"kind": "Service", "name": "envoy-mesh", "uid": service_uid}))):
+            raise AnchorError("tuple preflight owned Deployment/Service required before any probe")
+        child = _EnvoyTupleChild(time.monotonic() + 30)
+        # Reuse existing guards, not their unbounded generic subprocess capture.
+        privacy = (lambda path: _tuple_private_file(child, path)) if self.privacy is private_file else self.privacy
+        try:
+            guard = LocalClusterTargetAnchor(self.path, child.run, self.root, privacy, "aiforall-local-full")
+            if guard.data != self.data:
+                raise AnchorError("tuple lease changed")
+            before = guard._envoy_tuple_identity(pod, namespace_uid, pod_uid, owners, incarnation, node_uid, service_uid, child.deadline)
+            cp, worker = before["control_plane_container_id"], before["worker_container_id"]
+            conntrack = child.run(["docker", "exec", cp, "conntrack", "--version"])
+            if not re.fullmatch(r"conntrack v1\.4\.7 \(conntrack-tools\)\n?", conntrack):
+                raise AnchorError("tuple conntrack version refused")
+            iptables = child.run(["docker", "exec", worker, "iptables", "--version"])
+            backend = re.fullmatch(r"iptables v(1\.8\.[0-9]{1,3}) \((nf_tables|legacy)\)\n?", iptables)
+            if not backend:
+                raise AnchorError("tuple iptables backend refused")
+            for module in ("nf_conntrack", "nf_conntrack_netlink"):
+                if child.run(["docker", "exec", cp, "test", "-d", "/sys/module/" + module]):
+                    raise AnchorError("tuple resident module probe refused")
+            after = guard._envoy_tuple_identity(pod, namespace_uid, pod_uid, owners, incarnation, node_uid, service_uid, child.deadline)
+            if before != after or json.loads(self.path.read_text(encoding="utf-8-sig"), object_pairs_hook=unique_json) != self.data:
+                raise AnchorError("tuple identity changed")
+            _admin_remaining(child.deadline)
+            return {"status": "TOOLING_PREFLIGHT_ONLY", "identity": before, "conntrack_version": "1.4.7",
+                    "iptables_version": backend[1], "iptables_backend": backend[2],
+                    "resident_modules": ("nf_conntrack", "nf_conntrack_netlink")}
+        except Exception:
+            raise AnchorError("INCONCLUSIVE: Envoy tuple tooling preflight unavailable; output redacted") from None
+        finally:
+            child.close()
 
     def kind_load(self, image):
         if not re.fullmatch(r"[a-z0-9./:_-]+(?::sha256-[a-f0-9]{64}|@sha256:[a-f0-9]{64})", image):

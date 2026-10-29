@@ -1,5 +1,33 @@
 # Registre QA de progression — sécurité authentification
 
+## Preuve réseau minimale — plan avant code et exécution
+
+Contrat architecte v2 local-full-envoy-iptables-evidence.md lu intégralement et
+ratifié explicitement par lead avant code. Première tranche : préflight fermé
+outils/backend/modules uniquement, pas encore conntrack-L ou règles worker.
+Allowlist helper/test existants. Les cinq oracles du contrat sont préinscrits ;
+les trois décodeurs/corrélations ultérieurs restent NON implémentés/non exécutés.
+Préflight à couvrir avant son run :
+test_envoy_tuple_preflight_rejects_missing_tools_modules_and_foreign_nodes_before_dump ;
+test_envoy_tuple_bounds_and_failures_never_echo_private_output.
+Invalides=>zéroexec ; outils/modules/versions/refus=>STOP sansnetlink/fallback ;
+ordreargvfermé, identités stables, capture réellement bornée et cleanupchildhandle.
+Un succès du préflight ne vaut pas preuve NAT/drop ou droit de patch réseau.
+
+Candidat27 reçu figé, deux fichiers seulement, aucunrunworker. Suite complètefake
+44PASS17.597s/0skip dans son worktree. Après intégration strictementidentique
+normaliséeCRLF/LF, seuls deuxnouveauxscénarioscanoniques rejoués :2PASS9.870s,
+pas rerun des42anciens pour le seuljalon. Logs.tmp/auth-envoy-tuple-preflight-
+{suite,canonical}-20261029.log. AST etdiffcheckPASS. Aucun accèsréel/Cargo/module.
+Hashescanon helper5505e051... / testsfd054c7c... gelés pourrevue25 ciblée,
+sourcecandidat91c7552a.../efd961b4... mêmecontenu aprèsnormalisation. Pasliveavant
+revue/livraisonsourcequalifiée ; présenceoutillage etbudget30s réels nonétablis.
+
+Revue25 reçue et lue, finals18737875.../187398711... : PASSstatiqueborné sur
+candidat et canon, aucunfinding, tousancienssymboles ASTinchangés, hashesconformes.
+Fakes/oracles examinés,44+2PASS attribuéslead sansrerunreviewer. Briefingsecurity-
+envoy-tuple-tooling-preflight persisté avantlivraison. Aucune preuveNAT/drop.
+
 ## Plafond server_info v2 — plan avant code/run
 
 Amendement architecte v2 lu et explicitement ratifié : plafondFIXE131072B,
@@ -26,6 +54,13 @@ Revue sécurité v2 récupérée et lue : final1870220f..., PASSstatiqueborné,
 hashes7a/724conformes, aucunfinding ; oracles JSONtailles/opaque/overflow/cleanup
 examinés. Briefing20261029-security-envoy-admin-v2-7f075a2.md. Aucun rerun pour
 ce jalon ; livraison/attestation encore requises avant l'unique lecture réelle.
+
+Adminv2 livré7c95d6e auhooknormalfmtPASS ; deliverypropre/SDK02e5,
+helperimportéRAW99a62f95conforme. UNIQUElecturev2réelle exit0complete, EnvoyLIVE/
+epoch0/Podcec77212stable, childfermé/marqueurabsent. ProjectionglobaleINCONCLUSIVE
+car upstream_rq_5xxMISSING ; autrescompteursIAM/ext_authz int0 explicites. Preuve
+session6b7/envoy-admin-snapshot-c95ceed1888041e1827d6cd8ab80647c. Pasdepreuve
+NAT/drop/SAN/browser, pasdeGETauth/cert/policymuté. Aucunehausserequise ouprévue.
 
 ## Prérequis source du scénario SAN — plan avant dernier delta
 
