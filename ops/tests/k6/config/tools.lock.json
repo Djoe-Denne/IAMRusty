@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "platform": "linux-amd64",
+  "distribution": "ubuntu-24.04",
+  "k6": {
+    "version": "2.3.0",
+    "url": "https://github.com/grafana/k6/releases/download/v2.3.0/k6-v2.3.0-linux-amd64.tar.gz",
+    "archive_sha256": "39c3117b6af817592dcd0ce4242105c0a7af10948c2a425306f0be8f7a8a8ab1",
+    "executable": "k6-v2.3.0-linux-amd64/k6",
+    "executable_sha256": "e001bbf39ba67424a85c9c8516440ba5c73ecf7a6021be96c76194380c15f260",
+    "checksum_source": "https://github.com/grafana/k6/releases/download/v2.3.0/k6-v2.3.0-checksums.txt",
+    "checksum_source_sha256": "8ebbfcd5a13d68ac67d488c2b5f28bf901ea22d2fbbfb15f5345d65c39163be2"
+  },
+  "chromium": {
+    "version": "156.0.8078.73",
+    "distribution": "Google Chrome for Testing (Chromium engine), linux64, revision 1706539",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/156.0.8078.73/linux64/chrome-linux64.zip",
+    "archive_sha256": "c51c24f0126534aaf6d21d1f85b8e243934b3951989dbb59a1f8aab8e32b20c1",
+    "executable": "chrome-linux64/chrome",
+    "executable_sha256": "8ea0ecbfc1ac0dc0e957de722babf9b72f8e86cb8643308ff17a491d59bdaa80",
+    "checksum_source": "Authenticated HTTPS official Google versioned archive, acquired without execution 2026-10-29; SHA256 candidate requires review before qualification",
+    "metadata_source": "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json"
+  }
+}

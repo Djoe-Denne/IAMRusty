@@ -1,0 +1,363 @@
+"""Small Linux child supervisor. No Docker, shell, forced kill or raw logging."""
+import ctypes
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import selectors
+import signal
+import stat
+import subprocess
+import time
+import uuid
+
+LIMIT = 64 * 1024
+ARTIFACT_LIMIT = 32 * 1024
+CODES = frozenset("INPUT_INVALID PATH_INVALID PRIVACY_FAILED SUMMARY_INVALID TOOL_UNPINNED "
+                  "TOOL_VERSION TOOL_FAILED OUTPUT_LIMIT CHILD_TIMEOUT INTERRUPTED CLEANUP_FAILED "
+                  "SANDBOX_UNPROVEN TARGET_UNAVAILABLE TARGET_BINDING_UNQUALIFIED PLATFORM_UNQUALIFIED "
+                  "INTERNAL_ERROR SELFTEST_FAILED PREREQUISITE_UNAVAILABLE".split())
+
+
+class Rejected(Exception):
+    def __init__(self, code, inconclusive=False):
+        if code not in CODES:
+            raise ValueError("closed diagnostic required")
+        self.code, self.inconclusive = code, inconclusive
+        self.cleanup = "NOT_STARTED"
+        super().__init__(code)
+
+
+def strict_json(raw):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError("duplicate")
+            result[key] = value
+        return result
+
+    def constant(_):
+        raise ValueError("nonfinite")
+
+    try:
+        return json.loads(raw.decode("utf-8"), object_pairs_hook=pairs, parse_constant=constant)
+    except (ValueError, UnicodeError, RecursionError):
+        raise Rejected("INPUT_INVALID") from None
+
+
+def digest(path):
+    value = hashlib.sha256()
+    with path.open("rb") as stream:
+        while block := stream.read(1024 * 1024):
+            value.update(block)
+    return value.hexdigest()
+
+
+def confidential(raw):
+    # Deliberately conservative. Never print rejected bytes or a regex match.
+    if len(raw) > LIMIT:
+        raise Rejected("OUTPUT_LIMIT")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeError:
+        raise Rejected("PRIVACY_FAILED") from None
+    patterns = [r"CONFIDENTIAL_SENTINEL", r"(?:https?|wss?)://", r"(?i)bearer\s+\S+",
+                r"(?i)(?:authorization|cookie|password|credential|code|state|verifier|token)[\"']?\s*[=:]\s*[^\s,}]+",
+                r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+",
+                r"-----BEGIN [A-Z ]*PRIVATE KEY-----"]
+    if any(re.search(pattern, text) for pattern in patterns):
+        raise Rejected("PRIVACY_FAILED")
+
+
+def outside_git(path):
+    if any((parent / ".git").exists() for parent in (path, *path.parents)):
+        raise Rejected("PATH_INVALID")
+
+
+def private_path(value, directory=False, readonly=True):
+    path = Path(value)
+    if not path.is_absolute() or path != path.resolve(strict=True):
+        raise Rejected("PATH_INVALID")
+    outside_git(path)
+    item, parent = path.stat(), path.parent.stat()
+    if (item.st_uid != os.getuid() or parent.st_uid != os.getuid()
+            or item.st_mode & 0o077 or parent.st_mode & 0o077
+            or not (stat.S_ISDIR(item.st_mode) if directory else stat.S_ISREG(item.st_mode))
+            or (readonly and not directory and item.st_mode & 0o222)):
+        raise Rejected("PATH_INVALID")
+    return path
+
+
+def private_read(path, limit=ARTIFACT_LIMIT):
+    private_path(path)
+    with Path(path).open("rb") as stream:
+        raw = stream.read(limit + 1)
+    if len(raw) > limit:
+        raise Rejected("OUTPUT_LIMIT")
+    return raw
+
+
+def new_output(value):
+    path = Path(value)
+    if not path.is_absolute() or path != path.resolve() or path.exists():
+        raise Rejected("PATH_INVALID")
+    private_path(path.parent, directory=True)
+    outside_git(path)
+    path.mkdir(mode=0o700)
+    for name in ("home", "tmp", "private"):
+        (path / name).mkdir(mode=0o700)
+    (path / "private" / "empty.json").write_text("{}", encoding="utf-8")
+    (path / "private" / "empty.json").chmod(0o400)
+    return path
+
+
+def child_environment(output, ambient=None):
+    # ambient is intentionally unused: no K6/proxy/loader/cloud/target inheritance.
+    return {"PATH": "/usr/bin:/bin", "HOME": str(output / "home"),
+            "XDG_CONFIG_HOME": str(output / "home"), "TMPDIR": str(output / "tmp"),
+            "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "TZ": "UTC",
+            "K6_NO_USAGE_REPORT": "true", "K6_BROWSER_HEADLESS": "true",
+            "K6_BROWSER_ARGS": "", "K6_BROWSER_DEBUG": "false",
+            "K6_BROWSER_TIMEOUT": "10s"}
+
+
+def proc(pid):
+    """Private process identity; never export cmdline or arbitrary /proc content."""
+    try:
+        root = Path("/proc") / str(pid)
+        raw = (root / "stat").read_text()
+        fields = raw[raw.rfind(")") + 2:].split()
+        status = dict(line.split(":", 1) for line in (root / "status").read_text().splitlines() if ":" in line)
+        result = {"pid": pid, "start": int(fields[19]), "ppid": int(fields[1]),
+                "pgrp": int(fields[2]), "session": int(fields[3]), "zombie": fields[0] == "Z",
+                "uid": int(status["Uid"].split()[0]), "seccomp": status.get("Seccomp", "").strip(),
+                "filters": int(status.get("Seccomp_filters", "0")),
+                "no_new_privs": status.get("NoNewPrivs", "").strip(),
+                "args": [], "userns": None, "pidns": None}
+        # Zombies and nondumpable renderers may deny optional files: retain their
+        # base identity for cleanup, but never count missing namespace data as proof.
+        try:
+            with (root / "cmdline").open("rb") as stream:
+                raw_args = stream.read(32769)
+            result["args"] = raw_args.split(b"\0") if len(raw_args) <= 32768 else []
+            result["userns"] = os.readlink(root / "ns/user")
+            result["pidns"] = os.readlink(root / "ns/pid")
+        except OSError:
+            pass
+        return result
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def same(identity):
+    current = proc(identity["pid"])
+    if current is None and (Path("/proc") / str(identity["pid"])).exists():
+        raise Rejected("CLEANUP_FAILED")
+    return current if current and all(current[k] == identity[k] for k in ("pid", "start", "uid")) else None
+
+
+def sandbox_witness(identity, parent):
+    args = identity["args"]
+    forbidden = (b"--no-sandbox", b"--disable-setuid-sandbox", b"--disable-seccomp-filter-sandbox",
+                 b"--disable-namespace-sandbox", b"--ignore-certificate-errors", b"--single-process")
+    if any(arg.split(b"=", 1)[0] in forbidden for arg in args):
+        raise Rejected("SANDBOX_UNPROVEN")
+    return (b"--type=renderer" in args and identity["uid"] == os.getuid()
+            and isinstance(identity["userns"], str) and isinstance(identity["pidns"], str)
+            and identity["seccomp"] == "2" and identity["userns"] != parent["userns"]
+            and identity["pidns"] != parent["pidns"] and identity["no_new_privs"] == "1"
+            and identity["filters"] > parent["filters"])
+
+
+class Child:
+    def __init__(self):
+        self.cleanup = False
+        self.sandbox = False
+        self.sandbox_proof = []
+        self.owned = {}
+        self.stdout = b""
+        self.stderr = b""
+        self.code = None
+        self.before = set()
+        self.recorded = set()
+
+    def record(self, output):
+        path = output / "private" / "process-identities.jsonl"
+        for pid, value in self.owned.items():
+            identity = (pid, value["start"], value["uid"])
+            if identity not in self.recorded:
+                raw = (json.dumps({k: value[k] for k in ("pid", "uid", "start")}) + "\n").encode()
+                if path.exists() and path.stat().st_size + len(raw) > ARTIFACT_LIMIT:
+                    raise Rejected("OUTPUT_LIMIT")
+                with path.open("ab") as stream:
+                    stream.write(raw)
+                path.chmod(0o600)
+                self.recorded.add(identity)
+
+    def inventory(self, pid):
+        entries = list(Path("/proc").iterdir())
+        if len(entries) > 32768:
+            raise Rejected("PREREQUISITE_UNAVAILABLE", True)
+        values = [p for entry in entries if entry.name.isdigit() and (p := proc(int(entry.name)))
+                  and (p["pid"], p["start"], p["uid"]) not in self.before]
+        parents = {pid, *self.owned}
+        for _ in range(16):
+            fresh = [p for p in values if p["ppid"] in parents or p["session"] == pid]
+            before = len(parents)
+            for value in fresh:
+                if value["uid"] == os.getuid() and value["pid"] != os.getpid():
+                    self.owned.setdefault(value["pid"], value)
+                    parents.add(value["pid"])
+            if len(parents) == before:
+                break
+        # Subreaper receives orphans even after a double fork/reparenting.
+        for value in values:
+            if value["ppid"] == os.getpid() and value["pid"] != pid:
+                self.owned.setdefault(value["pid"], value)
+
+    def execute(self, argv, *, output, env, timeout=30, browser=False, interrupt_after=None):
+        parent = proc(os.getpid())
+        if not parent:
+            raise Rejected("PLATFORM_UNQUALIFIED", True)
+        libc = ctypes.CDLL(None, use_errno=True)
+        if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+            raise Rejected("PLATFORM_UNQUALIFIED", True)
+        previous = {}
+        interrupted = [False]
+
+        def stop(_sig, _frame):
+            interrupted[0] = True
+
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            previous[sig] = signal.signal(sig, stop)
+        child = None
+        failure = None
+        started = time.monotonic()
+        streams = [bytearray(), bytearray()]
+        selector = selectors.DefaultSelector()
+        try:
+            self.before = {(p["pid"], p["start"], p["uid"]) for entry in Path("/proc").iterdir()
+                           if entry.name.isdigit() and (p := proc(int(entry.name)))}
+            child = subprocess.Popen(argv, cwd=output, env=env, stdin=subprocess.DEVNULL,
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+            for index, pipe in enumerate((child.stdout, child.stderr)):
+                os.set_blocking(pipe.fileno(), False)
+                selector.register(pipe, selectors.EVENT_READ, index)
+            identity = proc(child.pid)
+            if identity:
+                self.owned[child.pid] = identity
+                self.record(output)
+            elif child.poll() is None:
+                raise Rejected("CLEANUP_FAILED")
+            while True:
+                self.inventory(child.pid)
+                self.record(output)
+                if browser:
+                    for value in self.owned.values():
+                        if current := same(value):
+                            if sandbox_witness(current, parent):
+                                self.sandbox = True
+                                if len(self.sandbox_proof) < 4 and not any(p["pid"] == current["pid"] for p in self.sandbox_proof):
+                                    self.sandbox_proof.append({"pid": current["pid"], "uid": current["uid"],
+                                        "start_ticks": current["start"], "seccomp_mode": 2,
+                                        "filters": current["filters"], "additional_filter": True,
+                                        "user_namespace_isolated": True, "pid_namespace_isolated": True,
+                                        "no_new_privileges": True, "forbidden_flags_absent": True})
+                elapsed = time.monotonic() - started
+                if interrupted[0] or (interrupt_after is not None and elapsed >= interrupt_after):
+                    raise Rejected("INTERRUPTED")
+                if elapsed >= timeout:
+                    raise Rejected("CHILD_TIMEOUT")
+                for key, _ in selector.select(0.02):
+                    raw = os.read(key.fileobj.fileno(), 8192)
+                    if not raw:
+                        selector.unregister(key.fileobj)
+                    else:
+                        streams[key.data].extend(raw)
+                        if len(streams[key.data]) > LIMIT:
+                            raise Rejected("OUTPUT_LIMIT")
+                if child.poll() is not None and not selector.get_map():
+                    self.code = child.returncode
+                    break
+        except BaseException as error:
+            failure = error
+        finally:
+            if child:
+                try:
+                    self.inventory(child.pid)
+                    try:
+                        self.record(output)
+                    except (OSError, Rejected):
+                        # A full private identity journal must not prevent TERM.
+                        pass
+                    # PID + UID + creation time, never process names or killpg.
+                    for identity in self.owned.values():
+                        if (current := same(identity)) and not current["zombie"]:
+                            try:
+                                os.kill(identity["pid"], signal.SIGTERM)
+                            except ProcessLookupError:
+                                pass
+                    deadline = time.monotonic() + 5
+                    while time.monotonic() < deadline:
+                        known = set(self.owned)
+                        self.inventory(child.pid)
+                        try:
+                            self.record(output)
+                        except (OSError, Rejected):
+                            pass
+                        for pid in set(self.owned) - known:
+                            if (current := same(self.owned[pid])) and not current["zombie"]:
+                                try:
+                                    os.kill(pid, signal.SIGTERM)
+                                except ProcessLookupError:
+                                    pass
+                        child.poll()
+                        alive = []
+                        for identity in self.owned.values():
+                            current = same(identity)
+                            if current and current["zombie"]:
+                                try:
+                                    os.waitpid(identity["pid"], os.WNOHANG)
+                                except ChildProcessError:
+                                    pass
+                            elif current:
+                                alive.append(current)
+                        if not alive:
+                            self.cleanup = True
+                            break
+                        time.sleep(0.02)
+                    private = output / "private" / ("children-" + uuid.uuid4().hex + ".json")
+                    raw = json.dumps([{k: value[k] for k in ("pid", "uid", "start")} for value in self.owned.values()]).encode()
+                    if len(raw) <= ARTIFACT_LIMIT:
+                        private.write_bytes(raw)
+                        private.chmod(0o400)
+                except (OSError, Rejected):
+                    self.cleanup = False
+            for pipe in (child.stdout, child.stderr) if child else ():
+                pipe.close()
+            selector.close()
+            for sig, handler in previous.items():
+                signal.signal(sig, handler)
+            self.stdout, self.stderr = bytes(streams[0][:LIMIT]), bytes(streams[1][:LIMIT])
+        # No stream is ever published, including on timeout/native failures.
+        try:
+            confidential(self.stdout)
+            confidential(self.stderr)
+        except Rejected as error:
+            error.cleanup = "PASS" if self.cleanup else "FAIL"
+            raise
+        if not self.cleanup:
+            error = Rejected("CLEANUP_FAILED")
+            error.cleanup = "FAIL"
+            raise error
+        if failure:
+            if isinstance(failure, Rejected):
+                failure.cleanup = "PASS"
+            raise failure
+        if browser and not self.sandbox:
+            error = Rejected("SANDBOX_UNPROVEN", True)
+            error.cleanup = "PASS"
+            raise error
+        return self.code

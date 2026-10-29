@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "profile": "local-full",
+  "cluster": "aiforall-local-full",
+  "context": "kind-aiforall-local-full",
+  "task_id": "00000000000000000000000000000000",
+  "target_id": "00000000000000000000000000000000",
+  "origin": "http://127.0.0.1:18080",
+  "lease": "/REPLACE/private/current-lease.json",
+  "observations": "/REPLACE/private/current-parent-observations.json"
+}

@@ -1,0 +1,73 @@
+name: k6 Linux prerequisites (not HTTP qualification)
+
+on:
+  pull_request:
+    paths:
+      - ops/tests/k6/**
+      - .github/workflows/k6-functional-smoke.yml
+  push:
+    branches: [master]
+    paths:
+      - ops/tests/k6/**
+      - .github/workflows/k6-functional-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  prerequisites:
+    name: Unit tests, pinned tools and sandboxed Chromium; HTTP INCONCLUSIVE
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          submodules: false
+      - name: Static and tooling unit checks (no application target)
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          /usr/bin/python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_*.py'
+      - name: Explicit pinned acquisition; no binary executed by provisioning
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          private_root="$(mktemp -d "$RUNNER_TEMP/k6-private.XXXXXXXX")"
+          printf 'K6_PRIVATE_ROOT=%s\n' "$private_root" >> "$GITHUB_ENV"
+          printf 'K6_TOOLS_DIR=%s/tools\n' "$private_root" >> "$GITHUB_ENV"
+          printf 'K6_BROWSER_EXECUTABLE_PATH=%s/tools/chrome-linux64/chrome\n' "$private_root" >> "$GITHUB_ENV"
+          /usr/bin/python3 -B ops/tests/k6/provision-linux.py --output "$private_root/tools"
+      - name: Versions and effective scenario options (same launcher)
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -B ops/tests/k6/run-linux.py tools --output "$K6_PRIVATE_ROOT/tools-check"
+      - name: Separate Chromium prerequisite (sandbox required)
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -B ops/tests/k6/run-linux.py browser --output "$K6_PRIVATE_ROOT/browser-check"
+      - name: Publish only allowlisted checked prerequisite projections
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: k6-linux-prerequisites-not-http
+          if-no-files-found: error
+          retention-days: 3
+          include-hidden-files: false
+          path: |
+            ${{ env.K6_PRIVATE_ROOT }}/tools-check/result.json
+            ${{ env.K6_PRIVATE_ROOT }}/tools-check/provenance.json
+            ${{ env.K6_PRIVATE_ROOT }}/browser-check/result.json
+            ${{ env.K6_PRIVATE_ROOT }}/browser-check/provenance.json
+      - name: HTTP qualification unavailable in this workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' 'HTTP INCONCLUSIVE: no authorized anchored Linux application target on this runner.'
+          printf '%s\n' 'This workflow qualifies prerequisites only; it is not a mission1 or E2E PASS.'
