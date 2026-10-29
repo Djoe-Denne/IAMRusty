@@ -393,6 +393,30 @@ GateITavantKind satisfait avecpreuvesréutiliséesétiquetées : Hive67PASSsurba
 sourcesHiveprod inchangées ; IAM290PASSsous02e5 ; ext-authz13PASSHTTPsoure44/74e8,
 nouveauxoraclesSDK7PASS. PasdequalificationglobaleEnvoy/browser/production.
 
+## Préflight livraison finale — deux builders secondaires
+
+MétadonnéesDocker/Kind lues sansmutation : clusterfull absent, aucunconteneur
+fullpréexistant ; port18080/18081libres. Seulconteneuractifétranger : Kindlegacy
+aiforall-local-control-plane, nepasarrêter/adopter. DiximagessourcesduprofilOAuth
+absentes ; seulbuild-artifactslatestpréexistant deprovenanceinconnue, nepasréutiliser
+pourlespreuvescourantes. ConstruiredepuisworktreepropreSDK02e5 etnoterIDsréels.
+
+LecturetransitiveREADMEbuilders : ext-authz etapparatus-controller recopientaussi
+.cargo/config.tomlWindows maiscollectent /usr/src/target, sansENVoverride. Même
+défautstatiquequeleprincipalDockerfile déjàcorrigé. Fixbornénécessaireàlalivraison
+duprofilfullautorisé : ENVtargetLinuxet--locked dansces2builders, aucunbinary/
+fonctionApparatus/plugin/SDK/changementarchitectural. GarderleursbasesRustexistantes
+tantqu'aucunéchecMSRVétabli, jobs24inchangés. Sourceguardexistant nommé
+test_linux_delivery_build_keeps_24_jobs_and_its_own_target étenduaux3builders
+AVANTbaseline ; puispetitpatchconfigetmêmesélection/suite23. LesITnativesrestent
+réutilisables : aucunRust/runtimeWindows/configauthmodifié ; buildLinuxréelreste
+àexécuter, infrarecheck aprèsdelta.
+
+Résultat sourceguardsecondaires : baseline1test/2subtestsFAIL (ENVmanquant), puis
+mêmesélection1PASS etfullsuite23PASS/0.356s, sansDocker. Patch2builders limitéà
+ENVtargetLinux+--locked, pasderéduction24jobs ouchangementRustbase. Infra14recheck
+RO demandéavantbuild ; côtéapplicationRust/SDK/authaucundelta aprèsITnative.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et

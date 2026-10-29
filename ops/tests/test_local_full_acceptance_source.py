@@ -21,12 +21,19 @@ class AcceptanceGuardTests(unittest.TestCase):
         config = tomllib.loads((root / ".cargo/config.toml").read_text(encoding="utf-8"))
         self.assertEqual(config["build"]["jobs"], 24)
         self.assertEqual(config["build"]["target-dir"], r"E:\cargo-target\AIForAll")
-        build = (root / "Dockerfile.build").read_text(encoding="utf-8")
-        self.assertIn("ENV CARGO_TARGET_DIR=/usr/src/target", build)
-        self.assertIn("target=/usr/src/target", build)
-        self.assertIn("find /usr/src/target/release", build)
-        self.assertIn("cargo build --release --locked", build)
-        self.assertNotIn("CARGO_BUILD_JOBS", build)
+        for path, artifact_source in [
+            ("Dockerfile.build", "find /usr/src/target/release"),
+            ("workers/ext-authz/Dockerfile", "cp /usr/src/target/release/ext-authz"),
+            ("workers/apparatus-operator/Dockerfile.controller",
+             "cp /usr/src/target/release/apparatus-controller"),
+        ]:
+            with self.subTest(dockerfile=path):
+                build = (root / path).read_text(encoding="utf-8")
+                self.assertIn("ENV CARGO_TARGET_DIR=/usr/src/target", build)
+                self.assertIn("target=/usr/src/target", build)
+                self.assertIn(artifact_source, build)
+                self.assertIn("cargo build --release --locked", build)
+                self.assertNotIn("CARGO_BUILD_JOBS", build)
 
     def load(self):
         spec = importlib.util.spec_from_file_location("acceptance_guard_test", SOURCE)

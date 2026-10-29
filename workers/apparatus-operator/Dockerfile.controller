@@ -22,10 +22,12 @@ WORKDIR /usr/src
 COPY . .
 
 ENV CARGO_TERM_COLOR=never
+# Override the copied Windows target-dir without changing the configured 24 jobs.
+ENV CARGO_TARGET_DIR=/usr/src/target
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,id=apparatus-controller-target-bookworm,target=/usr/src/target \
-    cargo build --release -p apparatus-operator --bin apparatus-controller --features controller,admit \
+    cargo build --release --locked -p apparatus-operator --bin apparatus-controller --features controller,admit \
     && cp /usr/src/target/release/apparatus-controller /tmp/apparatus-controller
 
 # Cosign pin aligné sur workers/apparatus-operator/src/admit.rs (COSIGN_IMAGE) / Dockerfile.admit.

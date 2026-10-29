@@ -22,10 +22,12 @@ WORKDIR /usr/src
 COPY . .
 
 ENV CARGO_TERM_COLOR=never
+# Override the copied Windows target-dir without changing the configured 24 jobs.
+ENV CARGO_TARGET_DIR=/usr/src/target
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,id=ext-authz-target-bookworm,target=/usr/src/target \
-    cargo build --release -p ext-authz \
+    cargo build --release --locked -p ext-authz \
     && cp /usr/src/target/release/ext-authz /tmp/ext-authz
 
 FROM debian:bookworm-slim
