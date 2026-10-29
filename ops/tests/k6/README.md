@@ -86,6 +86,23 @@ it refuses PATH fallbacks or browser wrappers. Browser shared libraries must be
 present on the approved Ubuntu runner; no automatic apt install or security
 policy relaxation is attempted. Failure remains nonzero.
 
+Path confidentiality and name stability are separate guards. Every ancestor must
+belong to root or the effective UID, without symlinks; ordinary system0755
+directories are accepted. Group/other-writable ancestors require sticky protection
+and trusted ownership of each child entry, so root-owned `/tmp`1777 is supported
+but a non-sticky shared0777 ancestor or foreign-UID owner is refused. The leaf and
+its immediate container still meet their stronger private-file/directory rules.
+This deliberately conservative policy does not trust another UID's directory
+merely because its current mode is0755.
+
+Tool file/ancestor identities are bound before hashing, checked again after it,
+and revalidated before versions, inspect, scenario launches and provenance.
+Replacement inode/owner/mode or changed file metadata fails before child execution.
+Directory timestamps are not compared: unrelated `/tmp` entries may change.
+The output parent's identity is also checked across preflight before exclusive
+creation. The local threat model trusts root and the operator UID; this is not
+protection against hostile root or a generally compromised operator account.
+
 ## Commands and private campaign inputs
 
 The launcher is the same in local use and CI. `tools` contains the guarded

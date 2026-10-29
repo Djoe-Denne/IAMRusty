@@ -76,6 +76,36 @@ def outside_git(path):
         raise Rejected("PATH_INVALID")
 
 
+def name_chain(path):
+    """Protect path-entry integrity separately from leaf confidentiality.
+
+    Trust only root and the effective UID. System 0755 ancestors are fine;
+    writable ancestors require sticky protection AND trusted ownership of every
+    child entry (checked at the next component). No assumption of private /tmp.
+    Directory timestamps are excluded: unrelated entries may change legitimately.
+    """
+    path = Path(path)
+    trusted = {0, os.getuid()}
+    identities = []
+    try:
+        if not path.is_absolute() or path != path.resolve(strict=True):
+            raise Rejected("PATH_INVALID")
+        for component in (*reversed(path.parents), path):
+            item = component.stat(follow_symlinks=False)
+            directory = stat.S_ISDIR(item.st_mode)
+            if (item.st_uid not in trusted or stat.S_ISLNK(item.st_mode)
+                    or (component != path and not directory)
+                    or (directory and item.st_mode & 0o022 and not item.st_mode & stat.S_ISVTX)):
+                raise Rejected("PATH_INVALID")
+            identity = (str(component), item.st_dev, item.st_ino, item.st_uid, stat.S_IMODE(item.st_mode))
+            if not directory:
+                identity += (item.st_size, item.st_mtime_ns, item.st_ctime_ns)
+            identities.append(identity)
+    except (OSError, RuntimeError):
+        raise Rejected("PATH_INVALID") from None
+    return tuple(identities)
+
+
 def private_path(value, directory=False, readonly=True):
     path = Path(value)
     if not path.is_absolute() or path != path.resolve(strict=True):
@@ -88,9 +118,8 @@ def private_path(value, directory=False, readonly=True):
         raise Rejected("PATH_INVALID")
     if not directory:
         # A file also requires its immediate containing directory to be private.
-        # Directory callers validate that directory itself, not its ancestors:
-        # a new output under owned 0700 may legitimately have public /tmp above it.
         private_path(path.parent, directory=True)
+    name_chain(path)
     return path
 
 
@@ -108,7 +137,10 @@ def new_output(value):
     if not path.is_absolute() or path != path.resolve() or path.exists():
         raise Rejected("PATH_INVALID")
     private_path(path.parent, directory=True)
+    parent_identity = name_chain(path.parent)
     outside_git(path)
+    if name_chain(private_path(path.parent, directory=True)) != parent_identity:
+        raise Rejected("PATH_INVALID")
     path.mkdir(mode=0o700)
     for name in ("home", "tmp", "private"):
         (path / name).mkdir(mode=0o700)

@@ -125,3 +125,59 @@ Impact check: canonical Serena references show private_read/new_output; exact
 source matching also finds the tools-root and executable-file checks in
 run-linux.py. The canonical server does not contain this unmerged worktree fix;
 the targeted patch and native tests are the validation for this candidate.
+
+## S-1 HIGH correction candidate — protected names and bound tool identities
+
+Exact correction baseline:
+`db352be1ebe01eb275fd74d8cdee6f7298b99bf1`. Before this delta the author's owned
+files matched that integrated content, including the previous immediate-parent
+fix; the original14 staged additions and old unstaged fix were not rebased,
+reset, recommitted or mistaken for this new delta.
+
+Read the full independent BLOCK briefing
+`20261029T2140Z-security-k6-private-directory-db352be.md` before editing. The
+previous40-test Linux PASS did not cover substitution by another local UID.
+No current exploit, multi-UID PoC or hostile executable was claimed or run.
+The parent's acquired tools and WSL lease remain untouched; executable runs and
+publication stay frozen pending independent review of this HIGH correction.
+
+RED first: added chain owner/mode and deterministic name-substitution tests against
+the old guard. Native Windows Python discovery executed46 tests, exit1,8 failures,
+6 POSIX skips. The bad chains and substitutions were not refused. Child execution
+was mocked: fixture bytes are non-executable ELF markers, not hostile code.
+
+Production fix:
+
+- `name_chain()` separately checks every component from filesystem root to leaf:
+  canonical/no links, directories on the prefix, trusted owner root/effective UID;
+  group/other-writable directories require sticky protection. Checking child
+  ownership at each next component makes the accepted sticky case name-protected.
+  System0755 and correctly owned1777 ancestors remain valid; another UID's0755
+  directory and shared non-sticky writers are refused. Confidentiality rules for
+  the leaf and immediate parent remain intact. The policy is deliberately
+  conservative, not an analysis of all users' effective group memberships.
+- Output-parent identity is compared across preflight before exclusive mkdir.
+- Internal PinnedTools stores archive/ELF path and ancestry identities before
+  hashing, verifies them after hashing, and rechecks before version/inspect/scenario
+  child creation and provenance. Dictionary path values cannot detach from their
+  bound identity. Changed device/inode, owner/mode or file metadata rejects with
+  TOOL_UNPINNED before child execution. Directory timestamps are deliberately not
+  identity fields, so unrelated /tmp/sibling entries do not cause false rejection.
+- Primary cross-UID protection is the protected chain of names; identity
+  revalidation is additional fail-closed detection, not a claim of atomic exec.
+  Root and the operator UID remain trusted. No service/HTTP/lease/auth/CI change.
+
+Final author GREEN: native Windows unittest discovery50 tests, exit0,6 POSIX skips
+(44 exercised). Includes both trusted owners/system0755/sticky1777 acceptance,
+foreign/non-sticky rejection before mkdir or Child creation, parent replacement
+before mkdir, tools replacement during the final digest and after hashes before
+versions/scenario/provenance/publication, and an unrelated-entry positive witness.
+Metadata ownership is injected for portable tests; renames use only fixture
+directories. No chown, user creation, system chmod, server or runtime was added.
+The real POSIX fixture now distinguishes trusted sticky1777 from non-sticky0777;
+its replay is still the parent's responsibility after integration.
+
+Independent review of the HIGH fix and actual Linux replay remain required.
+No k6/Chromium version/inspect/browser/HTTP/selftest command executed by this author,
+no campaign artefact published, no Cargo or global configuration operation, no
+Docker/WSL/Kind resource created/started/stopped and no new owned runtime ID.

@@ -16,7 +16,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 sys.path.insert(0, str(HERE / "lib"))
 from safety import (ARTIFACT_LIMIT, Child, Rejected, child_environment, confidential,
-                    digest, new_output, private_path, private_read, strict_json)
+                    digest, name_chain, new_output, private_path, private_read, strict_json)
 
 CHECKS = {"HTTP": ("iam-status", "iam-body"), "Chromium": ("browser-evaluation", "browser-blank")}
 CASES = {"HTTP": "iam-health", "Chromium": "browser-prerequisite"}
@@ -115,13 +115,44 @@ def linux_platform():
         raise Rejected("PLATFORM_UNQUALIFIED", True) from None
 
 
+class PinnedTools(dict):
+    """Internal paths plus identities bound before hashing, not a PATH fallback."""
+    def __init__(self):
+        super().__init__()
+        self.identities = {}
+
+    def remember(self, name, archive, binary):
+        self[name] = binary
+        self.identities[name] = tuple((path, name_chain(path)) for path in (archive, binary))
+
+    def verify(self, names):
+        for name in names:
+            if name not in self or name not in self.identities:
+                raise Rejected("TOOL_UNPINNED", True)
+            if self[name] != self.identities[name][-1][0]:
+                raise Rejected("TOOL_UNPINNED", True)
+            for path, expected in self.identities[name]:
+                try:
+                    current = name_chain(private_path(path))
+                except (Rejected, OSError):
+                    raise Rejected("TOOL_UNPINNED", True) from None
+                if current != expected:
+                    raise Rejected("TOOL_UNPINNED", True)
+
+
+def verify_tools(tools, names):
+    if not isinstance(tools, PinnedTools):
+        raise Rejected("TOOL_UNPINNED", True)
+    tools.verify(names)
+
+
 def pinned_tools(browser=False):
     lock = strict_json((HERE / "config/tools.lock.json").read_bytes())
     value = os.environ.get("K6_TOOLS_DIR")
     if not value:
         raise Rejected("TOOL_UNPINNED", True)
     root = private_path(value, directory=True)
-    tools = {}
+    tools = PinnedTools()
     for name in ("k6", "chromium") if browser else ("k6",):
         entry = lock[name]
         archive = root / ("k6.tar.gz" if name == "k6" else "chromium.zip")
@@ -131,11 +162,12 @@ def pinned_tools(browser=False):
             if path != path.resolve(strict=True) or not path.is_file():
                 raise Rejected("TOOL_UNPINNED", True)
             private_path(path)
+        tools.remember(name, archive, binary)
         with binary.open("rb") as stream:
             elf = stream.read(4)
         if (digest(archive) != entry["archive_sha256"] or digest(binary) != entry["executable_sha256"] or elf != b"\x7fELF"):
             raise Rejected("TOOL_UNPINNED", True)
-        tools[name] = binary
+        verify_tools(tools, (name,))
     if browser and os.environ.get("K6_BROWSER_EXECUTABLE_PATH") != str(tools["chromium"]):
         raise Rejected("TOOL_UNPINNED", True)
     return tools, lock
@@ -144,6 +176,7 @@ def pinned_tools(browser=False):
 def version_checks(tools, lock, output):
     versions = {}
     for name, binary in tools.items():
+        verify_tools(tools, (name,))
         child = Child()
         args = [str(binary), "version" if name == "k6" else "--version"]
         if child.execute(args, output=output, env=child_environment(output), timeout=10) != 0:
@@ -171,6 +204,7 @@ def scenario_run(phase, config, output, tools, *, negative=None):
         raise Rejected("SUMMARY_INVALID")
     if phase == "HTTP":
         live_target(config)
+    verify_tools(tools, ("k6", "chromium") if phase == "Chromium" else ("k6",))
     child = Child()
     argv = k6_argv(tools["k6"], output, "run")
     for key, value in {"K6_RUN_ID": run_id, "K6_SUMMARY_PATH": str(summary),
@@ -246,6 +280,7 @@ def publish(output, result, provenance=None):
 
 def provenance(tools, lock, versions, config_path=None):
     # Only stable labels and hashes. No URLs, full environment, cmdlines or paths.
+    verify_tools(tools, tuple(tools))
     sources = [REPO / "docs/contracts/k6-functional-linux.md", HERE / "run-linux.py",
                HERE / "lib/safety.py", HERE / "lib/summary.js", *SCENARIOS.values(), HERE / "config/tools.lock.json"]
     head = subprocess.run(["/usr/bin/git", "-C", str(REPO), "rev-parse", "HEAD"],
@@ -371,6 +406,7 @@ def main(argv=None):
             versions = version_checks(tools, lock, output)
             if args.command == "tools":
                 for phase, path in SCENARIOS.items():
+                    verify_tools(tools, ("k6",))
                     child = Child()
                     if child.execute(k6_argv(tools["k6"], output, "inspect") + [str(path)],
                                      output=output, env=child_environment(output), timeout=10) != 0:

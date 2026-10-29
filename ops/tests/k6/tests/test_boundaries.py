@@ -27,6 +27,26 @@ def scratch():
         temp.cleanup()
 
 
+@contextlib.contextmanager
+def posix_tree(root, metadata=None, uid=123):
+    """Portable POSIX metadata model; no chmod/chown of system directories."""
+    real_stat = Path.stat
+    metadata = metadata or {}
+    def projected(path, *args, **kwargs):
+        value = real_stat(path, *args, **kwargs)
+        if path in metadata:
+            owner, mode = metadata[path]
+        elif path == root or path.is_relative_to(root):
+            owner, mode = uid, 0o700 if stat.S_ISDIR(value.st_mode) else 0o400
+        else:
+            owner, mode = 0, 0o755
+        return SimpleNamespace(st_uid=owner, st_mode=stat.S_IFMT(value.st_mode) | mode,
+                               st_dev=value.st_dev, st_ino=value.st_ino, st_size=value.st_size,
+                               st_mtime_ns=value.st_mtime_ns, st_ctime_ns=value.st_ctime_ns)
+    with mock.patch.object(Path, "stat", projected), mock.patch.object(os, "getuid", return_value=uid, create=True):
+        yield
+
+
 class LaunchTests(unittest.TestCase):
     def test_invalid_config_precedes_tools_guard_and_children(self):
         for raw in [{}, {"origin": "https://CONFIDENTIAL_SENTINEL_foreign"}]:
@@ -98,6 +118,7 @@ class LaunchTests(unittest.TestCase):
                     Path(env["K6_SUMMARY_PATH"]).write_bytes(value if isinstance(value, bytes) else json.dumps(value).encode())
                 return code
             with mock.patch.object(runner, "live_target") as guard, mock.patch.object(runner, "Child") as child, \
+                    mock.patch.object(runner, "verify_tools"), \
                     mock.patch.object(runner, "private_read", lambda p: Path(p).read_bytes()):
                 child.return_value.cleanup = True
                 child.return_value.execute.side_effect = execute
@@ -207,14 +228,8 @@ class DirectoryPolicyTests(unittest.TestCase):
     """Portable policy oracle with injected stat metadata, not POSIX evidence."""
     def test_private_output_parent_does_not_require_private_grandparent(self):
         with scratch() as parent:
-            real_stat = Path.stat
             metadata = {parent: (123, 0o700), parent.parent: (0, 0o1777)}
-            def injected_stat(path, *args, **kwargs):
-                if path in metadata:
-                    uid, mode = metadata[path]
-                    return SimpleNamespace(st_uid=uid, st_mode=stat.S_IFDIR | mode)
-                return real_stat(path, *args, **kwargs)
-            with mock.patch.object(Path, "stat", injected_stat), mock.patch.object(os, "getuid", return_value=123, create=True):
+            with posix_tree(parent, metadata):
                 output = safety.new_output(str(parent / "run"))
             self.assertTrue(output.is_dir())
             self.assertTrue((output / "private/empty.json").is_file())
@@ -222,16 +237,43 @@ class DirectoryPolicyTests(unittest.TestCase):
     def test_immediate_parent_must_still_be_private_and_owned(self):
         for uid, mode in [(123, 0o755), (124, 0o700)]:
             with self.subTest(uid=uid, mode=mode), scratch() as parent:
-                real_stat = Path.stat
-                def injected_stat(path, *args, **kwargs):
-                    if path == parent:
-                        return SimpleNamespace(st_uid=uid, st_mode=stat.S_IFDIR | mode)
-                    return real_stat(path, *args, **kwargs)
-                with mock.patch.object(Path, "stat", injected_stat), mock.patch.object(os, "getuid", return_value=123, create=True), \
+                with posix_tree(parent, {parent: (uid, mode)}), \
                         self.assertRaises(runner.Rejected) as found:
                     safety.new_output(str(parent / "run"))
                 self.assertEqual(found.exception.code, "PATH_INVALID")
                 self.assertFalse((parent / "run").exists())
+
+    def test_ancestor_system_readonly_and_trusted_sticky_names_are_accepted(self):
+        for uid, mode in [(0, 0o755), (123, 0o755), (0, 0o1777), (123, 0o1777)]:
+            with self.subTest(uid=uid, mode=mode), scratch() as parent:
+                with posix_tree(parent, {parent.parent: (uid, mode)}):
+                    output = safety.new_output(str(parent / "run"))
+                self.assertTrue(output.is_dir())
+
+    def test_ancestor_untrusted_owner_or_nonsticky_writers_refused_before_mkdir(self):
+        for uid, mode in [(124, 0o755), (124, 0o1777), (0, 0o777), (123, 0o775)]:
+            with self.subTest(uid=uid, mode=mode), scratch() as parent:
+                with posix_tree(parent, {parent.parent: (uid, mode)}), self.assertRaises(runner.Rejected) as found:
+                    safety.new_output(str(parent / "run"))
+                self.assertEqual(found.exception.code, "PATH_INVALID")
+                self.assertFalse((parent / "run").exists())
+
+    def test_output_parent_substitution_between_validation_and_mkdir_is_refused(self):
+        with scratch() as root:
+            parent = root / "parent"
+            parent.mkdir()
+            output = parent / "run"
+            original = safety.outside_git
+            def substitute(path):
+                original(path)
+                if path == output:
+                    parent.rename(root / "retired-parent")
+                    parent.mkdir()
+            with posix_tree(root), mock.patch.object(safety, "outside_git", side_effect=substitute), \
+                    self.assertRaises(runner.Rejected) as found:
+                safety.new_output(str(output))
+            self.assertEqual(found.exception.code, "PATH_INVALID")
+            self.assertFalse(output.exists())
 
 
 @unittest.skipUnless(sys.platform == "linux", "Real POSIX/process checks require Linux; no WSL startup in unit tests")
@@ -240,14 +282,22 @@ class PosixTests(unittest.TestCase):
         with scratch() as root:
             root.chmod(0o700)
             public = root / "public-grandparent"
-            public.mkdir(mode=0o777)
-            public.chmod(0o777)  # Only the new test-owned directory, never /tmp.
+            public.mkdir(mode=0o1777)
+            public.chmod(0o1777)  # Only the new test-owned directory, never /tmp.
             parent = public / "private-parent"
             parent.mkdir(mode=0o700)
             output = safety.new_output(str(parent / "run"))
             self.assertEqual(output.stat().st_uid, os.getuid())
             self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o700)
             self.assertEqual(safety.private_read(output / "private/empty.json"), b"{}")
+            public.chmod(0o777)
+            try:
+                with self.assertRaises(runner.Rejected) as found:
+                    safety.new_output(str(parent / "refused-nonsticky-ancestor"))
+                self.assertEqual(found.exception.code, "PATH_INVALID")
+                self.assertFalse((parent / "refused-nonsticky-ancestor").exists())
+            finally:
+                public.chmod(0o1777)
             with self.assertRaises(runner.Rejected) as found:
                 safety.new_output(str(public / "refused-public-parent"))
             self.assertEqual(found.exception.code, "PATH_INVALID")
