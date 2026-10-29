@@ -1,5 +1,57 @@
 # Implementation record
 
+## Final observation candidate — base4e82a36 (2026-10-29)
+
+Closed sub-lot owned by pool-7, based exactly on published
+`4e82a365077c505bb6681bbbb3018f3869f995b7`, clean isolated worktree/branch
+`ensemble-4bf4d12a-c3be-4812-8e5d-5f2a857aa1ef`. Read the canonical ledger,
+report16 and full final-observation/two-attempt briefings before editing. The
+previous author's worktree/index and shared ledger were not modified.
+
+Root cause of the real native failures remains unknown. The existing supervisor
+rejects missing sandbox evidence before scenario_run examines native exit/summary;
+the previous lexical category therefore cannot distinguish startup, partial case
+execution and an unobservable renderer. This delta adds only closed observations
+to the existing one-line failure result, not a successful verdict or failure file.
+
+- Reuse supervised k6 returncode and existing owned-process reads. No added scan,
+  command, namespace retry or foreign-process read. Preserve optional read order,
+  PID/UID/start cleanup identities, sandbox witness and safety ordering.
+- Read/seal/validate the private current-run summary even on browser failure,
+  classifying its state and five case counts. Bounded JSON/type/schema/correlation
+  checks precede count projection; missing/null stays absent, stale or malformed
+  projects no counts. VALID here describes diagnostic structure, not PASS.
+- Exact allowlists validate keys/types/labels on construction and at the exception
+  boundary. Forged exception/supervisor data is withheld without losing the
+  original non-PASS/cleanup verdict. Summary confidentiality failure remains
+  blocking, including alongside failed cleanup. No native text/URL/path/argv/env/
+  PID/raw metric is added to the failure projection.
+- Pinned official k6/Chromium/Python sources read via Context Mode are linked in
+  README. No executable-path environment fix is justified; no flags/pins changed.
+
+Actual Windows-only evidence: `C:/Python313/python.exe -B -m unittest discover -s
+ops/tests/k6/tests -p test_*.py`, temporary directories confined to the approved
+host temp root. RED before production edits:66 tests, exit1,9 errors/1 failure,
+7 POSIX skips. GREEN after the initial implementation:66 tests, exit0/7 skips.
+Final suite after adversarial refinements:70 tests, exit0,7 POSIX skips
+(63 exercised). `git diff --check` exit0 on the owned tracked delta; final staged
+whitespace validation includes the new test file and is recorded in the handoff.
+These are pure Python fixtures, not native Linux/Chromium evidence.
+
+No Cargo/hook, commit/push, CI run/retry/dispatch, k6/Chrome execution, WSL/Docker/
+Kind startup, package installation or runtime/authority/config mutation performed.
+Owned Docker IDs/fixtures: none; no registry entry or cleanup claim invented.
+The eight agreed k6/launcher commands and exact python3 Linux suite remain
+unexecuted by this worker; only the Windows unittest equivalent is exercised.
+The lead alone owns integration and the third/final native attempt. HTTP,
+Chromium sandbox and real campaign cleanup remain unqualified by this candidate.
+
+Localisation/impact: canonical Serena confirmed the safety Child structure but
+returned no references; exact matching located callers in run-linux.py, Python
+fixtures and the unchanged dedicated workflow. The server stays on the canonical
+source root, not this unmerged worktree; targeted worktree files and tests are the
+authority for this delta. No Rust exploration/edits or HIR claims were needed.
+
 Base: `c9b537c9c84f11dbdaf0178a1d19666de9261989`, ratified contract V1,
 SDK gitlink `02e5db23aac6016aab062c3078696d5f7fd464ef` (not modified).
 

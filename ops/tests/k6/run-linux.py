@@ -15,8 +15,9 @@ import uuid
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 sys.path.insert(0, str(HERE / "lib"))
-from safety import (ARTIFACT_LIMIT, BROWSER_DIAGNOSTICS, Child, Rejected, child_environment, confidential,
-                    digest, name_chain, new_output, private_path, private_read, strict_json)
+from safety import (ARTIFACT_LIMIT, BROWSER_DIAGNOSTICS, CASE_COUNTERS, Child, Rejected, child_environment,
+                    closed_browser_observation, confidential, digest, name_chain, native_exit_category,
+                    new_output, private_path, private_read, strict_json)
 
 CHECKS = {"HTTP": ("iam-status", "iam-body"), "Chromium": ("browser-evaluation", "browser-blank")}
 CASES = {"HTTP": "iam-health", "Chromium": "browser-prerequisite"}
@@ -91,6 +92,51 @@ def verify_summary(data, run_id, phase):
                 or type(check["passes"]) is not int or check["passes"] != 1
                 or type(check["fails"]) is not int or check["fails"] != 0):
             raise Rejected("SUMMARY_INVALID")
+
+
+def browser_summary_observation(path, run_id):
+    """Current-run shape/correlation only, NOT the successful-summary oracle.
+
+    Missing/null case counters remain absent; never coerce them to zero. Even a
+    VALID diagnostic summary cannot lift native/sandbox/privacy/cleanup failure.
+    """
+    absent = {key: "ABSENT" for key in CASE_COUNTERS}
+    try:
+        if path.is_symlink():
+            return "INVALID", absent
+        try:
+            item = path.stat()
+        except FileNotFoundError:
+            return "ABSENT", absent
+        if not path.is_file() or item.st_size > ARTIFACT_LIMIT:
+            return "INVALID", absent
+        path.chmod(0o400)
+        raw = private_read(path)
+        if len(raw) > ARTIFACT_LIMIT:
+            return "INVALID", absent
+        confidential(raw)
+        data = strict_json(raw)
+        required = {"version", "run_id", "phase", "cases", "checks"}
+        if (type(data) is not dict or not required <= set(data) <= required | set(CASE_COUNTERS)
+                or type(data["version"]) is not int or data["version"] != 1
+                or data["run_id"] != run_id or data["phase"] != "Chromium"
+                or data["cases"] != [CASES["Chromium"]]
+                or any(data.get(key) is not None and (type(data[key]) is not int or data[key] < 0)
+                       for key in CASE_COUNTERS)
+                or type(data["checks"]) is not dict or not set(data["checks"]) <= set(CHECKS["Chromium"])):
+            return "INVALID", absent
+        for check in data["checks"].values():
+            if (type(check) is not dict or set(check) != {"passes", "fails"}
+                    or any(type(count) is not int or count < 0 for count in check.values())):
+                return "INVALID", absent
+        return "VALID", {key: "ABSENT" if data.get(key) is None else "ZERO" if data[key] == 0
+                         else "ONE" if data[key] == 1 else "OTHER" for key in CASE_COUNTERS}
+    except Rejected as error:
+        if error.code == "PRIVACY_FAILED":
+            raise
+        return "INVALID", absent
+    except OSError:
+        return "INVALID", absent
 
 
 def verify_false_check(data, run_id, exit_code):
@@ -250,6 +296,25 @@ def scenario_run(phase, config, output, tools, *, negative=None):
                 error.cleanup = "PASS" if child.cleanup else "FAIL"
                 raise
     if failure:
+        if phase == "Chromium":
+            if not isinstance(failure, Rejected):
+                failure = Rejected("INTERNAL_ERROR")
+            try:
+                state, counters = browser_summary_observation(summary, run_id)
+                failure.browser_observation = closed_browser_observation({
+                    "native_exit": native_exit_category(child.code), "summary": state, "counters": counters,
+                    "renderer_observed": child.renderer_observed,
+                    "namespace_reads": {key: sorted(child.namespace_reads[key]) or ["NOT_OBSERVED"]
+                                        for key in ("user", "pid")}})
+            except Rejected as error:
+                if error.code == "PRIVACY_FAILED":
+                    error.browser_diagnostic = failure.browser_diagnostic
+                    failure = error
+                # Bad diagnostic input is withheld, never an alternate PASS.
+            except (AttributeError, KeyError, TypeError, ValueError):
+                # A malformed supervisor fixture must not replace the original
+                # failure/cleanup verdict or escape through the result surface.
+                pass
         if isinstance(failure, Rejected):
             failure.cleanup = "PASS" if child.cleanup else "FAIL"
         raise failure
@@ -444,6 +509,11 @@ def main(argv=None):
         native_reason = failure.browser_diagnostic
         if mode == "browser" and type(native_reason) is str and native_reason in BROWSER_DIAGNOSTICS:
             result["browser_native_diagnostic"] = native_reason
+        if mode == "browser" and failure.browser_observation is not None:
+            try:
+                result["browser_observation"] = closed_browser_observation(failure.browser_observation)
+            except Rejected:
+                pass
         if phase:
             result[phase] = "INCONCLUSIVE" if failure.inconclusive else "FAIL"
         if mode in {"selftest", "tools"}:

@@ -22,6 +22,8 @@ BROWSER_DIAGNOSTICS = frozenset("NO_USABLE_SANDBOX_REPORTED NAMESPACE_PERMISSION
     "SUID_HELPER_CONFIGURATION_REJECTED SUID_HELPER_MISSING_REPORTED ROOT_STARTUP_REFUSAL_REPORTED "
     "BROWSER_STARTUP_ENDED_REPORTED MULTIPLE_NATIVE_CAUSES_REPORTED K6_ZERO_EXIT_NO_SANDBOX_WITNESS "
     "NATIVE_CAUSE_UNCLASSIFIED NATIVE_DIAGNOSTIC_WITHHELD".split())
+CASE_COUNTERS = ("expected", "started", "completed", "iterations", "requests")
+NAMESPACE_READS = frozenset("READABLE DENIED DISAPPEARED OTHER NOT_OBSERVED".split())
 
 
 class Rejected(Exception):
@@ -31,7 +33,48 @@ class Rejected(Exception):
         self.code, self.inconclusive = code, inconclusive
         self.cleanup = "NOT_STARTED"
         self.browser_diagnostic = None
+        self.browser_observation = None
         super().__init__(code)
+
+
+def native_exit_category(code):
+    if code is None:
+        return "ABSENT"
+    if type(code) is not int:
+        raise Rejected("INPUT_INVALID")
+    return "ZERO" if code == 0 else "SIGNAL" if code < 0 else "NONZERO"
+
+
+def closed_browser_observation(value):
+    """Validate and copy a bounded projection, including exception/fixture input."""
+    fields = {"native_exit", "summary", "counters", "renderer_observed", "namespace_reads"}
+    if type(value) is not dict or set(value) != fields:
+        raise Rejected("INPUT_INVALID")
+    for key, labels in (("native_exit", {"ABSENT", "ZERO", "NONZERO", "SIGNAL"}),
+                        ("summary", {"ABSENT", "INVALID", "VALID"})):
+        if type(value[key]) is not str or value[key] not in labels:
+            raise Rejected("INPUT_INVALID")
+    counters, namespaces = value["counters"], value["namespace_reads"]
+    if (type(value["renderer_observed"]) is not bool or type(counters) is not dict
+            or set(counters) != set(CASE_COUNTERS) or type(namespaces) is not dict
+            or set(namespaces) != {"user", "pid"}):
+        raise Rejected("INPUT_INVALID")
+    for label in counters.values():
+        if type(label) is not str or label not in {"ABSENT", "ZERO", "ONE", "OTHER"}:
+            raise Rejected("INPUT_INVALID")
+        if value["summary"] != "VALID" and label != "ABSENT":
+            raise Rejected("INPUT_INVALID")
+    for labels in namespaces.values():
+        if (type(labels) is not list or not 1 <= len(labels) <= len(NAMESPACE_READS)
+                or any(type(label) is not str or label not in NAMESPACE_READS for label in labels)
+                or len(set(labels)) != len(labels)
+                or ("NOT_OBSERVED" in labels and len(labels) != 1)
+                or (not value["renderer_observed"] and labels != ["NOT_OBSERVED"])):
+            raise Rejected("INPUT_INVALID")
+    return {"native_exit": value["native_exit"], "summary": value["summary"],
+            "counters": {key: counters[key] for key in CASE_COUNTERS},
+            "renderer_observed": value["renderer_observed"],
+            "namespace_reads": {key: sorted(namespaces[key]) for key in ("user", "pid")}}
 
 
 def strict_json(raw):
@@ -212,17 +255,25 @@ def proc(pid):
                 "uid": int(status["Uid"].split()[0]), "seccomp": status.get("Seccomp", "").strip(),
                 "filters": int(status.get("Seccomp_filters", "0")),
                 "no_new_privs": status.get("NoNewPrivs", "").strip(),
-                "args": [], "userns": None, "pidns": None}
+                "args": [], "userns": None, "pidns": None,
+                "namespace_reads": {"user": "NOT_OBSERVED", "pid": "NOT_OBSERVED"}}
         # Zombies and nondumpable renderers may deny optional files: retain their
         # base identity for cleanup, but never count missing namespace data as proof.
+        reading = None
         try:
             with (root / "cmdline").open("rb") as stream:
                 raw_args = stream.read(32769)
             result["args"] = raw_args.split(b"\0") if len(raw_args) <= 32768 else []
-            result["userns"] = os.readlink(root / "ns/user")
-            result["pidns"] = os.readlink(root / "ns/pid")
-        except OSError:
-            pass
+            # Keep the existing read order/short-circuit, including foreign
+            # processes visited by inventory. Do not add reads after a denial.
+            for name in ("user", "pid"):
+                reading = name
+                result[name + "ns"] = os.readlink(root / "ns" / name)
+                result["namespace_reads"][name] = "READABLE"
+        except OSError as error:
+            if reading is not None:
+                result["namespace_reads"][reading] = ("DENIED" if isinstance(error, PermissionError)
+                    else "DISAPPEARED" if isinstance(error, FileNotFoundError) else "OTHER")
         return result
     except (OSError, ValueError, KeyError):
         return None
@@ -259,6 +310,24 @@ class Child:
         self.code = None
         self.before = set()
         self.recorded = set()
+        self.renderer_observed = False
+        self.namespace_reads = {"user": set(), "pid": set()}
+        self.observe_browser = False
+
+    def observe_renderer(self, current):
+        # Consume only already-read observations after ownership/identity binding.
+        owned = self.owned.get(current["pid"])
+        if (not owned or any(current[k] != owned[k] for k in ("pid", "start", "uid"))
+                or current["uid"] != os.getuid() or b"--type=renderer" not in current["args"]):
+            return
+        self.renderer_observed = True
+        for name in ("user", "pid"):
+            label = current.get("namespace_reads", {}).get(name, "NOT_OBSERVED")
+            if type(label) is not str or label not in NAMESPACE_READS:
+                raise Rejected("INPUT_INVALID")
+            self.namespace_reads[name].add(label)
+            if len(self.namespace_reads[name]) > 1:
+                self.namespace_reads[name].discard("NOT_OBSERVED")
 
     def record(self, output):
         path = output / "private" / "process-identities.jsonl"
@@ -293,8 +362,12 @@ class Child:
         for value in values:
             if value["ppid"] == os.getpid() and value["pid"] != pid:
                 self.owned.setdefault(value["pid"], value)
+        if self.observe_browser:
+            for value in values:
+                self.observe_renderer(value)
 
     def execute(self, argv, *, output, env, timeout=30, browser=False, interrupt_after=None):
+        self.observe_browser = browser
         parent = proc(os.getpid())
         if not parent:
             raise Rejected("PLATFORM_UNQUALIFIED", True)
@@ -334,6 +407,7 @@ class Child:
                 if browser:
                     for value in self.owned.values():
                         if current := same(value):
+                            self.observe_renderer(current)
                             if sandbox_witness(current, parent):
                                 self.sandbox = True
                                 if len(self.sandbox_proof) < 4 and not any(p["pid"] == current["pid"] for p in self.sandbox_proof):
@@ -414,6 +488,10 @@ class Child:
                     self.cleanup = False
             for pipe in (child.stdout, child.stderr) if child else ():
                 pipe.close()
+            if child and self.code is None:
+                # Reuse the returncode already observed by cleanup's poll(), even
+                # on interruption. This category does not change the failure.
+                self.code = child.returncode
             selector.close()
             for sig, handler in previous.items():
                 signal.signal(sig, handler)

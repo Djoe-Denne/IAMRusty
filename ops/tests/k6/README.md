@@ -212,6 +212,52 @@ recovered by this diagnostic. No debug, new capture, policy change, wrapper,
 installation or sandbox bypass is introduced; the precise CI cause may remain
 unproven under these bounds.
 
+### Final bounded observation (failure only)
+
+The existing one-line browser failure result may also contain `browser_observation`.
+It is validated by an exact key/type/label allowlist both when constructed and
+when received from an exception. Malformed projections are withheld. It contains:
+
+- `native_exit`: `ABSENT`, `ZERO`, `NONZERO` or `SIGNAL`, from the supervised k6
+  child's observed returncode, not Chromium's exit status. The last value already
+  observed by cleanup's poll is retained on interruption; `SIGNAL` may therefore
+  reflect the supervisor's graceful cleanup, not a browser crash diagnosis.
+- `summary`: `ABSENT`, `INVALID` or `VALID`. `VALID` means bounded/private JSON
+  with the current opaque run ID, Chromium phase/case, closed schema and valid
+  types, **not a successful functional summary**. It permits partial case counters
+  and incomplete/failed checks for diagnosis only. The strict PASS oracle is
+  unchanged. Stale/wrong-case/malformed/oversized summaries project no counts.
+- `counters`: exactly `expected`, `started`, `completed`, `iterations`, `requests`,
+  each classified as `ABSENT`, `ZERO`, `ONE` or `OTHER`. Missing/null counters stay
+  `ABSENT`; no values, raw metrics or run-ID content are copied into this object.
+- `renderer_observed`: a boolean recording a renderer actually read with matching
+  owned PID/UID/start identity. False means **not observed**, never proven absent.
+- `namespace_reads`: `user` and `pid` each contain a bounded sorted set of labels
+  `READABLE`, `DENIED`, `DISAPPEARED`, `OTHER`, or solely `NOT_OBSERVED`.
+  These aggregate read outcomes across already-observed owned renderers/times;
+  they do not identify one renderer or combine readings into a sandbox witness.
+  `DISAPPEARED` classifies a missing link at that read, not process absence.
+
+Only the supervisor's existing inventory/identity reads are consumed. Its optional
+read order and short-circuit after error are preserved: if user-namespace reading
+fails, the PID-namespace read stays `NOT_OBSERVED`, rather than adding a retry or
+foreign-process read. Optional errors retain base identities for cleanup. No new
+OS command, scan, privileged access, artifact or proof method is introduced.
+The existing per-renderer sandbox witness and its safety ordering remain unchanged.
+All native/sandbox/interruption/privacy/cleanup failures remain non-PASS; summary
+privacy failures also prohibit publication, even if the original error was about
+sandbox evidence. No failure artifact is written.
+
+Source checks for this delta: [k6v2.3.0 browser options, lines84–100](https://github.com/grafana/k6/blob/v2.3.0/internal/js/modules/k6/browser/common/browser_options.go#L84-L100)
+reads the supplied environment lookup for the executable path; filtering JS
+`__ENV` is not a reason to add `--env K6_BROWSER_EXECUTABLE_PATH` as a fix.
+[Chromium156.0.8078.73 dumpable handling, lines67–80](https://github.com/chromium/chromium/blob/156.0.8078.73/sandbox/policy/linux/sandbox_debug_handling_linux.cc#L67-L80)
+shows non-dumpable setup, a possible observability constraint, not the demonstrated
+CI failure cause. [Python3.13 subprocess returncode](https://github.com/python/cpython/blob/v3.13.0/Doc/library/subprocess.rst#L936-L946)
+documents absent returncodes and negative POSIX signal exits. These pinned sources
+and the existing k6 startup parser above were read before the diagnostic choices;
+no binary, environment/pin change or runtime experiment was used by the author.
+
 Child environments are constructed from scratch (no ambient K6, proxy, loader,
 Cloud, secrets or user config), with reporting explicitly disabled. Runtime API
 listen address is empty, user config is an explicit empty file, and system env
