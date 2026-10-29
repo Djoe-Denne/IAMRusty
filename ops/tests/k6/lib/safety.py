@@ -307,6 +307,7 @@ class Child:
         self.owned = {}
         self.stdout = b""
         self.stderr = b""
+        self.output_overflow = False  # sticky stdout/stderr fact, not the final error priority
         self.code = None
         self.before = set()
         self.recorded = set()
@@ -428,6 +429,7 @@ class Child:
                     else:
                         streams[key.data].extend(raw)
                         if len(streams[key.data]) > LIMIT:
+                            self.output_overflow = True
                             raise Rejected("OUTPUT_LIMIT")
                 if child.poll() is not None and not selector.get_map():
                     self.code = child.returncode

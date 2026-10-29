@@ -1,5 +1,44 @@
 # Implementation record
 
+## Overflow/cleanup correction — basee9af3b6 (2026-10-30)
+
+Same owner/session pool-10; read the complete overflow/cleanup briefing, independent
+security review and report21 before changes. This is a retained correctness
+suggestion, not a newly invented security finding or native Chromium cause.
+Correction base `e9af3b673319c62577b82f612f868846ae4dfd79`: the isolated tree still
+has HEAD14d55e9 and its original five staged files, already integrated by the lead.
+Before correction, `git diff e9af3b6` was empty. No reset/rebase or recapture of the
+old candidate; the new delta must be taken relative to e9af3b6.
+
+`Child.output_overflow` starts false and becomes sticky true in the real stream
+read path, before OUTPUT_LIMIT is raised and before bounded buffers are truncated.
+The direct consumer checks this independent fact before any lexical classification
+or observation construction. Thus cleanup failure can retain priority without
+turning a partial prefix into confidentiality PASS. No change to stream limits,
+privacy/sandbox gates, process identity, TERM/join or error priority.
+
+Four portable regressions execute the actual Child.execute/select/read/truncation
+code with OS boundaries faked: Popen/pipes/proc/signal/TERM and virtual time.
+No real child process, impossible-to-stop survivor or forced signal is created.
+Coverage: overflow+cleanup failure on both streams, classable safe prefix with a
+sentinel outside the capture, overflow alone, complete and exactly-limit streams,
+cleanup alone, and complete sentinel captures with/without cleanup failure.
+Consumer classification is asserted not called on overflow; publication remains
+absent and HTTP/Chromium remain unqualified. The test never sets the overflow flag.
+
+Actual native Windows command: `C:/Python313/python.exe -B -m unittest discover -s
+ops/tests/k6/tests -p test_*.py`, TMPDIR/TEMP/TMP set to the approved host temp root.
+RED before production edits:96 tests, exit1,1 failure/3 errors/7 POSIX skips.
+The failure reproduced CLEANUP_FAILED + cleanupFAIL + confidentialityPASS and a
+projected prefix; errors showed the missing persistent state. GREEN after the
+bounded fix:96 tests, exit0/7 skips (89 exercised). Final checks are in the handoff.
+
+Only ops/tests/k6 files changed for this correction; no workflow, contract, guard
+authority, service or SDK edit. No Cargo/hook, commit/push, CI/Chrome/Linux run,
+runtime/package/security-policy operation. Owned runtime resources: none. The
+lead alone integrates, executes Linux and publishes. The existing source/argument
+research is reused because this fix changes neither pins, argv nor execution scope.
+
 ## Direct parent Chromium diagnostic candidate — base14d55e9 (2026-10-30)
 
 Owner pool-10, isolated branch `ensemble-33cdd242-ebce-41d8-bf83-4a0ab96d525a`,

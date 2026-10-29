@@ -251,6 +251,12 @@ a privacy refusal (e.g. a FATAL containing a documentation URL); the refusal sta
 `PRIVACY_FAILED`/nonzero, without publication. Sentinel, invalid UTF-8 and over-limit
 streams cannot produce such a category. Unknown remains unknown.
 
+Stream overflow is a sticky fact recorded by `Child` at the read boundary before
+truncation, independently of its final error code. Even if cleanup failure takes
+priority, the direct path neither classifies nor projects that captured prefix,
+and confidentiality cannot become PASS from truncated evidence. The cleanup
+failure, privacy checks, byte limits and graceful-stop rules remain unchanged.
+
 **Every diagnostic invocation exits nonzero. HTTP and Chromium stay INCONCLUSIVE,
 even for native exit0 and an observed sandbox witness.** Native/sandbox, privacy,
 timeout, interruption and cleanup failures retain their diagnostic code. No

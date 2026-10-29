@@ -1,8 +1,10 @@
 """Parent diagnostic fixtures only: never a Chromium or HTTP qualification."""
 import contextlib
 import io
+import itertools
 import json
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -15,6 +17,140 @@ def host():
     return {key: "ABSENT" for key in (
         "unprivileged_userns_clone", "apparmor_restrict_unprivileged_userns",
         "max_user_namespaces", "apparmor_enabled", "parent_seccomp", "parent_no_new_privs")}
+
+
+@contextlib.contextmanager
+def fake_child_reads(payload, stream, cleanup):
+    """Exercise real Child.execute/read/truncation with no real process or signal."""
+    child = safety.Child()
+    pid, uid = 123456, 789
+    identity = {"pid": pid, "uid": uid, "start": 456, "zombie": False, "args": [b"--headless"]}
+    pipes = [SimpleNamespace(fileno=lambda: 10, close=mock.Mock()),
+             SimpleNamespace(fileno=lambda: 11, close=mock.Mock())]
+    chunks = [payload[i:i + 8192] for i in range(0, len(payload), 8192)]
+    active = {}
+    terminated = [False]
+    process = SimpleNamespace(pid=pid, stdout=pipes[0], stderr=pipes[1], returncode=None)
+
+    def register(pipe, events, index):
+        active[pipe.fileno()] = SimpleNamespace(fileobj=pipe, data=index)
+
+    def select(timeout):
+        fd = 10 + stream if 10 + stream in active else next(iter(active), None)
+        return [(active[fd], safety.selectors.EVENT_READ)] if fd is not None else []
+
+    def read(fd, size):
+        if size != 8192:
+            raise AssertionError("changed production read bound")
+        return chunks.pop(0) if fd == 10 + stream and chunks else b""
+
+    def poll():
+        if terminated[0]:
+            process.returncode = -15
+        elif not active:
+            process.returncode = 0
+        return process.returncode
+
+    def same(value):
+        return None if cleanup and process.returncode is not None else identity
+
+    def kill(target, sig):
+        if target != pid or sig != safety.signal.SIGTERM:
+            raise AssertionError("only the fake owned identity may receive graceful TERM")
+        terminated[0] = True
+
+    process.poll = poll
+    selector = SimpleNamespace(register=register, select=select,
+        unregister=lambda pipe: active.pop(pipe.fileno()), get_map=lambda: active, close=mock.Mock())
+    ticks = itertools.count(step=0.25)
+    with contextlib.ExitStack() as stack:
+        patches = [mock.patch.object(safety, "proc", return_value=identity),
+            mock.patch.object(safety.ctypes, "CDLL", return_value=SimpleNamespace(prctl=lambda *a: 0)),
+            mock.patch.object(safety.signal, "signal", return_value=safety.signal.SIG_DFL),
+            mock.patch.object(Path, "iterdir", return_value=[]),
+            mock.patch.object(safety.subprocess, "Popen", return_value=process),
+            mock.patch.object(safety.selectors, "DefaultSelector", return_value=selector),
+            mock.patch.object(safety.os, "set_blocking"),
+            mock.patch.object(safety.os, "getuid", return_value=uid, create=True),
+            mock.patch.object(safety.os, "read", side_effect=read),
+            mock.patch.object(safety.os, "kill", side_effect=kill),
+            mock.patch.object(safety, "same", side_effect=same),
+            mock.patch.object(child, "inventory"),
+            mock.patch.object(safety.time, "monotonic", side_effect=lambda: next(ticks)),
+            mock.patch.object(safety.time, "sleep")]
+        for patch in patches:
+            stack.enter_context(patch)
+        yield child
+
+
+class OverflowCleanupTests(unittest.TestCase):
+    def launch(self, payload, stream=0, cleanup=False):
+        with scratch() as root:
+            (root / "private").mkdir()
+            with fake_child_reads(payload, stream, cleanup) as child, \
+                    mock.patch.object(runner, "linux_platform"), \
+                    mock.patch.object(runner, "new_output", return_value=root), \
+                    mock.patch.object(runner, "pinned_tools", return_value=({"chromium": Path("/pinned/chrome")}, {})), \
+                    mock.patch.object(runner, "version_checks", return_value={}), \
+                    mock.patch.object(runner, "host_metadata", return_value=host()), \
+                    mock.patch.object(runner, "verify_tools"), \
+                    mock.patch.object(runner, "Child", return_value=child), \
+                    mock.patch.object(runner, "browser_diagnostic", wraps=safety.browser_diagnostic) as classify, \
+                    mock.patch.object(runner, "publish") as publish, \
+                    contextlib.redirect_stdout(io.StringIO()) as log:
+                exit_code = runner.main(["diagnose-chromium", "--output", str(root)])
+            publish.assert_not_called()
+            if len(payload) > safety.LIMIT:
+                classify.assert_not_called()
+            return child, exit_code, json.loads(log.getvalue())
+
+    def overflowing_payload(self):
+        prefix = b"No usable sandbox! "
+        return prefix + b"x" * (safety.LIMIT - len(prefix)) + b"CONFIDENTIAL_SENTINEL"
+
+    def test_real_read_sets_overflow_independently_of_cleanup_failure(self):
+        for stream in (0, 1):
+            child, exit_code, result = self.launch(self.overflowing_payload(), stream)
+            self.assertEqual(result["diagnostic"], "CLEANUP_FAILED")
+            self.assertEqual(result["cleanup"], "FAIL")
+            self.assertNotEqual(exit_code, 0)
+            self.assertEqual(len((child.stdout, child.stderr)[stream]), safety.LIMIT)
+            self.assertNotIn(b"CONFIDENTIAL_SENTINEL", child.stdout + child.stderr)
+            self.assertNotIn("direct_observation", result)
+            self.assertNotEqual(result["confidentiality"], "PASS")
+            self.assertTrue(child.output_overflow)
+            self.assertEqual(result["Chromium"], "INCONCLUSIVE")
+            self.assertEqual(result["HTTP"], "INCONCLUSIVE")
+
+    def test_overflow_alone_remains_nonpass_and_withheld(self):
+        child, exit_code, result = self.launch(self.overflowing_payload(), cleanup=True)
+        self.assertTrue(child.output_overflow)
+        self.assertEqual(result["diagnostic"], "OUTPUT_LIMIT")
+        self.assertEqual(result["cleanup"], "PASS")
+        self.assertNotEqual(exit_code, 0)
+        self.assertNotIn("direct_observation", result)
+        self.assertNotEqual(result["confidentiality"], "PASS")
+
+    def test_complete_stream_and_cleanup_only_do_not_look_like_overflow(self):
+        prefix = b"No usable sandbox! "
+        for cleanup in (False, True):
+            for payload in (prefix, prefix + b"x" * (safety.LIMIT - len(prefix))):
+                child, exit_code, result = self.launch(payload, cleanup=cleanup)
+                self.assertFalse(child.output_overflow)
+                self.assertNotEqual(exit_code, 0)
+                self.assertEqual(result["cleanup"], "PASS" if cleanup else "FAIL")
+                self.assertEqual(result["confidentiality"], "PASS")
+                self.assertEqual(result["direct_observation"]["native_diagnostic"], "NO_USABLE_SANDBOX_REPORTED")
+
+    def test_complete_sentinel_stays_privacy_failure_even_if_cleanup_failed(self):
+        for cleanup in (False, True):
+            child, exit_code, result = self.launch(b"No usable sandbox! CONFIDENTIAL_SENTINEL", 1, cleanup)
+            self.assertFalse(child.output_overflow)
+            self.assertEqual(result["diagnostic"], "PRIVACY_FAILED")
+            self.assertEqual(result["confidentiality"], "FAIL")
+            self.assertEqual(result["cleanup"], "PASS" if cleanup else "FAIL")
+            self.assertNotEqual(exit_code, 0)
+            self.assertNotIn("direct_observation", result)
 
 
 class DirectTests(unittest.TestCase):

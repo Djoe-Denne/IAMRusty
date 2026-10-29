@@ -353,7 +353,9 @@ def direct_chromium(output, tools):
         failure = Rejected("CLEANUP_FAILED")
     observation = None
     try:
-        observation = closed_direct_observation({
+        # Cleanup may supersede OUTPUT_LIMIT after Child truncates its buffers.
+        # A captured prefix is not complete privacy evidence and is not classified.
+        observation = None if child.output_overflow else closed_direct_observation({
             "version": 1, "source": "CHROMIUM_DIRECT", "native_exit": native_exit_category(child.code),
             # No k6 exit table or k6 zero-exit label for the native Chromium process.
             "native_diagnostic": browser_diagnostic(child.stdout, child.stderr, None),
