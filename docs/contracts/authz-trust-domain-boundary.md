@@ -4,6 +4,7 @@
 - Canon décisionnel : [ADR-0314](../adr/0314-principal-authority-through-openfga.md), complète [0305](../adr/0305-account-identity-trust-domain.md).
 - Base examinée : application c72ae362b950c63d6736a6818c68babc5a8d6f40 ; SDK d60a88b2f2f499768a807941a1b4c80c9a366b3f.
 - Ratification : explicite par le lead le 2026-10-28 sous délégation utilisateur de la politique approuvée révision 1, après examen des alternatives, sources, compatibilité et oracles ; aucune acceptation par l'auteur ni preuve de code livré. Intégration vérifiée des documents requise avant publication de corriger-identites.
+- Précision locale ratifiée le 2026-10-29 : [politique de service grant-snapshot Manifesto](manifesto-grant-snapshot-service-policy.md), isolée de la policy HumanAccount et de FGA ; pas de nouvelle équivalence d'autorités.
 
 ## 1. Invariants
 

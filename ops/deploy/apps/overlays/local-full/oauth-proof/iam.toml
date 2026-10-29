@@ -45,7 +45,7 @@ oauth_state_secret = "__OAUTH_PROOF_STATE__"
 type = "pem_file"
 private_key_path = "config/keys/test-platform.pem"
 public_key_path = "config/keys/test-platform.pub"
-key_id = "test-rs256-kid-01"
+key_id = "66c446d36eca4740a5f5ce29057fad3b"
 [logging]
 level = "info"
 [command.retry]

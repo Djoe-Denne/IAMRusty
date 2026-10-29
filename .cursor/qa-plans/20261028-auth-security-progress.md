@@ -1,5 +1,53 @@
 # Registre QA de progression — sécurité authentification
 
+## Identifiant de clé du laboratoire — plan avant correction
+
+## Manifesto : vérificateur service dédié — plan avant code/run
+
+Contrat architecte v1 lu intégralement et ratifié explicitement par le lead,
+docs/contracts/manifesto-grant-snapshot-service-policy.md, référencé depuis AuthZ.
+Oracles avant exécution :
+- grant_snapshot_requires_explicit_service_principal_policy : config absente,
+  vide, paddée, mismatch, >256, issuer/audience vides refusées opaquement ; positif.
+- grant_snapshot_service_jwt_preserves_uuid_actor_and_query_principal : vrai JWT
+  service via vraie route ; subA≠queryB, résultat discriminant B et positif sans query.
+- grant_snapshot_rejects_foreign_authority_before_snapshot_lookup : clé/sub identiques,
+  autorités IAM/org/autre/historique refusées, mauvais aud/alg/clé/exp/absence et
+  headers/UUID seuls ; compteur lookup/commande reste inchangé.
+- grant_snapshot_policy_does_not_leak_to_human_account_routes : service refusé sur
+  route utilisateur, IAM légitime positif ; localiser le refus plutôt qu'erreur unrelated.
+Un test peut couvrir plusieurs matrices par sous-cas nommés, pas nécessité de
+nouveau framework. Réutiliser units configuration/setup, HTTP réel existant et IT
+P3T4/P3T5 si touchées. Ajouter les noms de tout autre test avant son premier run.
+Sources/test sont écrits par l'auteur, unique Cargo au lead ; pas run Kind pour IT.
+La preuve source n'est pas la preuve du redémarrage de l'image corrigée.
+
+### Régression de format de clé IAM
+
+Régression nommée avant code/run :
+`test_local_full_iam_key_ids_satisfy_registry_uuid_v4_contract` dans
+test_local_full_acceptance_source.py. Les deux TOML IAM normal/OAuth doivent
+présenter le même kid UUID v4 simple, exactement 32 caractères hexadécimaux
+canoniques. Baseline sur les configurations actuelles non conformes, puis
+postimages corrigées et suite source existante ; rendu Kustomize offline ciblé.
+Aucun test réseau nécessaire pour le format. Le prochain bootstrap réel reste
+autoritatif et doit conserver le registre, le PEM, l'émetteur et les epochs.
+Ce test n'est pas une preuve de signature ou de readiness réelle. Pas de nouveau
+harness, mutation de données, règle domaine assouplie ni rotation automatique.
+
+Résultat kid IAM sur candidat22 figé : baseline RO des deux TOML exacts au
+fad3f8d (substitution de lecture seulement, aucun edit worker) : deux UUID invalides
+détectés, puis échec de cardinalité attendu ; aucun incident d'environnement.
+Candidat même test1PASS, suite26PASS0.517s, zéro skip. Aucun Cargo/runtime.
+La copie des autres champs TOML doit rester strictement identique avant intégration.
+
+Copie canon des trois fichiers identique octet pour octet au candidat validé,
+diffcheck0 ; comparaison TOML confirme seul kid changé. Deux rendus offline
+112/122objets exit0 ; la configuration réellement montée OAuth (Secret généré
+offline, pas ConfigMap de base) porte le kid conforme. Aucune lecture Secret live.
+Hook fmt de livraison worker échoue os206, pas un défaut fonctionnel ou une
+permission de désactiver le hook ; aucun commit worker. Worktree/staged préservés.
+
 ## Fermeture des findings finaux (avant runs)
 
 S-2 : `test_local_full_default_projection_policy_is_explicit_and_aligned` dans

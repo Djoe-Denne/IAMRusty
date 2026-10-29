@@ -10,6 +10,7 @@ from pathlib import Path
 import tempfile
 import tomllib
 import unittest
+import uuid
 import yaml
 from unittest.mock import Mock, patch
 
@@ -17,6 +18,21 @@ SOURCE = Path(__file__).with_name("local-full-acceptance.py")
 
 
 class AcceptanceGuardTests(unittest.TestCase):
+    def test_local_full_iam_key_ids_satisfy_registry_uuid_v4_contract(self):
+        overlay = SOURCE.parents[1] / "deploy/apps/overlays/local-full"
+        key_ids = []
+        for relative_path in ["config/iam.toml", "oauth-proof/iam.toml"]:
+            with self.subTest(config=relative_path):
+                config = tomllib.loads((overlay / relative_path).read_text(encoding="utf-8"))
+                key_id = config["jwt"]["secret"]["key_id"]
+                parsed = uuid.UUID(key_id)
+                self.assertEqual(parsed.version, 4)
+                self.assertEqual(parsed.variant, uuid.RFC_4122)
+                self.assertEqual(key_id, parsed.hex, "registry requires canonical 32 lowercase hex digits")
+                key_ids.append(key_id)
+        self.assertEqual(len(key_ids), 2)
+        self.assertEqual(key_ids[0], key_ids[1], "both lab configurations must use the same fixture key ID")
+
     def test_localstack_internal_bootstrap_uses_loopback_but_advertises_service_host(self):
         platform = SOURCE.parents[1] / "deploy/apps/overlays/local-full/platform"
         resources = list(yaml.safe_load_all((platform / "dependencies.yaml").read_text(encoding="utf-8")))
