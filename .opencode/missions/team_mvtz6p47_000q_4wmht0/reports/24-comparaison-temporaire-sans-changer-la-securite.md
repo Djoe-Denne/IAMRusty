@@ -14,10 +14,10 @@ Le workflow conserve son job24.04 et son échec visible. Le push normal nécessa
 
 ## Vérification prévue
 
-Même auteur pour les fichiers couplés, avec tests du sélecteur de plateforme fermé, refus des commandes nominales sur22.04 et impossibilité de produire un résultat qualifiant. Les gardes existantes de pins, confidentialité, identité, sandbox et cleanup restent nécessaires. Une revue indépendante bornée vérifiera le nouveau chemin de contrôle après intégration ; pas de réaudit global imposé.
+Un seul auteur pour les fichiers couplés, avec tests du sélecteur de plateforme fermé, refus des commandes nominales sur22.04 et impossibilité de produire un résultat qualifiant. Le routage natif a créé un nouvel auteur isolé ; l'ancien candidat reste sauvegardé et inchangé. Le contrat, briefing et sources étaient intégrés avant cette création. Les gardes existantes de pins, confidentialité, identité, sandbox et cleanup restent nécessaires. Une revue indépendante bornée vérifiera le nouveau chemin de contrôle après intégration ; pas de réaudit global imposé.
 
 ## Preuves et limites
 
 - Candidat final architecte `result_mvu6v2hg_000n_ev67mv`, session `ses_e75fb3daeffeCew1RlUmBKejVR` :123lignes ajoutées au seul contrat, diff-check auteur exit0. Récupération vérifiée identique par SHA256 puis sauvegarde de la proposition originale avant ratification.
-- Comparaison22.04 Accepted par le lead avant code ; voie durable AppArmor Proposed et non autorisée. Briefing d'auteur préparé, admission après commit de ces entrées.
+- Comparaison22.04 Accepted par le lead avant code ; voie durable AppArmor Proposed et non autorisée. Entrées intégrées dans `b316668d79a113281477eb799fb5f20fba5506ab`, puis tâche d'implémentation admise. Aucun override de modèle ou changement de politique QA.
 - Aucun nouvel essai lancé. Ubuntu22.04 est en dépréciation et ne devient pas la cible durable. Le refus Chromium24.04 reste non résolu ; HTTP reste sans cible conforme autorisée.
