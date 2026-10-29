@@ -168,3 +168,24 @@ Binaireentier (neuf tests selon lecture source), pas toutIAM. Windowsnatifs24job
 unCargo, fixturesexistantes/registre et cleanup immédiat mêmeéchec ; pasKind.
 Échec environnement/cleanup reste telquel, pasprune/force/reclassementPASS.
 NavigateurréelEnvoy distinct et ultérieur ; auteur n'a exécuté aucun run.
+
+## Addendum QA ratifié — compléter les trois suites de0412
+
+Le lead a lu les18lignes Proposed supplémentaires de l'architecte et ratifie
+explicitement ce delta AVANT OPS. Contrat0412 §§162–173/208 : l'ancien résultat ne
+qualifie pas automatiquement le nouvel assemblage7b8c1f95. OAuth9PASS déjà obtenu
+ne vaut pas résultat des deux suites restantes ni acceptation du navigateur.
+
+Ajouter seulement iam/auth_transactions_postgres et iam/oauth_cleanup_lifecycle
+aux couples exacts autorisés. Mêmes deux fichiers OPS, une seule suite iam,
+case-sensitive, sans trim/alias ; autres couples et refus inchangés avant probes.
+Aucun paramètre, filtre, admission libre ou nouvelle branche Cargo. Jobs24,
+threads, observeur, registre et cleanup restent inchangés. Gate PS/AST étendu
+avec positifs et refus croisés/casse/espaces/multisuites/options/chemins et spy
+de la vraie branche argv exacte. Aucun natif dans ce gate.
+
+Après revue et gate : deux invocations séquentielles du lanceur existant avec
+`-Suite iam -TestBinary auth_transactions_postgres`, puis
+`-Suite iam -TestBinary oauth_cleanup_lifecycle`. Core cinq sources gelées,
+un Cargo, inventaire/cleanup complets pour chacune ; pas nouveau lanceur ou toutIAM.
+Résultats non encore acquis à la ratification ; aucune exécution auteur.

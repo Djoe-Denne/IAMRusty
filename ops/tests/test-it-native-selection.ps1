@@ -18,6 +18,22 @@ foreach ($name in $names) {
 }
 $oauthBinary = 'oauth_browser_transactions'
 if ((Resolve-ItTestBinary -Suites @('iam') -Binary $oauthBinary) -cne $oauthBinary) { throw 'Valid IAM OAuth selection rejected' }
+$iamBinaries = @($oauthBinary, 'auth_transactions_postgres', 'oauth_cleanup_lifecycle')
+foreach ($name in $iamBinaries) {
+    if ((Resolve-ItTestBinary -Suites @('iam') -Binary $name) -cne $name) { throw 'Valid exact IAM selection rejected' }
+    foreach ($suiteName in @('manifesto', 'hive', 'telegraph', 'lazaret', 'IAM')) {
+        try { $null = Resolve-ItTestBinary -Suites @($suiteName) -Binary $name; throw 'unexpected-accept' }
+        catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Cross-suite IAM selection accepted' } }
+    }
+    foreach ($badName in @($name.ToUpperInvariant(), (' ' + $name), ($name + ' '), ('tests/' + $name + '.rs'), ($name + '; anything'))) {
+        try { $null = Resolve-ItTestBinary -Suites @('iam') -Binary $badName; throw 'unexpected-accept' }
+        catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Non-exact IAM binary accepted' } }
+    }
+    foreach ($badSuites in @(@('iam', 'iam'), @('iam', 'hive'))) {
+        try { $null = Resolve-ItTestBinary -Suites $badSuites -Binary $name; throw 'unexpected-accept' }
+        catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Multiple suites accepted' } }
+    }
+}
 foreach ($suites in @(@('manifesto'), @('iam'), @('iam', 'hive'))) {
     if ((Resolve-ItTestBinary -Suites $suites -Binary '') -ne '') { throw 'Default suite selection changed' }
 }
@@ -60,7 +76,7 @@ if ($null -eq $branch) { throw 'Missing actual Cargo selection branch' }
 function cargo { $script:seen = @($args) }
 $packages = @{manifesto='manifesto-service'; iam='iam-service'}
 foreach ($selected in @('manifesto', 'iam')) {
-    $selections = if ($selected -eq 'iam') { @('', $oauthBinary) } else { @('', $names[0], $names[1]) }
+    $selections = if ($selected -eq 'iam') { @('') + $iamBinaries } else { @('', $names[0], $names[1]) }
     foreach ($testBinary in $selections) {
         $script:seen = @()
         . ([scriptblock]::Create($branch.Extent.Text))

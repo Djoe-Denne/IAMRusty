@@ -28,7 +28,8 @@ function Resolve-ItTestThreads {
 function Resolve-ItTestBinary {
     param([string[]]$Suites, [string]$Binary)
     if ([string]::IsNullOrEmpty($Binary)) { return '' }
-    if ($Suites.Count -eq 1 -and $Suites[0] -ceq 'iam' -and $Binary -ceq 'oauth_browser_transactions') {
+    if ($Suites.Count -eq 1 -and $Suites[0] -ceq 'iam' -and
+        $Binary -cin @('oauth_browser_transactions', 'auth_transactions_postgres', 'oauth_cleanup_lifecycle')) {
         return $Binary
     }
     if ($Suites.Count -ne 1 -or $Suites[0] -ne 'manifesto' -or

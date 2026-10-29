@@ -427,6 +427,20 @@ options/injection,zéronatif, placementavantprobes, vraiebrancheargvexacte.
 RunITfuturaprèsrevuecore/gate/préflight : it-native.ps1 -Suite iam -TestBinary
 oauth_browser_transactions, neufcasexistantsincluantnouveaurégression ; pas toutIAM.
 
+Run final effectué après revue/intégration7b8c1f95 : it-native iam sélectionOAuth,
+RUN_ENV=test.9PASS/0failed/0ignored/0filtered,28.43stest/33.670sprocess,exit0.
+Campagne23a8bf3a…, unPostgrescréé/retiré, inventaires6→6 et0ownedrunning/newunowned.
+Parentsourcesgelées/signaturevraie/sessionpersistée/replaynouveautestPASS. Registre
+29etledgerobserver/fixtureconcordants, absenceIDexactconfirméeDockerlive. Pas
+KindpourIT, pasPASSbrowserdéduit. Logsréférencésrapport67/ledgercanon.
+
+Complément0412 : addendumarchitecte18lignes lu/ratifiéAVANTOPS. Les deux autres
+couplesIAMauth_transactions_postgres etoauth_cleanup_lifecycle serontseulsajoutés
+auresolverexistant/AST, corefigé7b8c1f95. MêmegatePS avantlive, revuecomplémentdelta,
+puis deuxruns séquentiels avecinventaires/registre/cleanup, sans toutIAM/nouveaulanceur.
+Oraclespréinscrits : positifs2couplesexacts, refusautressuites/casse/espaces/paths/
+multisuitesrépétées/options etspymêmebrancheCargoexacte. Aucuneacceptancefutureàblanc.
+
 ## Plafond server_info v2 — plan avant code/run
 
 Amendement architecte v2 lu et explicitement ratifié : plafondFIXE131072B,
