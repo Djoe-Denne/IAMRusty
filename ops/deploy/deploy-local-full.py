@@ -184,9 +184,25 @@ _INGRESS_HISTORICAL_OBSERVATION = "0ad1c639efe15aa5a8e183a95a5171e761fba7fa2d3e2
 _INGRESS_HISTORICAL_CAPTURE_HEAD = "ff12007a837eaf8c013e519b33e0c9bdb1d2ec5f"
 _INGRESS_PROJECTION_NAMES = ("observation", "summary", "baseline", "passive-baseline",
                              "admin-before", "admin-after", "causal-review")
-# Inactive until the lead qualifies the exact new helper and immutable manifest.
+# Exact producer/mutation/manifest qualified by the lead and sealed audit receipt.
 # No runtime file, caller argument or environment variable can authorize a pair.
-_INGRESS_CAPTURE_COMPATIBILITY = ()
+_INGRESS_CAPTURE_COMPATIBILITY = (
+    (
+        "ff12007a837eaf8c013e519b33e0c9bdb1d2ec5f",
+        "7385b551a7d154873cecc5375b5dc18f161b295c9b80d249b0befaea349322be",
+        (
+            ("observation", "0ad1c639efe15aa5a8e183a95a5171e761fba7fa2d3e2c0d841c5720f8781280"),
+            ("summary", "41fbbdc4a51f5f3a0fb78a842a327a0ea5ed93008f6c1cbe65f8c400a1b7ff65"),
+            ("baseline", "e08365c60b6ccceb00fdb418a6a2234e317a1b86652cba0e733ec98edf54d034"),
+            ("passive-baseline", "e08365c60b6ccceb00fdb418a6a2234e317a1b86652cba0e733ec98edf54d034"),
+            ("admin-before", "f5df36bffb90edfd1c564d5f51e1c9e584c2a005da1a789ca926e3cea32275d3"),
+            ("admin-after", "269c9868662f2fe7138d6d5f2d5ad145b3b7a8e9fb42066b04672c05986111de"),
+            ("causal-review", "ec695cb6eba701d85339b5d5f4139af2ab8d6d8e970dff7b0c91edabf9cefcf6"),
+        ),
+        "9b0da96b7e0db6ace93628d4d55f059d997231384c44737ff2a39ea4f1a64605",
+        "b79ec6aa1aab145e136e397d3f18242aaa59a9375272b46417d7baac620c3250",
+    ),
+)
 
 
 def _ingress_json(value):

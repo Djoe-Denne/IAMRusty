@@ -298,6 +298,17 @@ provenance-shape-tests.log même campagne4dba... . Formes incomplètes/mutables,
 ordre/duplicats/préfixes/bool/SHAmismatch et cas headréservé refusés avant commande.
 Seuls runner/test ont changé ; helper9b0 et52tests du garde précédents réutilisés.
 
+Recheck provenance967 indépendant PASS sans nouveau finding (briefing1348Z),
+table encore vide à sa revue. Après vérifications RAW/manifestsept et revues,
+lead a qualifié la paire EXACTE7385→9b0/headff12007 et reçu privé scellé
+qualification008325.../qualification.json ; SHA réel du reçu calculéAPRÈSscellement
+b79ec6aa1aab145e136e397d3f18242aaa59a9375272b46417d7baac620c3250.
+Cette cinquième valeur exacte est explicitement approuvée, aucun hashfutur à blanc.
+Entrée littérale inscrite ; contrôleAST tousautresnœuds inchangés vs967 et égalité
+des5champs avec octets réels du reçu PASS. Aucun JSONreçu n'est chargé comme
+permission runtime ; aucune preuve originale modifiée. Recheck littéral final
+reste requis avant exécution réseau, pas rerun des suites inchangées par principe.
+
 ## Plafond server_info v2 — plan avant code/run
 
 Amendement architecte v2 lu et explicitement ratifié : plafondFIXE131072B,
