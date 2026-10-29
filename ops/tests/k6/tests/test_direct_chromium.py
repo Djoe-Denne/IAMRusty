@@ -70,7 +70,7 @@ def fake_child_reads(payload, stream, cleanup):
             mock.patch.object(Path, "iterdir", return_value=[]),
             mock.patch.object(safety.subprocess, "Popen", return_value=process),
             mock.patch.object(safety.selectors, "DefaultSelector", return_value=selector),
-            mock.patch.object(safety.os, "set_blocking"),
+            mock.patch.object(safety.os, "set_blocking", create=True),
             mock.patch.object(safety.os, "getuid", return_value=uid, create=True),
             mock.patch.object(safety.os, "read", side_effect=read),
             mock.patch.object(safety.os, "kill", side_effect=kill),

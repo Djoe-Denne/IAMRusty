@@ -121,6 +121,47 @@ retries. The script emits only a small closed-label JSON result, with nonzero ex
 for FAIL or INCONCLUSIVE. `cleanup` concerns **launcher children only**, not closure
 of the parent's cluster/runtime. HTTP and Chromium verdicts are never conflated.
 
+### Temporary Ubuntu22.04 comparison — not qualification
+
+The comparison addendum ratified in `b316668` admits **only** a temporary native
+Ubuntu22.04 amd64 non-root diagnostic. Ubuntu24.04 remains the nominal platform;
+all nominal commands still refuse22.04. This does not authorize the separately
+Proposed AppArmor exception, a security-policy change or a durable downgrade.
+
+After explicit acquisition into the same kind of fresh private root, the proposed
+command is (not a record of execution):
+
+```sh
+python3 -B ops/tests/k6/run-linux.py browser --compare-ubuntu-2204 --output "$PRIVATE_ROOT/ubuntu2204-comparison"
+```
+
+This flag is accepted only on `browser` and only on22.04. It reuses the pinned
+archive/ELF checks, both actual binary version checks, both scenario inspections,
+then **at most one** unchanged k6/browser scenario and `Child` supervision. Failed
+prerequisites stop before that scenario. No direct Chromium run, retry, application
+target, free OS/arguments/executable, package installation or fallback is added.
+
+The one-line JSON separates tools, attempted browser launch, complete case,
+sandbox witness, child cleanup, parent cleanup and confidentiality. Its bounded
+metadata records the admitted OS label, observed architecture/kernel/runner image,
+UID, versions and ELF hashes. Even a complete case with the required witness and
+cleanup returns **exit2**, HTTP/Chromium **INCONCLUSIVE**, and **never calls
+`publish`**. Failures remain nonzero, with privacy and cleanup failures intact;
+no result/provenance file is published on this path. Raw streams and summaries
+stay private. These simulated regression fixtures do not qualify a real browser.
+
+The dedicated workflow preserves the canonical24.04 job, including its failure,
+and adds only a nonpublishing22.04 comparison job with the same checkout SHA,
+read-only permission, acquisition and private-root rules. A push may incidentally
+run24.04 again; the comparison reference remains run40973768642, not a claimed
+single-variable A/B. No dispatch, failure masking or artifact upload is added.
+
+Research is reused from mission report23 and the Accepted comparison addendum:
+[pinned Chromium156 sandbox guidance](https://chromium.googlesource.com/chromium/src/+/156.0.8078.73/docs/security/apparmor-userns-restrictions.md),
+[official Ubuntu22.04 runner retirement announcement](https://github.com/actions/runner-images/issues/14254).
+Ubuntu22.04 is deprecated and retires2027-04-17. A different result can demonstrate
+environment dependence, **not AppArmor causality or Ubuntu24.04 qualification**.
+
 `config/campaign.example.json` is documentation, **not** a usable lease. Copy and
 populate it in an existing private Linux directory outside Git, then make the
 new owned config read-only (`0400`); parent directories must be `0700`. Never

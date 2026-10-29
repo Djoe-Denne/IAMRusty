@@ -150,12 +150,13 @@ def verify_false_check(data, run_id, exit_code):
     verify_summary(normalized, run_id, "HTTP")
 
 
-def linux_platform():
+def linux_platform(*, comparison=False):
     if sys.platform != "linux" or platform.machine() not in {"x86_64", "amd64"} or os.getuid() == 0:
         raise Rejected("PLATFORM_UNQUALIFIED", True)
     try:
         release = dict(line.split("=", 1) for line in Path("/etc/os-release").read_text().splitlines() if "=" in line)
-        if release.get("ID", "").strip('"') != "ubuntu" or release.get("VERSION_ID", "").strip('"') != "24.04":
+        expected = "22.04" if comparison is True else "24.04"
+        if release.get("ID", "").strip('"') != "ubuntu" or release.get("VERSION_ID", "").strip('"') != expected:
             raise Rejected("PLATFORM_UNQUALIFIED", True)
     except OSError:
         raise Rejected("PLATFORM_UNQUALIFIED", True) from None
@@ -240,6 +241,22 @@ def k6_argv(binary, output, verb):
     return [str(binary), "--quiet", "--no-color", "--address", "", "--log-format", "raw",
             "--log-output", "stderr", "--config", str(output / "private/empty.json"),
             verb, "--include-system-env-vars=false", "--new-machine-readable-summary=false"]
+
+
+def inspect_scenario(tools, output, phase):
+    verify_tools(tools, ("k6",))
+    child = Child()
+    if child.execute(k6_argv(tools["k6"], output, "inspect") + [str(SCENARIOS[phase])],
+                     output=output, env=child_environment(output), timeout=10) != 0:
+        raise Rejected("TOOL_FAILED")
+    # Inspect parses options but never runs an iteration or a target guard.
+    inspected = strict_json(child.stdout)
+    scenarios = inspected.get("scenarios", inspected.get("options", {}).get("scenarios", {}))
+    selected = scenarios.get(CASES[phase], {})
+    if (set(scenarios) != {CASES[phase]} or selected.get("executor") != "per-vu-iterations"
+            or selected.get("vus") != 1 or selected.get("iterations") != 1
+            or not selected.get("maxDuration")):
+        raise Rejected("INPUT_INVALID")
 
 
 HOST_LABELS = {
@@ -482,6 +499,34 @@ def publish(output, result, provenance=None):
         path.chmod(0o400)
 
 
+def observed_environment():
+    observed = {}
+    for name, value in {"kernel": platform.release(), "architecture": platform.machine(),
+                         "runner_image": os.environ.get("ImageOS", "not-provided"),
+                         "runner_image_version": os.environ.get("ImageVersion", "not-provided")}.items():
+        observed[name] = value if re.fullmatch(r"[A-Za-z0-9._+-]{1,160}", value) else "not-projectable"
+    return observed
+
+
+def comparison_metadata(tools, versions):
+    """Closed facts from the already admitted host/pins; never a platform PASS."""
+    lock = strict_json((HERE / "config/tools.lock.json").read_bytes())
+    names = ("k6", "chromium")
+    if (type(versions) is not dict or set(versions) != set(names)
+            or any(type(versions[name]) is not str or versions[name] != lock[name]["version"] for name in names)):
+        raise Rejected("TOOL_VERSION")
+    hashes = {name: digest(tools[name]) for name in names}
+    if any(type(value) is not str or not re.fullmatch(r"[a-f0-9]{64}", value) for value in hashes.values()):
+        raise Rejected("TOOL_UNPINNED", True)
+    uid = os.getuid()
+    if type(uid) is not int or not 0 < uid < 2**32:
+        raise Rejected("PLATFORM_UNQUALIFIED", True)
+    value = {"observed": {**observed_environment(), "uid": uid},
+             "versions": {name: versions[name] for name in names}, "tools": hashes}
+    confidential(json.dumps(value, sort_keys=True).encode())
+    return value
+
+
 def provenance(tools, lock, versions, config_path=None):
     # Only stable labels and hashes. No URLs, full environment, cmdlines or paths.
     verify_tools(tools, tuple(tools))
@@ -492,12 +537,7 @@ def provenance(tools, lock, versions, config_path=None):
                           env={"PATH": "/usr/bin:/bin", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}).stdout.strip().decode("ascii")
     if not re.fullmatch(r"[a-f0-9]{40}", head):
         raise Rejected("INPUT_INVALID")
-    observed = {}
-    for name, value in {"kernel": platform.release(), "architecture": platform.machine(),
-                        "runner_image": os.environ.get("ImageOS", "not-provided"),
-                        "runner_image_version": os.environ.get("ImageVersion", "not-provided")}.items():
-        observed[name] = value if re.fullmatch(r"[A-Za-z0-9._+-]{1,160}", value) else "not-projectable"
-    return {"version": 1, "head": head, "platform": "ubuntu-24.04-linux-amd64", "observed": observed, "versions": versions,
+    return {"version": 1, "head": head, "platform": "ubuntu-24.04-linux-amd64", "observed": observed_environment(), "versions": versions,
             "tools": {name: digest(path) for name, path in tools.items()},
             "sources": {str(path.relative_to(REPO)): digest(path) for path in sources},
             "config_sha256": digest(Path(config_path)) if config_path else None,
@@ -583,6 +623,9 @@ def arguments(argv):
             command.add_argument("--config", required=True)
         if name != "validate":
             command.add_argument("--output", required=True)
+        if name == "browser":
+            command.add_argument("--compare-ubuntu-2204", action="store_true",
+                                 help="Temporary nonqualifying comparison only; never publishes and always exits nonzero.")
     return parser.parse_args(argv)
 
 
@@ -590,6 +633,7 @@ def main(argv=None):
     output = None
     phase = None
     mode = None
+    comparison = False
     result = {"version": 1, "HTTP": "INCONCLUSIVE", "Chromium": "INCONCLUSIVE",
               "cleanup": "NOT_STARTED", "confidentiality": "PASS", "run_id": uuid.uuid4().hex,
               "started_unix_ms": int(time.time() * 1000), "cleanup_scope": "LAUNCHER_CHILDREN_ONLY",
@@ -598,7 +642,14 @@ def main(argv=None):
         args = arguments(argv)
         mode = args.command
         phase = {"run": "HTTP", "browser": "Chromium"}.get(mode)
-        linux_platform()
+        comparison = mode == "browser" and args.compare_ubuntu_2204
+        if comparison:
+            linux_platform(comparison=True)
+            result["comparison"] = {"platform": "ubuntu-22.04-linux-amd64-diagnostic-only",
+                "qualification": "NOT_EQUIVALENT_TO_UBUNTU_24_04", "reference_run": "40973768642",
+                "browser_launch": "NOT_STARTED", "case": "NOT_PROVEN", "sandbox_witness": "NOT_PROVEN"}
+        else:
+            linux_platform()
         config = configuration(args.config) if args.command in {"validate", "run", "selftest"} else None
         if args.command == "validate":
             result["diagnostic"] = "OFFLINE_ADMISSIBLE_NOT_AUTHORIZED"
@@ -611,24 +662,33 @@ def main(argv=None):
             if mode in {"browser", "diagnose-chromium"}:
                 result["browser_source"] = "K6" if mode == "browser" else "CHROMIUM_DIRECT"
                 result["browser_host"] = closed_host_metadata(host_metadata())
+            if comparison:
+                # Same versions/inspect/identity/environment/scenario/Child as V1.
+                # No direct launch, retry, HTTP target, publication or qualification.
+                result["comparison"].update(comparison_metadata(tools, versions))
+                for inspected_phase in SCENARIOS:
+                    inspect_scenario(tools, output, inspected_phase)
+                result["tools"] = "PASS"
+                result["comparison"]["browser_launch"] = "ATTEMPTED"
+                completed = scenario_run("Chromium", None, output, tools)
+                result["run_id"] = completed["run_id"]
+                result["cleanup"] = completed["cleanup"]
+                result["comparison"]["case"] = "COMPLETE"
+                result["comparison"]["sandbox_witness"] = "OBSERVED"
+                result["diagnostic"] = "PREREQUISITE_UNAVAILABLE"
+                result["finished_unix_ms"] = int(time.time() * 1000)
+                raw = json.dumps(result, sort_keys=True, allow_nan=False).encode()
+                if len(raw) > ARTIFACT_LIMIT:
+                    raise Rejected("OUTPUT_LIMIT")
+                confidential(raw)
+                print(raw.decode())
+                return 2
             if mode == "diagnose-chromium":
                 direct_chromium(output, tools)  # always nonzero; no artifacts/phase PASS
                 raise Rejected("INTERNAL_ERROR")  # never fall through to HTTP if its contract breaks
             if args.command == "tools":
-                for phase, path in SCENARIOS.items():
-                    verify_tools(tools, ("k6",))
-                    child = Child()
-                    if child.execute(k6_argv(tools["k6"], output, "inspect") + [str(path)],
-                                     output=output, env=child_environment(output), timeout=10) != 0:
-                        raise Rejected("TOOL_FAILED")
-                    # Inspect parses options but never runs an iteration or a target guard.
-                    inspected = strict_json(child.stdout)
-                    scenarios = inspected.get("scenarios", inspected.get("options", {}).get("scenarios", {}))
-                    selected = scenarios.get(CASES[phase], {})
-                    if (set(scenarios) != {CASES[phase]} or selected.get("executor") != "per-vu-iterations"
-                            or selected.get("vus") != 1 or selected.get("iterations") != 1
-                            or not selected.get("maxDuration")):
-                        raise Rejected("INPUT_INVALID")
+                for phase in SCENARIOS:
+                    inspect_scenario(tools, output, phase)
                 result["tools"] = "PASS"
                 result["diagnostic"] = "PREREQUISITES_ONLY_HTTP_NOT_RUN"
                 result["cleanup"] = "PASS"
@@ -668,6 +728,8 @@ def main(argv=None):
             result["Chromium"] = "INCONCLUSIVE"
         if phase:
             result[phase] = "INCONCLUSIVE" if failure.inconclusive else "FAIL"
+        if comparison:
+            result["HTTP"] = result["Chromium"] = "INCONCLUSIVE"
         if mode in {"selftest", "tools"}:
             result[mode] = "INCONCLUSIVE" if failure.inconclusive else "FAIL"
         result["confidentiality"] = ("FAIL" if failure.code == "PRIVACY_FAILED" else
