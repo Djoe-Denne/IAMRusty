@@ -358,6 +358,23 @@ class AnchorTests(unittest.TestCase):
 
 class WindowsAclBindingTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "native Windows PowerShell boundary")
+    def test_windows_kubectl_pipeline_preserves_payload_and_target_arguments(self):
+        common = Path(__file__).resolve().parents[1] / "deploy/common.ps1"
+        # Shadow only the outbound helper in this child. No API/Kind operation.
+        setup = ". $p;function Invoke-LocalTarget {param($Action,$Arguments,$LeasePath,$Context) " \
+                "$values=@($input);@{action=$Action;arguments=$Arguments;lease=$LeasePath;context=$Context;values=$values}|ConvertTo-Json -Compress};"
+        for source, values in [("@('line-one','line-two') | ", ["line-one", "line-two"]),
+                               ("@([string]::Concat('first',[char]10,'second')) | ", ["first\nsecond"]),
+                               ("", [])]:
+            with self.subTest(values=values):
+                script = setup + source + "Invoke-LocalKubectl -Arguments @('apply','-f','-') " \
+                         "-LeasePath 'owned-non-secret-lease' -Context 'kind-aiforall-local-full'"
+                value = json.loads(anchor._windows_path_script(script, common))
+                self.assertEqual(value, {"action": "kubectl", "arguments": ["apply", "-f", "-"],
+                                        "lease": "owned-non-secret-lease", "context": "kind-aiforall-local-full",
+                                        "values": values})
+
+    @unittest.skipUnless(os.name == "nt", "native Windows PowerShell boundary")
     def test_windows_acl_directory_and_private_probe_bind_literal_paths(self):
         # Own non-secret files only. Spaces, apostrophe and semicolon must remain
         # literal data, never PowerShell syntax. No Docker, API or kubeconfig.
@@ -421,6 +438,38 @@ class WindowsAclBindingTests(unittest.TestCase):
         self.assertNotIn("Audit", script)
         self.assertIn("'ReadAndExecute'", script)
         self.assertEqual(invoke.call_args.args[2], False)
+
+
+class NativeRunnerTextTests(unittest.TestCase):
+    def test_native_runner_decodes_utf8_without_reader_thread_loss(self):
+        text = "native \U0001f30f\r\n"
+        data = text.encode("utf-8").hex()
+        command = [sys.executable, "-c", "import sys;sys.stdout.buffer.write(bytes.fromhex('" + data + "'));"
+                   "sys.stderr.buffer.write(bytes.fromhex('" + data + "'))"]
+        # Reproduce the locale of the actual Windows bootstrap independently of
+        # the MCP server's Python UTF-8 mode. Production must not rely on locale.
+        for options in ({"text": True}, {"text": True, "universal_newlines": True}):
+            with self.subTest(options=options), patch("subprocess._text_encoding", return_value="cp1252"):
+                self.assertEqual(anchor.run(command, **options), text.replace("\r\n", "\n"))
+
+    def test_native_runner_rejects_invalid_text_without_reflecting_output(self):
+        sentinel = "DO_NOT_REFLECT_NATIVE_OUTPUT"
+        for stream in ("stdout", "stderr"):
+            for code in (0, 3):
+                with self.subTest(stream=stream, exit=code):
+                    command = [sys.executable, "-c", "import sys;sys." + stream + ".buffer.write(bytes([255]));"
+                               "sys.stderr.write('" + sentinel + "');sys.exit(" + str(code) + ")"]
+                    with self.assertRaises(anchor.AnchorError) as caught:
+                        anchor.run(command, text=True, encoding="utf-8")
+                    self.assertNotIn(sentinel, str(caught.exception))
+        with self.assertRaises(anchor.AnchorError) as caught:
+            anchor.run([sys.executable, "-c", "pass"], text=True, input=sentinel + "\udcff")
+        self.assertNotIn(sentinel, str(caught.exception))
+
+    def test_native_runner_preserves_binary_io(self):
+        value = bytes([0, 255, 13, 10, 128])
+        command = [sys.executable, "-c", "import sys;sys.stdout.buffer.write(sys.stdin.buffer.read())"]
+        self.assertEqual(anchor.run(command, input=value, text=False), value)
 
 
 if __name__ == "__main__":

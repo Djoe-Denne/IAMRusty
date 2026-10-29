@@ -39,7 +39,8 @@ function Invoke-LocalKubectl {
         [Parameter(Mandatory = $true)][string[]]$Arguments,
         [ValidateSet('kind-aiforall-local', 'kind-aiforall-local-full')]
         [string]$Context = 'kind-aiforall-local',
-        [string]$LeasePath = $env:AIFORALL_RUNTIME_LEASE
+        [string]$LeasePath = $env:AIFORALL_RUNTIME_LEASE,
+        [Parameter(ValueFromPipeline = $true)][AllowNull()][object]$InputObject
     )
     $input | Invoke-LocalTarget -Action kubectl -Context $Context -LeasePath $LeasePath -Arguments $Arguments
 }

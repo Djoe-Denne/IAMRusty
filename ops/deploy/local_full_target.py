@@ -121,9 +121,34 @@ def parse_kubectl_operation(argv):
 
 
 def run(command, **kwargs):
+    # Go CLIs emit UTF-8 on Windows too. Capture bytes so a decoder exception
+    # cannot be swallowed in subprocess's Windows pipe-reader thread.
+    encoding = kwargs.pop("encoding", None)
+    errors = kwargs.pop("errors", None)
+    text = kwargs.pop("text", False)
+    universal = kwargs.pop("universal_newlines", False)
+    textual = bool(text or universal or encoding or errors)
+    if errors not in {None, "strict"}:
+        raise AnchorError("non-strict target text decoding forbidden")
+    encoding = encoding or "utf-8"
+    if textual and isinstance(kwargs.get("input"), str):
+        try:
+            value = kwargs["input"]
+            if os.linesep != "\n":
+                value = value.replace("\n", os.linesep)
+            kwargs["input"] = value.encode(encoding, errors="strict")
+        except (UnicodeError, LookupError):
+            raise AnchorError("invalid target input encoding; output redacted") from None
     result = subprocess.run(command, capture_output=True, check=False, **kwargs)
     if result.returncode:
         raise AnchorError("target operation failed; output redacted")
+    if textual:
+        try:
+            output = result.stdout.decode(encoding, errors="strict")
+            result.stderr.decode(encoding, errors="strict")
+        except (UnicodeError, LookupError):
+            raise AnchorError("invalid target text encoding; output redacted") from None
+        return output.replace("\r\n", "\n").replace("\r", "\n")
     return result.stdout
 
 

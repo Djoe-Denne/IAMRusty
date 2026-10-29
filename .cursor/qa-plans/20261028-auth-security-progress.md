@@ -632,6 +632,50 @@ pas Audit/SACL, sans dispenser des droits Windows de ces sections. Les contrôle
 de refus restent actifs. Commit puis nouvelle lease pending uniquement ; aucun
 ancien ancrage adopté, aucune élévation pour la reprise.
 
+### Cluster neuf créé — frontières pipeline et sortie native
+
+Troisième bootstrap b9c5eaa : trois nœuds créés/ancrés, IDs Engine exactement
+égaux à ceux du bail, trois volumes corrélés, UID kube-system vérifié. Scellement
+Windows réellement exercé ; le bootstrap s'arrête ensuite à l'entrée pipeline
+de Invoke-LocalKubectl avant application Calico (InputObjectNotBound).
+Le log montre aussi un readerthread UnicodeDecodeError du subprocess Kind :
+Go émet UTF8, capture text implicite CP1252. Pas d'erreur à masquer ou ignorer.
+
+Plan avant fix/run : ajouter l'acceptation ValueFromPipeline explicite au helper
+PowerShell avancé, en conservant l'ordre/complet des objets et tous arguments de
+cible ; pas de nouvelle commande permise. Dans run Python, capturer bytes puis
+décoder strictement la sortie textuelle UTF8 au retour, pour ne pas perdre une
+erreur de décodage dans un thread ; garder les appels binaires byte-exact et les
+échecs opaques. Encodage explicite du helper Windows conservé.
+
+Tests nommés avant exécution dans la suite existante :
+`test_windows_kubectl_pipeline_preserves_payload_and_target_arguments` (PowerShell
+natif avec Invoke-LocalTarget remplacé localement par un spy, aucun appel API),
+`test_native_runner_decodes_utf8_without_reader_thread_loss`,
+`test_native_runner_rejects_invalid_text_without_reflecting_output`,
+`test_native_runner_preserves_binary_io` (enfants Python locaux seulement).
+Baselines ciblées, correctifs et suite target. Aucun Cargo/IT/Kind dans ces tests.
+
+La reprise de bootstrap s'appuiera sur la lease ANCHORED existante, dont le chemin
+retourne après vérifications sans appeler Kind create. Pas de nouveau pending,
+pas reset/restart de nœud. Sources binaires/images restent cf02c4a, SDK02e5.
+
+Baselines : pipeline natif ERROR InputObjectNotBound ; runnerUTF8 deux FAIL
+(mauvais texte/perte de thread et texte invalide non bloqué), témoin binaire déjà
+vert. Après un paramètre ValueFromPipeline dans le helper avancé et capture
+bytes/décodage strict dans run : pipeline1 PASS, runner3 PASS, suite28 PASS.
+Oracles renforcés sans nouveaux noms : payload multiple/multiligne/absent,
+arguments cible inchangés, modes text/universal combinés, mauvais UTF8 stdout
+ou stderr (exit0/3), entrée non encodable opaque, binaire byte-exact. Suite finale
+28 PASS2.954s, aucun skip/readerthreaderror ; logauth-cli-frontiers-reviewed-suite.
+
+Décision de séquencement proportionnée : intégrer ce delta de conduite revu par
+le lead et lancer la reprise réseau de l'ancrage existant ; revue sécurité RO
+du commit exact en parallèle, avant toute étape applicative/credentials OAuth.
+Le bootstrap ne déploie ici que le CNI public épinglé. Aucun nouveau verdict
+fonctionnel ni permission cible n'est créé ; finding bloquant éventuel arrête
+les admissions suivantes. Pas de pipeline de rôles ou attente de GO utilisateur.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et
