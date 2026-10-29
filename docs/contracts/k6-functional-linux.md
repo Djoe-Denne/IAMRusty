@@ -67,10 +67,12 @@ l'environnement des IT Rust ; les E2E consomment un laboratoire déployé sépar
 
 ### Voie locale mission1 et autorité de cible
 
-Choix V1 : WSL/Linux natif non-root, hors cluster, vers l'exposition **déjà
-déployée et autorisée** local-full `http://127.0.0.1:18080/iam/health`. Ce n'est pas
-une URL libre. Le parent doit démontrer que ce loopback désigne le bon trajet
-depuis Linux ; aucune assimilation au loopback Windows, au pod ou au conteneur.
+Voie locale étudiée en V1 : WSL/Linux natif non-root, hors cluster, vers
+`http://127.0.0.1:18080/iam/health` sur local-full. Cette origine reste fermée,
+mais **n'est pas activable par défaut comme cible publique** au vu du constat
+statique ci-dessous. Le parent doit démontrer son identité et sa conformité
+publique depuis Linux ; aucune assimilation au loopback Windows, au pod ou au
+conteneur et aucune URL libre ne remplace ces preuves.
 Pas de modification issuer/callback, proxy, port-forward, tunnel, port public,
 NAT ou service de substitution par le lanceur. Docker non privilégié n'est qu'une
 alternative à qualifier sous bail du parent, pas un repli automatique ; son
@@ -109,6 +111,27 @@ pas une observation live. Ne pas lancer une capture réseau/admin ou ajouter une
 API pour cette vérification. Pas de pré-sonde HTTP ajoutée au cas nominal : les
 lectures d'identité du parent sont distinctes de son unique GET applicatif.
 Les contrôles pré/post bornent une course, ils ne rendent pas HTTP atomique par UID.
+
+**Incompatibilité publique du trajet étudié — addendum architecte ratifié :**
+la route IAM publique ne rend pas automatiquement le trajet Envoy public.
+`ops/deploy/apps/overlays/kind-mesh/envoy-mesh.yaml:167–170` conserve le préfixe
+`/iam/` sans exemption health ; le filtre ext_authz est fail-closed
+(lignes201–205). `workers/ext-authz/src/check.rs:82–84` refuse l'absence de Bearer
+et `deny:128–130` retourne403. Le test source
+`denies_envoy_client_path_without_bearer` corrobore le refus, sans avoir été
+exécuté pour cette mission. `render-local-full.py:139–152` adapte le transport
+downstream et filtre les callbacks, sans ajouter d'exemption health.
+
+Ces faits statiques sont inchangés entre la base architecte `9896140` et le contrat
+intégré `c9b537c` ; **aucun 403 live n'a été mesuré**. Le lead ratifie le 2026-10-29 ce
+seul delta utile de la proposition architecte
+`ses_e7697c371ffe5Dl4RX4kPhuJDt`, sans réintroduire ses anciens statuts Proposed.
+Ne pas ajouter token, exemption, route, tunnel, port-forward ou oracle403 à la
+place du 200/OK pour fermer mission1. Aucun appel HTTP n'est activé par défaut
+sur 18080. Une exposition publique existante autorisée doit être identifiée,
+observée et figée par amendement architecte ratifié avant activation ; pas de
+paramètre d'URL arbitraire. D'ici là, le lanceur refuse HTTP avec verdict
+INCONCLUSIVE/non-zéro ; l'outillage, Chromium et les tests locaux restent séparés.
 
 **Blocage identifié, pas levé par la préparation :** une branche POSIX existe,
 mais aucun bail Linux contemporain, endpoint joignable depuis ce runner ni

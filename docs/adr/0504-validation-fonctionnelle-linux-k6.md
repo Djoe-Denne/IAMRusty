@@ -75,6 +75,13 @@ Le choix demandé est Grafana k6 ; OHA et les campagnes de performance sont excl
   interdit. Si ce raccordement n'est pas disponible, HTTP reste **INCONCLUSIVE** ;
   sa reprise exige une cible et une autorité existantes conformes, ou un arbitrage
   structurel distinct. Aucun contournement intégré à k6.
+- Addendum architecte ratifié le 2026-10-29 : le trajet 18080 étudié reste protégé
+  par ext_authz dans les sources actuelles, malgré le handler IAM public. Le
+  [constat statique et ses limites](../contracts/k6-functional-linux.md#voie-locale-mission1-et-autorité-de-cible)
+  interdisent de l'activer par défaut comme smoke sans credentials. Aucun 403 live
+  mesuré, pas d'ajout de token/exemption/route pour obtenir 200. Identifier puis
+  ratifier une exposition publique existante avant HTTP ; outils/Chromium restent
+  qualifiables indépendamment, sans promotion de Réalité.
 - Le parent conserve bail/inventaires, preuves d'identité contemporaines, vérifications
   pré/post et cleanup ; k6 ne reçoit ni bail, kubeconfig, credentials ni commandes
   privilégiées. Un fichier descriptif, un nom, un digest ou une URL ne prouve pas
