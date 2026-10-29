@@ -159,9 +159,10 @@ def secure(path, directory=False):
         return
     # No inherited broad ACE, no Administrators/Everyone grants. SYSTEM + task
     # user only; generated file is read-only and no longer writable by task tools.
-    # Mark the new owned file read-only before withdrawing its owner's
-    # WriteAttributes right. The resulting ACL remains exactly the same.
-    script = "$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User;$a=if($dir){New-Object Security.AccessControl.DirectorySecurity}else{New-Object Security.AccessControl.FileSecurity};$a.SetOwner($sid);$a.SetAccessRuleProtection($true,$false);$rights=if($dir){'FullControl'}else{'ReadAndExecute'};$a.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid,$rights,'Allow'));$a.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new('S-1-5-18'),'FullControl','Allow'));if(-not $dir){(Get-Item -LiteralPath $p).IsReadOnly=$true};Set-Acl -LiteralPath $p -AclObject $a"
+    # Mark the new owned file read-only before withdrawing WriteAttributes.
+    # Persist only modified owner/access sections through .NET: Set-Acl can
+    # attempt an unrelated SACL write on Python's protected Windows 0o700 DACL.
+    script = "$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User;$a=if($dir){New-Object Security.AccessControl.DirectorySecurity}else{New-Object Security.AccessControl.FileSecurity};$a.SetOwner($sid);$a.SetAccessRuleProtection($true,$false);$rights=if($dir){'FullControl'}else{'ReadAndExecute'};$a.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid,$rights,'Allow'));$a.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new('S-1-5-18'),'FullControl','Allow'));$item=Get-Item -LiteralPath $p;if(-not $dir){$item.IsReadOnly=$true};$item.SetAccessControl($a)"
     _windows_path_script(script, path, directory)
 
 

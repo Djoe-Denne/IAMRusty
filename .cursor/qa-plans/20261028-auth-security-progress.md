@@ -596,6 +596,42 @@ garantie d'immutabilité ni de permission de descellement. Reprise conforme :
 committer ce delta Python/tests/QA, avancer le contexte propre et créer une
 nouvelle lease pending ; les assets privés de cette même mission restent identifiés.
 
+### Deuxième bootstrap — DACL protégée Windows, plan avant correction
+
+Le nouvel essai c9cbf80 s'arrête encore avant Kind : zéro ID nœud/volume,
+creation.phase absent et répertoire d'ancrage vide. Diagnostic natif limité à
+ce répertoire possédé : Set-Acl demande SeSecurityPrivilege, absent. Comparaison
+read-only des tokens natif et Context Mode : tous deux non élevés, privilège
+absent. Ne pas relancer via un autre outil, activer un privilège ou changer de compte.
+
+Différence d'arrangement localisée : le bootstrap crée son répertoire avec
+Path.mkdir(mode=0o700), le test natif utilisait mkdir par défaut. Renforcer ce
+même oracle avec 0o700 avant nouvelle baseline. Hypothèse documentée : Set-Acl
+réapplique le descripteur complet sur cette DACL protégée et demande une écriture
+d'audit non nécessaire ; le contrat ne modifie que propriétaire/DACL.
+
+Alternative compatible à examiner/tester : API .NET Framework SetAccessControl
+de l'objet fichier/répertoire, qui persiste ses sections modifiées, sans demander
+de nouvelle identité ou privilège. Même propriétaire, mêmes ACE et protections,
+aucun accès SACL/audit ajouté ou supprimé. Documentation Microsoft .NET4.8.1
+confirme l'API disponible dans Windows PowerShell5.1 utilisé. Pas de mutation
+runtime avant validation native de la condition réelle et recheck sécurité ciblé.
+
+Baseline renforcée reproduite : oracle natif0o700 ERROR AnchorError dans secure,
+pas d'accès Kind. Remplacement par FileSystemInfo.SetAccessControl sur les sections
+Owner/Access modifiées (aucune règle Audit ni modification SACL). Sélection3 PASS,
+puis suite24 PASS. Ajout d'assertions natives des droits exacts sur ce répertoire
+protégé, suite finale24 PASS2.243s, aucun skip. Pas d'activation de privilège,
+élévation ou compte différent ; ErrorActionStop et refus natifs restent propagés.
+Log .tmp/auth-windows-protected-dacl-exact-suite.log, anciens rouges conservés.
+Diff restreint guard/tests/QA soumis à recheck avant commit et prochain bail neuf.
+
+Recheck sécurité reçu : PASS borné sans finding sur les postimages exactes.
+Revue indépendante de Reference Source confirme masque Owner/Access modifié,
+pas Audit/SACL, sans dispenser des droits Windows de ces sections. Les contrôles
+de refus restent actifs. Commit puis nouvelle lease pending uniquement ; aucun
+ancien ancrage adopté, aucune élévation pour la reprise.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et

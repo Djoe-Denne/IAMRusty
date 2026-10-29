@@ -363,8 +363,16 @@ class WindowsAclBindingTests(unittest.TestCase):
         # literal data, never PowerShell syntax. No Docker, API or kubeconfig.
         with tempfile.TemporaryDirectory(dir=anchor.approved_root(), prefix="acl-binding-") as directory:
             path = Path(directory) / "literal space' ; éΩ directory"
-            path.mkdir()
+            path.mkdir(mode=0o700)
             anchor.secure(path, directory=True)
+            permissions = anchor._windows_path_script(
+                "$a=Get-Acl -LiteralPath $p;$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User;"
+                "$rules=@($a.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]));"
+                "$ok=$a.AreAccessRulesProtected -and $a.GetOwner([Security.Principal.SecurityIdentifier]).Equals($sid) -and $rules.Count -eq 2;"
+                "foreach($r in $rules){if($r.IdentityReference.Value -notin @($sid.Value,'S-1-5-18') -or "
+                "$r.AccessControlType -ne 'Allow' -or $r.FileSystemRights -ne 'FullControl' -or $r.IsInherited){$ok=$false}};"
+                "if($ok){'exact-private-dacl'}else{'invalid-dacl'}", path)
+            self.assertEqual(permissions.strip(), "exact-private-dacl")
             file = path / "mutable.txt"
             file.write_text("non-secret test marker", encoding="utf-8")
             # A policy-probe fixture needs a known private DACL but must retain
@@ -408,7 +416,9 @@ class WindowsAclBindingTests(unittest.TestCase):
         with patch.object(anchor.os, "name", "nt"), patch.object(anchor, "_windows_path_script") as invoke:
             anchor.secure(path)
         script = invoke.call_args.args[0]
-        self.assertLess(script.index(".IsReadOnly=$true"), script.index("Set-Acl -LiteralPath"))
+        self.assertLess(script.index(".IsReadOnly=$true"), script.index(".SetAccessControl($a)"))
+        self.assertNotIn("Set-Acl", script)
+        self.assertNotIn("Audit", script)
         self.assertIn("'ReadAndExecute'", script)
         self.assertEqual(invoke.call_args.args[2], False)
 
