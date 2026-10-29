@@ -87,3 +87,41 @@ arbitrary target field, changed oracle or extra runtime was introduced.
 Revalidation after this delta: native Windows Python unittest discovery executed
 37 tests, exit0,5 POSIX skips (32 exercised). Linux/k6/Chromium/live commands
 remain unexecuted; no new runtime resource or lease was created/adopted.
+
+## Linux-first correction — immediate output parent
+
+Baseline content for this correction is the integrated tooling commit
+`db16aa726ca0f44876180ac45b4922110c030c09`; the author's original14 staged additions
+were checked to match that commit on the owned paths before editing. No rebase,
+contract transplant, commit, Cargo or runtime operation is part of this delta.
+
+The lead's real Linux37-test run (artist/UID1000, Ubuntu24.04 WSL) returned exit1,
+one failure/two errors: `new_output()` rejected the public grand-parent above the
+private immediate output parent. The briefing
+`20261029-k6-linux-first-run-path-invalid.md` is the source of that RED evidence;
+the previous security result was static only, not a Linux PASS. Author did not
+start, adopt or stop the parent's active WSL lease.
+
+Fix: `private_path(directory=True)` checks that canonical, unlinked, outside-Git
+directory's own UID/type/private modes. File validation still requires both the
+read-only private file and its immediate private directory, by calling the same
+directory guard. `new_output()` still exclusively creates a new output beneath
+the immediate private parent. No `/tmp`, RUNNER_TEMP, authority or auth change.
+
+Added a portable injected-stat policy regression: new output accepted below
+owned0700 parent even when grand-parent is foreign/public1777; immediate public
+or foreign parent is still rejected. It reproduced PATH_INVALID before the fix
+(40tests, exit1,6 POSIX skips). After correction: native Windows unittest40tests,
+exit0,6 POSIX skips (34 exercised). This injection is not real POSIX evidence.
+
+The Linux regression uses only new test-owned directories: actual public
+grand-parent/private parent, private-file read, and refusals of immediate public
+parent, private file in public parent, linked parent, existing directory/file and
+Git ancestor. Sentinel and output-flood tests now require exact PRIVACY_FAILED
+and OUTPUT_LIMIT, so an earlier PATH_INVALID cannot masquerade as coverage.
+These6 real POSIX/process tests await the lead's Linux replay after integration.
+
+Impact check: canonical Serena references show private_read/new_output; exact
+source matching also finds the tools-root and executable-file checks in
+run-linux.py. The canonical server does not contain this unmerged worktree fix;
+the targeted patch and native tests are the validation for this candidate.

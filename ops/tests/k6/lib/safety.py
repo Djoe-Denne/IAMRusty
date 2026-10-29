@@ -81,12 +81,16 @@ def private_path(value, directory=False, readonly=True):
     if not path.is_absolute() or path != path.resolve(strict=True):
         raise Rejected("PATH_INVALID")
     outside_git(path)
-    item, parent = path.stat(), path.parent.stat()
-    if (item.st_uid != os.getuid() or parent.st_uid != os.getuid()
-            or item.st_mode & 0o077 or parent.st_mode & 0o077
+    item = path.stat()
+    if (item.st_uid != os.getuid() or item.st_mode & 0o077
             or not (stat.S_ISDIR(item.st_mode) if directory else stat.S_ISREG(item.st_mode))
             or (readonly and not directory and item.st_mode & 0o222)):
         raise Rejected("PATH_INVALID")
+    if not directory:
+        # A file also requires its immediate containing directory to be private.
+        # Directory callers validate that directory itself, not its ancestors:
+        # a new output under owned 0700 may legitimately have public /tmp above it.
+        private_path(path.parent, directory=True)
     return path
 
 

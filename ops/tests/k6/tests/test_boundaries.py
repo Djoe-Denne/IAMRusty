@@ -4,8 +4,10 @@ import io
 import json
 import os
 from pathlib import Path
+import stat
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -201,8 +203,80 @@ class SelftestTests(unittest.TestCase):
         child.assert_not_called()
 
 
+class DirectoryPolicyTests(unittest.TestCase):
+    """Portable policy oracle with injected stat metadata, not POSIX evidence."""
+    def test_private_output_parent_does_not_require_private_grandparent(self):
+        with scratch() as parent:
+            real_stat = Path.stat
+            metadata = {parent: (123, 0o700), parent.parent: (0, 0o1777)}
+            def injected_stat(path, *args, **kwargs):
+                if path in metadata:
+                    uid, mode = metadata[path]
+                    return SimpleNamespace(st_uid=uid, st_mode=stat.S_IFDIR | mode)
+                return real_stat(path, *args, **kwargs)
+            with mock.patch.object(Path, "stat", injected_stat), mock.patch.object(os, "getuid", return_value=123, create=True):
+                output = safety.new_output(str(parent / "run"))
+            self.assertTrue(output.is_dir())
+            self.assertTrue((output / "private/empty.json").is_file())
+
+    def test_immediate_parent_must_still_be_private_and_owned(self):
+        for uid, mode in [(123, 0o755), (124, 0o700)]:
+            with self.subTest(uid=uid, mode=mode), scratch() as parent:
+                real_stat = Path.stat
+                def injected_stat(path, *args, **kwargs):
+                    if path == parent:
+                        return SimpleNamespace(st_uid=uid, st_mode=stat.S_IFDIR | mode)
+                    return real_stat(path, *args, **kwargs)
+                with mock.patch.object(Path, "stat", injected_stat), mock.patch.object(os, "getuid", return_value=123, create=True), \
+                        self.assertRaises(runner.Rejected) as found:
+                    safety.new_output(str(parent / "run"))
+                self.assertEqual(found.exception.code, "PATH_INVALID")
+                self.assertFalse((parent / "run").exists())
+
+
 @unittest.skipUnless(sys.platform == "linux", "Real POSIX/process checks require Linux; no WSL startup in unit tests")
 class PosixTests(unittest.TestCase):
+    def test_output_private_parent_below_public_grandparent_and_fail_closed_edges(self):
+        with scratch() as root:
+            root.chmod(0o700)
+            public = root / "public-grandparent"
+            public.mkdir(mode=0o777)
+            public.chmod(0o777)  # Only the new test-owned directory, never /tmp.
+            parent = public / "private-parent"
+            parent.mkdir(mode=0o700)
+            output = safety.new_output(str(parent / "run"))
+            self.assertEqual(output.stat().st_uid, os.getuid())
+            self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o700)
+            self.assertEqual(safety.private_read(output / "private/empty.json"), b"{}")
+            with self.assertRaises(runner.Rejected) as found:
+                safety.new_output(str(public / "refused-public-parent"))
+            self.assertEqual(found.exception.code, "PATH_INVALID")
+            self.assertFalse((public / "refused-public-parent").exists())
+            public_file = public / "private-file-public-parent.json"
+            public_file.write_text("{}")
+            public_file.chmod(0o400)
+            with self.assertRaises(runner.Rejected) as found:
+                safety.private_read(public_file)
+            self.assertEqual(found.exception.code, "PATH_INVALID")
+
+            linked = root / "linked-parent"
+            linked.symlink_to(parent, target_is_directory=True)
+            try:
+                with self.assertRaises(runner.Rejected) as found:
+                    safety.new_output(str(linked / "refused-link"))
+                self.assertEqual(found.exception.code, "PATH_INVALID")
+            finally:
+                linked.unlink()
+            for path in [output, output / "private/empty.json"]:
+                with self.subTest(path=path.name), self.assertRaises(runner.Rejected) as found:
+                    safety.new_output(str(path))
+                self.assertEqual(found.exception.code, "PATH_INVALID")
+            self.assertEqual((output / "private/empty.json").read_text(), "{}")
+            (root / ".git").mkdir()
+            with self.assertRaises(runner.Rejected) as found:
+                safety.new_output(str(parent / "refused-git-tree"))
+            self.assertEqual(found.exception.code, "PATH_INVALID")
+
     def test_private_modes_outside_git_and_symlink(self):
         with scratch() as root:
             root.chmod(0o700)
@@ -243,10 +317,11 @@ class PosixTests(unittest.TestCase):
         self.assertEqual(child.stdout, b"")
 
     def test_native_stderr_sentinel_and_output_flood_rejected(self):
-        for source in ["import sys;sys.stderr.write('CONFIDENTIAL_SENTINEL')",
-                       "import sys;sys.stdout.write('x'*70000)"]:
-            with self.assertRaises(runner.Rejected):
+        for source, expected in [("import sys;sys.stderr.write('CONFIDENTIAL_SENTINEL')", "PRIVACY_FAILED"),
+                                 ("import sys;sys.stdout.write('x'*70000)", "OUTPUT_LIMIT")]:
+            with self.subTest(expected=expected), self.assertRaises(runner.Rejected) as found:
                 self.supervise(source)
+            self.assertEqual(found.exception.code, expected)
 
     def test_interruption_reaps_descendants_by_identity(self):
         with self.assertRaises(runner.Rejected) as found:
