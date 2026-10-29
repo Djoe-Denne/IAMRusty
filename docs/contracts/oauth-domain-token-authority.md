@@ -1,6 +1,6 @@
 # Autorité configurée du mint OAuth du domaine
 
-2026-10-29 — auteur architecte/pool-4 ; **Accepted / Unimplemented**.
+2026-10-29 — auteur architecte/pool-4 ; **Accepted / Implemented**.
 Le lead a lu intégralement les86lignes de la proposition finale et ratifie
 explicitement ce contrat sous la délégation utilisateur, AVANT correction de
 production ou migration du constructeur. Proposition originale conservée dans
@@ -8,6 +8,12 @@ le worktree auteur. Aucun changement d'ADR Accepted0304/0311/0314/0412 ou de
 l'[autorité locale ratifiée](0412-oauth-proof-authority-alignment.md).
 
 ## Décision et alternatives
+
+Actualisation après vérification : intégré7b8c1f95, revue1533Z,19units/3codecRS256
+et nouvelleITsecondloginPASS. ComplémentsQA revus1538Z/1603Z,17IT0412PASS, navigateur
+réel qualifié localement. [Décision finale ratifiée](20261029-auth-security-qualified-state.md).
+La ratification initiale ci-dessus reste antérieure au code ; diagnostic1PASS
+et résultats postfix sont distincts. Aucun invariant API/registre relâché.
 
 Conserver le mint intermédiaire et le contrat du domaine ; injecter issuer ET
 audience explicitement depuis la configuration dans les DEUX constructions
@@ -27,7 +33,7 @@ ou provider. Le binding déjà ratifié est rétabli, pas une nouvelle autorité
 ## Cause, références et preuve préalable
 
 Briefing `.cursor/review-briefings/20261029-oauth-complete-user-issuer-conflict-3c2e7ea.md`.
-TokenService::generate_token utilise actuellement TokenClaims::new/issueriamrusty,
+Au diagnostic préfix3c2e7ea, TokenService::generate_token utilisait TokenClaims::new/issueriamrusty,
 alors que require_active_signing_epoch exige key.issuer==claims.iss==issuerURL
 configuré. Mint domaine des utilisateurs complets seulement, après consommation
 transaction et sauvegarde fournisseur. Son résultat ignoré par le usecase reste
@@ -39,7 +45,7 @@ oauth_service.rs143–160 ; application/usecase/oauth.rs232–289 ; setupapp544�
 Audience disponible mais non relayée aux deps du domaine. Portencodeur sansgetter,
 codec issuer/audience privés et fences inchangés.19appels connus du constructeur
 dans le canon WIP :15inline token_service,1fixtureOAuth,2setup,1diagnosticcodec.
-Nouvelappel positif configuré pourra devenir20e ; index/matching ne prouvent pas
+20appels migrés vérifiés à la revue1533Z, incluant le positif configuré ; index/matching ne prouvent pas
 absence universelle d'alias, compilation des consommateurs reste obligatoire.
 
 Diagnostic parent réel préalable :

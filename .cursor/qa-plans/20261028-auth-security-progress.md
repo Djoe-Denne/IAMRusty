@@ -441,6 +441,18 @@ puis deuxruns séquentiels avecinventaires/registre/cleanup, sans toutIAM/nouvea
 Oraclespréinscrits : positifs2couplesexacts, refusautressuites/casse/espaces/paths/
 multisuitesrépétées/options etspymêmebrancheCargoexacte. Aucuneacceptancefutureàblanc.
 
+Clôturequalifications0412 : troisIT9+6+2=17PASS/0failed/0ignored/0filtered ; nouvelles
+sélectionsferméesreview1603ZPASS etgatePSPASS. Coreappidentique7b8↔860, image7b8
+utiliséeparChrome149 neuf : P1/P2login200/P3exactcallback+N1N2N3=403. Oracles1602Z
+indépendantsrecevables, conservationIAM+4/4positifs/extauthz+4/IdP4counts+2,
+incarnationstable ; limitesSQLdirecte/phaseNisolée/config_dump/MISSINGconservées.
+Infra final PASSdocumentaireborné, pasproduction/HA/2replicas. Troisfixturescréées/
+retirées ; nœudspossédés3stoppésgracieusement,6IDsavant/aprèspréservés,3autresétats
+inchangés. Aucunruntimepropreencoreactif,Desktop/WSLconservéspourlegacyforeign.
+ADR0412RéalitéImplementedlocaleratifiéeparleadaprèsdossier97lignesarchitecte,
+handbookJWKSvideautoritatif/révocationvsTTL/principal/remoteetcontratsréconciliés,
+digestSerenaiam-idp-adr-0412synchromêmetourMCPPASS. Aucunautrestatutpromu.
+
 ## Plafond server_info v2 — plan avant code/run
 
 Amendement architecte v2 lu et explicitement ratifié : plafondFIXE131072B,

@@ -1,12 +1,39 @@
 # Contrat de preuve — E2E exact-route Envoy de l'ADR 0412
 
 Canon secondaire de [ADR 0412](../adr/0412-oauth-transaction-persistante-liee-navigateur.md).
-Statut ADR : Accepted. Réalité ADR : Partial. Ce fichier ne les modifie pas.
+Statut ADR : Accepted. Réalité ADR : Implemented après ratification2026-10-29,
+qualification locale détaillée dans [l'état qualifié](20261029-auth-security-qualified-state.md).
 
-Il rend exécutable, plus tard, la preuve E2E encore ouverte. Il n'est pas le lab,
-pas un harness, et pas une autorisation de démarrer Kind pour le rédiger.
+Il définit la preuve E2E désormais réalisée dans cette portée. Il n'est pas le
+lab, un harness ou une autorisation générale de démarrer Kind pour le rédiger.
 
 ## Alignement ratifié du 2026-10-28 — assemblage intégré, preuve réseau restante
+
+### Historique2026-10-29 avant correction du mint — échec401 conservé
+
+L'entrée laboratoire et le refus Envoy d'un certificat signé par la bonne autorité
+mais portant un mauvais nom sont prouvés séparément ; le bon certificat est
+restauré. La matrice navigateur n'est PAS acquise : une exécution Chrome réelle
+dans un contexte dédié échoue, avec un refus401 localisé au callback de connexion
+après inscription. Deux échanges fournisseur réussis ne qualifient pas P1–P3 ou
+N1–N3. Chrome/contexte/forward temporaires fermés ; diagnostic IAM en cours.
+Voir [réseau](../../.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/61-entree-reseau-retablie-refus-authentification-conserves.md),
+[nom du certificat](../../.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/62-envoy-refuse-le-mauvais-nom-certificat-restaure.md)
+et [échec navigateur](../../.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/63-navigateur-parcours-incomplet-ressources-fermees.md).
+Cette actualisation ne change ni l'ADR0412Accepted/Partial ni sa matrice ci-dessous.
+
+### Qualification actuelle2026-10-29
+
+Après correction du mint configuré, Chrome149 neuf via l'Envoyfull réussit
+P1/P2login200/P3callbackexact etN1–N3=403 dans le même run. IdP+2 pourchacundes
+quatrecompteurs, IAM+4 pourquatrepositifs etext-authz+4, mêmeincarnation/epoch0.
+Trois suites contractuelles9+6+2=17PASS/0ignored/0filtered, source7b8c1f95/SDK02e5 ;
+complémentsQA8606173exécutableidentique. Revues oracles/infra bornées concordantes ;
+troisfixturesretirées etnœudspossédés arrêtés sanssuppression.
+Le lead ratifie explicitement les critères satisfaits etRéalitéImplemented pour
+ce laboratoire ; [dossier complet/limites](20261029-auth-security-qualified-state.md).
+Pas qualificationproduction/HA/SQLdirecte/config_dumpbyteexact ; MISSINGconservés.
+La matrice, les règles de verdict et les décisions initiales ci-dessous ne changent pas.
 
 Le profil opt-in et son scénario moteur sont intégrés au36ffab6. Tests ciblés
 de configuration/fixtures réussis, mais aucun navigateur, Envoy live ou trust

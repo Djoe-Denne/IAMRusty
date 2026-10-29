@@ -152,7 +152,7 @@ Contrat secondaire test-side : [m6 proof hardening](../contracts/20261018-m6-pro
 
 ## Vague 3 — IAM living / IdP fédérés (0407+, hors Apparatus)
 
-Jalon **IAM-IdP** : le template P0–P6 Apparatus ne s’applique pas. IAM reste l’IdP *plateforme* ([0400](0400-iamrusty-identite-hexagonale.md)) ; les Connect sont des *federated authenticators*. **0009** est Apparatus (gate pré-prod) — **interdit** de le réutiliser pour IAM. **Ne pas** réécrire 0100–0502. Prochains libres services/runtimes : **0413+** (0412 : transaction OAuth navigateur, Accepted / Partial).
+Jalon **IAM-IdP** : le template P0–P6 Apparatus ne s’applique pas. IAM reste l’IdP *plateforme* ([0400](0400-iamrusty-identite-hexagonale.md)) ; les Connect sont des *federated authenticators*. **0009** est Apparatus (gate pré-prod) — **interdit** de le réutiliser pour IAM. **Ne pas** réécrire 0100–0502. Prochains libres services/runtimes : **0413+** (0412 : transaction OAuth navigateur, Accepted / Implemented, qualification locale ratifiée2026-10-29 ; pas production/HA).
 
 Wiki (pointeurs, pas canon) : `obsidian/AI FOR ALL/projects/iamrusty/decisions/`. Index Manifesto 0001–0008 : **hors sujet**.
 
@@ -163,7 +163,7 @@ Wiki (pointeurs, pas canon) : `obsidian/AI FOR ALL/projects/iamrusty/decisions/`
 | [0409](0409-confiance-callback-oauth-idp-connect.md) | Callback/CSRF/linking = IAM ; secrets vendor + appel OAuth = connecteur ; HMAC+HTTPS | Accepted | Implemented |
 | [0410](0410-migration-iam-connecteurs-idp.md) | Migration incrémentale ; routes `/api/auth/{provider}` conservées | Accepted | Implemented |
 | [0411](0411-idp-provider-slug-registry-fail-closed.md) | Provider = slug typé ; catalogue = registry au boot ; admission fail-closed ; pas de hot-load | Accepted | Implemented |
-| [0412](0412-oauth-transaction-persistante-liee-navigateur.md) | OAuth login/link/relink = transaction writer liée au navigateur ; units + IT vertes attestées le 2026-10-08 ; [alignement local-full](../contracts/0412-oauth-local-full-alignment.md) ratifié, E2E exact-route/Envoy restante | Accepted | Partial |
+| [0412](0412-oauth-transaction-persistante-liee-navigateur.md) | Transaction writer liée au navigateur ; [preuve locale qualifiée2026-10-29](../contracts/20261029-auth-security-qualified-state.md), Chrome P1–P3/N1–N3 et17IT ; historiques Partial conservés, hors production/HA | Accepted | Implemented |
 
 ## Vague 4 — Cloud portable / cluster (0600+, hors Apparatus)
 

@@ -1,11 +1,27 @@
 # Ingress du tunnel CP mesuré vers Envoy full — contrat architecte v2
 
-2026-10-29 — auteur architecte/pool-4 ; **Accepted / Unimplemented**.
+2026-10-29 — auteur architecte/pool-4 ; **Accepted / Implemented, qualified laboratory ingress only**.
 Le lead a lu intégralement les55lignes de la v2 Proposed et le rapport RO21,
 puis ratifie explicitement cette version sous délégation AVANT code/patch.
 La propositionv1 CPInternalIP/32, non ratifiée et contredite par la mesure, est
 abandonnée. Aucun changement d'ADR Accepted, de cible, permission ou plateforme.
 Entrée inchangée :127.0.0.1:18080→CP30080→Envoy10000.
+
+## État vérifié du29octobre — ne change pas la ratification initiale
+
+Implémentation livrée3c2e7ea, après correction du catalogue des trois règles du
+profil OAuth existant. Une entrée mesuréeT/32TCP10000 ajoutée avec UID/RV/spec
+issus de la réponse du patch ;24autrespolicies inchangées. Témoinréel303 et trois
+refus403 sanscookie, vérification en mémoire d'absence de dispatchIAM des seuls
+négatifs. Relecture indépendante documentaire de l'ACK et des25policies : PASS
+borné ; détails et limites dans le [rapport d'entrée](../../.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/61-entree-reseau-retablie-refus-authentification-conserves.md).
+
+Le cycle Envoy bon/mauvaisnom signé mêmeCA/bonrestauré a également réussi ; ce
+n'est ni une qualification de production, ni la validation du navigateur.
+La campagne navigateur a échoué au callbacklogin401 après inscription ; elle
+reste ouverte. Les compteurs Admin5xx absents restent MISSING et le delta IAM
+propre aux négatifs n'est pas recalculable depuis les seuls snapshotsglobaux
+archivés. Ne pas étendre ce résultat à une nouvelle capture/source ou autorité.
 
 ## Décision et risque L3 ratifiés
 

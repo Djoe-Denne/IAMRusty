@@ -1,12 +1,18 @@
 # Amendement — postimage ACK du patch ingress possédé
 
-2026-10-29 — auteur architecte/pool-4 ; **Accepted / Unimplemented**.
+2026-10-29 — auteur architecte/pool-4 ; **Accepted / Implemented, laboratory evidence bounded**.
 Le lead a lu intégralement la proposition finale de82lignes et ratifie explicitement
 cet amendement AVANT toute extension du garde ou implémentation ACK/provenance,
 sous la délégation utilisateur de cette mission. Cette ratification approuve la
 forme fermée, **aucun hash de helpermutation futur** : sa paire exacte et les sept
 empreintes devront être approuvées après code figé, tests et revue.
 Original Proposed conservé au worktree auteur, même nom de document.
+
+État ultérieur, sans réécrire la ratification : ACK et relectureréels obtenus
+sur3c2e7ea, revue indépendante sur pièces PASS borné ; courses/incertitudes
+couvertes par fakes et revue, pas toutes reproduites sur le cluster. Qualification
+exacteRAW7385→9b0 et reçu b79ec6aa… activés après leurs revues ; aucune autre paire
+implicitement qualifiée. Preuves et limites : [rapport d'entrée](../../.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/61-entree-reseau-retablie-refus-authentification-conserves.md).
 
 Complément du [contrat ingress v2](local-full-envoy-nodeport-ingress.md), base
 canonique95b912ee01859f9e1b62ed94ef072802c1cb5343 et briefing

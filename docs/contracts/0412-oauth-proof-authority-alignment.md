@@ -1,9 +1,10 @@
 # Contrat ratifié — conserver l'autorité IAM 8080 et les redirects navigateur 18080
 
-- Statut : **Accepted / Partial**, ratification explicite du lead le 2026-10-28 sous délégation utilisateur après lecture complète de la proposition architecte v2 ; valeurs configurées dans le profil livré36ffab6 et10 tests d'assemblage canon réussis. Token/seed/réseau réels et campagne navigateur encore à qualifier, pas de preuve runtime déduite de ces unités.
+- Statut : **Accepted / Implemented, qualification locale limitée au laboratoire ratifié**. Ratification initiale du lead2026-10-28 après lecture de la v2 architecte ; actualisation2026-10-29 sur les [preuves qualifiées](20261029-auth-security-qualified-state.md), sans changer autorité8080/redirects18080.
+- État historique2026-10-28 : profil36ffab6/10tests d'assemblage verts, token/seed/réseau et navigateur encore à qualifier ; pas de preuve runtime déduite de ces unités.
 - Auteur structurel : architecte, proposition `729d653cb9506c96ce5a811b1c6b598f41cc5174`, succédant à la proposition v1 `40e6d86`. La décision ci-dessous reprend sa v2 ; sources et proposition complète préservées dans sa branche.
-- Canon : ADR0304/0308/0412 Accepted / Partial, ADR0305 Accepted / Implemented, ADR0314 Accepted / Unimplemented, ADR0606 Proposed / Partial. Aucun changement de leurs Statuts par cette ratification.
-- Entrées : [alignement navigateur](0412-oauth-local-full-alignment.md), [frontière AuthZ](authz-trust-domain-boundary.md). Le raccordement IAM indépendant est maintenant intégré au `c98b6ea`, SDK publié `72845d9` sélectionné ; ces faits postérieurs à la proposition n'en changent pas la décision.
+- Canon historique de la ratification : ADR0304/0308/0412 Accepted / Partial, ADR0305 Accepted / Implemented, ADR0314 Accepted / Unimplemented, ADR0606 Proposed / Partial. Actualisation2026-10-29 : seule Réalité0412 devientImplemented localement ; aucun autre état promu par transitivité.
+- Entrées : [alignement navigateur](0412-oauth-local-full-alignment.md), [frontière AuthZ](authz-trust-domain-boundary.md). Étape historique : IAMc98b6ea/SDK72845d9. Qualification finale : application7b8c1f95 et SDK02e5db23 ; la décision d'autorité est inchangée.
 
 ## 1. Décision et alternatives examinées
 

@@ -1,7 +1,7 @@
 # ADR-0412 : OAuth utilise une transaction persistante liée au navigateur et consommée atomiquement, pour login, link et relink
 
 - Statut : Accepted
-- Réalité : Partial
+- Réalité : Implemented
 - Date : 2026-10-03
 - Décideurs : utilisateur, ratification explicite en conversation le 2026-10-03, transmise par le parent ; écriture après accord, pas Accept autonome de l'agent
 - Jalon concerné : IAM-IdP / correctifs AuthN (hors Apparatus P0–P6)
@@ -10,6 +10,11 @@
 - Related : [0409](0409-confiance-callback-oauth-idp-connect.md), [0411](0411-idp-provider-slug-registry-fail-closed.md), [0305](0305-account-identity-trust-domain.md)
 
 `Accepted` ratifie la cible ci-dessous. `Réalité : Partial` au 2026-10-04 : transaction writer PostgreSQL, cookie/browser binding, consommation atomique, PKCE, cleanup et contexte partagé sont écrits dans les sources A/B/root. À cet état historique, aucun résultat de compilation root complète, d’IT ou d’E2E de cet ensemble n’était fourni. Actualisation du 2026-10-08 ci-dessous : units + IT IAM vertes attestées par l’utilisateur ; E2E exact-route/Envoy finale toujours restante. Elle complète 0409 §3 : IAM conserve callback/linking/state ; l’amendement relink ci-dessous lève uniquement l’ancienne obligation Bearer au callback transactionnel ratifié.
+
+Actualisation2026-10-29 : le lead, sous délégation utilisateur de la mission
+authentification, ratifie explicitement RéalitéImplemented sur les preuves locales
+ci-dessous ; StatutAccepted et décisions1–7 inchangés. Les mentionsPartial/E2E
+restante de2026-10-04/08 restent historiques, pas le verdict actuel.
 
 ## Contexte
 
@@ -59,6 +64,35 @@ La baseline historique d'audit est `f060d47` / rustycog `ba69c9e`. Au début de 
 - État historique du 2026-10-04 : root HEAD `5348a63` non committé ; tests/fixtures écrits et revue CORE PASS statique n’étaient pas des tests exécutés. SDK22 PASS ne valide pas IAM.
 - **2026-10-08 : suites IAM unitaires + IT vertes sur master**, exécutées et confirmées par Djoé Denne. Il s’agit d’une **attestation utilisateur**, pas d’un artefact CI archivé ni d’un run réalisé par cet agent. Cette confirmation couvre units + IT seulement, **pas l’E2E exact-route/Envoy**. Statut **Accepted** et Réalité **Partial** inchangés jusqu’à cette preuve E2E finale.
 
+## Réalité actualisée — 2026-10-29, qualification locale exact-route
+
+Le lead a lu la proposition97lignes de l'architecte puis ratifié cette actualisation
+sous délégation utilisateur. Dossier de décision :
+[état qualifié](../contracts/20261029-auth-security-qualified-state.md).
+Réalité **Implemented**, Statut **Accepted inchangé**. Source navigateur/image
+7b8c1f95, SDK02e5db23 ; IT complémentaires8606173, code exécutable identique,
+seuls scriptsOPSQA/docs changés.
+
+Dans kind-aiforall-local-full, entrée127.0.0.1:18080 et CPID intégral concordants
+avec le bail : Chrome149/profil neuf, sluggitlab, vrai connecteur configuré/PKCE
+et IdP synthétique. P1/P2login200/P3callbackexact etN1–N3=403 réunis dans le même
+run. CorrélationIAM+4 pour quatrepositifs, ext-authz+4, quatrecompteursIdP+2 ;
+même Envoy/incarnation/epoch0, erreurs mesurées sanshausse. Revue indépendante1602Z :
+oracles recevables, aucun gap bloquant additionnel. Pas mesureSQLdirecte,
+phaseNisolée ouconfig_dumpbyteexact ; MISSING etAdminINCONCLUSIVE restent explicites.
+
+Les trois suites requises sont vraies pour cet assemblage :
+oauth_browser_transactions9, auth_transactions_postgres6, oauth_cleanup_lifecycle2,
+**17PASS/0ignoré/0filtré**, troisfixturescréées/retirées etpréexistantspréservés.
+Critères du [contrat exact-route](../contracts/0412-oauth-exact-route-envoy-proof.md)
+satisfaits dans cette portée. Finalinfra : PASSdocumentaireborné ; troisnœuds
+possédés ensuite arrêtés gracieusement, sans suppression ni arrêtétranger.
+
+Ce verdict ne qualifie ni edgeTLS/production, GitLabvendorréel, deuxrépliques/HA,
+ni toutesprojectionsruntime. Consommation/rejeuwriter testés en IT ; pas rollback
+global des effets après consommation. HistoriquesPartial etéchec401avantcorrectif
+conservés/datés. Pas de promotion transitive des autres ADR.
+
 ## Références
 
 - Canon : 0409 §§1–5 ; 0411 registry/slug ; 0305 principal `(iss, sub)` et linking contrôlé.
@@ -67,7 +101,7 @@ La baseline historique d'audit est `f060d47` / rustycog `ba69c9e`. Au début de 
 - Contrat d'implémentation : `.cursor/review-briefings/20261003-auth-fixes-interface-contract.md`.
 - Contrat de preuve E2E restante : [../contracts/0412-oauth-exact-route-envoy-proof.md](../contracts/0412-oauth-exact-route-envoy-proof.md). Il n'amende pas les décisions 1–7 ni la conséquence navigateur / `kind-aiforall-local-full`.
 - Ratification : message utilisateur du 2026-10-03 validant transaction persistante, cookie noncehash, liaison obligatoire, consommation inter-replicas et PKCE supporté.
-- Preuve SOURCE : fichiers et suites ci-dessus, contrat interface §§8–13 et handoffs A/B/root du 2026-10-04. Preuve d’exécution actualisée le 2026-10-08 : units + IT IAM vertes confirmées par l’utilisateur, sans artefact CI archivé. **E2E exact-route/Envoy finale non fournie** ; ne pas promouvoir Implemented avant cette preuve restante.
+- État historique au2026-10-08 — preuve SOURCE : fichiers et suites ci-dessus, contrat interface §§8–13 et handoffs A/B/root du 2026-10-04. Units + IT IAM vertes confirmées par l’utilisateur, sans artefact CI archivé. **E2E exact-route/Envoy finale non fournie** ; ne pas promouvoir Implemented avant cette preuve restante. État actuel : voir Réalité actualisée2026-10-29.
 
 ## Mise à jour 2026-10-04 — migrations aplaties
 
