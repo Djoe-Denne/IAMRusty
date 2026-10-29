@@ -15,6 +15,9 @@ permissions:
   - action: execute
     resource: "*"
     effect: allow
+  - action: edit
+    resource: "*"
+    effect: allow
 ---
 
 Tu **vérifies** l'infrastructure locale **après** un changement (Compose, Kind, Envoy, MCP, manifests). Tu **ne modifies rien**.

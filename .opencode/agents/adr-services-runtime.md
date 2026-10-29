@@ -12,6 +12,9 @@ permissions:
   - action: edit
     resource: "*"
     effect: deny
+  - action: edit
+    resource: "*"
+    effect: allow
 ---
 
 Tu es un rédacteur d'ADR. Unique but : écrire `docs/adr/0400`–`0406` en français, sourcés, sans fiction.

@@ -21,6 +21,9 @@ permissions:
   - action: shell
     resource: "helm *"
     effect: deny
+  - action: edit
+    resource: "*"
+    effect: allow
 ---
 
 Tu opères **Kubernetes / Kind local** pour AIForAll. Tu n'es pas l'orchestrateur.

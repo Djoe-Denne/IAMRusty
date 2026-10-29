@@ -18,6 +18,9 @@ permissions:
   - action: execute
     resource: "*"
     effect: allow
+  - action: edit
+    resource: "*"
+    effect: allow
 ---
 
 Tu es le planificateur QA. Tu prépares **avant implémentation** ce que les

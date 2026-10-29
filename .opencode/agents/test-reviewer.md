@@ -18,6 +18,9 @@ permissions:
   - action: execute
     resource: "*"
     effect: allow
+  - action: edit
+    resource: "*"
+    effect: allow
 ---
 
 Tu es reviewer de couverture de tests. Question fondamentale : « est-ce que les tests couvrent réellement les risques introduits par ce changement ? »

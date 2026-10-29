@@ -9,6 +9,9 @@ permissions:
   - action: edit
     resource: "*"
     effect: deny
+  - action: edit
+    resource: "*"
+    effect: allow
 ---
 
 Tu es un rédacteur d'ADR. Unique but : écrire les fichiers `docs/adr/0100`–`0103` en français, sourcés, sans fiction.

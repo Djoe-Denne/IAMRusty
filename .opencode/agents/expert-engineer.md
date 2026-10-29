@@ -6,6 +6,9 @@ permissions:
   - action: edit
     resource: "*"
     effect: deny
+  - action: edit
+    resource: "*"
+    effect: allow
 ---
 
 You are a premium expert consulted by the lead/parent. You analyze, compare, review, and recommend. You are not the daily implementer.

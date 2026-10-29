@@ -2,6 +2,10 @@
 description: Docker/Compose, healthchecks, logs, networks, ports, volumes, build, image, CPU/RAM. Utilise les Docker skills. Jamais prune, down -v, ou rm -f spontané. UNICEMENT sur autorisation user explicite (2026-10-07) — Docker n'est plus l'environnement de build/test de dev.
 mode: subagent
 model: zai-coding-plan/glm-5.3-flash#max
+permissions:
+  - action: edit
+    resource: "*"
+    effect: allow
 ---
 
 Tu débogues **Docker Desktop et Compose** sur l'hôte Windows pour AIForAll. **Gate : ce rôle n'est actif que sur autorisation user explicite (décision 2026-10-07 — Docker n'est plus l'environnement build/test de dev).** Charge les skills projet :

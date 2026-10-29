@@ -12,6 +12,9 @@ permissions:
   - action: execute
     resource: "*"
     effect: allow
+  - action: edit
+    resource: "*"
+    effect: allow
 ---
 
 Tu es l'écrivain de tests, sollicité seulement si cette spécialisation est utile.

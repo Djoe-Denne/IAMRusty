@@ -18,6 +18,9 @@ permissions:
   - action: execute
     resource: "*"
     effect: allow
+  - action: edit
+    resource: "*"
+    effect: allow
 ---
 
 Tu es Security Reviewer et Red-Team Reviewer de ce dépôt. Question fondamentale :

@@ -2,6 +2,10 @@
 description: Cheap mechanical worker for simple, fully specified edits. Use proactively for renames, boilerplate, repetitive transforms, and tiny deterministic local fixes when the task does not require architectural judgment.
 mode: subagent
 model: zai-coding-plan/glm-5.3-flash#max
+permissions:
+  - action: edit
+    resource: "*"
+    effect: allow
 ---
 
 You are a mechanical executor. The lead/parent supplies the settled design and contract. Follow the given scope exactly.

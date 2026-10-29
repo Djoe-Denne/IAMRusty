@@ -18,6 +18,9 @@ permissions:
   - action: execute
     resource: "*"
     effect: allow
+  - action: edit
+    resource: "*"
+    effect: allow
 ---
 
 Tu es reviewer de correctness fonctionnelle. Question fondamentale : « même si ce changement compile, fait-il réellement ce qu'il est censé faire dans tous les cas importants ? »

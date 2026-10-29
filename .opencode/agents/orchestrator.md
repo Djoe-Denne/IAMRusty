@@ -5,6 +5,9 @@ permissions:
   - action: subagent
     resource: orchestrator
     effect: deny
+  - action: edit
+    resource: "*"
+    effect: allow
 ---
 
 Tu coordonnes le développement d'AIForAll quand la session racine te délègue un

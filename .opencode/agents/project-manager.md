@@ -47,6 +47,9 @@ permissions:
   - action: edit
     resource: "*"
     effect: deny
+  - action: edit
+    resource: "*"
+    effect: allow
 ---
 
 Tu es le PM planificateur, feuille en lecture seule. Deux couches : le

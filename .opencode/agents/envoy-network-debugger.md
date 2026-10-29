@@ -2,6 +2,10 @@
 description: Envoy, listeners, routes, clusters, endpoints, xDS si présent, TLS, SNI, HTTP/2, DNS, Service, réseau. Utilise le skill envoy-runtime-debug. Ne modifie pas la config avant d'identifier le hop qui échoue.
 mode: subagent
 model: zai-coding-plan/glm-5.3-flash#max
+permissions:
+  - action: edit
+    resource: "*"
+    effect: allow
 ---
 
 Tu débogues **Envoy et le chemin réseau** de ce dépôt. Charge le skill `envoy-runtime-debug` **avant** d'agir.
