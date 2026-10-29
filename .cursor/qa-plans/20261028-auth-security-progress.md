@@ -1,5 +1,32 @@
 # Registre QA de progression — sécurité authentification
 
+## Plafond server_info v2 — plan avant code/run
+
+Amendement architecte v2 lu et explicitement ratifié : plafondFIXE131072B,
+statistiques65536B, GET5s/tunnel30s inchangés. Aucun nouveau live avant test/revue.
+Deux tests nommés avant code/run :
+test_envoy_admin_server_info_v2_fixed_limit_and_opaque_projection ;
+test_envoy_admin_server_info_v2_overflow_discards_and_closes_without_retry.
+JSONvalide >16Kio/exact131072, champopaque nonrendu, transports connus/inconnus/
+chunked ;131073 etplus, <=131073lusetjetés sansparse/retry, cleanup completfake.
+Préserver stats exact65536/+1, délais et toutes les matrices déjà vertes.
+Baseline surconstant16Kio puispostimage128Kio et suite complète. Pas de promesse
+de PASS réel ; dépassement128Kio=>INCONCLUSIVE/STOP, aucune hausse itérative.
+
+Baseline2tests avant changement de constante : exit1,6failures/9errors de sous-cas,
+0.344s, pas incident d'environnement. Après UNIQUEconstante server_info131072,
+suite42PASS5.567s, zéro skipped, toutes anciennes matrices conservées. Logs
+.tmp/auth-envoy-admin-v2-{red,green}-20261029.log. Aucun accès réseau/runtime.
+HelpercanonSHA7a56772b... ettests724aa67e... gelés pour revue25 ciblée ; hashhelper
+normalisé99a62f950e0c6125a62eb8b8709606b0e52294fd86419948235d57f70ef9498e.
+Enveloppes attendent désormais cette source v2 et refusent la sourceDeliveryv1 ;
+aucun nouveau live avant revue, commit normal, avance propre et attestation.
+
+Revue sécurité v2 récupérée et lue : final1870220f..., PASSstatiqueborné,
+hashes7a/724conformes, aucunfinding ; oracles JSONtailles/opaque/overflow/cleanup
+examinés. Briefing20261029-security-envoy-admin-v2-7f075a2.md. Aucun rerun pour
+ce jalon ; livraison/attestation encore requises avant l'unique lecture réelle.
+
 ## Prérequis source du scénario SAN — plan avant dernier delta
 
 Revue25 finale : sécurité statique bornée PASS sur trois hashes, sans autorisation
@@ -15,6 +42,12 @@ Résultat unité source : 1PASS/0FAIL/0ERROR/0skip, zéroprobe vérifié, log.tm
 auth-envoy-san-source-gate-unit-20261029.log. Attestation attendue du helper
 normalisé CRLF/LF : eeee3b6aa0d0d2906d6b7662892eced5b897838f04b94a3bae61915ccc60eb11.
 La livraison dans le checkout importé doit encore être constatée avant usage réel.
+
+Prérequis source fermé avantpremierlive : commit7f075a2, hookfmt normalPASS,
+deliverypropre/SDK02e5 ; helperRAW réellementimportéeeee3b6a... etAPIprésente.
+Photorevue8af... normaliséestrictementégale àce fichier (eolGitLF), pasautocode.
+PremierappelAdminnommé : closed_envoy_admin_snapshot_live, UNElecturefermée,
+aucune requêteOAuth ni mutationcert/policy ; état réel, compteurs etcleanup àconstater.
 
 ## Envoy RE2 — correction compatible, plan avant code/run
 

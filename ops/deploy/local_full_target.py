@@ -350,7 +350,7 @@ def _admin_get(port, stats, tunnel_deadline):
                 or (lengths and transfers)
                 or (lengths and not re.fullmatch(r"0|[1-9][0-9]{0,19}", lengths[0]))):
             raise AnchorError("Admin encoding refused")
-        limit = 65536 if stats else 16384
+        limit = 65536 if stats else 131072
         body = bytearray()
         while True:
             sock.settimeout(_admin_remaining(deadline))

@@ -1,10 +1,42 @@
 # Capacité spécialisée de lecture Envoy Admin du laboratoire full
 
-Version 1, 2026-10-29. Auteur : architecte/pool-4. **Accepted / Partial** : code intégré, tests fake et revue sécurité bornée réussis ; comportement et cycle de vie réels encore non qualifiés.
+Version 2, 2026-10-29. Auteur : architecte/pool-4. **Accepted / Partial** : amendement de borne ratifié explicitement par le lead avant code ; validation du delta et lecture complète réelles restent à établir.
 Base application636b438, SDK02e5. Le lead a lu les51lignes du contrat original et
 ratifie explicitement ses exigences et son risque local ci-dessous, sous délégation
 utilisateur et AVANT code. Complément opérationnel de l'alignement0412, pas de
 nouvelle ADR ni de modification de Statut/Réalité.
+
+## Amendement v2 ratifié avant code
+
+Le lead a lu intégralement le delta architecte v2 (lignes6–26 du document auteur)
+et ratifie explicitement sous délégation ce SEUL changement normatif : plafond
+fixe /server_info=131072B (128Kio), au lieu de16384B. Trois observations bornées
+ont seulement établi >16Kio, pas la taille entière ou l'origine du volume. Le
+handler officiel1.31.2 copie options et nœud complets et ne lit pas de masque.
+128Kio est un compromis de sécurité fini, plus petit que256Kio, pas une estimation
+de taille, un gain mesuré ou une promesse de réussite.
+
+Stats65536B, GET5s, tunnel30s, chunks4096B, projections/opacité/JSON strict,
+ancrage/incarnation/lifecycle et tous endpoints restent inchangés. Pas de flag,
+cap paramétrable, permission native, proxy, compression ou parser streaming.
+Davantage de données opaques peuvent transiter en mémoire privée avant projection,
+sans devenir une sortie, inspection ou capture autorisée. Aucun plafond mémoire
+ou CPU absolu du parseur n'est promis par cette borne de corps.
+
+Après intégration et revue du delta, UNE lecture conforme est autorisée. Si elle
+dépasse128Kio : INCONCLUSIVE et STOP, pas de retry identique, de recherche binaire,
+de plafond adaptatif, d'essai256/512Kio ou de fallback. Un besoin futur exige une
+nouvelle décision sourcée. Au plus131073B lus pour détecter l'octet en trop, corps
+trop grand non parsé, réponses/sockets/enfant fermés et marqueur selon preuve.
+
+Allowlist v2 : seule constante server_info dans _admin_get et tests du même helper.
+Oracles avant exécution : test_envoy_admin_server_info_v2_fixed_limit_and_opaque_projection
+et test_envoy_admin_server_info_v2_overflow_discards_and_closes_without_retry.
+JSON réellement valide >16Kio et exactement131072B, avec longueur connue/inconnue/
+chunked ; sortie limitée aux scalaires, sentinelle opaque absente. À131073B et plus,
+pas de parse/retry, borne réelle de lecture et cleanup attestés par fakes. Maintenir
+stats65536/+1, MISSING distinct de0, erreurs/encodages/doublons/timers existants.
+Cette v2 n'autorise aucun nouveau diagnostic kernel ou changement réseau.
 
 ## Décision et limite déterminante
 
@@ -64,7 +96,7 @@ Authorization, cookie, redirect ou compression. Autre statut que200 : erreur
 constante sans lecture/écho du corps. Lecture incrémentale avec vraie borne et
 budget wall-clock, pas Content-Length seul.
 
-- /server_info, au plus16384B : état enum, égalité version/image attendue,
+- /server_info, au plus131072B (v2) : état enum, égalité version/image attendue,
   restart_epoch et uptimes numériques valides. Aucun JSON brut, option ou chemin.
 - /stats?format=json&filter=regexinterne, au plus65536B : regex ancrée et échappée
   générée depuis clusters{ext_authz,iam,hive,telegraph,manifesto} et suffixes

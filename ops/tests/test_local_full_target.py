@@ -764,6 +764,15 @@ class EnvoyAdminTests(unittest.TestCase):
         self.responses = [FakeAdminResponse(json.dumps(value).encode()) for value in (self.info, self.stats)]
         return self.target.envoy_admin_snapshot(**{**self.attestation, **changes})
 
+    def server_info_body(self, size):
+        value = {**self.info, "node": {"opaque": "OPAQUE-SERVER-INFO-V2-SENTINEL"}}
+        raw = json.dumps(value, separators=(",", ":")).encode()
+        self.assertGreaterEqual(size, len(raw))
+        value["node"]["opaque"] += "x" * (size - len(raw))
+        raw = json.dumps(value, separators=(",", ":")).encode()
+        self.assertEqual(len(raw), size)
+        return raw
+
     def test_envoy_admin_rejects_foreign_target_and_free_requests_before_probe(self):
         invalid = [dict(pod="iam-abc"), dict(pod="pod/envoy-mesh-abc-def"), dict(container="sidecar"),
             dict(namespace_uid="foreign"), dict(pod_uid=""), dict(owner_chain=[]),
@@ -901,6 +910,58 @@ class EnvoyAdminTests(unittest.TestCase):
             self.http.assert_not_called()
             self.assertFalse(self.marker.exists())
 
+    def test_envoy_admin_server_info_v2_fixed_limit_and_opaque_projection(self):
+        for size in (16385, 65536, 131072):
+            for headers in ((), (("Content-Length", str(size)),), (("Transfer-Encoding", "chunked"),)):
+                with self.subTest(size=size, headers=headers):
+                    response = FakeAdminResponse(self.server_info_body(size), headers=headers, chunk_size=4096)
+                    self.launcher.return_value = self.process()
+                    self.responses = [response, FakeAdminResponse(json.dumps(self.stats).encode())]
+                    result = self.target.envoy_admin_snapshot(**self.attestation)
+                    self.assertEqual(result["state"], "LIVE")
+                    self.assertEqual(result["version"], "1.31.2")
+                    self.assertEqual(set(result), {"state", "version", "restart_epoch",
+                        "uptime_current_epoch_ns", "uptime_all_epochs_ns", "identity", "stats", "status"})
+                    self.assertNotIn("OPAQUE-SERVER-INFO-V2-SENTINEL", repr(result))
+                    self.assertNotIn("PRIVATE-SENTINEL", repr(result))
+                    self.assertEqual(response.bytes_read, size)
+                    self.assertLessEqual(max(response.reads), 4096)
+                    self.assertTrue(response.closed)
+                    self.assertFalse(self.marker.exists())
+                    self.assertIsNotNone(self.launcher.return_value.poll())
+                    for connection in self.connections[-2:]:
+                        connection.close.assert_called_once_with()
+        # The amendment must not change the statistics ceiling.
+        raw = json.dumps(self.stats).encode()
+        raw += b" " * (65536 - len(raw))
+        self.responses = [FakeAdminResponse(raw, headers=(("Transfer-Encoding", "chunked"),))]
+        self.assertEqual(anchor._admin_stats_projection(anchor._admin_get(
+            49152, True, anchor.time.monotonic() + 30)), dict.fromkeys(anchor._ENVOY_STATS, 0))
+
+    def test_envoy_admin_server_info_v2_overflow_discards_and_closes_without_retry(self):
+        for size in (131073, 262144):
+            for headers in ((), (("Content-Length", str(size)),), (("Transfer-Encoding", "chunked"),)):
+                with self.subTest(size=size, headers=headers):
+                    response = FakeAdminResponse(self.server_info_body(size), headers=headers, chunk_size=4096)
+                    self.launcher.reset_mock()
+                    self.launcher.return_value = self.process()
+                    self.http.reset_mock()
+                    self.responses = [response]
+                    with patch.object(anchor, "_admin_json") as parse:
+                        with self.assertRaises(anchor.AnchorError) as error:
+                            self.target.envoy_admin_snapshot(**self.attestation)
+                        parse.assert_not_called()
+                    self.assertNotIn("OPAQUE-SERVER-INFO-V2-SENTINEL", str(error.exception))
+                    self.assertNotIn(str(size), str(error.exception))
+                    self.assertEqual(response.bytes_read, 131073)
+                    self.assertLessEqual(max(response.reads), 4096)
+                    self.assertTrue(response.closed)
+                    self.http.assert_called_once()
+                    self.launcher.assert_called_once()
+                    self.connections[-1].close.assert_called_once_with()
+                    self.assertIsNotNone(self.launcher.return_value.poll())
+                    self.assertFalse(self.marker.exists())
+
     def test_envoy_admin_limits_and_missing_stats_are_not_zero(self):
         self.stats = {"stats": [{"name": anchor._ENVOY_STATS[0], "value": 0}]}
         result = self.capture()
@@ -908,7 +969,7 @@ class EnvoyAdminTests(unittest.TestCase):
         self.assertEqual(result["stats"][anchor._ENVOY_STATS[1]], "MISSING")
         self.assertEqual(result["status"], "INCONCLUSIVE")
         self.assertEqual(set(result["stats"].values()), {0, "MISSING"})
-        bodies = [(False, b" " * 16384 + b"{}"), (True, b" " * 65536 + b"{}"),
+        bodies = [(False, b" " * 131072 + b"{}"), (True, b" " * 65536 + b"{}"),
                   (False, b"\xff"), (False, b'{"state":0,"state":1}'), (False, b'{"x":NaN}'),
                   (True, b'{"stats":[],"stats":[]}'), (False, b'{"x":')]
         for stats, body in bodies:
@@ -917,7 +978,7 @@ class EnvoyAdminTests(unittest.TestCase):
             with self.subTest(body=body[:30]), self.assertRaises((anchor.AnchorError, ValueError)):
                 anchor._admin_get(49152, stats, anchor.time.monotonic() + 30)
             self.assertTrue(response.closed)
-            self.assertLessEqual(response.bytes_read, (65536 if stats else 16384) + 1)
+            self.assertLessEqual(response.bytes_read, (65536 if stats else 131072) + 1)
             self.assertLessEqual(max(response.reads), 4096)  # Never read-all, even for chunked input.
             self.connections[-1].close.assert_called_once_with()
         for status, headers in ((302, (("Location", "http://foreign/PRIVATE-SENTINEL"),)),
