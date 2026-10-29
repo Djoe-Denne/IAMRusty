@@ -352,6 +352,83 @@ mécanisme sandbox équivalent documenté pour ce build), sans exporter sa ligne
 commande brute. Un wrapper qui injecte des flags doit être contrôlé lui aussi.
 Sandbox non démontrable dans le runner = prérequis non qualifié, sans désactivation.
 
+### Addendum diagnostic parent Chromium — Accepted, 2026-10-30
+
+**Proposition architecte ratifiée par le lead le 2026-10-30 avant code**, sous
+délégation mission1 et instruction utilisateur de poursuivre par des essais
+raisonnés/recherchés. Candidate `result_mvu5exmt_0002_s0lf6k`, session
+`ses_e761c08c9fferiab1yLWGU5Ka6`, récupérée et vérifiée identique avant admission ;
+la V1 et ADR0504 restent **Accepted / Partial**. Aucun nouveau harness de preuve,
+nouvelle ADR ou qualification ne découle de cet addendum. Base documentaire
+`f8df62f`, source outillage `08f6c03` ; rapport18 de la mission
+`team_mvtz6p47_000q_4wmht0` et ledger canonique lus dans le checkout principal,
+puis intégrés par le lead dans le commit documentaire `b637fd7`.
+
+**Arbitrage : compatible avec mission1 comme diagnostic du parent**, distinct du
+cas `k6/browser`. Il précise une interface diagnostique jusque-là non spécifiée,
+pas un substitut à k6. Lancer directement le même Chromium épinglé peut conserver
+une erreur native que le parseur k6 perd ; ce lancement n'est pas équivalent au
+contexte/transport k6 et ne peut ni qualifier Chromium ni prouver seul AppArmor.
+Le constat CI3 (résumé courant valide, attendu1/démarré0/achevé0, itération1,
+requête0, exit k6 non nul, renderer et lectures namespace non observés) localise
+le défaut avant le corps du cas ; il ne mesure pas un refus de namespace.
+
+Contrat minimal de cette expérience, après admission :
+
+- Une invocation explicite et séparée du parent, au plus **un** lancement natif,
+  sans fallback automatique dans `browser`, boucle de retries ou nouvel exécuteur.
+  Réutiliser `run-linux.py`, `pinned_tools`/vérifications d'identité, `Child` et
+  `child_environment`, leurs limites et cleanup ; aucune copie de ces gardes.
+  Même archive/ELF, version, UID, runner et environnement contrôlé que l'essai k6
+  comparé ; corrélation privée des deux runs et différences d'arguments explicites.
+  Un changement d'hôte ou de pin impose de déclarer la comparaison non équivalente.
+- Arguments fixes et revus : headless, profil privé neuf, uniquement `about:blank`,
+  sortie minimale bornée et prévention du trafic d'arrière-plan. Aucun argument,
+  URL ou exécutable libre ; aucun wrapper, port/debug CDP, trace, screenshot/HAR,
+  flag affaiblissant sandbox/TLS ou accès applicatif. Pas de nouvel outil, paquet,
+  helper SUID, changement AppArmor/sysctl/seccomp, privilège ou déploiement.
+- Collecte hôte facultative **en lecture seule**, par fichiers précis : version
+  OS/noyau, UID effectif, disponibilité/valeurs des restrictions userns
+  (`kernel.unprivileged_userns_clone`, `kernel.apparmor_restrict_unprivileged_userns`,
+  `user.max_user_namespaces`), activation AppArmor et état seccomp/NoNewPrivs du
+  parent. Aucune énumération globale de `/proc`, profils AppArmor ou journaux hôte
+  supplémentaire ; pas de `sudo`, `unshare` ou sonde privilégiée. Absent, refusé,
+  illisible et valeur zéro restent distincts ; une restriction configurée n'est
+  pas une preuve qu'elle a causé cet échec. Aucun dump d'environnement/commande.
+- Captures privées au plus64KiB par flux, projection fermée versionnée au plus32KiB,
+  enveloppe totale existante256KiB. Réutiliser les catégories lexicales natives,
+  sans publier extraits, suffixes, chemins ou URL. Identifier la source
+  `CHROMIUM_DIRECT` ou `K6` ; conserver exit/signal/timeout/interruption distincts.
+  Les catégories supplémentaires de codes k6 doivent provenir exactement de
+  `errext/exitcodes/codes.go` v2.3.0 ; inconnu reste inconnu. Ne jamais appliquer
+  cette table aux exits Chromium ni confondre message rapporté et cause établie.
+- Identités contemporaines PID/UID/début de vie et descendants, inventaire pré/post,
+  profil privé propre au run et arrêt gracieux/join via `Child`, y compris refus
+  précoce/interruption. Ni adoption par nom, arrêt étranger ni kill forcé. Une
+  identité non observable interdit d'attester le cleanup ; transmettre la limite
+  au parent. Les résultats échec/confidentialité/sandbox du superviseur ne sont
+  jamais neutralisés pour obtenir un succès diagnostique.
+- Oracles séparés : message natif classé ou inconnu ; métadonnées lues ou non ;
+  confidentialité ; cleanup. Aucune observation, exit0 ou renderer aperçu ici ne
+  produit `Chromium PASS`, `HTTP PASS` ou un résumé fonctionnel synthétique. Même
+  un diagnostic complet laisse la qualification navigateur **INCONCLUSIVE** ;
+  conserver intact l'échec k6 source. Une erreur native peut discriminer une
+  hypothèse de démarrage ; son absence ne réfute pas AppArmor/userns.
+
+Validation ciblée avant nouvel essai : tests locaux des catégories k6 et source
+Chromium distinctes, métadonnées absentes/refusées, profil/argv fixes, sorties
+inconnues/invalides/sentinelles/dépassement, interruption et cleanup ; cas explicite
+« natif exit0 sans qualification ». Revue du seul delta parent/CI s'il est requis,
+aucun serveur mock ni essai runtime dans cet arbitrage. Les 70 tests Linux et le
+cleanup CI3 rapportés restent historiques, pas validation du futur diagnostic.
+
+Sources réutilisées : [restrictions Chromium156](https://chromium.googlesource.com/chromium/src/+/156.0.8078.73/docs/security/apparmor-userns-restrictions.md),
+[parseur k6v2.3.0](https://github.com/grafana/k6/blob/v2.3.0/internal/js/modules/k6/browser/common/browser_process.go),
+[codes k6v2.3.0](https://github.com/grafana/k6/blob/v2.3.0/errext/exitcodes/codes.go).
+Installer un helper/profil, modifier la politique hôte, créer un laboratoire ou
+faire de ce diagnostic un second harness de qualification sortirait de ce contrat
+et exige un arbitrage distinct ; aucune permission de ce type n'est proposée.
+
 ## Cookies, secrets et sorties
 
 Contexte Chromium neuf et fermé en finally. Aucun transfert implicite de cookie
