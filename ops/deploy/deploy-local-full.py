@@ -181,9 +181,12 @@ def configure_api_policy():
 
 
 _INGRESS_HISTORICAL_OBSERVATION = "0ad1c639efe15aa5a8e183a95a5171e761fba7fa2d3e2c0d841c5720f8781280"
+_INGRESS_HISTORICAL_CAPTURE_HEAD = "ff12007a837eaf8c013e519b33e0c9bdb1d2ec5f"
+_INGRESS_PROJECTION_NAMES = ("observation", "summary", "baseline", "passive-baseline",
+                             "admin-before", "admin-after", "causal-review")
 # Inactive until the lead qualifies the exact new helper and immutable manifest.
 # No runtime file, caller argument or environment variable can authorize a pair.
-_INGRESS_QUALIFIED_HELPER_PAIRS = {}
+_INGRESS_CAPTURE_COMPATIBILITY = ()
 
 
 def _ingress_json(value):
@@ -200,22 +203,37 @@ def _ingress_authority(files, hashes):
     path = Path(target_authority.__file__).resolve()
     current = hashlib.sha256(path.read_bytes()).hexdigest()
     summary = files["summary"]
-    key = (summary["ops_head"], summary["helper_sha256"], hashes["observation"])
-    if hashes["observation"] == _INGRESS_HISTORICAL_OBSERVATION:
-        # Historical selection is first: rewriting summary to the current hash
-        # must never bypass the exact seven-file qualification through equality.
-        qualified = _INGRESS_QUALIFIED_HELPER_PAIRS.get(key)
-        _ingress_require(isinstance(qualified, dict)
-            and qualified["evidence_sha256"] == hashes
-            and qualified["mutation_helper_raw_sha256"] == current
-            and isinstance(qualified["audit_ref"], str) and bool(qualified["audit_ref"].strip()))
-        compatibility = {"mode": "QUALIFIED_EXACT_PAIR", "key": key, "qualification": qualified}
+    manifest = tuple((name, hashes[name]) for name in _INGRESS_PROJECTION_NAMES)
+    hex_value = lambda value, count: isinstance(value, str) and bool(re.fullmatch("[a-f0-9]{" + str(count) + "}", value))
+    _ingress_require(isinstance(_INGRESS_CAPTURE_COMPATIBILITY, tuple))
+    for entry in _INGRESS_CAPTURE_COMPATIBILITY:
+        _ingress_require(isinstance(entry, tuple) and len(entry) == 5
+            and hex_value(entry[0], 40) and all(hex_value(entry[index], 64) for index in (1, 3, 4))
+            and isinstance(entry[2], tuple) and len(entry[2]) == len(_INGRESS_PROJECTION_NAMES))
+        for pair, name in zip(entry[2], _INGRESS_PROJECTION_NAMES):
+            _ingress_require(isinstance(pair, tuple) and len(pair) == 2
+                and pair[0] == name and hex_value(pair[1], 64))
+    matches = [entry for entry in _INGRESS_CAPTURE_COMPATIBILITY if entry[2][0][1] == hashes["observation"]]
+    reserved = (hashes["observation"] == _INGRESS_HISTORICAL_OBSERVATION
+        or summary["ops_head"] == _INGRESS_HISTORICAL_CAPTURE_HEAD
+        or bool(matches) or any(entry[0] == summary["ops_head"] for entry in _INGRESS_CAPTURE_COMPATIBILITY))
+    if reserved:
+        # A reserved producer cannot relabel an altered observation as a new
+        # capture by rewriting summary to the current helper's hash.
+        _ingress_require(len(matches) == 1)
+        qualified = matches[0]
+        _ingress_require(qualified[0] == summary["ops_head"] and qualified[1] == summary["helper_sha256"]
+            and qualified[2] == manifest and qualified[3] == current)
+        compatibility = {"mode": "QUALIFIED_EXACT_PAIR", "entry": qualified}
+        qualification_sha256 = qualified[4]
     else:
         _ingress_require(summary["helper_sha256"] == current)
         compatibility = {"mode": "IDENTICAL_RAW"}
-    return {"capture_ops_head": summary["ops_head"], "capture_helper_raw_sha256": summary["helper_sha256"],
+        qualification_sha256 = None
+    return json.loads(_ingress_json({"capture_ops_head": summary["ops_head"], "capture_helper_raw_sha256": summary["helper_sha256"],
+            "capture_projections_raw_sha256": manifest, "qualification_record_sha256": qualification_sha256,
             "mutation_helper_raw_sha256": current, "mutation_module_path": str(path),
-            "compatibility": json.loads(_ingress_json(compatibility))}
+            "compatibility": compatibility}))
 
 
 def _ingress_write_record(path, record):
@@ -268,8 +286,7 @@ def _ingress_evidence(directory):
     _ingress_require(directory.is_dir() and not directory.is_symlink()
                      and directory.absolute() == directory.resolve())
     files, hashes = {}, {}
-    for name in ("observation", "summary", "baseline", "passive-baseline",
-                 "admin-before", "admin-after", "causal-review"):
+    for name in _INGRESS_PROJECTION_NAMES:
         path = directory / (name + ".json")
         _ingress_require(path.is_file() and not path.is_symlink() and path.absolute() == path.resolve() and private_file(path)
                          and path.stat().st_size <= 131072)

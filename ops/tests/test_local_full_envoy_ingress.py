@@ -218,8 +218,8 @@ class EnvoyIngressTests(unittest.TestCase):
         raw = {name: (self.directory / (name + ".json")).read_bytes() for name in names}
         hashes = {name: hashlib.sha256(value).hexdigest() for name, value in raw.items()}
         key = ("1" * 40, "9" * 64, hashes["observation"])
-        entry = {"evidence_sha256": hashes, "audit_ref": "synthetic-private-qualification",
-                 "mutation_helper_raw_sha256": hashlib.sha256(Path(runner.target_authority.__file__).read_bytes()).hexdigest()}
+        entry = (key[0], key[1], tuple((name, hashes[name]) for name in names),
+                 hashlib.sha256(Path(runner.target_authority.__file__).read_bytes()).hexdigest(), "c" * 64)
         return key, entry, raw
 
     def test_envoy_ingress_requires_measured_tunnel_of_exact_owned_cp(self):
@@ -408,37 +408,69 @@ class EnvoyIngressTests(unittest.TestCase):
     def test_envoy_ingress_qualified_capture_helper_pair_preserves_immutable_evidence(self):
         key, entry, raw = self.historical_pair(self.guard)
         with patch.object(runner, "_INGRESS_HISTORICAL_OBSERVATION", key[2]), \
-                patch.object(runner, "_INGRESS_QUALIFIED_HELPER_PAIRS", {key: entry}):
+                patch.object(runner, "_INGRESS_CAPTURE_COMPATIBILITY", (entry,)):
             change = self.configure()
             authority = change.receipt["authority"]
             self.assertEqual(authority["capture_helper_raw_sha256"], "9" * 64)
-            self.assertEqual(authority["mutation_helper_raw_sha256"], entry["mutation_helper_raw_sha256"])
+            self.assertEqual(authority["mutation_helper_raw_sha256"], entry[3])
+            self.assertEqual(authority["qualification_record_sha256"], entry[4])
+            self.assertEqual(authority["capture_projections_raw_sha256"], clone(entry[2]))
             self.assertEqual(authority["compatibility"]["mode"], "QUALIFIED_EXACT_PAIR")
-            authority["compatibility"]["qualification"]["evidence_sha256"].clear()
+            authority["compatibility"]["entry"][2].clear()
             self.assertEqual(change.rollback(), "ROLLED_BACK_OWN_ENTRY")
         for name, value in raw.items():
             self.assertEqual((self.directory / (name + ".json")).read_bytes(), value)
 
     def test_envoy_ingress_unknown_helper_pair_or_rewritten_historical_summary_is_rejected(self):
-        for mode in ("empty", "unknown-mutation", "producer", "ops-head", "manifest", "rewritten-equality"):
+        for mode in ("empty", "unknown-mutation", "producer", "ops-head", "manifest", "rewritten-equality",
+                     "short-head", "short-producer", "short-mutation", "short-record", "record-bool",
+                     "manifest-order", "manifest-duplicate", "entry-extra", "entry-list", "manifest-list",
+                     "table-list", "duplicate-entry"):
             with self.subTest(mode=mode):
                 guard = FakeGuard(self.directory)
                 key, entry, _ = self.historical_pair(guard)
-                table = {key: entry}
-                if mode == "empty": table.clear()
-                elif mode == "unknown-mutation": entry["mutation_helper_raw_sha256"] = "0" * 64
+                changed = list(entry)
+                table = (entry,)
+                if mode == "empty": table = ()
+                elif mode == "unknown-mutation": changed[3] = "0" * 64
                 elif mode == "producer": guard.edit("summary", lambda value: value.__setitem__("helper_sha256", "8" * 64))
                 elif mode == "ops-head": guard.edit("summary", lambda value: value.__setitem__("ops_head", "2" * 40))
-                elif mode == "manifest": entry["evidence_sha256"]["summary"] = "0" * 64
+                elif mode == "manifest": changed[2] = tuple((name, "0" * 64 if name == "summary" else value) for name, value in entry[2])
                 elif mode == "rewritten-equality":
-                    guard.edit("summary", lambda value: value.__setitem__("helper_sha256", entry["mutation_helper_raw_sha256"]))
+                    guard.edit("summary", lambda value: value.__setitem__("helper_sha256", entry[3]))
+                elif mode == "short-head": changed[0] = entry[0][:7]
+                elif mode == "short-producer": changed[1] = entry[1][:8]
+                elif mode == "short-mutation": changed[3] = entry[3][:8]
+                elif mode == "short-record": changed[4] = entry[4][:8]
+                elif mode == "record-bool": changed[4] = True
+                elif mode == "manifest-order": changed[2] = tuple(reversed(entry[2]))
+                elif mode == "manifest-duplicate": changed[2] = (entry[2][0], entry[2][0], *entry[2][2:])
+                elif mode == "entry-extra": changed.append("unexpected")
+                elif mode == "manifest-list": changed[2] = list(entry[2])
+                if mode not in {"empty", "table-list", "duplicate-entry"}:
+                    table = (changed if mode == "entry-list" else tuple(changed),)
+                elif mode == "table-list": table = [entry]
+                elif mode == "duplicate-entry": table = (entry, entry)
                 with patch.object(runner.runtime, "target", return_value=guard), \
                         patch.object(runner, "_INGRESS_HISTORICAL_OBSERVATION", key[2]), \
-                        patch.object(runner, "_INGRESS_QUALIFIED_HELPER_PAIRS", table):
+                        patch.object(runner, "_INGRESS_CAPTURE_COMPATIBILITY", table):
                     with self.assertRaises(ValueError):
                         self.configure()
                 self.assertEqual(guard.calls, [])
                 self.assertEqual(guard.patches, [])
+
+    def test_envoy_ingress_reserved_capture_head_cannot_reclassify_altered_observation(self):
+        key, entry, _ = self.historical_pair(self.guard)
+        self.guard.edit("observation", lambda value: value.__setitem__("synthetic_untrusted_edit", True))
+        changed_observation = hashlib.sha256((self.directory / "observation.json").read_bytes()).hexdigest()
+        self.guard.edit("causal-review", lambda value: value.__setitem__("observation_sha256", changed_observation))
+        self.guard.edit("summary", lambda value: value.__setitem__("helper_sha256", entry[3]))
+        with patch.object(runner, "_INGRESS_HISTORICAL_OBSERVATION", key[2]), \
+                patch.object(runner, "_INGRESS_CAPTURE_COMPATIBILITY", (entry,)):
+            with self.assertRaises(ValueError):
+                self.configure()
+        self.assertEqual(self.guard.calls, [])
+        self.assertEqual(self.guard.patches, [])
 
     def test_envoy_ingress_mutation_authority_cannot_change_after_ack(self):
         for mode in ("raw-even-if-other-qualified", "class-identity"):
@@ -447,19 +479,21 @@ class EnvoyIngressTests(unittest.TestCase):
                 key, entry, _ = self.historical_pair(guard)
                 with patch.object(runner.runtime, "target", return_value=guard), \
                         patch.object(runner, "_INGRESS_HISTORICAL_OBSERVATION", key[2]), \
-                        patch.object(runner, "_INGRESS_QUALIFIED_HELPER_PAIRS", {key: entry}):
+                        patch.object(runner, "_INGRESS_CAPTURE_COMPATIBILITY", (entry,)):
                     change = self.configure()
                     calls = len(guard.calls)
                     if mode == "raw-even-if-other-qualified":
                         replacement = self.directory / "not-executed-helper-source.py"
                         replacement.write_bytes(Path(runner.target_authority.__file__).read_bytes() + b"\n")
-                        other = clone(entry)
-                        other["mutation_helper_raw_sha256"] = hashlib.sha256(replacement.read_bytes()).hexdigest()
+                        other = list(entry)
+                        other[3] = hashlib.sha256(replacement.read_bytes()).hexdigest()
+                        other[4] = "d" * 64
+                        other = tuple(other)
                         with patch.object(runner.target_authority, "__file__", str(replacement)), \
-                                patch.object(runner, "_INGRESS_QUALIFIED_HELPER_PAIRS", {key: other}):
+                                patch.object(runner, "_INGRESS_CAPTURE_COMPATIBILITY", (other,)):
                             files, hashes, _ = runner._ingress_evidence(self.directory)
                             self.assertEqual(runner._ingress_authority(files, hashes)["mutation_helper_raw_sha256"],
-                                             other["mutation_helper_raw_sha256"])
+                                             other[3])
                             with self.assertRaisesRegex(ValueError, "rollback blocked"):
                                 change.rollback()
                     else:

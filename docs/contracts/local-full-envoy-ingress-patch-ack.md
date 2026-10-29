@@ -138,6 +138,43 @@ Pas Secret/probe/recapture, nouveau service, schema produit, crypto ou biblioth�
 Aucune recapture NAT par principe pour le seul parseur qualifié ; changement réel
 du collecteur/Admin/ancrage => réexaminer le besoin précis, jamais compat automatique.
 
+### Complément normatif de forme — ratification ultérieure explicite
+
+Le lead a lu les94lignes de la proposition architecte complétée, reçue APRÈS
+livraison98bdd75, et ratifie explicitement ce format AVANT son alignement en code.
+Le format intermédiaire inactif de98bdd75 n'est pas présenté comme déjà conforme
+à ce complément. Celui-ci ne modifie ni ACK/grammaire ni les quatre fichiers permis,
+et n'approuve aucune paire future à blanc.
+
+Constante choisie : `_INGRESS_CAPTURE_COMPATIBILITY`, tuple d'entrées immuables,
+chacune avec EXACTEMENT cinq champs ordonnés :
+`(capture_ops_head, capture_helper_raw_sha256, capture_projections_raw_sha256, mutation_helper_raw_sha256, qualification_record_sha256)`.
+Head=40hex complet ; hashes=64hex complets. Le troisième champ est un tuple de
+sept paires `(nom, RAW_SHA256)` dans l'ordre observation, summary, baseline,
+passive-baseline, admin-before, admin-after, causal-review. Ni doublon, alias ou
+champ de moins/en plus. ObservationSHA n'a pas de seconde valeur contradictoire.
+Constante vide/entrée incomplète => aucune compatibilité. Pas placeholder valide.
+
+`_ingress_evidence`, avec facteur privé possible, calcule les sept hashes et le
+RAW du module COURANT réellement importé, avec classidentity. Sélection par SHA
+observation connue : tous les champs effectifs doivent correspondre à l'entrée
+versionnée. **Un head historique réservé avec une autre observation est également
+refusé**, avant brancheégalité. Aucun reclassement d'une capture altérée pour cet
+ancien producteur. Hors observation ET head réservés, seule égalité stricte
+producteur/autorité reste admise ; différence inconnue => STOP.
+
+La projection validée fige head, producteur, sept RAW_SHA, mutation et référence
+SHA du reçu ; configure/journal/reçu la conservent, finish/revalidation/rollback
+la revalident sans renouvellement par GET ou autre paire qualifiée. Le reçu privé
+d'audit n'est PAS chargé comme autorité : l'entrée littérale versionnée contrôle
+le runtime. Décision parent exacte : QUALIFIED_GRAMMAR_ONLY_COMPATIBILITY après
+codefigé/tests/revue/AST+diff protégé et validation de la paire/manifest.
+
+Précision de calcul du lead : l'empreinte du reçu est calculée APRÈS création et
+scellement de ses octets, puis référencée dans la constante et le ledger. Le reçu
+porte les valeurs source/manifest/mutation et les preuves/décision, pas sa propre
+empreinte récursive. Pas nouveau parser de reçu, signature ou service.
+
 ## Allowlist et oracles
 
 Quatre fichiers SEULEMENT pour ce correctif :

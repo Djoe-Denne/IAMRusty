@@ -245,6 +245,59 @@ S-1 oracle auparavant rouge maintenant vert ; perte/mauvaisACK, concurrence avan
 GET et au rollback, autorité figée, no-retry incertain, manifesthistorique strict
 et identité native couverts. Aucun résultat live ni activation de paire déduit.
 
+Livraison98bdd75360e3f3d7478eb0586c5d0a5c6f9816d1 via hook normal fmtPASS,
+checkoutdelivery propre et SDK02e5 inchangé. Helper effectivement livré RAWLF
+9b0da96b7e0db6ace93628d4d55f059d997231384c44737ff2a39ea4f1a64605,
+différent du RAWrootCRLF2672... mais ASTentiers4fichiers root/delivery identiques.
+Gate répété sur VRAI RAWdelivery :PASS et cinq mutants horscorpsparse refusés.
+Contrôles d'ABI/provenance du checkout réellement utilisé (pas rerun de tout) :
+grammarACK1PASS.024s et helper_pair2PASS.368s ; logs delivered-*.log même dossier.
+Table exacte toujours VIDE ; proposed-code-pair.json privé/scellé NONAPPROUVÉ,
+relecture indépendante même reviewer demandée sur code figé et paire proposée,
+avant ratification des valeurs/activation. Aucun live/API/Secret/runtime.
+
+Préparation indépendante de la corrélation navigateur, NON exécutée : réutiliser
+oauth_forward existant (ServiceUID possédé, loopback18081, handle du seul child,
+CTRL_BREAK Windows/attente15s/marker conservé si cleanup bloqué). Admin refuse
+le marqueur OAuth : snapshotavant AVANT forward, puis providerobservations,
+scénario inchangé, providerobservationsaprès, fermeture forward, snapshotAdminaprès.
+Pas de tunnel Admin pendant le navigateur ni nouveau port/transport/proxy.
+
+Oracle de comptage conservateur prévu avant run, pas résultat observé : le
+scénario existant effectue deux autorisations IdP (login+relink), ou trois si une
+registration202 exige le nouveau login200. Les quatre compteurs IdP de succès
+authorize/token/profile/pkce_validated doivent être cohérents pour ce même runId ;
+ils ne comptent PAS toutes les tentatives invalides. Positifs IAM attendus4,
+ou7 avec préparation de registration. Comparer les compteurs upstream_rq_total
+IAM explicites avant/après, même Pod/incarnation/epoch, fenêtre exclusive sans
+autre client de mission. Égalité exacte attendue + positifs navigateur complets
++ matchers effectivement chargés + trois refus sansBearer : candidat à la preuve
+de non-dispatch N1–N3, pas les seuls compteurs vendor. Hausse inattendue, compteur
+MISSING/reset ou dérive ⇒ INCONCLUSIVE, aucun zéro inventé ou PASS partiel.
+Ce plan reste à confronter aux observations réelles et ne remplace aucune IT,
+preuve Envoy/SAN ou acceptation de la matrice complète.
+
+Complément architecte94lignes reçu après98bdd75 : format constant EXACT5tuples
+et réservation du captureHead explicités, ratifiés AVANT alignement en code.
+Nouveau test nommé AVANT implémentation/run :
+test_envoy_ingress_reserved_capture_head_cannot_reclassify_altered_observation.
+Capture sous head réservé, observation modifiée et summary réécrit au helper
+courant doit refuser AVANT toute commande, même si le SHAobservation diffère.
+L'oracle unknown_helper_pair sera étendu aux formes malformées/ordre/duplicats et
+SHA de qualification exact, dans le même fichier existant. Helper/grammar9b0 et
+preuves immuables inchangés ; recheck en cours de98bdd75 reste borné à sa source.
+
+Recheck indépendant reçu/persisté : S-1, grammarACK et Admin PASS statique sur98,
+aucun nouveau finding ; complément précise aucune activation sous nouveau format
+avant alignement/recheck. Nouveau cas headréservé reproduit ROUGE/exit1/1FAIL.087s
+(ValueError not raised) AVANT fix : observation altérée/review liée/summary au
+helpercourant pouvait reprendre l'égalité. Puis constante exacte à5tuples,
+manifest7ordonné, SHAdu reçu complet, observation OU head réservés prioritairement,
+projection canonique figée. Table encore VIDE. Suite13PASS/0skip4.638s,exit0 ; log
+provenance-shape-tests.log même campagne4dba... . Formes incomplètes/mutables,
+ordre/duplicats/préfixes/bool/SHAmismatch et cas headréservé refusés avant commande.
+Seuls runner/test ont changé ; helper9b0 et52tests du garde précédents réutilisés.
+
 ## Plafond server_info v2 — plan avant code/run
 
 Amendement architecte v2 lu et explicitement ratifié : plafondFIXE131072B,
