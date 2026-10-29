@@ -12,6 +12,8 @@ Sur le même hôte et les mêmes binaires, AppArmor est activé ; la restriction
 
 Ces faits concordent avec l'incompatibilité documentée de Chrome for Testing extrait dans un chemin privé sur Ubuntu24.04. Ils ne constituent pas une mesure du refus AppArmor appliqué à ce processus, ni une preuve que cette cause est exclusive. Aucun journal noyau, profil ou réglage hôte n'a été modifié ou sondé hors contrat.
 
+Le source Chromium épinglé précise la phase : `ZygoteHostImpl` choisit la sandbox par namespace si elle est disponible, sinon le helper SUID ; le FATAL observé est émis si aucun n'est utilisable. La sonde interne de namespace peut notamment échouer lors de la création d'un processus avec `CLONE_NEWUSER`. Cette lecture localise le refus de démarrage, sans fournir l'errno ou la cause propre au runner.
+
 ## Recherche après cet essai
 
 La documentation officielle Chromium156.0.8078.73 décrit trois solutions : désactivation globale de la restriction, profil AppArmor ciblé, helper SUID. La première affaiblit une protection utile et reste exclue. Le profil ciblé reste une exception à la politique hôte, pas un changement neutre ; le helper implique un binaire privilégié et un mécanisme ancien. Aucun de ces remèdes n'est appliqué implicitement.
@@ -37,5 +39,7 @@ Sources consultées après le run :
 - https://raw.githubusercontent.com/puppeteer/puppeteer/main/docs/troubleshooting.md
 - https://github.com/actions/runner-images/issues/14254 (annonce officielle du retrait Ubuntu22.04, contenu API vérifié)
 - https://github.com/actions/runner-images/blob/main/README.md
+- https://github.com/chromium/chromium/blob/156.0.8078.73/content/browser/zygote_host/zygote_host_impl_linux.cc#L115-L141
+- https://github.com/chromium/chromium/blob/156.0.8078.73/sandbox/linux/services/credentials.cc#L267-L284
 
 Les guides non épinglés décrivent le contexte courant, pas le comportement prouvé de notre binaire ; la documentation Chromium épinglée et les observations du run priment.

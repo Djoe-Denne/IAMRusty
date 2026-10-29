@@ -429,6 +429,132 @@ Installer un helper/profil, modifier la politique hôte, créer un laboratoire o
 faire de ce diagnostic un second harness de qualification sortirait de ce contrat
 et exige un arbitrage distinct ; aucune permission de ce type n'est proposée.
 
+### Addendum comparaison Linux — Accepted pour l'essai22.04 ; voie durable Proposed, 2026-10-30
+
+**Comparaison22.04 ratifiée par le lead avant code le2026-10-30**, sous délégation
+mission1 ; voie durable AppArmor toujours **Proposed et non autorisée**. Candidate
+architecte `result_mvu6v2hg_000n_ev67mv`, session `ses_e75fb3daeffeCew1RlUmBKejVR`,
+base `efe90e7e13a0e28fe4dc30dfb0a2f7ec8292a00d`, récupérée à l'identique puis sauvegardée.
+Elle ne modifie aucun passage Accepted : Ubuntu24.04 reste la cible V1 et
+l'interdiction de changer politique/privilèges du diagnostic précédent demeure.
+Le lead ratifie seulement l'expérience ci-dessous, sans nouveau GO utilisateur de
+routine ni autorisation de l'exception AppArmor évoquée ensuite. Aucun test ou
+runtime n'a été exécuté par cet arbitrage ; aucune qualification n'est prononcée.
+
+**Preuve réutilisée, pas nouvel essai :** rapport23 et ledger du lot
+`team_mvtz6p47_000q_4wmht0`, run40973768642/source `cf9f5ca`, image Ubuntu24.04
+`20261025.353.1` : 96 tests Linux OK sans skip, tools PASS ; k6 avant le cas,
+`SANDBOX_UNPROVEN` ; direct `NO_USABLE_SANDBOX_REPORTED`, native SIGNAL et privacy
+FAIL, aucun artefact d'échec publié. Cleanup enfants PASS, parent runtime
+INCONCLUSIVE. AppArmor activé/restriction userns1, clone1/limite positive et
+seccomp/NoNewPrivs parent0 concordent avec le problème documenté, sans prouver
+un refus AppArmor corrélé au processus ni sa causalité exclusive.
+
+Recoupement du code Chromium156 : `zygote_host_impl_linux.cc:115–141` situe ce
+message dans la sélection namespace sandbox, puis helper SUID, puis FATAL si
+aucune voie n'est retenue. `credentials.cc:267–284` tente
+`ForkWithFlags(CLONE_NEWUSER | SIGCHLD)` mais peut aussi rendre false via
+GetRESIds/TSAN : aucun errno de ce run n'est mesuré. Le FATAL contient des URL de
+documentation, cohérent avec privacy FAIL ; leur présence n'autorise aucune
+publication du flux brut ni modification du contrôle de confidentialité.
+
+**Prochain essai recommandé : une comparaison native Ubuntu22.04 amd64 non-root,
+sans modification de sécurité**, à vocation diagnostique uniquement. C'est un
+changement d'environnement **non équivalent**, pas un downgrade de V1 ni une
+qualification Ubuntu24.04. Le retrait officiel du runner22.04 le2027-04-17 exclut
+d'en faire le choix durable implicite. Après ratification, contrat minimal :
+
+- Réutiliser le lanceur/superviseur, scénarios et contrôles existants ; au plus un
+  lancement `k6/browser`, avec outils/versions/inspections préalables. Le direct22
+  est facultatif, non nécessaire à la question de dépendance à l'environnement ;
+  s'il est retenu, un lancement séparé seulement après échec browser, selon le
+  contrat diagnostique Accepted. Aucun retry, nouveau harness, paquet
+  implicite, helper SUID, `sudo`, profil/sysctl/seccomp modifié ou cible applicative.
+  Même k6v2.3.0 et CfT156.0.8078.73, mêmes archives/ELF/SHA256 revus et arguments
+  que la référence24.04 ; revalidation avant exécution, pas de binaire préinstallé.
+- L'éventuel delta ultérieur reste dans `ops/tests/k6/` et le workflow dédié :
+  activation diagnostique fermée pour22.04, réutilisant les modes existants et
+  séparée de leur qualification nominale ; pas trois nouveaux modes ni fallback.
+  `run-linux.py:linux_platform()` refuse aujourd'hui22.04 ; ne pas le contourner
+  par faux OS, environnement libre, modification silencieuse du lock24.04 ou
+  assouplissement du chemin nominal. Garder le job24.04 canonique ; aucun échec
+  existant rendu vert par suppression, skip ou `continue-on-error`. Le diagnostic
+  direct reste non-zéro et ne devient jamais une qualification.
+- Relever OS, architecture, noyau, image effective, UID et mêmes métadonnées hôte
+  autorisées, versions/empreintes et delta de configuration. Un label22.04 ne
+  prouve ni l'absence d'AppArmor ni l'autorisation effective des user namespaces.
+  Le run40973768642 reste la référence historique : ne pas relancer24.04 à
+  l'identique uniquement pour fabriquer une paire, ni annoncer un A/B à une variable.
+  Un push normal ajoutant le job22 au même workflow déclenchera aussi le job24
+  canonique : cette répétition incidente est admise, sans skip ni neutralisation
+  de son échec. Ce n'est ni un essai24 dédié à fabriquer une paire ni une comparaison
+  mono-variable ; la référence causale conservée reste run40973768642.
+- Conserver gardes d'identité, sorties bornées, sentinelles, environnement fermé,
+  absence de reporting et inventaires/cleanup pré/post, y compris interruption.
+  Privacy FAIL interdit publication/PASS ; ne pas neutraliser le FATAL avec URL.
+  Parent runtime, enfants, HTTP et Chromium restent des verdicts distincts.
+  Aucun dispatch, secret de PR, nouveau déploiement ou permission CI ajouté.
+- Si les prérequis/pins ne passent pas, arrêter avant browser et décrire la limite.
+  Si k6 franchit le démarrage sur22.04, cela discrimine une dépendance à
+  l'environnement, **pas AppArmor seul**. S'il échoue aussi, cela ne réfute pas
+  AppArmor sur24.04. Distinguer démarrage, cas complet, témoin sandbox et cleanup ;
+  un direct réussi ne remplace pas k6, ni une qualification24.04 manquante.
+
+**Preuve sandbox inchangée.** `lib/safety.py:sandbox_witness` exige, pour un même
+renderer possédé et identifié au même instant : UID effectif attendu, arguments
+sans flags interdits, seccomp2, NoNewPrivs1, namespaces user **et** PID lisibles et
+distincts du parent, nombre de filtres supérieur à celui du parent. Ne pas assembler
+plusieurs processus/instants, confondre seccomp du parent et du renderer ou traiter
+un `/proc` refusé comme une preuve. Ce témoin vérifie des frontières observables,
+pas le contenu complet des filtres, l'application d'un profil AppArmor ni toutes
+les garanties Chromium. Absence de témoin = SANDBOX_UNPROVEN, même après succès
+`about:blank` ; pas de nouvelle sonde privilégiée ou de debug pour le rendre lisible.
+
+**Voie durable — Proposed même après ratification de la seule comparaison22.04.**
+Aucune exception AppArmor n'est autorisée par cette ratification partielle.
+
+**Recommandation, à arbitrer séparément : rester sur24.04 et conserver
+les pins, avec une exception AppArmor userns strictement dédiée au binaire**, si
+le lead accepte explicitement ce changement de politique après examen. Ni cette
+proposition ni l'admission de l'essai22.04 n'en autorise le provisioning. Avant
+code/exécution de cette voie, un amendement distinct doit fixer : chemin canonique
+exact et profil revu sans glob/arbre de builds, propriété/intégrité de la chaîne de
+chemins, autorité de chargement/retrait, mesure de l'attachement effectif et
+retour arrière vérifié sans toucher un profil étranger. Ne pas copier le profil
+`flags=(unconfined)` d'exemple comme s'il confinait à lui seul Chromium. AppArmor
+autorise par chemin, pas par SHA256 : un chemin remplaçable par le runner peut
+autoriser un autre binaire. Les fichiers privés actuels appartiennent à son UID
+(`private_path`) ; passer à un emplacement administré non remplaçable demande une
+décision explicite sur le contrôle d'intégrité, pas une exception cachée aux gardes.
+La mutation de politique ne doit pas s'exécuter à partir d'une PR non fiable.
+Sans cet arbitrage et sa preuve opérationnelle, Chromium24.04 reste INCONCLUSIVE.
+
+**Alternatives :** un Linux encore supporté, déjà disponible/autorisé avec userns
+utilisables sans changement de politique, est recevable avec les mêmes pins et
+gardes, mais exige une qualification de plateforme distincte ; aucun hôte nouveau
+n'est présumé disponible. Ubuntu26.04 ne garantit pas la disparition des restrictions.
+Chrome fourni par la distribution/profil existant change provenance/pin et ne se
+substitue pas silencieusement au CfT privé. Docker non privilégié n'efface pas les
+restrictions du noyau/AppArmor/seccomp et n'est pas un remède présumé. Sont écartés :
+désactivation globale, `no-sandbox`, helper SUID, capabilities/runner privilégié,
+déplacement opportuniste vers un chemin déjà autorisé et migration durable22.04.
+
+Validation avant l'essai futur : tests Linux existants sans skip ; régressions du
+sélecteur fermé (nominal22.04 refusé, diagnostic22.04 admis, autre OS refusé), pins
+et résultats non qualifiants, confidentialité/cleanup inchangés. Puis versions et
+inspections, expérience bornée et projections actuelles corrélées. Aucune commande
+runtime ni test k6/Linux n'est exécuté par cet arbitrage documentaire. Aucun delta
+Rust/service/identité/OAuth/HTTP/charge/SDK, nouvelle ADR ou changement de Réalité.
+
+Sources officielles relues le2026-10-30 : [Chromium156, options et risque du chemin](https://chromium.googlesource.com/chromium/src/+/156.0.8078.73/docs/security/apparmor-userns-restrictions.md),
+[Ubuntu, justification et limites des profils non confinés](https://discourse.ubuntu.com/t/understanding-apparmor-user-namespace-restriction/58007),
+[retrait runner22.04, annonce14254](https://github.com/actions/runner-images/issues/14254),
+[Puppeteer, recoupement AppArmor/CfT et avertissement SUID obsolète](https://raw.githubusercontent.com/puppeteer/puppeteer/main/docs/troubleshooting.md).
+Les trois dernières sources sont du contexte daté, pas des preuves sur notre ELF.
+Code Chromium au même tag156.0.8078.73 : [sélection de sandbox](https://raw.githubusercontent.com/chromium/chromium/156.0.8078.73/content/browser/zygote_host/zygote_host_impl_linux.cc),
+[test de création userns](https://raw.githubusercontent.com/chromium/chromium/156.0.8078.73/sandbox/linux/services/credentials.cc).
+Le ticket runner-images10443 concerne Buildah/unshare, pas notre cause Chromium.
+
 ## Cookies, secrets et sorties
 
 Contexte Chromium neuf et fermé en finally. Aucun transfert implicite de cookie
