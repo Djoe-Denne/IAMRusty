@@ -367,6 +367,32 @@ browser avant IAMfinale. Hive67PASS resteune preuve sourceinchangée ba21/SDK74e
 nenommeraucuneréexécutionHivesous02e5. Validationruntimecommunledgerparent àfaire
 parIAM, limitesSDKchildWindowsréel conservées sansPASSimplicite.
 
+### IAM intégré au SDK02e5 — résultat réel acquis
+
+Séquence sh_185530ff5001yUiiqM0E9Vysbj terminée exit0 :41précompilations exit0
+(721s cumulées), puis campagne it-1de7a72631cf4f4493a908fbc49f09b3 : **290PASS,
+0FAIL,1ignored**,41binaires terminés. Sourceapp00c6cf2/SDK02e5, aucunlockdrift.
+Lignesnominatives recoupées : gardecompte, sessionspersistées/rotation, dernierbudget
+cross-org et17eslotplateforme tousPASS ; signing_admission5PASS/signing_epoch_writer7PASS,
+oauth_browser_transactions8PASS/token22PASS, autresrésultatscomplets danslelog.
+
+Ignoredréel unique : test_signup_sqs_integration, opt-in explicite. SignupKafka
+compilécommebinairevide (featurekafkaabsente), pasundeuxièmeignoredexécuté. Aucun
+PASSKafka/SQSsignup revendiqué ; les2routagesSQS IAM existants sont bienPASS.
+La prédictionpréflightde2ignored n'étaitpasunrésultat ; lecompteréelcorrige1ignored.
+
+Cleanup :36created/36removed,0ownedrunning/present,0issues/unknown/newunowned,
+picowned2 ;20préexistants mêmesIDs/états après.35ledgers tousnouveauformatincarnation,
+aucunPIDdoublédanscefinalrun ; nepasaffirmercausehistoriquerétroactivementprouvée.
+Compatibilité réelle SDKledger/parentEngine démontrée surcettecampagne réussie.
+Preuves .tmp/auth-iam-incarnation-1d48036bc5614e888ff9d22e3edf5e00/ et
+.tmp/itfixtures-it-1de7a72631cf4f4493a908fbc49f09b3/, registre contemporain.
+
+TâchecorrectifledgerSDK désormaiscomplétée APRÈSpreuveintégrée, pasparseulpush.
+GateITavantKind satisfait avecpreuvesréutiliséesétiquetées : Hive67PASSsurba21/SDK74e8,
+sourcesHiveprod inchangées ; IAM290PASSsous02e5 ; ext-authz13PASSHTTPsoure44/74e8,
+nouveauxoraclesSDK7PASS. PasdequalificationglobaleEnvoy/browser/production.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et
