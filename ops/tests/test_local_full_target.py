@@ -1,4 +1,5 @@
-"""Pure fake-command S-11 tests. Parent executes after source integration only."""
+"""Fake-command S-11 tests and a native Windows ACL invocation boundary."""
+import base64
 import hashlib
 import importlib.util
 import json
@@ -353,6 +354,63 @@ class AnchorTests(unittest.TestCase):
         self.f.target(self.cmd).kind_load(image)
         self.assertEqual(len(self.cmd.api()), 1)
         self.assertEqual(self.cmd.kind_actions(), [["kind", "load", "docker-image", image, "--name", "aiforall-local-full"]])
+
+
+class WindowsAclBindingTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "native Windows PowerShell boundary")
+    def test_windows_acl_directory_and_private_probe_bind_literal_paths(self):
+        # Own non-secret files only. Spaces, apostrophe and semicolon must remain
+        # literal data, never PowerShell syntax. No Docker, API or kubeconfig.
+        with tempfile.TemporaryDirectory(dir=anchor.approved_root(), prefix="acl-binding-") as directory:
+            path = Path(directory) / "literal space' ; éΩ directory"
+            path.mkdir()
+            anchor.secure(path, directory=True)
+            file = path / "mutable.txt"
+            file.write_text("non-secret test marker", encoding="utf-8")
+            # A policy-probe fixture needs a known private DACL but must retain
+            # WriteAttributes for teardown. Do not undo secure(file)'s seal.
+            anchor._windows_path_script(
+                "$a=[Security.AccessControl.FileSecurity]::new();"
+                "$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User;"
+                "$a.SetOwner($sid);$a.SetAccessRuleProtection($true,$false);"
+                "$a.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid,'FullControl','Allow'));"
+                "$a.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new("
+                "[Security.Principal.SecurityIdentifier]::new('S-1-5-18'),'FullControl','Allow'));"
+                "Set-Acl -LiteralPath $p -AclObject $a", file)
+            try:
+                file.chmod(0o400)
+                self.assertTrue(anchor.private_file(file), "own protected read-only input must be accepted")
+            finally:
+                file.chmod(0o600)
+            self.assertFalse(anchor.private_file(file), "mutable input must remain rejected")
+            self.assertEqual(anchor._windows_path_script("Write-Output $p", path).strip(), str(path))
+            self.assertEqual(anchor._windows_path_script("if($dir){'directory'}else{'file'}", path).strip(), "file")
+
+    def test_windows_path_command_uses_encoded_data_and_propagates_failure(self):
+        path = Path("literal space' ; Write-Output INJECTION")
+        with patch.object(anchor, "run", return_value="marker") as runner:
+            self.assertEqual(anchor._windows_path_script("Write-Output $p", path, directory=True), "marker")
+        command = runner.call_args.args[0]
+        self.assertEqual(command[:3], ["powershell.exe", "-NoProfile", "-EncodedCommand"])
+        self.assertEqual(len(command), 4)
+        self.assertEqual(runner.call_args.kwargs["encoding"], "utf-8")
+        script = base64.b64decode(command[3], validate=True).decode("utf-16-le")
+        self.assertNotIn(str(path), script)
+        self.assertIn(base64.b64encode(str(path).encode("utf-8")).decode("ascii"), script)
+        self.assertIn("$dir=$true;", script)
+        self.assertIn("$ErrorActionPreference='Stop';", script)
+        with patch.object(anchor, "run", side_effect=anchor.AnchorError("opaque command failure")):
+            with self.assertRaises(anchor.AnchorError):
+                anchor._windows_path_script("Write-Output $p", path)
+
+    def test_windows_seal_marks_readonly_before_withdrawing_write_attributes(self):
+        path = Path("owned-file")
+        with patch.object(anchor.os, "name", "nt"), patch.object(anchor, "_windows_path_script") as invoke:
+            anchor.secure(path)
+        script = invoke.call_args.args[0]
+        self.assertLess(script.index(".IsReadOnly=$true"), script.index("Set-Acl -LiteralPath"))
+        self.assertIn("'ReadAndExecute'", script)
+        self.assertEqual(invoke.call_args.args[2], False)
 
 
 if __name__ == "__main__":

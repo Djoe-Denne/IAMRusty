@@ -131,14 +131,26 @@ def approved_root():
     return Path.home() / "AppData/Local/Temp/opencode" if os.name == "nt" else Path.home() / ".cache/opencode"
 
 
+def _windows_path_script(script, path, directory=False):
+    # -Command does not bind trailing process arguments to $args in a script
+    # string. Keep the path out of PowerShell syntax as well as CLI arguments.
+    data = base64.b64encode(str(path).encode("utf-8")).decode("ascii")
+    prefix = ("$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';"
+              "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);"
+              "$p=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + data + "'));"
+              "$dir=" + ("$true;" if directory else "$false;"))
+    encoded = base64.b64encode((prefix + script).encode("utf-16-le")).decode("ascii")
+    return run(["powershell.exe", "-NoProfile", "-EncodedCommand", encoded], text=True, encoding="utf-8", timeout=30)
+
+
 def private_file(path):
     """Read-only file, owned/private directory; no raw ACL/credentials emitted."""
     if os.name != "nt":
         return (path.stat().st_uid == os.getuid() and path.parent.stat().st_uid == os.getuid()
                 and not path.stat().st_mode & 0o222 and not path.stat().st_mode & 0o077
                 and not path.parent.stat().st_mode & 0o077)
-    script = "$p=$args[0];$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value;$ok=$true;foreach($f in @($p,(Split-Path -Parent $p))){$a=Get-Acl -LiteralPath $f;if($a.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $sid){$ok=$false};foreach($r in $a.Access){if($r.AccessControlType -eq 'Allow' -and $r.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -notin @($sid,'S-1-5-18')){$ok=$false}}};if(-not (Get-Item -LiteralPath $p).IsReadOnly){$ok=$false};if($ok){'yes'}else{'no'}"
-    return run(["powershell.exe", "-NoProfile", "-Command", script, str(path)], text=True, timeout=30).strip() == "yes"
+    script = "$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value;$ok=$true;foreach($f in @($p,(Split-Path -Parent $p))){$a=Get-Acl -LiteralPath $f;if($a.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $sid){$ok=$false};foreach($r in $a.Access){if($r.AccessControlType -eq 'Allow' -and $r.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -notin @($sid,'S-1-5-18')){$ok=$false}}};if(-not (Get-Item -LiteralPath $p).IsReadOnly){$ok=$false};if($ok){'yes'}else{'no'}"
+    return _windows_path_script(script, path).strip() == "yes"
 
 
 def secure(path, directory=False):
@@ -147,8 +159,10 @@ def secure(path, directory=False):
         return
     # No inherited broad ACE, no Administrators/Everyone grants. SYSTEM + task
     # user only; generated file is read-only and no longer writable by task tools.
-    script = "$p=$args[0];$dir=$args[1] -eq 'dir';$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User;$a=if($dir){New-Object Security.AccessControl.DirectorySecurity}else{New-Object Security.AccessControl.FileSecurity};$a.SetOwner($sid);$a.SetAccessRuleProtection($true,$false);$rights=if($dir){'FullControl'}else{'ReadAndExecute'};$a.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid,$rights,'Allow'));$a.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new('S-1-5-18'),'FullControl','Allow'));Set-Acl -LiteralPath $p -AclObject $a;if(-not $dir){(Get-Item -LiteralPath $p).IsReadOnly=$true}"
-    run(["powershell.exe", "-NoProfile", "-Command", script, str(path), "dir" if directory else "file"], text=True, timeout=30)
+    # Mark the new owned file read-only before withdrawing its owner's
+    # WriteAttributes right. The resulting ACL remains exactly the same.
+    script = "$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User;$a=if($dir){New-Object Security.AccessControl.DirectorySecurity}else{New-Object Security.AccessControl.FileSecurity};$a.SetOwner($sid);$a.SetAccessRuleProtection($true,$false);$rights=if($dir){'FullControl'}else{'ReadAndExecute'};$a.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid,$rights,'Allow'));$a.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new('S-1-5-18'),'FullControl','Allow'));if(-not $dir){(Get-Item -LiteralPath $p).IsReadOnly=$true};Set-Acl -LiteralPath $p -AclObject $a"
+    _windows_path_script(script, path, directory)
 
 
 class UniqueLoader(yaml.SafeLoader):

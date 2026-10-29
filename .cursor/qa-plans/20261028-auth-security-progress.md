@@ -478,6 +478,124 @@ absentes dans chacun des filtres ; après ajout, même sélection verte puis sui
 La revue infra reçue au 4fcca1d est persistée avec sa limite racine ; le delta
 récursif sera transmis et la provenance de la copie générée actualisée avant build.
 
+### Livraison Linux — résultat principal et images suivantes
+
+Source figée cf02c4a / SDK02e5, filtre final vérifié indépendamment par infra14.
+Premier build `Dockerfile.build` réussi : exit0/116.6s, release locked terminé
+1m31s, image Linux/amd64 ID aa7c846a04953b5961f9d4a2419b75c8c52e64b5beb455b12f399265c3054c92
+(préfixe sha256), labels app/SDK exacts. Ancienlatest et conteneurs inchangés.
+Build ne vaut aucun test fonctionnel ; transfert14.52MB ne prouve pas à lui seul
+chaque exclusion, celles-ci sont contrôlées statiquement avec revue et guard.
+
+Plan livraison en cours : dix images source profil OAuth, séquentielles depuis
+le contexte propre, sept consommateurs avec BUILD_IMAGE explicite ; ext-authz,
+controller et Zot gardent leurs Dockerfiles existants. Préflight tags absents,
+IDs --iidfile enregistrés immédiatement, aucune adoption d'ID préexistant.
+Le lot s'arrête au premier échec ; pas de baisse de jobs, nettoyage de cache ou
+build de développement Linux. Aucun cluster créé à ce jalon.
+
+### Oracle Envoy live — scénario nommé avant campagne
+
+`envoy_same_ca_expected_san_roundtrip` : après déploiement ancré et contrôle des
+UID propres, utiliser le vrai Envoy local-full et son IAM upstream. Positif sur
+GET public exact `/iam/api/auth/gitlab/login` sans JWT, capturer seulement statut,
+chemin et effet TLS (pas code, cookie ou state). Avec les seuls certificats
+générés de ce run, comparer la validation du leaf IAM puis du leaf Hive : même
+CA transport, mais ce dernier ne contient pas le SAN IAM attendu.
+
+Négatif borné proposé : mettre uniquement le leaf/key Hive du run dans le Secret
+transport IAM possédé, sans lire un Secret live ni changer la CA, la config Envoy,
+les routes ou l'identité cliente. Patch d'annotation de Deployment possédé pour
+renouveler les connexions ; UID avant/après et effets du rollout archivés. IAM
+doit rester démarré avec ce leaf valide. Le vrai Envoy doit refuser le flux avec
+échec de vérification SAN discriminant (compteur `fail_verify_san` si disponible
+dans l'image existante, sinon diagnostic TLS précisément borné), non un simple
+503 ou timeout. Restaurer le leaf IAM connu, nouveau rollout et positif équivalent.
+
+Pas d'exécution de ce scénario à cette ligne : noms/UID réels, accès d'observation
+Admin loopback, outils présents et effets du patch restent à préflighter. Aucun
+pod de preuve, port exposé ou installation nouvelle implicitement autorisé.
+Si l'observation discriminante manque, résultat INCONCLUSIVE, jamais PASS depuis
+le rendu ou reqwest. Le rollout ne donne aucun droit de remplacer un objet
+étranger ou de modifier la cible. P1–P3/N1–N3 navigateur restent un run distinct.
+
+### Bootstrap Windows — paramètres ACL, plan avant correctif
+
+Premier essai : zéro nœud/volume créé, 20 préexistants inchangés. Arrêt dans
+secure(directory) avant écriture creation.phase. Répertoire d'ancrage vide retenu,
+bail pending non réutilisé. Invocation PowerShell actuelle reproduite sans effet
+avec marqueur : `$args[0]` non lié, commande exit1 ; témoin en bloc de script lie
+le marqueur, exit0. Ce n'est pas un refus d'accès établi ni un manque d'autorisation.
+
+Correctif local : un helper privé transmet le chemin en Base64 UTF-8 dans une
+commande fixe encodée UTF-16LE (option standard PowerShell EncodedCommand).
+Aucune interpolation de chemin en syntaxe PowerShell, aucun argument résiduel,
+aucune variable d'environnement nouvelle. Règles ACL opérateur/SYSTEM, lecture
+seule, allowlist et refus de fallback inchangés ; ErrorActionPreference=Stop.
+
+Nouveaux tests dans la suite existante, nommés avant exécution :
+`test_windows_acl_directory_and_private_probe_bind_literal_paths` (vrai processus
+PowerShell, uniquement répertoire temporaire propre, pas Docker/API/secret),
+`test_windows_path_command_uses_encoded_data_and_propagates_failure` (frontière
+de commande et échec opaque). Reproduire d'abord le premier avec l'ancien code,
+puis correction et deux sélections, suite target complète. Aucun changement Rust,
+SDK, images ou politique de confiance. Revue bornée utile avant nouveau bootstrap.
+
+Baseline native avec l'ancien code : échec dans secure, avant le probe, même
+AnchorError que le bootstrap. Premier correctif valide secure(directory) sur le
+vrai OS ; le test avance au probe du fichier mutable et échoue. Diagnostic borné
+montre une ACL par défaut du fichier contenant une identité non traduisible :
+le refus strict du probe n'est pas une preuve de défaut des règles de privacy.
+L'arrangement sera donc explicitement protégé avec secure(file), témoin positif
+private_file=True, puis rendu mutable dans le seul cleanup de ce fichier propre
+et témoin négatif False. Aucun assouplissement de Translate ou de la policy.
+
+Autre fait observé : les messages de progression PowerShell OEM850 provoquent
+des erreurs de décodage dans le lecteur Python UTF8. Le helper fixe explicitement
+sa sortie UTF8 et supprime seulement les messages de progression, jamais les
+erreurs. Le test couvre aussi le chemin Unicode, la commande encodée et la
+propagation d'échec. Ce progrès localisé ne justifie aucune relance de Kind à ce stade.
+
+Le témoin positif a ensuite localisé un second défaut préexistant : secure(file)
+retire WriteAttributes au propriétaire avant de positionner IsReadOnly. Diagnostic
+PowerShell UTF8 précis : accès refusé à la définition d'IsReadOnly, ACL déjà
+appliquée, flag encore mutable. Ce n'est ni un refus d'outil ni une permission
+à élargir : repositionner le flag sur le fichier neuf possédé avant d'appliquer
+la même ACL finale. Pas d'autre utilisateur, escalade ou droit final ajouté.
+Le même oracle positif/négatif contrôle le résultat réel ; pas de bootstrap retry.
+
+Après remise en ordre, secure(file) et le probe positif réussissent réellement ;
+l'échec se déplace au teardown du test qui tentait de rouvrir un fichier scellé.
+Cette réouverture n'appartient pas au contrat et n'est pas ajoutée au produit.
+Les artefacts non secrets de ces essais sont conservés, aucun forçage de droits.
+Arrangement final du test : DACL privée connue avec droit WriteAttributes gardé
+uniquement par le fichier de probe du test, flag read-only puis mutable, cleanup
+ordinaire. Test supplémentaire nommé avant run :
+`test_windows_seal_marks_readonly_before_withdrawing_write_attributes` vérifie
+l'ordre et les droits finaux inchangés de secure(file), sans nouvelle ressource.
+Le succès natif du seal réel dans l'essai précédent reste une preuve bornée,
+pas un PASS de test dont le teardown a échoué.
+
+Résultat final : sélection Windows 3 PASS, suite cible 24 PASS (2.044 s), zéro
+skip et aucune erreur de décodage. Le contrôle natif porte sur protection d'un
+répertoire propre, chemin Unicode/littéral, probe read-only accepté puis mutable
+refusé. Le seal de fichier garde les droits finaux initiaux ; son ordre est
+couvert par oracle source/commande et son positif natif précédent reste distinct.
+Logs .tmp/auth-windows-acl-binding-accepted-{green,suite}.log ; anciennes preuves
+rouges/teardown échoué conservées, aucune réécriture de résultat.
+
+Avant nouveau bootstrap : revue sécurité bornée du diff guard/tests, commit du
+delta de mission, nouveau bail pending (jamais réutiliser le répertoire d'ancrage
+vide du premier essai). Les images cf02c4a restent valides : aucun Rust, Dockerfile,
+configuration de service ou SDK n'a changé, seulement helpers de conduite Windows.
+Conserver séparément SHA des binaires/images et SHA des opérations de bootstrap.
+
+Revue sécurité indépendante reçue et persistée : PASS borné, aucun finding sur
+les deux postimages exactes recoupées avec git hash-object. Pas de nouvelle
+garantie d'immutabilité ni de permission de descellement. Reprise conforme :
+committer ce delta Python/tests/QA, avancer le contexte propre et créer une
+nouvelle lease pending ; les assets privés de cette même mission restent identifiés.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et
