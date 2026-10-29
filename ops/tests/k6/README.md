@@ -212,6 +212,94 @@ recovered by this diagnostic. No debug, new capture, policy change, wrapper,
 installation or sandbox bypass is introduced; the precise CI cause may remain
 unproven under these bounds.
 
+### Explicit parent Chromium diagnostic (Accepted addendum 2026-10-30)
+
+This mode is **not** a second qualification runner or a fallback in `browser`.
+It addresses the possibility that k6's parser discarded a native startup error;
+it does not assume that AppArmor/userns caused any observed k6 failure.
+Proposed parent-only command, **not executed by the author**:
+
+```sh
+python3 -B ops/tests/k6/run-linux.py diagnose-chromium --output "$PRIVATE_ROOT/chromium-direct-check"
+```
+
+There is no config, URL, executable or extra-argument option. The same archive/ELF
+pins, path identities, non-root Linux platform, version probes, closed environment
+and `Child` supervisor are reused. Each invocation creates one new private profile
+and launches at most one direct browser after the version probes. Its fixed argv:
+
+```text
+--headless --dump-dom --timeout=5000
+--disable-background-networking --disable-component-update
+--no-first-run --no-default-browser-check --disable-sync --metrics-recording-only
+--user-data-dir=<new private profile> about:blank
+```
+
+`--dump-dom` supplies a small, noninteractive exit mechanism for the blank page,
+not a functional assertion or an exported DOM artifact. The supervisor imposes
+its own15s deadline. No debug/CDP endpoint/port, wrapper, sandbox/TLS weakening,
+package, policy change or application navigation is added. A Chromium stdout/stderr
+stream is private and bounded64KiB; no stream or native failure file is uploaded.
+
+The closed `direct_observation` version1 identifies `source:CHROMIUM_DIRECT`, native
+exit category (`ABSENT`, `ZERO`, `NONZERO`, `SIGNAL`), lexical native category and
+termination (`EXITED`, `NOT_OBSERVED`, `CHILD_TIMEOUT`, `INTERRUPTED`). A signal can
+come from the supervisor's graceful cleanup; it is not automatically a crash.
+The k6 zero-exit label/table is not used for a native Chromium exit. Native text,
+paths, URLs and suffixes are never projected. A known lexical label can survive
+a privacy refusal (e.g. a FATAL containing a documentation URL); the refusal stays
+`PRIVACY_FAILED`/nonzero, without publication. Sentinel, invalid UTF-8 and over-limit
+streams cannot produce such a category. Unknown remains unknown.
+
+**Every diagnostic invocation exits nonzero. HTTP and Chromium stay INCONCLUSIVE,
+even for native exit0 and an observed sandbox witness.** Native/sandbox, privacy,
+timeout, interruption and cleanup failures retain their diagnostic code. No
+result/provenance or summary file is published. The one-line closed JSON reports
+cleanup/confidentiality separately. A reaped handle without any contemporaneous
+PID/UID/start observation cannot attest identity-based cleanup.
+
+Both `browser` (`browser_source:K6`) and this diagnostic
+(`browser_source:CHROMIUM_DIRECT`) project the same optional `browser_host` fields.
+Only the following exact files are opened read-only, once each, bounded to64bytes
+for the first four and16KiB for the fifth:
+
+- `/proc/sys/kernel/unprivileged_userns_clone`
+- `/proc/sys/kernel/apparmor_restrict_unprivileged_userns`
+- `/proc/sys/user/max_user_namespaces`
+- `/sys/module/apparmor/parameters/enabled`
+- `/proc/self/status` (only Seccomp and NoNewPrivs projected)
+
+Values are closed labels: `ZERO`/`ONE` (plus `POSITIVE` for the namespace limit),
+`ENABLED`/`DISABLED`, or seccomp `ZERO`/`STRICT`/`FILTER`. `ABSENT`, `DENIED`,
+`UNREADABLE` are distinct from zero. Invalid/duplicate/oversized values are not
+copied. There is no additional process scan, command, profile or host-log read.
+Configured restrictions are observations, not proof of causation.
+
+The dedicated CI has an **explicit separate step**, only after a failed browser
+step with successful tool qualification. It runs once in that same job/UID,
+with unchanged pins, environment and private root; both fresh run directories
+are siblings of the private `tools-check` provenance. That root and the parent's
+process journals provide private correlation; this is not a comparison across
+hosts/pins. Argv differs deliberately: k6/browser has its own defaults, internal
+transport and context; direct uses only the fixed flags above and a separate
+profile. No equivalence of launch behavior is claimed. The original browser
+failure is preserved, the diagnostic also exits nonzero, and the success-only
+allowlisted artifact upload remains skipped. No retry/dispatch/continue-on-error.
+
+Argument research before implementation (2026-10-30): the
+[official Headless guide](https://developer.chrome.com/docs/chromium/headless)
+was recouped with pinned156.0.8078.73
+[command handling](https://raw.githubusercontent.com/chromium/chromium/156.0.8078.73/components/headless/command_handler/headless_command_handler.cc),
+[headless mode](https://raw.githubusercontent.com/chromium/chromium/156.0.8078.73/chrome/browser/headless/headless_mode_util.cc),
+[Chrome switch definitions](https://raw.githubusercontent.com/chromium/chromium/156.0.8078.73/chrome/common/chrome_switches.h),
+[metrics switches](https://raw.githubusercontent.com/chromium/chromium/156.0.8078.73/components/metrics/metrics_switches.h)
+and [sync flag handling](https://raw.githubusercontent.com/chromium/chromium/156.0.8078.73/components/sync/base/command_line_switches.cc).
+The old `.cc` location for Chrome switch definitions returned404; the versioned
+`.h` contains the inline definitions. Remote debugging, screenshots/PDF, arbitrary
+targets, unbounded headless waiting and host-security workarounds from generic
+examples were not adopted. Existing pin/source audits and70 historical Linux
+tests are not new evidence for this delta.
+
 ### Final bounded observation (failure only)
 
 The existing one-line browser failure result may also contain `browser_observation`.

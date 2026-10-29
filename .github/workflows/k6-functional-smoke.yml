@@ -44,15 +44,25 @@ jobs:
           printf 'K6_BROWSER_EXECUTABLE_PATH=%s/tools/chrome-linux64/chrome\n' "$private_root" >> "$GITHUB_ENV"
           /usr/bin/python3 -B ops/tests/k6/provision-linux.py --output "$private_root/tools"
       - name: Versions and effective scenario options (same launcher)
+        id: tools
         shell: bash
         run: |
           set -euo pipefail
           /usr/bin/python3 -B ops/tests/k6/run-linux.py tools --output "$K6_PRIVATE_ROOT/tools-check"
       - name: Separate Chromium prerequisite (sandbox required)
+        id: browser
         shell: bash
         run: |
           set -euo pipefail
           /usr/bin/python3 -B ops/tests/k6/run-linux.py browser --output "$K6_PRIVATE_ROOT/browser-check"
+      - name: Explicit parent Chromium diagnostic after browser failure (never qualification)
+        if: ${{ failure() && steps.tools.outcome == 'success' && steps.browser.outcome == 'failure' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # One direct launch, same job/UID/pins/private root; source failure remains.
+          # Diagnostic exits nonzero even on native exit0. No failure artifact upload.
+          /usr/bin/python3 -B ops/tests/k6/run-linux.py diagnose-chromium --output "$K6_PRIVATE_ROOT/chromium-direct-check"
       - name: Publish only allowlisted checked prerequisite projections
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

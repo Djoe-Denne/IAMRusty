@@ -1,5 +1,74 @@
 # Implementation record
 
+## Direct parent Chromium diagnostic candidate — base14d55e9 (2026-10-30)
+
+Owner pool-10, isolated branch `ensemble-33cdd242-ebce-41d8-bf83-4a0ab96d525a`,
+HEAD `14d55e9813996a737b92b7e5aff2d20536ede47c`, initially clean. The session
+initially opened the canonical checkout read-only, then moved to its assigned
+worktree before any edit. Read the canonical ledger, report19, implementation
+briefing and **Accepted2026-10-30** contract addendum before source changes.
+No shared ledger, ADR, contract, service, SDK or preexisting CI was edited.
+
+Small raccord in the existing launcher, not a new executor: explicit
+`diagnose-chromium --output <fresh private path>` reuses pinned_tools,
+version_checks, identity revalidation, child_environment, Child and its sandbox,
+privacy, deadline, descendant identity and graceful-cleanup guards. One direct
+browser, fixed reviewed flags, new0700 profile and only about:blank. No remote
+debugging, wrapper, user-selected executable/URL/arguments or dependency added.
+The existing lexical classifier is reused with no k6 exit semantics. Even native
+exit0 with a witness remains Chromium/HTTP INCONCLUSIVE and exits nonzero. No
+summary/result/provenance or native failure file is published. Missing process
+identity cannot attest cleanup. Known closed lexical labels may survive a privacy
+refusal without waiving it or exposing native text.
+
+Optional host observations read exactly five named files, bounded, projecting
+only six closed labels. Missing, denied, unreadable and zero remain distinct.
+They describe configuration, not a demonstrated AppArmor/userns cause. Both the
+k6/browser and direct mode expose these labels and distinct source identifiers.
+The dedicated CI explicitly invokes the direct diagnostic once after a failed
+browser step, only if tools succeeded; same job/UID/private root/pins/environment.
+No continue-on-error, automatic browser fallback, loop, dispatch or deployment.
+Original browser failure and skipped artifact upload are preserved.
+
+Research performed before production choices: official Headless guide, pinned
+Chromium156 headless command handler/Chrome switches/metrics and sync sources.
+README records URLs, fixed argv, comparison limits and rejected options. One
+obsolete chrome_switches.cc URL returned404; the pinned inline .h definitions
+were then verified. No pin/archive audit was repeated or claimed as new evidence.
+
+Actual commands/results (Windows native, pure fixtures):
+
+- `C:/Python313/python.exe -B -m unittest discover -s ops/tests/k6/tests -p test_*.py`:
+  RED before production edits84 tests, exit1/13 errors/7 skips (new functions
+  absent). First implementation84/exit1/1 failure: portable test expected POSIX
+  slashes; fixed the test, not the guard. Refined91/exit0/7 skips. Final refinement
+  added the URL/privacy classifier case:92/exit1/1 error because the test still
+  expected an observation on overflow; corrected it to require withholding.
+  Final92 tests, **exit0/7 POSIX skips,85 exercised**. The last invocation explicitly
+  set TMPDIR/TEMP/TMP for the child process to the approved host temp root.
+- Python AST parsing of all8 tooling Python files and YAML parsing using the
+  already available PyYAML: exit0; contents:read and ubuntu-24.04 checked.
+- `git diff --check`: exit0 before documentation update; final tracked/staged
+  checks, including the new file, recorded in the handoff. No Cargo/hook invoked.
+  A Context Mode wrapper escaping error happened before one test invocation;
+  it was corrected with String.fromCharCode, not treated as a test result.
+
+Not executed by this worker: exact Linux `python3` suite, `k6 version`, pinned
+Chromium `--version`, either `k6 inspect`, `validate`, `run`, `browser`, `selftest`,
+or the new direct command. All runtime/CI execution and the independent delta
+review remain with the lead after integration. Historical70 Linux tests and
+existing pin/source evidence do not qualify this delta. HTTP, Chromium and actual
+campaign cleanup are **not qualified** by these tests.
+
+Localisation/impact/limits: canonical Serena root/config verified; references to
+browser_diagnostic identify Child.execute, complemented by exact matches in the
+fixtures/launcher. The canonical server does not see this unmerged worktree;
+edits use targeted worktree patches. Child and safety.py remain unchanged.
+No Rust exploration or symbolic Rust edit required. No commit/push/hook, runtime
+startup/stop, Linux binary invocation, package or host-security change. Owned
+Docker/process runtime fixtures: none; no registry entry or global cleanup claim.
+The lead owns integration/publication, Linux evidence and branch/worktree closure.
+
 ## Final observation candidate — base4e82a36 (2026-10-29)
 
 Closed sub-lot owned by pool-7, based exactly on published

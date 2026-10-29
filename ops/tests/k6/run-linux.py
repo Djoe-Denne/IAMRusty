@@ -16,7 +16,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 sys.path.insert(0, str(HERE / "lib"))
 from safety import (ARTIFACT_LIMIT, BROWSER_DIAGNOSTICS, CASE_COUNTERS, Child, Rejected, child_environment,
-                    closed_browser_observation, confidential, digest, name_chain, native_exit_category,
+                    browser_diagnostic, closed_browser_observation, confidential, digest, name_chain, native_exit_category,
                     new_output, private_path, private_read, strict_json)
 
 CHECKS = {"HTTP": ("iam-status", "iam-body"), "Chromium": ("browser-evaluation", "browser-blank")}
@@ -242,6 +242,143 @@ def k6_argv(binary, output, verb):
             verb, "--include-system-env-vars=false", "--new-machine-readable-summary=false"]
 
 
+HOST_LABELS = {
+    "unprivileged_userns_clone": {"ZERO", "ONE"},
+    "apparmor_restrict_unprivileged_userns": {"ZERO", "ONE"},
+    "max_user_namespaces": {"ZERO", "ONE", "POSITIVE"},
+    "apparmor_enabled": {"ENABLED", "DISABLED"},
+    "parent_seccomp": {"ZERO", "STRICT", "FILTER"},
+    "parent_no_new_privs": {"ZERO", "ONE"}}
+
+
+def closed_host_metadata(value):
+    if type(value) is not dict or set(value) != set(HOST_LABELS):
+        raise Rejected("INPUT_INVALID")
+    for key, label in value.items():
+        if type(label) is not str or label not in HOST_LABELS[key] | {"ABSENT", "DENIED", "UNREADABLE"}:
+            raise Rejected("INPUT_INVALID")
+    return dict(value)
+
+
+def host_metadata():
+    """Optional configured-policy observations, never causal attribution.
+
+    Only five named files; no command, scan, AppArmor profile or log access.
+    Raw bytes and arbitrary numeric values never enter the result surface.
+    """
+    def read(path, limit):
+        try:
+            with Path(path).open("rb") as stream:
+                raw = stream.read(limit + 1)
+            if len(raw) > limit:
+                return "UNREADABLE", None
+            return None, raw.decode("ascii").strip()
+        except FileNotFoundError:
+            return "ABSENT", None
+        except PermissionError:
+            return "DENIED", None
+        except (OSError, UnicodeError):
+            return "UNREADABLE", None
+
+    result = {}
+    for key, path in (
+            ("unprivileged_userns_clone", "/proc/sys/kernel/unprivileged_userns_clone"),
+            ("apparmor_restrict_unprivileged_userns", "/proc/sys/kernel/apparmor_restrict_unprivileged_userns"),
+            ("max_user_namespaces", "/proc/sys/user/max_user_namespaces"),
+            ("apparmor_enabled", "/sys/module/apparmor/parameters/enabled")):
+        state, text = read(path, 64)
+        label = {"0": "ZERO", "1": "ONE"}.get(text)
+        if key == "apparmor_enabled":
+            label = {"Y": "ENABLED", "N": "DISABLED"}.get(text)
+        elif key == "max_user_namespaces" and text and re.fullmatch(r"[1-9][0-9]{0,9}", text):
+            label = "ONE" if text == "1" else "POSITIVE"
+        result[key] = state or label or "UNREADABLE"
+    state, text = read("/proc/self/status", 16 * 1024)
+    for key, field, labels in (("parent_seccomp", "Seccomp", {"0": "ZERO", "1": "STRICT", "2": "FILTER"}),
+                               ("parent_no_new_privs", "NoNewPrivs", {"0": "ZERO", "1": "ONE"})):
+        values = [line.split(":", 1)[1].strip() for line in (text or "").splitlines()
+                  if line.startswith(field + ":")]
+        result[key] = state or (labels.get(values[0], "UNREADABLE") if len(values) == 1
+                                else "ABSENT" if not values else "UNREADABLE")
+    return closed_host_metadata(result)
+
+
+def closed_direct_observation(value):
+    fields = {"version", "source", "native_exit", "native_diagnostic", "termination"}
+    if (type(value) is not dict or set(value) != fields or type(value["version"]) is not int
+            or value["version"] != 1 or value["source"] != "CHROMIUM_DIRECT"):
+        raise Rejected("INPUT_INVALID")
+    for key, labels in (("native_exit", {"ABSENT", "ZERO", "NONZERO", "SIGNAL"}),
+                        ("native_diagnostic", BROWSER_DIAGNOSTICS - {"K6_ZERO_EXIT_NO_SANDBOX_WITNESS"}),
+                        ("termination", {"EXITED", "NOT_OBSERVED", "CHILD_TIMEOUT", "INTERRUPTED"})):
+        if type(value[key]) is not str or value[key] not in labels:
+            raise Rejected("INPUT_INVALID")
+    return dict(value)
+
+
+def direct_chromium(output, tools):
+    """One explicit parent diagnostic; even exit0 + witness NEVER qualifies.
+
+    Child retains its normal sandbox/privacy/cleanup gates, including on failure.
+    --dump-dom is only a bounded exit mechanism for about:blank, not an oracle.
+    """
+    profile = output / "private/chromium-profile"
+    try:
+        profile.mkdir(mode=0o700)  # exclusive, never reuse a previous browser profile
+    except FileExistsError:
+        raise Rejected("PATH_INVALID") from None
+    verify_tools(tools, ("k6", "chromium"))
+    child = Child()
+    argv = [str(tools["chromium"]), "--headless", "--dump-dom", "--timeout=5000",
+            "--disable-background-networking", "--disable-component-update", "--no-first-run",
+            "--no-default-browser-check", "--disable-sync", "--metrics-recording-only",
+            "--user-data-dir=" + str(profile), "about:blank"]
+    env = child_environment(output)
+    env["K6_BROWSER_EXECUTABLE_PATH"] = str(tools["chromium"])
+    failure = Rejected("PREREQUISITE_UNAVAILABLE", True)
+    try:
+        code = child.execute(argv, output=output, env=env, timeout=15, browser=True)
+        if code != 0:
+            failure = Rejected("TOOL_FAILED")
+    except BaseException as error:
+        failure = error if isinstance(error, Rejected) else Rejected(
+            "INTERRUPTED" if isinstance(error, KeyboardInterrupt) else "INTERNAL_ERROR")
+    termination = (failure.code if failure.code in {"CHILD_TIMEOUT", "INTERRUPTED"}
+                   else "NOT_OBSERVED" if child.code is None else "EXITED")
+    # A reaped handle without any contemporaneous PID/UID/start observation is
+    # not identity-based cleanup evidence, even for a very early native exit.
+    cleanup = (child.cleanup is True and type(child.owned) is dict and bool(child.owned)
+               and failure.code != "CLEANUP_FAILED")
+    if not cleanup:
+        failure = Rejected("CLEANUP_FAILED")
+    observation = None
+    try:
+        observation = closed_direct_observation({
+            "version": 1, "source": "CHROMIUM_DIRECT", "native_exit": native_exit_category(child.code),
+            # No k6 exit table or k6 zero-exit label for the native Chromium process.
+            "native_diagnostic": browser_diagnostic(child.stdout, child.stderr, None),
+            "termination": termination})
+    except Rejected:
+        failure = Rejected("INTERNAL_ERROR")
+    try:
+        confidential(child.stdout)
+        confidential(child.stderr)
+    except Rejected as error:
+        failure = error
+        # As for K6, a closed known lexical label may survive a privacy refusal
+        # (e.g. a documentation URL in a FATAL). Never retain arbitrary text or
+        # categories from sentinel/invalid/over-limit streams. Privacy stays FAIL.
+        if (observation is None or observation["native_diagnostic"] in {
+                "NATIVE_CAUSE_UNCLASSIFIED", "NATIVE_DIAGNOSTIC_WITHHELD"}):
+            observation = None
+    if failure.code == "OUTPUT_LIMIT":
+        observation = None
+    if observation is not None:
+        failure.direct_observation = observation
+    failure.cleanup = "PASS" if cleanup else "FAIL"
+    raise failure
+
+
 def scenario_run(phase, config, output, tools, *, negative=None):
     # Internal arguments are only supplied by selftest; no CLI/env override.
     run_id = uuid.uuid4().hex
@@ -438,7 +575,7 @@ class ClosedParser(argparse.ArgumentParser):
 def arguments(argv):
     parser = ClosedParser(description="Mission1 Linux prerequisites; HTTP gate remains fail-closed.")
     commands = parser.add_subparsers(dest="command", required=True, parser_class=ClosedParser)
-    for name in ("validate", "run", "selftest", "browser", "tools"):
+    for name in ("validate", "run", "selftest", "browser", "tools", "diagnose-chromium"):
         command = commands.add_parser(name)
         if name in {"validate", "run", "selftest"}:
             command.add_argument("--config", required=True)
@@ -467,8 +604,14 @@ def main(argv=None):
             output = new_output(args.output)
             if args.command in {"run", "selftest"}:
                 live_target(config)
-            tools, lock = pinned_tools(browser=args.command in {"browser", "tools"})
+            tools, lock = pinned_tools(browser=args.command in {"browser", "tools", "diagnose-chromium"})
             versions = version_checks(tools, lock, output)
+            if mode in {"browser", "diagnose-chromium"}:
+                result["browser_source"] = "K6" if mode == "browser" else "CHROMIUM_DIRECT"
+                result["browser_host"] = closed_host_metadata(host_metadata())
+            if mode == "diagnose-chromium":
+                direct_chromium(output, tools)  # always nonzero; no artifacts/phase PASS
+                raise Rejected("INTERNAL_ERROR")  # never fall through to HTTP if its contract breaks
             if args.command == "tools":
                 for phase, path in SCENARIOS.items():
                     verify_tools(tools, ("k6",))
@@ -514,11 +657,19 @@ def main(argv=None):
                 result["browser_observation"] = closed_browser_observation(failure.browser_observation)
             except Rejected:
                 pass
+        if mode == "diagnose-chromium":
+            try:
+                result["direct_observation"] = closed_direct_observation(failure.direct_observation)
+            except (AttributeError, Rejected):
+                pass
+            # The direct path is diagnostic only, including native exit0/witness.
+            result["Chromium"] = "INCONCLUSIVE"
         if phase:
             result[phase] = "INCONCLUSIVE" if failure.inconclusive else "FAIL"
         if mode in {"selftest", "tools"}:
             result[mode] = "INCONCLUSIVE" if failure.inconclusive else "FAIL"
-        result["confidentiality"] = "FAIL" if failure.code == "PRIVACY_FAILED" else "NOT_QUALIFIED"
+        result["confidentiality"] = ("FAIL" if failure.code == "PRIVACY_FAILED" else
+            "PASS" if mode == "diagnose-chromium" and "direct_observation" in result else "NOT_QUALIFIED")
         # No file publication on a failed confidentiality or incomplete cleanup.
         # Final one-line diagnostic is constructed from closed labels, not errors.
         raw = json.dumps(result, sort_keys=True).encode()
