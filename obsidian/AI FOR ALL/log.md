@@ -313,3 +313,5 @@ title: Wiki Log
 - [2026-10-29] INGEST sources="docs/reviews/20261029-auth-security-final-evidence.md;docs/missions/20261029-auth-security-publication.md" project=aiforall pages_created=0 pages_updated=1 mode=append content_hashes=sha256 scope=durable-review-conclusions-and-worktree-integration-decisions raw_tool_logs=false no_runtime_started=true
 
 - [2026-10-29] INGEST sources="docs/reviews/20261029-authz-proposals-carried-forward.md;docs/reviews/20261029-worktree-consolidation.md;docs/missions/20261029-auth-security-publication.md" project=aiforall sources_new=2 sources_updated=1 pages_created=0 pages_updated=1 mode=append content_hashes=sha256 scope=worktree-conservation-review-and-nonnormative-proposals no_runtime_started=true
+
+- [2026-10-29] INGEST sources="docs/reviews/20261029-worktree-consolidation.md;docs/missions/20261029-auth-security-publication.md" project=aiforall sources_new=0 sources_updated=2 pages_created=0 pages_updated=1 mode=append content_hashes=sha256 scope=native-mission-archival-confirmed owned_worktrees_remaining=0 no_runtime_started=true

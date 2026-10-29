@@ -94,3 +94,30 @@ contrôles fmt tentés dans leurs longs chemins Windows ont échoué en environn
 exact `cargo fmt --all -- --check` a réussi depuis la racine canonique courte.
 Il qualifie le format de la version conservée, pas celui des anciens snapshots.
 Aucune nouvelle campagne fonctionnelle n’est déduite de cette consolidation.
+
+### Clôture administrative vérifiée
+
+Les compléments durables ont été commités avant le retrait des branches. Après
+la revue et la conservation explicite des deux propositions, les outils natifs
+ont terminé les rapprochements des anciennes branches en préservant la version
+principale revue. La résolution de conservation Git `ours` a été limitée à ces
+sujets déjà incorporés ; ce n’est pas une règle de fusion pour les futurs travaux.
+
+La mission est désormais **archivée**,33tâches terminées. Une seconde demande
+native a confirmé « already archived — no resources changed ». Zéro worktree de
+la mission reste dans Git ou dans l’inventaire OpenCode. Les autres arbres anciens
+et les modifications étrangères du checkout canonique restent hors de cette
+opération. Aucun démarrage de k6, Docker ou Kind.
+
+La réparation de l’inventaire a restauré de vrais checkouts depuis des refs
+sauvegardées dans les dossiers orphelins vides, avant leur retrait public normal.
+Aucune fausse métadonnée, suppression forcée, écriture de base ou modification du
+plugin. Les permissions de session et options Git temporaires sont retirées.
+Voir la [revue de conservation](../reviews/20261029-worktree-consolidation.md)
+pour les preuves, avertissements et limites.
+
+Les modifications persistantes des24profils de projet ont ensuite été incluses
+sur demande explicite de l’utilisateur (commit5966821), après contrôle limité aux
+ajouts d’autorisation `edit` et validation par le parseur natif. Elles permettent
+techniquement l’écriture mais ne transforment pas un mandat de revue READONLY en
+autorisation de modifier le code. Aucun modèle ni autre règle n’a été modifié.

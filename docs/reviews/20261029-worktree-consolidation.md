@@ -73,3 +73,49 @@ séparément par le lead avec succès. Les fmt des chemins historiques ont renco
 des erreurs Windows206 ou une exécution indéterminée ; ils ne sont pas déclarés
 réussis. Les preuves fonctionnelles antérieures restent bornées par
 [l’état qualifié](../contracts/20261029-auth-security-qualified-state.md).
+
+## Résolution et archivage natifs
+
+Après conservation des propositions utiles, les dernières branches déjà
+incorporées ont été rapprochées par les outils natifs avec une résolution Git
+de conservation (`ours`) : préserver la version finale revue, pas réintroduire
+les instantanés remplacés. Ce choix n’est pas applicable à une livraison nouvelle
+non examinée. Aucun merge Git manuel ni changement du plugin n’a été nécessaire.
+
+Les options Git locales temporaires ont été retirées après l’opération. Les
+permissions de réparation ajoutées aux seules sessions de préparation ont aussi
+été retirées, sans changer leurs autres règles. Le cleanup natif a terminé les
+dix derniers rapprochements, puis confirmé la mission archivée ; les33tâches
+étaient terminées. Les23enregistrements de worktree de ce lot ont disparu de
+l’inventaire natif ; aucun worktree Git de ce lot ne subsiste.
+
+L’avertissement générique du cleanup signalait un chevauchement sur le sous-module
+rustycog. Vérification après opération : pin canonique02e5 inchangé, fichier Serena
+étranger et workspace Obsidian identiques à leurs empreintes préalables. L’arbre
+versionné est resté exactement celui du commit de conservation6bf7bf1, sans nouveau
+delta fonctionnel. Les autres anciens worktrees ne sont pas supprimés par ce lot.
+
+Les contrôles de sauvegarde et de propreté ont précédé les retraits. Les cinq
+clones SDK imbriqués étaient propres, sans fichiers ignorés/non suivis et sur des
+ancêtres du pin publié ; ils ont été désinitialisés sans force, pas leurs versions
+historiques réintroduites. Aucune ressource runtime créée ou supprimée, aucune
+purge d’archives et aucun force-push.
+
+## Profils de projet inclus sur demande explicite
+
+Des modifications de24profils sous `.opencode/agents/` ont été observées pendant
+la clôture, puis explicitement demandées au commit et à la publication par
+l’utilisateur. Contrôle du diff : seuls des ajouts `edit` / `resource: "*"` /
+`effect: allow`, sans changement de modèles, de prompts ou des autres règles.
+Les24profils sont acceptés par le parseur natif OpenCode, et cette règle est leur
+dernière règle générique d’édition effective. Commit5966821.
+
+Ces permissions autorisent techniquement l’écriture, y compris pour les profils
+de revue. Elles ne constituent pas un mandat d’édition pour une tâche explicitement
+READONLY ; cette frontière reste à respecter. Ce changement local persistant est
+distinct des autorisations externes temporaires de réparation, qui ont été retirées.
+
+Contrôles finaux exécutés séparément, Windows natif et séquentiels :
+`cargo fmt --all -- --check` et
+`cargo fmt --manifest-path rustycog/Cargo.toml --all -- --check`, tous deux exit0.
+Pas de nouvel essai fonctionnel, de build Linux ou de qualification supplémentaire.

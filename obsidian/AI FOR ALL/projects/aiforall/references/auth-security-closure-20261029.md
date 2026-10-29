@@ -60,6 +60,17 @@ sont reprises dans `docs/reviews/20261029-authz-proposals-carried-forward.md`.
 Architecte en est l'auteur ; le lead ratifie leur **conservation documentaire
 uniquement**. Elles ne deviennent ni exigences Accepted ni nouveaux tests exécutés.
 
+Après ces dispositions, les rapprochements natifs ont conservé la version finale
+et la mission a été archivée :33tâches terminées, aucun worktree de ce lot restant
+dans Git ou OpenCode. Les copies anciennes ont été sauvegardées avant retrait,
+sans les promouvoir ; les permissions de réparation temporaires ont été retirées.
+Les autres anciens arbres et les fichiers étrangers du checkout restent préservés.
+
+Sur demande explicite, les ajouts d'autorisation d'édition des24profils de projet
+ont également été commités. Cette capacité native n'annule pas les mandats de
+revue READONLY. Les contrôles fmt finaux de l'application et du SDK sont verts ;
+ils ne constituent pas une nouvelle campagne fonctionnelle.
+
 Les conclusions de sécurité et d'infrastructure sont maintenant versionnées dans
 `docs/reviews/20261029-auth-security-final-evidence.md`, sans les sorties brutes.
 Le document `docs/missions/20261029-auth-security-publication.md` trace la
