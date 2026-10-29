@@ -106,6 +106,62 @@ Notation secondaire ambiguë /login0412 remplacée par routeexacte déjàratifi�
 /iam/api/auth/gitlab/login, sourcecontratAccepted/profilgitlab/scénarioexistant,
 sansmodifiercode/hashpostimage. Briefings+INDEXpersistés avantlivraison/capture.
 
+Sourcecapturelivréeff12007 auhooknormalfmtPASS ; Deliverypropre/SDK02e5,
+helperimporté7385b551... conformeàphotorevue normalisée. WrapperseuleHEADchangée,
+inversionbyteexactreviewae2a988d... vérifiée, ASTPASS, nouveauSHA0133dc5924a8...
+avantUNrunpréinscrit. AucuneimageRust modifiée etaucunevalidationréseauchangée
+enPASS parcespréconditions. Lireprochainrésultatréel avanttoutecorrection.
+
+Observationréelleuniqueexit0, UNEGETtimeout, nouveauCTunique traduitsource
+10.244.230.64≠CPInternal172.19.0.5. ZoneresteMISSING/filtre0attesté. Passifdeny
+22/1320stable puis+9/+540, mêmesidentités/règlesobservées, IAMupstream/TLS0delta,
+AdminLIVEepoch0/cleanupmarkerabsent. Preuve6b7/envoy-tuple-observation-94998d80...
+rootrelue, SHAobservation0ad1c639... . PENDING_LEAD_CAUSAL_REVIEW/POD_CHAIN_SHARED,
+pasPASSautomatique. AnciencontratingressCPInternal/32nonratifiéetnonapplicable ;
+ROpropriéténouvellesource+réarbitragearchitecte demandés avanttoutpatch. Aucun
+nouveauGET/trace/install/certificat modifié pour contourner ce résultat.
+
+## Ingress du tunnel CP mesuré — plan avant code/run
+
+Contrat architecte v2 original55lignes lu +faitsRO21, ratifié explicitement parlead
+avantcode ; canon local-full-envoy-nodeport-ingress.md. IPIP10.244.230.64 unique
+CPNodeUIDexact, pasVXLAN/physiqueInternalIP ; liaisonCPID↔NodeUID déjà attestée
+danscapture, pas providerIDsuffix ni preuveCRD indépendante. Jugementlead motivé
+QUALIFIED_EQUIVALENT_LAB_ONLY consigné au contrat et causal-review.json privé,
+sans réécrire les artefacts PENDING/per-packetnotestablished du collecteur.
+
+Tests nommés AVANT code/run, nouveau fichier unitaire ciblé :
+test_envoy_ingress_requires_measured_tunnel_of_exact_owned_cp ;
+test_envoy_ingress_tunnel_mismatch_ambiguity_and_stale_proof_block_patch ;
+test_envoy_ingress_patch_tests_uid_version_and_old_value_and_preserves_peers ;
+test_envoy_ingress_noop_and_conditional_rollback_do_not_adopt_replacement.
+MauvaisUID/tunnel/roster/preuve/aviscausal=>zéropatch ; T/32TCP10000 seul, JSONtest
+UID/RV/ancien spec, peers/egress/defaultdeny conservés ; no-op sanspropriété,
+rollbackseulerègle/conditional/replacement/concurrence/alias refusés. Fakes sans
+runtime/Cargo ; revue du delta intégré avant parentlive et infra-verifier après.
+
+Complément nommé AVANT correction/run :
+test_envoy_ingress_parent_witness_requires_exact_303_and_rolls_back_302.
+Le témoin303 exact de la route login déjà retenue doit être accepté ;302 ou autre
+statut non contractuel doit être refusé et retirer seulement l'entrée possédée.
+Le candidat initial exigeait302 et son fake reproduisait cette erreur ; aucun
+effet réseau n'a été tenté. Les quatre oracles précédents restent conservés.
+
+Correction livrée et intégrée par patch contrôlé après échec OS206 du hook auteur,
+deux fichiers byte-identiques aux empreintes finales : runner809bc118..., tests
+e771bcd9... . Suite canonique réellement exécutée :5PASS/0skip,2.250s (process2.454s),
+exit0 ; le303 est accepté et302/301/307/308/200/500 refusés avec rollback possédé.
+Pas de Cargo/runtime/API/HTTP. Préflight local complémentaire AVANT mutation :
+appeler seulement _ingress_evidence sur les sept projections privées existantes,
+sans garde live ni patch ; vérifier compatibilité du schéma réel et helperimporté.
+Ce contrôle de lecture n'est ni nouvelle capture réseau ni preuve causale.
+
+Préflight sur originaux : refus fermé ligne220, private_file=False pourles7
+fichiers ; helper impose aussi readonly. Aucun live/patch. Préparation locale
+annoncée : copie exacte allowlist7 dans nouveau dossier privé scellé, contrôle
+SHA/bytes et private_file, puis même lecteur ; aucun original modifié ni gate
+assoupli. Son résultat sera distinct des tests fake et de la preuve réseau.
+
 ## Plafond server_info v2 — plan avant code/run
 
 Amendement architecte v2 lu et explicitement ratifié : plafondFIXE131072B,

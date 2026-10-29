@@ -3,10 +3,13 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 import re
 import subprocess
+import time
 import uuid
 from pathlib import Path
+import local_full_target as target_authority
 from local_full_target import private_file
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -175,6 +178,356 @@ def configure_api_policy():
         patch = {"spec": {"egress": [{"to": [{"ipBlock": {"cidr": "10.96.0.1/32"}}, {"ipBlock": {"cidr": address + "/32"}}], "ports": [{"protocol": "TCP", "port": 443}, {"protocol": "TCP", "port": 6443}]}]}}
         # kube API egress is scoped to the actual control-plane address, not a wildcard.
         k("patch", "networkpolicy/allow-api", "-n", namespace, "--type=merge", "-p", json.dumps(patch))
+
+
+def _ingress_json(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def _ingress_require(condition):
+    if not condition:
+        raise ValueError("INCONCLUSIVE: Envoy ingress gate refused; details redacted")
+
+
+def _ingress_admin_pair(before, after, identity):
+    expected = {key: identity[key] for key in ("namespace_uid", "pod", "pod_uid", "owner_chain",
+                "container", "container_id", "restart_count", "image_id")}
+    for item in (before, after):
+        _ingress_require(item["identity"] == expected and item["state"] == "LIVE"
+                         and item["version"] == "1.31.2"
+                         and type(item["restart_epoch"]) is int and item["restart_epoch"] == 0)
+    for key in ("uptime_current_epoch_ns", "uptime_all_epochs_ns"):
+        _ingress_require(type(before[key]) is int and type(after[key]) is int
+                         and 0 <= before[key] <= after[key])
+    # Only explicit counters count. Other collector fields can legitimately be
+    # MISSING; never turn those into zero or claim per-flow packet attribution.
+    for suffix in ("upstream_cx_total", "upstream_rq_total", "ssl.handshake",
+                   "ssl.fail_verify_san", "ssl.fail_verify_error"):
+        key = "cluster.iam." + suffix
+        a, b = before["stats"][key], after["stats"][key]
+        _ingress_require(type(a) is int and type(b) is int and 0 <= a <= b)
+
+
+def _ingress_evidence(directory):
+    """Read only the seven closed, private, nonsecret parent projections."""
+    directory = Path(directory)
+    _ingress_require(directory.is_dir() and not directory.is_symlink()
+                     and directory.absolute() == directory.resolve())
+    files, hashes = {}, {}
+    for name in ("observation", "summary", "baseline", "passive-baseline",
+                 "admin-before", "admin-after", "causal-review"):
+        path = directory / (name + ".json")
+        _ingress_require(path.is_file() and not path.is_symlink() and path.absolute() == path.resolve() and private_file(path)
+                         and path.stat().st_size <= 131072)
+        raw = path.read_bytes()
+        hashes[name] = hashlib.sha256(raw).hexdigest()
+        files[name] = json.loads(raw, object_pairs_hook=target_authority.unique_json)
+    obs, summary, review = (files[name] for name in ("observation", "summary", "causal-review"))
+    identity, binding = obs["identity"], obs["nat_binding"]
+    import ipaddress
+    address = ipaddress.IPv4Address(binding["reply"]["dst"])
+    source = str(address)
+    _ingress_require(source == binding["reply"]["dst"] and source != identity["control_plane_ipv4"]
+        and not any((address.is_unspecified, address.is_loopback, address.is_multicast, address.is_link_local)))
+    _ingress_require(review["schema"] == "aiforall.envoy.ingress-causal-review.v1"
+        and review["decision"] == "QUALIFIED_EQUIVALENT_LAB_ONLY"
+        and review["observation_sha256"] == hashes["observation"]
+        and review["namespace"] == "aiforall-local-full"
+        and review["measured_source_ipv4"] == source
+        and review["source_annotation"] == "projectcalico.org/IPv4IPIPTunnelAddr"
+        and review["source_provenance"] == "UNIQUE_MEASURED_BINDING_AND_EXACT_K8S_NODE_IPIP_ANNOTATION"
+        and isinstance(review["reason"], str) and len(review["reason"].strip()) >= 80
+        and isinstance(review["limitations"], list) and len(review["limitations"]) >= 5)
+    required_basis = {"ONE_EXACT_FRESH_TCP_REQUEST_UNDER_PARENT_LEASE",
+        "UNIQUE_NEW_CLOSED_FILTERED_NAT_BINDING", "EXACT_OWNED_CP_NODE_UID_AND_UNIQUE_IPIP_SOURCE",
+        "POD_LINKED_CALICO_TO_WORKLOAD_POLICY_DENY_TEMPLATE", "STABLE_IDENTITIES_RULES_AND_NAMESPACE_POLICIES",
+        "PASSIVE_COUNTERS_STABLE_WITH_RESIDENT_NODE_PROBES", "NO_OTHER_KNOWN_MISSION_CLIENT_OR_TEST_FOR_THIS_ENTRY",
+        "IAM_UPSTREAM_TLS_DELTAS_ZERO_WITH_STABLE_LIVE_ENVOY"}
+    _ingress_require(set(review["causal_basis"]) == required_basis)
+    for key, identity_key in (("control_plane_container_id", "control_plane_container_id"),
+            ("control_plane_node_uid", "control_plane_node_uid"), ("envoy_pod_uid", "pod_uid"),
+            ("service_uid", "service_uid")):
+        _ingress_require(review[key] == identity[identity_key])
+    _ingress_require(binding["original"]["dst"] == identity["control_plane_ipv4"]
+        and binding["original"]["dport"] == 30080 and binding["reply"]["src"] == identity["pod_ipv4"]
+        and binding["reply"]["sport"] == 10000 and binding["id"] == review["nat_id"]
+        and binding["zone_evidence"] == "SOURCE_FILTERED" and binding["requested_zone"] == 0
+        and obs["status"] == "PARENT_CORRELATION_REQUIRED"
+        and obs["counter_scope"] == "POD_CHAIN_SHARED"
+        and obs["packet_attribution"] == "NOT_ESTABLISHED_BY_COUNTER")
+    for item in (files["baseline"], files["passive-baseline"]):
+        _ingress_require(item["status"] == "BASELINE_ONLY" and item["identity"] == identity
+            and item["rules_fingerprint"] == obs["rules_fingerprint"])
+    _ingress_require(files["baseline"]["deny"] == files["passive-baseline"]["deny"]
+        and review["rules_fingerprint"] == obs["rules_fingerprint"]
+        and summary["exit"] == 0 and summary["stage"] == "complete"
+        and summary["cluster_mutation"] is False and summary["policy_fingerprint_stable"] is True
+        and summary["verdict"] == "PENDING_LEAD_CAUSAL_REVIEW"
+        and bool(re.fullmatch(r"[a-f0-9]{40}", summary["ops_head"]))
+        and summary["known_probe_transport"] == "TCP_RESIDENT_NODE_TO_POD_10000"
+        and summary["counter_scope"] == obs["counter_scope"]
+        and summary["packet_attribution"] == obs["packet_attribution"]
+        and summary["envoy_pod_uid"] == identity["pod_uid"]
+        and summary["source_equals_anchored_cp"] is False
+        and summary["restart_epoch"] == files["admin-after"]["restart_epoch"]
+        and summary["http_attempts"] == review["http_attempts"] == 1
+        and summary["passive_deny_delta"] == review["passive_deny_delta"] == {"packets": 0, "bytes": 0}
+        and summary["nat_binding"] == binding
+        and summary["endpoint_deny_delta"] == review["endpoint_deny_delta"] == obs["endpoint_deny_delta"]
+        and type(obs["endpoint_deny_delta"]["packets"]) is int and obs["endpoint_deny_delta"]["packets"] > 0
+        and type(obs["endpoint_deny_delta"]["bytes"]) is int and obs["endpoint_deny_delta"]["bytes"] > 0)
+    # Check the actual imported authority, not a sibling or a claimed delivery hash.
+    _ingress_require(runtime.LocalClusterTargetAnchor is target_authority.LocalClusterTargetAnchor
+        and summary["helper_sha256"] == hashlib.sha256(Path(target_authority.__file__).read_bytes()).hexdigest())
+    _ingress_admin_pair(files["admin-before"], files["admin-after"], identity)
+    _ingress_require(files["admin-before"]["stats"] == files["admin-after"]["stats"])
+    _ingress_require(summary["iam_upstream_deltas"] == {"cluster.iam." + suffix: 0 for suffix in (
+        "upstream_cx_total", "upstream_rq_total", "ssl.handshake", "ssl.fail_verify_san", "ssl.fail_verify_error")})
+    return files, hashes, source
+
+
+def _ingress_live(guard, identity, review, source):
+    """Existing anchor/owner/incarnation authority plus public network metadata."""
+    data = guard.check()
+    _ingress_require(data["cluster"] == CLUSTER and data["context"] == CONTEXT
+        and data["control_plane_container_id"] == identity["control_plane_container_id"]
+        and len(data["nodeContainerIds"]) == 3)
+    incarnation = {key: identity[key] for key in ("container_id", "restart_count", "image_id")}
+    owners, incarnation = guard._envoy_tuple_attestation(pod=identity["pod"], namespace_uid=identity["namespace_uid"],
+        pod_uid=identity["pod_uid"], container="envoy", owner_chain=identity["owner_chain"],
+        incarnation=incarnation, node_uid=identity["node_uid"], service_uid=identity["service_uid"])
+    actual = guard._envoy_tuple_identity(identity["pod"], identity["namespace_uid"], identity["pod_uid"],
+        owners, incarnation, identity["node_uid"], identity["service_uid"], time.monotonic() + 30)
+    # The tuple helper's identity predates the CP annotation extension. Heartbeat
+    # resourceVersions are intentionally not semantic identity or proof expiry.
+    _ingress_require(_ingress_json(actual) == _ingress_json({key: value for key, value in identity.items()
+                     if key not in {"control_plane_node_uid", "control_plane_ipv4"}}))
+    fields = ('jsonpath={range .items[*]}{.metadata.uid}{"\\t"}{.metadata.name}{"\\t"}'
+        '{.metadata.labels.node-role\\.kubernetes\\.io/control-plane}{"\\t"}'
+        '{.metadata.annotations.projectcalico\\.org/IPv4IPIPTunnelAddr}{"\\t"}'
+        '{.metadata.annotations.projectcalico\\.org/IPv4Address}{"\\t"}'
+        '{range .status.addresses[?(@.type=="InternalIP")]}{.address}{end}{"\\n"}{end}')
+    rows = [line.split("\t") for line in guard.kubectl(["get", "nodes", "-o", fields], text=True, timeout=30).splitlines()]
+    _ingress_require(len(rows) == 3 and all(len(row) == 6 for row in rows)
+        and len({row[0] for row in rows}) == 3 and len({row[1] for row in rows}) == 3)
+    cp = [row for row in rows if row[0] == identity["control_plane_node_uid"]]
+    _ingress_require(len(cp) == 1 and cp[0][3] == source
+        and cp[0][5] == identity["control_plane_ipv4"]
+        and cp[0][4].split("/")[0] == identity["control_plane_ipv4"]
+        and len([row for row in rows if row[3] == source]) == 1)
+    # A separate label query proves role even when the label's value is empty.
+    cp_uids = guard.kubectl(["get", "nodes", "-l", "node-role.kubernetes.io/control-plane", "-o",
+        "jsonpath={range .items[*]}{.metadata.uid}{'\\n'}{end}"], text=True, timeout=30).splitlines()
+    _ingress_require(cp_uids == [identity["control_plane_node_uid"]])
+    slices = json.loads(guard.kubectl(["get", "endpointslices", "-n", CLUSTER, "-l",
+        "kubernetes.io/service-name=envoy-mesh", "-o", "json"], text=True, timeout=30))
+    endpoints = []
+    for item in slices["items"]:
+        _ingress_require(any(ref.get("kind") == "Service" and ref.get("uid") == identity["service_uid"]
+            and ref.get("name") == "envoy-mesh" and ref.get("controller") is True
+            for ref in item["metadata"]["ownerReferences"]))
+        _ingress_require(item["ports"] == [{"name": "http", "port": 10000, "protocol": "TCP"}])
+        endpoints.extend(item["endpoints"])
+    _ingress_require(len(endpoints) == 1 and endpoints[0]["conditions"]["ready"] is True
+        and endpoints[0]["conditions"].get("terminating", False) is False
+        and endpoints[0]["addresses"] == [identity["pod_ipv4"]]
+        and endpoints[0]["nodeName"] == identity["node_name"]
+        and endpoints[0]["targetRef"]["uid"] == identity["pod_uid"])
+    items = json.loads(guard.kubectl(["get", "networkpolicies", "-n", CLUSTER, "-o", "json"],
+                                   text=True, timeout=30))["items"]
+    policies = {}
+    for item in items:
+        meta = item["metadata"]
+        _ingress_require(meta["namespace"] == CLUSTER and not meta.get("deletionTimestamp")
+            and meta["name"] not in policies and any(all(entry.get(key) == value for key, value in {
+                "kind": "NetworkPolicy", "name": meta["name"], "namespace": CLUSTER,
+                "uid": meta["uid"], "context": CONTEXT, "cluster": CLUSTER}.items())
+                for entry in data.get("ownedResources", [])))
+        policies[meta["name"]] = {"uid": meta["uid"], "rv": meta["resourceVersion"], "spec": item["spec"]}
+    _ingress_require(policies["allow-envoy"]["uid"] == review["policy_uid"]
+        and policies["default-deny"]["uid"] == review["default_deny_uid"]
+        and policies["default-deny"]["spec"] == {"podSelector": {}, "policyTypes": ["Ingress", "Egress"]})
+    return policies
+
+
+class EnvoyIngressChange:
+    """Parent-only pending change. No HTTP callback, URL or deployment actor.
+
+    The parent must call finish with the fixed-route witness or rollback on any
+    failed/abandoned validation. No-op owns nothing. Receipts are copies, never
+    aliases of the state used for conditional rollback. No packet proof implied.
+    """
+
+    def __init__(self, guard, directory, files, hashes, source, before, desired, journal_sha256, added, post_version):
+        self._guard, self._directory = guard, directory
+        self._frozen = _ingress_json({"files": files, "hashes": hashes, "source": source,
+            "before": before, "desired": desired, "journal_sha256": journal_sha256, "post_version": post_version})
+        self._added, self._closed, self._validated = added, False, False
+        self._result = "PENDING_PARENT_VALIDATION" if added else "NOOP_NOT_OWNED"
+
+    @property
+    def receipt(self):
+        data = json.loads(self._frozen)
+        return {"state": self._result,
+                "journal_sha256": data["journal_sha256"], "source": data["source"], "added": self._added,
+                "policy_uid": data["before"]["allow-envoy"]["uid"], "policy_resource_version": data["post_version"]}
+
+    def rollback(self):
+        if not self._added or self._closed:
+            return "NOT_OWNED" if not self._added else "ALREADY_CLOSED"
+        try:
+            fresh = runtime.target()
+            _ingress_require(fresh.data == self._guard.data)
+            fresh.check()
+            data = json.loads(self._frozen)
+            item = json.loads(fresh.kubectl(["get", "networkpolicy", "allow-envoy", "-n", CLUSTER,
+                "-o", "json"], text=True, timeout=30))
+            old, desired = data["before"]["allow-envoy"], data["desired"]
+            _ingress_require(item["metadata"]["uid"] == old["uid"] and item["spec"] == desired
+                and item["metadata"]["resourceVersion"] == data["post_version"]
+                and item["metadata"]["namespace"] == CLUSTER and not item["metadata"].get("deletionTimestamp"))
+            patch = [{"op": "test", "path": "/metadata/uid", "value": old["uid"]},
+                {"op": "test", "path": "/metadata/resourceVersion", "value": item["metadata"]["resourceVersion"]},
+                {"op": "test", "path": "/spec", "value": desired},
+                {"op": "test", "path": "/spec/ingress/1", "value": desired["ingress"][1]},
+                {"op": "remove", "path": "/spec/ingress/1"}]
+            fresh.kubectl(["patch", "networkpolicy/allow-envoy", "-n", CLUSTER, "--type=json", "-p",
+                _ingress_json(patch)], text=True, timeout=30)
+            after = json.loads(fresh.kubectl(["get", "networkpolicy", "allow-envoy", "-n", CLUSTER,
+                "-o", "json"], text=True, timeout=30))
+            _ingress_require(after["metadata"]["uid"] == old["uid"] and after["spec"] == old["spec"])
+            self._closed = True
+            self._result = "ROLLED_BACK_OWN_ENTRY"
+            return self._result
+        except Exception:
+            raise ValueError("STOP: conditional Envoy rollback blocked; parent intervention required") from None
+
+    def _revalidate(self):
+        data = json.loads(self._frozen)
+        files, hashes, source = _ingress_evidence(self._directory)
+        _ingress_require(hashes == data["hashes"] and files == data["files"] and source == data["source"])
+        live = _ingress_live(self._guard, files["observation"]["identity"], files["causal-review"], source)
+        expected = json.loads(_ingress_json(data["before"]))
+        expected["allow-envoy"]["spec"] = data["desired"]
+        # Freeze the first observed postimage RV, not just its spec. A later
+        # equal-spec update is still concurrency and never grants ownership.
+        expected["allow-envoy"]["rv"] = data["post_version"]
+        _ingress_require(live == expected)
+
+    def finish(self, witness):
+        """Consume a nonsecret parent witness; failure conditionally removes ours.
+
+        This validates the receipt's shape/binding, not the truth of an HTTP
+        claim. The parent owns the real fixed-entry request and independent QA.
+        """
+        _ingress_require(not self._closed and not self._validated)
+        try:
+            self._revalidate()
+            data = json.loads(self._frozen)
+            _ingress_require(witness["schema"] == "aiforall.envoy.ingress-parent-witness.v1"
+                and witness["journal_sha256"] == data["journal_sha256"]
+                and witness["entry"] == "127.0.0.1:18080" and witness["method"] == "GET"
+                and witness["path"] == "/iam/api/auth/gitlab/login"
+                and witness["outcome"] == "IAM_CONNECTOR_NONCE_REDIRECT"
+                and witness["connector"] == "gitlab" and witness["status"] == 303
+                and witness["protected_without_bearer"] == "DENIED")
+            _ingress_admin_pair(data["files"]["admin-after"], witness["admin_before"], data["files"]["observation"]["identity"])
+            _ingress_admin_pair(witness["admin_before"], witness["admin_after"], data["files"]["observation"]["identity"])
+            _ingress_require(witness["admin_after"]["stats"]["cluster.iam.upstream_rq_total"]
+                             > witness["admin_before"]["stats"]["cluster.iam.upstream_rq_total"])
+            for key in ("cluster.iam.ssl.fail_verify_san", "cluster.iam.ssl.fail_verify_error"):
+                _ingress_require(witness["admin_before"]["stats"][key] == witness["admin_after"]["stats"][key])
+            self._validated = True
+            self._result = "PARENT_WITNESS_ACCEPTED_LAB_ONLY"
+            return self._result
+        except Exception:
+            self.rollback()
+            raise ValueError("STOP: parent Envoy validation refused; no qualification claimed") from None
+
+
+def configure_envoy_ingress(*, evidence_directory, journal_path):
+    """Specialized parent operation, deliberately NOT wired into deploy/main.
+
+    Requires the ratified causal review, measured IPIP source and current owned
+    identities. Returns a pending validation/rollback seam, never runs HTTP.
+    """
+    change = None
+    try:
+        files, hashes, source = _ingress_evidence(evidence_directory)
+        identity, review = files["observation"]["identity"], files["causal-review"]
+        guard = runtime.target()
+        before = _ingress_live(guard, identity, review, source)
+        client = {"from": [{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "local-full-client"}}}],
+                  "ports": [{"protocol": "TCP", "port": 10000}]}
+        entry = {"from": [{"ipBlock": {"cidr": source + "/32"}}], "ports": [{"protocol": "TCP", "port": 10000}]}
+        old = before["allow-envoy"]
+        _ingress_require(old["spec"]["podSelector"] == {"matchLabels": {"app.kubernetes.io/name": "envoy-mesh"}}
+            and old["spec"]["policyTypes"] == ["Ingress", "Egress"]
+            and old["spec"]["ingress"] in ([client], [client, entry], [entry, client]))
+        # Freeze all applicable policies against the declared, unchanged source.
+        declared = {item["metadata"]["name"]: item["spec"] for item in target_authority.yaml.safe_load_all(
+            (Path(__file__).parent / "apps/overlays/local-full/platform/policies.yaml").read_text()) if item}
+        for name, policy in before.items():
+            selector = policy["spec"]["podSelector"]
+            # Unknown expressions are not guessed non-applicable. The declared
+            # policy itself must match before its selector can be trusted.
+            _ingress_require(name in declared)
+            if name == "allow-envoy":
+                base = json.loads(_ingress_json(policy["spec"]))
+                base["ingress"] = [client]
+                _ingress_require(base == declared[name])
+            elif (name == "allow-test-client" or selector == {}
+                  or selector.get("matchLabels", {}).get("app.kubernetes.io/name") == "envoy-mesh"):
+                _ingress_require(policy["spec"] == declared[name])
+            else:
+                _ingress_require(selector == declared[name]["podSelector"])
+        _ingress_require({"default-deny", "allow-dns", "allow-envoy", "allow-test-client"} <= set(before))
+        desired = json.loads(_ingress_json(old["spec"]))
+        added = desired["ingress"] == [client]
+        if added:
+            desired["ingress"].append(entry)
+        patch = [{"op": "test", "path": "/metadata/uid", "value": old["uid"]},
+            {"op": "test", "path": "/metadata/resourceVersion", "value": old["rv"]},
+            {"op": "test", "path": "/spec", "value": old["spec"]},
+            {"op": "add", "path": "/spec/ingress/-", "value": entry}] if added else []
+        record = {"schema": "aiforall.envoy.ingress-journal.v1", "operation": uuid.uuid4().hex,
+            "evidence_sha256": hashes, "decision": review, "identity": identity,
+            "source": source, "before": before, "expected_spec": desired, "patch": patch,
+            "state": "PENDING_PARENT_VALIDATION" if added else "NOOP_NOT_OWNED"}
+        path = Path(journal_path)
+        _ingress_require(path.parent.is_dir() and not path.parent.is_symlink()
+            and path.absolute() == path.resolve() and not path.exists())
+        raw = _ingress_json(record).encode()
+        with path.open("xb") as file:
+            file.write(raw)
+            file.flush()
+            os.fsync(file.fileno())
+        target_authority.secure(path)
+        _ingress_require(private_file(path) and path.read_bytes() == raw)
+        # Re-read evidence and all semantics immediately before mutation. There
+        # is no multi-object atomicity claim; only this JSONPatch is atomic.
+        again, current_hashes, current_source = _ingress_evidence(evidence_directory)
+        _ingress_require(again == files and current_hashes == hashes and current_source == source
+            and _ingress_live(guard, identity, review, source) == before)
+        if added:
+            # A transport error can follow an applied patch. Without an ACK we
+            # cannot distinguish ours from a concurrent equal entry: STOP and
+            # retain the journal, never adopt/remove an uncertain rule.
+            guard.kubectl(["patch", "networkpolicy/allow-envoy", "-n", CLUSTER, "--type=json", "-p",
+                _ingress_json(patch)], text=True, timeout=30)
+        post = json.loads(guard.kubectl(["get", "networkpolicy", "allow-envoy", "-n", CLUSTER,
+                                        "-o", "json"], text=True, timeout=30))
+        _ingress_require(post["metadata"]["uid"] == old["uid"] and post["spec"] == desired
+            and not post["metadata"].get("deletionTimestamp")
+            and (added or post["metadata"]["resourceVersion"] == old["rv"]))
+        change = EnvoyIngressChange(guard, evidence_directory, files, hashes, source, before, desired,
+                                   hashlib.sha256(raw).hexdigest(), added, post["metadata"]["resourceVersion"])
+        change._revalidate()
+        return change
+    except Exception:
+        if change is not None and change._added:
+            change.rollback()
+        raise ValueError("STOP: Envoy ingress refused; details redacted; inspect parent journal") from None
 
 
 def deploy_locked(args):
