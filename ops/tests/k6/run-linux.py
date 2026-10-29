@@ -15,7 +15,7 @@ import uuid
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 sys.path.insert(0, str(HERE / "lib"))
-from safety import (ARTIFACT_LIMIT, Child, Rejected, child_environment, confidential,
+from safety import (ARTIFACT_LIMIT, BROWSER_DIAGNOSTICS, Child, Rejected, child_environment, confidential,
                     digest, name_chain, new_output, private_path, private_read, strict_json)
 
 CHECKS = {"HTTP": ("iam-status", "iam-body"), "Chromium": ("browser-evaluation", "browser-blank")}
@@ -441,6 +441,9 @@ def main(argv=None):
         failure = error if isinstance(error, Rejected) else Rejected("INTERNAL_ERROR")
         result["diagnostic"] = failure.code
         result["cleanup"] = failure.cleanup
+        native_reason = failure.browser_diagnostic
+        if mode == "browser" and type(native_reason) is str and native_reason in BROWSER_DIAGNOSTICS:
+            result["browser_native_diagnostic"] = native_reason
         if phase:
             result[phase] = "INCONCLUSIVE" if failure.inconclusive else "FAIL"
         if mode in {"selftest", "tools"}:

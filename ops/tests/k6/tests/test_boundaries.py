@@ -373,6 +373,17 @@ class PosixTests(unittest.TestCase):
                 self.supervise(source)
             self.assertEqual(found.exception.code, expected)
 
+    def test_browser_refusal_diagnostic_preserves_failure_and_confidentiality(self):
+        cases = [("No usable sandbox!", "SANDBOX_UNPROVEN", "NO_USABLE_SANDBOX_REPORTED"),
+                 ("No usable sandbox! https://example.invalid/private", "PRIVACY_FAILED", "NO_USABLE_SANDBOX_REPORTED"),
+                 ("No usable sandbox! CONFIDENTIAL_SENTINEL", "PRIVACY_FAILED", "NATIVE_DIAGNOSTIC_WITHHELD")]
+        for message, code, reason in cases:
+            with self.subTest(code=code, reason=reason), self.assertRaises(runner.Rejected) as found:
+                self.supervise("import sys;sys.stderr.write(" + repr(message) + ");sys.exit(1)", browser=True)
+            self.assertEqual(found.exception.code, code)
+            self.assertEqual(found.exception.browser_diagnostic, reason)
+            self.assertEqual(found.exception.cleanup, "PASS")
+
     def test_interruption_reaps_descendants_by_identity(self):
         with self.assertRaises(runner.Rejected) as found:
             self.supervise("import subprocess,sys,time;subprocess.Popen([sys.executable,'-c','import time;time.sleep(30)']);time.sleep(30)", interrupt_after=0.2)
@@ -400,6 +411,69 @@ class SandboxTests(unittest.TestCase):
                 self.assertFalse(safety.sandbox_witness({**good, key: value}, parent))
             with self.assertRaises(runner.Rejected):
                 safety.sandbox_witness({**good, "args": good["args"] + [b"--no-sandbox"]}, parent)
+
+
+class BrowserDiagnosticTests(unittest.TestCase):
+    def test_pinned_official_messages_have_closed_categories(self):
+        cases = {b"No usable sandbox!": "NO_USABLE_SANDBOX_REPORTED",
+                 b"Failed to move to new namespace: PID namespaces supported, Network namespace supported, but failed: errno = Operation not permitted": "NAMESPACE_PERMISSION_DENIED_REPORTED",
+                 b"The SUID sandbox helper binary was found, but is not configured correctly.": "SUID_HELPER_CONFIGURATION_REJECTED",
+                 b"The SUID sandbox helper binary is missing: /private/chrome-sandbox": "SUID_HELPER_MISSING_REPORTED",
+                 b"Running as root without --no-sandbox is not supported.": "ROOT_STARTUP_REFUSAL_REPORTED",
+                 b"launching browser: browser process ended unexpectedly": "BROWSER_STARTUP_ENDED_REPORTED"}
+        for message, expected in cases.items():
+            for stdout, stderr in [(message, b""), (b"", message)]:
+                with self.subTest(expected=expected):
+                    self.assertEqual(safety.browser_diagnostic(stdout, stderr, 1), expected)
+
+    def test_unknown_ambiguous_and_missing_witness_never_infer_apparmor(self):
+        for message in [b"AppArmor namespaces Operation not permitted", b"/private/unknown-native-error", b""]:
+            self.assertEqual(safety.browser_diagnostic(b"", message, 1), "NATIVE_CAUSE_UNCLASSIFIED")
+        self.assertEqual(safety.browser_diagnostic(b"", b"", 0), "K6_ZERO_EXIT_NO_SANDBOX_WITNESS")
+        self.assertEqual(safety.browser_diagnostic(b"No usable sandbox!", b"The SUID sandbox helper binary is missing: ignored", 1), "MULTIPLE_NATIVE_CAUSES_REPORTED")
+        self.assertEqual(safety.browser_diagnostic(b"No usable sandbox!", b"browser process ended unexpectedly", 1), "NO_USABLE_SANDBOX_REPORTED")
+
+    def test_sentinels_bounds_and_invalid_encoding_withhold_reason(self):
+        for message in [b"No usable sandbox! CONFIDENTIAL_SENTINEL", b"\xffNo usable sandbox!", b"x" * (safety.LIMIT + 1)]:
+            for stdout, stderr in [(message, b""), (b"", message)]:
+                self.assertEqual(safety.browser_diagnostic(stdout, stderr, 1), "NATIVE_DIAGNOSTIC_WITHHELD")
+
+    def test_path_url_credentials_are_never_part_of_projected_reason(self):
+        for suffix in [b" /home/private-user/chrome", b" https://example.invalid/?code=private-code",
+                       b" password=private-password", b" eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhIn0.signature"]:
+            reason = safety.browser_diagnostic(b"", b"No usable sandbox!" + suffix, 1)
+            self.assertEqual(reason, "NO_USABLE_SANDBOX_REPORTED")
+            runner.confidential(json.dumps({"browser_native_diagnostic": reason}).encode())
+            self.assertNotIn("private", reason.lower())
+
+    def test_main_projects_allowlisted_reason_without_success_or_artifact(self):
+        cases = [("SANDBOX_UNPROVEN", True, "NO_USABLE_SANDBOX_REPORTED", 2),
+                 ("PRIVACY_FAILED", False, "NATIVE_DIAGNOSTIC_WITHHELD", 1),
+                 ("SANDBOX_UNPROVEN", True, "CONFIDENTIAL_SENTINEL /private/path", 2),
+                 ("SANDBOX_UNPROVEN", True, ["untrusted"], 2)]
+        for code, inconclusive, reason, expected_exit in cases:
+            failure = runner.Rejected(code, inconclusive)
+            failure.cleanup, failure.browser_diagnostic = "PASS", reason
+            with scratch() as root, mock.patch.object(runner, "linux_platform"), \
+                    mock.patch.object(runner, "new_output", return_value=root), \
+                    mock.patch.object(runner, "pinned_tools", return_value=({}, {})), \
+                    mock.patch.object(runner, "version_checks", return_value={}), \
+                    mock.patch.object(runner, "scenario_run", side_effect=failure), \
+                    mock.patch.object(runner, "publish") as publish, contextlib.redirect_stdout(io.StringIO()) as log:
+                self.assertEqual(runner.main(["browser", "--output", str(root)]), expected_exit)
+            projected = json.loads(log.getvalue())
+            self.assertNotEqual(projected["Chromium"], "PASS")
+            self.assertEqual(projected["diagnostic"], code)
+            self.assertEqual(projected["cleanup"], "PASS")
+            if type(reason) is str and reason in {"NO_USABLE_SANDBOX_REPORTED", "NATIVE_DIAGNOSTIC_WITHHELD"}:
+                self.assertEqual(projected["browser_native_diagnostic"], reason)
+            else:
+                self.assertNotIn("browser_native_diagnostic", projected)
+            if code == "PRIVACY_FAILED":
+                self.assertEqual(projected["confidentiality"], "FAIL")
+            self.assertNotIn("CONFIDENTIAL_SENTINEL", log.getvalue())
+            self.assertNotIn("/private/path", log.getvalue())
+            publish.assert_not_called()
 
 
 if __name__ == "__main__":

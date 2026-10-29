@@ -183,6 +183,35 @@ sandbox proof. Forbidden sandbox/TLS flags fail; no AppArmor/userns/seccomp chan
 root execution, UI, HAR, screenshots, CDP debug or application navigation is added.
 If Ubuntu/WSL/CI cannot demonstrate this sandbox, Chromium remains unqualified.
 
+On a browser refusal the one-line failure result may additionally contain
+`browser_native_diagnostic`, a **closed message-category label** derived only from
+the already bounded/private stdout/stderr. Known pinned Chromium messages can
+report no usable sandbox, namespace permission denial, rejected/missing SUID
+helper or root startup refusal. These are reported text categories, not proof
+that a particular AppArmor/sysctl policy caused the failure. Unknown messages
+remain `NATIVE_CAUSE_UNCLASSIFIED`; conflicting categories are not resolved by
+guessing. `K6_ZERO_EXIT_NO_SANDBOX_WITNESS` means only that k6 exited0 while the
+required external witness was absent, never Chromium PASS.
+
+Sentinels, invalid UTF-8 or oversized inputs withhold the category. No matched
+text, path, environment, URL or native suffix is projected. Existing privacy
+checks remain unchanged: even official documentation URLs in Chromium errors
+can still cause PRIVACY_FAILED; the optional closed category does not waive that
+failure, publish any artefact or make a run successful.
+
+Research for these categories used the pinned
+[Chromium156.0.8078.73 zygote startup source](https://chromium.googlesource.com/chromium/src/+/156.0.8078.73/content/browser/zygote_host/zygote_host_impl_linux.cc),
+[SUID helper checks](https://chromium.googlesource.com/chromium/src/+/156.0.8078.73/sandbox/linux/suid/client/setuid_sandbox_host.cc),
+[namespace error message](https://chromium.googlesource.com/chromium/src/+/156.0.8078.73/sandbox/linux/suid/sandbox.c),
+and [official Ubuntu specification](https://discourse.ubuntu.com/t/spec-unprivileged-user-namespace-restrictions-via-apparmor-in-ubuntu-23-10/37626).
+The Ubuntu mechanism is context, not evidence of the hosted runner's active policy.
+Importantly, [k6v2.3.0 browser_process.go](https://github.com/grafana/k6/blob/v2.3.0/internal/js/modules/k6/browser/common/browser_process.go#L206-L278)
+retains `:ERROR:` lines in its startup parser, not every Chromium `FATAL` line;
+it can return only a generic startup-ended error. A discarded message cannot be
+recovered by this diagnostic. No debug, new capture, policy change, wrapper,
+installation or sandbox bypass is introduced; the precise CI cause may remain
+unproven under these bounds.
+
 Child environments are constructed from scratch (no ambient K6, proxy, loader,
 Cloud, secrets or user config), with reporting explicitly disabled. Runtime API
 listen address is empty, user config is an explicit empty file, and system env

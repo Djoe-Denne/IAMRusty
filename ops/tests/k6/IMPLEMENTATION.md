@@ -181,3 +181,43 @@ Independent review of the HIGH fix and actual Linux replay remain required.
 No k6/Chromium version/inspect/browser/HTTP/selftest command executed by this author,
 no campaign artefact published, no Cargo or global configuration operation, no
 Docker/WSL/Kind resource created/started/stopped and no new owned runtime ID.
+
+## Closed CI sandbox diagnostic candidate
+
+Exact delta baseline: `5d7955798f7af8c0ede74b3f6b71bdae104510b1`. The author checked
+owned source paths matched that commit before editing; later919f1bd is the lead's
+documentary publication, not a presumed worktree update. Original index, old
+integrated corrections and contracts are preserved; no rebase/reset/commit.
+
+The lead's briefing `20261029-k6-ci-sandbox-diagnostic.md` reports CI40963859987:
+tests/acquisition/versions-inspect PASS, browser SANDBOX_UNPROVEN/exit2/cleanupPASS,
+no artefacts. Author did not execute that CI or read/recover its private stderr.
+Namespace/AppArmor restriction remains a hypothesis, not an observed cause.
+
+Official research preceded code: Chromium156.0.8078.73 Gitiles sources for zygote
+startup, setuid helper and sandbox namespace messages; its AppArmor documentation;
+Ubuntu's official user-namespace specification (Discourse JSON); k6v2.3.0
+browser_process.go and browser_type.go. URLs/selection are documented in README.
+The Ubuntu blog extraction via existing Defuddle returned no useful text; no
+package was installed. Crucial limit: k6's parser retains :ERROR: rather than all
+FATAL lines and can replace the cause with a generic process-ended error. Neither
+source defaults nor a generic error establishes the runner's actual policy.
+
+Change: pure bounded lexical classifier of existing streams; optional allowlisted
+browser_native_diagnostic on the existing failure result. Primary codes, exits,
+cleanup/privacy controls and publication refusal remain unchanged. No witness,
+unknown or ambiguous messages never become success; no native text is exported.
+Known documentation URLs still fail the existing privacy guard when present.
+
+RED before source change: native Windows unittest56 tests, exit1,16 errors,
+7 POSIX skips (classifier/projection absent). GREEN after source change:
+56 tests, exit0,7 POSIX skips (49 exercised). Tests cover official motifs, unknown
+messages, conflicting motifs, missing witness, both streams, sentinels, malformed
+UTF-8, size bounds, private paths/URLs/credentials and forged projection values.
+The extra POSIX test reuses the existing Python-child fixture for synthetic
+messages; it is not Chromium qualification and awaits the lead's replay.
+
+No worker Linux/WSL/CI/runtime/Chromium invocation, installation, sysctl/AppArmor,
+sandbox flag, wrapper, pins, CI or HTTP change. Parent alone retains supervision
+and the next discriminating CI push after integration. Actual CI cause remains
+unproven until that observation; HTTP remains closed and there is no global PASS.

@@ -18,6 +18,10 @@ CODES = frozenset("INPUT_INVALID PATH_INVALID PRIVACY_FAILED SUMMARY_INVALID TOO
                   "TOOL_VERSION TOOL_FAILED OUTPUT_LIMIT CHILD_TIMEOUT INTERRUPTED CLEANUP_FAILED "
                   "SANDBOX_UNPROVEN TARGET_UNAVAILABLE TARGET_BINDING_UNQUALIFIED PLATFORM_UNQUALIFIED "
                   "INTERNAL_ERROR SELFTEST_FAILED PREREQUISITE_UNAVAILABLE".split())
+BROWSER_DIAGNOSTICS = frozenset("NO_USABLE_SANDBOX_REPORTED NAMESPACE_PERMISSION_DENIED_REPORTED "
+    "SUID_HELPER_CONFIGURATION_REJECTED SUID_HELPER_MISSING_REPORTED ROOT_STARTUP_REFUSAL_REPORTED "
+    "BROWSER_STARTUP_ENDED_REPORTED MULTIPLE_NATIVE_CAUSES_REPORTED K6_ZERO_EXIT_NO_SANDBOX_WITNESS "
+    "NATIVE_CAUSE_UNCLASSIFIED NATIVE_DIAGNOSTIC_WITHHELD".split())
 
 
 class Rejected(Exception):
@@ -26,6 +30,7 @@ class Rejected(Exception):
             raise ValueError("closed diagnostic required")
         self.code, self.inconclusive = code, inconclusive
         self.cleanup = "NOT_STARTED"
+        self.browser_diagnostic = None
         super().__init__(code)
 
 
@@ -69,6 +74,42 @@ def confidential(raw):
                 r"-----BEGIN [A-Z ]*PRIVATE KEY-----"]
     if any(re.search(pattern, text) for pattern in patterns):
         raise Rejected("PRIVACY_FAILED")
+
+
+def browser_diagnostic(stdout, stderr, native_exit):
+    """Lexical message category only, never sandbox proof or AppArmor attribution.
+
+    Chromium 156.0.8078.73 messages and k6 v2.3.0 startup errors. Return constants
+    only: never a match, path, URL, native suffix or suggested workaround.
+    """
+    if any(type(raw) is not bytes or len(raw) > LIMIT for raw in (stdout, stderr)):
+        return "NATIVE_DIAGNOSTIC_WITHHELD"
+    raw = stdout + b"\n" + stderr
+    try:
+        raw.decode("utf-8", errors="strict")
+    except UnicodeError:
+        return "NATIVE_DIAGNOSTIC_WITHHELD"
+    if b"CONFIDENTIAL_SENTINEL" in raw:
+        return "NATIVE_DIAGNOSTIC_WITHHELD"
+    markers = {
+        b"No usable sandbox!": "NO_USABLE_SANDBOX_REPORTED",
+        b"The SUID sandbox helper binary was found, but is not configured correctly.": "SUID_HELPER_CONFIGURATION_REJECTED",
+        b"The SUID sandbox helper binary is missing:": "SUID_HELPER_MISSING_REPORTED",
+        b"Running as root without --no-sandbox is not supported.": "ROOT_STARTUP_REFUSAL_REPORTED",
+    }
+    causes = {label for marker, label in markers.items() if marker in raw}
+    if re.search(rb"Failed to move to new namespace:[^\r\n]{0,256}but failed: errno = (?:Operation not permitted|Permission denied)\b", raw):
+        causes.add("NAMESPACE_PERMISSION_DENIED_REPORTED")
+    if len(causes) > 1:
+        return "MULTIPLE_NATIVE_CAUSES_REPORTED"
+    if causes:
+        return causes.pop()
+    if (b"browser process ended unexpectedly" in raw
+            or b"browser process shutdown unexpectedly before establishing a connection:" in raw):
+        return "BROWSER_STARTUP_ENDED_REPORTED"
+    if type(native_exit) is int and native_exit == 0:
+        return "K6_ZERO_EXIT_NO_SANDBOX_WITNESS"
+    return "NATIVE_CAUSE_UNCLASSIFIED"
 
 
 def outside_git(path):
@@ -383,6 +424,8 @@ class Child:
             confidential(self.stderr)
         except Rejected as error:
             error.cleanup = "PASS" if self.cleanup else "FAIL"
+            if browser and not self.sandbox:
+                error.browser_diagnostic = browser_diagnostic(self.stdout, self.stderr, self.code)
             raise
         if not self.cleanup:
             error = Rejected("CLEANUP_FAILED")
@@ -395,5 +438,6 @@ class Child:
         if browser and not self.sandbox:
             error = Rejected("SANDBOX_UNPROVEN", True)
             error.cleanup = "PASS"
+            error.browser_diagnostic = browser_diagnostic(self.stdout, self.stderr, self.code)
             raise error
         return self.code
