@@ -1144,6 +1144,8 @@ class FakeTupleCommands(FakeEnvoyAdminCommands):
         self.backend = "nf_tables"
         self.diagnostics = []
         self.mutate = lambda cmd, value: value
+        self.tuple_rows = ""
+        self.chain_packets = self.chain_bytes = 0
 
     def __call__(self, cmd, **kwargs):
         if cmd[:2] == ["docker", "exec"]:
@@ -1154,8 +1156,20 @@ class FakeTupleCommands(FakeEnvoyAdminCommands):
             elif cmd[3:] == ["iptables", "--version"]:
                 value = "iptables v1.8.11 (" + self.backend + ")\n"
             elif cmd[3:] in (["test", "-d", "/sys/module/nf_conntrack"],
-                              ["test", "-d", "/sys/module/nf_conntrack_netlink"]):
+                               ["test", "-d", "/sys/module/nf_conntrack_netlink"]):
                 value = ""
+            elif cmd[3:5] == ["conntrack", "-L"]:
+                value = (self.tuple_rows, "conntrack v1.4.7 (conntrack-tools): "
+                         + str(len(self.tuple_rows.splitlines())) + " flow entries have been shown.\n")
+            elif cmd[3:10] == ["ip", "-j", "-4", "route", "show", "exact", "10.244.1.4/32"]:
+                value = json.dumps([{"dst": "10.244.1.4", "scope": "link", "dev": "cali123456789ab"}])
+            elif cmd[3:] == ["iptables", "-t", "filter", "-L", "cali-tw-cali123456789ab",
+                             "-n", "-v", "-x", "--line-numbers"]:
+                value = ("Chain cali-tw-cali123456789ab (1 references)\n"
+                    "num pkts bytes target prot opt in out source destination\n"
+                    "1 0 0 cali-pi-abc all -- * * 0.0.0.0/0 0.0.0.0/0 mark match 0x0/0x20000\n"
+                    + f"2 {self.chain_packets} {self.chain_bytes} DROP all -- * * 0.0.0.0/0 0.0.0.0/0 "
+                    "/* cali:opaque */ /* Drop if no policies passed packet */ mark match 0x0/0x20000\n")
             else:
                 raise AssertionError("unexpected diagnostic argv")
         elif cmd[:2] == ["docker", "inspect"] and cmd[3] != anchor.METADATA:
@@ -1170,7 +1184,8 @@ class FakeTupleCommands(FakeEnvoyAdminCommands):
                     value = ("owned-pod\nenvoy-mesh-abc-def\naiforall-local-full\n" + self.network
                              + "2026-10-29T01:02:03Z\n")
                 elif args[:2] == ["get", "node"]:
-                    value = self.node
+                    value = ("owned-cp-node\n" + self.names[self.fixture.ids[0]] + "\n" + self.addresses[self.fixture.ids[0]] + "\n"
+                             if args[2] == self.names[self.fixture.ids[0]] else self.node)
                 elif args[:2] == ["get", "service"]:
                     value = self.service
         return self.mutate(cmd, value)
@@ -1237,7 +1252,10 @@ class EnvoyTuplePreflightTests(unittest.TestCase):
         if self.streams is None:
             # Existing fake verifies endpoint/context and supplies only projections.
             value = self.acl_result if command[0] == "powershell.exe" else self.cmd(command, **kwargs)
-            out, err = value.encode() if isinstance(value, str) else value, b""
+            if isinstance(value, tuple):
+                out, err = (part.encode() for part in value)
+            else:
+                out, err = value.encode() if isinstance(value, str) else value, b""
         else:
             out, err = self.streams
         process = Mock(stdout=FakeTuplePipe(out, self.broken_pipe), stderr=FakeTuplePipe(err))
@@ -1479,6 +1497,190 @@ class EnvoyTuplePreflightTests(unittest.TestCase):
         # Opaque unknown projection data must never appear in a successful result.
         self.cmd.mutate = lambda cmd, value: value + "PRIVATE-TUPLE-SENTINEL" if cmd[:2] == ["docker", "inspect"] else value
         self.assert_opaque_failure(self.capture)
+
+
+    def test_envoy_tuple_reads_have_fixed_bounds_and_closed_stderr_summaries(self):
+        for mode, limit in ((None, 16384), ("conntrack", 16384), ("route", 16384), ("chain", 65536)):
+            for overflow in (False, True):
+                with self.subTest(mode=mode, overflow=overflow):
+                    payload = b"x" * (limit - 1 + int(overflow)) + b"\n"
+                    summary = b"conntrack v1.4.7 (conntrack-tools): 1 flow entries have been shown.\n" if mode == "conntrack" else b""
+                    self.streams = (payload, summary)
+                    child = anchor._EnvoyTupleChild(anchor.time.monotonic() + 30)
+                    if overflow:
+                        self.assert_opaque_failure(lambda: child.run(["private-fake-command"], _tuple_reading=mode))
+                    else:
+                        self.assertEqual(len(child.run(["private-fake-command"], _tuple_reading=mode)), limit)
+                    self.assertEqual(self.children[-1].stdout.bytes_read, limit + int(overflow))
+                    self.assertLessEqual(max(self.children[-1].stdout.read_sizes), 1024)
+        for output, error in [(b"", b"PRIVATE-TUPLE-SENTINEL"),
+                              (b"", b"conntrack v1.4.8 (conntrack-tools): 0 flow entries have been shown.\n"),
+                              (b"one\n", b"conntrack v1.4.7 (conntrack-tools): 0 flow entries have been shown.\n"),
+                              (b"", b"conntrack v1.4.7 (conntrack-tools): 9 flow entries have been shown.\n")]:
+            self.streams = (output, error)
+            child = anchor._EnvoyTupleChild(anchor.time.monotonic() + 30)
+            self.assert_opaque_failure(lambda: child.run(["private-fake-command"], _tuple_reading="conntrack"))
+        self.streams = (b"", b"conntrack v1.4.7 (conntrack-tools): 0 flow entries have been shown.\n")
+        child = anchor._EnvoyTupleChild(anchor.time.monotonic() + 30)
+        self.assertEqual(child.run(["private-fake-command"], _tuple_reading="conntrack"), "")
+        self.assert_opaque_failure(lambda: anchor._tuple_rows(
+            "ipv4 2 tcp 6 100 SYN_SENT src=PRIVATE-TUPLE-SENTINEL dst=172.18.0.2 sport=1 dport=30080 "
+            "[UNREPLIED] src=10.244.1.4 dst=172.18.0.2 sport=10000 dport=1 zone=0 id=1", "172.18.0.2", "10.244.1.4", source_filtered=True))
+        self.assert_closed()
+
+    def test_envoy_tuple_observation_is_single_use_and_never_accepts_http_callbacks(self):
+        for extra in ({"url": "PRIVATE-URL"}, {"callback": "PRIVATE-CALLBACK"}, {"container": "foreign"},
+                      {"source_filtered": True}):
+            target = self.f.target(self.cmd)
+            self.cmd.diagnostics.clear()
+            self.assert_opaque_failure(lambda: target.envoy_tuple_begin(**{**self.attestation, **extra}))
+            self.assertEqual(self.cmd.diagnostics, [])
+        self.assert_opaque_failure(self.target.envoy_tuple_finish)
+        baseline = self.target.envoy_tuple_begin(**self.attestation)
+        self.assertEqual(baseline["status"], "BASELINE_ONLY")
+        self.assertNotIn("rows", baseline)
+        self.assertNotIn("original", repr(baseline))
+        baseline["identity"]["pod_uid"] = "caller-mutated"
+        baseline["deny"]["packets"] = 999
+        self.assertEqual(len(self.cmd.diagnostics), 7)
+        cp, worker = self.f.ids[0], self.f.ids[1]
+        self.assertEqual(self.cmd.diagnostics[-3:], [
+            ["docker", "exec", cp, "conntrack", "-L", "-f", "ipv4", "-p", "tcp",
+             "--orig-dst", "172.18.0.2", "--orig-port-dst", "30080", "--reply-src", "10.244.1.4",
+             "--reply-port-src", "10000", "-w", "0", "-o", "extended,id"],
+            ["docker", "exec", worker, "ip", "-j", "-4", "route", "show", "exact", "10.244.1.4/32"],
+            ["docker", "exec", worker, "iptables", "-t", "filter", "-L", "cali-tw-cali123456789ab",
+             "-n", "-v", "-x", "--line-numbers"]])
+        self.attestation["incarnation"]["restart_count"] = 2
+        self.cmd.tuple_rows = ("ipv4 2 tcp 6 100 SYN_SENT src=172.18.0.1 dst=172.18.0.2 sport=45678 dport=30080 "
+            "[UNREPLIED] src=10.244.1.4 dst=172.18.0.2 sport=10000 dport=45678 mark=0 zone=0 use=1 id=101\n")
+        self.cmd.chain_packets, self.cmd.chain_bytes = 3, 180
+        result = self.target.envoy_tuple_finish()
+        self.assertEqual(result["endpoint_deny_delta"], {"packets": 3, "bytes": 180})
+        self.assertEqual(result["identity"]["restart_count"], 0)
+        self.assertEqual(result["packet_attribution"], "NOT_ESTABLISHED_BY_COUNTER")
+        self.assertNotIn("_tuple_pending", vars(self.target))
+        count = len(self.cmd.diagnostics)
+        self.assert_opaque_failure(self.target.envoy_tuple_finish)
+        self.assert_opaque_failure(lambda: self.target.envoy_tuple_begin(**self.attestation))
+        self.assertEqual(len(self.cmd.diagnostics), count)
+        self.assert_closed()
+        target = self.f.target(self.cmd)
+        before = {"identity": {"pod_uid": "owned-pod"}, "chain": {"fingerprint": "fixed", "deny": "MISSING"},
+                  "captured_ns": anchor.time.monotonic_ns()}
+        with patch.object(target, "_envoy_tuple_capture", side_effect=[before, anchor.AnchorError("PRIVATE-TUPLE-SENTINEL")]) as capture:
+            target.envoy_tuple_begin(**self.attestation)
+            self.assert_opaque_failure(target.envoy_tuple_finish)
+            self.assert_opaque_failure(target.envoy_tuple_finish)
+            self.assertEqual(capture.call_count, 2)
+            self.assertNotIn("_tuple_pending", vars(target))
+        target = self.f.target(self.cmd)
+        before["captured_ns"] = anchor.time.monotonic_ns() - 70_000_000_000
+        with patch.object(target, "_envoy_tuple_capture", return_value=before) as capture:
+            target.envoy_tuple_begin(**self.attestation)
+            self.assert_opaque_failure(target.envoy_tuple_finish)
+            self.assertEqual(capture.call_count, 1)
+            self.assertNotIn("_tuple_pending", vars(target))
+
+
+class EnvoyTupleDecoderTests(unittest.TestCase):
+    cp = "172.19.0.5"
+    pod = "10.244.75.206"
+    interface = "cali123456789ab"
+
+    def line(self, id=101, port=45678):
+        return (f"ipv4 2 tcp 6 100 SYN_SENT src=172.19.0.1 dst={self.cp} sport={port} dport=30080 "
+                f"[UNREPLIED] src={self.pod} dst={self.cp} sport=10000 dport={port} mark=0 zone=0 use=1 id={id}\n")
+
+    def chain(self, packets=0, size=0, target="DROP", direction="tw"):
+        return (f"Chain cali-{direction}-{self.interface} (1 references)\n"
+                "num pkts bytes target prot opt in out source destination\n"
+                "1 0 0 cali-pi-abc all -- * * 0.0.0.0/0 0.0.0.0/0 mark match 0x0/0x20000\n"
+                f"2 {packets} {size} {target} all -- * * 0.0.0.0/0 0.0.0.0/0 "
+                f"/* cali:opaqueRuleId */ /* {target} if no policies passed packet */ mark match 0x0/0x20000\n")
+
+    def sample(self, rows="", packets=0, size=0, timestamp=1):
+        return {"identity": {"pod_uid": "owned-pod"}, "interface": self.interface,
+                "backend": "nf_tables", "versions": ("1.4.7", "1.8.9"),
+                "chain": anchor._tuple_deny(self.chain(packets, size), self.interface),
+                "rows": anchor._tuple_rows(rows, self.cp, self.pod, source_filtered=True), "captured_ns": timestamp}
+
+    def test_envoy_tuple_queries_are_closed_and_original_reply_nat_mapping_is_exact(self):
+        row, = anchor._tuple_rows(self.line(), self.cp, self.pod, source_filtered=True)
+        self.assertEqual(row["original"], {"src": "172.19.0.1", "dst": self.cp, "sport": 45678, "dport": 30080})
+        self.assertEqual(row["reply"], {"src": self.pod, "dst": self.cp, "sport": 10000, "dport": 45678})
+        self.assertNotEqual(row["original"]["src"], row["reply"]["dst"])
+        self.assertTrue(row["unreplied"])
+        self.assertNotIn("reply_observed", row)
+        for old, new in [("dport=30080", "dport=30081"), ("sport=10000", "sport=9901"),
+                         ("zone=0", "zone=1"), ("id=101", "id=101 id=102"),
+                         ("ipv4 2 tcp 6", "ipv4 2 udp 17"), ("100 SYN_SENT", "0 SYN_SENT")]:
+            with self.subTest(replacement=new), self.assertRaises(anchor.AnchorError):
+                anchor._tuple_rows(self.line().replace(old, new), self.cp, self.pod, source_filtered=True)
+        with self.assertRaises(anchor.AnchorError):
+            anchor._tuple_rows(self.line() * 2, self.cp, self.pod, source_filtered=True)
+        with self.assertRaises(anchor.AnchorError):
+            anchor._tuple_rows(" " * 16385, self.cp, self.pod, source_filtered=True)
+
+    def test_envoy_tuple_zone_missing_preserves_source_filtered_provenance(self):
+        absent, = anchor._tuple_rows(self.line().replace("zone=0 ", ""), self.cp, self.pod, source_filtered=True)
+        explicit, = anchor._tuple_rows(self.line(), self.cp, self.pod, source_filtered=True)
+        self.assertEqual(absent["requested_zone"], 0)
+        self.assertEqual(absent["observed_zone"], "MISSING")
+        self.assertEqual(absent["zone_evidence"], "SOURCE_FILTERED")
+        self.assertEqual(explicit["observed_zone"], 0)
+        self.assertEqual(explicit["zone_evidence"], "OBSERVED_AND_SOURCE_FILTERED")
+        self.assertEqual(absent["fingerprint"], explicit["fingerprint"])
+        self.assertNotIn("zone", absent)
+
+    def test_envoy_tuple_zone_conflicts_and_unattested_filter_fail_closed(self):
+        for token in ("zone=1", "zone=00", "zone=0 zone=0", "zone-orig=0", "zone-reply=0", "zone-unknown=0"):
+            with self.subTest(token=token), self.assertRaises(anchor.AnchorError):
+                anchor._tuple_rows(self.line().replace("zone=0", token), self.cp, self.pod, source_filtered=True)
+        for proof in (False, None, 1, "conntrack1.4.7"):
+            with self.subTest(proof_type=type(proof).__name__), self.assertRaises(anchor.AnchorError):
+                anchor._tuple_rows(self.line(), self.cp, self.pod, source_filtered=proof)
+
+    def test_envoy_tuple_requires_unique_new_candidate_and_stable_identity(self):
+        before, after = self.sample(), self.sample(self.line(), 3, 180, 20)
+        result = anchor._tuple_correlate(before, after)
+        self.assertEqual(result["endpoint_deny_delta"], {"packets": 3, "bytes": 180})
+        self.assertEqual(result["nat_binding"]["reply"]["dst"], self.cp)
+        self.assertEqual(result["status"], "PARENT_CORRELATION_REQUIRED")
+        self.assertEqual(result["packet_attribution"], "NOT_ESTABLISHED_BY_COUNTER")
+        for sample in [self.sample(timestamp=20),
+                       self.sample(self.line() + self.line(102, 45679), timestamp=20),
+                       self.sample(self.line(), timestamp=60_000_000_002)]:
+            with self.assertRaises(anchor.AnchorError):
+                anchor._tuple_correlate(before, sample)
+        for key in ("identity", "interface", "backend", "versions"):
+            changed = {**after, key: "changed"}
+            with self.subTest(key=key), self.assertRaises(anchor.AnchorError):
+                anchor._tuple_correlate(before, changed)
+        old = self.sample(self.line(), timestamp=1)
+        with self.assertRaises(anchor.AnchorError):
+            anchor._tuple_correlate(old, self.sample(self.line(102), timestamp=20))
+
+    def test_envoy_tuple_drop_chain_is_to_workload_and_ambiguous_deltas_do_not_pass(self):
+        self.assertEqual(anchor._tuple_route(json.dumps([{"dst": self.pod, "dev": self.interface, "scope": "link"}]), self.pod), self.interface)
+        for route in [[], [{"dst": self.pod, "dev": "eth0", "scope": "link"}],
+                      [{"dst": self.pod, "dev": self.interface, "scope": "link", "gateway": self.cp}]]:
+            with self.assertRaises(anchor.AnchorError):
+                anchor._tuple_route(json.dumps(route), self.pod)
+        for target in ("DROP", "REJECT"):
+            self.assertEqual(anchor._tuple_deny(self.chain(3, 180, target), self.interface)["deny"], {"packets": 3, "bytes": 180})
+        with self.assertRaises(anchor.AnchorError):
+            anchor._tuple_deny(self.chain(direction="fw"), self.interface)
+        invalid = self.chain().replace("if no policies passed packet", "if INVALID")
+        self.assertEqual(anchor._tuple_deny(invalid, self.interface)["deny"], "AMBIGUOUS")
+        self.assertEqual(anchor._tuple_deny(self.chain().replace("mark match 0x0/0x20000", "ctstate INVALID"), self.interface)["deny"], "AMBIGUOUS")
+        before, after = self.sample(packets=3, size=180), self.sample(self.line(), packets=0, size=0, timestamp=20)
+        with self.assertRaises(anchor.AnchorError):
+            anchor._tuple_correlate(before, after)
+        before["chain"]["deny"] = "MISSING"
+        result = anchor._tuple_correlate(before, after)
+        self.assertEqual(result["endpoint_deny_delta"], "MISSING")
+        self.assertEqual(result["packet_attribution"], "NOT_ESTABLISHED_BY_COUNTER")
 
 
 class WindowsAclBindingTests(unittest.TestCase):

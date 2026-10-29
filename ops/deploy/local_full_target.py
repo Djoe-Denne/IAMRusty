@@ -537,6 +537,179 @@ class _EnvoyAdminForward:
             raise AnchorError("INCONCLUSIVE: Admin cleanup blocked; retain private marker") from None
 
 
+def _tuple_ipv4(value):
+    try:
+        if not isinstance(value, str) or str(ipaddress.IPv4Address(value)) != value:
+            raise ValueError
+    except (TypeError, ValueError):
+        raise AnchorError("tuple IPv4 refused") from None
+    return value
+
+
+def _tuple_rows(text, cp_ip, pod_ip, *, source_filtered=False):
+    """Private conntrack1.4.7 decoder; never expose historical rows to callers."""
+    if source_filtered is not True:
+        raise AnchorError("attested tuple filter required")
+    if not isinstance(text, str) or len(text.encode("utf-8")) > 16384:
+        raise AnchorError("tuple listing bound refused")
+    lines = text.splitlines()
+    if len(lines) > 8:
+        raise AnchorError("tuple candidate count refused")
+    rows = []
+    seen = set()
+    seen_ids = set()
+    for line in lines:
+        tokens = line.split()
+        if (len(tokens) < 15 or tokens[:4] != ["ipv4", "2", "tcp", "6"]
+                or not re.fullmatch(r"[0-9]{1,10}", tokens[4]) or not 0 < int(tokens[4]) < 2**32
+                or tokens[5] not in {"SYN_SENT", "SYN_RECV", "ESTABLISHED", "FIN_WAIT", "CLOSE_WAIT",
+                                     "LAST_ACK", "TIME_WAIT", "CLOSE", "LISTEN"}):
+            raise AnchorError("tuple TCP representation refused")
+        cursor = 6
+        directions = []
+        flags = set()
+        for direction in range(2):
+            group = {}
+            for key in ("src", "dst", "sport", "dport"):
+                if cursor >= len(tokens) or not tokens[cursor].startswith(key + "="):
+                    raise AnchorError("tuple direction refused")
+                value = tokens[cursor].split("=", 1)[1]
+                if key in {"src", "dst"}:
+                    value = _tuple_ipv4(value)
+                elif not re.fullmatch(r"[1-9][0-9]{0,4}", value) or not 1 <= int(value) <= 65535:
+                    raise AnchorError("tuple port refused")
+                else:
+                    value = int(value)
+                group[key] = value
+                cursor += 1
+            # Optional accounting is data, not a reason to enable kernel accounting.
+            if cursor < len(tokens) and tokens[cursor].startswith("packets="):
+                for key in ("packets", "bytes"):
+                    if (cursor >= len(tokens) or not tokens[cursor].startswith(key + "=")
+                            or not re.fullmatch(r"[0-9]{1,20}", tokens[cursor].split("=", 1)[1])
+                            or int(tokens[cursor].split("=", 1)[1]) >= 2**64):
+                        raise AnchorError("tuple accounting refused")
+                    cursor += 1
+            if cursor < len(tokens) and tokens[cursor] in {"[UNREPLIED]", "[ASSURED]"}:
+                flag = tokens[cursor]
+                if flag in flags or (direction == 0 and flag != "[UNREPLIED]"):
+                    raise AnchorError("tuple status refused")
+                flags.add(flag)
+                cursor += 1
+            directions.append(group)
+        attrs = {}
+        for token in tokens[cursor:]:
+            key, separator, value = token.partition("=")
+            if (separator != "=" or key not in {"mark", "use", "id", "zone"} or key in attrs
+                    or not re.fullmatch(r"[0-9]{1,10}", value) or int(value) >= 2**32
+                    or (key == "zone" and value != "0")):
+                raise AnchorError("tuple attributes refused")
+            attrs[key] = int(value)
+        if "id" not in attrs or len(flags) > 1:
+            raise AnchorError("tuple ID or status required")
+        original, reply = directions
+        if (original["dst"] != cp_ip or original["dport"] != 30080
+                or reply["src"] != pod_ip or reply["sport"] != 10000):
+            raise AnchorError("tuple closed service mismatch")
+        binding = {"original": original, "reply": reply, "id": attrs["id"], "requested_zone": 0}
+        fingerprint = hashlib.sha256(json.dumps(binding, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        if fingerprint in seen or attrs["id"] in seen_ids:
+            raise AnchorError("duplicate tuple candidate")
+        seen.add(fingerprint)
+        seen_ids.add(attrs["id"])
+        rows.append({**binding, "observed_zone": attrs.get("zone", "MISSING"),
+                     "zone_evidence": "OBSERVED_AND_SOURCE_FILTERED" if "zone" in attrs else "SOURCE_FILTERED",
+                     "fingerprint": fingerprint, "state": tokens[5],
+                     "unreplied": "[UNREPLIED]" in flags})
+    return rows
+
+
+def _tuple_route(text, pod_ip):
+    value = _admin_json(text.encode("utf-8"))
+    if (not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], dict)
+            or value[0].get("dst") not in {pod_ip, pod_ip + "/32"} or value[0].get("scope") != "link"
+            or "gateway" in value[0] or value[0].get("type", "unicast") != "unicast"
+            or not isinstance(value[0].get("dev"), str)
+            or not re.fullmatch(r"cali[a-zA-Z0-9]{1,11}", value[0]["dev"])):
+        raise AnchorError("tuple endpoint route refused")
+    return value[0]["dev"]
+
+
+def _tuple_deny(text, interface):
+    """Recognize one Calico3.29.7 template, never evaluate its policy graph."""
+    if not isinstance(text, str) or len(text.encode("utf-8")) > 65536:
+        raise AnchorError("tuple chain bound refused")
+    chain = "cali-tw-" + interface
+    lines = text.splitlines()
+    if (len(chain) > 28 or len(lines) < 2 or len(lines) > 130
+            or not re.fullmatch(re.escape("Chain " + chain) + r" \([0-9]+ references\)", lines[0])
+            or lines[1].split() != ["num", "pkts", "bytes", "target", "prot", "opt", "in", "out", "source", "destination"]):
+        raise AnchorError("tuple ingress chain refused")
+    structural, candidates, prior = [], [], []
+    for index, line in enumerate(lines[2:], 1):
+        fields = line.split(None, 10)
+        if len(fields) < 10:
+            raise AnchorError("tuple rule representation refused")
+        number, packets, size = fields[:3]
+        if (number != str(index) or not packets.isascii() or not packets.isdigit()
+                or not size.isascii() or not size.isdigit() or int(packets) >= 2**64 or int(size) >= 2**64):
+            raise AnchorError("tuple rule counters refused")
+        target = fields[3]
+        tail = fields[10] if len(fields) == 11 else ""
+        structural.append([number, *fields[3:]])
+        # Strip only the renderer's opaque rule-ID comment, not arbitrary text.
+        normalized = re.sub(r"/\* cali:[A-Za-z0-9_-]{1,64} \*/\s*", "", tail)
+        match = re.fullmatch(r"/\* (Drop|DROP|Reject|REJECT) if no policies passed packet \*/\s+"
+                            r"mark match 0x0/(0x[0-9a-fA-F]{1,8})"
+                            r"(?: reject-with icmp-port-unreachable)?", normalized)
+        if match and target == match[1].upper() and target in {"DROP", "REJECT"}:
+            mask = int(match[2], 16)
+            basic = fields[4:10] in (["all", "--", "*", "*", "0.0.0.0/0", "0.0.0.0/0"],
+                                     ["0", "--", "*", "*", "0.0.0.0/0", "0.0.0.0/0"])
+            policy_jump = any(rule[3].startswith(("cali-pi-", "cali-gi-"))
+                              and rule[4:10] in (["all", "--", "*", "*", "0.0.0.0/0", "0.0.0.0/0"],
+                                                ["0", "--", "*", "*", "0.0.0.0/0", "0.0.0.0/0"])
+                              and re.search(r"mark match 0x0/" + re.escape(match[2]) + r"$", rule[-1])
+                              for rule in prior)
+            if (mask and mask & (mask - 1) == 0 and basic and policy_jump
+                    and (target == "REJECT" or "reject-with" not in normalized)):
+                candidates.append({"packets": int(packets), "bytes": int(size)})
+        prior.append(fields)
+    fingerprint = hashlib.sha256(json.dumps(structural, separators=(",", ":")).encode()).hexdigest()
+    return {"fingerprint": fingerprint, "deny": candidates[0] if len(candidates) == 1 else "AMBIGUOUS",
+            "counter_scope": "POD_CHAIN_SHARED"}
+
+
+def _tuple_correlate(before, after):
+    for key in ("identity", "interface", "backend", "versions"):
+        if before[key] != after[key]:
+            raise AnchorError("tuple evidence identity drift")
+    if before["chain"]["fingerprint"] != after["chain"]["fingerprint"]:
+        raise AnchorError("tuple evidence rule drift")
+    if not 0 < after["captured_ns"] - before["captured_ns"] <= 60_000_000_000:
+        raise AnchorError("tuple evidence window expired")
+    old = {row["fingerprint"] for row in before["rows"]}
+    current = {row["fingerprint"] for row in after["rows"]}
+    new = [row for row in after["rows"] if row["fingerprint"] not in old]
+    if not old <= current or len(new) != 1:
+        raise AnchorError("one new unambiguous tuple required")
+    row = new[0]
+    if any(row["id"] == prior["id"] or row["original"] == prior["original"]
+           or row["reply"] == prior["reply"] for prior in before["rows"]):
+        raise AnchorError("tuple identity reused")
+    delta = "MISSING"
+    left, right = before["chain"]["deny"], after["chain"]["deny"]
+    if isinstance(left, dict) and isinstance(right, dict):
+        if any(type(left.get(key)) is not int or type(right.get(key)) is not int
+               or not 0 <= left[key] <= right[key] < 2**64 for key in ("packets", "bytes")):
+            raise AnchorError("tuple deny counter drift")
+        delta = {key: right[key] - left[key] for key in ("packets", "bytes")}
+    return {"status": "PARENT_CORRELATION_REQUIRED", "identity": after["identity"],
+            "nat_binding": row, "endpoint_deny_delta": delta,
+            "rules_fingerprint": after["chain"]["fingerprint"],
+            "counter_scope": "POD_CHAIN_SHARED", "packet_attribution": "NOT_ESTABLISHED_BY_COUNTER"}
+
+
 class _EnvoyTupleChild:
     """Private bounded transport for this preflight, never a caller-supplied runner."""
     def __init__(self, deadline):
@@ -546,6 +719,10 @@ class _EnvoyTupleChild:
         self.command_deadline = deadline
 
     def run(self, command, **kwargs):
+        reading = kwargs.pop("_tuple_reading", None)
+        if reading not in {None, "conntrack", "chain", "route"}:
+            raise AnchorError("tuple capture kind refused")
+        limits = (65536 if reading == "chain" else 16384, 16384)
         self.command_deadline = min(self.deadline, time.monotonic() + 5)
         if self.command_deadline - time.monotonic() <= 0.5:
             raise AnchorError("tuple preflight deadline exceeded")
@@ -555,12 +732,12 @@ class _EnvoyTupleChild:
         def drain(index, pipe):
             try:
                 while True:
-                    # Including the overflow witness, never read more than 16385B.
-                    chunk = pipe.read(min(1024, 16385 - len(output[index])))
+                    # One overflow witness, with a fixed ceiling for each closed read.
+                    chunk = pipe.read(min(1024, limits[index] + 1 - len(output[index])))
                     if not chunk:
                         return
                     output[index].extend(chunk)
-                    if len(output[index]) > 16384:
+                    if len(output[index]) > limits[index]:
                         failed.set()
                         return
             except Exception:
@@ -582,11 +759,18 @@ class _EnvoyTupleChild:
                     raise AnchorError("tuple command unavailable")
                 failed.wait(min(0.02, remaining))
             out, err = (bytes(value).decode("utf-8", errors="strict") for value in output)
-            if failed.is_set() or self.process.poll() != 0 or err:
+            if failed.is_set() or self.process.poll() != 0:
+                raise AnchorError("tuple command unavailable")
+            out, err = (value.replace("\r\n", "\n").replace("\r", "\n") for value in (out, err))
+            if reading == "conntrack":
+                summary = re.fullmatch(r"conntrack v1\.4\.7 \(conntrack-tools\): ([0-8]) flow entries have been shown\.\n?", err)
+                if not summary or int(summary[1]) != len(out.splitlines()):
+                    raise AnchorError("tuple listing summary refused")
+            elif err:
                 raise AnchorError("tuple command unavailable")
             if time.monotonic() >= self.command_deadline - 0.5:
                 raise AnchorError("tuple command deadline exceeded")
-            return out.replace("\r\n", "\n").replace("\r", "\n")
+            return out
         finally:
             self.close()
 
@@ -1079,14 +1263,8 @@ class LocalClusterTargetAnchor:
             "host_port": 18080, "node_port": 30080, "service_port": 10000, "pod_port": 10000,
             "traffic_policy": "Cluster"}
 
-    def envoy_tuple_tooling_preflight(self, *, pod, namespace_uid, pod_uid, container, owner_chain,
-                                     incarnation, node_uid, service_uid):
-        """Tooling only: no tuple/route/rule read, NAT verdict, repair or fallback.
-
-        Parent supplies prior workload/Node/Service identities, NEVER Docker IDs or
-        commands. Four diagnostic execs, once, in contract order. All subprocesses
-        in this operation use the same 30s budget and 16KiB/stream capture.
-        """
+    def _envoy_tuple_attestation(self, *, pod, namespace_uid, pod_uid, container, owner_chain,
+                                 incarnation, node_uid, service_uid):
         valid_uid = lambda value: isinstance(value, str) and bool(re.fullmatch(r"[A-Za-z0-9-]{1,128}", value))
         if (self.data["cluster"] != "aiforall-local-full" or self.data["context"] != "kind-aiforall-local-full"
                 or container != "envoy" or not _log_name(pod) or not pod.startswith("envoy-mesh-")
@@ -1111,6 +1289,14 @@ class LocalClusterTargetAnchor:
                     "cluster": self.data["cluster"]}.items()) for entry in self.data.get("ownedResources", []))
                     for resource in (owners[1], {"kind": "Service", "name": "envoy-mesh", "uid": service_uid}))):
             raise AnchorError("tuple preflight owned Deployment/Service required before any probe")
+        return owners, incarnation
+
+    def envoy_tuple_tooling_preflight(self, *, pod, namespace_uid, pod_uid, container, owner_chain,
+                                     incarnation, node_uid, service_uid):
+        """Tooling only; prior identities, never caller Docker IDs or commands."""
+        owners, incarnation = self._envoy_tuple_attestation(pod=pod, namespace_uid=namespace_uid,
+            pod_uid=pod_uid, container=container, owner_chain=owner_chain, incarnation=incarnation,
+            node_uid=node_uid, service_uid=service_uid)
         child = _EnvoyTupleChild(time.monotonic() + 30)
         # Reuse existing guards, not their unbounded generic subprocess capture.
         privacy = (lambda path: _tuple_private_file(child, path)) if self.privacy is private_file else self.privacy
@@ -1141,6 +1327,96 @@ class LocalClusterTargetAnchor:
             raise AnchorError("INCONCLUSIVE: Envoy tuple tooling preflight unavailable; output redacted") from None
         finally:
             child.close()
+
+    def _envoy_tuple_capture(self, attestation):
+        owners, incarnation = self._envoy_tuple_attestation(**attestation)
+        child = _EnvoyTupleChild(time.monotonic() + 30)
+        privacy = (lambda path: _tuple_private_file(child, path)) if self.privacy is private_file else self.privacy
+        try:
+            guard = LocalClusterTargetAnchor(self.path, child.run, self.root, privacy, "aiforall-local-full")
+            if guard.data != self.data:
+                raise AnchorError("tuple lease changed")
+
+            def identity():
+                value = guard._envoy_tuple_identity(attestation["pod"], attestation["namespace_uid"],
+                    attestation["pod_uid"], owners, incarnation, attestation["node_uid"],
+                    attestation["service_uid"], child.deadline)
+                cp = value["control_plane_container_id"]
+                projection = ('{"id":{{json .Id}},"hostname":{{json .Config.Hostname}},"name":{{json .Name}},'
+                              '"ipv4":{{json .NetworkSettings.Networks.kind.IPAddress}}}')
+                node = _admin_json(child.run(["docker", "inspect", "--format", projection, cp]).encode())
+                if (set(node) != {"id", "hostname", "name", "ipv4"} or node["id"] != cp
+                        or not _log_name(node["hostname"]) or node["name"] != "/" + node["hostname"]):
+                    raise AnchorError("tuple control-plane binding refused")
+                cp_ip = _tuple_ipv4(node["ipv4"])
+                fields = ('jsonpath={.metadata.uid}{"\\n"}{.metadata.name}{"\\n"}'
+                          '{range .status.addresses[?(@.type=="InternalIP")]}{.address}{"\\n"}{end}')
+                api = guard.kubectl(["get", "node", node["hostname"], "-o", fields], text=True, timeout=5).splitlines()
+                if len(api) != 3 or not re.fullmatch(r"[A-Za-z0-9-]{1,128}", api[0]) or api[1:] != [node["hostname"], cp_ip]:
+                    raise AnchorError("tuple control-plane Node identity refused")
+                return {**value, "control_plane_node_uid": api[0], "control_plane_ipv4": cp_ip}
+
+            before = identity()
+            cp, worker = before["control_plane_container_id"], before["worker_container_id"]
+            if child.run(["docker", "exec", cp, "conntrack", "--version"]).strip() != "conntrack v1.4.7 (conntrack-tools)":
+                raise AnchorError("tuple conntrack version refused")
+            version = re.fullmatch(r"iptables v(1\.8\.[0-9]{1,3}) \((nf_tables|legacy)\)\n?",
+                                  child.run(["docker", "exec", worker, "iptables", "--version"]))
+            if not version:
+                raise AnchorError("tuple iptables backend refused")
+            for module in ("nf_conntrack", "nf_conntrack_netlink"):
+                if child.run(["docker", "exec", cp, "test", "-d", "/sys/module/" + module]):
+                    raise AnchorError("tuple resident module refused")
+            text = child.run(["docker", "exec", cp, "conntrack", "-L", "-f", "ipv4", "-p", "tcp",
+                "--orig-dst", before["control_plane_ipv4"], "--orig-port-dst", "30080",
+                "--reply-src", before["pod_ipv4"], "--reply-port-src", "10000", "-w", "0", "-o", "extended,id"],
+                _tuple_reading="conntrack")
+            rows = _tuple_rows(text, before["control_plane_ipv4"], before["pod_ipv4"], source_filtered=True)
+            route = child.run(["docker", "exec", worker, "ip", "-j", "-4", "route", "show", "exact",
+                              before["pod_ipv4"] + "/32"], _tuple_reading="route")
+            interface = _tuple_route(route, before["pod_ipv4"])
+            chain = child.run(["docker", "exec", worker, "iptables", "-t", "filter", "-L",
+                "cali-tw-" + interface, "-n", "-v", "-x", "--line-numbers"], _tuple_reading="chain")
+            denial = _tuple_deny(chain, interface)
+            after = identity()
+            if before != after:
+                raise AnchorError("tuple snapshot identity changed")
+            _admin_remaining(child.deadline)
+            return {"identity": after, "rows": rows, "chain": denial, "interface": interface,
+                    "backend": version[2], "versions": ("1.4.7", version[1]), "captured_ns": time.monotonic_ns()}
+        except Exception:
+            raise AnchorError("INCONCLUSIVE: tuple snapshot unavailable; output redacted") from None
+        finally:
+            child.close()
+
+    def envoy_tuple_begin(self, **attestation):
+        """Single-use private baseline; no historical tuples or HTTP callback out."""
+        if hasattr(self, "_tuple_pending") or getattr(self, "_tuple_used", False):
+            raise AnchorError("tuple observation already used")
+        self._tuple_used = True
+        try:
+            # Round-trip immutable JSON data, not a mutable caller-owned attestation.
+            frozen = json.loads(json.dumps(attestation))
+            before = self._envoy_tuple_capture(frozen)
+            self._tuple_pending = (frozen, before)
+            return json.loads(json.dumps({"status": "BASELINE_ONLY", "identity": before["identity"],
+                "rules_fingerprint": before["chain"]["fingerprint"], "deny": before["chain"]["deny"]}))
+        except Exception:
+            raise AnchorError("INCONCLUSIVE: tuple baseline unavailable; output redacted") from None
+
+    def envoy_tuple_finish(self):
+        """Consume the baseline before any command; never adopt or retry its state."""
+        if not hasattr(self, "_tuple_pending"):
+            raise AnchorError("tuple baseline missing or consumed")
+        frozen, before = self._tuple_pending
+        del self._tuple_pending
+        try:
+            if not 0 < time.monotonic_ns() - before["captured_ns"] <= 60_000_000_000:
+                raise AnchorError("tuple observation expired")
+            after = self._envoy_tuple_capture(frozen)
+            return _tuple_correlate(before, after)
+        except Exception:
+            raise AnchorError("INCONCLUSIVE: tuple correlation unavailable; output redacted") from None
 
     def kind_load(self, image):
         if not re.fullmatch(r"[a-z0-9./:_-]+(?::sha256-[a-f0-9]{64}|@sha256:[a-f0-9]{64})", image):

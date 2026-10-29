@@ -28,6 +28,84 @@ candidat et canon, aucunfinding, tousancienssymboles ASTinchangés, hashesconfor
 Fakes/oracles examinés,44+2PASS attribuéslead sansrerunreviewer. Briefingsecurity-
 envoy-tuple-tooling-preflight persisté avantlivraison. Aucune preuveNAT/drop.
 
+Préflight livréf0a93a1/hookfmtPASS/Deliverypropre/SDK02e5 ; hashimporté91c7552a...
+attesté. Runréeluniqueexit0/TOOLING_PREFLIGHT_ONLY20.303s : conntrack1.4.7,
+iptables1.8.9nf_tables, deuxmodulesdéjàrésidents, identitésstables. Preuve6b7/
+envoy-tuple-preflight-080e13b312ee49b8a72aebcdd4298f3f. Zérolecturetuple/règles/
+routeexec/HTTPauth, aucunmodule/install/règlemutée. Preuveoutillage seule.
+
+## Décodeurs et observation corrélée — avant exécution réseau
+
+Tranche poursuivie directement par lead dans allowlist ratifiée. Trois oracles
+déjà nommés au contrat/plan implémentés : queries_and_nat_mapping,
+unique_candidate_and_stable_identity, drop_chain_ambiguous_deltas. Premier run
+purefake3PASS0.001s, aucuneAPI/commande/réseau. Décodage conservateur exige pour
+l'instant zone0 EXPLICITE ; absence non transformée en0, précision de source
+snprintf1.0.9 (ATTR_ZONE conditionnel) remontée àarchitecte avant toute adaptation.
+ChaîneCalico3.29.7source relue : deny MarkClear(MarkPass) si aucune policy passe,
+pas d'évaluation de graphe/ipsets. Le compteur partagé ne qualifie jamais à lui
+seul le paquet ; verdict renvoyé PARENT_CORRELATION_REQUIRED, pasPASS.
+
+Nom supplémentaire inscrit avant code/run du protocole de capture :
+test_envoy_tuple_observation_is_single_use_and_never_accepts_http_callbacks.
+Baseline privée au seul objetgarde, pas de tuples historiques remis au caller ;
+finish consomme la baseline avant capture, impossible de recycler/adopter après
+échec, fenêtre60s de corrélation indépendante du plafond30s par snapshot. Cette
+borne relie deux snapshots séparés, pas un tunnel ou processus maintenu vivant.
+Exiger identité/règles stables, tuple nouveau unique, deltasmonotones ; sourceSNAT
+différente deCP doit être signalée sansautopatch. PasHTTPcallback/URLlibre.
+
+Capture branchée en deux appels sémantiques begin/finish, état privé single-use,
+septargvdiagnosticfixes maxparsnapshot (4préflight+listing/route/chaîne). Nouveau
+runcompletfake48PASS15.729s/0skip aprèsextensioncompatibletransport (stderr
+conntrack ne tolère que résumé1.4.7 exact et nombrelignes<=8 ; chaîne64KiBfixe,
+autresflux16KiB, défautpréflightinchangé). Pas d'APIréelle/HTTP exécuté.
+Avant run du complémentbornes :
+test_envoy_tuple_reads_have_fixed_bounds_and_closed_stderr_summaries.
+Vérifier plafonds exacts/+1 parmode etrésuméstderrconnu/vide/incohérent/sentinelle,
+aucune fuite etcleanupchildhandle ; lemodetransportprivé n'est pasargumentpublic.
+
+Clarification architecte v2.1 lue/ratifiée explicitement AVANT code : zone absente
+reste observed_zoneMISSING, requested_zone0 etSOURCE_FILTERED seulement si builder
+fixe1.4.7/-w0/exit0 attestés ; zéro observé seulement littéral. Zone non0/noncanonique/
+directionnelle/doublon ou provenance nonattestée=>STOP. Aucun nouveau probe de lib/
+kernel : références ABI, versions installées non prétendues. Deux oracles nommés
+avant run : test_envoy_tuple_zone_missing_preserves_source_filtered_provenance ;
+test_envoy_tuple_zone_conflicts_and_unattested_filter_fail_closed.
+
+Avant correction, finding lead persisté : projection baseline exposait un alias
+vers l'état privé. Étendre le test single_use déjà nommé : mutation identité/deny
+de sortie ne doit pas changer la comparaison ; finish échoué/expiré doit consommer
+l'état avant toute nouvelle capture et refuser une relance. Pas de runréseau.
+
+Régressionalias reproduite : test single_use exit1/1ERRORopaque0.198s surl'ancien
+retour partagé. Après copie profonde desprojections, suitecomplète51PASS15.758s,
+zéroskip ; logs.tmp/auth-envoy-tuple-alias-{red,green-suite}-20261029.log.
+Complément transport bornes exactes/+1 etrésumés stderr1PASS0.018s ; zonev2.1
+deuxoracles compris dans51, versionslib/kernel nonprétendues. Diffcheck0.
+Photosgelées pour revueindépendantefresh : helper67b504874a4af9a370f29592999e71ef590944e9a4fc07a3719f40f59e8e91b5,
+tests3f4234b9b616333391bf14077d6f743ce03af936c495bfeeb9f58d4c69b95ba6.
+Pasdelistingconntrack/règle/routeexec/HTTP sousnouvellecapacité encore exécuté.
+
+Enveloppeparent préparée .tmp/auth-envoy-tuple-observation-20261029.py, HEAD
+placeholder+hashnormalisé7385b551... bloquent la Deliveryancienne avantprobe.
+Nom avant run : test_tuple_observation_refuses_unqualified_source_before_runtime.
+Éprouver hashdifférent=>zéroguard/probe etAST, sans aucuneAPI. Séquencefuture
+préinscrite : Adminfermé ; baselinepassivefermée puisactive/countersstables ; UNE
+requêteexacte TCPfresh/noauth/nojar/noproxy/noredirect ; finishpuisAdminfermé,
+policiespossédéesfingerprintstable, déltasIAMexplicites. Pas de verdictautomatique.
+
+Sourcegateenveloppe1PASS/0FAIL/0ERROR/0skip, ASTPASS ; aucunappelguard/probe
+vérifiépartripwires. Log.tmp/auth-envoy-tuple-wrapper-source-unit-20261029.log.
+Aucun nouveau runréseaupendant préparation/revue de cet artefact.
+
+Revuefresh28 lue intégralement, finals1875a3e... et1875f420... : PASSsécuritéstatiqueborné
+surhelper/tests67b/3f etwrapperae2a988d..., aucunfinding. Oraclespositifs/négatifs,
+bornes/anti-alias/protocole examinés ; tests51+sourcegate1 rapportéslead, pasrerun.
+Notation secondaire ambiguë /login0412 remplacée par routeexacte déjàratifiée
+/iam/api/auth/gitlab/login, sourcecontratAccepted/profilgitlab/scénarioexistant,
+sansmodifiercode/hashpostimage. Briefings+INDEXpersistés avantlivraison/capture.
+
 ## Plafond server_info v2 — plan avant code/run
 
 Amendement architecte v2 lu et explicitement ratifié : plafondFIXE131072B,

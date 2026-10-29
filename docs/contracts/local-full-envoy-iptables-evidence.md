@@ -1,11 +1,40 @@
-# Tuple NAT unique et rejet ingress Envoy — contrat architecte v2
+# Tuple NAT unique et rejet ingress Envoy — contrat architecte v2.1
 
-2026-10-29 — auteur architecte/pool-4 ; **Accepted / Partial** : seul préflight implémenté, tests fake et revue sécurité bornée réussis ; outillage réel, lecture de tuples et rejet restent non qualifiés.
+2026-10-29 — auteur architecte/pool-4 ; **Accepted / Partial** : préflight réel réussi ; capture ciblée implémentée,51tests fake et revue sécurité indépendante bornée réussis. Binding et rejet réels restent non qualifiés.
 Le lead a lu intégralement les63lignes de la v2 Proposed, comparé la v1 et
 ratifie explicitement la v2 sous délégation AVANT code. La v1, non ratifiée,
 n'est pas autorisée. Aucun changement ADR, cible, objectif ou policy d'essai.
 Complément de la [lecture Admin](local-full-envoy-admin-readonly.md).
 Le contrat ingress conditionnel de l'architecte reste Proposed, non ratifié.
+
+## Clarification de décodage v2.1 ratifiée avant code
+
+Le lead a lu intégralement le delta auteur (lignes33–50 de la v2.1 Proposed)
+et le ratifie explicitement : aucune nouvelle commande, autorité ou dépendance.
+Avec builder fixe conntrack1.4.7/-w0 attesté, exit0 et format compatible :
+requested_zone=0. Un token canonique unique zone=0 donne observed_zone=0 et
+zone_evidence=OBSERVED_AND_SOURCE_FILTERED. Sans token : observed_zone=MISSING
+et zone_evidence=SOURCE_FILTERED, JAMAIS zéro observé synthétisé.
+
+Zone explicite non0/noncanonique/dupliquée, zone-orig/zone-reply même0, format
+ou provenance de filtre/version insuffisants : STOP/INCONCLUSIVE. Aucun filtre
+retiré, alias directionnel, autre zone ou dump supplémentaire. Les autres champs
+obligatoires manquants restent refusés. Les dépendances installées ne sont pas
+qualifiées par ce raisonnement :1.0.9/6.6 sont des références ABI, pas des versions
+prétendues du laboratoire.
+
+Sources auteur vérifiées : conntrack-tools1.4.7 man217–218 ; conntrack.c254–257,
+3063–3069,1669–1679,2643–2647 établissent la comparaison de zone avant impression.
+Libnetfilter_conntrack1.0.9 compare.c17–34,379–386,461–462 et api.c512–516
+expliquent la comparaison du défaut non imprimé ; snprintf_default.c486–489
+n'imprime la zone que si ATTR_ZONEset,432–435/455–458 distinguent les directions.
+Linuxv6.6 nf_conntrack_netlink.c153–160 omet le défaut défini0 dans zones_common.h7.
+Cette omission n'autorise pas à fabriquer une valeur observée.
+
+Oracles avant run : test_envoy_tuple_zone_missing_preserves_source_filtered_provenance
+et test_envoy_tuple_zone_conflicts_and_unattested_filter_fail_closed. Format
+compatible sanszone=>MISSING/provenancefiltrée ; token0 explicite positif ;
+non0/dupliqué/directionnel/filtre ou version nonattestés=>STOP. Aucun live auteur.
 
 ## Décision et limites
 
@@ -81,7 +110,7 @@ compteurs uint64 et seul nouveau tuple retenu IP/ports/id validés. MISSING jama
 ## Séquence et interprétation
 
 Parent : baseline fermée, puis UNE connexion TCP fraîche vers l'entrée exacte
-127.0.0.1:18080/login0412, sans keepalive/proxy/redirect/credential ajouté,
+http://127.0.0.1:18080/iam/api/auth/gitlab/login, sans keepalive/proxy/redirect/credential ajouté,
 délai15s ; post immédiat. Aucun navigateur OAuth/test parallèle ciblant ce
 Service ; concurrents/probes documentés, pas supposés absents. Helper sans URL
 ou callback libre. Pas de retry/batch/connexion de substitution.
