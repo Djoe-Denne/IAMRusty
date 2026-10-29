@@ -75,6 +75,11 @@ Aucune atomicité multi-objets n'est prétendue, aucune union d'IP anciennes/nou
 
 ## Patch, témoin et rollback
 
+L'[amendement ACK ratifié](local-full-envoy-ingress-patch-ack.md) prime les seules
+clauses de propriété same-object/RV ci-dessous : la réponse du patch, jamais un
+GET ultérieur, attribue la révision possédée. Compatibilité de helper fermée et
+qualification exacte après code obligatoires ; aucune paire future approuvée à blanc.
+
 - Seulement allow-envoy UIDexact possédé. JSONPatch atomique teste metadata.uid,
   RVcourante et ancien spec, puis append d'une seule règle T/32TCP10000. Préserver
   intégralement peerclient, egress, selector, policyTypes et autres champs.

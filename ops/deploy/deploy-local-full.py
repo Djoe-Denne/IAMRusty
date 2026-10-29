@@ -180,6 +180,12 @@ def configure_api_policy():
         k("patch", "networkpolicy/allow-api", "-n", namespace, "--type=merge", "-p", json.dumps(patch))
 
 
+_INGRESS_HISTORICAL_OBSERVATION = "0ad1c639efe15aa5a8e183a95a5171e761fba7fa2d3e2c0d841c5720f8781280"
+# Inactive until the lead qualifies the exact new helper and immutable manifest.
+# No runtime file, caller argument or environment variable can authorize a pair.
+_INGRESS_QUALIFIED_HELPER_PAIRS = {}
+
+
 def _ingress_json(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
@@ -189,11 +195,59 @@ def _ingress_require(condition):
         raise ValueError("INCONCLUSIVE: Envoy ingress gate refused; details redacted")
 
 
+def _ingress_authority(files, hashes):
+    _ingress_require(runtime.LocalClusterTargetAnchor is target_authority.LocalClusterTargetAnchor)
+    path = Path(target_authority.__file__).resolve()
+    current = hashlib.sha256(path.read_bytes()).hexdigest()
+    summary = files["summary"]
+    key = (summary["ops_head"], summary["helper_sha256"], hashes["observation"])
+    if hashes["observation"] == _INGRESS_HISTORICAL_OBSERVATION:
+        # Historical selection is first: rewriting summary to the current hash
+        # must never bypass the exact seven-file qualification through equality.
+        qualified = _INGRESS_QUALIFIED_HELPER_PAIRS.get(key)
+        _ingress_require(isinstance(qualified, dict)
+            and qualified["evidence_sha256"] == hashes
+            and qualified["mutation_helper_raw_sha256"] == current
+            and isinstance(qualified["audit_ref"], str) and bool(qualified["audit_ref"].strip()))
+        compatibility = {"mode": "QUALIFIED_EXACT_PAIR", "key": key, "qualification": qualified}
+    else:
+        _ingress_require(summary["helper_sha256"] == current)
+        compatibility = {"mode": "IDENTICAL_RAW"}
+    return {"capture_ops_head": summary["ops_head"], "capture_helper_raw_sha256": summary["helper_sha256"],
+            "mutation_helper_raw_sha256": current, "mutation_module_path": str(path),
+            "compatibility": json.loads(_ingress_json(compatibility))}
+
+
+def _ingress_write_record(path, record):
+    path = Path(path)
+    _ingress_require(path.parent.is_dir() and not path.parent.is_symlink()
+        and path.absolute() == path.resolve() and not path.exists())
+    raw = _ingress_json(record).encode()
+    with path.open("xb") as file:
+        file.write(raw)
+        file.flush()
+        os.fsync(file.fileno())
+    target_authority.secure(path)
+    _ingress_require(private_file(path) and path.read_bytes() == raw)
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _ingress_policy_postimage(raw, uid, spec, *, previous_version=None):
+    item = json.loads(raw, object_pairs_hook=target_authority.unique_json)
+    meta = item["metadata"]
+    _ingress_require(item["apiVersion"] == "networking.k8s.io/v1" and item["kind"] == "NetworkPolicy"
+        and meta["name"] == "allow-envoy" and meta["namespace"] == CLUSTER and meta["uid"] == uid
+        and isinstance(meta["resourceVersion"], str) and bool(meta["resourceVersion"].strip())
+        and not meta.get("deletionTimestamp") and item["spec"] == spec
+        and (previous_version is None or meta["resourceVersion"] != previous_version))
+    return json.loads(_ingress_json({"uid": meta["uid"], "rv": meta["resourceVersion"], "spec": item["spec"]}))
+
+
 def _ingress_admin_pair(before, after, identity):
     expected = {key: identity[key] for key in ("namespace_uid", "pod", "pod_uid", "owner_chain",
                 "container", "container_id", "restart_count", "image_id")}
     for item in (before, after):
-        _ingress_require(item["identity"] == expected and item["state"] == "LIVE"
+        _ingress_require(_ingress_json(item["identity"]) == _ingress_json(expected) and item["state"] == "LIVE"
                          and item["version"] == "1.31.2"
                          and type(item["restart_epoch"]) is int and item["restart_epoch"] == 0)
     for key in ("uptime_current_epoch_ns", "uptime_all_epochs_ns"):
@@ -276,9 +330,9 @@ def _ingress_evidence(directory):
         and summary["endpoint_deny_delta"] == review["endpoint_deny_delta"] == obs["endpoint_deny_delta"]
         and type(obs["endpoint_deny_delta"]["packets"]) is int and obs["endpoint_deny_delta"]["packets"] > 0
         and type(obs["endpoint_deny_delta"]["bytes"]) is int and obs["endpoint_deny_delta"]["bytes"] > 0)
-    # Check the actual imported authority, not a sibling or a claimed delivery hash.
-    _ingress_require(runtime.LocalClusterTargetAnchor is target_authority.LocalClusterTargetAnchor
-        and summary["helper_sha256"] == hashlib.sha256(Path(target_authority.__file__).read_bytes()).hexdigest())
+    # The imported mutation authority and the immutable capture producer are
+    # distinct only through the explicitly qualified, versioned exact pair.
+    _ingress_authority(files, hashes)
     _ingress_admin_pair(files["admin-before"], files["admin-after"], identity)
     _ingress_require(files["admin-before"]["stats"] == files["admin-after"]["stats"])
     _ingress_require(summary["iam_upstream_deltas"] == {"cluster.iam." + suffix: 0 for suffix in (
@@ -358,11 +412,15 @@ class EnvoyIngressChange:
     aliases of the state used for conditional rollback. No packet proof implied.
     """
 
-    def __init__(self, guard, directory, files, hashes, source, before, desired, journal_sha256, added, post_version):
+    def __init__(self, guard, directory, files, hashes, source, before, desired, journal_sha256, added, ack, authority, journal_path):
         self._guard, self._directory = guard, directory
+        self._authority_class = target_authority.LocalClusterTargetAnchor
+        self._journal_path = Path(journal_path)
         self._frozen = _ingress_json({"files": files, "hashes": hashes, "source": source,
-            "before": before, "desired": desired, "journal_sha256": journal_sha256, "post_version": post_version})
-        self._added, self._closed, self._validated = added, False, False
+            "before": before, "desired": desired, "journal_sha256": journal_sha256, "ack": ack,
+            "authority": authority, "post_version": ack["rv"]})
+        self._added, self._closed, self._validated, self._blocked = added, False, False, False
+        self._rollback_ack = None
         self._result = "PENDING_PARENT_VALIDATION" if added else "NOOP_NOT_OWNED"
 
     @property
@@ -370,46 +428,65 @@ class EnvoyIngressChange:
         data = json.loads(self._frozen)
         return {"state": self._result,
                 "journal_sha256": data["journal_sha256"], "source": data["source"], "added": self._added,
-                "policy_uid": data["before"]["allow-envoy"]["uid"], "policy_resource_version": data["post_version"]}
+                "policy_uid": data["before"]["allow-envoy"]["uid"], "policy_resource_version": data["post_version"],
+                "authority": data["authority"], "ack_source": "PATCH_RESPONSE" if self._added else "NOT_OWNED",
+                "rollback_ack": json.loads(self._rollback_ack) if self._rollback_ack is not None else None}
 
     def rollback(self):
+        if self._blocked:
+            raise ValueError("STOP: conditional Envoy rollback blocked; parent intervention required")
         if not self._added or self._closed:
             return "NOT_OWNED" if not self._added else "ALREADY_CLOSED"
         try:
+            data = self._revalidate_provenance()
             fresh = runtime.target()
             _ingress_require(fresh.data == self._guard.data)
             fresh.check()
-            data = json.loads(self._frozen)
-            item = json.loads(fresh.kubectl(["get", "networkpolicy", "allow-envoy", "-n", CLUSTER,
-                "-o", "json"], text=True, timeout=30))
             old, desired = data["before"]["allow-envoy"], data["desired"]
-            _ingress_require(item["metadata"]["uid"] == old["uid"] and item["spec"] == desired
-                and item["metadata"]["resourceVersion"] == data["post_version"]
-                and item["metadata"]["namespace"] == CLUSTER and not item["metadata"].get("deletionTimestamp"))
+            observed = _ingress_policy_postimage(fresh.kubectl(["get", "networkpolicy", "allow-envoy", "-n", CLUSTER,
+                "-o", "json"], text=True, timeout=30), old["uid"], desired)
+            _ingress_require(observed == data["ack"])
             patch = [{"op": "test", "path": "/metadata/uid", "value": old["uid"]},
-                {"op": "test", "path": "/metadata/resourceVersion", "value": item["metadata"]["resourceVersion"]},
+                {"op": "test", "path": "/metadata/resourceVersion", "value": data["ack"]["rv"]},
                 {"op": "test", "path": "/spec", "value": desired},
                 {"op": "test", "path": "/spec/ingress/1", "value": desired["ingress"][1]},
-                {"op": "remove", "path": "/spec/ingress/1"}]
-            fresh.kubectl(["patch", "networkpolicy/allow-envoy", "-n", CLUSTER, "--type=json", "-p",
-                _ingress_json(patch)], text=True, timeout=30)
-            after = json.loads(fresh.kubectl(["get", "networkpolicy", "allow-envoy", "-n", CLUSTER,
-                "-o", "json"], text=True, timeout=30))
-            _ingress_require(after["metadata"]["uid"] == old["uid"] and after["spec"] == old["spec"])
+                 {"op": "remove", "path": "/spec/ingress/1"}]
+            self._revalidate_provenance()
+            raw = fresh.kubectl(["patch", "networkpolicy/allow-envoy", "-n", CLUSTER, "--type=json", "-p",
+                _ingress_json(patch), "-o", "json"], text=True, timeout=30)
+            ack = _ingress_policy_postimage(raw, old["uid"], old["spec"], previous_version=data["ack"]["rv"])
+            self._rollback_ack = _ingress_json(ack)
+            _ingress_write_record(self._journal_path.with_name(self._journal_path.name + ".rollback-ack.json"),
+                {"schema": "aiforall.envoy.ingress-rollback-ack.v1", "journal_sha256": data["journal_sha256"],
+                 "authority": data["authority"], "ack": ack})
+            self._revalidate_provenance()
+            after = _ingress_policy_postimage(fresh.kubectl(["get", "networkpolicy", "allow-envoy", "-n", CLUSTER,
+                "-o", "json"], text=True, timeout=30), old["uid"], old["spec"])
+            _ingress_require(after == ack)
             self._closed = True
             self._result = "ROLLED_BACK_OWN_ENTRY"
             return self._result
         except Exception:
+            self._blocked = True
+            self._result = "STOP_ROLLBACK_UNCERTAIN"
             raise ValueError("STOP: conditional Envoy rollback blocked; parent intervention required") from None
 
-    def _revalidate(self):
+    def _revalidate_provenance(self):
         data = json.loads(self._frozen)
+        _ingress_require(target_authority.LocalClusterTargetAnchor is self._authority_class
+            and runtime.LocalClusterTargetAnchor is self._authority_class)
         files, hashes, source = _ingress_evidence(self._directory)
         _ingress_require(hashes == data["hashes"] and files == data["files"] and source == data["source"])
-        live = _ingress_live(self._guard, files["observation"]["identity"], files["causal-review"], source)
+        _ingress_require(_ingress_authority(files, hashes) == data["authority"])
+        return data
+
+    def _revalidate(self):
+        data = self._revalidate_provenance()
+        live = _ingress_live(self._guard, data["files"]["observation"]["identity"],
+                             data["files"]["causal-review"], data["source"])
         expected = json.loads(_ingress_json(data["before"]))
         expected["allow-envoy"]["spec"] = data["desired"]
-        # Freeze the first observed postimage RV, not just its spec. A later
+        # Freeze the mutation ACK's RV, not just its spec. A later
         # equal-spec update is still concurrency and never grants ownership.
         expected["allow-envoy"]["rv"] = data["post_version"]
         _ingress_require(live == expected)
@@ -454,6 +531,8 @@ def configure_envoy_ingress(*, evidence_directory, journal_path):
     change = None
     try:
         files, hashes, source = _ingress_evidence(evidence_directory)
+        authority = _ingress_authority(files, hashes)
+        authority_class = target_authority.LocalClusterTargetAnchor
         identity, review = files["observation"]["identity"], files["causal-review"]
         guard = runtime.target()
         before = _ingress_live(guard, identity, review, source)
@@ -492,36 +571,42 @@ def configure_envoy_ingress(*, evidence_directory, journal_path):
             {"op": "add", "path": "/spec/ingress/-", "value": entry}] if added else []
         record = {"schema": "aiforall.envoy.ingress-journal.v1", "operation": uuid.uuid4().hex,
             "evidence_sha256": hashes, "decision": review, "identity": identity,
+            "authority": authority,
             "source": source, "before": before, "expected_spec": desired, "patch": patch,
             "state": "PENDING_PARENT_VALIDATION" if added else "NOOP_NOT_OWNED"}
         path = Path(journal_path)
-        _ingress_require(path.parent.is_dir() and not path.parent.is_symlink()
-            and path.absolute() == path.resolve() and not path.exists())
-        raw = _ingress_json(record).encode()
-        with path.open("xb") as file:
-            file.write(raw)
-            file.flush()
-            os.fsync(file.fileno())
-        target_authority.secure(path)
-        _ingress_require(private_file(path) and path.read_bytes() == raw)
+        journal_sha256 = _ingress_write_record(path, record)
         # Re-read evidence and all semantics immediately before mutation. There
         # is no multi-object atomicity claim; only this JSONPatch is atomic.
         again, current_hashes, current_source = _ingress_evidence(evidence_directory)
         _ingress_require(again == files and current_hashes == hashes and current_source == source
+            and _ingress_authority(again, current_hashes) == authority
             and _ingress_live(guard, identity, review, source) == before)
+        _ingress_require(target_authority.LocalClusterTargetAnchor is authority_class
+            and runtime.LocalClusterTargetAnchor is authority_class
+            and _ingress_authority(files, hashes) == authority)
         if added:
             # A transport error can follow an applied patch. Without an ACK we
             # cannot distinguish ours from a concurrent equal entry: STOP and
             # retain the journal, never adopt/remove an uncertain rule.
-            guard.kubectl(["patch", "networkpolicy/allow-envoy", "-n", CLUSTER, "--type=json", "-p",
-                _ingress_json(patch)], text=True, timeout=30)
-        post = json.loads(guard.kubectl(["get", "networkpolicy", "allow-envoy", "-n", CLUSTER,
-                                        "-o", "json"], text=True, timeout=30))
-        _ingress_require(post["metadata"]["uid"] == old["uid"] and post["spec"] == desired
-            and not post["metadata"].get("deletionTimestamp")
-            and (added or post["metadata"]["resourceVersion"] == old["rv"]))
+            raw = guard.kubectl(["patch", "networkpolicy/allow-envoy", "-n", CLUSTER, "--type=json", "-p",
+                _ingress_json(patch), "-o", "json"], text=True, timeout=30)
+            ack = _ingress_policy_postimage(raw, old["uid"], desired, previous_version=old["rv"])
+            # This frozen response, never a following GET, attributes ownership.
+            frozen_ack = _ingress_json(ack)
+            _ingress_write_record(path.with_name(path.name + ".ack.json"),
+                {"schema": "aiforall.envoy.ingress-patch-ack.v1", "journal_sha256": journal_sha256,
+                 "authority": authority, "ack": json.loads(frozen_ack)})
+        else:
+            frozen_ack = _ingress_json({"uid": old["uid"], "rv": old["rv"], "spec": desired})
+        _ingress_require(target_authority.LocalClusterTargetAnchor is authority_class
+            and runtime.LocalClusterTargetAnchor is authority_class
+            and _ingress_authority(files, hashes) == authority)
+        post = _ingress_policy_postimage(guard.kubectl(["get", "networkpolicy", "allow-envoy", "-n", CLUSTER,
+                                        "-o", "json"], text=True, timeout=30), old["uid"], desired)
+        _ingress_require(post == json.loads(frozen_ack))
         change = EnvoyIngressChange(guard, evidence_directory, files, hashes, source, before, desired,
-                                   hashlib.sha256(raw).hexdigest(), added, post["metadata"]["resourceVersion"])
+                                   journal_sha256, added, json.loads(frozen_ack), authority, path)
         change._revalidate()
         return change
     except Exception:

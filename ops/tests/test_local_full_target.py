@@ -332,6 +332,53 @@ class AnchorTests(unittest.TestCase):
             self.assertEqual(commands.kind_actions(), [])
             self.assertEqual(commands.api(), [])
 
+    def test_envoy_patch_json_ack_grammar_is_exact_before_any_probe(self):
+        payload = json.dumps([{"op": "test", "path": "/metadata/uid", "value": "owned-policy"}])
+        args = ["patch", "networkpolicy/allow-envoy", "-n", "aiforall-local-full",
+                "--type=json", "-p", payload, "-o", "json"]
+        for valid in (args, ["patch", "-o", "json", "--namespace=aiforall-local-full",
+                            "-p", payload, "networkpolicy/allow-envoy", "--type", "json"]):
+            self.assertEqual(anchor.parse_kubectl_operation(valid).argv, tuple(valid))
+        self.f.target(self.cmd).kubectl(args, text=True)
+        self.assertEqual(self.cmd.api()[-1][-len(args):], args)
+        self.cmd.calls.clear()
+        invalid = []
+        for target in ("secret/platform-mesh-certs", "se/private", "secrets/private", "deployment/iam",
+                       "networkpolicy/other", "networkpolicies/allow-envoy", "NetworkPolicy/allow-envoy"):
+            invalid.append([args[0], target, *args[2:]])
+        for namespace in ("other", "aiforall-local", "kube-system"):
+            invalid.append([*args[:3], namespace, *args[4:]])
+        invalid.append([*args[:2], *args[4:]])
+        for output in ("yaml", "name", "jsonpath={.metadata.uid}"):
+            invalid.append([*args[:-1], output])
+        for suffix in (["-n", "aiforall-local-full"], ["--namespace", "aiforall-local-full"],
+                       ["--type=json"], ["-p", payload], ["-o", "json"], ["another-target"],
+                       ["--"], ["--", "remote"], ["--record=true"], ["--dry-run=client"],
+                       ["--local"], ["--subresource=status"], ["--patch-file", "patch.json"],
+                       ["--server=https://127.0.0.1:60999"], ["--context=kind-other"],
+                       ["--kubeconfig=other"], ["--token=untrusted"], ["--as=other"],
+                       ["--insecure-skip-tls-verify=true"]):
+            invalid.append([*args, *suffix])
+        for compact in ("-ojson", "-o=json", "--output=json"):
+            invalid.append([*args[:-2], compact])
+        for kind in ("merge", "strategic"):
+            invalid.append([*args[:4], "--type=" + kind, *args[5:]])
+        for malformed in ("[]", "{}", "null", "[1]", '[{"op":1,"path":"/x"}]'):
+            invalid.append([*args[:6], malformed, *args[7:]])
+        invalid.append([*args[:5], "--patch-file", "patch.json", *args[7:]])
+        invalid.append([*args[:4], *args[5:]])
+        for index, command in enumerate(invalid):
+            with self.subTest(case=index):
+                with self.assertRaises(anchor.AnchorError):
+                    self.f.target(self.cmd).kubectl(command, text=True)
+                self.assertEqual(self.cmd.calls, [])
+        # Existing grammar without this one output mode is unchanged. This is
+        # parsing only, never a Secret read or mutation.
+        legacy = ["patch", "secret/owned", "-n", "aiforall-local-full", "--type=json", "-p", payload]
+        self.assertEqual(anchor.parse_kubectl_operation(legacy).argv, tuple(legacy))
+        self.assertEqual(anchor.parse_kubectl_operation(["get", "nodes", "-o", "yaml"]).argv,
+                         ("get", "nodes", "-o", "yaml"))
+
     def test_positive_grammar_rejects_unknown_before_any_probe(self):
         for args in [["get", "nodes", "--raw=/x"], ["get", "nodes", "-ojson"], ["get", "nodes", "-Ashttps://other"], ["delete", "namespace", "owned"], ["get", "nodes", "--", "-sother"]]:
             with self.assertRaises(anchor.AnchorError):

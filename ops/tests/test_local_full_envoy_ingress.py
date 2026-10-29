@@ -54,7 +54,8 @@ class FakeGuard:
             (DEPLOY / "apps/overlays/local-full/platform/policies.yaml").read_text()) if item}
         self.policies = []
         for name in ("allow-envoy", "default-deny", "allow-dns", "allow-test-client"):
-            item = {"metadata": {"name": name, "namespace": runner.CLUSTER, "uid": uid(), "resourceVersion": "10"},
+            item = {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
+                    "metadata": {"name": name, "namespace": runner.CLUSTER, "uid": uid(), "resourceVersion": "10"},
                     "spec": clone(declared[name])}
             self.policies.append(item)
             self.data["ownedResources"].append({"kind": "NetworkPolicy", "name": name, "namespace": runner.CLUSTER,
@@ -190,7 +191,7 @@ class FakeGuard:
             policy = self.policy
             policy.clear()
             policy.update(candidate)
-            return "patched"
+            return json.dumps(candidate) if args[-2:] == ["-o", "json"] else "patched"
         raise AssertionError("unapproved fake command")
 
 
@@ -209,6 +210,17 @@ class EnvoyIngressTests(unittest.TestCase):
     def configure(self):
         return runner.configure_envoy_ingress(evidence_directory=self.directory,
             journal_path=self.directory / ("journal-" + uuid.uuid4().hex + ".json"))
+
+    def historical_pair(self, guard):
+        guard.edit("summary", lambda value: value.__setitem__("helper_sha256", "9" * 64))
+        names = ("observation", "summary", "baseline", "passive-baseline",
+                 "admin-before", "admin-after", "causal-review")
+        raw = {name: (self.directory / (name + ".json")).read_bytes() for name in names}
+        hashes = {name: hashlib.sha256(value).hexdigest() for name, value in raw.items()}
+        key = ("1" * 40, "9" * 64, hashes["observation"])
+        entry = {"evidence_sha256": hashes, "audit_ref": "synthetic-private-qualification",
+                 "mutation_helper_raw_sha256": hashlib.sha256(Path(runner.target_authority.__file__).read_bytes()).hexdigest()}
+        return key, entry, raw
 
     def test_envoy_ingress_requires_measured_tunnel_of_exact_owned_cp(self):
         original = clone(self.guard.policies)
@@ -244,6 +256,223 @@ class EnvoyIngressTests(unittest.TestCase):
         # parent subsequently observes source drift during this active lease.
         self.guard.nodes[0][3] = "192.0.2.99"
         self.assertEqual(change.rollback(), "ROLLED_BACK_OWN_ENTRY")
+
+    def test_envoy_ingress_accepts_native_admin_owner_chain_tuple_and_json_roundtrip(self):
+        before = self.guard.admin()
+        before["identity"]["owner_chain"] = tuple(clone(before["identity"]["owner_chain"]))
+        after = clone(before)
+        after["identity"]["owner_chain"] = tuple(after["identity"]["owner_chain"])
+        after["uptime_current_epoch_ns"] += 1
+        after["uptime_all_epochs_ns"] += 1
+        after["stats"]["cluster.iam.upstream_rq_total"] += 1
+        runner._ingress_admin_pair(before, after, self.guard.identity)
+        runner._ingress_admin_pair(clone(before), after, self.guard.identity)
+        runner._ingress_admin_pair(before, clone(after), self.guard.identity)
+        self.assertIsInstance(before["identity"]["owner_chain"], tuple)
+        for key, value in (("pod_uid", uid()), ("container_id", "containerd://" + "f" * 64),
+                           ("restart_count", 1), ("restart_count", False), ("image_id", "other-image")):
+            with self.subTest(identity_field=key, value=value):
+                wrong = clone(after)
+                wrong["identity"][key] = value
+                with self.assertRaises(ValueError):
+                    runner._ingress_admin_pair(before, wrong, self.guard.identity)
+        wrong = clone(after)
+        wrong["identity"]["owner_chain"][1]["uid"] = uid()
+        with self.assertRaises(ValueError):
+            runner._ingress_admin_pair(before, wrong, self.guard.identity)
+        change = self.configure()
+        witness = {"schema": "aiforall.envoy.ingress-parent-witness.v1",
+            "journal_sha256": change.receipt["journal_sha256"], "entry": "127.0.0.1:18080", "method": "GET",
+            "path": "/iam/api/auth/gitlab/login", "connector": "gitlab", "status": 303,
+            "outcome": "IAM_CONNECTOR_NONCE_REDIRECT", "protected_without_bearer": "DENIED",
+            "admin_before": before, "admin_after": after}
+        self.assertEqual(change.finish(witness), "PARENT_WITNESS_ACCEPTED_LAB_ONLY")
+        self.assertEqual(change.rollback(), "ROLLED_BACK_OWN_ENTRY")
+
+    def test_envoy_ingress_does_not_adopt_equal_spec_update_between_ack_and_first_read(self):
+        original_transport = self.guard.kubectl
+        concurrent_read = []
+
+        def transport(args, **kwargs):
+            if (args[:3] == ["get", "networkpolicy", "allow-envoy"]
+                    and self.guard.patches and not concurrent_read):
+                # Another writer removes/reintroduces an equal entry after the
+                # patch ACK but before its first read. The spec alone cannot
+                # establish ownership of this new revision.
+                self.guard.policy["metadata"]["resourceVersion"] = "13"
+                concurrent_read.append(True)
+            return original_transport(args, **kwargs)
+
+        with patch.object(self.guard, "kubectl", side_effect=transport):
+            with self.assertRaises(ValueError):
+                self.configure()
+        self.assertEqual(concurrent_read, [True])
+        self.assertEqual(len(self.guard.patches), 1)
+        self.assertEqual(self.guard.policy["metadata"]["resourceVersion"], "13")
+        self.assertEqual(self.guard.policy["spec"]["ingress"][-1], self.guard.entry)
+        self.assertFalse(any(op["op"] == "remove" for ops in self.guard.patches for op in ops))
+
+    def test_envoy_ingress_patch_ack_is_frozen_and_lost_ack_never_grants_rollback(self):
+        change = self.configure()
+        receipt = change.receipt
+        self.assertEqual(receipt["ack_source"], "PATCH_RESPONSE")
+        self.assertEqual(receipt["policy_resource_version"], "11")
+        receipt["authority"].clear()
+        self.assertTrue(change.receipt["authority"])
+        records = list(self.directory.glob("journal-*.json.ack.json"))
+        self.assertEqual(len(records), 1)
+        self.assertEqual(json.loads(records[0].read_text())["ack"]["rv"], "11")
+        self.assertEqual(change.rollback(), "ROLLED_BACK_OWN_ENTRY")
+        modes = ("text", "malformed", "uid", "empty-rv", "unchanged-rv", "spec", "api",
+                 "kind", "namespace", "name", "deleting", "lost-ack")
+        for mode in modes:
+            with self.subTest(mode=mode):
+                guard = FakeGuard(self.directory)
+                original = guard.kubectl
+
+                def transport(args, **kwargs):
+                    response = original(args, **kwargs)
+                    if args[:2] != ["patch", "networkpolicy/allow-envoy"]:
+                        return response
+                    self.assertEqual(args[-2:], ["-o", "json"])
+                    if mode == "lost-ack":
+                        raise TimeoutError("synthetic ACK lost after application")
+                    if mode == "text":
+                        return "patched"
+                    if mode == "malformed":
+                        return "{"
+                    value = json.loads(response)
+                    if mode == "uid": value["metadata"]["uid"] = uid()
+                    elif mode == "empty-rv": value["metadata"]["resourceVersion"] = ""
+                    elif mode == "unchanged-rv": value["metadata"]["resourceVersion"] = "10"
+                    elif mode == "spec": value["spec"]["egress"].clear()
+                    elif mode == "api": value["apiVersion"] = "other/v1"
+                    elif mode == "kind": value["kind"] = "Secret"
+                    elif mode == "namespace": value["metadata"]["namespace"] = "other"
+                    elif mode == "name": value["metadata"]["name"] = "other"
+                    elif mode == "deleting": value["metadata"]["deletionTimestamp"] = "2026-01-01T00:00:00Z"
+                    return json.dumps(value)
+
+                with patch.object(runner.runtime, "target", return_value=guard), patch.object(guard, "kubectl", side_effect=transport):
+                    with self.assertRaises(ValueError):
+                        self.configure()
+                self.assertEqual(len(guard.patches), 1)
+                self.assertEqual(len(guard.policy["spec"]["ingress"]), 2)
+                self.assertFalse(any(call[:3] == ["get", "networkpolicy", "allow-envoy"] for call in guard.calls))
+
+    def test_envoy_ingress_rollback_uses_ack_rv_and_does_not_adopt_postrollback_get(self):
+        for mode in ("clean", "before-read", "between-read-and-patch", "lost-ack", "malformed-ack", "post-read-rv"):
+            with self.subTest(mode=mode):
+                guard = FakeGuard(self.directory)
+                original_spec = clone(guard.policy["spec"])
+                with patch.object(runner.runtime, "target", return_value=guard):
+                    change = self.configure()
+                    original = guard.kubectl
+                    if mode == "before-read":
+                        guard.policy["metadata"]["resourceVersion"] = "13"
+
+                    def transport(args, **kwargs):
+                        is_patch = args[:2] == ["patch", "networkpolicy/allow-envoy"]
+                        if is_patch and mode == "between-read-and-patch":
+                            guard.policy["metadata"]["resourceVersion"] = "13"
+                        if (args[:3] == ["get", "networkpolicy", "allow-envoy"]
+                                and len(guard.patches) == 2 and mode == "post-read-rv"):
+                            guard.policy["metadata"]["resourceVersion"] = "13"
+                        response = original(args, **kwargs)
+                        if is_patch:
+                            self.assertEqual(args[-2:], ["-o", "json"])
+                            operations = json.loads(args[args.index("-p") + 1])
+                            self.assertEqual(operations[1], {"op": "test", "path": "/metadata/resourceVersion", "value": "11"})
+                            if mode == "lost-ack": raise TimeoutError("synthetic rollback ACK loss")
+                            if mode == "malformed-ack": return "{"
+                        return response
+
+                    with patch.object(guard, "kubectl", side_effect=transport):
+                        if mode == "clean":
+                            self.assertEqual(change.rollback(), "ROLLED_BACK_OWN_ENTRY")
+                            self.assertEqual(change.receipt["rollback_ack"]["rv"], "12")
+                            self.assertEqual(guard.policy["spec"], original_spec)
+                        else:
+                            with self.assertRaisesRegex(ValueError, "rollback blocked"):
+                                change.rollback()
+                            calls = len(guard.calls)
+                            with self.assertRaisesRegex(ValueError, "rollback blocked"):
+                                change.rollback()
+                            self.assertEqual(len(guard.calls), calls)
+                            self.assertEqual(change.receipt["state"], "STOP_ROLLBACK_UNCERTAIN")
+                            if mode == "post-read-rv":
+                                self.assertEqual(change.receipt["rollback_ack"]["rv"], "12")
+                                self.assertNotEqual(change.receipt["rollback_ack"]["rv"], guard.policy["metadata"]["resourceVersion"])
+                    self.assertEqual(len(guard.patches), 1 if mode == "before-read" else 2)
+
+    def test_envoy_ingress_qualified_capture_helper_pair_preserves_immutable_evidence(self):
+        key, entry, raw = self.historical_pair(self.guard)
+        with patch.object(runner, "_INGRESS_HISTORICAL_OBSERVATION", key[2]), \
+                patch.object(runner, "_INGRESS_QUALIFIED_HELPER_PAIRS", {key: entry}):
+            change = self.configure()
+            authority = change.receipt["authority"]
+            self.assertEqual(authority["capture_helper_raw_sha256"], "9" * 64)
+            self.assertEqual(authority["mutation_helper_raw_sha256"], entry["mutation_helper_raw_sha256"])
+            self.assertEqual(authority["compatibility"]["mode"], "QUALIFIED_EXACT_PAIR")
+            authority["compatibility"]["qualification"]["evidence_sha256"].clear()
+            self.assertEqual(change.rollback(), "ROLLED_BACK_OWN_ENTRY")
+        for name, value in raw.items():
+            self.assertEqual((self.directory / (name + ".json")).read_bytes(), value)
+
+    def test_envoy_ingress_unknown_helper_pair_or_rewritten_historical_summary_is_rejected(self):
+        for mode in ("empty", "unknown-mutation", "producer", "ops-head", "manifest", "rewritten-equality"):
+            with self.subTest(mode=mode):
+                guard = FakeGuard(self.directory)
+                key, entry, _ = self.historical_pair(guard)
+                table = {key: entry}
+                if mode == "empty": table.clear()
+                elif mode == "unknown-mutation": entry["mutation_helper_raw_sha256"] = "0" * 64
+                elif mode == "producer": guard.edit("summary", lambda value: value.__setitem__("helper_sha256", "8" * 64))
+                elif mode == "ops-head": guard.edit("summary", lambda value: value.__setitem__("ops_head", "2" * 40))
+                elif mode == "manifest": entry["evidence_sha256"]["summary"] = "0" * 64
+                elif mode == "rewritten-equality":
+                    guard.edit("summary", lambda value: value.__setitem__("helper_sha256", entry["mutation_helper_raw_sha256"]))
+                with patch.object(runner.runtime, "target", return_value=guard), \
+                        patch.object(runner, "_INGRESS_HISTORICAL_OBSERVATION", key[2]), \
+                        patch.object(runner, "_INGRESS_QUALIFIED_HELPER_PAIRS", table):
+                    with self.assertRaises(ValueError):
+                        self.configure()
+                self.assertEqual(guard.calls, [])
+                self.assertEqual(guard.patches, [])
+
+    def test_envoy_ingress_mutation_authority_cannot_change_after_ack(self):
+        for mode in ("raw-even-if-other-qualified", "class-identity"):
+            with self.subTest(mode=mode):
+                guard = FakeGuard(self.directory)
+                key, entry, _ = self.historical_pair(guard)
+                with patch.object(runner.runtime, "target", return_value=guard), \
+                        patch.object(runner, "_INGRESS_HISTORICAL_OBSERVATION", key[2]), \
+                        patch.object(runner, "_INGRESS_QUALIFIED_HELPER_PAIRS", {key: entry}):
+                    change = self.configure()
+                    calls = len(guard.calls)
+                    if mode == "raw-even-if-other-qualified":
+                        replacement = self.directory / "not-executed-helper-source.py"
+                        replacement.write_bytes(Path(runner.target_authority.__file__).read_bytes() + b"\n")
+                        other = clone(entry)
+                        other["mutation_helper_raw_sha256"] = hashlib.sha256(replacement.read_bytes()).hexdigest()
+                        with patch.object(runner.target_authority, "__file__", str(replacement)), \
+                                patch.object(runner, "_INGRESS_QUALIFIED_HELPER_PAIRS", {key: other}):
+                            files, hashes, _ = runner._ingress_evidence(self.directory)
+                            self.assertEqual(runner._ingress_authority(files, hashes)["mutation_helper_raw_sha256"],
+                                             other["mutation_helper_raw_sha256"])
+                            with self.assertRaisesRegex(ValueError, "rollback blocked"):
+                                change.rollback()
+                    else:
+                        replacement_class = type("ReplacementAuthority", (), {})
+                        with patch.object(runner.target_authority, "LocalClusterTargetAnchor", replacement_class), \
+                                patch.object(runner.runtime, "LocalClusterTargetAnchor", replacement_class):
+                            with self.assertRaisesRegex(ValueError, "rollback blocked"):
+                                change.rollback()
+                    self.assertEqual(len(guard.calls), calls)
+                    self.assertEqual(len(guard.patches), 1)
+                    with self.assertRaisesRegex(ValueError, "rollback blocked"):
+                        change.rollback()
+                    self.assertEqual(len(guard.calls), calls)
 
     def test_envoy_ingress_parent_witness_requires_exact_303_and_rolls_back_302(self):
         for status in (303, 302, 301, 307, 308, 200, 500):

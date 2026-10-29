@@ -162,6 +162,89 @@ annoncée : copie exacte allowlist7 dans nouveau dossier privé scellé, contrô
 SHA/bytes et private_file, puis même lecteur ; aucun original modifié ni gate
 assoupli. Son résultat sera distinct des tests fake et de la preuve réseau.
 
+Résultat : copie sept fichiers scellés, bytes/SHA conservés et7private_file=True.
+Lecteur canon refuse ensuite le helperCRLFraw67b504... ; copieLF livrée attendue
+7385... . Après livraison95b912e et checkout propre qualifié, lecteur réel de
+ces sept copies PASS avec helper effectivement importé depuis ce checkout,
+observationSHA0ad1c639... inchangé. Aucun guard live/API ou patch exécuté.
+Hook canon normal de95b912e : cargo fmt --all -- --check PASS (commitexit0),
+unique Cargo et jobs24/E: conservés ; échec OS206 auteur demeure historique exact.
+
+Revue indépendante finale : REVIEW REQUIRED avant live. Deux oracles ajoutés
+AVANT correction/run :
+- test_envoy_ingress_does_not_adopt_equal_spec_update_between_ack_and_first_read ;
+- test_envoy_ingress_accepts_native_admin_owner_chain_tuple_and_json_roundtrip.
+Le premier lie la propriété à l'UID/RV/spec de la réponse du patch, jamais au GET
+ultérieur ; concurrence entre ACK et premier GET ⇒ STOP sans retrait étranger.
+Le second accepte tuple natif et JSON roundtrip identiques, mais refuse tout
+changement UID/incarnation. Les cinq oracles précédents sont conservés.
+Extension éventuelle du garde -o pour patch : contrat architecte proposé puis
+ratifié AVANT implémentation ; aucune permission générale de sortie de Secrets.
+
+Défaut Admin reproduit AVANT fix : nouveau test sélectionné seul, exit1/1ERROR,
+refus à _ingress_admin_pair:196 pour tuple natif vs listeJSON. Correction locale
+de la seule comparaison via _ingress_json, références Serena vérifiées vers
+_ingress_evidence et finish ; wrapper.tmp couvert par lecture ciblée.
+Suite postimage6PASS/0skip, exit0,2.345s ; tuple/listes et roundtrip acceptés,
+podUID/containerID/restartCount/imageID/ownerUID et booléen à la place du compteur
+refusés ; finish/rollback fake vérifiés. S-1 reste NON corrigé, donc aucun live.
+
+S-1 reproduit avant correction : oracle nommé exécuté seul, exit1/1FAIL/0.068s,
+« ValueError not raised » après mise à jour égale du spec mais RV13 injectée
+entre ACK et premier GET. Ce ROUGE est comportemental, pas environnemental.
+Fake préparé pour renvoyer la vraie postimage JSON si la sortie -ojson fermée
+est demandée ; l'oracle exige que le GET concurrent ait effectivement eu lieu,
+pour éviter un faux vert par simple erreur de parse de l'ACK. Aucun helper
+garde modifié avant amendement architecte ; S-1 reste bloquant pour ce live.
+
+Gates complémentaires à nommer AVANT le futur changement du garde (implémentation
+toujours conditionnée à l'amendement ratifié) :
+- test_envoy_ingress_patch_json_output_is_closed_before_probe ;
+- test_envoy_ingress_patch_ack_identity_and_version_are_authoritative.
+Sortie JSON de la seule NPallow-envoy/nsfull par argv fermé ; Secret/autreobjet/
+namespace, autreformat, duplications/overrides ⇒ zéro commande avant ancrage.
+ACK valide opposé aux relectures ; ACK absent/perdu ou UID/RV/spec divergents ⇒
+STOP sans adoption ni retrait étranger. Provenance producteur/helpermutation
+distincte après changement de grammar : contrat d'architecture doit fournir
+liaison fermée vérifiable sans altérer les sept projections d'origine.
+
+Complément de provenance proposé par architecte : allowlist versionnée de paires
+exactes dans le runner, clé(captureHead, captureHelperRAWSHA, observationSHA) vers
+helperMutationRAWSHA ; cas identique inchangé, inconnue/table vide ⇒ STOP.
+Oracle nommé AVANT code/run :
+test_envoy_ingress_helper_compatibility_requires_exact_qualified_code_pair.
+Exiger les trois éléments source et l'autorité réellement importée ; mismatch de
+chaque champ, paire absente ou autre hashcourant ⇒ refus, pas booléen/inputlibre.
+Qualification préalable : archive RAW producteur vérifiée7385..., égale au blob
+gitff12007 et au fichier delivery ; copie privée readonly faite avant édition,
+aucun helper exécuté depuis cette archive. L'amendement écrit reste à ratifier.
+
+Amendement final architecte82lignes lu et ratifié explicitement par lead AVANT
+extension ; canon local-full-envoy-ingress-patch-ack.md, quatre fichiers fermés.
+Noms normatifs supplémentaires inscrits AVANT implémentation/run (recouvrant
+les alias de plan ci-dessus, pas une nouvelle campagne distincte) :
+- test_envoy_ingress_patch_ack_is_frozen_and_lost_ack_never_grants_rollback ;
+- test_envoy_ingress_rollback_uses_ack_rv_and_does_not_adopt_postrollback_get ;
+- test_envoy_patch_json_ack_grammar_is_exact_before_any_probe ;
+- test_envoy_ingress_qualified_capture_helper_pair_preserves_immutable_evidence ;
+- test_envoy_ingress_unknown_helper_pair_or_rewritten_historical_summary_is_rejected ;
+- test_envoy_ingress_mutation_authority_cannot_change_after_ack.
+Gate source hors runtime : AST module complet sauf seul corpsparse identique au
+RAW producteur et refus de cinq mutants collecteur/Admin/constante/import/lifecycle.
+Paire de hash à approuver APRÈS codefigé/tests/revue ; tableinactive entre-temps.
+
+Correctif ACK/provenance implémenté dans les quatre fichiers autorisés, table
+versionnée encore VIDE donc aucune compatibilité historique active. Gate AST sur
+RAW producteur conservé : PASS, seuls changements dans corpsparse ; cinq mutants
+collecteur/Admin/constante/import/lifecycle refusés. Hashmutation provisoire du
+checkout principal2672c43f... : NE PAS le confondre avec les octets LF qui seront
+réellement livrés ; qualification finale doit viser le checkout de livraison.
+Suites réellement exécutées : guard52PASS/0skip15.643s et ingress12PASS/0skip4.572s,
+exit0 tous deux ; logs `.tmp/auth-envoy-ingress-correction-4dba24b0246c4757a4360fa58a7795d6/`.
+S-1 oracle auparavant rouge maintenant vert ; perte/mauvaisACK, concurrence avant
+GET et au rollback, autorité figée, no-retry incertain, manifesthistorique strict
+et identité native couverts. Aucun résultat live ni activation de paire déduit.
+
 ## Plafond server_info v2 — plan avant code/run
 
 Amendement architecte v2 lu et explicitement ratifié : plafondFIXE131072B,

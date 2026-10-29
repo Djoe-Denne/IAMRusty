@@ -108,7 +108,7 @@ def parse_kubectl_operation(argv):
         "get": {"-o": "output", "-l": "selector", "--ignore-not-found": "bool"},
         "create": {"-f": "file", "-o": "output"},
         "apply": {"-f": "file", "-o": "output", "--server-side": "bool", "--field-manager": "name"},
-        "patch": {"--type": "patch", "-p": "json", "--patch-file": "file"},
+        "patch": {"--type": "patch", "-p": "json", "--patch-file": "file", "-o": "ack_output"},
         "scale": {"--replicas": "uint"},
         "wait": {"--for": "condition", "--timeout": "duration", "-l": "selector", "--all": "bool"},
         "rollout": {"--timeout": "duration"}, "set": {}, "cordon": {}, "uncordon": {},
@@ -116,6 +116,7 @@ def parse_kubectl_operation(argv):
     }
     verb = None
     positionals = []
+    parsed_options = []
     index = 0
     while index < len(args):
         arg = args[index]
@@ -144,7 +145,8 @@ def parse_kubectl_operation(argv):
                     "duration": lambda v: bool(re.fullmatch(r"[0-9]{1,6}s", v)),
                     "patch": lambda v: v in {"merge", "strategic", "json"},
                     "condition": lambda v: v == "delete" or bool(re.fullmatch(r"condition=[A-Za-z]+", v)),
-                    "output": lambda v: v in {"name", "json", "yaml"} or (v.startswith("jsonpath=") and len(v) < 4096),
+                     "output": lambda v: v in {"name", "json", "yaml"} or (v.startswith("jsonpath=") and len(v) < 4096),
+                    "ack_output": lambda v: v == "json",
                     "selector": lambda v: bool(re.fullmatch(r"[a-zA-Z0-9./_=-]+", v)),
                     "file": lambda v: len(v) < 32768 and not any(c in v for c in "\r\n"),
                     "json": lambda v: len(v) < 1048576 and isinstance(json.loads(v), (dict, list)),
@@ -155,6 +157,7 @@ def parse_kubectl_operation(argv):
                     accepted = False
                 if not accepted:
                     raise AnchorError("unsupported option value")
+            parsed_options.append((flag, value))
         elif verb is None:
             if arg not in verbs:
                 raise AnchorError("unsupported kubectl verb")
@@ -177,6 +180,25 @@ def parse_kubectl_operation(argv):
         raise AnchorError("only set env supported")
     if any(part.split("/")[0] in {"se", "secret", "secrets"} for p in positionals for part in p.split(",")) and verb == "get":
         raise AnchorError("live Secret reads forbidden")
+    if verb == "patch" and any(flag == "-o" for flag, _ in parsed_options):
+        # The one ACK capability is deliberately separate from generic output.
+        # Reject ambiguity and target expansion BEFORE any anchor/UID/API probe.
+        fields = {}
+        for flag, value in parsed_options:
+            key = "-n" if flag == "--namespace" else flag
+            if key not in {"-n", "--type", "-p", "-o"} or key in fields:
+                raise AnchorError("closed Envoy patch ACK options required before any probe")
+            fields[key] = value
+        if (positionals != ["networkpolicy/allow-envoy"] or "--" in argv
+                or set(fields) != {"-n", "--type", "-p", "-o"}
+                or fields["-n"] != "aiforall-local-full"
+                or fields["--type"] != "json" or fields["-o"] != "json"):
+            raise AnchorError("closed Envoy patch ACK target required before any probe")
+        patch = json.loads(fields["-p"])
+        if (not isinstance(patch, list) or not patch
+                or any(not isinstance(item, dict) or not isinstance(item.get("op"), str)
+                       or not isinstance(item.get("path"), str) for item in patch)):
+            raise AnchorError("inline nonempty JSONPatch required for Envoy ACK")
     return KubectlOperation(tuple(args), remote)
 
 
