@@ -1,5 +1,21 @@
 # Registre QA de progression — sécurité authentification
 
+## Prérequis source du scénario SAN — plan avant dernier delta
+
+Revue25 finale : sécurité statique bornée PASS sur trois hashes, sans autorisation
+d'usage live de l'ancienne source importée. Le delivery actuel ne définit pas
+encore la nouvelle API. Avant live : livrer la même postimage qualifiée dans ce
+checkout et attester son hash, pas HEAD seul.
+Unité nommée avant code/run :
+test_san_refuses_unqualified_helper_before_cluster_probe. Hash normalisé CRLF/LF
+et présence API doivent refuser une source différente AVANT construction/probes
+d'ancrage et avant GET ou mutation. Pas de nouveau runtime ou harness.
+
+Résultat unité source : 1PASS/0FAIL/0ERROR/0skip, zéroprobe vérifié, log.tmp/
+auth-envoy-san-source-gate-unit-20261029.log. Attestation attendue du helper
+normalisé CRLF/LF : eeee3b6aa0d0d2906d6b7662892eced5b897838f04b94a3bae61915ccc60eb11.
+La livraison dans le checkout importé doit encore être constatée avant usage réel.
+
 ## Envoy RE2 — correction compatible, plan avant code/run
 
 Cause live confirmée et briefing persisté : regex publique ligne97 excède la
@@ -92,6 +108,79 @@ noticesPGalreadyexists, pas omission de tests. Total ciblé15ITPASS, pasfullsuit
 Les24jobs et threads existants sont restés inchangés. Revue indépendante25 Envoy
 PASSstatique borné sur SHA exacts ; recheck14 sélecteurITPASSstatique, lifecycle
 inchangé, aucune exécutionparreviewers. Briefings persistés avantlivraison.
+
+Livraison Linux636b438/SDK02e5 : build artefact exit0/47.41s puis Manifesto
+exit0/9.40s ; IDsfe567047... et19ccec47... inspectés Linux/amd64, labels exacts,
+runtime appuser. Registre à création, Engine23/23 et latest préservés. Ce n'est
+pas un résultat de test, ni une preuve de déploiement/readiness. Préflight du
+wrapper Envoy : AST PASS, marqueur antérieur refusé AVANT patch, SDK gelé.
+
+Reprises live ciblées : Envoy EXIT0/Ready Podcec77212..., Manifesto EXIT0/Ready
+Pod8624d84e... avec nouvelleimage19ccec47..., UIDDeployment/CMprécédents conservés.
+Résumés sous bail6b7.../envoy-routes-recovery-cb1350af... et manifesto-recovery-
+45fb36fb... ; revueinfra14 en cours. Cela valide startup, pas trajetauth complet.
+
+Oracle SAN : SEULE préconditionHEAD changée636b438, inversion versancienHEAD
+restitueSHArevue87e6680f... exactement ; hashactuel2bfbff6c6ce3e99b534542a9a21c108739619f44dd43f120386027d5a72a753a.
+Préflight routeexacteGET18080 sanssuivreredirect a échoué par TimeoutError15s ;
+aucunpatchcertificat ni lecturecompteur après cetéchec. Verdict INCONCLUSIVE,
+pas échec du contrôleSAN. Preuve.tmp/auth-envoy-san-preflight-20261029.json.
+Diagnosticréseau21 même session réactivé pour localiser hop avant nouveauGET ;
+pas répétitionaveugle ni changement de transport/config/timeouts.
+
+## Lecture spécialisée Admin Envoy — plan avant code/run
+
+Contrat architecte local-full-envoy-admin-readonly.md v1 lu et ratifié par lead,
+avec risque explicite d'exposition Admin complète aux processus locaux pendant
+le bref tunnel loopback sur le poste de confiance ; jamais pendant navigationOAuth.
+Allowlist code : local_full_target.py et test_local_full_target.py. Rien d'autre.
+Tests nommés avant code/run :
+- test_envoy_admin_rejects_foreign_target_and_free_requests_before_probe
+- test_envoy_admin_requires_owned_chain_and_stable_container_incarnation
+- test_envoy_admin_exact_child_mapping_and_closed_gets
+- test_envoy_admin_limits_and_missing_stats_are_not_zero
+- test_envoy_admin_stale_marker_and_cleanup_use_only_owned_handle
+Suite fake existante target à exécuter après gel du candidat ; pas de réseau,
+fixture ou Cargo par ces tests. Lire ses scénarios négatifs réels, pas les seuls noms.
+Revue de sécurité proportionnée du nouveau delta avant code intégré/runtime.
+Compteurs manquants restent explicites ; pas de PASS réseau/SAN par mocks.
+
+Régression avant usage réel localisée par source client-go0.36.1:443 : kubectl
+imprime le port LOCAL dans « Handling connection for... », pas le distant9901.
+Étendre le test déjà nommé exact_child_mapping_and_closed_gets AVANT run : positif
+avec deux lignes locales49152, refus9901/autreport ; baselineancienparseur puisfix.
+Ce refus fermé empêche l'usage réel, pas défaut fail-open démontré. Briefing
+20261029-admin-kubectl-local-port-regression.md persisté avant correction.
+
+Régression reproduite sans runtime : unittest ciblé exact_child_mapping_and_closed_gets
+exit1/1ERRORAnchorError0.028s sur le parseur initial. Après comparaison au portLOCAL
+attesté et deux refus de ports étrangers, suite40PASS5.544s, zéro skipped. Ce test
+ajoute le format client réel absent des fakes initiaux, pas une répétition aveugle.
+SHA finaux helper8af7e8b6... / tests0672ec44..., communiqués au reviewer25 avantlive.
+
+Candidat26 reçu figé, deux fichiers seulement : suite fake40PASS/0skip,6.447s.
+Intégration canon par nouveaux symboles et imports, aucun ancien corps modifié,
+postimages strictement identiques après normalisationCRLF/LF. Tests canoniques
+40PASS/0skip,6.967s (le second run valide aussi les frontières de chemin Windows
+du checkout intégré, pas un rerun de campagne réseau). Diffcheck0. Logs
+.tmp/auth-envoy-admin-{fake,canonical}-suite-20261029.log. Aucun Cargo, fixture,
+Adminlive ou navigateur par ces tests. Revue indépendante25 en cours sur le même
+contenu, hashes canoniques communiqués ; attente avant gel/livraison/live.
+
+Adaptation oracleSAN attribuée explicitement au lead, fichier unique
+.tmp/auth-envoy-same-ca-san-20261029.py : remplacer curl par snapshot sémantique
+attesté sans changer le trafic, les certificats ou les oracles good/wrong/good.
+Avant exécution, deux unités nommées sans réseau :
+test_closed_admin_snapshot_rejects_missing_tls_counter ;
+test_closed_admin_snapshot_requires_stable_epoch_and_monotone_counters.
+Zéro réel accepté, MISSING/absence rejetés ; mêmes incarnation/restart_epoch et
+compteurs monotones obligatoires. Une absence de compteur ailleurs n'est pas
+silencieusement transformée en0 ; aucune preuve globale déduite d'un sous-ensemble.
+
+AdaptateurSAN modifié uniquement pour API fermée + sélection3compteurs/mêmeepoch/
+monotones : deuxunités2PASS/0FAIL/0ERROR/0skip sans réseau, log.tmp/auth-envoy-
+closed-snapshot-units-20261029.log. Reste non exécuté live, préconditionHEAD devra
+suivre la livraison finale du helper avant tout lancement. SHAadapterb0e62e7c... .
 
 ## Identifiant de clé du laboratoire — plan avant correction
 

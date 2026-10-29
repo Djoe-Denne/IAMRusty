@@ -5,11 +5,14 @@ import importlib.util
 import io
 import json
 import os
+import re
 import tempfile
 import sys
 import unittest
+from email.message import Message
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
+from urllib.parse import unquote
 
 import yaml
 
@@ -630,6 +633,436 @@ class BoundedPodLogTests(unittest.TestCase):
         self.cmd.log_output = sentinel
         with self.assertRaisesRegex(anchor.AnchorError, "^INCONCLUSIVE:.*redacted$"):
             self.request()
+
+
+class FakeEnvoyAdminCommands(FakeCommands):
+    """Extends the existing endpoint-aware fake with identity-only projections."""
+    def __init__(self, fixture, incarnation):
+        super().__init__(fixture)
+        self.namespace_uid = "owned-namespace"
+        self.pod_reads = 0
+        self.change_at = None
+        self.change = lambda value: value
+        self.projections = {
+            "pod": ("owned-pod\nenvoy-mesh-abc-def\naiforall-local-full\nenvoy\n\n\n"
+                    + anchor._ENVOY_IMAGE + "\n\n\nS\tenvoy\t" + incarnation["container_id"]
+                    + "\t0\t" + incarnation["image_id"] + "\t2026-10-29T01:02:03Z\n"
+                    + "R\tReplicaSet\tenvoy-mesh-abc\towned-rs\ttrue\n"),
+            "replicaset": "owned-rs\nenvoy-mesh-abc\naiforall-local-full\nR\tDeployment\tenvoy-mesh\towned-deployment\ttrue\n",
+            "deployment": "owned-deployment\nenvoy-mesh\naiforall-local-full\n",
+        }
+
+    def __call__(self, cmd, **kwargs):
+        result = super().__call__(cmd, **kwargs)
+        if cmd[0] != "kubectl":
+            return result
+        args = cmd[5:]
+        if args[:3] == ["get", "namespace", "aiforall-local-full"]:
+            return self.namespace_uid
+        if args[0] == "get" and args[1] in self.projections:
+            value = self.projections[args[1]]
+            if args[1] == "pod":
+                self.pod_reads += 1
+                if self.pod_reads == self.change_at:
+                    value = self.change(value)
+            return value
+        return result
+
+
+class FakeAdminResponse:
+    def __init__(self, body, status=200, headers=(), chunk_size=137):
+        self.stream = io.BytesIO(body)
+        self.status, self.chunk_size = status, chunk_size
+        self.headers = Message()
+        for key, value in headers:
+            self.headers[key] = value
+        self.length = None
+        self.reads, self.bytes_read, self.closed, self.on_read = [], 0, False, lambda: None
+
+    def read1(self, size):
+        self.reads.append(size)
+        self.on_read()
+        chunk = self.stream.read(min(size, self.chunk_size))
+        self.bytes_read += len(chunk)
+        return chunk
+
+    def close(self):
+        self.closed = True
+        self.stream.close()
+
+
+class EnvoyAdminTests(unittest.TestCase):
+    """Five predeclared fake oracles. No subprocess, sockets, cluster or browser."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        env = patch.dict(os.environ, {}, clear=True)
+        env.start()
+        self.addCleanup(env.stop)
+        self.f = Fixture(self.temp.name)
+        self.f.data["namespaceUids"] = {"aiforall-local-full": "owned-namespace"}
+        self.f.data["ownedResources"] = [dict(kind="Deployment", name="envoy-mesh", uid="owned-deployment",
+            namespace="aiforall-local-full", context="kind-aiforall-local-full", cluster="aiforall-local-full")]
+        self.f.save()
+        self.incarnation = dict(container_id="containerd://" + "e" * 64, restart_count=0,
+                                image_id="docker.io/envoyproxy/envoy@sha256:" + "f" * 64)
+        self.attestation = dict(pod="envoy-mesh-abc-def", namespace_uid="owned-namespace", pod_uid="owned-pod",
+            container="envoy", owner_chain=[dict(kind="ReplicaSet", name="envoy-mesh-abc", uid="owned-rs"),
+                dict(kind="Deployment", name="envoy-mesh", uid="owned-deployment")], incarnation=self.incarnation)
+        self.cmd = FakeEnvoyAdminCommands(self.f, self.incarnation)
+        self.target = self.f.target(self.cmd)
+        self.marker = self.target.config.parent / ".envoy-admin"
+        self.info = {"version": "a" * 40 + "/1.31.2/Clean/RELEASE/BoringSSL", "state": "LIVE",
+                     "uptime_current_epoch": "1.123456789s", "uptime_all_epochs": "2s",
+                     "command_line_options": {"restart_epoch": 0, "config_path": "PRIVATE-SENTINEL"}}
+        self.stats = {"stats": [dict(name=name, value=0) for name in anchor._ENVOY_STATS]}
+        self.responses, self.connections, self.requests = [], [], []
+        http = patch.object(anchor.http.client, "HTTPConnection", side_effect=self.connection)
+        self.http = http.start()
+        self.addCleanup(http.stop)
+        process = self.process()
+        launch = patch.object(anchor.subprocess, "Popen", return_value=process)
+        self.launcher = launch.start()
+        self.addCleanup(launch.stop)
+        acl = patch.object(anchor, "_windows_path_script", return_value="")
+        self.acl = acl.start()
+        self.addCleanup(acl.stop)
+        # Hard tripwires: every production boundary above is faked explicitly.
+        for module, name in ((anchor.socket, "create_connection"), (anchor.os, "kill"), (anchor.subprocess, "run")):
+            guard = patch.object(module, name, side_effect=AssertionError("unexpected live operation"))
+            guard.start()
+            self.addCleanup(guard.stop)
+
+    def process(self, stdout=b"Forwarding from 127.0.0.1:49152 -> 9901\n", stderr=b"", blocked=False, exited=False):
+        code = [0 if exited else None]
+        process = Mock(pid=654321, stdout=io.BytesIO(stdout), stderr=io.BytesIO(stderr))
+        process.poll.side_effect = lambda: code[0]
+        def stop(*_):
+            if not blocked:
+                code[0] = 0
+        def wait(timeout):
+            if blocked:
+                raise anchor.subprocess.TimeoutExpired("private-child", timeout)
+            code[0] = 0
+            return 0
+        process.send_signal.side_effect = stop
+        process.terminate.side_effect = stop
+        process.wait.side_effect = wait
+        return process
+
+    def connection(self, host, port, timeout):
+        self.assertEqual((host, port), ("127.0.0.1", 49152))
+        self.assertGreater(timeout, 0)
+        self.assertLessEqual(timeout, 5)
+        connection = Mock(sock=Mock())
+        connection.getresponse.side_effect = lambda: self.responses.pop(0)
+        connection.request.side_effect = lambda *args, **kwargs: self.requests.append((args, kwargs))
+        self.connections.append(connection)
+        return connection
+
+    def capture(self, **changes):
+        self.responses = [FakeAdminResponse(json.dumps(value).encode()) for value in (self.info, self.stats)]
+        return self.target.envoy_admin_snapshot(**{**self.attestation, **changes})
+
+    def test_envoy_admin_rejects_foreign_target_and_free_requests_before_probe(self):
+        invalid = [dict(pod="iam-abc"), dict(pod="pod/envoy-mesh-abc-def"), dict(container="sidecar"),
+            dict(namespace_uid="foreign"), dict(pod_uid=""), dict(owner_chain=[]),
+            dict(owner_chain=[self.attestation["owner_chain"][0], dict(kind="Deployment", name="iam", uid="owned-deployment")]),
+            dict(incarnation={}), dict(incarnation={**self.incarnation, "restart_count": True}),
+            dict(incarnation={**self.incarnation, "container_id": "foreign"}),
+            dict(incarnation={**self.incarnation, "image_id": "PRIVATE-SENTINEL"})]
+        for change in invalid:
+            with self.subTest(change=change), self.assertRaisesRegex(anchor.AnchorError, "before any probe"):
+                self.capture(**change)
+            self.assertEqual(self.cmd.calls, [])
+        for change in ({"cluster": "aiforall-local"}, {"context": "foreign"}, {"ownedResources": []}):
+            target = self.f.target(self.cmd)
+            target.data.update(change)
+            with self.subTest(target=change), self.assertRaises(anchor.AnchorError):
+                target.envoy_admin_snapshot(**self.attestation)
+            self.assertEqual(self.cmd.calls, [])
+        for free in (dict(url="http://foreign"), dict(path="/config_dump"), dict(query=".*"),
+                     dict(port=9901), dict(bind="0.0.0.0"), dict(callback=lambda: None),
+                     dict(namespace="foreign"), dict(method="POST"), dict(launcher=lambda: None)):
+            with self.subTest(free=tuple(free)), self.assertRaises(TypeError):
+                self.target.envoy_admin_snapshot(**self.attestation, **free)
+            self.assertEqual(self.cmd.calls, [])
+        self.launcher.assert_not_called()
+        self.http.assert_not_called()
+        self.assertFalse(self.marker.exists())
+        for args in (["port-forward", "pod/envoy-mesh-abc-def", ":9901"], ["logs", "envoy-mesh-abc-def"]):
+            with self.assertRaises(anchor.AnchorError):
+                anchor.parse_kubectl_operation(args)
+
+    def test_envoy_admin_requires_owned_chain_and_stable_container_incarnation(self):
+        positive = self.capture()
+        self.assertEqual(positive["status"], "COMPLETE")
+        self.assertEqual(positive["identity"]["container_id"], self.incarnation["container_id"])
+        self.assertEqual(self.cmd.pod_reads, 4)  # Before launch, each GET, then post-capture.
+        self.assertEqual(positive["restart_epoch"], 0)
+        mutations = [lambda v: v.replace("owned-pod", "replaced-pod"),
+            lambda v: v.replace("owned-rs", "foreign-rs"),
+            lambda v: v.replace("envoy\n\n\n", "envoy sidecar\n\n\n"),
+            lambda v: v.replace("envoy\n\n\n", "envoy\ninit\n\n"),
+            lambda v: v.replace("envoy\n\n\n", "envoy\n\nephemeral\n"),
+            lambda v: v.replace(self.incarnation["container_id"], "containerd://" + "1" * 64),
+            lambda v: v.replace("\t0\t", "\t1\t"),
+            lambda v: v.replace(self.incarnation["image_id"], "sha256:" + "2" * 64),
+            lambda v: v.replace("2026-10-29T01:02:03Z", ""),
+            lambda v: v.replace(anchor._ENVOY_IMAGE, "envoyproxy/envoy:latest")]
+        for stage in (1, 2, 3, 4):
+            for mutation in mutations:
+                with self.subTest(stage=stage, mutation=mutations.index(mutation)):
+                    self.cmd = FakeEnvoyAdminCommands(self.f, self.incarnation)
+                    self.target = self.f.target(self.cmd)
+                    self.cmd.change_at, self.cmd.change = stage, mutation
+                    self.launcher.return_value = self.process()
+                    self.launcher.reset_mock()
+                    self.http.reset_mock()
+                    with self.assertRaisesRegex(anchor.AnchorError, "INCONCLUSIVE"):
+                        self.capture()
+                    self.assertEqual(self.http.call_count, max(0, stage - 2))
+                    self.assertEqual(self.launcher.call_count, 0 if stage == 1 else 1)
+                    self.assertFalse(self.marker.exists())
+        for kind in ("replicaset", "deployment"):
+            self.cmd = FakeEnvoyAdminCommands(self.f, self.incarnation)
+            self.target = self.f.target(self.cmd)
+            self.cmd.projections[kind] = self.cmd.projections[kind].replace("owned-deployment", "foreign-deployment")
+            self.launcher.reset_mock()
+            with self.subTest(kind=kind), self.assertRaises(anchor.AnchorError):
+                self.capture()
+            self.launcher.assert_not_called()
+        self.cmd = FakeEnvoyAdminCommands(self.f, self.incarnation)
+        self.target = self.f.target(self.cmd)
+        self.cmd.namespace_uid = "foreign-namespace"
+        with self.assertRaises(anchor.AnchorError):
+            self.capture()
+        self.launcher.assert_not_called()
+        # Wrong endpoint/ACL/hash are rejected before even kube-system UID GET.
+        self.cmd.calls.clear()
+        self.f.config["clusters"][0]["cluster"]["server"] = "https://127.0.0.1:60124"
+        self.f.write_config()
+        with self.assertRaises(anchor.AnchorError):
+            self.capture()
+        self.assertEqual(self.cmd.api(), [])
+
+    def test_envoy_admin_exact_child_mapping_and_closed_gets(self):
+        # kubectl v1.36.1 reports the local port, not the remote Admin port.
+        self.launcher.return_value = self.process(stdout=(
+            b"Forwarding from 127.0.0.1:49152 -> 9901\n"
+            b"Handling connection for 49152\nHandling connection for 49152\n"))
+        result = self.capture()
+        command, options = self.launcher.call_args.args[0], self.launcher.call_args.kwargs
+        self.assertEqual(command, self.target.prefix() + ["port-forward", "-n", "aiforall-local-full",
+                         "pod/envoy-mesh-abc-def", "--address", "127.0.0.1", ":9901"])
+        self.assertEqual(options["env"]["KUBECONFIG"], str(self.target.config))
+        self.assertEqual(options["stdin"], anchor.subprocess.DEVNULL)
+        self.assertEqual((options["stdout"], options["stderr"], options["bufsize"]),
+                         (anchor.subprocess.PIPE, anchor.subprocess.PIPE, 0))
+        if os.name == "nt":
+            self.acl.assert_called_once()
+            script, path = self.acl.call_args.args
+            self.assertEqual(path, self.marker)
+            self.assertIn("FileSecurity", script)
+            self.assertIn("SetAccessRuleProtection($true,$false)", script)
+            self.assertNotIn("IsReadOnly", script)
+        else:
+            self.acl.assert_not_called()
+        self.assertEqual(self.requests, [(("GET", path), {"headers": {"Accept": "application/json",
+            "Accept-Encoding": "identity", "Connection": "close"}}) for path in ("/server_info", anchor._ENVOY_STATS_PATH)])
+        self.assertEqual(result["uptime_current_epoch_ns"], 1123456789)
+        self.assertNotIn("PRIVATE-SENTINEL", repr(result))
+        self.assertEqual(set(result["stats"]), set(anchor._ENVOY_STATS))
+        self.assertTrue(all(value == 0 for value in result["stats"].values()))
+        pattern = unquote(anchor._ENVOY_STATS_PATH.split("filter=", 1)[1])
+        for name in anchor._ENVOY_STATS:
+            self.assertIsNotNone(re.fullmatch(pattern, name))
+        for name in ("cluster.iamXssl.handshake", "cluster.other.ssl.handshake", "xcluster.iam.ssl.handshake"):
+            self.assertIsNone(re.fullmatch(pattern, name))
+        for args in (cmd[5:] for cmd in self.cmd.api()):
+            self.assertEqual(args[0], "get")
+            self.assertIn(args[1], {"namespace", "pod", "replicaset", "deployment"})
+            self.assertTrue(args[-1].startswith("jsonpath="))
+            for forbidden in (".env", ".args", ".volumes", "Secret"):
+                self.assertNotIn(forbidden, args[-1])
+        mappings = [b"Forwarding from 0.0.0.0:49152 -> 9901\n", b"Forwarding from localhost:49152 -> 9901\n",
+            b"Forwarding from 127.0.0.1:49152 -> 8080\n", b"Forwarding from 127.0.0.1:0 -> 9901\n",
+            b"Forwarding from 127.0.0.1:65536 -> 9901\n",
+            b"Forwarding from 127.0.0.1:49152 -> 9901\nForwarding from [::1]:49152 -> 9901\n",
+            b"Forwarding from 127.0.0.1:49152 -> 9901\nHandling connection for 9901\n",
+            b"Forwarding from 127.0.0.1:49152 -> 9901\nHandling connection for 49153\n",
+            b"PRIVATE-SENTINEL\n", b"x" * 5000]
+        for output in mappings:
+            self.launcher.return_value = self.process(stdout=output)
+            self.http.reset_mock()
+            with self.subTest(mapping=output[:50]), self.assertRaises(anchor.AnchorError) as error:
+                self.capture()
+            self.assertNotIn("PRIVATE-SENTINEL", str(error.exception))
+            self.http.assert_not_called()
+            self.assertFalse(self.marker.exists())
+
+    def test_envoy_admin_limits_and_missing_stats_are_not_zero(self):
+        self.stats = {"stats": [{"name": anchor._ENVOY_STATS[0], "value": 0}]}
+        result = self.capture()
+        self.assertEqual(result["stats"][anchor._ENVOY_STATS[0]], 0)
+        self.assertEqual(result["stats"][anchor._ENVOY_STATS[1]], "MISSING")
+        self.assertEqual(result["status"], "INCONCLUSIVE")
+        self.assertEqual(set(result["stats"].values()), {0, "MISSING"})
+        bodies = [(False, b" " * 16384 + b"{}"), (True, b" " * 65536 + b"{}"),
+                  (False, b"\xff"), (False, b'{"state":0,"state":1}'), (False, b'{"x":NaN}'),
+                  (True, b'{"stats":[],"stats":[]}'), (False, b'{"x":')]
+        for stats, body in bodies:
+            response = FakeAdminResponse(body, headers=(("Transfer-Encoding", "chunked"),))
+            self.responses = [response]
+            with self.subTest(body=body[:30]), self.assertRaises((anchor.AnchorError, ValueError)):
+                anchor._admin_get(49152, stats, anchor.time.monotonic() + 30)
+            self.assertTrue(response.closed)
+            self.assertLessEqual(response.bytes_read, (65536 if stats else 16384) + 1)
+            self.assertLessEqual(max(response.reads), 4096)  # Never read-all, even for chunked input.
+            self.connections[-1].close.assert_called_once_with()
+        for status, headers in ((302, (("Location", "http://foreign/PRIVATE-SENTINEL"),)),
+                                (500, ()), (200, (("Content-Encoding", "gzip"),)),
+                                (200, (("Content-Length", "1"), ("Content-Length", "1")))):
+            response = FakeAdminResponse(b"PRIVATE-SENTINEL", status=status, headers=headers)
+            self.responses = [response]
+            with self.subTest(status=status, headers=headers), self.assertRaises(anchor.AnchorError) as error:
+                anchor._admin_get(49152, False, anchor.time.monotonic() + 30)
+            self.assertEqual(response.reads, [])
+            self.assertTrue(response.closed)
+            self.assertNotIn("PRIVATE-SENTINEL", str(error.exception))
+        name = anchor._ENVOY_STATS[0]
+        for entries in ([dict(name=name, value=-1)], [dict(name=name, value=True)], [dict(name=name, value=1.0)],
+                        [dict(name="cluster.other.ssl.handshake", value=0)],
+                        [dict(name=name, value=0), dict(name=name, value=1)], [dict(name=name, value=2**64)]):
+            with self.subTest(entries=entries), self.assertRaises(anchor.AnchorError):
+                anchor._admin_stats_projection({"stats": entries})
+        for change in (dict(state="PRIVATE-SENTINEL"), dict(version=self.info["version"].replace("1.31.2", "1.31.1")),
+                       dict(command_line_options={}), dict(command_line_options=dict(restart_epoch=True)),
+                       dict(uptime_all_epochs="-1s"), dict(uptime_current_epoch="3s")):
+            with self.subTest(change=change), self.assertRaises(anchor.AnchorError):
+                anchor._admin_server_projection({**self.info, **change})
+        # A slow trickle exceeds the whole GET budget, not just each socket read.
+        clock = [0]
+        response = FakeAdminResponse(b"{}")
+        response.on_read = lambda: clock.__setitem__(0, 6)
+        self.responses = [response]
+        with patch.object(anchor.time, "monotonic", side_effect=lambda: clock[0]), \
+                patch.object(anchor.threading, "Timer") as timer:
+            with self.assertRaises(anchor.AnchorError):
+                anchor._admin_get(49152, False, 30)
+            self.assertEqual(timer.call_args.args[0], 5)
+            timer.call_args.args[1]()
+            self.connections[-1].sock.shutdown.assert_called_once_with(anchor.socket.SHUT_RDWR)
+            timer.return_value.cancel.assert_called_once_with()
+        self.assertTrue(response.closed)
+        response = FakeAdminResponse(b"{}")
+        response.length = 10
+        self.responses = [response]
+        with self.assertRaisesRegex(anchor.AnchorError, "truncated"):
+            anchor._admin_get(49152, False, anchor.time.monotonic() + 30)
+        self.assertTrue(response.closed)
+
+    def test_envoy_admin_stale_marker_and_cleanup_use_only_owned_handle(self):
+        self.marker.write_text('{"pid":99999,"ownership":"stale"}')
+        before = self.marker.read_bytes()
+        with self.assertRaisesRegex(anchor.AnchorError, "STOP"):
+            self.capture()
+        self.assertEqual(self.marker.read_bytes(), before)
+        self.assertEqual(self.cmd.calls, [])
+        self.launcher.assert_not_called()
+        self.marker.unlink()
+        oauth = self.target.path.with_name(self.target.path.name + ".oauth-forward")
+        oauth.write_text("active-parent")
+        with self.assertRaises(anchor.AnchorError):
+            self.capture()
+        self.assertEqual(oauth.read_text(), "active-parent")
+        self.assertEqual(self.cmd.calls, [])
+        oauth.unlink()
+        process = self.process()
+        self.launcher.return_value = process
+        self.capture()
+        stopped = process.send_signal if os.name == "nt" else process.terminate
+        stopped.assert_called_once()
+        if os.name == "nt":
+            stopped.assert_called_once_with(anchor.signal.CTRL_BREAK_EVENT)
+            process.terminate.assert_not_called()
+        else:
+            stopped.assert_called_once_with()
+            process.send_signal.assert_not_called()
+        process.wait.assert_called_once()
+        self.assertLessEqual(process.wait.call_args.kwargs["timeout"], 15)
+        self.assertTrue(process.stdout.closed and process.stderr.closed)
+        self.assertFalse(self.marker.exists())
+        process = self.process()
+        self.launcher.return_value = process
+        self.info["state"] = "PRIVATE-SENTINEL"
+        with self.assertRaises(anchor.AnchorError) as error:
+            self.capture()
+        self.info["state"] = "LIVE"
+        self.assertNotIn("PRIVATE-SENTINEL", str(error.exception))
+        process.wait.assert_called_once()
+        self.assertTrue(process.stdout.closed and process.stderr.closed)
+        self.assertFalse(self.marker.exists())
+        for failure in (OSError("PRIVATE-SENTINEL"), RuntimeError("PRIVATE-SENTINEL")):
+            self.launcher.side_effect = failure
+            with self.subTest(launch=type(failure)), self.assertRaises(anchor.AnchorError) as error:
+                self.capture()
+            self.assertNotIn("PRIVATE-SENTINEL", str(error.exception))
+            self.assertEqual(self.marker.exists(), not isinstance(failure, OSError))
+            if self.marker.exists():
+                self.marker.unlink()  # Fake-only unknown-launch marker, no actual child.
+        self.launcher.side_effect = None
+        for output, err, exited in ((b"Forwarding from 127.0.0.1:49152 -> 9901\n", b"PRIVATE-SENTINEL", False),
+                                    (b"", b"", True)):
+            process = self.process(stdout=output, stderr=err, exited=exited)
+            self.launcher.return_value = process
+            with self.subTest(startup=(bool(err), exited)), self.assertRaises(anchor.AnchorError):
+                self.capture()
+            process.wait.assert_called_once()
+            self.assertFalse(self.marker.exists())
+        # Readiness has an independent five-second budget, with no real wait.
+        forward = anchor._EnvoyAdminForward()
+        forward.process, forward.deadline, forward.changed = self.process(stdout=b""), 30, Mock()
+        with patch.object(anchor.time, "monotonic", side_effect=[0, 0, 6]):
+            with self.assertRaises(anchor.AnchorError):
+                forward.ready()
+        forward.changed.wait.assert_called_once_with(5)
+        forward.process.stdout.close()
+        forward.process.stderr.close()
+        process = self.process()
+        self.launcher.return_value = process
+        with patch.object(anchor._EnvoyAdminForward, "ready", side_effect=anchor.AnchorError("timeout")):
+            with self.assertRaises(anchor.AnchorError):
+                self.capture()
+        process.wait.assert_called_once()
+        self.assertFalse(self.marker.exists())
+        # The thirty-second watchdog is independent of metadata/HTTP progress.
+        process = self.process()
+        self.launcher.return_value = process
+        forward = anchor._EnvoyAdminForward()
+        with patch.object(anchor.threading, "Timer") as timer:
+            timer.return_value.is_alive.return_value = False
+            forward.start(self.target.prefix() + ["port-forward", "-n", "aiforall-local-full",
+                          "pod/envoy-mesh-abc-def", "--address", "127.0.0.1", ":9901"], self.target.environment())
+            self.assertEqual(timer.call_args.args[0], 30)
+            timer.call_args.args[1]()
+            timer.call_args.args[1]()
+            forward.close()
+        (process.send_signal if os.name == "nt" else process.terminate).assert_called_once()
+        process.wait.assert_called_once()
+        # Expiry uses the handle, once; blocked cleanup retains its exclusive marker.
+        process = self.process(blocked=True)
+        self.launcher.return_value = process
+        with self.assertRaisesRegex(anchor.AnchorError, "INCONCLUSIVE"):
+            self.capture()
+        self.assertTrue(self.marker.exists())
+        marker = json.loads(self.marker.read_text())
+        self.assertEqual((marker["pid"], marker["ownership"]), (process.pid, "live-child-handle-only"))
+        self.launcher.reset_mock()
+        with self.assertRaisesRegex(anchor.AnchorError, "STOP"):
+            self.capture()
+        self.launcher.assert_not_called()
+        self.assertEqual(json.loads(self.marker.read_text()), marker)
 
 
 class WindowsAclBindingTests(unittest.TestCase):

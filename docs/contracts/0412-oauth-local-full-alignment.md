@@ -4,6 +4,7 @@
 - Canon secondaire : [contrat exact-route 0412](0412-oauth-exact-route-envoy-proof.md), référencé par [ADR 0412](../adr/0412-oauth-transaction-persistante-liee-navigateur.md) **Accepted / Partial**.
 - Invariants : [0308](../adr/0308-mesh-authn-jwt.md) **Accepted / Partial**, [0408](../adr/0408-connecteurs-idp-services-http.md), [0409](../adr/0409-confiance-callback-oauth-idp-connect.md), [0411](../adr/0411-idp-provider-slug-registry-fail-closed.md). [0606](../adr/0606-local-full-kind-isole.md) reste **Proposed / Partial**.
 - Base examinée : application `c72ae362b950c63d6736a6818c68babc5a8d6f40`, gitlink SDK `d60a88b2f2f499768a807941a1b4c80c9a366b3f`. Aucun changement SDK requis par cette proposition.
+- Complément opérationnel ratifié le2026-10-29 : [lecture spécialisée Envoy Admin](local-full-envoy-admin-readonly.md), sans changement de l'entrée navigateur ou des oracles SAN. L'exposition loopback transitoire y est explicitement distinguée d'une garantie de lecture seule réseau.
 
 ## 1. Arbitrage et alternatives
 

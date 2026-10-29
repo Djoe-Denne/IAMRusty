@@ -3,6 +3,7 @@ import argparse
 import base64
 import contextlib
 import hashlib
+import http.client
 import ipaddress
 import json
 import os
@@ -12,9 +13,11 @@ import socket
 import stat
 import subprocess
 import sys
+import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 import yaml
 
@@ -274,6 +277,266 @@ def unique_json(pairs):
     return result
 
 
+_ENVOY_IMAGE = "envoyproxy/envoy:v1.31.2@sha256:c56804e9fc8d5184c45862ad851173a925ff383151cb94156f86bed047da29bc"
+_ENVOY_STATS = tuple("cluster." + cluster + "." + suffix
+                     for cluster in ("ext_authz", "iam", "hive", "telegraph", "manifesto")
+                     for suffix in ("upstream_cx_total", "upstream_cx_connect_fail",
+                                    "upstream_cx_connect_timeout", "upstream_rq_total", "upstream_rq_5xx",
+                                    "ssl.handshake", "ssl.fail_verify_san", "ssl.fail_verify_error"))
+_ENVOY_STATS_PATH = "/stats?format=json&filter=" + quote(
+    "^(?:" + "|".join(re.escape(name) for name in _ENVOY_STATS) + ")$", safe="")
+
+
+def _admin_remaining(deadline):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise AnchorError("Admin snapshot deadline exceeded")
+    return remaining
+
+
+def _admin_json(raw):
+    def invalid_constant(_):
+        raise ValueError("non-JSON number")
+    return json.loads(raw.decode("utf-8", errors="strict"), object_pairs_hook=unique_json,
+                      parse_constant=invalid_constant)
+
+
+def _admin_marker_private(path):
+    # Unlike the sealed kubeconfig, this exclusive lifetime marker must remain
+    # writable/deletable. Windows os.open(0600) alone does not establish its DACL.
+    if os.name == "nt":
+        _windows_path_script(
+            "$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User;"
+            "$a=[Security.AccessControl.FileSecurity]::new();"
+            "$a.SetOwner($sid);$a.SetAccessRuleProtection($true,$false);"
+            "$a.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid,'FullControl','Allow'));"
+            "$a.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new("
+            "[Security.Principal.SecurityIdentifier]::new('S-1-5-18'),'FullControl','Allow'));"
+            "$item=Get-Item -LiteralPath $p;$item.SetAccessControl($a)", path)
+
+
+def _admin_get(port, stats, tunnel_deadline):
+    """Private fixed GET, no urllib proxy/cookie/redirect handlers or ambient auth.
+
+    A socket shutdown timer bounds header parsing and slow/chunked bodies too;
+    individual socket timeouts alone would not bound a trickling response.
+    """
+    deadline = min(tunnel_deadline, time.monotonic() + 5)
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=_admin_remaining(deadline))
+    response = timer = None
+    try:
+        connection.connect()
+        _admin_remaining(deadline)
+        sock = connection.sock
+
+        def expire():
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+        timer = threading.Timer(_admin_remaining(deadline), expire)
+        timer.daemon = True
+        timer.start()
+        connection.request("GET", _ENVOY_STATS_PATH if stats else "/server_info", headers={
+            "Accept": "application/json", "Accept-Encoding": "identity", "Connection": "close"})
+        response = connection.getresponse()
+        _admin_remaining(deadline)
+        if response.status != 200:
+            raise AnchorError("Admin status refused")  # Never read/echo error or redirect bodies.
+        lengths = response.headers.get_all("Content-Length", [])
+        transfers = response.headers.get_all("Transfer-Encoding", [])
+        if (response.headers.get_all("Content-Encoding", []) not in ([], ["identity"])
+                or len(lengths) > 1 or transfers not in ([], ["chunked"])
+                or (lengths and transfers)
+                or (lengths and not re.fullmatch(r"0|[1-9][0-9]{0,19}", lengths[0]))):
+            raise AnchorError("Admin encoding refused")
+        limit = 65536 if stats else 16384
+        body = bytearray()
+        while True:
+            sock.settimeout(_admin_remaining(deadline))
+            chunk = response.read1(min(4096, limit + 1 - len(body)))
+            _admin_remaining(deadline)
+            if not chunk:
+                if response.length not in (None, 0):
+                    raise AnchorError("Admin response truncated")
+                break
+            body.extend(chunk)
+            if len(body) > limit:
+                raise AnchorError("Admin response bound exceeded")
+        return _admin_json(body)
+    finally:
+        if timer is not None:
+            timer.cancel()
+            timer.join()
+        try:
+            if response is not None:
+                response.close()
+        finally:
+            connection.close()
+
+
+def _admin_server_projection(value):
+    if not isinstance(value, dict) or value.get("state") not in {
+            "LIVE", "DRAINING", "PRE_INITIALIZING", "INITIALIZING"}:
+        raise AnchorError("Admin server state unavailable")
+    version = value.get("version")
+    if not isinstance(version, str) or not re.fullmatch(
+            r"[a-f0-9]{40}/1\.31\.2/(?:Clean|Modified)/(?:RELEASE|DEBUG)/[A-Za-z0-9_.-]{1,64}", version):
+        raise AnchorError("Admin version differs from expected image")
+    options = value.get("command_line_options")
+    epoch = options.get("restart_epoch") if isinstance(options, dict) else None
+    if type(epoch) is not int or not 0 <= epoch <= 2**32 - 1:
+        raise AnchorError("Admin restart epoch unavailable")
+    result = {"state": value["state"], "version": "1.31.2", "restart_epoch": epoch}
+    for name in ("uptime_current_epoch", "uptime_all_epochs"):
+        duration = value.get(name)
+        match = re.fullmatch(r"(0|[1-9][0-9]{0,11})(?:\.([0-9]{1,9}))?s", duration) if isinstance(duration, str) else None
+        if not match or int(match[1]) > 315576000000:
+            raise AnchorError("Admin uptime unavailable")
+        result[name + "_ns"] = int(match[1]) * 10**9 + int((match[2] or "").ljust(9, "0"))
+    if result["uptime_current_epoch_ns"] > result["uptime_all_epochs_ns"]:
+        raise AnchorError("Admin uptimes inconsistent")
+    return result
+
+
+def _admin_stats_projection(value):
+    if not isinstance(value, dict) or set(value) != {"stats"} or not isinstance(value["stats"], list):
+        raise AnchorError("Admin counters unavailable")
+    counters = dict.fromkeys(_ENVOY_STATS, "MISSING")
+    seen = set()
+    for entry in value["stats"]:
+        if not isinstance(entry, dict) or set(entry) != {"name", "value"}:
+            raise AnchorError("Admin counter fields refused")
+        name, number = entry["name"], entry["value"]
+        if (not isinstance(name, str) or name not in counters or name in seen
+                or type(number) is not int or not 0 <= number <= 2**64 - 1):
+            raise AnchorError("Admin counter refused")
+        seen.add(name)
+        counters[name] = number
+    return counters
+
+
+class _EnvoyAdminForward:
+    """Private sole-child handle; never adopts a PID or returns a tunnel to callers."""
+    def __init__(self):
+        self.process = None
+        self.no_launch = True
+        self.deadline = None
+        self.timer = None
+        self.threads = []
+        self.output = [bytearray(), bytearray()]
+        self.lock = threading.Lock()
+        self.changed = threading.Event()
+        self.stop_lock = threading.Lock()
+        self.stopping = False
+        self.failed = False
+
+    def start(self, command, env):
+        self.no_launch = False
+        try:
+            self.process = subprocess.Popen(command, env=env, stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
+        except OSError:
+            self.no_launch = True  # Popen failed without returning a live handle.
+            raise
+        self.deadline = time.monotonic() + 30
+        self.timer = threading.Timer(30, self.stop)
+        self.timer.daemon = True
+        self.timer.start()
+        for index, pipe in enumerate((self.process.stdout, self.process.stderr)):
+            thread = threading.Thread(target=self._drain, args=(index, pipe), daemon=True)
+            self.threads.append(thread)
+            thread.start()
+
+    def _drain(self, index, pipe):
+        try:
+            while True:
+                chunk = pipe.read(1024)
+                if not chunk:
+                    break
+                with self.lock:
+                    if len(self.output[index]) + len(chunk) > 4096:
+                        self.failed = True
+                        break
+                    self.output[index].extend(chunk)
+                self.changed.set()
+        except Exception:
+            self.failed = True
+        finally:
+            self.changed.set()
+
+    def mapping(self, complete=False, exited=False):
+        with self.lock:
+            out, err = (bytes(value) for value in self.output)
+        if self.failed or err or (not exited and (self.process.poll() is not None or self.stopping)):
+            raise AnchorError("Admin forward unavailable")
+        lines = out.split(b"\n")
+        if lines[-1]:
+            if complete:
+                raise AnchorError("Admin forward output incomplete")
+            return None
+        lines.pop()
+        if not lines:
+            return None
+        match = re.fullmatch(rb"Forwarding from 127\.0\.0\.1:([1-9][0-9]{0,4}) -> 9901\r?", lines[0])
+        if not match or not 1 <= int(match[1]) <= 65535 or len(lines) > 3:
+            raise AnchorError("Admin forward mapping refused")
+        connection_line = b"Handling connection for " + match[1]
+        if any(line not in (connection_line, connection_line + b"\r") for line in lines[1:]):
+            raise AnchorError("Admin forward mapping refused")
+        return int(match[1])
+
+    def ready(self):
+        deadline = min(self.deadline, time.monotonic() + 5)
+        while True:
+            self.changed.clear()
+            port = self.mapping()
+            if port is not None:
+                return port
+            self.changed.wait(_admin_remaining(deadline))
+
+    def stop(self):
+        with self.stop_lock:
+            if self.stopping:
+                return
+            self.stopping = True
+            try:
+                if self.process is not None and self.process.poll() is None:
+                    if os.name == "nt":
+                        self.process.send_signal(signal.CTRL_BREAK_EVENT)
+                    else:
+                        self.process.terminate()
+            except Exception:
+                self.failed = True
+            self.changed.set()
+
+    def close(self):
+        deadline = time.monotonic() + 15
+        if self.timer is not None:
+            self.timer.cancel()
+        self.stop()
+        try:
+            if self.process is not None:
+                self.process.wait(timeout=_admin_remaining(deadline))
+                if self.process.poll() is None:
+                    raise AnchorError("Admin child exit unattested")
+                for thread in self.threads:
+                    thread.join(timeout=_admin_remaining(deadline))
+                    if thread.is_alive():
+                        raise AnchorError("Admin pipe cleanup incomplete")
+                for pipe in (self.process.stdout, self.process.stderr):
+                    pipe.close()
+            elif not self.no_launch:
+                raise AnchorError("Admin launch outcome indeterminate")
+            if self.timer is not None:
+                self.timer.join(timeout=_admin_remaining(deadline))
+                if self.timer.is_alive():
+                    raise AnchorError("Admin timer cleanup incomplete")
+        except Exception:
+            raise AnchorError("INCONCLUSIVE: Admin cleanup blocked; retain private marker") from None
+
+
 class LocalClusterTargetAnchor:
     def __init__(self, lease_path, runner=run, root=None, privacy=private_file, expected_cluster=None):
         self.path = Path(lease_path)
@@ -494,6 +757,131 @@ class LocalClusterTargetAnchor:
             return result
         except Exception:
             raise AnchorError("INCONCLUSIVE: owned Pod diagnostic unavailable; output redacted") from None
+
+    def _envoy_admin_identity(self, pod, namespace_uid, pod_uid, owners, incarnation, deadline=None):
+        """Identity projections only. Existing kubectl checks anchor BEFORE each UID API.
+
+        The independent child timer closes the tunnel even if a metadata probe
+        stalls. These pre/post checks cannot make a name-addressed forward UID-atomic.
+        """
+        def get(kind, name, projection, namespaced=True):
+            timeout = min(5, _admin_remaining(deadline)) if deadline is not None else 5
+            args = ["get", kind, name] + (["-n", "aiforall-local-full"] if namespaced else [])
+            value = self.kubectl(args + ["-o", projection], text=True, timeout=timeout,
+                                 stdin=subprocess.DEVNULL)
+            if deadline is not None:
+                _admin_remaining(deadline)
+            if not isinstance(value, str) or len(value.encode("utf-8")) > 8192:
+                raise AnchorError("Admin identity projection refused")
+            return value
+
+        if get("namespace", "aiforall-local-full", "jsonpath={.metadata.uid}", False).strip() != namespace_uid:
+            raise AnchorError("Admin namespace changed")
+        base = ('jsonpath={.metadata.uid}{"\\n"}{.metadata.name}{"\\n"}'
+                '{.metadata.namespace}{"\\n"}')
+        refs = ('{range .metadata.ownerReferences[*]}R{"\\t"}{.kind}{"\\t"}{.name}'
+                '{"\\t"}{.uid}{"\\t"}{.controller}{"\\n"}{end}')
+        containers = ('{.spec.containers[*].name}{"\\n"}{.spec.initContainers[*].name}{"\\n"}'
+                      '{.spec.ephemeralContainers[*].name}{"\\n"}{.spec.containers[*].image}{"\\n"}'
+                      '{.status.initContainerStatuses[*].name}{"\\n"}'
+                      '{.status.ephemeralContainerStatuses[*].name}{"\\n"}'
+                      '{range .status.containerStatuses[*]}S{"\\t"}{.name}{"\\t"}{.containerID}'
+                      '{"\\t"}{.restartCount}{"\\t"}{.imageID}{"\\t"}{.state.running.startedAt}{"\\n"}{end}')
+        targets = [("pod", pod, pod_uid), ("replicaset", owners[0]["name"], owners[0]["uid"]),
+                   ("deployment", "envoy-mesh", owners[1]["uid"])]
+        for index, (kind, name, uid) in enumerate(targets):
+            lines = get(kind, name, base + (containers if index == 0 else "") + refs).splitlines()
+            if lines[:3] != [uid, name, "aiforall-local-full"]:
+                raise AnchorError("Admin workload identity changed")
+            if index == 0:
+                if lines[3:9] != ["envoy", "", "", _ENVOY_IMAGE, "", ""] or len(lines) < 10:
+                    raise AnchorError("Admin Pod network has unexpected containers")
+                status = lines[9].split("\t")
+                expected = ["S", "envoy", incarnation["container_id"], str(incarnation["restart_count"]),
+                            incarnation["image_id"]]
+                if (status[:5] != expected or len(status) != 6
+                        or not re.fullmatch(r"[0-9]{4}-[0-9T:.+-]{10,40}Z", status[5])):
+                    raise AnchorError("Admin container incarnation changed or not running")
+                lines = lines[10:]
+            else:
+                lines = lines[3:]
+            expected_refs = [] if index == 2 else ["\t".join([
+                "R", owners[index]["kind"], owners[index]["name"], owners[index]["uid"], "true"])]
+            if lines != expected_refs:
+                raise AnchorError("Admin controller chain changed")
+
+    def envoy_admin_snapshot(self, *, pod, namespace_uid, pod_uid, container, owner_chain, incarnation):
+        """Closed full-lab snapshot, never a general HTTP client or public tunnel.
+
+        Caller must ensure no OAuth browser navigation is active. The ephemeral
+        loopback TCP tunnel still exposes mutating Admin routes to local processes;
+        this is NOT host isolation, CSRF protection or production authority.
+        Missing counters remain MISSING/INCONCLUSIVE. Compare deltas only for the
+        identical returned identity and restart_epoch, with monotone counters.
+        """
+        valid_uid = lambda value: isinstance(value, str) and bool(re.fullmatch(r"[A-Za-z0-9-]{1,128}", value))
+        if (self.data["cluster"] != "aiforall-local-full"
+                or self.data["context"] != "kind-aiforall-local-full" or container != "envoy"
+                or not _log_name(pod) or not pod.startswith("envoy-mesh-")
+                or not valid_uid(namespace_uid) or not valid_uid(pod_uid)
+                or self.data.get("namespaceUids", {}).get("aiforall-local-full") != namespace_uid
+                or not isinstance(owner_chain, (list, tuple)) or len(owner_chain) != 2
+                or any(not isinstance(owner, dict) or set(owner) != {"kind", "name", "uid"}
+                       or not _log_name(owner["name"]) or not valid_uid(owner["uid"]) for owner in owner_chain)
+                or owner_chain[0]["kind"] != "ReplicaSet" or not owner_chain[0]["name"].startswith("envoy-mesh-")
+                or owner_chain[1]["kind"] != "Deployment" or owner_chain[1]["name"] != "envoy-mesh"
+                or not isinstance(incarnation, dict) or set(incarnation) != {"container_id", "restart_count", "image_id"}
+                or not isinstance(incarnation["container_id"], str)
+                or not re.fullmatch(r"(?:containerd|docker|cri-o)://[a-f0-9]{64}", incarnation["container_id"])
+                or type(incarnation["restart_count"]) is not int or not 0 <= incarnation["restart_count"] <= 2**31 - 1
+                or not isinstance(incarnation["image_id"], str)
+                or not re.fullmatch(r"[A-Za-z0-9._:/@-]{0,400}sha256:[a-f0-9]{64}", incarnation["image_id"])):
+            raise AnchorError("Admin attestation required before any probe")
+        owners, incarnation = tuple(dict(owner) for owner in owner_chain), dict(incarnation)
+        if (len({pod_uid, namespace_uid, *(owner["uid"] for owner in owners)}) != 4
+                or not any(isinstance(entry, dict) and all(entry.get(key) == value for key, value in {
+                    **owners[1], "namespace": "aiforall-local-full", "context": self.data["context"],
+                    "cluster": self.data["cluster"]}.items()) for entry in self.data.get("ownedResources", []))):
+            raise AnchorError("Admin owned Deployment chain required before any probe")
+        marker = self.config.parent / ".envoy-admin"
+        if marker.exists() or marker.is_symlink() or self.path.with_name(self.path.name + ".oauth-forward").exists():
+            raise AnchorError("Admin/OAuth marker present; STOP without adoption")
+        child = _EnvoyAdminForward()
+        try:
+            self.local_check()  # Includes private directory/ACL/hash; no UID API before anchoring.
+            with os.fdopen(os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w", encoding="utf-8") as ownership:
+                try:
+                    _admin_marker_private(marker)
+                    self._envoy_admin_identity(pod, namespace_uid, pod_uid, owners, incarnation)
+                    child.start(self.prefix() + ["port-forward", "-n", "aiforall-local-full", "pod/" + pod,
+                                                "--address", "127.0.0.1", ":9901"], self.environment())
+                    json.dump({"task_id": self.data["task_id"], "pid": child.process.pid,
+                               "pod_uid": pod_uid, "ownership": "live-child-handle-only"}, ownership)
+                    ownership.flush()
+                    port = child.ready()
+                    self._envoy_admin_identity(pod, namespace_uid, pod_uid, owners, incarnation, child.deadline)
+                    if child.mapping(complete=True) != port:
+                        raise AnchorError("Admin forward mapping changed")
+                    server = _admin_server_projection(_admin_get(port, False, child.deadline))
+                    self._envoy_admin_identity(pod, namespace_uid, pod_uid, owners, incarnation, child.deadline)
+                    if child.mapping(complete=True) != port:
+                        raise AnchorError("Admin forward mapping changed")
+                    counters = _admin_stats_projection(_admin_get(port, True, child.deadline))
+                    self._envoy_admin_identity(pod, namespace_uid, pod_uid, owners, incarnation, child.deadline)
+                    if child.mapping(complete=True) != port:
+                        raise AnchorError("Admin forward mapping changed")
+                    _admin_remaining(child.deadline)
+                    result = {**server, "identity": {"namespace_uid": namespace_uid, "pod": pod,
+                        "pod_uid": pod_uid, "owner_chain": owners, "container": "envoy", **incarnation},
+                        "stats": counters, "status": "INCONCLUSIVE" if "MISSING" in counters.values() else "COMPLETE"}
+                finally:
+                    child.close()
+                    ownership.close()
+                    marker.unlink()  # Only our exclusive marker, only after attested cleanup/non-launch.
+                child.mapping(complete=True, exited=True)  # Include output drained during shutdown.
+        except Exception:
+            raise AnchorError("INCONCLUSIVE: Envoy Admin snapshot unavailable; output redacted; inspect marker if present") from None
+        return result
 
     def kind_load(self, image):
         if not re.fullmatch(r"[a-z0-9./:_-]+(?::sha256-[a-f0-9]{64}|@sha256:[a-f0-9]{64})", image):
