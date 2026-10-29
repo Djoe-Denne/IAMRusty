@@ -709,6 +709,74 @@ contourner cet échec. Le nom généré change légitimement avec le script : la
 créera la nouvelle ConfigMap depuis le rendu et patchera le Deployment possédé
 vers cette référence exacte, sans écraser/supprimer l'ancienne ConfigMap.
 
+Première application runtime a créé cette seule ConfigMap puis échoué avant
+modificationDeployment : generation1, ancien volume/probe etPodUIDinchangés.
+Frontière transport confirmée : kubectl1.36.1 --patch-file '-' lit un fichier
+nommé '-' (source v0.36.1 os.ReadFile + diagnosticnatif--local sanssecret/API).
+Correction de l'enveloppe, pas produit : patchpublic via-p JSON ; validation
+UID+contenu de laCMcréée avantreprise, testsUID+champsvisés au lieu d'un état
+resourceVersion global variable. Aucun fichierprivé ou secretpassé enargv.
+Deuxième application autorisée aprèscettecauseconfirmée, pasdererundéploiement.
+
+Oracle SAN préparé mais toujoursnonexécuté : transportSecret par vrai fichier
+privétemporaire, privacyvérifiée sur fichiervideAVANT contenu puisreadonly,
+cheminseulenargv, cleanupordinaire sansACLélargie. Revueoracles16 actualisée.
+
+Vérification réelle de la correction : repriseexit0, mêmesUIDDeployment,
+rolloutPodUIDd836...→fd2fa4a6-f81d-4cbd-846c-7aa6da7318cd, hookREADY SUCCESSFUL,
+deuxGETqueuesréels exit0. Preuves session6b7.../localstack-recovery-d1c0402eac4f4bc2939b9db838208270.
+AncienCMconservé, nouvelleCMcrééeUID57a9aa32-8f95-4c76-9858-f62ea1624219.
+Reprise aprèsdépendances seulement ; pas de globalPASSauth ni Secret/job recréé.
+
+### Verdict de l'oracle SAN — corrections avant usage
+
+Revue16 indépendante reçue/persistée : deux MEDIUM dans script non exécuté.
+Compteur absent ne vaut pas zéro ; exception d'observation/restauration ne vaut
+pas défaut TLS. Correction locale des seules fonctions de lecture/verdict : trois
+compteurs requis sinon INCONCLUSIVE ; FAIL seulement mauvaise feuille acceptée,
+conservé même si une erreur ultérieure survient. État restauration/cleanup séparé.
+Cas synthétiques nommés AVANT validation, unittest temporaire sans runtime :
+`test_san_counter_omission_is_inconclusive`,
+`test_san_complete_triplet_can_pass`,
+`test_san_restoration_observation_error_is_inconclusive`,
+`test_san_accepted_wrong_name_remains_fail`.
+Pas de nouvel oracle de production ou framework ; script de preuve sous.tmp,
+recheck16 ciblé après correction, aucune campagne avant ces corrections.
+
+Correctionoraclescript : parse_tls_counters exige3compteurs, aucunevaleurpar défaut ;
+discriminationcomparative etverdictpurs testables, absence/exception→INCONCLUSIVE,
+mauvaisnomobservéaccepté→FAILconservémêmesiAdmin/restaurationéchoue ensuite.
+Étatpatch/rollout/HTTP/restauration/cleanup séparé ; statutnégatif capturéavant
+requêteAdmin pournepasperdreunrougeétabli. QuatresynthétiquesPASS0.000s, log
+.tmp/auth-envoy-san-verdict-unit-fixed.log. Premieressai n'aexécutéaucuntest
+(crochetmanquantSyntaxErrordansscript), corrigésansexécuterleruntime ; traceinitiale
+conservée. SHAoracle87e6680f0900ff4dd7c78431863721ace4125fa0f06654da7a38ecd5a02e7f2e.
+Ce sontpreuvesdevérificationduverdict, pasdehandshake ou privacyWindowslive.
+
+### Diagnostic RO borné — contrat ratifié avant code
+
+Note architecte4 lue intégralement ; delta compatible etratifié explicitementpar
+lead dans .cursor/handoffs/20261029-local-full-bounded-pod-logs.md. AucuneADR ou
+permissionnative/global/RBAC ajoutée ; target+UID+ownership+noSecret conservés.
+Caps200lignes/32768B/30s, namespacefullonly, Pod+containerexactrégulier,
+attestationparentavantlecture etpostcheckPodUIDavantrestitution ; race=>discard.
+LogsseulementtraitésContextMode/motifsfermés, jamaisraw/secret/indexation.
+
+Testsfake nommés AVANT code/run, suite test_local_full_target.py existante :
+`test_logs_accepts_exact_owned_pod_container_and_bounded_previous`,
+`test_logs_rejects_invalid_grammar_before_any_probe`,
+`test_logs_rejects_wrong_endpoint_and_stale_cluster_before_log_request`,
+`test_logs_require_owned_namespace_pod_uid_and_named_regular_container`,
+`test_logs_discard_capture_when_pod_identity_changes`,
+`test_logs_failures_do_not_echo_sensitive_output`.
+Pas de boucleCLIlogs générique sansownership ; pasde logs brutstandalone.
+
+Premiercandidat revu parlead, sixnouveauxfakePASS0.399s puis suite34PASS5.632s
+dansworktreefigé ; pasCargoniAPI. Retourlimitéàcatégoriesfermées satisfaitprivacy.
+Complémentborné nécessaire audémarrageCrashLoop : catalogue statiquedesymptômes
+configuration/fichier/panic, pasextraitougroupedynamique. Nouveau nom avantedit/run :
+`test_logs_return_only_closed_startup_categories` ; conserver tousrefus etsentinelles.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et

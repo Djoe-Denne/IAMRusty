@@ -2,6 +2,7 @@
 import base64
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import tempfile
@@ -354,6 +355,281 @@ class AnchorTests(unittest.TestCase):
         self.f.target(self.cmd).kind_load(image)
         self.assertEqual(len(self.cmd.api()), 1)
         self.assertEqual(self.cmd.kind_actions(), [["kind", "load", "docker-image", image, "--name", "aiforall-local-full"]])
+
+
+class FakePodLogCommands(FakeCommands):
+    """Only fake metadata projections and fake log capture; never starts a child."""
+    def __init__(self, fixture):
+        super().__init__(fixture)
+        self.namespace_uid = "owned-namespace"
+        self.post_uid = "owned-pod"
+        self.post_error = None
+        self.log_error = None
+        self.log_output = "connection refused\n"
+        self.log_options = []
+        self.native_result = None
+        self.projections = {
+            "pod": "owned-pod\napp-abc\naiforall-local-full\napp sidecar\nReplicaSet\tapp-rs\towned-rs\ttrue\n",
+            "replicaset": "owned-rs\napp-rs\naiforall-local-full\nDeployment\tapp\towned-deployment\ttrue\n",
+            "deployment": "owned-deployment\napp\naiforall-local-full\n",
+        }
+
+    def __call__(self, cmd, **kwargs):
+        result = super().__call__(cmd, **kwargs)  # Verify effective endpoint/config/context too.
+        if cmd[0] != "kubectl":
+            return result
+        args = cmd[5:]
+        if args[0] == "logs":
+            self.log_options.append(kwargs)
+            if self.log_error:
+                raise self.log_error
+            if self.native_result is not None:
+                with patch.object(anchor.subprocess, "run", return_value=self.native_result):
+                    return anchor.run(cmd, **kwargs)
+            return self.log_output
+        if args[:3] == ["get", "namespace", "aiforall-local-full"]:
+            return self.namespace_uid
+        if args[:2] == ["get", "pod"] and args[-1] == "jsonpath={.metadata.uid}":
+            if self.post_error:
+                raise self.post_error
+            return self.post_uid
+        if args[0] == "get" and args[1] in self.projections:
+            return self.projections[args[1]]
+        return result
+
+    def log_calls(self):
+        return [cmd for cmd in self.api() if cmd[5] == "logs"]
+
+
+class BoundedPodLogTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        env = patch.dict(os.environ, {}, clear=True)
+        env.start()
+        self.addCleanup(env.stop)
+        self.f = Fixture(self.temp.name)
+        self.f.data["namespaceUids"] = {"aiforall-local-full": "owned-namespace"}
+        self.f.data["ownedResources"] = [dict(kind="Deployment", name="app", uid="owned-deployment",
+            namespace="aiforall-local-full", context="kind-aiforall-local-full", cluster="aiforall-local-full")]
+        self.f.save()
+        self.cmd = FakePodLogCommands(self.f)
+        self.target = self.f.target(self.cmd)
+        self.args = ["logs", "app-abc", "-n", "aiforall-local-full", "-c", "app",
+                     "--tail=200", "--limit-bytes=32768"]
+        self.attestation = dict(namespace_uid="owned-namespace", pod_uid="owned-pod", container="app",
+            owner_chain=[dict(kind="ReplicaSet", name="app-rs", uid="owned-rs"),
+                         dict(kind="Deployment", name="app", uid="owned-deployment")])
+
+    def request(self, args=None, **changes):
+        return self.target.diagnostic_logs(self.args if args is None else args,
+                                           **{**self.attestation, **changes})
+
+    def test_logs_accepts_exact_owned_pod_container_and_bounded_previous(self):
+        for previous in ([], ["--previous"], ["--previous=true"], ["--previous=false"]):
+            with self.subTest(previous=previous):
+                self.cmd.calls.clear()
+                self.assertEqual(self.request(self.args + previous), ("connection-refused",))
+                expected = self.args + (["--previous=" + ("false" if previous == ["--previous=false"] else "true")]
+                                        if previous else [])
+                self.assertEqual(self.cmd.log_calls(), [self.target.prefix() + expected])
+                options = self.cmd.log_options[-1]
+                self.assertEqual(options["timeout"], 30)
+                self.assertIs(options["text"], True)
+                self.assertEqual(options["stdin"], anchor.subprocess.DEVNULL)
+                self.assertNotIn("input", options)
+                api = [cmd[5:] for cmd in self.cmd.api()]
+                log_index = next(i for i, args in enumerate(api) if args[0] == "logs")
+                self.assertEqual(api[log_index - 1][:3], ["get", "namespace", "kube-system"])
+                self.assertEqual(api[-1], ["get", "pod", "app-abc", "-n", "aiforall-local-full",
+                                          "-o", "jsonpath={.metadata.uid}"])
+                for args in api:
+                    if args[0] == "get" and args[1] in {"pod", "replicaset", "deployment"}:
+                        self.assertTrue(args[-1].startswith("jsonpath={.metadata.uid}"))
+                        self.assertNotIn(".spec.initContainers", args[-1])
+                        self.assertNotIn(".spec.ephemeralContainers", args[-1])
+                        self.assertNotIn(".env", args[-1])
+                        self.assertNotIn(".args", args[-1])
+                        self.assertNotIn(".volumes", args[-1])
+        minimal = ["logs", "app-abc", "--namespace=aiforall-local-full", "--container=app",
+                   "--tail", "1", "--limit-bytes", "32"]
+        self.assertEqual(self.request(minimal), ("connection-refused",))
+
+    def test_logs_rejects_invalid_grammar_before_any_probe(self):
+        invalid = [[], ["logs"], ["logs", "-"], ["logs", "pod/app-abc", *self.args[2:]],
+                   ["logs", "deployment/app", *self.args[2:]],
+                   self.args[:6], self.args[:6] + ["--tail=1"], self.args[:6] + ["--limit-bytes=1"],
+                   [*self.args[:3], "foreign", *self.args[4:]],
+                   [*self.args[:5], "app.sidecar", *self.args[6:]]]
+        for tail in ("0", "201", "-1", "all", "1s", "1.0", ""):
+            invalid.append([*self.args[:6], "--tail=" + tail, self.args[7]])
+        for size in ("0", "32769", "-1", "999999", "1Ki", ""):
+            invalid.append([*self.args[:7], "--limit-bytes=" + size])
+        for extra in (["--follow"], ["--follow=false"], ["-f"], ["-l", "app=app"], ["--all-containers"],
+                      ["--selector=app=app"], ["--since=1s"], ["--since-time=x"], ["--timestamps"],
+                      ["--prefix"], ["--ignore-errors"], ["--pod-running-timeout=1s"], ["--max-log-requests=1"],
+                      ["--server=https://127.0.0.1:60124"], ["--context=kind-aiforall-local"],
+                      ["--kubeconfig=other"], ["--token=sentinel"], ["--as=user"], ["-sother"], ["-nother"],
+                      ["-capp"], ["-n=aiforall-local-full"], ["--tail=1"], ["--limit-bytes=1"],
+                      ["--namespace=aiforall-local-full"], ["--container=app"], ["--previous=no"],
+                      ["--previous", "false"], ["--previous", "--previous=false"], ["--"], ["--", "anything"],
+                      ["-i"], ["--stdin"], ["--unknown"], ["extra-pod"], ["\x00"]):
+            invalid.append(self.args + extra)
+        for args in invalid:
+            with self.subTest(args=args):
+                with self.assertRaises(anchor.AnchorError):
+                    self.request(args)
+                self.assertEqual(self.cmd.calls, [])
+        with self.assertRaises(anchor.AnchorError):
+            self.target.kubectl(self.args, text=True, input="")
+        with self.assertRaises(TypeError):
+            self.request(input="not permitted")
+        self.assertEqual(self.cmd.calls, [])
+        for changes in (dict(namespace_uid="foreign"), dict(container="sidecar"), dict(owner_chain=[])):
+            with self.subTest(attestation=changes), self.assertRaises(anchor.AnchorError):
+                self.request(**changes)
+            self.assertEqual(self.cmd.calls, [])
+
+    def test_logs_rejects_wrong_endpoint_and_stale_cluster_before_log_request(self):
+        original = self.f.config["clusters"][0]["cluster"]["server"]
+        for endpoint in ("https://127.0.0.1:60124", "https://localhost:60123", "https://user@127.0.0.1:60123"):
+            with self.subTest(endpoint=endpoint):
+                self.f.config["clusters"][0]["cluster"]["server"] = endpoint
+                self.f.write_config()
+                self.target.data["kubeconfig_sha256"] = hashlib.sha256(self.f.config_path.read_bytes()).hexdigest()
+                self.cmd.calls.clear()
+                with self.assertRaises(anchor.AnchorError):
+                    self.request()
+                self.assertEqual(self.cmd.api(), [])
+        self.f.config["clusters"][0]["cluster"]["server"] = original
+        self.f.write_config()
+        self.target.data["kubeconfig_sha256"] = hashlib.sha256(self.f.config_path.read_bytes()).hexdigest()
+        self.cmd.uid = "replacement-cluster"
+        self.cmd.calls.clear()
+        with self.assertRaises(anchor.AnchorError):
+            self.request()
+        self.assertEqual(len(self.cmd.api()), 1)
+        self.assertEqual(self.cmd.log_calls(), [])
+        self.cmd.uid = "owned-system-uid"
+        self.cmd.calls.clear()
+        self.f.nodes[self.f.ids[0]]["ports"]["6443/tcp"][0]["HostPort"] = "60124"
+        with self.assertRaises(anchor.AnchorError):
+            self.request()
+        self.assertEqual(self.cmd.api(), [])
+        self.cmd.calls.clear()
+        self.target.data["cluster"] = "aiforall-local"
+        with self.assertRaises(anchor.AnchorError):
+            self.request()
+        self.assertEqual(self.cmd.calls, [])
+
+    def test_logs_require_owned_namespace_pod_uid_and_named_regular_container(self):
+        for changes in (dict(namespace_uid="foreign"), dict(pod_uid="foreign"), dict(container="sidecar"),
+                        dict(owner_chain=[]), dict(owner_chain=[dict(kind="Secret", name="app", uid="foreign")]),
+                        dict(owner_chain=[dict(kind=[], name="app", uid="foreign")])):
+            with self.subTest(changes=changes):
+                with self.assertRaises(anchor.AnchorError):
+                    self.request(**changes)
+                self.assertEqual(self.cmd.log_calls(), [])
+        mutations = [("namespace", "foreign"), ("pod", self.cmd.projections["pod"].replace("owned-pod", "foreign")),
+                     ("pod", self.cmd.projections["pod"].replace("app sidecar", "sidecar")),
+                     ("pod", self.cmd.projections["pod"].replace("owned-rs", "foreign")),
+                     ("pod", self.cmd.projections["pod"].replace("\ttrue", "\tfalse")),
+                     ("replicaset", self.cmd.projections["replicaset"].replace("owned-deployment", "foreign")),
+                     ("deployment", self.cmd.projections["deployment"].replace("owned-deployment", "foreign"))]
+        for resource, output in mutations:
+            with self.subTest(resource=resource, output=output):
+                original = self.cmd.namespace_uid if resource == "namespace" else self.cmd.projections[resource]
+                if resource == "namespace":
+                    self.cmd.namespace_uid = output
+                else:
+                    self.cmd.projections[resource] = output
+                with self.assertRaises(anchor.AnchorError):
+                    self.request()
+                self.assertEqual(self.cmd.log_calls(), [])
+                if resource == "namespace":
+                    self.cmd.namespace_uid = original
+                else:
+                    self.cmd.projections[resource] = original
+        for key, value in (("context", "foreign"), ("cluster", "foreign"), ("uid", "foreign"),
+                           ("namespace", "foreign"), ("name", "foreign")):
+            original = self.target.data["ownedResources"][0][key]
+            self.target.data["ownedResources"][0][key] = value
+            with self.subTest(key=key), self.assertRaises(anchor.AnchorError):
+                self.request()
+            self.target.data["ownedResources"][0][key] = original
+            self.assertEqual(self.cmd.log_calls(), [])
+        self.target.data["ownedResources"] = []
+        with self.assertRaises(anchor.AnchorError):
+            self.request()
+        self.assertEqual(self.cmd.log_calls(), [])
+
+    def test_logs_discard_capture_when_pod_identity_changes(self):
+        for uid, error in (("replacement-pod", None), ("", None),
+                           ("owned-pod", anchor.AnchorError("private missing-Pod details"))):
+            with self.subTest(uid=uid, error=type(error).__name__):
+                self.cmd.calls.clear()
+                self.cmd.post_uid, self.cmd.post_error = uid, error
+                with self.assertRaisesRegex(anchor.AnchorError, "^INCONCLUSIVE:.*redacted$"):
+                    self.request()
+                self.assertEqual(len(self.cmd.log_calls()), 1)
+                self.assertEqual(sum(cmd[-1] == "jsonpath={.metadata.uid}" and cmd[5:7] == ["get", "pod"]
+                                     for cmd in self.cmd.api()), 1)
+
+    def test_logs_failures_do_not_echo_sensitive_output(self):
+        sentinel = "PRIVATE_SENTINEL JWT password PEM code-state cookie header https://private.invalid/token"
+        cases = [dict(log_error=anchor.AnchorError(sentinel)),
+                 dict(log_error=anchor.subprocess.TimeoutExpired([sentinel], 30, output=sentinel, stderr=sentinel)),
+                 dict(log_output=sentinel), dict(log_output="connection refused " + sentinel * 500),
+                 dict(log_output="connection refused\n" * 201), dict(log_output="connection refused\udcff"),
+                 dict(native_result=Mock(returncode=1, stdout=sentinel.encode(), stderr=sentinel.encode())),
+                 dict(native_result=Mock(returncode=0, stdout=b"connection refused\xff", stderr=sentinel.encode())),
+                 dict(native_result=Mock(returncode=0, stdout=b"connection refused", stderr=b"\xff"))]
+        for changes in cases:
+            with self.subTest(case=tuple(changes)):
+                self.cmd.calls.clear()
+                self.cmd.log_error = self.cmd.native_result = None
+                self.cmd.log_output = "connection refused\n"
+                for key, value in changes.items():
+                    setattr(self.cmd, key, value)
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with patch.object(anchor.sys, "stdout", stdout), patch.object(anchor.sys, "stderr", stderr):
+                    with self.assertRaises(anchor.AnchorError) as caught:
+                        self.request()
+                self.assertEqual(str(caught.exception), "INCONCLUSIVE: owned Pod diagnostic unavailable; output redacted")
+                self.assertEqual(stdout.getvalue(), "")
+                self.assertEqual(stderr.getvalue(), "")
+                self.assertNotIn(sentinel, str(caught.exception))
+                self.assertEqual(len(self.cmd.log_calls()), 1)
+        # Classified captures containing secrets still return only closed labels.
+        self.cmd.native_result = None
+        self.cmd.log_output = "connection refused " + sentinel
+        self.assertEqual(self.request(), ("connection-refused",))
+
+    def test_logs_return_only_closed_startup_categories(self):
+        sentinel = ("PRIVATE_SENTINEL password=private JWT=eyJ.private.signature "
+                    "PEM=-----BEGIN PRIVATE KEY----- code-state=private cookie=private "
+                    "header=Authorization:Bearer-private https://private.invalid/token "
+                    "C:/private/config.yaml field=private-field")
+        cases = (("no such file or directory", "missing-file"),
+                 ("error initializing configuration", "configuration-initialization-failed"),
+                 ("missing field", "configuration-missing-field"),
+                 ("unknown field", "configuration-unknown-field"),
+                 ("invalid type", "configuration-type-mismatch"),
+                 ("panicked at", "process-panicked"))
+        for motif, label in cases:
+            for text in (motif, sentinel + " " + motif + " " + sentinel):
+                with self.subTest(motif=motif, with_sentinel=text != motif):
+                    self.cmd.log_output = text
+                    stdout, stderr = io.StringIO(), io.StringIO()
+                    with patch.object(anchor.sys, "stdout", stdout), patch.object(anchor.sys, "stderr", stderr):
+                        self.assertEqual(self.request(), (label,))
+                    self.assertEqual(stdout.getvalue(), "")
+                    self.assertEqual(stderr.getvalue(), "")
+        self.cmd.log_output = "\n".join(motif + " " + sentinel for motif, _ in cases)
+        self.assertEqual(self.request(), tuple(label for _, label in cases))
+        self.cmd.log_output = sentinel
+        with self.assertRaisesRegex(anchor.AnchorError, "^INCONCLUSIVE:.*redacted$"):
+            self.request()
 
 
 class WindowsAclBindingTests(unittest.TestCase):

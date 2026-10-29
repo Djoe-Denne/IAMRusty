@@ -33,6 +33,63 @@ class KubectlOperation:
     remote_argv: tuple = ()
 
 
+@dataclass(frozen=True)
+class OwnedPodLogOperation:
+    pod: str
+    container: str
+    tail: int
+    limit_bytes: int
+    argv: tuple
+
+
+def parse_owned_pod_logs(argv):
+    """Closed diagnostic grammar, separate from generic kubectl authority."""
+    if (not isinstance(argv, (list, tuple)) or len(argv) < 2
+            or any(not isinstance(x, str) or "\x00" in x for x in argv)
+            or argv[0] != "logs" or not _log_name(argv[1])):
+        raise AnchorError("invalid owned Pod logs before any probe")
+    flags = {"-n": "namespace", "--namespace": "namespace", "-c": "container",
+             "--container": "container", "--tail": "tail", "--limit-bytes": "limit_bytes",
+             "--previous": "previous"}
+    values = {}
+    index = 2
+    while index < len(argv):
+        flag, equal, value = argv[index].partition("=")
+        key = flags.get(flag)
+        if key is None or key in values or (equal and not flag.startswith("--")):
+            raise AnchorError("unsupported owned Pod logs before any probe")
+        if key == "previous":
+            value = value if equal else "true"
+            if value not in {"true", "false"}:
+                raise AnchorError("invalid previous boolean before any probe")
+        elif not equal:
+            index += 1
+            if index == len(argv):
+                raise AnchorError("missing log bound before any probe")
+            value = argv[index]
+        values[key] = value
+        index += 1
+    if (values.get("namespace") != "aiforall-local-full"
+            or not _log_name(values.get("container"), container=True)
+            or not re.fullmatch(r"[0-9]{1,3}", values.get("tail", ""))
+            or not 1 <= int(values["tail"]) <= 200
+            or not re.fullmatch(r"[0-9]{1,5}", values.get("limit_bytes", ""))
+            or not 1 <= int(values["limit_bytes"]) <= 32768):
+        raise AnchorError("exact full Pod/container and log bounds required before any probe")
+    args = ("logs", argv[1], "-n", "aiforall-local-full", "-c", values["container"],
+            "--tail=" + str(int(values["tail"])), "--limit-bytes=" + str(int(values["limit_bytes"])))
+    if "previous" in values:
+        args += ("--previous=" + values["previous"],)
+    return OwnedPodLogOperation(argv[1], values["container"], int(values["tail"]),
+                                int(values["limit_bytes"]), args)
+
+
+def _log_name(value, container=False):
+    return (isinstance(value, str) and 1 <= len(value) <= (63 if container else 253)
+            and all(re.fullmatch(r"[a-z0-9](?:[-a-z0-9]{0,61}[a-z0-9])?", part)
+                    for part in value.split(".")) and (not container or "." not in value))
+
+
 def parse_kubectl_operation(argv):
     """Positive local grammar; never rely on kubectl's effective override order."""
     if not argv or any(not isinstance(x, str) or "\x00" in x for x in argv):
@@ -356,6 +413,87 @@ class LocalClusterTargetAnchor:
         self._uid_check()
         suffix = list(op.argv) + (["--"] + list(op.remote_argv) if op.remote_argv else [])
         return self.runner(self.prefix() + suffix, env=self.environment(), **kwargs)
+
+    def diagnostic_logs(self, args, *, namespace_uid, pod_uid, container, owner_chain):
+        """Parent-attested diagnostic only; consume via private Context Mode capture.
+
+        owner_chain is the ordered controller chain, ending at a leased workload:
+        each entry has kind/name/uid. No log text is returned, even on failure.
+        Pre/post identity checks cannot make the Kubernetes log endpoint UID-atomic.
+        """
+        op = parse_owned_pod_logs(args)  # Invalid grammar/attestation: zero probes.
+        kinds = {"ReplicaSet": "replicaset", "Deployment": "deployment",
+                 "StatefulSet": "statefulset", "DaemonSet": "daemonset",
+                 "Job": "job", "CronJob": "cronjob"}
+        valid_uid = lambda value: isinstance(value, str) and bool(re.fullmatch(r"[A-Za-z0-9-]{1,128}", value))
+        if (self.data["cluster"] != "aiforall-local-full" or container != op.container
+                or not valid_uid(namespace_uid) or not valid_uid(pod_uid)
+                or self.data.get("namespaceUids", {}).get("aiforall-local-full") != namespace_uid
+                or not isinstance(owner_chain, (list, tuple)) or not 1 <= len(owner_chain) <= 3
+                or any(not isinstance(owner, dict) or set(owner) != {"kind", "name", "uid"}
+                       or not isinstance(owner["kind"], str) or owner["kind"] not in kinds or not _log_name(owner["name"])
+                       or not valid_uid(owner["uid"]) for owner in owner_chain)):
+            raise AnchorError("owned Pod log attestation required before any probe")
+        owners = [dict(owner) for owner in owner_chain]  # Snapshot parent attestation.
+        if (len({owner["uid"] for owner in owners} | {pod_uid}) != len(owners) + 1
+                or owners[-1]["kind"] == "ReplicaSet"
+                or not any(isinstance(entry, dict) and all(entry.get(key) == value for key, value in {
+                    **owners[-1], "namespace": "aiforall-local-full", "context": self.data["context"],
+                    "cluster": self.data["cluster"]}.items()) for entry in self.data.get("ownedResources", []))):
+            raise AnchorError("owned workload chain required before any probe")
+        try:
+            namespace = self.kubectl(["get", "namespace", "aiforall-local-full", "-o",
+                                      "jsonpath={.metadata.uid}"], text=True, timeout=30).strip()
+            if namespace != namespace_uid:
+                raise AnchorError("namespace identity changed")
+            # Only identity, regular container names and controller references;
+            # never fetch a full Pod, env, args, volumes or Secret objects.
+            projection = ('jsonpath={.metadata.uid}{"\\n"}{.metadata.name}{"\\n"}'
+                          '{.metadata.namespace}{"\\n"}')
+            references = ('{range .metadata.ownerReferences[*]}{.kind}{"\\t"}{.name}'
+                          '{"\\t"}{.uid}{"\\t"}{.controller}{"\\n"}{end}')
+            targets = [{"kind": "Pod", "name": op.pod, "uid": pod_uid}, *owners]
+            for index, expected in enumerate(targets):
+                fields = projection + ('{.spec.containers[*].name}{"\\n"}' if index == 0 else '') + references
+                value = self.kubectl(["get", "pod" if index == 0 else kinds[expected["kind"]],
+                                      expected["name"], "-n", "aiforall-local-full", "-o", fields],
+                                     text=True, timeout=30).splitlines()
+                if value[:3] != [expected["uid"], expected["name"], "aiforall-local-full"]:
+                    raise AnchorError("workload identity changed")
+                if index == 0 and (len(value) < 4 or op.container not in value[3].split()):
+                    raise AnchorError("regular container not owned")
+                refs = [line.split("\t") for line in value[4 if index == 0 else 3:]]
+                controllers = [ref[:3] for ref in refs if len(ref) == 4 and ref[3] == "true"]
+                if index + 1 < len(targets):
+                    parent = targets[index + 1]
+                    if controllers != [[parent["kind"], parent["name"], parent["uid"]]]:
+                        raise AnchorError("controller chain changed")
+            self._uid_check()
+            captured = self.runner(self.prefix() + list(op.argv), env=self.environment(),
+                                   text=True, timeout=30, stdin=subprocess.DEVNULL)
+            # No retry/adoption if the Pod disappeared or was replaced during capture.
+            after = self.kubectl(["get", "pod", op.pod, "-n", "aiforall-local-full", "-o",
+                                  "jsonpath={.metadata.uid}"], text=True, timeout=30).strip()
+            if (after != pod_uid or not isinstance(captured, str)
+                    or len(captured.encode("utf-8", errors="strict")) > op.limit_bytes
+                    or len(captured.splitlines()) > op.tail):
+                raise AnchorError("capture discarded")
+            # Closed categories only: no match groups, excerpts or supplied strings.
+            # This classifies evidence, not a universal regex-based secret scrubber.
+            motifs = {"connection-refused": "connection refused", "connection-timeout": "connection timed out",
+                      "dns-failure": "no such host", "tls-verification-failed": "certificate verify failed",
+                      "permission-denied": "permission denied", "address-in-use": "address already in use",
+                      "missing-file": "no such file or directory",
+                      "configuration-initialization-failed": "error initializing configuration",
+                      "configuration-missing-field": "missing field", "configuration-unknown-field": "unknown field",
+                      "configuration-type-mismatch": "invalid type", "process-panicked": "panicked at"}
+            folded = captured.casefold()
+            result = tuple(label for label, motif in motifs.items() if motif in folded)
+            if not result:
+                raise AnchorError("unclassified capture discarded")
+            return result
+        except Exception:
+            raise AnchorError("INCONCLUSIVE: owned Pod diagnostic unavailable; output redacted") from None
 
     def kind_load(self, image):
         if not re.fullmatch(r"[a-z0-9./:_-]+(?::sha256-[a-f0-9]{64}|@sha256:[a-f0-9]{64})", image):
