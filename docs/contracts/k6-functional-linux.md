@@ -1,11 +1,20 @@
 # Contrat V1 — scénarios fonctionnels k6 sous Linux
 
-2026-10-29 — **Accepted / Unimplemented pour la V1 mission1**, décision structurelle
+2026-10-29 — **Accepted / Partial pour la V1 mission1**, décision structurelle
 architecte ratifiée par le lead sous délégation utilisateur. Lié à
 [0504](../adr/0504-validation-fonctionnelle-linux-k6.md). Ratification avant code ;
 aucune qualification ou permission runtime n'est déduite de ce document.
 
 ## Admission de la révision V1 mission1
+
+Photographie post-implémentation : socle intégré jusqu'à `5d79557`, 50 tests
+Linux/WSL réussis sans skip, correctif S-1 revu indépendamment. k6 v2.3.0 annoncé
+par le binaire vérifié ; deux inspect réussis. Chromium `--version` échoue sur
+WSL (bibliothèque `libnspr4.so` absente), donc outils composites et navigateur
+non qualifiés. HTTP/selftest live toujours INCONCLUSIVE faute d'exposition
+publique existante conforme. La ratification historique ci-dessous précédait
+le code ; elle n'est pas une preuve globale d'exécution. Aucun paquet implicite,
+déploiement, tunnel ou affaiblissement de sandbox n'a été ajouté.
 
 Révision architecte du 2026-10-29, base
 `989614096110b9813ce67c47a23fad8457c2025a`, session

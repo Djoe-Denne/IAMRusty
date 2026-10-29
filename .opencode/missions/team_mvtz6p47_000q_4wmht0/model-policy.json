@@ -1,0 +1,122 @@
+{
+  "version": 2,
+  "providers": [
+    "openai"
+  ],
+  "models": [
+    {
+      "id": "openai/gpt-6.1-sol",
+      "provider": "openai",
+      "reasoningEffort": "medium",
+      "intelligenceScore": 48,
+      "averageCostPerTask": 0.21,
+      "available": true,
+      "level": "medium",
+      "usage": "coding_et_raisonnement",
+      "benchmarkCostPerTask": 0.21,
+      "accessMode": "unknown",
+      "structuredOutput": {
+        "supported": true,
+        "source": "https://models.dev/api.json",
+        "checkedAt": "2026-10-13T08:19:21.633Z",
+        "strictVerification": "unverified"
+      }
+    },
+    {
+      "id": "openai/gpt-6.1-sol",
+      "provider": "openai",
+      "reasoningEffort": "high",
+      "intelligenceScore": 50,
+      "averageCostPerTask": 0.32,
+      "benchmarkCostPerTask": 0.32,
+      "accessMode": "unknown",
+      "available": true,
+      "reserve": true,
+      "structuredOutput": {
+        "supported": true,
+        "source": "https://models.dev/api.json",
+        "checkedAt": "2026-10-13T08:19:21.633Z",
+        "strictVerification": "unverified"
+      }
+    },
+    {
+      "id": "openai/gpt-6.1-sol",
+      "provider": "openai",
+      "reasoningEffort": "low",
+      "intelligenceScore": 42,
+      "averageCostPerTask": 0.13,
+      "benchmarkCostPerTask": 0.13,
+      "accessMode": "unknown",
+      "available": true,
+      "reserve": true,
+      "structuredOutput": {
+        "supported": true,
+        "source": "https://models.dev/api.json",
+        "checkedAt": "2026-10-13T08:19:21.633Z",
+        "strictVerification": "unverified"
+      }
+    },
+    {
+      "id": "openai/gpt-6.1-sol",
+      "provider": "openai",
+      "reasoningEffort": "xhigh",
+      "intelligenceScore": 51,
+      "averageCostPerTask": 0.39,
+      "benchmarkCostPerTask": 0.39,
+      "accessMode": "unknown",
+      "available": true,
+      "reserve": true,
+      "structuredOutput": {
+        "supported": true,
+        "source": "https://models.dev/api.json",
+        "checkedAt": "2026-10-13T08:19:21.633Z",
+        "strictVerification": "unverified"
+      }
+    }
+  ],
+  "startingIntelligence": 50,
+  "classificationBeta": 0.35,
+  "autonomy": {
+    "mode": "long_run",
+    "instructions": [
+      "Utiliser uniquement les modeles OpenAI du catalogue approuve pour cette mission ; aucune substitution de fournisseur ou modele hors revision approuvee.",
+      "Priorite a la qualite et au respect strict de l'architecture existante, des ADR Accepted et du contrat ratifie. Viser un pipeline k6 end-to-end de reference, maintenable, reproductible et prouve, sans confondre sophistication et qualite.",
+      "Prendre le temps de rechercher la documentation officielle versionnee, les retours d'experience et blogs pertinents avant les choix importants ; recouper les recommandations avec les versions epinglees, le code et les contraintes du depot. Documenter les sources utiles et les choix retenus/ecartes, sans importer automatiquement les exemples ou dependances.",
+      "Conduire en long run les choix techniques et organisationnels ordinaires, l'integration et les validations necessaires dans le perimetre approuve, sans demander un nouveau GO a chaque jalon. Conserver les gardes, permissions, baux et criteres QA ; ne pas invoquer start a la place de l'utilisateur ni lever une pause operateur.",
+      "Cette revision reste mission1 : socle, smoke reel simple et qualification Chromium/Linux/CI distincte. L'ambition end-to-end n'autorise pas les missions OAuth/authz suivantes, de la charge, un nouveau deployeur, un tunnel ou une refonte d'architecture. Toute extension ou decision structurelle non deja autorisee est soumise a architecte et a l'arbitrage utilisateur requis ; aucun PASS invente quand une preuve manque."
+    ]
+  },
+  "verification": {
+    "level": "proportionate",
+    "commands": [
+      "git diff --check",
+      "python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_*.py'",
+      "k6 version",
+      "\"$K6_BROWSER_EXECUTABLE_PATH\" --version",
+      "k6 inspect ops/tests/k6/scenarios/smoke/iam-health.js",
+      "k6 inspect ops/tests/k6/scenarios/smoke/browser-prerequisite.js",
+      "python3 -B ops/tests/k6/run-linux.py validate --config \"$K6_CONFIG\"",
+      "python3 -B ops/tests/k6/run-linux.py run --config \"$K6_CONFIG\" --output \"$K6_RUN_DIR\"",
+      "python3 -B ops/tests/k6/run-linux.py browser --output \"$K6_BROWSER_RUN_DIR\"",
+      "python3 -B ops/tests/k6/run-linux.py selftest --config \"$K6_CONFIG\" --output \"$K6_SELFTEST_RUN_DIR\""
+    ],
+    "acceptance": [
+      "Mission1 seulement : socle JavaScript local, un GET public IAM /iam/health, qualification Chromium distincte ; aucun OAuth/authz, seed, POST, charge, migration ou modification service/identite. ADR0504 et contrat Proposed doivent etre ratifies avant code ; architecte pour toute frontiere structurelle ouverte.",
+      "Linux natif est la cible de qualification. WSL prefere pour les essais locaux, Docker runner non privilegie seulement si utile et conforme aux baux. Aucun build/test Rust de developpement dans Docker. Aucun runtime demarre pendant la preparation.",
+      "CI bornee a .github/workflows/k6-functional-smoke.yml et dossier ops/tests/k6 : runner Linux de version explicite, actions par SHA, permissions contents:read, aucun secret/application expose aux PR non fiables, aucun deployeur ou tunnel ajoute. Le workflow CI existant n'est pas modifie par defaut.",
+      "La CI peut qualifier outils, tests locaux et Chromium sans cible applicative. Le smoke reel exige une cible Linux existante, autorisee, ancree et joignable depuis le runner ; aucune URL arbitraire ni simple manifeste pris comme preuve de propriete. Absence de cible = preuve HTTP INCONCLUSIVE ou job requis en echec, jamais PASS global ni serveur factice. Un nouveau deploiement CI necessite arbitrage de perimetre.",
+      "k6 v2.3.0 et version exacte Chromium avec provenance et SHA256 verifies avant execution ; pas latest/master, import distant flottant, installation implicite ou pin Chromium deduit de Chrome149 historique. Les numeros sont prouves par les binaires effectivement utilises.",
+      "Le run HTTP utilise explicitement per-vu-iterations, vus=1, iterations=1, delais bornes sans seuil de performance : exactement un cas attendu/demarre/acheve et une requete au GET /iam/health, HTTP200 et corps exact OK, pas redirection suivie hors allowlist. Le service deployee et son exposition restent a verifier.",
+      "PASS exige exit k6 zero, checks obligatoires tous reussis, cardinalites exactes non nulles, resume valide du run courant et cleanup obligatoire valide. Fichier absent/tronque/perime, setup echoue, cas absent, skip ou interruption ne peuvent etre verts ; les metriques absentes ne valent pas zero implicite.",
+      "selftest exerce check volontairement faux contre le vrai endpoint, entree manquante, cible refusee avant requete, cas absent et interruption/absence de resume ; chaque negatif produit un verdict non reussi et un exit non nul du lancement teste. Le selftest agrege explicitement les echecs attendus, sans nouvelle infrastructure de mocks HTTP.",
+      "browser qualifie separement un vrai Chromium Linux sandboxe : contexte neuf, about:blank et evaluation minimale, fermeture puis controle des processus possedes. Aucun no-sandbox, ignore-certificate-errors, insecureSkipTLSVerify, UI, OAuth, screenshot/HAR/CDP debug ; HTTP PASS ne qualifie pas Chromium.",
+      "stdout/stderr et chaque artefact publie sont bornes et allowlistes ; pas URL sensible/credentials/JWT/cookie/code/state/verifier, metriques brutes ou debug HTTP. Sentinelles de confidentialite sur chemins positifs et negatifs, environnement K6/proxy/sorties controle, usage reporting desactive. Echec du controle interdit publication de l'artefact et PASS.",
+      "Parent responsable preflight, identite observee, baux, inventaires avant/apres, registre contemporain des IDs crees/redemarres et cleanup sur succes/echec precoce/interruption ; aucun nom pris comme preuve, adoption de bail ancien, suppression/prune ou arret etranger. La voie Linux des gardes existantes est verifiee avant utilisation ; pas copie aveugle du bail Windows.",
+      "Commandes proposees non executees : K6_CONFIG et repertoires de run sont des chemins explicites prives hors Git ; validate et inspect ne demarrent ni runtime ni requete. run/selftest encapsulent les appels k6 seulement apres garde cible validee. Les controles reels non executables restent INCONCLUSIVE avec cause et reprise, jamais preuve acquise.",
+      "Un auteur outillage pour les fichiers couples ; revue independante ciblee sur selection cible/baux/confidentialite/permissions CI apres integration, pas pipeline QA obligatoire. Reutiliser preuves valides ; conserver les 17IT0412 et preuves historiques a leur portee sans les requalifier en preuve k6. Aucun lancement mission2/3, dispatch GitHub ou publication SDK implicite. Commit/push des seuls livrables durables de mission requis a la cloture selon AGENTS, apres approbation de cette revision et validations applicables, jamais pendant la preparation.",
+      "Ledger .cursor/handoffs/20261029-k6-01-socle.md et rapports de mission actualises avec HEAD/diff integre, commandes reellement executees, verdicts HTTP/Chromium/cleanup distincts, ressources possedees et limites. Aucun PASS global avant les preuves Linux obligatoires.",
+      "Recherche de bonnes pratiques avant implementation : documentation officielle k6 versionnee en priorite, blogs et retours d'experience pertinents recoupes, sources et decisions utiles tracees dans la documentation du lot. Etat de l'art signifie preuves fiables, simplicite et reproductibilite dans l'architecture existante, pas ajout automatique de frameworks, services, scopes ou campagnes.",
+      "Cloture selon AGENTS 2026-10-29 : inventaires debut/fin des branches/worktrees/sous-modules de mission ; resolution et integration native de toutes les branches creees pour elle, disposition verifiee des propositions remplacees, validation du contenu conserve, commit des seuls livrables durables, push sur master et verification de la reference distante. Aucun secret/log/cache/WIP etranger committé, pas de downgrade ou ours global aveugle. Apres publication verifiee, arret agents et retrait des seules branches/worktrees temporaires de mission selon permissions et sauvegardes recuperables requises, puis archivage natif avec inventaires Git/dossiers/natif verifies. Ni purge/prune ni retrait force implicitement autorises. En cas de blocage, poursuivre les actions independantes permises et annoncer mission non cloturee avec condition de reprise."
+    ]
+  }
+}

@@ -1,7 +1,7 @@
 # ADR-0504 : Les validations fonctionnelles Linux utilisent k6, Chromium pour le navigateur et un parent ops pour le runtime
 
 - Statut : Accepted
-- Réalité : Unimplemented
+- Réalité : Partial (socle livré ; HTTP et Chromium non qualifiés)
 - Date : 2026-10-29
 - Décideurs : proposition architecte ratifiée par le lead sous délégation utilisateur long run, révision de mission1 approuvée le 2026-10-29
 - Jalon concerné : validation fonctionnelle Linux, transversal, hors Apparatus P0–P6
@@ -151,4 +151,19 @@ pas une permission de modifier le produit ou d'affaiblir les assertions.
 - [État auth qualifié](../contracts/20261029-auth-security-qualified-state.md),
   [contrat exact-route](../contracts/0412-oauth-exact-route-envoy-proof.md).
 - Implémentation et exécution k6 : **aucune à la ratification**. Réalité0504
-  Unimplemented ; Statut/Réalité des autres ADR inchangés.
+  alors Unimplemented ; Statut/Réalité des autres ADR inchangés.
+
+### Photographie après intégration du socle, 2026-10-29
+
+Le socle `ops/tests/k6/` et sa CI dédiée sont intégrés jusqu'à `5d79557`.
+50 tests du dispositif passent sous Ubuntu24.04/WSL non-root, sans skip.
+La revue indépendante a résolu S-1 (protection des noms ancestraux et identités
+des outils). Les archives/ELF officiels sont vérifiés ; le binaire k6 annonce
+v2.3.0 et les deux `k6 inspect` réussissent avec une VU/itération explicite.
+
+Chromium n'a pas démarré : son `--version` échoue faute de `libnspr4.so` dans
+cette distribution WSL. Aucun paquet installé implicitement, aucune sandbox
+désactivée. Le mode composite `tools` échoue donc et n'est pas qualifié. HTTP,
+selftest live et navigateur sandboxé restent INCONCLUSIVE ; aucune requête
+applicative n'est exécutée. La CI Linux native reste à observer après publication,
+sans dispatch manuel ni nouveau déploiement. Réalité Partial, pas PASS global.
