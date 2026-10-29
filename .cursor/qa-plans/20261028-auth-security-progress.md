@@ -309,6 +309,28 @@ des5champs avec octets réels du reçu PASS. Aucun JSONreçu n'est chargé comme
 permission runtime ; aucune preuve originale modifiée. Recheck littéral final
 reste requis avant exécution réseau, pas rerun des suites inchangées par principe.
 
+Contrôle indépendant FINALcde1319 reçu/persisté1403Z : PASS, zéro écart surlittéral,
+reçuSHA réel/septfichiers/ASThorsconstante/helper9b0/pinswrappers482et42. Aucun
+test/API/runtime du reviewer. Prérequis statiques/revues fermés pour exécuter
+l'unique opération ingress préautorisée ; pas de PASS réseau encore.
+
+Première opération réelle : refus avant journal/ACK/mutation, exit1/17.361s.
+Diagnostic RO : trois policies OAuth déclarées manquent au catalogue statique.
+Oracle inscrit AVANT code/run :
+test_envoy_ingress_accepts_declared_oauth_profile_and_rejects_unknown_policy.
+Fixture reprend les3NetworkPolicy exactes du profil versionné, propriété du bail ;
+ajout ingress borné doit fonctionner sans toucher ces règles. Une policy étrangère
+ou selector OAuth contradictoire reste refusé avant patch. Aucun changement
+helper/grammar ou nouvelle campagne globale nécessaire.
+
+Cas profil OAuth rouge AVANT correction : 1ERROR(mode declared), .183s/exit1,
+unknown/selector drift déjà refusés. Catalogue complété depuis les SEULES3NP du
+fichier source existant, noms exacts/collision refusée, égalité de spec complète
+pour ces3NP ; tous autres gates préservés. Suite14PASS/0skip5.779s/exit0,
+log `.tmp/auth-ingress-oauth-profile-tests-20261029.log`. Helper9b0/manifest/reçu/
+constante de compatibilité inchangés ; recheck borné demandé même reviewer avant
+reprise, aucun nouveau résultat réseau revendiqué.
+
 ## Plafond server_info v2 — plan avant code/run
 
 Amendement architecte v2 lu et explicitement ratifié : plafondFIXE131072B,

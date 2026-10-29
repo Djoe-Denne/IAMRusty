@@ -508,6 +508,39 @@ class EnvoyIngressTests(unittest.TestCase):
                         change.rollback()
                     self.assertEqual(len(guard.calls), calls)
 
+    def test_envoy_ingress_accepts_declared_oauth_profile_and_rejects_unknown_policy(self):
+        declarations = [item for item in runner.target_authority.yaml.safe_load_all(
+            (DEPLOY / "apps/overlays/local-full/oauth-proof/resources.yaml").read_text())
+            if item and item["kind"] == "NetworkPolicy"]
+        self.assertEqual({item["metadata"]["name"] for item in declarations},
+                         {"oauth-proof-iam-egress", "oauth-proof-connector", "oauth-proof-provider"})
+        for mode in ("declared", "unknown", "selector-drift"):
+            with self.subTest(mode=mode):
+                guard = FakeGuard(self.directory)
+                for item in declarations:
+                    policy = clone(item)
+                    policy["metadata"].update(uid=uid(), resourceVersion="10")
+                    guard.policies.append(policy)
+                    guard.data["ownedResources"].append({"kind": "NetworkPolicy", "name": policy["metadata"]["name"],
+                        "namespace": runner.CLUSTER, "uid": policy["metadata"]["uid"],
+                        "context": runner.CONTEXT, "cluster": runner.CLUSTER})
+                if mode == "unknown":
+                    guard.policies[-1]["metadata"]["name"] = "oauth-proof-foreign"
+                    guard.data["ownedResources"][-1]["name"] = "oauth-proof-foreign"
+                elif mode == "selector-drift":
+                    guard.policies[-1]["spec"]["podSelector"] = {}
+                preserved = clone(guard.policies[4:])
+                with patch.object(runner.runtime, "target", return_value=guard):
+                    if mode == "declared":
+                        change = self.configure()
+                        self.assertEqual(len(guard.patches), 1)
+                        self.assertEqual(guard.policies[4:], preserved)
+                        self.assertEqual(change.rollback(), "ROLLED_BACK_OWN_ENTRY")
+                    else:
+                        with self.assertRaises(ValueError):
+                            self.configure()
+                        self.assertEqual(guard.patches, [])
+
     def test_envoy_ingress_parent_witness_requires_exact_303_and_rolls_back_302(self):
         for status in (303, 302, 301, 307, 308, 200, 500):
             with self.subTest(status=status):

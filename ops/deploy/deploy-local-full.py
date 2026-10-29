@@ -579,6 +579,14 @@ def configure_envoy_ingress(*, evidence_directory, journal_path):
         # Freeze all applicable policies against the declared, unchanged source.
         declared = {item["metadata"]["name"]: item["spec"] for item in target_authority.yaml.safe_load_all(
             (Path(__file__).parent / "apps/overlays/local-full/platform/policies.yaml").read_text()) if item}
+        # The existing opt-in browser profile adds three declared policies.
+        # Recognize their exact source, never unknown live policies or selectors.
+        oauth = {item["metadata"]["name"]: item["spec"] for item in target_authority.yaml.safe_load_all(
+            (Path(__file__).parent / "apps/overlays/local-full/oauth-proof/resources.yaml").read_text())
+            if item and item["kind"] == "NetworkPolicy"}
+        _ingress_require(set(oauth) == {"oauth-proof-iam-egress", "oauth-proof-connector", "oauth-proof-provider"}
+            and not set(oauth).intersection(declared))
+        declared.update(oauth)
         for name, policy in before.items():
             selector = policy["spec"]["podSelector"]
             # Unknown expressions are not guessed non-applicable. The declared
@@ -588,7 +596,7 @@ def configure_envoy_ingress(*, evidence_directory, journal_path):
                 base = json.loads(_ingress_json(policy["spec"]))
                 base["ingress"] = [client]
                 _ingress_require(base == declared[name])
-            elif (name == "allow-test-client" or selector == {}
+            elif (name in oauth or name == "allow-test-client" or selector == {}
                   or selector.get("matchLabels", {}).get("app.kubernetes.io/name") == "envoy-mesh"):
                 _ingress_require(policy["spec"] == declared[name])
             else:
