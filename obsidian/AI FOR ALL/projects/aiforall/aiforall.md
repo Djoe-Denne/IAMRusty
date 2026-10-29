@@ -4,6 +4,8 @@ title: >-
 category: project
 tags: [platform, microservices, rust, visibility/internal]
 sources:
+  - docs/contracts/20261029-auth-security-qualified-state.md
+  - docs/missions/20261029-k6-recherche-et-enchainement.md
   - _sources/opencode-telegraph-outbox-20261027/inventory.json
   - _raw/opencode-m6-proof-hardening-20261018/inventory.json
   - _raw/opencode-g17-m6-20261018/inventory.json
@@ -18,13 +20,13 @@ sources:
   - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
   - docs/adr/0007-closeout.md
 summary: >-
-  Plateforme RustyCog : Apparatus P2/P3, mesh/JWT partiels et Telegraph durable livré avec propriétaire HTTP, preuves ciblées et réserves qualité.
+  Plateforme RustyCog : OAuth local qualifié, mesh/JWT partiels, Telegraph durable livré ; trois campagnes fonctionnelles k6 proposées, non exécutées.
 provenance:
   extracted: 0.84
   inferred: 0.12
   ambiguous: 0.04
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-10-27T19:27:11Z
+updated: 2026-10-29
 ---
 
 # AIForAll
@@ -71,6 +73,9 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 - [[projects/manifesto/decisions/index]] — vague 1 Apparatus (0002–0008 Implemented ; 0001 Partial ; 0009–0011 Proposed)
 
 ## Recent history
+
+- [[projects/aiforall/references/auth-security-closure-20261029]] — correctif d'autorité OAuth, Chrome réel et refus Envoy qualifiés localement ; limites production/HA/HSM conservées.
+- [[projects/aiforall/concepts/k6-functional-linux]] — trois missions proposées, pas d'exécution : socle, authentification, puis propagation/reprise des droits Linux.
 
 - [[projects/aiforall/references/mission-telegraph-outbox-20261027]] — transaction writer commune, NoOp suspendu, owner HTTP, reprise après lease puis verticaleSQS/OpenFGA/replay/403/200 ; commit39024b2 et SDKd60 publiés avec gitlink exact. Clippy antérieur/Sonar/CI restent des réserves, statuts ADR non promus.
 - [[projects/telegraph/concepts/durable-notification-publication]] et [[projects/aiforall/skills/proving-leased-outbox-recovery]] — contrat livré et protocole de preuve distinct du SLA produit.

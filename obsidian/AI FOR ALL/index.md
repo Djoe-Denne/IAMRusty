@@ -4,13 +4,15 @@ title: >-
 category: navigation
 tags: [index, navigation, wiki]
 summary: >-
-  Index AIForAll : architecture, services, campagnes G-17/m6 et livraison Telegraph durable avec preuves ciblées, SDK/pin publiés et réserves explicites.
+  Index AIForAll : architecture, services, OAuth local qualifié, Telegraph durable et futures campagnes k6 proposées avec limites de preuve explicites.
 provenance:
   extracted: 0.85
   inferred: 0.13
   ambiguous: 0.02
-updated: 2026-10-27T19:27:11Z
+updated: 2026-10-29
 sources:
+  - docs/contracts/20261029-auth-security-qualified-state.md
+  - docs/missions/20261029-k6-recherche-et-enchainement.md
   - _sources/opencode-telegraph-outbox-20261027/inventory.json
   - "C:/Users/djden/.codex/attachments/486d0052-5759-4277-bcc1-9f209ce353d4/pasted-text.txt"
   - docs/adr/README.md
@@ -28,6 +30,10 @@ sources:
 Central entry point for this vault. Use the area indexes for full catalogs; use project hubs for service-scoped concepts, skills, and references.
 
 ## Browse by area
+
+- [[projects/aiforall/references/auth-security-closure-20261029]] — qualification locale OAuth et Envoy, revues et limites ; pas validation production/HA/HSM.
+- [[projects/aiforall/concepts/k6-functional-linux]] — trois missions fonctionnelles Linux proposées, non exécutées.
+- [[projects/iamrusty/decisions/0412-oauth-transaction-browser-binding]] — Accepted/Implemented pour le laboratoire local, après preuve Chrome/Envoy finale.
 
 - [[projects/index]] — service hubs and project knowledge areas
 - [[concepts/index]] — shared concepts plus pointers into project concept indexes

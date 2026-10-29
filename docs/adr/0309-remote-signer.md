@@ -53,5 +53,15 @@ Après le port `SigningProvider` ([0304](0304-jwt-acces-plateforme-rs256-jwks.md
 
 ## Références
 
+### Dette de qualification reconnue — 2026-10-29
+
+L'utilisateur accepte de différer l'essai sur un équipement matériel réel : ce
+manque ne bloque pas les trois futures campagnes fonctionnelles k6. Il demeure
+une dette explicite, pas une preuve HSM. [Responsabilité, déclencheur et critères
+de fermeture](../contracts/k6-functional-linux.md#dette-reconnue--qualification-dun-signataire-matériel-réel).
+**StatutAccepted et RéalitéPartial inchangés**, notamment le critère « pas
+Implemented » ci-dessus. Un éventuel découpage de ce critère fera l'objet d'un
+amendement distinct, pas d'une promotion silencieuse par la campagne k6.
+
 - [0304](0304-jwt-acces-plateforme-rs256-jwks.md) §6, §19, §22 ; [0307](0307-workload-identity-port.md)
 - Preuve Partial : `services/IAMRusty/infra/src/signing/remote.rs` ; `services/IAMRusty/infra/tests/remote_signer.rs` ; fixtures `services/IAMRusty/tests/fixtures/remote_signer/`

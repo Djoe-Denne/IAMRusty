@@ -147,8 +147,9 @@ Contrat secondaire test-side : [m6 proof hardening](../contracts/20261018-m6-pro
 | [0501](0501-qualite-fmt-clippy-sonar.md) | fmt / Clippy / Sonar comme politique de dépôt | Partial |
 | [0502](0502-rustycog-framework-feature-gated.md) | rustycog = framework feature-gated (submodule), pas un service | Implemented |
 | [0503](0503-http-runtime-owned-shutdown.md) | Le runtime HTTP possède et joint ses descendants avant de déclarer son arrêt terminé | Proposed / Implemented |
+| [0504](0504-validation-fonctionnelle-linux-k6.md) | Validation fonctionnelle Linux avec k6, Chromium pour le navigateur et contrôle runtime séparé | Proposed / Unimplemented |
 
-**0503** : forward, hors photographie rétroactive ; [contrat HTTP](../contracts/http-runtime-owned-shutdown.md). Propriétaire SDK et adoption Telegraph standalone/listener monolithe livrés, compatibilités port0/Extended CONNECT corrigées et revues ; correctif C-1 acquis dans ce périmètre. E1 rouge historique conservé avec ses verts ciblés ultérieurs. SDKd60a88b et application39024b2 intégrés aux branches principales ; pas d'Accept, de garantie nouvelle pour les callers legacy ou de validation qualité globale. Prochain libre plateforme : **0504+**.
+**0503** : forward, hors photographie rétroactive ; [contrat HTTP](../contracts/http-runtime-owned-shutdown.md). Propriétaire SDK et adoption Telegraph standalone/listener monolithe livrés, compatibilités port0/Extended CONNECT corrigées et revues ; correctif C-1 acquis dans ce périmètre. E1 rouge historique conservé avec ses verts ciblés ultérieurs. SDKd60a88b et application39024b2 intégrés aux branches principales ; pas d'Accept, de garantie nouvelle pour les callers legacy ou de validation qualité globale. **0504** : proposition k6 fonctionnel, [trois missions futures](../missions/20261029-k6-recherche-et-enchainement.md), aucune exécution. Prochain libre plateforme : **0505+**.
 
 ## Vague 3 — IAM living / IdP fédérés (0407+, hors Apparatus)
 

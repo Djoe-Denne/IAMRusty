@@ -1,9 +1,9 @@
 ﻿{
     "version":  1,
     "stats":  {
-                  "total_sources_ingested":  1333,
-                  "total_pages":  247,
-                  "total_pages_scope": "markdown excluding dot/underscore files and directories; includes navigation and log; recounted 2026-10-27",
+                  "total_sources_ingested":  1337,
+                  "total_pages":  250,
+                  "total_pages_scope": "markdown excluding dot/underscore files and directories; includes navigation and log; recounted 2026-10-29",
                   "last_commit_synced":  "2473baa7a54595931a4eff76a33431f56776db20"
               },
     "projects":  {
@@ -88,6 +88,46 @@
                                   }
                  },
     "sources":  {
+        "docs/contracts/20261029-auth-security-qualified-state.md": {
+            "ingested_at": "2026-10-29",
+            "size_bytes": 6791,
+            "modified_at": "2026-10-29T16:24:15.288Z",
+            "content_hash": "sha256:db99c10b0f13efb7ce3a5b026fbba33da69e49b316ca09d778c183ecc4880b70",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": ["projects/aiforall/references/auth-security-closure-20261029.md"],
+            "pages_updated": ["projects/iamrusty/decisions/0412-oauth-transaction-browser-binding.md", "projects/aiforall/aiforall.md", "index.md"]
+        },
+        "docs/adr/0504-validation-fonctionnelle-linux-k6.md": {
+            "ingested_at": "2026-10-29",
+            "size_bytes": 4712,
+            "modified_at": "2026-10-29T16:57:51.839Z",
+            "content_hash": "sha256:8700920203c6c317ac92f0c36004bdb7155bf928d0cf9382d9b0af658dece296",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": ["projects/aiforall/concepts/k6-functional-linux.md"],
+            "pages_updated": []
+        },
+        "docs/contracts/k6-functional-linux.md": {
+            "ingested_at": "2026-10-29",
+            "size_bytes": 6847,
+            "modified_at": "2026-10-29T17:00:02.727Z",
+            "content_hash": "sha256:27975babdbe217d9d45bf6f80b8f5f8f944245972d38e1b02265e4929e173602",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/concepts/k6-functional-linux.md"]
+        },
+        "docs/missions/20261029-k6-recherche-et-enchainement.md": {
+            "ingested_at": "2026-10-29",
+            "size_bytes": 3717,
+            "modified_at": "2026-10-29T16:57:52.229Z",
+            "content_hash": "sha256:1939079a5d2cd0f118e70273c28a45aa2acdeca4a2b8c6771387017e74f29c30",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/concepts/k6-functional-linux.md", "projects/aiforall/references/auth-security-closure-20261029.md", "projects/aiforall/aiforall.md", "index.md"]
+        },
         "C:/Users/djden/source/repos/AIForAll/obsidian/AI FOR ALL/_sources/opencode-telegraph-outbox-20261027/inventory.json": {
             "ingested_at": "2026-10-27T19:27:11.468Z",
             "size_bytes": 7699,
@@ -26141,5 +26181,5 @@
                                                                                                                                                                         ]
                                                                                                                                                   }
                 },
-    "last_updated":  "2026-10-27T19:27:11.468Z"
+    "last_updated":  "2026-10-29"
 }
