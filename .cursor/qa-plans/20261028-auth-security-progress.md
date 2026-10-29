@@ -282,6 +282,91 @@ sur le précédent frontier (garde2PASS), nouveau défaut de fixture indépendan
 Cleanup reprise :30created/30removed,0ownedprésent/running,0issue/unknown/unowned,
 picowned1 ;20préexistants mêmesIDs/états après. Registre contemporain du runner.
 
+## Qualification indépendante pendant l'enquête SDK sur les ledgers
+
+Sources canoniques e44/SDK74e8 figées, le nouvel auteurSDK reste en planRO sans
+Cargo ni runtime. Baillead temporaire pour deux suites ext-authz existantes,
+chacune séparément : `cargo test --locked -p ext-authz --test registry_publication`
+puis `cargo test --locked -p ext-authz --test mesh_path_standin`. Sources/tests
+recoupées : collaborateursHTTPWireMock, vraie sérialisationpublisherIAM, aucun
+Postgres/testcontainer/Envoy. La première suite vérifie vidage autoritatif sans
+résurrection et délai monotone réel59+2s autour de60s, puisrecoveryremplacement ;
+la seconde couvre métadonnéestrust/signature etcontratstrip/recreate duprincipal.
+Ce sont des preuvesHTTP/SDK, PAS une preuveEnvoyréel/Kind/navigation ni une IT
+publisherwriter. Ne pas doubler les suitesni en annoncer le résultat avantrun.
+
+Résultats canoniquese44/SDK74e8 : registry_publication2PASS0ignored/63.51stest
+(compile42.96s), mesh_path_standin11PASS0ignored/1.60stest(compile5.24s), exits0.
+Logs .tmp/auth-ext-authz-registry_publication-1724020a8c37462ab54c513de674ca80.log
+et .tmp/auth-ext-authz-mesh_path_standin-c4689d0ba22c45c28674b7d80b92d088.log.
+Lignesnominativesrecoupées : autoritatifvide/recovery/borne60s, spoof/expiration/
+signature/type/pending/trustscope/retiring. AucunefixtureDockercréée parcesruns.
+Conserver limite : standin ne prouvejamais le handshake d'Envoy ouunvrai navigateur.
+
+## Registre SDK : plan borné ratifié avant implémentation et tests
+
+PlanRO auteur19 msg_18524a2b8001UUTK7QtPVRyBIE lu intégralement ; acceptationlead
+dans le mandat : helperprivé dir/run/PID/UUIDincarnation, filenameunique par
+incarnation, create_new sansretry, seule catégorieIOopaque dansl'erreur. JSON,
+run_id/process_id/createdID,flush/sync etownership restentinchangés. Deuxfichiers
+SDK seulement : fixture_runtime.rs ettestconsommateur fixture_process_exit_it.rs.
+Découvertechild depuis snapshot AVANTspawn, uniquement nouveauxfichiers réguliers
+auformat exactrun/PID/incarnation, cardinalité1 etvalidationJSON existante,
+aucuneadoptionancienledger. Ambiguïté=>échecfermé, pascontainerparnom/inventaire.
+
+Sept nouveaux oracles nommés AVANTruns :
+- fixture_ledger_new_incarnation_preserves_older_run_pid_ledgers
+- fixture_ledger_same_incarnation_refuses_overwrite
+- fixture_ledger_io_error_reports_only_error_kind
+- child_ledger_discovery_excludes_pre_spawn_reused_pid_ledgers
+- child_ledger_discovery_rejects_missing_or_multiple_new_ledgers
+- child_ledger_discovery_matches_exact_run_and_pid
+- child_ledger_records_reject_wrong_identity_and_invalid_created_id
+
+ROUGE fonctionnel : extrairehelper avec anciennom, oracleincarnationéchoue ;
+suffixeUUID ajouté et mêmeoracleVERT. L'erreurcompilation n'estpaspreuveROUGE.
+Commandes sousbailworker19 exclusif natif24jobs/E:, SDKworktreeisolé74e8 :
+`cargo test --manifest-path .worktrees/auth-fixture-ledger-20261029/Cargo.toml --locked --features testing --test fixture_runtime fixture_ledger_`
+`cargo test --manifest-path .worktrees/auth-fixture-ledger-20261029/Cargo.toml --locked --features testing --test fixture_process_exit_it child_ledger_`
+puisfmtSDK --all -- --check. Filtrespurs, aucun enfant/Docker ; témoinprocess_exit
+réel NONautoriséàce stade etàpréflighter séparément si nécessaire.
+Aucun changement publicAPI/env/schema/deps ; publicationSDK attendgates/diff/revues.
+
+Livraison SDK19 reçue msg_185441b26001h2mOTR3lYdrBk7, sourcefigée2fichiers330+/12-,
+pascommit/push. Preuves auparent.tmp/auth-fixture-ledger19-* ; globstandard les
+masquait (gitignore), readdirfiltré les alocalisées sansautredécouverte.
+ROUGEfonctionnel1FAIL0ignored19filtrés/22.55scompile ; VERTledger3PASS0ignored17filtrés
+/11.44scompile ; childdiscovery4PASS0ignored2filtrés/14.45scompile. Fmtfinal0,
+diffcheck0. Leshashesfichiersstablespendantgates ethashpatchfinal447a14bd96c6c497778608ba3467ac22e9c86408f03a61c4f6df673c4eefd079
+ontétérecoupésau gitdiffcourant. Aucunchildréel/Docker/Envoy/Kinddéduitdecesunités.
+Revuessécuritéownership ettestsoracles demandéesmêmessessions15/16, deuxquestions
+distinctes utilesavantpublication ; pasnouvelle revueglobaleSDK/AuthZ. Brief factuel
+persisté .cursor/review-briefings/20261029-sdk-fixture-ledger-candidate.md.
+
+Revue15 sécurité et16 couverture reçues,persistéesetindexées : PASSbornés sans
+findingbloquant surcepatch exact ; oraclesdiscriminants, ancienledgernonadopté,
+correlationparentpréservée. PasqualificationenfantWindowsruntime/reparseeffectif.
+Décisionlead : candidatprivéadmis àpublicationexacte autorisée surbranchemission
+canonique aprèscontrôlehashes/diff/remote ; aucunAPI/schema/env/depsnouveau.
+RepriseIAMintégrée obligatoire avantKind, noms/testspreuvesdéjàplanifiés. Le
+témoinenfantSDKréel n'estpaspromu enPASS, ni une nouvelleplateformeDocker créée
+pourcomblerunhorsscope ; limiteconservée. Causehistoriquerestehypothèse.
+
+SDK02e5db23aac6016aab062c3078696d5f7fd464ef committéexact2fichiers, parent74e8,
+hashessourcesidentiquesauxgates/revues ; publication FF surbranchemissioncanonique
+vérifiée parls-remoteexact. Checkoutcanonique sélectionné, configurationSerena
+étrangère mêmeSHA256, aucuneassertionprod niCargo.lockmodifié. Gitlinkappàfiger
+avantnouvellecampagne ; pasdepushapplication.
+
+Préparationnative suivante : réutiliserleplan41ciblesIAM connu, chacune --locked
+--no-run séparément,24jobs/E:inchangés, nouveauSDK02e5 ; sourceappfigéeaucommit
+depin. Cette recompilation est requise par le changement de cratefixturepartagée,
+pas nouvellequalificationAuthZparent. Puisrunnerexistant `it-native.ps1 -Suite iam`
+avec inventaires/IDs/registre contemporain etcleanup obligatoire. AucunKind ou
+browser avant IAMfinale. Hive67PASS resteune preuve sourceinchangée ba21/SDK74e8 ;
+nenommeraucuneréexécutionHivesous02e5. Validationruntimecommunledgerparent àfaire
+parIAM, limitesSDKchildWindowsréel conservées sansPASSimplicite.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et
