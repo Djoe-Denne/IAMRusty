@@ -44,6 +44,7 @@ class AcceptanceGuardTests(unittest.TestCase):
     def test_linux_delivery_context_excludes_agent_state_and_worktrees(self):
         root = SOURCE.parents[2]
         required = {".tmp", ".worktrees", ".opencode", ".cursor", ".serena", "obsidian", "**/.git"}
+        required |= {"**/" + path for path in required if not path.startswith("**/")}
         for path in ["ops/deploy/build/delivery-context-ignore.txt",
                      "workers/apparatus-operator/Dockerfile.controller.dockerignore"]:
             with self.subTest(dockerignore=path):

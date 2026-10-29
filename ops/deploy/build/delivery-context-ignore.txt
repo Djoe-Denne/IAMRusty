@@ -8,6 +8,12 @@
 .cursor
 .serena
 obsidian
+**/.tmp
+**/.worktrees
+**/.opencode
+**/.cursor
+**/.serena
+**/obsidian
 **/target
 **/node_modules
 **/.env

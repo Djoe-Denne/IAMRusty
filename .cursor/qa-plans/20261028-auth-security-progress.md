@@ -455,6 +455,29 @@ de livraison contienttemplate/filtrespecific/test/QA/README seulement, pas.le
 Dockerignorelocal. La copie dansleworktreepropreestuninputdemétadonnéesdéterministe
 dufichierversionné, pasunecopie d'artefactsprivés etpasuneinstallation/runnertest.
 
+### Exclusions récursives — plan avant renforcement
+
+Avant tout transfert, le contexte matérialisé contient aussi les répertoires
+suivis `rustycog/.cursor`, `rustycog/.serena` et `rustycog/obsidian` (existence
+seulement inspectée). Les règles racine ne suffisent pas pour ces chemins.
+Le dernier patch groupé a échoué sur une ancre QA et n'a changé aucun fichier,
+fait revérifié par `git diff` au HEAD 4fcca1d.
+
+Renforcer le test existant
+`test_linux_delivery_context_excludes_agent_state_and_worktrees` avant baseline :
+exiger les six exclusions racine et leurs variantes `**/`, dans le template
+versionné et le filtre spécifique du controller. Constater la baseline, puis
+ajouter ces seules règles et rejouer la même sélection et la suite de 24 tests.
+Aucune modification du `.dockerignore` canonique local ni lecture des archives.
+Mettre à jour la copie possédée seulement après vérification de son ancien hash
+connu, puis vérifier les SHA application/SDK et les deux arbres Git propres.
+
+Résultat : sélection existante rouge, deux sous-tests pour les six règles `**/`
+absentes dans chacun des filtres ; après ajout, même sélection verte puis suite
+24/24 PASS (0.266 s). Aucun Docker ou Cargo exécuté, aucune source Rust changée.
+La revue infra reçue au 4fcca1d est persistée avec sa limite racine ; le delta
+récursif sera transmis et la provenance de la copie générée actualisée avant build.
+
 ## Correction du statut du forwarding — plan avant run
 
 Finding infra indépendant local_full_target.py480–493 : exit enfant ignoré et

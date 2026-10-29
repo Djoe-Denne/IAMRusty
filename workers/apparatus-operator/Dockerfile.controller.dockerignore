@@ -7,6 +7,12 @@
 .cursor
 .serena
 obsidian
+**/.tmp
+**/.worktrees
+**/.opencode
+**/.cursor
+**/.serena
+**/obsidian
 **/.DS_Store
 **/*.md
 deploy
