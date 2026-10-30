@@ -1,4 +1,4 @@
-name: k6 Linux prerequisites (not HTTP qualification)
+name: SUSPENDED - k6 Linux prerequisites (not HTTP qualification)
 
 on:
   pull_request:
@@ -16,6 +16,8 @@ permissions:
 
 jobs:
   prerequisites:
+    # 2026-10-30: Linux qualification deferred to a separate user-started mission.
+    if: ${{ false }}
     name: Unit tests, pinned tools and sandboxed Chromium; HTTP INCONCLUSIVE
     runs-on: ubuntu-24.04
     timeout-minutes: 12
@@ -83,6 +85,8 @@ jobs:
           printf '%s\n' 'This workflow qualifies prerequisites only; it is not a mission1 or E2E PASS.'
 
   ubuntu2204-comparison:
+    # 2026-10-30: comparison and all diagnostics remain NOT_EXECUTED, not PASS.
+    if: ${{ false }}
     name: Temporary Ubuntu22 comparison only; HTTP and Chromium INCONCLUSIVE
     runs-on: ubuntu-22.04
     timeout-minutes: 12
