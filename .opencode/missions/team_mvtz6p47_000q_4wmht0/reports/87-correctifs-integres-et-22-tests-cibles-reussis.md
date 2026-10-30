@@ -42,3 +42,9 @@ WSL et Linux restent distincts et non qualifiés comme précédemment.
   dossiers de fixture absents et anciennes entrées conservées.
 - `git diff --check` global exit0 avant cette campagne. Pas de faux PASS de l'essai
   ancien interrompu de l'auteur, dont le nettoyage exhaustif reste UNPROVEN.
+- Correctifs, tests, documentation et briefing de relecture capturés localement
+  dansbd7a2bf,13fichiersciblés, vrai hookFMT et contrôle des espaces réussis. Aucun push.
+- Contrôle statique supplémentaire sur les vrais fichiers acquis, sans les exécuter :
+  les gardes de bundle passent pour k6 et Chrome ; respectivement1 et312leases
+  retenues puis libérées, zéro processus d'outil créé. Le résultat est
+  PASS_STATIC_ONLY, pas une version exécutée ou une solution au survivant.

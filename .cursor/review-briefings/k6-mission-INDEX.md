@@ -1,5 +1,7 @@
 # Revues de la mission k6 — portées Linux et Windows distinctes
 
+- [Correctifs Windows : dossier et préflight fermés, rétention résiduelle ouverte](20261030T2005Z-security-k6-windows-delta-bd7a2bf.md) — relecture68631c0..bd7a2bf : S-1 fermé, R-1 fermé au préflight mais OPEN si survivant, fauxPASSR-2 fermé/ChromiumINCONCLUSIVE. Les essais réels restent gelés jusqu'à disposition vérifiée de la rétention.
+
 - [Primitives Windows et réserves avant lancement réel](20261030T1913Z-security-k6-windows-primitives-cbcc1bb.md) — REVIEW_REQUIRED : course de création/nettoyage, intégrité des bibliothèques chargées à couvrir, témoin de jeton primaire insuffisant pour qualifier l'isolation. Aucun lancement réel admis par cet avis ; corrections et limites à vérifier avant activation.
 
 - [Conducteur privé Windows/Linux — ancêtres et signal de rétention](20261030T1428Z-security-k6-private-parent-4560b18.md) — deux MEDIUM, aucun CRITICAL/HIGH ; [fermés par revue ciblée](20261030T1542Z-security-k6-private-parent-closure-0f32e8d.md), stockage réel toujours non admis, aucun préflight ou collecte réelle autorisé par cette fermeture.

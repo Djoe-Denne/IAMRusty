@@ -172,3 +172,16 @@ Note du lead : le champ historique `verdict: GO_WITH_COMMENTS` est conservé tel
 fourni ; il ne vaut pas admission. La décision opérante est REVIEW_REQUIRED et
 browser_admission NOT_APPROVED. Le lancement réel et la qualification restent gelés
 jusqu'à disposition vérifiée des réserves concernées.
+
+## Addendum natif reçu après intégration bd7a2bf
+
+Candidate result_mvvelixu_0004_mciaju : le reviewer rapporte S-1fermé,
+R-1préflightfermé mais rétention sursurvivant toujours ouverte ; fauxPASSR-2fermé,
+sandboxINCONCLUSIVE et gel réel maintenu. Son addendum recopie le préflight statique
+du lead (k6BundlePins1/Chrome312,0processus), sans le réexécuter.
+
+Ce retour ne contient pas le rapport substantif antérieur auquel il fait référence.
+Le lead demande sa retransmission, sans nouvelle lecture/test/revue. Les fermetures
+annoncées restent attribuées en attendant leurs preuves de périmètre/hashes et
+raisons, non assimilées à une admission du navigateur. Ne pas réouvrir l'exploration
+ou relancer des vérifications pour combler cette seule livraison manquante.
