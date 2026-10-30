@@ -437,11 +437,16 @@ préférence interop. Aucun probe interop ni impossibilité de cette voie n'est
 établi ou recherché ici. Le conducteur est **Partial** (code/tests, pas de préflight réel), capture conditionnelle
 aux preuves/revue applicables et au rendez-vous réel, non accordé par cet amendement.
 
-Photographie après code : trois fichiers intégrés dans `195059a`, source gelée ;
-tests Windows : 189, exit0, huit skips POSIX ; Linux : 189, exit0, onze skips
-réservés à PowerShell, sur snapshot propre887b6b0. Les suites exercent respectivement 181 et 178 tests,
-pas une collecte réelle. Revue indépendante en cours, profils et préflight des
-observateurs réels non acquis, aucun site inconnu créé. [Preuves et limites](../../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/60-fixtures-du-conducteur-verifiees-sur-les-deux-systemes.md).
+Photographie après code et correction : trois fichiers initialement intégrés
+dans `195059a`, puis ancêtres Windows et maintien de RETENTION_UNPROVEN corrigés.
+Windows :194tests, exit0, huit skips POSIX,186exercés. Les deux constats sont
+fermés par [revue indépendante ciblée](../../.cursor/review-briefings/20261030T1542Z-security-k6-private-parent-closure-0f32e8d.md),
+six tests complémentaires sans skip ; aucun préflight ou collecte réelle.
+Linux : la preuve189tests/exit0/onze skips PowerShell,178exercés, concerne encore
+le snapshot initial887b6b0, **pas** le correctif courant.
+Profils, stockage et préflight des observateurs réels non acquis, aucun site
+inconnu créé. [Preuves initiales](../../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/60-fixtures-du-conducteur-verifiees-sur-les-deux-systemes.md)
+et [fermeture bornée](../../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/67-corrections-du-conducteur-fermees-par-revue.md).
 
 1. **Windows, avant l'invocation :** veto CI avant création de processus ; le
    parent sous bail actif relit les contrôles

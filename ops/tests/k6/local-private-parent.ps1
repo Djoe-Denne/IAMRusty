@@ -190,6 +190,84 @@ function Get-PrivateAcl([string]$Path,[string]$Sid) {
     return $acl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::All)
 }
 
+function Get-WindowsPathFact([string]$Path) {
+    Initialize-Native
+    $item=Get-Item -LiteralPath $Path -Force
+    $acl=Get-Acl -LiteralPath $Path
+    $rules=@(foreach($ace in $acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])) {
+        @{sid=$ace.IdentityReference.Value;allow=($ace.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow);
+          rights=([long][int]$ace.FileSystemRights -band 0xffffffffL);
+          inherit_only=(($ace.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) -ne 0)}
+    })
+    return @{identity=[K6Parent.Native]::FileIdentity($Path);owner=$acl.GetOwner([Security.Principal.SecurityIdentifier]).Value;
+        dacl=$acl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access);
+        reparse=(($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0);directory=[bool]$item.PSIsContainer;rules=$rules}
+}
+
+function Get-WindowsPathChain([string]$Path,[string]$Sid) {
+    # Only local absolute drive paths, with an optional literal extended prefix.
+    # Reject aliases/traversal rather than normalizing an unsafe chain into safety.
+    Require-Parent ($Path.Length -le 1024 -and $Path -match '^(\\\\\?\\)?[A-Za-z]:\\')
+    $plain=$Path -replace '^\\\\\?\\',''
+    $full=[IO.Path]::GetFullPath($plain)
+    Require-Parent ($full.TrimEnd('\') -ieq $plain.TrimEnd('\'))
+    $root=[IO.Path]::GetPathRoot($full)
+    Require-Parent ((New-Object IO.DriveInfo($root)).DriveType -eq [IO.DriveType]::Fixed)
+    $parts=@();$tail=$full.Substring($root.Length).TrimEnd('\')
+    if($tail.Length){$parts=@($tail.Split('\'))}
+    Require-Parent ($parts.Count -le 64)
+    $names=@($root);$current=$root
+    foreach($part in $parts) {
+        Require-Parent ($part.Length -gt 0 -and $part -cne '.' -and $part -cne '..' -and
+            $part -notmatch '[<>:"/|?*]' -and $part -notmatch '[. ]$')
+        $current=Join-Path $current $part;$names+=,$current
+    }
+    # Windows platform owners are trusted too: ancestors need not be private or
+    # owned by the account. OWNER RIGHTS is safe only after this owner check.
+    $trusted=@($Sid,'S-1-5-18','S-1-5-32-544',
+        'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464') # TrustedInstaller
+    $danger=[long]0x40 -bor 0x10000 -bor 0x40000 -bor 0x80000 -bor 2 -bor 0x10000000 -bor 0x40000000
+    # DELETE_CHILD / DELETE / WRITE_DAC / WRITE_OWNER, FILE_WRITE_DATA (including
+    # retargeting an object), generic ALL/WRITE. Public read/execute and mere
+    # creation of a new subdirectory do not substitute an existing protected entry.
+    $chain=@()
+    for($i=0;$i -lt $names.Count;$i++) {
+        $fact=Get-WindowsPathFact $names[$i]
+        Require-Parent ($fact.identity -is [string] -and $fact.identity.Length -gt 0 -and $fact.identity.Length -le 2048)
+        Require-Parent ($fact.reparse -is [bool] -and !$fact.reparse -and $fact.directory -is [bool])
+        Require-Parent ($i -eq $names.Count-1 -or $fact.directory)
+        Require-Parent ($fact.owner -is [string] -and $trusted -ccontains $fact.owner)
+        Require-Parent ($fact.dacl -is [string] -and $fact.rules -is [array] -and $fact.rules.Count -le 2048)
+        foreach($rule in $fact.rules) {
+            Require-Parent ($rule.sid -is [string] -and $rule.allow -is [bool] -and $rule.inherit_only -is [bool] -and
+                (Test-Integer $rule.rights) -and $rule.rights -ge 0 -and $rule.rights -le 0xffffffffL)
+            if($rule.allow -and !$rule.inherit_only -and $trusted -cnotcontains $rule.sid -and $rule.sid -cne 'S-1-3-4') {
+                # Conservative: do not infer effective access by cancelling a
+                # dangerous allow against deny/group/token rules we cannot prove.
+                Require-Parent (($rule.rights -band $danger) -eq 0)
+            }
+        }
+        $chain+=,@{path=$names[$i];fingerprint=($fact.identity+"`n"+$fact.owner+"`n"+$fact.dacl+"`n"+$fact.directory)}
+    }
+    return ,$chain
+}
+
+function Get-TrustedWindowsChains([string[]]$Paths,[string]$Sid,$Previous=$null) {
+    Require-Parent ($Paths.Count -gt 0 -and $Paths.Count -le 8)
+    $bindings=@{}
+    foreach($path in $Paths) {
+        foreach($entry in (Get-WindowsPathChain $path $Sid)) {
+            if($bindings.ContainsKey($entry.path)){Require-Parent ($bindings[$entry.path] -ceq $entry.fingerprint)}
+            $bindings[$entry.path]=$entry.fingerprint
+        }
+    }
+    if($null -ne $Previous) {
+        Require-Parent ($bindings.Count -eq $Previous.Count)
+        foreach($key in $bindings.Keys){Require-Parent ($Previous.ContainsKey($key) -and $Previous[$key] -ceq $bindings[$key])}
+    }
+    return $bindings
+}
+
 function Get-WindowsSnapshot($Expected) {
     Initialize-Native
     Require-Parent ($Expected.name -ceq 'AIForAll' -and $Expected.guid -cmatch '^\{[a-fA-F0-9-]{36}\}$')
@@ -240,9 +318,10 @@ function Read-BoundedFile([string]$Path,[int]$Maximum=32768) {
     } finally {$stream.Dispose()}
 }
 
-function Get-ConfigHash([string]$Path) {
+function Get-ConfigHash([string]$Path,[int]$Maximum=32768) {
+    Require-Parent ($Maximum -eq 32768 -or $Maximum -eq 65536)
     $hash=[Security.Cryptography.SHA256]::Create()
-    try {return [BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes((Read-BoundedFile $Path)))).Replace('-','')}
+    try {return [BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes((Read-BoundedFile $Path $Maximum)))).Replace('-','')}
     finally {$hash.Dispose()}
 }
 
@@ -348,7 +427,11 @@ function Invoke-PrivateParent([string]$ConfigPath,[string]$Operation) {
     $configHash=Get-ConfigHash $ConfigPath
     Require-Parent ($config.controller_sha256 -is [string] -and $config.controller_sha256 -cmatch '^[a-f0-9]{64}$')
     $controllerIdentity=[K6Parent.Native]::FileIdentity($script:ControllerPath)
-    Require-Parent ($config.controller_sha256 -ieq (Get-ConfigHash $script:ControllerPath))
+    Require-Parent ($config.controller_sha256 -ieq (Get-ConfigHash $script:ControllerPath 65536))
+    $wsl=Join-Path $env:SystemRoot 'System32\wsl.exe'
+    $sensitive=@($ConfigPath,$script:ControllerPath,$expected.base,(Join-Path $expected.base 'ext4.vhdx'),
+        [IO.Path]::GetDirectoryName($config.lease),[IO.Path]::GetDirectoryName($config.journal),$wsl,$config.wsl_image)
+    $chains=Get-TrustedWindowsChains $sensitive $expected.sid
     $deadline=Read-UtcDeadline $config.deadline
     $seconds=($deadline-[datetime]::UtcNow).TotalSeconds
     Require-Parent ($seconds -gt 0 -and $seconds -le 3600)
@@ -377,7 +460,6 @@ function Invoke-PrivateParent([string]$ConfigPath,[string]$Operation) {
         foreach($path in @($config.companion,$config.linux_profile)) {
             Require-Parent ($path -is [string] -and $path -cmatch '^/home/[A-Za-z0-9_./-]+$' -and $path -notmatch '/\.\.?(/|$)' -and $path -notmatch '/k6-causal/')
         }
-        $wsl=Join-Path $env:SystemRoot 'System32\wsl.exe'
         Require-Parent ((Get-AuthenticodeSignature -LiteralPath $wsl).Status -eq 'Valid')
         $start=New-Object Diagnostics.ProcessStartInfo
         $start.FileName=$wsl;$start.UseShellExecute=$false;$start.CreateNoWindow=$true
@@ -391,12 +473,14 @@ function Invoke-PrivateParent([string]$ConfigPath,[string]$Operation) {
         $argv=@('--distribution-id',$expected.guid,'--user','aiforall','--exec','/usr/bin/env','-i','PATH=/usr/bin:/bin','LANG=C.UTF-8',
             '/usr/bin/python3','-I','-B',$config.companion,'--mode',$Operation,'--profile',$config.linux_profile)
         $start.Arguments=($argv | ForEach-Object {Quote-WindowsArgument ([string]$_)}) -join ' '
+        [void](Get-TrustedWindowsChains $sensitive $expected.sid $chains)
         $process=New-Object Diagnostics.Process;$process.StartInfo=$start
         Require-Parent ($process.Start())
         $before=Get-ProcessObservation $process
         Write-CampaignEvent $journal 'started' $session $before
         Require-Parent ($before.Pid -eq $process.Id -and $before.Sid -ceq $expected.sid -and $before.Image -ceq $config.wsl_image)
         Assert-Process $before (Get-ProcessObservation $process)
+        [void](Get-TrustedWindowsChains $sensitive $expected.sid $chains)
         [void](Get-WindowsSnapshot $expected)
         $out=New-Object K6Parent.FrameReader($process.StandardOutput.BaseStream)
         $errors=New-Object K6Parent.FrameReader($process.StandardError.BaseStream)
@@ -419,10 +503,11 @@ function Invoke-PrivateParent([string]$ConfigPath,[string]$Operation) {
                 Require-Parent ($configIdentity -ceq [K6Parent.Native]::FileIdentity($ConfigPath) -and $leaseIdentity -ceq [K6Parent.Native]::FileIdentity($config.lease))
                 Require-Parent ($configHash -ceq (Get-ConfigHash $ConfigPath))
                 Require-Parent ($controllerIdentity -ceq [K6Parent.Native]::FileIdentity($script:ControllerPath) -and
-                    $config.controller_sha256 -ieq (Get-ConfigHash $script:ControllerPath))
+                    $config.controller_sha256 -ieq (Get-ConfigHash $script:ControllerPath 65536))
                 [void](Get-PrivateAcl $ConfigPath $expected.sid)
                 [void](Get-PrivateAcl ([IO.Path]::GetDirectoryName($config.lease)) $expected.sid)
                 if($Operation -ceq 'capture'){Require-Parent (![Console]::IsInputRedirected -and ![Console]::IsOutputRedirected)}
+                [void](Get-TrustedWindowsChains $sensitive $expected.sid $chains)
                 [void](Get-WindowsSnapshot $expected)
                 Assert-Process $before (Get-ProcessObservation $process)
                 $answer=@{}+$request
@@ -445,6 +530,10 @@ function Invoke-PrivateParent([string]$ConfigPath,[string]$Operation) {
                     Require-Parent ($Operation -ceq 'preflight' -and $state.phase -eq 2 -and $request.diag -ceq 'OBSERVERS_ONLY' -and $request.cleanup -ceq 'NOT_STARTED');$code=0
                 } elseif($request.kind -ceq 'CLOSED') {
                     Require-Parent ($Operation -ceq 'capture' -and $state.phase -ge 1 -and $request.diag -ceq 'NATIVE_NON_SUCCESS' -and $request.cleanup -ceq 'PASS');$code=2
+                } elseif($request.kind -ceq 'ABORT' -and $request.diag -ceq 'RETENTION_UNPROVEN') {
+                    Require-Parent ($request.cleanup -ceq 'FAIL')
+                    [Console]::WriteLine('RETENTION_UNPROVEN')
+                    Stop-Parent
                 } else {Stop-Parent}
                 $finished=$true
             }

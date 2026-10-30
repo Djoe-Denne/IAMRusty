@@ -48,7 +48,8 @@ FROZEN = (
 
 
 class Refused(Exception):
-    def __init__(self):
+    def __init__(self, diag="INPUT_INVALID"):
+        self.diag = "RETENTION_UNPROVEN" if diag == "RETENTION_UNPROVEN" else "INPUT_INVALID"
         super().__init__("PARENT_REFUSED")  # never an OS message, path or packet
 
 
@@ -360,17 +361,26 @@ def await_read(session, peer, facts):
 def capture(peer, facts):
     callback = Admission(peer, facts, peer.init)
     result, code = None, 2
-    with site_channel.PrivateSiteSession(facts.refusal, peer.init["browser"], parent_check=callback,
-                                        delete_by_utc=peer.init["deadline"]) as session:
-        with contextlib.redirect_stdout(BoundedText()) as output, contextlib.redirect_stderr(BoundedText()) as errors:
-            code = runner.main(["diagnose-chromium", "--private-site", "--output", facts.profile["output"]], private_site=session)
-        require(errors.getvalue() == "")
-        result = result_check(output.getvalue(), code)
-        require(peer.run in {"", result["run_id"]})
-        if session.status == "READY":
-            require(result["cleanup"] == "PASS" and result["confidentiality"] == "PASS")
-            await_read(session, peer, facts)
-    require(session.status != "RETENTION_UNPROVEN")
+    session = site_channel.PrivateSiteSession(facts.refusal, peer.init["browser"], parent_check=callback,
+                                            delete_by_utc=peer.init["deadline"])
+    try:
+        with session:
+            with contextlib.redirect_stdout(BoundedText()) as output, contextlib.redirect_stderr(BoundedText()) as errors:
+                code = runner.main(["diagnose-chromium", "--private-site", "--output", facts.profile["output"]], private_site=session)
+            require(errors.getvalue() == "")
+            result = result_check(output.getvalue(), code)
+            require(peer.run in {"", result["run_id"]})
+            if session.status == "READY":
+                require(result["cleanup"] == "PASS" and result["confidentiality"] == "PASS")
+                await_read(session, peer, facts)
+        if session.status == "RETENTION_UNPROVEN":
+            raise Refused("RETENTION_UNPROVEN")
+    except BaseException:
+        # __exit__ can replace the initial retirement error with CLEANUP_FAILED.
+        # Preserve the module's final closed state, never its exception payload.
+        if session.status == "RETENTION_UNPROVEN":
+            raise Refused("RETENTION_UNPROVEN") from None
+        raise
     peer.finish("CLOSED", result["cleanup"], "NATIVE_NON_SUCCESS")
     return code
 
@@ -398,10 +408,10 @@ def main(argv=None):
         peer = Peer(wire, init, facts.home_identity)
         wire.send(peer.message("HELLO"))
         return preflight(peer, facts) if args.mode == "preflight" else capture(peer, facts)
-    except BaseException:
+    except BaseException as error:
         if peer is not None:
             try:
-                peer.finish("ABORT", "FAIL", "INPUT_INVALID")
+                peer.finish("ABORT", "FAIL", error.diag if isinstance(error, Refused) else "INPUT_INVALID")
             except BaseException:
                 pass
         return 2

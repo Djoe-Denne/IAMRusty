@@ -199,6 +199,69 @@ class ParentTests(unittest.TestCase):
                 publish.assert_not_called()
             self.assertEqual(fs.fds, {})
 
+    def test_retention_failure_survives_full_main_after_ack_and_deadline(self):
+        class ProtocolConsole(io.StringIO):
+            def fileno(self):
+                return 32
+
+        for expiry in (False, True):
+            with self.subTest(expiry=expiry), scratch() as root:
+                fs, sessions, frames = FakePosix(), [], []
+                (root / "private").mkdir()
+                original_enter = parent.site_channel.PrivateSiteSession.__enter__
+                def enter(session):
+                    sessions.append(session)
+                    return original_enter(session)
+                with fs.enabled(), fake_child_reads(FATAL, 1, True, native_exit=-6) as child, \
+                        mock.patch.object(parent.runner, "linux_platform"), \
+                        mock.patch.object(parent.runner, "new_output", return_value=root), \
+                        mock.patch.object(parent.runner, "pinned_tools", return_value=({"chromium": Path("/pinned/chrome")}, {})), \
+                        mock.patch.object(parent.runner, "version_checks", return_value={}), \
+                        mock.patch.object(parent.runner, "host_metadata", return_value=host()), \
+                        mock.patch.object(parent.runner, "verify_tools"), \
+                        mock.patch.object(parent.runner, "Child", return_value=child), \
+                        mock.patch.object(parent.runner, "publish") as publish, \
+                        mock.patch.object(parent.site_channel.PrivateSiteSession, "__enter__", autospec=True, side_effect=enter), \
+                        mock.patch.object(parent.os, "set_blocking", create=True), \
+                        mock.patch.object(sys, "stdin", ProtocolConsole()), \
+                        contextlib.redirect_stdout(ProtocolConsole()) as output, contextlib.redirect_stderr(io.StringIO()) as errors:
+                    home = fs.nodes[str(fs.home)]
+                    facts = mock.Mock(profile={"output": str(root)}, refusal=nominal(),
+                                      home_identity=[home.st_dev, home.st_ino, home.st_uid])
+                    transport = mock.Mock()
+                    transport.send.side_effect = lambda value, **kwargs: frames.append(value)
+                    def receive(timeout):
+                        if not frames:
+                            return initial("capture")
+                        request = frames[-1]
+                        if request["kind"] == "READY":
+                            self.assertTrue(any(path.endswith("/site.json") for path in fs.nodes))
+                            fs.unlink_fault = True
+                            if expiry:
+                                sessions[0]._expires_monotonic = -1
+                            return {**request, "kind": "WAIT" if expiry else "ACK"}
+                        return {**request, "kind": "ALLOW"}
+                    transport.receive.side_effect = receive
+                    with contextlib.ExitStack() as stack:
+                        stack.enter_context(mock.patch.object(parent, "Channel", return_value=transport))
+                        stack.enter_context(mock.patch.object(parent, "LinuxFacts", return_value=facts))
+                        stack.enter_context(mock.patch.object(parent, "private_read", return_value=json.dumps({"browser_run_id": nominal()["run_id"]}).encode()))
+                        self.assertEqual(parent.main(["--mode", "capture", "--profile", "/private/profile.json"]), 2)
+                    self.assertEqual(sessions[0].status, "RETENTION_UNPROVEN")
+                    self.assertEqual(frames[-1]["kind"], "ABORT")
+                    self.assertEqual(frames[-1]["diag"], "RETENTION_UNPROVEN")
+                    self.assertEqual(frames[-1]["cleanup"], "FAIL")
+                    self.assertTrue(any(path.endswith("/site.json") for path in fs.nodes))
+                    self.assertFalse(any(frame["kind"] == "CLOSED" for frame in frames))
+                    for frame in frames:
+                        raw = parent.encode_frame(frame)
+                        self.assertNotIn(b"source_relative", raw)
+                        self.assertNotIn(b"synthetic", raw)
+                        self.assertNotIn(b"k6-causal", raw)
+                    self.assertEqual(output.getvalue() + errors.getvalue(), "")
+                    publish.assert_not_called()
+                self.assertEqual(fs.fds, {})
+
     def test_cannot_read_site_as_profile_or_provenance(self):
         with mock.patch.object(Path, "open") as opened:
             for path in ("/home/operator/site.json", "/home/operator/.cache/opencode/k6-causal/fixture/record"):
@@ -242,6 +305,130 @@ class PowerShellParentTests(unittest.TestCase):
         self.assertEqual(run.returncode, 0, "PowerShell fixture failed (output deliberately withheld)")
         self.assertTrue(run.stdout.strip() == b"OK", "PowerShell fixture output withheld")
         self.assertTrue(run.stderr == b"", "PowerShell fixture stderr withheld")
+
+    def controller_fixture(self, case, retention=False):
+        """Run the delivered controller; only OS observations/process construction
+        are fixture seams. The intercepted Process.Start can NEVER launch WSL.
+        """
+        with scratch() as root:
+            prefix = "$fixtureRoot='" + str(root).replace("'", "''") + "';$case='" + case + "';"
+            prefix += "$retention=" + ("$true;" if retention else "$false;")
+            code = r"""
+Initialize-Native
+$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$expected=@{sid=$sid;guid='{11111111-1111-1111-1111-111111111111}';name='AIForAll';
+ base=(Join-Path $fixtureRoot 'public\storage');uid=1000;version=2;directory='leaf-dir';disk='leaf-disk';acl='leaf-acl'}
+$config=@{v=1;expected=$expected;browser=('a'*32);deadline=([datetime]::UtcNow.AddMinutes(10).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"));
+ linux_profile='/home/aiforall/profile.json';companion='/home/aiforall/parent.py';
+ lease=(Join-Path $fixtureRoot 'lease');journal=(Join-Path $fixtureRoot 'journal');
+ wsl_image=(Join-Path $env:SystemRoot 'System32\wsl.exe');
+ controller_sha256=(Get-FileHash -LiteralPath $script:ControllerPath -Algorithm SHA256).Hash.ToLowerInvariant()}
+$path=Join-Path $fixtureRoot 'profile.json'
+[IO.File]::WriteAllText($path,(ConvertTo-Json -InputObject $config -Compress -Depth 5),(New-Object Text.UTF8Encoding($false)))
+$script:starts=0;$script:ended=$false;$script:factCalls=@{};$script:incoming=0;$script:initial=$null;$script:allows=@()
+function Get-PrivateAcl {param($Path,$Sid) return 'leaf-acl'}
+function Get-WindowsSnapshot {param($Expected) return $Expected}
+function Get-AuthenticodeSignature {param($LiteralPath) return @{Status='Valid'}}
+function Get-WindowsPathFact {param($Path)
+ if(!$script:factCalls.ContainsKey($Path)){$script:factCalls[$Path]=0};$script:factCalls[$Path]++
+ $bad=([IO.Path]::GetFileName($Path.TrimEnd('\')) -ceq 'public')
+ $rights=[long]0x1200a9;$inherit=$false;$reparse=$false;$id='id:'+ $Path;$owner='S-1-5-32-544'
+ if($bad){
+  if($case -ceq 'delete_child' -or ($case -ceq 'renewed' -and $script:starts -gt 0)){$rights=0x40}
+  if(($case -ceq 'authorize_changed' -and $script:incoming -ge 2) -or ($case -ceq 'write_changed' -and $script:incoming -ge 3)){$rights=0x40}
+  if($case -ceq 'delete'){$rights=0x10000}
+  if($case -ceq 'write_dac'){$rights=0x40000}
+  if($case -ceq 'write_owner'){$rights=0x80000}
+  if($case -ceq 'write_data'){$rights=2}
+  if($case -ceq 'create_subdirectory'){$rights=4}
+  if($case -ceq 'reparse'){$reparse=$true}
+  if($case -ceq 'changed' -and $script:factCalls[$Path] -gt 1){$id+='changed'}
+  if($case -ceq 'inherit_only'){$rights=0x40;$inherit=$true}
+  if($case -ceq 'owner_unknown'){$owner='S-1-5-21-999-999-999-999'}
+  if($case -ceq 'trusted_installer'){$owner='S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464'}
+  if($case -ceq 'unreadable'){throw 'PARENT_REFUSED'}
+ }
+ return @{identity=$id;owner=$owner;dacl='unchanged-leaves';reparse=$reparse;
+  directory=($Path -notmatch '\.(json|exe|ps1|vhdx)$');
+  rules=@(@{sid='S-1-1-0';allow=$true;rights=$rights;inherit_only=$inherit})}
+}
+function Get-ProcessObservation {param($Process)
+ return [pscustomobject]@{Pid=77;Created=7;Image=$config.wsl_image;Sid=$sid;
+  Wait=$(if($script:ended){0}else{258});Exited=$(if($script:ended){9}else{0})}
+}
+function New-Object {
+ param([Parameter(Position=0)][string]$TypeName,[Parameter(Position=1)][object[]]$ArgumentList)
+ if($TypeName -ceq 'Diagnostics.Process'){
+  $inputStream=Microsoft.PowerShell.Utility\New-Object IO.MemoryStream
+  $outputStream=Microsoft.PowerShell.Utility\New-Object IO.MemoryStream
+  $errorStream=Microsoft.PowerShell.Utility\New-Object IO.MemoryStream
+  $p=[pscustomobject]@{Id=77;StartInfo=$null;StandardInput=(Microsoft.PowerShell.Utility\New-Object IO.StreamWriter($inputStream));
+   StandardOutput=(Microsoft.PowerShell.Utility\New-Object IO.StreamReader($outputStream));StandardError=(Microsoft.PowerShell.Utility\New-Object IO.StreamReader($errorStream));
+   ExitCode=0;disposed=$false}
+  $p|Add-Member ScriptMethod Start {$script:starts++;return $true}
+  $p|Add-Member ScriptMethod WaitForExit {param($n) $script:ended=$true;return $true}
+  $p|Add-Member ScriptMethod Dispose {$this.disposed=$true}
+  return $p
+ }
+ return ,(Microsoft.PowerShell.Utility\New-Object @PSBoundParameters)
+}
+function Send-Frame {param($Process,$Frame,$Milliseconds)
+ if($Frame.kind -ceq 'INIT'){$script:initial=@{}+$Frame};if($Frame.kind -ceq 'ALLOW'){$script:allows+=,$Frame.seq}
+}
+function Receive-Frame {param($Out,$Errors,$Process,$Milliseconds)
+ $r=@{}+$script:initial;$r.home=@(7,8,1000)
+ switch($script:incoming){
+  0 {$r.kind='HELLO'}
+  1 {$r.kind='AUTHORIZE';$r.seq=1;$r.run='b'*32}
+  2 {$r.kind='WRITE';$r.seq=2;$r.run='b'*32}
+  3 {$r.seq=3;$r.run='b'*32;if($retention){$r.kind='ABORT';$r.cleanup='FAIL';$r.diag='RETENTION_UNPROVEN'}
+     else{$r.kind='PREFLIGHT';$r.diag='OBSERVERS_ONLY'}}
+  default {throw 'fixture_frames_exhausted'}
+ }
+ $script:incoming++;return $r
+}
+$saved=[Console]::Out;$writer=Microsoft.PowerShell.Utility\New-Object IO.StringWriter
+$exit=2
+try{[Console]::SetOut($writer);try{$exit=Invoke-PrivateParent $path 'preflight'}catch{
+ if($_.Exception.Message -cne 'PARENT_REFUSED'){throw 'fixture_controller_failed'}
+}}finally{[Console]::SetOut($saved)}
+$text=$writer.ToString()
+if($retention){
+ if($script:starts -ne 1 -or $exit -eq 0 -or !$text.Contains('RETENTION_UNPROVEN') -or $text.Contains('_CLOSED')){throw 'fixture_warning_missing'}
+}elseif(@('safe','inherit_only','create_subdirectory','trusted_installer') -ccontains $case){
+ if($script:starts -ne 1 -or $exit -ne 0){throw 'fixture_safe_chain_rejected'}
+}else{
+ $wanted=if(@('renewed','authorize_changed','write_changed') -ccontains $case){1}else{0}
+ if($script:starts -ne $wanted -or $exit -eq 0 -or $text.Contains('_CLOSED')){throw 'fixture_unsafe_chain_started'}
+ if($case -ceq 'authorize_changed' -and $script:allows.Count -ne 0){throw 'fixture_stale_authorize'}
+ if($case -ceq 'write_changed' -and ($script:allows.Count -ne 1 -or $script:allows[0] -ne 1)){throw 'fixture_stale_write'}
+}
+if($text.Contains('CONFIDENTIAL_SENTINEL') -or $text.Contains($fixtureRoot)){throw 'fixture_output_leak'}
+'OK'
+"""
+            self.run_ps(prefix + code)
+
+    def test_ancestor_guards_before_process_start_and_on_renewal(self):
+        for case in ("delete_child", "delete", "write_dac", "write_owner", "write_data", "reparse", "changed", "renewed",
+                     "authorize_changed", "write_changed", "owner_unknown", "unreadable"):
+            with self.subTest(case=case):
+                self.controller_fixture(case)
+
+    def test_safe_system_ancestors_can_have_public_readers(self):
+        for case in ("safe", "inherit_only", "create_subdirectory", "trusted_installer"):
+            with self.subTest(case=case):
+                self.controller_fixture(case)
+
+    def test_retention_warning_is_wired_through_delivered_controller(self):
+        self.controller_fixture("safe", retention=True)
+
+    def test_native_path_fact_only_on_owned_fixture(self):
+        with scratch() as root:
+            path = str(root).replace("'", "''")
+            self.run_ps("$f=Get-WindowsPathFact '" + path + "';"
+                        "if(!$f.directory -or $f.reparse -or $f.identity -cne [K6Parent.Native]::FileIdentity('" + path + "')){throw 'fixture'};"
+                        "if($f.owner -cne (Get-Acl -LiteralPath '" + path + "').GetOwner([Security.Principal.SecurityIdentifier]).Value){throw 'fixture'};"
+                        "foreach($r in $f.rules){if(!(Test-Integer $r.rights) -or $r.rights -lt 0){throw 'fixture'}};'OK'")
 
     def test_real_frame_functions_and_duplicate_keys(self):
         raw = json.dumps(initial(), separators=(",", ":"))
