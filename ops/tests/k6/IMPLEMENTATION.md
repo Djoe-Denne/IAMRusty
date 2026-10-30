@@ -1,5 +1,70 @@
 # Implementation record
 
+## Windows candidate — base2cc7ae6 (2026-10-30)
+
+One isolated author owns `run-windows.ps1`, `lib/windows.ps1`, local Add-Type
+interop `lib/windows-native.cs`, targeted `test_runner_windows.py` and the Windows
+guide. The three JS files, all Linux/POSIX/private parents, services, SDK, workflow
+and production tool lock are unchanged by this author. The lead owns acquisition,
+provenance/lock, suspension of both Linux jobs, integration and all real runs.
+
+This is **partial implementation, not qualification**. The guarded Windows
+Chrome executable-version strategy is unresolved: pinned `chrome_main_delegate.cc`
+handles `--version` under IS_POSIX only. Running the Windows binary on that
+assumption could open UI, so an explicit fail-closed gate prevents both that probe
+and browser launch. File metadata is not relabelled as an executed version.
+The existing HTTP origin-binding authority remains unqualified and all three
+HTTP modes refuse before a tool/GET. Live selftests are therefore not implemented
+as an executable HTTP path. See WINDOWS.md for exact lock schema, reviewed API
+choices, rejected alternatives and precise remaining admission boundaries.
+
+Native Python fixtures exercised real atomic JOB_LIST creation, retained
+PID/creation/SID/image and same-handle join, descendants, nonzero exit, timeout,
+interruption, overflow, an unavailable observation handle and cleanup refusal.
+The generic approved temp tree has additional sandbox writers: the privacy guard
+correctly refuses it. Tests instead create their own private Local child directory,
+without changing an existing ACL or trusting the extra principals. Long generated
+test commands use owned `.ps1` files rather than exceeding Windows command length.
+The fixture's first CLIXML progress assertion was a test harness issue, corrected
+by suppressing progress; it was not a confidentiality PASS of a raw native stream.
+
+Two implementation defects were exposed and fixed before delivery. An omitted
+NEW_PROCESS_GROUP flag caused the first suite to end with exit58/no final count
+when a cleanup test sent CTRL_BREAK; an explicit group fixed it, and focused native
+success/nonzero/timeout/interruption checks then passed (2tests/exit0). A real
+rename test subsequently remained RED (17tests/1failure/exit1): attribute-only
+CreateFile handles did not deny ancestor renames. Adding GENERIC_READ made delete
+share denial effective; the focused rename regression then passed (1test/exit0).
+The OS preflight initially trusted ambient OS=Windows_NT, absent in this harness;
+a21test run exposed the false platform refusal. It now observes the Win32 platform
+and native machine through OS APIs; the entrypoint no-lock test passed afterward.
+
+Final actual command `C:/Python313/python.exe -B -m unittest discover -s
+ops/tests/k6/tests -p test_*windows*.py`: **21tests, exit0, zero skips**,28.380s.
+Afterward, a final pure-guard type refinement rejects PowerShell collection/
+scalar coercion in pins, phase/run IDs and inspected options. The4 impacted tests
+(both summary positives, summary negatives, lock negatives and inspect options)
+were rerun: **4tests, exit0, zero skips**,7.721s. Native interop was unchanged;
+its21test campaign evidence is reused rather than launching fixtures redundantly.
+
+The21test private fixture journal contains10 distinct PID/creation identities,
+all10 observed ended by retained handles before disposal. Fixture directories
+were removed and the private identity journal retained outside Git. An initial
+pre-fix suite exited58 before a complete inventory was persisted: its retained
+partial journal attests3 ended identities, not exhaustive cleanup of that aborted
+attempt. Its generic-temp fixture directory is preserved for the lead's recovery;
+no name-based adoption, foreign stop or force cleanup was attempted. Do not turn
+the later focused cleanup evidence into a global PASS for that early interruption.
+
+`git diff --check` exit0; new files also checked with no-index `--check` (exit1
+means a new-file difference, with no whitespace diagnostics). Final hashes and
+the private inventory locations are returned in the author's native
+HANDOFF_MARKDOWN for the lead to persist. No k6/Chrome executable, HTTP,
+Docker/Kind/WSL/CI, installation/acquisition, Cargo/hook, commit/push or subagent
+was run by the author. No Docker resource was created, so no Docker registry line
+or runtime shutdown is attributable to this candidate. Canonical MCP indexes do
+not cover the unmerged worktree; all edits and checks concern its actual files.
+
 ## Overflow/cleanup correction — basee9af3b6 (2026-10-30)
 
 Same owner/session pool-10; read the complete overflow/cleanup briefing, independent

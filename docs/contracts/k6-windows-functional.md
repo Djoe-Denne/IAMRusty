@@ -37,6 +37,9 @@ Le lead référence/ratifie le contrat lors de cette admission ; pas de nouveau 
 - Réutiliser sans modification fonctionnelle `scenarios/smoke/iam-health.js`,
   `browser-prerequisite.js` et `lib/summary.js` sous `ops/tests/k6/`. Le délai750ms
   du cas navigateur n'est pas un témoin Windows parce que son commentaire cite /proc.
+  Précision ratifiée le 2026-10-30 : le [raccord de version Windows](k6-windows-browser-version.md)
+  autorise seulement le check `browser-version` dans ce même cas, obligatoire sous
+  Windows. HTTP et summary.js restent inchangés ; aucun nouveau cas ou lancement.
 - Entrée proposée `ops/tests/k6/run-windows.ps1`, pins Windows séparés sous config,
   tests ciblés utilisant le harness local existant. Ne pas importer run-linux.py/
   ChildPOSIX comme preuve Windows, copier le conducteur privé ou créer une nouvelle

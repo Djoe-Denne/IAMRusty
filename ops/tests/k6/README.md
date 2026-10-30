@@ -1,5 +1,10 @@
 # k6 mission1 — Linux functional foundation
 
+**Windows revision2026-10-30:** see [the native adapter and its explicit blocked
+proofs](WINDOWS.md). WSL qualification is suspended/INCONCLUSIVE. The Windows
+candidate does not qualify Linux or reactivate its CI; its Chrome version and
+HTTP authority boundaries must not be bypassed.
+
 Contract: [V1 Accepted](../../../docs/contracts/k6-functional-linux.md),
 [ADR0504](../../../docs/adr/0504-validation-fonctionnelle-linux-k6.md).
 Only one public `GET /iam/health`, exact `200` / `OK`, and a **separate** Chromium
