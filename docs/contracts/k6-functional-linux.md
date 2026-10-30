@@ -7,7 +7,18 @@ aucune qualification ou permission runtime n'est déduite de ce document.
 
 ## Admission de la révision V1 mission1
 
-Photographie post-implémentation : socle intégré jusqu'à `5d79557`, 50 tests
+Photographie vérifiée au 2026-10-30 : source `783fa80`, publiée dans `6b58108`,
+[run Linux 40982576736](https://github.com/Djoe-Denne/IAMRusty/actions/runs/40982576736).
+129 tests natifs sans skip sur Ubuntu 24.04 et sur la comparaison diagnostique
+22.04 ; archives, exécutables, versions et deux inspections vérifiés. Le navigateur
+reste non qualifié : k6 refuse avant le cas, direct22 rapporte SIGABRT avant cleanup,
+direct24 NoUsableSandbox avec refus de confidentialité. Cleanup des enfants PASS,
+runtime parent INCONCLUSIVE ; HTTP et selftests live sans cible conforme autorisée.
+La [proposition d'observation causale](k6-chromium-causal-observation.md) reste
+**Proposed / Unimplemented** : ni divulgation de site, ni consommateur ou essai
+d'ancre admis ; aucune entrée publique pertinente pour22 n'est connue.
+
+Photographie historique antérieure : socle intégré jusqu'à `5d79557`, 50 tests
 Linux/WSL réussis sans skip, correctif S-1 revu indépendamment. k6 v2.3.0 annoncé
 par le binaire vérifié ; deux inspect réussis. Chromium `--version` échoue sur
 WSL (bibliothèque `libnspr4.so` absente), donc outils composites et navigateur
