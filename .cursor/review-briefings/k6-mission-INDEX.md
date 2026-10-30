@@ -1,5 +1,7 @@
 # Revues de la mission k6 — portées Linux et Windows distinctes
 
+- [Protection persistante et périmètre R-1](20261030T2027Z-security-k6-windows-r1-trust-9ef802f.md) — modèle de menace initial préservé, clarification recevable sous conditions ; provenance privée, séparation des sorties et conservation à prouver. R-1OPEN, essais réels gelés, aucune garantie contre rôles compromis nouvellement prétendue.
+
 - [Correctifs Windows : dossier et préflight fermés, rétention résiduelle ouverte](20261030T2005Z-security-k6-windows-delta-bd7a2bf.md) — relecture68631c0..bd7a2bf : S-1 fermé, R-1 fermé au préflight mais OPEN si survivant, fauxPASSR-2 fermé/ChromiumINCONCLUSIVE. Les essais réels restent gelés jusqu'à disposition vérifiée de la rétention.
 
 - [Primitives Windows et réserves avant lancement réel](20261030T1913Z-security-k6-windows-primitives-cbcc1bb.md) — REVIEW_REQUIRED : course de création/nettoyage, intégrité des bibliothèques chargées à couvrir, témoin de jeton primaire insuffisant pour qualifier l'isolation. Aucun lancement réel admis par cet avis ; corrections et limites à vérifier avant activation.
