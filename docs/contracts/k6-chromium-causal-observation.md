@@ -2,7 +2,7 @@
 
 - Statut : **Accepted pour l'implémentation et les tests du consommateur local
   privé, collecte conditionnelle** ; ancre et projection publiques **Proposed**.
-  Réalité du consommateur : **Partial**, code et fixtures intégrés, revue en attente,
+  Réalité du consommateur : **Partial**, code et fixtures intégrés, revue ciblée close,
   aucun relevé réel créé. L'ancre publique reste non implémentée et non admise.
   L'addendum d'hôte WSL dédié ci-dessous est **Accepted pour son provisionnement**,
   sans qualification de l'hôte ou admission du relevé privé.
@@ -326,11 +326,12 @@ et le créneau de lecture local effectivement convenu. L'architecte n'a exécut�
 aucun code ou runtime. Réponse finale de confirmation `result_mvuwioz0_0029_3xp18p`,
 session conservée ; aucune ancre/projection publique ratifiée.
 
-Photographie après implémentation : quatre fichiers intégrés dans `968592f`,
-tests Windows162/exit0/skips8 puis Linux162/exit0/0skip sur source propreeb3d355.
+Photographie après implémentation et correction : quatre fichiers initialement
+intégrés dans `968592f`, veto privé corrigé dans `cbab06e`. Tests Windows : 165,
+exit0, huit skips ; Linux : 165, exit0, aucun skip, source propre19b1cfe.
 Les fixtures n'utilisent que des sites synthétiques connus ; elles ne fournissent
-pas le parent_check réel ni le rendez-vous de lecture. Revue indépendante en
-attente, aucune capture/qualification nouvelle ; [preuves des tests](../../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/49-tests-linux-du-canal-prive-reussis-sans-collecte.md).
+pas le parent_check réel ni le rendez-vous de lecture. Le finding S-1 est fermé
+par revue indépendante, sans admission de capture ; [preuves rapprochées](../../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/53-defaut-de-capture-ferme-conditions-operationnelles-restantes.md).
 
 **Acquis, à ne pas redemander :** WSL local/lecture par l'utilisateur, installation
 autorisée, AIForAll livré et provisionnement vérifié indépendamment. GUID
@@ -411,6 +412,81 @@ puis retrait, absence de lecture à l'échéance et retrait impossible. Fixtures
 existantes, aucun serveur/mock ou runtime nécessaire à cet arbitrage ; les140tests
 antérieurs ne valident pas ce delta. Sources officielles156/k62.3 déjà étudiées
 réutilisées ; aucun changement d'ADR, pin, sandbox, politique AppArmor ou mission.
+
+### Précision opérationnelle du parent réel — Accepted pour préparation et vérification, 2026-10-30
+
+Base `ce52ae8332ddd08065c3c6913d6032fd7891ed09`, briefing
+`20261030-k6-private-parent-operation-architecture.md`, guide, API
+`lib/private_site.py` et revue `20261030T1243Z` lus. Proposition architecte de
+70 lignes récupérée byte-identique puis sauvegardée. Le lead ratifie la recette
+avant préparation du programme parent, sous délégation mission1 ; candidat
+`result_mvuzazoo_0002_qfx9jl`, même session architecte. La procédure réelle reste
+**Unimplemented** et son exécution conditionnelle à la vérification de sa composition
+et au rendez-vous. Ce parent compose les gardes et APIs existantes : pas nouveau
+harness, exécuteur Chromium, service ou autorité. La fermeture distincte du veto
+S-1 est désormais intégrée, mais ne fournit pas le contrôle parent réel.
+
+1. **Windows, avant l'invocation :** le parent sous bail actif relit les contrôles
+   existants Lxss/GUID/BasePath/DefaultUid et identité/ACL du dossier/VHDX. Il cible
+   explicitement AIForAll/aiforall, vérifie l'association nom→GUID juste avant/après
+   lancement et conserve cette unique invocation identifiée, sans passer par le
+   défaut WSL. Les métadonnées du bail ne remplacent pas ces observations réelles.
+2. **Dans cette invocation Linux non-root :** le programme ponctuel du parent
+   établit l'identité du HOME réellement ouvert, UID/modes et FS ext4 avec les
+   gardes existantes, vérifie provenance/refus24 conservé et intégrité des outils.
+   Il entre `PrivateSiteSession`, appelle `main(..., private_site=session)` et
+   **garde le contexte ouvert après le retour non-zéro**, jusqu'au retrait vérifié.
+   Le callback est du code parent relu en mémoire, jamais un callback de fixture,
+   booléen CLI, token ou JSON déclaratif chargé comme preuve.
+3. **AUTHORIZE puis WRITE :** comparer phase et séquence attendues, IDs opaques
+   navigateur/direct liés à cette invocation, deadline convenue et tuple
+   `home_identity=(dev,ino,uid)` à l'observation réelle du parent. À chaque phase,
+   revalider compte, descripteur/chemins et bail/créneau encore actifs, plus les
+   identités de provenance déjà hachées. Pour les faits Windows, recommandation :
+   interop Windows existante, requête PowerShell RO fixe, exécutable système connu,
+   même compte Windows, sorties métadonnées bornées, sans donnée native. Relire
+   Lxss/GUID/BasePath/DefaultUid et ACL actuels, sans lancer une autre distro pour
+   inspecter le HOME. Si interop/contrôle manque, échoue ou rend inconnu : veto,
+   jamais remplacement par True. Rien du couple ne traverse cet échange.
+   Superviser/journaliser aussi l'identité et la fin des auxiliaires Windows ; le
+   cleanup Linux ne prouve pas leur arrêt, aucune récupération par nom seulement.
+4. **Fraîcheur :** une observation Windows par callback, non le résultat AUTHORIZE
+   réutilisé à WRITE ; au plus30secondes entre début des contrôles et retour True,
+   sinon veto. Pas d'attente humaine ni autre étape longue entre WRITE et écriture.
+   Le lien ext4/provenance peut rester attaché à l'invocation et au HOME ouvert
+   tant que descripteurs, device, UID et identités des fichiers restent identiques ;
+   bail, ACL Windows, mapping GUID et disponibilité de lecture sont recontrôlés.
+   Les gardes du module restent actives avant création/retrait. Ces contrôles
+   bornent une course, sans transaction atomique Windows/Linux : administrateur,
+   processus hostile du même UID ou substitution hors menace ne sont pas exclus
+   par un GUID/tuple. Changement/indétermination constaté => abandon, pas adoption.
+5. **Lecture réelle :** rendez-vous déjà convenu avant capture, terminal local
+   privé disponible pour l'utilisateur. Sans état READY après main : cleanup,
+   aucune lecture autorisée ni relance. Sinon il consulte lui-même le fichier dans son
+   terminal privé et confirme uniquement `LU <run_id>` dans le terminal de contrôle
+   local, sans couple, chemin natif, capture d'écran ou contenu dans chat/MCP.
+   L'absence de ce canal interactif prêt interdit la collecte, pas sa préparation.
+   Le parent ne lit pas le JSON ; un acquittement d'une autre session est refusé.
+6. **Retrait dans le même contexte :** après cet acquittement réel seulement,
+   `retire(read_confirmed=True)` ; sans acquittement, attendre l'échéance bornée
+   UTC/monotone puis `retire(read_confirmed=False)`. Ne pas fabriquer True pour
+   forcer le retrait. Vérifier retour True/état REMOVED : le module vérifie
+   l'absence par stat/identité, sans ouvrir le site. Perte de bail, interruption
+   ou contrôle postérieur refusé : sortir du contexte pour son cleanup ; échec
+   = RETENTION_UNPROVEN, pas suppression aveugle. Garder le parent surveillant
+   jusqu'au retrait sous60min, sans watchdog garanti après crash. Ensuite joindre
+   ses enfants, libérer le bail et arrêter uniquement AIForAll devenu inutile.
+
+Alternative : garder le contrôleur Windows et échanger les seules requêtes/
+réponses de métadonnées AUTHORIZE/WRITE sur les pipes de cette invocation ;
+réalisable sans service, mais davantage de coordination. Préférer l'interop fixe
+si vérifiée disponible ; ni snapshot unique mis en cache ni nouveau canal réseau.
+Avant opération : contrôler refus sur état Windows/HOME/bail modifié, réponse
+absente/lente, IDs/deadline différents, acquittement étranger/absent et retrait
+impossible, sans lire de site. Preuves conservées : phases, IDs, fraîcheur et états
+de retrait seulement. Sources : API `PrivateSiteSession.authorize/record/retire`,
+[interop WSL officielle](https://raw.githubusercontent.com/MicrosoftDocs/WSL/main/WSL/filesystems.md),
+gardes et preuves parent du guide/ledger ; aucune procédure ni collecte exécutée.
 
 Écartés : texte/assertion libre même court, hash/base64 de contenu inconnu, vaste
 index des sites Chromium, résolution réseau d'un chemin natif, stack/core/minidump,
