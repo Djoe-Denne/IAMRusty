@@ -1,6 +1,8 @@
 # Observation causale Chromium — proposition minimale
 
-- Statut : **Proposed pour les observations causales** ; Réalité : **Unimplemented**.
+- Statut : **Accepted pour l'implémentation et les tests du consommateur local
+  privé, collecte conditionnelle** ; ancre et projection publiques **Proposed**.
+  Réalité du consommateur : **Unimplemented**, aucun relevé créé.
   L'addendum d'hôte WSL dédié ci-dessous est **Accepted pour son provisionnement**,
   sans qualification de l'hôte ou admission du relevé privé.
 - Date : 2026-10-30 ; jalon : mission1 k6, hors Apparatus P0–P6.
@@ -135,7 +137,7 @@ Aucun buffer natif du run n'est fourni à cet arbitrage. Si la capture originale
 n'est plus disponible, il faudrait une nouvelle observation expressément bornée ;
 aucun site découvert ensuite ne serait rétroattribué au run40982576736.
 
-### Option privée minimale concrète — Proposed, non autorisée
+### Option privée minimale concrète — proposition historique, admission précisée ci-dessous
 
 **Recommandation : un relevé local structuré pour un opérateur humain désigné**,
 sur son hôte Linux amd64 privé autorisé ; aucune exécution hébergée dans Actions.
@@ -310,6 +312,98 @@ Sources relues : [commandes WSL Microsoft](https://raw.githubusercontent.com/Mic
 [SHA256SUMS Ubuntu24.04.5](https://releases.ubuntu.com/24.04.5/SHA256SUMS),
 `.cursor/rules/local-runtime-lifecycle.mdc`. L'aide locale2.6.1.0 observée par le
 lead documente le nom à l'installation ; ne pas confondre avec `--mount --name`.
+
+### Addendum admission du consommateur local privé — Accepted, 2026-10-30
+
+Base `b8a62792b7a81e48dcc0307279be5e073d631e83`, briefing
+`20261030-k6-private-channel-readiness-architecture.md`, guide WSL, rapports45–46
+et ledger relus. Proposition architecte récupérée à l'identique (87lignes),
+sauvegardée puis **ratifiée par le lead avant l'auteur unique** sous délégation
+mission1 et choix explicites de l'hôte/lecteur. Admission de l'implémentation et
+des tests ; toute collecte attend les contrôles ci-dessous, la revue indépendante
+et le créneau de lecture local effectivement convenu. L'architecte n'a exécuté
+aucun code ou runtime. Réponse finale de confirmation `result_mvuwioz0_0029_3xp18p`,
+session conservée ; aucune ancre/projection publique ratifiée.
+
+**Acquis, à ne pas redemander :** WSL local/lecture par l'utilisateur, installation
+autorisée, AIForAll livré et provisionnement vérifié indépendamment. GUID
+`22ce910b-45a3-42a4-bbab-dc56a1766035`, aiforall UID/EUID1000, HOME0700/ext4,
+ACL Windows propriétaire/SYSTEM/admins ; copie native05bd/23hashes conforme et
+propre,140tests sans skip, archives/ELF/versions2.3.0 et156.0.8078.73/deuxinspections
+PASS. Le refus local pré-cas et le direct unique FATAL/SIGABRT avant cleanup sont
+établis, pas leur site ou cause. AppArmor DISABLED ne désigne aucune cause.
+30identités possédées/0actives puis AIForAll Stopped ; aucun runtime pour ces docs.
+
+**Activation restante, propre à chaque collecte :**
+- Préparer code, fixtures et revue n'exige pas la présence immédiate du lecteur.
+  Créer le relevé exige un créneau de lecture locale réellement convenu avec cet
+  utilisateur et un parent disponible jusqu'au retrait, au plus60minutes. Ce
+  rendez-vous n'est pas un nouveau GO ni un nouveau choix d'hôte/opérateur.
+- Parent : revalider l'identité GUID/nom/BasePath, compte, FS privé et bail actif
+  par les contrôles existants, avant/après ; pas de vieux bail ou manifeste seul
+  pris comme preuve. Recontrôler pins/intégrité et conditions privées d'activation,
+  sans prétendre exclure absolument sauvegarde/administrateur Windows.
+- Un opt-in CLI explicite, uniquement sur le diagnostic direct local24.04 existant,
+  désactivé par défaut ; refus dans les autres modes et en comparaison22. Pas
+  d'activation ambiante, fallback ou nouveau mode/harness. Refuser CI/Actions et
+  leurs marqueurs présents **avant** nettoyage d'environnement et avant tout enfant.
+  Leur absence ne prouve pas un hôte privé : l'admission locale du parent reste
+  requise, portée par son appel sous bail vérifié, jamais une nouvelle autorité
+  ou un accord permanent. Aucun chemin CI/workflow/publication ne transporte cet opt-in.
+- Corréler au refus navigateur local déjà observé, ses pins/identités et à un
+  nouveau run direct distinct ; raccord local24 minimal, pas adoption du reçu22
+  comme s'il était équivalent. Aucun nouveau browser requis pour fabriquer cette
+  corrélation. Le seul futur direct armé de ce canal serait une observation
+  discriminante supplémentaire, pas un retry vert ni une preuve de cause GitHub.
+
+**Consommateur et sortie :** réutiliser les captures/Child/environnement/identités
+et cleanup existants, sans argument Chromium, outil, lecture système ou requête
+ajoutés. Examiner les deux flux complets64KiB chacun, UTF-8 strict, secrets/URLs/
+sentinelles et overflow sticky, même si cleanup devient prioritaire. Un unique
+enregistrement FATAL complet seulement, primaire observé avant cleanup et enfants
+cleanup PASS ; ambiguïté, timeout/interruption, identité non attestée, secret,
+overflow ou échec de cleanup => **aucun relevé**, pas de meilleur préfixe exploité.
+
+Seules données natives : le couple chemin relatif/ligne de l'option privée
+ci-dessus ; mêmes limites/grammaire, aucun corps/assertion/valeur/PID en plus.
+Conserver son JSON fermé et métadonnées prévues, au plus1KiB, emplacement fixe
+`$HOME/.cache/opencode/k6-causal/<run_id>/site.json`, Linux natif hors Git/run neuf,
+création exclusive0700/0600 puis0400. Valider schéma,
+modes, liens et propriété avant de déclarer le relevé prêt ; retirer tout écrit partiel
+possédé sur erreur. Un ancien fichier, chemin absolu ou fichier non privé est
+refusé, jamais corrigé/adopté. Le chemin source n'est jamais ouvert par l'outil.
+
+**Interdiction de sortie effective :** le couple reste uniquement dans ce relevé
+local, le chemin du fichier dans la gestion privée du parent. Aucun champ/exception/repr/extrait/hash
+dans stdout/stderr parent, reçu k6, projection publique, logger ou publisher ;
+branche privée exclue de publication sans exception « artefact d'échec ». Les
+sorties fermées existantes et exits non-zéro restent inchangés. Un relevé valide
+n'est ni Chromium PASS ni cleanup parent PASS : l'échec natif/SANDBOX_UNPROVEN
+n'empêche pas seul un relevé éligible, sans jamais devenir un succès. **Aucune ancre publique connue
+n'est exigée avant cette lecture privée** ; le catalogue/public consommateur
+reste Proposed/non admis, avec une admission distincte après vérification publique.
+
+**Lecture/rétention :** l'utilisateur lit localement, jamais un agent Read/catMCP.
+Après confirmation de lecture, ou à l'échéance60min même sans confirmation, le
+parent retire le seul relevé temporaire dont l'identité/propriété sont attestées,
+puis vérifie son absence. Ce retrait strict est prévu par cette admission future
+de rétention ; ni outils, distro, image ni autres données ne sont supprimés.
+Sans rendez-vous réel, pas de création ; échec de retrait ou crash = rétention
+non prouvée signalée, aucun watchdog/effacement magique promis. Pas de prolongation
+silencieuse ni reprise identique ; libérer le bail et arrêter seulement le runtime
+possédé devenu inutile, en conservant disque/outils selon le contrat WSL.
+
+**Avant collecte :** tests locaux ciblés du futur delta, puis revue indépendante
+du canal/permissions/refus. Positif : FATAL unique complet => seul couple attendu,
+JSON1KiB privé, jamais PASS fonctionnel. Négatifs : absence/opt-in dans mauvais
+mode, CI même avant scrub, parent non admis, faux format/site ambigu, chemin/ligne
+invalides, clés/types libres, fichier existant/liens/modes/UID/FS refusés, secret/
+URL/sentinelle/UTF8/overflow tardif puis cleanup prioritaire, interruption/cleanup
+échoué => zéro relevé. Vérifier zéro couple dans toutes sorties/publishers, lecture
+puis retrait, absence de lecture à l'échéance et retrait impossible. Fixtures
+existantes, aucun serveur/mock ou runtime nécessaire à cet arbitrage ; les140tests
+antérieurs ne valident pas ce delta. Sources officielles156/k62.3 déjà étudiées
+réutilisées ; aucun changement d'ADR, pin, sandbox, politique AppArmor ou mission.
 
 Écartés : texte/assertion libre même court, hash/base64 de contenu inconnu, vaste
 index des sites Chromium, résolution réseau d'un chemin natif, stack/core/minidump,

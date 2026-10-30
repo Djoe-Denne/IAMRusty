@@ -73,3 +73,15 @@ l'auteur. Rendre delta ciblé, choix/limites, sources officielles déjà étudi�
 réutilisées sauf nécessité d'une précision, diff-check réel, puis gel. Le lead
 intégrera puis ratifiera avant auteur unique outillage ; pas de question humaine
 générique ou modèle/QA nouveau.
+
+## Précision API vérifiée pendant l'arbitrage
+
+Le lead a recoupé la documentation officielle **CPythonv3.12.3**, correspondant
+au runtime observé : Doc/library/os.rst, open1227–1250, flags1277/1317–1333,
+unlink3423. `os.open` et `os.unlink` acceptent dir_fd ; les flags de création
+exclusive sont disponibles, O_DIRECTORY/O_NOFOLLOW sont des extensions dont la
+disponibilité effective doit être vérifiée avant usage, sans repli silencieux.
+La suppression d'une entrée n'est pas une garantie d'effacement physique. Une
+protection de la seule feuille ne sécurise pas à elle seule une chaîne de parents.
+Source : https://raw.githubusercontent.com/python/cpython/v3.12.3/Doc/library/os.rst.
+Choix locaux de détail à l'auteur après ratification, pas une bibliothèque nouvelle.
