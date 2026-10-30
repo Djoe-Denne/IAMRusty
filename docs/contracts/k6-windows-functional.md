@@ -1,6 +1,6 @@
 # Qualification fonctionnelle k6 Windows — raccord minimal proposé
 
-- Statut : **Accepted** ; Réalité : **Unimplemented**, aucun k6/Chrome Windows lancé ici.
+- Statut : **Accepted** ; Réalité : **Partial**, adaptateur et21tests intégrés ; aucun k6/Chrome Windows réel lancé ici.
 - Date : 2026-10-30 ; mission1 uniquement. Base principale915042f, OPS gelé
   `f279e713079159766188fcbe5078d37217ca530d` ; briefing
   `20261030-k6-windows-pivot-preparation.md` et rapport76.
