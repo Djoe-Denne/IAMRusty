@@ -28,6 +28,12 @@ de versions sera aligné sur le format fermé effectivement livré, avant toute
 exécution réelle. Les contrôles de chemin, identité, confidentialité, isolation
 et nettoyage ne sont pas remplacés par un checksum correct.
 
+Actualisation de préparation : une copie portable neuve horsGit est maintenant
+extraite dans le répertoiretemporaire approuvé,306fichiers contrôlés et les
+empreintes des huitexécutables revérifiées. Aucun outil n'a été lancé. Les gardes
+Windows du futur run ne sont **pas** déclarées validées par cette copie ; elles
+seront exécutées avec des observations fraîches après intégration du lanceur.
+
 ## Verdicts actuels
 
 Acquisition/intégrité des archives : vérifiées. Versions exécutées, inspections,
@@ -55,3 +61,14 @@ n'est lancé. Les consommateurs de preuve réelle attendront les entrées intég
   `1f6d96eff29d6d5f410056bdcab4e22b93386b69a95cbd03501cb813b0471afa`.
 - SourcechecksumsSHA2568ebbfcd5…, métadonnéeGoogleversionnéeSHA2564ed247fc… ;
   septimages.exe PE64 dansCfT, une dansk6. Ces faits ne prouvent pas leur lancement.
+- Suspension du workflow et rapports intégrés localement `abe170a`, hooknormal
+  cargoFMT/cached-diffcheck0, aucunpush. Pas de doubleédition des fichiersauteur.
+- Métadonnéeshôte lues séparément sans k6/Chrome :OS/process64bits, build26300/
+  OSVersion10.0.26300.0, WindowsPowerShell5.1.26100.9711/CLR4.0.30319.42000,
+  principal effectivement nonadministrateur. Les valeurs du registre ProductName
+  legacy et DisplayVersion26H2 sont conservées comme telles, sans inférence d'un
+  autre labelOS. Ce relevé n'est pas un bail ou un contrôle d'identité fraîche du run.
+- Export local `.tmp/k6-windows-portable-export-20261030.json`, état
+  `VERIFIED_PORTABLE_WINDOWS_EXPORT_NOT_EXECUTED`, commandeexit0 après syntaxe0,
+  huitexécutablescontrôlés et originauxconservés. Emplacementprivé effectif
+  réservé dans ce relevé, pas une valeur de configuration publiée.
