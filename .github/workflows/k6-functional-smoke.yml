@@ -111,7 +111,19 @@ jobs:
           printf 'K6_BROWSER_EXECUTABLE_PATH=%s/tools/chrome-linux64/chrome\n' "$private_root" >> "$GITHUB_ENV"
           /usr/bin/python3 -B ops/tests/k6/provision-linux.py --output "$private_root/tools"
       - name: Versions, both inspections, then at most one browser comparison (always nonzero)
+        id: comparison
         shell: bash
         run: |
           set -euo pipefail
           /usr/bin/python3 -B ops/tests/k6/run-linux.py browser --compare-ubuntu-2204 --output "$K6_PRIVATE_ROOT/ubuntu2204-comparison"
+      - name: Explicit guarded direct22 followup after admissible current refusal (never qualification)
+        if: ${{ failure() && steps.comparison.outcome == 'failure' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="$K6_PRIVATE_ROOT/ubuntu2204-comparison/private/comparison-result.json"
+          if [[ ! -f "$receipt" ]]; then
+            printf '%s\n' 'Direct22 NOT_STARTED: no admissible private current browser refusal.'
+            exit 1
+          fi
+          /usr/bin/python3 -B ops/tests/k6/run-linux.py diagnose-chromium --compare-ubuntu-2204 --browser-result "$receipt" --output "$K6_PRIVATE_ROOT/ubuntu2204-direct-check"

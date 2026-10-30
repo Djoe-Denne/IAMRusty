@@ -23,6 +23,21 @@ CHECKS = {"HTTP": ("iam-status", "iam-body"), "Chromium": ("browser-evaluation",
 CASES = {"HTTP": "iam-health", "Chromium": "browser-prerequisite"}
 SCENARIOS = {phase: HERE / "scenarios" / "smoke" / (case + ".js") for phase, case in CASES.items()}
 
+# Exact names from grafana/k6 v2.3.0 errext/exitcodes/codes.go. Never used for Chrome.
+K6_EXIT_CODES = {97: "CLOUD_TEST_RUN_FAILED", 98: "CLOUD_FAILED_TO_GET_PROGRESS", 99: "THRESHOLDS_HAVE_FAILED",
+    100: "SETUP_TIMEOUT", 101: "TEARDOWN_TIMEOUT", 102: "GENERIC_TIMEOUT", 103: "SCRIPT_STOPPED_FROM_REST_API",
+    104: "INVALID_CONFIG", 105: "EXTERNAL_ABORT", 106: "CANNOT_START_REST_API", 107: "SCRIPT_EXCEPTION",
+    108: "SCRIPT_ABORTED", 109: "GO_PANIC", 110: "MARKED_AS_FAILED"}
+K6_EXIT_CATEGORIES = frozenset(K6_EXIT_CODES.values()) | {"ABSENT", "ZERO", "SIGNAL", "UNKNOWN"}
+
+
+def k6_exit_category(code):
+    if code is None:
+        return "ABSENT"
+    if type(code) is not int:
+        raise Rejected("INPUT_INVALID")
+    return "SIGNAL" if code < 0 else "ZERO" if code == 0 else K6_EXIT_CODES.get(code, "UNKNOWN")
+
 
 def config_schema(data):
     fields = {"version", "profile", "cluster", "context", "task_id", "target_id", "origin", "lease", "observations"}
@@ -457,6 +472,12 @@ def scenario_run(phase, config, output, tools, *, negative=None):
                 failure = Rejected("INTERNAL_ERROR")
             try:
                 state, counters = browser_summary_observation(summary, run_id)
+                if failure.code == "SANDBOX_UNPROVEN" and state == "VALID" and not child.output_overflow:
+                    # Recheck complete captured streams before admitting the private
+                    # parent signal; a known refusal is not a privacy exemption.
+                    confidential(child.stdout)
+                    confidential(child.stderr)
+                    failure.browser_confidentiality = "PASS"
                 failure.browser_observation = closed_browser_observation({
                     "native_exit": native_exit_category(child.code), "summary": state, "counters": counters,
                     "renderer_observed": child.renderer_observed,
@@ -473,9 +494,14 @@ def scenario_run(phase, config, output, tools, *, negative=None):
                 pass
         if isinstance(failure, Rejected):
             failure.cleanup = "PASS" if child.cleanup else "FAIL"
+            if phase == "Chromium":
+                try:
+                    failure.k6_exit = k6_exit_category(child.code)
+                except Rejected:
+                    pass  # malformed native result is withheld, never projected
         raise failure
     return {"run_id": run_id, "cleanup": "PASS", "sandbox": "PASS" if phase == "Chromium" else "NOT_APPLICABLE",
-            **({"sandbox_proof": child.sandbox_proof} if phase == "Chromium" else {})}
+            **({"sandbox_proof": child.sandbox_proof, "k6_exit": k6_exit_category(code)} if phase == "Chromium" else {})}
 
 
 def publish(output, result, provenance=None):
@@ -525,6 +551,61 @@ def comparison_metadata(tools, versions):
              "versions": {name: versions[name] for name in names}, "tools": hashes}
     confidential(json.dumps(value, sort_keys=True).encode())
     return value
+
+
+def admissible_browser_refusal(value, metadata, host):
+    """A fresh private parent signal, not runtime authority or sandbox proof."""
+    fixed = {"version": 1, "HTTP": "INCONCLUSIVE", "Chromium": "INCONCLUSIVE", "cleanup": "PASS",
+             "confidentiality": "PASS", "cleanup_scope": "LAUNCHER_CHILDREN_ONLY", "parent_runtime_cleanup": "INCONCLUSIVE",
+             "browser_source": "K6", "tools": "PASS", "diagnostic": "SANDBOX_UNPROVEN"}
+    fields = set(fixed) | {"run_id", "started_unix_ms", "finished_unix_ms", "comparison", "browser_host",
+                           "browser_native_diagnostic", "browser_observation", "k6_exit"}
+    try:
+        if (type(value) is not dict or set(value) != fields or type(value["version"]) is not int
+                or any(value[key] != expected for key, expected in fixed.items())
+                or type(value["run_id"]) is not str or not re.fullmatch(r"[a-f0-9]{32}", value["run_id"])):
+            return False
+        start, finish, now = value["started_unix_ms"], value["finished_unix_ms"], int(time.time() * 1000)
+        if (type(start) is not int or type(finish) is not int or not 0 <= finish - start <= 120000
+                or not 0 <= now - finish <= 120000):
+            return False
+        expected = {"platform": "ubuntu-22.04-linux-amd64-diagnostic-only",
+            "qualification": "NOT_EQUIVALENT_TO_UBUNTU_24_04", "reference_run": "40973768642",
+            "browser_launch": "ATTEMPTED", "case": "NOT_PROVEN", "sandbox_witness": "NOT_PROVEN", **metadata}
+        if value["comparison"] != expected or closed_host_metadata(value["browser_host"]) != host:
+            return False
+        if (value["browser_native_diagnostic"] not in BROWSER_DIAGNOSTICS
+                or value["k6_exit"] not in K6_EXIT_CATEGORIES):
+            return False
+        observation = closed_browser_observation(value["browser_observation"])
+        native = {"ABSENT": "ABSENT", "ZERO": "ZERO", "SIGNAL": "SIGNAL"}.get(value["k6_exit"], "NONZERO")
+        counters = observation["counters"]
+        return (native != "ABSENT" and observation["native_exit"] == native and observation["summary"] == "VALID"
+                and counters == {"expected": "ONE", "started": counters["started"], "completed": "ZERO",
+                                 "iterations": "ONE", "requests": "ZERO"} and counters["started"] in {"ZERO", "ONE"})
+    except (Rejected, KeyError, TypeError, ValueError):
+        return False
+
+
+def admit_browser_refusal(path, output_path, tools, lock):
+    # private_read supplies the existing path/owner/mode/size guards. Same private
+    # campaign parent and fresh matching metadata; never an old runtime lease.
+    receipt = Path(path)
+    value = strict_json(private_read(receipt))
+    metadata = comparison_metadata(tools, {name: lock[name]["version"] for name in ("k6", "chromium")})
+    if (receipt != receipt.resolve(strict=True) or receipt.name != "comparison-result.json"
+            or receipt.parent.name != "private" or Path(output_path).parent.resolve(strict=True) != receipt.parent.parent.parent
+            or not admissible_browser_refusal(value, metadata, closed_host_metadata(host_metadata()))):
+        raise Rejected("INPUT_INVALID")
+    # Exclusive, private, never removed/replaced: even a failed followup cannot retry.
+    try:
+        marker = receipt.parent / "direct-attempted.json"
+        with marker.open("xb") as stream:
+            stream.write(b"{}")
+        marker.chmod(0o400)
+    except OSError:
+        raise Rejected("INPUT_INVALID") from None
+    return value["run_id"]
 
 
 def provenance(tools, lock, versions, config_path=None):
@@ -623,9 +704,11 @@ def arguments(argv):
             command.add_argument("--config", required=True)
         if name != "validate":
             command.add_argument("--output", required=True)
-        if name == "browser":
+        if name in {"browser", "diagnose-chromium"}:
             command.add_argument("--compare-ubuntu-2204", action="store_true",
                                  help="Temporary nonqualifying comparison only; never publishes and always exits nonzero.")
+        if name == "diagnose-chromium":
+            command.add_argument("--browser-result", help="Private current comparison refusal, required only for the22 followup.")
     return parser.parse_args(argv)
 
 
@@ -642,7 +725,9 @@ def main(argv=None):
         args = arguments(argv)
         mode = args.command
         phase = {"run": "HTTP", "browser": "Chromium"}.get(mode)
-        comparison = mode == "browser" and args.compare_ubuntu_2204
+        comparison = mode in {"browser", "diagnose-chromium"} and args.compare_ubuntu_2204
+        if mode == "diagnose-chromium" and (comparison != (args.browser_result is not None) or args.browser_result == ""):
+            raise Rejected("INPUT_INVALID")
         if comparison:
             linux_platform(comparison=True)
             result["comparison"] = {"platform": "ubuntu-22.04-linux-amd64-diagnostic-only",
@@ -658,11 +743,13 @@ def main(argv=None):
             if args.command in {"run", "selftest"}:
                 live_target(config)
             tools, lock = pinned_tools(browser=args.command in {"browser", "tools", "diagnose-chromium"})
+            if comparison and mode == "diagnose-chromium":
+                result["comparison"]["parent_browser_run_id"] = admit_browser_refusal(args.browser_result, args.output, tools, lock)
             versions = version_checks(tools, lock, output)
             if mode in {"browser", "diagnose-chromium"}:
                 result["browser_source"] = "K6" if mode == "browser" else "CHROMIUM_DIRECT"
                 result["browser_host"] = closed_host_metadata(host_metadata())
-            if comparison:
+            if comparison and mode == "browser":
                 # Same versions/inspect/identity/environment/scenario/Child as V1.
                 # No direct launch, retry, HTTP target, publication or qualification.
                 result["comparison"].update(comparison_metadata(tools, versions))
@@ -673,6 +760,7 @@ def main(argv=None):
                 completed = scenario_run("Chromium", None, output, tools)
                 result["run_id"] = completed["run_id"]
                 result["cleanup"] = completed["cleanup"]
+                result["k6_exit"] = completed["k6_exit"]
                 result["comparison"]["case"] = "COMPLETE"
                 result["comparison"]["sandbox_witness"] = "OBSERVED"
                 result["diagnostic"] = "PREREQUISITE_UNAVAILABLE"
@@ -712,6 +800,8 @@ def main(argv=None):
         result["diagnostic"] = failure.code
         result["cleanup"] = failure.cleanup
         native_reason = failure.browser_diagnostic
+        if mode == "browser" and type(getattr(failure, "k6_exit", None)) is str and failure.k6_exit in K6_EXIT_CATEGORIES:
+            result["k6_exit"] = failure.k6_exit
         if mode == "browser" and type(native_reason) is str and native_reason in BROWSER_DIAGNOSTICS:
             result["browser_native_diagnostic"] = native_reason
         if mode == "browser" and failure.browser_observation is not None:
@@ -734,10 +824,25 @@ def main(argv=None):
             result[mode] = "INCONCLUSIVE" if failure.inconclusive else "FAIL"
         result["confidentiality"] = ("FAIL" if failure.code == "PRIVACY_FAILED" else
             "PASS" if mode == "diagnose-chromium" and "direct_observation" in result else "NOT_QUALIFIED")
+        if comparison and mode == "browser":
+            result["finished_unix_ms"] = int(time.time() * 1000)
+            if failure.code == "SANDBOX_UNPROVEN" and getattr(failure, "browser_confidentiality", None) == "PASS":
+                result["confidentiality"] = "PASS"
         # No file publication on a failed confidentiality or incomplete cleanup.
         # Final one-line diagnostic is constructed from closed labels, not errors.
         raw = json.dumps(result, sort_keys=True).encode()
         confidential(raw)
+        if comparison and mode == "browser" and len(raw) <= ARTIFACT_LIMIT and "comparison" in result:
+            metadata = {key: result["comparison"].get(key) for key in ("observed", "versions", "tools")}
+            if admissible_browser_refusal(result, metadata, result.get("browser_host")):
+                try:
+                    receipt = output / "private/comparison-result.json"
+                    with receipt.open("xb") as stream:
+                        stream.write(raw)
+                    receipt.chmod(0o400)
+                except OSError:
+                    # No signal means no direct launch. Never publish or retry.
+                    pass
         print(raw.decode())
         return 2 if failure.inconclusive else 1
 

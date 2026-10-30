@@ -31,9 +31,11 @@ class SelectionTests(unittest.TestCase):
         with environment("24.04"):
             runner.linux_platform()
 
-    def test_only_browser_has_closed_comparison_flag(self):
+    def test_only_browser_and_guarded_direct_have_closed_comparison_flag(self):
         self.assertTrue(runner.arguments(["browser", FLAG, "--output", "/private/new"]).compare_ubuntu_2204)
-        for mode in ("validate", "run", "selftest", "tools", "diagnose-chromium"):
+        self.assertTrue(runner.arguments(["diagnose-chromium", FLAG, "--browser-result", "/private/refusal",
+                                         "--output", "/private/new"]).compare_ubuntu_2204)
+        for mode in ("validate", "run", "selftest", "tools"):
             args = [mode, FLAG, "--output", "/private/new", "--config", "/private/config"]
             with self.subTest(mode=mode), self.assertRaises(safety.Rejected):
                 runner.arguments(args)
@@ -287,7 +289,7 @@ class ComparisonTests(unittest.TestCase):
         self.assertIn("persist-credentials: false", diagnostic)
         self.assertIn("umask 077", diagnostic)
         self.assertIn('mktemp -d "$RUNNER_TEMP/k6-private.XXXXXXXX"', diagnostic)
-        for forbidden in ("upload-artifact", "continue-on-error", "diagnose-chromium", "sudo", "secrets.",
+        for forbidden in ("upload-artifact", "continue-on-error", "sudo", "secrets.",
                           "workflow_dispatch", "apt-get", "sysctl", "apparmor_parser"):
             self.assertNotIn(forbidden, diagnostic)
         self.assertEqual(diagnostic.count("uses:"), 1)

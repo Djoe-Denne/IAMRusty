@@ -374,6 +374,7 @@ class DirectTests(unittest.TestCase):
 
     def test_ci_comparison_is_separate_and_cannot_turn_browser_failure_green(self):
         workflow = (runner.REPO / ".github/workflows/k6-functional-smoke.yml").read_text()
+        workflow = workflow.split("  ubuntu2204-comparison:", 1)[0]  # canonical24 path;22 has its own guarded test
         self.assertIn("failure() && steps.tools.outcome == 'success' && steps.browser.outcome == 'failure'", workflow)
         self.assertEqual(workflow.count("run-linux.py diagnose-chromium"), 1)
         self.assertLess(workflow.index("run-linux.py browser"), workflow.index("run-linux.py diagnose-chromium"))

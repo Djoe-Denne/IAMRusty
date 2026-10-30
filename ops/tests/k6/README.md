@@ -135,10 +135,11 @@ command is (not a record of execution):
 python3 -B ops/tests/k6/run-linux.py browser --compare-ubuntu-2204 --output "$PRIVATE_ROOT/ubuntu2204-comparison"
 ```
 
-This flag is accepted only on `browser` and only on22.04. It reuses the pinned
+This flag is accepted only on `browser` or its guarded `diagnose-chromium`
+followup, and only on22.04. The browser comparison reuses the pinned
 archive/ELF checks, both actual binary version checks, both scenario inspections,
 then **at most one** unchanged k6/browser scenario and `Child` supervision. Failed
-prerequisites stop before that scenario. No direct Chromium run, retry, application
+prerequisites stop before that scenario. No automatic direct run, retry, application
 target, free OS/arguments/executable, package installation or fallback is added.
 
 The one-line JSON separates tools, attempted browser launch, complete case,
@@ -155,6 +156,40 @@ and adds only a nonpublishing22.04 comparison job with the same checkout SHA,
 read-only permission, acquisition and private-root rules. A push may incidentally
 run24.04 again; the comparison reference remains run40973768642, not a claimed
 single-variable A/B. No dispatch, failure masking or artifact upload is added.
+
+After the observed22 refusal (run40976916763), the lead selected the already
+Accepted optional **separate** direct22 diagnostic. Only a current incomplete
+`SANDBOX_UNPROVEN` refusal with tools PASS, full checked streams/summary and child
+cleanup PASS creates `private/comparison-result.json` (bounded, exclusive,0400).
+This is the existing closed result used privately by the parent, not a published
+artifact, runtime-ownership assertion or replacement target lease.
+
+Proposed followup after that admissible refusal, in the **same private campaign
+root/job/host/pins**, never a command already executed by this documentation:
+
+```sh
+python3 -B ops/tests/k6/run-linux.py diagnose-chromium --compare-ubuntu-2204 --browser-result "$PRIVATE_ROOT/ubuntu2204-comparison/private/comparison-result.json" --output "$PRIVATE_ROOT/ubuntu2204-direct-check"
+```
+
+Before any version/browser child, the direct path checks the private file with
+`private_read`/`strict_json`, exact closed fields, incomplete counters, same host
+metadata/UID/ELF hashes/versions, and timestamps (duration and age each at most120s).
+The output must be a fresh sibling campaign directory. An exclusive private
+`direct-attempted.json` marker consumes the permission once, even if later checks
+fail; no retry/removal is provided. Missing, truncated, stale, hostile, complete,
+privacy-failed or cleanup-failed results do not admit a direct child. All normal
+direct sandbox/privacy/identity/cleanup checks remain unchanged; native exit0 is
+still INCONCLUSIVE/nonzero/nonpublished. CI retains the initial job failure.
+
+The additive `k6_exit` label uses the exact
+[k6v2.3.0 exit-code table](https://raw.githubusercontent.com/grafana/k6/v2.3.0/errext/exitcodes/codes.go),
+not generic NONZERO: notably99=`THRESHOLDS_HAVE_FAILED`,104=`INVALID_CONFIG`,
+107=`SCRIPT_EXCEPTION`,108=`SCRIPT_ABORTED`. Absence, zero, signal and unknown
+codes have distinct closed labels; no arbitrary number/text is projected. This
+table is **never** applied to Chromium's native exit. The22 failure despite the
+observed AppArmor restriction0 neither establishes a cause nor qualifies24.04;
+the differing setup-image and `ImageVersion` observations in report27 remain
+distinct. No host policy, browser arguments or pinned binaries are changed.
 
 Research is reused from mission report23 and the Accepted comparison addendum:
 [pinned Chromium156 sandbox guidance](https://chromium.googlesource.com/chromium/src/+/156.0.8078.73/docs/security/apparmor-userns-restrictions.md),

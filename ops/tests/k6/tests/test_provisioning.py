@@ -186,7 +186,8 @@ class ProvisioningTests(unittest.TestCase):
         self.assertIn("contents: read", workflow)
         self.assertIn("persist-credentials: false", workflow)
         self.assertIn("runs-on: ubuntu-24.04", workflow)
-        self.assertNotIn("/private/", workflow)
+        published = workflow.split("path: |", 1)[1].split("      - name:", 1)[0]
+        self.assertNotIn("/private/", published)  # private parent input is not an upload
         self.assertNotIn("run-linux.py run ", workflow)
         self.assertNotIn("run-linux.py selftest ", workflow)
         self.assertEqual(workflow.count("/result.json"), 2)
