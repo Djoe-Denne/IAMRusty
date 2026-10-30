@@ -241,6 +241,15 @@ choisi **`AIForAll`** comme nom technique. Le lead actualise ce seul paramètre 
 la reprise ; libellé humain « AI for All », emplacement et autorisation d'installation
 restent inchangés. Aucune création n'est déduite de ce choix.
 
+Réalité ensuite vérifiée : enregistrement `AIForAll` réussi, GUID
+`{22ce910b-45a3-42a4-bbab-dc56a1766035}`, BasePath I:\WSL\AIForAll et ext4.vhdx
+sur I:, défaut global inchangé. Compte aiforall/defaultUID1000 observé non-root,
+HOME0700 natif ext4 ; stockage Windows limité au propriétaire/SYSTEM/Administrators.
+Les28paquets demandés sont installés (refresh/simulate/install0, dépôts Ubuntu
+authentifiés), sans k6/Chromium exécuté. Le [guide d'hôte](../wsl-aiforall.md)
+et rapport43 décrivent cette preuve ; la vérification indépendante est à venir,
+les qualifications et le relevé privé ne sont pas admis par ce provisionnement.
+
 - **Hôte exact :** nouvelle instance WSL2 Ubuntu24.04 amd64, nom d'enregistrement
   **`AIForAll`** (choix utilisateur après refus de `AI for All`), emplacement
   **`I:\WSL\AIForAll`**. Préflight lead : I: NTFS sain,
