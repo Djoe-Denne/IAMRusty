@@ -1,6 +1,8 @@
 # Observation causale Chromium — proposition minimale
 
-- Statut : **Proposed** ; Réalité : **Unimplemented**, aucune nouvelle preuve native.
+- Statut : **Proposed pour les observations causales** ; Réalité : **Unimplemented**.
+  L'addendum d'hôte WSL dédié ci-dessous est **Accepted pour son provisionnement**,
+  sans qualification de l'hôte ou admission du relevé privé.
 - Date : 2026-10-30 ; jalon : mission1 k6, hors Apparatus P0–P6.
 - Canon lu : [contrat V1](k6-functional-linux.md), checkout principal au commit
   `7aaaeafb54c532b19afb5cde165a2aad1b8eee6f`, et [ADR0504](../adr/0504-validation-fonctionnelle-linux-k6.md)
@@ -217,6 +219,79 @@ stockage privé et toutes les gardes d'activation restent à vérifier ; aucun r
 consommateur ou essai n'est admis par cette photographie. La question immédiate
 porte sur ces quatre dépendances précises, plus sur un GO générique ou sur
 l'identité du lecteur déjà fournie. Voir rapport39 et ledger du lot.
+
+### Addendum hôte WSL dédié sur I: — Accepted pour le provisionnement, 2026-10-30
+
+Base canonique `fdbb29160cc91ed699afdba6323f07955831bd69`, rapport40, ledger et
+briefing `20261030-k6-wsl-dedicated-instance-architecture.md`. **La demande
+utilisateur de créer l'instance et d'y installer les outils nécessaires est
+acquise** ; elle remplace le plan d'installation dans ARTIST-Ubuntu ci-dessus,
+conservé comme photographie historique. Le lecteur reste l'utilisateur déjà
+désigné (« lecture par moi »). Le lead ratifie ce rattachement avant création,
+sans redemander ces autorisations. Le lead ratifie **ce seul provisionnement avant
+création**, sous la demande explicite utilisateur, après récupération byte-identique
+et sauvegarde du candidat architecte `result_mvuqe1yi_0002_ar0a9l`. Le relevé privé
+et sa QA restent Proposed/non admis ; aucun résultat runtime n'est déduit de cet accord.
+
+- **Hôte exact :** nouvelle instance WSL2 Ubuntu24.04 amd64, nom d'enregistrement
+  **`AI for All`**, emplacement **`I:\WSL\AIForAll`**. Préflight lead : I: NTFS sain,
+  1240483057664octets libres, parent I:\WSL existant, destination absente ; WSL2.6.1.0
+  expose les options nécessaires. Ce sont des constats avant création, pas une
+  preuve d'instance livrée. Revalider absence de collision avant mutation ; aucun
+  dossier occupé, compte existant ou ancienne distro remplacé.
+- **Acquisition :** image officielle versionnée Ubuntu24.04.5 amd64, recoupée avec
+  le catalogue WSL `Ubuntu-24.04`, plutôt qu'une acquisition flottante :
+  `https://releases.ubuntu.com/24.04.5/ubuntu-24.04.5-wsl-amd64.wsl`, SHA256 attendu
+  `bb415d824822c4b878125729af451a5d18fb13d1cf5cbed9a7393ad64ac6039e`, relu dans
+  les SHA256SUMS Ubuntu officiels. Contrôler les octets acquis contre ce pin avant
+  installation. Image ni téléchargée ni exécutée par cet arbitrage ; métadonnées
+  seules vérifiées. La procédure native d'installation locale reste au lead,
+  avec nom/emplacement explicites et non-lancement automatique ; pas `Ubuntu`
+  flottant vers26.04. Tracer canal/éditeur, identité/version réellement acquise et
+  provenance ; un nom ou un HEAD HTTP seul ne prouve pas l'intégrité des octets.
+  Le support du nom avec espaces est à confirmer lors de la création : l'aide
+  locale est une capacité annoncée, pas un succès. Refus réel => arrêt et retour
+  précis, jamais autre nom implicite. L'import d'une image officielle vérifiée
+  est une alternative si choisie/tracée par le lead avant création, pas un fallback.
+- **Compte :** créer dans l'hôte neuf le compte de travail `aiforall`, UID effectif
+  non nul observé et HOME privé. Administration de cette seule instance autorisée
+  pour comptes et installations nécessaires ; k6/Chromium/validations non-root,
+  invocation explicitement rattachée à cette distro et ce compte. Aucun Cargo/Rust
+  de dev dans WSL, toolchain Rust ou Docker installé spontanément ; Cargo Windows
+  et son slot unique restent inchangés. Ni réglage noyau/sandbox, fonctionnalité
+  Windows globale ni mise à jour WSL implicite sous couvert d'installation.
+- **Propriété et bail :** parent responsable de l'inventaire avant/après et du
+  registre contemporain de création : GUID d'enregistrement Lxss, BasePath/VHDX
+  observés, distribution/version/architecture, compte/UID/HOME et états runtime.
+  Corréler ces identités au delta créé, pas au seul nom ; bail propre aux sessions
+  actives de cette instance, aucun ancien bail ARTIST adopté. Vérifier distro par
+  défaut avant/après, sans la changer. ARTIST-Ubuntu arrêté, docker-desktop/default
+  et autres ressources étrangères restent hors propriété et inchangés.
+- **Données :** outils, profils et futurs relevés privés sur le FS Linux natif
+  du VHDX de cette instance, HOME de `aiforall`, hors Git et sans liens ; jamais
+  `/mnt/i` ou `/mnt/c` pour simuler les garanties POSIX. Vérifier aussi les accès
+  Windows au nouveau dossier/VHDX ; ne pas modifier les ACL du parent étranger.
+  La distro, ses outils et données de projet persistent car demandés. Cela ne
+  prolonge pas la rétention du couple source inconnu, toujours bornée séparément.
+- **Runtime à la demande :** baux/consommateurs actifs puis jonction des enfants
+  possédés ; lorsqu'inutile, revalider GUID/nom/BasePath et arrêter uniquement cette
+  distro après libération du bail. Persister les états avant/après. Le stop ne
+  détruit pas le disque ; aucun unregister/reset/prune/suppression ou shutdown WSL
+  global. Aucun arrêt Docker/ancienne distro ; la RAM du backend partagé n'est
+  pas revendiquée entièrement libérée par cet arrêt ciblé.
+
+**Admission distincte :** provisionnement dédié demandé ≠ qualification de l'hôte
+≠ admission du consommateur/relevé privé. Pins/arguments, identité, sandbox,
+confidentialité, rétention et QA du canal restent à satisfaire/ratifier avant ce
+relevé ; l'autorisation d'installer n'autorise aucun export natif inconnu. Les140
+tests historiques ne qualifient pas l'instance neuve. Aucun essai, installation,
+commande WSL, code ou nouvelle ADR dans cet arbitrage documentaire.
+
+Sources relues : [commandes WSL Microsoft](https://raw.githubusercontent.com/MicrosoftDocs/WSL/main/WSL/basic-commands.md),
+[installation Ubuntu WSL officielle](https://ubuntu.com/wsl/docs/stable/howto/install-ubuntu-wsl2/),
+[SHA256SUMS Ubuntu24.04.5](https://releases.ubuntu.com/24.04.5/SHA256SUMS),
+`.cursor/rules/local-runtime-lifecycle.mdc`. L'aide locale2.6.1.0 observée par le
+lead documente le nom à l'installation ; ne pas confondre avec `--mount --name`.
 
 Écartés : texte/assertion libre même court, hash/base64 de contenu inconnu, vaste
 index des sites Chromium, résolution réseau d'un chemin natif, stack/core/minidump,

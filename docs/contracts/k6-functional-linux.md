@@ -19,6 +19,13 @@ La [proposition d'observation causale](k6-chromium-causal-observation.md) reste
 **Proposed / Unimplemented** : ni divulgation de site, ni consommateur ou essai
 d'ancre admis ; aucune entrée publique pertinente pour22 n'est connue.
 
+Sur demande explicite utilisateur, le [rattachement d'un hôte WSL dédié sur I:](k6-chromium-causal-observation.md)
+est ratifié avant création : instance `AI for All`, Ubuntu24.04.5 amd64, image
+officielle vérifiée, compte de travail non-root et données sur son FS Linux natif.
+Seul le provisionnement est Accepted ; l'autorisation d'installer dans cette
+instance ne qualifie ni le navigateur ni le futur relevé privé. ARTIST-Ubuntu et
+les autres ressources restent inchangés ; les compilations Rust de dev restent Windows.
+
 Photographie historique antérieure : socle intégré jusqu'à `5d79557`, 50 tests
 Linux/WSL réussis sans skip, correctif S-1 revu indépendamment. k6 v2.3.0 annoncé
 par le binaire vérifié ; deux inspect réussis. Chromium `--version` échoue sur
