@@ -1,8 +1,9 @@
-# Observation causale Chromium — proposition minimale
+# Observation causale Chromium — canal local et proposition d'ancre publique
 
 - Statut : **Accepted pour l'implémentation et les tests du consommateur local
   privé, collecte conditionnelle** ; ancre et projection publiques **Proposed**.
-  Réalité du consommateur : **Unimplemented**, aucun relevé créé.
+  Réalité du consommateur : **Partial**, code et fixtures intégrés, revue en attente,
+  aucun relevé réel créé. L'ancre publique reste non implémentée et non admise.
   L'addendum d'hôte WSL dédié ci-dessous est **Accepted pour son provisionnement**,
   sans qualification de l'hôte ou admission du relevé privé.
 - Date : 2026-10-30 ; jalon : mission1 k6, hors Apparatus P0–P6.
@@ -324,6 +325,12 @@ des tests ; toute collecte attend les contrôles ci-dessous, la revue indépenda
 et le créneau de lecture local effectivement convenu. L'architecte n'a exécuté
 aucun code ou runtime. Réponse finale de confirmation `result_mvuwioz0_0029_3xp18p`,
 session conservée ; aucune ancre/projection publique ratifiée.
+
+Photographie après implémentation : quatre fichiers intégrés dans `968592f`,
+tests Windows162/exit0/skips8 puis Linux162/exit0/0skip sur source propreeb3d355.
+Les fixtures n'utilisent que des sites synthétiques connus ; elles ne fournissent
+pas le parent_check réel ni le rendez-vous de lecture. Revue indépendante en
+attente, aucune capture/qualification nouvelle ; [preuves des tests](../../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/49-tests-linux-du-canal-prive-reussis-sans-collecte.md).
 
 **Acquis, à ne pas redemander :** WSL local/lecture par l'utilisateur, installation
 autorisée, AIForAll livré et provisionnement vérifié indépendamment. GUID
