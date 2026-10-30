@@ -41,8 +41,11 @@ nouveau GO général à demander pendant cette investigation.
   sans WSL ou code du conducteur exécuté. Rôles/flags conservés, pas d'identifiants
   de compte personnels ou de descripteurs bruts publiés.
 - Sur `I:\` : Allow AuthenticatedUsers applicable à l'objet, DELETE et création
-  fichier/dossier ; pas FILE_DELETE_CHILD observé sur cette ACE. Propriétaire SID
-  non account-SID, résolu, hors token courant ; son rôle fiable reste à caractériser.
+  fichier/dossier ; pas FILE_DELETE_CHILD observé sur cette ACE. Le rôle d'abord
+  inconnu du propriétaire est ensuite confirmé par comparaison native de SID
+  bien connu : **Network Service, le compte intégré Service réseau**, distinct du
+  compte courant, SYSTEM et administrateurs. Ce rôle n'est pas déclaré fiable
+  pour cette opération par simple reconnaissance de son nom.
 - Sur `I:\WSL` : propriétaire courant, Allow AuthenticatedUsers hérité applicable
   à l'objet avec les mêmes flags ; pas FILE_DELETE_CHILD sur cette ACE.
 - Feuilles `I:\WSL\AIForAll` et `ext4.vhdx` privées/protégées ; aucune modification.
@@ -51,3 +54,12 @@ nouveau GO général à demander pendant cette investigation.
   WRITE_DAC/WRITE_OWNER influencent aussi la sûreté d'une chaîne.
 - Aucun exploit, processus adverse, nouvel utilisateur, mutation ACL, runtime,
   déplacement ou lecture de site inconnu. Les tests189 restent des preuves séparées.
+
+Le déplacement vers une nouvelle branche du même volume ne suffit donc pas à
+déclarer la racine sûre. L'architecte doit intégrer ce fait à son arbitrage. Une
+autre hypothèse documentaire est le maintien de handles natifs de la chaîne,
+avec partage empêchant la substitution pendant l'opération : CreateFile documente
+que l'absence de FILE_SHARE_DELETE bloque les ouvertures pour suppression/rename.
+Cette hypothèse exige d'examiner aussi reparse/écriture, compatibilité WSL et
+effets sur les autres consommateurs ; **aucune solution par handles n'est ici
+validée, implémentée ou autorisée comme remplacement du garde**.

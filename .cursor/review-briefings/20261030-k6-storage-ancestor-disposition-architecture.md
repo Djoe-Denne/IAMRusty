@@ -48,3 +48,33 @@ justifie, en lisant sa version actuelle avant écriture. Sinon retour READONLY.
 Pas d'édition du conducteur, ledger partagé ou autre contrat, aucune exécution
 WSL/Windows mutation/Cargo/CI, nouvel utilisateur, changement ACL ou déplacement.
 Le lead intègre et arbitre avant toute opération ; aucune collecte réelle maintenant.
+
+## Complément de constat et hypothèse à arbitrer, pas ordre d'implémentation
+
+Le propriétaire de I:\ est désormais confirmé via
+`SecurityIdentifier.IsWellKnown(NetworkServiceSid)` : **Network Service**,
+pas SYSTEM/admins/courant/TrustedInstaller. Pas de SID personnel publié ou de
+confiance accordée dynamiquement à ce rôle. Un déplacement seul sous I:\ ne
+prouve donc pas la sûreté de l'ancêtre racine : ne pas ignorer cette frontière.
+
+Si cette donnée rend le déplacement insuffisant, examiner une seule alternative
+concrète utile plutôt qu'une liste : fixation temporaire des objets de toute la
+chaîne par handles natifs, ouverts avant lancement et gardés jusqu'au retrait/
+jonction, partage empêchant suppression/rename, sans mutation ACL. Source officielle
+recoupée HTTP200 :
+https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew
+L'absence de FILE_SHARE_DELETE interdit les ouvertures pour delete, qui couvre
+aussi rename ; flags OPEN_REPARSE_POINT et BACKUP_SEMANTICS documentés.
+
+**Hypothèse à vérifier**, pas preuve ou dérogation : évaluer redirection reparse/
+écriture malgré les handles, droits permettant de changer une ACL, atomisation
+des ouvertures/identités et compatibilité de partage WSL, durée jusqu'au retrait
+et effets sur les workloads étrangers. Pas de privilège backup/restore activé.
+Ne pas étendre « principal fiable » à Network Service pour faire passer l'hôte.
+Un tel mécanisme nécessite décision architecturale/contrat ratifié et fixtures
+natives discriminantes avant code/exécution réels ; aucun nouveau harness.
+
+Sinon conclure honnêtement au plus petit arbitrage humain réellement nécessaire
+(par exemple propriété/droits d'un ancêtre partagé), avec portée/pertes/alternatives,
+sans exécuter ou demander maintenant une opération globale. Les correctifs13 et
+leur validation restent indépendants ; ne pas retarder S-2 ou assouplir S-1.
