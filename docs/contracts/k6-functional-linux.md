@@ -7,11 +7,12 @@ aucune qualification ou permission runtime n'est déduite de ce document.
 
 ## Admission de la révision V1 mission1
 
-Photographie vérifiée au 2026-10-30 : source `783fa80`, publiée dans `6b58108`,
-[run Linux 40982576736](https://github.com/Djoe-Denne/IAMRusty/actions/runs/40982576736).
-129 tests natifs sans skip sur Ubuntu 24.04 et sur la comparaison diagnostique
+Photographie vérifiée au 2026-10-30 : source `1c0036f`, publiée dans `6c27e17`,
+[run Linux 40985953377](https://github.com/Djoe-Denne/IAMRusty/actions/runs/40985953377).
+140 tests natifs sans skip sur Ubuntu 24.04 et sur la comparaison diagnostique
 22.04 ; archives, exécutables, versions et deux inspections vérifiés. Le navigateur
-reste non qualifié : k6 refuse avant le cas, direct22 rapporte SIGABRT avant cleanup,
+reste non qualifié : k6 refuse avant le cas, direct22 rapporte un format fatal
+Chromium et SIGABRT avant cleanup, sans site ou cause connus ;
 direct24 NoUsableSandbox avec refus de confidentialité. Cleanup des enfants PASS,
 runtime parent INCONCLUSIVE ; HTTP et selftests live sans cible conforme autorisée.
 La [proposition d'observation causale](k6-chromium-causal-observation.md) reste
