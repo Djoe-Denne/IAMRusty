@@ -25,7 +25,9 @@ nouveau navigateur ou test HTTP lancé.
 - Blobs PS/Python/tests :27e3504/c7aa95e/b78e809 ;22autres fichiers outillage et
   workflow inchangés. `git diff --check` reviewer exit0, pas de preuve Linux du
   correctif ni de qualification Chromium/HTTP.
-- Le correctif est intégré dans le checkout principal ; commit local et mise à
-  jour de la photographie documentaire suivent, aucun push/dispatch implicite.
+- Le correctif, la revue et la photographie documentaire sont intégrés dans le
+  commit local `f279e713079159766188fcbe5078d37217ca530d`, avec hook normal
+  `cargo fmt` et `git diff --check` global exit0. Tâche de revue acceptée par le
+  lead, reviewer arrêté après persistance. Aucun push ou dispatch CI.
 - Le bail metadata précédent est libéré, AIForAll observée arrêtée ; ressources
   étrangères inchangées. Aucun runtime créé ou relancé par cette revue.

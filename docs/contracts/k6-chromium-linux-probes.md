@@ -1,6 +1,7 @@
 # Sondes Linux ponctuelles — namespaces et dépendances Chromium
 
-- Statut : **Accepted** ; Réalité : **Unimplemented**, aucune sonde exécutée ici.
+- Statut : **Accepted** ; Réalité : **Partial** — une sonde userns réussie,
+  une commande ldd exécutée mais compte de dépendances inconnu ; aucun navigateur qualifié.
 - Date : 2026-10-30 ; mission1 k6, hors Apparatus P0–P6.
 - Base principale : `0f32e8dab504458074a353cb555139801db81487`, briefing
   `20261030-k6-userns-dependencies-research-followup.md`, rapport65 et ledger.
@@ -121,6 +122,15 @@ AppArmor désactivé/seccomp0/limite userns positive ne prouvent pas une créati
 unshare réussi ne valide ni les autres namespaces ni la politique appliquée à Chrome.
 
 ## Vérifications avant exécution et limites
+
+Photographie vérifiée après exécution le2026-10-30 : contexteUbuntu24.04/UID1000/
+noyau6.6.87.2WSL2 ; userns exit0 ; ldd exit0 mais analyse incomplète/countnull,
+script/parent exit2 DIAGNOSTIC_INCOMPLETE. Confidentialité/nettoyage/retrait Linux
+PASS à leur portée, copies du parent retirées et runtime finalement observé arrêté.
+Une commande de chaque type, pas de terminal utilisateur ou A/B de commandes.
+[Mesures et limites](../../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/71-userns-reussit-dependances-encore-inconnues.md).
+La première préparation avait été refusée avant sondes par l'observateur Windows
+après exit ; sa limite et sa réconciliation ne sont pas réécrites en succès.
 
 Revoir/tester le script et sa projection sur données connues : état absent/refusé,
 exit non nul, ldd absent/missing avec exit0, sortie vide/invalide/partielle, sentinelle,

@@ -447,6 +447,13 @@ le snapshot initial887b6b0, **pas** le correctif courant.
 Profils, stockage et préflight des observateurs réels non acquis, aucun site
 inconnu créé. [Preuves initiales](../../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/60-fixtures-du-conducteur-verifiees-sur-les-deux-systemes.md)
 et [fermeture bornée](../../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/67-corrections-du-conducteur-fermees-par-revue.md).
+Limite distincte ensuite observée sur Windows : l'observateur composite natif
+ne confirme pas les champs d'un enfant terminé dans une expérience contrôlée.
+Le parcours durable après exit reste à instruire avant admission réelle ; les
+sondes temporaires utilisent une preuve de fin distincte par même handle,
+PID/création/fin, SID/image réellement observés avant exit seulement. Cela ne
+requalifie pas le conducteur privé ni ses gardes de stockage.
+[Faits et limites](../../.cursor/review-briefings/20261030-k6-windows-ended-handle-observation.md).
 
 1. **Windows, avant l'invocation :** veto CI avant création de processus ; le
    parent sous bail actif relit les contrôles

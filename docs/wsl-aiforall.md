@@ -68,6 +68,16 @@ Les preuves locales ne qualifient ni le navigateur ni HTTP ou la cause GitHub.
 Un relevé causal privé nécessite son admission et sa QA propres ; aucun relevé
 de site inconnu n'a été créé.
 
+Enquête ultérieure sans navigateur : une commande userns réussit réellement dans
+le contexte Child, sous Ubuntu24.04/noyau6.6.87.2, seccomp0/AppArmor0. Une commande
+ldd retourne0 mais son compte demeure inconnu ; lecture statique du même ELF :
+32besoins directs, dont le chargeur, ce qui expose une asymétrie du lecteur de
+résultats à corriger. Cela ne démontre pas une dépendance absente ou la cause de
+l'arrêt Chrome. Les copies sont retirées et les baux libérés après observation
+de cette seule instance arrêtée, sans toucher Docker ou ARTIST. Voir les
+[mesures](../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/71-userns-reussit-dependances-encore-inconnues.md)
+et [la limite du lecteur](../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/72-chargeur-direct-et-defaut-du-lecteur-demontre.md).
+
 Une vérification indépendante fresh du2026-10-30 confirme ces faits, les ACL du
 dossier/VHDX, le défaut WSL conservé et les versions des28paquets, à la portée
 **provisionnement seulement**. Aucun navigateur ou test fonctionnel exécuté par
@@ -77,7 +87,8 @@ Versions observées des outils système : Python3 `3.12.3-0ubuntu2.1`, Git
 `1:2.43.0-1ubuntu7.4`, curl `8.5.0-2ubuntu10.16`, binutils `2.42-4ubuntu2.10` ;
 libnspr4 `2:4.35-1.1build1`, libnss3 `2:3.98-1ubuntu0.3`, libasound2t64
 `1.2.11-1ubuntu0.3`. Le manifeste complet reste dans les preuves locales de
-provisionnement ; les binaires k6/Chromium épinglés seront acquis séparément.
+provisionnement ; les binaires k6/Chromium épinglés ont été acquis séparément puis
+contrôlés lors de la campagne locale décrite plus haut.
 
 Inventaire contemporain/bail local : `.tmp/k6-dedicated-wsl-20261030-mvuqe1yi.json`
 et `.tmp/wsl-resources-20261030.log`. État durable et commandes vérifiées :
