@@ -1,5 +1,63 @@
 # Mission1 k6 — plan borné proposé
 
+## Réorientation utilisateur du30octobre2026 — préparation Windows
+
+La préparation initiale ci-dessous est conservée comme historique. La révision1
+a été approuvée et exécutée depuis ; les mentions « non approuvé » et Proposed
+des paragraphes historiques ne décrivent plus l'état courant des contratsLinux.
+
+Nouvelle cible demandée : **arrêter la pisteWSL pour le moment, archiver ses
+outils et la marquerINCONCLUSIVE, puis testerWindows**. La qualificationLinux
+sur VMGitHubActions sera une mission séparée, pas une poursuite automatiqueici.
+L'archive inactive de19sources et sa documentation sont intégrées localement
+dans `eb41a57` ; aucun nouveauWSL/ldd/Chrome ou runtime n'a été lancé.
+
+La révisionWindows conserve les modèlesOpenAI, le longrun et la QAproportionate.
+Elle a été présentée puis approuvée parstartutilisateur : révision2,
+hash `4d651a945ab4f6757f24117ed715c37cf82fc712bf5b22721d593240543cac64`.
+Le raccordWindows est désormais admissible après intégration du contrat ratifié.
+Les actions d'arrêt/conservation/archives et la préparation documentaire
+restent permises. Le contrat `docs/contracts/k6-windows-functional.md` Accepted
+de l'architecte est intégré et comparé byte-identique à sa livraison194lignes,
+SHA25632bb3c02006988db9d4c35a76750041027dc64716964b035d5d30a65dbd5732a.
+Aucune preuve d'implémentation ou d'exécutionWindows déduite de cette approbation.
+
+Graphe minimal proposé :
+
+1. **ArchivesWSL et préparationWindows**, lead et avisarchitecte indépendant :
+   archives sans données privées, inventaire nonexécutant, contrat/QA corrigés.
+   WSLconservéarrêté, seconde mesurelddnonconsommée ; preuvepassée inchangée.
+2. **Petit lanceurWindows et tests ciblés**, même auteur après approbationnative
+   et intégrationducontrat. Réutiliser les scénariosJavaScript ; ne pas convertir
+   les gardesPOSIX en preuvesWindows et ne pas reprendre le conducteur privé.
+   Versions/provenance/hashes Windows distincts des assetsLinux ; Chrome149
+   installé n'est pas adopté tacitement à la place du pin156.
+3. **Intégration puis vérificationWindows**, parent : tests réellement branchés,
+   versions des binaires effectivement exécutés, inspections et un casChromium
+   about:blank avec isolationactive, sorties privéesbornées et processuspossédés
+   retirés. Revueindépendante bornée si elle vérifie un risque nouveau distinct,
+   pas de nouveaupipelineQA. RésultatWindows jamais présenté comme PASSLinux.
+4. **HTTPetclôture à leurportée**, parent : unGET/iam/health seulement si cible
+   existanteautorisée/ancrée/joignable, sinon HTTPINCONCLUSIVE et précondition
+   précise, sans serveur factice, nouveauKind/Docker, déploiement ou tunnel.
+   UnéchecWindowsne déclenche pas un cycledeprobesWSL ou une missionGitHub.
+
+Avant toutpushcontenantOPS, suspendre explicitement le workflowk6Linux existant
+pour ne pas relancer ses jobsUbuntu contre l'instruction. Pas de dispatch, nouveau
+jobWindows/GitHub ou changement d'autresworkflows par défaut. Préserver toutes
+les sourcesLinux utiles et les Accepted de leur portée ; ne pas les effacer pour
+obtenir une clôture administrative. Intégration/publication et nettoyage natif
+restent selonAGENTS, sans secrets/logs/caches/WIPétrangers ou retraitforcé.
+
+Les11commandesWindows et18critères sont maintenant inscrits dans
+`model-policy.json.verification`, niveauproportionate. Entrée proposée
+`ops/tests/k6/run-windows.ps1`, PowerShellWindows natif, `-Mode tools|browser|validate|run|selftest`,
+`-Output`/`-Config` vers cheminsprivés contrôlés ; tests ciblésPythonWindows.
+Les commandes sont proposées, pas exécutées ou présentes par avance. Contrôles
+réelsaprès intégration et approvalnative, HTTP/selftestseulementcibleadmise.
+CatalogueOpenAI4paires/threshold50 et longrun inchangés ; JSON valide/diffcheck0.
+Aucun testWindows nouveau ou résultatde binaire ne doit être déduit de l'inventaire.
+
 ## Objectif et statut
 
 Installer un petit socle fonctionnel k6 et un smoke réel sous Linux. Préparation uniquement, policy non approuvée, aucun worker ou runtime lancé. Le titre natif « End-to-end test using K6 » ne vaut pas extension aux missions OAuth et droits.
