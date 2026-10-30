@@ -236,12 +236,14 @@ et sa QA restent Proposed/non admis ; aucun résultat runtime n'est déduit de c
 Réalité après la première tentative : image officielle acquise/hash conforme,
 mais WSL a rejeté le nom demandé `AI for All` avec
 `Wsl/Service/RegisterDistro/E_INVALIDARG`. Aucun GUID de distribution nouveau,
-destination absente et défaut WSL inchangé. Aucun nom de substitution essayé ;
-la reprise exige un nom technique alternatif explicitement choisi, sans renouveler
-l'autorisation déjà acquise de créer l'instance sur I: et d'y installer les outils.
+destination absente et défaut WSL inchangé. L'utilisateur a ensuite explicitement
+choisi **`AIForAll`** comme nom technique. Le lead actualise ce seul paramètre avant
+la reprise ; libellé humain « AI for All », emplacement et autorisation d'installation
+restent inchangés. Aucune création n'est déduite de ce choix.
 
 - **Hôte exact :** nouvelle instance WSL2 Ubuntu24.04 amd64, nom d'enregistrement
-  **`AI for All`**, emplacement **`I:\WSL\AIForAll`**. Préflight lead : I: NTFS sain,
+  **`AIForAll`** (choix utilisateur après refus de `AI for All`), emplacement
+  **`I:\WSL\AIForAll`**. Préflight lead : I: NTFS sain,
   1240483057664octets libres, parent I:\WSL existant, destination absente ; WSL2.6.1.0
   expose les options nécessaires. Ce sont des constats avant création, pas une
   preuve d'instance livrée. Revalider absence de collision avant mutation ; aucun

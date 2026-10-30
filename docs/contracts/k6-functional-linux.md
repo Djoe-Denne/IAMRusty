@@ -20,7 +20,8 @@ La [proposition d'observation causale](k6-chromium-causal-observation.md) reste
 d'ancre admis ; aucune entrée publique pertinente pour22 n'est connue.
 
 Sur demande explicite utilisateur, le [rattachement d'un hôte WSL dédié sur I:](k6-chromium-causal-observation.md)
-est ratifié avant création : instance `AI for All`, Ubuntu24.04.5 amd64, image
+est ratifié avant création : instance `AIForAll` (nom technique choisi par l'utilisateur
+après refus WSL de `AI for All`), Ubuntu24.04.5 amd64, image
 officielle vérifiée, compte de travail non-root et données sur son FS Linux natif.
 Seul le provisionnement est Accepted ; l'autorisation d'installer dans cette
 instance ne qualifie ni le navigateur ni le futur relevé privé. ARTIST-Ubuntu et
