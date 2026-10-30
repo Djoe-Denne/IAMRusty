@@ -1,6 +1,6 @@
 # Une mesure ldd supplémentaire après correction démontrée du lecteur
 
-- Statut : **Accepted** ; Réalité : **Unimplemented pour cette exception**.
+- Statut : **Accepted, exécution suspendue** ; Réalité : **Unimplemented pour cette exception**.
 - Date : 2026-10-30 ; mission1 k6 ; source OPS gelée
   `f279e713079159766188fcbe5078d37217ca530d`.
 - Sources : briefing `20261030-k6-one-additional-ldd-arbitration.md`, rapports71/72,
@@ -10,6 +10,13 @@
   committés. Aucun Accepted, ancien résultat, OPS ou candidat préservé n'est modifié.
 
 ## Décision et autorité
+
+**Instruction utilisateur ultérieure2026-10-30 : abandonner l'approcheWSL pour
+le moment, archiver les outils et passer aux essaisWindows.** La seconde mesure
+ldd ne doit donc pas être lancée. Cette suspension remplace la poursuite admise
+ci-dessous sans supprimer son historique. Le quota n'a pas été créé au dernier
+contrôle, un seul appelldd a été réellement consommé et son compte reste inconnu.
+Un nouveau bail, mode ou déclenchement de reprise ne lève pas cette suspension.
 
 Ratification ciblée du lead le2026-10-30, dans le mandat long run déjà approuvé.
 Le document architecte livré dans `result_mvv8umt6_000q_earwag` a été intégré

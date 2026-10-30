@@ -1,0 +1,430 @@
+"""One-off Windows fixtures only. No Linux command, tool, or runtime is launched."""
+import importlib.util
+import copy
+import contextlib
+import io
+import json
+import os
+from pathlib import Path, PurePosixPath
+import struct
+import sys
+import unittest
+from types import SimpleNamespace
+from unittest import mock
+
+HERE = Path(__file__).resolve().parent
+SPEC = importlib.util.spec_from_file_location("probe_candidate", HERE / "k6-linux-probes-20261030.py")
+probe = None
+if Path(SPEC.origin).is_file():
+    probe = importlib.util.module_from_spec(SPEC)
+    SPEC.loader.exec_module(probe)
+
+# The supplied canonical checkout, not the historical b316 tooling in this tree.
+CANON = Path("C:/Users/djden/source/repos/AIForAll/ops/tests/k6")
+sys.path.insert(0, str(CANON / "tests"))
+from test_direct_chromium import fake_child_reads
+from test_runner import runner
+import safety
+from test_boundaries import scratch
+
+LOADER = "/lib64/ld-linux-x86-64.so.2"
+GOOD = (b"\tlinux-vdso.so.1 (0x1234)\n"
+        b"\tliba.so.1 => /lib/x86_64-linux-gnu/liba.so.1 (0x5678)\n"
+        b"\t/lib64/ld-linux-x86-64.so.2 (0xabcd)\n")
+
+
+def elf_fixture():
+    raw = bytearray(400)
+    raw[:64] = struct.pack("<16sHHIQQQIHHHHHH", b"\x7fELF\x02\x01\x01" + bytes(9), 3, 62, 1, 0, 64, 0, 0, 64, 56, 3, 0, 0, 0)
+    interp = LOADER.encode() + b"\0"
+    for index, values in enumerate(((1, 5, 0, 0, 0, 400, 400, 4096),
+                                    (3, 4, 232, 232, 0, len(interp), len(interp), 1),
+                                    (2, 4, 280, 280, 0, 64, 64, 8))):
+        raw[64 + index * 56:120 + index * 56] = struct.pack("<IIQQQQQQ", *values)
+    raw[232:232 + len(interp)] = interp
+    for index, values in enumerate(((5, 360), (10, 11), (1, 1), (0, 0))):
+        raw[280 + index * 16:296 + index * 16] = struct.pack("<QQ", *values)
+    raw[360:371] = b"\0liba.so.1\0"
+    return bytes(raw)
+
+
+def context_fixture(child=False):
+    number = {"observation": "VALUE", "value": 0}
+    return {"uid": 1000, "euid": 1000, "gid": 1000, "os": {"observation": "VALUE", "id": "ubuntu", "version": "22.04"},
+            "kernel": "6.6.87.2-microsoft-standard-WSL2", "proc": {k: dict(number) for k in ("seccomp", "filters", "no_new_privs")},
+            "knobs": {k: dict(number) for k in (*probe.NUMBERS, "apparmor")},
+            "namespaces": {k: {"observation": "VALUE", "identity": k + ":[12345678901]"} for k in ("user", "pid", "mnt")},
+            "session": [222 if child else 111, 222 if child else 111], "process": [222, 111] if child else [111, 10],
+            "cwd": [7, 9002 if child else 9001], "stdin": "DEVNULL" if child else "PIPE"}
+
+
+@contextlib.contextmanager
+def posix_unlink_fixture(root):
+    """Windows readonly-file unlink differs from POSIX. Only disposable files
+    beneath this known test directory may have that OS boundary simulated."""
+    real_unlink = Path.unlink
+    def unlink(path, *args, **kwargs):
+        if path.is_relative_to(root) and path.is_file():
+            path.chmod(0o600)
+        return real_unlink(path, *args, **kwargs)
+    with mock.patch.object(Path, "unlink", unlink):
+        yield
+
+
+class ProbeTests(unittest.TestCase):
+    def setUp(self):
+        self.assertIsNotNone(probe, "one-off probe script not implemented")
+
+    def test_strict_ldd_missing_with_exit_zero_is_not_zero(self):
+        self.assertEqual(probe.ldd_count(GOOD, b"", 0, {"liba.so.1"}, {LOADER}), 0)
+        missing = GOOD.replace(b"/lib/x86_64-linux-gnu/liba.so.1 (0x5678)", b"not found")
+        self.assertEqual(probe.ldd_count(missing, b"", 0, {"liba.so.1"}, {LOADER}), 1)
+
+    def test_direct_loader_needed_has_observed_coverage(self):
+        needed = {"liba.so.1", "ld-linux-x86-64.so.2"}
+        missing = GOOD.replace(b"/lib/x86_64-linux-gnu/liba.so.1 (0x5678)", b"not found")
+        for raw, expected in ((GOOD, 0), (missing, 1)):
+            with self.subTest(missing=expected):
+                self.assertEqual(probe.ldd_count(raw, b"", 0, needed, {LOADER}), expected)
+                record, _ = self.launch(raw)
+                projected = probe.project_probe(record, needed, {LOADER}, "ldd")
+                self.assertEqual(projected["missing"], expected)
+                self.assertEqual(projected["outcome"], "ZERO_EXIT")
+
+    def test_loader_name_coverage_rejects_missing_unknown_duplicate_and_uncovered(self):
+        needed = {"liba.so.1", "ld-linux-x86-64.so.2"}
+        loader_line = b"\t/lib64/ld-linux-x86-64.so.2 (0xabcd)\n"
+        loader_alias = b"\tld-linux-x86-64.so.2 => /lib64/ld-linux-x86-64.so.2 (0x5678)\n"
+        for case, raw in enumerate((GOOD.replace(loader_line, b""),
+                                    GOOD.replace(LOADER.encode(), b"/private/untrusted-loader"),
+                                    GOOD + loader_line, GOOD + loader_alias, loader_alias + GOOD)):
+            with self.subTest(case=case):
+                self.assertIsNone(probe.ldd_count(raw, b"", 0, needed, {LOADER}))
+        self.assertIsNone(probe.ldd_count(GOOD, b"", 0, needed | {"libb.so.2"}, {LOADER}))
+
+    def test_ldd_empty_partial_unknown_or_nonzero_never_means_zero(self):
+        for raw, err, code in ((b"", b"", 0), (b"\n", b"", 0), (GOOD[:-1], b"", 0), (GOOD, b"", 1),
+                               (GOOD + b"unknown\n", b"", 0), (GOOD, b"warning", 0), (b"\xff\n", b"", 0),
+                               (GOOD.replace(b"\t/lib64/ld-linux-x86-64.so.2 (0xabcd)\n", b""), b"", 0),
+                               (GOOD + GOOD, b"", 0)):
+            self.assertIsNone(probe.ldd_count(raw, err, code, {"liba.so.1"}, {LOADER}))
+        self.assertIsNone(probe.ldd_count(GOOD, b"", 0, {"liba.so.1", "libb.so.2"}, {LOADER}))
+
+    def test_elf_interpreter_and_direct_needed_are_read_before_ldd(self):
+        info = probe.elf_metadata(io.BytesIO(elf_fixture()))
+        self.assertEqual(info, (LOADER, {"liba.so.1"}))
+        for offset, value in ((4, 1), (5, 2), (18, 3)):
+            raw = bytearray(elf_fixture()); raw[offset] = value
+            with self.assertRaises(probe.Refused):
+                probe.elf_metadata(io.BytesIO(raw))
+        raw = elf_fixture().replace(LOADER.encode(), b"/tmp/bad-loader".ljust(len(LOADER), b"x"))
+        with self.assertRaises(probe.Refused):
+            probe.elf_metadata(io.BytesIO(raw))
+
+    def launch(self, payload=GOOD, *, cleanup=True, exit_code=0, kind="ldd"):
+        with scratch() as root, fake_child_reads(payload, 0, cleanup, native_exit=exit_code) as child, \
+                mock.patch.object(runner, "Child", return_value=child), mock.patch.object(runner, "verify_tools"):
+            (root / "private").mkdir()
+            api = SimpleNamespace(runner=runner, safety=safety)
+            record = probe.run_one(api, kind, root, Path("/verified/chrome"), Path("/private/probe.py"))
+            return record, child
+
+    def test_real_child_wiring_fixed_once_no_browser_and_no_inherited_env(self):
+        for kind, expected in (("context", ["/usr/bin/python3", "-I", "-B", "/private/probe.py", "--context-child"]),
+                               ("unshare", ["/usr/bin/unshare", "--user", "--map-root-user", "--", "/usr/bin/true"]),
+                               ("ldd", ["/usr/bin/ldd", "/verified/chrome"])):
+            with scratch() as root, fake_child_reads(GOOD, 0, True) as child, \
+                    mock.patch.object(runner, "Child", return_value=child), mock.patch.object(runner, "verify_tools"), \
+                    mock.patch.object(child, "execute", wraps=child.execute) as execute:
+                (root / "private").mkdir()
+                record = probe.run_one(SimpleNamespace(runner=runner, safety=safety), kind, root,
+                                       PurePosixPath("/verified/chrome"), PurePosixPath("/private/probe.py"))
+                self.assertEqual(execute.call_count, 1)
+                self.assertEqual(execute.call_args.args[0], expected)
+                self.assertEqual(execute.call_args.kwargs["timeout"], 10)
+                self.assertIs(execute.call_args.kwargs["browser"], False)
+                self.assertEqual(execute.call_args.kwargs["env"], safety.child_environment(root))
+                self.assertEqual(record["cleanup"], "PASS")
+
+    def test_privacy_overflow_and_identity_missing_withhold_count_and_payload(self):
+        for raw in (GOOD + b"CONFIDENTIAL_SENTINEL", GOOD + b"https://example.invalid", GOOD + b"\xff", GOOD + b"x" * safety.LIMIT):
+            record, _ = self.launch(raw)
+            projected = probe.project_probe(record, {"liba.so.1"}, {LOADER}, "ldd")
+            self.assertIsNone(projected["missing"])
+            self.assertNotEqual(record["privacy"], "PASS")
+            self.assertNotIn("CONFIDENTIAL_SENTINEL", json.dumps(projected))
+        record, _ = self.launch(cleanup=False)
+        self.assertEqual(record["cleanup"], "FAIL")
+        self.assertIsNone(probe.project_probe(record, {"liba.so.1"}, {LOADER}, "ldd")["missing"])
+        record, _ = self.launch()
+        record["cleanup"] = "INCONCLUSIVE"
+        self.assertIsNone(probe.project_probe(record, {"liba.so.1"}, {LOADER}, "ldd")["missing"])
+        child = safety.Child()
+        child.stdout, child.code, child.cleanup = GOOD, 0, True
+        with mock.patch.object(runner, "Child", return_value=child), mock.patch.object(child, "execute", return_value=0):
+            record = probe.run_one(SimpleNamespace(runner=runner, safety=safety), "ldd", Path("/private/run"),
+                                   PurePosixPath("/verified/chrome"), PurePosixPath("/private/probe.py"))
+        self.assertEqual(record["cleanup"], "INCONCLUSIVE")
+        self.assertIsNone(probe.project_probe(record, {"liba.so.1"}, {LOADER}, "ldd")["missing"])
+
+    def test_timeout_interruption_absence_and_nonzero_are_separate(self):
+        for reason, expected in (("CHILD_TIMEOUT", "TIMEOUT"), ("INTERRUPTED", "INTERRUPTED")):
+            child = safety.Child()
+            with mock.patch.object(runner, "Child", return_value=child), \
+                    mock.patch.object(child, "execute", side_effect=safety.Rejected(reason)):
+                record = probe.run_one(SimpleNamespace(runner=runner, safety=safety), "unshare", Path("/private/run"),
+                                       Path("/verified/chrome"), Path("/private/probe.py"))
+            self.assertEqual(record["termination"], expected)
+            self.assertEqual(record["cleanup"], "INCONCLUSIVE")
+        record, _ = self.launch(exit_code=1)
+        self.assertEqual(probe.project_probe(record, set(), {LOADER}, "unshare")["exit"], 1)
+        self.assertEqual(record["termination"], "EXITED")
+        self.assertTrue(record["complete"])
+
+    def test_native_signal_remains_negative_in_run_projection_and_public_bytes(self):
+        for kind in ("unshare", "ldd"):
+            with self.subTest(kind=kind):
+                record, _ = self.launch(exit_code=-6, kind=kind)
+                self.assertEqual(record["exit"], -6)
+                self.assertEqual(record["termination"], "SIGNAL")
+                self.assertFalse(record["complete"])
+                projected = probe.project_probe(record, {"liba.so.1"}, {LOADER}, kind)
+                self.assertEqual(projected["exit"], -6)
+                self.assertEqual(projected["termination"], "SIGNAL")
+                self.assertEqual(projected["outcome"], "INCONCLUSIVE")
+                self.assertIsNone(projected["missing"])
+                result = probe.empty_result()
+                result.update(privacy="PASS", cleanup="PASS", retirement="PASS", reason="DIAGNOSTIC_INCOMPLETE")
+                result[kind] = projected
+                raw = probe.public_bytes(result)
+                safety.confidential(raw)
+                public = json.loads(raw)
+                self.assertEqual(public[kind], projected)
+                self.assertEqual(public["HTTP"], "INCONCLUSIVE")
+                self.assertEqual(public["Chromium"], "INCONCLUSIVE")
+                for change in ({"termination": "UNRECOGNIZED_SIGNAL"}, {"exit": 0},
+                               {"outcome": "ZERO_EXIT"}, {"termination": "EXITED"}):
+                    result[kind] = {**projected, **change}
+                    with self.assertRaises(probe.Refused):
+                        probe.public_bytes(result)
+
+    def test_absent_denied_unreadable_and_numeric_zero_are_distinct(self):
+        for error, label in ((FileNotFoundError(), "ABSENT"), (PermissionError(), "DENIED"), (OSError(), "UNREADABLE")):
+            with mock.patch.object(probe, "read_small", side_effect=error):
+                self.assertEqual(probe.number_observation(Path("/known"))["observation"], label)
+        with mock.patch.object(probe, "read_small", return_value=b"0\n"):
+            self.assertEqual(probe.number_observation(Path("/known")), {"observation": "VALUE", "value": 0})
+
+    def test_verified_sources_mismatch_cannot_execute_module(self):
+        with self.assertRaises(probe.Refused):
+            probe.check_payload("run-linux.py", b"raise RuntimeError('CONFIDENTIAL_SENTINEL')")
+
+    def test_system_tool_absence_is_not_a_zero_or_permission_diagnosis(self):
+        with mock.patch.object(Path, "resolve", side_effect=FileNotFoundError()):
+            with self.assertRaises(probe.Refused) as failure:
+                probe.trusted_system("/usr/bin/ldd")
+        self.assertEqual(failure.exception.reason, "SYSTEM_TOOL_ABSENT")
+        with self.assertRaises(probe.Refused) as failure:
+            probe.trusted_system("/private/arbitrary-loader")
+        self.assertEqual(failure.exception.reason, "SYSTEM_TOOL_UNTRUSTED")
+
+    def test_projection_has_unexecuted_a_and_no_native_namespace_ids(self):
+        result = probe.empty_result()
+        self.assertEqual(result["a_commands"], "NOT_EXECUTED")
+        result["privacy"] = "FAIL"
+        raw = probe.public_bytes(result)
+        self.assertLess(len(raw), 32768)
+        self.assertNotIn(b"namespace", raw)
+        self.assertNotIn(b"missing", raw)
+        self.assertNotIn(b"http://", raw)
+        self.assertEqual(json.loads(raw)["publication"], "WITHHELD")
+
+    def test_retirement_refuses_replaced_or_unregistered_entry(self):
+        with scratch() as root, mock.patch.object(probe.os, "getuid", return_value=0, create=True):
+            owned = probe.OwnedRun(root / "owned")
+            owned.create(SimpleNamespace(private_path=lambda p, **k: p, name_chain=lambda p: (str(p),)))
+            (owned.root / "foreign").write_bytes(b"known fixture")
+            self.assertFalse(owned.retire())
+            self.assertTrue((owned.root / "foreign").exists())
+
+    def test_full_projection_contains_equalities_not_private_identities(self):
+        a, b = context_fixture(), context_fixture(True)
+        result = probe.empty_result()
+        result.update(a_context=probe.project_context(a), b_context=probe.project_context(b), comparison=probe.compare_context(a, b),
+                      privacy="PASS", cleanup="PASS", retirement="PASS")
+        raw = probe.public_bytes(result)
+        safety.confidential(raw)
+        self.assertEqual(result["comparison"]["ns_user"], "SAME")
+        self.assertEqual(result["comparison"]["session"], "DIFFERENT")
+        self.assertTrue(result["comparison"]["child_parent_is_a"])
+        for token in (b"12345678901", b"9001", b"9002", b"process", b"identity", b"/home/", b"pid:"):
+            self.assertNotIn(token, raw)
+        b["namespaces"]["user"] = {"observation": "DENIED", "identity": None}
+        self.assertEqual(probe.compare_context(a, b)["ns_user"], "UNKNOWN")
+        altered = copy.deepcopy(result)
+        altered["a_context"]["private_path"] = "CONFIDENTIAL_SENTINEL"
+        with self.assertRaises(probe.Refused):
+            probe.public_bytes(altered)
+        altered = copy.deepcopy(result)
+        altered["a_context"]["kernel"] = "CONFIDENTIAL_SENTINEL"
+        with self.assertRaises(safety.Rejected):
+            safety.confidential(probe.public_bytes(altered))
+
+    def test_ci_veto_and_invalid_argv_precede_sources_children_and_context(self):
+        for argv, env in ((["--context-child"], {"CI": ""}), (["--source-dir", "CONFIDENTIAL_SENTINEL"], {})):
+            buffer = io.BytesIO()
+            with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(probe, "load_api") as load, \
+                    mock.patch.object(probe, "native_home") as home, mock.patch.object(probe, "collect_context") as context, \
+                    mock.patch.object(probe, "run_one") as command, mock.patch.object(sys, "stdout", SimpleNamespace(buffer=buffer)):
+                self.assertEqual(probe.main(argv), 2)
+            load.assert_not_called(); home.assert_not_called(); context.assert_not_called(); command.assert_not_called()
+            raw = buffer.getvalue()
+            self.assertNotIn(b"CONFIDENTIAL_SENTINEL", raw)
+            self.assertEqual(json.loads(raw)["publication"], "WITHHELD")
+
+    def test_verified_byte_loader_reuses_exact_child_and_environment_without_start(self):
+        with mock.patch.dict(sys.modules), mock.patch.object(probe, "private_chain", side_effect=lambda p, **k: Path(p)), \
+                mock.patch.object(probe.os, "O_NOFOLLOW", 0, create=True), \
+                mock.patch.object(probe.os, "O_CLOEXEC", 0, create=True), mock.patch("subprocess.Popen") as popen:
+            for name in ("safety", "private_site", "k6_probe_runner"):
+                sys.modules.pop(name, None)
+            api = probe.load_api(CANON)
+            self.assertIs(api.runner.Child, api.safety.Child)
+            self.assertIs(api.runner.child_environment, api.safety.child_environment)
+            self.assertEqual(Path(api.runner.__file__), CANON / "run-linux.py")
+            api.recheck()
+            popen.assert_not_called()
+
+    def test_fourth_hash_must_match_before_any_verified_module_is_executed(self):
+        check = probe.check_payload
+        def reject_lock(relative, raw):
+            if relative == "config/tools.lock.json":
+                raise probe.Refused("SOURCE_UNTRUSTED")
+            return check(relative, raw)
+        with mock.patch.object(probe, "private_chain", side_effect=lambda p, **k: Path(p)), \
+                mock.patch.object(probe.os, "O_NOFOLLOW", 0, create=True), \
+                mock.patch.object(probe.os, "O_CLOEXEC", 0, create=True), \
+                mock.patch.object(probe, "check_payload", side_effect=reject_lock), \
+                mock.patch.object(probe.types, "ModuleType") as module:
+            with self.assertRaises(probe.Refused):
+                probe.load_api(CANON)
+            module.assert_not_called()
+
+    def test_retirement_tracks_both_real_child_artifact_shapes_and_replacement(self):
+        with scratch() as root, posix_unlink_fixture(root), mock.patch.object(probe.os, "getuid", return_value=0, create=True):
+            owned = probe.OwnedRun(root / "owned")
+            owned.create(SimpleNamespace(private_path=lambda p, **k: p, name_chain=lambda p: (str(p),)))
+            for n in range(3):
+                (owned.root / "private" / ("children-" + str(n) * 32 + ".json")).write_bytes(b"[]")
+                (owned.root / "private/process-identities.jsonl").write_bytes(b"known private fixture\n")
+                owned.track_child_file()
+            self.assertTrue(owned.retire())
+            self.assertFalse(owned.root.exists())
+            owned = probe.OwnedRun(root / "replaced")
+            owned.create(SimpleNamespace(private_path=lambda p, **k: p, name_chain=lambda p: (str(p),)))
+            target = owned.root / "private/process-identities.jsonl"
+            target.write_bytes(b"known private fixture"); owned.track_child_file()
+            target.rename(root / "preserved-original")
+            target.write_bytes(b"foreign replacement")
+            self.assertFalse(owned.retire())
+            self.assertEqual(target.read_bytes(), b"foreign replacement")
+            owned = probe.OwnedRun(root / "ancestor-changed")
+            owned.create(SimpleNamespace(private_path=lambda p, **k: p, name_chain=lambda p: (str(p),)))
+            owned.parent_guard = lambda: False
+            self.assertFalse(owned.retire())
+            self.assertTrue((owned.root / "private/empty.json").exists())
+
+    def test_launch_early_failure_retires_only_created_files_and_is_nonzero(self):
+        for failure in (probe.Refused("INPUT_INVALID"), KeyboardInterrupt()):
+            with self.subTest(failure=type(failure).__name__), scratch() as root, posix_unlink_fixture(root), \
+                    mock.patch.dict(os.environ, {}, clear=True):
+                source, tools, output = root / "source", root / "tools", root / "out"
+                source.mkdir(); tools.mkdir()
+                chrome = tools / "chrome"; chrome.write_bytes(elf_fixture())
+                api = SimpleNamespace(runner=SimpleNamespace(pinned_tools=mock.Mock(return_value=({"k6": chrome, "chromium": chrome}, {})),
+                                      verify_tools=mock.Mock()), recheck=mock.Mock(),
+                                      safety=SimpleNamespace(private_path=lambda p, **k: p, name_chain=lambda p: (str(p),),
+                                                            strict_json=safety.strict_json, confidential=safety.confidential))
+                buffer = io.BytesIO()
+                with mock.patch.object(probe, "native_home", return_value=root.stat().st_dev), \
+                        mock.patch.object(probe, "private_chain", side_effect=lambda p, **k: Path(p)), \
+                        mock.patch.object(probe, "load_api", return_value=api), \
+                        mock.patch.object(probe, "read_small", return_value=(CANON / "config/tools.lock.json").read_bytes()), \
+                        mock.patch.object(probe, "trusted_system", return_value=()), \
+                        mock.patch.object(Path, "resolve", autospec=True, side_effect=lambda p, **k: p), \
+                        mock.patch.object(probe.os, "getuid", return_value=0, create=True), \
+                        mock.patch.object(probe, "collect_context", side_effect=failure), \
+                        mock.patch.object(probe, "run_one") as child, mock.patch.object(sys, "stdout", SimpleNamespace(buffer=buffer)):
+                    self.assertEqual(probe.main(["--source-dir", str(source), "--tools-dir", str(tools), "--output", str(output)]), 2)
+                child.assert_not_called()
+                value = json.loads(buffer.getvalue())
+                self.assertEqual(value["retirement"], "PASS")
+                self.assertEqual(value["cleanup"], "INCONCLUSIVE")
+                self.assertEqual(value["publication"], "WITHHELD")
+                self.assertFalse(output.exists())
+                self.assertTrue(chrome.exists())
+
+    def test_launch_fixed_order_current_projection_and_fail_closed_negatives(self):
+        for fault in ("none", "missing", "privacy", "identity", "failed_zero_exit"):
+            with self.subTest(fault=fault), scratch() as root, posix_unlink_fixture(root), \
+                    mock.patch.dict(os.environ, {}, clear=True), contextlib.ExitStack() as stack:
+                source, tools, output = root / "source", root / "tools", root / "out"
+                source.mkdir(); tools.mkdir()
+                chrome = tools / "chrome"; chrome.write_bytes(elf_fixture())
+                api = SimpleNamespace(runner=SimpleNamespace(pinned_tools=mock.Mock(return_value=({"k6": chrome, "chromium": chrome}, {})),
+                                      verify_tools=mock.Mock()), recheck=mock.Mock(),
+                                      safety=SimpleNamespace(private_path=lambda p, **k: p, name_chain=lambda p: (str(p),),
+                                                            strict_json=safety.strict_json, confidential=safety.confidential))
+                buffer, calls = io.BytesIO(), []
+                def run(_api, kind, directory, _chrome, _script):
+                    calls.append(kind)
+                    self.assertEqual(directory, output)
+                    (directory / "private" / ("children-" + str(len(calls)) * 32 + ".json")).write_bytes(b"[]")
+                    (directory / "private/process-identities.jsonl").write_bytes(b"known private fixture\n")
+                    raw = json.dumps(context_fixture(True)).encode() if kind == "context" else GOOD if kind == "ldd" else b""
+                    record = {"stdout": raw, "stderr": b"", "privacy": "PASS", "cleanup": "PASS", "exit": 0,
+                              "termination": "EXITED", "complete": True, "error": "NONE"}
+                    if kind == "ldd" and fault == "missing":
+                        record["stdout"] = GOOD.replace(b"/lib/x86_64-linux-gnu/liba.so.1 (0x5678)", b"not found")
+                    if kind == "ldd" and fault == "privacy":
+                        record.update(stdout=b"CONFIDENTIAL_SENTINEL", privacy="FAIL")
+                    if kind == "unshare" and fault == "identity":
+                        record["cleanup"] = "INCONCLUSIVE"
+                    if kind == "unshare" and fault == "failed_zero_exit":
+                        record.update(complete=False, error="CHILD_FAILED")
+                    return record
+                patches = (mock.patch.object(probe, "native_home", return_value=root.stat().st_dev),
+                           mock.patch.object(probe, "private_chain", side_effect=lambda p, **k: Path(p)),
+                           mock.patch.object(probe, "load_api", return_value=api),
+                           mock.patch.object(probe, "read_small", return_value=(CANON / "config/tools.lock.json").read_bytes()),
+                           mock.patch.object(probe, "trusted_system", return_value=()),
+                           mock.patch.object(Path, "resolve", autospec=True, side_effect=lambda p, **k: p),
+                           mock.patch.object(probe.os, "getuid", return_value=0, create=True),
+                           mock.patch.object(probe, "collect_context", return_value=context_fixture()),
+                           mock.patch.object(probe, "run_one", side_effect=run),
+                           mock.patch.object(sys, "stdout", SimpleNamespace(buffer=buffer)))
+                for patch in patches:
+                    stack.enter_context(patch)
+                code = probe.main(["--source-dir", str(source), "--tools-dir", str(tools), "--output", str(output)])
+                value = json.loads(buffer.getvalue())
+                self.assertEqual(calls, ["context", "unshare", "ldd"])
+                self.assertEqual(code, 0 if fault == "none" else 2)
+                self.assertEqual(value["retirement"], "PASS")
+                self.assertFalse(output.exists())
+                self.assertTrue(chrome.exists())
+                self.assertNotIn(b"CONFIDENTIAL_SENTINEL", buffer.getvalue())
+                self.assertEqual(value["HTTP"], "INCONCLUSIVE")
+                self.assertEqual(value["Chromium"], "INCONCLUSIVE")
+                if fault in {"privacy", "identity"}:
+                    self.assertEqual(value["publication"], "WITHHELD")
+                elif fault == "missing":
+                    self.assertEqual(value["ldd"]["missing"], 1)
+                elif fault == "failed_zero_exit":
+                    self.assertEqual(value["unshare"]["outcome"], "INCONCLUSIVE")
+                else:
+                    self.assertEqual(value["a_commands"], "NOT_EXECUTED")
+                    self.assertEqual(value["comparison"]["kind"], "CONTEXTS_ONLY")
+
+
+if __name__ == "__main__":
+    unittest.main()

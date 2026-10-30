@@ -1,0 +1,32 @@
+"""Validate the allowlisted result only; never reads native stdout/stderr."""
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import sys
+
+ROOT = Path('C:/Users/djden/source/repos/AIForAll')
+RESULT = ROOT / '.tmp/k6-linux-probes-result-20261030-02fce7bacbc8435293dbbbbebaad17bd.json'
+SCRIPT = ROOT / '.tmp/k6-native-probes-candidate-7d1db94e/k6-linux-probes-20261030.py'
+EXPECTED = '7f17cdc551a62cc3b73c513da961677ed7316ff34332d1777b3c795961f64554'
+
+try:
+    assert hashlib.sha256(SCRIPT.read_bytes()).hexdigest() == EXPECTED
+    safety_path = ROOT / 'ops/tests/k6/lib/safety.py'
+    assert hashlib.sha256(safety_path.read_bytes()).hexdigest() == '0f5359d4b9fb8c7bf4fef520497d041ceb064f5e9edecf6b7c9908ae04b38249'
+    spec = importlib.util.spec_from_file_location('probe_result_validator', SCRIPT)
+    probe = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(probe)
+    sys.path.insert(0, str(safety_path.parent))
+    from safety import confidential, strict_json
+    raw = RESULT.read_bytes()
+    assert 0 < len(raw) <= 32768
+    value = strict_json(raw)
+    checked = probe.public_bytes(value)
+    confidential(checked)
+    assert checked == raw
+    assert value['privacy'] == value['cleanup'] == value['retirement'] == 'PASS'
+    sys.stdout.buffer.write(checked + b'\n')
+except BaseException:
+    print('{"result_validation":"REFUSED"}')
+    raise SystemExit(2)

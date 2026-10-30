@@ -1,0 +1,58 @@
+const fs = require('fs');
+const cp = require('child_process');
+const crypto = require('crypto');
+const root = 'C:/Users/djden/source/repos/AIForAll';
+const leaseFile = root + '/.tmp/k6-linux-probes-discovery-20261030-695facd4f44646e2942768f771fb154f.json';
+const lease = JSON.parse(fs.readFileSync(leaseFile, 'utf8'));
+const wsl = 'C:/Windows/System32/wsl.exe';
+const ps = 'C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe';
+const h = require(root + '/.agents/skills/aiforall-context-functions/scripts/helpers.cjs');
+function inventory() {
+  const r = cp.spawnSync(wsl, ['--list', '--verbose'], {windowsHide: true});
+  if (r.status !== 0) throw new Error('INVENTORY_REFUSED');
+  const text = h.decodeEvidenceText(r.stdout, {encoding: 'utf-16le'}).text;
+  const result = {};
+  for (const name of ['AIForAll', 'ARTIST-Ubuntu', 'docker-desktop']) {
+    const row = text.split(String.fromCharCode(10)).find(x => x.includes(name + ' '));
+    if (!row) throw new Error('INVENTORY_INCOMPLETE');
+    result[name] = row.includes('Stopped') ? 'Stopped' : row.includes('Running') ? 'Running' : 'UNKNOWN';
+  }
+  return result;
+}
+const id = cp.spawnSync(ps, ['-NoProfile', '-NonInteractive', '-File',
+  root + '/.tmp/k6-userns-identity-20261030.ps1'], {encoding: 'utf8', windowsHide: true});
+if (id.status !== 0 || JSON.stringify(JSON.parse(id.stdout)) !== JSON.stringify(lease.identity) ||
+    lease.before.AIForAll !== 'Stopped' || lease.consumers.length !== 0) throw new Error('RELEASE_REFUSED');
+const before = inventory();
+let stop = null;
+if (before.AIForAll === 'Running') {
+  const r = cp.spawnSync(wsl, ['--terminate', 'AIForAll'], {windowsHide: true});
+  stop = r.status;
+}
+const after = inventory();
+lease.after = after;
+lease.explicit_stop = stop !== null;
+lease.targeted_stop_exit = stop;
+lease.status = after.AIForAll === 'Stopped' ? 'released_metadata_complete' : 'runtime_cleanup_unproven';
+lease.released_utc = new Date().toISOString();
+fs.writeFileSync(leaseFile, JSON.stringify(lease, null, 2));
+fs.appendFileSync(root + '/.tmp/wsl-resources-20261030.log', JSON.stringify({
+  timestamp_utc: lease.released_utc, event: 'probe_metadata_runtime_released', mission: lease.mission,
+  id: lease.identity.distribution_id, lease_id: lease.lease_id, targeted_stop_exit: stop,
+  owned_stopped: after.AIForAll === 'Stopped', foreign_states_unchanged:
+    after['ARTIST-Ubuntu'] === lease.before['ARTIST-Ubuntu'] && after['docker-desktop'] === lease.before['docker-desktop'],
+  safe_to_delete: 'no'}) + String.fromCharCode(10));
+let verified = 0;
+for (const [relative, expected] of Object.entries(lease.metadata.source_hashes)) {
+  const actual = crypto.createHash('sha256').update(fs.readFileSync(root + '/ops/tests/k6/' + relative)).digest('hex');
+  if (actual !== expected) throw new Error('NATIVE_SOURCE_MISMATCH');
+  verified++;
+}
+const configFile = root + '/.tmp/k6-linux-probes-paths-20261030.json';
+const config = {source_dir: lease.metadata.source, tools_dir: lease.metadata.tools_dir,
+  source_hashes: lease.metadata.source_hashes, observed_from_lease: lease.lease_id,
+  browser_executed: false, driver_preflight_executed: false};
+fs.writeFileSync(configFile, JSON.stringify(config, null, 2), {flag: 'wx'});
+console.log(JSON.stringify({lease_file: leaseFile, status: lease.status, before, after,
+  targeted_stop_exit: stop, native_source_files_verified: verified, script_config: configFile,
+  browser_executed: false, driver_preflight_executed: false}));

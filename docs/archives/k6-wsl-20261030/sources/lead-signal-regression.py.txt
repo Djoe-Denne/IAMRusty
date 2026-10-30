@@ -1,0 +1,27 @@
+"""Lead regression on known synthetic bytes; no native process is launched."""
+import json
+import unittest
+
+import test_k6_linux_probes_20261030 as fixtures
+
+
+class SignalRegression(unittest.TestCase):
+    def test_native_signal_survives_real_projection_chain(self):
+        case = fixtures.ProbeTests('test_timeout_interruption_absence_and_nonzero_are_separate')
+        record, _ = case.launch(b'', exit_code=-6, kind='unshare')
+        projected = fixtures.probe.project_probe(record, set(), {fixtures.LOADER}, 'unshare')
+        self.assertEqual(projected['termination'], 'SIGNAL')
+        self.assertEqual(projected['exit'], -6)
+        self.assertNotEqual(projected['outcome'], 'ZERO_EXIT')
+        self.assertIsNone(projected['missing'])
+        result = fixtures.probe.empty_result()
+        result.update(unshare=projected, privacy='PASS', cleanup='PASS', retirement='PASS',
+                      reason='DIAGNOSTIC_INCOMPLETE')
+        public = json.loads(fixtures.probe.public_bytes(result))
+        self.assertEqual(public['unshare']['termination'], 'SIGNAL')
+        self.assertEqual(public['unshare']['exit'], -6)
+        self.assertIsNone(public['unshare']['missing'])
+
+
+if __name__ == '__main__':
+    unittest.main()

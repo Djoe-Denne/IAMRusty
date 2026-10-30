@@ -1,5 +1,23 @@
 # Instance WSL dédiée AIForAll
 
+## État courant — approche suspendue, qualification inconclusive
+
+Le2026-10-30, l'utilisateur demande d'abandonner cette approche pour le moment,
+d'archiver les outils créés pourWSL et de poursuivre les essais sousWindows.
+**Chrome/WSL reste INCONCLUSIVE**, pas PASS : le dernier navigateur échouait
+avant le cas et sa cause n'a pas été établie. La réussite du testuserns et les
+tests unitaires ne changent pas ce verdict. Le premierldd reste compteinconnu ;
+la seconde mesure envisagée est annulée avant exécution.
+
+Cette suspension ne supprime pas l'instance, sonVHDX surI:, ses données ou ses
+outils installés. Aucun nouveau lancementWSL ou collecte n'est admis pour la
+poursuite de cette enquête. Les scripts ponctuels utiles sont destinés aux
+archives documentaires, pas à une relance automatique.
+
+Les résultatsWindows seront qualifiés séparément. L'utilisateur prévoit une
+missionLinux ultérieure sur une machineGitHubActions ; elle n'est pas lancéeici.
+[Décision et limites](../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/76-arret-wsl-et-preparation-des-tests-windows.md).
+
 ## Identité vérifiée
 
 - Nom technique : `AIForAll` ; libellé du projet : AI for All.

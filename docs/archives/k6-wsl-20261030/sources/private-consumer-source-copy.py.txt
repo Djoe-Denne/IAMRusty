@@ -1,0 +1,40 @@
+"""Transfer a frozen public source snapshot for known-fixture Linux tests only."""
+import hashlib
+import json
+import os
+from pathlib import Path, PurePosixPath
+import shutil
+import subprocess
+
+assert os.getuid() == os.geteuid() == 1000, "NON_ROOT_WORK_ACCOUNT_REQUIRED"
+os.umask(0o077)
+head = "eb3d35530cb4d0b3e703c593b868c8047a512a6d"
+source = Path("/mnt/c/Users/djden/AppData/Local/Temp/opencode/k6-linux-source-eb3d355-aiforall-20261030")
+manifest = json.loads(Path("/mnt/c/Users/djden/source/repos/AIForAll/.tmp/k6-source-eb3d355-files.json").read_text(encoding="utf-8"))
+assert manifest.get("head") == head and len(manifest.get("files", [])) == 25, "MANIFEST_REFUSED"
+for row in manifest["files"]:
+    path = PurePosixPath(row["path"])
+    assert not path.is_absolute() and ".." not in path.parts, "SOURCE_PATH_REFUSED"
+    assert hashlib.sha256((source / str(path)).read_bytes()).hexdigest() == row["sha256"], "SOURCE_BYTES_REFUSED"
+assert not any(path.is_symlink() for path in source.rglob("*")), "SOURCE_LINK_REFUSED"
+home = Path("/home/aiforall")
+cache = home / ".cache/opencode"
+for path in (home, home / ".cache", cache):
+    item = path.stat()
+    assert path == path.resolve(strict=True) and item.st_uid == 1000 and not item.st_mode & 0o077, "PRIVATE_PARENT_REFUSED"
+campaign = cache / "k6-20261030-eb3d355"
+campaign.mkdir(mode=0o700)
+destination = campaign / "source"
+shutil.copytree(source, destination)
+for parent, directories, files in os.walk(destination):
+    Path(parent).chmod(0o700)
+    for name in files:
+        (Path(parent) / name).chmod(0o600)
+for row in manifest["files"]:
+    assert hashlib.sha256((destination / row["path"]).read_bytes()).hexdigest() == row["sha256"], "COPIED_BYTES_REFUSED"
+env = {"PATH": "/usr/bin:/bin", "HOME": str(home), "LC_ALL": "C.UTF-8", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
+actual = subprocess.run(["/usr/bin/git", "-C", str(destination), "rev-parse", "HEAD"], env=env, check=True, capture_output=True, text=True, timeout=15).stdout.strip()
+status = subprocess.run(["/usr/bin/git", "-C", str(destination), "status", "--porcelain"], env=env, check=True, capture_output=True, text=True, timeout=30).stdout
+assert actual == head and not status, "COPIED_GIT_STATE_REFUSED"
+print(json.dumps({"source_copy": "VERIFIED", "head": actual, "clean": True, "files_verified": 25,
+                  "source": str(destination), "uid": os.getuid(), "browser_executed": False}, sort_keys=True))

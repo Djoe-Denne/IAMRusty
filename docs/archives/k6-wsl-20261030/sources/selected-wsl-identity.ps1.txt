@@ -1,0 +1,21 @@
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$root = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss'
+$guid = '{22ce910b-45a3-42a4-bbab-dc56a1766035}'
+$value = Get-ItemProperty -LiteralPath ($root + '\' + $guid)
+$global = Get-ItemProperty -LiteralPath $root
+if ($value.DistributionName -cne 'AIForAll' -or $value.DefaultUid -ne 1000 -or $value.Version -ne 2) {
+    throw 'SELECTED_DISTRIBUTION_REFUSED'
+}
+$base = $value.BasePath
+if ($base.StartsWith('\\?\')) { $base = $base.Substring(4) }
+if ($base.TrimEnd('\') -ine 'I:\WSL\AIForAll') { throw 'SELECTED_STORAGE_REFUSED' }
+[ordered]@{
+    distribution_id = $guid
+    distribution_name = $value.DistributionName
+    install_location = $base
+    default_uid = $value.DefaultUid
+    version = $value.Version
+    windows_sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    default_global_unchanged = ($global.DefaultDistribution -eq '{bb000c3f-6fcc-4ca1-859e-6052e02d67e0}')
+} | ConvertTo-Json -Compress

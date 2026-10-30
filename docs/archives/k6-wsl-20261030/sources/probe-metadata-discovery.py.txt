@@ -1,0 +1,59 @@
+"""One read-only metadata discovery; no browser, loader, namespace or driver call."""
+import ctypes
+import hashlib
+import json
+import os
+from pathlib import Path
+import pwd
+import stat
+
+
+def main():
+    if os.getuid() != 1000 or os.geteuid() != 1000:
+        raise ValueError
+    home = Path('/home/aiforall')
+    if pwd.getpwuid(1000).pw_dir != str(home):
+        raise ValueError
+    cache = home / '.cache/opencode'
+    for path in (home, home / '.cache', cache):
+        info = path.stat()
+        if path != path.resolve(strict=True) or info.st_uid != 1000 or stat.S_IMODE(info.st_mode) != 0o700:
+            raise ValueError
+    data = ctypes.create_string_buffer(256)
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.statfs(os.fsencode(home), data) != 0 or ctypes.c_long.from_buffer(data).value != 0xef53:
+        raise ValueError
+    source = cache / 'k6-20261030-887b6b0/source/ops/tests/k6'
+    hashes = {}
+    for relative in ('run-linux.py', 'lib/safety.py', 'lib/private_site.py', 'config/tools.lock.json'):
+        path = source / relative
+        if path != path.resolve(strict=True) or not path.is_file() or path.stat().st_uid != 1000:
+            raise ValueError
+        hashes[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+    acquisition = cache / 'k6-20261030-05bd6c6'
+    children = list(acquisition.iterdir())
+    if len(children) > 32:
+        raise ValueError
+    roots = []
+    for candidate in (acquisition, *children):
+        if candidate.is_symlink() or not candidate.is_dir():
+            continue
+        if (candidate / 'chromium.zip').is_file() and (candidate / 'chrome-linux64/chrome').is_file():
+            roots.append(str(candidate))
+    if len(roots) != 1:
+        print(json.dumps({'metadata': 'TOOLS_NOT_OBSERVED', 'count': len(roots)}, sort_keys=True))
+        return 2
+    print(json.dumps({'metadata': 'OBSERVED', 'uid': 1000, 'home_ext4': True,
+                      'source': str(source), 'source_hashes': hashes,
+                      'tools_dir': roots[0], 'browser_executed': False,
+                      'driver_preflight_executed': False}, sort_keys=True))
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        result = main()
+    except BaseException:
+        print('{"metadata":"REFUSED"}')
+        result = 2
+    raise SystemExit(result)

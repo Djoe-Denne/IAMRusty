@@ -1,0 +1,59 @@
+"""Copy one verified clean public source snapshot into the owned Linux filesystem."""
+import hashlib
+import json
+import os
+from pathlib import Path, PurePosixPath
+import shutil
+import subprocess
+
+if os.getuid() != 1000 or os.geteuid() != 1000:
+    raise SystemExit("WORK_ACCOUNT_REQUIRED")
+os.umask(0o077)
+home = Path("/home/aiforall")
+source = Path("/mnt/c/Users/djden/AppData/Local/Temp/opencode/k6-linux-source-05bd6c6-aiforall-20261030")
+manifest_path = Path("/mnt/c/Users/djden/source/repos/AIForAll/.tmp/k6-source-05bd6c6-files.json")
+manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+expected_head = "05bd6c63d0c86f090b27c9dbb48217f04b07d5e6"
+if manifest.get("head") != expected_head or len(manifest.get("files", [])) != 23:
+    raise SystemExit("SOURCE_MANIFEST_REFUSED")
+
+def digest(path):
+    value = hashlib.sha256()
+    with path.open("rb") as stream:
+        for part in iter(lambda: stream.read(1024 * 1024), b""):
+            value.update(part)
+    return value.hexdigest()
+
+for row in manifest["files"]:
+    relative = PurePosixPath(row["path"])
+    if relative.is_absolute() or ".." in relative.parts or digest(source / str(relative)) != row["sha256"]:
+        raise SystemExit("SOURCE_BYTES_REFUSED")
+if any(path.is_symlink() for path in source.rglob("*")):
+    raise SystemExit("SOURCE_LINK_REFUSED")
+
+cache = home / ".cache" / "opencode"
+cache.mkdir(parents=True, exist_ok=True, mode=0o700)
+for path in (home, home / ".cache", cache):
+    item = path.stat()
+    if path != path.resolve(strict=True) or item.st_uid != 1000 or item.st_mode & 0o077:
+        raise SystemExit("PRIVATE_PARENT_REFUSED")
+campaign = cache / "k6-20261030-05bd6c6"
+campaign.mkdir(mode=0o700)
+destination = campaign / "source"
+shutil.copytree(source, destination, symlinks=False)
+for base, directories, files in os.walk(destination):
+    Path(base).chmod(0o700)
+    for name in files:
+        (Path(base) / name).chmod(0o600)
+for row in manifest["files"]:
+    if digest(destination / row["path"]) != row["sha256"]:
+        raise SystemExit("COPIED_SOURCE_BYTES_REFUSED")
+environment = {"PATH": "/usr/bin:/bin", "HOME": str(home), "LC_ALL": "C.UTF-8",
+               "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
+head = subprocess.run(["/usr/bin/git", "-C", str(destination), "rev-parse", "HEAD"], env=environment, capture_output=True, text=True, check=True, timeout=15).stdout.strip()
+status = subprocess.run(["/usr/bin/git", "-C", str(destination), "status", "--porcelain"], env=environment, capture_output=True, text=True, check=True, timeout=30).stdout
+if head != expected_head or status:
+    raise SystemExit("COPIED_GIT_STATE_REFUSED")
+print(json.dumps({"source_copy": "VERIFIED", "head": head, "clean": True,
+                  "files_verified": 23, "source": str(destination), "campaign": str(campaign),
+                  "uid": os.getuid(), "browser_executed": False}, sort_keys=True))

@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "scope": "INACTIVE_WSL_PUBLIC_SOURCE_ARCHIVE",
+  "decision_date": "2026-10-30",
+  "wsl_qualification": "INCONCLUSIVE",
+  "source_base": "915042f",
+  "executable": false,
+  "files": [
+    {
+      "source": ".tmp/k6-native-probes-candidate-048d9c96/k6-linux-probes-20261030.py",
+      "archive": "sources/corrected-linux-probes.py.txt",
+      "bytes": 35209,
+      "sha256": "048d9c9608409610b2ff989f6052c7e272e09cdcf75c0ae047516ee658bc3083"
+    },
+    {
+      "source": ".tmp/k6-native-probes-candidate-048d9c96/test_k6_linux_probes_20261030.py",
+      "archive": "sources/corrected-probe-fixtures.py.txt",
+      "bytes": 27438,
+      "sha256": "0d0f230aa7ed23a8d394072255b700b9dcdd4c292b1c3ed0cacb71fb3d7afb20"
+    },
+    {
+      "source": ".tmp/k6-native-probes-candidate-7d1db94e/k6-linux-probes-20261030.py",
+      "archive": "sources/executed-reference-linux-probes.py.txt",
+      "bytes": 35065,
+      "sha256": "7f17cdc551a62cc3b73c513da961677ed7316ff34332d1777b3c795961f64554"
+    },
+    {
+      "source": ".tmp/k6-native-probes-candidate-7d1db94e/test_k6_linux_probes_20261030.py",
+      "archive": "sources/executed-reference-probe-fixtures.py.txt",
+      "bytes": 25992,
+      "sha256": "09da2edea06721396d7df89e4b72d2b0accfed2b31b87d6f31456502b2a2074d"
+    },
+    {
+      "source": ".tmp/k6-native-probes-candidate-048d9c96/test_signal_regression.py",
+      "archive": "sources/lead-signal-regression.py.txt",
+      "bytes": 1233,
+      "sha256": "5e4354ba04e10dae69f5c7d318b1c6663d0f859625cf101be77bcd839f240b70"
+    },
+    {
+      "source": ".tmp/k6-native-probes-candidate-048d9c96/test_parent_input_files.py",
+      "archive": "sources/lead-parent-input-fixtures.py.txt",
+      "bytes": 5036,
+      "sha256": "e6a3a4b3aeb139422940a860dcb21c7ef5dc72663b2ef934f561c2c87788360c"
+    },
+    {
+      "source": ".tmp/k6-probe-parent-20261030.ps1",
+      "archive": "sources/probe-parent.ps1.txt",
+      "bytes": 13860,
+      "sha256": "6daff8115f31a034b19917aed695d8eaf2f23690fbaa31583ebb23dbba439ffa"
+    },
+    {
+      "source": ".tmp/k6-probe-parent-files-20261030.py",
+      "archive": "sources/probe-parent-files.py.txt",
+      "bytes": 7621,
+      "sha256": "0ca1910bf05a70aa8e30a24017252f49456d5001e87f938ff633353d17cd23a5"
+    },
+    {
+      "source": ".tmp/k6-provision-dedicated-wsl-20261030.py",
+      "archive": "sources/dedicated-wsl-provisioning.py.txt",
+      "bytes": 4083,
+      "sha256": "23da9997e786de8d555172b7b00b48b82ffdaf6192d245bb4747f0d65178218e"
+    },
+    {
+      "source": ".tmp/k6-copy-dedicated-wsl-source-20261030.py",
+      "archive": "sources/dedicated-wsl-source-copy.py.txt",
+      "bytes": 2921,
+      "sha256": "fcf52cbd41942c915ed1baa95a1f9f1672e39ef4a0a84bba309401477270a8e2"
+    },
+    {
+      "source": ".tmp/k6-copy-parent-source-20261030.py",
+      "archive": "sources/parent-source-copy.py.txt",
+      "bytes": 2506,
+      "sha256": "29481a2feae77691001023c0c40a2b7e67288f938b69cc710ba82639eb05f7eb"
+    },
+    {
+      "source": ".tmp/k6-copy-private-consumer-source-20261030.py",
+      "archive": "sources/private-consumer-source-copy.py.txt",
+      "bytes": 2460,
+      "sha256": "4b42539fd1ac1289a53db5587cec7279df69a704e2a7386ac216e80cc9dd3085"
+    },
+    {
+      "source": ".tmp/k6-copy-private-site-s1-source-20261030.py",
+      "archive": "sources/private-site-fix-source-copy.py.txt",
+      "bytes": 2451,
+      "sha256": "ff3b67fe747d8d824104bce7a4c0d13f0d970d1c506858ad79e6bb6fdbc4f6be"
+    },
+    {
+      "source": ".tmp/k6-linux-probes-discover-20261030.py",
+      "archive": "sources/probe-metadata-discovery.py.txt",
+      "bytes": 2318,
+      "sha256": "5cfed7bebed2d304bd4d550661938e3e09cac23e7d6d5de4be761cd4ea79e4d6"
+    },
+    {
+      "source": ".tmp/k6-linux-probes-metadata-parent-20261030.cjs",
+      "archive": "sources/metadata-parent.cjs.txt",
+      "bytes": 5102,
+      "sha256": "0104d43c1a86be2e79c58b347c923ede3ac8dddff24ed3cdb624120264a2922e"
+    },
+    {
+      "source": ".tmp/k6-linux-probes-metadata-release-20261030.cjs",
+      "archive": "sources/metadata-release.cjs.txt",
+      "bytes": 3468,
+      "sha256": "8ad2f3c00bbabfbf063512af1b99008269bf62717cd63a4738924903d2301368"
+    },
+    {
+      "source": ".tmp/k6-read-pinned-elf-20261030.py",
+      "archive": "sources/pinned-elf-metadata.py.txt",
+      "bytes": 2886,
+      "sha256": "b06d05a73c826852ae3b3dc207c54f635f46fb2a8c5b66057f13e432aac28513"
+    },
+    {
+      "source": ".tmp/k6-userns-identity-20261030.ps1",
+      "archive": "sources/selected-wsl-identity.ps1.txt",
+      "bytes": 1032,
+      "sha256": "d51e096a7e379b4044657891446be4df8c306035f2ab5db670b6022a081c4deb"
+    },
+    {
+      "source": ".tmp/k6-validate-probe-result-20261030.py",
+      "archive": "sources/historical-result-validator.py.txt",
+      "bytes": 1406,
+      "sha256": "aacdefe9932b3f208dfa7539a45e6e9ebda705b8b024db11c549398e7fbcacf2"
+    }
+  ],
+  "excluded": [
+    "logs",
+    "native output",
+    "private capture",
+    "profiles",
+    "configuration",
+    "runtime leases",
+    "resource registries",
+    "caches",
+    "binaries",
+    "VHDX"
+  ]
+}

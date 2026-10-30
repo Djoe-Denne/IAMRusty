@@ -1,0 +1,114 @@
+"""Known disposable Windows filesystem fixtures, not Linux runtime evidence."""
+import contextlib
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import stat
+import sys
+import tempfile
+import types
+import unittest
+from unittest import mock
+
+SPEC = importlib.util.spec_from_file_location('parent_files', Path(__file__).parents[1] / 'k6-probe-parent-files-20261030.py')
+files = importlib.util.module_from_spec(SPEC)
+with mock.patch.dict(sys.modules, {'pwd': types.SimpleNamespace()}):
+    SPEC.loader.exec_module(files)
+
+
+class ParentInputFiles(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(dir='C:/Users/djden/AppData/Local/Temp/opencode')
+        self.root = Path(self.temp.name)
+        self.stack = contextlib.ExitStack()
+        self.addCleanup(self.finish)
+        cache = self.root / 'cache'
+        old = cache / 'old'
+        old.mkdir(parents=True)
+        (old / '.git').mkdir()
+        expected = {}
+        for name in files.EXPECTED:
+            path = old / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            raw = ('known:' + name).encode()
+            path.write_bytes(raw)
+            expected[name] = hashlib.sha256(raw).hexdigest()
+        base = cache / 'new'
+        config = self.root / 'paths.json'
+        config.write_text(json.dumps({'source_dir': str(old), 'source_hashes': expected}))
+        delivery = self.root / 'delivery.py'
+        delivery.write_bytes(b'raise RuntimeError("MUST_NOT_EXECUTE")\n')
+        probe_hash = hashlib.sha256(delivery.read_bytes()).hexdigest()
+        values = dict(CACHE=cache, BASE=base, SOURCE=base / 'source/ops/tests/k6', PROBE=base / 'probe.py',
+                      MANIFEST=base / 'parent-manifest.json', CONFIG=config, DELIVERY=delivery,
+                      EXPECTED=expected, PROBE_SHA=probe_hash,
+                      FILES={'probe.py': probe_hash, **{'source/ops/tests/k6/' + k: v for k, v in expected.items()}})
+        for key, value in values.items():
+            self.stack.enter_context(mock.patch.object(files, key, value))
+        self.stack.enter_context(mock.patch.object(files, 'check_home'))
+        self.stack.enter_context(mock.patch.object(files, 'other_users', return_value=0))
+        self.stack.enter_context(mock.patch.object(files.os, 'O_NOFOLLOW', 0, create=True))
+        self.stack.enter_context(mock.patch.object(files.os, 'O_CLOEXEC', 0, create=True))
+        real_stamp = files.stamp
+        def identity(path):
+            value = real_stamp(path)
+            value[2] = 1000
+            value[3] = 0o700 if path.is_dir() else 0o600 if path.stat().st_mode & stat.S_IWUSR else 0o400
+            return value
+        self.stack.enter_context(mock.patch.object(files, 'stamp', side_effect=identity))
+        real_unlink = Path.unlink
+        def unlink(path, *args, **kwargs):
+            if path.is_relative_to(self.root) and path.is_file():
+                path.chmod(0o600)
+            return real_unlink(path, *args, **kwargs)
+        self.stack.enter_context(mock.patch.object(Path, 'unlink', unlink))
+
+    def finish(self):
+        self.stack.close()
+        for path in self.root.rglob('*'):
+            if path.is_file():
+                path.chmod(0o600)
+        self.temp.cleanup()
+
+    def test_exact_export_and_retirement_preserve_old_git_source(self):
+        self.assertEqual(files.prepare()['parent_inputs'], 'READY')
+        self.assertFalse((files.BASE / '.git').exists())
+        self.assertTrue((files.CACHE / 'old/.git').is_dir())
+        self.assertEqual(files.retire()['copied_script_retirement'], 'PASS')
+        self.assertFalse(files.BASE.exists())
+        self.assertTrue(files.DELIVERY.exists())
+
+    def test_wrong_source_hash_refuses_before_creating_export(self):
+        (files.CACHE / 'old/run-linux.py').write_bytes(b'changed')
+        with self.assertRaises(ValueError):
+            files.prepare()
+        self.assertFalse(files.BASE.exists())
+
+    def test_inspection_distinguishes_absent_and_owned_present_inputs(self):
+        self.assertEqual(files.inspect_inputs()['parent_inputs'], 'ABSENT')
+        files.prepare()
+        observed = files.inspect_inputs()
+        self.assertEqual(observed['parent_inputs'], 'PRESENT')
+        self.assertTrue(observed['manifest_present'])
+        files.retire()
+        self.assertEqual(files.inspect_inputs()['parent_inputs'], 'ABSENT')
+
+    def test_replaced_script_is_not_removed(self):
+        files.prepare()
+        files.PROBE.rename(self.root / 'preserved-copy')
+        files.PROBE.write_bytes(b'foreign replacement')
+        with self.assertRaises(ValueError):
+            files.retire()
+        self.assertEqual(files.PROBE.read_bytes(), b'foreign replacement')
+
+    def test_retained_run_evidence_prevents_input_retirement(self):
+        files.prepare()
+        (files.BASE / 'run').mkdir()
+        with self.assertRaises(ValueError):
+            files.retire()
+        self.assertTrue(files.PROBE.exists())
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -2,6 +2,9 @@
 
 - Statut : **Accepted** ; Réalité : **Partial** — une sonde userns réussie,
   une commande ldd exécutée mais compte de dépendances inconnu ; aucun navigateur qualifié.
+- Exécution : **suspendue par l'utilisateur le2026-10-30** ; qualificationWSL
+  **INCONCLUSIVE**. Pas de seconde mesureldd, nouvelle sonde, collecte ou réveilWSL.
+  Les essaisWindows et la future missionLinux/GitHubActions sont distincts.
 - Date : 2026-10-30 ; mission1 k6, hors Apparatus P0–P6.
 - Base principale : `0f32e8dab504458074a353cb555139801db81487`, briefing
   `20261030-k6-userns-dependencies-research-followup.md`, rapport65 et ledger.

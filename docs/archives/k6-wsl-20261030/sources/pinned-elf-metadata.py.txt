@@ -1,0 +1,63 @@
+"""Read only the already-admitted pinned ELF metadata; no external command."""
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import sys
+
+BASE = Path('/home/aiforall/.cache/opencode/k6-linux-probes-20261030-2f4ca12c775f4c6eb0d8b67bb19a3b9e')
+PROBE = BASE / 'probe.py'
+PROBE_SHA = '7f17cdc551a62cc3b73c513da961677ed7316ff34332d1777b3c795961f64554'
+
+
+def main(argv):
+    if len(argv) != 6 or argv[::2] != ['--source-dir', '--tools-dir', '--output']:
+        return 2
+    if hashlib.sha256(PROBE.read_bytes()).hexdigest() != PROBE_SHA:
+        return 2
+    spec = importlib.util.spec_from_file_location('verified_probe_metadata', PROBE)
+    probe = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(probe)
+    probe.need(not probe.ci_present())
+    probe.native_home()
+    source = probe.private_chain(argv[1], directory=True)
+    tools = probe.private_chain(argv[3], directory=True)
+    probe.need(source == BASE / 'source/ops/tests/k6' and Path(argv[5]) == BASE / 'run'
+               and not Path(argv[5]).exists())
+    api = probe.load_api(source)
+    lock = api.safety.strict_json(probe.read_small(source / 'config/tools.lock.json', 32768))
+    os.environ['K6_TOOLS_DIR'] = str(tools)
+    os.environ['K6_BROWSER_EXECUTABLE_PATH'] = str(tools / lock['chromium']['executable'])
+    pinned, _ = api.runner.pinned_tools(browser=True)
+    api.runner.verify_tools(pinned, ('k6', 'chromium'))
+    with pinned['chromium'].open('rb') as stream:
+        interpreter, needed = probe.elf_metadata(stream)
+    probe.trusted_system(interpreter)
+    ldd_identity = probe.trusted_system('/usr/bin/ldd')
+    ldd_source = probe.read_small('/usr/bin/ldd', 65536)
+    probe.need(probe.trusted_system('/usr/bin/ldd') == ldd_identity)
+    result = {'v': 1, 'scope': 'PINNED_ELF_READ_ONLY', 'direct_needed_count': len(needed),
+              'loader_basename_in_needed': Path(interpreter).name in needed,
+              'loader_trust_verified': True, 'source_hashes_verified': 4,
+              'archive_binary_pins_verified': True,
+              'ldd_source_sha256': hashlib.sha256(ldd_source).hexdigest(),
+              'external_commands_executed': 0, 'output_files_created': 0,
+              'privacy': 'PASS', 'cleanup': 'PASS', 'retirement': 'PASS',
+              'HTTP': 'INCONCLUSIVE', 'Chromium': 'INCONCLUSIVE'}
+    api.recheck()
+    api.runner.verify_tools(pinned, ('k6', 'chromium'))
+    raw = json.dumps(result, separators=(',', ':')).encode('ascii')
+    probe.need(len(raw) <= 4095)
+    api.safety.confidential(raw)
+    sys.stdout.buffer.write(raw + b'\n')
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        status = main(sys.argv[1:])
+    except BaseException:
+        print('{"v":1,"scope":"PINNED_ELF_READ_ONLY","metadata":"REFUSED","HTTP":"INCONCLUSIVE","Chromium":"INCONCLUSIVE"}')
+        status = 2
+    raise SystemExit(status)

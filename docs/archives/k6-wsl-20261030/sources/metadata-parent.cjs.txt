@@ -1,0 +1,98 @@
+// One metadata invocation, not a reusable launcher or a native-driver exemption.
+const fs = require('fs');
+const cp = require('child_process');
+const crypto = require('crypto');
+const root = 'C:/Users/djden/source/repos/AIForAll';
+const wsl = 'C:/Windows/System32/wsl.exe';
+const ps = 'C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe';
+const guid = '{22ce910b-45a3-42a4-bbab-dc56a1766035}';
+const h = require(root + '/.agents/skills/aiforall-context-functions/scripts/helpers.cjs');
+const lf = String.fromCharCode(10);
+
+function inventory() {
+  const r = cp.spawnSync(wsl, ['--list', '--verbose'], {windowsHide: true, maxBuffer: 65536});
+  if (r.status !== 0) throw new Error('INVENTORY_REFUSED');
+  const text = h.decodeEvidenceText(r.stdout, {encoding: 'utf-16le'}).text;
+  const out = {};
+  for (const name of ['AIForAll', 'ARTIST-Ubuntu', 'docker-desktop']) {
+    const line = text.split(lf).find(x => x.includes(name + ' '));
+    if (!line) throw new Error('INVENTORY_INCOMPLETE');
+    out[name] = line.includes('Stopped') ? 'Stopped' : line.includes('Running') ? 'Running' : 'UNKNOWN';
+  }
+  return out;
+}
+
+function identity() {
+  const r = cp.spawnSync(ps, ['-NoProfile', '-NonInteractive', '-File',
+    root + '/.tmp/k6-userns-identity-20261030.ps1'], {encoding: 'utf8', windowsHide: true});
+  if (r.status !== 0) throw new Error('IDENTITY_REFUSED');
+  return JSON.parse(r.stdout);
+}
+
+const compile = cp.spawnSync('C:/Python313/python.exe', ['-B', '-c',
+  'import ast,sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())',
+  root + '/.tmp/k6-linux-probes-discover-20261030.py'], {windowsHide: true});
+if (compile.status !== 0) throw new Error('SCRIPT_SYNTAX_REFUSED');
+const observed = identity();
+const before = inventory();
+if (before.AIForAll !== 'Stopped') throw new Error('FRESH_STOPPED_RUNTIME_REQUIRED');
+const leaseId = crypto.randomUUID().replaceAll('-', '');
+const path = root + '/.tmp/k6-linux-probes-discovery-20261030-' + leaseId + '.json';
+const lease = {version: 1, mission: 'team_mvtz6p47_000q_4wmht0', lease_id: leaseId,
+  owner: 'lead', purpose: 'metadata only; no unshare/ldd/browser/driver', identity: observed,
+  before, status: 'active', consumers: ['metadata-discovery'], started_utc: new Date().toISOString(),
+  safe_to_delete: 'no'};
+const fd = fs.openSync(path, 'wx');
+fs.writeSync(fd, JSON.stringify(lease, null, 2));
+fs.fsyncSync(fd);
+fs.closeSync(fd);
+
+function save() { fs.writeFileSync(path, JSON.stringify(lease, null, 2)); }
+function event(eventName, extra = {}) {
+  fs.appendFileSync(root + '/.tmp/wsl-resources-20261030.log', JSON.stringify({
+    timestamp_utc: new Date().toISOString(), event: eventName, mission: lease.mission,
+    id: guid, lease_id: leaseId, safe_to_delete: 'no', ...extra}) + lf);
+}
+
+event('probe_metadata_runtime_requested');
+try {
+  const args = ['--distribution-id', guid, '--user', 'aiforall', '--exec', '/usr/bin/env', '-i',
+    'PATH=/usr/bin:/bin', 'HOME=/home/aiforall', 'LANG=C.UTF-8', '/usr/bin/python3', '-I', '-B',
+    '/mnt/c/Users/djden/source/repos/AIForAll/.tmp/k6-linux-probes-discover-20261030.py'];
+  // No imposed timeout/forced WSL termination: this reviewed script only reads
+  // a bounded set of metadata. This call joins its own native child process.
+  const r = cp.spawnSync(wsl, args, {cwd: root, windowsHide: true, maxBuffer: 16384,
+    env: {SystemRoot: 'C:/Windows', WINDIR: 'C:/Windows',
+      TEMP: 'C:/Users/djden/AppData/Local/Temp/opencode',
+      TMP: 'C:/Users/djden/AppData/Local/Temp/opencode', PATH: 'C:/Windows/System32'}});
+  lease.exit = r.status;
+  lease.signal = r.signal;
+  lease.command_error = r.error?.code ?? null;
+  let data = null;
+  try {
+    const text = h.decodeEvidenceText(r.stdout, {encoding: 'utf-8', maxBytes: 8192}).text;
+    if (r.status === 0 && r.stderr.length === 0) data = JSON.parse(text);
+  } catch {}
+  lease.metadata = data;
+  lease.consumers = [];
+  lease.after = inventory();
+  lease.identity_reverified = JSON.stringify(identity()) === JSON.stringify(observed);
+  lease.status = lease.after.AIForAll === 'Stopped' ? 'released_metadata_complete' : 'joined_runtime_cleanup_pending';
+  lease.explicit_stop = false;
+  save();
+  event('probe_metadata_runtime_joined', {exit: r.status, owned_stopped: lease.after.AIForAll === 'Stopped',
+    foreign_states_unchanged: lease.after['ARTIST-Ubuntu'] === before['ARTIST-Ubuntu'] &&
+      lease.after['docker-desktop'] === before['docker-desktop']});
+  console.log(JSON.stringify({lease_file: path, exit: r.status,
+    metadata_state: data?.metadata ?? 'NOT_VALID', tools_observed: !!data?.tools_dir,
+    source_files: data?.source_hashes ? Object.keys(data.source_hashes).length : 0,
+    home_ext4: data?.home_ext4 ?? null, identity_reverified: lease.identity_reverified,
+    before, after: lease.after, status: lease.status, browser_executed: false,
+    driver_preflight_executed: false}));
+} catch {
+  lease.status = 'metadata_failure_cleanup_unproven';
+  save();
+  event('probe_metadata_runtime_failure');
+  console.log(JSON.stringify({lease_file: path, status: lease.status}));
+  process.exitCode = 2;
+}
