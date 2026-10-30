@@ -421,7 +421,7 @@ Base `ce52ae8332ddd08065c3c6913d6032fd7891ed09`, briefing
 70 lignes récupérée byte-identique puis sauvegardée. Le lead ratifie la recette
 avant préparation du programme parent, sous délégation mission1 ; candidat
 `result_mvuzazoo_0002_qfx9jl`, même session architecte. La procédure réelle reste
-**Unimplemented** et son exécution conditionnelle à la vérification de sa composition
+**Partial** (code et fixtures livrés, préflight réel non vérifié) et son exécution conditionnelle à la vérification de sa composition
 et au rendez-vous. Ce parent compose les gardes et APIs existantes : pas nouveau
 harness, exécuteur Chromium, service ou autorité. La fermeture distincte du veto
 S-1 est désormais intégrée, mais ne fournit pas le contrôle parent réel.
@@ -434,8 +434,14 @@ Le lead ratifie avant code l'alternative Windows/pipes déjà prévue, après le
 et récupération byte-identique du delta architecte `result_mvv0mhui_0002_p982l8`
 (+55/-27 lignes) et sauvegarde vérifiée. Les précisions suivantes remplacent la
 préférence interop. Aucun probe interop ni impossibilité de cette voie n'est
-établi ou recherché ici. Le conducteur reste **Unimplemented**, capture conditionnelle
+établi ou recherché ici. Le conducteur est **Partial** (code/tests, pas de préflight réel), capture conditionnelle
 aux preuves/revue applicables et au rendez-vous réel, non accordé par cet amendement.
+
+Photographie après code : trois fichiers intégrés dans `195059a`, source gelée ;
+tests Windows : 189, exit0, huit skips POSIX ; Linux : 189, exit0, onze skips
+réservés à PowerShell, sur snapshot propre887b6b0. Les suites exercent respectivement 181 et 178 tests,
+pas une collecte réelle. Revue indépendante en cours, profils et préflight des
+observateurs réels non acquis, aucun site inconnu créé. [Preuves et limites](../../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/60-fixtures-du-conducteur-verifiees-sur-les-deux-systemes.md).
 
 1. **Windows, avant l'invocation :** veto CI avant création de processus ; le
    parent sous bail actif relit les contrôles
