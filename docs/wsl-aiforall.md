@@ -58,10 +58,15 @@ ARTIST-Ubuntu, aucun WIP utilisateur ou ancien bail n'a été importé.
 La création, le disque, le compte et les28paquets demandés sont vérifiés ; apt
 update/simulation/install réussissent depuis les dépôts Ubuntu signés. Cela inclut
 Python3, Git, curl, binutils et les bibliothèques/fonts Chromium, sans toolchain
-Rust, Docker ou nouveau framework. Aucun navigateur ou test k6 n'a encore été exécuté
-dans cette instance. Les 140 tests Linux historiques appartiennent au runner
-GitHub, pas à cet hôte neuf. Un relevé causal privé nécessite son admission et sa
-QA propres ; aucune donnée native inconnue n'est publiée par le provisionnement.
+Rust, Docker ou nouveau framework. Une campagne locale ultérieure a réellement
+exécuté les140tests Python sans skip, acquis les deux outils épinglés et vérifié
+leurs versions ainsi que les deux inspections. Le navigateur échoue avant le
+cas ; un unique direct rapporte un format fatal/SIGABRT, sans cause identifiée.
+Les enfants sont nettoyés et le runtime arrêté de façon ciblée, disque/outils
+conservés. Voir [résultat local](../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/46-wsl-eprouve-mais-cause-native-encore-inconnue.md).
+Les preuves locales ne qualifient ni le navigateur ni HTTP ou la cause GitHub.
+Un relevé causal privé nécessite son admission et sa QA propres ; aucun relevé
+de site inconnu n'a été créé.
 
 Une vérification indépendante fresh du2026-10-30 confirme ces faits, les ACL du
 dossier/VHDX, le défaut WSL conservé et les versions des28paquets, à la portée
