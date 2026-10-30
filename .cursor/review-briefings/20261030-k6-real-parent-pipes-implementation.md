@@ -10,12 +10,24 @@ architecte `result_mvv0mhui_0002_p982l8` récupéré byte-identique et ratifié.
 Accepted/Partial ; consommateur `cbab06e` gelé, S-1 fermé, 165 tests Linux sans skip.
 Les propositions publiques restent Proposed ; aucune capture réelle existante.
 
-Ce travail Windows/Linux est transversal : faire la transition native de profil
-vers `hard-implementer` dans la **même session** avant code, sans changer le modèle
-sélectionné ou les paramètres de la politique approuvée. Cette transition ne donne
-aucun leadership ou permission supplémentaire. Si non disponible, le signaler et
-ne pas créer un autre worker ou contourner l'admission. Pas de nouveau plan seul
-après le contrat : les choix locaux réversibles sont délégués à l'auteur.
+Ce travail Windows/Linux est transversal. Le retour `result_mvv0pt4r_0002_ww2z41`
+établit que le profil natif de l'auteur interdit les outils d'équipe : il ne peut
+pas appeler team_handoff. L'outil exposé au lead ne cible que sa propre session.
+Ne pas contourner cette limite par une API brute ou modifier les permissions.
+
+**Disposition du lead :** conserver auteur/session/arbre/modèle OpenAI approuvé,
+profil natif implementer, et appliquer localement les obligations spécialisées
+de `.cursor/agents/hard-implementer.md` (corps du profil, pas sa sélection de modèle
+frontmatter). C'est une substitution explicite de routage, pas un handoff natif
+réalisé ni un changement de modèle/politique. Lire ces obligations avant code :
+cause/conception avant fix complexe, hypothèses recoupées aux tests, pas de patch
+au hasard ; remonter une conception incompatible au lieu de la redéfinir ; leaf,
+pas d'élargissement ou refactor opportuniste ; retour fichiers/choix/preuves/limites
+et HANDOFF_MARKDOWN sans écrire le ledger partagé. Le contrat normal est conservé.
+
+L'autorisation de code/tests reste acquise. Commencer directement ROUGE puis
+implémentation selon ce brief, sans nouveau tour de plan, transition ou GO humain.
+Les choix locaux réversibles sont délégués à l'auteur.
 
 ## Résultat et périmètre
 
