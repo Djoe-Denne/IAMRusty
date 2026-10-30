@@ -3,10 +3,10 @@
 - Statut : **Proposed** ; Réalité : **Unimplemented**, aucune nouvelle preuve native.
 - Date : 2026-10-30 ; jalon : mission1 k6, hors Apparatus P0–P6.
 - Canon lu : [contrat V1](k6-functional-linux.md), checkout principal au commit
-  `1346c01907e3ee67dfe78be18dcd5ef31ffd01dc`, et [ADR0504](../adr/0504-validation-fonctionnelle-linux-k6.md)
+  `7aaaeafb54c532b19afb5cde165a2aad1b8eee6f`, et [ADR0504](../adr/0504-validation-fonctionnelle-linux-k6.md)
   **Accepted / Partial**. Ne pas utiliser l'ancien candidat123lignes du worktree auteur.
 - Entrées : briefing `20261030-k6-causal-anchor-architecture.md`, suivi expert
-  `20261030-k6-signal-expert-result.md`, rapports33–34 et ledger du lot
+  `20261030-k6-signal-expert-result.md`, rapports33–34/37 et ledger du lot
   `.cursor/handoffs/20261029-k6-01-socle.md`, tous lus dans le checkout principal.
 
 ## Faits et décision proposée
@@ -17,6 +17,13 @@ SCRIPT_ABORTED. Direct22 : SIGABRT observé avant cleanup, privacy/enfants clean
 PASS, cause inconnue ; direct24 : NoUsableSandbox/privacy FAIL. HTTP, Chromium et
 cleanup parent restent INCONCLUSIVE. Le propre cleanup Child n'explique pas le
 signal primaire22 ; cela ne désigne ni son émetteur ni une instruction fautive.
+
+Suivi effectif, source `1c0036f`, run40985953377 :140tests Linux OK sans skip22/24,
+tools/inspect PASS ; direct22 corrélé stdout EMPTY/stderr PRESENT,
+CHROMIUM_FATAL_REPORTED et SIGABRT avant cleanup, privacy/enfants cleanup PASS.
+Site/cause inconnus : **STOP reconnaisseurs et répétitions identiques**. Le dépôt
+est PUBLIC/isPrivatefalse selon le contrôle du lead : aucun log Actions n'est un
+canal privé. Aucun artefact natif fourni à cet arbitrage, aucune collecte nouvelle.
 
 **Cible conditionnelle : une seule ancre de site public prérevue, reconnue dans
 un format complet capturé, plutôt qu'un export de localisation native libre.**
@@ -37,8 +44,8 @@ projections du run ne contiennent ni site ni condition ; rien ne permet de chois
 aujourd'hui une assertion utile sans spéculation. Ne pas fabriquer une liste de
 sites candidats ou lancer un essai consacré à un catalogue vide. Le site public
 NoUsableSandbox déjà étudié explique une branche24, pas l'arrêt22 ; son message
-avec URL reste soumis au refus privacy. La branche indépendante des familles de
-formats peut avancer dans le contrat actuel ; elle n'attend pas cette proposition.
+avec URL reste soumis au refus privacy. La classification des familles a maintenant
+livré FATAL sans site : ne pas la prolonger par une liste spéculative.
 
 ## Donnée autorisable, provenance et canal
 
@@ -112,10 +119,9 @@ provenance de la bibliothèque effectivement impliquée manquerait encore.
 
 ## Alternative compatible et plus petite information manquante
 
-**Alternative immédiatement compatible : les seules familles fermées déjà
-commandées** (FATAL, assertion, autre/aucun texte). Elles distinguent la présence
-d'un format, sans site ni corps. C'est utile et proportionné, mais ne promet pas
-la cause exacte ; ne pas multiplier ensuite les familles pour simuler une ancre.
+Les familles fermées ont épuisé leur objectif : FATAL est établi, pas le site.
+Elles restent des preuves compatibles, pas une voie pour découvrir la cause par
+répétition. Le protocole d'ancre publique reste conditionnel à une entrée utile.
 
 Le mécanisme proposé est préférable à un export libre si un site public pertinent
 est établi. **Ce n'est pas encore le cas pour22.** Il manque un candidat précis
@@ -127,15 +133,79 @@ Aucun buffer natif du run n'est fourni à cet arbitrage. Si la capture originale
 n'est plus disponible, il faudrait une nouvelle observation expressément bornée ;
 aucun site découvert ensuite ne serait rétroattribué au run40982576736.
 
-Si le lead veut obtenir ce candidat au-delà des familles, le seul arbitrage
-supplémentaire utile serait un **accès opérateur privé à un unique emplacement
-structuré d'un enregistrement**, pas une permission générale de voir stderr.
-Il faudrait nommer le canal privé réellement disponible et son destinataire,
-borne et rétention, sans logs/artifacts CI publics ni upload d'un chemin inconnu.
-Aucun tel canal n'est établi dans les faits : il n'est ni créé ni autorisé ici.
-Une fois le candidat reconnu public par l'opérateur, seule l'entrée publique revue
-peut rejoindre le catalogue. À défaut, constater « cause non identifiable avec
-les observations admises », sans prétendre manquer d'une délégation générique.
+### Option privée minimale concrète — Proposed, non autorisée
+
+**Recommandation : un relevé local structuré pour un opérateur humain désigné**,
+sur son hôte Linux amd64 privé autorisé ; aucune exécution hébergée dans Actions.
+Ce relevé local d'un site encore inconnu est une frontière distincte de l'ancre
+publique ci-dessus, à ratifier explicitement par le lead avant consommateur.
+
+1. **Préflight requis, pas présumé acquis :** hôte/session et opérateur réels,
+   UID non-root, espace privé sans synchronisation/sauvegarde automatique ni autre
+   workload non fiable sous le même UID. Distro conforme au contrat :24.04 nominal
+   ou22.04 diagnostique seulement ; autre distro exige un arbitrage de plateforme.
+   Dépendances déjà présentes, pins/archives/ELF/version vérifiés, sandbox et mêmes
+   arguments conservés. Le boot Linux proposé par l'utilisateur n'est pas un hôte
+   prêt prouvé ; WSL avait échoué sur libnspr4. Aucune installation n'est autorisée
+   par ce document. Hôte différent = expérience distincte, sans équivalence CI.
+2. **Collecte minimale :** réutiliser les buffers du direct et le format FATAL déjà
+   reconnu, après toutes les gardes privacy/overflow/identité/cleanup existantes.
+   Un seul enregistrement complet ; sinon aucun relevé. Extraire seulement un
+   chemin source relatif littéral ASCII de1–256octets : composants non vides en
+   `[A-Za-z0-9_.-]` séparés par `/`, sans composant `.`/`..`, préfixe absolu, drive, URL, backslash
+   ou encodage, suffixe `.cc`/`.h`/`.c`,
+   et une ligne entière1–1000000. Ne pas normaliser un chemin refusé ni le tronquer.
+   Jamais corps, assertion, fonction, PID/date natifs, adresse, errno ou extrait.
+   Le chemin reste **confidentiel et non vérifié public** : la grammaire ne prouve
+   pas son innocuité ; l'outil ne l'ouvre jamais comme chemin local. Aucun fichier
+   contenant stdout/stderr n'est créé.
+3. **Canal local exact :** un JSON au plus1KiB, clés fermées `version`, `run_id`
+   opaque existant, `browser_version` épinglée, `source_relative`, `source_line`,
+   `delete_by_utc`. Création exclusive dans un sous-répertoire neuf0700 de
+   `$HOME/.cache/opencode/k6-causal/<run_id>/`, hors Git et sans lien, appartenant à
+   l'UID de l'opérateur ; fichier0600 pendant écriture puis0400 avant lecture.
+   Réutiliser les contrôles de chemin/identité existants, jamais chmod/adoption
+   d'un répertoire étranger. Ni stdout/stderr parent, publisher, artefact Actions,
+   chat/MCP/Read/cat enregistré, clipboard ou transfert de ce contenu inconnu.
+4. **Accès et rétention :** lecture locale par ce seul opérateur autorisé, puis
+   retrait du seul fichier possédé après lecture ou sous60minutes au maximum.
+   Le parent conserve la session surveillée jusqu'au retrait vérifié ; sinon ne
+   pas ouvrir ce canal. Aucun timer/daemon créé ni expiration magique promise en
+   cas de crash. Privacy FAIL/interruption/collecte incomplète => aucun relevé
+   conservé ; SIGABRT diagnostique attendu ne change ni son exit ni cette échéance.
+   Échec du retrait = rétention/cleanup non prouvé à signaler, pas PASS. Supprimer
+   une entrée de fichier n'est pas garantir l'effacement des caches/blocs/swap ;
+   administrateur/compromission hôte et capture d'écran restent des risques.
+   La preuve de rétention ne rapporte que création/retrait attestés ou inconnus
+   et le run opaque, jamais le chemin ni le contenu du relevé.
+5. **Retour au public :** l'opérateur vérifie le candidat par navigation dans les
+   liens déjà publics de l'arborescence officielle versionnée, sans envoyer le
+   chemin inconnu à une recherche/API/URL. Après reconnaissance d'un site public
+   exact et examen de sa condition statique, seule l'entrée publique prérevue peut
+   être proposée au lead pour ratification. Sinon aucun contenu ne sort ; cause
+   inconnue. Un site local ne sera pas rétroattribué au run40985953377, et le site
+   rapporté ne prouve toujours pas l'émetteur du signal ou la cause racine.
+
+**Autre voie compatible, conditionnelle : affichage structuré local éphémère à
+l'opérateur sur terminal privé non enregistré**, sans fichier. Même sélection,
+préflight et interdiction de transfert ; moins de rétention disque, mais scrollback,
+enregistrement/partage d'écran plus difficiles à borner et moindre traçabilité de
+lecture. Préférer le fichier privé borné réutilisant les gardes existantes ; si le
+terminal ne peut être garanti privé, cette alternative est refusée. Aucun service,
+tunnel, secret CI ou nouveau stockage distant n'est une alternative admise.
+
+**Manque réel :** aucun hôte privé prêt, accès opérateur ni destinataire autorisé
+de ce seul couple inconnu n'est établi. Architecture, schéma et choix de rétention
+sont dans la délégation du lead ; ils ne fournissent ni cet accès ni l'accord de
+divulgation locale au destinataire. Question minimale, si nécessaire : « Votre
+boot Linux proposé est-il la session privée utilisable, sur quelle distribution,
+et qui est l'opérateur autorisé à lire localement ce seul emplacement non vérifié,
+sans nous le recopier ? » Aucune clé/credential ni GO générique n'est demandé.
+Pas d'implémentation, collecte ou essai tant que ces prérequis et l'admission ne
+sont pas établis. Une éventuelle observation locale aurait ce canal discriminant
+explicite, jamais une répétition identique destinée à obtenir du vert. L'exit du
+direct, les verdicts HTTP/Chromium/cleanup et les protections restent inchangés.
+À défaut : cause non identifiable avec les observations admises.
 
 Écartés : texte/assertion libre même court, hash/base64 de contenu inconnu, vaste
 index des sites Chromium, résolution réseau d'un chemin natif, stack/core/minidump,
@@ -159,8 +229,13 @@ ou sites concurrents, fragments sur deux flux, clés/types/identifiant forgés ;
 ancre suivie/précédée d'URL, secret, sentinelle, UTF-8 invalide ou overflow, y
 compris overflow puis cleanup prioritaire => aucune facette divulguée. Tester
 timeout/interruption/cleanup, signal non attribué et conservation des verdicts.
-Les129tests historiques ne valident pas ce delta. Revue ciblée du canal avant
-consommateur ; aucun nouvel essai depuis40982576736 dans cet arbitrage.
+Pour le canal privé : vérifier, avec les fixtures existantes, création exclusive,
+propriétaire/modes/horsGit/liens, schéma1KiB et refus des chemins interdits sans
+troncature ; sentinelle/secret/UTF8/overflow ou plusieurs FATAL => aucun fichier.
+Vérifier absence du couple inconnu dans toutes les sorties/publishers, lecture puis
+retrait/échéance, interruption et refus sans hôte/opérateur validés. Pas de mock
+serveur ni nouvelle infrastructure. Les140tests historiques ne valident pas ce
+delta. Revue ciblée avant consommateur ; aucun nouvel essai depuis40985953377 ici.
 
 Le lead intègre ce fichier et lui ajoute un lien depuis l'admission canonique
 avant consommation ; aucune édition du contrat existant/ADR/index/ledger n'est
@@ -180,3 +255,6 @@ réversible, sans changement de décision0504 ni de Statut/Réalité existants.
 - [k6v2.3.0 browser_process.go:206–232](https://raw.githubusercontent.com/grafana/k6/v2.3.0/internal/js/modules/k6/browser/common/browser_process.go) :
   stderr/fin de processus/annulation et erreur générique peuvent se concurrencer ;
   le statut k6 ne donne pas la cause native exacte.
+- [Python3.12.10 os.rst, open/unlink](https://raw.githubusercontent.com/python/cpython/v3.12.10/Doc/library/os.rst) :
+  modes de création et suppression de fichier, pas garantie d'effacement physique.
+  Référence API, pas nouveau pin Python ni permission d'installation.
