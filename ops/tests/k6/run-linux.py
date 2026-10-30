@@ -358,6 +358,48 @@ def closed_direct_stop(value):
     return dict(value)
 
 
+DIRECT_TEXT_FAMILIES = frozenset({"CHROMIUM_FATAL_REPORTED", "ASSERTION_FAILURE_REPORTED", "OTHER_TEXT", "NO_TEXT", "MULTIPLE"})
+# Chromium156 logging.cc:899-970: numeric log items, then FATAL:file:line] body.
+# Full LF-terminated lines only; arbitrary log prefixes/other layouts stay OTHER.
+DIRECT_FATAL_FORMAT = re.compile(
+    r"\[(?:[0-9]+:){0,2}(?:[0-9]{4}/[0-9]{6}\.[0-9]{6}:)?"
+    r"(?:[0-9]+:)?FATAL:[-A-Za-z0-9_./+]+:[0-9]+\] [^\r\n]+\n")
+# glibc2.35 assert/assert.c:57-61,101: optional program/function, file:line.
+DIRECT_ASSERT_HEADER = re.compile(r"(?:[-A-Za-z0-9_.+]+: )?[-A-Za-z0-9_./+]+:[0-9]+: (?:[^\r\n]+: )?")
+
+
+def closed_direct_text(value):
+    if (type(value) is not dict or set(value) != {"version", "stdout", "stderr", "family"}
+            or type(value["version"]) is not int or value["version"] != 1
+            or any(type(value[key]) is not str or value[key] not in {"EMPTY", "PRESENT"} for key in ("stdout", "stderr"))
+            or type(value["family"]) is not str or value["family"] not in DIRECT_TEXT_FAMILIES
+            or (value["family"] == "NO_TEXT") != (value["stdout"] == value["stderr"] == "EMPTY")):
+        raise Rejected("INPUT_INVALID")
+    return dict(value)
+
+
+def direct_text_observation(stdout, stderr):
+    # Check BOTH entire captured buffers before any format recognition. Never
+    # concatenate streams, capture groups, or return any native text/site/data.
+    for raw in (stdout, stderr):
+        if type(raw) is not bytes:
+            raise Rejected("INPUT_INVALID")
+        confidential(raw)
+    families = set()
+    suffix = "' failed.\n"
+    for raw in (stdout, stderr):
+        for line in raw.decode("utf-8").splitlines(keepends=True):
+            if DIRECT_FATAL_FORMAT.fullmatch(line):
+                families.add("CHROMIUM_FATAL_REPORTED")
+            header, marker, tail = line.partition("Assertion `")
+            if marker and tail.endswith(suffix) and tail[:-len(suffix)] and DIRECT_ASSERT_HEADER.fullmatch(header):
+                families.add("ASSERTION_FAILURE_REPORTED")
+    family = ("MULTIPLE" if len(families) > 1 else next(iter(families)) if families else
+              "OTHER_TEXT" if stdout or stderr else "NO_TEXT")
+    return closed_direct_text({"version": 1, "stdout": "PRESENT" if stdout else "EMPTY",
+                               "stderr": "PRESENT" if stderr else "EMPTY", "family": family})
+
+
 def direct_chromium(output, tools):
     """One explicit parent diagnostic; even exit0 + witness NEVER qualifies.
 
@@ -429,6 +471,12 @@ def direct_chromium(output, tools):
                 failure.direct_stop = stop
         except Rejected:
             pass
+    if (child.output_overflow is False and getattr(child, "stop_path", None) != "OUTPUT_LIMIT"
+            and failure.code not in {"PRIVACY_FAILED", "OUTPUT_LIMIT"}):
+        try:
+            failure.direct_text = direct_text_observation(child.stdout, child.stderr)
+        except Rejected:
+            pass  # withheld observation must not change any existing outcome
     failure.cleanup = "PASS" if cleanup else "FAIL"
     raise failure
 
@@ -836,6 +884,10 @@ def main(argv=None):
                 pass
             try:
                 result["direct_stop"] = closed_direct_stop(getattr(failure, "direct_stop", None))
+            except Rejected:
+                pass
+            try:
+                result["direct_text"] = closed_direct_text(getattr(failure, "direct_text", None))
             except Rejected:
                 pass
             # The direct path is diagnostic only, including native exit0/witness.

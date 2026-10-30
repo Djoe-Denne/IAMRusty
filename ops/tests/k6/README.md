@@ -8,10 +8,20 @@ No Rust service, SDK gitlink or existing CI workflow is modified.
 
 ## Current admission and missing evidence
 
-**Candidate tooling, not a qualified mission.** Linux execution, live HTTP,
-live negative launches, Chromium sandbox and runtime cleanup remain unproven.
-The initial pin was acquired without running either executable. Unit tests with
-fake commands are evidence about the launcher only, never about the application.
+**Partial evidence, not a qualified mission.** Published source783fa80, observed
+in run40982576736/source6b58108, completed129Linux tests without skips on22.04
+and24.04. Pinned k6v2.3.0 and Chrome for Testing156.0.8078.73 versions, ELF hashes
+and both scenario inspections were executed successfully on both platforms.
+Direct22 reported SIGABRT before cleanup, with privacy and child cleanup PASS;
+the cause and sender remain unknown. Direct24 still reported no usable sandbox
+and privacy FAIL. These observations do not qualify Chromium or HTTP.
+
+Live HTTP, live selftests, the required browser prerequisite and parent-runtime
+cleanup remain INCONCLUSIVE. The format-classification delta described below has
+only local fixture evidence until separately checked; the129Linux results belong
+to783fa80, not to this new code. Fake-command tests prove launcher behavior only,
+never an application or native browser outcome. Initial acquisition history is
+retained in IMPLEMENTATION and the mission ledger.
 
 `live_target()` calls the existing `LocalClusterTargetAnchor.check()` without
 runner/root/privacy overrides and then **refuses HTTP**, with
@@ -26,22 +36,21 @@ and IAM workload. If that needs a new lease producer/transfer, tunnel or deploye
 an architecte decision and scope arbitration are required. Do **not** replace
 this gate with `return`, a boolean approval or a self-attested manifest. HTTP and
 the live selftest stay INCONCLUSIVE/nonzero until that integration is reviewed.
-Tool and Chromium qualification can proceed independently after pin review.
+Tools have been observed; Chromium qualification remains separate from HTTP and
+is still unproven.
 
 The ratified addendum at `3f2e8fbe625b47fbc4093e673dc2804bcf9a3023`
 also identifies a **source-level public-route incompatibility**: Envoy's `/iam/`
 route retains fail-closed ext_authz, whose no-Bearer path denies access; the
 local-full renderer does not add a health exemption. This is the lead's reviewed
-static finding, **not an observed live403**. The author read the integrated
-addendum from the canonical checkout; this tooling worktree remains based on
-`c9b537c` and does not rewrite the contract files. No default call to18080 is
+static finding, **not an observed live403**. No default call to18080 is
 enabled. Activation requires an existing authorized public exposure and a ratified
 architecte amendment. Do not add a token, exemption, tunnel, free URL or403 oracle
 in place of the unchanged200/OK contract.
 
 ## Pins and explicit acquisition
 
-Initial platform: **Ubuntu24.04, Linux x86_64, non-root**, including WSL only after
+Nominal platform: **Ubuntu24.04, Linux x86_64, non-root**, including WSL only after
 the parent's lifecycle/preflight/lease. Another platform is not silently accepted.
 The CI label `ubuntu-24.04` is not an immutable runner image: the result records
 the observed kernel/architecture and runner image version if provided.
@@ -51,13 +60,14 @@ the observed kernel/architecture and runner image version if provided.
 - k6 `2.3.0`, official GitHub release archive, official checksum text and SHA256
   of both archive and extracted ELF. The archive hash matches the ratified contract.
 - **Google Chrome for Testing `156.0.8078.73`**, Linux64, Chromium revision1706539.
-  This is the Chromium-engine distribution used by this candidate, not a claim
+  This is the pinned Chromium-engine distribution, not a claim
   that a preinstalled system browser or historical Chrome149 was verified.
   The exact official Google archive was acquired over authenticated HTTPS on
   2026-10-29 and its SHA256 and ELF SHA256 calculated without execution.
   Google publishes versioned downloads but no SHA256 in that metadata: these
-  **candidate hashes require review of this lock before qualification**. Rehashing
-  each download is not a new trust pin. No executable version has been observed yet.
+  initial candidate hashes were reviewed before the controlled runs cited above.
+  Rehashing each download is not a new trust pin. The executable versions and
+  matching ELF hashes were observed in those runs, without qualifying the browser.
 
 The lock has acquisition URLs and checksum provenance; published run projections
 only contain versions/hashes, not arbitrary URLs. There are no remote JS imports,
@@ -347,6 +357,31 @@ diagnostic or cleanup verdict. Its absence is not evidence of a native event's
 absence. No additional process read, signal, deadline, probe or permission is used;
 the control path, k6 receipt/gate and CI stay unchanged. A native zero or a useful
 stop facet remains nonqualifying/nonzero/nonpublished.
+
+The separate **direct-only** `direct_text` version1 contains only stdout/stderr
+presence (`EMPTY`/`PRESENT`) and one family: `CHROMIUM_FATAL_REPORTED`,
+`ASSERTION_FAILURE_REPORTED`, `OTHER_TEXT`, `NO_TEXT`, or `MULTIPLE`. Presence
+describes captured bytes, not an assertion about uncaptured output. Whitespace is
+present text; only two empty buffers yield NO_TEXT. MULTIPLE means distinct
+recognized families, not duplicate messages or unrecognized noise.
+
+Recognition starts only after both entire captured buffers pass the unchanged
+privacy/UTF-8/size checks. It uses full LF-terminated lines independently in each
+stream: Chromium's numeric log items plus `FATAL:file:line] body`, or glibc's
+file/line/optional program/function plus the exact assertion framing. Source:
+[Chromium156 logging.cc](https://chromium.googlesource.com/chromium/src/+/156.0.8078.73/base/logging.cc),
+[glibc2.35 assert/assert.c](https://raw.githubusercontent.com/bminor/glibc/glibc-2.35/assert/assert.c).
+Arbitrary prefixes, incomplete lines, split-stream fragments, isolated words and
+ERROR-only messages stay OTHER_TEXT. These deliberately narrow formats do not
+prove the emitting library version or that a reported message caused the signal.
+
+No text, site, assertion, line, PID, path, suffix or hash is exported. Privacy,
+invalid UTF-8 or overflow withholds the entire facet. The old facets, Child,
+cleanup/error priority, private k6 receipt/gate and CI remain unchanged. Native0
+and useful classifications remain nonqualifying/nonzero/nonpublished. This code
+authorizes no new run or recognizer series: OTHER_TEXT/NO_TEXT, or an insufficient
+FATAL family, leaves the next step to the separate causal-anchor arbitration;
+no anchor implementation or additional collection is included here.
 
 Stream overflow is a sticky fact recorded by `Child` at the read boundary before
 truncation, independently of its final error code. Even if cleanup failure takes
