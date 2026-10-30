@@ -425,6 +425,10 @@ Contrat minimal de cette expérience, après admission :
   supplémentaire ; pas de `sudo`, `unshare` ou sonde privilégiée. Absent, refusé,
   illisible et valeur zéro restent distincts ; une restriction configurée n'est
   pas une preuve qu'elle a causé cet échec. Aucun dump d'environnement/commande.
+  Exception distincte, Accepted2026-10-30 après reprise utilisateur : le
+  [diagnostic ponctuel namespaces/dépendances](k6-chromium-linux-probes.md) autorise
+  seulement sa sonde userns éphémère sous bail, sans Chrome, collecte ou modification
+  de sécurité. Cette exception n'étend pas les observations RO du présent mode.
 - Captures privées au plus64KiB par flux, projection fermée versionnée au plus32KiB,
   enveloppe totale existante256KiB. Réutiliser les catégories lexicales natives,
   sans publier extraits, suffixes, chemins ou URL. Identifier la source
