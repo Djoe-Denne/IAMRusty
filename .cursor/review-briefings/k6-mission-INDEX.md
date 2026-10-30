@@ -1,5 +1,6 @@
 # Revues de la mission k6 Linux
 
+- [Canal local privé — capture concurrente incomplète à refuser](20261030T1243Z-security-k6-private-site-eb3d355.md) — un MEDIUM, aucun CRITICAL/HIGH ; correction exigée avant activation, aucune fuite publique démontrée.
 - [Provisionnement de l'instance WSL AIForAll sur I:](20261030-wsl-aiforall-provisioning-infra-result.md) — PASS indépendant borné à l'identité, stockage, compte et paquets ; aucune qualification k6/Chromium/HTTP, historiqueACLparent non prouvé.
 - [Consultation technique sur le signal direct22](20261030-k6-signal-expert-result.md) — analyse de contrôle, pas verdict QA ; signal primaire observé avant cleanup, signal exact et cause restant inconnus.
 - [Consommateur privé et lancement direct22 séparé](20261030T0023Z-security-k6-direct22-private-consumer-7015c8c.md) — PASS sécurité ciblé d47b805..0601f6f ; aucun finding démontré, preuve native restant à acquérir.
