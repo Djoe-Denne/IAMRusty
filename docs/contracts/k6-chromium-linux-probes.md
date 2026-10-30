@@ -96,6 +96,9 @@ son stockage et ne contournent aucune garde applicable ou refus natif.
 Chaque commande au plus une fois par voie réellement mesurée, sans retries/fallback,
 timeout10s puis cleanup existant. Garder une enveloppe parent qui laisse le cleanup
 se terminer ; ne pas tuer WSL pour respecter artificiellement le délai d'une sonde.
+Exception ciblée Accepted2026-10-30 : [une mesure ldd supplémentaire après
+correction du lecteur](k6-ldd-parser-completion.md), sous quota global de deux
+appels ldd pour l'enquête, sans second unshare ni nouvelle tentative navigateur.
 Un enfant trop bref pour être identifié reste non observé : pas de délai artificiel
 pour le retenir, ni de preuve d'identité/cleanup inventée à partir du seul exit.
 
