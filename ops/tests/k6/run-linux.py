@@ -419,6 +419,11 @@ def _private_site_candidate(child, *, cleanup, diagnostic):
     try:
         if direct_text_observation(child.stdout, child.stderr)["family"] != "CHROMIUM_FATAL_REPORTED":
             return None
+        # Private veto only, after both buffers pass privacy: any additional
+        # literal marker is ambiguous, even malformed, truncated or in a body.
+        # Do not promote it to a recognized format or assemble the two streams.
+        if sum(raw.count(b"FATAL") for raw in (child.stdout, child.stderr)) != 1:
+            return None
         candidates = [line for raw in (child.stdout, child.stderr)
                       for line in raw.decode("utf-8").splitlines(keepends=True) if DIRECT_FATAL_FORMAT.fullmatch(line)]
         if len(candidates) != 1:

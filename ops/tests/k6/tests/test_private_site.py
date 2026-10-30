@@ -401,16 +401,26 @@ class PrivateSiteTests(unittest.TestCase):
                 self.assertIsNone(runner._private_site_candidate(SimpleNamespace(**{**good, key: value}), cleanup=True,
                                                                 diagnostic="SANDBOX_UNPROVEN"))
 
-    def launch(self, payload=FATAL, *, cleanup=True, native_exit=-6):
+    def launch(self, payload=FATAL, *, cleanup=True, native_exit=-6, stream=1, stdout=None):
         fs = FakePosix()
         with scratch() as root:
             (root / "private").mkdir()
-            with fs.enabled(), self.session(fs) as session, fake_child_reads(payload, 1, cleanup, native_exit=native_exit) as child, \
+            with fs.enabled(), self.session(fs) as session, fake_child_reads(payload, stream, cleanup, native_exit=native_exit) as child, \
                     mock.patch.object(runner, "linux_platform"), mock.patch.object(runner, "new_output", return_value=root), \
                     mock.patch.object(runner, "pinned_tools", return_value=({"k6": Path("/pinned/k6"), "chromium": Path("/pinned/chrome")}, {})), \
                     mock.patch.object(runner, "version_checks", return_value={}), mock.patch.object(runner, "host_metadata", return_value=host()), \
                     mock.patch.object(runner, "verify_tools"), mock.patch.object(runner, "Child", return_value=child), \
-                    mock.patch.object(runner, "publish") as publish, contextlib.redirect_stdout(io.StringIO()) as log:
+                    mock.patch.object(runner, "publish") as publish, contextlib.redirect_stdout(io.StringIO()) as log, \
+                    contextlib.redirect_stderr(io.StringIO()) as errors, contextlib.ExitStack() as stack:
+                if stdout is not None:
+                    # Keep the existing fake selector/process/real Child.execute;
+                    # only supply distinct chunks at the two existing read FDs.
+                    chunks = {fd: [raw[i:i + 8192] for i in range(0, len(raw), 8192)]
+                              for fd, raw in ((10, stdout), (11, payload))}
+                    def read(fd, size):
+                        self.assertEqual(size, 8192)
+                        return chunks[fd].pop(0) if chunks[fd] else b""
+                    stack.enter_context(mock.patch.object(safety.os, "read", side_effect=read))
                 code = runner.main(["diagnose-chromium", "--private-site", "--output", str(root)], private_site=session)
                 result = json.loads(log.getvalue())
                 data = [node.data for path, node in fs.nodes.items() if path.endswith("/site.json")]
@@ -420,9 +430,17 @@ class PrivateSiteTests(unittest.TestCase):
                 self.assertEqual(result["parent_runtime_cleanup"], "INCONCLUSIVE")
                 self.assertNotIn(SOURCE, log.getvalue())
                 self.assertNotIn("source_relative", log.getvalue())
+                self.assertNotIn("source_line", log.getvalue())
                 self.assertNotIn("k6-causal", log.getvalue())
                 self.assertNotIn("CONFIDENTIAL_SENTINEL", log.getvalue())
+                self.assertNotIn("synthetic message", log.getvalue())
+                self.assertEqual(errors.getvalue(), "")
                 publish.assert_not_called()
+                self.assertFalse((root / "result.json").exists())
+                self.assertFalse((root / "provenance.json").exists())
+                if stdout is not None:
+                    self.assertEqual(child.stdout, stdout)
+                    self.assertEqual(child.stderr, payload)
                 if data:
                     value = json.loads(data[0])
                     self.assertEqual(value["run_id"], result["run_id"])
@@ -432,11 +450,51 @@ class PrivateSiteTests(unittest.TestCase):
             self.assertEqual(fs.fds, {})
             return data, result
 
+    def assert_competing_refused(self, payload, *, stdout=None, stream=1):
+        with mock.patch.object(channel.PrivateSiteSession, "record", autospec=True,
+                               side_effect=channel.PrivateSiteSession.record) as record:
+            data, result = self.launch(payload, stdout=stdout, stream=stream)
+        self.assertEqual(data, [])
+        record.assert_not_called()
+        self.assertEqual(result["diagnostic"], "SANDBOX_UNPROVEN")
+        self.assertEqual(result["cleanup"], "PASS")
+        self.assertEqual(result["confidentiality"], "PASS")
+        expected_stdout = stdout if stdout is not None else payload if stream == 0 else b""
+        expected_stderr = payload if stdout is not None or stream == 1 else b""
+        self.assertEqual(result["direct_text"], runner.direct_text_observation(expected_stdout, expected_stderr))
+
+    def test_competing_incomplete_fatal_same_stream_never_records(self):
+        incomplete = (FATAL.rstrip(b"\n"), FATAL.split(b"] ", 1)[0], FATAL.split(b"FATAL:", 1)[0] + b"FATAL")
+        for index, other in enumerate(incomplete):
+            for stream in (0, 1):
+                for order, payload in enumerate((FATAL + other, other + FATAL, other + b"\n" + FATAL)):
+                    with self.subTest(fragment=index, stream=stream, order=order):
+                        self.assert_competing_refused(payload, stream=stream)
+
+    def test_competing_incomplete_fatal_opposite_streams_never_records(self):
+        for index, other in enumerate((FATAL.rstrip(b"\n"), FATAL.split(b"] ", 1)[0])):
+            for stream in (0, 1):
+                for order, (stdout, stderr) in enumerate(((FATAL, other), (other, FATAL))):
+                    with self.subTest(fragment=index, stream=stream, order=order):
+                        self.assert_competing_refused(stderr, stdout=stdout, stream=stream)
+
+    def test_competing_nonconforming_fatal_is_a_private_veto_only(self):
+        other_lines = (FATAL.replace(b":713]", b":invalid]"), b"prefix " + FATAL,
+                       b"FATAL\n", b"ordinary text mentions FATAL\n")
+        for index, other in enumerate(other_lines):
+            with self.subTest(fragment=index, location="after"):
+                self.assert_competing_refused(FATAL + other)
+            with self.subTest(fragment=index, location="before"):
+                self.assert_competing_refused(other + FATAL)
+            with self.subTest(fragment=index, location="opposite"):
+                self.assert_competing_refused(other, stdout=FATAL)
+
     def test_real_child_private_positive_native_zero_and_failures_never_publish(self):
         for native in (-6, 0):
-            data, result = self.launch(native_exit=native)
-            self.assertEqual(len(data), 1)
-            self.assertEqual(result["diagnostic"], "SANDBOX_UNPROVEN")
+            for stream in (0, 1):
+                data, result = self.launch(native_exit=native, stream=stream)
+                self.assertEqual(len(data), 1)
+                self.assertEqual(result["diagnostic"], "SANDBOX_UNPROVEN")
         for raw in (FATAL + FATAL, FATAL + b"other.c:1: Assertion `x' failed.\n", FATAL.rstrip(b"\n"), b"noise\n",
                     FATAL.replace(SOURCE.encode(), b"../bad.cc"), FATAL.replace(b":713]", b":0713]"),
                     FATAL.replace(b":713]", b":1000001]"),
