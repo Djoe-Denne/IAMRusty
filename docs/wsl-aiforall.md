@@ -63,6 +63,11 @@ dans cette instance. Les 140 tests Linux historiques appartiennent au runner
 GitHub, pas à cet hôte neuf. Un relevé causal privé nécessite son admission et sa
 QA propres ; aucune donnée native inconnue n'est publiée par le provisionnement.
 
+Une vérification indépendante fresh du2026-10-30 confirme ces faits, les ACL du
+dossier/VHDX, le défaut WSL conservé et les versions des28paquets, à la portée
+**provisionnement seulement**. Aucun navigateur ou test fonctionnel exécuté par
+ce verifier ; historique d'ACL du parent I:\WSL non démontré faute de snapshot.
+
 Versions observées des outils système : Python3 `3.12.3-0ubuntu2.1`, Git
 `1:2.43.0-1ubuntu7.4`, curl `8.5.0-2ubuntu10.16`, binutils `2.42-4ubuntu2.10` ;
 libnspr4 `2:4.35-1.1build1`, libnss3 `2:3.98-1ubuntu0.3`, libasound2t64
