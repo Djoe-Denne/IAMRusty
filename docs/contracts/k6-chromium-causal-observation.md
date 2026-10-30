@@ -426,33 +426,55 @@ et au rendez-vous. Ce parent compose les gardes et APIs existantes : pas nouveau
 harness, exécuteur Chromium, service ou autorité. La fermeture distincte du veto
 S-1 est désormais intégrée, mais ne fournit pas le contrôle parent réel.
 
-1. **Windows, avant l'invocation :** le parent sous bail actif relit les contrôles
-   existants Lxss/GUID/BasePath/DefaultUid et identité/ACL du dossier/VHDX. Il cible
+#### Amendement de composition pipes — Accepted pour implémentation et vérification, 2026-10-30
+
+Base `df2a5ab033684c9aebf3de030d17185463d69872`, briefing
+`20261030-k6-real-parent-pipes-architecture.md`, plan auteur et rapport55 lus.
+Le lead ratifie avant code l'alternative Windows/pipes déjà prévue, après lecture
+et récupération byte-identique du delta architecte `result_mvv0mhui_0002_p982l8`
+(+55/-27 lignes) et sauvegarde vérifiée. Les précisions suivantes remplacent la
+préférence interop. Aucun probe interop ni impossibilité de cette voie n'est
+établi ou recherché ici. Le conducteur reste **Unimplemented**, capture conditionnelle
+aux preuves/revue applicables et au rendez-vous réel, non accordé par cet amendement.
+
+1. **Windows, avant l'invocation :** veto CI avant création de processus ; le
+   parent sous bail actif relit les contrôles
+   existants Lxss/GUID/BasePath/DefaultUid, SID effectif et identité/ACL du dossier/VHDX. Il cible
    explicitement AIForAll/aiforall, vérifie l'association nom→GUID juste avant/après
-   lancement et conserve cette unique invocation identifiée, sans passer par le
-   défaut WSL. Les métadonnées du bail ne remplacent pas ces observations réelles.
-2. **Dans cette invocation Linux non-root :** le programme ponctuel du parent
+   lancement et garde le handle natif de sa **seule invocation WSL créée**, avec
+   PID/création/image/SID et fin attestés ; pas de récupération par nom ou PID seul,
+   ni de défaut WSL. Il crée les pipes privés de ce processus, sans auxiliaire
+   Windows interop. Le profil d'installation privé sert à comparer les observations,
+   jamais de preuve seul ni de GUID personnel par défaut dans le code partagé.
+2. **Dans cette invocation Linux non-root :** le compagnon ponctuel du parent
    établit l'identité du HOME réellement ouvert, UID/modes et FS ext4 avec les
    gardes existantes, vérifie provenance/refus24 conservé et intégrité des outils.
    Il entre `PrivateSiteSession`, appelle `main(..., private_site=session)` et
    **garde le contexte ouvert après le retour non-zéro**, jusqu'au retrait vérifié.
-   Le callback est du code parent relu en mémoire, jamais un callback de fixture,
-   booléen CLI, token ou JSON déclaratif chargé comme preuve.
+   Le callback combine ses vérifications Linux réelles et la réponse du contrôleur
+   Windows lié à ces pipes, jamais un callback de fixture, booléen CLI, token ou
+   JSON déclaratif chargé comme preuve. Aucun site ou corps natif ne va au contrôleur.
 3. **AUTHORIZE puis WRITE :** comparer phase et séquence attendues, IDs opaques
    navigateur/direct liés à cette invocation, deadline convenue et tuple
    `home_identity=(dev,ino,uid)` à l'observation réelle du parent. À chaque phase,
    revalider compte, descripteur/chemins et bail/créneau encore actifs, plus les
-   identités de provenance déjà hachées. Pour les faits Windows, recommandation :
-   interop Windows existante, requête PowerShell RO fixe, exécutable système connu,
-   même compte Windows, sorties métadonnées bornées, sans donnée native. Relire
-   Lxss/GUID/BasePath/DefaultUid et ACL actuels, sans lancer une autre distro pour
-   inspecter le HOME. Si interop/contrôle manque, échoue ou rend inconnu : veto,
-   jamais remplacement par True. Rien du couple ne traverse cet échange.
-   Superviser/journaliser aussi l'identité et la fin des auxiliaires Windows ; le
-   cleanup Linux ne prouve pas leur arrêt, aucune récupération par nom seulement.
+   identités de provenance déjà hachées. Le compagnon demande un verdict Windows
+   sur le pipe de cette invocation ; le contrôleur relit réellement Lxss, SID,
+   BasePath/DefaultUid, identités/ACL et bail, et vérifie son handle encore lié au
+   processus attendu. Le callback ne rend True qu'après les deux volets validés.
+   Requêtes/réponses fermées et cadrées, au plus4KiB par message, corrélées aux IDs
+   invocation/navigateur/direct, à la phase, au HOME et à la même deadline. Rejet
+   des messages étrangers, répétés, hors ordre, tronqués, trop grands, inattendus,
+   absents ou tardifs : aucun défaut True ni réponse AUTHORIZE réutilisée à WRITE.
+   Aucun dump de message refusé ni fallback de stderr pour déboguer le protocole.
+   Le stdin du compagnon est réservé à ce contrôle, jamais au scénario ou au LU
+   humain. Ni sorties libres de main/descendants ni stdout/stderr natifs ne sont
+   relayés sur les pipes ; seulement les métadonnées fermées utiles et états.
 4. **Fraîcheur :** une observation Windows par callback, non le résultat AUTHORIZE
    réutilisé à WRITE ; au plus30secondes entre début des contrôles et retour True,
-   sinon veto. Pas d'attente humaine ni autre étape longue entre WRITE et écriture.
+   sinon veto. Durées monotones mesurées localement, y compris l'aller-retour du
+   compagnon ; ne pas comparer des timestamps monotones Windows/Linux. Pas d'attente
+   humaine ni autre étape longue entre WRITE et écriture.
    Le lien ext4/provenance peut rester attaché à l'invocation et au HOME ouvert
    tant que descripteurs, device, UID et identités des fichiers restent identiques ;
    bail, ACL Windows, mapping GUID et disponibilité de lecture sont recontrôlés.
@@ -464,28 +486,37 @@ S-1 est désormais intégrée, mais ne fournit pas le contrôle parent réel.
    privé disponible pour l'utilisateur. Sans état READY après main : cleanup,
    aucune lecture autorisée ni relance. Sinon il consulte lui-même le fichier dans son
    terminal privé et confirme uniquement `LU <run_id>` dans le terminal de contrôle
-   local, sans couple, chemin natif, capture d'écran ou contenu dans chat/MCP.
+   Windows local, distinct du stdin du compagnon, sans couple, chemin natif, capture
+   d'écran ou contenu dans chat/MCP. Le contrôleur transmet seulement l'acquittement
+   fermé lié au run courant, jamais le texte libre saisi ou un acquittement de façade.
    L'absence de ce canal interactif prêt interdit la collecte, pas sa préparation.
    Le parent ne lit pas le JSON ; un acquittement d'une autre session est refusé.
 6. **Retrait dans le même contexte :** après cet acquittement réel seulement,
-   `retire(read_confirmed=True)` ; sans acquittement, attendre l'échéance bornée
-   UTC/monotone puis `retire(read_confirmed=False)`. Ne pas fabriquer True pour
+   le compagnon appelle `retire(read_confirmed=True)` ; sans acquittement, son
+   échéance UTC/monotone conduit à `retire(read_confirmed=False)`, même si le
+   contrôleur attend encore le lecteur. Ne pas fabriquer True pour
    forcer le retrait. Vérifier retour True/état REMOVED : le module vérifie
    l'absence par stat/identité, sans ouvrir le site. Perte de bail, interruption
-   ou contrôle postérieur refusé : sortir du contexte pour son cleanup ; échec
+   ou contrôle postérieur refusé, pipe fermé/contrôleur perdu : sortir du contexte pour son cleanup ; échec
    = RETENTION_UNPROVEN, pas suppression aveugle. Garder le parent surveillant
    jusqu'au retrait sous60min, sans watchdog garanti après crash. Ensuite joindre
-   ses enfants, libérer le bail et arrêter uniquement AIForAll devenu inutile.
+   ses enfants, attester le cleanup Linux et joindre l'unique processus WSL par
+   son handle Windows : sa fin seule ne prouve pas le cleanup Linux. Puis libérer
+   le bail et arrêter uniquement AIForAll devenu inutile, sans autre consommateur.
 
-Alternative : garder le contrôleur Windows et échanger les seules requêtes/
-réponses de métadonnées AUTHORIZE/WRITE sur les pipes de cette invocation ;
-réalisable sans service, mais davantage de coordination. Préférer l'interop fixe
-si vérifiée disponible ; ni snapshot unique mis en cache ni nouveau canal réseau.
+Composition choisie, pas un fallback : contrôleur `local-private-parent.ps1`,
+compagnon `local-private-parent.py` et `tests/test_local_private_parent.py` proposés
+sous `ops/tests/k6/`, paramètres d'installation/bail privés hors Git. Détails locaux
+à l'auteur, sans nouvelle boucle de plan ; consommateur cbab/Child/scénarios/CI
+inchangés. Aucun RPC réseau, service, daemon, harness ou collecteur nouveau.
+Après intégration et revue applicables, préflight des seuls observateurs possible
+sous bail distinct, sans PrivateSiteSession/main, k6/Chromium ou création de site ; il ne
+devient pas une admission de collecte ni une preuve fraîche mise en cache pour elle.
 Avant opération : contrôler refus sur état Windows/HOME/bail modifié, réponse
 absente/lente, IDs/deadline différents, acquittement étranger/absent et retrait
 impossible, sans lire de site. Preuves conservées : phases, IDs, fraîcheur et états
 de retrait seulement. Sources : API `PrivateSiteSession.authorize/record/retire`,
-[interop WSL officielle](https://raw.githubusercontent.com/MicrosoftDocs/WSL/main/WSL/filesystems.md),
+[commandes WSL officielles](https://raw.githubusercontent.com/MicrosoftDocs/WSL/main/WSL/basic-commands.md),
 gardes et preuves parent du guide/ledger ; aucune procédure ni collecte exécutée.
 
 Écartés : texte/assertion libre même court, hash/base64 de contenu inconnu, vaste
