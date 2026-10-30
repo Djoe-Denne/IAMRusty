@@ -194,7 +194,7 @@ lecture. Préférer le fichier privé borné réutilisant les gardes existantes 
 terminal ne peut être garanti privé, cette alternative est refusée. Aucun service,
 tunnel, secret CI ou nouveau stockage distant n'est une alternative admise.
 
-**Manque réel :** aucun hôte privé prêt, accès opérateur ni destinataire autorisé
+**Manque initial, avant réponse utilisateur :** aucun hôte privé prêt, accès opérateur ni destinataire autorisé
 de ce seul couple inconnu n'est établi. Architecture, schéma et choix de rétention
 sont dans la délégation du lead ; ils ne fournissent ni cet accès ni l'accord de
 divulgation locale au destinataire. Question minimale, si nécessaire : « Votre
@@ -206,6 +206,17 @@ sont pas établis. Une éventuelle observation locale aurait ce canal discrimina
 explicite, jamais une répétition identique destinée à obtenir du vert. L'exit du
 direct, les verdicts HTTP/Chromium/cleanup et les protections restent inchangés.
 À défaut : cause non identifiable avec les observations admises.
+
+**Actualisation du lead après choix utilisateur (2026-10-30).** L'utilisateur a
+choisi « WSL local, lecture par moi ». Le lecteur est donc désigné ; le préflight
+en lecture seule a identifié ARTIST-Ubuntu24.04/x86_64, artist UID1000, et le binaire
+Chromium historique conforme au pin. Les dépendances libnspr4/libnss3/libasound2t64
+et libasound2-data ne sont pas installées ; simulation0upgrade/4ajouts/0suppression.
+Ce choix n'autorise pas leur installation implicite. Le contrôle de l'espace de
+stockage privé et toutes les gardes d'activation restent à vérifier ; aucun relevé,
+consommateur ou essai n'est admis par cette photographie. La question immédiate
+porte sur ces quatre dépendances précises, plus sur un GO générique ou sur
+l'identité du lecteur déjà fournie. Voir rapport39 et ledger du lot.
 
 Écartés : texte/assertion libre même court, hash/base64 de contenu inconnu, vaste
 index des sites Chromium, résolution réseau d'un chemin natif, stack/core/minidump,
