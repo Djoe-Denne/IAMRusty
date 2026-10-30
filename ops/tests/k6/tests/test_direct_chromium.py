@@ -20,22 +20,29 @@ def host():
 
 
 @contextlib.contextmanager
-def fake_child_reads(payload, stream, cleanup):
+def fake_child_reads(payload, stream, cleanup, *, native_exit=0, args=None, interrupt=False, events=None):
     """Exercise real Child.execute/read/truncation with no real process or signal."""
     child = safety.Child()
     pid, uid = 123456, 789
-    identity = {"pid": pid, "uid": uid, "start": 456, "zombie": False, "args": [b"--headless"]}
-    pipes = [SimpleNamespace(fileno=lambda: 10, close=mock.Mock()),
-             SimpleNamespace(fileno=lambda: 11, close=mock.Mock())]
+    identity = {"pid": pid, "uid": uid, "start": 456, "zombie": False,
+                "args": [b"--headless"] if args is None else args}
+    events = [] if events is None else events
+    pipes = [SimpleNamespace(fileno=lambda: 10, close=mock.Mock(side_effect=lambda: events.append(("close", getattr(child, "stop_path", None))))),
+             SimpleNamespace(fileno=lambda: 11, close=mock.Mock(side_effect=lambda: events.append(("close", getattr(child, "stop_path", None)))))]
     chunks = [payload[i:i + 8192] for i in range(0, len(payload), 8192)]
     active = {}
     terminated = [False]
+    handlers = {}
+    interrupted = [False]
     process = SimpleNamespace(pid=pid, stdout=pipes[0], stderr=pipes[1], returncode=None)
 
     def register(pipe, events, index):
         active[pipe.fileno()] = SimpleNamespace(fileobj=pipe, data=index)
 
     def select(timeout):
+        if interrupt and not interrupted[0]:
+            interrupted[0] = True
+            handlers[safety.signal.SIGINT](safety.signal.SIGINT, None)
         fd = 10 + stream if 10 + stream in active else next(iter(active), None)
         return [(active[fd], safety.selectors.EVENT_READ)] if fd is not None else []
 
@@ -48,7 +55,8 @@ def fake_child_reads(payload, stream, cleanup):
         if terminated[0]:
             process.returncode = -15
         elif not active:
-            process.returncode = 0
+            process.returncode = native_exit
+        events.append(("poll", process.returncode, getattr(child, "stop_path", None)))
         return process.returncode
 
     def same(value):
@@ -57,7 +65,13 @@ def fake_child_reads(payload, stream, cleanup):
     def kill(target, sig):
         if target != pid or sig != safety.signal.SIGTERM:
             raise AssertionError("only the fake owned identity may receive graceful TERM")
+        events.append(("term", getattr(child, "stop_path", None), process.returncode))
         terminated[0] = True
+
+    def signal_handler(sig, handler):
+        if callable(handler):
+            handlers[sig] = handler
+        return safety.signal.SIG_DFL
 
     process.poll = poll
     selector = SimpleNamespace(register=register, select=select,
@@ -66,7 +80,7 @@ def fake_child_reads(payload, stream, cleanup):
     with contextlib.ExitStack() as stack:
         patches = [mock.patch.object(safety, "proc", return_value=identity),
             mock.patch.object(safety.ctypes, "CDLL", return_value=SimpleNamespace(prctl=lambda *a: 0)),
-            mock.patch.object(safety.signal, "signal", return_value=safety.signal.SIG_DFL),
+            mock.patch.object(safety.signal, "signal", side_effect=signal_handler),
             mock.patch.object(Path, "iterdir", return_value=[]),
             mock.patch.object(safety.subprocess, "Popen", return_value=process),
             mock.patch.object(safety.selectors, "DefaultSelector", return_value=selector),

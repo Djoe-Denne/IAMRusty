@@ -24,6 +24,15 @@ BROWSER_DIAGNOSTICS = frozenset("NO_USABLE_SANDBOX_REPORTED NAMESPACE_PERMISSION
     "NATIVE_CAUSE_UNCLASSIFIED NATIVE_DIAGNOSTIC_WITHHELD".split())
 CASE_COUNTERS = ("expected", "started", "completed", "iterations", "requests")
 NAMESPACE_READS = frozenset("READABLE DENIED DISAPPEARED OTHER NOT_OBSERVED".split())
+CHILD_STOP_PATHS = frozenset("NOT_OBSERVED NATIVE_OBSERVED_BEFORE_CLEANUP GUARD_REJECTED TIMEOUT INTERRUPTED OUTPUT_LIMIT ERROR".split())
+# Linux x86 UAPI v6.8 arch/x86/include/uapi/asm/signal.h, not host/Windows enums.
+# Canonical names only; aliases and realtime signals are not projected.
+LINUX_SIGNALS = {1: "SIGHUP", 2: "SIGINT", 3: "SIGQUIT", 4: "SIGILL", 5: "SIGTRAP", 6: "SIGABRT",
+    7: "SIGBUS", 8: "SIGFPE", 9: "SIGKILL", 10: "SIGUSR1", 11: "SIGSEGV", 12: "SIGUSR2", 13: "SIGPIPE",
+    14: "SIGALRM", 15: "SIGTERM", 16: "SIGSTKFLT", 17: "SIGCHLD", 18: "SIGCONT", 19: "SIGSTOP",
+    20: "SIGTSTP", 21: "SIGTTIN", 22: "SIGTTOU", 23: "SIGURG", 24: "SIGXCPU", 25: "SIGXFSZ",
+    26: "SIGVTALRM", 27: "SIGPROF", 28: "SIGWINCH", 29: "SIGIO", 30: "SIGPWR", 31: "SIGSYS"}
+LINUX_SIGNAL_LABELS = frozenset(LINUX_SIGNALS.values()) | {"ABSENT", "NO_SIGNAL", "UNKNOWN_SIGNAL"}
 
 
 class Rejected(Exception):
@@ -43,6 +52,14 @@ def native_exit_category(code):
     if type(code) is not int:
         raise Rejected("INPUT_INVALID")
     return "ZERO" if code == 0 else "SIGNAL" if code < 0 else "NONZERO"
+
+
+def linux_signal_category(code):
+    if code is None:
+        return "ABSENT"
+    if type(code) is not int:
+        raise Rejected("INPUT_INVALID")
+    return "NO_SIGNAL" if code >= 0 else LINUX_SIGNALS.get(-code, "UNKNOWN_SIGNAL")
 
 
 def closed_browser_observation(value):
@@ -309,6 +326,7 @@ class Child:
         self.stderr = b""
         self.output_overflow = False  # sticky stdout/stderr fact, not the final error priority
         self.code = None
+        self.stop_path = "NOT_OBSERVED"  # event fact, never the final failure priority
         self.before = set()
         self.recorded = set()
         self.renderer_observed = False
@@ -368,12 +386,15 @@ class Child:
                 self.observe_renderer(value)
 
     def execute(self, argv, *, output, env, timeout=30, browser=False, interrupt_after=None):
+        self.stop_path = "NOT_OBSERVED"
         self.observe_browser = browser
         parent = proc(os.getpid())
         if not parent:
+            self.stop_path = "GUARD_REJECTED"
             raise Rejected("PLATFORM_UNQUALIFIED", True)
         libc = ctypes.CDLL(None, use_errno=True)
         if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+            self.stop_path = "GUARD_REJECTED"
             raise Rejected("PLATFORM_UNQUALIFIED", True)
         previous = {}
         interrupted = [False]
@@ -433,8 +454,12 @@ class Child:
                             raise Rejected("OUTPUT_LIMIT")
                 if child.poll() is not None and not selector.get_map():
                     self.code = child.returncode
+                    self.stop_path = "NATIVE_OBSERVED_BEFORE_CLEANUP"
                     break
         except BaseException as error:
+            self.stop_path = ({"INTERRUPTED": "INTERRUPTED", "CHILD_TIMEOUT": "TIMEOUT", "OUTPUT_LIMIT": "OUTPUT_LIMIT"}.get(
+                error.code, "GUARD_REJECTED") if isinstance(error, Rejected) else
+                "INTERRUPTED" if isinstance(error, KeyboardInterrupt) else "ERROR")
             failure = error
         finally:
             if child:

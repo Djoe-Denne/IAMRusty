@@ -327,6 +327,27 @@ a privacy refusal (e.g. a FATAL containing a documentation URL); the refusal sta
 `PRIVACY_FAILED`/nonzero, without publication. Sentinel, invalid UTF-8 and over-limit
 streams cannot produce such a category. Unknown remains unknown.
 
+The additional **direct-only** `direct_stop` version1 is a separate closed object
+with exactly `version`, `path`, `signal`; it does not extend `direct_observation`
+or the exact private k6 refusal schema. `Child` records its path at the event,
+before cleanup: `NATIVE_OBSERVED_BEFORE_CLEANUP`, `GUARD_REJECTED`, `TIMEOUT`,
+`INTERRUPTED`, `OUTPUT_LIMIT`, `ERROR`, or `NOT_OBSERVED`. Later privacy/cleanup
+priority never rewrites this internal fact. In particular, a native status
+recorded before cleanup cannot be attributed to a TERM sent later by that cleanup.
+This explains the matching direct22 tuple in run40979730197; it does not determine
+that run's exact signal or sender retrospectively.
+
+`signal` is a canonical name from the fixed Linux x86 signals1–31 whitelist,
+or `ABSENT`, `NO_SIGNAL`, `UNKNOWN_SIGNAL`; raw numbers, aliases, realtime-signal
+numbers and host/Windows enum interpretations are not exported. Source:
+[Linuxv6.8 x86 UAPI signal.h](https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/refs/tags/v6.8/arch/x86/include/uapi/asm/signal.h).
+The status provides **no sender or cause**. The whole facet is withheld on privacy
+or overflow failure, and malformed facets are withheld without changing the old
+diagnostic or cleanup verdict. Its absence is not evidence of a native event's
+absence. No additional process read, signal, deadline, probe or permission is used;
+the control path, k6 receipt/gate and CI stay unchanged. A native zero or a useful
+stop facet remains nonqualifying/nonzero/nonpublished.
+
 Stream overflow is a sticky fact recorded by `Child` at the read boundary before
 truncation, independently of its final error code. Even if cleanup failure takes
 priority, the direct path neither classifies nor projects that captured prefix,

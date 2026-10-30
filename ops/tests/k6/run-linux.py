@@ -15,9 +15,9 @@ import uuid
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 sys.path.insert(0, str(HERE / "lib"))
-from safety import (ARTIFACT_LIMIT, BROWSER_DIAGNOSTICS, CASE_COUNTERS, Child, Rejected, child_environment,
+from safety import (ARTIFACT_LIMIT, BROWSER_DIAGNOSTICS, CASE_COUNTERS, CHILD_STOP_PATHS, LINUX_SIGNAL_LABELS, Child, Rejected, child_environment,
                     browser_diagnostic, closed_browser_observation, confidential, digest, name_chain, native_exit_category,
-                    new_output, private_path, private_read, strict_json)
+                    linux_signal_category, new_output, private_path, private_read, strict_json)
 
 CHECKS = {"HTTP": ("iam-status", "iam-body"), "Chromium": ("browser-evaluation", "browser-blank")}
 CASES = {"HTTP": "iam-health", "Chromium": "browser-prerequisite"}
@@ -348,6 +348,16 @@ def closed_direct_observation(value):
     return dict(value)
 
 
+def closed_direct_stop(value):
+    # Separate/versioned: the existing k6 receipt and direct observation stay exact.
+    if (type(value) is not dict or set(value) != {"version", "path", "signal"}
+            or type(value["version"]) is not int or value["version"] != 1
+            or type(value["path"]) is not str or value["path"] not in CHILD_STOP_PATHS
+            or type(value["signal"]) is not str or value["signal"] not in LINUX_SIGNAL_LABELS):
+        raise Rejected("INPUT_INVALID")
+    return dict(value)
+
+
 def direct_chromium(output, tools):
     """One explicit parent diagnostic; even exit0 + witness NEVER qualifies.
 
@@ -409,6 +419,16 @@ def direct_chromium(output, tools):
         observation = None
     if observation is not None:
         failure.direct_observation = observation
+    # Observability only: malformed/withheld facets must not replace any existing
+    # privacy, overflow, cleanup, guard or native outcome.
+    if child.output_overflow is False and failure.code not in {"PRIVACY_FAILED", "OUTPUT_LIMIT"}:
+        try:
+            stop = closed_direct_stop({"version": 1, "path": getattr(child, "stop_path", None),
+                                       "signal": linux_signal_category(child.code)})
+            if stop["path"] != "OUTPUT_LIMIT":
+                failure.direct_stop = stop
+        except Rejected:
+            pass
     failure.cleanup = "PASS" if cleanup else "FAIL"
     raise failure
 
@@ -813,6 +833,10 @@ def main(argv=None):
             try:
                 result["direct_observation"] = closed_direct_observation(failure.direct_observation)
             except (AttributeError, Rejected):
+                pass
+            try:
+                result["direct_stop"] = closed_direct_stop(getattr(failure, "direct_stop", None))
+            except Rejected:
                 pass
             # The direct path is diagnostic only, including native exit0/witness.
             result["Chromium"] = "INCONCLUSIVE"
