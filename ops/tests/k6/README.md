@@ -8,18 +8,20 @@ No Rust service, SDK gitlink or existing CI workflow is modified.
 
 ## Current admission and missing evidence
 
-**Partial evidence, not a qualified mission.** Published source783fa80, observed
-in run40982576736/source6b58108, completed129Linux tests without skips on22.04
-and24.04. Pinned k6v2.3.0 and Chrome for Testing156.0.8078.73 versions, ELF hashes
-and both scenario inspections were executed successfully on both platforms.
-Direct22 reported SIGABRT before cleanup, with privacy and child cleanup PASS;
-the cause and sender remain unknown. Direct24 still reported no usable sandbox
-and privacy FAIL. These observations do not qualify Chromium or HTTP.
+**Partial evidence, not a qualified mission.** Tooling1c0036f was subsequently
+observed on GitHub with140Linux tests without skips on22/24. On the separately
+authorized local AIForAll24.04 host, snapshot05bd likewise completed140tests
+without skips, verified archives/ELF, k6v2.3.0/CfT156.0.8078.73 versions and both
+inspections. Its browser failed before the case; its separate direct reported
+FATAL/SIGABRT before cleanup, privacy and child cleanup PASS. Site/cause remain
+unknown. GitHub24's earlier no-usable-sandbox/privacy refusal and GitHub22's FATAL
+are distinct observations, not an equivalent environment or a common proven cause.
+These results do not qualify Chromium or HTTP. See mission reports45–47/ledger.
 
 Live HTTP, live selftests, the required browser prerequisite and parent-runtime
-cleanup remain INCONCLUSIVE. The format-classification delta described below has
-only local fixture evidence until separately checked; the129Linux results belong
-to783fa80, not to this new code. Fake-command tests prove launcher behavior only,
+cleanup remain INCONCLUSIVE. The private-site consumer described below has no real
+capture or native qualification yet; the140Linux results belong to1c0036f/05bd,
+not to this new code. Fake-command tests prove launcher behavior only,
 never an application or native browser outcome. Initial acquisition history is
 retained in IMPLEMENTATION and the mission ledger.
 
@@ -382,6 +384,68 @@ and useful classifications remain nonqualifying/nonzero/nonpublished. This code
 authorizes no new run or recognizer series: OTHER_TEXT/NO_TEXT, or an insufficient
 FATAL family, leaves the next step to the separate causal-anchor arbitration;
 no anchor implementation or additional collection is included here.
+
+### Opt-in local private site — implementation candidate, no capture yet
+
+The causal contract's local addendum is Accepted for code/tests only; creation
+still requires its fresh review, real host/lease checks and agreed user reading
+slot. Public-site anchors remain Proposed. This implementation has collected no
+real site. Do not wake the stopped host or launch a capture because code exists.
+
+`diagnose-chromium --private-site` is accepted only for nominal local24, never
+comparison22 or another mode. CI/Actions markers, including empty marker values,
+are refused before environment scrub/children. The flag alone, a bool, ambient
+configuration or a manifest cannot admit it: the trusted existing parent driver
+must pass an entered `runner.site_channel.PrivateSiteSession` through
+`runner.main(argv, private_site=session)`. No new supervisor or runtime is supplied.
+
+The session receives the already-observed nominal browser refusal and its opaque
+run ID, a fixed UTC reading deadline no more than60minutes away, and trusted
+`parent_check` code. The nominal surface legitimately has NOT_QUALIFIED privacy
+and no finished/versions/hashes; it is not converted into a22 receipt and no
+browser rerun is required. The callback separately revalidates the actual
+GUID/nom/BasePath/account, ext4 HOME and ACL/privacy, current lease, existing
+pins/provenance/process-time correlation and real reading appointment. It runs
+before children and before writing; it receives only opaque IDs, deadline and
+opened-home device/inode/UID, never native site data. A callback returning True
+without those real checks is not admission. Absence of CI markers proves nothing.
+
+Required native CPython descriptor-relative primitives/flags are checked, without
+fallback. Existing `private_path`/outside-Git guards precede descriptor traversal.
+Trusted system ancestors retain their existing ownership/sticky-directory rules;
+HOME and all private descendants must be owner0700, without links. Every open
+directory is bound to its named identity and private descendants to HOME's device.
+The callback must bind that exact HOME identity to its verified native ext4;
+the consumer does not infer ext4 from a manifest or add a filesystem/process scan.
+CPython3.12.3 source was checked for openat/mkdirat/unlinkat, O_CLOEXEC and fchmod:
+[posixmodule.c](https://github.com/python/cpython/blob/v3.12.3/Modules/posixmodule.c).
+
+After complete identity/cleanup/privacy/UTF-8/overflow gates, exactly one complete
+FATAL may supply only its literal relative ASCII source and integer line. Mixed
+families, duplicates, incomplete/invalid paths/lines, timeout/interruption or
+missing recorded identities yield no file. No recognizer is broadened. The source
+is never opened or normalized. Only the six contract keys are written, at most
+1KiB, to the fixed private HOME location under a new opaque run directory.
+Creation is exclusive,0600 while writing then0400; no old file is adopted or fixed.
+Owned partials are removed by bound identity on error. No native body/assertion,
+hash, tuple or channel path enters any output, callback, receipt or publisher.
+
+The parent keeps the context alive while the user reads locally, off recorded
+channels; the agent never reads a real unknown site. `session.retire(read_confirmed=True)`
+is for actual confirmation only; `session.retire()` removes at the deadline even
+without confirmation. A monotonic cap also prevents clock rollback extending
+retention. The parent must call/check retirement: there is no timer, daemon or
+automatic expiry. Leaving the context aborts/removes its owned file and closes
+descriptors; process crash/kill cannot guarantee teardown. Failed or unprovable
+removal gives RETENTION_UNPROVEN/closed cleanup failure, not PASS or silent renewal.
+Only this attested file is removed, not foreign entries, tools, directories, image
+or distro. Unlink is not a claim of physical cache/swap erasure.
+
+The old diagnostic and nonzero exit are preserved even when the private file is
+ready or writing fails; READY never qualifies Chromium/HTTP/parent cleanup. No
+private status/path is added to the public result. Windows syscall-boundary
+fixtures are not native POSIX, host or operator evidence; the real POSIX fixture
+remains skipped on Windows and must be checked before any future activation.
 
 Stream overflow is a sticky fact recorded by `Child` at the read boundary before
 truncation, independently of its final error code. Even if cleanup failure takes

@@ -18,6 +18,7 @@ sys.path.insert(0, str(HERE / "lib"))
 from safety import (ARTIFACT_LIMIT, BROWSER_DIAGNOSTICS, CASE_COUNTERS, CHILD_STOP_PATHS, LINUX_SIGNAL_LABELS, Child, Rejected, child_environment,
                     browser_diagnostic, closed_browser_observation, confidential, digest, name_chain, native_exit_category,
                     linux_signal_category, new_output, private_path, private_read, strict_json)
+import private_site as site_channel
 
 CHECKS = {"HTTP": ("iam-status", "iam-body"), "Chromium": ("browser-evaluation", "browser-blank")}
 CASES = {"HTTP": "iam-health", "Chromium": "browser-prerequisite"}
@@ -400,7 +401,39 @@ def direct_text_observation(stdout, stderr):
                                "stderr": "PRESENT" if stderr else "EMPTY", "family": family})
 
 
-def direct_chromium(output, tools):
+def _private_site_candidate(child, *, cleanup, diagnostic):
+    # This tuple never enters a diagnostic/publisher/callback. The source is data,
+    # not a local path to open, and is only passed to the owned private writer.
+    if (cleanup is not True or child.cleanup is not True or child.output_overflow is not False
+            or child.stop_path != "NATIVE_OBSERVED_BEFORE_CLEANUP" or type(child.code) is not int
+            or diagnostic not in {"SANDBOX_UNPROVEN", "TOOL_FAILED", "PREREQUISITE_UNAVAILABLE"}
+            or type(child.owned) is not dict or not child.owned or type(child.recorded) is not set):
+        return None
+    uid = os.getuid()
+    for pid, identity in child.owned.items():
+        if (type(identity) is not dict or type(pid) is not int or pid <= 0 or identity.get("pid") != pid
+                or type(identity.get("uid")) is not int or identity["uid"] != uid
+                or type(identity.get("start")) is not int or identity["start"] <= 0
+                or (pid, identity["start"], uid) not in child.recorded):
+            return None
+    try:
+        if direct_text_observation(child.stdout, child.stderr)["family"] != "CHROMIUM_FATAL_REPORTED":
+            return None
+        candidates = [line for raw in (child.stdout, child.stderr)
+                      for line in raw.decode("utf-8").splitlines(keepends=True) if DIRECT_FATAL_FORMAT.fullmatch(line)]
+        if len(candidates) != 1:
+            return None
+        header = candidates[0].split("] ", 1)[0]
+        site = header.rpartition("FATAL:")[2]
+        relative, _separator, number = site.rpartition(":")
+        if not re.fullmatch(r"[1-9][0-9]{0,6}", number):
+            return None
+        return site_channel.source_pair(relative, int(number))
+    except Rejected:
+        return None
+
+
+def direct_chromium(output, tools, *, private_site=None):
     """One explicit parent diagnostic; even exit0 + witness NEVER qualifies.
 
     Child retains its normal sandbox/privacy/cleanup gates, including on failure.
@@ -478,6 +511,18 @@ def direct_chromium(output, tools):
         except Rejected:
             pass  # withheld observation must not change any existing outcome
     failure.cleanup = "PASS" if cleanup else "FAIL"
+    if private_site is not None:
+        try:
+            candidate = _private_site_candidate(child, cleanup=cleanup, diagnostic=failure.code)
+            if candidate is not None:
+                private_site.record(*candidate)
+        except BaseException as error:
+            private_site.status = "INTERRUPTED" if isinstance(error, KeyboardInterrupt) else "WRITE_FAILED"
+            try:
+                if not private_site._remove():
+                    private_site.status = "RETENTION_UNPROVEN"
+            except BaseException:
+                private_site.status = "RETENTION_UNPROVEN"
     raise failure
 
 
@@ -777,10 +822,12 @@ def arguments(argv):
                                  help="Temporary nonqualifying comparison only; never publishes and always exits nonzero.")
         if name == "diagnose-chromium":
             command.add_argument("--browser-result", help="Private current comparison refusal, required only for the22 followup.")
+            command.add_argument("--private-site", action="store_true",
+                                 help="Local24 only; requires a live trusted parent session and private read appointment.")
     return parser.parse_args(argv)
 
 
-def main(argv=None):
+def main(argv=None, *, private_site=None):
     output = None
     phase = None
     mode = None
@@ -794,6 +841,11 @@ def main(argv=None):
         mode = args.command
         phase = {"run": "HTTP", "browser": "Chromium"}.get(mode)
         comparison = mode in {"browser", "diagnose-chromium"} and args.compare_ubuntu_2204
+        private_requested = getattr(args, "private_site", False)
+        if private_requested or private_site is not None:
+            # Inspect unsanitized ambient CI markers before any child/environment
+            # scrub, and never accept a manifest/bool as parent admission.
+            site_channel.opt_in(private_requested, mode, comparison, private_site)
         if mode == "diagnose-chromium" and (comparison != (args.browser_result is not None) or args.browser_result == ""):
             raise Rejected("INPUT_INVALID")
         if comparison:
@@ -803,6 +855,8 @@ def main(argv=None):
                 "browser_launch": "NOT_STARTED", "case": "NOT_PROVEN", "sandbox_witness": "NOT_PROVEN"}
         else:
             linux_platform()
+        if private_requested:
+            private_site.authorize(result["run_id"])
         config = configuration(args.config) if args.command in {"validate", "run", "selftest"} else None
         if args.command == "validate":
             result["diagnostic"] = "OFFLINE_ADMISSIBLE_NOT_AUTHORIZED"
@@ -840,7 +894,10 @@ def main(argv=None):
                 print(raw.decode())
                 return 2
             if mode == "diagnose-chromium":
-                direct_chromium(output, tools)  # always nonzero; no artifacts/phase PASS
+                if private_requested:
+                    direct_chromium(output, tools, private_site=private_site)
+                else:
+                    direct_chromium(output, tools)  # always nonzero; no artifacts/phase PASS
                 raise Rejected("INTERNAL_ERROR")  # never fall through to HTTP if its contract breaks
             if args.command == "tools":
                 for phase in SCENARIOS:
