@@ -1,4 +1,6 @@
-# Revues de la mission k6 Linux
+# Revues de la mission k6 — portées Linux et Windows distinctes
+
+- [Primitives Windows et réserves avant lancement réel](20261030T1913Z-security-k6-windows-primitives-cbcc1bb.md) — REVIEW_REQUIRED : course de création/nettoyage, intégrité des bibliothèques chargées à couvrir, témoin de jeton primaire insuffisant pour qualifier l'isolation. Aucun lancement réel admis par cet avis ; corrections et limites à vérifier avant activation.
 
 - [Conducteur privé Windows/Linux — ancêtres et signal de rétention](20261030T1428Z-security-k6-private-parent-4560b18.md) — deux MEDIUM, aucun CRITICAL/HIGH ; [fermés par revue ciblée](20261030T1542Z-security-k6-private-parent-closure-0f32e8d.md), stockage réel toujours non admis, aucun préflight ou collecte réelle autorisé par cette fermeture.
 - [Canal local privé — capture concurrente incomplète à refuser](20261030T1243Z-security-k6-private-site-eb3d355.md) — un MEDIUM, aucun CRITICAL/HIGH ; [fermé sur le correctif cbab06e](20261030T1254Z-security-k6-private-site-s1-19b1cfe.md), aucune admission de collecte ou fuite publique démontrée.
