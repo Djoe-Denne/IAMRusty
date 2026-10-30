@@ -18,6 +18,18 @@ export default async function () {
   const context = await browser.newContext();
   let page;
   try {
+    // Windows requires this check; legacy Linux omits the parent expectation.
+    // k6 caches Browser.getVersion on its normal managed-browser connection.
+    if (__ENV.K6_EXPECTED_BROWSER_VERSION !== undefined) {
+      let actualVersion;
+      try { actualVersion = browser.version(); } catch { /* No native text or fallback. */ }
+      check(actualVersion, {
+        'browser-version': (value) => __ENV.K6_EXPECTED_BROWSER_VERSION === '156.0.8078.73'
+          && typeof value === 'string' && value.length <= 32
+          && /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/.test(value)
+          && value === __ENV.K6_EXPECTED_BROWSER_VERSION,
+      });
+    }
     page = await context.newPage();
     await page.goto('about:blank', { timeout: 5000 });
     check(await page.evaluate(() => 6 * 7), { 'browser-evaluation': (value) => value === 42 });

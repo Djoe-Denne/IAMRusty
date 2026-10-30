@@ -30,6 +30,10 @@ namespace K6Windows {
             public uint faults, total, active, terminated;
         }
         [StructLayout(LayoutKind.Sequential)] internal struct Unicode { public ushort length, maximum; public IntPtr text; }
+        [StructLayout(LayoutKind.Sequential)] internal struct ObjectAttributes {
+            public int length; public IntPtr root, name; public uint attributes; public IntPtr security, qos;
+        }
+        [StructLayout(LayoutKind.Sequential)] internal struct IoStatus { public IntPtr status; public UIntPtr information; }
         [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] internal static extern IntPtr CreateFileW(string p,uint a,uint share,IntPtr sa,uint disposition,uint flags,IntPtr template);
         [DllImport("kernel32.dll",SetLastError=true)] internal static extern bool GetFileInformationByHandle(IntPtr h,out FileInfo i);
         [DllImport("kernel32.dll",SetLastError=true)] internal static extern bool CloseHandle(IntPtr h);
@@ -56,6 +60,8 @@ namespace K6Windows {
         [DllImport("kernel32.dll",SetLastError=true)] internal static extern bool PeekNamedPipe(IntPtr pipe,IntPtr buffer,uint size,IntPtr read,out uint available,IntPtr remaining);
         [DllImport("kernel32.dll",SetLastError=true)] internal static extern bool ReadFile(IntPtr file,byte[] data,uint length,out uint read,IntPtr overlapped);
         [DllImport("ntdll.dll")] internal static extern int NtQueryInformationProcess(IntPtr process,int kind,IntPtr data,int size,out int needed);
+        [DllImport("ntdll.dll")] internal static extern int NtCreateFile(out IntPtr handle,uint access,ref ObjectAttributes attributes,out IoStatus status,IntPtr allocation,uint fileAttributes,uint share,uint disposition,uint options,IntPtr ea,uint eaLength);
+        [DllImport("kernel32.dll",SetLastError=true)] internal static extern bool SetFileInformationByHandle(IntPtr handle,int kind,byte[] value,uint size);
         [DllImport("shell32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern IntPtr CommandLineToArgvW(string command,out int count);
         [DllImport("kernel32.dll")] static extern IntPtr LocalFree(IntPtr memory);
         internal static void Need(bool value) { if(!value) throw new InvalidOperationException("NATIVE_UNAVAILABLE"); }
@@ -115,8 +121,10 @@ namespace K6Windows {
     // The operator, SYSTEM and Administrators are trusted; this is not anti-admin DRM.
     public sealed class PathLease : IDisposable {
         readonly List<IntPtr> handles=new List<IntPtr>();
+        readonly OwnedDirectory owner;
         public string Path { get; private set; }
         public string Identity { get; private set; }
+        internal IntPtr Leaf { get { Native.Need(handles.Count>0); return handles[handles.Count-1]; } }
         public static string Absolute(string path) {
             if(String.IsNullOrEmpty(path) || path.Length>240 || !System.Text.RegularExpressions.Regex.IsMatch(path,@"^[A-Za-z]:\\") || path.IndexOf(':',2)>=0 || path.Contains("/") || path.Contains("\"")) throw new InvalidOperationException("PATH_INVALID");
             string full=System.IO.Path.GetFullPath(path);
@@ -125,18 +133,20 @@ namespace K6Windows {
             return full.TrimEnd('\\').Length==2?full:full.TrimEnd('\\');
         }
         static bool Trusted(string s) { return s==Native.Sid || s=="S-1-5-18" || s=="S-1-5-32-544" || s=="S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464"; }
-        static void Acl(string path,bool directory,bool privateLeaf) {
+        internal static void Acl(string path,bool directory,bool privateLeaf) {
             FileSystemSecurity acl=directory?(FileSystemSecurity)Directory.GetAccessControl(path):File.GetAccessControl(path);
             if(!Trusted(acl.GetOwner(typeof(SecurityIdentifier)).Value)) throw new InvalidOperationException("PATH_INVALID");
             foreach(FileSystemAccessRule r in acl.GetAccessRules(true,true,typeof(SecurityIdentifier))) {
                 if(r.AccessControlType!=AccessControlType.Allow || (r.PropagationFlags&PropagationFlags.InheritOnly)!=0 || Trusted(r.IdentityReference.Value)) continue;
                 // On ancestors, creation of unrelated entries is safe: every next entry is pinned.
-                FileSystemRights forbidden=FileSystemRights.Delete|FileSystemRights.DeleteSubdirectoriesAndFiles|FileSystemRights.ChangePermissions|FileSystemRights.TakeOwnership;
+                FileSystemRights forbidden=FileSystemRights.Delete|FileSystemRights.DeleteSubdirectoriesAndFiles|FileSystemRights.ChangePermissions|FileSystemRights.TakeOwnership|FileSystemRights.WriteAttributes|FileSystemRights.WriteExtendedAttributes;
                 if(privateLeaf) forbidden|=FileSystemRights.ReadData|FileSystemRights.WriteData|FileSystemRights.AppendData|FileSystemRights.ExecuteFile;
                 if((r.FileSystemRights&forbidden)!=0) throw new InvalidOperationException("PATH_INVALID");
             }
         }
-        public PathLease(string path,bool directory,bool privateLeaf) {
+        public PathLease(string path,bool directory,bool privateLeaf) : this(path,directory,privateLeaf,null) { }
+        public PathLease(string path,bool directory,bool privateLeaf,OwnedDirectory owned) {
+            owner=owned; if(owner!=null) owner.AssertBound();
             Path=Absolute(path);
             try {
                 string root=System.IO.Path.GetPathRoot(Path), current=root;
@@ -147,7 +157,10 @@ namespace K6Windows {
                     // Attribute-only handles do not participate in share-access
                     // checks like data readers. GENERIC_READ makes denial of
                     // DELETE sharing effective against ancestor renames.
-                    IntPtr h=Native.CreateFileW(chain[i],0x80020080,dir?3u:1u,IntPtr.Zero,3,0x02200000,IntPtr.Zero);
+                    // The created directory's retained DELETE handle is its
+                    // anti-rename authority. Readers explicitly share that handle.
+                    uint share=dir && owner!=null && String.Equals(chain[i],owner.Path,StringComparison.OrdinalIgnoreCase)?7u:dir?3u:1u;
+                    IntPtr h=Native.CreateFileW(chain[i],0x80020080,share,IntPtr.Zero,3,0x02200000,IntPtr.Zero);
                     Native.Need(h!=new IntPtr(-1)); handles.Add(h);
                     Native.FileInfo info; Native.Need(Native.GetFileInformationByHandle(h,out info));
                     if((info.attributes&0x400)!=0 || ((info.attributes&16)!=0)!=dir) throw new InvalidOperationException("PATH_INVALID");
@@ -156,7 +169,13 @@ namespace K6Windows {
                 }
             } catch { Dispose(); throw; }
         }
+        public void EnsureCurrent() {
+            Native.FileInfo info; Native.Need(Native.GetFileInformationByHandle(Leaf,out info));
+            if(Identity!=info.volume+":"+info.indexHigh+":"+info.indexLow) throw new InvalidOperationException("PIN_INVALID");
+            if(owner!=null) owner.AssertBound();
+        }
         public string Hash() {
+            EnsureCurrent();
             using(FileStream f=new FileStream(Path,FileMode.Open,FileAccess.Read,FileShare.Read))
             using(var sha=System.Security.Cryptography.SHA256.Create()) {
                 if(f.Length>536870912) throw new InvalidOperationException("PIN_INVALID");
@@ -164,13 +183,81 @@ namespace K6Windows {
             }
         }
         public static void CreatePrivateDirectory(string path) {
-            path=Absolute(path); if(Directory.Exists(path) || File.Exists(path)) throw new InvalidOperationException("PATH_INVALID");
+            using(var owned=OwnedDirectory.Create(path)) { }
+        }
+        internal static byte[] PrivateDescriptor() {
             DirectorySecurity acl=new DirectorySecurity(); acl.SetAccessRuleProtection(true,false);
             SecurityIdentifier sid=new SecurityIdentifier(Native.Sid); acl.SetOwner(sid);
             foreach(string s in new string[]{Native.Sid,"S-1-5-18","S-1-5-32-544"}) acl.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(s),FileSystemRights.FullControl,InheritanceFlags.ContainerInherit|InheritanceFlags.ObjectInherit,PropagationFlags.None,AccessControlType.Allow));
-            Directory.CreateDirectory(path,acl);
+            return acl.GetSecurityDescriptorBinaryForm();
         }
         public void Dispose() { foreach(IntPtr h in handles) Native.CloseHandle(h); handles.Clear(); }
+    }
+
+    // Local creation/cleanup capability. FILE_CREATE returns the actual new
+    // object's handle atomically; neither a pathname nor a bool is authority.
+    public sealed class OwnedDirectory : IDisposable {
+        IntPtr handle;
+        PathLease parent;
+        bool bound;
+        public string Path { get; private set; }
+        public string Identity { get; private set; }
+        OwnedDirectory(string path) {
+            Path=PathLease.Absolute(path);
+            string directory=System.IO.Path.GetDirectoryName(Path), leaf=System.IO.Path.GetFileName(Path);
+            if(String.IsNullOrEmpty(directory) || String.IsNullOrEmpty(leaf)) throw new InvalidOperationException("PATH_INVALID");
+            IntPtr name=IntPtr.Zero, text=IntPtr.Zero, security=IntPtr.Zero;
+            try {
+                parent=new PathLease(directory,true,true);
+                byte[] descriptor=PathLease.PrivateDescriptor(); security=Marshal.AllocHGlobal(descriptor.Length); Marshal.Copy(descriptor,0,security,descriptor.Length);
+                text=Marshal.StringToHGlobalUni(leaf);
+                var unicode=new Native.Unicode {length=(ushort)(leaf.Length*2),maximum=(ushort)(leaf.Length*2+2),text=text};
+                name=Marshal.AllocHGlobal(Marshal.SizeOf(typeof(Native.Unicode))); Marshal.StructureToPtr(unicode,name,false);
+                var attributes=new Native.ObjectAttributes {length=Marshal.SizeOf(typeof(Native.ObjectAttributes)),root=parent.Leaf,name=name,attributes=0x40,security=security};
+                Native.IoStatus io;
+                int status=Native.NtCreateFile(out handle,0x80110000,ref attributes,out io,IntPtr.Zero,0x10,3,2,0x200021,IntPtr.Zero,0);
+                if(status==unchecked((int)0xc0000035)) throw new InvalidOperationException("OUTPUT_EXISTS");
+                if(status!=0 || handle==IntPtr.Zero || io.information.ToUInt64()!=2) throw new InvalidOperationException("OUTPUT_CREATE_REFUSED");
+            } catch { Dispose(); throw; }
+            finally { foreach(IntPtr p in new IntPtr[]{name,text,security}) if(p!=IntPtr.Zero) Marshal.FreeHGlobal(p); }
+        }
+        void Bind() {
+            try {
+                Native.FileInfo info; Native.Need(Native.GetFileInformationByHandle(handle,out info));
+                Identity=info.volume+":"+info.indexHigh+":"+info.indexLow;
+                bound=true; AssertBound();
+            } catch { bound=false; throw new InvalidOperationException("OUTPUT_BINDING_UNPROVEN"); }
+        }
+        public static OwnedDirectory Create(string path) {
+            var owned=new OwnedDirectory(path);
+            try { owned.Bind(); return owned; } catch { owned.Dispose(); throw; }
+        }
+        public void AssertBound() {
+            if(!bound || handle==IntPtr.Zero || parent==null) throw new InvalidOperationException("CLEANUP_UNPROVEN");
+            parent.EnsureCurrent();
+            Native.FileInfo original, current;
+            if(!Native.GetFileInformationByHandle(handle,out original) || (original.attributes&0x410)!=0x10 ||
+                Identity!=original.volume+":"+original.indexHigh+":"+original.indexLow) throw new InvalidOperationException("CLEANUP_UNPROVEN");
+            IntPtr check=Native.CreateFileW(Path,0x80020080,7,IntPtr.Zero,3,0x02200000,IntPtr.Zero);
+            if(check==new IntPtr(-1)) throw new InvalidOperationException("CLEANUP_UNPROVEN");
+            try {
+                if(!Native.GetFileInformationByHandle(check,out current) || Identity!=current.volume+":"+current.indexHigh+":"+current.indexLow ||
+                    (current.attributes&0x410)!=0x10) throw new InvalidOperationException("CLEANUP_UNPROVEN");
+                PathLease.Acl(Path,true,true);
+            } finally { Native.CloseHandle(check); }
+        }
+        public void DeleteEmpty() {
+            AssertBound();
+            if(!Native.SetFileInformationByHandle(handle,4,new byte[]{1},1)) throw new InvalidOperationException("CLEANUP_UNPROVEN");
+            IntPtr h=handle; handle=IntPtr.Zero; bound=false;
+            bool closed=Native.CloseHandle(h); parent.Dispose(); parent=null;
+            if(!closed) throw new InvalidOperationException("CLEANUP_UNPROVEN");
+        }
+        public void Dispose() {
+            bound=false;
+            if(handle!=IntPtr.Zero) { Native.CloseHandle(handle); handle=IntPtr.Zero; }
+            if(parent!=null) { parent.Dispose(); parent=null; }
+        }
     }
 
     public sealed class ProcessIdentity {

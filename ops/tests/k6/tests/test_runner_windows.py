@@ -11,6 +11,7 @@ import subprocess
 import sys
 import unittest
 import uuid
+import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,7 +25,7 @@ def quote(value):
 
 
 def summary(kind="Chromium"):
-    checks = ("iam-status", "iam-body") if kind == "HTTP" else ("browser-evaluation", "browser-blank")
+    checks = ("iam-status", "iam-body") if kind == "HTTP" else ("browser-evaluation", "browser-blank", "browser-version")
     return dict(version=1, run_id=RUN_ID, phase=kind,
                 cases=["iam-health" if kind == "HTTP" else "browser-prerequisite"],
                 expected=1, started=1, completed=1, iterations=1,
@@ -182,7 +183,7 @@ class WindowsTests(unittest.TestCase):
                             ("Google Chrome 149.0.7827.53", "chromium"),
                             ("Google Chrome for Testing 156.0.8078.73\nEXTRA", "chromium")]:
             self.rejects(f"Assert-K6Version {quote(value)} '{kind}'")
-        self.rejects("Assert-K6ChromeVersionCapability")
+        self.rejects("Assert-K6ToolsOnly")
 
     def test_environment_drops_ambient_proxy_k6_loader_and_profiles(self):
         code = ("$env:K6_BROWSER_ARGS='no-sandbox'; $env:HTTPS_PROXY='sensitive'; $env:K6_OUT='cloud'; $env:NODE_OPTIONS='bad'; "
@@ -212,9 +213,11 @@ class WindowsTests(unittest.TestCase):
         exe = toolroot / "chrome-win64/chrome.exe"; exe.parent.mkdir(parents=True)
         blob = bytearray(128); blob[:2] = b"MZ"; blob[60:64] = (64).to_bytes(4, "little")
         blob[64:68] = b"PE\0\0"; blob[68:70] = (0x8664).to_bytes(2, "little"); blob[88:90] = (0x20B).to_bytes(2, "little")
-        exe.write_bytes(blob); archive = toolroot / "chrome-win64.zip"; archive.write_bytes(b"known archive, never executed")
+        exe.write_bytes(blob); archive = toolroot / "chrome-win64.zip"
+        with zipfile.ZipFile(archive, "w") as z:
+            z.writestr("chrome-win64/chrome.exe", blob)
         pin = lock()["chromium"]; pin["executable_sha256"] = hashlib.sha256(blob).hexdigest(); pin["archive_sha256"] = hashlib.sha256(archive.read_bytes()).hexdigest()
-        expr = f"$t=Open-K6PinnedTool {self.value(pin)} {quote(exe)}; try {{ if($t.Exe.Identity.Length-lt 3){{exit 5}} }} finally {{$t.Exe.Dispose();$t.Archive.Dispose()}}; 'OK'"
+        expr = f"$t=Open-K6PinnedTool {self.value(pin)} {quote(exe)}; try {{ if($t.Exe.Identity.Length-lt 3){{exit 5}} }} finally {{Close-K6PinnedTool $t}}; 'OK'"
         self.assertEqual(self.ps(expr), "OK")
         exe.write_bytes(b"not PE")
         self.rejects(f"Open-K6PinnedTool {self.value(pin)} {quote(exe)}")
@@ -223,13 +226,13 @@ class WindowsTests(unittest.TestCase):
 
     def test_owned_tree_reparse_refused_before_traversal(self):
         source = self.directory / "owned-tree"; target = self.directory / "owned-target"
-        source.mkdir(); target.mkdir(); (target / "keep.txt").write_text("known", encoding="ascii")
+        target.mkdir(); (target / "keep.txt").write_text("known", encoding="ascii")
         link = source / "junction"
-        code = (f"[void](New-Item -ItemType Junction -Path {quote(link)} -Target {quote(target)}); "
-                f"try {{try {{Remove-K6OwnedTree {quote(source)};exit 5}} catch {{if($_.Exception.Message-cne 'CLEANUP_UNPROVEN'){{throw}}}}; "
+        code = (f"$o=[K6Windows.OwnedDirectory]::Create({quote(source)}); [void](New-Item -ItemType Junction -Path {quote(link)} -Target {quote(target)}); "
+                "try {try {Remove-K6OwnedTree $o;exit 5} catch {if($_.Exception.Message-cne 'CLEANUP_UNPROVEN'){throw}}; "
                 f"if(-not [IO.File]::Exists({quote(target / 'keep.txt')})){{exit 6}}; "
-                f"try {{[K6Windows.PathLease]::new({quote(link)},$true,$true);exit 7}} catch {{}}; 'REFUSED' "
-                f"}} finally {{[IO.Directory]::Delete({quote(link)},$false)}}")
+                f"try {{[K6Windows.PathLease]::new({quote(link)},$true,$true,$o);exit 7}} catch {{if($_.Exception.Message-notmatch 'PATH_INVALID'){{throw}}}}; 'REFUSED' "
+                f"}} finally {{[IO.Directory]::Delete({quote(link)},$false);$o.Dispose()}}")
         self.assertEqual(self.ps(code), "REFUSED")
 
     def test_entry_tools_browser_no_lock_or_invalid_pin_never_launch(self):
@@ -326,7 +329,7 @@ class WindowsTests(unittest.TestCase):
         archive = self.directory / "known-child.zip"; archive.write_bytes(b"known")
         code = (f"$ep=[K6Windows.PathLease]::new({quote(sys.executable)},$false,$false); "
                 f"$ap=[K6Windows.PathLease]::new({quote(archive)},$false,$true); "
-                "$t=@{Exe=$ep;Archive=$ap;Pin=@{executable_sha256=$ep.Hash();archive_sha256=$ap.Hash()}}; "
+                "$t=@{Exe=$ep;Archive=$ap;BundlePins=@($ep);Pin=@{executable_sha256=$ep.Hash();archive_sha256=$ap.Hash()}}; "
                 f"$e=New-K6Environment {quote(self.directory)} '{RUN_ID}' 'C:\\known\\chrome.exe' @('PRIVATE_SENTINEL'); "
                 "$state=@{Cleanup=$true;Privacy=$true;Executed=0}; try { try { "
                 f"Invoke-K6Child $t @('-B','-c',\"import time;print('PRIVATE_SENTINEL');time.sleep(.15)\") $e {quote(self.directory)} @('PRIVATE_SENTINEL') 3000 $state; exit 5 "

@@ -1,5 +1,100 @@
 # Implementation record
 
+## Windows security corrections — S-1, R-1 and fail-closed R-2
+
+Same author20/task/session, no reset/checkout/commit. Read the complete independent
+review and correction briefing persisted by the lead in497ce3f before this work.
+The version delta was already delivered and is preserved. C# was unfrozen only
+for creation/pins; Child/Job/process/token code remains unchanged. No new token
+investigation or renderer instrumentation was added.
+
+S-1 root cause and real RED: two synchronized creators both returned success and
+wrote their witness under the old check-then-Directory.CreateDirectory method
+(`EXCLUSIVE_REQUIRED:2,0,2`). The replacement uses NtCreateFile FILE_CREATE with a
+private descriptor and returns the creation handle atomically. Authority requires
+successful identity binding. Native FileDispositionInfo deletes the empty root
+through that same retained handle. Binding failure/disposal/substitution refuses
+cleanup before traversal. The targeted five S-1/R-2 tests passed exit0/zero skips.
+
+R-1 real RED: unchanged synthetic executable and authenticated inert ZIP plus a
+changed inert DLL still produced UNEXPECTED_PREFLIGHT_SUCCESS. The parent now
+derives a closed bundle from the authenticated ZIP, validates all extracted bytes,
+individual ACLs/nonreparse/identities and retains file/directory leases. The actual
+Invoke-K6Child gate requires those leases. No DLL/fake executable is run, no archive
+is extracted and no public manifest or production lock is changed. Tests cover
+altered/missing/additional code, collisions/traversal, denied rewrites while pinned
+and release. A further real RED exposed a double trailing slash directory alias;
+that representation and inconsistent directory attributes are now rejected.
+
+R-2: the sampled primary-token boolean is no longer consumed as a sufficient
+Chromium witness. Even Sandbox=true and BrowserArguments=true leaves Chromium
+INCONCLUSIVE. Tools can still attest only the separately admitted current API
+version equality after strict case/cleanup/privacy checks. Effective renderer
+qualification remains a separate decision; no stronger claim is made.
+
+Observed checks: initial security8tests/exit1; discriminating DLL test1/exit1;
+five ownership/R-2 tests exit0; first security8tests exit0/zero skips/5.756s.
+Combined security8 + version7 + seven affected existing methods:
+**22tests/exit0/zero skips/23.403s**. After the trailing-slash RED1/exit1,
+the final security8 + PE preflight + real privacy callsite replay was
+**10tests/exit0/zero skips/8.365s**. Unchanged historical process campaigns were
+not rerun. The two racing actors are joined fixture threads; the only executable
+fixtures remain known local Python/Node. No k6/Chrome/HTTP, Cargo, install, WSL,
+Docker/Kind, host privilege or existing-directory ACL change occurred.
+
+Not silently resolved: the unchanged Child/Job may return cleanup-unproven with a
+survivor, while the current PowerShell finally/host exit releases bundle handles.
+The strict until-all-processes-end retention promise is not proven on that path.
+This is an explicit remaining activation boundary to route through the lead,
+not a claimed R-1 closure or permission for indefinite wait/new supervisor/force.
+The live-run freeze remains in place. Sources/choices and limits are in WINDOWS.md.
+
+## Windows version addendum — correction against the seven initial source hashes
+
+Same author20/session/worktree at2cc7ae6; the lead integrated the initial candidate
+and the Accepted version contract in68631c0. Read the canonical implementation
+brief and Accepted `k6-windows-browser-version.md` before changing sources. The
+initial seven source hashes were rechecked and matched the delivered candidate.
+No checkout/reset/stash or downgrade of that candidate. C#interop remains frozen
+and unchanged for the independent review; lock/provenance/workflow remain lead-owned.
+
+Root cause: a runtime version requirement was used as a pre-launch gate for the
+only permitted case capable of proving it. The correction separates static
+eligibility from qualification, without executing the unsafe CLI or weakening
+hash/identity/environment/process/privacy/sandbox guards. Tools-only remains
+INCONCLUSIVE/exit2. Browser checks the closed expected pin injected from the lock,
+then the actual synchronous `browser.version()` in the same context try/finally.
+The parent demands its exact current-run check/cardinalities. Only that evidence
+permits the pinned version projection, explicitly an equality inference from k6's
+cached Browser.getVersion, not file metadata or a fresh independent CDP query.
+Child cleanup/privacy gate this inference; final directory retirement can revoke
+both PASS verdicts. Chromium additionally requires the existing sandbox witness.
+
+Only the browser JS check is added. HTTP/summary.js/Linux/POSIX/private parents,
+C#interop, workflow and production lock are unchanged. Chrome --version remains
+NOT_EXECUTED/INCONCLUSIVE. No new launch/scenario/client/port/framework or raw value
+logging. Official v2.3.0 mapping/module/common Browser.Version/cache sources were
+read again and agree with the Accepted contract; source references are in WINDOWS.md.
+
+Tests exercise the actual full scenario body under the existing local Node runtime
+with only ESM bindings adapted and known local collaborators. Thirteen input cases
+cover exact/other/149/empty/malformed/type/oversized/sentinel, API absent/throwing,
+and absent/modified/empty expectation. No browser or HTTP is used. One short Node
+fixture is owned through unchanged native Child handles and private identity
+journals. New fixture code initially passed multiline JS as argv, correctly refused
+by Native.Quote before process creation; it now uses an owned source file. No C#
+guard was weakened. The isolated actual-JS RED then ran1test/12failed subtests/exit1,
+demonstrating the absent version check. The initial7test RED also showed missing
+parent functions and rejection of a three-check positive summary, not real version
+qualification. A first GREEN after production changes ran7tests/exit0/zero skips,
+9.320s. Final focused command selected the7 new tests plus6 impacted existing
+methods (summaries, versions, environment, actual refused entrypoints):
+**13tests/exit0/zero skips/16.500s**. The unchanged native process/ACL campaign is
+reused from the lead's integrated21tests rather than repeated. This phase created
+only short known local Node fixtures; observed identities/retirement and final
+source deltas/hashes are returned in the native handoff. No k6/Chrome/HTTP,
+installation, Cargo, runtime startup or host-policy change occurred.
+
 ## Windows candidate — base2cc7ae6 (2026-10-30)
 
 One isolated author owns `run-windows.ps1`, `lib/windows.ps1`, local Add-Type

@@ -2,8 +2,14 @@
 
 **Windows revision2026-10-30:** see [the native adapter and its explicit blocked
 proofs](WINDOWS.md). WSL qualification is suspended/INCONCLUSIVE. The Windows
-candidate does not qualify Linux or reactivate its CI; its Chrome version and
-HTTP authority boundaries must not be bypassed.
+candidate does not qualify Linux or reactivate its CI. Its Accepted version
+addendum uses the mandatory API equality check in the same browser case, not
+Chrome `--version` or VersionInfo. Tools alone stays INCONCLUSIVE/exit2; HTTP
+authority and actual Chromium/sandbox/cleanup qualification remain unproven.
+Security review corrections add atomic output ownership and closed ZIP-backed
+bundle pins. The primary-token boolean cannot qualify Chromium; survivor-path
+pin retention remains an explicit activation boundary in WINDOWS.md. Real runs
+remain frozen pending the lead's review/disposition, not admitted by unit tests.
 
 Contract: [V1 Accepted](../../../docs/contracts/k6-functional-linux.md),
 [ADR0504](../../../docs/adr/0504-validation-fonctionnelle-linux-k6.md).
