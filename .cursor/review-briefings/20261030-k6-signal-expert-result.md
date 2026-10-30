@@ -30,3 +30,24 @@ Oracles : sortie négative observée avant cleanup distincte du refus précoce d
 - https://github.com/chromium/chromium/blob/156.0.8078.73/base/immediate_crash.h : int3/ud2 et SIGTRAP/SIGILL ; un éventuel SIGTRAP ne prouverait pas un débogueur externe.
 
 Expert : rev-parse HEAD367a059, diff-check exit0, diff/status outillage depuised87 vides. Aucun unittest, binaire, testLinux, CI/runtime/téléchargement ou écriture. Preuves118Linux du rapport30 réutilisées, aucune qualification ajoutée. Compatible avec addendum Accepted tant que le delta reste purement observabilité ; changer prédicat, arrêt, lectures système ou privilèges requerrait architecte.
+
+## Suivi après SIGABRT observé — recommandation et condition d'arrêt
+
+Candidat `result_mvu9thwl_0000_1wcyyv`, même session, source783 publiée6b58108, HEAD documentaire53e40ad. Rapport33/brief/ledger relus. Run40982576736 : direct22 corrélé, NATIVE_OBSERVED_BEFORE_CLEANUP/SIGABRT, privacy et enfants cleanup PASS, cause lexicale UNCLASSIFIED. Le propre cleanup Child reste exclu comme cause du signal primaire ; pas de rétroattribution aux runs antérieurs ni de preuve d'émetteur.
+
+Lacune vérifiée : browser_diagnostic combine les flux, recherche quelques messages puis rend UNCLASSIFIED. Ce label couvre deux flux vides, un seul flux présent, du texte non reconnu ou un FATAL non couvert. On ne sait pas encore si un diagnostic exploitable existait. Pas de défaut de Chromium ou du superviseur démontré par ce seul constat.
+
+Recommandation : pas d'essai limité à vide/non-vide. Petite classification fermée des formats déjà capturés, après confidentialité complète : stdout/stderr EMPTY ou PRESENT ; famille CHROMIUM_FATAL_REPORTED, ASSERTION_FAILURE_REPORTED, OTHER_TEXT, NO_TEXT et éventuellement MULTIPLE. Ni chemins, assertion, numéros de ligne, PID ou suffixes projetés. Un ERROR Chromium n'est pas une cause. Mots isolés, fragments et bruit restent OTHER_TEXT ; familles multiples sans priorité causale inventée ; privacy/UTF-8 invalide/overflow retiennent la nouvelle projection. Aucune modification d'exit, cleanup, reçu/gate ou verdict.
+
+Condition d'arrêt : OTHER_TEXT ou absence de texte n'autorise pas une série de nouveaux reconnaisseurs spéculatifs. Même un FATAL seul peut nécessiter une ancre causale précise ; projection du site/assertion à faire arbitrer par architecte avant code, sans hash arbitraire ou ligne native exportée implicitement.
+
+Hypothèses : abort volontaire du programme/bibliothèque compatible, refus fatal Chromium encore possible, signal externe non exclu. Aucune sonde système nouvelle justifiée pour l'émetteur. Piste chmod sans défaut statique identifié ; métadonnées ZIP ne prouvent pas les fichiers runtime.
+
+Sources officielles versionnées vérifiées par l'expert :
+
+- https://github.com/chromium/chromium/blob/156.0.8078.73/base/debug/debugger_posix.cc : chemin DEBUG_BREAK utilisant abort.
+- https://sourceware.org/git/?p=glibc.git;a=blob_plain;f=assert/assert.c;hb=glibc-2.35 : format d'assertion stderr suivi d'abort.
+- https://github.com/bminor/glibc/blob/glibc-2.35/stdlib/abort.c : raise(SIGABRT).
+- https://github.com/chromium/chromium/blob/156.0.8078.73/base/logging.cc : en-tête avec sévérité/localisation, HandleFatal et ImmediateCrash.
+
+Ces mécanismes possibles ne prouvent pas la bibliothèque ou branche effectivement utilisée. Commandes expert : rev-parse HEAD53e40ad, diff-check exit0, diff/status outillage depuis6b58108 vides.129Linux et preuves CI réutilisées, aucun nouveau test, essai, ressource ou écriture.
