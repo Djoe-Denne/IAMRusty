@@ -27,6 +27,16 @@ Seul le provisionnement est Accepted ; l'autorisation d'installer dans cette
 instance ne qualifie ni le navigateur ni le futur relevé privé. ARTIST-Ubuntu et
 les autres ressources restent inchangés ; les compilations Rust de dev restent Windows.
 
+Photographie locale ultérieure, distincte du runner GitHub : AIForAll est créée et
+son provisionnement vérifié indépendamment. Source propre05bd/outillage1c0036f
+copiée sur ext4,140tests Python0skip réussis, archives/ELF/versions et deux
+inspections vérifiés. Le browser local échoue avant le cas ; le direct unique
+local rapporte FATAL/SIGABRT, sans site ou cause. Enfants nettoyés,30identités
+tracées ne sont plus actives, runtimeAIForAll arrêté cibléexit0 et Stopped vérifié ;
+disque/outils conservés. Cela ne qualifie pas Chromium ou HTTP et ne résout pas
+la cause GitHub. [Rapport local](../../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/46-wsl-eprouve-mais-cause-native-encore-inconnue.md),
+sans collecte de site privé ni assouplissement de sandbox.
+
 Photographie historique antérieure : socle intégré jusqu'à `5d79557`, 50 tests
 Linux/WSL réussis sans skip, correctif S-1 revu indépendamment. k6 v2.3.0 annoncé
 par le binaire vérifié ; deux inspect réussis. Chromium `--version` échoue sur
