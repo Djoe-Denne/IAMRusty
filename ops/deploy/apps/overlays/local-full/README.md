@@ -99,8 +99,11 @@ sentinel's runtime wrapper is `ops/deploy/build/Dockerfile.worker` (default bina
 existing Dockerfile. Nothing in this entrypoint implicitly builds/pulls/starts DD.
 
 ```powershell
-# prepare-local-full-certs.sh requires openssl + explicit NEW LOCAL_FULL_CERT_DIR;
-# prepare certificates and render before the fresh initial lease, as in the guide.
+# Prepare/reuse private certificates with Python 3.11+ and OpenSSL 3+, no Bash on Windows.
+# Linux: python3 -B ops/scripts/prepare-local-full-certs.py --output-dir <private-certs>
+# Add -OAuthProof / --oauth-proof at first creation for the explicit OAuth profile.
+powershell.exe -NoProfile -File ops/scripts/prepare-local-full-certs.ps1 -OutputDirectory <private-certs>
+# Prepare the offline render before the fresh runtime lease, as in the guide.
 powershell.exe -NoProfile -File ops/deploy/bootstrap-local-full.ps1 -LeasePath <lease.json> -AfterFinalIT
 python -B ops/deploy/local-full-images.py --lease <lease.json> --output <NEW-images.json>
 python -B ops/deploy/deploy-local-full.py deploy --lease <lease.json> --image-manifest <images.json> --cert-directory <prepared-certs> --after-final-it

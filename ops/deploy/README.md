@@ -6,14 +6,12 @@ Le **seul parcours nominal est local-full** : cluster `aiforall-local-full`, con
 
 ## 1. Préflight Windows, sans démarrage implicite
 
-Exécuter depuis la racine du dépôt dans une nouvelle session PowerShell Windows (5.1 ou ultérieur). Python **3.11+**, PyYAML, Git Bash avec OpenSSL, Docker avec Compose/BuildKit, Kind et kubectl avec Kustomize intégré sont requis. Outil absent ou commande native en échec ⇒ **STOP**, jamais skip réussi. Ajuster `$gitBash` si Git est installé ailleurs : ne pas utiliser `Windows\System32\bash.exe` (shim WSL). Le préflight ci-dessous ne demande aucun démarrage de Docker/Kind/WSL :
+Exécuter depuis la racine du dépôt dans une nouvelle session PowerShell Windows (5.1 ou ultérieur). Python **3.11+**, PyYAML, OpenSSL **3+**, Docker avec Compose/BuildKit, Kind et kubectl avec Kustomize intégré sont requis. Outil absent ou commande native en échec ⇒ **STOP**, jamais skip réussi. La préparation des certificats appelle OpenSSL directement, sans Bash/WSL ; sous Windows, elle détecte aussi OpenSSL fourni par Git. Le préflight ci-dessous ne demande aucun démarrage de Docker/Kind/WSL :
 
 ```powershell
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$gitBash = 'C:\Program Files\Git\bin\bash.exe'
-Get-Command $gitBash -ErrorAction Stop | Out-Null
-foreach ($tool in @('powershell.exe', 'python', 'openssl', 'docker', 'kind', 'kubectl')) {
+foreach ($tool in @('powershell.exe', 'python', 'docker', 'kind', 'kubectl')) {
     Get-Command $tool -ErrorAction Stop | Out-Null
 }
 function Assert-NativeSuccess([string]$Step) {
@@ -21,8 +19,6 @@ function Assert-NativeSuccess([string]$Step) {
 }
 python -B -c "import sys, tomllib, yaml; assert sys.version_info >= (3, 11)"
 Assert-NativeSuccess 'Python/PyYAML'
-& $gitBash -c 'command -v openssl >/dev/null'
-Assert-NativeSuccess 'OpenSSL dans Bash'
 docker compose version
 Assert-NativeSuccess 'Compose'
 docker buildx version
@@ -60,7 +56,8 @@ foreach ($identity in @($sid, $system)) {
 Set-Acl -LiteralPath $session -AclObject $acl
 $lease = Join-Path $session 'lease.json'
 $images = Join-Path $session 'images.json'
-$certs = Join-Path $session 'certs'
+# Stable certificate state, independent of the fresh runtime/session lease.
+$certs = Join-Path $approvedRoot 'aiforall-local-full-certs'
 $render = Join-Path $session 'render'
 $environment = Join-Path $session 'environment.json'
 
@@ -106,19 +103,22 @@ Les neuf sources attendues sont énumérées dans `local-full-images.py` (dont `
 
 ## 3. Certificats et rendu offline
 
-`prepare-local-full-certs.sh` exige `LOCAL_FULL_CERT_DIR` neuf et refuse l'écrasement. Transmettre le chemin Windows explicitement à Bash ; toutes les clés/CSR/certificats restent sous ce répertoire privé :
+Le générateur commun Python/OpenSSL crée les deux CA et les certificats à la première invocation ; les suivantes vérifient et réutilisent le même répertoire privé **hors Git**, sans modifier les clés. Son parent doit déjà exister. ACL Windows limitées à l'opérateur/SYSTEM, permissions POSIX privées ; un état incomplet, expiré, lié ou incohérent est refusé, jamais réparé/écrasé silencieusement. Aucun démarrage runtime requis pour cette préparation :
 
 ```powershell
-$env:LOCAL_FULL_CERT_DIR = $certs.Replace('\', '/')
-try {
-    & $gitBash ops/scripts/prepare-local-full-certs.sh
-    Assert-NativeSuccess 'Certificats local-full'
-} finally { Remove-Item Env:\LOCAL_FULL_CERT_DIR }
+powershell.exe -NoProfile -File ops/scripts/prepare-local-full-certs.ps1 -OutputDirectory $certs
+Assert-NativeSuccess 'Certificats local-full'
 python -B ops/deploy/deploy-local-full.py render --output-dir $render
 Assert-NativeSuccess 'Rendu offline'
 ```
 
-Équivalent **Bash**, pas PowerShell : `LOCAL_FULL_CERT_DIR=<chemin-neuf> bash ops/scripts/prepare-local-full-certs.sh`. Deux CA distinctes sont produites (mesh transport et workload) ; fournir aux validateurs uniquement le certificat/chaîne **public**, jamais `ca.key`, une clé leaf ou le répertoire privé complet. Ne pas imprimer le contenu des clés, tokens, kubeconfigs ou manifests rendus ; les sorties de rendu restent privées hors Git.
+Équivalent **Linux/CI** : `python3 -B ops/scripts/prepare-local-full-certs.py --output-dir <répertoire-privé>`. L'entrée Bash existante reste disponible : `LOCAL_FULL_CERT_DIR=<répertoire-privé> bash ops/scripts/prepare-local-full-certs.sh` (interpréteur configurable par `PYTHON`). Les trois entrées exécutent le même générateur.
+
+Options : `-OAuthProof` en PowerShell / `--oauth-proof` en Python ou Bash ajoute le certificat GitLab **à la création initiale**. Une demande OAuth sur un répertoire de base déjà créé est refusée sans ajout de clés : choisir une nouvelle destination explicite. Un ensemble OAuth complet peut être réutilisé pour le profil de base. `-OpenSslPath` / `--openssl` (ou `OPENSSL`) sélectionne un exécutable ; `-PythonPath` sélectionne Python côté PowerShell. CA365jours et certificats90jours, comme le générateur précédent ; renouvellement/rotation restent des actions séparées, non implémentées ici.
+
+Les sorties restent `mesh/{ca,iam-service,hive-service,telegraph-service,manifesto-service,envoy-mesh,ext-authz,mesh-client}.{crt,key}` et `workload/{ca,server}.{crt,key}`, plus les CSR/extensions/sériaux. Deux CA distinctes sont produites (mesh transport et workload) ; fournir aux validateurs uniquement le certificat/chaîne **public**, jamais `ca.key`, une clé leaf ou le répertoire privé complet. Aucun matériau n'est committé ou affiché. Les erreurs OpenSSL après protection du répertoire conservent leurs détails dans `openssl-error.log` privé et remontent un code non-zéro ; un échec partiel est conservé pour diagnostic, pas repris automatiquement.
+
+En CI, créer une destination temporaire par **job E2E**, la conserver pour tous les consommateurs de ce job puis la retirer en fin de job ; aucune clé dans les caches ou artifacts. Le job `infra-static` fait seulement une génération/réutilisation Linux réelle, sans cluster ; ce n'est pas une preuve E2E. Ne pas imprimer le contenu des clés, tokens, kubeconfigs ou manifests rendus ; les sorties de rendu restent privées hors Git. Ce générateur est local/test, pas un émetteur PKI cloud ni un distributeur KMS. Documentation OpenSSL : [req](https://docs.openssl.org/3.5/man1/openssl-req/) et [x509](https://docs.openssl.org/3.5/man1/openssl-x509/).
 
 Le rendu est **offline par design**. `render-local-full.py:23–26` impose le chemin **inexistant** `ops/deploy/offline-no-kubeconfig` pour empêcher le fallback vers des credentials ambiants : **ne pas créer ni « réparer » ce fichier**. Aucun cluster, bail ou appel API n'est requis pour `render` (action par défaut de `just deploy-local-full`). Le rendu n'autorise pas le lancement.
 

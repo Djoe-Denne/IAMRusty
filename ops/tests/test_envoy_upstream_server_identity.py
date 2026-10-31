@@ -71,11 +71,20 @@ class UpstreamServerIdentityTests(unittest.TestCase):
         for cluster, short in SHORT_NAMES.items():
             with self.subTest(cluster=cluster):
                 self.assertEqual(issued[short], "DNS:" + KIND_NAMES[cluster])
-        full = (ROOT / "ops/scripts/prepare-local-full-certs.sh").read_text(encoding="utf-8")
-        self.assertIn("for name in iam hive telegraph manifesto; do", full)
-        self.assertIn('"DNS:$name-service,DNS:$name,DNS:$name.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1"', full)
-        self.assertIn("for name in envoy-mesh ext-authz mesh-client; do", full)
-        self.assertIn('"DNS:$name,DNS:$name.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1"', full)
+        spec = importlib.util.spec_from_file_location("local_certs", ROOT / "ops/scripts/prepare-local-full-certs.py")
+        full = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(full)
+        profiles = {name: sans for _, name, sans in full.leaf_profiles()}
+        for name in ("iam", "hive", "telegraph", "manifesto"):
+            self.assertEqual(profiles[name + "-service"], [
+                "DNS:" + name + "-service", "DNS:" + name,
+                "DNS:" + name + ".aiforall-local-full.svc.cluster.local", "DNS:localhost", "IP:127.0.0.1",
+            ])
+        for name in ("envoy-mesh", "ext-authz", "mesh-client"):
+            self.assertEqual(profiles[name], [
+                "DNS:" + name, "DNS:" + name + ".aiforall-local-full.svc.cluster.local",
+                "DNS:localhost", "IP:127.0.0.1",
+            ])
 
     def test_local_full_render_requires_its_rewritten_server_dns_identities(self):
         spec = importlib.util.spec_from_file_location("identity_renderer", ROOT / "ops/deploy/render-local-full.py")

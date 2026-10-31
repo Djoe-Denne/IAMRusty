@@ -200,13 +200,17 @@ class BrowserAlignmentTests(unittest.TestCase):
                          'nonce.sameSite !== "Lax"', 'callbackBearer', 'callbackCookie'):
             self.assertIn(required, source)
 
-    def test_cert_option_is_fresh_and_connector_leaf_is_scoped(self):
-        source = (ROOT / "ops/scripts/prepare-local-full-certs.sh").read_text()
-        self.assertIn('--oauth-proof)', source)
-        self.assertLess(source.index('if [ -e "$LOCAL_FULL_CERT_DIR" ]'), source.index('ca "$LOCAL_FULL_CERT_DIR/mesh"'))
-        leaf = next(line for line in source.splitlines() if 'mesh" gitlab-connect ' in line)
-        self.assertIn('DNS:gitlab-connect,DNS:gitlab-connect.aiforall-local-full.svc.cluster.local', leaf)
-        self.assertNotIn('localhost', leaf)
+    def test_cert_option_is_explicit_and_connector_leaf_is_scoped(self):
+        spec = importlib.util.spec_from_file_location("local_certs", ROOT / "ops/scripts/prepare-local-full-certs.py")
+        source = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(source)
+        base = source.leaf_profiles()
+        self.assertNotIn("gitlab-connect", [name for _, name, _ in base])
+        leaf = next(profile for profile in source.leaf_profiles(True) if profile[1] == "gitlab-connect")
+        self.assertEqual(leaf, ("mesh", "gitlab-connect", [
+            "DNS:gitlab-connect", "DNS:gitlab-connect.aiforall-local-full.svc.cluster.local",
+        ]))
+        self.assertEqual(source.leaf_profiles(), base)
 
     def test_proof_images_are_explicit_and_preserve_default_sources(self):
         # Import-only: no Docker inspection, tagging, build or runtime.

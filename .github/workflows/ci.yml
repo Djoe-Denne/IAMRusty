@@ -138,6 +138,18 @@ jobs:
         run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.2
       - name: Check scripts and render deployment overlays
         run: bash ops/tests/infra-static.sh
+      - name: Prepare and reuse local certificates (Linux, no cluster)
+        shell: bash
+        run: |
+          set -euo pipefail
+          private=$(mktemp -d "$RUNNER_TEMP/local-full-certs.XXXXXX")
+          trap 'rm -rf -- "$private"' EXIT
+          export LOCAL_FULL_CERT_DIR="$private/certs with spaces"
+          bash ops/scripts/prepare-local-full-certs.sh --oauth-proof
+          find "$LOCAL_FULL_CERT_DIR" -name '*.key' -print0 | sort -z | xargs -0 sha256sum > "$private/before"
+          bash ops/scripts/prepare-local-full-certs.sh --oauth-proof
+          find "$LOCAL_FULL_CERT_DIR" -name '*.key' -print0 | sort -z | xargs -0 sha256sum > "$private/after"
+          cmp "$private/before" "$private/after"
 
   apparatus-p0:
     name: Apparatus P0 (contracts + reference-kv)

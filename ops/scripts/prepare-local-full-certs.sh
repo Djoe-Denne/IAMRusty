@@ -1,46 +1,5 @@
 #!/bin/sh
-# Parent execution only. Create fresh, separate local transport/workload CAs.
-# Refuse any pre-existing content; no key/leaf overwrite or automatic rotation.
+# Linux/CI compatibility entrypoint; PKI logic is shared with native Windows.
 set -eu
-oauth_proof=false
-case "${1-}" in
-  '') [ "$#" -eq 0 ] || exit 1 ;;
-  --oauth-proof) [ "$#" -eq 1 ] || exit 1; oauth_proof=true ;;
-  *) echo 'unsupported certificate preparation option' >&2; exit 1 ;;
-esac
-: "${LOCAL_FULL_CERT_DIR:?set an explicit new directory}"
-if [ -e "$LOCAL_FULL_CERT_DIR" ]; then
-  echo 'certificate output path already exists; no overwrite' >&2
-  exit 1
-fi
-umask 077
-mkdir -p "$LOCAL_FULL_CERT_DIR/mesh" "$LOCAL_FULL_CERT_DIR/workload"
-ca() {
-  dir="$1"; cn="$2"
-  openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
-    -keyout "$dir/ca.key" -out "$dir/ca.crt" -subj "/CN=$cn" \
-    -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' >/dev/null 2>&1
-}
-leaf() {
-  dir="$1"; name="$2"; sans="$3"
-  openssl req -new -newkey rsa:2048 -nodes -keyout "$dir/$name.key" \
-    -out "$dir/$name.csr" -subj "/CN=$name" >/dev/null 2>&1
-  printf 'basicConstraints=critical,CA:FALSE\nsubjectAltName=%s\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth,clientAuth\n' "$sans" > "$dir/$name.ext"
-  openssl x509 -req -in "$dir/$name.csr" -CA "$dir/ca.crt" -CAkey "$dir/ca.key" \
-    -CAcreateserial -days 90 -out "$dir/$name.crt" -extfile "$dir/$name.ext" >/dev/null 2>&1
-}
-ca "$LOCAL_FULL_CERT_DIR/mesh" aiforall-local-full-transport
-ca "$LOCAL_FULL_CERT_DIR/workload" aiforall-local-full-workload
-for name in iam hive telegraph manifesto; do
-  leaf "$LOCAL_FULL_CERT_DIR/mesh" "$name-service" "DNS:$name-service,DNS:$name,DNS:$name.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1"
-done
-for name in envoy-mesh ext-authz mesh-client; do
-  leaf "$LOCAL_FULL_CERT_DIR/mesh" "$name" "DNS:$name,DNS:$name.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1"
-done
-if [ "$oauth_proof" = true ]; then
-  # New directory only: never append to/rotate any existing campaign inputs.
-  # Consumers select this leaf/key and the public CA, never CA/gateway keys.
-  leaf "$LOCAL_FULL_CERT_DIR/mesh" gitlab-connect 'DNS:gitlab-connect,DNS:gitlab-connect.aiforall-local-full.svc.cluster.local'
-fi
-leaf "$LOCAL_FULL_CERT_DIR/workload" server 'DNS:lazaret-service,DNS:lazaret,DNS:lazaret.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1'
-echo 'created separate local-full CA/leaf material; contents not printed; parent owns directory'
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec "${PYTHON:-python3}" -B "$SCRIPT_DIR/prepare-local-full-certs.py" "$@"
