@@ -19,6 +19,8 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+base64 = { workspace = true }
+tempfile = "3"
 github-connect-http = { path = "http" }
 github-connect-infra = { path = "infra" }
 idp-connect-contract = { path = "../../crates/idp-connect-contract" }

@@ -4,16 +4,40 @@ use rustycog::config::{HasLoggingConfig, HasServerConfig};
 use serde::{Deserialize, Serialize};
 
 pub use rustycog::config::{
-    load_config_fresh, AuthConfig, ConfigError, ConfigLoader, JwtAuthConfig, LoggingConfig,
+    load_config_fresh_strict, AuthConfig, ConfigError, ConfigLoader, JwtAuthConfig, LoggingConfig,
     ServerConfig,
 };
 pub use rustycog::logger::setup_logging;
 pub mod transport;
+pub use rustycog::config::secrets::{OpenBaoAuthConfig, OpenBaoConfig, SecretReference};
 pub use transport::VendorTransportSecurity;
+
+/// Explicit source selection; absence never enables a usable fallback mode.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SecretsMode {
+    /// Invalid startup state until a source is explicitly selected.
+    #[default]
+    #[serde(skip_deserializing)]
+    Unconfigured,
+    /// Resolve both references from `OpenBao` at startup.
+    Openbao,
+    /// Legacy direct values, explicitly selected and exclusive of `OpenBao`.
+    Direct,
+}
 
 /// GitHub vendor + S2S HMAC settings.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct GitHubConfig {
+    /// Explicit startup secret source.
+    #[serde(default)]
+    pub secrets_mode: SecretsMode,
+    /// OAuth client secret reference (KV v2).
+    #[serde(default)]
+    pub client_secret_ref: Option<SecretReference>,
+    /// IAM-shared HMAC secret reference (KV v2).
+    #[serde(default)]
+    pub hmac_secret_ref: Option<SecretReference>,
     /// Explicit transport policy; defaults to verified HTTPS.
     #[serde(default)]
     pub transport_security: VendorTransportSecurity,
@@ -24,7 +48,7 @@ pub struct GitHubConfig {
     #[serde(default)]
     pub client_id: String,
     /// OAuth application client secret. Never log this value.
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub client_secret: String,
     /// Authorization endpoint.
     #[serde(default = "default_auth_url")]
@@ -36,7 +60,7 @@ pub struct GitHubConfig {
     #[serde(default = "default_user_url")]
     pub user_url: String,
     /// Shared HMAC secret for IAM ↔ connector. Empty is rejected at boot.
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub hmac_secret: String,
     /// Exact-match allowlist of OAuth `redirect_uri` values.
     #[serde(default)]
@@ -46,6 +70,9 @@ pub struct GitHubConfig {
 impl Default for GitHubConfig {
     fn default() -> Self {
         Self {
+            secrets_mode: SecretsMode::default(),
+            client_secret_ref: None,
+            hmac_secret_ref: None,
             client_id: String::new(),
             transport_security: VendorTransportSecurity::default(),
             pkce_supported: false,
@@ -62,6 +89,9 @@ impl Default for GitHubConfig {
 impl std::fmt::Debug for GitHubConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GitHubConfig")
+            .field("secrets_mode", &self.secrets_mode)
+            .field("client_secret_ref", &self.client_secret_ref)
+            .field("hmac_secret_ref", &self.hmac_secret_ref)
             .field("transport_security", &self.transport_security)
             .field("pkce_supported", &self.pkce_supported)
             .field("client_id", &self.client_id)
@@ -90,6 +120,9 @@ fn default_user_url() -> String {
 /// Main application configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
+    /// Explicit `OpenBao` transport/identity configuration, containing no token value.
+    #[serde(default)]
+    pub openbao: Option<OpenBaoConfig>,
     /// HTTP server bind (TLS like other platform services).
     #[serde(default)]
     pub server: ServerConfig,
@@ -140,7 +173,7 @@ impl HasLoggingConfig for AppConfig {
 ///
 /// Returns [`ConfigError`] if the configuration cannot be loaded.
 pub fn load_config() -> Result<AppConfig, ConfigError> {
-    load_config_fresh::<AppConfig>()
+    load_config_fresh_strict::<AppConfig>()
 }
 
 #[cfg(test)]

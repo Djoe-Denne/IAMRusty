@@ -90,6 +90,8 @@ Photographie rétroactive du 12 septembre 2026. Extrait Manifesto ; index platef
 
 ## Related
 
+- SDK secrets (**pas** Apparatus) : [[projects/aiforall/decisions/0505-startup-secrets-openbao]] — **Proposed / Implemented** dans l’arbre validé, premier consommateur GitHubConnect ; SDK publié et tests Windows verts, publication finale service encore en cours ; aucune migration du contrat secrets Lazaret, preuve CI Linux/TLS live/coffre réel ou acceptation implicite.
+
 - Plateforme cluster (**pas** Apparatus) : [[projects/aiforall/decisions/0600-cloud-portable]] / [[projects/aiforall/decisions/0601-cluster-topology]] — P4 (0008) s’insère dans cette topologie ; 0600/0601 ne sont pas des ADR Apparatus. Lab local dédié : [[projects/aiforall/decisions/0606-local-full-kind-isole]] (**Proposed / Partial**, source/offline seulement), Related sans fusion de canon ni livraison cloud. Auth globale : [[projects/aiforall/decisions/0310-admission-epochs-budget-jwks]] (Accepted / Partial ; ratification initiale le 2026-10-04, calcul/capacité partiellement supersédés par 0312 livrée le 2026-10-08 ; pas clôture sécurité globale implicite).
 
 

@@ -10,5 +10,11 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
+rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full", "secrets"] }
 serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+serial_test = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

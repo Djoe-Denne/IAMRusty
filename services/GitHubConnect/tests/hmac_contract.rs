@@ -42,7 +42,7 @@ async fn post_signed(server: &TestServer, path: &str, body: &str) -> axum_test::
 #[serial]
 async fn missing_hmac_headers_are_unauthorized() {
     let github = GitHubFixtures::service().await;
-    let app = boot_app(&github.base_url()).expect("app");
+    let app = boot_app(&github.base_url()).await.expect("app");
     let server = TestServer::new(app.prefixed_router()).expect("test server");
 
     let response = server
@@ -63,7 +63,7 @@ async fn valid_hmac_exchanges_token_and_profile() {
         .await
         .setup_successful_user_profile_arthur()
         .await;
-    let app = boot_app(&github.base_url()).expect("app");
+    let app = boot_app(&github.base_url()).await.expect("app");
     let server = TestServer::new(app.prefixed_router()).expect("test server");
 
     let token_response = post_signed(&server, TOKEN_ROUTE, &token_body()).await;
@@ -88,7 +88,7 @@ async fn valid_hmac_exchanges_token_and_profile() {
 #[serial]
 async fn redirect_uri_outside_allowlist_is_not_ok() {
     let github = GitHubFixtures::service().await;
-    let app = boot_app(&github.base_url()).expect("app");
+    let app = boot_app(&github.base_url()).await.expect("app");
     let server = TestServer::new(app.prefixed_router()).expect("test server");
 
     let body = serde_json::to_string(&TokenRequest {
@@ -105,7 +105,7 @@ async fn redirect_uri_outside_allowlist_is_not_ok() {
 #[serial]
 async fn bearer_jwt_without_hmac_is_unauthorized() {
     let github = GitHubFixtures::service().await;
-    let app = boot_app(&github.base_url()).expect("app");
+    let app = boot_app(&github.base_url()).await.expect("app");
     let server = TestServer::new(app.prefixed_router()).expect("test server");
     let jwt = create_jwt_token(Uuid::new_v4());
 
@@ -128,7 +128,7 @@ async fn hmac_path_must_include_service_prefix() {
         .await
         .setup_successful_user_profile_arthur()
         .await;
-    let app = boot_app(&github.base_url()).expect("app");
+    let app = boot_app(&github.base_url()).await.expect("app");
     let server = TestServer::new(app.prefixed_router()).expect("test server");
     let body = token_body();
     let now = unix_timestamp_secs().expect("clock");
@@ -158,16 +158,16 @@ async fn hmac_path_must_include_service_prefix() {
     assert_eq!(SERVICE_PREFIX, "/github-connect");
 }
 
-#[test]
-fn empty_hmac_secret_fails_closed_at_boot() {
+#[tokio::test]
+async fn empty_hmac_secret_fails_closed_at_boot() {
     let mut config = test_config("http://127.0.0.1:9");
     config.github.hmac_secret = "   ".to_owned();
-    assert!(Application::new(config).is_err());
+    assert!(Application::new(config).await.is_err());
 }
 
-#[test]
-fn fifteen_byte_hmac_secret_fails_closed_at_boot() {
+#[tokio::test]
+async fn fifteen_byte_hmac_secret_fails_closed_at_boot() {
     let mut config = test_config("http://127.0.0.1:9");
     config.github.hmac_secret = "123456789012345".to_owned();
-    assert!(Application::new(config).is_err());
+    assert!(Application::new(config).await.is_err());
 }

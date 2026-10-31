@@ -5,6 +5,7 @@
 )]
 
 pub mod github;
+pub mod openbao;
 
 /// Distinguishes “leave the default” from “assign this value” (including `None`).
 #[derive(Debug, Clone, Default)]

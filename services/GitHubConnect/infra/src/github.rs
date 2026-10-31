@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use github_connect_configuration::GitHubConfig;
+use github_connect_configuration::{GitHubConfig, SecretsMode};
 use github_connect_domain::{redirect_uri_allowed, DomainError};
 use idp_connect_contract::{
     AuthorizeResponse, FederatedOAuthClient, FederatedOAuthError, ProviderTokens,
@@ -13,6 +13,7 @@ use oauth2::{
     basic::BasicClient, AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, HttpRequest,
     HttpResponse, PkceCodeVerifier, RedirectUrl, TokenResponse, TokenUrl,
 };
+use rustycog::config::secrets::SecretValue;
 use serde::Deserialize;
 use tracing::error;
 
@@ -76,6 +77,41 @@ impl GitHubConnectClient {
         policy: github_connect_configuration::transport::VendorTransportSecurity,
         pkce_supported: bool,
     ) -> Result<Self, DomainError> {
+        if config.secrets_mode != SecretsMode::Direct
+            || config.client_secret_ref.is_some()
+            || config.hmac_secret_ref.is_some()
+        {
+            return Err(DomainError::OAuth2Error(
+                "explicit direct secret source required".into(),
+            ));
+        }
+        let secret = SecretValue::new(config.client_secret.clone())
+            .map_err(|_| DomainError::OAuth2Error("invalid OAuth client secret".into()))?;
+        Self::with_secret(config, secret, policy, pkce_supported)
+    }
+
+    /// Transfer a startup-resolved secret directly to the OAuth consumer.
+    ///
+    /// # Errors
+    /// Rejects unsafe vendor URLs or HTTP client construction failures.
+    pub fn from_config_with_resolved_secret(
+        config: &GitHubConfig,
+        secret: SecretValue,
+    ) -> Result<Self, DomainError> {
+        Self::with_secret(
+            config,
+            secret,
+            config.transport_security,
+            config.pkce_supported,
+        )
+    }
+
+    fn with_secret(
+        config: &GitHubConfig,
+        secret: SecretValue,
+        policy: github_connect_configuration::transport::VendorTransportSecurity,
+        pkce_supported: bool,
+    ) -> Result<Self, DomainError> {
         for raw in [&config.auth_url, &config.token_url, &config.user_url] {
             validate_vendor_url(raw, policy)?;
         }
@@ -92,7 +128,7 @@ impl GitHubConnectClient {
         Ok(Self {
             pkce_supported,
             client_id: ClientId::new(config.client_id.clone()),
-            client_secret: ClientSecret::new(config.client_secret.clone()),
+            client_secret: ClientSecret::new(secret.into_inner()),
             auth_url,
             token_url,
             user_url: config.user_url.clone(),
@@ -347,6 +383,8 @@ mod transport_tests {
     #[test]
     fn plaintext_vendor_endpoints_require_explicit_isolated_policy() {
         let config = GitHubConfig {
+            secrets_mode: SecretsMode::Direct,
+            client_secret: "synthetic-oauth-secret".into(),
             token_url: "http://localhost/token".into(),
             ..GitHubConfig::default()
         };
@@ -372,6 +410,8 @@ mod transport_tests {
     async fn pkce_is_explicit_s256_and_never_silently_ignored() {
         let redirect = "https://app.example/callback";
         let config = GitHubConfig {
+            secrets_mode: SecretsMode::Direct,
+            client_secret: "synthetic-oauth-secret".into(),
             redirect_uris: vec![redirect.into()],
             ..GitHubConfig::default()
         };
@@ -429,16 +469,17 @@ mod transport_tests {
         Mock::given(method("POST"))
             .and(path("/token"))
             .and(body_string_contains(format!("code_verifier={verifier}")))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .insert_header("Content-Type", "application/json")
-                    .set_body_string(r#"{"access_token":"opaque-access","token_type":"Bearer"}"#),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_raw(
+                br#"{"access_token":"opaque-access","token_type":"Bearer"}"#.as_slice(),
+                "application/json",
+            ))
             .expect(1)
             .mount(&vendor)
             .await;
         let redirect = "https://app.example/callback";
         let config = GitHubConfig {
+            secrets_mode: SecretsMode::Direct,
+            client_secret: "synthetic-oauth-secret".into(),
             token_url: format!("{}/token", vendor.uri()),
             redirect_uris: vec![redirect.into()],
             ..GitHubConfig::default()
@@ -449,10 +490,22 @@ mod transport_tests {
             true,
         )
         .unwrap();
-        let tokens = client
+        let result = client
             .exchange_code_with_pkce("opaque-code", redirect, Some(&verifier))
-            .await
-            .unwrap();
+            .await;
+        let requests = vendor.received_requests().await.unwrap_or_default();
+        let matches = requests.iter().any(|request| {
+            request.method == "POST"
+                && request.url.path() == "/token"
+                && String::from_utf8_lossy(&request.body)
+                    .contains(&format!("code_verifier={verifier}"))
+        });
+        assert!(
+            result.is_ok(),
+            "exchange failed; vendor_requests={}, fixture_match={matches}",
+            requests.len()
+        );
+        let tokens = result.unwrap();
         assert_eq!(tokens.access_token, "opaque-access");
         vendor.verify().await;
     }

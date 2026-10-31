@@ -2672,6 +2672,10 @@ version = "0.1.0"
 dependencies = [
  "rustycog-framework",
  "serde",
+ "serde_json",
+ "serial_test",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -2703,6 +2707,7 @@ dependencies = [
  "idp-connect-contract",
  "oauth2",
  "reqwest 0.11.27",
+ "rustycog-framework",
  "serde",
  "tokio",
  "tracing",
@@ -2716,6 +2721,7 @@ dependencies = [
  "anyhow",
  "axum 0.8.9",
  "axum-test 17.3.0",
+ "base64 0.22.1",
  "github-connect-configuration",
  "github-connect-http",
  "github-connect-infra",
@@ -2726,6 +2732,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
+ "tempfile",
  "tokio",
  "tracing",
  "uuid",

@@ -10,6 +10,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+rustycog = { package = "rustycog-framework", version = "0.1.1", default-features = false, features = ["secrets"] }
 github-connect-configuration = { path = "../configuration" }
 github-connect-domain = { path = "../domain" }
 idp-connect-contract = { path = "../../../crates/idp-connect-contract" }

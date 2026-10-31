@@ -1,0 +1,8 @@
+# GitHubConnect / SDK — ADR-0505
+
+- Canon : `docs/adr/0505-startup-secrets-sdk-openbao.md` ; Statut **Proposed**, Réalité **Implemented** dans l’arbre validé (2026-10-31), aucune supersession ; voir le fichier ADR. Accord humain toujours requis pour Accepted.
+- Contrat : `docs/contracts/startup-secrets-openbao.md`. Module optionnel `rustycog::config::secrets`, feature `secrets`, port async SecretResolver, SecretReference mount/path/field KV v2 et SecretValue opaque ; token-file explicite, lookup-self non-root/TTL1..3600.
+- Loader strict additif sans réseau/fallback/erreur brute ; setup GitHubConnect async, modes openbao/direct exclusifs, snapshot sans refresh ; secrets seulement chez OAuth/HMAC. HTTPS vérifié, loopback HTTP opt-in, délais/tailles bornés, pas de proxy/redirect implicite.
+- SDK publié sur main `93b890ff7b821e9cb2e7d0aeb81957d098778a2f` ; parent rapporte 11 tests config feature secrets, check config seule et Clippy secrets -D warnings verts sous Windows. Service : 17 tests Windows verts, dont 3 nouveaux startup (résumés service-final.log lus).
+- Publication service/gitlink AIForAll encore en cours : rapport parent `docs/missions/20261031-github-connect-openbao-results.md`. Autorisation ultérieure d’intégrer/publier le durable préexistant en commits séparés sur AIForAll/master et SDK/main ; aucun secret/log/cache.
+- Pas de CI Linux, fixture TLS live, coffre réel ou déploiement qualifiés. IAM/Lazaret/ops/Compose/ESO/E2E/seed/rotation/GitHub App hors lot ; aucun Cargo/runtime/commit/push par l’architecte.

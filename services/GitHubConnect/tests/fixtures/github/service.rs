@@ -1,4 +1,5 @@
 use super::resources::*;
+use base64::Engine;
 use rustycog::testing::wiremock::MockServerFixture;
 use serde::Serialize;
 use std::sync::Arc;
@@ -30,6 +31,26 @@ impl GitHubService {
     /// Manual reset of all mocks (also happens automatically when service is dropped)
     pub async fn reset(&self) {
         self.fixture.reset().await;
+    }
+
+    /// Assert effective OAuth credentials without exposing request bodies/headers.
+    pub async fn uses_oauth_credentials(&self, client_id: &str, secret: &str) -> bool {
+        let expected = format!(
+            "Basic {}",
+            base64::engine::general_purpose::STANDARD.encode(format!("{client_id}:{secret}"))
+        );
+        self.server
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .iter()
+            .any(|request| {
+                request.url.path() == "/login/oauth/access_token"
+                    && request
+                        .headers
+                        .get("authorization")
+                        .is_some_and(|value| value.as_bytes() == expected.as_bytes())
+            })
     }
 
     /// Mock OAuth token exchange endpoint

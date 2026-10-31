@@ -23,14 +23,32 @@ allowed_algorithms = ["RS256"]
 level = "debug"
 
 [github]
+secrets_mode = "openbao"
 pkce_supported = false
 client_id = "your-github-client-id"
-client_secret = "your-github-client-secret"
 auth_url = "https://github.com/login/oauth/authorize"
 token_url = "https://github.com/login/oauth/access_token"
 user_url = "https://api.github.com/user"
-hmac_secret = "change-me-github-connect-hmac"
 redirect_uris = [
   "http://127.0.0.1:8080/iam/api/auth/github/callback",
   "http://127.0.0.1:8080/iam/api/auth/github/relink-callback",
 ]
+
+[github.client_secret_ref]
+mount = "secret"
+path = "github-connect/oauth"
+field = "client_secret"
+
+[github.hmac_secret_ref]
+mount = "secret"
+path = "github-connect/iam"
+field = "hmac_secret"
+
+# Override origin/identity for the environment. No credentials in this file.
+[openbao]
+endpoint = "https://bao.example.invalid:8200"
+allow_loopback_http = false
+
+[openbao.auth]
+method = "token_file"
+path = "./secrets/github-connect.bao-token"

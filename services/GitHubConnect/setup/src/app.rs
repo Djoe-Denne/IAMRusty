@@ -4,13 +4,14 @@ use std::sync::Arc;
 
 use anyhow::Error;
 use axum::Router;
-use github_connect_configuration::AppConfig;
+use github_connect_configuration::{AppConfig, SecretsMode};
 use github_connect_http::{create_app_routes, create_prefixed_router, create_router};
 use github_connect_infra::GitHubConnectClient;
 use idp_connect_contract::hmac::HmacKey;
 use idp_connect_contract::server::ConnectState;
 use readiness::ReadinessProbe;
 use rustycog::command::{CommandRegistry, CommandRegistryBuilder, GenericCommandService};
+use rustycog::config::secrets::{OpenBaoKv2Resolver, SecretError, SecretResolver, SecretValue};
 use rustycog::config::ServerConfig;
 use rustycog::http::{AppState, UserIdExtractor};
 use rustycog::permission::{InMemoryPermissionChecker, PermissionChecker};
@@ -36,18 +37,65 @@ pub fn empty_command_registry() -> CommandRegistry {
     CommandRegistryBuilder::new().build()
 }
 
+async fn startup_secrets(
+    config: &mut AppConfig,
+) -> Result<(SecretValue, SecretValue), SecretError> {
+    let github = &mut config.github;
+    match github.secrets_mode {
+        SecretsMode::Openbao => {
+            if !github.client_secret.is_empty() || !github.hmac_secret.is_empty() {
+                return Err(SecretError::InvalidConfig);
+            }
+            let oauth = github
+                .client_secret_ref
+                .as_ref()
+                .ok_or(SecretError::InvalidConfig)?;
+            let hmac = github
+                .hmac_secret_ref
+                .as_ref()
+                .ok_or(SecretError::InvalidConfig)?;
+            let bao = config.openbao.as_ref().ok_or(SecretError::InvalidConfig)?;
+            let resolver = OpenBaoKv2Resolver::connect(bao).await?;
+            Ok((
+                resolver.resolve(oauth).await?,
+                resolver.resolve(hmac).await?,
+            ))
+        }
+        SecretsMode::Direct => {
+            if github.client_secret_ref.is_some()
+                || github.hmac_secret_ref.is_some()
+                || config.openbao.is_some()
+            {
+                return Err(SecretError::InvalidConfig);
+            }
+            Ok((
+                SecretValue::new(std::mem::take(&mut github.client_secret))?,
+                SecretValue::new(std::mem::take(&mut github.hmac_secret))?,
+            ))
+        }
+        SecretsMode::Unconfigured => Err(SecretError::InvalidConfig),
+    }
+}
+
 impl Application {
     /// Wire empty registry, JWT extractor, deny-all checker, GitHub vendor client.
     ///
     /// # Errors
     ///
+    /// Resolves startup secrets once, refusing ambiguous sources or acquisition failures.
     /// Returns an error if `hmac_secret` is empty, whitespace-only, shorter
     /// than 16 bytes after trim, auth config is invalid, or GitHub vendor
     /// URLs cannot be parsed.
-    pub fn new(config: AppConfig) -> Result<Self, Error> {
+    pub async fn new(mut config: AppConfig) -> Result<Self, Error> {
         tracing::info!("Initializing GitHub Connect application...");
 
-        let hmac_secret = config.github.hmac_secret.trim();
+        let (client_secret, hmac_secret) = tokio::time::timeout(
+            std::time::Duration::from_secs(20),
+            startup_secrets(&mut config),
+        )
+        .await
+        .map_err(|_| SecretError::Timeout)??;
+        let hmac_secret = hmac_secret.expose_secret().trim();
         if hmac_secret.is_empty() {
             return Err(anyhow::anyhow!("hmac_secret must not be empty"));
         }
@@ -69,10 +117,9 @@ impl Application {
             Arc::new(InMemoryPermissionChecker::new());
 
         let state = AppState::new(command_service, user_id_extractor, permission_checker);
-        let client = Arc::new(GitHubConnectClient::from_config_with_transport_and_pkce(
+        let client = Arc::new(GitHubConnectClient::from_config_with_resolved_secret(
             &config.github,
-            config.github.transport_security,
-            config.github.pkce_supported,
+            client_secret,
         )?);
         let connect = ConnectState { hmac_key, client };
         let readiness = Arc::new(ReadinessProbe::new("github-connect-service"));
@@ -144,7 +191,7 @@ impl AppBuilder {
     /// # Errors
     ///
     /// Returns an error if application initialization fails.
-    pub fn build(self) -> Result<Application, Error> {
-        Application::new(self.config)
+    pub async fn build(self) -> Result<Application, Error> {
+        Application::new(self.config).await
     }
 }

@@ -22,6 +22,7 @@ pub const ALLOWED_REDIRECT: &str = "http://127.0.0.1:8081/iam/api/auth/github/ca
 pub fn test_config(github_base: &str) -> AppConfig {
     let base = github_base.trim_end_matches('/');
     AppConfig {
+        openbao: None,
         server: ServerConfig {
             host: "127.0.0.1".to_owned(),
             port: 0,
@@ -30,6 +31,8 @@ pub fn test_config(github_base: &str) -> AppConfig {
         },
         auth: AuthConfig {
             jwt: JwtAuthConfig {
+                platform_issuer: Some("http://127.0.0.1:8081/iam".to_owned()),
+                allow_historical_platform_issuer: Some(true),
                 hs256_secret: Some("rustycog-test-hs256-secret".to_owned()),
                 issuer: Some("iamrusty".to_owned()),
                 audience: Some("aiforall".to_owned()),
@@ -42,6 +45,9 @@ pub fn test_config(github_base: &str) -> AppConfig {
             ..LoggingConfig::default()
         },
         github: GitHubConfig {
+            secrets_mode: github_connect_configuration::SecretsMode::Direct,
+            client_secret_ref: None,
+            hmac_secret_ref: None,
             pkce_supported: false,
             transport_security: github_connect_configuration::VendorTransportSecurity::IsolatedTest,
             client_id: "test_github_client_id".to_owned(),
@@ -63,6 +69,6 @@ pub fn test_config(github_base: &str) -> AppConfig {
 /// # Errors
 ///
 /// Returns an error if application initialization fails.
-pub fn boot_app(github_base: &str) -> anyhow::Result<Application> {
-    Application::new(test_config(github_base))
+pub async fn boot_app(github_base: &str) -> anyhow::Result<Application> {
+    Application::new(test_config(github_base)).await
 }
