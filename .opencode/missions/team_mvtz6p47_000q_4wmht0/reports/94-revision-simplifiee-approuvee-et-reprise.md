@@ -70,3 +70,16 @@ Preuve : candidat `result_mvw5ppw0_0001_m1d2jm`, contrat SHA256
 `c599205c80526164cdf0f2241692caaf226e6e885fcc91769d044d16e3c9b9ba` et notice
 `4398bc6986618765d7e9d16cfd8372abfb3b35743d267acffd38f4a8bf9f6cd6`, avant ratification.
 Aucun nouveau test ou vrai outil exécuté pour ce jalon documentaire.
+
+## Simplification du code en cours
+
+Le contrat ratifié est committé dans `a5a71fe`, avec le hook normal de formatage et
+`git diff --cached --check` réussis. La tâche documentaire est acceptée à cette seule
+portée. Le nouvel auteur du code a reçu ce commit et le briefing avant son admission.
+Le routage natif a retenu un nouvel auteur spécialisé ; l'ancien arbre Windows et
+ses changements restent conservés. Une vérification de statut confirme l'auteur
+actif, sans nouveau modèle imposé.
+
+Il doit livrer le retrait des mécanismes rejetés et les contrôles ciblés utiles.
+Le lead intégrera puis exécutera le premier cas réel, sans revue préalable nouvelle.
+L'exécution n'est pas encore commencée.

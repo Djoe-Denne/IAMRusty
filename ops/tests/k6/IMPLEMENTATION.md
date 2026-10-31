@@ -1,5 +1,18 @@
 # Implementation record
 
+## Windows revision3 — simplified candidate, 2026-10-31
+
+The Accepted revision3 amendment supersedes the historical Windows ACL, bundle-lock
+and renderer-attestation requirements recorded below. Those mechanisms and their
+dedicated tests are removed, not replaced by persistent code custody or another
+supervisor. Ordinary archive/executable SHA256 checks, exact versions, native
+Chromium protections, bounded process ownership/cleanup and privacy remain.
+Browser PASS is functional (current summary, checks/counts, exit0 and final
+cleanup/privacy), without a renderer witness. Bounded failure diagnostics stay
+private; the lead owns the first real about:blank/42 run after integration.
+See [the current Windows guide](WINDOWS.md). No real k6/Chrome/HTTP/runtime run is
+claimed here; the older Windows sections below are implementation history only.
+
 ## Windows security corrections — S-1, R-1 and fail-closed R-2
 
 Same author20/task/session, no reset/checkout/commit. Read the complete independent

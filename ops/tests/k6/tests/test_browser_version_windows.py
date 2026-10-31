@@ -89,10 +89,10 @@ const cases = [
         code = (
             f"$e=New-K6Environment {base.quote(self.directory)} '{base.RUN_ID}' 'C:\\known\\chrome.exe' @('PRIVATE_SENTINEL'); "
             f"$c=[K6Windows.Child]::new({base.quote(self.node)},@({base.quote(script)},{base.quote(scenario)}),$e,{base.quote(self.directory)}); "
-            "try { $created=@($c.Identities|ForEach-Object {@{pid=$_.Pid;created=$_.Created;sid=$_.Sid;image=$_.Image;ended=$_.Ended}}); "
+            "try { $created=@($c.Identities|ForEach-Object {@{pid=$_.Pid;created=$_.Created;image=$_.Image;ended=$_.Ended}}); "
             f"[IO.File]::AppendAllText({base.quote(self.audit)},(($created|ConvertTo-Json -Depth 5 -Compress)+[Environment]::NewLine)); "
             "$r=$c.Finish(5000,1000,$null); if(-not $r.Cleanup-or -not $r.CaptureComplete-or $r.ExitCode-ne 0){throw 'FIXTURE_NOT_JOINED'}; "
-            "$ended=@($c.Identities|ForEach-Object {@{pid=$_.Pid;created=$_.Created;sid=$_.Sid;image=$_.Image;ended=$_.Ended}}); "
+            "$ended=@($c.Identities|ForEach-Object {@{pid=$_.Pid;created=$_.Created;image=$_.Image;ended=$_.Ended}}); "
             f"[IO.File]::AppendAllText({base.quote(self.audit)},(($ended|ConvertTo-Json -Depth 5 -Compress)+[Environment]::NewLine)); "
             "Assert-K6Privacy $r.Stdout @('PRIVATE_SENTINEL'); Assert-K6Privacy $r.Stderr @('PRIVATE_SENTINEL'); "
             "[Console]::Out.Write($r.Stdout) } finally {$c.Dispose()}"
@@ -153,19 +153,15 @@ const cases = [
             f"Set-K6BrowserEvidence $p {self.value(current_summary())} '{base.RUN_ID}' $c $s '{PIN}'; "
         )
 
-    def test_same_run_api_equality_and_sandbox_are_distinct(self):
+    def test_same_run_functional_pass_without_sandbox_attestation(self):
         state = dict(Cleanup=True, Privacy=True, Executed=1)
-        child = dict(ExitCode=0, Cleanup=True, IdentityComplete=True, CaptureComplete=True, Overflow=False,
-                     Sandbox=False, BrowserArguments=True)
+        child = dict(ExitCode=0, Cleanup=True, IdentityComplete=True, CaptureComplete=True, Overflow=False)
         code = self.qualification_code(state, child)
-        code += "if($p.tools-cne 'PASS'-or $p.chromium-cne 'INCONCLUSIVE'-or $p.versions.chromium-cne '156.0.8078.73'-or $p.browser_version_evidence-cne 'K6_API_CACHED_GETVERSION_EQUALITY'){exit 5}; 'EQUALITY_ONLY'"
-        self.assertEqual(self.ps(code), "EQUALITY_ONLY")
-        child["Sandbox"] = True
-        self.assertEqual(self.ps(self.qualification_code(state, child) + "if($p.tools-cne 'PASS'-or $p.chromium-cne 'INCONCLUSIVE'){exit 5};'PRIMARY_UNPROVEN'"), "PRIMARY_UNPROVEN")
+        code += "if($p.tools-cne 'PASS'-or $p.chromium-cne 'PASS'-or $p.versions.chromium-cne '156.0.8078.73'-or $p.browser_version_evidence-cne 'K6_API_CACHED_GETVERSION_EQUALITY'){exit 5}; 'FUNCTIONAL_PASS'"
+        self.assertEqual(self.ps(code), "FUNCTIONAL_PASS")
 
     def test_cleanup_or_privacy_missing_blocks_positive_evidence(self):
-        child = dict(ExitCode=0, Cleanup=True, IdentityComplete=True, CaptureComplete=True, Overflow=False,
-                     Sandbox=True, BrowserArguments=True)
+        child = dict(ExitCode=0, Cleanup=True, IdentityComplete=True, CaptureComplete=True, Overflow=False)
         for key in ("Cleanup", "Privacy"):
             for missing in (False, True):
                 state = dict(Cleanup=True, Privacy=True, Executed=1)

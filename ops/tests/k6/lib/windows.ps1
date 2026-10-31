@@ -37,18 +37,16 @@ function Assert-K6Privacy([string] $Text, [string[]] $Sentinels) {
 }
 
 function Read-K6PrivateJson([string] $Path, $Owner = $null) {
-    $pin = if ($null -eq $Owner) { [K6Windows.PathLease]::new($Path, $false, $true) } else { [K6Windows.PathLease]::new($Path, $false, $true, $Owner) }
-    try {
-        if ([IO.FileInfo]::new($pin.Path).Length -gt 65536) { throw 'JSON_INVALID' }
-        $bytes = [IO.File]::ReadAllBytes($pin.Path)
-        if ($bytes.Length -gt 65536) { throw 'JSON_INVALID' }
-        $text = [Text.UTF8Encoding]::new($false, $true).GetString($bytes)
-        return ConvertFrom-K6Json $text
-    } finally { $pin.Dispose() }
+    if ($null -ne $Owner) { $Owner.AssertBound() }
+    $path = [K6Windows.Native]::Absolute($Path)
+    if ([IO.FileInfo]::new($path).Length -gt 65536) { throw 'JSON_INVALID' }
+    $bytes = [IO.File]::ReadAllBytes($path)
+    if ($bytes.Length -gt 65536) { throw 'JSON_INVALID' }
+    return ConvertFrom-K6Json ([Text.UTF8Encoding]::new($false, $true).GetString($bytes))
 }
 
 function Assert-K6OutsideGit([string] $Path) {
-    $current = [IO.Path]::GetDirectoryName([K6Windows.PathLease]::Absolute($Path))
+    $current = [IO.Path]::GetDirectoryName([K6Windows.Native]::Absolute($Path))
     while ($current) {
         if (Test-Path -LiteralPath (Join-Path $current '.git')) { throw 'PATH_INVALID' }
         $current = [IO.Path]::GetDirectoryName($current)
@@ -57,12 +55,7 @@ function Assert-K6OutsideGit([string] $Path) {
 
 function Read-K6WindowsLock([string] $Path) {
     if (-not [IO.File]::Exists($Path)) { throw 'WINDOWS_LOCK_MISSING' }
-    $pin = [K6Windows.PathLease]::new($Path, $false, $false)
-    try {
-        if ([IO.FileInfo]::new($pin.Path).Length -gt 65536) { throw 'JSON_INVALID' }
-        $lock = ConvertFrom-K6Json ([IO.File]::ReadAllText($Path, [Text.UTF8Encoding]::new($false, $true)))
-    }
-    finally { $pin.Dispose() }
+    $lock = Read-K6PrivateJson $Path
     Assert-K6Fields $lock @('version', 'platform', 'k6', 'chromium')
     Assert-K6Integer $lock.version 1
     if ($lock.platform -isnot [string] -or $lock.platform -cne 'windows-amd64') { throw 'PIN_INVALID' }
@@ -88,134 +81,29 @@ function Read-K6WindowsLock([string] $Path) {
 }
 
 function Open-K6PinnedTool($Pin, [string] $Executable) {
-    $path = [K6Windows.PathLease]::Absolute($Executable)
+    $path = [K6Windows.Native]::Absolute($Executable)
     $suffix = '\' + $Pin.executable
     if (-not $path.EndsWith($suffix, [StringComparison]::OrdinalIgnoreCase)) { throw 'PIN_INVALID' }
     $root = $path.Substring(0, $path.Length - $suffix.Length)
-    $exePin = $null; $zipPin = $null
+    $tool = @{ Exe = $path; Archive = (Join-Path $root $Pin.archive); Pin = $Pin }
+    Assert-K6PinnedTool $tool
+    $stream = [IO.FileStream]::new($path, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
     try {
-        $exePin = [K6Windows.PathLease]::new($path, $false, $true)
-        $zipPin = [K6Windows.PathLease]::new((Join-Path $root $Pin.archive), $false, $true)
-        if ($exePin.Hash() -cne $Pin.executable_sha256 -or $zipPin.Hash() -cne $Pin.archive_sha256) { throw 'PIN_INVALID' }
-        $stream = [IO.File]::Open($path, 'Open', 'Read', 'Read')
-        try {
-            $reader = [IO.BinaryReader]::new($stream)
-            if ($reader.ReadUInt16() -ne 0x5a4d) { throw 'PE_INVALID' }
-            $stream.Position = 0x3c; $offset = $reader.ReadUInt32()
-            if ($offset -lt 64 -or $offset -gt ($stream.Length - 26)) { throw 'PE_INVALID' }
-            $stream.Position = $offset
-            if ($reader.ReadUInt32() -ne 0x4550 -or $reader.ReadUInt16() -ne 0x8664) { throw 'PE_INVALID' }
-            $stream.Position = $offset + 24
-            if ($reader.ReadUInt16() -ne 0x20b) { throw 'PE_INVALID' }
-        } finally { $stream.Dispose() }
-        $tool = @{ Exe = $exePin; Archive = $zipPin; Pin = $Pin; Root = $root; BundlePins = @() }
-        $tool.BundlePins = @(Open-K6BundlePins $tool)
-        return $tool
-    } catch {
-        if ($null -ne $exePin) { $exePin.Dispose() }; if ($null -ne $zipPin) { $zipPin.Dispose() }; throw
-    }
-}
-
-function Get-K6BoundedStreamHash($Stream, [long] $Limit) {
-    $sha = [Security.Cryptography.SHA256]::Create()
-    try {
-        $buffer = [byte[]]::new(65536); [long] $total = 0
-        while (($count = $Stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-            $total += $count
-            if ($total -gt $Limit) { throw 'BUNDLE_INVALID' }
-            [void]$sha.TransformBlock($buffer, 0, $count, $buffer, 0)
-        }
-        [void]$sha.TransformFinalBlock([byte[]]::new(0), 0, 0)
-        return @{ Hash = [BitConverter]::ToString($sha.Hash).Replace('-', '').ToLowerInvariant(); Length = $total }
-    } finally { $sha.Dispose() }
-}
-
-function Open-K6BundlePins($Tool) {
-    # Derive the closed extracted set from the already authenticated ZIP. No
-    # extraction, alternate manifest, executable discovery or installation.
-    Add-Type -AssemblyName System.IO.Compression -ErrorAction Stop
-    $pins = [Collections.Generic.List[object]]::new(); $stream = $null; $zip = $null
-    try {
-        $stream = [IO.File]::Open($Tool.Archive.Path, 'Open', 'Read', 'Read')
-        $zip = [IO.Compression.ZipArchive]::new($stream, [IO.Compression.ZipArchiveMode]::Read, $true)
-        if ($zip.Entries.Count -lt 1 -or $zip.Entries.Count -gt 4096) { throw 'BUNDLE_INVALID' }
-        $folder = $Tool.Pin.executable.Split('\')[0]
-        $expectedFiles = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::OrdinalIgnoreCase)
-        $expectedDirs = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-        $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-        [long] $expanded = 0
-        foreach ($entry in $zip.Entries) {
-            $name = $entry.FullName
-            if ($name.Length -gt 200 -or $name.Contains('\') -or $name.Contains('//') -or $name.StartsWith('/') -or $name.Contains(':')) { throw 'BUNDLE_INVALID' }
-            $directory = $name.EndsWith('/'); $parts = $name.TrimEnd('/').Split('/')
-            if ($parts.Length -lt 1 -or $parts[0] -cne $folder) { throw 'BUNDLE_INVALID' }
-            foreach ($part in $parts) {
-                if ($part -cnotmatch '^[A-Za-z0-9_. -]+$' -or $part.EndsWith('.') -or $part.EndsWith(' ') -or
-                    $part -match '^(?i:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)') { throw 'BUNDLE_INVALID' }
-            }
-            $relative = $parts -join '\'
-            if (-not $names.Add($relative)) { throw 'BUNDLE_INVALID' }
-            $kind = ($entry.ExternalAttributes -shr 16) -band 0xF000
-            if ($kind -notin @(0, 0x8000, 0x4000) -or ($entry.ExternalAttributes -band 0x400) -ne 0) { throw 'BUNDLE_INVALID' }
-            if (($directory -and $kind -eq 0x8000) -or (-not $directory -and ($kind -eq 0x4000 -or ($entry.ExternalAttributes -band 0x10) -ne 0))) { throw 'BUNDLE_INVALID' }
-            for ($i = 1; $i -lt $parts.Length; $i++) { [void]$expectedDirs.Add(($parts[0..($i - 1)] -join '\')) }
-            if ($directory) {
-                if ($entry.Length -ne 0) { throw 'BUNDLE_INVALID' }
-                [void]$expectedDirs.Add($relative)
-            } else {
-                if ($parts.Length -lt 2 -or $entry.Length -gt 536870912) { throw 'BUNDLE_INVALID' }
-                $expanded += $entry.Length
-                if ($expanded -gt 2147483648) { throw 'BUNDLE_INVALID' }
-                $expectedFiles.Add($relative, $entry)
-            }
-        }
-        foreach ($name in $expectedFiles.Keys) { if ($expectedDirs.Contains($name)) { throw 'BUNDLE_INVALID' } }
-        if (-not $expectedFiles.ContainsKey($Tool.Pin.executable)) { throw 'BUNDLE_INVALID' }
-        $bundleRoot = Join-Path $Tool.Root $folder
-        $rootPin = [K6Windows.PathLease]::new($bundleRoot, $true, $true); $pins.Add($rootPin)
-        $actualFiles = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::OrdinalIgnoreCase)
-        $actualDirs = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-        [void]$actualDirs.Add($folder)
-        $queue = [Collections.Generic.Queue[string]]::new(); $queue.Enqueue($bundleRoot)
-        while ($queue.Count -gt 0) {
-            foreach ($item in @(Get-ChildItem -LiteralPath $queue.Dequeue() -Force -ErrorAction Stop)) {
-                if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or ($actualDirs.Count + $actualFiles.Count) -ge 4096) { throw 'BUNDLE_INVALID' }
-                $relative = $item.FullName.Substring($Tool.Root.Length + 1)
-                if ($item.PSIsContainer) {
-                    if (-not $expectedDirs.Contains($relative) -or -not $actualDirs.Add($relative)) { throw 'BUNDLE_INVALID' }
-                    $pins.Add([K6Windows.PathLease]::new($item.FullName, $true, $true)); $queue.Enqueue($item.FullName)
-                } else {
-                    if (-not $expectedFiles.ContainsKey($relative) -or $actualFiles.ContainsKey($relative)) { throw 'BUNDLE_INVALID' }
-                    $filePin = if ($relative -ceq $Tool.Pin.executable) { $Tool.Exe } else { [K6Windows.PathLease]::new($item.FullName, $false, $true) }
-                    if ($filePin -ne $Tool.Exe) { $pins.Add($filePin) }
-                    $actualFiles.Add($relative, $filePin)
-                }
-            }
-        }
-        if ($actualFiles.Count -ne $expectedFiles.Count -or $actualDirs.Count -ne $expectedDirs.Count) { throw 'BUNDLE_INVALID' }
-        foreach ($name in $expectedFiles.Keys) {
-            $content = $expectedFiles[$name].Open()
-            try { $expected = Get-K6BoundedStreamHash $content $expectedFiles[$name].Length } finally { $content.Dispose() }
-            if ($expected.Length -ne $expectedFiles[$name].Length -or $actualFiles[$name].Hash() -cne $expected.Hash) { throw 'BUNDLE_INVALID' }
-        }
-        return $pins.ToArray()
-    } catch {
-        foreach ($pin in $pins) { $pin.Dispose() }
-        throw 'BUNDLE_INVALID'
-    } finally {
-        if ($null -ne $zip) { $zip.Dispose() }; if ($null -ne $stream) { $stream.Dispose() }
-    }
+        $reader = [IO.BinaryReader]::new($stream)
+        if ($reader.ReadUInt16() -ne 0x5a4d) { throw 'PE_INVALID' }
+        $stream.Position = 0x3c; $offset = $reader.ReadUInt32()
+        if ($offset -lt 64 -or $offset -gt ($stream.Length - 26)) { throw 'PE_INVALID' }
+        $stream.Position = $offset
+        if ($reader.ReadUInt32() -ne 0x4550 -or $reader.ReadUInt16() -ne 0x8664) { throw 'PE_INVALID' }
+        $stream.Position = $offset + 24
+        if ($reader.ReadUInt16() -ne 0x20b) { throw 'PE_INVALID' }
+    } finally { $stream.Dispose() }
+    return $tool
 }
 
 function Assert-K6PinnedTool($Tool) {
-    if ($null -eq $Tool.BundlePins -or $Tool.BundlePins.Count -lt 1) { throw 'BUNDLE_INVALID' }
-    foreach ($pin in $Tool.BundlePins) { $pin.EnsureCurrent() }
-    if ($Tool.Exe.Hash() -cne $Tool.Pin.executable_sha256 -or $Tool.Archive.Hash() -cne $Tool.Pin.archive_sha256) { throw 'PIN_INVALID' }
-}
-
-function Close-K6PinnedTool($Tool) {
-    if ($Tool.ContainsKey('BundlePins')) { foreach ($pin in $Tool.BundlePins) { $pin.Dispose() } }
-    $Tool.Exe.Dispose(); $Tool.Archive.Dispose()
+    if ([K6Windows.Native]::Hash($Tool.Exe) -cne $Tool.Pin.executable_sha256 -or
+        [K6Windows.Native]::Hash($Tool.Archive) -cne $Tool.Pin.archive_sha256) { throw 'PIN_INVALID' }
 }
 
 function New-K6Environment([string] $Directory, [string] $RunId, [string] $Chrome, [string[]] $Sentinels, $ExpectedBrowserVersion = $null) {
@@ -240,23 +128,28 @@ function New-K6Environment([string] $Directory, [string] $RunId, [string] $Chrom
 }
 
 function Invoke-K6Child($Tool, [string[]] $Arguments, $Environment, [string] $Directory, [string[]] $Sentinels, [int] $TimeoutMs, $State, [string] $Chrome = $null) {
-    # Rehash under the retained identity/name-chain handles at every actual callsite.
+    # Ordinary SHA256 reads immediately before use; no retained file locks.
     Assert-K6PinnedTool $Tool
     $State.Cleanup = $false; $State.Privacy = $false
-    $child = [K6Windows.Child]::new($Tool.Exe.Path, $Arguments, $Environment, $Directory)
+    $child = [K6Windows.Child]::new($Tool.Exe, $Arguments, $Environment, $Directory)
     $State.Executed = $State.Executed + 1
     $leasePath = Join-Path $Directory ('process-' + [Guid]::NewGuid().ToString('N') + '.json')
     try {
         # Persist the live observations before the bounded operation. A lease is
         # evidence, never authority to adopt a PID during recovery.
-        $records = @($child.Identities | ForEach-Object { @{ pid = $_.Pid; created = $_.Created; sid = $_.Sid; image = $_.Image; ended = $false } })
+        $records = @($child.Identities | ForEach-Object { @{ pid = $_.Pid; created = $_.Created; image = $_.Image; ended = $false } })
         [IO.File]::WriteAllText($leasePath, (@{ version = 1; status = 'created-suspended'; observed_utc = [DateTime]::UtcNow.ToString('o'); identities = $records } | ConvertTo-Json -Depth 6 -Compress), [Text.UTF8Encoding]::new($false))
         $r = $child.Finish($TimeoutMs, 3000, $Chrome)
         $State.Cleanup = $r.Cleanup
         # Raw identities stay only in the private run lease; never on stdout.
-        $records = @($r.Identities | ForEach-Object { @{ pid = $_.Pid; created = $_.Created; sid = $_.Sid; image = $_.Image; ended = $_.Ended } })
-        $lease = @{ version = 1; observed_utc = [DateTime]::UtcNow.ToString('o'); identities = $records; total = $r.Total; active = $r.Active; cleanup = $r.Cleanup }
+        $records = @($r.Identities | ForEach-Object { @{ pid = $_.Pid; created = $_.Created; image = $_.Image; ended = $_.Ended } })
+        $lease = @{ version = 1; observed_utc = [DateTime]::UtcNow.ToString('o'); identities = $records; total = $r.Total; active = $r.Active; cleanup = $r.Cleanup; exit = $r.ExitCode; reason = $r.Reason; capture_complete = $r.CaptureComplete; overflow = $r.Overflow }
         [IO.File]::WriteAllText($leasePath, ($lease | ConvertTo-Json -Depth 6 -Compress), [Text.UTF8Encoding]::new($false))
+        # Private bounded diagnostics, never the public projection. Retained only
+        # on failure; native capture has already capped each stream at 64 KiB.
+        foreach ($stream in @('Stdout', 'Stderr')) {
+            [IO.File]::WriteAllText((Join-Path $Directory ('child-' + $State.Executed + '.' + $stream.ToLowerInvariant() + '.log')), $r.$stream, [Text.UTF8Encoding]::new($false))
+        }
         if ($r.Overflow -or $r.Reason -eq 'CAPTURE_INVALID' -or -not $r.CaptureComplete) { throw 'PRIVACY_REFUSED' }
         Assert-K6Privacy $r.Stdout $Sentinels; Assert-K6Privacy $r.Stderr $Sentinels
         $State.Privacy = $true
@@ -274,7 +167,7 @@ function Invoke-K6Child($Tool, [string[]] $Arguments, $Environment, [string] $Di
 }
 
 function Assert-K6BrowserEligibility($Environment, $ExpectedVersion) {
-    # This only admits the already hash/identity-guarded case. It is not a runtime
+    # This only admits the already hash-checked case. It is not a runtime
     # version assertion. The expected value is taken from the reverified lock.
     if ($ExpectedVersion -isnot [string] -or $ExpectedVersion -cne '156.0.8078.73' -or
         $null -eq $Environment -or -not $Environment.ContainsKey('K6_EXPECTED_BROWSER_VERSION') -or
@@ -311,9 +204,8 @@ function Set-K6BrowserEvidence($Projection, $Summary, [string] $RunId, $Child, $
     $Projection.versions.chromium = $ExpectedVersion
     $Projection.browser_version_evidence = 'K6_API_CACHED_GETVERSION_EQUALITY'
     $Projection.tools = 'PASS'
-    # REVIEW R-2: a sampled primary token is not an effective, case-bound
-    # renderer sandbox witness. No positive Chromium verdict is admitted here.
-    $Projection.chromium = 'INCONCLUSIVE'
+    # Functional qualification only. No renderer/token/sandbox attestation.
+    $Projection.chromium = 'PASS'
 }
 
 function Complete-K6WindowsVerdicts($Projection) {
@@ -327,7 +219,7 @@ function Complete-K6WindowsVerdicts($Projection) {
     }
 }
 
-function Remove-K6OwnedTree($Owned) {
+function Remove-K6OwnedTree($Owned, [switch] $KeepDiagnostics) {
     if ($Owned -isnot [K6Windows.OwnedDirectory]) { throw 'CLEANUP_UNPROVEN' }
     $Owned.AssertBound()
     $Path = $Owned.Path
@@ -343,11 +235,13 @@ function Remove-K6OwnedTree($Owned) {
         }
     }
     foreach ($entry in @($entries.ToArray() | Sort-Object { $_.FullName.Length } -Descending)) {
+        if ($KeepDiagnostics -and -not $entry.PSIsContainer -and $entry.DirectoryName -ceq $Path -and
+            $entry.Name -cmatch '^(?:child-[1-9][0-9]*\.(?:stdout|stderr)\.log|process-[a-f0-9]{32}\.json)$') { continue }
         if ($entry.PSIsContainer) { [IO.Directory]::Delete($entry.FullName, $false) } else { [IO.File]::Delete($entry.FullName) }
     }
     # Delete the empty directory through its original creation handle. Never
     # release the name/identity binding and then delete by a reusable pathname.
-    $Owned.DeleteEmpty()
+    if (-not $KeepDiagnostics -or @(Get-ChildItem -LiteralPath $Path -Force).Count -eq 0) { $Owned.DeleteEmpty() }
 }
 
 function Assert-K6Version([string] $Text, [string] $Kind) {

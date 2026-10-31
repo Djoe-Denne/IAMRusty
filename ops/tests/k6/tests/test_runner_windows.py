@@ -1,7 +1,7 @@
 """Known native Windows fixtures only; never execute k6/Chrome or contact IAM.
 
 Every live fixture is Python, with a bounded natural lifetime. No Kill/terminate,
-HTTP fake, privilege/ACL mutation of an existing directory, or runtime startup.
+HTTP fake, permission changes, or runtime startup.
 """
 import hashlib
 import json
@@ -65,14 +65,9 @@ class WindowsTests(unittest.TestCase):
     def setUpClass(cls):
         if not PS.is_file() or not TEMP.is_dir():
             raise RuntimeError("Explicit Windows PowerShell5.1 and approved temp directory required")
-        # The approved generic temp tree has extra sandbox ACL writers on this
-        # host. Do not weaken the production guard or mutate that existing ACL.
-        # A new fixture-only private directory under Local has trusted ancestors.
-        cls.directory = Path(os.environ["LOCALAPPDATA"]) / ("k6-windows-unit-" + uuid.uuid4().hex)
-        create = f"Add-Type -Path {quote(ROOT / 'lib/windows-native.cs')}; [K6Windows.PathLease]::CreatePrivateDirectory({quote(cls.directory)})"
-        p = subprocess.run([str(PS), "-NoProfile", "-NonInteractive", "-Command", create], capture_output=True)
-        if p.returncode:
-            raise RuntimeError("Unable to create new private fixture directory")
+        # Fresh fixture data, ordinary inherited Windows permissions.
+        cls.directory = TEMP / ("k6-windows-unit-" + uuid.uuid4().hex)
+        cls.directory.mkdir()
         cls.audit = cls.directory / "fixture-identities.jsonl"
         cls.fixture_count = 0
 
@@ -198,15 +193,9 @@ class WindowsTests(unittest.TestCase):
             self.rejects(f"Assert-K6Privacy {quote(text)} @('PRIVATE_SENTINEL')")
         self.assertEqual(self.ps("Assert-K6Privacy '{\"checks\":2}' @('PRIVATE_SENTINEL'); 'OK'"), "OK")
 
-    def test_private_paths_no_reuse_ads_relative_or_rename(self):
-        path = self.directory / "private-pinned"
-        code = (f"[K6Windows.PathLease]::CreatePrivateDirectory({quote(path)}); "
-                f"$p=[K6Windows.PathLease]::new({quote(path)},$true,$true); "
-                f"try {{ try {{[IO.Directory]::Move({quote(path)}, {quote(str(path) + '-moved')}); exit 5}} catch {{}} }} finally {{$p.Dispose()}}; "
-                f"try {{[K6Windows.PathLease]::CreatePrivateDirectory({quote(path)}); exit 6}} catch {{}}; 'OK'")
-        self.assertEqual(self.ps(code), "OK")
+    def test_explicit_paths_no_ads_or_relative(self):
         for value in ("relative", r"C:\x\..\y", r"C:\x\file:stream", r"\\server\share\x", "C:\\x.\\file"):
-            self.rejects("[K6Windows.PathLease]::Absolute(" + quote(value) + ")")
+            self.rejects("[K6Windows.Native]::Absolute(" + quote(value) + ")")
 
     def test_private_files_pin_hash_and_pe_before_any_execution(self):
         toolroot = self.directory / "known-tool"
@@ -217,8 +206,12 @@ class WindowsTests(unittest.TestCase):
         with zipfile.ZipFile(archive, "w") as z:
             z.writestr("chrome-win64/chrome.exe", blob)
         pin = lock()["chromium"]; pin["executable_sha256"] = hashlib.sha256(blob).hexdigest(); pin["archive_sha256"] = hashlib.sha256(archive.read_bytes()).hexdigest()
-        expr = f"$t=Open-K6PinnedTool {self.value(pin)} {quote(exe)}; try {{ if($t.Exe.Identity.Length-lt 3){{exit 5}} }} finally {{Close-K6PinnedTool $t}}; 'OK'"
+        expr = f"$t=Open-K6PinnedTool {self.value(pin)} {quote(exe)}; if($t.Exe-cne {quote(exe)}){{exit 5}}; Assert-K6PinnedTool $t; 'OK'"
         self.assertEqual(self.ps(expr), "OK")
+        archive_bytes = archive.read_bytes()
+        archive.write_bytes(b"changed archive")
+        self.rejects(f"Open-K6PinnedTool {self.value(pin)} {quote(exe)}")
+        archive.write_bytes(archive_bytes)
         exe.write_bytes(b"not PE")
         self.rejects(f"Open-K6PinnedTool {self.value(pin)} {quote(exe)}")
         pin["executable_sha256"] = hashlib.sha256(exe.read_bytes()).hexdigest()
@@ -231,7 +224,7 @@ class WindowsTests(unittest.TestCase):
         code = (f"$o=[K6Windows.OwnedDirectory]::Create({quote(source)}); [void](New-Item -ItemType Junction -Path {quote(link)} -Target {quote(target)}); "
                 "try {try {Remove-K6OwnedTree $o;exit 5} catch {if($_.Exception.Message-cne 'CLEANUP_UNPROVEN'){throw}}; "
                 f"if(-not [IO.File]::Exists({quote(target / 'keep.txt')})){{exit 6}}; "
-                f"try {{[K6Windows.PathLease]::new({quote(link)},$true,$true,$o);exit 7}} catch {{if($_.Exception.Message-notmatch 'PATH_INVALID'){{throw}}}}; 'REFUSED' "
+                "'REFUSED' "
                 f"}} finally {{[IO.Directory]::Delete({quote(link)},$false);$o.Dispose()}}")
         self.assertEqual(self.ps(code), "REFUSED")
 
@@ -254,16 +247,16 @@ class WindowsTests(unittest.TestCase):
         ps = (f"$e=New-K6Environment {quote(self.directory)} '{RUN_ID}' 'C:\\known\\chrome.exe' @('PRIVATE_SENTINEL'); "
               f"$c=[K6Windows.Child]::new({quote(sys.executable)},{args},$e,{quote(self.directory)}); "
               "try { "
-              "$created=@($c.Identities|ForEach-Object {@{pid=$_.Pid;created=$_.Created;sid=$_.Sid;image=$_.Image;ended=$_.Ended}}); "
+              "$created=@($c.Identities|ForEach-Object {@{pid=$_.Pid;created=$_.Created;image=$_.Image;ended=$_.Ended}}); "
               f"[IO.File]::AppendAllText({quote(self.audit)},(($created|ConvertTo-Json -Depth 5 -Compress)+[Environment]::NewLine)); " +
               ("$c.Cancel(); " if cancel else "") +
               f"$r=$c.Finish({timeout},{grace},$null); " + extra +
               "$allEnded=$false; $watch=[Diagnostics.Stopwatch]::StartNew(); "
               "do {$allEnded=@($c.Identities|Where-Object {-not $_.Ended}).Count-eq 0; if(-not $allEnded){[Threading.Thread]::Sleep(10)}} while(-not $allEnded-and $watch.ElapsedMilliseconds-lt 3000); "
               "if(-not $allEnded){throw 'FIXTURE_NOT_JOINED'}; "
-              "$ids=@($c.Identities|ForEach-Object {@{pid=$_.Pid;created=$_.Created;sid=$_.Sid;image=$_.Image;ended=$_.Ended}}); "
+              "$ids=@($c.Identities|ForEach-Object {@{pid=$_.Pid;created=$_.Created;image=$_.Image;ended=$_.Ended}}); "
               f"[IO.File]::AppendAllText({quote(self.audit)},(($ids|ConvertTo-Json -Depth 5 -Compress)+[Environment]::NewLine)); "
-              "@{reason=$r.Reason;cleanup=$r.Cleanup;complete=$r.IdentityComplete;capture=$r.CaptureComplete;total=$r.Total;active=$r.Active;exit=$r.ExitCode;overflow=$r.Overflow;stdout=$r.Stdout;stderr=$r.Stderr;sandbox=$r.Sandbox;identities=$ids}|ConvertTo-Json -Depth 5 -Compress "
+              "@{reason=$r.Reason;cleanup=$r.Cleanup;complete=$r.IdentityComplete;capture=$r.CaptureComplete;total=$r.Total;active=$r.Active;exit=$r.ExitCode;overflow=$r.Overflow;stdout=$r.Stdout;stderr=$r.Stderr;identities=$ids}|ConvertTo-Json -Depth 5 -Compress "
               "} finally {$c.Dispose()}")
         result = json.loads(self.ps(ps))
         self.assertEqual(result["reason"], expect, result)
@@ -271,7 +264,6 @@ class WindowsTests(unittest.TestCase):
         for identity in result["identities"]:
             self.assertTrue(identity["ended"])
             self.assertGreater(identity["created"], 0)
-            self.assertTrue(identity["sid"].startswith("S-1-5-"))
             self.assertEqual(Path(identity["image"]).resolve(), Path(sys.executable).resolve())
         return result
 
@@ -288,7 +280,6 @@ class WindowsTests(unittest.TestCase):
                 "time.sleep(.15);p.wait()")
         r = self.fixture(code)
         self.assertEqual(r["total"], 2); self.assertEqual(len(r["identities"]), 2); self.assertTrue(r["cleanup"])
-        self.assertFalse(r["sandbox"])
 
     def test_native_timeout_and_interruption_join_without_force(self):
         r = self.fixture("import time;time.sleep(.4)", timeout=40, expect="TIMEOUT")
@@ -311,7 +302,7 @@ class WindowsTests(unittest.TestCase):
                 "$id=$c.Identities[0]; $f=$id.GetType().GetField('Handle',[Reflection.BindingFlags]'NonPublic,Instance'); $handle=$f.GetValue($id); "
                 "try {$f.SetValue($id,[IntPtr]::Zero);$r=$c.Finish(1000,1000,$null);if($r.Cleanup){exit 5};'NOT_GREEN'} "
                 "finally {$f.SetValue($id,$handle); "
-                "$record=@{pid=$id.Pid;created=$id.Created;sid=$id.Sid;image=$id.Image;ended=$id.Ended}; "
+                "$record=@{pid=$id.Pid;created=$id.Created;image=$id.Image;ended=$id.Ended}; "
                 f"[IO.File]::AppendAllText({quote(self.audit)},(($record|ConvertTo-Json -Compress)+[Environment]::NewLine)); $c.Dispose()}}")
         self.assertEqual(self.ps(code), "NOT_GREEN")
 
@@ -319,23 +310,24 @@ class WindowsTests(unittest.TestCase):
         # Dispose while no process exists is not a fake success or adoption.
         self.rejects(f"[K6Windows.Child]::new({quote(self.directory / 'missing.exe')},@(),[Collections.Generic.Dictionary[string,string]]::new(),{quote(self.directory)})")
 
-    def test_native_overflow_sticky_capture_and_no_sandbox_by_job(self):
+    def test_native_overflow_sticky_capture(self):
         r = self.fixture("import sys,time;sys.stdout.write('A'*70000);sys.stdout.flush();time.sleep(.2)", expect="OUTPUT_LIMIT")
-        self.assertTrue(r["overflow"]); self.assertLessEqual(len(r["stdout"]), 65536); self.assertFalse(r["sandbox"])
+        self.assertTrue(r["overflow"]); self.assertLessEqual(len(r["stdout"]), 65536)
 
     def test_real_invoke_callsite_privacy_withholds_sentinel_and_still_joins(self):
         # Known Python fixture passed through the *actual* Invoke-K6Child boundary.
         # This private helper is not exposed as CLI command/executable/argv override.
         archive = self.directory / "known-child.zip"; archive.write_bytes(b"known")
-        code = (f"$ep=[K6Windows.PathLease]::new({quote(sys.executable)},$false,$false); "
-                f"$ap=[K6Windows.PathLease]::new({quote(archive)},$false,$true); "
-                "$t=@{Exe=$ep;Archive=$ap;BundlePins=@($ep);Pin=@{executable_sha256=$ep.Hash();archive_sha256=$ap.Hash()}}; "
+        code = (f"$ep={quote(sys.executable)}; $ap={quote(archive)}; "
+                "$t=@{Exe=$ep;Archive=$ap;Pin=@{executable_sha256=[K6Windows.Native]::Hash($ep);archive_sha256=[K6Windows.Native]::Hash($ap)}}; "
                 f"$e=New-K6Environment {quote(self.directory)} '{RUN_ID}' 'C:\\known\\chrome.exe' @('PRIVATE_SENTINEL'); "
                 "$state=@{Cleanup=$true;Privacy=$true;Executed=0}; try { try { "
                 f"Invoke-K6Child $t @('-B','-c',\"import time;print('PRIVATE_SENTINEL');time.sleep(.15)\") $e {quote(self.directory)} @('PRIVATE_SENTINEL') 3000 $state; exit 5 "
                 "} catch {if($_.Exception.Message-notmatch 'PRIVACY_REFUSED'){throw}}; "
-                "if(-not $state.Cleanup-or $state.Privacy){exit 6}; 'WITHHELD_AND_JOINED' "
-                "} finally {$ep.Dispose();$ap.Dispose()}")
+                "if(-not $state.Cleanup-or $state.Privacy){exit 6}; "
+                f"$log=Join-Path {quote(self.directory)} 'child-1.stdout.log'; "
+                "if([IO.FileInfo]::new($log).Length-gt 65536-or [IO.File]::ReadAllText($log).Trim()-cne 'PRIVATE_SENTINEL'){exit 7}; 'WITHHELD_AND_JOINED' "
+                "} finally {}")
         self.assertEqual(self.ps(code), "WITHHELD_AND_JOINED")
 
     def test_target_all_modes_fail_closed_no_http(self):
