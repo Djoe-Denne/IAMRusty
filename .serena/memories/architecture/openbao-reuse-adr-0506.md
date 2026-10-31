@@ -1,0 +1,8 @@
+# OpenBao / RustyCog — ADR-0506
+
+- Canon : `docs/adr/0506-mutualisation-openbao-conditionnee-aux-usages.md` ; Statut **Proposed**, Réalité **Unimplemented** pour l’extension éventuelle (2026-10-31), aucune supersession ; voir le fichier ADR. Opportunité conditionnelle en veille, pas engagement d’implémentation ni nouveau statut.
+- Baseline : audit publié `docs/missions/20261031-openbao-lazaret-iam-reuse-audit.md`, AIForAll `2d00e5a`, SDK `93b890f`. KV 0505 déjà livré distinct, ADR0505 et contrat actuel inchangés.
+- GitHubConnect KV boot / Lazaret KV à la demande autorisée, délégation à évaluer / IAM Transit distinct : seul consommateur indépendant démontré ici, garder local aujourd’hui. Transport et credentials sont des candidats à comparer, pas des modules décidés.
+- Réouverture seulement sur faits nouveaux concrets ; exiger ensemble récurrence indépendante suffisante, besoins sémantiques proches et abstraction significative à gain net sur maintenance. Même fournisseur, déplacement HTTP, plusieurs clés/versions/orgs d’un service ou backend hypothétique ne suffisent pas.
+- Prochain agent compare aux faits du jour et recommande explicitement conserver local / adapter l’usage au SDK existant / proposer une extension. Aucun port fourre-tout KV/Transit ; port fournisseur-agnostique seulement si justifié, multi-backend non imposé.
+- Aucun contrat/API, code, migration, calendrier, daemon/rappel ou promotion sur compteur ; toute extension réelle exige un lot autorisé et décision ciblée. Accord humain requis pour Accepted ; audit statique, tests lus non exécutés, pas de preuve de migration.

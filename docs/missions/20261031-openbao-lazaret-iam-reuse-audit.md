@@ -274,6 +274,10 @@ Sources tests : [T6](../../services/Lazaret/tests/apparatus_p3_t6_kv.rs#L108),
 
 ## Sources externes et limites
 
+Cette possibilité et ses conditions de réévaluation sont désormais conservées
+dans l’[ADR0506](../adr/0506-mutualisation-openbao-conditionnee-aux-usages.md),
+**Proposed / Unimplemented** : ni extension SDK ni migration engagée.
+
 Documentation primaire consultée le31octobre2026, affichée version2.7.x :
 [JWT login](https://openbao.org/docs/api/auth/jwt/#jwt-login) et
 [Transit](https://openbao.org/docs/api/secret/transit/#sign-data).
