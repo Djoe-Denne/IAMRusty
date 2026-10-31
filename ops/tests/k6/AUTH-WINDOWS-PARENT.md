@@ -30,6 +30,13 @@ The auth inspector accepts exactly `90s` or `1m30s`, not a wider duration range;
 no generic duration parser or scenario modification was added. This is source
 verification, not an executed k6 inspection.
 
+k6v2.3.0 `inspect` uses `runtimeOptionFlagSet(false)` and does not inherit system
+environment into `__ENV`. SAN module initialization therefore receives only its
+closed nonsecret phase explicitly via `--env K6_AUTH_SAN_PHASE=good|bad|restored`.
+No `--include-system-env-vars` or broader environment forwarding is enabled.
+Source: [inspect](https://github.com/grafana/k6/blob/v2.3.0/internal/cmd/inspect.go),
+[runtime env flag/merge](https://github.com/grafana/k6/blob/v2.3.0/internal/cmd/runtime_options.go).
+
 ## Private Config v1
 
 Exact root fields (unknown fields rejected):
@@ -94,6 +101,12 @@ the historical metadata/mount/config-binding proof level, not a config_dump proo
    fail_verify_error+0.503 alone never passes.
 5. In finally restore frozen original bytes, guarded rollout/ACK, k6 restored303
    and same-epoch counters/positive handshake recovery. Failure blocks cleanup.
+   Before the repair PATCH, restore checks the live target/ownership, IAM
+   Deployment UID and Secret UID/expected bytes, **not** IAM/provider/Envoy Pod
+   readiness. The parent still requires the previous operation's proven join.
+   Readiness and stable binding are checked after repair/rollout; actual patch
+   and rollout ACKs are persisted before subsequent health checks. An unavailable
+   pre-repair Pod UID is recorded as null, never inferred from an old journal.
 6. Separate OAuth baseline. Start the existing owned provider forward, read
    provider observations with matching run_id, run the real Chromium scenario,
    read observations again, **close/join forward before Admin snapshot**.
@@ -132,7 +145,9 @@ Directories must be distinct/fresh and outside Git. The actual constructed k6 ar
 
 - `version`;
 - `inspect <run>\scenarios\auth\oauth-browser.js`;
-- `inspect <run>\scenarios\auth\envoy-san.js`, separately with phase good/bad/restored;
+- `inspect --env K6_AUTH_SAN_PHASE=good <run>\scenarios\auth\envoy-san.js`;
+- `inspect --env K6_AUTH_SAN_PHASE=bad <run>\scenarios\auth\envoy-san.js`;
+- `inspect --env K6_AUTH_SAN_PHASE=restored <run>\scenarios\auth\envoy-san.js`;
 - `run --quiet --address 127.0.0.1:0 --system-tags name,check,scenario,group
   <run>\scenarios\auth\envoy-san.js`, each guarded phase;
 - the same run flags with `<run>\scenarios\auth\oauth-browser.js` once.

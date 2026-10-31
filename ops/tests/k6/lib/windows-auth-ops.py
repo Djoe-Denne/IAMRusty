@@ -229,8 +229,19 @@ class Operations:
         write_json(self.directory / ("auth-provider-" + phase + ".json"), value)
 
     def certificate(self, restore):
-        binding = self.stable_binding()
-        prior_pod, _, _ = self.pod("iam")
+        if restore:
+            # Repair follows a joined operation under the parent's lock. A failed
+            # rollout must not make Pod readiness a prerequisite of the repair.
+            binding = read_json(self.directory / "auth-binding.json")
+            self.owned("Secret", "platform-mesh-certs", binding["mesh_secret_uid"])
+            deployment = self.get("deployment", "iam")
+            self.owned("Deployment", "iam", deployment["metadata"]["uid"])
+            require(deployment["metadata"]["uid"] == binding["iam_deployment_uid"])
+            prior_pod_uid = None  # Not a live observation; never infer one from a journal.
+        else:
+            binding = self.stable_binding()
+            prior_pod, _, _ = self.pod("iam")
+            prior_pod_uid = prior_pod["metadata"]["uid"]
         material = read_json(self.directory / "auth-cert-material.json")
         good, bad = material["good"], material["bad"]
         expected, replacement = (bad, good) if restore else (good, bad)
@@ -241,7 +252,7 @@ class Operations:
         os.close(descriptor)
         path = Path(filename)
         phase = "restored" if restore else "bad"
-        acknowledgements = dict(patch=False, rollout=False, before_pod_uid=prior_pod["metadata"]["uid"], pods=[])
+        acknowledgements = dict(patch=False, rollout=False, before_pod_uid=prior_pod_uid, pods=[])
         try:
             path.chmod(0o400)
             require(self.private_file(path))  # Empty file checked before credential write.
@@ -267,11 +278,14 @@ class Operations:
             change.append({"op": "add", "path": "/spec/template/metadata/annotations/" + key.replace("/", "~1"), "value": value})
         self.cli("kubectl", ["patch", "deployment/iam", "-n", NS, "--type=json", "-p", json.dumps(change)])
         self.cli("kubectl", ["rollout", "status", "deployment/iam", "-n", NS, "--timeout=240s"])
-        pod, _, _ = self.pod("iam")
-        require(pod["metadata"]["uid"] != prior_pod["metadata"]["uid"])
-        acknowledgements.update(rollout=True, pods=[pod["metadata"]["uid"]])
-        self.stable_binding()
+        acknowledgements["rollout"] = True  # Actual successful rollout command, not a metadata read.
         write_json(self.directory / ("auth-ack-" + phase + ".json"), acknowledgements)
+        pod, _, _ = self.pod("iam")
+        if prior_pod_uid is not None:
+            require(pod["metadata"]["uid"] != prior_pod_uid)
+        acknowledgements["pods"] = [pod["metadata"]["uid"]]
+        write_json(self.directory / ("auth-ack-" + phase + ".json"), acknowledgements)
+        self.stable_binding()
 
 
 def main():

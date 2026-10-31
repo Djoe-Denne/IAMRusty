@@ -79,7 +79,13 @@ try {
         foreach ($case in @('auth-oauth-browser', 'auth-envoy-san-good', 'auth-envoy-san-bad', 'auth-envoy-san-restored')) {
             $authEnvironment = New-K6AuthEnvironment $Output $runId $chrome.Exe $sentinels $chrome.Pin.version $case
             $file = if ($case -ceq 'auth-oauth-browser') { 'oauth-browser.js' } else { 'envoy-san.js' }
-            $r = Invoke-K6Child $k6 @('inspect', (Join-Path $Output ('scenarios\auth\' + $file))) $authEnvironment $Output $sentinels 10000 $state
+            $expected = Get-K6AuthExpectation $case
+            $inspectArguments = @('inspect')
+            # inspect excludes system env by default. Forward only the closed,
+            # nonsecret phase needed by the SAN module's initialization.
+            if ($null -ne $expected.SanPhase) { $inspectArguments += @('--env', ('K6_AUTH_SAN_PHASE=' + $expected.SanPhase)) }
+            $inspectArguments += (Join-Path $Output ('scenarios\auth\' + $file))
+            $r = Invoke-K6Child $k6 $inspectArguments $authEnvironment $Output $sentinels 10000 $state
             if ($r.ExitCode -ne 0) { throw 'OPTIONS_INVALID' }
             Assert-K6AuthInspect (ConvertFrom-K6Json $r.Stdout) $case
         }
