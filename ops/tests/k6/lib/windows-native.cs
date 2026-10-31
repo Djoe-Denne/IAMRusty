@@ -181,7 +181,7 @@ namespace K6Windows {
         public ProcessIdentity[] Identities;
     }
 
-    // One owner, one job, synchronous bounded capture. Closing this job never kills.
+    // One owner, one job, one bounded capture loop. Closing this job never kills.
     public sealed class Child : IDisposable {
         IntPtr job, root, thread, stdout, stderr;
         uint pid; readonly List<ProcessIdentity> identities=new List<ProcessIdentity>();
@@ -284,8 +284,13 @@ namespace K6Windows {
             }
             return false;
         }
+        // Auth keeps the existing owned OAuth-forward alive while k6 runs. The
+        // same Finish loop/job owns it; no PID recovery or second supervisor.
+        public System.Threading.Tasks.Task<ChildResult> FinishAsync(int timeoutMs,int graceMs,string chrome) {
+            return System.Threading.Tasks.Task.Factory.StartNew(()=>Finish(timeoutMs,graceMs,chrome));
+        }
         public ChildResult Finish(int timeoutMs,int graceMs,string chrome) {
-            if(timeoutMs<1 || timeoutMs>60000 || graceMs<1 || graceMs>10000) throw new InvalidOperationException("INPUT_INVALID");
+            if(timeoutMs<1 || timeoutMs>600000 || graceMs<1 || graceMs>30000) throw new InvalidOperationException("INPUT_INVALID");
             Stopwatch clock=Stopwatch.StartNew(); long stopAt=-1; bool signalled=false, outEnd=false,errEnd=false;
             using(MemoryStream output=new MemoryStream()) using(MemoryStream error=new MemoryStream()) {
                 try {
