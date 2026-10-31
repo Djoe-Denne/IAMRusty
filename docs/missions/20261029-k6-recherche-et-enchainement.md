@@ -1,5 +1,24 @@
 # k6 — recherche et trois ordres de mission
 
+## Priorité actuelle — 31 octobre 2026
+
+Le socle minimal k6/Chrome **Windows** de mission1 est livré et vérifié ; cela ne
+qualifie pas HTTP, OAuth ou Linux. La mission2 se concentre maintenant sur le
+portage des parcours d'authentification **sous Windows natif**. Le rattrapage Linux
+fera l'objet d'une mission ultérieure, sans bloquer l'acceptation du portage Windows.
+La mission3 consacrée aux droits Linux reste différée et conserve ses prérequis.
+Les contrats seront adaptés avant leurs consommateurs ; aucun statut canonique
+n'est changé par cet ordre de priorité documentaire.
+
+1. [Socle et smoke simple](20261029-k6-01-socle-smoke.md) — cas minimal Windows PASS,
+   HTTP et Linux non qualifiés.
+2. [Portage de la campagne authentification](20261029-k6-02-portage-authentification.md)
+   — Windows en priorité, parité avec les parcours manuels ; préparation seulement.
+3. Rattrapage Linux ultérieur, puis [propagation et reprise des droits sous Linux](20261029-k6-03-droits-linux.md)
+   selon leurs prérequis et leur admission propres, pas automatiquement après un PASS Windows.
+
+## Préparation initiale du 29 octobre — historique
+
 Préparation documentaire demandée le2026-10-29. Base Git observée :
 `0c9d4c9925006ee5ca5130e3238e508807a2f30a`. Revalider HEAD/diff au lancement.
 Aucun k6/Chromium installé, test lancé, runtime démarré ou code applicatif modifié.
@@ -47,8 +66,10 @@ Une batterie k6 n'est pas automatiquement E2E parce qu'elle enchaîne des HTTP.
 La preuve indique les vrais services traversés, les mocks/simulations et les
 observations métier. OAuth navigateur reste Chromium ; droits effectifs restent
 services/événements/OpenFGA réels. Les contrôles privilégiés restent au parent.
-Les tests Rust natifs Windows conservent leur stratégie ; les campagnes E2E et
-leurs services sont Linux. Pas de chantier de compilation de toute la suite Manifesto.
+Les tests Rust natifs Windows conservent leur stratégie. La cible Linux des
+campagnes E2E était l'objectif de cette recherche initiale ; la priorité Windows
+actuelle et le rattrapage Linux différé sont explicités en tête du document.
+Pas de chantier de compilation de toute la suite Manifesto.
 
 La décision utilisateur de dette HSM acceptée est reprise dans le contrat : pas
 bloquante pour ces missions, pas oubliée, pas équivalente à un HSM qualifié.

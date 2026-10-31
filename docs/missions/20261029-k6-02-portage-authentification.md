@@ -1,13 +1,42 @@
-# Ordre de mission2 — Porter la campagne authentification vers k6 sans perdre ses oracles
+# Ordre de mission2 — Porter la campagne authentification vers k6, Windows en priorité
 
-**Préparation seulement. Dépend de mission1 intégrée et vérifiée.** Résultat : une
-campagne reproductible k6 sur services Linux, dont les garanties correspondent
-à la campagne close, pas simplement une traduction des GET/POST.
+**Préparation seulement. Dépend du socle Windows de mission1 intégré et vérifié.**
+Résultat : une campagne reproductible pilotée nativement sous Windows, dont les
+garanties correspondent à la campagne close, pas simplement une traduction des
+GET/POST. Le PASS du cas minimal about:blank/42 ne qualifie ni HTTP ni OAuth.
+
+## Priorité Windows et rattrapage Linux — décision du 2026-10-31
+
+Pour le moment, le travail se concentre sur **Windows natif** : k6, Chrome for
+Testing, lanceur et contrôles parent nécessaires à la campagne d'authentification.
+La première livraison attendue est la parité fonctionnelle Windows avec les
+parcours manuels déjà qualifiés. Aucun PASS Linux n'est requis pour accepter
+cette livraison Windows ; les oracles d'authentification restent inchangés.
+
+Le **rattrapage Linux est différé à une mission ultérieure**. Il réutilisera les
+scénarios JavaScript et les oracles livrés, avec les adaptations de plateforme,
+versions, réseau, supervision et cleanup à qualifier sur Linux. Ne pas maintenir
+deux implémentations métier divergentes ni commencer cette qualification sous
+couvert de fermer le portage Windows. WSL, le navigateur Linux et les jobs Linux
+suspendus ne sont pas réactivés implicitement.
+
+La cible des services doit néanmoins être existante, autorisée, observée et
+joignable depuis Windows avant les appels réels. L'OS d'une cible de services
+existante ne constitue pas une qualification du runner Linux. Une cible manquante
+reste un prérequis manquant, pas une permission de créer un endpoint factice,
+déployer un nouveau laboratoire, ajouter un tunnel ou réduire les oracles.
 
 ## Ancrage et contrat
 
 Lire [mission1](20261029-k6-01-socle-smoke.md), [0504](../adr/0504-validation-fonctionnelle-linux-k6.md)
-et [contrat k6](../contracts/k6-functional-linux.md), acceptés avant consommation.
+et [contrat k6 Linux](../contracts/k6-functional-linux.md), ainsi que le
+[raccord Windows](../contracts/k6-windows-functional.md), sa
+[preuve de version navigateur](../contracts/k6-windows-browser-version.md) et le
+[guide du pipeline Windows](../../ops/tests/k6/WINDOWS.md).
+Les contrats Windows actuels couvrent le socle mission1, pas encore le portage
+OAuth de mission2. Avant le code consommateur, architecte adapte le contrat aux
+parcours et à la cible Windows retenus ; la priorité utilisateur ci-dessus ne
+ratifie pas implicitement une nouvelle autorité HTTP ou une qualification Linux.
 Références factuelles : [état auth qualifié](../contracts/20261029-auth-security-qualified-state.md),
 ADR0412 Accepted/Implemented localement, contrats exact-route et autorité8080/18080,
 remote-signer-secure-transport et0314. Sources historiques : image/navigateur7b8c1f95,
@@ -32,6 +61,7 @@ de portage est déclarée ; pas « campagne portée » si un oracle obligatoire 
 ## Implémentation attendue
 
 - `ops/tests/k6/scenarios/auth/` et helpers ciblés du socle. Chromium réel,
+  k6 et Chrome lancés nativement sous Windows via le raccord existant à étendre,
   contexte vierge, compte de campagne isolé, vrais servicesIAM/Envoy/GitLabConnect
   et IdP synthétique existant. Aucun nouveau frontend. Pas de Buffer Node copié
   tel quel ; adapter aux API k6 épinglées, sans parser un JWT comme preuve de trust.
@@ -68,10 +98,14 @@ change, appliquer les gates0412 plutôt que rejouer toutes les suites par princi
 
 Préparation/config/start distincts de l'ancienne mission ; QA proportionate avec
 plan de parité et commandes exactes avant run. Windows natif/unCargo24jobs/E:
-pour les IT sélectionnées ; services/k6/Chromium Linux pour E2E. Kind uniquement
-dans la cible autorisée avec baux après IT requises ; pas nouveau cluster implicite.
+pour les IT sélectionnées ; k6, Chromium et parent de campagne natifs Windows.
+Réutiliser une cible de services autorisée avec ses baux après les IT requises ;
+aucun nouveau cluster, déploiement ou démarrage Kind/WSL implicite. L'éventuel
+rattrapage Linux reste séparé et ne bloque pas la qualification Windows.
 Cleanup parent même si setupk6 échoue ; restauration certificat, fermetureChromium,
 inventaire final et zéroressourcepossédéeactive sansbail. Pas traces/HAR/rawURL.
-Livrables intégrés avant mission3 ; ledger `.cursor/handoffs/20261029-k6-02-auth.md`,
+Livrables Windows intégrés avant la suite. La mission3 Linux reste différée avec
+ses prérequis Linux propres ; elle n'est pas démarrée pour clôturer mission2.
+Ledger `.cursor/handoffs/20261029-k6-02-auth.md`,
 résultats exacts, SHA/versions/cible et limites. Un défaut produit révèle un ROUGE
 à remonter : pas correction silencieuse ni assouplissement dans l'auteur de tests.
