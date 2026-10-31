@@ -172,9 +172,13 @@ class WindowsTests(unittest.TestCase):
         self.ps("$v=Read-K6WindowsLock " + quote(path) + "; if($v.platform-cne 'windows-amd64'){exit 5}; 'OK'")
 
     def test_version_no_149_or_other_platform_or_multiline(self):
+        self.ps("Assert-K6Version 'k6.exe v2.3.0 (commit/e088784614, go1.26.8, windows/amd64)' 'k6'; 'OK'")
         self.ps("Assert-K6Version 'k6 v2.3.0 (commit/abcdef, go1.26.1, windows/amd64)' 'k6'; Assert-K6Version 'Google Chrome for Testing 156.0.8078.73' 'chromium'; 'OK'")
         for value, kind in [("k6 v2.3.0 (commit/abcdef, go1.26.1, linux/amd64)", "k6"),
                             ("k6 v2.3.1 (commit/abcdef, go1.26.1, windows/amd64)", "k6"),
+                            ("k6Xexe v2.3.0 (commit/e088784614, go1.26.8, windows/amd64)", "k6"),
+                            ("k6.exe v2.3.1 (commit/e088784614, go1.26.8, windows/amd64)", "k6"),
+                            ("k6.exe v2.3.0 (commit/e088784614, go1.26.8, linux/amd64)", "k6"),
                             ("Google Chrome 149.0.7827.53", "chromium"),
                             ("Google Chrome for Testing 156.0.8078.73\nEXTRA", "chromium")]:
             self.rejects(f"Assert-K6Version {quote(value)} '{kind}'")

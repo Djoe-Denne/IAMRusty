@@ -247,7 +247,7 @@ function Remove-K6OwnedTree($Owned, [switch] $KeepDiagnostics) {
 function Assert-K6Version([string] $Text, [string] $Kind) {
     $value = $Text.Trim()
     if ($Kind -ceq 'k6') {
-        if ($value -cnotmatch '^k6 v2\.3\.0 \(commit/[a-f0-9]+, go[0-9.]+, windows/amd64\)$') { throw 'VERSION_INVALID' }
+        if ($value -cnotmatch '^k6(?:\.exe)? v2\.3\.0 \(commit/[a-f0-9]+, go[0-9.]+, windows/amd64\)$') { throw 'VERSION_INVALID' }
     } elseif ($Kind -ceq 'chromium') {
         if ($value -cnotmatch '^Google Chrome for Testing 156\.0\.8078\.73$') { throw 'VERSION_INVALID' }
     } else { throw 'VERSION_INVALID' }

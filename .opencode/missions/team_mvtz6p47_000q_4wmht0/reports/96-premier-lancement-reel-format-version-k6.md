@@ -45,3 +45,13 @@ Candidat `result_mvw6lbki_0000_4m8tgj`, patch103873octets / SHA256
 Base `a5a71fe` + delta source intégré. Preuve privée :
 `.tmp/k6-browser-r3-20261031-lease.json` et diagnostics associés, exclus de publication.
 Brief de correction : `.cursor/review-briefings/20261031-k6-windows-version-prefix-fix.md`.
+
+La simplification et ce diagnostic sont committés dans `7e3415f`, avec hook normal
+de formatage et contrôle du diff réussis. Le même auteur est repris sur la seule
+correction du préfixe. Les quatre inventaires privés des deux suites de l'auteur
+ont été recoupés :22identités sur22observées terminées et quatre répertoires de
+fixtures absents. Les journaux bruts ne sont pas publiés.
+
+Préparation indépendante de la publication : le workflow porte bien le nom
+SUSPENDED et les deux jobs ont leur condition littérale fausse. La référence distante
+master reste `ca0c994fa72203f38270f229125b73acb818461a`, relue sans push ni dispatch.
