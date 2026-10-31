@@ -1,6 +1,10 @@
 # Version effective Chromium Windows via l'API normale k6
 
-- Statut : **Accepted** ; Réalité : **Unimplemented**, aucune exécution ici.
+- Statut : **Accepted** ; Réalité : **Implemented et vérifiée le 2026-10-31** :
+  check API obligatoire dans le même cas Windows, version156.0.8078.73 égale au pin,
+  cleanup/confidentialitéPASS. [Preuve du cas minimal](../../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/99-cas-minimal-windows-verifie.md).
+  Chrome `--version` reste NOT_EXECUTED/INCONCLUSIVE ; aucune qualification Linux
+  ou attestation du sandbox n'est déduite de ce résultat fonctionnel.
 - Date : 2026-10-30 ; mission1, Windows seulement ; lié au
   [contrat Windows Accepted](k6-windows-functional.md), ratifié dans2cc7ae6.
 - Entrées : briefing `20261030-k6-windows-version-strategy.md`, révision2 approuvée

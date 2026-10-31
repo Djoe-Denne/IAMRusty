@@ -1,5 +1,16 @@
 # Implementation record
 
+## Windows lead verification — 2026-10-31
+
+The simplified native about:blank/42 case now passes with k6 2.3.0 and same-case
+Chrome API equality156.0.8078.73. Parent exit0; tools/browser/cleanup/privacy PASS;
+fresh output removed and k6/Chrome inventories0→0. Final root suite:34tests,
+exit0, zero skips,42.651s;11fixture identities observed ended and two directories
+retired. Evidence and remaining HTTP/WSL/Linux limits are in mission report99.
+Real failures corrected only the Windows version prefix, missing group reporting
+tag and strict empty-field error label. No shared JS, HTTP, pins, workflow, native
+sandbox or additional protection changed. The earlier candidate record follows.
+
 ## Windows revision3 — simplified candidate, 2026-10-31
 
 The Accepted revision3 amendment supersedes the historical Windows ACL, bundle-lock

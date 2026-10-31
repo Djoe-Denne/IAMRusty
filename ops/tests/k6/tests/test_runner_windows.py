@@ -121,6 +121,16 @@ class WindowsTests(unittest.TestCase):
         for kind in ("HTTP", "Chromium"):
             self.ps(f"Assert-K6Summary {self.value(summary(kind))} '{RUN_ID}' '{kind}' 0; 'OK'")
 
+    def test_empty_check_fields_schema_label_and_nominal_summary(self):
+        empty_checks = summary(); empty_checks["checks"] = {}
+        code = ("try {Assert-K6Fields (ConvertFrom-K6Json '{}') @('browser-evaluation'); exit 5} "
+                "catch {if($_.Exception.Message-cne 'SCHEMA_INVALID'){throw}}; "
+                f"try {{Assert-K6Summary {self.value(empty_checks)} '{RUN_ID}' 'Chromium' 0; exit 6}} "
+                "catch {if($_.Exception.Message-cne 'SCHEMA_INVALID'){throw}}; "
+                f"Assert-K6Summary {self.value(summary())} '{RUN_ID}' 'Chromium' 0; 'SCHEMA_AND_NOMINAL_OK'")
+        self.assertEqual(self.ps(code), "SCHEMA_AND_NOMINAL_OK")
+        self.assertIn("'--system-tags', 'name,check,scenario,group'", (ROOT / "run-windows.ps1").read_text(encoding="utf-8"))
+
     def test_summary_nonvacant_exact_and_current(self):
         cases = []
         for name in ("expected", "started", "completed", "iterations", "requests"):

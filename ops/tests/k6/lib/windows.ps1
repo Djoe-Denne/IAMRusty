@@ -17,7 +17,7 @@ function ConvertFrom-K6Json([string] $Text) {
 
 function Assert-K6Fields($Value, [string[]] $Names) {
     if ($null -eq $Value -or $Value -isnot [pscustomobject]) { throw 'SCHEMA_INVALID' }
-    $actual = @($Value.PSObject.Properties.Name | Sort-Object)
+    $actual = @($Value.PSObject.Properties | ForEach-Object { $_.Name } | Sort-Object)
     $expected = @($Names | Sort-Object)
     if (($actual -join '|') -cne ($expected -join '|')) { throw 'SCHEMA_INVALID' }
 }

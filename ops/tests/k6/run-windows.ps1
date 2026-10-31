@@ -71,7 +71,7 @@ try {
         Assert-K6PinnedTool $chrome
         $summary = Join-Path $Output 'summary.json'
         if (Test-Path -LiteralPath $summary) { throw 'SUMMARY_INVALID' }
-        $r = Invoke-K6Child $k6 @('run', '--quiet', '--address', '127.0.0.1:0', (Join-Path $Output 'scenarios\smoke\browser-prerequisite.js')) $environment $Output $sentinels 30000 $state $chrome.Exe
+        $r = Invoke-K6Child $k6 @('run', '--quiet', '--address', '127.0.0.1:0', '--system-tags', 'name,check,scenario,group', (Join-Path $Output 'scenarios\smoke\browser-prerequisite.js')) $environment $Output $sentinels 30000 $state $chrome.Exe
         $value = Read-K6PrivateJson $summary $outputPin
         Assert-K6BrowserEligibility $environment $chrome.Pin.version
         Set-K6BrowserEvidence $result $value $runId $r $state $chrome.Pin.version

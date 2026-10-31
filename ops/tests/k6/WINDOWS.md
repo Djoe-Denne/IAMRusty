@@ -1,4 +1,25 @@
-# Native Windows adapter — functional qualification pending
+# Native Windows adapter — minimal browser verified
+
+## Verified state — 2026-10-31
+
+The lead executed the native browser entrypoint successfully: exit0, tools PASS,
+Chromium functional PASS, cleanup PASS and confidentiality PASS. k6 reported2.3.0;
+the mandatory same-case API check established Chrome156.0.8078.73 equality. The
+single about:blank case validated42 and all three named checks. The fresh run
+directory was removed; independent k6/Chrome inventories were0 before and after.
+This is not a performance measurement, sandbox attestation or Linux qualification.
+
+Final integrated verification: **34 Windows tests, exit0, zero skips,42.651s**;
+11fixture identities observed ended and both fresh fixture directories absent.
+The real run exposed and fixed the `k6.exe` version prefix and the missing `group`
+system tag. Only the fixed Windows browser command adds that standard tag; shared
+JavaScript, HTTP and summary.js remain unchanged. k6v2.3.0
+[GroupSummary](https://github.com/grafana/k6/blob/v2.3.0/lib/test_state.go#L137-L143)
+otherwise omits individual checks from the legacy summary.
+
+HTTP/selftests remain INCONCLUSIVE without an admitted existing target. WSL remains
+suspended and Linux unqualified. Sources/publication and old worktree disposition
+are tracked separately from the functional result in the mission reports.
 
 Contract: [Accepted Windows mission1, revision3 amendment](../../../docs/contracts/k6-windows-functional.md#amendement-révision3--simplification-windows).
 The amendment supersedes the old ACL, executable/DLL locks and renderer-attestation
@@ -98,6 +119,11 @@ other run data are removed. Success removes the entire directory. Failure retain
 only these top-level diagnostic filenames; cleanup PASS then means process/profile
 retirement, not removal of the deliberately retained diagnostics. If process cleanup
 is unproven, all data is preserved. No logs/journals are publication artifacts.
+
+Observed parent failures also retain bounded `parent-error.json` (exception type,
+error ID, script line and summary presence/size) and, when available up to64KiB,
+`parent-summary.json`. Neither affects PASS or exposes raw errors publicly. The
+strict reader rejects an empty checks object as SCHEMA_INVALID, not a positive result.
 
 ## HTTP remains conditional and closed
 

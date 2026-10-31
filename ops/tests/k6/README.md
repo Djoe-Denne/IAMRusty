@@ -2,14 +2,16 @@
 
 **Windows revision3, 2026-10-31:** see [the simplified native adapter](WINDOWS.md).
 WSL qualification is suspended/INCONCLUSIVE. The Windows
-candidate does not qualify Linux or reactivate its CI. Its Accepted version
+adapter does not qualify Linux or reactivate its CI. Its Accepted version
 addendum uses the mandatory API equality check in the same browser case, not
 Chrome `--version` or VersionInfo. Tools alone stays INCONCLUSIVE/exit2; HTTP
-authority and actual Chromium/cleanup qualification remain unproven. The Accepted
+authority remains unqualified. The native Windows minimal browser and cleanup are
+now verified PASS (2026-10-31), with 34 final Windows tests successful and no skips.
+This functional result is not a sandbox attestation or Linux proof. The Accepted
 revision3 amendment removes executable/DLL locks, ACL checks and renderer/token
-attestation. Functional browser PASS does not qualify the sandbox. After integration
-and a short check, the lead runs the first real about:blank/42 case; no custody
-proposal or new review pipeline blocks that run. Unit tests are not real-tool proof.
+attestation. Functional browser PASS does not qualify the sandbox. The lead has
+executed the real about:blank/42 case; no custody proposal or new review pipeline
+blocks it. Unit tests are not substituted for this real-tool evidence.
 
 Contract: [V1 Accepted](../../../docs/contracts/k6-functional-linux.md),
 [ADR0504](../../../docs/adr/0504-validation-fonctionnelle-linux-k6.md).

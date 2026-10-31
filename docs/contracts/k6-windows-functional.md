@@ -1,6 +1,9 @@
 # Qualification fonctionnelle k6 Windows — raccord minimal proposé
 
-- Statut : **Accepted** ; Réalité : **Partial**, adaptateur et21tests intégrés ; aucun k6/Chrome Windows réel lancé ici.
+- Statut : **Accepted** ; Réalité : **Partial**. Au 2026-10-31, outillage et cas
+  navigateur Windows fonctionnels **PASS**, 34tests Windows finaux réussis ; HTTP/
+  selftest, WSL et Linux restent INCONCLUSIVE. Voir la photographie et les preuves
+  du [cas minimal vérifié](../../.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/99-cas-minimal-windows-verifie.md).
 - Date : 2026-10-30 ; mission1 uniquement. Base principale915042f, OPS gelé
   `f279e713079159766188fcbe5078d37217ca530d` ; briefing
   `20261030-k6-windows-pivot-preparation.md` et rapport76.
