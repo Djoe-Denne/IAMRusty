@@ -7,6 +7,9 @@
 - Canon lié : [ADR0504](../adr/0504-validation-fonctionnelle-linux-k6.md),
   [V1 Linux](k6-functional-linux.md), [sondes historiques](k6-chromium-linux-probes.md).
   Leur portée Linux Accepted/Partial n'est ni réécrite ni qualifiée par Windows.
+- Amendement du 2026-10-31 : **Accepted**, ratifié par le lead ; voir
+  « Amendement révision3 — simplification Windows » ci-dessous. Le statut Accepted
+  ci-dessus et les clauses antérieures sont conservés comme historique de ratification.
 
 ## Admission et décision
 
@@ -31,6 +34,61 @@ avant tout code/test Windows nouveau**. Le présent document n'est ni ce start n
 une permission d'exécuter les commandes proposées. Modèle/QA proportionate inchangés.
 Le lead référence/ratifie le contrat lors de cette admission ; pas de nouveau GO
 à chaque étape ensuite. La mission Linux/VM GitHub Actions sera distincte et future.
+
+## Amendement révision3 — simplification Windows
+
+**Statut : Accepted ; Réalité : non qualifiée par cet amendement documentaire.**
+Ratification du lead le 2026-10-31 après lecture et intégration byte-identique des
+deux documents de l'architecte, candidat `result_mvw5ppw0_0001_m1d2jm`.
+Empreintes avant cette ratification : contrat `c599205c80526164cdf0f2241692caaf226e6e885fcc91769d044d16e3c9b9ba`,
+notice d'abandon `4398bc6986618765d7e9d16cfd8372abfb3b35743d267acffd38f4a8bf9f6cd6`.
+La consommation de ce delta par l'auteur est admise. La révision3 est
+approuvée, hash `82a5aefa6a4dcd7deb05121d85b35da21b567585b615661f568ff45d27a22bb6` ;
+aucun nouveau GO utilisateur n'est requis. Sources de décision : briefing
+`.cursor/review-briefings/20261031-k6-windows-simplification.md`, rapport94
+`94-revision-simplifiee-approuvee-et-reprise.md` et décisions du ledger canonique
+`.cursor/handoffs/20261029-k6-01-socle.md`. Cet amendement ne modifie pas ces sources.
+
+Après ratification, seules les exigences suivantes remplacent les clauses historiques
+correspondantes de ce contrat ; le reste demeure inchangé :
+
+- **Permissions et intégrité** : utiliser les permissions Windows ordinaires, sans
+  les modifier ni ajouter de contrôle ACL personnalisé. Retirer les validations
+  ACL/propriétaires/ancêtres de « Surface minimale et invariants » et de la QA,
+  ainsi que les verrous personnalisés des exécutables/DLL. Aucune obligation de
+  protection persistante du code ne les remplace. Le manifeste
+  `config/tools.windows.lock.json` reste un manifeste de versions, provenance et
+  SHA256 d'archives/exécutables vérifiés avant usage, pas un verrou système.
+- **Navigateur** : conserver les protections natives Chromium, sans `no-sandbox`
+  ni contournement TLS. Remplacer intégralement l'exigence « Pour Chromium PASS »
+  de la section parent : aucune sonde/attestation renderer, token, niveau
+  d'intégrité ou AppContainer n'est requise ni ajoutée. Son absence ne bloque ni
+  l'exécution ni un PASS fonctionnel ; ce PASS ne qualifie pas le sandbox.
+  Le [raccord browser-version Accepted](k6-windows-browser-version.md) reste ratifié :
+  `browser.version()` demeure obligatoire dans le même cas. Son renvoi historique
+  au témoin sandbox ne réintroduit pas l'exigence ici remplacée ; retrait/cleanup
+  et preuve de version restent exigés, sans nouvelle commande Chrome `--version`.
+- **Processus et données** : conserver profil temporaire séparé, contexte neuf,
+  timeout borné, suivi et nettoyage raisonnable des seuls processus effectivement
+  créés et observés, sur succès, échec et interruption. Pas d'adoption par nom ou
+  ancien PID, de processus étranger arrêté, d'élévation ou de kill forcé implicite.
+  Ne pas supprimer les données d'un processus observé encore actif. Ce devoir de
+  nettoyage ne devient ni conservation persistante du code ni nouvelle protection.
+- **QA et ordre** : retirer les tests propres aux ACL, verrous et attestations
+  supprimés ; conserver les contrôles ciblés de pins/version, résumé courant non
+  vide, assertions/cardinalités, environnement/confidentialité, timeout et cleanup.
+  Après correction minimale et contrôle court du delta, premier vrai cas Windows :
+  `about:blank`, `6 * 7 === 42`, puis fermetures normales. Aucune nouvelle enquête,
+  protection, infrastructure ou revue préalable contre des risques hypothétiques.
+  Un échec réel se diagnostique avec logs privés bornés, code retour et processus
+  observés ; aucune protection supplémentaire sans défaut reproductible ou exigence
+  explicite. Les conditions restantes de PASS ne sont pas relâchées.
+
+La proposition [code-custody](k6-windows-code-custody.md) est **abandonnée, non
+ratifiée**, remplacée par ce delta ; elle n'est ni une dépendance ni un gel des runs.
+Pas de nouvelle ADR : précision réversible du raccord existant, sans nouvelle
+frontière/API. Windows ne qualifie ni WSL ni Linux ; aucune preuve réelle ou
+exécution OPS/test/runtime/CI n'est produite par cet amendement.
 
 ## Surface minimale et invariants
 
