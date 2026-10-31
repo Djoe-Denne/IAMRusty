@@ -4,13 +4,15 @@ title: >-
 category: navigation
 tags: [index, navigation, wiki]
 summary: >-
-  Index AIForAll : architecture, services, OAuth local qualifié, Telegraph durable et futures campagnes k6 proposées avec limites de preuve explicites.
+  Index AIForAll : architecture, OAuth local, Telegraph durable et cas minimal k6 Windows PASS ; HTTP/Linux restent non qualifiés.
 provenance:
-  extracted: 0.85
-  inferred: 0.13
+  extracted: 0.88
+  inferred: 0.10
   ambiguous: 0.02
-updated: 2026-10-29
+updated: 2026-10-31
 sources:
+  - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/99-cas-minimal-windows-verifie.md
+  - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/107-nettoyage-et-archivage-verifies.md
   - docs/contracts/20261029-auth-security-qualified-state.md
   - docs/missions/20261029-k6-recherche-et-enchainement.md
   - _sources/opencode-telegraph-outbox-20261027/inventory.json
@@ -32,7 +34,7 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 ## Browse by area
 
 - [[projects/aiforall/references/auth-security-closure-20261029]] — qualification locale OAuth et Envoy, revues et limites ; pas validation production/HA/HSM.
-- [[projects/aiforall/concepts/k6-functional-linux]] — trois missions fonctionnelles Linux proposées, non exécutées.
+- [[projects/aiforall/concepts/k6-functional-linux]] — cas minimal k6/Chrome Windows PASS ; HTTP INCONCLUSIVE, WSL suspendu, Linux non qualifié.
 - [[projects/iamrusty/decisions/0412-oauth-transaction-browser-binding]] — Accepted/Implemented pour le laboratoire local, après preuve Chrome/Envoy finale.
 
 - [[projects/index]] — service hubs and project knowledge areas

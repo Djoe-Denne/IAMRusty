@@ -4,6 +4,8 @@ title: >-
 category: project
 tags: [platform, microservices, rust, visibility/internal]
 sources:
+  - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/99-cas-minimal-windows-verifie.md
+  - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/107-nettoyage-et-archivage-verifies.md
   - docs/contracts/20261029-auth-security-qualified-state.md
   - docs/missions/20261029-k6-recherche-et-enchainement.md
   - _sources/opencode-telegraph-outbox-20261027/inventory.json
@@ -20,13 +22,13 @@ sources:
   - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
   - docs/adr/0007-closeout.md
 summary: >-
-  Plateforme RustyCog : OAuth local qualifié, mesh/JWT partiels, Telegraph durable livré ; trois campagnes fonctionnelles k6 proposées, non exécutées.
+  Plateforme RustyCog : OAuth local qualifié, mesh/JWT partiels, Telegraph durable ; cas minimal k6/Chrome Windows PASS, HTTP et Linux en attente.
 provenance:
-  extracted: 0.84
-  inferred: 0.12
-  ambiguous: 0.04
+  extracted: 0.86
+  inferred: 0.11
+  ambiguous: 0.03
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-10-29
+updated: 2026-10-31
 ---
 
 # AIForAll
@@ -75,7 +77,8 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 ## Recent history
 
 - [[projects/aiforall/references/auth-security-closure-20261029]] — correctif d'autorité OAuth, Chrome réel et refus Envoy qualifiés localement ; limites production/HA/HSM conservées.
-- [[projects/aiforall/concepts/k6-functional-linux]] — trois missions proposées, pas d'exécution : socle, authentification, puis propagation/reprise des droits Linux.
+- [[projects/aiforall/concepts/k6-functional-linux]] — cas minimal k6/Chrome Windows PASS et 34 tests sans skip ; HTTP INCONCLUSIVE, WSL suspendu et Linux non qualifié. Les campagnes OAuth/droits restent distinctes.
+- Clôture k6 vérifiée : dix copies de travail retirées après sauvegardes, équipe archivée et onze références de sauvegarde conservées. Le nettoyage n'est pas une qualification HTTP/Linux ; enseignements dans [[projects/aiforall/concepts/orchestrator-agent-harness]].
 
 - [[projects/aiforall/references/mission-telegraph-outbox-20261027]] — transaction writer commune, NoOp suspendu, owner HTTP, reprise après lease puis verticaleSQS/OpenFGA/replay/403/200 ; commit39024b2 et SDKd60 publiés avec gitlink exact. Clippy antérieur/Sonar/CI restent des réserves, statuts ADR non promus.
 - [[projects/telegraph/concepts/durable-notification-publication]] et [[projects/aiforall/skills/proving-leased-outbox-recovery]] — contrat livré et protocole de preuve distinct du SLA produit.

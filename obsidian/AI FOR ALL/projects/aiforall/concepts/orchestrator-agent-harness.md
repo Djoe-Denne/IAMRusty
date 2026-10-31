@@ -5,6 +5,8 @@ category: concepts
 tags: [architecture, rust, visibility/internal]
 aliases: [agent-harness, orchestrator]
 sources:
+  - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/106-references-de-sauvegarde-a-restaurer-apres-nettoyage-natif.md
+  - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/107-nettoyage-et-archivage-verifies.md
   - _raw/opencode-g17-m6-20261018/inventory.json
   - .cursor/rules/00-agent-harness.mdc
   - .cursor/agents/orchestrator.md
@@ -18,13 +20,13 @@ sources:
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/a340bab3-a47f-4710-af1e-3d4bff06e4a2/a340bab3-a47f-4710-af1e-3d4bff06e4a2.jsonl
   - .cursor/review-briefings/README.md
 summary: >-
-  Historique Cursor et actualisation OpenCode : racine directe ou lead Ensemble, policy approuvée, ownership et preuves persistantes.
+  Historique Cursor et lead Ensemble : ownership, preuves persistantes et clôture vérifiée des worktrees ; le succès natif ne garantit pas la conservation des références.
 provenance:
-  extracted: 0.86
-  inferred: 0.14
-  ambiguous: 0.00
+  extracted: 0.85
+  inferred: 0.12
+  ambiguous: 0.03
 created: 2026-09-11T05:45:00Z
-updated: 2026-10-18
+updated: 2026-10-31
 ---
 
 # Harnais orchestrator Cursor
@@ -39,6 +41,31 @@ updated: 2026-10-18
 - Écrire via outil dédié, par incréments ; les here-strings shell géants ont bloqué plusieurs sessions. La commande observée est connue, sa cause d'infrastructure précise n'a pas été démontrée.
 - Le lead vérifie diff intégré, ressources et preuves réelles ; un dernier message optimiste ne remplace pas la livraison.
 - Dernière policy de cette mission : Luna none / GLM Flash max / **Sol 6.1 xhigh** ; Opus indisponible. C'est une photographie de mission, pas une configuration globale future.
+
+## Clôture Ensemble : retour de k6 Windows, 31 octobre 2026
+
+La clôture de [[projects/aiforall/concepts/k6-functional-linux]] distingue le code
+intégré des copies de travail et du tableau des tâches. Dix copies contenaient
+encore des modifications utiles ; leur HEAD déjà inclus dans master ne sauvegardait
+pas les fichiers non committés. Les sauvegardes ont conservé 79 fichiers working,
+leurs versions disponibles, quatre patchs publics et des restaurations comparées
+par SHA256 avant les retraits autorisés. Les propositions remplacées n'ont pas
+écrasé les décisions ou le code finaux. Source : rapport107.
+
+Le nettoyage natif a annoncé sa réussite et des « safety-net merges », mais a aussi
+supprimé les références Git préservées alors qu'aucune purge n'était autorisée. Les
+contrôles Git/disque/inventaire natif ont révélé l'écart ; les onze noms et commits
+exacts ont été restaurés, sans déplacer HEAD. Il s'agit d'un défaut observé de cette
+opération, pas d'une garantie générale sur les autres versions du harness.
+Source : rapport106.
+
+La vérification finale confirme l'équipe archivée et 23 membres shutdown. La tâche
+Linux différée a été annulée par l'archivage sans être publiée ou exécutée ; ce
+changement de tableau n'est donc pas un PASS de campagne. Source : rapport107.
+
+Conserver un inventaire préalable des références et vérifier séparément statut
+natif, contenu intégré et récupérabilité réduit le risque de confondre fin d'auteur
+et clôture effective. ^[inferred]
 
 ## Historique Cursor (ne pas appliquer comme obligation OpenCode)
 

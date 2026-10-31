@@ -1,13 +1,29 @@
 ﻿{
     "version":  1,
     "stats":  {
-                  "total_sources_ingested":  1341,
+                  "total_sources_ingested":  1350,
                   "total_pages":  250,
-                  "total_pages_scope": "markdown excluding dot/underscore files and directories; includes navigation and log; recounted 2026-10-29",
+                  "total_pages_scope": "markdown excluding dot/underscore files and directories; includes navigation and log; recounted 2026-10-31",
                   "last_commit_synced":  "2473baa7a54595931a4eff76a33431f56776db20"
               },
     "projects":  {
                      "aiforall":  {
+                                      "scoped_ingest_20261031_k6": {
+                                          "at": "2026-10-31T10:33:52.784Z",
+                                          "scope": "k6 Windows functional proof and mission cleanup only; written sources, not exhaustive transcripts or all intervening commits",
+                                          "source_commit": "410d8168bbb5344c2d831475829a6c6319c34322",
+                                          "sources_new": 9,
+                                          "sources_modified": 2,
+                                          "pages_created": 0,
+                                          "pages_updated": 6,
+                                          "navigation_updated": 2,
+                                          "taxonomy": "absent-existing-tags-preserved",
+                                          "obsidian_cli": "not-running-filesystem-fallback",
+                                          "native_sessions_exported": 0,
+                                          "context_ingest_mode": "inspect",
+                                          "candidates_created": 0,
+                                          "qmd_index_refresh": "not_requested"
+                                      },
                                       "source_cwd":  "C:/Users/djden/source/repos/AIForAll",
                                       "scoped_ingest_20261027": {
                                           "at": "2026-10-27T19:27:11.468Z",
@@ -88,6 +104,96 @@
                                   }
                  },
     "sources":  {
+        "docs/contracts/k6-windows-functional.md": {
+            "ingested_at": "2026-10-31T10:33:52.784Z",
+            "size_bytes": 19129,
+            "modified_at": "2026-10-31T09:45:01.607Z",
+            "content_hash": "sha256:bf7e72f333df660aef751bd0323a29f4dc11ec22f544e66a86fd87298f4458e8",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/concepts/k6-functional-linux.md"]
+        },
+        "docs/contracts/k6-windows-browser-version.md": {
+            "ingested_at": "2026-10-31T10:33:52.784Z",
+            "size_bytes": 10123,
+            "modified_at": "2026-10-31T09:45:01.608Z",
+            "content_hash": "sha256:bb3c40f35b1a44bd93b81722dd6892285ae3f51369c309b42f2681aa35af63c2",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/concepts/k6-functional-linux.md"]
+        },
+        "docs/contracts/k6-windows-code-custody.md": {
+            "ingested_at": "2026-10-31T10:33:52.784Z",
+            "size_bytes": 1926,
+            "modified_at": "2026-10-31T08:49:40.825Z",
+            "content_hash": "sha256:2f210a575f47dfd5c9fd40016b45514d77712931301b2f566402315fabda2e55",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/concepts/k6-functional-linux.md"]
+        },
+        "docs/missions/20261029-k6-01-socle-smoke.md": {
+            "ingested_at": "2026-10-31T10:33:52.784Z",
+            "size_bytes": 12725,
+            "modified_at": "2026-10-31T10:26:10.695Z",
+            "content_hash": "sha256:328e61e16cc4c4de90c70856661ecbba7c7f8f1e099ecf1bb6c7bba471d0d91c",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/concepts/k6-functional-linux.md"]
+        },
+        "ops/tests/k6/WINDOWS.md": {
+            "ingested_at": "2026-10-31T10:33:52.784Z",
+            "size_bytes": 11966,
+            "modified_at": "2026-10-31T09:45:01.608Z",
+            "content_hash": "sha256:f6bd99bd810a6074a586b575337580608dedaf731ba93d19eabf110e4c88e443",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/concepts/k6-functional-linux.md"]
+        },
+        ".opencode/missions/team_mvtz6p47_000q_4wmht0/reports/99-cas-minimal-windows-verifie.md": {
+            "ingested_at": "2026-10-31T10:33:52.784Z",
+            "size_bytes": 3792,
+            "modified_at": "2026-10-31T09:48:06.463Z",
+            "content_hash": "sha256:5aeee0636ca07fd3ca56cdd3d60d54915c5e5ead5a880bf943681497e2a2b032",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/concepts/k6-functional-linux.md", "projects/aiforall/aiforall.md", "projects/aiforall/references/auth-security-closure-20261029.md", "projects/aiforall/concepts/index.md", "index.md"]
+        },
+        ".opencode/missions/team_mvtz6p47_000q_4wmht0/reports/106-references-de-sauvegarde-a-restaurer-apres-nettoyage-natif.md": {
+            "ingested_at": "2026-10-31T10:33:52.784Z",
+            "size_bytes": 2131,
+            "modified_at": "2026-10-31T10:26:10.692Z",
+            "content_hash": "sha256:8bb096259b2310892f4b68d4d7e6a92e3f631ed5d8fbd6d846adf7dd45ef29bf",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/concepts/orchestrator-agent-harness.md"]
+        },
+        ".opencode/missions/team_mvtz6p47_000q_4wmht0/reports/107-nettoyage-et-archivage-verifies.md": {
+            "ingested_at": "2026-10-31T10:33:52.784Z",
+            "size_bytes": 4318,
+            "modified_at": "2026-10-31T10:26:10.694Z",
+            "content_hash": "sha256:cf31a2ffaf3df5b09c1b735491b2c0c541a860eb1a19df33a4f9d24a95775315",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/concepts/k6-functional-linux.md", "projects/aiforall/aiforall.md", "projects/aiforall/concepts/orchestrator-agent-harness.md", "index.md"]
+        },
+        "docs/archives/k6-wsl-20261030/README.md": {
+            "ingested_at": "2026-10-31T10:33:52.784Z",
+            "size_bytes": 5053,
+            "modified_at": "2026-10-31T10:19:57.654Z",
+            "content_hash": "sha256:28ac6c7460253a555ad86addc226e145f5d675c939c2d4624614e88b6e7317fe",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/concepts/k6-functional-linux.md"]
+        },
         "docs/reviews/20261029-authz-proposals-carried-forward.md": {
             "ingested_at": "2026-10-29",
             "size_bytes": 6751,
@@ -139,20 +245,20 @@
             "pages_updated": ["projects/iamrusty/decisions/0412-oauth-transaction-browser-binding.md", "projects/aiforall/aiforall.md", "index.md"]
         },
         "docs/adr/0504-validation-fonctionnelle-linux-k6.md": {
-            "ingested_at": "2026-10-29",
-            "size_bytes": 4712,
-            "modified_at": "2026-10-29T16:57:51.839Z",
-            "content_hash": "sha256:8700920203c6c317ac92f0c36004bdb7155bf928d0cf9382d9b0af658dece296",
+            "ingested_at": "2026-10-31T10:33:52.784Z",
+            "size_bytes": 11343,
+            "modified_at": "2026-10-29T22:10:02.947Z",
+            "content_hash": "sha256:1acfab86be38a93edbdbd379ae92f7c10f0f81d133d8d64743d17e123e533a52",
             "source_type": "document",
             "project": "aiforall",
-            "pages_created": ["projects/aiforall/concepts/k6-functional-linux.md"],
-            "pages_updated": []
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/concepts/k6-functional-linux.md"]
         },
         "docs/contracts/k6-functional-linux.md": {
-            "ingested_at": "2026-10-29",
-            "size_bytes": 6847,
-            "modified_at": "2026-10-29T17:00:02.727Z",
-            "content_hash": "sha256:27975babdbe217d9d45bf6f80b8f5f8f944245972d38e1b02265e4929e173602",
+            "ingested_at": "2026-10-31T10:33:52.784Z",
+            "size_bytes": 53534,
+            "modified_at": "2026-10-30T15:42:49.643Z",
+            "content_hash": "sha256:7c83fda4ec9e85e94ace33d88adbf22043e156024dc94f764decdbd8e97d4c92",
             "source_type": "document",
             "project": "aiforall",
             "pages_created": [],
@@ -26221,5 +26327,5 @@
                                                                                                                                                                         ]
                                                                                                                                                   }
                 },
-    "last_updated":  "2026-10-29"
+    "last_updated":  "2026-10-31T10:33:52.784Z"
 }

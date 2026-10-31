@@ -3,6 +3,7 @@ title: "Authentification — qualification locale du 29 octobre 2026"
 category: references
 tags: [security, architecture, visibility/internal]
 sources:
+  - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/99-cas-minimal-windows-verifie.md
   - docs/reviews/20261029-authz-proposals-carried-forward.md
   - docs/reviews/20261029-worktree-consolidation.md
   - docs/reviews/20261029-auth-security-final-evidence.md
@@ -10,13 +11,13 @@ sources:
   - docs/contracts/20261029-auth-security-qualified-state.md
   - .cursor/handoffs/20261028-auth-security-closure.md
   - docs/missions/20261029-k6-recherche-et-enchainement.md
-summary: "Qualification locale OAuth et Envoy, correctif d'autorité, revues indépendantes et limites conservées ; trois missions k6 préparées, non exécutées."
+summary: "Qualification locale OAuth et Envoy, correctif d'autorité et limites conservées. Le cas minimal k6 Windows ultérieur ne vaut pas portage de cette preuve OAuth."
 provenance:
   extracted: 1.0
   inferred: 0.0
   ambiguous: 0.0
 created: 2026-10-29
-updated: 2026-10-29
+updated: 2026-10-31
 ---
 
 # Authentification : ce qui est qualifié, et ce qui ne l'est pas
@@ -36,7 +37,7 @@ Le contrat qualifié consolide les restitutions indépendantes d'architecture, d
 - Architecture : réconciliation locale de 0412 proposée puis explicitement ratifiée ; pas de promotion transitive des ADR JWT, mesh ou signataire.
 - Sécurité et tests : aucun défaut élevé ou critique connu encore ouvert dans le périmètre revu. Les corrélations rendent les refus recevables, mais le refus avant IAM et l'absence de mutation restent inférés, sans mesure SQL directe.
 - Infrastructure : qualification bornée du laboratoire, pas validation globale production/HA. Les limites de compteurs manquants et d'absence de config_dump complet restent explicites.
-- Architecture future : [[projects/aiforall/concepts/k6-functional-linux]] propose trois étapes séquentielles sans démarrer leur implémentation.
+- Trajectoire k6 : les trois étapes initiales de [[projects/aiforall/concepts/k6-functional-linux]] restent distinctes. Au 31 octobre, seul le cas minimal Windows about:blank/42 est PASS ; ni la preuve OAuth décrite ici, ni les campagnes de droits ne sont portées ou qualifiées par ce résultat.
 
 ## Preuves et ressources
 

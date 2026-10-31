@@ -4,17 +4,20 @@ title: >-
 category: navigation
 tags: [index, concepts, platform]
 summary: >-
-  Concepts plateforme : harnais, JWT, rustycog pin, mesh HTTPS T14b.
+  Concepts plateforme : harnais, JWT, rustycog pin, mesh HTTPS et cas minimal k6 Windows PASS ; limites HTTP/Linux conservées.
 provenance:
-  extracted: 0.9
-  inferred: 0.1
+  extracted: 0.95
+  inferred: 0.05
   ambiguous: 0.00
 created: 2026-08-31T13:30:00Z
-updated: 2026-10-03T15:10:00Z
+updated: 2026-10-31
+sources:
+  - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/99-cas-minimal-windows-verifie.md
 ---
 
 # AIForAll Concepts
 
+- [[projects/aiforall/concepts/k6-functional-linux]] — socle minimal Windows qualifié ; HTTP et Linux en attente, WSL suspendu.
 - [[projects/aiforall/decisions/index]] — ADR vague 2 (0100–0502)
 - [[projects/aiforall/concepts/rustycog-git-submodule]]
 - [[projects/aiforall/concepts/queue-readiness-signaling]]
