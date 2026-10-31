@@ -1,0 +1,45 @@
+{
+  "id": "python-ast-structure-diff-v1",
+  "status": "candidate",
+  "purpose": "Comparer deux sources Python par AST sans les importer ni les exécuter ; distinguer symboles inchangés, modifiés, ajoutés, retirés et ambigus.",
+  "reuseRationale": "Préparer des revues de conservation sans confondre fins de ligne, présence de noms et équivalence fonctionnelle ; préserver les définitions dupliquées et celles sous branches ou scopes imbriqués.",
+  "existingToolsChecked": ["Catalogue local : les cinq helpers validés ne comparent pas les AST", "ast standard : primitive utilisée avec contrat de limites, ambiguïtés et résultat borné", "Métadonnées des deux candidates promues : pas de doublon"],
+  "provenance": {
+    "taskReference": "Inspection explicite de la session et de ses 40 agents, puis demande de création du script de référence",
+    "date": "2026-10-29",
+    "sessionID": "ses_e76e9079dffefElyzdBC18v5FH",
+    "messageID": "msg_18919d69c001ZQBJrcwA7xFTS6",
+    "toolCallID": "call_d5962f9cf4a8456982b6be08e9830e57",
+    "contextCodeSha256": "f4d0d7c0129eeed3de29f3c61559127196b60d3de39742ef02f053818a1352b9",
+    "wrapperSha256": "16ee3ccc3bbcbfbb20c5b045d138bf522711b46ee76558b8c4f962a16d16ecf9",
+    "attribution": "Littéral Python imbriqué lu et décodé sans eval ; résultat associé utile à huit comparaisons. Enveloppe completed sans exitcode explicite, pas de PASS global. Réécriture paramétrée, sans commandes Git ni données métier."
+  },
+  "parameters": {
+    "before": "Source Python str déjà autorisée",
+    "after": "Source Python str déjà autorisée",
+    "options": "max_source_bytes=1048576 (max 4194304), max_ast_nodes=100000 (max 500000), max_symbols=10000 (max 50000), max_output_items=100 (max 1000), entiers strictement positifs"
+  },
+  "returns": "schemaVersion, comparisonKind, moduleAstEqual, definitionCounts, counts, items, truncated, omittedCounts ; ComparisonError à code stable. CLI : JSON UTF-8 stdin vers JSON stdout, exit 0/1.",
+  "dependencies": ["Python >=3.10, bibliothèque standard uniquement ; AST de la version Python utilisée"],
+  "sideEffects": ["Module : aucun I/O ni exécution des sources ; CLI : lit stdin et écrit un résultat JSON sur stdout"],
+  "scopeAndPermissions": "Deux textes déjà autorisés ; pas de lecture fichier, Git, réseau ni import des sources. Les noms et lignes retournés ne sont pas anonymisés. Pas d'import automatique depuis candidates/.",
+  "files": {"implementation": "function.py", "tests": "function_test.py", "documentation": "README.md"},
+  "checksActuallyRun": [
+    "Relecture de l'implémentation et des tests synthétiques avant exécution ; pas de code de trace réexécuté",
+    "Compilation syntaxique en mémoire des deux fichiers sous Python 3.13 Windows : exit 0, sans pycache",
+    "python -B function_test.py -v : exit 0, 17 tests réussis (succès, erreurs, limites, ambiguïtés, branches, nested, CLI)",
+    "Smoke dans Context Mode / Python : 3 assertions réussies sur changements, doublons et sources non exécutées",
+    "candidate.json parsé ; statut candidate conservé ; aucun import automatique ni changement du catalogue/runner"
+  ],
+  "knownLimits": [
+    "Comparaison structurelle, jamais preuve de conservation fonctionnelle ou de sécurité",
+    "AST complet comparé, mais listes détaillées limitées aux fonctions, fonctions async et classes",
+    "Doublons qualifiés explicitement ambigus ; pas de résolution de portée dynamique, d'alias ou d'overloads",
+    "Au plus cinq occurrences montrées par nom et par source, avec comptes complets et troncature explicite",
+    "Un changement imbriqué change également le hash de la définition englobante",
+    "Les bornes de source/nœuds ne sont pas une isolation OS ni un timeout contre une entrée hostile",
+    "Commentaires ordinaires et mise en forme ignorés ; docstrings et commentaires de type inclus",
+    "CLI : requête JSON limitée à 16 Mio ; les plafonds individuels ne garantissent pas que toute combinaison tient dans cette limite"
+  ],
+  "promotion": {"reviewReference": null, "testEvidence": null, "contextModeEvidence": null}
+}

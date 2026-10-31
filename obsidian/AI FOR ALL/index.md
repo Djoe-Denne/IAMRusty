@@ -34,7 +34,7 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 ## Browse by area
 
 - [[projects/aiforall/references/auth-security-closure-20261029]] — qualification locale OAuth et Envoy, revues et limites ; pas validation production/HA/HSM.
-- [[projects/aiforall/concepts/k6-functional-linux]] — cas minimal k6/Chrome Windows PASS ; HTTP INCONCLUSIVE, WSL suspendu, Linux non qualifié.
+- [[projects/aiforall/concepts/k6-functional-linux]] — socle Windows PASS ; portage auth intégré mais non exécuté, mission arrêtée après échec du déploiement. Linux différé.
 - [[projects/iamrusty/decisions/0412-oauth-transaction-browser-binding]] — Accepted/Implemented pour le laboratoire local, après preuve Chrome/Envoy finale.
 
 - [[projects/index]] — service hubs and project knowledge areas

@@ -1,7 +1,7 @@
 ﻿{
     "version":  1,
     "stats":  {
-                  "total_sources_ingested":  1350,
+                  "total_sources_ingested":  1351,
                   "total_pages":  250,
                   "total_pages_scope": "markdown excluding dot/underscore files and directories; includes navigation and log; recounted 2026-10-31",
                   "last_commit_synced":  "2473baa7a54595931a4eff76a33431f56776db20"
@@ -104,6 +104,16 @@
                                   }
                  },
     "sources":  {
+        "docs/missions/20261031-k6-auth-handover.md": {
+            "ingested_at": "2026-10-31T17:52:17.803Z",
+            "size_bytes": 2792,
+            "modified_at": "2026-10-31T17:45:59.316Z",
+            "content_hash": "sha256:9a4fb468b85a29e2c3ae7283eeaa29d32bfd2c73f713bca3f6ca2602d3a5084f",
+            "source_type": "document",
+            "project": "aiforall",
+            "pages_created": [],
+            "pages_updated": ["projects/aiforall/concepts/k6-functional-linux.md", "projects/aiforall/aiforall.md", "index.md"]
+        },
         "docs/contracts/k6-windows-functional.md": {
             "ingested_at": "2026-10-31T10:33:52.784Z",
             "size_bytes": 19129,
@@ -26327,5 +26337,5 @@
                                                                                                                                                                         ]
                                                                                                                                                   }
                 },
-    "last_updated":  "2026-10-31T10:33:52.784Z"
+    "last_updated":  "2026-10-31T17:52:17.803Z"
 }

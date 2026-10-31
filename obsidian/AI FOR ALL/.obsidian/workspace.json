@@ -65,7 +65,9 @@
               "type": "file-explorer",
               "state": {
                 "sortOrder": "alphabetical",
-                "autoReveal": false
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
               },
               "icon": "lucide-folder-closed",
               "title": "Explorateur de fichiers"
@@ -195,9 +197,9 @@
   },
   "left-ribbon": {
     "hiddenItems": {
+      "canvas:Créer un nouveau canvas": false,
       "switcher:Ouvrir le sélecteur rapide": false,
       "graph:Ouvrir la vue graphique": false,
-      "canvas:Créer une nouvelle toile": false,
       "daily-notes:Ouvrir la note quotidienne": false,
       "templates:Insérer le modèle": false,
       "command-palette:Ouvrir la palette de commandes": false,
@@ -206,6 +208,7 @@
   },
   "active": "66ebf6f7f35f706c",
   "lastOpenFiles": [
+    "projects/aiforall/decisions/0505-startup-secrets-openbao.md",
     "projects/rustycog/references/index.md",
     "projects/rustycog/references/rustycog-events.md",
     "projects/rustycog/references/rustycog-outbox.md",
@@ -238,7 +241,6 @@
     "projects/sentinel/sentinel.md",
     "projects/sentinel",
     "projects/manifesto/references/manifesto-service.md",
-    "projects/manifesto/manifesto.md",
     "projects/manifesto/skills",
     "_scripts/__pycache__/uncomment_links_between_islands.cpython-313.pyc",
     "_scripts/uncomment_links_between_islands.py"

@@ -1,0 +1,106 @@
+{
+  "version": 2,
+  "providers": [
+    "openai"
+  ],
+  "models": [
+    {
+      "id": "openai/gpt-6.1-sol",
+      "provider": "openai",
+      "reasoningEffort": "medium",
+      "intelligenceScore": 48,
+      "averageCostPerTask": 0.21,
+      "available": true,
+      "level": "medium",
+      "usage": "coding_et_raisonnement",
+      "benchmarkCostPerTask": 0.21,
+      "accessMode": "unknown",
+      "structuredOutput": {
+        "supported": true,
+        "source": "https://models.dev/api.json",
+        "checkedAt": "2026-10-13T08:19:21.633Z",
+        "strictVerification": "unverified"
+      }
+    },
+    {
+      "id": "openai/gpt-6.1-sol",
+      "provider": "openai",
+      "reasoningEffort": "high",
+      "intelligenceScore": 50,
+      "averageCostPerTask": 0.32,
+      "benchmarkCostPerTask": 0.32,
+      "accessMode": "unknown",
+      "available": true,
+      "reserve": true,
+      "structuredOutput": {
+        "supported": true,
+        "source": "https://models.dev/api.json",
+        "checkedAt": "2026-10-13T08:19:21.633Z",
+        "strictVerification": "unverified"
+      }
+    },
+    {
+      "id": "openai/gpt-6.1-sol",
+      "provider": "openai",
+      "reasoningEffort": "low",
+      "intelligenceScore": 42,
+      "averageCostPerTask": 0.13,
+      "benchmarkCostPerTask": 0.13,
+      "accessMode": "unknown",
+      "available": true,
+      "reserve": true,
+      "structuredOutput": {
+        "supported": true,
+        "source": "https://models.dev/api.json",
+        "checkedAt": "2026-10-13T08:19:21.633Z",
+        "strictVerification": "unverified"
+      }
+    },
+    {
+      "id": "openai/gpt-6.1-sol",
+      "provider": "openai",
+      "reasoningEffort": "xhigh",
+      "intelligenceScore": 51,
+      "averageCostPerTask": 0.39,
+      "benchmarkCostPerTask": 0.39,
+      "accessMode": "unknown",
+      "available": true,
+      "reserve": true,
+      "structuredOutput": {
+        "supported": true,
+        "source": "https://models.dev/api.json",
+        "checkedAt": "2026-10-13T08:19:21.633Z",
+        "strictVerification": "unverified"
+      }
+    }
+  ],
+  "startingIntelligence": 50,
+  "classificationBeta": 0.35,
+  "verification": {
+    "level": "proportionate",
+    "commands": [
+      "git diff --check",
+      "AVANT RUN : consigner les commandes exactes de création/déploiement via les scripts local-full existants, puis d'inspection k6 et d'exécution auth via le parent Windows adapté au strict nécessaire, avec baux, cible autorisée et chemins privés ; aucune CLI supposée disponible ni lancement contournant les gardes. Aucun démarrage du laboratoire avant intégration des corrections et fin des gates IT requis ou réutilisation justifiée de leurs preuves.",
+      "CONDITIONNEL seulement si les sources/parcours/matchers concernés invalident les preuves 0412 : cargo test -p iam-service --test oauth_browser_transactions",
+      "CONDITIONNEL selon les risques effectivement modifiés : cargo test -p iam-service --test auth_transactions_postgres",
+      "CONDITIONNEL selon les risques effectivement modifiés : cargo test -p iam-service --test oauth_cleanup_lifecycle"
+    ],
+    "acceptance": [
+      "Préparation seulement avant start utilisateur ; aucun worker, classifieur, test, navigateur ou runtime en préparation. Catalogue limité à OpenAI GPT-6.1 Sol, sans Astra ; aucune délégation long_run ajoutée.",
+      "Priorité : implémenter puis exécuter les scénarios d'authentification déjà définis, pas modifier ou requalifier le framework déjà testé. Réutiliser le socle Windows et ses preuves valides.",
+      "Pas de sur-ingénierie, refonte, durcissement préventif ou campagne de robustesse du framework. Pas de lot pour tester nos tests ni de nouvelles fixtures ou infrastructure de preuve. Les suites du framework précédemment proposées ne sont plus systématiques ; ces corrections remplacent les lots et contrôles correspondants de l'ancien aperçu de plan.",
+      "Seules les adaptations du framework indispensables à l'exécution fidèle des scénarios sont permises, au plus petit delta utile. Justifier leur nécessité concrète et limiter leur vérification au comportement modifié ; aucune campagne générale de non-régression ou revue supplémentaire automatique.",
+      "Traçabilité ancien oracle vers k6 API, k6 Chromium, parent ops ou UT/IT conservée avant portage ; adaptation documentaire minimale du contrat Windows par architecte et ratification avant code consommateur, sans redéfinir les scénarios ni créer une nouvelle architecture de tests.",
+      "Autorisation utilisateur explicite de recréer le laboratoire local disparu : uniquement aiforall-local-full / kind-aiforall-local-full, profil local-full existant avec option oauth-proof, un control-plane et deux workers, via les scripts de bootstrap/déploiement existants. Créer un bail neuf, kubeconfig privé et ancrages contemporains ; nouveaux IDs/UID observés, aucune adoption d'anciens baux. Réutiliser les images immuables vérifiées ou construire les seules images Linux nécessaires avec les Dockerfiles existants ; pas nouvelle architecture de laboratoire ni framework de tests.",
+      "Accès Windows conservés : IAM via Envoy sur127.0.0.1:18080, fournisseur synthétique sur localhost:18081 via mécanisme local existant autorisé, issuer8080/iam et callbacks18080 inchangés. CA/certificats et secrets locaux de campagne privés, mTLS/SAN/HMAC conservés. Aucun autre cluster, contexte protégé, exposition publique, tunnel distant, suppression/prune/reset ou qualification runner Linux autorisé. Docker/Kind uniquement services cibles et images Linux ; k6/Chrome/parent natifs Windows.",
+      "Après création/déploiement, vérification infra indépendante bornée de l'identité de la cible, readiness et trajet Windows→Envoy→IAM/connecteur/fournisseur, sans campagne produit supplémentaire. Identités/configuration/baux et joignabilité prouvés avant appels auth ; prérequis manquant = non positif. Ressources créées/redémarrées enregistrées avec IDs et inventaires avant/après ; stop gracieux des ressources possédées devenues inutiles, sans affecter Docker/WSL ou workloads étrangers.",
+      "Inscription achevée puis nouveau login, login200 et réassociation réelle : START authentifié puis callback exact sans Bearer ; refus discriminants N1/N2/N3, cookies/nonce/redirections/PKCE et fournisseur corrélés au même run.",
+      "Bon certificat, mauvais nom signé même CA, bon restauré : stimulus et restauration parent avec garde/propriété/ACK applicables ; hausse du compteur SAN approprié et preuve Envoy, pas 503 seul.",
+      "Tous les cas attendus exécutés et achevés ; checks/thresholds fermés, compteurs exacts non nuls, résumé courant ; setup interrompu ou cas absent non positifs ; aucun fallback d'autorité.",
+      "17 IT 0412 et preuves principal/remote conservées à leur niveau ; réutilisation justifiée par comparaison des sources, sans réexécution par principe ni réécriture en k6. Si les sources/parcours/matchers changent, appliquer uniquement les gates 0412 pertinents. Défaut produit = ROUGE remonté sans correction silencieuse ni assouplissement d'oracle.",
+      "Conserver la revue indépendante bornée de la parité et des oracles modifiés exigée par l'ordre de mission ; pas de pipeline QA imposé ni d'audit de robustesse du framework. Vérifications supplémentaires seulement justifiées par un risque concret effectivement introduit dans le delta nécessaire.",
+      "Aucun JWT/cookie/code/state/clé, trace/HAR ou URL sensible publié ; restauration et cleanup parent même sur setup échoué, inventaire final et zéro ressource possédée active sans bail.",
+      "Windows seul qualifié ; Linux/WSL/jobs Linux différés ; anciens pilotes conservés. Livrables durables intégrés sur master, commit/push et référence distante vérifiés ; nettoyage/archivage des seuls arbres et ressources de mission, travaux étrangers préservés."
+    ]
+  }
+}

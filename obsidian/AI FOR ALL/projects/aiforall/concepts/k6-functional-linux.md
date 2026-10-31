@@ -14,10 +14,11 @@ sources:
   - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/99-cas-minimal-windows-verifie.md
   - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/107-nettoyage-et-archivage-verifies.md
   - docs/archives/k6-wsl-20261030/README.md
-summary: "Cas minimal k6/Chrome Windows PASS et 34 tests ; HTTP et Linux non qualifiés, WSL suspendu. Version via API et nettoyage ne valent pas attestation du sandbox."
+  - docs/missions/20261031-k6-auth-handover.md
+summary: "Socle k6/Chrome Windows qualifié ; scénarios auth intégrés mais non exécutés, mission arrêtée après échec du déploiement. Linux reste différé."
 provenance:
-  extracted: 0.95
-  inferred: 0.05
+  extracted: 0.96
+  inferred: 0.04
   ambiguous: 0.0
 created: 2026-10-29
 updated: 2026-10-31
@@ -70,6 +71,39 @@ protections natives Chromium, pins/provenance/SHA256, profil séparé, timeout e
 nettoyage raisonnable des processus créés restent conservés. Ce choix ne transforme
 pas un PASS fonctionnel en certification du sandbox.
 
+## Portage auth Windows : livré, mais campagne non exécutée
+
+La mission suivante est **arrêtée à la demande de l'utilisateur**, sans PASS auth
+réel. Les scénarios `oauth-browser.js` et `envoy-san.js`, ainsi que les modes
+`auth-inspect` et `auth` du parent Windows, sont intégrés. L'inspection native
+passe ; les revues statiques sont achevées et le défaut de restauration avant
+readiness est corrigé. Ni cette inspection ni ces revues ne prouvent l'exécution
+du parcours navigateur, le rejet du mauvais certificat ou sa restauration réelle.
+
+Le bootstrap du profil local-full a réussi, mais la commande de déploiement a
+échoué. **La cause initiale reste inconnue** : le wrapper opérateur PowerShell a
+perdu le détail de l'erreur Python en interrompant sa capture sur stderr. Après
+reprise en lecture seule, les deux Jobs de bootstrap sont réussis et IAM/Lazaret
+sont observés Ready ; le déploiement complet et le trajet Windows→18080 ne sont
+pas qualifiés. Ce constat n'établit pas que le pipeline existant soit cassé.
+
+Les 17 IT historiques restent réutilisées sur sources pertinentes inchangées,
+sans réexécution ni réécriture en k6. Leur preuve propre dans
+[[projects/aiforall/references/auth-security-closure-20261029]] est conservée.
+
+Tous les agents et les trois nœuds possédés sont arrêtés, sans processus
+k6/Chrome restant. Les volumes, diagnostics et arbres auteurs sont conservés ;
+l'archivage natif de cette mission est différé. Il ne faut pas confondre cet
+arrêt avec le nettoyage complet de la mission1 décrit plus bas. Le handover est
+publié avec les livrables sur master (`21c61c1`), sans nouveau verdict fonctionnel.
+
+L'attente de reprise est de consommer le pipeline existant, vérifier son entrée
+18080, puis lancer les scénarios intégrés, pas reconstruire une plateforme de
+tests. Le fournisseur synthétique reste sur18081 ; mutation/restauration du
+certificat et corrélations restent chez le parent, pas dans un k6 privilégié.
+Source : `docs/missions/20261031-k6-auth-handover.md` ; projet
+[[projects/aiforall/aiforall]].
+
 ## Frontières à préserver
 
 `k6/http` porte les scénarios API ; `k6/browser` utilise Chromium réel pour cookies et redirections OAuth. Une succession de requêtes HTTP n'est pas une preuve navigateur. La campagne réutilise les oracles de [[projects/aiforall/references/auth-security-closure-20261029]] et les routes exactes de [[projects/iamrusty/decisions/0412-oauth-transaction-browser-binding]], sans changer l'autorité pour faciliter le runner.
@@ -91,7 +125,7 @@ inconnu ; la qualification Linux sera une mission distincte demandée par l'util
 
 La dette matérielle HSM reste acceptée et non bloquante pour ces campagnes, mais n'est pas qualifiée ; ADR 0309 reste Partial. Les résultats attendus ne deviennent pas des résultats observés par leur inscription dans le wiki.
 
-## Clôture et conservation
+## Clôture et conservation de la mission1 uniquement
 
 Les dix copies temporaires sont retirées après sauvegarde/restauration vérifiées :
 79 fichiers working et 141 versions/restaurations, plus quatre patchs publics.

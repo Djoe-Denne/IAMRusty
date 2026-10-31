@@ -1,0 +1,128 @@
+{
+  "version": 2,
+  "providers": [
+    "openai"
+  ],
+  "models": [
+    {
+      "id": "openai/gpt-6.1-sol",
+      "provider": "openai",
+      "reasoningEffort": "medium",
+      "intelligenceScore": 48,
+      "averageCostPerTask": 0.21,
+      "available": true,
+      "level": "medium",
+      "usage": "coding_et_raisonnement",
+      "benchmarkCostPerTask": 0.21,
+      "accessMode": "unknown",
+      "structuredOutput": {
+        "supported": true,
+        "source": "https://models.dev/api.json",
+        "checkedAt": "2026-10-13T08:19:21.633Z",
+        "strictVerification": "unverified"
+      }
+    },
+    {
+      "id": "openai/gpt-6.1-sol",
+      "provider": "openai",
+      "reasoningEffort": "high",
+      "intelligenceScore": 50,
+      "averageCostPerTask": 0.32,
+      "benchmarkCostPerTask": 0.32,
+      "accessMode": "unknown",
+      "available": true,
+      "reserve": true,
+      "structuredOutput": {
+        "supported": true,
+        "source": "https://models.dev/api.json",
+        "checkedAt": "2026-10-13T08:19:21.633Z",
+        "strictVerification": "unverified"
+      }
+    },
+    {
+      "id": "openai/gpt-6.1-sol",
+      "provider": "openai",
+      "reasoningEffort": "low",
+      "intelligenceScore": 42,
+      "averageCostPerTask": 0.13,
+      "benchmarkCostPerTask": 0.13,
+      "accessMode": "unknown",
+      "available": true,
+      "reserve": true,
+      "structuredOutput": {
+        "supported": true,
+        "source": "https://models.dev/api.json",
+        "checkedAt": "2026-10-13T08:19:21.633Z",
+        "strictVerification": "unverified"
+      }
+    },
+    {
+      "id": "openai/gpt-6.1-sol",
+      "provider": "openai",
+      "reasoningEffort": "xhigh",
+      "intelligenceScore": 51,
+      "averageCostPerTask": 0.39,
+      "benchmarkCostPerTask": 0.39,
+      "accessMode": "unknown",
+      "available": true,
+      "reserve": true,
+      "structuredOutput": {
+        "supported": true,
+        "source": "https://models.dev/api.json",
+        "checkedAt": "2026-10-13T08:19:21.633Z",
+        "strictVerification": "unverified"
+      }
+    }
+  ],
+  "startingIntelligence": 50,
+  "classificationBeta": 0.35,
+  "verification": {
+    "level": "proportionate",
+    "commands": [
+      "cargo fmt --all -- --check",
+      "cargo fmt --manifest-path rustycog/Cargo.toml --all -- --check",
+      "cargo check --locked -p iam-service -p hive-service -p manifesto-service -p telegraph-service -p ext-authz -p oodhive-monolith",
+      "cargo clippy --locked -p iam-configuration -p iam-infra -p hive-http -p ext-authz --all-targets -- -W clippy::future_not_send -W clippy::too_many_lines",
+      "cargo test --locked -p iam-configuration --lib",
+      "cargo test --locked -p iam-infra --test remote_signer",
+      "cargo test --manifest-path rustycog/Cargo.toml --locked --features http --lib http::",
+      "cargo test --manifest-path rustycog/Cargo.toml --locked --features http --test permission_middleware --test mesh_gateway_auth",
+      "cargo test --locked -p hive-service --test organization_signer_permissions",
+      "cargo test --locked -p iam-service --test signing_admission --test signing_epoch_writer --test organization_account_guard",
+      "cargo test --locked -p iam-service --test oauth_browser_transactions --test auth_transactions_postgres --test oauth_cleanup_lifecycle",
+      "cargo test --locked -p iam-service --test token --test session_writer_concurrency --test session_persistence --test request_trace_redaction",
+      "cargo test --locked -p ext-authz --test registry_publication --test mesh_path_standin",
+      "kubectl --kubeconfig ops/deploy/offline-no-kubeconfig --context kind-aiforall-local-full kustomize --load-restrictor LoadRestrictionsNone ops/deploy/apps/overlays/local-full"
+    ],
+    "acceptance": [
+      "Commandes de reference, NON executees automatiquement : choisir les suites selon le diff et les preuves reutilisables, sans relancer toute la liste par principe. Ajouter les nouveaux tests de regression nommes au plan avant leur execution. Un echec d'environnement n'est pas une preuve rouge fonctionnelle.",
+      "Windows natif, un seul processus Cargo pour la mission et ses worktrees, jobs=24 et target-dir E:/cargo-target/AIForAll sans override contradictoire. Geler l'arbre compile ; traiter les sorties volumineuses dans Context Mode sans divulguer de secrets.",
+      "Aucune collision de droits entre deux autorites ayant le meme identifiant utilisateur ; temoins positifs legitimes et refus avant appel IAM ou mutation. L'architecture du principal et de sa persistence est ecrite par architecte, revue et ratifiee explicitement par le lead dans la delegation utilisateur avant correction structurelle ; aucune acceptation automatique ni contradiction d'une ADR Accepted.",
+      "Le signataire distant supporte refuse les transports non autorises en mode securise, les redirections et les reponses hors borne ; aucun repli vers PEM ou une autre cle. Limites et exceptions locales explicites dans le contrat, pas de nouvelle integration HSM/cloud.",
+      "Envoy doit refuser un serveur portant le mauvais nom dans son certificat meme si la bonne autorite l'a signe ; controle positif equivalent. Un rendu de configuration ou un test reqwest seul ne prouve pas le comportement Envoy.",
+      "Conserver les garanties existantes : signature et version autoritatives, revocation/fraicheur maximale de 60 secondes meme en panne, etat vide sans resurrection, rotation/recuperation atomiques, quotas et refus sans dommage, absence de secrets dans les sorties.",
+      "La preuve OAuth finale utilise un vrai navigateur, un connecteur configure et les routes exactes via Envoy, sur la cible ratifiee. Aligner d'abord le contrat HTTP local et le listener TLS actuellement rendu ; ne pas confondre client HTTP et navigateur ou preuve locale et qualification production.",
+      "IT via les fixtures testcontainers existantes, jamais Kind. L'utilisateur preautorise le laboratoire kind-aiforall-local-full pour cette mission : preflight, demarrage/reutilisation ou creation si absent selon les conventions du depot, images Linux de livraison, deploiements de test necessaires et campagne ciblee. Kind seulement apres corrections integrees et IT finales ; inventaire, identites exactes, baux, inspection des effets transitifs et cleanup possede restent obligatoires. Aucun script historique lance tel quel, remplacement destructif, cluster protege ou nouvelle plateforme de preuve implicitement autorise.",
+      "Revue securite independante du diff integre et revue bornee des oracles adversariaux ; infra-verifier apres changement infra significatif. Aucun defaut critique ou eleve ouvert dans le perimetre a la cloture ; suggestions et capacites hors perimetre separees des blocages.",
+      "SDK modifie en isolation ; l'utilisateur preautorise la publication du commit exact necessaire a cette mission sur le remote canonique github.com/Djoe-Denne/rustycog, apres verifications/revues pertinentes et controle du diff, puis sa selection par gitlink. Publication sur une branche de mission sans force-push, reecriture d'historique ou fusion distante automatique vers une branche protegee. Aucun changement utilisateur etranger embarque ; toute modification de contrat public/persiste suit le contrat architecte ratifie dans cette mission. Pas d'autorisation generale de publication d'un autre depot, de downgrade ou de suppression de fonctionnalite.",
+      "Preuves liees au code integre, aucun skip masque et aucun PASS partiel presente comme global. Nettoyage des seules ressources possedees selon les regles du depot ; ADR et handbook reconcilies apres verification, sans promotion des capacites cloud/HSM exclues.",
+      "QA solide et proportionnee aux risques : reutiliser les tests et preuves valides, cibler les regressions et revues utiles, sans suringenierie ni nouvelle infrastructure de tests par principe. Code propre, architecture respectee et securite prioritaire."
+    ]
+  },
+  "autonomy": {
+    "mode": "long_run",
+    "instructions": [
+      "Mener la mission approuvee jusqu'a son terme en donnant la priorite a la securite. Ne pas declarer la cloture si un defaut de securite bloquant reste ouvert dans le perimetre.",
+      "Respecter absolument l'architecture existante, les ADR Accepted et les contrats ratifies. Garder le code propre et les changements bornes ; ne pas refondre ce qui peut etre reutilise correctement.",
+      "Assurer une QA solide mais pas over-engineered : verifications ciblees selon les risques, preuves reutilisees lorsqu'elles restent valides, revues independantes utiles plutot qu'un pipeline systematique.",
+      "Respecter au maximum l'existant du plugin Ensemble pour l'orchestration, sans le contourner ni reconstruire ses mecanismes dans le projet.",
+      "Faire des recherches internet lorsqu'une question technique le justifie, en privilegiant les documentations officielles et les versions effectivement utilisees ; verifier l'applicabilite au depot avant de conclure.",
+      "Resoudre les choix techniques et organisationnels dans le mandat approuve et poursuivre les etapes autorisees sans question de routine ni nouveau GO a chaque jalon. Informer par checkpoints, sans en faire des demandes d'approbation. Ne solliciter l'utilisateur que pour une decision ou un acces reellement indispensable hors du mandat, une contradiction avec une regle obligatoire ou un risque qu'aucune option conforme ne permet de resoudre ; continuer les travaux independants autorises si possible.",
+      "La mission conserve exclusivement l'objectif d'authentification du dossier fige : corriger et qualifier ses frontieres de securite existantes. Ensemble reste son outil de coordination ; aucun chantier de developpement de son plugin ou de son orchestrateur n'est inclus. L'utilisateur donne ses autorisations a l'avance pour les operations bornees ci-dessous ; elles prennent effet avec l'approbation native de cette revision, pas par une invocation de start a sa place.",
+      "Preautorisation des decisions structurelles deja identifiees dans la mission : separation des identites jusque dans OpenFGA et leurs projections/compatibilite, politique securisee du signataire distant existant, alignement du parcours navigateur et du laboratoire. Architecte reste auteur et decideur structurel ; le lead recoit delegation pour examiner puis ratifier explicitement ses ADR/contrats avant integration et consommateurs, sans nouvelle question utilisateur pour ces choix dans le perimetre. Tracer les alternatives, motifs, impacts et validation ; preserver les ADR Accepted et les invariants de securite. Aucune ratification a blanc d'un futur document ni refonte hors mission.",
+      "Preautorisation de publication SDK : commit exact utile a la mission sur le remote canonique verifie github.com/Djoe-Denne/rustycog, sur une branche de mission apres verifications/revues pertinentes et controle du diff, puis gitlink correspondant. Pas de force-push, reecriture d'historique, fusion distante automatique de branche protegee ou embarquement de changements etrangers. La publication est une operation explicite tracee, pas un effet de bord d'une integration.",
+      "Preautorisation runtime pour les IT testcontainers existantes et la preuve kind-aiforall-local-full : preflight, demarrage/reutilisation ou creation si absent selon les conventions du depot, images Linux de livraison, deploiements de test necessaires, diagnostic local utile, tests et arret gracieux des ressources possedees devenues inutiles. Respecter corrections/IT finales avant Kind, ressources exclusives, inventaires/identites/baux, inspection transitive et cleanup. Aucun nouveau GO de principe pour ces operations conformes ; propriete inconnue, remplacement destructif ou besoin de cible differente ne sont pas couverts.",
+      "La delegation ne change pas les permissions natives ni les garde-fous du depot : aucun contournement d'un refus d'outil, d'une pause operateur, des contraintes Cargo ou de QA. Preserver les changements utilisateur, donnees/ressources etrangeres et secrets. Pas de production, kind-apparatus-p4-it, rancher-desktop, autre contexte non autorise, prune/reset/suppression destructive, nouveau service payant ou exposition publique implicitement autorise. Un blocage de securite ne devient jamais un PASS ni une permission d'elargir la mission."
+    ]
+  }
+}
