@@ -1,0 +1,480 @@
+"""Temporary ldd-only consumer. Parent reserves the fixed global exception first.
+
+Closed invocation: /usr/bin/python3 -I -B <copy> --selection ldd-only
+  --source-dir <private-four-file-export> --tools-dir <verified-tools>
+  --output <new-private-run-dir>
+No full/userns/context-child entry is exposed. References and past results remain
+unchanged. This file cannot attest its parent's quota, lease or Windows cleanup.
+"""
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import signal
+import stat
+import struct
+import sys
+import types
+
+EXPECTED = {
+    "run-linux.py": "a2819c426d4cf35af7861047971ec2bf3960bd880ec4bf3540554c45a0658529",
+    "lib/safety.py": "0f5359d4b9fb8c7bf4fef520497d041ceb064f5e9edecf6b7c9908ae04b38249",
+    "lib/private_site.py": "be90a2b4dd4df7028de373d1899149d53baf1dd295fb2cd307d9aec9bd072436",
+    "config/tools.lock.json": "6d32846701f8e13fcbc8477cd3596b8f434ee4c4c31f4ed9f174cea106b53db7",
+}
+INTERP = "/lib64/ld-linux-x86-64.so.2"
+REASONS = {"NONE", "INPUT_INVALID", "PLATFORM_UNQUALIFIED", "PATH_UNQUALIFIED", "HOME_UNQUALIFIED",
+           "SOURCE_UNTRUSTED", "SYSTEM_TOOL_UNTRUSTED", "SYSTEM_TOOL_ABSENT", "ELF_UNTRUSTED", "TOOLS_UNQUALIFIED",
+           "PRIVACY_FAILED", "OUTPUT_LIMIT", "CHILD_FAILED", "CHILD_TIMEOUT", "INTERRUPTED",
+           "CLEANUP_UNPROVEN", "RETIREMENT_UNPROVEN", "DIAGNOSTIC_INCOMPLETE"}
+
+
+class Refused(Exception):
+    def __init__(self, reason="INPUT_INVALID"):
+        self.reason = reason if reason in REASONS else "INPUT_INVALID"
+        super().__init__("PROBE_REFUSED")
+
+
+def need(value, reason="INPUT_INVALID"):
+    if not value:
+        raise Refused(reason)
+
+
+def ci_present():
+    markers = {"CI", "CONTINUOUS_INTEGRATION", "GITLAB_CI", "TF_BUILD", "JENKINS_URL", "BUILDKITE",
+               "CIRCLECI", "TRAVIS", "APPVEYOR", "TEAMCITY_VERSION"}
+    return any(key in markers or key.startswith(("GITHUB_", "RUNNER_")) for key in os.environ)
+
+
+def stamp(path):
+    s = Path(path).lstat()
+    return s.st_dev, s.st_ino, s.st_uid, stat.S_IFMT(s.st_mode), 0 if stat.S_ISDIR(s.st_mode) else s.st_nlink
+
+
+def private_chain(path, directory=False):
+    path = Path(path)
+    need(path.is_absolute() and path == path.resolve(strict=True) and "mnt" not in path.parts[:2], "PATH_UNQUALIFIED")
+    for part in (*reversed(path.parents), path):
+        s = part.lstat()
+        need(not stat.S_ISLNK(s.st_mode) and s.st_uid in {0, 1000}, "PATH_UNQUALIFIED")
+        if stat.S_ISDIR(s.st_mode):
+            need(not s.st_mode & 0o022 or s.st_mode & stat.S_ISVTX, "PATH_UNQUALIFIED")
+            need(not (part / ".git").exists(), "PATH_UNQUALIFIED")
+    s = path.lstat()
+    need(s.st_uid == 1000, "PATH_UNQUALIFIED")
+    if directory:
+        need(stat.S_ISDIR(s.st_mode) and stat.S_IMODE(s.st_mode) == 0o700, "PATH_UNQUALIFIED")
+    else:
+        need(stat.S_ISREG(s.st_mode) and s.st_nlink == 1 and not s.st_mode & 0o022, "PATH_UNQUALIFIED")
+    return path
+
+
+def read_small(path, maximum=8192):
+    with Path(path).open("rb") as stream:
+        raw = stream.read(maximum + 1)
+    need(len(raw) <= maximum)
+    return raw
+
+
+def check_payload(relative, raw):
+    need(relative in EXPECTED and hashlib.sha256(raw).hexdigest() == EXPECTED[relative], "SOURCE_UNTRUSTED")
+    return raw
+
+
+def load_api(source):
+    source = private_chain(source, directory=True)
+    payloads, bindings = {}, {}
+    for relative in EXPECTED:
+        path = private_chain(source / relative)
+        before = stamp(path)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            s = os.fstat(fd)
+            need((s.st_dev, s.st_ino, s.st_uid, stat.S_IFMT(s.st_mode), s.st_nlink) == before, "SOURCE_UNTRUSTED")
+            with os.fdopen(fd, "rb", closefd=False) as stream:
+                raw = stream.read(262145)
+            need(len(raw) <= 262144 and stamp(path) == before, "SOURCE_UNTRUSTED")
+            payloads[relative] = check_payload(relative, raw)
+            bindings[relative] = before
+        finally:
+            os.close(fd)
+    need(all(name not in sys.modules for name in ("safety", "private_site", "k6_probe_runner")), "SOURCE_UNTRUSTED")
+    modules = {}
+    for name, relative in (("safety", "lib/safety.py"), ("private_site", "lib/private_site.py"), ("k6_probe_runner", "run-linux.py")):
+        module = types.ModuleType(name)
+        module.__file__ = str(source / relative)
+        sys.modules[name] = module
+        exec(compile(payloads[relative], module.__file__, "exec"), module.__dict__)
+        need(Path(module.__file__) == source / relative, "SOURCE_UNTRUSTED")
+        modules[name] = module
+    runner, safety = modules["k6_probe_runner"], modules["safety"]
+    need(runner.Child is safety.Child and runner.child_environment is safety.child_environment, "SOURCE_UNTRUSTED")
+    def recheck():
+        for relative, before in bindings.items():
+            path = private_chain(source / relative)
+            need(stamp(path) == before, "SOURCE_UNTRUSTED")
+            check_payload(relative, read_small(path, 262144))
+    return types.SimpleNamespace(runner=runner, safety=safety, recheck=recheck)
+
+
+def trusted_system(path):
+    need(path in {"/usr/bin/python3", "/usr/bin/unshare", "/usr/bin/true", "/usr/bin/ldd", INTERP}, "SYSTEM_TOOL_UNTRUSTED")
+    try:
+        requested, resolved = Path(path), Path(path).resolve(strict=True)
+    except FileNotFoundError:
+        raise Refused("SYSTEM_TOOL_ABSENT") from None
+    identities = []
+    for target in (requested, resolved):
+        for part in (*reversed(target.parents), target):
+            s = part.lstat()
+            need(s.st_uid == 0 and (stat.S_ISLNK(s.st_mode) or not s.st_mode & 0o022), "SYSTEM_TOOL_UNTRUSTED")
+            identities.append((str(part), s.st_dev, s.st_ino, s.st_uid, s.st_mode))
+    s = resolved.stat()
+    need(stat.S_ISREG(s.st_mode) and s.st_mode & 0o111 and not s.st_mode & (stat.S_ISUID | stat.S_ISGID), "SYSTEM_TOOL_UNTRUSTED")
+    if path == INTERP:
+        need(str(resolved) in {"/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2", "/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"}, "SYSTEM_TOOL_UNTRUSTED")
+    return tuple(identities)
+
+
+def elf_metadata(stream):
+    def take(offset, length):
+        need(0 <= offset <= size and 0 <= length <= 65536 and offset + length <= size, "ELF_UNTRUSTED")
+        stream.seek(offset); raw = stream.read(length)
+        need(len(raw) == length, "ELF_UNTRUSTED")
+        return raw
+    stream.seek(0, 2); size = stream.tell()
+    header = struct.unpack("<16sHHIQQQIHHHHHH", take(0, 64))
+    need(header[0][:7] == b"\x7fELF\x02\x01\x01" and header[1] in {2, 3} and header[2] == 62
+         and header[3] == 1 and header[8] == 64 and header[9] == 56 and 1 <= header[10] <= 128, "ELF_UNTRUSTED")
+    table = take(header[5], 56 * header[10])
+    segments = [struct.unpack("<IIQQQQQQ", table[i:i + 56]) for i in range(0, len(table), 56)]
+    interps = [p for p in segments if p[0] == 3]
+    dynamic = [p for p in segments if p[0] == 2]
+    need(len(interps) == len(dynamic) == 1, "ELF_UNTRUSTED")
+    p = interps[0]; raw = take(p[2], p[5])
+    need(raw == INTERP.encode("ascii") + b"\0", "ELF_UNTRUSTED")
+    p = dynamic[0]
+    need(p[5] % 16 == 0, "ELF_UNTRUSTED")
+    raw = take(p[2], p[5]); tags = []; terminated = False
+    for i in range(0, len(raw), 16):
+        tag, value = struct.unpack("<QQ", raw[i:i + 16])
+        if tag == 0:
+            terminated = True; break
+        tags.append((tag, value))
+    need(terminated, "ELF_UNTRUSTED")
+    addresses = [v for t, v in tags if t == 5]; lengths = [v for t, v in tags if t == 10]
+    need(len(addresses) == len(lengths) == 1 and 0 < lengths[0] <= size, "ELF_UNTRUSTED")
+    loads = [p for p in segments if p[0] == 1 and p[3] <= addresses[0] and addresses[0] + lengths[0] <= p[3] + p[5]]
+    need(len(loads) == 1, "ELF_UNTRUSTED")
+    strings_offset = loads[0][2] + addresses[0] - loads[0][3]
+    needed = set()
+    for offset in (v for t, v in tags if t == 1):
+        need(0 < offset < lengths[0], "ELF_UNTRUSTED")
+        string = take(strings_offset + offset, min(129, lengths[0] - offset))
+        end = string.find(b"\0")
+        need(end > 0, "ELF_UNTRUSTED")
+        name = string[:end].decode("ascii")
+        need(re.fullmatch(r"[A-Za-z0-9_.+-]{1,128}", name) and name not in needed, "ELF_UNTRUSTED")
+        needed.add(name)
+    need(1 <= len(needed) <= 128, "ELF_UNTRUSTED")
+    return INTERP, needed
+
+
+def ldd_count(stdout, stderr, exit_code, needed, loaders):
+    try:
+        need(type(exit_code) is int and exit_code == 0 and not stderr and 0 < len(stdout) <= 65536 and stdout.endswith(b"\n"))
+        names, loader_count, vdso = set(), 0, 0
+        missing = 0
+        for line in stdout.decode("utf-8").splitlines():
+            line = line.strip(" \t")
+            match = re.fullmatch(r"([A-Za-z0-9_.+-]{1,128}) => (?:(/[A-Za-z0-9_./+-]{1,512}) \(0x[0-9a-f]{1,16}\)|(not found))", line)
+            if match:
+                need(match[1] not in names); names.add(match[1]); missing += int(match[3] is not None)
+            elif re.fullmatch(r"linux-vdso\.so\.1 \(0x[0-9a-f]{1,16}\)", line):
+                vdso += 1
+            else:
+                match = re.fullmatch(r"(/[A-Za-z0-9_./+-]{1,512}) \(0x[0-9a-f]{1,16}\)", line)
+                need(match is not None and match[1] in loaders)
+                loader_name = match[1].rsplit("/", 1)[-1]
+                need(loader_name not in names)
+                names.add(loader_name); loader_count += 1
+        need(vdso == loader_count == 1 and names and needed <= names)
+        return missing
+    except BaseException:
+        return None
+
+
+def run_one(api, kind, output, chrome, script):
+    need(kind == "ldd")
+    child, error = api.runner.Child(), None
+    try:
+        child.execute(["/usr/bin/ldd", str(chrome)], output=output,
+                      env=api.runner.child_environment(output), timeout=10, browser=False)
+    except BaseException as failure:
+        error = "INTERRUPTED" if isinstance(failure, KeyboardInterrupt) else getattr(failure, "code", "CHILD_FAILED")
+    privacy = "PASS"
+    try:
+        api.safety.confidential(child.stdout); api.safety.confidential(child.stderr)
+        if child.output_overflow:
+            privacy = "NOT_OBSERVED"
+    except BaseException:
+        privacy = "FAIL"
+    valid = bool(child.owned) and all(type(pid) is int and pid > 0 and type(value) is dict and value.get("pid") == pid
+        and type(value.get("start")) is int and value["start"] > 0 and value.get("uid") == os.getuid()
+        and type(value.get("uid")) is int
+        and (pid, value["start"], value["uid"]) in child.recorded for pid, value in child.owned.items())
+    cleanup = "INCONCLUSIVE" if not valid else "PASS" if child.cleanup is True and error != "CLEANUP_FAILED" else "FAIL"
+    termination = "TIMEOUT" if error == "CHILD_TIMEOUT" else "INTERRUPTED" if error == "INTERRUPTED" else (
+        "OUTPUT_LIMIT" if child.output_overflow else "SIGNAL" if type(child.code) is int and child.code < 0 else
+        "EXITED" if type(child.code) is int else "NOT_OBSERVED")
+    code = child.code if type(child.code) is int and -64 <= child.code <= 255 else None
+    return {"stdout": child.stdout, "stderr": child.stderr, "privacy": privacy, "cleanup": cleanup,
+            "exit": code, "termination": termination, "complete": termination == "EXITED" and error is None and not child.output_overflow,
+            "error": error if error in REASONS else "CHILD_FAILED" if error else "NONE"}
+
+
+def project_probe(record, needed, loaders, kind):
+    need(kind == "ldd")
+    count = None
+    if record["privacy"] == record["cleanup"] == "PASS" and record["complete"]:
+        count = ldd_count(record["stdout"], record["stderr"], record["exit"], needed, loaders)
+    outcome = "INCONCLUSIVE"
+    if record["privacy"] == record["cleanup"] == "PASS" and record["complete"]:
+        outcome = "ZERO_EXIT" if record["exit"] == 0 else "NONZERO_EXIT"
+        if count is None:
+            outcome = "INCONCLUSIVE"
+    return {"outcome": outcome, "exit": record["exit"], "termination": record["termination"], "missing": count}
+
+
+class OwnedRun:
+    def __init__(self, root):
+        self.root, self.entries = Path(root), {}
+        self.uid = os.getuid()
+        self.parent_guard = None
+
+    def directories_unchanged(self, path):
+        if self.parent_guard is not None:
+            need(self.parent_guard(), "PATH_UNQUALIFIED")
+        for parent in path.parents:
+            if parent in self.entries:
+                need(stamp(parent) == self.entries[parent], "PATH_UNQUALIFIED")
+
+    def remember(self, path):
+        self.directories_unchanged(path)
+        value = stamp(path)
+        need(value[2] == self.uid and (value[3] == stat.S_IFDIR or value[3] == stat.S_IFREG and value[4] == 1), "PATH_UNQUALIFIED")
+        if path in self.entries:
+            need(self.entries[path] == value, "PATH_UNQUALIFIED")
+        self.entries[path] = value
+
+    def create(self, safety):
+        need(self.root.is_absolute() and not self.root.exists(), "PATH_UNQUALIFIED")
+        safety.private_path(self.root.parent, directory=True)
+        before = safety.name_chain(self.root.parent)
+        self.parent_guard = lambda: safety.name_chain(self.root.parent) == before
+        self.root.mkdir(mode=0o700); self.remember(self.root)
+        need(safety.name_chain(self.root.parent) == before, "PATH_UNQUALIFIED")
+        for name in ("home", "tmp", "private"):
+            path = self.root / name; path.mkdir(mode=0o700); self.remember(path)
+        path = self.root / "private/empty.json"
+        with path.open("xb") as stream:
+            self.remember(path)
+            stream.write(b"{}")
+        path.chmod(0o400)
+
+    def track_child_file(self):
+        private = self.root / "private"
+        self.directories_unchanged(private)
+        need(stamp(private) == self.entries[private], "PATH_UNQUALIFIED")
+        paths = list(private.iterdir())
+        need(len(paths) <= 5, "PATH_UNQUALIFIED")
+        for path in paths:
+            if path.name == "process-identities.jsonl" or re.fullmatch(r"children-[a-f0-9]{32}\.json", path.name):
+                self.remember(path)
+            else:
+                need(path in self.entries, "PATH_UNQUALIFIED")
+
+    def retire(self):
+        good = True
+        for path, identity in sorted(self.entries.items(), key=lambda item: len(item[0].parts), reverse=True):
+            try:
+                self.directories_unchanged(path)
+                need(stamp(path) == identity and identity[2] == self.uid)
+                if identity[3] == stat.S_IFDIR:
+                    path.rmdir()
+                else:
+                    path.unlink()
+                need(not path.exists() and not path.is_symlink())
+            except BaseException:
+                good = False
+        return good and not self.root.exists()
+
+
+def empty_result():
+    not_run = {"outcome": "INCONCLUSIVE", "exit": None, "termination": "NOT_EXECUTED", "missing": None}
+    return {"v": 1, "scope": "LINUX_PROBES_DIAGNOSTIC_ONLY", "a_commands": "NOT_EXECUTED", "a_context": None,
+            "b_context": None, "comparison": None, "unshare": dict(not_run), "ldd": dict(not_run),
+            "privacy": "NOT_OBSERVED", "cleanup": "INCONCLUSIVE", "retirement": "NOT_STARTED", "reason": "NONE",
+            "parent_runtime_cleanup": "INCONCLUSIVE", "copied_script_retirement": "PARENT_REQUIRED",
+            "HTTP": "INCONCLUSIVE", "Chromium": "INCONCLUSIVE"}
+
+
+def selection_complete(result):
+    try:
+        default = empty_result()
+        return (all(type(result[k]) is type(default[k]) and result[k] == default[k]
+                    for k in ("a_commands", "a_context", "b_context", "comparison", "unshare"))
+                and result["reason"] == "NONE" and result["privacy"] == result["cleanup"] == result["retirement"] == "PASS"
+                and result["ldd"] == {"outcome": "ZERO_EXIT", "exit": 0, "termination": "EXITED", "missing": 0}
+                and type(result["ldd"]["exit"]) is type(result["ldd"]["missing"]) is int)
+    except (KeyError, TypeError):
+        return False
+
+
+def public_bytes(result):
+    defaults = empty_result()
+    need(type(result) is dict and set(result) == set(defaults) and result["reason"] in REASONS)
+    for key in ("v", "scope", "a_commands", "a_context", "b_context", "comparison", "unshare",
+                "parent_runtime_cleanup", "copied_script_retirement", "HTTP", "Chromium"):
+        need(type(result[key]) is type(defaults[key]) and result[key] == defaults[key])
+    need(result["cleanup"] in {"PASS", "FAIL", "INCONCLUSIVE"} and result["retirement"] in {"PASS", "FAIL", "NOT_STARTED"})
+    need(result["privacy"] in {"PASS", "FAIL", "NOT_OBSERVED"})
+    value = result["ldd"]
+    need(type(value) is dict and set(value) == {"outcome", "exit", "termination", "missing"})
+    need(value["outcome"] in {"ZERO_EXIT", "NONZERO_EXIT", "INCONCLUSIVE"}
+         and value["termination"] in {"NOT_EXECUTED", "NOT_OBSERVED", "EXITED", "SIGNAL", "TIMEOUT", "INTERRUPTED", "OUTPUT_LIMIT"})
+    need(value["exit"] is None or type(value["exit"]) is int and -64 <= value["exit"] <= 255)
+    if value["termination"] == "SIGNAL":
+        need(type(value["exit"]) is int and value["exit"] < 0 and value["outcome"] == "INCONCLUSIVE")
+    if value["termination"] == "EXITED":
+        need(type(value["exit"]) is int and value["exit"] >= 0)
+    need(value["missing"] is None or type(value["missing"]) is int and 0 <= value["missing"] <= 65536)
+    if value["missing"] is not None:
+        need(value["exit"] == 0 and value["termination"] == "EXITED" and value["outcome"] == "ZERO_EXIT")
+    allowed = {"NONE", "CHILD_FAILED", "CHILD_TIMEOUT", "INTERRUPTED", "DIAGNOSTIC_INCOMPLETE"}
+    if result["reason"] not in allowed or result["privacy"] != "PASS" or result["cleanup"] != "PASS" or result["retirement"] != "PASS":
+        result = {"v": 1, "publication": "WITHHELD", "reason": result["reason"], "cleanup": result["cleanup"],
+                  "retirement": result["retirement"], "privacy": result["privacy"], "parent_runtime_cleanup": "INCONCLUSIVE",
+                  "copied_script_retirement": "PARENT_REQUIRED", "HTTP": "INCONCLUSIVE", "Chromium": "INCONCLUSIVE",
+                  **{key: defaults[key] for key in ("a_commands", "a_context", "b_context", "comparison", "unshare")}}
+    raw = json.dumps(result, ensure_ascii=True, allow_nan=False, separators=(",", ":")).encode("ascii")
+    need(len(raw) <= 32768)
+    return raw
+
+
+def native_home():
+    need(sys.platform == "linux" and platform.machine() in {"x86_64", "amd64"}
+         and os.getuid() == os.geteuid() == 1000, "PLATFORM_UNQUALIFIED")
+    import pwd
+    account = pwd.getpwuid(1000)
+    home = private_chain(Path(account.pw_dir), directory=True)
+    need(account.pw_name == "aiforall" and home == Path.home(), "HOME_UNQUALIFIED")
+    fd = os.open(home, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        s = os.fstat(fd)
+        ids = [line.split(":", 1)[1].strip() for line in read_small(f"/proc/self/fdinfo/{fd}", 4096).decode("ascii").splitlines() if line.startswith("mnt_id:")]
+        rows = [line.split() for line in read_small("/proc/self/mountinfo", 65536).decode("ascii").splitlines() if ids and line.split()[0] == ids[0]]
+        need(len(ids) == len(rows) == 1 and rows[0][rows[0].index("-") + 1] == "ext4"
+             and rows[0][2] == f"{os.major(s.st_dev)}:{os.minor(s.st_dev)}", "HOME_UNQUALIFIED")
+        need(stamp(home)[:3] == (s.st_dev, s.st_ino, 1000), "HOME_UNQUALIFIED")
+        return s.st_dev
+    finally:
+        os.close(fd)
+
+
+def launch(argv):
+    result, storage, records, api = empty_result(), None, [], None
+    try:
+        need(not ci_present(), "PLATFORM_UNQUALIFIED")
+        need(len(argv) == 8 and argv[:2] == ["--selection", "ldd-only"]
+             and argv[2::2] == ["--source-dir", "--tools-dir", "--output"] and all(0 < len(x) <= 1024 for x in argv))
+        argv = argv[2:]
+        device = native_home()
+        source, tools, output = private_chain(argv[1], directory=True), private_chain(argv[3], directory=True), Path(argv[5])
+        need(source.stat().st_dev == tools.stat().st_dev == device, "PATH_UNQUALIFIED")
+        script = private_chain(Path(__file__).absolute()); script_identity = stamp(script)
+        script_sha256 = hashlib.sha256(read_small(script, 65536)).digest()
+        api = load_api(source)
+        lock = api.safety.strict_json(read_small(source / "config/tools.lock.json", 32768))
+        os.environ["K6_TOOLS_DIR"] = str(tools)
+        os.environ["K6_BROWSER_EXECUTABLE_PATH"] = str(tools / lock["chromium"]["executable"])
+        try:
+            pinned, _ = api.runner.pinned_tools(browser=True)
+            api.runner.verify_tools(pinned, ("k6", "chromium"))
+        except BaseException:
+            raise Refused("TOOLS_UNQUALIFIED") from None
+        try:
+            with pinned["chromium"].open("rb") as stream:
+                interp, needed = elf_metadata(stream)
+        except BaseException:
+            raise Refused("ELF_UNTRUSTED") from None
+        fixed = {path: trusted_system(path) for path in ("/usr/bin/python3", "/usr/bin/ldd", interp)}
+        loaders = {interp, str(Path(interp).resolve(strict=True))}
+        storage = OwnedRun(output)
+        storage.create(api.safety)
+        need(output.stat().st_dev == device, "PATH_UNQUALIFIED")
+        api.recheck(); api.runner.verify_tools(pinned, ("k6", "chromium"))
+        need(stamp(private_chain(script)) == script_identity
+             and hashlib.sha256(read_small(script, 65536)).digest() == script_sha256, "SOURCE_UNTRUSTED")
+        for path, identity in fixed.items():
+            need(trusted_system(path) == identity, "SYSTEM_TOOL_UNTRUSTED")
+        try:
+            record = run_one(api, "ldd", output, pinned["chromium"], script)
+            records.append(record)
+        finally:
+            storage.track_child_file()
+        if record["privacy"] != "PASS":
+            raise Refused("PRIVACY_FAILED" if record["privacy"] == "FAIL" else "OUTPUT_LIMIT")
+        if record["cleanup"] == "FAIL":
+            raise Refused("CLEANUP_UNPROVEN")
+        result["ldd"] = project_probe(record, needed, loaders, "ldd")
+        if record["termination"] in {"TIMEOUT", "INTERRUPTED", "OUTPUT_LIMIT"}:
+            raise Refused(record["error"] if record["error"] in REASONS else "CHILD_FAILED")
+        api.recheck(); api.runner.verify_tools(pinned, ("k6", "chromium"))
+    except BaseException as error:
+        result["reason"] = error.reason if isinstance(error, Refused) else "INTERRUPTED" if isinstance(error, KeyboardInterrupt) else "INPUT_INVALID"
+    finally:
+        result["privacy"] = "FAIL" if any(r["privacy"] == "FAIL" for r in records) else (
+            "PASS" if records and all(r["privacy"] == "PASS" for r in records) else "NOT_OBSERVED")
+        result["cleanup"] = "FAIL" if any(r["cleanup"] == "FAIL" for r in records) else (
+            "PASS" if records and all(r["cleanup"] == "PASS" for r in records) else "INCONCLUSIVE")
+        for record in records:
+            record["stdout"] = record["stderr"] = b""
+        if storage is not None:
+            result["retirement"] = "PASS" if result["cleanup"] != "FAIL" and storage.retire() else "FAIL"
+        if result["retirement"] == "FAIL":
+            result["reason"] = "RETIREMENT_UNPROVEN"
+        elif result["reason"] == "NONE" and result["cleanup"] != "PASS":
+            result["reason"] = "CLEANUP_UNPROVEN"
+        elif result["reason"] == "NONE" and not selection_complete(result):
+            result["reason"] = "DIAGNOSTIC_INCOMPLETE"
+    raw = public_bytes(result)
+    if api is not None:
+        api.safety.confidential(raw)
+    sys.stdout.buffer.write(raw + b"\n")
+    return 0 if selection_complete(result) else 2
+
+
+def main(argv):
+    if ci_present():
+        return launch(argv)
+    previous = {}
+    def interrupt(_signal, _frame):
+        raise KeyboardInterrupt()
+    try:
+        for number in (signal.SIGTERM, signal.SIGINT):
+            previous[number] = signal.signal(number, interrupt)
+        return launch(argv)
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler)
+
+
+if __name__ == "__main__":
+    try:
+        status = main(sys.argv[1:])
+    except BaseException:
+        status = 2
+    raise SystemExit(status)

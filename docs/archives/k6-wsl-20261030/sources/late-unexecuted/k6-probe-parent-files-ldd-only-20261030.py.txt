@@ -1,0 +1,182 @@
+"""Temporary parent-owned input transfer/retirement. Never launches a probe."""
+import ctypes
+import hashlib
+import json
+import os
+from pathlib import Path
+import pwd
+import stat
+import sys
+
+RUN = 'ldd-only-20261030'
+HOME = Path('/home/aiforall')
+CACHE = HOME / '.cache/opencode'
+BASE = CACHE / ('k6-linux-probes-' + RUN)
+SOURCE = BASE / 'source/ops/tests/k6'
+PROBE = BASE / 'probe.py'
+MANIFEST = BASE / 'parent-manifest.json'
+CONFIG = Path('/mnt/c/Users/djden/source/repos/AIForAll/.tmp/k6-linux-probes-paths-20261030.json')
+DELIVERY = Path('/mnt/c/Users/djden/source/repos/AIForAll/.tmp/k6-linux-probes-ldd-only-20261030.py')
+PROBE_SHA = '602e8cd05830dcf053928661554cd953a1f286cfd451a59d9d91abba52b84fc7'
+EXPECTED = {
+    'run-linux.py': 'a2819c426d4cf35af7861047971ec2bf3960bd880ec4bf3540554c45a0658529',
+    'lib/safety.py': '0f5359d4b9fb8c7bf4fef520497d041ceb064f5e9edecf6b7c9908ae04b38249',
+    'lib/private_site.py': 'be90a2b4dd4df7028de373d1899149d53baf1dd295fb2cd307d9aec9bd072436',
+    'config/tools.lock.json': '6d32846701f8e13fcbc8477cd3596b8f434ee4c4c31f4ed9f174cea106b53db7',
+}
+DIRS = ('source', 'source/ops', 'source/ops/tests', 'source/ops/tests/k6',
+        'source/ops/tests/k6/lib', 'source/ops/tests/k6/config')
+FILES = {'probe.py': PROBE_SHA, **{'source/ops/tests/k6/' + k: v for k, v in EXPECTED.items()}}
+
+
+def require(value):
+    if not value:
+        raise ValueError('PARENT_INPUT_REFUSED')
+
+
+def stamp(path):
+    s = path.lstat()
+    require(not stat.S_ISLNK(s.st_mode))
+    return [s.st_dev, s.st_ino, s.st_uid, stat.S_IMODE(s.st_mode),
+            stat.S_IFMT(s.st_mode), 0 if stat.S_ISDIR(s.st_mode) else s.st_nlink]
+
+
+def check_home():
+    require(os.getuid() == os.geteuid() == 1000 and pwd.getpwuid(1000).pw_dir == str(HOME) and Path.home() == HOME)
+    for p in (HOME, HOME / '.cache', CACHE):
+        require(p == p.resolve(strict=True) and stamp(p)[2:4] == [1000, 0o700])
+    data = ctypes.create_string_buffer(256)
+    require(ctypes.CDLL(None).statfs(os.fsencode(HOME), data) == 0 and ctypes.c_long.from_buffer(data).value == 0xef53)
+
+
+def bounded(path, maximum):
+    before = stamp(path)
+    require(before[4:] == [stat.S_IFREG, 1])
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        require([os.fstat(fd).st_dev, os.fstat(fd).st_ino] == before[:2])
+        with os.fdopen(fd, 'rb', closefd=False) as stream:
+            raw = stream.read(maximum + 1)
+        require(len(raw) <= maximum and stamp(path) == before)
+        return raw
+    finally:
+        os.close(fd)
+
+
+def create_file(path, raw):
+    with path.open('xb') as stream:
+        stream.write(raw)
+        stream.flush()
+        os.fsync(stream.fileno())
+    path.chmod(0o400)
+    return stamp(path)
+
+
+def prepare():
+    check_home()
+    require(not BASE.exists() and not BASE.is_symlink())
+    config = json.loads(bounded(CONFIG, 8192).decode('utf-8'))
+    require(config['source_hashes'] == EXPECTED)
+    old = Path(config['source_dir'])
+    require(old.is_relative_to(CACHE) and old == old.resolve(strict=True))
+    payloads = {name: bounded(old / name, 262144) for name in EXPECTED}
+    require(all(hashlib.sha256(payloads[name]).hexdigest() == value for name, value in EXPECTED.items()))
+    raw_probe = bounded(DELIVERY, 65536)
+    require(hashlib.sha256(raw_probe).hexdigest() == PROBE_SHA)
+    created = {}
+    try:
+        BASE.mkdir(mode=0o700)
+        created['.'] = stamp(BASE)
+        for name in DIRS:
+            p = BASE / name
+            p.mkdir(mode=0o700)
+            created[name] = stamp(p)
+        for name, raw in payloads.items():
+            relative = 'source/ops/tests/k6/' + name
+            created[relative] = create_file(BASE / relative, raw)
+        created['probe.py'] = create_file(PROBE, raw_probe)
+        manifest = {'v': 1, 'run': RUN, 'entries': created, 'probe_sha256': PROBE_SHA}
+        with MANIFEST.open('xb') as stream:
+            stream.write(json.dumps(manifest, separators=(',', ':')).encode('ascii'))
+        MANIFEST.chmod(0o600)
+        require(all(stamp(BASE / name) == identity for name, identity in created.items()))
+        require(not (BASE / 'run').exists())
+        return {'v': 1, 'parent_inputs': 'READY', 'files': 5, 'source_hashes_match': True, 'probe_hash_match': True}
+    except BaseException:
+        for name, identity in sorted(created.items(), key=lambda item: len(Path(item[0]).parts), reverse=True):
+            p = BASE / name
+            if p.exists() and stamp(p) == identity:
+                try:
+                    p.rmdir() if identity[4] == stat.S_IFDIR else p.unlink()
+                except OSError:
+                    pass
+        raise
+
+
+def other_users():
+    try:
+        entries = list(Path('/proc').iterdir())
+        require(len(entries) <= 32768)
+        count = 0
+        for entry in entries:
+            if entry.name.isdigit() and int(entry.name) != os.getpid():
+                try:
+                    count += int(entry.stat().st_uid == 1000)
+                except FileNotFoundError:
+                    pass
+        return count
+    except BaseException:
+        return None
+
+
+def inspect_inputs():
+    check_home()
+    if BASE.exists() or BASE.is_symlink():
+        require(BASE == BASE.resolve(strict=True) and stamp(BASE)[2:4] == [1000, 0o700])
+        return {'v': 1, 'parent_inputs': 'PRESENT', 'manifest_present': MANIFEST.is_file()}
+    return {'v': 1, 'parent_inputs': 'ABSENT', 'copied_script_absent': True, 'run_absent': True,
+            'other_user_processes': other_users()}
+
+
+def retire():
+    check_home()
+    require(MANIFEST == MANIFEST.resolve(strict=True) and stamp(MANIFEST)[2:4] == [1000, 0o600])
+    manifest_id = stamp(MANIFEST)
+    manifest = json.loads(bounded(MANIFEST, 16384).decode('ascii'))
+    require(set(manifest) == {'v', 'run', 'entries', 'probe_sha256'} and manifest['v'] == 1
+            and manifest['run'] == RUN and manifest['probe_sha256'] == PROBE_SHA)
+    entries = manifest['entries']
+    require(set(entries) == {'.', *DIRS, *FILES})
+    require(all(stamp(BASE / name) == value and value[2] == 1000 for name, value in entries.items()))
+    require(not (BASE / 'run').exists())
+    for name, expected in FILES.items():
+        p = BASE / name
+        require(hashlib.sha256(bounded(p, 262144)).hexdigest() == expected and stamp(p) == entries[name])
+    for name in FILES:
+        p = BASE / name
+        require(all(stamp(BASE / d) == entries[d] for d in ('.', *DIRS)))
+        require(stamp(p) == entries[name])
+        p.unlink()
+    for name in reversed(DIRS):
+        p = BASE / name
+        require(stamp(p) == entries[name])
+        p.rmdir()
+    require(stamp(MANIFEST) == manifest_id and stamp(BASE) == entries['.'])
+    MANIFEST.unlink()
+    BASE.rmdir()
+    require(not BASE.exists() and not BASE.is_symlink())
+    return {'v': 1, 'parent_inputs': 'RETIRED', 'files': 5, 'copied_script_retirement': 'PASS',
+            'remaining': 0, 'other_user_processes': other_users()}
+
+
+if __name__ == '__main__':
+    os.umask(0o077)
+    try:
+        require(sys.argv[1:] in (['prepare'], ['retire'], ['inspect']))
+        value = prepare() if sys.argv[1] == 'prepare' else retire() if sys.argv[1] == 'retire' else inspect_inputs()
+        print(json.dumps(value, separators=(',', ':')))
+        status = 0
+    except BaseException:
+        print('{"v":1,"parent_inputs":"REFUSED","cleanup":"INCONCLUSIVE"}')
+        status = 2
+    raise SystemExit(status)

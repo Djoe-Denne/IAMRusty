@@ -1,0 +1,270 @@
+param([string]$Mode='verify',[switch]$LibraryOnly)
+$ErrorActionPreference='Stop'
+$Root='C:\Users\djden\source\repos\AIForAll'
+$Wsl=Join-Path $env:SystemRoot 'System32\wsl.exe'
+$Guid='{22ce910b-45a3-42a4-bbab-dc56a1766035}'
+$Campaign='/home/aiforall/.cache/opencode/k6-linux-probes-ldd-only-20261030'
+$Bridge='/mnt/c/Users/djden/source/repos/AIForAll/.tmp/k6-probe-parent-files-ldd-only-20261030.py'
+$ProbeSha='602e8cd05830dcf053928661554cd953a1f286cfd451a59d9d91abba52b84fc7'
+$BridgeSha='7abaaf8bb0afe5eda51d404e2b0d8098e7ceb23661f73e1189dd5d02699aea7a'
+$Mission='team_mvtz6p47_000q_4wmht0'
+$Utf8=[Text.UTF8Encoding]::new($false,$true)
+
+function Need([bool]$Value){if(!$Value){throw 'PROBE_PARENT_REFUSED'}}
+function Assert-ParentMode([string]$Selected){Need (@('verify','elf','ldd-only') -ccontains $Selected)}
+function Get-LddQuotaPath {return (Join-Path $Root '.tmp\k6-ldd-exception-20261030.json')}
+function Open-LddQuota {
+    # Fixed across modes, leases and hosts. Never remove/reset this file.
+    return [IO.File]::Open((Get-LddQuotaPath),[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+}
+function Assert-LddLease($Lease) {
+    Need ($Lease.mission -ceq $Mission -and $Lease.status -ceq 'active' -and $Lease.selection -ceq 'ldd-only' -and
+        $Lease.probe_sha256 -ceq $ProbeSha -and $Lease.lease_id -cmatch '^[a-f0-9]{32}$')
+    $started=[datetime]::ParseExact($Lease.started_utc,'o',[Globalization.CultureInfo]::InvariantCulture,[Globalization.DateTimeStyles]::RoundtripKind)
+    $age=([datetime]::UtcNow-$started).TotalSeconds
+    Need ($started.Kind -eq [DateTimeKind]::Utc -and $age -ge 0 -and $age -le 600)
+}
+function Reserve-LddException($Lease) {
+    Assert-LddLease $Lease
+    $entry=@{v=1;mission=$Mission;selection='ldd-only';lease_id=$Lease.lease_id;probe_sha256=$ProbeSha;
+        previous_ldd_calls=1;additional_ldd_reserved=1;created_utc=[datetime]::UtcNow.ToString('o')}
+    $raw=$Utf8.GetBytes(($entry|ConvertTo-Json -Compress))
+    Need ($raw.Length -gt 0 -and $raw.Length -le 4096)
+    $stream=$null
+    try {
+        $stream=Open-LddQuota
+        $stream.Write($raw,0,$raw.Length)
+        $stream.Flush($true)
+        # Hold the same exclusive file handle through the attempted phase. On
+        # Windows FileShare.None also prevents rename/delete substitution while
+        # held. Closing on any failure never deletes or releases the reservation.
+        return [pscustomobject]@{Path=(Get-LddQuotaPath);Stream=$stream;SafeHandle=$stream.SafeFileHandle;
+            Handle=$stream.SafeFileHandle.DangerousGetHandle();Raw=$raw;LeaseId=$Lease.lease_id;Source=$ProbeSha;Attempted=$false}
+    } catch {
+        if($null -ne $stream){$stream.Dispose()}
+        throw 'PROBE_PARENT_REFUSED'
+    }
+}
+function Assert-LddReservation($Slot,$Lease,[string]$Selected) {
+    Need ($Selected -ceq 'ldd-only' -and $null -ne $Slot)
+    Assert-LddLease $Lease
+    Need ($Slot.Path -ceq (Get-LddQuotaPath) -and $Slot.LeaseId -ceq $Lease.lease_id -and $Slot.Source -ceq $ProbeSha -and !$Slot.Attempted)
+    $s=$Slot.Stream
+    Need ($s.CanRead -and $s.CanWrite -and !$s.SafeFileHandle.IsClosed -and !$s.SafeFileHandle.IsInvalid -and
+        [object]::ReferenceEquals($s.SafeFileHandle,$Slot.SafeHandle) -and $s.SafeFileHandle.DangerousGetHandle() -eq $Slot.Handle)
+    Need ($s.Length -eq $Slot.Raw.Length -and $s.Length -le 4096)
+    $s.Position=0;$copy=New-Object byte[] $Slot.Raw.Length;$offset=0
+    while($offset -lt $copy.Length){$n=$s.Read($copy,$offset,$copy.Length-$offset);Need ($n -gt 0);$offset+=$n}
+    Need ([Convert]::ToBase64String($copy) -ceq [Convert]::ToBase64String($Slot.Raw))
+}
+function Get-LddLinuxArguments([string]$Selected,[string]$Probe,[string]$Source,[string]$Tools,[string]$Output) {
+    Need ($Selected -ceq 'ldd-only')
+    return @($Probe,'--selection','ldd-only','--source-dir',$Source,'--tools-dir',$Tools,'--output',$Output)
+}
+function Assert-LddPhase($Slot,$Lease,[string]$Selected,[string[]]$Actual,[string[]]$Expected) {
+    Assert-LddReservation $Slot $Lease $Selected
+    Need ($Actual.Count -eq $Expected.Count)
+    for($i=0;$i -lt $Actual.Count;$i++){Need ($Actual[$i] -ceq $Expected[$i])}
+}
+function Begin-LddPhase($Slot,$Lease,[string]$Selected,[string[]]$Actual,[string[]]$Expected) {
+    Assert-LddPhase $Slot $Lease $Selected $Actual $Expected
+    $Slot.Attempted=$true
+    $Lease.ldd_launch='ATTEMPTED_OR_UNCERTAIN'
+}
+function Can-RetireInputs([bool]$Created,$Invocations) {
+    return ($Created -and @($Invocations|Where-Object {!$_.joined}).Count -eq 0)
+}
+
+if($LibraryOnly){return}
+Assert-ParentMode $Mode
+if($Mode -ceq 'ldd-only'){Need (!(Test-Path -LiteralPath (Get-LddQuotaPath)))}
+[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
+Need (@(Get-ChildItem Env: | Where-Object {$_.Name -match '^(CI|CONTINUOUS_INTEGRATION|GITLAB_CI|TF_BUILD|JENKINS_URL|BUILDKITE|CIRCLECI|TRAVIS|APPVEYOR|TEAMCITY_VERSION|GITHUB_.*|RUNNER_.*)$'}).Count -eq 0)
+Need ((Get-FileHash -LiteralPath (Join-Path $Root '.tmp\k6-probe-parent-files-ldd-only-20261030.py') -Algorithm SHA256).Hash -ieq $BridgeSha)
+
+# Reuse only the reviewed handle/reader APIs, never the private conductor.
+$Controller=Join-Path $Root 'ops\tests\k6\local-private-parent.ps1'
+Need ((Get-FileHash -LiteralPath $Controller -Algorithm SHA256).Hash -ieq '55e64170d4a247b0f0ca689589999063aca8da1571b254541804ac24a2bb5abd')
+$tokens=$null;$errors=$null
+$ast=[Management.Automation.Language.Parser]::ParseFile($Controller,[ref]$tokens,[ref]$errors)
+Need ($errors.Count -eq 0)
+$nodes=@($ast.FindAll({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -ceq 'Initialize-Native'},$true))
+Need ($nodes.Count -eq 1)
+. ([scriptblock]::Create($nodes[0].Extent.Text))
+Initialize-Native
+$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$self=[Diagnostics.Process]::GetCurrentProcess()
+$selfFact=[K6Parent.Native]::Observe($self.Handle)
+Need ($selfFact.Pid -eq $PID -and $selfFact.Sid -ceq $sid)
+$memory=[IO.MemoryStream]::new([Text.Encoding]::ASCII.GetBytes("known`n"))
+$reader=[K6Parent.FrameReader]::new($memory)
+Need ($reader.Poll(100) -ceq 'known' -and $null -eq $reader.Poll(100) -and $reader.Ended)
+$memory.Dispose()
+$memory=[IO.MemoryStream]::new([Text.Encoding]::ASCII.GetBytes(('x'*4096)+"`n"))
+$reader=[K6Parent.FrameReader]::new($memory);$refused=$false
+try{[void]$reader.Poll(100)}catch{$refused=$true}
+Need $refused;$memory.Dispose();$self.Dispose()
+if($Mode -ceq 'verify'){[Console]::WriteLine('{"parent_verification":"PASS","runtime_started":false}');exit 0}
+Need ((Get-AuthenticodeSignature -LiteralPath $Wsl).Status -eq 'Valid')
+
+function Identity {
+    $v=(& (Join-Path $Root '.tmp\k6-userns-identity-20261030.ps1')) | ConvertFrom-Json
+    Need ($v.distribution_id -ceq $Guid -and $v.windows_sid -ceq $sid -and $v.default_global_unchanged)
+    return $v
+}
+function Inventory {
+    $s=[Diagnostics.ProcessStartInfo]::new();$s.FileName=$Wsl;$s.Arguments='--list --verbose'
+    $s.UseShellExecute=$false;$s.RedirectStandardOutput=$true;$s.RedirectStandardError=$true
+    $s.StandardOutputEncoding=[Text.Encoding]::Unicode
+    $p=[Diagnostics.Process]::new();$p.StartInfo=$s;Need ($p.Start())
+    $text=$p.StandardOutput.ReadToEnd();$err=$p.StandardError.ReadToEnd();$p.WaitForExit()
+    Need ($p.ExitCode -eq 0 -and $err.Length -eq 0 -and $text.Length -le 8192);$p.Dispose()
+    $v=@{}
+    foreach($name in @('AIForAll','ARTIST-Ubuntu','docker-desktop')) {
+        $row=@($text.Split("`n") | Where-Object {$_ -match ([regex]::Escape($name)+'\s+')})
+        Need ($row.Count -eq 1)
+        $v[$name]=if($row[0] -match '\bStopped\b'){'Stopped'}elseif($row[0] -match '\bRunning\b'){'Running'}else{'UNKNOWN'}
+    }
+    return $v
+}
+$identity=Identity;$identityText=$identity|ConvertTo-Json -Compress
+$before=Inventory;Need ($before.AIForAll -ceq 'Stopped')
+$leaseId=[guid]::NewGuid().ToString('N')
+$leaseFile=Join-Path $Root ('.tmp\k6-ldd-only-run-20261030-'+$leaseId+'.json')
+$resultFile=Join-Path $Root ('.tmp\k6-ldd-only-result-20261030-'+$leaseId+'.json')
+$lease=@{version=1;mission=$Mission;owner='lead';lease_id=$leaseId;identity=$identity;
+    before=$before;status='active';consumers=@('ldd-parser-completion');started_utc=[datetime]::UtcNow.ToString('o');
+    selection=$Mode;probe_sha256=$ProbeSha;scope='one reserved additional ldd; no userns, context child, browser or private driver';
+    invocations=@();safe_to_delete='no';ldd_launch='NOT_EXECUTED'}
+if($Mode -ceq 'elf'){$lease.scope='read-only pinned ELF/loader metadata; zero external probe commands'}
+Need (!(Test-Path -LiteralPath $leaseFile) -and !(Test-Path -LiteralPath $resultFile))
+function Save {[IO.File]::WriteAllText($leaseFile,($lease|ConvertTo-Json -Depth 12),$Utf8)}
+function Event([string]$Name){
+    $row=@{timestamp_utc=[datetime]::UtcNow.ToString('o');event=$Name;mission=$lease.mission;id=$Guid;lease_id=$leaseId;safe_to_delete='no'}
+    [IO.File]::AppendAllText((Join-Path $Root '.tmp\wsl-resources-20261030.log'),(($row|ConvertTo-Json -Compress)+"`n"),$Utf8)
+}
+Save;Event 'ldd_parser_runtime_requested'
+$slot=$null;$expectedLdd=@()
+
+function Invoke-OwnedWsl([string[]]$LinuxArgs,[string]$Phase) {
+    if($Phase -ceq 'ldd'){Assert-LddPhase $slot $lease $Mode $LinuxArgs $expectedLdd}
+    else{Need (@('inspect','prepare','retire','stop','elf_metadata') -ccontains $Phase)}
+    Need (((Identity)|ConvertTo-Json -Compress) -ceq $identityText)
+    $argv=if($Phase -ceq 'stop'){@('--terminate','AIForAll')}else{
+        @('--distribution-id',$Guid,'--user','aiforall','--exec','/usr/bin/env','-i','PATH=/usr/bin:/bin',
+            'HOME=/home/aiforall','LANG=C.UTF-8','/usr/bin/python3','-I','-B')+$LinuxArgs
+    }
+    foreach($arg in $argv){Need ($arg -cmatch '^[A-Za-z0-9_./:{}=+-]+$')}
+    $start=[Diagnostics.ProcessStartInfo]::new();$start.FileName=$Wsl;$start.Arguments=$argv -join ' '
+    $start.UseShellExecute=$false;$start.CreateNoWindow=$true
+    $start.RedirectStandardInput=$true;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
+    $start.EnvironmentVariables.Clear()
+    foreach($name in @('SystemRoot','WINDIR','TEMP','TMP')){
+        $value=[Environment]::GetEnvironmentVariable($name);Need (![string]::IsNullOrEmpty($value));$start.EnvironmentVariables[$name]=$value
+    }
+    $start.EnvironmentVariables['PATH']=Join-Path $env:SystemRoot 'System32'
+    if($Phase -ceq 'ldd'){
+        Begin-LddPhase $slot $lease $Mode $LinuxArgs $expectedLdd
+        Save
+    }
+    $p=[Diagnostics.Process]::new();$p.StartInfo=$start;Need ($p.Start())
+    $entry=@{phase=$Phase;pid=$p.Id;joined=$false;identity_reverified=$false;identity_observed_before=$false}
+    $lease.invocations+=,$entry
+    try{
+        $handle=$p.Handle;$first=[K6Parent.Native]::Observe($handle)
+        Need ($first.Pid -eq $p.Id -and $first.Created -gt 0 -and $first.Sid -ceq $sid -and $first.Image -ieq $Wsl)
+    }catch{Save;Event ('ldd_parser_'+$Phase+'_created_unobserved');throw}
+    $entry.created=$first.Created;$entry.sid=$first.Sid;$entry.image=$first.Image;$entry.identity_observed_before=$true
+    Save;Event ('ldd_parser_'+$Phase+'_observed')
+    $p.StandardInput.Close()
+    $out=[K6Parent.FrameReader]::new($p.StandardOutput.BaseStream)
+    $err=[K6Parent.FrameReader]::new($p.StandardError.BaseStream)
+    $clock=[Diagnostics.Stopwatch]::StartNew();$line=$null;$clean=$true;$joined=$false
+    while($clock.Elapsed.TotalSeconds -lt 120) {
+        try{
+            $value=$out.Poll(10)
+            if($null -ne $value){if($null -ne $line){$clean=$false}else{$line=$value}}
+            [void]$err.Poll(2)
+            if($err.Seen -gt 0 -or $out.Seen -gt 65536 -or $err.Seen -gt 65536){$clean=$false}
+        }catch{$clean=$false;try{$p.StandardOutput.Close();$p.StandardError.Close()}catch{}}
+        if($p.WaitForExit(0) -and (!$clean -or ($out.Ended -and $err.Ended))){$joined=$true;break}
+        Start-Sleep -Milliseconds 5
+    }
+    $entry.joined=$joined;$entry.capture_clean=$clean;Save
+    Need $joined
+    # Same owned handle; SID/image were observed before exit, not freshly re-read.
+    Need ($p.Handle -eq $handle -and $p.HasExited -and $p.Id -eq $first.Pid -and
+        $p.StartTime.ToFileTimeUtc() -eq $first.Created -and $p.ExitTime.ToFileTimeUtc() -ge $first.Created)
+    $entry.exit=$p.ExitCode;$entry.identity_reverified=$true
+    $entry.identity_method='retained_handle_pid_creation_exit'
+    $entry.sid_observed_before=$true;$entry.sid_reobserved_after=$false
+    $reply=if($Phase -ceq 'stop' -and $clean -and $null -eq $line){@{control='EXITED'}}elseif($clean -and $null -ne $line){$line|ConvertFrom-Json}else{$null}
+    $code=$p.ExitCode;$p.Dispose();Save;Event ('ldd_parser_'+$Phase+'_joined')
+    Need ($clean -and $null -ne $reply)
+    return @{Exit=$code;Reply=$reply;Text=$line}
+}
+
+$probe=$null;$retire=$null;$overallExit=2;$inputsCreated=$false
+try {
+    if($Mode -ceq 'ldd-only'){
+        $slot=Reserve-LddException $lease
+        $lease.quota=@{path=(Get-LddQuotaPath);state='CONSUMED_PERSISTENT';lease_id=$leaseId;probe_sha256=$ProbeSha}
+        Save;Event 'ldd_exception_reserved'
+    }
+    $inspection=Invoke-OwnedWsl @($Bridge,'inspect') 'inspect'
+    Need ($inspection.Exit -eq 0 -and $inspection.Reply.parent_inputs -ceq 'ABSENT')
+    $lease.previous_input_state=$inspection.Reply.parent_inputs
+    $prepared=Invoke-OwnedWsl @($Bridge,'prepare') 'prepare'
+    Need ($prepared.Exit -eq 0 -and $prepared.Reply.parent_inputs -ceq 'READY' -and $prepared.Reply.files -eq 5 -and
+        $prepared.Reply.source_hashes_match -eq $true -and $prepared.Reply.probe_hash_match -eq $true)
+    $inputsCreated=$true
+    $paths=Get-Content -LiteralPath (Join-Path $Root '.tmp\k6-linux-probes-paths-20261030.json') -Raw | ConvertFrom-Json
+    $linuxProbe=$Campaign+'/probe.py';$sourceExport=$Campaign+'/source/ops/tests/k6';$runOutput=$Campaign+'/run'
+    if($Mode -ceq 'elf'){
+        $metadata='/mnt/c/Users/djden/source/repos/AIForAll/.tmp/k6-read-pinned-elf-20261030.py'
+        $probe=Invoke-OwnedWsl @($metadata,'--source-dir',$sourceExport,'--tools-dir',[string]$paths.tools_dir,'--output',$runOutput) 'elf_metadata'
+    }else{
+        $expectedLdd=Get-LddLinuxArguments $Mode $linuxProbe $sourceExport ([string]$paths.tools_dir) $runOutput
+        $probe=Invoke-OwnedWsl $expectedLdd 'ldd'
+    }
+    Need ($probe.Exit -in @(0,2))
+    $lease.probe_exit=$probe.Exit
+    [IO.File]::WriteAllText($resultFile,$probe.Text,$Utf8)
+} catch {
+    $lease.failure='PARENT_PHASE_REFUSED'
+} finally {
+    try {
+        if(Can-RetireInputs $inputsCreated $lease.invocations) {
+            try{$retire=Invoke-OwnedWsl @($Bridge,'retire') 'retire'}catch{$lease.retirement_failure='PARENT_RETIREMENT_UNPROVEN'}
+        }
+        $lease.inputs_retired=($null -ne $retire -and $retire.Exit -eq 0 -and $retire.Reply.parent_inputs -ceq 'RETIRED' -and $retire.Reply.remaining -eq 0)
+        $lease.linux_cleanup=if($null -ne $probe){$probe.Reply.cleanup}else{'INCONCLUSIVE'}
+        $lease.privacy=if($null -ne $probe){$probe.Reply.privacy}else{'NOT_OBSERVED'}
+        $lease.after=Inventory
+        $lease.foreign_states_unchanged=($lease.after.'ARTIST-Ubuntu' -ceq $before.'ARTIST-Ubuntu' -and $lease.after.'docker-desktop' -ceq $before.'docker-desktop')
+        if($lease.after.AIForAll -ceq 'Running' -and $lease.inputs_retired -and $lease.linux_cleanup -ceq 'PASS' -and
+            $lease.foreign_states_unchanged -and $null -ne $retire.Reply.other_user_processes -and $retire.Reply.other_user_processes -eq 0 -and
+            @($lease.invocations|Where-Object {!$_.joined -or !$_.identity_reverified}).Count -eq 0) {
+            try{
+                $stopped=Invoke-OwnedWsl @() 'stop';$lease.targeted_stop_exit=$stopped.Exit
+                $lease.after=Inventory
+            }catch{$lease.targeted_stop='UNPROVEN'}
+        }
+        $lease.consumers=@()
+        $lease.status=if($lease.inputs_retired -and $lease.after.AIForAll -ceq 'Stopped'){'released'}else{'runtime_or_inputs_cleanup_pending'}
+        $lease.result_file=if(Test-Path -LiteralPath $resultFile){$resultFile}else{$null}
+        $overallExit=if($lease.status -ceq 'released' -and $null -ne $probe -and $probe.Exit -eq 0 -and
+            $lease.linux_cleanup -ceq 'PASS' -and $lease.privacy -ceq 'PASS' -and $lease.inputs_retired -and
+            @($lease.invocations|Where-Object {!$_.joined -or !$_.identity_reverified}).Count -eq 0){0}else{2}
+        $lease.parent_exit=$overallExit
+        Save;Event 'ldd_parser_invocations_finished'
+        [Console]::WriteLine((@{lease_file=$leaseFile;result_file=$lease.result_file;probe_exit=$lease.probe_exit;
+            inputs_retired=$lease.inputs_retired;linux_cleanup=$lease.linux_cleanup;privacy=$lease.privacy;
+            owned_windows_invocations=$lease.invocations.Count;joined_windows_invocations=@($lease.invocations|Where-Object {$_.joined -and $_.identity_reverified}).Count;
+            status=$lease.status;after=$lease.after;foreign_states_unchanged=$lease.foreign_states_unchanged;
+            ldd_launch=$lease.ldd_launch;browser_executed=$false;driver_preflight_executed=$false}|ConvertTo-Json -Compress -Depth 5))
+    } finally {
+        if($null -ne $slot){$slot.Stream.Dispose()} # reservation file always remains
+    }
+}
+exit $overallExit

@@ -1,0 +1,155 @@
+# Pure I/O fixtures only. No Process.Start, WSL, native child or actual quota.
+$ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'k6-probe-parent-ldd-only-20261030.ps1') -LibraryOnly
+$originalOpen=(Get-Item Function:Open-LddQuota).ScriptBlock
+$script:Checks=0;$script:Cases=0;$script:OpenCalls=0;$script:Fault='none'
+$fixtureRoot=Join-Path 'C:\Users\djden\AppData\Local\Temp\opencode' ('k6-ldd-quota-fixtures-'+[guid]::NewGuid().ToString('N'))
+[void][IO.Directory]::CreateDirectory($fixtureRoot)
+$created=[Collections.Generic.List[string]]::new();$directories=[Collections.Generic.List[string]]::new()
+$slots=[Collections.Generic.List[object]]::new()
+$opened=[Collections.Generic.List[object]]::new()
+function Check([bool]$Value){if(!$Value){throw 'QUOTA_FIXTURE_FAILED'};$script:Checks++}
+function Refuses([scriptblock]$Action){
+    $bad=$false
+    try{& $Action|Out-Null}catch{
+        $bad=$true
+        if($_.Exception.Message -cne 'PROBE_PARENT_REFUSED'){[Console]::WriteLine(('unexpected_refusal_id='+$_.FullyQualifiedErrorId))}
+        Check ($_.Exception.Message -ceq 'PROBE_PARENT_REFUSED')
+    }
+    Check $bad
+}
+function Case {
+    $script:Cases++;$script:OpenCalls=0;$script:Fault='none'
+    $directory=Join-Path $fixtureRoot ([string]$script:Cases)
+    [void][IO.Directory]::CreateDirectory($directory);$directories.Add($directory)
+    $script:FixtureQuota=Join-Path $directory 'quota.json';$created.Add($script:FixtureQuota)
+}
+function Lease {
+    return @{mission=$Mission;status='active';selection='ldd-only';probe_sha256=$ProbeSha;
+        lease_id=[guid]::NewGuid().ToString('N');started_utc=[datetime]::UtcNow.ToString('o');ldd_launch='NOT_EXECUTED'}
+}
+function Open-LddQuota {
+    # Only the OS file-opening boundary is redirected to disposable test files.
+    # Get-LddQuotaPath itself is unchanged and must remain fixed/canonical.
+    $script:OpenCalls++
+    $s=[IO.File]::Open($script:FixtureQuota,[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+    $opened.Add($s)
+    if($script:Fault -ceq 'none'){return $s}
+    $wrapper=[pscustomobject]@{Real=$s;Fault=$script:Fault}
+    $wrapper|Add-Member ScriptMethod Write {param($raw,$offset,$length)
+        if($this.Fault -ceq 'write'){throw 'KNOWN_FIXTURE_WRITE_FAILURE'}
+        $this.Real.Write($raw,$offset,$length)
+    }
+    $wrapper|Add-Member ScriptMethod Flush {param($disk) throw 'KNOWN_FIXTURE_FLUSH_FAILURE'}
+    $wrapper|Add-Member ScriptMethod Dispose {$this.Real.Dispose()}
+    return $wrapper
+}
+try {
+    Case
+    $fixed=Get-LddQuotaPath
+    Check ($fixed -ceq (Join-Path $Root '.tmp\k6-ldd-exception-20261030.json'))
+    foreach($mode in @('verify','elf','ldd-only')){Assert-ParentMode $mode}
+    foreach($mode in @('run','verify-exit','other','')){Refuses {Assert-ParentMode $mode}}
+    Refuses {Get-LddLinuxArguments 'run' '/probe' '/source' '/tools' '/out'}
+    $args=Get-LddLinuxArguments 'ldd-only' '/probe' '/source' '/tools' '/out'
+    Check (($args -join '|') -ceq '/probe|--selection|ldd-only|--source-dir|/source|--tools-dir|/tools|--output|/out')
+    Check ($script:OpenCalls -eq 0 -and !(Test-Path -LiteralPath $script:FixtureQuota))
+
+    Case
+    $lease=Lease;$slot=Reserve-LddException $lease;$slots.Add($slot)
+    Check (Test-Path -LiteralPath $script:FixtureQuota)
+    Assert-LddReservation $slot $lease 'ldd-only'
+    Check ($slot.Stream.Length -gt 0 -and $slot.Stream.Length -le 4096)
+    Refuses {Reserve-LddException (Lease)}
+    foreach($mode in @('run','elf','verify')){Refuses {Assert-LddReservation $slot $lease $mode}}
+    Refuses {Assert-LddReservation $slot (Lease) 'ldd-only'}
+    Refuses {Assert-LddPhase $slot $lease 'ldd-only' ($args+@('--context-child')) $args}
+    Check (!$slot.Attempted -and $lease.ldd_launch -ceq 'NOT_EXECUTED')
+    $old=Join-Path (Split-Path $script:FixtureQuota) 'old.fixture';$created.Add($old)
+    $blocked=$false;try{[IO.File]::Move($script:FixtureQuota,$old)}catch{$blocked=$true}
+    Check $blocked
+    Begin-LddPhase $slot $lease 'ldd-only' $args $args
+    Check ($slot.Attempted -and $lease.ldd_launch -ceq 'ATTEMPTED_OR_UNCERTAIN')
+    Refuses {Begin-LddPhase $slot $lease 'ldd-only' $args $args}
+    $slot.Stream.Dispose()
+    Check (Test-Path -LiteralPath $script:FixtureQuota)
+    Refuses {Reserve-LddException (Lease)}
+    Check ((Get-LddQuotaPath) -ceq $fixed)
+
+    Case
+    $lease=Lease;$slot=Reserve-LddException $lease;$slots.Add($slot)
+    $slot.Stream.Dispose()
+    $old=Join-Path (Split-Path $script:FixtureQuota) 'old.fixture';$created.Add($old)
+    [IO.File]::Move($script:FixtureQuota,$old)
+    [IO.File]::WriteAllText($script:FixtureQuota,'KNOWN_FOREIGN_REPLACEMENT')
+    Refuses {Reserve-LddException (Lease)}
+    Check ([IO.File]::ReadAllText($script:FixtureQuota) -ceq 'KNOWN_FOREIGN_REPLACEMENT')
+    Check (Test-Path -LiteralPath $old)
+
+    foreach($text in @('','{','{"v":1}','KNOWN_FOREIGN_FILE')){
+        Case
+        [IO.File]::WriteAllText($script:FixtureQuota,$text)
+        Refuses {Reserve-LddException (Lease)}
+        Check ([IO.File]::ReadAllText($script:FixtureQuota) -ceq $text)
+    }
+
+    foreach($injected in @('write','flush')){
+        Case;$script:Fault=$injected
+        Refuses {Reserve-LddException (Lease)}
+        Check (Test-Path -LiteralPath $script:FixtureQuota)
+        $length=([IO.FileInfo]::new($script:FixtureQuota)).Length
+        Check ($(if($injected -ceq 'write'){$length -eq 0}else{$length -gt 0}))
+        $script:Fault='none'
+        Refuses {Reserve-LddException (Lease)}
+        Check (([IO.FileInfo]::new($script:FixtureQuota)).Length -eq $length)
+    }
+
+    Case
+    foreach($field in @('mission','probe_sha256','selection','lease_id','started_utc')){
+        $bad=Lease
+        $bad[$field]=if($field -ceq 'started_utc'){[datetime]::UtcNow.AddHours(-1).ToString('o')}else{'foreign'}
+        Refuses {Reserve-LddException $bad}
+    }
+    Check ($script:OpenCalls -eq 0 -and !(Test-Path -LiteralPath $script:FixtureQuota))
+
+    Case
+    $lease=Lease;$slot=Reserve-LddException $lease;$slots.Add($slot)
+    $slot.Stream.Position=0;$slot.Stream.WriteByte(0);$slot.Stream.Flush($true)
+    Refuses {Assert-LddReservation $slot $lease 'ldd-only'}
+    Check (!$slot.Attempted)
+    $slot.Stream.Dispose()
+    Refuses {Assert-LddReservation $slot $lease 'ldd-only'}
+    Refuses {Reserve-LddException (Lease)}
+    Check (Test-Path -LiteralPath $script:FixtureQuota)
+
+    Case
+    $tokens=$null;$errors=$null
+    $tree=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'k6-probe-parent-ldd-only-20261030.ps1'),[ref]$tokens,[ref]$errors)
+    Check (@($errors).Count -eq 0)
+    $owned=@($tree.FindAll({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -ceq 'Invoke-OwnedWsl'},$true))
+    Check ($owned.Count -eq 1)
+    $text=$owned[0].Extent.Text
+    $begin=$text.IndexOf('Begin-LddPhase ');$start=$text.IndexOf('$p.Start()');$observe=$text.IndexOf('::Observe($handle)');$ended=$text.IndexOf('$p.HasExited')
+    Check ($begin -ge 0 -and $start -gt $begin -and $observe -gt $start -and $ended -gt $observe)
+    Check ($text.Substring($ended).IndexOf('::Observe(') -lt 0)
+    Check ($text.Contains('$p.Handle -eq $handle') -and $text.Contains('$p.StartTime.ToFileTimeUtc() -eq $first.Created') -and
+        $text.Contains('$p.ExitTime.ToFileTimeUtc() -ge $first.Created'))
+    Check (!(Can-RetireInputs $false @()))
+    Check (!(Can-RetireInputs $true @(@{joined=$false})))
+    Check (Can-RetireInputs $true @(@{joined=$true}))
+    $scriptText=$tree.Extent.Text
+    Check ($scriptText.IndexOf('$slot=Reserve-LddException $lease') -lt $scriptText.IndexOf('$inspection=Invoke-OwnedWsl'))
+    Check ($scriptText.Contains('if(Can-RetireInputs $inputsCreated $lease.invocations)'))
+} catch {
+    [Console]::WriteLine(('fixture_error_id='+$_.FullyQualifiedErrorId+' line='+$_.InvocationInfo.ScriptLineNumber+' case='+$script:Cases))
+    [Console]::WriteLine(('owned_fixture='+$fixtureRoot))
+    throw
+} finally {
+    foreach($slot in $slots){$slot.Stream.Dispose()}
+    foreach($stream in $opened){$stream.Dispose()}
+    Set-Item Function:Open-LddQuota -Value $originalOpen
+    foreach($file in $created){if([IO.File]::Exists($file)){[IO.File]::Delete($file)}}
+    for($i=$directories.Count-1;$i -ge 0;$i--){[IO.Directory]::Delete($directories[$i],$false)}
+    [IO.Directory]::Delete($fixtureRoot,$false)
+}
+[Console]::WriteLine((@{cases=$script:Cases;assertions=$script:Checks;fixture_cleanup='PASS';runtime_started=$false;quota_location='FIXTURE_ONLY'}|ConvertTo-Json -Compress))

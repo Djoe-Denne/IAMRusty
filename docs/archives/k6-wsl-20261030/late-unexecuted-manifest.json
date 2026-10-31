@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "scope": "public historical sources only; inactive archive",
+  "recovered_on": "2026-10-31",
+  "source_base": "b316668d79a113281477eb799fb5f20fba5506ab",
+  "delivery": "recovered during authorized native worktree backup, not a qualified implementation delivery",
+  "execution": "NOT_EXECUTED_BY_LEAD",
+  "wsl_qualification": "INCONCLUSIVE",
+  "executable": false,
+  "files": [
+    {
+      "source": ".tmp/k6-linux-probes-ldd-only-20261030.py",
+      "archive": "sources/late-unexecuted/k6-linux-probes-ldd-only-20261030.py.txt",
+      "bytes": 24387,
+      "sha256": "602e8cd05830dcf053928661554cd953a1f286cfd451a59d9d91abba52b84fc7"
+    },
+    {
+      "source": ".tmp/k6-probe-parent-files-ldd-only-20261030.py",
+      "archive": "sources/late-unexecuted/k6-probe-parent-files-ldd-only-20261030.py.txt",
+      "bytes": 7434,
+      "sha256": "7abaaf8bb0afe5eda51d404e2b0d8098e7ceb23661f73e1189dd5d02699aea7a"
+    },
+    {
+      "source": ".tmp/k6-probe-parent-ldd-only-20261030.ps1",
+      "archive": "sources/late-unexecuted/k6-probe-parent-ldd-only-20261030.ps1.txt",
+      "bytes": 17277,
+      "sha256": "f1f27ec6c252a1d9d317befa31af0a4c38aebb5cf1374759c2f48b8680bf495d"
+    },
+    {
+      "source": ".tmp/test_k6_ldd_only_20261030.py",
+      "archive": "sources/late-unexecuted/test_k6_ldd_only_20261030.py.txt",
+      "bytes": 13184,
+      "sha256": "75ad6bdfde85d7df88c39633dd74a402ce25dd3c81c24bd890cc640a70af45cb"
+    },
+    {
+      "source": ".tmp/test_k6_ldd_quota_20261030.ps1",
+      "archive": "sources/late-unexecuted/test_k6_ldd_quota_20261030.ps1.txt",
+      "bytes": 8564,
+      "sha256": "e8f240bc6acb6f93ab1b5ea3797322cdd11d3d3c3d67a228413cdfa0b8c3626e"
+    }
+  ],
+  "excluded": ["logs", "private configurations", "profiles", "leases", "runtime registries", "caches", "binaries", "WSL data"]
+}

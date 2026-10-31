@@ -72,3 +72,9 @@ Le dernier inventaire confirme huit absences, deux présences, références pré
 inchangées et HEAD du sous-module inchangé. Aucun test fonctionnel n'est rejoué
 pour ce nettoyage documentaire ; les 34 tests Windows et le vrai cas navigateur
 du rapport99 restent à leur portée. HTTP, WSL et Linux restent INCONCLUSIVE.
+
+## Reprise ultérieure
+
+Après autorisation explicite de la copie native ciblée, les 32 sources ont été
+sauvegardées et restaurées avec empreintes identiques, sans modifier de permissions.
+Voir le [résultat de la récupération et la disposition des sources](105-dernieres-sources-sauvegardees-sans-reprise-wsl.md).

@@ -19,6 +19,21 @@ des fins de ligne pour ces copies, afin de conserver leurs empreintes. Le
 raccordldd-only éventuellement rendu au moment du gel sera conservé séparément
 comme travail non consommé, jamais ajouté à la preuve du run historique.
 
+### Complément récupéré à la clôture — 31 octobre 2026
+
+Cinq sources du raccord `ldd-only`, restées dans l'ancienne copie de travail, sont
+conservées sous `sources/late-unexecuted/`, toujours avec le suffixe `.txt`.
+Le [manifeste complémentaire](late-unexecuted-manifest.json) enregistre leurs tailles
+et SHA256. Elles ne sont ni une livraison qualifiée, ni une permission de lancer
+une seconde mesure. Le lead n'a exécuté ni ces programmes ni leurs fixtures ; leur
+contenu a seulement été inspecté et comparé octet par octet lors de la récupération.
+
+Les 19 sources initiales sont inchangées. Deux autres scripts récupérés sont déjà
+présents à SHA256 identique dans ce manifeste initial et ne sont pas dupliqués.
+Le total archivé est donc de 24 sources. WSL reste suspendu et INCONCLUSIVE ; le
+nombre de dépendances manquantes du run historique reste inconnu. Les sources,
+données et outils de l'instance WSL sur I: ne sont ni déplacés ni supprimés.
+
 La référence exécutée du diagnostic et la correction ultérieure du lecteur sont
 conservées séparément. Cette correction n'a jamais requalifié le run réel et ne
 doit pas servir à inventer sa sortie effacée. Les contrôleurs contiennent des
