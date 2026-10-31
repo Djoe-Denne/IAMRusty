@@ -110,8 +110,20 @@ de registre Docker à produire, pas de ressource possédée à arrêter.
 
 Préexistant AIForAll conservé en `b19b4ad`. Le delta de composition service a
 également reçu un PASS sécurité **statique borné**, sans finding concret, sans
-exécution indépendante de tests par le reviewer. Publication finale service/gitlink
-et vérification distante à consigner à la clôture.
+exécution indépendante de tests par le reviewer.
+
+Service, contrats, tests et gitlink publiés dans
+`21caa8bd774d94c280b578a97e1992649afa58b7` sur **origin/master** ; référence
+distante vérifiée après push. Le gitlink reste de mode160000 et consomme
+`93b890ff7b821e9cb2e7d0aeb81957d098778a2f`, publié/vérifié sur **origin/main**
+du SDK. Les commits de clôture documentaire ultérieurs ne modifient pas les
+sources testées. La fiche de mission utilisateur originale reste inchangée.
+
+Clôture : checkout principal et sous-module propres après livraison ; aucune
+branche/worktree de mission à intégrer/retirer, aucun archivage Ensemble requis.
+Les deux sous-agents ponctuels sont terminés. Inventaire final comparé à
+l’inventaire initial : les quatre worktrees et branches d’autres missions sont
+préservés ; seul le préexistant `nul` reste non suivi dans le SDK frère.
 Aucune branche/worktree de mission ni équipe Ensemble créée ; les arbres
 étrangers sont conservés. Le fichier jetable préexistant `nul` du SDK frère est
 exclu du commit et laissé en place, sans suppression non autorisée.
