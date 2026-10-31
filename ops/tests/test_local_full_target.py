@@ -321,6 +321,7 @@ class AnchorTests(unittest.TestCase):
             self.assertEqual(result["kube_system_uid"], "owned-system-uid")
             self.assertEqual(len(commands.api()), 1)
             self.assertEqual(commands.kind_actions()[0][1:3], ["create", "cluster"])
+            self.assertIn("--retain", commands.kind_actions()[0])
 
     def test_pending_cannot_adopt_existing_or_run_before_final_it(self):
         with tempfile.TemporaryDirectory() as root:

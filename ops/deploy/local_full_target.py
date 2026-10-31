@@ -1544,7 +1544,8 @@ def bootstrap(path, cluster, config, after_final_it=False, runner=run, root=None
     persist(target.path, d)
     failure = None
     try:
-        runner(["kind", "create", "cluster", "--name", cluster, "--config", str(config), "--kubeconfig", str(target.config), "--wait", "0"], text=True, timeout=900, env=target.environment())
+        retention = ["--retain"] if cluster == "aiforall-local-full" else []
+        runner(["kind", "create", "cluster", "--name", cluster, "--config", str(config), "--kubeconfig", str(target.config), "--wait", "0", *retention], text=True, timeout=900, env=target.environment())
     except Exception as error:
         failure = error
     ids = target.roster()
