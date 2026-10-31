@@ -78,14 +78,16 @@ try {
     }
     $result.reason = 'NONE'; $exitCode = 0
 } catch {
+    $parentFailure = $_
     # Never print a native exception or a tool stream, even on an early failure.
     $known = @('PLATFORM_REFUSED', 'ELEVATION_REFUSED', 'INPUT_MISSING', 'INPUT_INVALID', 'PATH_INVALID', 'OUTPUT_EXISTS', 'OUTPUT_CREATE_REFUSED', 'OUTPUT_BINDING_UNPROVEN', 'WINDOWS_LOCK_MISSING', 'PIN_INVALID', 'PE_INVALID', 'JSON_INVALID', 'SCHEMA_INVALID', 'COMPLETENESS_INVALID', 'SUMMARY_INVALID', 'OPTIONS_INVALID', 'VERSION_INVALID', 'CHROMIUM_VERSION_PENDING', 'BROWSER_EXPECTATION_INVALID', 'TARGET_REFUSED', 'TARGET_BINDING_UNQUALIFIED', 'PRIVACY_REFUSED', 'CLEANUP_UNPROVEN', 'CHILD_UNSUCCESSFUL', 'PROCESS_START_REFUSED')
-    $message = $_.Exception.Message
+    $message = $parentFailure.Exception.Message
     $label = @($known | Where-Object { $message -match ('(?:^|[\s"'':])' + [regex]::Escape($_) + '(?:$|[\s"''])') } | Select-Object -First 1)
     $result.reason = if ($label.Count -eq 1) { $label[0] } else { 'PRECONDITION_REFUSED' }
     if ($result.reason -ceq 'PRIVACY_REFUSED') { $result.confidentiality = 'FAIL' }
     if ($result.reason -ceq 'CLEANUP_UNPROVEN') { $result.cleanup = 'FAIL' }
     $exitCode = 2
+    if ($helpersLoaded -and $outputCreated) { Write-K6ParentDiagnostic $parentFailure $Output }
 } finally {
     # Only the freshly created run directory is disposable. Never remove
     # an output supplied by someone else, a reused path or a surviving child's data.

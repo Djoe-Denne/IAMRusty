@@ -219,6 +219,46 @@ function Complete-K6WindowsVerdicts($Projection) {
     }
 }
 
+function Write-K6ParentDiagnostic($Failure, [string] $Directory) {
+    # Private failure facts only. Diagnostic I/O must never replace the original
+    # parent error or affect its verdict. No message, stack, environment or argv.
+    try {
+        $type = $Failure.Exception.GetType().FullName
+        $id = [string]$Failure.FullyQualifiedErrorId
+        $facts = [ordered]@{
+            exception_type = $type.Substring(0, [Math]::Min(256, $type.Length))
+            error_id = $id.Substring(0, [Math]::Min(256, $id.Length))
+            script_line = [int]$Failure.InvocationInfo.ScriptLineNumber
+            summary_present = [IO.File]::Exists((Join-Path $Directory 'summary.json'))
+            summary_bytes = $null
+            summary_copied = $false
+        }
+        if ($facts.summary_present) {
+            $stream = $null; $copy = [IO.MemoryStream]::new()
+            try {
+                $stream = [IO.FileStream]::new((Join-Path $Directory 'summary.json'), [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+                $facts.summary_bytes = $stream.Length
+                if ($stream.Length -le 65536) {
+                    $buffer = [byte[]]::new(4096)
+                    while ($copy.Length -lt 65537) {
+                        $count = $stream.Read($buffer, 0, [int][Math]::Min(4096, 65537 - $copy.Length))
+                        if ($count -eq 0) { break }
+                        $copy.Write($buffer, 0, $count)
+                    }
+                    if ($copy.Length -le 65536) {
+                        [IO.File]::WriteAllBytes((Join-Path $Directory 'parent-summary.json'), $copy.ToArray())
+                        $facts.summary_copied = $true
+                    }
+                }
+            } catch { } finally {
+                if ($null -ne $stream) { $stream.Dispose() }
+                $copy.Dispose()
+            }
+        }
+        [IO.File]::WriteAllText((Join-Path $Directory 'parent-error.json'), ($facts | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+    } catch { }
+}
+
 function Remove-K6OwnedTree($Owned, [switch] $KeepDiagnostics) {
     if ($Owned -isnot [K6Windows.OwnedDirectory]) { throw 'CLEANUP_UNPROVEN' }
     $Owned.AssertBound()
@@ -236,7 +276,7 @@ function Remove-K6OwnedTree($Owned, [switch] $KeepDiagnostics) {
     }
     foreach ($entry in @($entries.ToArray() | Sort-Object { $_.FullName.Length } -Descending)) {
         if ($KeepDiagnostics -and -not $entry.PSIsContainer -and $entry.DirectoryName -ceq $Path -and
-            $entry.Name -cmatch '^(?:child-[1-9][0-9]*\.(?:stdout|stderr)\.log|process-[a-f0-9]{32}\.json)$') { continue }
+            $entry.Name -cmatch '^(?:child-[1-9][0-9]*\.(?:stdout|stderr)\.log|process-[a-f0-9]{32}\.json|parent-(?:error|summary)\.json)$') { continue }
         if ($entry.PSIsContainer) { [IO.Directory]::Delete($entry.FullName, $false) } else { [IO.File]::Delete($entry.FullName) }
     }
     # Delete the empty directory through its original creation handle. Never

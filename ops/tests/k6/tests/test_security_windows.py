@@ -59,6 +59,32 @@ class WindowsCleanupTests(unittest.TestCase):
                 "Remove-K6OwnedTree $o; if([IO.Directory]::Exists($root)){exit 7};'DIAGNOSTICS_ONLY' } finally {$o.Dispose()}")
         self.assertEqual(self.ps(code), "DIAGNOSTICS_ONLY")
 
+    def test_parent_diagnostic_catch_bounded_summary_retention_and_io_failure(self):
+        path = self.directory / "parent-diagnostic"
+        code = (f"$root={base.quote(path)}; "
+                "foreach($size in @(-1,0,2,65536,65537)){ "
+                "$o=[K6Windows.OwnedDirectory]::Create($root); try { "
+                "$summary=Join-Path $root 'summary.json'; $saved=Join-Path $root 'parent-summary.json'; "
+                "if($size-ge 0){[IO.File]::WriteAllBytes($summary,[byte[]]::new($size))}; "
+                "try {$null=[int]::Parse('PRIVATE_SENTINEL https://private.invalid/')} catch { "
+                "$original=$_; $originalMessage=$_.Exception.Message; Write-K6ParentDiagnostic $_ $root; "
+                "Write-K6ParentDiagnostic $_ (Join-Path $root 'does-not-exist'); "
+                "if($original.Exception.Message-cne $originalMessage){exit 5} }; "
+                "$errorPath=Join-Path $root 'parent-error.json'; $text=[IO.File]::ReadAllText($errorPath); "
+                "Assert-K6Privacy $text @('PRIVATE_SENTINEL'); if($text.Length-gt 2048){exit 6}; "
+                "$v=ConvertFrom-K6Json $text; Assert-K6Fields $v @('exception_type','error_id','script_line','summary_present','summary_bytes','summary_copied'); "
+                "if($v.exception_type-cne $original.Exception.GetType().FullName-or $v.error_id-cne $original.FullyQualifiedErrorId-or $v.error_id.Length-eq 0-or $v.script_line-le 0){exit 7}; "
+                "if($v.summary_present-ne ($size-ge 0)-or $v.summary_copied-ne ($size-ge 0-and $size-le 65536)){exit 8}; "
+                "if($size-ge 0){if($v.summary_bytes-ne $size){exit 9}}elseif($null-ne $v.summary_bytes){exit 10}; "
+                "if($v.summary_copied){if([IO.FileInfo]::new($saved).Length-ne $size){exit 11}}elseif([IO.File]::Exists($saved)){exit 12}; "
+                "[void][IO.Directory]::CreateDirectory((Join-Path $root 'profile')); "
+                "[IO.File]::WriteAllText((Join-Path $root 'profile\\known.txt'),'known'); "
+                "Remove-K6OwnedTree $o -KeepDiagnostics; "
+                "if([IO.File]::Exists($summary)-or [IO.Directory]::Exists((Join-Path $root 'profile'))-or -not [IO.File]::Exists($errorPath)){exit 13}; "
+                "if($v.summary_copied-and -not [IO.File]::Exists($saved)){exit 14}; "
+                "Remove-K6OwnedTree $o } finally {$o.Dispose()} }; 'PRIVATE_DIAGNOSTICS_OK'")
+        self.assertEqual(self.ps(code), "PRIVATE_DIAGNOSTICS_OK")
+
 
 if __name__ == "__main__":
     unittest.main()
