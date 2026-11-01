@@ -977,10 +977,11 @@ def refresh(args):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["render", "deploy", "inventory", "refresh"])
+    parser.add_argument("action", choices=["render", "deploy", "inventory", "refresh", "up", "stop", "status"])
     parser.add_argument("--lease", type=Path)
     parser.add_argument("--image-manifest", type=Path)
     parser.add_argument("--registry-state", type=Path)
+    parser.add_argument("--environment-dir", type=Path, default=Path.home() / ".aiforall-local-full")
     parser.add_argument("--release-manifest", type=Path)
     parser.add_argument("--previous-release-manifest", type=Path)
     parser.add_argument("--targets", help="explicit comma-separated image-only refresh targets")
@@ -1022,6 +1023,17 @@ def main():
             if data.get("namespaceUids", {}).get(namespace) != uid:
                 raise ValueError("inventory namespace is not owned")
             print(k("get", "deployment,pod,pvc,job,networkpolicy", "-n", namespace, "-o", "name"))
+    elif args.action in {"up", "stop", "status"}:
+        from local_full_environment import operate
+        previous = os.umask(0o077)
+        try:
+            print(json.dumps(operate(args, runtime, github_inputs, secret)))
+        except (ValueError, target_authority.AnchorError) as error:
+            raise SystemExit(str(error)) from None
+        except (OSError, KeyError, TypeError, subprocess.TimeoutExpired):
+            raise SystemExit("local environment refused/not ready; private state retained, no reset") from None
+        finally:
+            os.umask(previous)
     elif args.action == "refresh":
         if not all((args.lease, args.registry_state, args.release_manifest, args.previous_release_manifest, args.targets)):
             raise ValueError("refresh requires --lease, --registry-state, --release-manifest, --previous-release-manifest and --targets")

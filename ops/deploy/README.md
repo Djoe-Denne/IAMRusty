@@ -4,6 +4,73 @@ Contrat : [runtime autonome, validations explicites](../../docs/contracts/ops-ki
 
 Le **seul parcours nominal est local-full** : cluster `aiforall-local-full`, contexte `kind-aiforall-local-full`, un control-plane et deux workers. Il ne réutilise ni ne remplace le cluster legacy `aiforall-local`. Aucun repli vers Compose, une démo monolithe ou des stubs. Les commandes ci-dessous sont une procédure opérateur, **pas une preuve live** ; un rendu valide ou des Pods Ready ne prouvent pas un parcours métier.
 
+## Cycle quotidien : up / stop / status
+
+Après une **première installation explicite** avec les outils ci-dessous,
+enregistrer une seule fois son **bail v2 d'origine déjà ancré** :
+
+```powershell
+just local-up --lease "CHEMIN_BAIL_ORIGINAL" --registry-state "ETAT_REGISTRE_PRIVE" --github-input-file "SOURCE_GITHUB_PRIVEE"
+```
+
+`--registry-state` est optionnel pour un environnement historique kind-load.
+`--github-input-file` concerne seulement un déploiement GitHub/OpenBao ; l'omettre
+pour le profil de base ou GitLab. C'est le même fichier privé en lecture seule
+que pour l'installation, pas une valeur secrète en argument. Le conserver.
+
+Les sessions suivantes ne demandent plus de fabriquer/copier un bail :
+
+```powershell
+just local-up
+just local-status
+just local-stop
+```
+
+Équivalents : `python -B ops/deploy/deploy-local-full.py up|status|stop`.
+Références privées persistantes par défaut dans `$HOME/.aiforall-local-full/` ;
+`--environment-dir CHEMIN_PRIVE_HORS_GIT` permet un autre emplacement, identique
+pour les trois commandes. L'état référence le **bail original** et son kubeconfig
+attesté, qu'il faut également conserver ; il ne les reconstruit pas depuis Docker.
+Un dossier absent ne déclenche aucune création/adoption de cluster ; un ancrage,
+engine, port, ID ou UID différent fait refuser la reprise.
+
+- **up** : environnement déjà actif ⇒ contrôles de disponibilité, aucun build,
+  apply global, seed général ou rollout forcé. Environnement arrêté ⇒ vérification
+  locale des IDs/ports configurés/engine/kubeconfig, reprise des mêmes conteneurs,
+  puis recontrôle de l'UID Kubernetes original avant toute écriture API.
+- **stop** : workers puis control-plane, arrêt gracieux par IDs ; registre privé
+  enregistré également arrêté s'il n'est pas référencé par un autre environnement.
+  Volumes/PVC, certificats, images et caches sont conservés. Ni suppression de
+  cluster ni shutdown global Docker Desktop/WSL. Daemon Linux accessible requis.
+- **status** : état des nodes, images des deployments possédés et replicas prêts ;
+  lorsque les nodes sont arrêtés, aucun accès API n'est tenté. Ce n'est pas un test
+  auth/métier. Un environnement non enregistré est signalé sans réveiller Docker.
+
+**OpenBao reste volontairement volatile en local.** Son démarrage refait déjà le
+bootstrap technique et révoque le root. À une nouvelle epoch, `up` réutilise le seed
+GitHub non-root/CAS existant si ce profil est présent, puis renouvelle les Pods à
+snapshot (Lazaret/IAM/GitHub concernés) par une annotation conditionnelle UID/RV.
+Pas de changement d'image, de CA ou de secret fournisseur. La source privée reste
+référencée sans copie/hash des valeurs ; modification size/mtime ⇒ refus, pas de
+rotation implicite. Une tentative interrompue reste inscrite ; Job disparu/échoué
+ou nouvelle epoch pendant récupération ⇒ inspection explicite, pas de reset/retry
+destructif. Les vieux deployments sans identités OpenBao gérées exigent une mise
+à niveau initiale explicite, pas une migration cachée dans `up`.
+
+`up` ne lance aucun Job de migration supplémentaire ; les entrypoints inchangés
+peuvent exécuter leurs migrations idempotentes lors du redémarrage normal d'un
+conteneur. Construction/publication/refresh du code restent séparés : voir
+[images Linux](../../docs/guides/linux-image-builds.md). La preuve coffre/auth/métier
+reste reportée à la campagne E2E convenue ; la volatilité locale n'est pas un défaut
+à transformer en chantier de stockage/HA cloud.
+
+État de qualification : [fiche lifecycle](../../docs/missions/20261101-local-environment-lifecycle.md).
+Le moteur reprise/no-op/stop/reprise est éprouvé sur les nodes d'origine. L'ancienne
+installation conserve trois PVC non liés (`postgres-data`, `zot-data`,
+`admission-store`) : `up` ne les répare pas implicitement et ce constat ne vaut
+pas une disponibilité applicative complète. L'environnement quotidien est enregistré,
+arrêté ; `just local-status` fonctionne sans fournir à nouveau le bail.
+
 ## 1. Préflight Windows, sans démarrage implicite
 
 Exécuter depuis la racine du dépôt dans une nouvelle session PowerShell Windows (5.1 ou ultérieur). Python **3.11+**, PyYAML, OpenSSL **3+**, Docker avec Compose/BuildKit, Kind et kubectl avec Kustomize intégré sont requis. Outil absent ou commande native en échec ⇒ **STOP**, jamais skip réussi. La préparation des certificats appelle OpenSSL directement, sans Bash/WSL ; sous Windows, elle détecte aussi OpenSSL fourni par Git. Le préflight ci-dessous ne demande aucun démarrage de Docker/Kind/WSL :

@@ -195,6 +195,17 @@ deploy-mesh:
 deploy-local-full action="render" *args:
     python ./ops/deploy/deploy-local-full.py {{action}} {{args}}
 
+# Durable local environment. First up explicitly registers its original anchored
+# lease; subsequent calls reuse private state. Never build/reset/recreate here.
+local-up *args:
+    python -B ./ops/deploy/deploy-local-full.py up {{args}}
+
+local-stop *args:
+    python -B ./ops/deploy/deploy-local-full.py stop {{args}}
+
+local-status *args:
+    python -B ./ops/deploy/deploy-local-full.py status {{args}}
+
 # Full-profile Linux delivery artifacts only. Requires the operator's runtime
 # lease/GO; no cluster creation, Compose startup, certificates or data seeding.
 # Each native exit is checked before invoking the next contractual command.

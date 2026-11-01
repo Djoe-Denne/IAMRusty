@@ -55,8 +55,12 @@ full container IDs and creation attempt, then exact post-create new IDs/state by
 action delta, including partial failure. Labels/names alone never prove ownership.
 `resourceStates` and created-resource entries carry the full context/cluster.
 Reuse requires explicit matching leased IDs, running pinned nodes, exact 3-node
-topology, loopback host mapping and compatible CNI/CIDR. Unknown/stopped/conflicting
-nodes => STOP without deletion/replacement. No claim the new cluster exists yet.
+topology, loopback host mapping and compatible CNI/CIDR. Unknown/conflicting nodes
+=> STOP without deletion/replacement. Ordinary deployment/API calls still reject
+stopped control planes. The explicit durable `local-up` path can resume only the
+original attested IDs after offline engine/configured-port/kubeconfig checks, then
+must verify the original Kubernetes UID before API writes. See the
+[daily lifecycle](../../../README.md#cycle-quotidien--up--stop--status).
 
 ## Included / simulated / absent
 

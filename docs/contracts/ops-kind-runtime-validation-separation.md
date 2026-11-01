@@ -24,6 +24,20 @@ E2 M1/M2/M3 = jalons stubs/lint ; E3 J2 = operator hybride ; E4 J3/gold = démo 
 
 **D6 — L’opérateur Windows responsable de la session produit le bail initial**, pas un writer .cursor ou une ancienne mission. Publier la procédure locale ci-dessous, supprimant le prérequis tacite « parent sait produire le fichier ». Aucun writer applicatif/framework ajouté. Le bootstrap produit ensuite les attestations observées ; ne jamais préremplir IDs, mapping, UID ou hash depuis des noms.
 
+**Complément de cycle quotidien approuvé par l'utilisateur le 2026-11-01 :**
+une première installation continue de produire ce bail neuf et ses attestations.
+Ensuite `local-up/stop/status` conserve une référence privée stable au **bail
+d'origine** ; aucune fabrication de bail par conversation, nouvelle identité ou
+adoption depuis un nom Docker. Exception étroite pour reprendre/arrêter les seuls
+IDs originaux : engine, création attestée, kubeconfig et ports configurés vérifiés
+hors API lorsque le control-plane est arrêté ; après reprise, UID original exigé
+avant les écritures Kubernetes. Les APIs ordinaires ne deviennent pas permissives.
+Pas de create/delete/reset/rotation implicite, ni de changement de CNI par up.
+OpenBao local reste volontairement volatile ; seul son bootstrap/seed/renouvellement
+d'identités nécessaire à une nouvelle epoch est repris, pas le déploiement complet
+ou le seed métier. Les preuves coffre/auth restent à l'E2E. Ce complément ne ratifie
+pas l'ensemble des ADR Proposed ni un adaptateur cloud.
+
 ## Portée, limites et contradictions
 
 Impact cross-module/contrat opérationnel : ops, justfile, CI statique, documentation. Aucun port/API Rust, schéma DB, protocole métier ou dépendance structurante nouveau. **Aucune ADR nouvelle** : rangement réversible des outils et précision du contrat 0606, qui reste Proposed/Partial ; ne pas consommer 0607 ni réécrire les ADR historiques.

@@ -53,6 +53,21 @@ def snapshot(pod, role, account, scripts):
         container.setdefault("volumeMounts", []).append(mount("openbao-ca", "/run/openbao-ca"))
 
 
+def github_seed_job(run_id, script_name):
+    """Same bounded non-root seed for initial deployment and a new local epoch."""
+    pod = {"serviceAccountName": "github-seed", "automountServiceAccountToken": False,
+        "restartPolicy": "Never", "securityContext": copy.deepcopy(POD_SECURITY),
+        "containers": [{"name": "seed", "image": PYTHON, "command": ["python", "-B", "/scripts/openbao-workload.py", "github-seed"],
+            "resources": copy.deepcopy(RESOURCES), "securityContext": copy.deepcopy(SECURITY),
+            "volumeMounts": [mount("scripts", "/scripts"), mount("openbao-ca", "/run/openbao-ca"),
+                mount("openbao-identity", "/run/identity"), mount("private-inputs", "/inputs")]}],
+        "volumes": [identity("github-seed"), {"name": "scripts", "configMap": {"name": script_name}},
+            {"name": "openbao-ca", "configMap": {"name": "openbao-public-ca"}},
+            {"name": "private-inputs", "secret": {"secretName": "github-seed-inputs-" + run_id, "defaultMode": 0o440}}]}
+    return resource("Job", "github-openbao-seed", spec={"backoffLimit": 0, "activeDeadlineSeconds": 240,
+        "ttlSecondsAfterFinished": 300, "template": {"metadata": {"labels": {"app.kubernetes.io/name": "github-seed"}}, "spec": pod}})
+
+
 def configure(objects, run_id, github=False, client_id="offline-synthetic-client"):
     if not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", client_id):
         raise ValueError("invalid GitHub client ID")
@@ -136,17 +151,7 @@ def configure(objects, run_id, github=False, client_id="offline-synthetic-client
         "template": {"metadata": {"labels": {"app.kubernetes.io/name": "github-connect"}}, "spec": spec}}))
     objects.append(resource("Service", "github-connect", spec={"selector": {"app.kubernetes.io/name": "github-connect"},
         "ports": [{"name": "https", "port": 8443, "targetPort": "https"}]}))
-    seed_pod = {"serviceAccountName": "github-seed", "automountServiceAccountToken": False,
-        "restartPolicy": "Never", "securityContext": copy.deepcopy(POD_SECURITY),
-        "containers": [{"name": "seed", "image": PYTHON, "command": ["python", "-B", "/scripts/openbao-workload.py", "github-seed"],
-            "resources": copy.deepcopy(RESOURCES), "securityContext": copy.deepcopy(SECURITY),
-            "volumeMounts": [mount("scripts", "/scripts"), mount("openbao-ca", "/run/openbao-ca"),
-                mount("openbao-identity", "/run/identity"), mount("private-inputs", "/inputs")]}],
-        "volumes": [identity("github-seed"), {"name": "scripts", "configMap": {"name": script_name}},
-            {"name": "openbao-ca", "configMap": {"name": "openbao-public-ca"}},
-            {"name": "private-inputs", "secret": {"secretName": "github-seed-inputs-" + run_id, "defaultMode": 0o440}}]}
-    objects.append(resource("Job", "github-openbao-seed", spec={"backoffLimit": 0, "activeDeadlineSeconds": 240, "ttlSecondsAfterFinished": 300,
-        "template": {"metadata": {"labels": {"app.kubernetes.io/name": "github-seed"}}, "spec": seed_pod}}))
+    objects.append(github_seed_job(run_id, script_name))
     objects.append(resource("NetworkPolicy", "allow-github-openbao", spec={
         "podSelector": {"matchExpressions": [{"key": "app.kubernetes.io/name", "operator": "In", "values": ["github-connect", "github-seed", "iam"]}]},
         "policyTypes": ["Egress"], "egress": [{"to": [{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "openbao"}}}],

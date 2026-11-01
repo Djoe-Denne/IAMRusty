@@ -25,7 +25,7 @@ import yaml
 
 ALLOWED = {"aiforall-local": "kind-aiforall-local", "aiforall-local-full": "kind-aiforall-local-full"}
 NODE_IMAGE = "kindest/node:v1.32.2@sha256:142f543559cc55d64e1ab9341df08e5ced84bd2e893736da8f51320f26f5950b"
-METADATA = '{"id":{{json .Id}},"running":{{json .State.Running}},"image":{{json .Config.Image}},"cluster":{{json (index .Config.Labels "io.x-k8s.kind.cluster")}},"role":{{json (index .Config.Labels "io.x-k8s.kind.role")}},"ports":{{json .NetworkSettings.Ports}}}'
+METADATA = '{"id":{{json .Id}},"running":{{json .State.Running}},"image":{{json .Config.Image}},"cluster":{{json (index .Config.Labels "io.x-k8s.kind.cluster")}},"role":{{json (index .Config.Labels "io.x-k8s.kind.role")}},"ports":{{json .NetworkSettings.Ports}},"configured_ports":{{json .HostConfig.PortBindings}}}'
 
 
 class AnchorError(RuntimeError):
@@ -899,7 +899,7 @@ class LocalClusterTargetAnchor:
         raw = self.runner(["docker", "ps", "-aq", "--no-trunc", "--filter", "label=io.x-k8s.kind.cluster=" + self.data["cluster"]], text=True, timeout=30)
         return raw.split()
 
-    def local_check(self, pending=False):
+    def local_check(self, pending=False, _stopped=False):
         d = self.data
         if os.environ.get("KUBECONFIG") not in {None, "", str(self.config)} or os.environ.get("KUBERNETES_MASTER"):
             raise AnchorError("ambient target override forbidden")
@@ -921,7 +921,7 @@ class LocalClusterTargetAnchor:
         for n in nodes:
             if n.get("image") != NODE_IMAGE or n.get("cluster") != d["cluster"] or n.get("role") not in {"worker", "control-plane"}:
                 raise AnchorError("leased node metadata mismatch")
-            if n.get("running") is not True:
+            if n.get("running") is not True and not _stopped:
                 record = d.get("nodeFailures", {}).get(n["id"], {})
                 if n["role"] != "worker" or not record.get("prior_running") or record.get("phase") not in {"cordoned", "stopped"} or record.get("context") != d["context"] or record.get("cluster") != d["cluster"]:
                     raise AnchorError("unexpected stopped node; no restart/adoption")
@@ -929,7 +929,10 @@ class LocalClusterTargetAnchor:
         expected = 3 if d["cluster"] == "aiforall-local-full" else 1
         if len(nodes) != expected or len(cp) != 1 or cp[0]["id"] != d.get("control_plane_container_id"):
             raise AnchorError("control-plane/topology mismatch")
-        mappings = (cp[0].get("ports") or {}).get("6443/tcp")
+        # Docker clears NetworkSettings.Ports while stopped. Lifecycle-only
+        # attestation uses the retained configured publication, never a new port.
+        ports = cp[0].get("configured_ports") if _stopped and not cp[0]["running"] else cp[0].get("ports")
+        mappings = (ports or {}).get("6443/tcp")
         if not isinstance(mappings, list) or len(mappings) != 1:
             raise AnchorError("missing/ambiguous API publication")
         mapping = mappings[0]
@@ -976,6 +979,87 @@ class LocalClusterTargetAnchor:
         except (KeyError, TypeError, ValueError):
             raise AnchorError("invalid fixed kubeconfig; output redacted") from None
         return nodes
+
+    def lifecycle_nodes(self, engine):
+        """Offline attestation for reversible power operations only, not API access."""
+        if self.runner(["docker", "info", "--format", "{{.ID}}"], text=True, timeout=15).strip() != engine:
+            raise AnchorError("local environment Docker engine changed")
+        if self.data.get("nodeFailures"):
+            raise AnchorError("node fault/recovery operation still recorded; do not override it")
+        nodes = self.local_check(_stopped=True)
+        if self.data["cluster"] == "aiforall-local-full":
+            cp = next(n for n in nodes if n["role"] == "control-plane")
+            ports = cp.get("configured_ports") if not cp["running"] else cp.get("ports")
+            if (ports or {}).get("30080/tcp") != [{"HostIp": "127.0.0.1", "HostPort": "18080"}]:
+                raise AnchorError("local-full HTTP publication changed")
+        return nodes
+
+    def _power_node(self, identity, running, engine):
+        nodes = self.lifecycle_nodes(engine)
+        node = next((n for n in nodes if n["id"] == identity), None)
+        if node is None:
+            raise AnchorError("power operation outside original node IDs")
+        if node["running"] == running:
+            return
+        # Recovery can have recorded a new owned seed Job since this anchor was
+        # instantiated. Preserve that ledger instead of persisting a stale copy.
+        current = json.loads(self.path.read_text(encoding="utf-8-sig"), object_pairs_hook=unique_json)
+        keys = ("version", "task_id", "cluster", "context", "anchor_state", "creation", "nodeContainerIds",
+                "control_plane_container_id", "api_host", "api_port", "kube_system_uid", "kubeconfig_path", "kubeconfig_sha256")
+        if any(current.get(key) != self.data.get(key) for key in keys):
+            raise AnchorError("original anchor changed before node power operation")
+        self.data = current
+        event = {"id": identity, "prior_running": node["running"], "action": "start" if running else "stop",
+                 "phase": "attempted", "timestamp": time.time(), "engine": engine}
+        self.data.setdefault("localLifecycle", []).append(event)
+        persist(self.path, self.data)
+        command = ["docker", "start", identity] if running else ["docker", "stop", "--time", "30", identity]
+        self.runner(command, text=True, timeout=90)
+        if self.metadata(identity)["running"] != running:
+            raise AnchorError("node power operation did not reach requested state")
+        event["phase"] = "completed"
+        persist(self.path, self.data)
+
+    def resume_nodes(self, engine):
+        nodes = self.lifecycle_nodes(engine)
+        started = []
+        try:
+            for node in sorted(nodes, key=lambda n: n["role"] != "control-plane"):
+                if not node["running"]:
+                    started.append(node["id"])
+                    self._power_node(node["id"], True, engine)
+            deadline = time.monotonic() + 120
+            while True:
+                self.local_check()
+                try:
+                    uid = self.runner(self.prefix() + ["get", "namespace", "kube-system", "-o", "jsonpath={.metadata.uid}"],
+                                      text=True, timeout=10, env=self.environment()).strip()
+                except (AnchorError, subprocess.TimeoutExpired):
+                    if time.monotonic() >= deadline:
+                        raise AnchorError("local API readiness deadline exceeded") from None
+                    time.sleep(1)
+                    continue
+                if uid != self.data["kube_system_uid"]:
+                    raise AnchorError("resumed cluster UID differs; never update/adopt it")
+                self.local_check()
+                return started
+        except BaseException:
+            # Includes Ctrl-C: only IDs this call attempted to start, no force.
+            blocked = False
+            for identity in reversed(started):
+                try:
+                    self._power_node(identity, False, engine)
+                except Exception:
+                    blocked = True
+            if blocked:
+                raise AnchorError("resume failed and graceful cleanup blocked; inspect recorded node IDs") from None
+            raise
+
+    def stop_nodes(self, engine):
+        nodes = self.lifecycle_nodes(engine)
+        for node in sorted(nodes, key=lambda n: n["role"] == "control-plane"):
+            self._power_node(node["id"], False, engine)
+        return self.lifecycle_nodes(engine)
 
     def prefix(self):
         return ["kubectl", "--kubeconfig", str(self.config), "--context", self.data["context"]]
