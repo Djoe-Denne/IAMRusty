@@ -167,7 +167,7 @@ def generate(tool, directory, profiles):
                  "-out", target / (name + ".crt"), "-extfile", extension)
 
 
-def validate_pair(tool, directory, name, authority=False, server_only=False):
+def validate_pair(tool, directory, name, authority=False, server_only=False, client_only=False):
     certificate = directory / (name + ".crt")
     key = directory / (name + ".key")
     tool.run("pkey", "-in", key, "-check", "-noout")
@@ -184,8 +184,11 @@ def validate_pair(tool, directory, name, authority=False, server_only=False):
         raise ValueError("invalid certificate key usage: " + name)
     if not authority:
         extended = tool.run("x509", "-in", certificate, "-noout", "-ext", "extendedKeyUsage")
-        required = (b"TLS Web Server Authentication",) if server_only else (
-            b"TLS Web Server Authentication", b"TLS Web Client Authentication")
+        if server_only and client_only:
+            raise ValueError("exclusive certificate purpose required")
+        required = ((b"TLS Web Client Authentication",) if client_only else
+                    (b"TLS Web Server Authentication",) if server_only else
+                    (b"TLS Web Server Authentication", b"TLS Web Client Authentication"))
         if any(value not in extended for value in required):
             raise ValueError("invalid certificate extended key usage: " + name)
     return public
@@ -275,12 +278,78 @@ def extend_openbao_github(tool, directory):
         lock.unlink()
 
 
+def registry_profiles():
+    return {
+        "aiforall-apps-registry": (["DNS:aiforall-apps-registry", "IP:127.0.0.1"], "serverAuth"),
+        "registry-publisher": ([], "clientAuth"),
+        "registry-reader": ([], "clientAuth"),
+    }
+
+
+def validate_registry(tool, directory, bundle=None):
+    """Validate existing leaves without generating or replacing any identity."""
+    private_directory(directory)
+    bundle = bundle or directory / "extensions/registry"
+    for name, (sans, purpose) in registry_profiles().items():
+        certificate = bundle / (name + ".crt")
+        pem = certificate.read_bytes()
+        if pem.count(b"-----BEGIN ") != 1 or b"-----BEGIN CERTIFICATE-----" not in pem:
+            raise ValueError("registry clients/servers require a single leaf certificate: " + name)
+        validate_pair(tool, bundle, name, server_only=purpose == "serverAuth", client_only=purpose == "clientAuth")
+        subject = tool.run("x509", "-in", certificate, "-noout", "-subject", "-nameopt", "RFC2253")
+        if subject.split(b"=", 1)[-1].strip() != ("CN=" + name).encode("ascii"):
+            raise ValueError("registry certificate identity mismatch: " + name)
+        extended = tool.run("x509", "-in", certificate, "-noout", "-ext", "extendedKeyUsage")
+        unwanted = b"TLS Web Client Authentication" if purpose == "serverAuth" else b"TLS Web Server Authentication"
+        if unwanted in extended:
+            raise ValueError("registry certificate has excess extended key usage: " + name)
+        if sans:
+            extension = tool.run("x509", "-in", certificate, "-noout", "-ext", "subjectAltName").decode("ascii")
+            actual = {item.strip().replace("IP Address:", "IP:") for item in extension.split("\n", 1)[-1].split(",")}
+            if actual != set(sans):
+                raise ValueError("registry server SAN mismatch")
+        tool.run("verify", "-CAfile", directory / "mesh/ca.crt", "-purpose",
+                 "sslserver" if purpose == "serverAuth" else "sslclient", certificate)
+
+
+def extend_registry(tool, directory):
+    """Add a distinct registry bundle, preserving every existing CA/leaf byte."""
+    parent = directory / "extensions"
+    if not parent.exists():
+        parent.mkdir(mode=0o777 if os.name == "nt" else 0o700)
+    target, lock = parent / "registry", parent / ".registry.lock"
+    lock.open("x").close()
+    try:
+        if target.exists():
+            validate_registry(tool, directory)
+            return
+        stage = parent / (".registry-" + secrets.token_hex(8))
+        stage.mkdir(mode=0o777 if os.name == "nt" else 0o700)
+        for name, (sans, purpose) in registry_profiles().items():
+            tool.run("req", "-new", "-newkey", "rsa:2048", "-noenc", "-sha256",
+                     "-keyout", stage / (name + ".key"), "-out", stage / (name + ".csr"), "-subj", "/CN=" + name)
+            extension = stage / (name + ".ext")
+            extension.write_text("basicConstraints=critical,CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\n"
+                                 + "extendedKeyUsage=" + purpose + "\n"
+                                 + ("subjectAltName=" + ",".join(sans) + "\n" if sans else ""), encoding="ascii")
+            tool.run("x509", "-req", "-in", stage / (name + ".csr"), "-CA", directory / "mesh/ca.crt",
+                     "-CAkey", directory / "mesh/ca.key", "-set_serial", "0x" + secrets.token_hex(20),
+                     "-sha256", "-days", "90", "-out", stage / (name + ".crt"), "-extfile", extension)
+        validate_registry(tool, directory, stage)
+        if target.exists():
+            raise ValueError("registry certificate publication conflict; staging retained")
+        stage.rename(target)
+    finally:
+        lock.unlink()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default=os.environ.get("LOCAL_FULL_CERT_DIR"), type=Path)
     parser.add_argument("--openssl", default=os.environ.get("OPENSSL"))
     parser.add_argument("--oauth-proof", action="store_true")
     parser.add_argument("--openbao-github", action="store_true", help="explicit additive TLS bundle")
+    parser.add_argument("--registry", action="store_true", help="explicit additive registry mTLS bundle")
     args = parser.parse_args()
     if not args.output_dir:
         parser.error("--output-dir or LOCAL_FULL_CERT_DIR is required")
@@ -309,6 +378,8 @@ def main():
         validate(tool, directory, profiles)
         if args.openbao_github:
             extend_openbao_github(tool, directory)
+        if args.registry:
+            extend_registry(tool, directory)
         print(("reused" if existed else "created") + " verified local-full certificates; "
               "separate transport/workload CAs; no key material printed")
         return 0

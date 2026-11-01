@@ -4,7 +4,8 @@ param(
     [string]$OpenSslPath,
     [string]$PythonPath = 'python',
     [switch]$OAuthProof,
-    [switch]$OpenBaoGitHub
+    [switch]$OpenBaoGitHub,
+    [switch]$Registry
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -14,6 +15,7 @@ if ($OutputDirectory) { $arguments += @('--output-dir', $OutputDirectory) }
 if ($OpenSslPath) { $arguments += @('--openssl', $OpenSslPath) }
 if ($OAuthProof) { $arguments += '--oauth-proof' }
 if ($OpenBaoGitHub) { $arguments += '--openbao-github' }
+if ($Registry) { $arguments += '--registry' }
 # The Python entrypoint captures OpenSSL itself. Do not let Windows PowerShell
 # turn its sanitized stderr into a terminating error before preserving the exit.
 $ErrorActionPreference = 'Continue'

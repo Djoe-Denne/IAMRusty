@@ -1,5 +1,4 @@
 """Bounded offline checks for the deployment boundary, not a live coffer proof."""
-import hashlib
 import importlib.util
 import json
 import os
@@ -168,27 +167,38 @@ class LocalOpenBaoTests(unittest.TestCase):
 
             def invoke(extra=(), expected=0):
                 result = subprocess.run(command + list(extra), capture_output=True, timeout=180)
-                self.assertEqual(result.returncode, expected, "PKI smoke failed; private tool output not reproduced")
+                diagnostic = next((line.decode("utf-8") for line in result.stderr.splitlines()
+                                   if line.startswith(b"Certificate preparation failed:")), "private tool output not reproduced")
+                self.assertEqual(result.returncode, expected, "PKI smoke failed: " + diagnostic)
 
-            def hashes():
-                return {p.relative_to(directory): hashlib.sha256(p.read_bytes()).digest()
-                        for p in directory.rglob("*") if p.is_file()}
+            def contents():
+                return {p.relative_to(directory): p.read_bytes()
+                         for p in directory.rglob("*") if p.is_file()}
 
             invoke()
-            before = hashes()
-            invoke(["--openbao-github"])
-            extended = hashes()
-            self.assertTrue(all(extended[p] == digest for p, digest in before.items()))
-            invoke(["--openbao-github"])
-            self.assertEqual(extended, hashes())
+            before = contents()
+            invoke(["--openbao-github", "--registry"])
+            extended = contents()
+            self.assertTrue(all(extended[p] == data for p, data in before.items()), "old PKI bytes changed")
+            invoke(["--openbao-github", "--registry"])
+            self.assertTrue(extended == contents(), "idempotent PKI extension changed bytes")
             leaf = directory / "extensions/openbao-github/openbao.key"
             held = leaf.with_suffix(".held")
             leaf.rename(held)
-            partial = hashes()
+            partial = contents()
             invoke(["--openbao-github"], expected=1)
             # A private diagnostic may be added; all pre-existing bytes are preserved.
-            after = hashes()
-            self.assertTrue(all(after[p] == digest for p, digest in partial.items()))
+            after = contents()
+            self.assertTrue(all(after[p] == data for p, data in partial.items()), "partial extension changed old bytes")
+            held.rename(leaf)
+            leaf = directory / "extensions/registry/registry-reader.key"
+            held = leaf.with_suffix(".held")
+            leaf.rename(held)
+            partial = contents()
+            invoke(["--registry"], expected=1)
+            after = contents()
+            self.assertTrue(all(after[p].startswith(data) if p.as_posix() == "openssl-error.log" else after[p] == data
+                                for p, data in partial.items()), "partial registry extension changed old PKI bytes or diagnostic prefix")
             held.rename(leaf)
 
 

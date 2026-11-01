@@ -90,4 +90,30 @@ ni le bootstrap/trust Zot/Kind, ni un rollout, ni le scénario OpenBao/OAuth.
 Publication OCI, raccord registre et refresh applicatif sans reprovisioning
 restent des étapes distinctes ; ne pas utiliser un ID Docker comme digest OCI.
 
+### Préparation du registre — pas encore un bootstrap opérationnel
+
+Le générateur partagé fournit un bundle additionnel explicite, hors Git :
+
+```sh
+python ops/scripts/prepare-local-full-certs.py --output-dir PRIVATE_PKI_DIRECTORY --registry
+```
+
+`extensions/registry/` contient une leaf serveur SAN
+`aiforall-apps-registry`/`127.0.0.1`, plus les clients `registry-publisher` et
+`registry-reader` (EKU clientAuth uniquement). La CA mesh existante est réutilisée
+sans modification de ses octets/compteurs ; la CA workload reste séparée. Un
+bundle existant incomplet ou périmé est refusé, jamais réparé silencieusement.
+Les clients doivent présenter leur **leaf seule**, avec la CA séparée du client.
+
+`ops/deploy/registry/transport.lock.json` épingle les manifestes Linux/amd64 de
+Zot 2.1.8 et Skopeo 1.22.3, résolus et vérifiés par leur contenu le 2026-11-01.
+Ce lock est limité au transport : il ne complète pas les pins de build cloud.
+L'image Zot officielle déclare UID 0 ; le futur lancement devra imposer
+`10001:10001` et des volumes possédés préparés pour cet UID.
+
+Les commandes `registry-up`, `publish`, le stockage/ownership du registre et
+leur preuve mTLS/push-pull restent **non livrés**. La présence du bundle et du
+lock ne signifie pas que Zot fonctionne ou que Kind peut tirer ses images.
+Preuves de cette préparation : [fiche B — PKI/pins](../missions/20261101-app-registry-pki-preparation.md).
+
 Référence du contrôle de builder : [Docker buildx inspect](https://docs.docker.com/reference/cli/docker/buildx/inspect/).

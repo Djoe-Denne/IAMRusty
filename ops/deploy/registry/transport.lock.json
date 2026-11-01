@@ -1,0 +1,19 @@
+{
+  "schema": "aiforall.registry-transport/v1",
+  "platform": "linux/amd64",
+  "resolved_at": "2026-11-01",
+  "zot": {
+    "version": "2.1.8",
+    "source": "ghcr.io/project-zot/zot:v2.1.8",
+    "reference": "ghcr.io/project-zot/zot@sha256:0e0f300dba2040a4d43b8d35d9a6d047b07b7e6cadad2a6634830189b02ec27e",
+    "config_digest": "sha256:cc17a05a0a4f63f0d61c02bf83112ce723508682adc313bd0e968fd05108152c",
+    "runtime_user": "10001:10001"
+  },
+  "skopeo": {
+    "version": "1.22.3",
+    "source": "quay.io/skopeo/stable:latest",
+    "reference": "quay.io/skopeo/stable@sha256:35bf578e3fa75a1f23bbec819fc1bd9745eacb4a0594dea203e426da66e95e5a",
+    "config_digest": "sha256:82e2147bf075285ccc3e686a2bdb426a691406f604c9503798a4a82a391e865b"
+  },
+  "qualification": "transport-only; not complete cloud build-toolchain pins"
+}
