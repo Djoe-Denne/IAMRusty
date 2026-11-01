@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Image locale gold : binaire apparatus-admit + ORAS/Cosign host (pas de docker.sock).
 # Contexte de build = racine du workspace Cargo.
-FROM rust:1.89-slim-bookworm AS builder
+FROM rust:1.94-slim-bookworm AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -20,10 +20,11 @@ WORKDIR /usr/src
 COPY . .
 
 ENV CARGO_TERM_COLOR=never
+ENV CARGO_TARGET_DIR=/usr/src/target
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,id=apparatus-admit-target-bookworm,target=/usr/src/target \
-    cargo build --release -p apparatus-operator --bin apparatus-admit --features admit,controller \
+    cargo build --release --locked -p apparatus-operator --bin apparatus-admit --features admit,controller \
     && cp /usr/src/target/release/apparatus-admit /tmp/apparatus-admit
 
 # Cosign / ORAS pins alignés sur workers/apparatus-operator/src/admit.rs (COSIGN_IMAGE / ORAS_IMAGE).
@@ -49,6 +50,9 @@ RUN cd /tmp \
     && chmod 0555 /tmp/cosign /tmp/oras
 
 FROM debian:bookworm-slim
+ARG SOURCE_REVISION=unattested
+ARG SDK_REVISION=unattested
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION aiforall.dev.sdk-revision=$SDK_REVISION
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \

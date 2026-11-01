@@ -26,12 +26,24 @@ ENV CARGO_TERM_COLOR=never
 # Keep Linux delivery artifacts in their cache, not the copied Windows target-dir.
 # Cargo's configured 24 jobs remain unchanged.
 ENV CARGO_TARGET_DIR=/usr/src/target
+ARG DELIVERY_PROFILE=workspace
+ARG SOURCE_REVISION=unattested
+ARG SDK_REVISION=unattested
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,id=aiforall-workspace-target-bookworm,target=/usr/src/target \
-    cargo build --release --locked \
-    && mkdir -p /opt/release \
-    && find /usr/src/target/release -maxdepth 1 -type f ! -name '*.d' -exec cp {} /opt/release/ \;
+    mkdir -p /opt/release \
+    && case "$DELIVERY_PROFILE" in \
+      workspace) cargo build --release --locked \
+        && find /usr/src/target/release -maxdepth 1 -type f ! -name '*.d' -exec cp {} /opt/release/ \; ;; \
+      openbao) test "${#SOURCE_REVISION}" -eq 40 && test "${#SDK_REVISION}" -eq 40 \
+        && cargo build --release --locked -p github-connect-service -p lazaret-service -p lazaret-migration \
+        && for binary in github-connect-service lazaret-service migration; do cp "/usr/src/target/release/$binary" /opt/release/; done ;; \
+      *) exit 1 ;; \
+    esac \
+    && printf '%s' "$DELIVERY_PROFILE" > /opt/release/delivery-profile \
+    && printf '%s' "$SOURCE_REVISION" > /opt/release/source-revision \
+    && printf '%s' "$SDK_REVISION" > /opt/release/sdk-revision
 
 # Release binaries only. The Cargo target stays in the BuildKit cache.
 FROM rust:1.94-slim-bookworm AS artifacts

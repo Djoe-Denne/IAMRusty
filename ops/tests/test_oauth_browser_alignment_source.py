@@ -240,7 +240,10 @@ class BrowserAlignmentTests(unittest.TestCase):
                 "name": "oauth-proof-iam-config-effective" if enabled else "iam-dev-config-effective", "namespace": "aiforall-local-full"},
                 "data": {"development.toml": base64.b64encode(config.encode()).decode() if enabled else config}}
             output = SimpleNamespace(returncode=0, stdout=yaml.safe_dump_all([mesh, iam]))
-            with patch.object(renderer.subprocess, "run", return_value=output) as command:
+            # This deliberately minimal fixture tests route filtering only; real
+            # profile renders separately cover the coffer/workload wiring.
+            with patch.object(renderer.subprocess, "run", return_value=output) as command, \
+                    patch.object(renderer.local_full_openbao, "configure"):
                 result = renderer.render("oauthregistryvalidation", oauth_proof=bool(enabled))
             selected = renderer.OVERLAY / "oauth-proof" if enabled else renderer.OVERLAY
             self.assertEqual(command.call_args.args[0][-1], str(selected))

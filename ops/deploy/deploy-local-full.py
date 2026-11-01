@@ -8,6 +8,8 @@ import re
 import subprocess
 import time
 import uuid
+import sys
+import bootstrap_local_kind
 from pathlib import Path
 import local_full_target as target_authority
 from local_full_target import private_file
@@ -28,6 +30,7 @@ def load_module(name, file):
 
 runtime = load_module("storage_runtime", "local-full-storage.py")
 renderer = load_module("local_full_renderer", "render-local-full.py")
+image_provenance = load_module("local_full_image_provenance", "local_full_image_provenance.py")
 
 
 def k(*args, stdin=None, timeout=360):
@@ -141,6 +144,54 @@ def oauth_cert_inputs(path, run_id):
                secret("oauth-proof-connector-tls-" + run_id, leaf)]
     digest = hashlib.sha256(public + leaf["tls.crt"] + leaf["tls.key"]).hexdigest()
     return objects, digest
+
+
+def github_inputs(path):
+    if not path or not path.is_file() or path.is_symlink() or not private_file(path) or path.stat().st_size > 65536:
+        raise ValueError("private read-only GitHub input file in a private directory required")
+    text = path.read_text(encoding="utf-8")
+    if text.lstrip().startswith("{"):
+        value = json.loads(text, object_pairs_hook=target_authority.unique_json)
+    else:
+        # An allowlist, NOT a shell/dotenv evaluator. No expansion or execution.
+        keys = {"GITHUB_CLIENT_ID": "client_id", "GITHUB_CLIENT_SECRET": "client_secret",
+                "GITHUB_IAM_HMAC_SECRET": "hmac_secret"}
+        value = {"version": 1}
+        for line in text.splitlines():
+            key, separator, item = line.removeprefix("export ").partition("=")
+            if separator and key.strip() in keys:
+                field = keys[key.strip()]
+                if field in value:
+                    raise ValueError("duplicate private GitHub input")
+                item = item.strip()
+                if item.startswith('"'):
+                    item = json.loads(item)
+                elif item.startswith("'") and item.endswith("'"):
+                    item = item[1:-1]
+                value[field] = item
+    if (set(value) != {"version", "client_id", "client_secret", "hmac_secret"}
+            or type(value["version"]) is not int or value["version"] != 1
+            or not isinstance(value["client_id"], str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", value["client_id"])
+            or not isinstance(value["client_secret"], str) or not 1 <= len(value["client_secret"]) <= 4096
+            or not isinstance(value["hmac_secret"], str) or not re.fullmatch(r"[a-f0-9]{64}", value["hmac_secret"])):
+        raise ValueError("invalid private GitHub input schema (values redacted)")
+    return value
+
+
+def openbao_cert_inputs(path, run_id, github):
+    extension = path / "extensions/openbao-github"
+    if not extension.is_dir():
+        raise ValueError("explicit --openbao-github certificate extension must be prepared first")
+    # Same shared PKI verifier on both OS; an existing complete bundle is mandatory.
+    validation = subprocess.run([sys.executable, "-B", str(ROOT / "ops/scripts/prepare-local-full-certs.py"),
+        "--output-dir", str(path), "--openbao-github"], capture_output=True, timeout=300)
+    if validation.returncode:
+        raise ValueError("OpenBao certificate bundle validation failed (details redacted)")
+    result = []
+    for name in ["openbao"] + (["github-connect"] if github else []):
+        result.append(secret(name + "-server-tls-" + run_id, {
+            "tls.crt": (extension / (name + ".crt")).read_bytes(), "tls.key": (extension / (name + ".key")).read_bytes()}))
+    return result
 
 
 def preflight_oauth_objects(objects, data):
@@ -660,12 +711,25 @@ def deploy_locked(args):
     images = json.loads(args.image_manifest.read_text())
     mesh, identity, cert_hash = cert_inputs(args.cert_directory)
     inputs = oauth_inputs(args.oauth_proof_input_file) if args.oauth_proof else None
+    github = github_inputs(args.github_input_file) if args.github_openbao else None
+    if args.github_input_file and not args.github_openbao:
+        raise ValueError("private GitHub input requires --github-openbao")
     if args.oauth_proof_input_file and not args.oauth_proof:
         raise ValueError("private proof input requires --oauth-proof")
     run_id = inputs["run_id"] if inputs else uuid.uuid4().hex[:16]
     proof_certs, proof_cert_hash = oauth_cert_inputs(args.cert_directory, run_id) if inputs else ([], "")
-    objects = renderer.render(run_id, images, cert_hash + proof_cert_hash, args.oauth_proof, inputs)
+    tls_objects = openbao_cert_inputs(args.cert_directory, run_id, args.github_openbao)
+    objects = renderer.render(run_id, images, cert_hash + proof_cert_hash, args.oauth_proof, inputs,
+        github_openbao=args.github_openbao, github_client_id=github["client_id"] if github else "offline-synthetic-client")
     objects += proof_certs
+    for obj in objects:
+        if obj["kind"] == "ConfigMap" and obj["metadata"]["name"] == "openbao-public-ca":
+            obj["data"]["ca.crt"] = mesh["ca.crt"].decode("ascii")
+        if obj["kind"] == "Deployment":
+            for volume in obj["spec"]["template"]["spec"].get("volumes", []):
+                reference = volume.get("secret", {})
+                if reference.get("secretName") in {"openbao-server-tls", "github-connect-server-tls"}:
+                    reference["secretName"] += "-" + run_id
     capability_sources = {}
     if args.isolated_plugins:
         required = {
@@ -698,12 +762,9 @@ def deploy_locked(args):
     data = json.loads(args.lease.read_text(encoding="utf-8-sig"))
     if data.get("context") != CONTEXT or data.get("cluster") != CLUSTER:
         raise ValueError("parent local runtime lease required")
-    bootstrap_command = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ROOT / "ops/deploy/bootstrap-local-full.ps1"), "-LeasePath", str(args.lease.resolve())]
-    if args.after_final_it:
-        bootstrap_command.append("-AfterFinalIT")
-    bootstrap = subprocess.run(bootstrap_command, capture_output=True, timeout=1200)
-    if bootstrap.returncode:
-        raise RuntimeError("local Kind bootstrap failed; parent must inspect recorded ownership/topology conflict")
+    # Reject stale service/SDK binaries before creating/altering the local cluster.
+    image_provenance.verify(images)
+    bootstrap_local_kind.initialize(args.lease, CLUSTER, ROOT / "ops/deploy/kind/cluster-local-full.yaml", args.after_final_it)
     data = runtime.lease(args.lease)
     if capability_sources:
         data["isolatedPluginSourceSha256"] = capability_sources
@@ -755,6 +816,8 @@ def deploy_locked(args):
                   "-l", "app.kubernetes.io/name=" + name, "--timeout=180s")
         for obj in proof_secrets:
             runtime.create(obj, args, data)  # No overwrite/adoption of existing secrets, even a same-name one.
+        for obj in tls_objects:
+            runtime.create(obj, args, data)
         apply(groups["foundation"])
         record_resources(groups["foundation"], args, data)
         configure_api_policy()
@@ -764,6 +827,20 @@ def deploy_locked(args):
             k("rollout", "status", "deployment/" + obj["metadata"]["name"], "-n", "aiforall-local-full", "--timeout=300s")
         apply(groups["bootstrap"])
         record_resources(groups["bootstrap"], args, data)
+        if github:
+            job = next(o for o in groups["bootstrap"] if o["metadata"]["name"].startswith("github-openbao-seed-"))
+            uid = k("get", "job", job["metadata"]["name"], "-n", "aiforall-local-full", "-o", "jsonpath={.metadata.uid}")
+            if not uid or not any(entry.get("kind") == "Job" and entry.get("name") == job["metadata"]["name"]
+                    and entry.get("namespace") == "aiforall-local-full" and entry.get("uid") == uid
+                    and entry.get("context") == CONTEXT and entry.get("cluster") == CLUSTER
+                    for entry in data.get("ownedResources", [])):
+                raise ValueError("seed Job UID differs from the recorded owned job")
+            seed_input = secret("github-seed-inputs-" + run_id, {"inputs.json": json.dumps(github).encode()})
+            # UID-bound GC: Job TTL removes its private child, without adding a generic
+            # delete/Secret-read escape hatch to the target authority. etcd is not RAM-only.
+            seed_input["metadata"]["ownerReferences"] = [{"apiVersion": "batch/v1", "kind": "Job",
+                "name": job["metadata"]["name"], "uid": uid, "controller": True}]
+            runtime.create(seed_input, args, data)
         for obj in groups["bootstrap"]:
             k("wait", "--for=condition=complete", "job/" + obj["metadata"]["name"], "-n", "aiforall-local-full", "--timeout=240s")
         apply(groups["applications"])
@@ -806,14 +883,16 @@ def main():
     parser.add_argument("--after-final-it", action="store_true")
     parser.add_argument("--oauth-proof", action="store_true")
     parser.add_argument("--oauth-proof-input-file", type=Path)
+    parser.add_argument("--github-openbao", action="store_true")
+    parser.add_argument("--github-input-file", type=Path)
     args = parser.parse_args()
     if args.action == "render":
         # No runtime inspection, startup or API contact. Source secrets remain
         # in render artifacts; report only resource kind/name metadata.
         images = json.loads(args.image_manifest.read_text()) if args.image_manifest else None
-        if args.oauth_proof_input_file:
+        if args.oauth_proof_input_file or args.github_input_file:
             raise ValueError("offline render does not accept private runtime inputs")
-        objects = renderer.render("staticvalidation", images, oauth_proof=args.oauth_proof)
+        objects = renderer.render("staticvalidation", images, oauth_proof=args.oauth_proof, github_openbao=args.github_openbao)
         if args.output_dir:
             args.output_dir.mkdir(parents=True, exist_ok=True)
             file = args.output_dir / "local-full.json"

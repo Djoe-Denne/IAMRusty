@@ -7,8 +7,6 @@
 //! dans le worker de build. Ce module ne compile ni n'exécute le code auteur.
 
 use std::fs;
-use std::io::{Read, Write};
-use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::process::{ExitStatus, Output};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -21,6 +19,8 @@ mod cli_transport;
 
 #[cfg(test)]
 mod cli_transport_tests;
+#[cfg(test)]
+mod openbao_transport_tests;
 
 /// Variable d'environnement pour un binaire Cosign hôte (sinon image Docker).
 pub const COSIGN_BIN_ENV: &str = "APPARATUS_COSIGN_BIN";
@@ -150,54 +150,92 @@ fn login_vault_kubernetes() -> Result<String, AdmitError> {
 }
 
 fn http_post_json(base: &str, path: &str, body: &str) -> Result<(u16, String), AdmitError> {
-    let rest = base
-        .strip_prefix("http://")
-        .ok_or_else(|| AdmitError::new("APPARATUS_VAULT_ADDR must be http://host:port"))?
-        .trim_end_matches('/');
-    let (host, port) = match rest.rsplit_once(':') {
-        Some((h, p)) => (
-            h,
-            p.parse::<u16>()
-                .map_err(|_| AdmitError::new("invalid APPARATUS_VAULT_ADDR port"))?,
-        ),
-        None => (rest, 80u16),
-    };
-    let addr = (host, port)
-        .to_socket_addrs()
-        .map_err(|err| AdmitError::new(format!("vault dns: {err}")))?
-        .next()
-        .ok_or_else(|| AdmitError::new("vault dns: no address"))?;
-    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(10))
-        .map_err(|err| AdmitError::new(format!("vault connect: {err}")))?;
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
-    let _ = stream.set_write_timeout(Some(Duration::from_secs(10)));
-    let host_header = if port == 80 {
-        host.to_owned()
-    } else {
-        format!("{host}:{port}")
-    };
-    let req = format!(
-        "POST {path} HTTP/1.1\r\nHost: {host_header}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-        body.len()
-    );
-    stream
-        .write_all(req.as_bytes())
-        .map_err(|err| AdmitError::new(format!("vault write: {err}")))?;
-    let mut buf = Vec::new();
-    stream
-        .read_to_end(&mut buf)
-        .map_err(|err| AdmitError::new(format!("vault read: {err}")))?;
-    let text = String::from_utf8_lossy(&buf);
-    let (head, rest_body) = text
-        .split_once("\r\n\r\n")
-        .unwrap_or_else(|| (text.as_ref(), ""));
-    let status = head
-        .lines()
-        .next()
-        .and_then(|line| line.split_whitespace().nth(1))
-        .and_then(|code| code.parse::<u16>().ok())
-        .unwrap_or(0);
-    Ok((status, rest_body.to_owned()))
+    http_post_json_with_ca(
+        base,
+        path,
+        body,
+        std::env::var("APPARATUS_VAULT_CA_CERT").ok(),
+    )
+}
+
+fn http_post_json_with_ca(
+    base: &str,
+    path: &str,
+    body: &str,
+    ca: Option<String>,
+) -> Result<(u16, String), AdmitError> {
+    let url = reqwest::Url::parse(base).map_err(|_| AdmitError::new("invalid OpenBao origin"))?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || url.path() != "/"
+    {
+        return Err(AdmitError::new("OpenBao address must be an HTTP(S) origin"));
+    }
+    if url.scheme() == "https" && ca.as_ref().is_none_or(String::is_empty) {
+        return Err(AdmitError::new(
+            "HTTPS OpenBao requires APPARATUS_VAULT_CA_CERT",
+        ));
+    }
+    let endpoint = url
+        .join(path)
+        .map_err(|_| AdmitError::new("invalid OpenBao path"))?;
+    let body = body.to_owned();
+    // Called from synchronous admission, including inside the controller runtime.
+    // A separate OS thread avoids nesting/dropping an async runtime on its worker.
+    std::thread::spawn(move || {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|_| AdmitError::new("OpenBao transport unavailable"))?;
+        runtime.block_on(async move {
+            let mut builder = reqwest::Client::builder()
+                .no_proxy()
+                .timeout(Duration::from_secs(10))
+                .redirect(reqwest::redirect::Policy::none());
+            if let Some(path) = ca {
+                let pem = fs::read(path).map_err(|_| AdmitError::new("OpenBao CA unreadable"))?;
+                let certs = reqwest::Certificate::from_pem_bundle(&pem)
+                    .map_err(|_| AdmitError::new("OpenBao CA invalid"))?;
+                if certs.is_empty() {
+                    return Err(AdmitError::new("OpenBao CA empty"));
+                }
+                for cert in certs {
+                    builder = builder.add_root_certificate(cert);
+                }
+            }
+            let client = builder
+                .build()
+                .map_err(|_| AdmitError::new("OpenBao transport unavailable"))?;
+            let mut response = client
+                .post(endpoint)
+                .header("Content-Type", "application/json")
+                .body(body)
+                .send()
+                .await
+                .map_err(|_| AdmitError::new("OpenBao request failed"))?;
+            let status = response.status().as_u16();
+            let mut bytes = Vec::new();
+            while let Some(chunk) = response
+                .chunk()
+                .await
+                .map_err(|_| AdmitError::new("OpenBao response failed"))?
+            {
+                if bytes.len() + chunk.len() > 65536 {
+                    return Err(AdmitError::new("OpenBao response too large"));
+                }
+                bytes.extend_from_slice(&chunk);
+            }
+            let text = String::from_utf8(bytes)
+                .map_err(|_| AdmitError::new("OpenBao response invalid"))?;
+            Ok((status, text))
+        })
+    })
+    .join()
+    .map_err(|_| AdmitError::new("OpenBao transport failed"))?
 }
 
 /// Document d'enveloppe : digest 0002 + pin CRI.
@@ -629,13 +667,23 @@ fn invoke_cosign(target: &AdmitTarget, args: &[String]) -> Result<Output, AdmitE
         target.vault_addr_network.as_str()
     };
     cli_transport::with_registry_config(target, |config_dir| {
-        let env_vars = [
+        let mut env_vars = vec![
             ("VAULT_ADDR", vault_addr),
             ("VAULT_TOKEN", target.vault_token.as_str()),
             ("TRANSIT_SECRET_ENGINE_PATH", "transit"),
             ("COSIGN_YES", "1"),
             ("DOCKER_CONFIG", config_dir),
         ];
+        let ca = std::env::var("APPARATUS_VAULT_CA_CERT").ok();
+        if let Some(path) = ca.as_deref() {
+            if !host_cosign {
+                return Err(AdmitError::new(
+                    "custom OpenBao CA requires the mounted host Cosign binary",
+                ));
+            }
+            env_vars.push(("VAULT_CACERT", path));
+            env_vars.push(("VAULT_SKIP_VERIFY", "false"));
+        }
         let secrets = [target.auth.password.as_str(), target.vault_token.as_str()];
         cli_transport::run_cli(cli_transport::RunRequest {
             bin_env: COSIGN_BIN_ENV,

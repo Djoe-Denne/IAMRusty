@@ -9,6 +9,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import secrets
 
 AUTHORITIES = {
     "mesh": "aiforall-local-full-transport",
@@ -166,7 +167,7 @@ def generate(tool, directory, profiles):
                  "-out", target / (name + ".crt"), "-extfile", extension)
 
 
-def validate_pair(tool, directory, name, authority=False):
+def validate_pair(tool, directory, name, authority=False, server_only=False):
     certificate = directory / (name + ".crt")
     key = directory / (name + ".key")
     tool.run("pkey", "-in", key, "-check", "-noout")
@@ -183,7 +184,9 @@ def validate_pair(tool, directory, name, authority=False):
         raise ValueError("invalid certificate key usage: " + name)
     if not authority:
         extended = tool.run("x509", "-in", certificate, "-noout", "-ext", "extendedKeyUsage")
-        if any(value not in extended for value in (b"TLS Web Server Authentication", b"TLS Web Client Authentication")):
+        required = (b"TLS Web Server Authentication",) if server_only else (
+            b"TLS Web Server Authentication", b"TLS Web Client Authentication")
+        if any(value not in extended for value in required):
             raise ValueError("invalid certificate extended key usage: " + name)
     return public
 
@@ -220,11 +223,64 @@ def validate(tool, directory, profiles):
             tool.run("verify", "-CAfile", target / "ca.crt", "-purpose", purpose, certificate)
 
 
+def extend_openbao_github(tool, directory):
+    """Explicit additive bundle; never touches old leaves or CA serial counters."""
+    parent = directory / "extensions"
+    if not parent.exists():
+        parent.mkdir(mode=0o777 if os.name == "nt" else 0o700)
+    target = parent / "openbao-github"
+    lock = parent / ".openbao-github.lock"
+    profiles = {
+        name: ["DNS:" + name, "DNS:" + name + ".aiforall-local-full.svc",
+               "DNS:" + name + ".aiforall-local-full.svc.cluster.local"]
+        for name in ("openbao", "github-connect")
+    }
+
+    def verify_bundle(bundle):
+        private_directory(directory)
+        for name, sans in profiles.items():
+            validate_pair(tool, bundle, name, server_only=True)
+            cert = bundle / (name + ".crt")
+            extension = tool.run("x509", "-in", cert, "-noout", "-ext", "subjectAltName").decode("ascii")
+            actual = {item.strip() for item in extension.split("\n", 1)[-1].split(",")}
+            if actual != set(sans):
+                raise ValueError("invalid extension SAN: " + name)
+            tool.run("verify", "-CAfile", directory / "mesh/ca.crt", "-purpose", "sslserver", cert)
+
+    # Close the handle before unlinking on Windows; the marker serializes this writer.
+    lock.open("x").close()
+    try:
+        if target.exists():
+            verify_bundle(target)  # A partial bundle fails, never repaired in place.
+            return
+        stage = parent / (".openbao-github-" + secrets.token_hex(8))
+        stage.mkdir(mode=0o777 if os.name == "nt" else 0o700)
+        for name, sans in profiles.items():
+            tool.run("req", "-new", "-newkey", "rsa:2048", "-noenc", "-sha256",
+                     "-keyout", stage / (name + ".key"), "-out", stage / (name + ".csr"),
+                     "-subj", "/CN=" + name)
+            extension = stage / (name + ".ext")
+            extension.write_text("basicConstraints=critical,CA:FALSE\nsubjectAltName=" + ",".join(sans)
+                                 + "\nkeyUsage=digitalSignature,keyEncipherment\n"
+                                 "extendedKeyUsage=serverAuth\n", encoding="ascii")
+            tool.run("x509", "-req", "-in", stage / (name + ".csr"),
+                     "-CA", directory / "mesh/ca.crt", "-CAkey", directory / "mesh/ca.key",
+                     "-set_serial", "0x" + secrets.token_hex(20), "-sha256", "-days", "90",
+                     "-out", stage / (name + ".crt"), "-extfile", extension)
+        verify_bundle(stage)
+        if target.exists():
+            raise ValueError("extension publication conflict; staging retained")
+        stage.rename(target)
+    finally:
+        lock.unlink()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default=os.environ.get("LOCAL_FULL_CERT_DIR"), type=Path)
     parser.add_argument("--openssl", default=os.environ.get("OPENSSL"))
     parser.add_argument("--oauth-proof", action="store_true")
+    parser.add_argument("--openbao-github", action="store_true", help="explicit additive TLS bundle")
     args = parser.parse_args()
     if not args.output_dir:
         parser.error("--output-dir or LOCAL_FULL_CERT_DIR is required")
@@ -251,6 +307,8 @@ def main():
             tool.private_output = True
             generate(tool, directory, profiles)
         validate(tool, directory, profiles)
+        if args.openbao_github:
+            extend_openbao_github(tool, directory)
         print(("reused" if existed else "created") + " verified local-full certificates; "
               "separate transport/workload CAs; no key material printed")
         return 0

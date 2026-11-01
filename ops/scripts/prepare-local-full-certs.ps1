@@ -3,7 +3,8 @@ param(
     [string]$OutputDirectory = $env:LOCAL_FULL_CERT_DIR,
     [string]$OpenSslPath,
     [string]$PythonPath = 'python',
-    [switch]$OAuthProof
+    [switch]$OAuthProof,
+    [switch]$OpenBaoGitHub
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -12,6 +13,7 @@ $arguments = @('-B', (Join-Path $PSScriptRoot 'prepare-local-full-certs.py'))
 if ($OutputDirectory) { $arguments += @('--output-dir', $OutputDirectory) }
 if ($OpenSslPath) { $arguments += @('--openssl', $OpenSslPath) }
 if ($OAuthProof) { $arguments += '--oauth-proof' }
+if ($OpenBaoGitHub) { $arguments += '--openbao-github' }
 # The Python entrypoint captures OpenSSL itself. Do not let Windows PowerShell
 # turn its sanitized stderr into a terminating error before preserving the exit.
 $ErrorActionPreference = 'Continue'

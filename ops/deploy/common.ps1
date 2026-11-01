@@ -89,36 +89,11 @@ function Initialize-LocalKind {
         [switch]$AfterFinalIT
     )
     if (($Config -like '*cluster-local-full.yaml') -ne ($Cluster -eq 'aiforall-local-full')) { throw 'STOP: full topology/target mismatch.' }
-    $Context = "kind-$Cluster"
-    $argsForBootstrap = @('--config', $Config)
-    if ($AfterFinalIT) { $argsForBootstrap += '--after-final-it' }
-    Invoke-LocalTarget -Action bootstrap -Context $Context -LeasePath $LeasePath -Arguments $argsForBootstrap
-    # Retain non-destructive pinned CNI logic; every call now uses leasev2 guard.
-    $sets = @((Invoke-LocalKubectl -Context $Context -LeasePath $LeasePath -Arguments @('-n', 'kube-system', 'get', 'daemonsets', '-o', 'json') | ConvertFrom-Json).items)
-    if (@($sets | Where-Object { $_.metadata.name -match 'kindnet|cilium|flannel|weave|antrea|canal|kube-router' }).Count -gt 0) { throw 'STOP: incompatible CNI; no replacement.' }
-    $cidrs = Invoke-LocalKubectl -Context $Context -LeasePath $LeasePath -Arguments @('get', 'nodes', '-o', 'jsonpath={.items[*].spec.podCIDR}')
-    if ([string]::IsNullOrWhiteSpace([string]$cidrs)) { throw 'STOP: CIDR unavailable.' }
-    foreach ($cidr in (([string]$cidrs).Trim() -split ' ')) {
-        if ($cidr -notmatch '^10\.244\.\d+\.\d+/(1[6-9]|2\d|3[0-2])$') { throw 'STOP: incompatible CIDR.' }
-    }
-    $calico = @($sets | Where-Object { $_.metadata.name -eq 'calico-node' })
-    if ($calico.Count -eq 0) {
-        if (@($sets | Where-Object { $_.metadata.name -ne 'kube-proxy' }).Count -gt 0) { throw 'STOP: unknown DaemonSet; no adoption.' }
-        $manifest = (Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/projectcalico/calico/v3.29.7/manifests/calico.yaml').Content
-        if ($manifest -notmatch '# - name: CALICO_IPV4POOL_CIDR\s+#   value: "192.168.0.0/16"') { throw 'STOP: pinned Calico shape changed.' }
-        $manifest = $manifest -replace '# - name: CALICO_IPV4POOL_CIDR\s+#   value: "192.168.0.0/16"', "- name: CALICO_IPV4POOL_CIDR`n              value: `"10.244.0.0/16`""
-        $manifest | Invoke-LocalKubectl -Context $Context -LeasePath $LeasePath -Arguments @('apply', '-f', '-')
-        Invoke-LocalKubectl -Context $Context -LeasePath $LeasePath -Arguments @('-n', 'kube-system', 'set', 'env', 'daemonset/calico-node', 'FELIX_IGNORELOOSERPF=true')
-    } else {
-        $images = @($calico[0].spec.template.spec.containers | ForEach-Object { $_.image })
-        if (@($images | Where-Object { $_ -notmatch ':v3\.29\.7$' }).Count -gt 0) { throw 'STOP: incompatible Calico pin.' }
-        $pools = @( (Invoke-LocalKubectl -Context $Context -LeasePath $LeasePath -Arguments @('get', 'ippools', '-o', 'json') | ConvertFrom-Json).items )
-        if ($pools.Count -ne 1 -or $pools[0].spec.cidr -ne '10.244.0.0/16') { throw 'STOP: pool mismatch; no patch/delete.' }
-    }
-    foreach ($resource in @('daemonset/calico-node', 'deployment/calico-kube-controllers', 'deployment/coredns')) {
-        Invoke-LocalKubectl -Context $Context -LeasePath $LeasePath -Arguments @('-n', 'kube-system', 'rollout', 'status', $resource, '--timeout=600s')
-    }
-    Invoke-LocalKubectl -Context $Context -LeasePath $LeasePath -Arguments @('wait', '--for=condition=Ready', 'nodes', '--all', '--timeout=300s')
-    $pools = @((Invoke-LocalKubectl -Context $Context -LeasePath $LeasePath -Arguments @('get', 'ippools', '-o', 'json') | ConvertFrom-Json).items)
-    if ($pools.Count -ne 1 -or $pools[0].spec.cidr -ne '10.244.0.0/16') { throw 'STOP: final pool mismatch.' }
+    $root = Get-AIForAllRoot $PSScriptRoot
+    $arguments = @('-B', (Join-Path $root 'ops/deploy/bootstrap_local_kind.py'),
+        '--lease', $LeasePath, '--cluster', $Cluster, '--config', $Config)
+    if ($AfterFinalIT) { $arguments += '--after-final-it' }
+    # Shared Python retains CNI/CIDR, Calico 3.29.7, FELIX, CoreDNS/Ready and leasev2.
+    & python @arguments
+    if ($LASTEXITCODE -ne 0) { throw 'STOP: guarded Kind/CNI bootstrap failed; no adoption or reset.' }
 }

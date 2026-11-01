@@ -55,8 +55,10 @@ backend = "redis"
 hostname = "redis"
 port = 6379
 [vault]
-base_url = "http://openbao:8200"
-token = "local-full-dev-root"
+base_url = "https://openbao.aiforall-local-full.svc.cluster.local:8443"
+# Private bearer rendered once by the Pod init into an emptyDir Memory volume.
+token = "__LAZARET_OPENBAO_TOKEN__"
+ca_cert_path = "/run/openbao-ca/ca.crt"
 mount = "secret"
 [plugin_hop]
 use_dns_formula = false

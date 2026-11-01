@@ -41,6 +41,9 @@ configMapGenerator:
     files:
       - fga-bootstrap.py=../helpers/fga-bootstrap.py
       - seed-openbao.sh=../helpers/seed-openbao.sh
+      - run-openbao.sh=../helpers/run-openbao.sh
+      - openbao.hcl=../helpers/openbao.hcl
+      - openbao-workload.py=../helpers/openbao-workload.py
   - name: local-full-fga-model
     files:
       - model.json=../../../../../openfga/model.json

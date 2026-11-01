@@ -375,10 +375,11 @@ fn build_secret_resolver(config: &AppConfig) -> Result<Arc<dyn SecretResolver>, 
         Ok(Arc::new(DeniedSecretResolver))
     } else {
         Ok(Arc::new(
-            VaultHttpSecretResolver::new(
+            VaultHttpSecretResolver::with_ca_bundle(
                 config.vault.base_url.clone(),
                 config.vault.token.clone(),
                 config.vault.mount.clone(),
+                config.vault.ca_cert_path.as_deref(),
             )
             .map_err(|e| anyhow::anyhow!("Vault resolver: {e}"))?,
         ))

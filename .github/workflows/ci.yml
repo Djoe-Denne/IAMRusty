@@ -138,6 +138,8 @@ jobs:
         run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.2
       - name: Check scripts and render deployment overlays
         run: bash ops/tests/infra-static.sh
+      - name: Hardened OpenBao offline boundary and additive PKI smoke
+        run: python3 -B -m unittest discover -s ops/tests -p test_openbao_local.py -v
       - name: Prepare and reuse local certificates (Linux, no cluster)
         shell: bash
         run: |

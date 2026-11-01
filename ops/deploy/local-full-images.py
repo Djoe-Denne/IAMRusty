@@ -5,15 +5,19 @@ import re
 import subprocess
 from pathlib import Path
 from local_full_target import LocalClusterTargetAnchor
+from local_full_image_provenance import verify as verify_provenance
 
 SOURCES = ["aiforall-iam-service:latest", "aiforall-hive-service:latest", "aiforall-telegraph-service:latest",
            "aiforall-manifesto-service:latest", "aiforall-lazaret-service:local-full", "aiforall-sentinel-sync:local-full",
             "aiforall-ext-authz:local", "aiforall-apparatus-controller:j2", "aiforall-zot:gold"]
 
 
-def source_images(oauth_proof=False):
+def source_images(oauth_proof=False, github_openbao=False):
     """Only an explicit proof profile adds the real connector, never a mock."""
-    return SOURCES + (["aiforall-gitlab-connect-service:latest"] if oauth_proof else [])
+    if oauth_proof and github_openbao:
+        raise ValueError("distinct GitLab/GitHub profiles required")
+    return SOURCES + (["aiforall-gitlab-connect-service:latest"] if oauth_proof else []) + (
+        ["aiforall-github-connect-service:latest"] if github_openbao else [])
 
 
 def main():
@@ -21,13 +25,16 @@ def main():
     parser.add_argument("--lease", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--oauth-proof", action="store_true")
+    parser.add_argument("--github-openbao", action="store_true")
     args = parser.parse_args()
     target = LocalClusterTargetAnchor(args.lease, expected_cluster="aiforall-local-full")
     target.check()
     if args.output.exists():
         raise ValueError("image manifest exists; refuse overwrite")
+    sources = source_images(args.oauth_proof, args.github_openbao)
+    verify_provenance({source: source for source in sources})
     result = {}
-    for source in source_images(args.oauth_proof):
+    for source in sources:
         target.check()
         inspected = subprocess.run(["docker", "image", "inspect", "--format", "{{.Id}}", source], capture_output=True, text=True, timeout=30)
         image_id = inspected.stdout.strip()

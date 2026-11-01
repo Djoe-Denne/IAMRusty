@@ -4,6 +4,7 @@ import base64
 import copy
 import hashlib
 import json
+import importlib.util
 import re
 import subprocess
 import tomllib
@@ -12,10 +13,15 @@ from urllib.parse import urlsplit
 
 import yaml
 
+# Also supports existing callers loading this hyphenated entrypoint by file path.
+_bao_spec = importlib.util.spec_from_file_location("local_full_openbao", Path(__file__).with_name("local_full_openbao.py"))
+local_full_openbao = importlib.util.module_from_spec(_bao_spec)
+_bao_spec.loader.exec_module(local_full_openbao)
+
 ROOT = Path(__file__).resolve().parents[2]
 OVERLAY = ROOT / "ops/deploy/apps/overlays/local-full"
 DEPENDENCIES = {"postgres", "openfga", "redis", "localstack", "openbao", "zot", "component-catalog", "mailhog"}
-APPLICATIONS = {"iam", "hive", "telegraph", "manifesto", "lazaret", "sentinel-sync", "ext-authz", "envoy-mesh", "apparatus-operator", "gitlab-connect", "oauth-idp-simulator"}
+APPLICATIONS = {"iam", "hive", "telegraph", "manifesto", "lazaret", "sentinel-sync", "ext-authz", "envoy-mesh", "apparatus-operator", "gitlab-connect", "github-connect", "oauth-idp-simulator"}
 
 
 def validate_proof_inputs(value):
@@ -93,9 +99,12 @@ def http_downstream(envoy):
     chains[0].pop("filter_chain_match", None)
 
 
-def render(run_id, images=None, cert_identity="", oauth_proof=False, proof_inputs=None):
+def render(run_id, images=None, cert_identity="", oauth_proof=False, proof_inputs=None,
+           github_openbao=False, github_client_id="offline-synthetic-client"):
     if not re.fullmatch(r"[a-z0-9]{12,32}", run_id):
         raise ValueError("run-id must be 12-32 lowercase alphanumeric characters")
+    if github_openbao and oauth_proof:
+        raise ValueError("GitHub OpenBao and GitLab OAuth proof are distinct profiles")
     if proof_inputs is not None:
         validate_proof_inputs(proof_inputs)
         if not oauth_proof or proof_inputs["run_id"] != run_id:
@@ -114,6 +123,7 @@ def render(run_id, images=None, cert_identity="", oauth_proof=False, proof_input
     objects = [o for o in original if o]
     if oauth_proof:
         proof_profile(objects, run_id, proof_inputs)
+    local_full_openbao.configure(objects, run_id, github_openbao, github_client_id)
     # Read the effective rendered profile, never the empty base registry after
     # selecting a proof overlay. It is also the configuration included in hash.
     iam_configs = []
@@ -185,9 +195,10 @@ def main():
     parser.add_argument("--image-manifest", type=Path)
     parser.add_argument("--cert-identity", default="")
     parser.add_argument("--oauth-proof", action="store_true")
+    parser.add_argument("--github-openbao", action="store_true")
     args = parser.parse_args()
     images = json.loads(args.image_manifest.read_text()) if args.image_manifest else None
-    objects = render(args.run_id, images, args.cert_identity, args.oauth_proof)
+    objects = render(args.run_id, images, args.cert_identity, args.oauth_proof, github_openbao=args.github_openbao)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     if any(args.output_dir.iterdir()):
         raise ValueError("render output directory must be empty (no overwrite)")

@@ -162,17 +162,31 @@ impl RedisConfig {
 }
 
 /// OpenBao/Vault HTTP KV API.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct VaultConfig {
     /// Base URL (`http://127.0.0.1:8200`).
     #[serde(default)]
     pub base_url: String,
     /// Token header. Empty fails closed.
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub token: String,
     /// KV mount (`secret`).
     #[serde(default = "default_vault_mount")]
     pub mount: String,
+    /// Optional PEM CA bundle for verified HTTPS; never disables hostname checks.
+    #[serde(default)]
+    pub ca_cert_path: Option<String>,
+}
+
+impl std::fmt::Debug for VaultConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VaultConfig")
+            .field("base_url", &self.base_url)
+            .field("token", &"[REDACTED]")
+            .field("mount", &self.mount)
+            .field("ca_cert_path", &self.ca_cert_path)
+            .finish()
+    }
 }
 
 fn default_vault_mount() -> String {
@@ -389,6 +403,20 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn vault_token_is_deserializable_but_never_debugged_or_serialized() {
+        let token = "private-bearer-sentinel";
+        let config: VaultConfig = serde_json::from_value(serde_json::json!({
+            "token": token, "ca_cert_path": "/run/ca.crt"
+        }))
+        .expect("valid config");
+        assert_eq!(config.token, token);
+        assert!(!format!("{config:?}").contains(token));
+        let serialized = serde_json::to_value(&config).expect("serialize");
+        assert!(serialized.get("token").is_none());
+        assert_eq!(serialized["ca_cert_path"], "/run/ca.crt");
+    }
 
     #[test]
     fn identity_config_is_not_iam_jwt() {

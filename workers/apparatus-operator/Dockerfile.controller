@@ -3,7 +3,7 @@
 # Contexte de build = racine du workspace Cargo.
 # kube 4.2.0 exige rustc 1.89. slim (Debian testing) produit glibc 2.38+ ;
 # slim-bookworm aligne le runtime debian:bookworm-slim (Hive / Dockerfile.build).
-FROM rust:1.89-slim-bookworm AS builder
+FROM rust:1.94-slim-bookworm AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -45,6 +45,9 @@ RUN cd /tmp \
     && chmod 0555 /tmp/cosign
 
 FROM debian:bookworm-slim
+ARG SOURCE_REVISION=unattested
+ARG SDK_REVISION=unattested
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION aiforall.dev.sdk-revision=$SDK_REVISION
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \

@@ -1,0 +1,12 @@
+.git
+**/.git
+.tmp
+.worktrees
+.opencode
+.cursor
+.serena
+obsidian
+**/.env
+**/.env.*
+**/target
+**/node_modules

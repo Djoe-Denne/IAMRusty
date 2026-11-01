@@ -52,4 +52,4 @@ spec:
     - to:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: aiforall-local-full}}
           podSelector: {matchLabels: {app.kubernetes.io/name: openbao}}
-      ports: [{protocol: TCP, port: 8200}]
+      ports: [{protocol: TCP, port: 8443}]

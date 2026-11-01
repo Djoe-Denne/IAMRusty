@@ -3,9 +3,18 @@ ARG BUILD_IMAGE=local/build-artifacts:latest
 
 # Copy artifacts from build image
 FROM ${BUILD_IMAGE} as build-source
+ARG SOURCE_REVISION=unattested
+ARG SDK_REVISION=unattested
+RUN if [ "$SOURCE_REVISION" != unattested ]; then \
+    test "$(cat /app/target/release/delivery-profile)" = openbao \
+    && test "$(cat /app/target/release/source-revision)" = "$SOURCE_REVISION" \
+    && test "$(cat /app/target/release/sdk-revision)" = "$SDK_REVISION"; fi
 
 # Final stage - minimal runtime image
 FROM debian:bookworm-slim
+ARG SOURCE_REVISION=unattested
+ARG SDK_REVISION=unattested
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION aiforall.dev.sdk-revision=$SDK_REVISION
 
 WORKDIR /app
 

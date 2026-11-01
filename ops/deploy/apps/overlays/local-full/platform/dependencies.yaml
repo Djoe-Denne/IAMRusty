@@ -102,18 +102,28 @@ spec:
       containers:
         - name: openbao
           image: openbao/openbao:2.6.2@sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641
-          args: [server, -dev, -dev-listen-address=0.0.0.0:8200, -dev-root-token-id=local-full-dev-root]
-          env: [{name: BAO_ADDR, value: "http://127.0.0.1:8200"}, {name: SKIP_SETCAP, value: "true"}]
+          command: [sh, /scripts/run-openbao.sh]
+          env: [{name: SKIP_SETCAP, value: "true"}]
           resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 500m, memory: 256Mi}}
-          ports: [{name: bao, containerPort: 8200}]
-          readinessProbe: {httpGet: {path: /v1/sys/health, port: bao}, periodSeconds: 5}
-          startupProbe: {httpGet: {path: /v1/sys/health, port: bao}, periodSeconds: 5, failureThreshold: 36}
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          ports: [{name: bao, containerPort: 8443}]
+          readinessProbe: {exec: {command: [sh, -ec, "test -f /run/openbao/bootstrap-ready && BAO_ADDR=http://127.0.0.1:8200 bao status >/dev/null 2>&1"]}, periodSeconds: 5}
+          startupProbe: {exec: {command: [test, -f, /run/openbao/bootstrap-ready]}, periodSeconds: 5, failureThreshold: 60}
+          volumeMounts:
+            - {name: bootstrap-scripts, mountPath: /scripts, readOnly: true}
+            - {name: bao-tls, mountPath: /tls, readOnly: true}
+            - {name: bao-runtime, mountPath: /run/openbao}
+            - {name: kube-ca, mountPath: /kube-ca, readOnly: true}
+      volumes:
+        - {name: bootstrap-scripts, configMap: {name: local-full-bootstrap-scripts}}
+        - {name: bao-tls, secret: {secretName: openbao-server-tls, defaultMode: 0440}}
+        - {name: bao-runtime, emptyDir: {medium: Memory, sizeLimit: 1Mi}}
+        - {name: kube-ca, configMap: {name: kube-root-ca.crt}}
 ---
 apiVersion: v1
 kind: Service
 metadata: {name: openbao}
-spec: {selector: {app.kubernetes.io/name: openbao}, ports: [{port: 8200, targetPort: bao}]}
+spec: {selector: {app.kubernetes.io/name: openbao}, ports: [{port: 8443, targetPort: bao}]}
 ---
 apiVersion: apps/v1
 kind: Deployment

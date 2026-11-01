@@ -28,10 +28,35 @@ impl VaultHttpSecretResolver {
         token: impl Into<String>,
         mount: impl Into<String>,
     ) -> Result<Self, SecretError> {
-        let client = Client::builder()
+        Self::with_ca_bundle(base_url, token, mount, None)
+    }
+
+    /// Construct a resolver with an optional explicit PEM CA bundle.
+    ///
+    /// # Errors
+    /// Returns an expurgated error for unreadable/invalid CA material or client configuration.
+    pub fn with_ca_bundle(
+        base_url: impl Into<String>,
+        token: impl Into<String>,
+        mount: impl Into<String>,
+        ca_cert_path: Option<&str>,
+    ) -> Result<Self, SecretError> {
+        let mut builder = Client::builder()
+            .no_proxy()
             .timeout(Duration::from_secs(5))
-            .build()
-            .map_err(|_| SecretError::ResolveFailed)?;
+            .redirect(reqwest::redirect::Policy::none());
+        if let Some(path) = ca_cert_path {
+            let pem = std::fs::read(path).map_err(|_| SecretError::ResolveFailed)?;
+            let certificates = reqwest::Certificate::from_pem_bundle(&pem)
+                .map_err(|_| SecretError::ResolveFailed)?;
+            if certificates.is_empty() {
+                return Err(SecretError::ResolveFailed);
+            }
+            for certificate in certificates {
+                builder = builder.add_root_certificate(certificate);
+            }
+        }
+        let client = builder.build().map_err(|_| SecretError::ResolveFailed)?;
         Ok(Self {
             client,
             base_url: base_url.into().trim_end_matches('/').to_owned(),
@@ -104,4 +129,28 @@ fn encode_vault_path(path: &str) -> String {
         .map(|segment| urlencoding::encode(segment).into_owned())
         .collect::<Vec<_>>()
         .join("/")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::VaultHttpSecretResolver;
+
+    #[test]
+    fn explicit_ca_must_be_readable_and_valid() {
+        let empty = tempfile::NamedTempFile::new().expect("CA file");
+        assert!(VaultHttpSecretResolver::with_ca_bundle(
+            "https://openbao.invalid",
+            "private-test-bearer",
+            "secret",
+            Some(empty.path().to_str().expect("path")),
+        )
+        .is_err());
+        assert!(VaultHttpSecretResolver::with_ca_bundle(
+            "https://openbao.invalid",
+            "private-test-bearer",
+            "secret",
+            Some("missing-openbao-ca.pem"),
+        )
+        .is_err());
+    }
 }

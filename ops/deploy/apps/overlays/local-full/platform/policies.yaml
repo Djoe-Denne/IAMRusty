@@ -176,7 +176,7 @@ spec:
     - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: redis}}}]
       ports: [{protocol: TCP, port: 6379}]
     - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: openbao}}}]
-      ports: [{protocol: TCP, port: 8200}]
+      ports: [{protocol: TCP, port: 8443}]
     - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: manifesto}}}]
       ports: [{protocol: TCP, port: 8080}]
     - to:
@@ -235,20 +235,10 @@ spec:
   policyTypes: [Ingress]
   ingress:
     - from:
-        - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [lazaret, openbao-seed]}]}
+        - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [lazaret]}]}
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: aiforall-local-apparatus}}
           podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [apparatus-operator, local-full-admit]}]}
-      ports: [{protocol: TCP, port: 8200}]
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-bao-seed}
-spec:
-  podSelector: {matchLabels: {app.kubernetes.io/name: openbao-seed}}
-  policyTypes: [Egress]
-  egress:
-    - to: [{podSelector: {matchLabels: {app.kubernetes.io/name: openbao}}}]
-      ports: [{protocol: TCP, port: 8200}]
+      ports: [{protocol: TCP, port: 8443}]
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

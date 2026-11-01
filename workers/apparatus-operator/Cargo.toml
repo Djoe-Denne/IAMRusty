@@ -98,6 +98,8 @@ tokio = { workspace = true, optional = true, features = [
 futures = { workspace = true, optional = true }
 
 [dev-dependencies]
+rustls = { workspace = true }
+tempfile = { workspace = true }
 axum = { workspace = true }
 tower = { workspace = true }
 reqwest = { workspace = true }

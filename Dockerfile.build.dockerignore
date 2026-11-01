@@ -1,0 +1,19 @@
+# Clean delivery checkout only. Do not replace the operator's local .dockerignore.
+.git
+**/.git
+.tmp
+.worktrees
+.opencode
+.cursor
+.serena
+obsidian
+**/.tmp
+**/.worktrees
+**/.opencode
+**/.cursor
+**/.serena
+**/obsidian
+**/target
+**/node_modules
+**/.env
+**/.env.*
