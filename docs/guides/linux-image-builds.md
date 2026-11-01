@@ -142,7 +142,10 @@ L'autorité vérifie endpoint/UID/IDs avant les opérations node ; elle connecte
 le seul registre possédé au réseau existant et installe seulement son reader
 dans `certs.d/aiforall-apps-registry:5000`. Pas de restart/reconfiguration globale
 containerd, pas de clé CA transférée, pas de repli vers `kind load`.
-Ces opérations sont codées/testées hors ligne mais **pas encore éprouvées sur Kind**.
+Qualification locale du 2026-11-01 : vrais pulls/inspecti sur les trois nœuds
+originaux après [activation CRI approuvée](../missions/20261101-local-full-cutover-results.md),
+puis [premier placement OCI ext-authz](../missions/20261101-ext-authz-initial-oci.md).
+Cela ne qualifie ni un autre cluster ni l'E2E auth/métier.
 
 Pour le profil complet, construire/publier **toutes** ses cibles avec les mêmes
 flags de profil, puis produire le mapping attendu par le deploy existant :
@@ -166,7 +169,10 @@ python ops/deploy/deploy-local-full.py refresh --lease LEASE --registry-state RE
 - Sélection explicite : `ext-authz`, `sentinel`, `github`, `gitlab`, `controller`.
   Les services qui lancent automatiquement leurs migrations au démarrage sont
   **refusés**, même si la migration semble inchangée ; plan séparé requis.
-- Deux reçus de publication récents avec `refresh_inputs_id` sont nécessaires.
+- Des reçus de publication avant/après avec `refresh_inputs_id` sont nécessaires.
+  Le précédent doit correspondre exactement à l'image réellement déployée :
+  jamais un reçu fabriqué pour adopter une ancienne image locale/Never. Une
+  première mise en place OCI est une transition distincte avec son propre accord.
   Recettes, assets/config, manifests, build scripts et migrations doivent être
   inchangés ; seul le code Rust ordinaire peut varier. Garde conservative globale.
 - Vérifie image précédente et UID namespace/deployment possédés, puis patch JSON
@@ -174,7 +180,9 @@ python ops/deploy/deploy-local-full.py refresh --lease LEASE --registry-state RE
   replicas, certificats, Secrets, bases, OpenBao, Jobs et policies restent intacts.
 - Pull par digest et readiness ciblée. Identique ⇒ aucun rollout. Échec/stale ⇒
   arrêt explicite, sans rollback destructeur ; plusieurs cibles ne sont pas atomiques.
-  **Refresh réel NOT RUN** tant qu'aucun bail valide n'est sélectionné.
+  No-op réel à digest identique validé après le placement initial ext-authz,
+  zéro mutation. **Refresh entre deux digests différents non qualifié** : le
+  no-op ne prouve pas un changement d'image. Bail explicite toujours obligatoire.
 
 En fin d'utilisation : arrêt réversible des seuls conteneurs possédés ; données,
 certificats, images et caches sont conservés :

@@ -1,5 +1,10 @@
 # Bascule locale préservant les données — résultats
 
+> État historique de clôture en `1f7cbbe`. Après un second accord explicite,
+> la [première mise en place OCI ext-authz](20261101-ext-authz-initial-oci.md) a
+> été exécutée. Les mentions ci-dessous d'image locale/Never et d'accord encore
+> nécessaire décrivent la fin de la tranche stockage/CRI, pas l'état après ce GO.
+
 ## Périmètre et verdict
 
 Après le **« oui » explicite** pour l'indisponibilité contrôlée, sauvegarde et

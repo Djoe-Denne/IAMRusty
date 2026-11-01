@@ -65,11 +65,12 @@ reste reportée à la campagne E2E convenue ; la volatilité locale n'est pas un
 à transformer en chantier de stockage/HA cloud.
 
 État de qualification : [fiche lifecycle](../../docs/missions/20261101-local-environment-lifecycle.md).
-Le moteur reprise/no-op/stop/reprise est éprouvé sur les nodes d'origine. L'ancienne
-installation conserve trois PVC non liés (`postgres-data`, `zot-data`,
-`admission-store`) : `up` ne les répare pas implicitement et ce constat ne vaut
-pas une disponibilité applicative complète. L'environnement quotidien est enregistré,
-arrêté ; `just local-status` fonctionne sans fournir à nouveau le bail.
+Le moteur reprise/no-op/stop/reprise est éprouvé sur les nodes d'origine. Après
+[bascule approuvée](../../docs/missions/20261101-local-full-cutover-results.md),
+`postgres-data` et `zot-data` sont Bound avec leurs UID originaux et données
+vérifiées ; seul `admission-store` reste Pending. Cela ne qualifie pas la
+disponibilité globale de l'ancienne installation. `just local-status` réutilise
+le bail enregistré sans le redemander.
 
 La cause et les correctifs source sont documentés dans la
 [suite de mission](../../docs/missions/20261101-local-runtime-continuation.md).
@@ -78,8 +79,12 @@ Le rendu référence maintenant les PVC en conservant les volumes auxiliaires.
 activer** : les emptyDir existants contiennent potentiellement des données.
 Le deploy refuse cette transition avant bootstrap/quiesce/apply, même avec
 `--confirm-quiesce`. Suivre le [plan de préservation](../../docs/local/local-full-storage-cutover.md)
-avec une autorisation de bascule distincte. Le YAML Kind corrigé prépare seulement
-de futures créations explicites ; il ne configure pas les CRI des nœuds existants.
+avec une autorisation de bascule distincte ; l'exécution déjà effectuée est liée
+dans ce plan et ne doit pas être rejouée. Le YAML Kind corrigé prépare seulement
+de futures créations explicites ; les CRI existantes ont été activées séparément,
+sans recréation. La [première image OCI ext-authz](../../docs/missions/20261101-ext-authz-initial-oci.md)
+a ensuite été déployée par patch image/policy uniquement. Le refresh à digest
+identique passe sans mutation ; ce n'est pas une preuve d'update entre deux digests.
 
 ### Diagnostics d'échec privés
 

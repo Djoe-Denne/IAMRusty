@@ -124,9 +124,12 @@ de `local-up` restent des étapes distinctes ; coffre local toujours volatile.
 - Les sept writers restent quiescés pendant stockage + CRI pour permettre les
   empreintes stables après restart ; rétablir ensuite leurs réplicas d'origine
   avec CAS UID/resourceVersion et vérifier les PodTemplates inchangés.
-- Le pull OCI ne prouve pas un refresh : le Deployment ext-authz ancien référence
-  encore une image locale avec `Never`, différente du reçu OCI précédent.
-  Ne pas inventer/adopter de reçu « avant » pour satisfaire la garde du refresh.
+- Le pull OCI ne prouve pas un refresh. À la clôture de la bascule stockage,
+  ext-authz utilisait encore une image locale/Never différente du reçu précédent.
+  Sa [première mise en place OCI](../missions/20261101-ext-authz-initial-oci.md)
+  a ensuite été approuvée et exécutée séparément ; le no-op du refresh est validé,
+  pas une mise à jour entre deux digests. Ne pas inventer/adopter de reçu « avant »
+  pour satisfaire cette garde.
 
 ## Sources de la procédure
 
