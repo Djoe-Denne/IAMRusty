@@ -45,3 +45,11 @@
 
 Totals: 1 source finding closed / 2 live operations open. Source validation and live cutover
 qualification are separate; OpenBao local volatility and deferred auth E2E unchanged.
+
+Independent verification on code62eeea5:6/6source checks PASS,0FAIL; actual offline
+render113objects, auxiliary mounts preserved. Live identities and non-migrated
+state confirmed through the original anchor; cutover/CRI pull still NOT RUN.
+Existing containerd configuration can be enabled via a separately authorized
+targeted change/restart; cluster recreation is neither necessary nor authorized.
+Parent subsequently stopped its3original nodes and registered registry/helpers,
+preserving the unrelated running local node. See the mission report for evidence.

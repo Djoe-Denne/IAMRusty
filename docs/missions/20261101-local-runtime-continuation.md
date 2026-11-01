@@ -92,3 +92,49 @@ Question restante : autoriser la brève indisponibilité, sauvegarde/restauratio
 remplacement ciblé des Pods puis activation/restart containerd nœud par nœud.
 Sans cet accord, publier les corrections indépendantes et rendre l'environnement
 arrêté. La disponibilité applicative complète et OCI→CRI→refresh restent non qualifiés.
+
+## Vérification indépendante et retour au repos
+
+`infra-verifier`, session `ses_e67e398a5ffeKtbbD2J4h18v7g`, a examiné exactement
+les sources committées en `62eeea5` (aucun delta après son examen) : **6/6 checks
+source PASS, 0 FAIL**. Rendu base réel de 113 objets, trois remplacements PVC avec
+auxiliaires et mounts cohérents, garde deploy avant mutations, parser/préflight
+CRI exact et YAML Kind borné à la création ; revue diagnostics limitée au périmètre.
+Ses quatre observations live confirment ancrage/UID, mêmes Pods sources, stockage
+encore non migré et hosts-dir CRI vide. **Cela ne vaut pas PASS cutover ou plateforme.**
+
+Précision parent sur la conclusion du reviewer : recréer Kind n'est **pas** requis
+pour activer le hosts-dir. Une modification ciblée de la configuration existante
+et un redémarrage progressif autorisés restent l'option du plan. Le préflight
+refuse tant que ce chemin n'est pas effectivement activé ; aucune recréation n'est
+autorisée ou proposée pour contourner ce refus.
+
+Les 19 livrables source/docs/tests ont été publiés en
+`62eeea5a8481a7f6c1eb03da9a274dfb2ac40f85` sur `origin/master`, référence distante
+vérifiée. L'archivage de ce résultat de vérification/cleanup est un complément
+documentaire, sans changement de code nécessitant de rejouer les 61 tests.
+
+Après fin des vérifications, **`just local-stop` réel exit0** : les 3 nœuds du bail
+original et le registre/5 helpers enregistrés sont arrêtés, IDs contrôlés par inspect.
+Deux autres conteneurs historiques de registre étaient déjà arrêtés et n'ont pas
+été adoptés/manipulés. Inventaires avant/après 12 conteneurs, mêmes ID/états finaux,
+aucun nouveau conteneur ni suppression ; le nœud local partagé reste running.
+Les 3 nœuds et le registre ont bien été repris puis arrêtés pendant ce lot : l'égalité
+des états finaux ne signifie pas « jamais touchés ». Pas de remplacement des Pods
+source ni de lecture/copie des données ; certificats/images/caches non effacés.
+
+Preuve : `.tmp/ops-continue-closeout-20261101-corrected.json`, inventaire brut
+apparié `.tmp/ops-continue-closeout-20261101.json`, journal
+`.tmp/docker-resources-20261101.log` et journal power du bail. Le premier appel du
+comparateur classait à tort des ressources déjà présentes comme newly-owned ;
+interprétation corrigée avec comparaison complète des préexistantes et contrôle
+séparé des IDs explicitement repris. Aucun conflit de propriété n'a été utilisé
+pour autoriser une suppression. Trois anciens registres à encodage invalide/mixte
+ont été préservés, sans littéral des IDs visés ; les événements contemporains et
+le bail d'origine restent les preuves de cette opération réversible.
+
+Bail runtime libéré, aucun job/agent encore actif, aucune branche/worktree/équipe
+créée pour ce lot. Les 82 branches/5 worktrees préexistants et SDK93b890f restent
+intacts ; modification UI Obsidian étrangère préservée. Desktop/WSL partagés
+conservés à cause du nœud local non visé ; RAM non mesurée. **Suite globale non
+clôturée** en attente de l'accord de bascule, sans runtime gardé actif pour l'attente.
