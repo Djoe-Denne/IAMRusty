@@ -6,7 +6,7 @@ FROM ${BUILD_IMAGE} as build-source
 ARG SOURCE_REVISION=unattested
 ARG SDK_REVISION=unattested
 RUN if [ "$SOURCE_REVISION" != unattested ]; then \
-    test "$(cat /app/target/release/delivery-profile)" = openbao \
+    case "$(cat /app/target/release/delivery-profile)" in openbao|images|workspace) ;; *) exit 1 ;; esac \
     && test "$(cat /app/target/release/source-revision)" = "$SOURCE_REVISION" \
     && test "$(cat /app/target/release/sdk-revision)" = "$SDK_REVISION"; fi
 

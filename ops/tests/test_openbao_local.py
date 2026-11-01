@@ -79,19 +79,21 @@ class LocalOpenBaoTests(unittest.TestCase):
 
     def test_stale_image_source_or_sdk_is_refused_without_running_docker(self):
         source = "aiforall-github-connect-service:latest"
-        labels = {"org.opencontainers.image.revision": "a" * 40, "aiforall.dev.sdk-revision": "b" * 40}
+        snapshot = {"files": [{"path": "services/GitHubConnect/src/main.rs", "sha256": "a" * 64, "mode": 420},
+                              {"path": "rustycog/src/lib.rs", "sha256": "b" * 64, "mode": 420}]}
+        labels = {"org.opencontainers.image.revision": "a" * 40, "aiforall.dev.source-policy": "local",
+                  "aiforall.dev.freshness-policy": provenance.FRESHNESS_POLICY,
+                  "aiforall.dev.cargo-profile": "dev-image", "aiforall.dev.build-targets": "github",
+                  "aiforall.dev.build-context": provenance.build_context(["github"], "dev-image"),
+                  "aiforall.dev.source-input": provenance.target_identity(snapshot, "github")}
         for mismatch in ("none", "source", "sdk"):
+            current = json.loads(json.dumps(snapshot))
+            if mismatch != "none":
+                current["files"][int(mismatch == "sdk")]["sha256"] = "c" * 64
             def command(args, **kwargs):
-                if args[0] == "docker":
-                    value = {**labels, "aiforall.dev.sdk-revision": "c" * 40} if mismatch == "sdk" else labels
-                    return SimpleNamespace(returncode=0, stdout=json.dumps(value))
-                if "rev-parse" in args:
-                    return SimpleNamespace(returncode=0, stdout="b" * 40)
-                if "cat-file" in args:
-                    return SimpleNamespace(returncode=0, stdout="commit")
-                self.assertIn("diff", args)
-                return SimpleNamespace(returncode=int(mismatch == "source"), stdout="")
-            with patch.object(provenance.subprocess, "run", side_effect=command):
+                self.assertEqual(args[0], "docker")
+                return SimpleNamespace(returncode=0, stdout=json.dumps(labels))
+            with patch.object(provenance, "capture", return_value=current), patch.object(provenance.subprocess, "run", side_effect=command):
                 if mismatch == "none":
                     provenance.verify({source: "local/image:sha256-" + "c" * 64})
                 else:

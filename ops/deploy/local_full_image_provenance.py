@@ -1,22 +1,16 @@
-"""Reject stale images for the three changed code boundaries; no Docker startup."""
+"""Verify bytes consumed by every Rust image, not only HEAD or three services."""
 import json
-from pathlib import Path
 import re
 import subprocess
+from image_catalog import FRESHNESS_POLICY, TARGETS, build_context
+from image_sources import ROOT, capture, target_identity
 
-ROOT = Path(__file__).resolve().parents[2]
-BOUNDARIES = {
-    "aiforall-github-connect-service:latest": ["services/GitHubConnect"],
-    "aiforall-lazaret-service:local-full": ["services/Lazaret"],
-    "aiforall-apparatus-controller:j2": ["workers/apparatus-operator"],
-}
+BOUNDARIES = {item["source"]: name for name, item in TARGETS.items()}
 
 
 def verify(images):
-    sdk = subprocess.run(["git", "-C", str(ROOT / "rustycog"), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=15)
-    if sdk.returncode:
-        raise ValueError("cannot identify consumed SDK revision")
-    for source, paths in BOUNDARIES.items():
+    snapshot = capture(ROOT)
+    for source, name in BOUNDARIES.items():
         if source not in images:
             continue
         result = subprocess.run(["docker", "image", "inspect", "--format", "{{json .Config.Labels}}", images[source]],
@@ -24,15 +18,14 @@ def verify(images):
         if result.returncode:
             raise ValueError("cannot verify local image provenance: " + source)
         labels = json.loads(result.stdout) or {}
-        revision = labels.get("org.opencontainers.image.revision", "")
-        if not re.fullmatch(r"[a-f0-9]{40}", revision) or labels.get("aiforall.dev.sdk-revision") != sdk.stdout.strip():
-            raise ValueError("image lacks matching source/SDK provenance: " + source)
-        # A label is build metadata, not a signature. The clean delivery build must
-        # attest it; this also rejects locally stale code after a newer source edit.
-        commit = subprocess.run(["git", "cat-file", "-t", revision], cwd=ROOT, capture_output=True, text=True, timeout=15)
-        if commit.returncode or commit.stdout.strip() != "commit":
-            raise ValueError("image source revision is unavailable locally: " + source)
-        changed = subprocess.run(["git", "diff", "--quiet", revision, "--", *paths, "Cargo.toml", "Cargo.lock", "rustycog", "crates"],
-                                 cwd=ROOT, capture_output=True, timeout=30)
-        if changed.returncode:
-            raise ValueError("image source differs from the retained code: " + source)
+        build_targets = labels.get("aiforall.dev.build-targets", "").split(",")
+        profile = labels.get("aiforall.dev.cargo-profile")
+        if (labels.get("aiforall.dev.source-input") != target_identity(snapshot, name)
+                or labels.get("aiforall.dev.source-policy") != "local"
+                or labels.get("aiforall.dev.freshness-policy") != FRESHNESS_POLICY
+                or name not in build_targets or profile not in {"dev-image", "release"}
+                or labels.get("aiforall.dev.build-context") != build_context(build_targets, profile)
+                or not re.fullmatch(r"[a-f0-9]{40}", labels.get("org.opencontainers.image.revision", ""))):
+            raise ValueError("image lacks matching working-tree/SDK input provenance; rebuild: " + source)
+        # These are checked build metadata, not signatures. Source bytes, including
+        # uncommitted/new files in the consumed SDK, are authoritative in dev.

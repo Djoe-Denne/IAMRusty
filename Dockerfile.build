@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nasm \
     perl \
     pkg-config \
+    python3 \
     libssl-dev \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -29,21 +30,13 @@ ENV CARGO_TARGET_DIR=/usr/src/target
 ARG DELIVERY_PROFILE=workspace
 ARG SOURCE_REVISION=unattested
 ARG SDK_REVISION=unattested
+ARG IMAGE_TARGETS
+ARG CARGO_PROFILE=release
+ARG TARGET_CACHE=aiforall-workspace-target-bookworm
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,id=aiforall-workspace-target-bookworm,target=/usr/src/target \
-    mkdir -p /opt/release \
-    && case "$DELIVERY_PROFILE" in \
-      workspace) cargo build --release --locked \
-        && find /usr/src/target/release -maxdepth 1 -type f ! -name '*.d' -exec cp {} /opt/release/ \; ;; \
-      openbao) test "${#SOURCE_REVISION}" -eq 40 && test "${#SDK_REVISION}" -eq 40 \
-        && cargo build --release --locked -p github-connect-service -p lazaret-service -p lazaret-migration \
-        && for binary in github-connect-service lazaret-service migration; do cp "/usr/src/target/release/$binary" /opt/release/; done ;; \
-      *) exit 1 ;; \
-    esac \
-    && printf '%s' "$DELIVERY_PROFILE" > /opt/release/delivery-profile \
-    && printf '%s' "$SOURCE_REVISION" > /opt/release/source-revision \
-    && printf '%s' "$SDK_REVISION" > /opt/release/sdk-revision
+    --mount=type=cache,id=${TARGET_CACHE},sharing=locked,target=/usr/src/target \
+    python3 ops/deploy/build/compile-artifacts.py
 
 # Release binaries only. The Cargo target stays in the BuildKit cache.
 FROM rust:1.94-slim-bookworm AS artifacts

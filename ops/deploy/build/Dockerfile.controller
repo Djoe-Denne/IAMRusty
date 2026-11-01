@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1
+# Preserve the controller's Cosign tool while reusing the shared Cargo build.
+ARG BUILD_IMAGE=local/build-artifacts:latest
+FROM ${BUILD_IMAGE} AS artifacts
+FROM debian:bookworm-slim AS tools
+ARG COSIGN_VERSION=2.4.3
+WORKDIR /tmp
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" -o cosign-linux-amd64 \
+    && curl -fsSL "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign_checksums.txt" -o cosign_checksums.txt \
+    && grep -E '  cosign-linux-amd64$' cosign_checksums.txt > cosign.sha \
+    && test -s cosign.sha && sha256sum -c cosign.sha && chmod 0555 cosign-linux-amd64
+FROM debian:bookworm-slim AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /var/lib/apparatus && chown 65534:65534 /var/lib/apparatus
+COPY --from=artifacts /app/target/release/apparatus-controller /usr/local/bin/apparatus-controller
+COPY --from=tools /tmp/cosign-linux-amd64 /usr/local/bin/cosign
+USER 65534:65534
+ENTRYPOINT ["/usr/local/bin/apparatus-controller"]

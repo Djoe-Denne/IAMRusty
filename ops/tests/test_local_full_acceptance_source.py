@@ -55,8 +55,15 @@ class AcceptanceGuardTests(unittest.TestCase):
         config = tomllib.loads((root / ".cargo/config.toml").read_text(encoding="utf-8"))
         self.assertEqual(config["build"]["jobs"], 24)
         self.assertEqual(config["build"]["target-dir"], r"E:\cargo-target\AIForAll")
+        shared = (root / "Dockerfile.build").read_text(encoding="utf-8")
+        self.assertIn("ENV CARGO_TARGET_DIR=/usr/src/target", shared)
+        self.assertIn("sharing=locked,target=/usr/src/target", shared)
+        self.assertIn("python3 ops/deploy/build/compile-artifacts.py", shared)
+        self.assertNotIn("find /usr/src/target", shared)
+        exporter = (root / "ops/deploy/build/compile-artifacts.py").read_text(encoding="utf-8")
+        self.assertIn('"--locked"', exporter)
+        self.assertIn('"compiler-artifact"', exporter)
         for path, artifact_source in [
-            ("Dockerfile.build", "find /usr/src/target/release"),
             ("workers/ext-authz/Dockerfile", "cp /usr/src/target/release/ext-authz"),
             ("workers/apparatus-operator/Dockerfile.controller",
              "cp /usr/src/target/release/apparatus-controller"),
@@ -335,11 +342,21 @@ class AcceptanceGuardTests(unittest.TestCase):
                         allowed.update(id(child) for child in ast.walk(node) if isinstance(child, ast.Constant)
                                        and child.value == "cluster-anchor-")
                 self.assertEqual(len(allowed), 1)
+            if path.name == "image_sources.py":
+                # Excluding private state from a public snapshot is not reading
+                # historical state as nominal deployment input. Permit only the
+                # two literal exclusion-set members, not arbitrary path uses.
+                for node in tree.body:
+                    if (isinstance(node, ast.Assign) and isinstance(node.value, ast.Set)
+                            and any(isinstance(target, ast.Name) and target.id == "PRIVATE_DIRS" for target in node.targets)):
+                        allowed.update(id(child) for child in node.value.elts if isinstance(child, ast.Constant)
+                                       and child.value in {".tmp", ".cursor"})
+                self.assertEqual(len(allowed), 2)
             for node in ast.walk(tree):
                 if isinstance(node, ast.Constant) and isinstance(node.value, str):
                     with self.subTest(path=path.name, line=node.lineno):
                         for forbidden in ("tests/", ".tmp", ".cursor", "pool-", "cluster-anchor-"):
-                            if forbidden == "cluster-anchor-" and id(node) in allowed:
+                            if node.value == forbidden and id(node) in allowed:
                                 continue
                             self.assertNotIn(forbidden, node.value)
 

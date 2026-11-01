@@ -26,22 +26,36 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--oauth-proof", action="store_true")
     parser.add_argument("--github-openbao", action="store_true")
+    parser.add_argument("--build-manifest", type=Path, help="explicit output of build/images.py; never rebuild implicitly")
     args = parser.parse_args()
     target = LocalClusterTargetAnchor(args.lease, expected_cluster="aiforall-local-full")
     target.check()
     if args.output.exists():
         raise ValueError("image manifest exists; refuse overwrite")
     sources = source_images(args.oauth_proof, args.github_openbao)
-    verify_provenance({source: source for source in sources})
+    built = {}
+    if args.build_manifest:
+        manifest = json.loads(args.build_manifest.read_text(encoding="utf-8"))
+        if manifest.get("schema") != "aiforall.image-build/v1":
+            raise ValueError("unexpected build manifest schema")
+        built = {record["source"]: record for record in manifest["targets"].values()}
+        if len(built) != len(manifest["targets"]):
+            raise ValueError("duplicate build manifest sources")
+        if any(source not in built for source in sources if source != "aiforall-zot:gold"):
+            raise ValueError("build manifest does not cover the selected deployment profile")
+    inputs = {source: built.get(source, {}).get("local_ref", source) for source in sources}
+    verify_provenance(inputs)
     result = {}
     for source in sources:
         target.check()
-        inspected = subprocess.run(["docker", "image", "inspect", "--format", "{{.Id}}", source], capture_output=True, text=True, timeout=30)
+        inspected = subprocess.run(["docker", "image", "inspect", "--format", "{{.Id}}", inputs[source]], capture_output=True, text=True, timeout=30)
         image_id = inspected.stdout.strip()
         if inspected.returncode or not re.fullmatch(r"sha256:[a-f0-9]{64}", image_id):
             raise ValueError("required existing application image missing: " + source)
+        if source in built and built[source]["image_id"] != image_id:
+            raise ValueError("build manifest image ID disagrees with the local image")
         content_image = source.split(":")[0] + ":sha256-" + image_id[7:]
-        tagged = subprocess.run(["docker", "tag", source, content_image], capture_output=True, timeout=30)
+        tagged = subprocess.run(["docker", "tag", inputs[source], content_image], capture_output=True, timeout=30)
         if tagged.returncode:
             raise RuntimeError("content image tagging failed")
         result[source] = content_image

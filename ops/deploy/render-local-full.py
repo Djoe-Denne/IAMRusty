@@ -176,6 +176,10 @@ def render(run_id, images=None, cert_identity="", oauth_proof=False, proof_input
                     if not replacement or not re.fullmatch(r"[a-z0-9./:_-]+(?::sha256-[a-f0-9]{64}|@sha256:[a-f0-9]{64})", replacement):
                         raise ValueError("missing immutable application image mapping for " + image)
                     container["image"] = replacement
+                    # Registry manifests use an actual OCI digest. Unlike the
+                    # legacy kind-load content tags, these must be pullable.
+                    if "@sha256:" in replacement:
+                        container["imagePullPolicy"] = "IfNotPresent"
             # Hashes in ConfigMap volume names and content image tags now both
             # affect the PodTemplate; no forced restart against an old Ready pod.
     serialized = json.dumps(objects)
