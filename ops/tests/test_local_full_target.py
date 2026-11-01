@@ -116,6 +116,15 @@ class AnchorTests(unittest.TestCase):
         self.f = Fixture(self.temp.name)
         self.cmd = FakeCommands(self.f)
 
+    def test_registry_config_selects_cri_not_transfer_and_accepts_toml_quotes(self):
+        config = "version = 3\n[plugins.'io.containerd.cri.v1.images'.registry]\nconfig_path = '/etc/containerd/certs.d'\n[plugins.'io.containerd.transfer.v1.local']\nconfig_path = ''\n"
+        self.assertEqual(anchor.registry_config_path("containerd v2.0.3 abc", config), "/etc/containerd/certs.d")
+        old = 'version=2\n[plugins."io.containerd.grpc.v1.cri".registry]\nconfig_path="/etc/containerd/certs.d"\n'
+        self.assertEqual(anchor.registry_config_path("containerd v1.7.2 abc", old), "/etc/containerd/certs.d")
+        self.assertEqual(anchor.registry_config_path("containerd v2.0.3 abc", config.replace("'/etc/containerd/certs.d'", "''")), "")
+        with self.assertRaises(anchor.AnchorError):
+            anchor.registry_config_path("containerd v3.0.0 abc", config)
+
     def refused_before_api(self):
         self.f.save()
         with self.assertRaises(anchor.AnchorError):
@@ -169,7 +178,7 @@ class AnchorTests(unittest.TestCase):
                 if cmd[-2:] == ["containerd", "--version"]:
                     return "containerd github.com/containerd/containerd/v2 v2.0.0 abc\n"
                 if "containerd config dump" in " ".join(cmd):
-                    return '  config_path = "/etc/containerd/certs.d"\n'
+                    return "version = 3\n[plugins.'io.containerd.cri.v1.images'.registry]\nconfig_path = '/etc/containerd/certs.d'\n[plugins.'io.containerd.transfer.v1.local']\nconfig_path = ''\n"
                 self.assertIn("input", kwargs)
                 payloads.append(kwargs["input"])
                 self.assertNotIn("PRIVATE_READER_SENTINEL", " ".join(cmd))
@@ -180,6 +189,29 @@ class AnchorTests(unittest.TestCase):
         self.assertEqual(result["nodes"], self.f.ids)
         self.assertEqual(len(payloads), 3)
         registry.docker.assert_not_called()  # Already attached: no network mutation.
+
+    def test_registry_connect_preflights_later_nodes_before_network_or_key_access(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        registry = SimpleNamespace(state={"engine": "engine", "owner": "e" * 32},
+            check=Mock(return_value={"State": {"Running": True}}), docker=Mock(), certificates=Mock())
+        checked = []
+        def commands(cmd, **kwargs):
+            if cmd[:2] == ["docker", "info"]:
+                return "engine"
+            if cmd[:2] == ["docker", "exec"]:
+                if cmd[-2:] == ["containerd", "--version"]:
+                    return "containerd v2.0.3 abc"
+                self.assertEqual(cmd[-3:], ["containerd", "config", "dump"])
+                checked.append(cmd[2])
+                path = "/etc/containerd/certs.d" if cmd[2] == self.f.ids[0] else ""
+                return "[plugins.'io.containerd.cri.v1.images'.registry]\nconfig_path = '" + path + "'\n"
+            return self.cmd(cmd, **kwargs)
+        with self.assertRaisesRegex(anchor.AnchorError, "not already enabled"):
+            self.f.target(commands).registry_connect(registry)
+        self.assertEqual(checked, self.f.ids[:2])
+        registry.docker.assert_not_called()
+        registry.certificates.assert_not_called()
 
     def test_forward_rejects_foreign_target_bind_service_and_mapping_before_api(self):
         for change in ({"namespace": "foreign"}, {"service": "iam"},

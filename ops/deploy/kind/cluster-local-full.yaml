@@ -2,6 +2,12 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: aiforall-local-full
 # Separate opt-in topology; never replaces an existing single-node cluster.
+# Pinned nodes run containerd 2.x (v3 config). Applied only during explicit
+# creation; changing this file never recreates/reconfigures an existing cluster.
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.cri.v1.images".registry]
+      config_path = "/etc/containerd/certs.d"
 networking:
   apiServerAddress: "127.0.0.1"
   apiServerPort: 0

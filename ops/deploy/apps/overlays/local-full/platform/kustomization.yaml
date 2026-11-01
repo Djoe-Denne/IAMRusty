@@ -56,6 +56,24 @@ configMapGenerator:
       - "init-aws.sh=#!/bin/sh\nset -eu\nfor q in telegraph-events user-events lazaret-kv-events sentinel-sync-events; do awslocal --endpoint-url=http://127.0.0.1:4566 sqs create-queue --queue-name \"$q\" >/dev/null; done\n"
 patches:
   - path: patches.yaml
+  # Replace only data; preserve init/config/credentials volumes. Reordering a
+  # shared base must fail this name test rather than silently change a mount.
+  - target: {kind: Deployment, name: postgres}
+    patch: |-
+      - op: test
+        path: /spec/template/spec/volumes/0/name
+        value: data
+      - op: replace
+        path: /spec/template/spec/volumes/0
+        value: {name: data, persistentVolumeClaim: {claimName: postgres-data}}
+  - target: {kind: Deployment, name: zot}
+    patch: |-
+      - op: test
+        path: /spec/template/spec/volumes/2/name
+        value: data
+      - op: replace
+        path: /spec/template/spec/volumes/2
+        value: {name: data, persistentVolumeClaim: {claimName: zot-data}}
   - target:
       kind: Deployment
       name: (iam|hive|telegraph|manifesto)

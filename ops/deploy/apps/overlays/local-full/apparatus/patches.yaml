@@ -17,10 +17,6 @@ spec:
             - {name: APPARATUS_REGISTRY_NETWORK, value: "zot.aiforall-local-full.svc.cluster.local:5000"}
             - {name: APPARATUS_VAULT_ADDR, value: "https://openbao.aiforall-local-full.svc.cluster.local:8443"}
             - {name: APPARATUS_VAULT_ADDR_NETWORK, value: "https://openbao.aiforall-local-full.svc.cluster.local:8443"}
-      volumes:
-        - name: admission-store
-          $patch: replace
-          persistentVolumeClaim: {claimName: admission-store}
 ---
 apiVersion: v1
 kind: Service

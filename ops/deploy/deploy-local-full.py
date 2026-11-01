@@ -75,6 +75,26 @@ def preflight_cluster_objects(objects, args, data):
                 raise ValueError("existing AdmissionRecord schema differs; preserve it and escalate")
 
 
+def preflight_storage_transitions(objects):
+    """Full deploy is not an emptyDir/hostPath/PVC migration operation."""
+    volumes_by_name = {"postgres": "data", "zot": "data", "apparatus-operator": "admission-store"}
+    for obj in objects:
+        name = obj["metadata"]["name"]
+        if obj["kind"] != "Deployment" or name not in volumes_by_name:
+            continue
+        namespace = obj["metadata"]["namespace"]
+        raw = k("get", "deployment", name, "-n", namespace, "--ignore-not-found", "-o", "json")
+        if not raw.strip():
+            continue  # Initial explicit installation has no source data to replace.
+        current = json.loads(raw)
+        volume_name = volumes_by_name[name]
+        def selected(deployment):
+            return [v for v in deployment["spec"]["template"]["spec"].get("volumes", []) if v["name"] == volume_name]
+        if selected(current) != selected(obj):
+            raise ValueError("storage transition refused for " + namespace + "/" + name
+                             + "; preserve and verify the existing data before an explicit cutover; --confirm-quiesce is not a migration approval")
+
+
 def record_resources(objects, args, data):
     for obj in objects:
         if obj["kind"] == "Secret":
@@ -774,6 +794,10 @@ def deploy_locked(args):
     data = json.loads(args.lease.read_text(encoding="utf-8-sig"))
     if data.get("context") != CONTEXT or data.get("cluster") != CLUSTER:
         raise ValueError("parent local runtime lease required")
+    if data.get("anchor_state") == "anchored":
+        # Before bootstrap, quiescing or apply: a normal deploy must not discard
+        # an existing emptyDir or silently change a PVC backing the same mount.
+        preflight_storage_transitions(objects)
     # Reject stale service/SDK binaries before creating/altering the local cluster.
     if any("@sha256:" in image for image in images.values()):
         if not getattr(args, "registry_state", None):
@@ -1045,4 +1069,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    from private_diagnostics import operation
+    stage = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] in {"render", "deploy", "inventory", "refresh", "up", "stop", "status"} else "arguments"
+    with operation("local-full-" + stage):
+        main()

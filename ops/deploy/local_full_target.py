@@ -17,6 +17,7 @@ import sys
 import tarfile
 import threading
 import time
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote, urlsplit
@@ -30,6 +31,19 @@ METADATA = '{"id":{{json .Id}},"running":{{json .State.Running}},"image":{{json 
 
 class AnchorError(RuntimeError):
     pass
+
+
+def registry_config_path(version, configuration):
+    """Read the CRI registry section, not transfer-service or unrelated paths."""
+    match = re.search(r"\sv?([12])\.[0-9]+\.", version)
+    if not match:
+        raise AnchorError("unsupported containerd version")
+    plugin = "io.containerd.cri.v1.images" if match[1] == "2" else "io.containerd.grpc.v1.cri"
+    try:
+        value = tomllib.loads(configuration)
+        return value["plugins"][plugin]["registry"]["config_path"]
+    except (KeyError, TypeError, tomllib.TOMLDecodeError):
+        raise AnchorError("containerd CRI registry configuration unavailable") from None
 
 
 @dataclass(frozen=True)
@@ -223,14 +237,21 @@ def run(command, **kwargs):
             kwargs["input"] = value.encode(encoding, errors="strict")
         except (UnicodeError, LookupError):
             raise AnchorError("invalid target input encoding; output redacted") from None
-    result = subprocess.run(command, capture_output=True, check=False, **kwargs)
+    from private_diagnostics import capture_failure
+    try:
+        result = subprocess.run(command, capture_output=True, check=False, **kwargs)
+    except subprocess.TimeoutExpired as error:
+        capture_failure(command, error.output, error.stderr, timeout=True)
+        raise
     if result.returncode:
+        capture_failure(command, result.stdout, result.stderr, result.returncode)
         raise AnchorError("target operation failed; output redacted")
     if textual:
         try:
             output = result.stdout.decode(encoding, errors="strict")
             result.stderr.decode(encoding, errors="strict")
         except (UnicodeError, LookupError):
+            capture_failure(command, result.stdout, result.stderr, result.returncode, reason="strict text decoding failed")
             raise AnchorError("invalid target text encoding; output redacted") from None
         return output.replace("\r\n", "\n").replace("\r", "\n")
     return result.stdout
@@ -1539,6 +1560,15 @@ class LocalClusterTargetAnchor:
     def registry_connect(self, registry):
         """Connect the owned registry, then install only its reader trust scope."""
         nodes = self._registry_nodes(registry)
+        # Preflight every node before network changes or reading/transferring a key.
+        # containerd 2.x also has transfer.v1.local.config_path: a grep of all
+        # config_path lines cannot identify the actual CRI registry configuration.
+        for node in nodes:
+            self._uid_check()
+            version = self.runner(["docker", "exec", node["id"], "containerd", "--version"], text=True, timeout=15)
+            configuration = self.runner(["docker", "exec", node["id"], "containerd", "config", "dump"], text=True, timeout=15)
+            if registry_config_path(version, configuration) != "/etc/containerd/certs.d":
+                raise AnchorError("containerd registry config_path is not already enabled; refuse global reconfiguration")
         cid = registry.state["container"]
         authority = "aiforall-apps-registry:5000"
         networks = []
@@ -1613,14 +1643,6 @@ for f in ca.crt client.cert client.key hosts.toml owner; do
 done
 '''
         for node in nodes:
-            self._uid_check()
-            version = self.runner(["docker", "exec", node["id"], "containerd", "--version"], text=True, timeout=15)
-            if not re.search(r"\sv?[12]\.[0-9]+\.", version):
-                raise AnchorError("unsupported containerd version")
-            path = self.runner(["docker", "exec", node["id"], "sh", "-ec",
-                "containerd config dump | awk '/^[[:space:]]*config_path[[:space:]]*=/{print $0}'"], text=True, timeout=15).strip()
-            if len(path.splitlines()) != 1 or path.partition("=")[2].strip() != '"/etc/containerd/certs.d"':
-                raise AnchorError("containerd registry config_path is not already enabled; refuse global reconfiguration")
             self._uid_check()
             self.runner(["docker", "exec", "-i", node["id"], "sh", "-ec", script, "registry-reader", registry.state["owner"]],
                         input=payload.getvalue(), timeout=30, env=self.environment())

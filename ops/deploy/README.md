@@ -71,6 +71,34 @@ installation conserve trois PVC non liés (`postgres-data`, `zot-data`,
 pas une disponibilité applicative complète. L'environnement quotidien est enregistré,
 arrêté ; `just local-status` fonctionne sans fournir à nouveau le bail.
 
+La cause et les correctifs source sont documentés dans la
+[suite de mission](../../docs/missions/20261101-local-runtime-continuation.md).
+Le rendu référence maintenant les PVC en conservant les volumes auxiliaires.
+**Ne pas rejouer un déploiement complet sur l'ancienne installation pour les
+activer** : les emptyDir existants contiennent potentiellement des données.
+Le deploy refuse cette transition avant bootstrap/quiesce/apply, même avec
+`--confirm-quiesce`. Suivre le [plan de préservation](../../docs/local/local-full-storage-cutover.md)
+avec une autorisation de bascule distincte. Le YAML Kind corrigé prépare seulement
+de futures créations explicites ; il ne configure pas les CRI des nœuds existants.
+
+### Diagnostics d'échec privés
+
+Les entrées Python deploy/lifecycle, bootstrap Kind, consumer d'images et registre
+activent une capture d'échec sous `$HOME/.aiforall-ops-diagnostics/`, hors Git avec
+les mêmes gardes owner-only Windows/POSIX que la PKI. Un échec natif conserve code
+de sortie, étape et outil/opération, stdout/stderr **en octets séparés** ; aucune
+conversion avec remplacement silencieux. Chaque flux est borné à sa dernière
+tranche de 1 MiB, taille originale/troncature déclarées dans le JSON associé.
+Ni argv complet, ni stdin, ni environnement ne sont archivés. Les sorties réussies
+ne sont pas conservées. Timeout : octets partiels et indicateur explicite.
+
+Le terminal garde son message expurgé et indique seulement le répertoire privé.
+Les octets privés peuvent contenir des données sensibles produites par l'outil :
+**ne pas les publier/copier en chat**, pas d'archivage récursif automatique.
+Échec d'ACL/disque/capture ⇒ avertissement fixe, échec d'origine conservé. Aucune
+purge automatique. Sans échec natif/intermédiaire, aucun dossier n'est créé. La capture
+n'est pas activée implicitement pour tous les imports/tests du runner.
+
 ## 1. Préflight Windows, sans démarrage implicite
 
 Exécuter depuis la racine du dépôt dans une nouvelle session PowerShell Windows (5.1 ou ultérieur). Python **3.11+**, PyYAML, OpenSSL **3+**, Docker avec Compose/BuildKit, Kind et kubectl avec Kustomize intégré sont requis. Outil absent ou commande native en échec ⇒ **STOP**, jamais skip réussi. La préparation des certificats appelle OpenSSL directement, sans Bash/WSL ; sous Windows, elle détecte aussi OpenSSL fourni par Git. Le préflight ci-dessous ne demande aucun démarrage de Docker/Kind/WSL :

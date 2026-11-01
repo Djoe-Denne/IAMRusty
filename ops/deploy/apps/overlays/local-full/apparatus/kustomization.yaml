@@ -14,3 +14,11 @@ resources:
   - resources.yaml
 patches:
   - path: patches.yaml
+  - target: {kind: Deployment, name: apparatus-operator}
+    patch: |-
+      - op: test
+        path: /spec/template/spec/volumes/0/name
+        value: admission-store
+      - op: replace
+        path: /spec/template/spec/volumes/0
+        value: {name: admission-store, persistentVolumeClaim: {claimName: admission-store}}

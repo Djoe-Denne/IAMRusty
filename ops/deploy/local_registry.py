@@ -40,8 +40,14 @@ def refresh_inputs(snapshot):
 
 
 def run(args, timeout=60):
-    result = subprocess.run(args, capture_output=True, timeout=timeout)
+    from private_diagnostics import capture_failure
+    try:
+        result = subprocess.run(args, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        capture_failure(args, error.output, error.stderr, timeout=True)
+        raise
     if result.returncode:
+        capture_failure(args, result.stdout, result.stderr, result.returncode)
         raise ValueError("registry operation failed (exit " + str(result.returncode) + "); native output withheld")
     return result.stdout.decode("utf-8")
 
@@ -481,9 +487,11 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except ValueError as error:
-        raise SystemExit(str(error)) from None
-    except (OSError, KeyError, TypeError, subprocess.TimeoutExpired, http.client.HTTPException):
-        raise SystemExit("Registry operation refused/failed; private state and resources retained for inspection") from None
+    from private_diagnostics import operation
+    with operation("registry"):
+        try:
+            main()
+        except ValueError as error:
+            raise SystemExit(str(error)) from None
+        except (OSError, KeyError, TypeError, subprocess.TimeoutExpired, http.client.HTTPException):
+            raise SystemExit("Registry operation refused/failed; private state and resources retained for inspection") from None

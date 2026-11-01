@@ -99,6 +99,36 @@ def http_downstream(envoy):
     chains[0].pop("filter_chain_match", None)
 
 
+def validate_persistent_storage(objects):
+    """A successful Kustomize exit alone does not prove the storage patches ran."""
+    expected = {"postgres": ("data", "postgres-data"), "zot": ("data", "zot-data"),
+                "apparatus-operator": ("admission-store", "admission-store")}
+    seen = set()
+    for obj in objects:
+        name = obj["metadata"]["name"]
+        if obj["kind"] != "Deployment" or name not in expected:
+            continue
+        if name in seen:
+            raise ValueError("duplicate persistent deployment")
+        seen.add(name)
+        volume_name, claim = expected[name]
+        pod = obj["spec"]["template"]["spec"]
+        volumes = pod.get("volumes", [])
+        data = [volume for volume in volumes if volume["name"] == volume_name]
+        if data != [{"name": volume_name, "persistentVolumeClaim": {"claimName": claim}}]:
+            raise ValueError("local-full persistence patch missing: " + name)
+        names = {volume["name"] for volume in volumes}
+        required = {"postgres": {"data", "init"}, "zot": {"data", "config", "htpasswd"},
+                    "apparatus-operator": {"admission-store"}}
+        if not required[name] <= names:
+            raise ValueError("persistent deployment lost a required auxiliary volume: " + name)
+        for container in pod.get("containers", []) + pod.get("initContainers", []):
+            if any(mount["name"] not in names for mount in container.get("volumeMounts", [])):
+                raise ValueError("persistent deployment lost a configuration/credential volume: " + name)
+    if seen != set(expected):
+        raise ValueError("local-full persistent deployments missing")
+
+
 def render(run_id, images=None, cert_identity="", oauth_proof=False, proof_inputs=None,
            github_openbao=False, github_client_id="offline-synthetic-client"):
     if not re.fullmatch(r"[a-z0-9]{12,32}", run_id):
@@ -182,6 +212,7 @@ def render(run_id, images=None, cert_identity="", oauth_proof=False, proof_input
                         container["imagePullPolicy"] = "IfNotPresent"
             # Hashes in ConfigMap volume names and content image tags now both
             # affect the PodTemplate; no forced restart against an old Ready pod.
+    validate_persistent_storage(objects)
     serialized = json.dumps(objects)
     if "host.docker.internal" in serialized or "oodhive-monolith" in serialized:
         raise ValueError("host/hybrid dependency leaked into local-full render")

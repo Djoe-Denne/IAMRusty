@@ -1,5 +1,6 @@
 """Bounded offline checks for the deployment boundary, not a live coffer proof."""
 import importlib.util
+import copy
 import json
 import os
 from pathlib import Path
@@ -28,6 +29,57 @@ bootstrap = load("openbao_bootstrap", "ops/deploy/bootstrap_local_kind.py")
 
 
 class LocalOpenBaoTests(unittest.TestCase):
+    def test_full_deploy_refuses_storage_transition_without_writing(self):
+        deploy = load("storage_transition_deploy", "ops/deploy/deploy-local-full.py")
+        proposed = {"kind": "Deployment", "metadata": {"name": "postgres", "namespace": "aiforall-local-full"},
+                    "spec": {"template": {"spec": {"volumes": [
+                        {"name": "data", "persistentVolumeClaim": {"claimName": "postgres-data"}}]}}}}
+        for source in ({"name": "data", "emptyDir": {}},
+                       {"name": "data", "hostPath": {"path": "/data"}},
+                       {"name": "data", "persistentVolumeClaim": {"claimName": "another-claim"}}):
+            current = copy.deepcopy(proposed)
+            current["spec"]["template"]["spec"]["volumes"] = [source]
+            with patch.object(deploy, "k", return_value=json.dumps(current)) as command:
+                with self.assertRaisesRegex(ValueError, "storage transition refused"):
+                    deploy.preflight_storage_transitions([proposed])
+                self.assertEqual(command.call_args.args[0], "get")
+                self.assertEqual(command.call_count, 1)
+        for source in ("", json.dumps(proposed)):
+            with patch.object(deploy, "k", return_value=source):
+                deploy.preflight_storage_transitions([proposed])
+
+    def test_every_profile_references_pvcs_and_preserves_auxiliary_volumes(self):
+        expected = {"postgres": ("data", "postgres-data", {"init"}),
+                    "zot": ("data", "zot-data", {"config", "htpasswd"}),
+                    "apparatus-operator": ("admission-store", "admission-store", set())}
+        for flags in ({}, {"oauth_proof": True}, {"github_openbao": True}):
+            objects = render.render("storagevalidation", **flags)
+            deployments = {o["metadata"]["name"]: o for o in objects if o["kind"] == "Deployment"}
+            for name, (volume_name, claim, auxiliaries) in expected.items():
+                volumes = deployments[name]["spec"]["template"]["spec"]["volumes"]
+                self.assertIn({"name": volume_name, "persistentVolumeClaim": {"claimName": claim}}, volumes)
+                self.assertTrue(auxiliaries <= {v["name"] for v in volumes})
+                self.assertFalse(any("hostPath" in v or "emptyDir" in v for v in volumes))
+
+    def test_storage_guard_rejects_ignored_patch_and_missing_auxiliary(self):
+        original = render.render("storagevalidation")
+        for name in ("postgres", "zot", "apparatus-operator"):
+            objects = copy.deepcopy(original)
+            deployment = next(o for o in objects if o["kind"] == "Deployment" and o["metadata"]["name"] == name)
+            volumes = deployment["spec"]["template"]["spec"]["volumes"]
+            volume = next(v for v in volumes if "persistentVolumeClaim" in v)
+            volume.pop("persistentVolumeClaim")
+            volume["emptyDir"] = {}
+            with self.assertRaisesRegex(ValueError, "persistence patch missing"):
+                render.validate_persistent_storage(objects)
+        objects = copy.deepcopy(original)
+        pod = next(o for o in objects if o["kind"] == "Deployment" and o["metadata"]["name"] == "postgres")["spec"]["template"]["spec"]
+        pod["volumes"] = [v for v in pod["volumes"] if v["name"] != "init"]
+        for c in pod["containers"]:
+            c["volumeMounts"] = [v for v in c["volumeMounts"] if v["name"] != "init"]
+        with self.assertRaisesRegex(ValueError, "required auxiliary volume"):
+            render.validate_persistent_storage(objects)
+
     def test_profiles_preserve_gitlab_and_bound_github_identity(self):
         for flags in ({}, {"oauth_proof": True}, {"github_openbao": True}):
             objects = render.render("offlinevalidation", **flags)
