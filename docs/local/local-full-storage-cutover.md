@@ -1,13 +1,16 @@
 # Bascule préservant les données — ancien local-full
 
-**Plan opérateur, pas une opération exécutée.** Périmètre : les trois nœuds du
+**Plan approuvé et exécuté le 2026-11-01 pour PostgreSQL/Zot et l'activation CRI.**
+Résultats et limites : [compte rendu de bascule](../missions/20261101-local-full-cutover-results.md).
+Ce document ne donne pas d'autorisation permanente de rejouer la migration.
+Périmètre : les trois nœuds du
 bail original `fcfd0b2884e14748a56f1e0c9d8c1602`, contexte
 `kind-aiforall-local-full`. Ni cluster neuf, ni reset, ni déploiement global.
 Approbation explicite nécessaire pour la courte indisponibilité et le remplacement
 des Pods après sauvegarde/restauration vérifiées. `--confirm-quiesce` seul ne
 donne pas cette approbation ; le deploy normal refuse le changement de stockage.
 
-## État observé le 2026-11-01
+## État observé avant bascule le 2026-11-01
 
 - PostgreSQL : Deployment UID `ad4c44eb-fd07-473e-b680-6b5bbf68052b`, Pod UID
   `2e4e55e7-5052-4094-8e56-35b6354591bf`, worker, `data=emptyDir`,
@@ -57,6 +60,10 @@ ancrage, moteur, endpoint, namespace, Deployment/ReplicaSet/Pod et PVC à la rep
    puis vérifier bases/rôles/extensions, schémas, inventaires et comptes de lignes ;
    restaurer Zot et vérifier fichiers/index/blobs et sommes. Ces vérifications
    techniques ne valent pas le futur E2E métier.
+   Préserver séparément `postgresql.conf`, `postgresql.auto.conf`, `pg_hba.conf`
+   et `pg_ident.conf` : un dump logique ne les transporte pas. Le trust temporaire
+   du helper isolé ne doit jamais être exposé par le Pod applicatif. Vérifier
+   octets, propriétaire, permissions et dates avant la bascule.
 6. **Barrière avant remplacement** : archives récupérables et restauration vérifiées,
    writers encore arrêtés, source toujours intacte. Sans cette preuve, ne pas
    modifier les PodTemplates. Nettoyage des helpers par leurs UID seulement, selon
@@ -74,12 +81,18 @@ ancrage, moteur, endpoint, namespace, Deployment/ReplicaSet/Pod et PVC à la rep
 
 ## Activation CRI indépendante
 
-Les nœuds existants ont containerd2.0.3, configurationv3, hosts-dir CRI vide.
+Avant activation : containerd2.0.3, fichier disque **v2**, dump effectif **v3**,
+hosts-dir CRI vide. Ne pas déduire la table utile de la seule version disque.
 Le YAML Kind corrigé n'a aucun effet rétroactif. Après autorisation ciblée :
 
 - sauvegarder la configuration exacte et ses permissions par ID de nœud ;
 - modifier seulement `plugins."io.containerd.cri.v1.images".registry.config_path`,
   valider le TOML et la configuration effective, sans toucher au plugin transfer ;
+  sur ces nœuds, ajouter directement la table images tout en gardant `version=2`
+  a été prouvé hors ligne puis exécuté. La table legacy
+  `io.containerd.grpc.v1.cri.registry` était ignorée dans le dump effectif ; sa
+  tentative a été refusée avant toute installation/restart. Exiger l'égalité de
+  tous les autres champs du dump, pas simplement la présence du chemin ;
 - redémarrer containerd un nœud à la fois, workers puis control-plane, revalider
   original UID, CRI et nœud Ready à chaque étape ; arrêter si un invariant diverge ;
 - installer seulement la confiance reader du registre applicatif possédé avec
@@ -92,6 +105,28 @@ Le YAML Kind corrigé n'a aucun effet rétroactif. Après autorisation ciblée :
 La bascule stockage doit précéder toute opération susceptible de remplacer les Pods
 source. L'upgrade des identités OpenBao pré-snapshot et la disponibilité complète
 de `local-up` restent des étapes distinctes ; coffre local toujours volatile.
+
+## Précisions tirées de l'exécution
+
+- Les chemins sont attestés depuis le Pod et le PV : source
+  `kubernetes.io~empty-dir/data`, cible `/var/local-path-provisioner/…`, pas un
+  chemin `/opt` supposé. Ne pas publier le contenu des archives privées.
+- Zot P4 2.1.8 est distroless : gel SIGSTOP/SIGCONT de la tâche CRI identifiée,
+  archive depuis le nœud, pas d'`exec sh` dans Zot. Capture/restauration/bascule
+  réussies dans un seul gel ; après reprise, un fichier interne de 32 KiB changeait.
+  Le clone offline possédé a été actualisé sans suppression ni reset, et son
+  unique bit setgid perdu à l'extraction rétabli par son propriétaire non-root.
+- Comparer tous les octets/permissions/propriétaires/mtimes Zot. Pour PostgreSQL,
+  toutes les valeurs triées, séquences et large objects sont vérifiés, ainsi que
+  rôles/globals et schémas complets. Dix normalisations CHECK/index ont été
+  prouvées par le parseur PostgreSQL sur tables temporaires vides puis rollback,
+  suivies d'une égalité du dump entier ; aucune contrainte n'a été ignorée.
+- Les sept writers restent quiescés pendant stockage + CRI pour permettre les
+  empreintes stables après restart ; rétablir ensuite leurs réplicas d'origine
+  avec CAS UID/resourceVersion et vérifier les PodTemplates inchangés.
+- Le pull OCI ne prouve pas un refresh : le Deployment ext-authz ancien référence
+  encore une image locale avec `Never`, différente du reçu OCI précédent.
+  Ne pas inventer/adopter de reçu « avant » pour satisfaire la garde du refresh.
 
 ## Sources de la procédure
 

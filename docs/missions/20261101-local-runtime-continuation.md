@@ -1,5 +1,10 @@
 # Suite locale — stockage, consommation OCI et diagnostics
 
+> Rapport historique **avant accord de bascule**, publié en `6a32227`.
+> L'accord puis l'exécution sont décrits dans le
+> [compte rendu de bascule](20261101-local-full-cutover-results.md) ; les mentions
+> « non migré / pull NOT RUN / accord attendu » ci-dessous décrivent cet état passé.
+
 ## Mandat
 
 Suite de `e1607ae`. L'utilisateur autorise la poursuite autonome, en demandant
