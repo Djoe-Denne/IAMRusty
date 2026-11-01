@@ -209,8 +209,20 @@ def preflight_oauth_objects(objects, data):
             raise ValueError("existing OAuth proof resource UID not explicitly owned")
 
 
-def verify_images(images):
+def verify_images(images, registry_state=None):
     runtime.target().check()
+    if any("@sha256:" in image for image in images.values()):
+        if not registry_state or any("@sha256:" not in image for image in images.values()):
+            raise ValueError("OCI deployment requires --registry-state and an all-digest mapping; no kind-load fallback")
+        from local_registry import Registry
+        registry = Registry(registry_state)
+        with registry.operation():
+            registry.verify_mapping(images)
+            runtime.target().registry_connect(registry)
+            for image in set(images.values()):
+                runtime.target().registry_pull(registry, image)
+            registry.verify_mapping(images)
+        return
     for image in set(images.values()):
         match = re.fullmatch(r"[a-z0-9./:_-]+:sha256-([a-f0-9]{64})", image)
         if not match:
@@ -763,14 +775,20 @@ def deploy_locked(args):
     if data.get("context") != CONTEXT or data.get("cluster") != CLUSTER:
         raise ValueError("parent local runtime lease required")
     # Reject stale service/SDK binaries before creating/altering the local cluster.
-    image_provenance.verify(images)
+    if any("@sha256:" in image for image in images.values()):
+        if not getattr(args, "registry_state", None):
+            raise ValueError("OCI images require --registry-state")
+        from local_registry import Registry
+        Registry(args.registry_state).verify_mapping(images)
+    else:
+        image_provenance.verify(images)
     bootstrap_local_kind.initialize(args.lease, CLUSTER, ROOT / "ops/deploy/kind/cluster-local-full.yaml", args.after_final_it)
     data = runtime.lease(args.lease)
     if capability_sources:
         data["isolatedPluginSourceSha256"] = capability_sources
         runtime.save_lease(args.lease, data)
     preflight_cluster_objects(objects, args, data)
-    verify_images(images)
+    verify_images(images, getattr(args, "registry_state", None))
     prepare_namespaces(args, data)
     if args.oauth_proof:
         preflight_oauth_objects(objects, data)
@@ -870,11 +888,102 @@ def deploy(args):
         deploy_locked(args)
 
 
+def refresh(args):
+    """Image-only CAS patches; never invoke full deploy/bootstrap or read secrets."""
+    from image_catalog import FRESHNESS_POLICY, TARGETS, select
+    from image_sources import capture, require_unchanged
+    from local_registry import Registry, refresh_inputs
+    names = list(dict.fromkeys(args.targets.split(",")))
+    select(names)
+    # These images have no automatic DB migration entrypoint. Extending this
+    # list requires a separately qualified migration-free startup contract.
+    workloads = {"ext-authz": (CLUSTER, "ext-authz"), "sentinel": (CLUSTER, "sentinel-sync"),
+                 "github": (CLUSTER, "github-connect"), "gitlab": (CLUSTER, "gitlab-connect"),
+                 "controller": ("aiforall-local-apparatus", "apparatus-operator")}
+    if any(name not in workloads for name in names):
+        raise ValueError("image-only refresh refuses automatic-migration services; use an explicit migration plan")
+    before = json.loads(args.previous_release_manifest.read_text(encoding="utf-8"))
+    after = json.loads(args.release_manifest.read_text(encoding="utf-8"))
+    snapshot = capture()
+    for receipt in (before, after):
+        if (receipt.get("schema") != "aiforall.image-release/v1"
+                or receipt.get("freshness_policy") != FRESHNESS_POLICY
+                or receipt.get("source", {}).get("mode") != "working-tree"
+                or receipt.get("refresh_inputs_id") != refresh_inputs(snapshot)):
+            raise ValueError("refresh needs two publication receipts with unchanged recipe/config/migration inputs")
+    if before.get("profile") != after.get("profile") or before.get("toolchain_id") != after.get("toolchain_id"):
+        raise ValueError("refresh profile/transport toolchain changed; explicit delivery plan required")
+    images = {TARGETS[name]["source"]: after["images"][name]["oci_ref"] for name in names}
+    with runtime.operation_lock(args.lease, "refresh"):
+        data = runtime.lease(args.lease)
+        registry = Registry(args.registry_state)
+        with registry.operation():
+            registry.verify_mapping(images)
+            changes = []
+            for name in names:
+                namespace, deployment = workloads[name]
+                old, new = before["images"][name]["oci_ref"], after["images"][name]["oci_ref"]
+                # Re-read the old immutable object too, not just the receipt.
+                prefix = "aiforall-apps-registry:5000/apps/" + name + "@"
+                if not old.startswith(prefix) or not re.fullmatch(r"sha256:[a-f0-9]{64}", old[len(prefix):]):
+                    raise ValueError("previous receipt has the wrong application repository")
+                _, old_config = registry.remote("apps/" + name, old[len(prefix):], include_config=True)
+                _, new_config = registry.remote("apps/" + name, new[len(prefix):], include_config=True)
+                for config, receipt in ((old_config, before), (new_config, after)):
+                    if config["config"].get("Labels", {}).get("aiforall.dev.cargo-profile") != receipt["profile"]:
+                        raise ValueError("refresh receipt profile disagrees with OCI configuration")
+                for field in ("Env", "Cmd", "Entrypoint", "User", "WorkingDir", "ExposedPorts", "Volumes", "Healthcheck"):
+                    if old_config["config"].get(field) != new_config["config"].get(field):
+                        raise ValueError("refresh runtime configuration changed; explicit deployment plan required")
+                live = json.loads(k("get", "deployment", deployment, "-n", namespace, "-o", "json"))
+                metadata = live["metadata"]
+                if (data.get("namespaceUids", {}).get(namespace) != k("get", "namespace", namespace, "-o", "jsonpath={.metadata.uid}")
+                        or not any(entry.get("kind") == "Deployment" and entry.get("namespace") == namespace
+                            and entry.get("name") == deployment and entry.get("uid") == metadata["uid"]
+                            and entry.get("context") == CONTEXT and entry.get("cluster") == CLUSTER
+                            for entry in data.get("ownedResources", []))):
+                    raise ValueError("refresh deployment/namespace UID is not leased")
+                containers = live["spec"]["template"]["spec"]["containers"]
+                matches = [index for index, container in enumerate(containers) if container["image"] == old]
+                if len(matches) != 1:
+                    raise ValueError("live image differs from the previous publication receipt")
+                if old != new:
+                    index = matches[0]
+                    path = "/spec/template/spec/containers/" + str(index)
+                    patch = [{"op": "test", "path": "/metadata/uid", "value": metadata["uid"]},
+                             {"op": "test", "path": "/metadata/resourceVersion", "value": metadata["resourceVersion"]},
+                             {"op": "test", "path": path + "/image", "value": old},
+                             {"op": "replace", "path": path + "/image", "value": new},
+                             {"op": "add", "path": path + "/imagePullPolicy", "value": "IfNotPresent"}]
+                    changes.append((namespace, deployment, patch, new))
+            # All targets preflight before a pull or workload mutation.
+            if changes:
+                runtime.target().registry_connect(registry)
+            for _, _, _, image in changes:
+                runtime.target().registry_pull(registry, image)
+            registry.verify_mapping(images)
+            require_unchanged(snapshot)
+            for namespace, deployment, patch, image in changes:
+                require_unchanged(snapshot)
+                k("patch", "deployment/" + deployment, "-n", namespace, "--type=json", "-p", json.dumps(patch))
+                k("rollout", "status", "deployment/" + deployment, "-n", namespace, "--timeout=300s")
+                post = json.loads(k("get", "deployment", deployment, "-n", namespace, "-o", "json"))
+                if post["metadata"]["uid"] != patch[0]["value"] or image not in [
+                        c["image"] for c in post["spec"]["template"]["spec"]["containers"]]:
+                    raise ValueError("refresh deployment identity/image changed during rollout; no automatic rollback")
+            require_unchanged(snapshot)
+            print("image-only refresh complete: " + str(len(changes)) + " deployment(s); no provisioning or migrations")
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["render", "deploy", "inventory"])
+    parser.add_argument("action", choices=["render", "deploy", "inventory", "refresh"])
     parser.add_argument("--lease", type=Path)
     parser.add_argument("--image-manifest", type=Path)
+    parser.add_argument("--registry-state", type=Path)
+    parser.add_argument("--release-manifest", type=Path)
+    parser.add_argument("--previous-release-manifest", type=Path)
+    parser.add_argument("--targets", help="explicit comma-separated image-only refresh targets")
     parser.add_argument("--cert-directory", type=Path)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--isolated-plugins", action="store_true")
@@ -913,6 +1022,10 @@ def main():
             if data.get("namespaceUids", {}).get(namespace) != uid:
                 raise ValueError("inventory namespace is not owned")
             print(k("get", "deployment,pod,pvc,job,networkpolicy", "-n", namespace, "-o", "name"))
+    elif args.action == "refresh":
+        if not all((args.lease, args.registry_state, args.release_manifest, args.previous_release_manifest, args.targets)):
+            raise ValueError("refresh requires --lease, --registry-state, --release-manifest, --previous-release-manifest and --targets")
+        refresh(args)
     else:
         if not args.lease or not args.image_manifest or not args.cert_directory:
             raise ValueError("deploy requires --lease, --image-manifest and --cert-directory; no build or key generation is implicit")

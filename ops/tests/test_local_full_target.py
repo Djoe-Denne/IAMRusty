@@ -123,6 +123,64 @@ class AnchorTests(unittest.TestCase):
         self.assertEqual(self.cmd.api(), [])
         self.assertEqual(self.cmd.kind_actions(), [])
 
+    def test_registry_operations_reject_bad_endpoint_or_uid_before_node_exec(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        registry = SimpleNamespace(check=Mock(), state={"owner": "e" * 32})
+        image = "aiforall-apps-registry:5000/apps/ext-authz@sha256:" + "f" * 64
+        for stale_uid in (False, True):
+            for operation in ("registry_connect", "registry_pull"):
+                with self.subTest(uid=stale_uid, operation=operation):
+                    self.cmd.calls.clear()
+                    self.cmd.uid = "foreign" if stale_uid else "owned-system-uid"
+                    self.f.nodes[self.f.ids[0]]["ports"]["6443/tcp"][0]["HostPort"] = "60123" if stale_uid else "60124"
+                    target = self.f.target(self.cmd)
+                    with self.assertRaises(anchor.AnchorError):
+                        getattr(target, operation)(registry, image) if operation == "registry_pull" else target.registry_connect(registry)
+                    self.assertEqual(len(self.cmd.api()), 1 if stale_uid else 0)
+                    self.assertFalse(any(cmd[:2] == ["docker", "exec"] for cmd in self.cmd.calls))
+                    registry.check.assert_not_called()
+
+    def test_registry_connect_sends_only_reader_scope_through_stdin(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        directory = Path(self.temp.name) / "registry-pki"
+        for name, data in {"mesh/ca.crt": b"public-ca", "mesh/ca.key": b"NEVER_TRANSFER_CA_KEY",
+                           "extensions/registry/registry-reader.crt": b"public-reader",
+                           "extensions/registry/registry-reader.key": b"PRIVATE_READER_SENTINEL"}.items():
+            path = directory / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        network = "1" * 64
+        registry = SimpleNamespace(state={"engine": "engine", "container": "2" * 64, "owner": "e" * 32},
+            check=Mock(return_value={"State": {"Running": True}}), save=Mock(), docker=Mock(),
+            certificates=lambda: directory,
+            owned=lambda _: {"NetworkSettings": {"Networks": {"kind": {"NetworkID": network, "IPAddress": "172.18.0.42"}}}})
+        payloads = []
+        def commands(cmd, **kwargs):
+            if cmd[:2] == ["docker", "info"]:
+                return "engine"
+            if cmd[:2] == ["docker", "inspect"] and cmd[3] == "{{json .NetworkSettings.Networks}}":
+                return json.dumps({"kind": {"NetworkID": network}})
+            if cmd[:2] == ["docker", "exec"]:
+                self.cmd.calls.append(cmd)
+                if "ahostsv4" in " ".join(cmd):
+                    return "172.18.0.42 STREAM registry\n"
+                if cmd[-2:] == ["containerd", "--version"]:
+                    return "containerd github.com/containerd/containerd/v2 v2.0.0 abc\n"
+                if "containerd config dump" in " ".join(cmd):
+                    return '  config_path = "/etc/containerd/certs.d"\n'
+                self.assertIn("input", kwargs)
+                payloads.append(kwargs["input"])
+                self.assertNotIn("PRIVATE_READER_SENTINEL", " ".join(cmd))
+                self.assertNotIn(b"NEVER_TRANSFER_CA_KEY", kwargs["input"])
+                return b""
+            return self.cmd(cmd, **kwargs)
+        result = self.f.target(commands).registry_connect(registry)
+        self.assertEqual(result["nodes"], self.f.ids)
+        self.assertEqual(len(payloads), 3)
+        registry.docker.assert_not_called()  # Already attached: no network mutation.
+
     def test_forward_rejects_foreign_target_bind_service_and_mapping_before_api(self):
         for change in ({"namespace": "foreign"}, {"service": "iam"},
                        {"bind": "0.0.0.0"}, {"bind": "localhost"}, {"mapping": "18082:8080"}):

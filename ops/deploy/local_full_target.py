@@ -4,6 +4,7 @@ import base64
 import contextlib
 import hashlib
 import http.client
+import io
 import ipaddress
 import json
 import os
@@ -13,6 +14,7 @@ import socket
 import stat
 import subprocess
 import sys
+import tarfile
 import threading
 import time
 from dataclasses import dataclass
@@ -1439,6 +1441,127 @@ class LocalClusterTargetAnchor:
             return _tuple_correlate(before, after)
         except Exception:
             raise AnchorError("INCONCLUSIVE: tuple correlation unavailable; output redacted") from None
+
+    def _registry_nodes(self, registry):
+        self._uid_check()  # Endpoint/IDs checked before the UID GET by this authority.
+        nodes = self.local_check()
+        if any(not node["running"] for node in nodes):
+            raise AnchorError("registry operations require every leased node running")
+        engine = self.runner(["docker", "info", "--format", "{{.ID}}"], text=True, timeout=15).strip()
+        if engine != registry.state["engine"] or not registry.check()["State"]["Running"]:
+            raise AnchorError("registry/leased nodes must share the attested running Docker engine")
+        return nodes
+
+    def registry_connect(self, registry):
+        """Connect the owned registry, then install only its reader trust scope."""
+        nodes = self._registry_nodes(registry)
+        cid = registry.state["container"]
+        authority = "aiforall-apps-registry:5000"
+        networks = []
+        for node in nodes:
+            value = json.loads(self.runner(["docker", "inspect", "--format", "{{json .NetworkSettings.Networks}}", node["id"]],
+                                          text=True, timeout=15))
+            networks.append({item["NetworkID"] for item in value.values()})
+        common = set.intersection(*networks)
+        if len(common) != 1:
+            raise AnchorError("ambiguous leased-node Docker network; no node network changes permitted")
+        network = next(iter(common))
+
+        def registry_ip():
+            values = registry.owned(cid)["NetworkSettings"]["Networks"].values()
+            matches = [v["IPAddress"] for v in values if v["NetworkID"] == network]
+            return str(ipaddress.IPv4Address(matches[0])) if len(matches) == 1 else None
+
+        def dns(node):
+            self._uid_check()
+            output = self.runner(["docker", "exec", node["id"], "sh", "-ec", 'getent ahostsv4 "$1" || true',
+                                  "registry-dns", authority.split(":")[0]], text=True, timeout=15)
+            return {line.split()[0] for line in output.splitlines() if line.strip()}
+
+        current = registry_ip()
+        for node in nodes:
+            addresses = dns(node)
+            if addresses and addresses != {current}:
+                raise AnchorError("registry DNS alias collision; no connection made")
+        if current is None:
+            self._uid_check()
+            registry.docker(["network", "connect", "--alias", authority.split(":")[0], network, cid])
+        expected_ip = registry_ip()
+        for node in nodes:
+            if dns(node) != {expected_ip}:
+                raise AnchorError("registry alias is not uniquely bound to its owned container")
+
+        certificates = registry.certificates()
+        destination = "/etc/containerd/certs.d/" + authority
+        hosts = ('server = "https://' + authority + '"\n[host."https://' + authority + '"]\n'
+                 'capabilities = ["pull", "resolve"]\nca = "' + destination + '/ca.crt"\n'
+                 'client = [["' + destination + '/client.cert", "' + destination + '/client.key"]]\n')
+        files = {"ca.crt": (certificates / "mesh/ca.crt").read_bytes(),
+                 "client.cert": (certificates / "extensions/registry/registry-reader.crt").read_bytes(),
+                 "client.key": (certificates / "extensions/registry/registry-reader.key").read_bytes(),
+                 "hosts.toml": hosts.encode(), "owner": registry.state["owner"].encode()}
+        payload = io.BytesIO()
+        with tarfile.open(fileobj=payload, mode="w") as archive:
+            for name, content in files.items():
+                member = tarfile.TarInfo(name)
+                member.size, member.mode, member.uid, member.gid = len(content), 0o400, 0, 0
+                archive.addfile(member, io.BytesIO(content))
+        # Fixed scope, stdin payload; never a free exec API or a key in argv.
+        script = '''set -eu
+base=/etc/containerd/certs.d
+dst=$base/aiforall-apps-registry:5000
+test -d "$base"; test ! -L "$base"; test ! -L "$dst"
+tmp=$(mktemp -d "$base/.aiforall-registry.XXXXXXXX")
+trap 'test ! -d "$tmp" || rm -r -- "$tmp"' EXIT
+tar -xf - -C "$tmp"
+if test -e "$dst"; then
+  test "$(cat "$dst/owner")" = "$1"
+  test "$(find "$dst" -mindepth 1 -maxdepth 1 | wc -l)" -eq 5
+  for f in ca.crt client.cert client.key hosts.toml owner; do
+    test -f "$dst/$f"; test ! -L "$dst/$f"; cmp -s "$tmp/$f" "$dst/$f"
+  done
+else
+  mv "$tmp" "$dst"
+fi
+test "$(stat -c '%a:%u:%g' "$dst")" = '700:0:0'
+for f in ca.crt client.cert client.key hosts.toml owner; do
+  test "$(stat -c '%a:%u:%g' "$dst/$f")" = '400:0:0'
+done
+'''
+        for node in nodes:
+            self._uid_check()
+            version = self.runner(["docker", "exec", node["id"], "containerd", "--version"], text=True, timeout=15)
+            if not re.search(r"\sv?[12]\.[0-9]+\.", version):
+                raise AnchorError("unsupported containerd version")
+            path = self.runner(["docker", "exec", node["id"], "sh", "-ec",
+                "containerd config dump | awk '/^[[:space:]]*config_path[[:space:]]*=/{print $0}'"], text=True, timeout=15).strip()
+            if len(path.splitlines()) != 1 or path.partition("=")[2].strip() != '"/etc/containerd/certs.d"':
+                raise AnchorError("containerd registry config_path is not already enabled; refuse global reconfiguration")
+            self._uid_check()
+            self.runner(["docker", "exec", "-i", node["id"], "sh", "-ec", script, "registry-reader", registry.state["owner"]],
+                        input=payload.getvalue(), timeout=30, env=self.environment())
+        registry.state.setdefault("kind_networks", {})[network] = {"node_ids": [n["id"] for n in nodes], "uid": self.data["kube_system_uid"]}
+        registry.save()
+        self._uid_check()
+        return {"registry_id": cid, "network_id": network, "nodes": [n["id"] for n in nodes]}
+
+    def registry_pull(self, registry, image):
+        if (not re.fullmatch(r"aiforall-apps-registry:5000/apps/[a-z0-9-]+@sha256:[a-f0-9]{64}", image)
+                and image != registry.lock["p4_zot"]["reference"]):
+            raise AnchorError("published local OCI image digest required")
+        nodes = self._registry_nodes(registry)
+        for node in nodes:
+            self._uid_check()
+            owner = self.runner(["docker", "exec", node["id"], "cat", "/etc/containerd/certs.d/aiforall-apps-registry:5000/owner"], text=True, timeout=15)
+            if owner != registry.state["owner"]:
+                raise AnchorError("reader trust was not installed by this registry")
+            self._uid_check()
+            self.runner(["docker", "exec", node["id"], "crictl", "pull", image], timeout=300)
+            value = json.loads(self.runner(["docker", "exec", node["id"], "crictl", "inspecti", image], text=True, timeout=30))
+            if image not in value["status"].get("repoDigests", []):
+                raise AnchorError("CRI returned a different image digest")
+        self._uid_check()
+        return {"image": image, "nodes": [n["id"] for n in nodes]}
 
     def kind_load(self, image):
         if not re.fullmatch(r"[a-z0-9./:_-]+(?::sha256-[a-f0-9]{64}|@sha256:[a-f0-9]{64})", image):

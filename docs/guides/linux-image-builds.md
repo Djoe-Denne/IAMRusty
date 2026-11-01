@@ -3,8 +3,9 @@
 `ops/deploy/build/images.py` est l'entrée Python commune Windows/Linux pour
 **planifier et construire** les images. Aucun déploiement, E2E, démarrage de
 Kind, génération de certificat ou provisioning OpenBao n'est implicite.
-Cette première tranche produit des **IDs Docker locaux**, pas encore des digests
-de manifestes publiés dans Zot. Le Zot P4 et ses données ne sont pas modifiés.
+Le build produit des **IDs Docker locaux** ; `local_registry.py` publie ensuite
+dans Zot et produit des digests OCI vérifiés, dans un reçu séparé.
+Le Zot P4 et ses données ne sont pas modifiés.
 
 ## Développement
 
@@ -85,12 +86,14 @@ temporaires possédés sont retirés en fin de commande.
 
 ## Limites de qualification
 
-Les oracles hors ligne ne prouvent ni une compilation Linux, ni un push/pull OCI,
-ni le bootstrap/trust Zot/Kind, ni un rollout, ni le scénario OpenBao/OAuth.
-Publication OCI, raccord registre et refresh applicatif sans reprovisioning
-restent des étapes distinctes ; ne pas utiliser un ID Docker comme digest OCI.
+Preuves réelles acquises le 2026-11-01 : build Linux `ext-authz` profil release,
+réemploi inchangé en **3,885 s** (même ID Docker), publication OCI et relecture
+manifeste/config/filesystem/binaire. Smoke registre **1/1, 33,920 s** : lecture
+mTLS, écriture reader refusée `403`, même digest après redémarrage du même Zot.
+Ce ne sont pas des preuves de pull CRI Kind, de rollout, ni d'OpenBao/OAuth.
+Publication, raccord et refresh restent séparés ; ID Docker ≠ digest OCI.
 
-### Préparation du registre — pas encore un bootstrap opérationnel
+## Registre applicatif et publication
 
 Le générateur partagé fournit un bundle additionnel explicite, hors Git :
 
@@ -106,14 +109,80 @@ bundle existant incomplet ou périmé est refusé, jamais réparé silencieuseme
 Les clients doivent présenter leur **leaf seule**, avec la CA séparée du client.
 
 `ops/deploy/registry/transport.lock.json` épingle les manifestes Linux/amd64 de
-Zot 2.1.8 et Skopeo 1.22.3, résolus et vérifiés par leur contenu le 2026-11-01.
+Zot **2.1.22** et Skopeo 1.22.3, résolus et vérifiés par leur contenu le 2026-11-01.
 Ce lock est limité au transport : il ne complète pas les pins de build cloud.
-L'image Zot officielle déclare UID 0 ; le futur lancement devra imposer
-`10001:10001` et des volumes possédés préparés pour cet UID.
+Le lancement impose `10001:10001`, volumes propres persistants, bind hôte loopback,
+mTLS et ACL publisher/reader distinctes. État et PKI exigent des chemins absolus
+privés **hors dépôt** ; remplacer les paramètres ci-dessous par ces chemins.
 
-Les commandes `registry-up`, `publish`, le stockage/ownership du registre et
-leur preuve mTLS/push-pull restent **non livrés**. La présence du bundle et du
-lock ne signifie pas que Zot fonctionne ou que Kind peut tirer ses images.
-Preuves de cette préparation : [fiche B — PKI/pins](../missions/20261101-app-registry-pki-preparation.md).
+```sh
+python ops/deploy/local_registry.py registry-up --state-dir REGISTRY_STATE --cert-directory PKI_DIRECTORY
+python ops/deploy/build/images.py build --targets ext-authz --profile release --output image-build.json
+python ops/deploy/local_registry.py publish --state-dir REGISTRY_STATE --build-manifest image-build.json --output image-release.json
+python ops/deploy/local_registry.py status --state-dir REGISTRY_STATE
+```
+
+Le reçu `aiforall.image-release/v1` porte référence/digests OCI, entrées source/SDK,
+profil et hashes des binaires exportés. Publication vérifie aussi la fraîcheur
+finale. Une sortie existante n'est jamais écrasée. Aucun Kind, coffre, build ou
+déploiement n'est déclenché par `registry-up`/`publish`.
+
+Zot 2.1.8 a effectivement refusé les ACL avec mTLS seul : [issue officielle
+3085](https://github.com/project-zot/zot/issues/3085). La correction concerne
+**uniquement le registre applicatif** ; P4 reste épinglé en 2.1.8, stockage intact.
+
+## Consommation Kind — bail explicite
+
+```sh
+python ops/deploy/local_registry.py connect-kind --state-dir REGISTRY_STATE --lease LEASE
+python ops/deploy/local_registry.py pull --state-dir REGISTRY_STATE --lease LEASE --image aiforall-apps-registry:5000/apps/ext-authz@sha256:DIGEST
+```
+
+L'autorité vérifie endpoint/UID/IDs avant les opérations node ; elle connecte
+le seul registre possédé au réseau existant et installe seulement son reader
+dans `certs.d/aiforall-apps-registry:5000`. Pas de restart/reconfiguration globale
+containerd, pas de clé CA transférée, pas de repli vers `kind load`.
+Ces opérations sont codées/testées hors ligne mais **pas encore éprouvées sur Kind**.
+
+Pour le profil complet, construire/publier **toutes** ses cibles avec les mêmes
+flags de profil, puis produire le mapping attendu par le deploy existant :
+
+```sh
+python ops/deploy/local-full-images.py --lease LEASE --github-openbao --release-manifest image-release.json --registry-state REGISTRY_STATE --output images.json
+```
+
+Le full `deploy` accepte ce mapping avec `--registry-state`, mais reste une
+opération de provisioning/quiesce : **ce n'est pas le refresh rapide**.
+
+## Refresh ciblé sans provisioning
+
+Conserver le reçu publié correspondant à l'image effectivement déployée avant
+de modifier le code. Après build/publication du code modifié :
+
+```sh
+python ops/deploy/deploy-local-full.py refresh --lease LEASE --registry-state REGISTRY_STATE --previous-release-manifest previous-release.json --release-manifest image-release.json --targets ext-authz
+```
+
+- Sélection explicite : `ext-authz`, `sentinel`, `github`, `gitlab`, `controller`.
+  Les services qui lancent automatiquement leurs migrations au démarrage sont
+  **refusés**, même si la migration semble inchangée ; plan séparé requis.
+- Deux reçus de publication récents avec `refresh_inputs_id` sont nécessaires.
+  Recettes, assets/config, manifests, build scripts et migrations doivent être
+  inchangés ; seul le code Rust ordinaire peut varier. Garde conservative globale.
+- Vérifie image précédente et UID namespace/deployment possédés, puis patch JSON
+  conditionnel UID/resourceVersion/image. Seuls image et `imagePullPolicy` changent ;
+  replicas, certificats, Secrets, bases, OpenBao, Jobs et policies restent intacts.
+- Pull par digest et readiness ciblée. Identique ⇒ aucun rollout. Échec/stale ⇒
+  arrêt explicite, sans rollback destructeur ; plusieurs cibles ne sont pas atomiques.
+  **Refresh réel NOT RUN** tant qu'aucun bail valide n'est sélectionné.
+
+En fin d'utilisation : arrêt réversible des seuls conteneurs possédés ; données,
+certificats, images et caches sont conservés :
+
+```sh
+python ops/deploy/local_registry.py registry-stop --state-dir REGISTRY_STATE
+```
+
+Historique de préparation : [fiche B — PKI/pins](../missions/20261101-app-registry-pki-preparation.md).
 
 Référence du contrôle de builder : [Docker buildx inspect](https://docs.docker.com/reference/cli/docker/buildx/inspect/).

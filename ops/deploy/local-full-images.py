@@ -1,4 +1,4 @@
-"""Pin already-built local images by actual ID; no cargo, build or pull."""
+"""Consume explicit local build IDs or published OCI digests; never compile."""
 import argparse
 import json
 import re
@@ -27,12 +27,36 @@ def main():
     parser.add_argument("--oauth-proof", action="store_true")
     parser.add_argument("--github-openbao", action="store_true")
     parser.add_argument("--build-manifest", type=Path, help="explicit output of build/images.py; never rebuild implicitly")
+    parser.add_argument("--release-manifest", type=Path, help="published OCI receipt; never falls back to kind load")
+    parser.add_argument("--registry-state", type=Path)
     args = parser.parse_args()
     target = LocalClusterTargetAnchor(args.lease, expected_cluster="aiforall-local-full")
     target.check()
     if args.output.exists():
         raise ValueError("image manifest exists; refuse overwrite")
     sources = source_images(args.oauth_proof, args.github_openbao)
+    if args.release_manifest:
+        if args.build_manifest or not args.registry_state:
+            raise ValueError("OCI receipt requires --registry-state and no --build-manifest")
+        from local_registry import Registry
+        registry = Registry(args.registry_state)
+        release = json.loads(args.release_manifest.read_text(encoding="utf-8"))
+        if release.get("schema") != "aiforall.image-release/v1" or release.get("source", {}).get("mode") != "working-tree":
+            raise ValueError("local OCI publication receipt required")
+        images = {item["source"]: item["oci_ref"] for item in release["images"].values()}
+        images["aiforall-zot:gold"] = registry.lock["p4_zot"]["reference"]
+        if set(images) != set(sources):
+            raise ValueError("OCI receipt does not cover exactly the selected deployment profile")
+        with registry.operation():
+            registry.verify_mapping(images)
+            target.registry_connect(registry)
+            for image in images.values():
+                target.registry_pull(registry, image)
+            registry.verify_mapping(images)
+            with args.output.open("x", encoding="utf-8") as stream:
+                json.dump(images, stream, indent=2)
+        print("verified/pulled OCI image digests; no kind load, build or deployment")
+        return
     built = {}
     if args.build_manifest:
         manifest = json.loads(args.build_manifest.read_text(encoding="utf-8"))

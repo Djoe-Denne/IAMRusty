@@ -352,6 +352,16 @@ class AcceptanceGuardTests(unittest.TestCase):
                         allowed.update(id(child) for child in node.value.elts if isinstance(child, ast.Constant)
                                        and child.value in {".tmp", ".cursor"})
                 self.assertEqual(len(allowed), 2)
+            if path.name == "local_registry.py":
+                # Resource-registry OUTPUT, never a historical deployment input.
+                for function in tree.body:
+                    if isinstance(function, ast.FunctionDef) and function.name == "record":
+                        for node in ast.walk(function):
+                            if (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div)
+                                    and isinstance(node.left, ast.Name) and node.left.id == "ROOT"
+                                    and isinstance(node.right, ast.Constant) and node.right.value == ".tmp"):
+                                allowed.add(id(node.right))
+                self.assertEqual(len(allowed), 1)
             for node in ast.walk(tree):
                 if isinstance(node, ast.Constant) and isinstance(node.value, str):
                     with self.subTest(path=path.name, line=node.lineno):
