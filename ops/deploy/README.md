@@ -35,7 +35,11 @@ Un dossier absent ne déclenche aucune création/adoption de cluster ; un ancrag
 engine, port, ID ou UID différent fait refuser la reprise.
 
 - **up** : environnement déjà actif ⇒ contrôles de disponibilité, aucun build,
-  apply global, seed général ou rollout forcé. Environnement arrêté ⇒ vérification
+  apply global, seed général ou rollout forcé. Après les nœuds Ready, les deux
+  règles `allow-api` possédées sont réalignées si Docker a changé l'IP du
+  control-plane : seul son `/32` change, sous tests UID/RV/préimage. IP inchangée ⇒
+  aucun patch ; forme de règle inattendue ou UID étranger ⇒ refus, pas d'overwrite.
+  Environnement arrêté ⇒ vérification
   locale des IDs/ports configurés/engine/kubeconfig, reprise des mêmes conteneurs,
   puis recontrôle de l'UID Kubernetes original avant toute écriture API.
 - **stop** : workers puis control-plane, arrêt gracieux par IDs ; registre privé
@@ -57,6 +61,11 @@ ou nouvelle epoch pendant récupération ⇒ inspection explicite, pas de reset/
 destructif. Les vieux deployments sans identités OpenBao gérées exigent une mise
 à niveau initiale explicite, pas une migration cachée dans `up`.
 
+Les adresses du bridge Docker peuvent changer sans recréation des conteneurs.
+La resynchronisation API ci-dessus précède la récupération OpenBao/TokenReview ;
+elle n'ouvre ni DNS supplémentaire, ni egress global, et ne change aucun workload.
+`status` et `stop` ne modifient pas ces règles.
+
 `up` ne lance aucun Job de migration supplémentaire ; les entrypoints inchangés
 peuvent exécuter leurs migrations idempotentes lors du redémarrage normal d'un
 conteneur. Construction/publication/refresh du code restent séparés : voir
@@ -68,9 +77,11 @@ reste reportée à la campagne E2E convenue ; la volatilité locale n'est pas un
 Le moteur reprise/no-op/stop/reprise est éprouvé sur les nodes d'origine. Après
 [bascule approuvée](../../docs/missions/20261101-local-full-cutover-results.md),
 `postgres-data` et `zot-data` sont Bound avec leurs UID originaux et données
-vérifiées ; seul `admission-store` reste Pending. Cela ne qualifie pas la
-disponibilité globale de l'ancienne installation. `just local-status` réutilise
-le bail enregistré sans le redemander.
+vérifiées. À cette étape historique, `admission-store` était encore Pending ;
+la [réparation ciblée de la plateforme](../../docs/missions/20261102-local-platform-repair.md)
+documente sa suite, Manifesto et le raccord OpenBao/Lazaret/operator. Ne pas
+confondre disponibilité technique et validation auth/métier. `just local-status`
+réutilise le bail enregistré sans le redemander.
 
 La cause et les correctifs source sont documentés dans la
 [suite de mission](../../docs/missions/20261101-local-runtime-continuation.md).

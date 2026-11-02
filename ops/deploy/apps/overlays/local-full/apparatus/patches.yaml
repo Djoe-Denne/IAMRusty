@@ -6,6 +6,9 @@ spec:
   template:
     spec:
       hostAliases: null
+      # The fresh local-path PVC replaces hostPath; do not retain its root chown.
+      # Keep the namespace restricted and the operator's existing non-root UID.
+      initContainers: null
       containers:
         - name: operator
           ports: null

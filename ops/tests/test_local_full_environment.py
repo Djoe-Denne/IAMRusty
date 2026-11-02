@@ -97,6 +97,59 @@ class PowerTests(PowerFixture):
         self.assertEqual(self.target.data["kube_system_uid"], "owned-system-uid")
 
 
+class ApiPolicyTests(unittest.TestCase):
+    def setUp(self):
+        self.target = Mock()
+        self.target.kubectl.return_value = json.dumps({"items": [{"status": {
+            "addresses": [{"type": "InternalIP", "address": "172.19.0.2"}]}}]})
+        self.policies = {namespace: {"metadata": {"uid": namespace, "resourceVersion": "12"},
+            "spec": {"podSelector": {"matchLabels": {"app": namespace}}, "policyTypes": ["Egress"],
+                     "egress": [{"to": [{"ipBlock": {"cidr": "10.96.0.1/32"}}, {"ipBlock": {"cidr": "172.19.0.3/32"}}],
+                                 "ports": [{"protocol": "TCP", "port": 443}, {"protocol": "TCP", "port": 6443}]}]}}
+            for namespace in (environment.CLUSTER, "aiforall-local-apparatus")}
+
+    def run_sync(self):
+        with patch.object(environment, "owned", side_effect=lambda _t, _k, _n, ns: self.policies[ns]):
+            environment.resync_api_policies(self.target)
+
+    def test_changed_cp_ip_patches_only_endpoint_with_uid_rv_and_spec_tests(self):
+        self.run_sync()
+        writes = [call.args[0] for call in self.target.kubectl.call_args_list if call.args[0][0] == "patch"]
+        self.assertEqual(len(writes), 2)
+        for args in writes:
+            namespace = args[args.index("-n") + 1]
+            operations = json.loads(args[args.index("-p") + 1])
+            self.assertEqual([p["op"] for p in operations], ["test", "test", "test", "replace"])
+            self.assertEqual(operations[0]["value"], namespace)
+            self.assertEqual(operations[1]["value"], "12")
+            self.assertEqual(operations[2]["value"], self.policies[namespace]["spec"])
+            desired = copy.deepcopy(self.policies[namespace]["spec"])
+            desired["egress"][0]["to"][1]["ipBlock"]["cidr"] = "172.19.0.2/32"
+            self.assertEqual(operations[3]["value"], desired)
+
+    def test_current_cp_ip_is_a_noop(self):
+        for policy in self.policies.values():
+            policy["spec"]["egress"][0]["to"][1]["ipBlock"]["cidr"] = "172.19.0.2/32"
+        self.run_sync()
+        self.assertEqual(self.target.kubectl.call_count, 1)  # Node read only.
+
+    def test_unexpected_second_policy_refused_before_first_write(self):
+        self.policies["aiforall-local-apparatus"]["spec"]["egress"].append({"ports": [{"port": 53}]})
+        with self.assertRaisesRegex(ValueError, "unexpected local API policy"):
+            self.run_sync()
+        self.assertEqual(self.target.kubectl.call_count, 1)
+
+    def test_invalid_or_ambiguous_cp_refused_without_mutation(self):
+        for items in ([], [{"status": {"addresses": []}}], [{"status": {
+                "addresses": [{"type": "InternalIP", "address": "127.0.0.1"}]}}]):
+            with self.subTest(nodes=items):
+                self.target.reset_mock()
+                self.target.kubectl.return_value = json.dumps({"items": items})
+                with self.assertRaises(ValueError):
+                    self.run_sync()
+                self.assertEqual(self.target.kubectl.call_count, 1)
+
+
 class EnvironmentTests(PowerFixture):
     def setUp(self):
         super().setUp()
@@ -112,6 +165,7 @@ class EnvironmentTests(PowerFixture):
             side_effect=lambda path, create=False: path.mkdir(mode=0o700) if create else None))
         self.epoch = self.stack.enter_context(patch.object(environment, "coffer_epoch", return_value="epoch-one"))
         self.recover = self.stack.enter_context(patch.object(environment, "recover_coffer"))
+        self.api_resync = self.stack.enter_context(patch.object(environment, "resync_api_policies"))
         self.stack.enter_context(patch.object(environment, "owned", side_effect=lambda *_a, **_k: {
             "metadata": {"uid": "dep", "resourceVersion": "1"}, "spec": {"replicas": 1,
             "template": {"metadata": {"labels": {}}, "spec": {"containers": [{"image": "unchanged-image"}]}}},
@@ -137,6 +191,7 @@ class EnvironmentTests(PowerFixture):
         self.recover.assert_called_once()
         self.operate()
         self.recover.assert_called_once()  # No reseed or forced rollout on unchanged up.
+        self.assertEqual(self.api_resync.call_count, 4)  # Up only, never stop/status.
         self.assertNotIn("kind", [c[0] for c in self.cmd.calls])
         self.assertFalse(any("apply" in c or "scale" in c or "delete" in c for c in self.cmd.calls))
 
@@ -163,6 +218,15 @@ class EnvironmentTests(PowerFixture):
                 with self.assertRaises(type(error)):
                     self.operate()
                 self.assertTrue(all(not n["running"] for n in self.f.nodes.values()))
+
+    def test_api_policy_failure_precedes_coffer_and_preserves_original_power_state(self):
+        original = {key: node["running"] for key, node in self.f.nodes.items()}
+        self.api_resync.side_effect = ValueError("policy refused")
+        with self.assertRaisesRegex(ValueError, "policy refused"):
+            self.operate()
+        self.epoch.assert_not_called()
+        self.recover.assert_not_called()
+        self.assertEqual({key: node["running"] for key, node in self.f.nodes.items()}, original)
 
 
 class CofferRecoveryTests(unittest.TestCase):

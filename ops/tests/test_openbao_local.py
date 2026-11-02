@@ -80,6 +80,21 @@ class LocalOpenBaoTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "required auxiliary volume"):
             render.validate_persistent_storage(objects)
 
+    def test_operator_pvc_does_not_inherit_legacy_root_chown(self):
+        for flags in ({}, {"oauth_proof": True}, {"github_openbao": True}):
+            with self.subTest(profile=flags):
+                objects = render.render("operatornonroot", **flags)
+                pod = next(o for o in objects if o["kind"] == "Deployment"
+                           and o["metadata"]["name"] == "apparatus-operator")["spec"]["template"]["spec"]
+                self.assertFalse(pod.get("initContainers"))
+                self.assertTrue(pod["securityContext"]["runAsNonRoot"])
+                self.assertEqual(pod["securityContext"]["fsGroup"], 65534)
+                for container in pod["containers"]:
+                    security = container["securityContext"]
+                    self.assertNotEqual(security.get("runAsUser"), 0)
+                    self.assertFalse(security["allowPrivilegeEscalation"])
+                    self.assertFalse(security["capabilities"].get("add"))
+
     def test_profiles_preserve_gitlab_and_bound_github_identity(self):
         for flags in ({}, {"oauth_proof": True}, {"github_openbao": True}):
             objects = render.render("offlinevalidation", **flags)

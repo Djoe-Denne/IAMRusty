@@ -1,5 +1,7 @@
 """Durable local-full references and reversible power operations; no build/reset."""
+import copy
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -215,6 +217,43 @@ def operate(args, runtime, read_github, make_secret):
             return running_operation(args, state, save, target, registry, nodes, runtime, read_github, make_secret)
 
 
+def resync_api_policies(target):
+    """Keep the existing API-only allowlist aligned after Docker reassigns node IPs."""
+    nodes = json.loads(target.kubectl(["get", "nodes", "-l", "node-role.kubernetes.io/control-plane", "-o", "json"], text=True, timeout=30))["items"]
+    if len(nodes) != 1:
+        raise ValueError("unique local control-plane required for API policy")
+    addresses = [entry["address"] for entry in nodes[0]["status"]["addresses"] if entry["type"] == "InternalIP"]
+    if len(addresses) != 1:
+        raise ValueError("unique local control-plane IPv4 required for API policy")
+    address = ipaddress.IPv4Address(addresses[0])
+    if not address.is_private or address.is_loopback or address.is_unspecified or address.is_multicast:
+        raise ValueError("local control-plane address refused for API policy")
+    changes = []
+    for namespace in (CLUSTER, "aiforall-local-apparatus"):
+        current = owned(target, "NetworkPolicy", "allow-api", namespace)
+        desired = copy.deepcopy(current["spec"])
+        rules = desired.get("egress", [])
+        if (desired.get("policyTypes") != ["Egress"] or len(rules) != 1
+                or rules[0].get("ports") != [{"protocol": "TCP", "port": 443}, {"protocol": "TCP", "port": 6443}]
+                or len(rules[0].get("to", [])) != 2
+                or rules[0]["to"][0] != {"ipBlock": {"cidr": "10.96.0.1/32"}}):
+            raise ValueError("unexpected local API policy; no automatic overwrite")
+        previous = rules[0]["to"][1]
+        cidr = ipaddress.IPv4Network(previous.get("ipBlock", {}).get("cidr", ""))
+        if cidr.prefixlen != 32 or previous != {"ipBlock": {"cidr": str(cidr)}}:
+            raise ValueError("unexpected local API endpoint peer")
+        rules[0]["to"][1] = {"ipBlock": {"cidr": str(address) + "/32"}}
+        if desired != current["spec"]:
+            changes.append((namespace, current, desired))
+    # Validate both owned preimages before writing either; CAS rejects concurrent edits.
+    for namespace, current, desired in changes:
+        patch = [{"op": "test", "path": "/metadata/uid", "value": current["metadata"]["uid"]},
+                 {"op": "test", "path": "/metadata/resourceVersion", "value": current["metadata"]["resourceVersion"]},
+                 {"op": "test", "path": "/spec", "value": current["spec"]},
+                 {"op": "replace", "path": "/spec", "value": desired}]
+        target.kubectl(["patch", "networkpolicy/allow-api", "-n", namespace, "--type=json", "-p", json.dumps(patch)], text=True, timeout=30)
+
+
 def running_operation(args, state, save, target, registry, nodes, runtime, read_github, make_secret):
     if args.action == "stop":
         target.stop_nodes(state["engine"])
@@ -234,6 +273,7 @@ def running_operation(args, state, save, target, registry, nodes, runtime, read_
                 registry.up(None, registry.state["port"])
         target.resume_nodes(state["engine"])
         target.kubectl(["wait", "--for=condition=Ready", "nodes", "--all", "--timeout=300s"], text=True, timeout=330)
+        resync_api_policies(target)
         target.kubectl(["rollout", "status", "deployment/openbao", "-n", CLUSTER, "--timeout=300s"], text=True, timeout=330)
     epoch = coffer_epoch(target)
     changed = state.get("pending_epoch") or (state["epoch"] is not None and epoch != state["epoch"])
