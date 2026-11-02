@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "ops/deploy"))  # Local dependencies of the fixed authority below.
 # Resolve D's shared authority from the fixed repository path, never PYTHONPATH.
 anchor_spec = importlib.util.spec_from_file_location("local_full_target", ROOT / "ops/deploy/local_full_target.py")
 anchor_module = importlib.util.module_from_spec(anchor_spec)
@@ -484,7 +485,7 @@ def main():
                 run(args)
                 args.executed = 1
     except Exception as error:
-        blocked = isinstance(error, (ValidationBlocked, ValueError, OSError, anchor_module.AnchorError))
+        blocked = isinstance(error, (ValidationBlocked, ValueError, OSError, ImportError, anchor_module.AnchorError))
         executed = args.executed if blocked else min(expected, args.executed + 1)
         print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action,
                           **public_coverage_report(args, "BLOCKED" if blocked else "FAIL", "NOT RUN" if not executed else "LIVE"),

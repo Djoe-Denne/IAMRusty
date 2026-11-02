@@ -7,6 +7,8 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import tomllib
 import unittest
@@ -18,6 +20,37 @@ SOURCE = Path(__file__).with_name("local-full-acceptance.py")
 
 
 class AcceptanceGuardTests(unittest.TestCase):
+    def test_standalone_driver_resolves_local_diagnostics_without_pythonpath(self):
+        code = ("import runpy,sys; runpy.run_path(sys.argv[1],run_name='acceptance_import_test'); "
+                "import private_diagnostics; print(private_diagnostics.__file__)")
+        with tempfile.TemporaryDirectory() as directory:
+            # Ignore PYTHONPATH but retain the user's installed PyYAML dependency.
+            result = subprocess.run([sys.executable, "-E", "-c", code, str(SOURCE.resolve())],
+                                    cwd=directory, capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, "standalone driver import failed")
+        self.assertEqual(Path(result.stdout.strip()).resolve(), SOURCE.parents[1] / "deploy/private_diagnostics.py")
+
+    def test_missing_dependency_before_probe_is_blocked_not_one_live_failure(self):
+        module = self.load()
+        output = io.StringIO()
+
+        def bind(args):
+            args.environment_data = {"profile": "local-full"}
+            args.lease = Path("lease.json")
+            args.context = module.CONTEXT
+
+        with patch("sys.argv", [str(SOURCE), "smoke", "--environment", "environment.json"]), patch.object(
+                module, "git_revision", return_value="fixed-revision"), patch.object(
+                module, "bind_environment", side_effect=bind), patch.object(
+                module.runtime, "operation_lock", return_value=contextlib.nullcontext()), patch.object(
+                module.runtime, "lease", side_effect=ModuleNotFoundError("SECRET-CONTENT")), contextlib.redirect_stdout(output):
+            self.assertEqual(module.main(), 2)
+        report = json.loads(output.getvalue())
+        self.assertEqual(report["status"], "BLOCKED")
+        self.assertEqual(report["evidence"], "NOT RUN")
+        self.assertEqual((report["expected"], report["executed"], report["failed"], report["blocked"]), (21, 0, 0, 21))
+        self.assertNotIn("SECRET-CONTENT", output.getvalue())
+
     def test_local_full_iam_key_ids_satisfy_registry_uuid_v4_contract(self):
         overlay = SOURCE.parents[1] / "deploy/apps/overlays/local-full"
         key_ids = []

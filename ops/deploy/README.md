@@ -298,6 +298,17 @@ Ajouter `public_ca_path` seulement si nécessaire, pointant un certificat public
 - **Curl public full** : `python -B ops/tests/local-full-acceptance.py route-matrix --environment $environment --cases ops/tests/mesh-public-route-cases-local-full.json` — contrôles publics seulement, sans credentials ni seed. Le full livré déclare `connectors=[]` : les deux démarrages OAuth attendent exclusivement **422** et sont comptés dans `oauth_login_unavailable` (parcours indisponibles, pas logins réussis). La matrice `mesh-public-route-cases.json` conserve **303** pour un profil connecté ; elle n'est pas la matrice nominale full. Le rapport distingue `coverage.public` (PASS/LIVE possible) de `coverage.authenticated` (**NOT RUN**, setup **BLOCKED**) ; les positifs/négatifs authentifiés relèvent du canal E2E ci-dessous, pas du PASS public.
 - **E2E** : `python -B ops/tests/local-full-acceptance.py e2e --environment $environment --suite mesh-authn --inputs <JSON-privé>` (ou `--suite apparatus`) — état métier déclaré. Ressources de test via actions séparées `prepare-probes`/`cleanup-probes`, IDs/UID attestés ; jamais préparées par smoke/curl. Setup indisponible ⇒ BLOCKED.
 
+**État actuel du canal E2E full : non exécutable.** L'entrée CLI existe, mais
+`explicit_probe_action` refuse encore inconditionnellement `prepare-probes` et
+`e2e`, même avec un JSON v1 valide : préparation full/sondes attestées non livrées.
+Cela ne se résout pas en fournissant des credentials ou en lançant les anciens
+drivers du profil legacy. Smoke et routes publiques restent des contrôles séparés,
+jamais une preuve des parcours authentifiés. Le lanceur autonome résout ses
+dépendances locales depuis le dépôt ; une dépendance manquante est BLOCKED, pas
+un faux échec de service LIVE avant toute sonde.
+Résultats et limites de la demande réelle :
+[validation du local-full réparé](../../docs/missions/20261102-local-full-validation.md).
+
 Contrôler chaque `$LASTEXITCODE` comme ci-dessus. Exit 0 seulement si toutes les obligations sont satisfaites ; outil/fixture absent ou skip obligatoire ⇒ non-zéro. Rapporter hash Git, cible/mode, attendus/exécutés/échecs/bloqués et LIVE/SIMULÉ/NOT RUN, sans secrets ni nombre artificiel fixe d'objets. Les modes `network-policy`, `snapshot`, `rollout-check`, `recovery-check`, `restore-check` gardent leur CLI full-only `--lease`/`--namespace` ; observer n'exécute pas une restauration/récupération runtime.
 
 **IT Windows, entrée distincte sans Kind** : `powershell.exe -NoProfile -File ops/tests/it-native.ps1 -Suite iam` (ou `hive`, `manifesto`, `telegraph`, `lazaret`). Le lanceur délègue à `cargo test -p <package-service> --tests`, un package à la fois, sans workspace implicite ni applicatif Docker. Les fixtures testcontainers existantes démarrent leurs dépendances tierces à la demande ; les IT ne nécessitent pas le profil full déployé. Un seul slot Cargo, target Windows sur E: ; elles précèdent le GO runtime.
