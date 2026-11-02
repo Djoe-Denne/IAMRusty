@@ -520,6 +520,37 @@ def _ingress_live(guard, identity, review, source):
     return policies
 
 
+def _ingress_base_full_witness(witness, identity):
+    """Validate closed parent observations, not the truth of HTTP/profile claims."""
+    _ingress_require(set(witness) == {"schema", "journal_sha256", "entry", "probes", "observations_sha256",
+        "profile_before", "profile_after", "profile_sha256", "admin_before", "admin_after"})
+    profile = witness["profile_before"]
+    _ingress_require(profile == witness["profile_after"] and set(profile) == {
+        "name", "connectors", "namespace_uid", "config_map_name", "config_map_uid", "config_resource_version",
+        "config_sha256", "iam_pod_uid", "iam_container_id", "iam_restart_count"})
+    _ingress_require(profile["name"] == "local-full" and profile["connectors"] == []
+        and profile["namespace_uid"] == identity["namespace_uid"]
+        and bool(re.fullmatch(r"iam-dev-config(?:-[a-z0-9]+)?", profile["config_map_name"]))
+        and bool(re.fullmatch(r"[a-f0-9]{64}", profile["config_sha256"]))
+        and bool(re.fullmatch(r"containerd://[a-f0-9]{64}", profile["iam_container_id"]))
+        and type(profile["iam_restart_count"]) is int and profile["iam_restart_count"] >= 0
+        and isinstance(profile["config_resource_version"], str) and profile["config_resource_version"].isdigit())
+    for field in ("config_map_uid", "iam_pod_uid"):
+        _ingress_require(str(uuid.UUID(profile[field])) == profile[field])
+    _ingress_require(witness["profile_sha256"] == hashlib.sha256(_ingress_json(profile).encode()).hexdigest())
+    probes = witness["probes"]
+    _ingress_require(isinstance(probes, list) and len(probes) == 3)
+    expected = (("/iam/.well-known/jwks.json", (200,), "PUBLIC_RS256_JWKS"),
+        ("/iam/api/auth/gitlab/login", (422,), "CONNECTOR_DISABLED_NOT_LOGIN"),
+        ("/iam/api/me", (401, 403), "PROTECTED_WITHOUT_BEARER_DENIED"))
+    for probe, (path, statuses, outcome) in zip(probes, expected):
+        _ingress_require(set(probe) == {"method", "path", "status", "outcome", "response_sha256"}
+            and probe["method"] == "GET" and probe["path"] == path
+            and type(probe["status"]) is int and probe["status"] in statuses and probe["outcome"] == outcome
+            and bool(re.fullmatch(r"[a-f0-9]{64}", probe["response_sha256"])))
+    _ingress_require(witness["observations_sha256"] == hashlib.sha256(_ingress_json(probes).encode()).hexdigest())
+
+
 class EnvoyIngressChange:
     """Parent-only pending change. No HTTP callback, URL or deployment actor.
 
@@ -617,13 +648,16 @@ class EnvoyIngressChange:
         try:
             self._revalidate()
             data = json.loads(self._frozen)
-            _ingress_require(witness["schema"] == "aiforall.envoy.ingress-parent-witness.v1"
-                and witness["journal_sha256"] == data["journal_sha256"]
-                and witness["entry"] == "127.0.0.1:18080" and witness["method"] == "GET"
-                and witness["path"] == "/iam/api/auth/gitlab/login"
-                and witness["outcome"] == "IAM_CONNECTOR_NONCE_REDIRECT"
-                and witness["connector"] == "gitlab" and witness["status"] == 303
-                and witness["protected_without_bearer"] == "DENIED")
+            _ingress_require(witness["journal_sha256"] == data["journal_sha256"]
+                and witness["entry"] == "127.0.0.1:18080")
+            if witness["schema"] == "aiforall.envoy.ingress-parent-witness.v1":
+                _ingress_require(witness["method"] == "GET" and witness["path"] == "/iam/api/auth/gitlab/login"
+                    and witness["outcome"] == "IAM_CONNECTOR_NONCE_REDIRECT"
+                    and witness["connector"] == "gitlab" and witness["status"] == 303
+                    and witness["protected_without_bearer"] == "DENIED")
+            else:
+                _ingress_require(witness["schema"] == "aiforall.envoy.ingress-base-full-witness.v1")
+                _ingress_base_full_witness(witness, data["files"]["observation"]["identity"])
             _ingress_admin_pair(data["files"]["admin-after"], witness["admin_before"], data["files"]["observation"]["identity"])
             _ingress_admin_pair(witness["admin_before"], witness["admin_after"], data["files"]["observation"]["identity"])
             _ingress_require(witness["admin_after"]["stats"]["cluster.iam.upstream_rq_total"]
@@ -670,6 +704,15 @@ def configure_envoy_ingress(*, evidence_directory, journal_path):
         _ingress_require(set(oauth) == {"oauth-proof-iam-egress", "oauth-proof-connector", "oauth-proof-provider"}
             and not set(oauth).intersection(declared))
         declared.update(oauth)
+        # Retained original bootstrap policy, removed from new renders by
+        # f6091058. Exact spec from 678d22fd, never an arbitrary legacy selector.
+        # It cannot select Envoy; preserve it, do not clean up another phase here.
+        retained = {"allow-bao-seed": {"podSelector": {"matchLabels": {"app.kubernetes.io/name": "openbao-seed"}},
+            "policyTypes": ["Egress"], "egress": [{"to": [{"podSelector": {
+                "matchLabels": {"app.kubernetes.io/name": "openbao"}}}],
+                "ports": [{"protocol": "TCP", "port": 8200}]}]}}
+        _ingress_require(not set(retained).intersection(declared))
+        declared.update(retained)
         for name, policy in before.items():
             selector = policy["spec"]["podSelector"]
             # Unknown expressions are not guessed non-applicable. The declared
@@ -679,7 +722,7 @@ def configure_envoy_ingress(*, evidence_directory, journal_path):
                 base = json.loads(_ingress_json(policy["spec"]))
                 base["ingress"] = [client]
                 _ingress_require(base == declared[name])
-            elif (name in oauth or name == "allow-test-client" or selector == {}
+            elif (name in oauth or name in retained or name == "allow-test-client" or selector == {}
                   or selector.get("matchLabels", {}).get("app.kubernetes.io/name") == "envoy-mesh"):
                 _ingress_require(policy["spec"] == declared[name])
             else:

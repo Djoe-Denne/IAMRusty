@@ -309,6 +309,19 @@ un faux échec de service LIVE avant toute sonde.
 Résultats et limites de la demande réelle :
 [validation du local-full réparé](../../docs/missions/20261102-local-full-validation.md).
 
+Le [raccord autorisé au full existant](../../docs/contracts/local-full-existing-e2e-wiring.md)
+sélectionne le profil IAM **effectivement monté**, pas seulement le fichier base.
+Pour l'oauth-proof GitLab seul attesté, la variante publique explicite est
+`ops/tests/mesh-public-route-cases-local-full-oauth-proof.json` : mêmes33IDs,
+méthodes et routes ; les attendus GitLab loginHEAD303 et relinkHEAD400 diffèrent
+du profil sans connecteur. Le callback GitHub désactivé attend422 : le handler
+résout le connecteur avant de vérifier le state. Les refus401/403 des fournisseurs
+inconnus restent exigés, même si un runtime ne les satisfait pas.
+Les IDs historiques contenant `unavailable`
+ou `disabled` restent des identifiants de corrélation, pas une description du
+profil choisi. Aucun fallback selon la réponse reçue ; un303 ne prouve pas un
+login OAuth abouti. La matrice base demeure inchangée.
+
 Contrôler chaque `$LASTEXITCODE` comme ci-dessus. Exit 0 seulement si toutes les obligations sont satisfaites ; outil/fixture absent ou skip obligatoire ⇒ non-zéro. Rapporter hash Git, cible/mode, attendus/exécutés/échecs/bloqués et LIVE/SIMULÉ/NOT RUN, sans secrets ni nombre artificiel fixe d'objets. Les modes `network-policy`, `snapshot`, `rollout-check`, `recovery-check`, `restore-check` gardent leur CLI full-only `--lease`/`--namespace` ; observer n'exécute pas une restauration/récupération runtime.
 
 **IT Windows, entrée distincte sans Kind** : `powershell.exe -NoProfile -File ops/tests/it-native.ps1 -Suite iam` (ou `hive`, `manifesto`, `telegraph`, `lazaret`). Le lanceur délègue à `cargo test -p <package-service> --tests`, un package à la fois, sans workspace implicite ni applicatif Docker. Les fixtures testcontainers existantes démarrent leurs dépendances tierces à la demande ; les IT ne nécessitent pas le profil full déployé. Un seul slot Cargo, target Windows sur E: ; elles précèdent le GO runtime.

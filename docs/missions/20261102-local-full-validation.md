@@ -132,3 +132,124 @@ Source durable limitée au lanceur, ses deux régressions et documentation. Aucu
 nouveau framework, branche, worktree ou équipe ; UI Obsidian étrangère préservée.
 Intégration/publication sur `master` tracées dans le retour et le ledger local.
 Cette livraison ne transforme pas les blocages de parcours en qualification.
+
+## Suite autorisée le 2 novembre : raccord au déploiement existant
+
+Le GO utilisateur « oui » autorise désormais les deux raccords. Le
+[contrat opérationnel](../contracts/local-full-existing-e2e-wiring.md) conserve les
+oracles mesh39 et Apparatus6, la préparation/exécution/nettoyage séparés, les
+identités et les données préexistantes. Aucun changement applicatif Rust, SDK,
+migration, image ou manifeste de déploiement n'est inclus dans ce raccord.
+
+### Correction de l'hypothèse de profil
+
+La vérification du **fichier effectivement monté** dans IAM contredit ici la
+lecture du seul fichier base `config/iam.toml` : le runtime existant est
+`oauth-proof`, avec **GitLab** activé, GitHub absent. Le parent a qualifié le
+montage et son empreinte, puis projeté le seul identifiant du connecteur ; aucun
+Secret GET, dump de configuration ou export de clé. L'ancien diagnostic de
+timeout demeure vrai ; les attentes422 GitLab du fichier base n'étaient en
+revanche pas adaptées à ce runtime. Elles ne sont pas réécrites rétroactivement.
+
+Le témoin retenu pour cette activation est donc le **v1/303 strict existant**,
+avec nonce/cookie/redirect et refus sans Bearer, pas un422 promu en succès. La
+capacité base-full distincte reste testée offline et inutilisée sur ce profil.
+La variante publique versionnée
+`mesh-public-route-cases-local-full-oauth-proof.json` conserve les33IDs/méthodes/
+routes/corps ; seuls GitLab loginHEAD303 et relinkHEAD400 sont déclarés selon la
+source du profil. Une correction supplémentaire explicite du callback GitHub
+désactivé attend422 : `oauth_callback` résout le connecteur avant le contrôle du
+state ; `oauth_connector_not_configured` est mappé422. L'échec initial sur cet
+oracle400 est conservé, pas réécrit. Les noms historiques restent des clés de
+corrélation. Les deux fournisseurs inconnus restent attendus401/403.
+
+### Entrée mesurée et état intermédiaire
+
+La nouvelle capture native mesure **10.244.230.64/32**, tunnel IPIP du CP, et non
+son IP bridge172.19.0.2 : binding conntrack unique551416958, delta deny actif8/480,
+passif0/0, compteurs IAM/TLS inchangés. Le compteur demeure partagé par chaîne,
+sans attribution par paquet. Revue causale parent, sept projections readonly,
+contrôle des identités et revue sécurité indépendante sont conservés hors Git.
+
+La première tentative d'activation a été **refusée avant journal, ACK et patch** :
+la policy `allow-bao-seed`, possédée par le bail original, était absente du
+catalogue source courant. Elle est préservée, non supprimée. L'amendement borné
+reconnaît uniquement son nom et sa spec historique entière, avec l'ownership
+original, sans accepter d'autre policy inconnue. Les22tests purs correspondants
+(20ingress et2profils publics) passent ; les échecs intermédiaires sont archivés.
+La seconde activation et ses preuves live restent à consigner ici. Ce point
+intermédiaire ne signifie ni entrée rétablie ni E2E PASS.
+
+**Seconde activation : PASS LIVE, entrée rétablie.** Après revue du catalogue
+exact et22tests purs PASS, le parent a ajouté seulement
+`10.244.230.64/32 TCP10000` par le seam existant, avec journal avant mutation et
+ACK immuable. Les témoins réels sont JWKS200 avec clé publique RSA utilisable,
+GitLab303 avec nonce/cookie/PKCE/destination validés en mémoire et `/iam/api/me`
+sans Bearer403 sans cookie ni redirection. Aucun cookie/state ni clé privée
+n'est archivé. IAM upstream progresse de2 ; le refus protégé ne provoque pas
+de dispatch supplémentaire. Compteurs d'erreurs TLS inchangés, identités et
+profil identiques avant/après, `finish` v1 accepté. Aucun rollback nécessaire.
+Cette preuve établit l'entrée et le refus, pas un login vendor ou les39/6oracles.
+La vérification infra indépendante et les33cas publics sont alors lancés ; leurs
+résultats restent séparés des parcours métier.
+
+**Infra indépendante : PASS borné.** La policy live est exactement l'ACK41542,
+les24autres policies sont identiques en UID/RV/spec ; les25noms, les identités
+Envoy/IAM et leurs restarts5/4 préexistants sont conservés. Les17Services et
+Endpoints ont leurs adresses ;15DockerIDs/états avant/après identiques. Le
+vérificateur n'a lancé aucun HTTP ni ouvert l'admin ; ses constats ne remplacent
+pas les témoins parent.
+
+**Matrice publique : toujours FAIL, pas un PASS de33cas.** Le fichier base
+inchangé s'arrête à la quatrième tentative (GitLabHEAD303 au lieu de422). La
+variante GitLab corrigée du callback désactivé s'arrête à la seizième :
+**15PASS,1FAIL,17BLOCKED**, bilan33 conservé. Un diagnostic auxiliaire complet
+montre deux désaccords sur unknown-provider login/callback :422 au lieu de401/403.
+Ils restent rouges. Les33requêtes de diagnostic ne sont pas renommées33oracles
+PASS et leurs corps/cookies/headers ne sont pas archivés.
+
+Revue sécurité : hardening préexistant, non bloquant sécurité ; la regex publique
+Envoy `[^/]+/(login|callback)` admet le dispatch IAM pour un slug inconnu. IAM
+refuse avant transaction, échange ou credentials : aucune élévation ni accès
+métier indu démontré. La correction des exemptions exige un lot configuration
+distinct et une liste publique explicitement décidée ; aucun manifeste n'a été
+modifié pour masquer ces échecs dans le raccord.
+
+### Adaptateur et garde avant création métier
+
+Le raccord mesh39 est livré en worktree pour revue, Apparatus6 reste un
+inventaire **INCOMPLETE**. La revue correctness a bloqué avant signup : reçu
+nettoyé réutilisable entraînant un faux PASS cleanup, prérequis GitHub enregistré
+non vérifié, notifications/deliveries Telegraph indirectes absentes du cleanup.
+Une revue sécurité ajoute la garde d'empreinte entière du provider dans l'inverse
+atomique. Les corrections sont en cours ; **aucun compte ou fixture métier créé**.
+
+La capacité interne `e2e_forward` est ajoutée **après** clôture ingress, sans
+modifier sa preuve historique ni ajouter de pin de compatibilité. Cibles fermées
+IAM/Hive/Telegraph8443 et MailHog8025, Pod/Service/owner/EndpointSlice/UID attestés,
+loopback, marqueur exclusif et fermeture du seul enfant possédé. Après63tests
+purs et revue source, un préflight réel a refusé l'init IAM `oauth-proof-trust`
+avant spawn. Cet init déjà déclaré est désormais admis uniquement pour IAM,
+terminéexit0 avec incarnation vérifiée ; PodReady explicite et64tests purs PASS.
+La revue du delta a donné GOsource borné, sans GO métier.
+
+Le second préflight réel passe pour **les4tunnels, tous fermés et marqueur absent**.
+Une recherche MailHog vers un destinataire UUID inexistant répond200/total0.
+Aucune clé lue, aucun compte créé, aucun objet Kubernetes ou conteneur créé ;
+cela ne prouve ni les appels internes mTLS ni la NetworkPolicy depuis un Pod.
+
+Les amorces OAuth303 constituent de l'état protocolaire normal côté serveur,
+pas des GET garantis sans effet : cinq amorces observées dans le témoin et les
+replays/diagnostic publics de cette suite. Aucun cookie/state conservé ou login
+abouti ; expiration applicable mais purge physique non qualifiée. Ne pas
+annoncer un état DB global inchangé, supprimer par date ou adopter des PK non
+ACKées. Ce bilan est distinct du nettoyage des futures fixtures métier.
+
+La fixture `SIMULATED_PROVIDER` ne nécessite pas de token GitHub vendor, mais
+n'annule pas `require_registered_provider` des handlers S2S : le profil GitLab
+seul ne satisfait pas ce prérequis. La disparition supposée d'un token personnel
+ne cause donc pas ce blocage. `gh auth status` a par ailleurs réussi, sans lire
+ou afficher de token ; aucune App, connexion interactive ou credential créée.
+
+Archives de cette suite :
+`C:/Users/djden/.aiforall-local-validations/20261102-wiring-e877d9eb8a4c/`.

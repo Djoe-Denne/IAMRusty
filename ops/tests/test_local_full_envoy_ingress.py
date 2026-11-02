@@ -541,6 +541,47 @@ class EnvoyIngressTests(unittest.TestCase):
                             self.configure()
                         self.assertEqual(guard.patches, [])
 
+    def test_retained_bao_seed_policy_requires_original_ownership_and_exact_historical_spec(self):
+        historical_spec = {"podSelector": {"matchLabels": {"app.kubernetes.io/name": "openbao-seed"}},
+            "policyTypes": ["Egress"], "egress": [{"to": [{"podSelector": {
+                "matchLabels": {"app.kubernetes.io/name": "openbao"}}}],
+                "ports": [{"protocol": "TCP", "port": 8200}]}]}
+        for mode in ("exact", "unowned", "selector", "destination", "port", "extra-ingress", "policy-type", "name"):
+            with self.subTest(mode=mode):
+                guard = FakeGuard(self.directory)
+                policy = {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
+                    "metadata": {"name": "allow-bao-seed", "namespace": runner.CLUSTER, "uid": uid(), "resourceVersion": "10"},
+                    "spec": clone(historical_spec)}
+                guard.policies.append(policy)
+                guard.data["ownedResources"].append({"kind": "NetworkPolicy", "name": "allow-bao-seed",
+                    "namespace": runner.CLUSTER, "uid": policy["metadata"]["uid"], "context": runner.CONTEXT,
+                    "cluster": runner.CLUSTER})
+                if mode == "unowned":
+                    guard.data["ownedResources"].pop()
+                elif mode == "selector":
+                    policy["spec"]["podSelector"] = {}
+                elif mode == "destination":
+                    policy["spec"]["egress"][0]["to"] = [{"ipBlock": {"cidr": "0.0.0.0/0"}}]
+                elif mode == "port":
+                    policy["spec"]["egress"][0]["ports"][0]["port"] = 443
+                elif mode == "extra-ingress":
+                    policy["spec"]["ingress"] = [{}]
+                elif mode == "policy-type":
+                    policy["spec"]["policyTypes"].append("Ingress")
+                elif mode == "name":
+                    policy["metadata"]["name"] = "allow-unknown-seed"
+                    guard.data["ownedResources"][-1]["name"] = "allow-unknown-seed"
+                preserved = clone(policy)
+                with patch.object(runner.runtime, "target", return_value=guard):
+                    if mode == "exact":
+                        change = self.configure()
+                        self.assertEqual(change.rollback(), "ROLLED_BACK_OWN_ENTRY")
+                        self.assertEqual(policy, preserved)
+                    else:
+                        with self.assertRaises(ValueError):
+                            self.configure()
+                        self.assertEqual(guard.patches, [])
+
     def test_envoy_ingress_parent_witness_requires_exact_303_and_rolls_back_302(self):
         for status in (303, 302, 301, 307, 308, 200, 500):
             with self.subTest(status=status):
@@ -570,6 +611,131 @@ class EnvoyIngressTests(unittest.TestCase):
                         self.assertEqual([op["op"] for op in rollback], ["test", "test", "test", "test", "remove"])
                         self.assertEqual(rollback[-1]["path"], "/spec/ingress/1")
                     self.assertEqual(guard.policy["spec"], original_spec)
+
+    def base_full_witness(self, guard, change):
+        after = guard.admin(3)
+        for key in ("cluster.iam.ssl.fail_verify_san", "cluster.iam.ssl.fail_verify_error"):
+            after["stats"][key] = 0
+        profile = {"name": "local-full", "connectors": [], "namespace_uid": guard.identity["namespace_uid"],
+            "config_map_name": "iam-dev-config-synthetic", "config_map_uid": uid(), "config_resource_version": "123",
+            "config_sha256": "1" * 64, "iam_pod_uid": uid(), "iam_container_id": "containerd://" + "2" * 64,
+            "iam_restart_count": 0}
+        probes = [{"method": "GET", "path": path, "status": status, "outcome": outcome, "response_sha256": "3" * 64}
+            for path, status, outcome in (("/iam/.well-known/jwks.json", 200, "PUBLIC_RS256_JWKS"),
+                ("/iam/api/auth/gitlab/login", 422, "CONNECTOR_DISABLED_NOT_LOGIN"),
+                ("/iam/api/me", 401, "PROTECTED_WITHOUT_BEARER_DENIED"))]
+        return {"schema": "aiforall.envoy.ingress-base-full-witness.v1",
+            "journal_sha256": change.receipt["journal_sha256"], "entry": "127.0.0.1:18080", "probes": probes,
+            "observations_sha256": hashlib.sha256(runner._ingress_json(probes).encode()).hexdigest(),
+            "profile_before": profile, "profile_after": clone(profile),
+            "profile_sha256": hashlib.sha256(runner._ingress_json(profile).encode()).hexdigest(),
+            "admin_before": guard.admin(), "admin_after": after}
+
+    def test_base_full_witness_accepts_200_422_and_protected_401_or_403(self):
+        for status in (401, 403):
+            with self.subTest(status=status):
+                guard = FakeGuard(self.directory)
+                with patch.object(runner.runtime, "target", return_value=guard):
+                    change = self.configure()
+                    witness = self.base_full_witness(guard, change)
+                    witness["probes"][2]["status"] = status
+                    witness["observations_sha256"] = hashlib.sha256(runner._ingress_json(witness["probes"]).encode()).hexdigest()
+                    self.assertEqual(change.finish(witness), "PARENT_WITNESS_ACCEPTED_LAB_ONLY")
+                    self.assertEqual(len(guard.patches), 1)
+                    self.assertEqual(change.rollback(), "ROLLED_BACK_OWN_ENTRY")
+
+    def test_base_full_witness_bad_observations_or_binding_roll_back_only_own_entry(self):
+        mutations = {
+            "wrong journal": lambda w: w.update(journal_sha256="0" * 64),
+            "foreign entry": lambda w: w.update(entry="127.0.0.1:18081"),
+            "unknown schema": lambda w: w.update(schema="aiforall.envoy.ingress-base-full-witness.v2"),
+            "v1 not interchangeable": lambda w: w.update(schema="aiforall.envoy.ingress-parent-witness.v1"),
+            "missing oracle": lambda w: w["probes"].pop(),
+            "jwks failed": lambda w: w["probes"][0].update(status=500),
+            "oauth redirect not disabled": lambda w: w["probes"][1].update(status=303),
+            "oauth success claim": lambda w: w["probes"][1].update(outcome="IAM_CONNECTOR_NONCE_REDIRECT"),
+            "protected allowed": lambda w: w["probes"][2].update(status=200),
+            "protected timeout": lambda w: w["probes"][2].update(status=0),
+            "wrong method": lambda w: w["probes"][0].update(method="POST"),
+            "wrong path": lambda w: w["probes"][0].update(path="/iam/health"),
+            "unbound observations": lambda w: w.update(observations_sha256="0" * 64),
+            "missing body hash": lambda w: w["probes"][0].pop("response_sha256"),
+            "bad body hash": lambda w: w["probes"][0].update(response_sha256="not-hash"),
+            "additional input": lambda w: w.update(expected_status=422),
+            "additional probe input": lambda w: w["probes"][0].update(url="http://elsewhere/"),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                guard = FakeGuard(self.directory)
+                original = clone(guard.policy["spec"])
+                with patch.object(runner.runtime, "target", return_value=guard):
+                    change = self.configure()
+                    witness = self.base_full_witness(guard, change)
+                    mutate(witness)
+                    with self.assertRaisesRegex(ValueError, "validation refused"):
+                        change.finish(witness)
+                    self.assertEqual(change.receipt["state"], "ROLLED_BACK_OWN_ENTRY")
+                    self.assertEqual(guard.policy["spec"], original)
+
+    def test_base_full_profile_is_bound_and_cannot_enable_a_connector(self):
+        mutations = {
+            "profile changed": lambda p: p.update(name="oauth-proof"),
+            "connector enabled": lambda p: p.update(connectors=["gitlab"]),
+            "foreign namespace": lambda p: p.update(namespace_uid=uid()),
+            "foreign config": lambda p: p.update(config_map_name="oauth-proof-iam-config"),
+            "malformed config UID": lambda p: p.update(config_map_uid="not-uuid"),
+            "malformed pod UID": lambda p: p.update(iam_pod_uid="not-uuid"),
+            "malformed incarnation": lambda p: p.update(iam_container_id="not-container-id"),
+            "boolean restart": lambda p: p.update(iam_restart_count=False),
+            "negative restart": lambda p: p.update(iam_restart_count=-1),
+            "bad config hash": lambda p: p.update(config_sha256="not-hash"),
+            "extra input": lambda p: p.update(expected_status=422),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                guard = FakeGuard(self.directory)
+                with patch.object(runner.runtime, "target", return_value=guard):
+                    change = self.configure()
+                    witness = self.base_full_witness(guard, change)
+                    mutate(witness["profile_before"])
+                    witness["profile_after"] = clone(witness["profile_before"])
+                    witness["profile_sha256"] = hashlib.sha256(runner._ingress_json(witness["profile_before"]).encode()).hexdigest()
+                    with self.assertRaisesRegex(ValueError, "validation refused"):
+                        change.finish(witness)
+                    self.assertEqual(change.receipt["state"], "ROLLED_BACK_OWN_ENTRY")
+
+    def test_base_full_witness_rejects_stale_profile_or_tls_counters(self):
+        for label in ("profile changed after", "profile hash", "no IAM progress", "TLS SAN", "TLS verify", "admin epoch"):
+            with self.subTest(label=label):
+                guard = FakeGuard(self.directory)
+                with patch.object(runner.runtime, "target", return_value=guard):
+                    change = self.configure()
+                    witness = self.base_full_witness(guard, change)
+                    if label == "profile changed after":
+                        witness["profile_after"]["config_resource_version"] = "124"
+                    elif label == "profile hash":
+                        witness["profile_sha256"] = "0" * 64
+                    elif label == "no IAM progress":
+                        witness["admin_after"]["stats"]["cluster.iam.upstream_rq_total"] = 0
+                    elif label.startswith("TLS"):
+                        suffix = "san" if label == "TLS SAN" else "error"
+                        witness["admin_after"]["stats"]["cluster.iam.ssl.fail_verify_" + suffix] = 1
+                    else:
+                        witness["admin_after"]["restart_epoch"] = 1
+                    with self.assertRaisesRegex(ValueError, "validation refused"):
+                        change.finish(witness)
+                    self.assertEqual(change.receipt["state"], "ROLLED_BACK_OWN_ENTRY")
+
+    def test_base_full_concurrent_policy_change_does_not_gain_rollback_ownership(self):
+        guard = FakeGuard(self.directory)
+        with patch.object(runner.runtime, "target", return_value=guard):
+            change = self.configure()
+            witness = self.base_full_witness(guard, change)
+            guard.policy["metadata"]["resourceVersion"] = "99"
+            with self.assertRaisesRegex(ValueError, "conditional Envoy rollback blocked"):
+                change.finish(witness)
+            self.assertEqual(len(guard.patches), 1)
+            self.assertEqual(len(guard.policy["spec"]["ingress"]), 2)
 
     def test_envoy_ingress_tunnel_mismatch_ambiguity_and_stale_proof_block_patch(self):
         mutations = [

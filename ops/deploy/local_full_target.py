@@ -582,6 +582,41 @@ class _EnvoyAdminForward:
             raise AnchorError("INCONCLUSIVE: Admin cleanup blocked; retain private marker") from None
 
 
+_E2E_FORWARD_TARGETS = {"iam": ("https", 8443), "hive": ("https", 8443),
+                        "telegraph": ("https", 8443), "mailhog": ("ui", 8025)}
+
+
+class _E2EForward(_EnvoyAdminForward):
+    """Reuse the sole-child deadline/cleanup, with one fixed application port."""
+    def __init__(self, service):
+        if service not in _E2E_FORWARD_TARGETS:
+            raise AnchorError("fixed E2E service required")
+        super().__init__()
+        self.remote_port = _E2E_FORWARD_TARGETS[service][1]
+
+    def mapping(self, complete=False, exited=False):
+        with self.lock:
+            out, err = (bytes(value) for value in self.output)
+        if self.failed or err or (not exited and (self.process.poll() is not None or self.stopping)):
+            raise AnchorError("E2E forward unavailable")
+        lines = out.split(b"\n")
+        if lines[-1]:
+            if complete:
+                raise AnchorError("E2E forward output incomplete")
+            return None
+        lines.pop()
+        if not lines:
+            return None
+        expression = rb"Forwarding from 127\.0\.0\.1:([1-9][0-9]{0,4}) -> " + str(self.remote_port).encode() + rb"\r?"
+        match = re.fullmatch(expression, lines[0])
+        if not match or not 1 <= int(match[1]) <= 65535 or len(lines) > 2:
+            raise AnchorError("E2E forward mapping refused")
+        connection_line = b"Handling connection for " + match[1]
+        if any(line not in (connection_line, connection_line + b"\r") for line in lines[1:]):
+            raise AnchorError("E2E forward mapping refused")
+        return int(match[1])
+
+
 def _tuple_ipv4(value):
     try:
         if not isinstance(value, str) or str(ipaddress.IPv4Address(value)) != value:
@@ -1310,6 +1345,150 @@ class LocalClusterTargetAnchor:
         except Exception:
             raise AnchorError("INCONCLUSIVE: Envoy Admin snapshot unavailable; output redacted; inspect marker if present") from None
         return result
+
+    def _e2e_forward_identity(self, service, namespace_uid, service_uid, deadline=None):
+        """Public metadata only; no Secret, config, environment or Pod dump."""
+        namespace = "aiforall-local-full"
+        port_name, remote_port = _E2E_FORWARD_TARGETS[service]
+
+        def require(condition):
+            if not condition:
+                raise AnchorError("E2E forward identity refused")
+
+        def get(kind, name=None, projection="json", extra=()):
+            timeout = min(5, _admin_remaining(deadline)) if deadline is not None else 5
+            args = ["get", kind] + ([name] if name else [])
+            if kind != "namespace":
+                args += ["-n", namespace]
+            text = self.kubectl(args + list(extra) + ["-o", projection], text=True, timeout=timeout,
+                                stdin=subprocess.DEVNULL)
+            require(isinstance(text, str) and len(text.encode("utf-8")) <= 65536)
+            return json.loads(text, object_pairs_hook=unique_json) if projection == "json" else text
+
+        def owned(kind, name, uid):
+            require(any(all(entry.get(k) == value for k, value in {
+                "kind": kind, "name": name, "namespace": namespace, "uid": uid,
+                "cluster": "aiforall-local-full", "context": "kind-aiforall-local-full"}.items())
+                for entry in self.data.get("ownedResources", [])))
+
+        require(get("namespace", namespace, "jsonpath={.metadata.uid}").strip() == namespace_uid)
+        svc = get("service", service)
+        require(svc["metadata"]["uid"] == service_uid and svc["metadata"]["namespace"] == namespace
+                and not svc["metadata"].get("deletionTimestamp"))
+        owned("Service", service, service_uid)
+        require(svc["spec"]["selector"] == {"app.kubernetes.io/name": service}
+                and svc["spec"].get("type", "ClusterIP") == "ClusterIP")
+        ports = [p for p in svc["spec"]["ports"] if p.get("name") == port_name]
+        require(len(ports) == 1 and ports[0].get("protocol", "TCP") == "TCP"
+                and ports[0]["port"] == remote_port and ports[0]["targetPort"] == port_name)
+        slices = get("endpointslices", extra=("-l", "kubernetes.io/service-name=" + service))
+        endpoints = []
+        for item in slices["items"]:
+            refs = item["metadata"].get("ownerReferences", [])
+            require(item["metadata"]["namespace"] == namespace and not item["metadata"].get("deletionTimestamp")
+                    and len(refs) == 1 and refs[0].get("kind") == "Service"
+                    and refs[0].get("name") == service and refs[0].get("uid") == service_uid
+                    and refs[0].get("controller") is True)
+            matches = [p for p in item["ports"] if p.get("name") == port_name]
+            require(matches == [{"name": port_name, "port": remote_port, "protocol": "TCP"}])
+            endpoints.extend(item["endpoints"])
+        require(len(endpoints) == 1)
+        endpoint = endpoints[0]
+        ref = endpoint.get("targetRef", {})
+        require(endpoint.get("conditions", {}).get("ready") is True
+                and endpoint.get("conditions", {}).get("terminating", False) is False
+                and len(endpoint.get("addresses", [])) == 1 and ref.get("kind") == "Pod"
+                and ref.get("namespace") == namespace and _log_name(ref.get("name", ""))
+                and ref["name"].startswith(service + "-"))
+        base = ('jsonpath={.metadata.uid}{"\\n"}{.metadata.name}{"\\n"}{.metadata.namespace}{"\\n"}'
+                '{.metadata.deletionTimestamp}{"\\n"}')
+        owners = ('{range .metadata.ownerReferences[*]}R{"\\t"}{.kind}{"\\t"}{.name}{"\\t"}{.uid}'
+                  '{"\\t"}{.controller}{"\\n"}{end}')
+        projection = (base + '{.metadata.labels.app\\.kubernetes\\.io/name}{"\\n"}{.status.phase}{"\\n"}'
+            '{.status.podIP}{"\\n"}{.spec.initContainers[*].name}{"\\n"}{.spec.ephemeralContainers[*].name}{"\\n"}'
+            '{.status.conditions[?(@.type=="Ready")].status}{"\\n"}'
+            '{range .spec.containers[*]}C{"\\t"}{.name}{"\\n"}'
+            '{range .ports[*]}P{"\\t"}{.name}{"\\t"}{.containerPort}{"\\t"}{.protocol}{"\\n"}{end}{end}'
+            '{range .status.containerStatuses[*]}S{"\\t"}{.name}{"\\t"}{.containerID}{"\\t"}{.restartCount}'
+            '{"\\t"}{.imageID}{"\\t"}{.ready}{"\\t"}{.state.running.startedAt}{"\\n"}{end}'
+            '{range .status.initContainerStatuses[*]}I{"\\t"}{.name}{"\\t"}{.containerID}{"\\t"}{.restartCount}'
+            '{"\\t"}{.imageID}{"\\t"}{.state.terminated.exitCode}{"\\t"}{.state.terminated.finishedAt}{"\\n"}{end}' + owners)
+        lines = get("pod", ref["name"], projection).splitlines()
+        require(len(lines) >= 10 and lines[:7] == [ref["uid"], ref["name"], namespace, "", service, "Running", endpoint["addresses"][0]]
+                and lines[8:10] == ["", "True"] and lines[7] in (("", "oauth-proof-trust") if service == "iam" else ("",)))
+        tail = [line.split("\t") for line in lines[10:]]
+        require([row for row in tail if row[0] == "C"] == [["C", service]])
+        require([row for row in tail if row[:2] == ["P", port_name]] == [["P", port_name, str(remote_port), "TCP"]])
+        statuses = [row for row in tail if row[0] == "S"]
+        require(len(statuses) == 1 and len(statuses[0]) == 7)
+        status = statuses[0]
+        require(status[1] == service and re.fullmatch(r"containerd://[a-f0-9]{64}", status[2])
+                and status[3].isdigit() and status[5] == "true" and bool(status[6])
+                and re.fullmatch(r"[A-Za-z0-9._:/@-]{0,400}sha256:[a-f0-9]{64}", status[4]))
+        init_statuses = [row for row in tail if row[0] == "I"]
+        if lines[7]:
+            require(len(init_statuses) == 1 and len(init_statuses[0]) == 7)
+            init = init_statuses[0]
+            require(init[1] == "oauth-proof-trust" and re.fullmatch(r"containerd://[a-f0-9]{64}", init[2])
+                    and init[3].isdigit() and init[5] == "0" and bool(init[6])
+                    and re.fullmatch(r"[A-Za-z0-9._:/@-]{0,400}sha256:[a-f0-9]{64}", init[4]))
+        else:
+            require(not init_statuses)
+        owner_rows = [row for row in tail if row[0] == "R"]
+        require(len(owner_rows) == 1 and len(owner_rows[0]) == 5 and owner_rows[0][1] == "ReplicaSet"
+                and owner_rows[0][4] == "true" and _log_name(owner_rows[0][2]))
+        rs_ref = owner_rows[0]
+        rs = get("replicaset", rs_ref[2], base + owners).splitlines()
+        require(rs[:4] == [rs_ref[3], rs_ref[2], namespace, ""] and len(rs) == 5)
+        deploy_ref = rs[4].split("\t")
+        require(len(deploy_ref) == 5 and deploy_ref[:3] == ["R", "Deployment", service] and deploy_ref[4] == "true")
+        owned("Deployment", service, deploy_ref[3])
+        require(get("deployment", service, base + owners).splitlines() == [deploy_ref[3], service, namespace, ""])
+        require(all(row[0] in {"C", "P", "S", "I", "R"} for row in tail))
+        return {"service_uid": service_uid, "service_spec": svc["spec"], "pod": ref["name"], "pod_uid": ref["uid"],
+                "pod_projection": lines, "owner_chain": [rs_ref, deploy_ref], "endpoint": endpoint,
+                "namespace_uid": namespace_uid, "remote_port": remote_port}
+
+    @contextlib.contextmanager
+    def e2e_forward(self, service, *, namespace_uid, service_uid):
+        """One fixed loopback application tunnel; no free port/target/argv API."""
+        if (service not in _E2E_FORWARD_TARGETS or self.data["cluster"] != "aiforall-local-full"
+                or self.data["context"] != "kind-aiforall-local-full"
+                or self.data.get("namespaceUids", {}).get("aiforall-local-full") != namespace_uid
+                or not isinstance(service_uid, str) or not re.fullmatch(r"[a-f0-9-]{36}", service_uid)):
+            raise AnchorError("fixed E2E target/UID required")
+        self.local_check()
+        identity = self._e2e_forward_identity(service, namespace_uid, service_uid)
+        marker = self.config.parent / ".e2e-forward"
+        if any(path.exists() or path.is_symlink() for path in (marker, self.config.parent / ".envoy-admin",
+                self.path.with_name(self.path.name + ".oauth-forward"))):
+            raise AnchorError("existing forward marker; STOP without adoption")
+        child = _E2EForward(service)
+        with os.fdopen(os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w", encoding="utf-8") as ownership:
+            try:
+                _admin_marker_private(marker)
+                if self._e2e_forward_identity(service, namespace_uid, service_uid) != identity:
+                    raise AnchorError("E2E identity changed before spawn")
+                child.start(self.prefix() + ["port-forward", "-n", "aiforall-local-full", "pod/" + identity["pod"],
+                    "--address", "127.0.0.1", ":" + str(identity["remote_port"])], self.environment())
+                json.dump({"task_id": self.data["task_id"], "pid": child.process.pid,
+                    "pod_uid": identity["pod_uid"], "ownership": "live-child-handle-only"}, ownership)
+                ownership.flush()
+                port = child.ready()
+                try:
+                    if (self._e2e_forward_identity(service, namespace_uid, service_uid, child.deadline) != identity
+                            or child.mapping(complete=True) != port):
+                        raise AnchorError("E2E identity/mapping changed before use")
+                    yield port
+                finally:
+                    if (self._e2e_forward_identity(service, namespace_uid, service_uid, child.deadline) != identity
+                            or child.mapping(complete=True) != port):
+                        raise AnchorError("E2E identity/mapping changed during use")
+            finally:
+                child.close()  # failure retains the exclusive marker, never adopts another child
+                ownership.close()
+                marker.unlink()
+            child.mapping(complete=True, exited=True)
 
     def _envoy_tuple_identity(self, pod, namespace_uid, pod_uid, owners, incarnation, node_uid, service_uid, deadline):
         """Only fixed identity projections, bracketed by the existing full anchor."""
