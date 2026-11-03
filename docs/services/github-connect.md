@@ -15,6 +15,9 @@ Federated authenticator HTTP : IAM appelle ce service (HMAC S2S) pour OAuth GitH
 
 - Canon : [ADR-0408](../adr/0408-connecteurs-idp-services-http.md), [0409](../adr/0409-confiance-callback-oauth-idp-connect.md)
 - Extension : [`services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md`](../../services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md)
+- [Connexion seule et future délégation GitHub](../guides/github-sign-in-and-delegation.md)
+- [Import local KV v2 du 3 novembre et limites E2E](../missions/20261103-github-kv-e2e-attempt.md) :
+  seed non-root terminé ; activation IAM/GitHubConnect et parcours métier non qualifiés.
 
 ## Secrets de démarrage OpenBao
 
