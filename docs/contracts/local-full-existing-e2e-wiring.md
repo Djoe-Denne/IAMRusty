@@ -105,6 +105,28 @@ l'entrée et les refus, **ni login réussi ni E2E métier**.
 
 ## 2. Trois actions existantes, entrées privées, aucun setup caché
 
+**Amendement utilisateur C — 2026-11-03, un seul nouveau run local.** L'utilisateur
+a choisi « Conserver les données locales (Recommended) » : mode opt-in fermé
+`RETAIN_LOCAL_V1`, sans inverses **finaux de nettoyage**, sans cleanup PASS ;
+opérations métier requises dont DELETE revoke inchangées, effets et certaines
+sessions conservés. Contrat exécutable et schémas :
+[inverse Telegraph, §8](local-full-telegraph-e2e-inverse.md#8-contrat-ops-c-ratifié-localement--un-seul-run).
+Ce seul mode consenti déroge ci-dessous à la qualification préalable d'un inverse
+et au retrait final des données métier ; il ne qualifie pas ces inverses et ne
+change ni les ADR ni les protections de cible/secrets/propriété. Le v1 strict
+reste inchangé. Aucun autre run, environnement, reprise métier, reset de reçu ou
+extension Apparatus n'est autorisé. Consentement consommé avant mutation,
+terminal RETAINED et anti-rejeu indépendants du chemin de reçu obligatoires.
+
+Le cleanup technique des seuls enfants/tunnels possédés reste obligatoire dans
+tous les chemins. Les sorties C restent non PASS et non nulles après exécution,
+même si les oracles sont verts ; distinguer ce résultat de la preuve de lancement
+(oracle métier requis LIVE réellement exécuté, PASS **ou FAIL observé**).
+Les paragraphes stricts qui suivent ne sont pas un ordre de supprimer les données
+du mode C. Le parent a aussi relayé un accord distinct pour le seul profil
+OpenCode `infra-verifier` read-only local-full : cela ne prouve pas sa révision
+effective ni sa vérification courante, qui restent nécessaires avant activation.
+
 Conserver `ops/tests/local-full-acceptance.py`, `--environment` et son mutex/bail.
 Raccorder `prepare-probes`, `e2e --suite mesh-authn|apparatus`, `cleanup-probes`
 par des adaptateurs locaux bornés ; ne jamais lancer les wrappers legacy,
@@ -301,12 +323,22 @@ inputs étrangers, nettoyage exact, prérequis absents et comptes non mensongers
 Conserver les gates et négatifs existants ; aucune commande live/build/test par
 l'auteur de ce contrat. Le parent vérifie les octets intégrés avant exécution.
 
+Pour le seul raccord C, le rayon autorisé à proposer est **test-side Ops** :
+`ops/tests/local_full_e2e.py`, `ops/tests/local-full-acceptance.py`, leurs reçus
+privés et tests disjoints confiés au test-engineer dans
+`test_local_full_e2e.py` / `test_local_full_acceptance_source.py`. Pas de Rust,
+migration, événement applicatif ou modification du helper de cible. Les cas
+de consentement, terminal, crash, anti-rejeu sous autre reçu, refus d'inverse,
+revoke conservé et cleanup technique du §8 sont les critères ; les commandes
+Python ciblées y sont fixées, non exécutées pour cet amendement documentaire.
+
 Rapport durable : `docs/missions/20261102-local-full-validation.md`. Séparer
 smoke21, routes33 et variante déclarée, témoin ingress choisi (v1 oauth-proof ou
 base-full/3 oracles), mesh39 et Apparatus6, ainsi que setup/cleanup/requêtes
 auxiliaires. Par cas : attendu, tenté, complété PASS/FAIL, BLOCKED/NOT RUN et
 preuve LIVE ou SIMULÉ ; **attendu = PASS + FAIL + BLOCKED/NOT RUN**, sans double
 compte. Un HTTP tenté mais sans oracle complété n'est pas un PASS ni un contrôle
-live complété. Code0 seulement si toutes les obligations ET cleanup sont acquis ;
+live complété. En mode strict, Code0 seulement si toutes les obligations ET cleanup sont acquis ;
+en mode C consenti, aucun Code0 après E2E/cleanup : RETAINED n'est pas PASS ;
 si une suite est partiellement exécutable, conserver son inventaire complet et
 sa raison source. GO routine acquis : pas de redemande du même arbitrage.

@@ -39,5 +39,6 @@ Contrats :
 
 - [`local-full-telegraph-e2e-inverse.md`](local-full-telegraph-e2e-inverse.md)
   — Constat sourcé : inverse actuel non qualifié, garde avant signup conservée.
-  Compare des solutions durables et une rétention locale explicitement proposée ;
-  aucune option ratifiée, aucun correctif Rust ou lancement autorisé implicitement.
+  Le §8 fixe l'exception locale de rétention consentie pour un seul run, encore
+  non implémentée ; le défaut strict demeure. Les solutions applicatives durables
+  restent Proposed, sans correctif Rust ou lancement implicitement autorisé.

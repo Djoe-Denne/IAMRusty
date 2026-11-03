@@ -4,16 +4,22 @@
   hors P0–P6 Apparatus.
 - Base source vérifiée : `7fdb17d33601ce85995fac8f1d89bef68d3c6b97` ;
   worktree documentaire au même HEAD, sans modification applicative.
-- État : **constat sourcé ; inverse non qualifié**. Les exigences d'une solution
-  future ci-dessous sont **Proposed**, pas une API, une migration ou un lot Rust
-  autorisé. Trois options sont comparées au §4 ; aucune n'est ratifiée/sélectionnée.
+- État : **inverse non qualifié ; C approuvée localement par l'utilisateur**
+  le 2026-11-03 (« Conserver les données locales (Recommended) »), accord relayé
+  par le parent. §8 fixe le seul contrat Ops C exécutable ; A/B restent Proposed,
+  sans migration/API/lot Rust autorisé. Aucun Accept global d'ADR.
+- Continuité : les493lignes initiales ont été intégrées/publiées par le parent
+  à `45e4cffa7d18d773967c21fe187dda6878a1618e`, sans delta Rust/Ops depuis7fdb17d
+  selon son briefing. Ce worktree conserve sa base7fdb17d ; les présents deltas
+  documentaires sont à intégrer par le parent, sans commit/Cargo de cet auteur.
 - Complète le [raccord E2E existant](local-full-existing-e2e-wiring.md), sans en
-  lever les gardes ni ratifier ADR0606. Parent seul sur index, liens entrants et
-  ledger ; son intégration doit référencer ce contrat depuis l'index existant.
+  lever globalement les gardes ni ratifier ADR0606. Parent seul sur index et
+  ledger ; les liens croisés entre ces deux contrats sont autorisés dans le
+  présent amendement. L'intégration reste sous responsabilité du parent.
 
 ## 1. Décision pour le périmètre actuellement autorisé
 
-**Conserver `Database.qualify_notifications_cleanup` bloquant avant signup.**
+**Conserver `Database.qualify_notifications_cleanup` bloquant en mode strict.**
 Les surfaces actuelles ne permettent pas de prouver conjointement la provenance
 exhaustive des créations asynchrones et l'absence de création/reprojection après
 nettoyage. Aucune substitution purement Ops compatible n'est qualifiée ici.
@@ -27,8 +33,10 @@ solution admise. Aucun signup, SQL destructif ou changement runtime n'a été fa
 La reprise vers une solution exige un arbitrage explicite sur la frontière
 manquante (§4), puis un contrat exécutable intégré et ses preuves. Ne pas publier
 un writer Telegraph à partir de ce seul constat.
-Une autre orientation, **C**, demande à l'utilisateur une exception locale de
-rétention plutôt qu'un inverse : elle n'est pas autorisée par le mandat actuel.
+**C** est désormais l'exception locale de rétention explicitement consentie,
+pas un inverse qualifié : un seul run, selon §8. Les paragraphes de comparaison
+du §4 conservent le raisonnement préalable ; leur arbitrage C est acquis, pas
+à redemander. Aucune garde ne peut être retirée globalement pour réaliser C.
 
 ## 2. Sources confrontées : ce qui est acquis, et ce qui manque
 
@@ -156,7 +164,7 @@ bytes sortants, pas run ↔ événement IAM ↔ toutes les créations. Aucun éc
    ne prouve pas le cleanup. Un restart sans registre causal durable perd
    précisément les informations nécessaires pour décider sans adoption.
 
-## 4. Options de solution future — Proposed, à arbitrer avant implémentation
+## 4. Comparaison : A/B Proposed, C approuvée localement et précisée au §8
 
 Pour fournir un inverse (A/B), le futur arbitrage doit couvrir **ensemble** les
 points suivants. C propose explicitement de ne pas fournir cet inverse, avec une
@@ -291,10 +299,11 @@ des contrats interservices et impose compatibilité/versions à des consommateur
 non nécessaires au simple départ mesh. Ce coût ne se justifie que par une demande
 explicite de corrélation produit réutilisable ; pas par l'urgence de démarrer.
 
-### Option C — rétention locale assumée, sans inverse (à arbitrer)
+### Option C — rétention locale assumée, sans inverse (accord local reçu)
 
 **Cohérente pour le seul lancement local sous exception utilisateur explicite**,
-pas aujourd'hui : un mode opt-in versionné `RETAINED` conserve les données/effets
+désormais accordée ; §8 prime sur les noms conceptuels ci-dessous. Un mode
+opt-in versionné `RETAIN_LOCAL_V1` conserve les données/effets
 du run, déclare le cleanup métier **non PASS** et ne prétend ni les inventorier
 exhaustivement ni fermer les consommateurs. Il change l'obligation du
 [contrat existant §2](local-full-existing-e2e-wiring.md#2-trois-actions-existantes-entrées-privées-aucun-setup-caché)
@@ -371,9 +380,9 @@ réellement créées, ni effets SMTP/FGA, ni provenance des événements, et un 
 peut recréer les mêmes IDs après DELETE. Même défaut avec purge user-filtered ou
 attente de silence ; ni l'unicité d'une PK ni l'outbox sortante ne ferme l'entrée.
 
-**Arbitrage demandé d'abord :** accepter ou refuser explicitement **C** et sa
-rétention locale sans cleanup PASS, limitée à l'absence d'inverses de nettoyage,
-pas aux oracles DELETE requis. Sans cet accord, garde stricte inchangée. Si un
+**Arbitrage C acquis** : rétention locale sans cleanup PASS, limitée à l'absence
+d'inverses de nettoyage, pas aux oracles DELETE requis. Hors consentement fermé
+du §8, garde stricte inchangée. Si un
 inverse reste requis, autoriser ou refuser l'étude détaillée de **A**, avec ses
 trois écritures locales, l'interface privée de réservation/fermeture, le coût de
 liaison atomique IAM et la limite SMTP explicites ; ou choisir **B** en autorisant
@@ -393,8 +402,9 @@ n'est écrit dans ce delta de comparaison ; aucun choix n'est Accepted et aucune
 cible ratifiée n'est modifiée. Le parent arbitre la réservation puis la rédaction
 Proposed dans un lot documentaire distinct avant tout code.
 Pour C, exception test-side locale sans contrat applicatif/persistance produit :
-pas de nouvelle ADR proposée ici, mais accord utilisateur et amendement explicite
-du contrat E2E requis avant admission du code. Le présent texte n'est pas cet accord.
+pas de nouvelle ADR ; accord utilisateur reçu et amendement explicite du
+[contrat E2E](local-full-existing-e2e-wiring.md) écrit dans ce même delta.
+Le présent contrat traduit cet accord, sans déclarer le code livré ou le run lancé.
 
 ## 5. Rayon et QA de la reprise éventuelle
 
@@ -479,7 +489,7 @@ Le lancement réussi n'est pas synonyme de suite verte ou de cleanup déjà acqu
 
 ## 7. Validation de ce livrable
 
-Lectures canoniques/corps et références ciblées vérifiés ; 31 liens locaux
+Lectures canoniques/corps et références ciblées vérifiés ; 33 liens locaux
 contrôlés, aucun absent ; `git diff --check` et contrôle staged sans erreur. Serena voit le canon
 principal au HEAD ci-dessus ; les modifications non intégrées du worktree sont
 vérifiées par outils fichiers, sans reconfiguration d'index. Aucun test applicatif,
@@ -491,3 +501,258 @@ demandée directement, aucun build/test n'a été lancé ; hook non contourné e
 aucune seconde tentative. Le fichier reste staged pour intégration par le parent.
 Le parent conserve le ledger et publie l'état réel des gates ; ce document ne
 constitue ni préparation réussie ni permission de lancer.
+
+## 8. Contrat Ops C ratifié localement — un seul run
+
+Cette section traduit l'accord utilisateur relayé par le parent ; elle prime sur
+les formulations préalables « à arbitrer » relatives à C. Le mot ratifié concerne
+**cette exception locale**, pas une ADR Accepted ni du code livré. Les sources Ops
+décrites plus haut n'ont pas encore ce mode. Aucun lot Rust n'est nécessaire ou
+autorisé. Le parent publie le lot Ops/test-engineer après intégration des deux
+contrats, avec revue secrets/trust si son diff touche cette frontière.
+
+### 8.1 Entrées et consentement fermés
+
+- V1 strict conserve ses champs et ses refus, sans nouveau défaut implicite.
+  V2 C exige **exactement** les sept champs v1 `version`, `run_id`, `suite`,
+  `provider_mode`, `credentials_path`, `pki_directory`, `receipt_path`, plus
+  `cleanup_policy`. `version` est l'entier2 (pas un booléen), `suite` vaut
+  uniquement `mesh-authn`, `provider_mode` vaut `SIMULATED_PROVIDER`.
+  `cleanup_policy` a exactement `mode="RETAIN_LOCAL_V1"` et `consent_id`
+  (UUIDv4 canonique). Aucun flag CLI de skip, SQL, URL ou politique libre.
+- Chemins privés absolus/canoniques, ACL owner-only, absence de symlink/junction/
+  reparse et validation des parents selon les gardes PKI existants ; parseur JSON
+  strict UTF-8/UTF-8-BOM, doublons/champs inconnus/nonfinite refusés, limite
+  existante `LIMIT`. UUID, hashes hex minuscules et types sont validés, pas castés.
+- L'autorité anti-rejeu a une position **non fournie par inputs** :
+  `target.config.parent / "e2e-retention-v1"`, sous la PKI/config privée du bail
+  original attesté. Elle n'est ni sous `receipt_path`, ni sous un workspace jetable.
+  Le parent trusted y dépose un unique `consent.json`, après choix du run neuf et
+  finalisation du HEAD Ops. Ce fichier privé read-only exprime l'accord déjà reçu ;
+  ce n'est pas un nouveau prompt d'autorisation, un secret ou une signature produit.
+  Pas d'auto-création de consentement par le runner, d'autorité par simple chemin
+  fourni, de recherche dans d'autres dossiers ou de copie d'une ancienne autorité.
+- Schéma **exact** de `consent.json` : `version` entier1 ; `consent_id` UUIDv4 ;
+  `decision_ref="20261103-user-retain-local-one-run"` ; `run_id` UUIDv4 ;
+  `mode="RETAIN_LOCAL_V1"` ; `suite="mesh-authn"` ; `binding_sha256` hex64 ;
+  `max_executions` entier1 ; `final_business_cleanup="FORBIDDEN"` ;
+  `required_business_revoke="PRESERVED"` ; `sessions="MAY_REMAIN"` ;
+  `disposition_owner="mission-lead"`. Tout autre champ/valeur refuse C.
+- `binding_sha256` est SHA256 du JSON canonique (`sort_keys=True`, séparateurs
+  `,`/`:`, `ensure_ascii=True`, UTF-8) du binding d'exécution v2 : tous les champs du binding existant
+  (1009–1026), `version=2`, plus `cleanup_policy` et `target_anchor`. Ce dernier
+  contient exactement `task_id`, `kube_system_uid`, `nodeContainerIds` triés et
+  `openbao_epoch_sha256` ; valeurs issues du bail vérifié et de la lecture seule
+  [`coffer_epoch`](../../ops/deploy/local_full_environment.py) (46–63), pas des
+  inputs. Les trois namespace UID restent dans le binding existant. Changement
+  d'epoch/source/HEAD/credentials/certificats/cible/inputs/chemin de reçu refuse
+  l'exécution ; aucune rotation/reseed/recapture effectuée par cet adaptateur.
+  Le hash du consentement n'entre pas dans ce calcul, pour éviter une référence
+  circulaire ; il est ajouté ensuite au reçu comme `consent_sha256`.
+
+### 8.2 Autorité durable, single-use et crash
+
+Toutes les actions C prennent, après le mutex du driver existant, un verrou
+exclusif `operation.lock` dans cette autorité fixe. Pas de retrait automatique
+d'un verrou stale : diagnostic parent selon le bail, sans adoption de processus.
+Ce verrou complémentaire empêche de contourner l'exclusion par copie/alias du
+chemin de lease ; `claim.json` et `consumed.json` créés en exclusif constituent
+le refus durable même si un processus meurt. La garde du target doit retrouver
+la même autorité privée originale, pas un nouveau répertoire vide.
+
+- `claim.json` a exactement `version=1`, `consent_id`, `consent_sha256`, `run_id`,
+  `binding_sha256`, `receipt_path` canonique. Création exclusive après préflight
+  RO réussi, **avant** mkdir/écriture du reçu. Aucune réécriture/remplacement.
+  Un claim existant peut seulement être relu pour statut du même binding ; il
+  interdit nouvelle préparation/adoption dans un autre reçu. Son existence
+  consomme le créneau autorisé de cette mission, même si la préparation meurt.
+- `consumed.json`, mêmes champs exacts que `claim.json`, est créé en exclusif et
+  relu à l'identique **avant** `execution-started` et avant toute mutation SQL/
+  HTTP. Aucun second runner ne peut l'utiliser comme capacité : seule l'invocation
+  vivante qui l'a créé, tenant le verrou et un contexte interne non sérialisable,
+  est autorisée à appeler les mutations du run. `Mesh.signup`, les autres
+  mutations et `Receipt.append` vérifient ce contexte et l'absence de terminal.
+  Un appel direct/rechargé depuis un reçu ne recrée jamais ce droit.
+- Fichiers créés sans écrasement, ACL privées avant utilisation, flush et fsync
+  des données puis relecture stricte avant progression. Fichier partiel, chaîne
+  rompue, consentement remplacé, fichier manquant après progression connue ou
+  contradiction autorité/reçu => BLOCKED, zéro nouvelle mutation. Garanties
+  limitées au crash/restart du processus et stockage local intact, pas à la
+  suppression hostile de l'autorité ou à une restauration disque en arrière.
+- États déduits : **AUTHORIZED** (consentement seul), **CLAIMED** (claim seul),
+  **PREPARED** (claim + reçu de préparation), **EXECUTING** (consumed + invocation
+  propriétaire active), **RETAINED** (terminal privé). CLAIMED incomplet ou
+  consumed sans terminal après crash n'autorise aucune reprise métier : seul
+  `cleanup-probes` peut constater/terminaliser la rétention et rapporter les
+  incertitudes. Un prepare avorté après claim peut ainsi perdre l'unique chance
+  de lancer ; ce coût fail-closed est voulu, pas un retry automatique.
+- Aucun autre run_id/consent_id, nouveau reçu ou retour au mode strict ne permet
+  de réutiliser ce créneau : toutes les entrées de mutation consultent le claim
+  fixe avant de traiter le run concerné. Après claim, changer le consentement ou
+  supprimer/archiver l'autorité n'est pas une opération de ces actions ; toute
+  nouvelle campagne exige un autre accord utilisateur et une disposition parent.
+
+### 8.3 Reçus et états observables
+
+Le reçu principal garde les enveloppes exactes `{kind,data,previous}`, noms
+séquentiels, création exclusive et chaîne de hash existants (borne256). Son
+premier `binding` contient le binding v2 ci-dessus + `consent_sha256`, comparés
+exactement au claim et au consentement. Les événements métier existants gardent
+leurs données/PK exactes ; aucune reconstruction par recherche email/slug/user.
+Les variantes ajoutées ont des données fermées :
+
+- `retention-prepared` : `mode="RETAIN_LOCAL_V1"`, `prepared=true`,
+  `inverse_qualification="UNQUALIFIED_NOT_REQUIRED_BY_CONSENT"`,
+  `remaining_prerequisites=[]`, `created_resources=[]`,
+  `exceptions=["telegraph-final-inverse","account-final-inverse"]`.
+  L'absence de cet ACK interdit E2E ; un simple `prepared` v1 ne suffit pas.
+- `execution-started` conserve `{suite:"mesh-authn"}` ; il ne vaut ni oracle
+  exécuté ni autorité en l'absence du consumed valide et de son invocation active.
+- `case-observed` : `id` de mesh39 **autre que `jwks`**, `status` PASS ou FAIL, `attempted=true`,
+  `observed=true`, `completed=true`, `evidence="LIVE"`, `http_status` entier
+  observé, `checked_assertions`/`failed_assertions` listes d'identifiants fixes des
+  assertions source de ce cas (pas de texte/body libre ; `checked_assertions`
+  non vide, `failed_assertions` vide pour PASS/non vide pour FAIL). Écrit dès qu'un oracle
+  métier requis a réellement été évalué ; préserver ses assertions, y compris
+  les échecs de corps et d'absence d'effet. Aucun témoin de ce type pour smoke,
+  préflight, transport non observé, BLOCKED ou NOT RUN. Un échec de ce journal
+  laisse lancement non attesté, même si HTTP a pu se produire ; aucun rerun.
+- `retained` : `status="RETAINED"`, `complete=false`, `mode="RETAIN_LOCAL_V1"`,
+  `business_cleanup="NOT_ATTEMPTED"`, `technical_cleanup` PASS ou BLOCKED,
+  `effects_possible` booléen (true dès consumed, même sans ACK),
+  `inventory_complete=false`, `residual_classes` liste fixe
+  `["accounts","sessions","provider-fixture","organizations","mail",
+  "notifications","deliveries","outbox","fga"]`, `uncertainties` liste issue
+  de l'enum `signup-ack`, `provider-ack`, `organization-ack`, `case-journal`,
+  `receipt`, `technical-cleanup`. Ce sont des résidus **possibles**, pas des
+  comptes exacts ; les ACK/revoke observés restent dans les événements métier.
+
+Après fermeture technique, recopier ce terminal dans `terminal.json` de l'autorité
+(mêmes champs `retained`, plus `version=1`, `run_id`, `consent_id`,
+`binding_sha256`, `consent_sha256`). Création exclusive ; relecture du même
+terminal idempotente. Échec partiel d'un des deux journaux reste BLOCKED et
+réparable **uniquement** en ajoutant le terminal manquant identique, pas en
+rejouant le métier. Ils interdisent tous deux toute nouvelle mutation, même si
+`complete` est false. `suite-results` peut être ajouté après le terminal ; pas
+`signup-intent`, nouvelle création, login, refresh ou fixture. Pas de
+`cleanup.complete=true`, `organization-deleted`, `provider-cleaned`, `mail-deleted`
+ou `account-deleted` fabriqué. Les tokens/credentials restent en mémoire et dans
+leurs sources privées déjà nécessaires ; aucun OAuth/HMAC/token/corps email dans
+les nouveaux journaux ou les sorties publiques. Pas de nouveaux hashes de secrets.
+
+### 8.4 Préconditions et orchestration, sans inverse fictif
+
+1. **Prepare**, mêmes CLI `prepare-probes --environment … --inputs …` : vérifier
+   mode/consentement/cible/version/epoch, GitHub **et GitLab effectifs**, identités
+   leaf/CA/SAN, disponibilité du transport fixe et des lectures DB nécessaires.
+   Pas de SQL destructif préparé/exécuté ; ne pas appeler les qualifications
+   finales Telegraph/compte puis convertir leur échec en succès. Le résultat
+   déclare explicitement l'inverse non qualifié mais non requis **par accord C**.
+   Les gardes d'absence/ownership/snapshot et SQL de fixture provider restent
+   qualifiées séparément (`Database.qualify`, requêtes fermées), sans qualifier
+   `cleanup_account`. Aucun fixture/compte/probe créé pendant prepare. Faire le
+   claim/reçu seulement si ces préconditions sont satisfaites ; sinon BLOCKED.
+2. **E2E**, mêmes CLI `e2e --suite mesh-authn --environment … --inputs …` :
+   revalider consentement/binding/ACK et gardes courantes sous les deux mutex,
+   consommer le droit puis exécuter la suite existante. Signup revalide l'absence
+   email/username/verification et MailHog sûr avant POST ; aucune adoption même
+   en rétention. Source modifiée, UID/epoch changé, ACK incertain ou erreur
+   d'ownership bloque toujours l'opération dépendante. Le mode n'autorise ni
+   injection de sessions, ni faux email vérifié, ni tuple FGA préchargé.
+3. Conserver **tous les39 cas**, leurs appels/assertions et fixture
+   `SIMULATED_PROVIDER`, login/refresh/completion/verification réels, organisations
+   et projection membership. Le DELETE revoke IAM et token404 sont obligatoires ;
+   leur suppression effective appartient au métier, pas au compte `removed` du
+   cleanup. Arrêter les corrections au premier oracle métier attesté, même FAIL,
+   **pas** la suite en cours ; la laisser terminer sans nouvel essai de campagne.
+4. **Finally/cleanup-probes C** : ne jamais appeler les quatre inverses finaux
+   (organisation, provider SQL, MailHog, compte), ni login/revoke/refresh de
+   récupération. Fermer/join les seuls tunnels/processus possédés via leurs
+   contextmanagers existants ; ne pas adopter/kill un marker/PID étranger ou
+   arrêter les workloads partagés. Puis émettre terminal/rapport de rétention.
+   `cleanup-probes` est un constat idempotent, pas une autorisation tardive de
+   suppression ; sur run actif/verrou occupé, refuser sans l'interrompre. Après
+   crash/marker incertain, conserver l'incertitude et BLOCKED jusqu'au diagnostic
+   parent ; ne pas redémarrer E2E pour « finir le cleanup ».
+   Le raccourci legacy `cleanup-probes` sans inputs/avec liste vide est refusé
+   dès que le slot C est claimé : exiger ses inputs/reçus liés pour ne pas rendre
+   un faux PASS/code0 en contournant le rapport RETAINED. Hors slot C, sa
+   sémantique stricte historique reste inchangée.
+
+La permission distincte de profil `infra-verifier` local-full a été accordée
+selon le parent : avant activation, vérifier que le profil OpenCode révisé est
+effectivement en place et que sa vérification requise s'exécute sur cette cible.
+Pas d'extension des autres profils ni substitution silencieuse d'un lecteur.
+Le présent lot n'écrit aucun profil et ne revendique pas ce contrôle infra.
+
+### 8.5 Sorties et codes de retour
+
+- Prepare C prêt : `status="READY_RETAINED"`, `prepared=true`, mode/consentement
+  liés au reçu, inverse non qualifié déclaré, `executed=0`, `evidence="NOT RUN"`,
+  code0 **de préparation uniquement**. Prérequis manquant/ambigu : BLOCKED/code2,
+  sans mutation et sans droit d'exécution attribué par un booléen d'input.
+- E2E : `suite_status` conserve PASS/FAIL/BLOCKED selon les39 cas ; chaque cas
+  conserve tenté/complété/attendu/observé. `cleanup` contient `status="RETAINED"`,
+  `complete=false`, `removed=0` (inverses finaux), `technical_status` PASS ou
+  BLOCKED et résidus/incertitudes expurgés. Si technique/journal incomplet,
+  `cleanup.status="BLOCKED"` ; jamais PASS.
+- Statut global : FAIL/code1 s'il y a un oracle FAIL ; sinon BLOCKED/code2 si un
+  cas reste BLOCKED/NOT RUN ou si cleanup technique/journal est incomplet ; sinon
+  **RETAINED/code3**. Aucun E2E C ne retourne0, même si les39 sont verts.
+  `launch_status="STARTED"` seulement sur `case-observed` métier requis valide
+  et binding courant ; sinon `NOT_PROVEN`. Il est orthogonal à suite/cleanup :
+  un FAIL/code1 peut attester le départ demandé, pas un PASS global.
+- Cleanup-probes : terminal et technique attestés => RETAINED/code3,
+  `removed=0`, `complete=false`, `executed=0` (aucun oracle métier) ; sinon
+  BLOCKED/code2. Ne pas laisser la branche générique actuelle du driver imprimer
+  PASS/code0 pour C. Une préparation terminalisée sans E2E garde
+  `launch_status="NOT_PROVEN"` et `effects_possible=false` si consumed absent.
+- Apparatus reste six obligations inchangées, non raccordées par C ; un input C
+  `suite=apparatus` est refusé avant mutation et le driver garde ses6 NOT RUN/
+  BLOCKED, jamais une preuve M6 ou un compte zéro obligations.
+
+### 8.6 Ownership et validation bornée du futur lot Ops
+
+Production Ops : `ops/tests/local_full_e2e.py` et
+`ops/tests/local-full-acceptance.py` seulement. Tests : auteur **test-engineer**
+distinct dans `test_local_full_e2e.py` / `test_local_full_acceptance_source.py`.
+Les nouveaux états/records sont des artefacts privés du runner, pas un schéma
+applicatif partagé ; aucun fichier durable utile ajouté sous `.tmp` à publier.
+La division helpers privés des deux modules est un choix local d'implémentation,
+pas une nouvelle frontière à arbitrer. Pas de modification de `local_full_target`,
+environnement, SDK, IAM/Telegraph/Sentinel, migrations, routes/politiques K8s.
+
+Tests discriminants avant correction quand possible :
+
+- V1 actuel garde son BLOCKED avant signup ; V2 sans consentement, champ inconnu,
+  mode/suite incorrects, mauvais hash/ACL/reparse/cible/epoch/HEAD refusés, zéro
+  HTTP métier/SQL mutateur. Pas de « rouge » obtenu par simple runtime absent.
+- Nominal C qualifie lectures/fixture, jamais les inverses ; quarante opérations
+  inventées interdites : exactement39 cas et6 Apparatus préservés. Les mocks
+  purement hermétiques ne sont ni des E2E ni une preuve du runtime.
+- Collision de prepare/claim ou de consommation concurrente : un seul droit ;
+  changement de receipt_path, même run via v1/nouveau reçu/alias lease, nouveau
+  consentement dans le slot consommé => refus sans mutation.
+- Crash après claim, après consumed avant HTTP, après signup/insert avec ACK
+  perdu, avant/après chaque terminal : aucune reprise métier ; terminalisation
+  idempotente ou BLOCKED/incertitude ; fichiers partiels jamais adoptés.
+- Finally sur FAIL/panic/timeout, cleanup répété et run actif : aucun des quatre
+  inverses finaux ni login de récupération, mais close/wait des enfants possédés
+  exercés ; refus de fermeture d'un marker/handle étranger et absence de fuite
+  masquée. Ne pas changer le helper de cible pour ce test : utiliser sa couture.
+- DELETE revoke requis, provider retiré/token404, checks de non-effet des refus
+  et compteurs restent inchangés. ACKs de création perdus restent incertains,
+  pas un motif de lookup/adoption même si on ne nettoie pas.
+- Oracle requis FAIL observé => STARTED/code1 ; BLOCKED, transport non observé,
+  PID/execution-started/smoke seul => NOT_PROVEN. Cas verts + rétention =>code3,
+  cleanup C jamais PASS/code0. Terminal RETAINED avec complete=false interdit
+  nouveau signup/refresh/fixture/exécution, mais autorise rapport final.
+- Aucun secret/corps/token/HMAC dans consentement/reçus/public/erreurs ; résidus
+  potentiels non présentés comme inventaire complet ou comme supprimés.
+
+Commandes **du futur lot**, Windows natif, séquentielles :
+`python -m unittest discover -s ops/tests -p test_local_full_e2e.py` puis
+`python -m unittest discover -s ops/tests -p test_local_full_acceptance_source.py`,
+et `git diff --check`. Elles ne sont pas exécutées pour cet amendement doc ;
+aucun Cargo/IT applicative nécessaire. Une insuffisance des coutures prévues
+revient au parent avant extension de périmètre, pas à un patch Rust implicite.
