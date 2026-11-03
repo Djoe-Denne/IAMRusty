@@ -31,3 +31,8 @@ Contrats :
 
 - [`telegraph-notification-outbox.md`](telegraph-notification-outbox.md)
   — Proposed : notification/livraison/outbox same-txn, disabled/no-op suspendu, cycle de vie SQS cancellation-safe autorisé (sous-lot T2 préalable), oracles AC1–AC7 ; prépare l'ADR complémentaire 0313, sans modifier 0301.
+
+- [`local-full-github-additive-activation.md`](local-full-github-additive-activation.md)
+  — Proposed / Unimplemented : activation GitHubConnect dans le full existant en
+  conservant GitLab, sources privées, identités des ressources et reprise OpenBao.
+  Aucun déploiement ou départ E2E autorisé par le seul contrat.

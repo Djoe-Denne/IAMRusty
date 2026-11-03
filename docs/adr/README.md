@@ -182,6 +182,13 @@ Contrats : cloud C/0602 = `docs/platform-cloud-v1-implementation-contract.md` ; 
 
 **Raccord OpenBao/GitHubConnect** : [contrat local/CI](../contracts/openbao-local-githubconnect-deployment.md), [mission](../missions/20261031-openbao-local-github-connect.md), [implémentation et preuves](../missions/20261101-openbao-deployment-implementation.md), **Proposed / Partial** ; consomme 0505 sous le profil local de 0606, sans nouvelle ADR ni Accept global. GO code acquis : root privé de bootstrap, Lazaret limité 8 h/expurgation/CA, GitHub borné, TLS et réseau restreint ; petit correctif HTTPS P4 autorisé séparément. Tests offline/natifs acquis, **runtime OpenBao/Kind et parcours réel non qualifiés** ; import réel toujours conditionné aux gates correspondantes.
 
+**Activation additive sur le full existant (2026-11-03)** :
+[contrat GitHub/GitLab](../contracts/local-full-github-additive-activation.md),
+**Proposed / Unimplemented**. Préimage IAM privée conservée, activation initiale
+distincte de la reprise OpenBao, références privées et UID des ressources seed
+déjà ACKées ; aucune rotation, adoption par nom, activation ou qualification E2E
+déduite de ce livrable documentaire. Ne modifie le Statut d'aucune ADR.
+
 | ID | Décision | Statut | Réalité |
 |---|---|---|---|
 | [0600](0600-cloud-portable-opentofu-k8s-gitops.md) | Trois couches compose/kind/remote k8s ; OpenTofu jusqu’au cluster ; premier adapter **GKE (`gcp`)** ; **Flux** + Kustomize ; image digest commune | Proposed | Unimplemented |
