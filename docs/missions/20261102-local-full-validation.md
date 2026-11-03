@@ -253,3 +253,49 @@ ou afficher de token ; aucune App, connexion interactive ou credential créée.
 
 Archives de cette suite :
 `C:/Users/djden/.aiforall-local-validations/20261102-wiring-e877d9eb8a4c/`.
+
+## Reprise du 3 novembre — intégration statique du raccord protégé
+
+Reprise explicitement demandée après pause. Base publiée
+`c549dbd6b75fb56058a0e161b85d102e3bfef8cd`, SDK inchangé `93b890f`. Les quatre
+fichiers de l'adaptateur conservé ont été intégrés par patch borné, avec égalité
+SHA256 vérifiée aux octets revus. Aucun nouveau déploiement, réveil de runtime,
+appel métier, accès à une clé ou SQL live pour cette reprise.
+
+**153 tests purs intégrés PASS** : adaptateur37, driver30 et gates précédents86.
+Ce total remplace une addition de campagnes historiques ; ce n'est pas153E2E.
+La revue correctness a clos C1/C2/C3 dans le code : reçu terminal non réutilisable,
+qualification du registre réel avant création et blocage avant signup tant que
+l'inverse Telegraph manque. Le dernier point ferme le faux PASS de cleanup,
+**pas** le manque d'inverse. La revue sécurité finalisée sur les octets inchangés
+clôt S-1 en source : empreinte de ligne provider complète dans le prédicat DELETE
+atomique ; gardes PKI readonly-client sans changement d'attribut OS. Ni l'une ni
+l'autre ne donne de GO métier ou de qualification PostgreSQL réelle.
+
+Le lanceur conserve les39cas mesh et les6obligations Apparatus, y compris lors
+d'un prérequis refusé. Il charge l'adaptateur depuis le chemin fixe du dépôt,
+sans wrapper legacy, autorité d'input libre ou setup caché. Les options et limites
+sont documentées dans `ops/deploy/README.md`.
+
+### Conditions précises pour la suite métier
+
+1. Qualifier un connector GitHub explicitement enregistré pour les cas fixes,
+   éventuellement contre un provider local simulé, sans token vendor ni activation
+   silencieuse dans le profil existant.
+2. Qualifier la provenance des notifications/deliveries créées et un inverse
+   exact, avec frontière de fin des effets asynchrones, avant tout signup. Aucune
+   purge générale ou suppression par seul nom/utilisateur n'est autorisée ici.
+3. Raccorder les six preuves Apparatus au standalone réel : sign/admission,
+   scheduling, session/invoke, zéro-hop réellement observable et canary possédé.
+   Le `CountingLocator` injecté du test Rust n'est pas une preuve déployée.
+
+Ces points constituent un lot structurel distinct à borner avant changement
+applicatif ou de manifest. **Objectif E2E métier non clôturé** ; pas de nouveau
+run live pour répéter un blocage établi, ni de statuts assouplis pour obtenir PASS.
+Les deux échecs publics unknown-provider restent également ouverts ; leur
+correction d'exemption réseau n'est pas glissée dans cette intégration.
+
+Archives de reprise et preuves des octets/tests :
+`C:/Users/djden/.aiforall-local-validations/20261103-resume-a707a0f6ac14/`.
+Publication et disposition du worktree temporaire sont tracées dans le ledger
+de mission et le retour de livraison ; préserver l'UI Obsidian étrangère.

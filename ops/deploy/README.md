@@ -295,17 +295,49 @@ Write-NewJson $environment ([ordered]@{
 Ajouter `public_ca_path` seulement si nécessaire, pointant un certificat public. Les champs inconnus, overrides ambigus et cibles/URLs contradictoires sont refusés ; le descripteur ne prouve pas la propriété, **seul le bail vérifié fait autorité**. Interface du lot validation (à utiliser après son intégration) :
 
 - **Smoke** : `python -B ops/tests/local-full-acceptance.py smoke --environment $environment` — readiness/disponibilité (`get`/`wait`), aucune mutation ni préparation cachée. Ready ne prouve ni métier ni AuthZ.
-- **Curl public full** : `python -B ops/tests/local-full-acceptance.py route-matrix --environment $environment --cases ops/tests/mesh-public-route-cases-local-full.json` — contrôles publics seulement, sans credentials ni seed. Le full livré déclare `connectors=[]` : les deux démarrages OAuth attendent exclusivement **422** et sont comptés dans `oauth_login_unavailable` (parcours indisponibles, pas logins réussis). La matrice `mesh-public-route-cases.json` conserve **303** pour un profil connecté ; elle n'est pas la matrice nominale full. Le rapport distingue `coverage.public` (PASS/LIVE possible) de `coverage.authenticated` (**NOT RUN**, setup **BLOCKED**) ; les positifs/négatifs authentifiés relèvent du canal E2E ci-dessous, pas du PASS public.
+- **Curl public full** : `python -B ops/tests/local-full-acceptance.py route-matrix --environment $environment --cases ops/tests/mesh-public-route-cases-local-full.json` — contrôles publics seulement, sans credentials ni seed. Ce fichier vise le **profil base** `connectors=[]` : les deux démarrages OAuth attendent exclusivement **422**, comptés dans `oauth_login_unavailable` (indisponibles, pas logins réussis). Le runtime existant peut utiliser l'oauth-proof GitLab : sélectionner alors explicitement la variante décrite ci-dessous après qualification du profil monté. La matrice générique `mesh-public-route-cases.json` vise un autre profil connecté ; ce n'est pas un fallback. `coverage.public` reste distinct de `coverage.authenticated` (**NOT RUN** par cette commande) ; aucun PASS public ne couvre les parcours métier.
 - **E2E** : `python -B ops/tests/local-full-acceptance.py e2e --environment $environment --suite mesh-authn --inputs <JSON-privé>` (ou `--suite apparatus`) — état métier déclaré. Ressources de test via actions séparées `prepare-probes`/`cleanup-probes`, IDs/UID attestés ; jamais préparées par smoke/curl. Setup indisponible ⇒ BLOCKED.
 
-**État actuel du canal E2E full : non exécutable.** L'entrée CLI existe, mais
-`explicit_probe_action` refuse encore inconditionnellement `prepare-probes` et
-`e2e`, même avec un JSON v1 valide : préparation full/sondes attestées non livrées.
-Cela ne se résout pas en fournissant des credentials ou en lançant les anciens
-drivers du profil legacy. Smoke et routes publiques restent des contrôles séparés,
-jamais une preuve des parcours authentifiés. Le lanceur autonome résout ses
-dépendances locales depuis le dépôt ; une dépendance manquante est BLOCKED, pas
-un faux échec de service LIVE avant toute sonde.
+**État actuel du canal E2E full : raccord partiel, lancement métier bloqué.**
+`explicit_probe_action` délègue désormais au module fixe `local_full_e2e.py`.
+Il conserve les **39 cas mesh** et **6 obligations Apparatus**, avec états nommés,
+comptage complet et reçus privés ; le second raccord reste explicitement
+`INCOMPLETE`. Les tests doubles ne qualifient ni PostgreSQL, ni TLS, ni les
+parcours réellement déployés.
+
+Deux prérequis empêchent actuellement de créer un compte :
+- Les cas S2S fixes utilisent `github`, qui doit être enregistré dans l'IAM
+  **effectif** avant même le lookup du token. Le profil GitLab seul observé ne
+  satisfait pas ce prérequis ; une ligne SQL synthétique ne le remplace pas.
+- L'inverse exact des notifications/deliveries Telegraph et la fin de leur
+  consommation asynchrone ne sont pas qualifiés. La garde refuse avant signup ;
+  ce refus est une protection livrée, pas un nettoyage implémenté.
+
+Ne pas contourner ces gardes par une activation implicite de provider, une purge,
+un changement des statuts attendus ou un driver legacy. Un token personnel GitHub
+ne résout pas ces deux prérequis. Smoke et routes publiques restent séparés des
+E2E authentifiés. Une dépendance locale manquante est BLOCKED, pas un faux échec
+de service LIVE avant sonde.
+
+Les inputs privés v1 ont exactement les champs `version`, `run_id` (UUIDv4 neuf),
+`suite`, `provider_mode` (`SIMULATED_PROVIDER`), `credentials_path`, `pki_directory`
+et `receipt_path`. Le fichier de credentials contient seulement `password` et
+`internal_token`, jamais un PAT GitHub ; inputs/credentials/reçus sont scellés et
+privés. La PKI hôte existante est ouverte en lecture seule, sans changer ses ACL,
+attributs ou octets ; `public_ca_path` du descripteur référence sa CA mesh publique.
+Un reçu ne donne aucune propriété hors du bail/UID courant.
+
+```powershell
+python -B ops/tests/local-full-acceptance.py prepare-probes --environment $environment --inputs <JSON-privé>
+# Continuer uniquement si prepare-probes réussit ; pas de setup caché dans e2e.
+python -B ops/tests/local-full-acceptance.py e2e --environment $environment --suite mesh-authn --inputs <JSON-privé>
+python -B ops/tests/local-full-acceptance.py cleanup-probes --environment $environment --inputs <JSON-privé>
+```
+
+`prepare-probes` lit sa suite dans les inputs, pas dans un flag `--suite`.
+Un reçu nettoyé est terminal : nouvelle exécution ⇒ nouveau run, sans adoption.
+Cleanup incomplet ou ACK incertain interdit code0. Aucun de ces exemples ne
+signifie que les prérequis sont actuellement acquis.
 Résultats et limites de la demande réelle :
 [validation du local-full réparé](../../docs/missions/20261102-local-full-validation.md).
 

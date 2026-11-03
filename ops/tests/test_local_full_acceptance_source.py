@@ -433,6 +433,37 @@ class AcceptanceGuardTests(unittest.TestCase):
         self.assertEqual((report["expected"], report["executed"], report["failed"], report["blocked"]), (1, 0, 0, 1))
         self.assertNotIn("SECRET-CONTENT", output.getvalue())
 
+    def test_e2e_invalid_environment_preserves_full_named_denominator(self):
+        module = self.load()
+        for suite, count in (("mesh-authn", 39), ("apparatus", 6)):
+            output = io.StringIO()
+            with patch("sys.argv", [str(SOURCE), "e2e", "--suite", suite, "--environment", "environment.json", "--inputs", "inputs.json"]), patch.object(
+                    module, "bind_environment", side_effect=ValueError("SECRET-CONTENT")), contextlib.redirect_stdout(output):
+                self.assertEqual(module.main(), 2)
+            report = json.loads(output.getvalue())
+            self.assertEqual((report["expected"], report["executed"], report["blocked"]), (count, 0, count))
+            self.assertEqual(len(report["cases"]), count)
+            self.assertNotIn("SECRET-CONTENT", output.getvalue())
+
+    def test_e2e_all_oracles_pass_but_cleanup_incomplete_is_not_code_zero(self):
+        module = self.load()
+        def bind(args):
+            args.environment_data = {}
+            args.lease = Path("fake-lease.json")
+        def run(args, data):
+            results = module.e2e_adapter().Results("mesh-authn")
+            for case in results.cases.values():
+                case.update(status="PASS", completed=True, attempted=True, evidence="LIVE")
+            args.e2e_report = {**results.report(), "cleanup": {"status": "BLOCKED", "residuals": ["account"]}}
+        output = io.StringIO()
+        with patch("sys.argv", [str(SOURCE), "e2e", "--suite", "mesh-authn", "--environment", "environment.json", "--inputs", "inputs.json"]), patch.object(
+                module, "bind_environment", side_effect=bind), patch.object(module.runtime, "operation_lock", return_value=contextlib.nullcontext()), patch.object(
+                module.runtime, "lease", return_value={}), patch.object(module, "explicit_probe_action", side_effect=run), contextlib.redirect_stdout(output):
+            self.assertEqual(module.main(), 2)
+        report = json.loads(output.getvalue())
+        self.assertEqual(report["status"], "BLOCKED")
+        self.assertEqual((report["expected"], report["passed"], report["blocked"]), (39, 39, 0))
+
     def test_checker_preserves_eleven_paths_and_adds_moved_validation_paths(self):
         root = SOURCE.resolve().parents[2]
         source = (root / "ops/scripts/validate-deploy-static.ps1").read_text()

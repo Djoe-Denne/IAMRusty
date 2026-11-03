@@ -1,4 +1,4 @@
-"""Explicit lease-gated local-full validation; never deploy or seed.
+"""Explicit lease-gated local-full validation; never deploy services.
 
 Requires parent-provisioned exact leased probe pods and completed D operations.
 No optional skips: a missing lease/resource/tool/fixture is a failure.
@@ -10,6 +10,7 @@ import importlib.util
 import json
 import re
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -163,19 +164,28 @@ def public_coverage_report(args, status, evidence):
         "oauth_login_unavailable": getattr(args, "oauth_login_unavailable", 0)}
 
 
+def e2e_adapter():
+    """Load only the fixed local adapter, not an ambient module or legacy runner."""
+    adapter_spec = importlib.util.spec_from_file_location("local_full_e2e", Path(__file__).with_name("local_full_e2e.py"))
+    adapter = importlib.util.module_from_spec(adapter_spec)
+    adapter_spec.loader.exec_module(adapter)
+    return adapter
+
+
 def explicit_probe_action(args, data):
-    # No approved full setup exists yet. Never reuse mutating legacy drivers.
+    # Legacy empty cleanup remains a proven no-op, never deletion authority.
     inputs = strict_json(args.inputs) if args.inputs else None
-    if args.action == "cleanup-probes":
-        if inputs is not None and (not isinstance(inputs, dict) or set(inputs) != {"version", "created_resources"}
-                                   or type(inputs["version"]) is not int or inputs["version"] != 1
-                                   or inputs["created_resources"] != []):
-            raise ValidationBlocked("cleanup refused: no resources were created or attested by prepare-probes")
+    if args.action == "cleanup-probes" and (inputs is None or inputs == {"version": 1, "created_resources": []}):
         args.executed += 1
-        return  # Explicit no-op: prepare-probes has never created resources.
-    if not isinstance(inputs, dict) or type(inputs.get("version")) is not int or inputs["version"] != 1:
-        raise ValidationBlocked("private v1 inputs with declared operator state required")
-    raise ValidationBlocked("approved full setup/UID-attested probes unavailable; legacy seed/rollout forbidden")
+        return
+    if not isinstance(inputs, dict) or not {"version", "run_id", "suite"} <= inputs.keys():
+        raise ValidationBlocked("private E2E v1 inputs with explicit run/suite required")
+    # Fixed repository module, not an ambient PYTHONPATH module or legacy wrapper.
+    adapter = e2e_adapter()
+    try:
+        return adapter.run_action(SimpleNamespace(**globals()), args, data)
+    except adapter.Blocked as error:
+        raise ValidationBlocked(str(error)) from error
 
 
 def git_revision():
@@ -433,7 +443,7 @@ def main():
     parser.add_argument("--cases", type=Path)
     args = parser.parse_args()
     args.executed = 0
-    expected = 1
+    expected = (39 if args.suite == "mesh-authn" else 6) if args.action == "e2e" and args.suite else 1
     revision = "NOT RUN"
     try:
         revision = git_revision()
@@ -458,6 +468,8 @@ def main():
                 expected = len(NAMESPACES) + len(SMOKE_DEPLOYMENTS) + 2
             elif args.action == "e2e" and (not args.suite or not args.inputs):
                 raise ValidationBlocked("explicit suite and private inputs required")
+            elif args.action == "e2e":
+                expected = 39 if args.suite == "mesh-authn" else 6
             with runtime.operation_lock(args.lease, "acceptance-" + args.action):
                 data = runtime.lease(args.lease)
                 if args.action == "smoke":
@@ -487,6 +499,16 @@ def main():
     except Exception as error:
         blocked = isinstance(error, (ValidationBlocked, ValueError, OSError, ImportError, anchor_module.AnchorError))
         executed = args.executed if blocked else min(expected, args.executed + 1)
+        if args.action == "e2e" and args.suite:
+            report = getattr(args, "e2e_report", None)
+            if report is None:
+                inventory = e2e_adapter().Results(args.suite)
+                inventory.block_remaining("action prerequisite rejected; no oracle completed")
+                report = inventory.report()
+            print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action, "suite": args.suite,
+                              "status": "BLOCKED" if blocked else "FAIL", "evidence": "LIVE" if report["executed"] else "NOT RUN",
+                              **report, "reason": "validation prerequisite or journal failed; details redacted"}))
+            return 2 if blocked else 1
         print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action,
                           **public_coverage_report(args, "BLOCKED" if blocked else "FAIL", "NOT RUN" if not executed else "LIVE"),
                           "status": "BLOCKED" if blocked else "FAIL", "evidence": "NOT RUN" if not executed else "LIVE",
@@ -495,13 +517,27 @@ def main():
                           "reason": str(error) if isinstance(error, ValidationBlocked) else
                                     "validation rejected or failed (" + type(error).__name__ + "); response/credentials redacted"}))
         return 2 if blocked else 1
+    if getattr(args, "e2e_report", None) is not None:
+        report = args.e2e_report
+        status = "FAIL" if report["failed"] else "BLOCKED" if report["blocked"] or report["cleanup"]["status"] != "PASS" else "PASS"
+        print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action, "suite": args.suite,
+                          "status": status, "evidence": "LIVE" if report["executed"] else "NOT RUN", **report}))
+        return 0 if status == "PASS" else 1 if status == "FAIL" else 2
+    if getattr(args, "preparation_report", None) is not None:
+        report = args.preparation_report
+        status = "PASS" if report["prepared"] else "BLOCKED"
+        print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action, "status": status,
+                          "expected": 1, "executed": args.executed, "failed": 0, "blocked": int(not report["prepared"]),
+                          "evidence": "NOT RUN", **report}))
+        return 0 if report["prepared"] else 2
     print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action, "status": "PASS",
+                       **({"cleanup": args.cleanup_report} if getattr(args, "cleanup_report", None) else {}),
                       **public_coverage_report(args, "PASS", "LIVE"),
-                      "evidence": "NOT RUN" if args.action == "cleanup-probes" else "LIVE",
+                       "evidence": "NOT RUN" if args.action == "cleanup-probes" and not getattr(args, "cleanup_report", {}).get("removed") else "LIVE",
                       "expected": expected, "executed": args.executed, "failed": 0, "blocked": 0,
                       "scope": "readiness only; business/AuthZ NOT RUN" if args.action == "smoke" else
                                "public routes only; authenticated business/AuthZ NOT RUN (e2e setup BLOCKED)" if args.action == "route-matrix" and args.environment_data else
-                               "no resources created; cleanup no-op" if args.action == "cleanup-probes" else
+                                ("strict owned fixture cleanup" if getattr(args, "cleanup_report", None) else "no resources created; cleanup no-op") if args.action == "cleanup-probes" else
                                "LocalStack/MailHog/catalogue/OpenBao DEV/Zot are simulated dependencies; no production equivalence"}))
     return 0
 
