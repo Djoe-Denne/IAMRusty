@@ -19,7 +19,12 @@ use tracing::error;
 
 const USER_AGENT: &str = "GitHub-Connect";
 const HTTP_TIMEOUT: Duration = Duration::from_secs(10);
-const SCOPE: &str = "user";
+// Sign-in only: id/login/avatar are public; read the primary email and its
+// verified flag without granting profile writes, follows or repository access.
+// TODO(github-delegation): before services act on a user's behalf, define the
+// required API permissions and obtain explicit additional consent. Do not widen
+// login scopes preemptively; see docs/guides/github-sign-in-and-delegation.md.
+const SCOPE: &str = "user:email";
 
 /// GitHub federated OAuth client (vendor HTTP only).
 pub struct GitHubConnectClient {
@@ -404,6 +409,39 @@ mod transport_tests {
         )
         .unwrap_err();
         assert!(!error.to_string().contains("SENTINEL-VENDOR-SECRET"));
+    }
+
+    #[tokio::test]
+    async fn sign_in_requests_only_email_read_scope_with_or_without_pkce() {
+        let redirect = "https://app.example/callback";
+        let config = GitHubConfig {
+            secrets_mode: SecretsMode::Direct,
+            client_secret: "synthetic-oauth-secret".into(),
+            redirect_uris: vec![redirect.into()],
+            ..GitHubConfig::default()
+        };
+        let client = GitHubConnectClient::from_config_with_transport_and_pkce(
+            &config,
+            VendorTransportSecurity::Verified,
+            true,
+        )
+        .unwrap();
+        let challenge = "a".repeat(43);
+
+        for code_challenge in [None, Some(challenge.as_str())] {
+            let response = client
+                .authorize_with_pkce(redirect, "opaque", code_challenge)
+                .await
+                .unwrap();
+            let url = reqwest::Url::parse(&response.authorization_url).unwrap();
+            let scopes: Vec<_> = url
+                .query_pairs()
+                .filter(|(key, _)| key == "scope")
+                .map(|(_, value)| value.into_owned())
+                .collect();
+            assert_eq!(scopes, ["user:email"]);
+            assert_eq!(response.scope, "user:email");
+        }
     }
 
     #[tokio::test]
