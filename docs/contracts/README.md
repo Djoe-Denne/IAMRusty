@@ -36,3 +36,8 @@ Contrats :
   — Proposed / Unimplemented : activation GitHubConnect dans le full existant en
   conservant GitLab, sources privées, identités des ressources et reprise OpenBao.
   Aucun déploiement ou départ E2E autorisé par le seul contrat.
+
+- [`local-full-telegraph-e2e-inverse.md`](local-full-telegraph-e2e-inverse.md)
+  — Constat sourcé : inverse actuel non qualifié, garde avant signup conservée.
+  Compare des solutions durables et une rétention locale explicitement proposée ;
+  aucune option ratifiée, aucun correctif Rust ou lancement autorisé implicitement.

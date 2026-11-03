@@ -189,6 +189,15 @@ distincte de la reprise OpenBao, références privées et UID des ressources see
 déjà ACKées ; aucune rotation, adoption par nom, activation ou qualification E2E
 déduite de ce livrable documentaire. Ne modifie le Statut d'aucune ADR.
 
+**Nettoyage des effets Telegraph avant E2E (2026-11-03)** :
+[constat et options à arbitrer](../contracts/local-full-telegraph-e2e-inverse.md).
+Les surfaces actuelles ne qualifient pas la provenance et la fermeture causale
+des effets ; la garde avant signup reste active. Les registres durables, le
+contexte d'événement versionné et la rétention locale sont des propositions
+distinctes, pas des décisions Accepted ni une permission de contourner la garde.
+Le témoin de lancement reste un oracle métier réellement exécuté, même rouge,
+pas un simple PID, smoke ou préflight bloqué.
+
 | ID | Décision | Statut | Réalité |
 |---|---|---|---|
 | [0600](0600-cloud-portable-opentofu-k8s-gitops.md) | Trois couches compose/kind/remote k8s ; OpenTofu jusqu’au cluster ; premier adapter **GKE (`gcp`)** ; **Flux** + Kustomize ; image digest commune | Proposed | Unimplemented |
