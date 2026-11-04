@@ -98,6 +98,8 @@ def iam_template(objects):
         if len(volumes) != 1:
             raise ValueError
         volume = volumes[0]
+        if set(volume) - {"name"} not in ({"secret"}, {"configMap"}):
+            raise ValueError
         private = "secret" in volume
         reference = volume["secret" if private else "configMap"]
         name = reference["secretName" if private else "name"]

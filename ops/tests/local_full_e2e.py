@@ -760,7 +760,7 @@ class Services:
         capability = getattr(anchor, "e2e_forward", None)
         if not callable(capability):
             raise Blocked("parent e2e_forward capability unavailable: " + service)
-        body_failed = False
+        body_error = None
         try:
             resource = self.resource("Service", service)
         except Exception as error:
@@ -774,11 +774,13 @@ class Services:
                     raise Blocked("invalid guarded forward port")
                 try:
                     yield port
-                except BaseException:
-                    body_failed = True
+                except BaseException as error:
+                    body_error = error
                     raise
         except (ValueError, RuntimeError) as error:
-            if not body_failed:
+            # Propagating the body exception is not a failed close; a distinct
+            # lifecycle exception must remain uncertain even when the body failed.
+            if error is not body_error:
                 self.technical_cleanup_failed = True
             raise Blocked("guarded forward identity/lifecycle unavailable: " + service) from error
 

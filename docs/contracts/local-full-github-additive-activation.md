@@ -8,7 +8,8 @@ documentaire ; le contrat seul ne constitue ni autorisation runtime ni preuve E2
 `1e89ff58143aaa59342d266d2611fd70036f43f4` : sélection du document IAM réellement
 monté, composition privée GitLab+GitHub conservatrice, snapshot suivant ce volume,
 bundle CA GitLab conservé et lectures privées revalidées. Les régressions initiales
-OpenBao passent (13 tests), ainsi que l'environnement (19) et les profils (2),
+OpenBao et leurs compléments passent (19 tests), ainsi que l'environnement (26)
+et les profils (2, preuve antérieure réutilisée),
 sans modification des tests par l'auteur de production. Le module d'alignement
 navigateur conserve une erreur préexistante vérifiée (12 tests, une erreur de
 fixture), pas un PASS. **L'activation initiale, l'état pending/active, ses ACK et
@@ -18,10 +19,11 @@ déploiement ou lancement E2E n'est déduit de cette tranche. Les sections ci-de
 conservent leur statut de contrat cible, pas de description d'une activation faite.
 
 Complément à arbitrer : [qualification IAM initiale et post-snapshot](local-full-iam-preimage-qualification.md),
-**Proposed / Unimplemented**. Accord utilisateur local reçu le 2026-11-04 pour
-la seule exception nommée du §3 de ce complément ; admission native de la couture
-d'ancre et de ses tests encore requise. Le refus générique Secret GET reste
-applicable hors de cette exception, qui n'est pas encore implémentée.
+**Proposed / Partial**. Accord utilisateur local reçu le 2026-11-04 pour
+la seule exception nommée du §3 de ce complément ; méthode privée d'ancre intégrée,
+sans émetteur d'autorité livré. Ses tests nouveaux restent en cours. Le refus
+générique Secret GET est inchangé ; la méthode sans autorité refuse avant sonde.
+Ni ce code ni ses 56 tests historiques ne qualifient l'activation ou le snapshot.
 
 ## 1. Autorité, décision et sources
 
