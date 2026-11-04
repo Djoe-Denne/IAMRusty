@@ -29,7 +29,8 @@ Après un changement infra **significatif**, ou quand le parent demande une preu
 ## Vérifier (read-only)
 
 - Docker : `docker ps`, healthchecks, logs récents du service touché
-- Kubernetes : contexte `kind-aiforall-local` seulement ; nodes, pods, events, endpoints
+- Kubernetes : liste close des contextes `kind-aiforall-local` et `kind-aiforall-local-full`, en lecture seule ; nodes, pods, events, endpoints. Pour `kind-aiforall-local-full`, exiger avant toute sonde une `LocalClusterTargetAnchor` validée et le bail de mission attesté ; aucune commande kubectl ambiante ni cible libre.
+- Cibles protégées : ne jamais sonder `kind-apparatus-p4-it`, `rancher-desktop` ni aucun autre cluster hors de cette liste close. Lire des Secrets seulement sur autorisation explicite relayée par le parent, jamais implicitement.
 - Envoy : admin read-only **si** une instance tourne déjà et est joignable sans publier le port
 - Chemin réseau : hop client → … → workload si le changement le concerne
 

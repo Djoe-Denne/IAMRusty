@@ -230,6 +230,136 @@ class EnvironmentTests(PowerFixture):
 
 
 class CofferRecoveryTests(unittest.TestCase):
+    def recovery_fixture(self):
+        target = Mock()
+        target.data = {"ownedResources": [{"kind": "Deployment", "name": "github-connect", "namespace": environment.CLUSTER}]}
+        reference = {"path": "synthetic-private-file", "size": 1, "mtime_ns": 1}
+        state = {"lease_path": "synthetic-original-lease", "github_input": reference, "pending_epoch": "epoch-two"}
+        inputs = {"version": 1, "client_id": "synthetic-client", "client_secret": "SYNTHETIC_OAUTH_PRIVATE", "hmac_secret": "b" * 64}
+        deployment = {"metadata": {"uid": "owned", "resourceVersion": "10"}, "spec": {"template": {
+            "metadata": {"labels": {}}, "spec": {"initContainers": [{"name": "openbao-snapshot"}, {"name": "openbao-agent"}],
+            "volumes": [{"name": "github-config", "configMap": {"name": "github-config"}},
+                        {"name": "openbao-scripts", "configMap": {"name": "scripts"}}]}}}}
+        def resource(_target, kind, name, *_args):
+            if kind == "ConfigMap":
+                return {"data": {"development.toml": '[github]\nclient_id="synthetic-client"'}}
+            return deployment
+        return target, state, inputs, deployment, resource
+
+    def test_g2_g4_recovery_refusals_precede_seed_and_all_patches(self):
+        for refusal in ("missing-source", "changed-source", "wrong-client", "legacy-identity"):
+            with self.subTest(refusal=refusal):
+                target, state, inputs, deployment, resource = self.recovery_fixture()
+                reference = state["github_input"]
+                if refusal == "missing-source":
+                    state.pop("github_input")
+                if refusal == "wrong-client":
+                    inputs["client_id"] = "foreign-client"
+                if refusal == "legacy-identity":
+                    deployment["spec"]["template"]["spec"]["initContainers"] = []
+                runtime, save, secret = Mock(), Mock(), Mock()
+                original = copy.deepcopy(state)
+                with patch.object(environment, "owned", side_effect=resource), \
+                        patch.object(environment, "input_reference", return_value={**reference, "size": 2} if refusal == "changed-source" else reference):
+                    with self.assertRaises(ValueError) as raised:
+                        environment.recover_coffer(target, state, save, runtime, Mock(return_value=inputs), secret)
+                runtime.create.assert_not_called()
+                secret.assert_not_called()
+                save.assert_not_called()
+                target.kubectl.assert_not_called()
+                self.assertEqual(state, original)
+                for value in (inputs["client_secret"], inputs["hmac_secret"]):
+                    self.assertNotIn(value, str(raised.exception) + json.dumps(state))
+
+    def test_g4_lost_create_ack_records_uncertainty_and_refuses_adoption(self):
+        target, state, inputs, _deployment, resource = self.recovery_fixture()
+        runtime, save = Mock(), Mock()
+        runtime.create.side_effect = ValueError("synthetic ACK lost")
+        with patch.object(environment, "owned", side_effect=resource), \
+                patch.object(environment, "input_reference", return_value=state["github_input"]):
+            with self.assertRaisesRegex(ValueError, "ACK lost"):
+                environment.recover_coffer(target, state, save, runtime, Mock(return_value=inputs), Mock())
+        self.assertIn("recovery_job", state)
+        self.assertNotIn("recovery_seeded_epoch", state)
+        self.assertEqual(state["pending_epoch"], "epoch-two")
+        save.assert_called_once()
+        recorded = copy.deepcopy(state)
+        runtime.reset_mock()
+        def expired_job(t, kind, name, *args):
+            if kind == "Job":
+                raise ValueError("job ACK absent; no adoption")
+            return resource(t, kind, name, *args)
+        with patch.object(environment, "owned", side_effect=expired_job), \
+                patch.object(environment, "input_reference", return_value=state["github_input"]):
+            with self.assertRaisesRegex(ValueError, "no adoption"):
+                environment.recover_coffer(target, state, save, runtime, Mock(return_value=inputs), Mock())
+        runtime.create.assert_not_called()
+        target.kubectl.assert_not_called()
+        self.assertEqual(state, recorded)
+
+    def test_g2_g3_initial_source_is_not_silently_registered_by_ordinary_up(self):
+        # Activation is a separate operation; local-up must retain its strict guard.
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp) / "synthetic-input.json"
+            source.write_text("{}")
+            reference = {"path": str(source), "size": 2, "mtime_ns": 1}
+            directory = Path(temp) / "environment"
+            directory.mkdir()
+            state = {"schema": environment.SCHEMA, "lease_path": str(Path(temp) / "original-lease"),
+                     "registry_state": None, "github_input": None}
+            state_file = directory / "environment.json"
+            state_file.write_text(json.dumps(state))
+            original = state_file.read_bytes()
+            args = SimpleNamespace(action="up", environment_dir=directory, lease=None,
+                                   registry_state=None, github_input_file=source)
+            with patch.object(environment.pki, "private_directory"), \
+                    patch.object(environment, "input_reference", return_value=reference), \
+                    patch.object(environment, "LocalClusterTargetAnchor") as target:
+                with self.assertRaisesRegex(ValueError, "private source changed"):
+                    environment.operate(args, Mock(), Mock(), Mock())
+            target.assert_not_called()
+            self.assertEqual(state_file.read_bytes(), original)
+
+    def test_g4_seed_foundations_require_ack_uid_and_original_lease(self):
+        for kind, name in (("ServiceAccount", "github-seed"),
+                           ("NetworkPolicy", "allow-openbao-from-github-seed"),
+                           ("NetworkPolicy", "allow-github-seed-to-openbao")):
+            for mismatch in ("none", "uid", "cluster", "context", "namespace", "ack"):
+                with self.subTest(kind=kind, mismatch=mismatch):
+                    entry = {"kind": kind, "name": name, "namespace": environment.CLUSTER,
+                             "uid": "acked-uid", "cluster": environment.CLUSTER, "context": "owned-context"}
+                    target = Mock()
+                    target.data = {"cluster": environment.CLUSTER, "context": "owned-context",
+                                   "namespaceUids": {environment.CLUSTER: "owned-ns"}, "ownedResources": [entry]}
+                    if mismatch in ("uid", "cluster", "context"):
+                        entry[mismatch] = "foreign"
+                    if mismatch == "ack":
+                        target.data["ownedResources"] = []
+                    obj = {"metadata": {"uid": "acked-uid"}, "spec": {"synthetic": True}}
+                    target.kubectl.side_effect = ["foreign-ns" if mismatch == "namespace" else "owned-ns", json.dumps(obj)]
+                    if mismatch == "none":
+                        self.assertEqual(environment.owned(target, kind, name), obj)
+                    else:
+                        with self.assertRaisesRegex(ValueError, "not owned"):
+                            environment.owned(target, kind, name)
+                    self.assertTrue(all(c.args[0][0] == "get" for c in target.kubectl.call_args_list))
+
+    def test_g4_second_epoch_cannot_complete_interrupted_attempt(self):
+        state = {"engine": "engine", "epoch": "epoch-one", "pending_epoch": "epoch-two",
+                 "recovery_job": "same-attempt", "recovery_seeded_epoch": "epoch-two"}
+        original = copy.deepcopy(state)
+        target, save, runtime = Mock(), Mock(), Mock()
+        with patch.object(environment, "coffer_epoch", return_value="epoch-three"), \
+                patch.object(environment, "resync_api_policies"), \
+                patch.object(environment, "recover_coffer") as recover:
+            with self.assertRaisesRegex(ValueError, "another coffer epoch interrupted"):
+                environment.running_operation(SimpleNamespace(action="up"), state, save, target,
+                                              None, [{"running": True}], runtime, Mock(), Mock())
+        recover.assert_not_called()
+        save.assert_not_called()
+        self.assertEqual(state, original)
+        self.assertFalse(any(c.args[0][0] in {"patch", "apply", "delete"} for c in target.kubectl.call_args_list))
+
     def test_reuses_nonroot_seed_and_only_patches_identity_annotations(self):
         target = Mock()
         target.data = {"ownedResources": [{"kind": "Deployment", "name": "github-connect", "namespace": environment.CLUSTER}]}

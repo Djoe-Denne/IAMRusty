@@ -11,12 +11,122 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+from types import SimpleNamespace
 import unittest
 import uuid
 import yaml
 from unittest.mock import Mock, patch
 
 SOURCE = Path(__file__).with_name("local-full-acceptance.py")
+
+
+class RetentionDriverContractTests(unittest.TestCase):
+    """C-G6/7, §8.5: reporting is not permission or a live E2E proof.
+
+    The adapter's report is an input to this driver boundary. These tests do not
+    claim to prove its causal journal or tunnel ownership using fake results.
+    """
+
+    def invoke(self, action, report_name, adapter_report):
+        module = AcceptanceGuardTests().load()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            argsv = [str(SOURCE), action, "--environment", str(root / "environment.json"),
+                     "--inputs", str(root / "inputs.json")]
+            if action == "e2e":
+                argsv += ["--suite", "mesh-authn"]
+
+            def bind(args):
+                args.environment_data = {}
+                args.lease = root / "lease.json"
+
+            def run(args, data):
+                setattr(args, report_name, adapter_report)
+                args.executed = adapter_report.get("executed", 0)
+
+            output = io.StringIO()
+            with patch("sys.argv", argsv), patch.object(module, "git_revision", return_value="test-fixed-head"), patch.object(
+                    module, "bind_environment", side_effect=bind), patch.object(
+                    module.runtime, "operation_lock", return_value=contextlib.nullcontext()), patch.object(
+                    module.runtime, "lease", return_value={}), patch.object(
+                    module, "explicit_probe_action", side_effect=run), contextlib.redirect_stdout(output):
+                code = module.main()
+            return code, json.loads(output.getvalue())
+
+    def suite_report(self, *, oracle="PASS", technical="PASS"):
+        module = AcceptanceGuardTests().load()
+        results = module.e2e_adapter().Results("mesh-authn")
+        for case in results.cases.values():
+            case.update(status="PASS", attempted=True, observed=True, completed=True, evidence="LIVE")
+        if oracle != "PASS":
+            case = results.cases["signup"]
+            case.update(status=oracle, completed=oracle == "FAIL", observed=oracle == "FAIL",
+                        evidence="LIVE" if oracle == "FAIL" else "NOT RUN")
+        return {**results.report(), "suite_status": "FAIL" if oracle == "FAIL" else
+                "BLOCKED" if oracle == "BLOCKED" else "PASS", "provider_fixture": "SIMULATED_PROVIDER",
+                "cleanup": {"status": "RETAINED" if technical == "PASS" else "BLOCKED", "complete": False,
+                            "removed": 0, "technical_status": technical,
+                            "residuals": ["accounts", "sessions", "provider-fixture", "organizations", "mail",
+                                          "notifications", "deliveries", "outbox", "fga"],
+                            "uncertainties": [] if technical == "PASS" else ["technical-cleanup"]}}
+
+    def test_c_g6_prepare_ready_is_distinct_and_never_counts_an_executed_oracle(self):
+        code, report = self.invoke("prepare-probes", "preparation_report", {
+            "status": "READY_RETAINED", "prepared": True,
+            "inverse_qualification": "UNQUALIFIED_NOT_REQUIRED_BY_CONSENT",
+            "created_resources": [], "executed": 0})
+        self.assertEqual((code, report["status"], report["executed"], report["evidence"]),
+                         (0, "READY_RETAINED", 0, "NOT RUN"))
+        self.assertTrue(report["prepared"])
+
+    def test_c_g6_all_39_green_with_retention_is_code_three_never_global_pass(self):
+        code, report = self.invoke("e2e", "e2e_report", self.suite_report())
+        self.assertEqual((code, report["status"]), (3, "RETAINED"))
+        self.assertEqual((report["expected"], report["passed"], len(report["cases"])), (39, 39, 39))
+        self.assertEqual(report["provider_fixture"], "SIMULATED_PROVIDER")
+        self.assertEqual((report["cleanup"]["removed"], report["cleanup"]["complete"]), (0, False))
+
+    def test_c_g6_retention_does_not_hide_failed_or_unexecuted_business_cases(self):
+        for oracle, technical, expected_code, expected_status in (
+                ("FAIL", "PASS", 1, "FAIL"), ("BLOCKED", "PASS", 2, "BLOCKED"),
+                ("PASS", "BLOCKED", 2, "BLOCKED"), ("FAIL", "BLOCKED", 1, "FAIL")):
+            with self.subTest(oracle=oracle, technical=technical):
+                code, report = self.invoke("e2e", "e2e_report", self.suite_report(oracle=oracle, technical=technical))
+                self.assertEqual((code, report["status"]), (expected_code, expected_status))
+                self.assertEqual((report["expected"], len(report["cases"])), (39, 39))
+                signup = next(case for case in report["cases"] if case["id"] == "signup")
+                self.assertEqual(signup["status"], oracle)
+                self.assertIs(report["cleanup"]["complete"], False)
+
+    def test_c_g6_cleanup_terminal_report_is_nonzero_without_live_business_evidence(self):
+        for status, technical, expected_code in (("RETAINED", "PASS", 3), ("BLOCKED", "BLOCKED", 2)):
+            with self.subTest(status=status):
+                code, report = self.invoke("cleanup-probes", "cleanup_report", {
+                    "status": status, "complete": False, "mode": "RETAIN_LOCAL_V1", "removed": 0,
+                    "technical_status": technical, "executed": 0, "launch_status": "NOT_PROVEN",
+                    "residuals": ["accounts", "sessions"], "uncertainties": []})
+                self.assertEqual((code, report["status"]), (expected_code, status))
+                self.assertEqual((report["executed"], report["evidence"]), (0, "NOT RUN"))
+                self.assertEqual((report["cleanup"]["removed"], report["cleanup"]["complete"]), (0, False))
+
+    def test_c_g4_legacy_empty_cleanup_cannot_bypass_claimed_fixed_authority(self):
+        module = AcceptanceGuardTests().load()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            authority = root / "e2e-retention-v1"
+            authority.mkdir()
+            # An incomplete claim must block too, never mean 'no campaign'.
+            claim = authority / "claim.json"
+            claim.write_text("{", encoding="utf-8")
+            before = claim.read_bytes()
+            target = SimpleNamespace(config=root / "config.json")
+            args = argparse.Namespace(action="cleanup-probes", inputs=None, executed=0)
+            with patch.object(module.runtime, "target", return_value=target), patch.object(module.runtime, "kubectl") as kubectl:
+                with self.assertRaises((module.ValidationBlocked, ValueError)):
+                    module.explicit_probe_action(args, {})
+                kubectl.assert_not_called()
+            self.assertEqual(claim.read_bytes(), before)
+            self.assertEqual(args.executed, 0)
 
 
 class AcceptanceGuardTests(unittest.TestCase):

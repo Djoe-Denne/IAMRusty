@@ -2,6 +2,7 @@
 import base64
 import argparse
 import copy
+import contextlib
 import hashlib
 import importlib.util
 import json
@@ -541,6 +542,403 @@ class ProvenanceAndSqlTests(unittest.TestCase):
         self.assertIn("LOCK TABLE provider_tokens IN SHARE ROW EXCLUSIVE MODE", options["stdin"])
         self.assertIn("PREPARE local_e2e(jsonb)", options["stdin"])
         self.assertNotIn(values["token"], options["stdin"])
+
+
+class RetentionContractTests(unittest.TestCase):
+    """§8 contract oracles, not a live run or qualification of an inverse.
+
+    C-G1: existing ProtocolTests retain the strict negative controls.
+    C-G2: a valid v2 must pass before malformed-v2 rejection is meaningful.
+    C-G3/4: prepare is read-only until its fixed, single-use authority is claimed.
+    C-G5/7: cleanup retains even uncertain effects, never attempts an inverse.
+    C-G6: a reloaded terminal/receipt cannot recreate a mutation capability.
+    """
+
+    CONSENT = "835d481e-099e-4a23-adf5-b01b1ca9af30"
+    POLICY = {"mode": "RETAIN_LOCAL_V1", "consent_id": CONSENT}
+    RESIDUALS = ["accounts", "sessions", "provider-fixture", "organizations", "mail",
+                 "notifications", "deliveries", "outbox", "fga"]
+
+    def fixture(self, root):
+        pg = FakePg()
+        http = FakeHttp(pg)
+        inputs, driver, args = ProvenanceAndSqlTests().action_fixture(root, pg, http)
+        inputs.update(version=2, provider_mode="SIMULATED_PROVIDER", cleanup_policy=dict(self.POLICY))
+        inputs["pki_directory"].mkdir()
+        args.inputs.write_text(json.dumps({k: str(v) if isinstance(v, Path) else v for k, v in inputs.items()}), encoding="utf-8")
+        config = root / "private-target" / "config.json"
+        config.parent.mkdir()
+        config.write_text("{}", encoding="utf-8")
+        target = SimpleNamespace(config=config, privacy=lambda p: True, e2e_forward=lambda *a, **k: None)
+        driver.runtime.target = lambda: target
+        # Source/PKI binding is isolated as in the historical action fixture.
+        # These fields come from §8.1, not from a future helper API.
+        bound = {"version": 2, "run_id": RUN, "suite": "mesh-authn", "source": {},
+                 "git": "a97e51d4185aca3b0d78f997e03df56f0288a254", "context": "kind-aiforall-local-full",
+                 "namespace_uids": {e2e.NAMESPACE: "namespace-fixture-uid"},
+                 "credential_sha256": hashlib.sha256(inputs["credentials_path"].read_bytes()).hexdigest(),
+                 "public_certificates_sha256": {}, "input_sha256": hashlib.sha256(args.inputs.read_bytes()).hexdigest(),
+                 "cleanup_policy": dict(self.POLICY),
+                 "target_anchor": {"task_id": "retention-test-only", "kube_system_uid": "system-fixture-uid",
+                                   "nodeContainerIds": ["node-fixture"], "openbao_epoch_sha256": "b" * 64}}
+        canonical = json.dumps(bound, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+        consent = {"version": 1, "consent_id": self.CONSENT,
+                   "decision_ref": "20261103-user-retain-local-one-run", "run_id": RUN,
+                   "mode": "RETAIN_LOCAL_V1", "suite": "mesh-authn",
+                   "binding_sha256": hashlib.sha256(canonical).hexdigest(), "max_executions": 1,
+                   "final_business_cleanup": "FORBIDDEN", "required_business_revoke": "PRESERVED",
+                   "sessions": "MAY_REMAIN", "disposition_owner": "mission-lead"}
+        authority = config.parent / "e2e-retention-v1"
+        authority.mkdir()
+        consent_path = authority / "consent.json"
+        consent_path.write_text(json.dumps(consent), encoding="utf-8")
+        consent_sha = hashlib.sha256(consent_path.read_bytes()).hexdigest()
+        bound["consent_sha256"] = consent_sha
+        claim = {"version": 1, "consent_id": self.CONSENT, "consent_sha256": consent_sha,
+                 "run_id": RUN, "binding_sha256": consent["binding_sha256"],
+                 "receipt_path": str(inputs["receipt_path"])}
+        return SimpleNamespace(pg=pg, http=http, inputs=inputs, driver=driver, args=args,
+                               bound=bound, authority=authority, claim=claim)
+
+    def rebind_attempt(self, fixture):
+        """Make a new attempt internally consistent, leaving the old claim intact.
+
+        Otherwise rejection on an unrelated stale input hash would masquerade
+        as coverage of the fixed-authority anti-replay rule.
+        """
+        f = fixture
+        f.args.inputs.write_text(json.dumps({k: str(v) if isinstance(v, Path) else v for k, v in f.inputs.items()}), encoding="utf-8")
+        f.bound.update(version=f.inputs["version"], run_id=f.inputs["run_id"],
+                       input_sha256=hashlib.sha256(f.args.inputs.read_bytes()).hexdigest())
+        f.bound.pop("consent_sha256", None)
+        if f.inputs["version"] == 1:
+            f.bound.pop("cleanup_policy", None)
+            f.bound.pop("target_anchor", None)
+            return
+        f.bound["cleanup_policy"] = copy.deepcopy(f.inputs["cleanup_policy"])
+        path = f.authority / "consent.json"
+        consent = json.loads(path.read_text(encoding="utf-8"))
+        consent.update(run_id=f.inputs["run_id"], consent_id=f.inputs["cleanup_policy"]["consent_id"],
+                       binding_sha256=hashlib.sha256(json.dumps(
+                           f.bound, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()).hexdigest())
+        path.write_text(json.dumps(consent), encoding="utf-8")
+        f.bound["consent_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+
+    @contextlib.contextmanager
+    def action(self, fixture):
+        # Only pre-existing public Ops seams are doubled. Receipt/cleanup and
+        # run_action remain real, and all paths are in this test's temp directory.
+        with patch.object(e2e, "read_inputs", return_value=fixture.inputs), patch.object(
+                e2e, "binding", return_value=fixture.bound), patch.object(
+                e2e, "Database", return_value=fixture.pg), patch.object(
+                e2e, "Services", return_value=fixture.http):
+            yield
+
+    def test_c_g2_valid_explicit_v2_is_accepted_without_defaulting_to_strict(self):
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            value = {key: str(value) if isinstance(value, Path) else value for key, value in f.inputs.items()}
+            f.args.inputs.write_text(json.dumps(value), encoding="utf-8")
+            actual = e2e.read_inputs(f.args.inputs, f.driver)
+            self.assertEqual(actual["version"], 2)
+            self.assertEqual(actual["cleanup_policy"], self.POLICY)
+            self.assertEqual(actual["receipt_path"], f.inputs["receipt_path"])
+            self.assertEqual(list(f.authority.iterdir()), [f.authority / "consent.json"])
+
+    def test_c_g2_v2_rejects_ambiguous_policy_and_strict_never_accepts_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            value = {key: str(value) if isinstance(value, Path) else value for key, value in f.inputs.items()}
+            changes = [{"version": True}, {"version": "2"}, {"version": 1}, {"suite": "apparatus"},
+                       {"cleanup_policy": None}, {"cleanup_policy": "RETAIN_LOCAL_V1"},
+                       {"cleanup_policy": {"mode": "RETAIN_LOCAL_V1"}},
+                       {"cleanup_policy": {**self.POLICY, "skip_cleanup": True}},
+                       {"cleanup_policy": {**self.POLICY, "mode": "retain_local_v1"}},
+                       {"cleanup_policy": {**self.POLICY, "consent_id": self.CONSENT.upper()}},
+                       {"cleanup_policy": {**self.POLICY, "consent_id": RUN.replace("4dac", "1dac")}},
+                       {"authority_path": str(f.authority)}, {"skip_cleanup": True}]
+            for change in changes:
+                with self.subTest(change=change):
+                    f.args.inputs.write_text(json.dumps({**value, **change}), encoding="utf-8")
+                    with self.assertRaises(e2e.Blocked):
+                        e2e.read_inputs(f.args.inputs, f.driver)
+            self.assertFalse((f.authority / "claim.json").exists())
+
+    def test_c_g3_ready_prepare_does_not_qualify_final_inverses_or_execute_business(self):
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            with self.action(f), patch.object(f.pg, "qualify_notifications_cleanup") as notifications, patch.object(
+                    f.pg, "qualify_account_cleanup") as account:
+                report = e2e.run_action(f.driver, f.args, {})
+            notifications.assert_not_called()
+            account.assert_not_called()
+            self.assertTrue(report["prepared"])
+            self.assertEqual(f.args.executed, 0)
+            self.assertEqual(f.http.calls, [])
+            self.assertFalse(f.pg.account)
+            claim = json.loads((f.authority / "claim.json").read_text(encoding="utf-8"))
+            self.assertEqual(claim, f.claim)
+            receipt = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound)
+            self.assertEqual(receipt.last("retention-prepared"), {
+                "mode": "RETAIN_LOCAL_V1", "prepared": True,
+                "inverse_qualification": "UNQUALIFIED_NOT_REQUIRED_BY_CONSENT",
+                "remaining_prerequisites": [], "created_resources": [],
+                "exceptions": ["telegraph-final-inverse", "account-final-inverse"]})
+            self.assertIsNone(receipt.last("execution-started"))
+
+    def test_c_g3_missing_effective_provider_never_claims_or_creates_receipt(self):
+        for providers in (["gitlab"], ["github"]):
+            with self.subTest(providers=providers), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                f.http.providers = providers
+                with self.action(f):
+                    try:
+                        report = e2e.run_action(f.driver, f.args, {})
+                    except e2e.Blocked:
+                        report = {"prepared": False}
+                self.assertFalse(report["prepared"])
+                self.assertFalse((f.authority / "claim.json").exists())
+                self.assertFalse(f.inputs["receipt_path"].exists())
+                self.assertEqual(f.http.calls, [])
+                self.assertFalse(f.pg.account)
+
+    def test_c_g4_claimed_crash_cannot_rearm_via_new_receipt_uuid_consent_or_strict(self):
+        # Crash after exclusive claim, before receipt exists: the allowed chance
+        # is spent. Do not mistake a new empty receipt directory for authority.
+        for change in ({}, {"run_id": USER}, {"cleanup_policy": {**self.POLICY, "consent_id": USER}},
+                       {"version": 1}):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                claim_path = f.authority / "claim.json"
+                claim_path.write_text(json.dumps(f.claim), encoding="utf-8")
+                before = claim_path.read_bytes()
+                f.inputs.update(change)
+                if f.inputs["version"] == 1:
+                    f.inputs.pop("cleanup_policy")
+                f.inputs["receipt_path"] = Path(directory).resolve() / "new-receipt"
+                self.rebind_attempt(f)
+                with self.action(f), self.assertRaises(e2e.Blocked):
+                    e2e.run_action(f.driver, f.args, {})
+                self.assertEqual(claim_path.read_bytes(), before)
+                self.assertFalse(f.inputs["receipt_path"].exists())
+                self.assertEqual(f.http.calls, [])
+
+    def test_c_g4_consumed_crash_or_partial_claim_refuses_new_preparation(self):
+        for contents, consumed in (("{", False), (None, True)):
+            with self.subTest(partial=contents is not None), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                (f.authority / "claim.json").write_text(contents or json.dumps(f.claim), encoding="utf-8")
+                if consumed:
+                    (f.authority / "consumed.json").write_text(json.dumps(f.claim), encoding="utf-8")
+                before = {p.name: p.read_bytes() for p in f.authority.iterdir()}
+                with self.action(f), self.assertRaises(e2e.Blocked):
+                    e2e.run_action(f.driver, f.args, {})
+                self.assertEqual({p.name: p.read_bytes() for p in f.authority.iterdir()}, before)
+                self.assertFalse(f.inputs["receipt_path"].exists())
+                self.assertFalse(f.pg.account)
+
+    def test_c_g2_changed_or_noncanonical_consent_never_claims_the_slot(self):
+        for change in ({"version": True}, {"max_executions": 2}, {"decision_ref": "another-decision"},
+                       {"run_id": USER}, {"binding_sha256": "C" * 64}, {"extra": "forbidden"},
+                       {"final_business_cleanup": "ALLOWED"}):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                path = f.authority / "consent.json"
+                value = json.loads(path.read_text(encoding="utf-8"))
+                path.write_text(json.dumps({**value, **change}), encoding="utf-8")
+                before = path.read_bytes()
+                with self.action(f), self.assertRaises(e2e.Blocked):
+                    e2e.run_action(f.driver, f.args, {})
+                self.assertEqual(path.read_bytes(), before)
+                self.assertFalse((f.authority / "claim.json").exists())
+                self.assertFalse(f.inputs["receipt_path"].exists())
+                self.assertEqual(f.http.calls, [])
+
+    def test_c_g5_cleanup_keeps_acked_and_uncertain_effects_without_recovery_login(self):
+        for lost_ack in (False, True):
+            with self.subTest(lost_ack=lost_ack):
+                mesh, _, pg, http, receipt = mesh_fixture()
+                mesh.inputs.update(version=2, cleanup_policy=dict(self.POLICY))
+                receipt.append("binding", {"version": 2, "cleanup_policy": dict(self.POLICY)})
+                # Use the historical isolated protocol seed to create ACKs. Its
+                # synthetic qualified inverse is NOT claimed as production proof.
+                mesh.run()
+                if lost_ack:
+                    receipt.events[:] = [e for e in receipt.events if e["kind"] not in {
+                        "account-created", "provider-created", "organization-created"}]
+                mesh.token = ""  # would trigger the strict recovery login
+                calls, sql, events = len(http.calls), len(pg.calls), len(receipt.events)
+                outcome = e2e.cleanup(mesh)
+                self.assertEqual(http.calls[calls:], [], "retention must not login, read/adopt or DELETE for cleanup")
+                self.assertEqual(pg.calls[sql:], [], "retention must not prepare or execute final inverse SQL")
+                self.assertTrue(pg.account)
+                self.assertFalse(http.message_deleted)
+                # This lower-level double has no owned authority invocation:
+                # BLOCKED is permitted, destructive fallback/PASS is not.
+                # Successful terminal generation/repair still needs the future
+                # owned invocation seam; this is the zero-inverse boundary only.
+                self.assertIn(outcome["status"], {"RETAINED", "BLOCKED"})
+                self.assertEqual(outcome["removed"], 0)
+                new_events = receipt.events[events:]
+                self.assertFalse({e["kind"] for e in new_events} & {
+                    "account-deleted", "organization-deleted", "provider-cleaned", "mail-deleted"})
+                self.assertFalse(any(e["kind"] == "cleanup" and e["data"].get("complete") is True for e in new_events))
+                serialized = json.dumps(new_events)
+                for secret in ("private-password-fixture", "internal-token-fixture", "login-refresh", "owned-token"):
+                    self.assertNotIn(secret, serialized)
+
+    def test_c_g5_business_revoke_and_token404_remain_among_all_39_oracles(self):
+        mesh, results, pg, http, _ = mesh_fixture()
+        mesh.run()
+        self.assertEqual((results.report()["expected"], results.report()["passed"]), (39, 39))
+        self.assertIn(("DELETE", "/iam/internal/github/revoke", "iam", "envoy-mesh"), http.calls)
+        self.assertFalse(pg.provider, "business revoke, not cleanup, must remove the fixture")
+        self.assertEqual(len(e2e.APPARATUS_CASES), 6)
+
+    def test_c_g6_retained_false_complete_is_terminal_after_receipt_reload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            receipt = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound, create=True)
+            receipt.append("retained", {"status": "RETAINED", "complete": False, "mode": "RETAIN_LOCAL_V1",
+                "business_cleanup": "NOT_ATTEMPTED", "technical_cleanup": "PASS", "effects_possible": True,
+                "inventory_complete": False, "residual_classes": self.RESIDUALS, "uncertainties": ["signup-ack"]})
+            restored = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound)
+            before = {p.name: p.read_bytes() for p in receipt.path.iterdir()}
+            for kind in ("execution-started", "signup-intent", "account-created", "provider-intent", "organization-intent"):
+                with self.subTest(kind=kind), self.assertRaises(e2e.Blocked):
+                    restored.append(kind, {"run": RUN})
+            self.assertEqual({p.name: p.read_bytes() for p in receipt.path.iterdir()}, before)
+
+    def test_c_g4_reloaded_receipt_is_not_a_live_signup_capability(self):
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            receipt = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound, create=True)
+            for name in ("claim.json", "consumed.json"):
+                (f.authority / name).write_text(json.dumps(f.claim), encoding="utf-8")
+            restored = e2e.Receipt(receipt.path, f.driver, f.bound)
+            mesh = e2e.Mesh(f.http, f.pg, restored,
+                            {"password": "private-password-fixture", "internal_token": "internal-token-fixture"},
+                            f.inputs, e2e.Results("mesh-authn"))
+            with self.assertRaises(e2e.Blocked):
+                mesh.signup({})
+            self.assertFalse(f.pg.account)
+            self.assertEqual(f.http.calls, [])
+            self.assertIsNone(restored.last("signup-intent"))
+
+    def test_c_g4_consumed_precedes_business_and_finally_records_uncertain_retention(self):
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            (f.authority / "claim.json").write_text(json.dumps(f.claim), encoding="utf-8")
+            receipt = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound, create=True)
+            receipt.append("retention-prepared", {
+                "mode": "RETAIN_LOCAL_V1", "prepared": True,
+                "inverse_qualification": "UNQUALIFIED_NOT_REQUIRED_BY_CONSENT",
+                "remaining_prerequisites": [], "created_resources": [],
+                "exceptions": ["telegraph-final-inverse", "account-final-inverse"]})
+            f.args.action, f.args.suite = "e2e", "mesh-authn"
+
+            def interrupted_business():
+                consumed = json.loads((f.authority / "consumed.json").read_text(encoding="utf-8"))
+                self.assertEqual(consumed, f.claim)
+                current = e2e.Receipt(receipt.path, f.driver, f.bound)
+                self.assertEqual(current.last("execution-started"), {"suite": "mesh-authn"})
+                raise e2e.Blocked("test interruption after consumption before signup ACK")
+
+            with self.action(f), patch.object(e2e.Mesh, "run", side_effect=interrupted_business) as business:
+                try:
+                    e2e.run_action(f.driver, f.args, {})
+                except e2e.Blocked:
+                    pass  # Either exception/report policy is allowed at this boundary.
+            business.assert_called_once()  # No environmental/preparation refusal masquerades as this scenario.
+            self.assertEqual(f.http.calls, [])
+            terminal = json.loads((f.authority / "terminal.json").read_text(encoding="utf-8"))
+            retained = e2e.Receipt(receipt.path, f.driver, f.bound).last("retained")
+            self.assertIsNotNone(retained)
+            self.assertEqual((retained["status"], retained["complete"], retained["effects_possible"]),
+                             ("RETAINED", False, True))
+            self.assertEqual(retained["business_cleanup"], "NOT_ATTEMPTED")
+            self.assertEqual(retained["residual_classes"], self.RESIDUALS)
+            self.assertIs(retained["inventory_complete"], False)
+            self.assertEqual(terminal, {**retained, "version": 1, "run_id": RUN, "consent_id": self.CONSENT,
+                "binding_sha256": f.claim["binding_sha256"], "consent_sha256": f.claim["consent_sha256"]})
+
+    def test_c_g7_closed_retained_record_rejects_free_text_secret_before_persisting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            receipt = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound, create=True)
+            invalid = {"status": "RETAINED", "complete": False, "mode": "RETAIN_LOCAL_V1",
+                       "business_cleanup": "NOT_ATTEMPTED", "technical_cleanup": "PASS", "effects_possible": True,
+                       "inventory_complete": False, "residual_classes": self.RESIDUALS,
+                       "uncertainties": ["oauth-token-SECRET-CONTENT"]}
+            before = {p.name: p.read_bytes() for p in receipt.path.iterdir()}
+            with self.assertRaises(e2e.Blocked):
+                receipt.append("retained", invalid)
+            self.assertEqual({p.name: p.read_bytes() for p in receipt.path.iterdir()}, before)
+
+    def test_c_g6_observed_signup_failure_attests_start_but_transport_failure_does_not(self):
+        for observed in (True, False):
+            with self.subTest(observed=observed), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                (f.authority / "claim.json").write_text(json.dumps(f.claim), encoding="utf-8")
+                receipt = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound, create=True)
+                receipt.append("retention-prepared", {
+                    "mode": "RETAIN_LOCAL_V1", "prepared": True,
+                    "inverse_qualification": "UNQUALIFIED_NOT_REQUIRED_BY_CONSENT",
+                    "remaining_prerequisites": [], "created_resources": [],
+                    "exceptions": ["telegraph-final-inverse", "account-final-inverse"]})
+                f.args.action, f.args.suite = "e2e", "mesh-authn"
+                original = f.http.request
+
+                def signup_response(method, path, *args, **kwargs):
+                    if path == "/iam/api/auth/signup":
+                        kwargs["case"].update(attempted=True, observed=observed)
+                        if not observed:
+                            raise e2e.Blocked("test transport failed without response")
+                        return 400, b'{"error":"SECRET-BODY-MUST-NOT-BE-JOURNALED"}'
+                    return original(method, path, *args, **kwargs)
+
+                def one_business_oracle(mesh):
+                    # Focus the journal boundary, not a shortened E2E campaign:
+                    # all other obligations stay explicitly BLOCKED in this test.
+                    mesh.results.case("signup", mesh.signup)
+                    mesh.results.block_remaining("not exercised by isolated journal test")
+
+                with self.action(f), patch.object(f.http, "request", side_effect=signup_response), patch.object(
+                        e2e.Mesh, "run", autospec=True, side_effect=one_business_oracle) as business:
+                    report = e2e.run_action(f.driver, f.args, {})
+                business.assert_called_once()
+                self.assertEqual((report["expected"], len(report["cases"])), (39, 39))
+                self.assertEqual(report["launch_status"], "STARTED" if observed else "NOT_PROVEN")
+                current = e2e.Receipt(receipt.path, f.driver, f.bound)
+                marker = current.last("case-observed")
+                if observed:
+                    self.assertIsNotNone(marker)
+                    self.assertEqual({key: marker[key] for key in (
+                        "id", "status", "attempted", "observed", "completed", "evidence", "http_status")},
+                        {"id": "signup", "status": "FAIL", "attempted": True, "observed": True,
+                         "completed": True, "evidence": "LIVE", "http_status": 400})
+                    self.assertTrue(marker["checked_assertions"])
+                    self.assertTrue(marker["failed_assertions"])
+                    self.assertEqual((report["failed"], report["executed"]), (1, 1))
+                else:
+                    self.assertIsNone(marker)
+                    self.assertEqual(report["executed"], 0)
+                self.assertNotIn("SECRET-BODY-MUST-NOT-BE-JOURNALED", json.dumps(current.events))
+                self.assertFalse(f.pg.account)
+
+    def test_c_g6_empty_assertion_manifest_cannot_attest_launch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            receipt = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound, create=True)
+            # The accepted source-specific assertion names do not exist yet.
+            # Do not invent them or claim independent coverage of the other
+            # schema fields using an already-invalid assertion manifest.
+            event = {"id": "signup", "status": "PASS", "attempted": True, "observed": True,
+                     "completed": True, "evidence": "LIVE", "http_status": 202,
+                     "checked_assertions": [], "failed_assertions": []}
+            with self.assertRaises(e2e.Blocked):
+                receipt.append("case-observed", event)
+            self.assertIsNone(receipt.last("case-observed"))
 
 
 class TransportTests(unittest.TestCase):

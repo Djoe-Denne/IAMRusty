@@ -1,12 +1,16 @@
 """Bounded offline checks for the deployment boundary, not a live coffer proof."""
 import importlib.util
+import base64
+from contextlib import redirect_stdout, redirect_stderr
 import copy
+import io
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -26,6 +30,83 @@ render = load("openbao_renderer", "ops/deploy/render-local-full.py")
 workload = load("openbao_workload", "ops/deploy/apps/overlays/local-full/helpers/openbao-workload.py")
 provenance = load("openbao_provenance", "ops/deploy/local_full_image_provenance.py")
 bootstrap = load("openbao_bootstrap", "ops/deploy/bootstrap_local_kind.py")
+
+
+class AdditiveGitHubTests(unittest.TestCase):
+    """G1/G2/G5: §2's private GitLab preimage, not the empty base profile."""
+
+    def private_iam(self):
+        objects = render.render("additiveregression", oauth_proof=True)
+        pod = next(o for o in objects if o["kind"] == "Deployment" and o["metadata"]["name"] == "iam")["spec"]["template"]["spec"]
+        selected = next(m["name"] for m in pod["containers"][0]["volumeMounts"]
+                        if m["mountPath"] == "/app/config/development.toml")
+        name = next(v["secret"]["secretName"] for v in pod["volumes"] if v["name"] == selected)
+        secret = next(o for o in objects if o["kind"] == "Secret" and o["metadata"]["name"] == name)
+        text = base64.b64decode(secret["data"]["development.toml"]).decode()
+        text = text.replace("__OAUTH_PROOF_HMAC__", "1" * 64).replace("__OAUTH_PROOF_STATE__", "SYNTHETIC_STATE_PRIVATE")
+        secret["data"]["development.toml"] = base64.b64encode(text.encode()).decode()
+        return objects, secret, text
+
+    def test_g1_private_gitlab_preimage_is_preserved_with_one_github(self):
+        objects, secret, text = self.private_iam()
+        before = tomllib.loads(text)
+        output = io.StringIO()
+        try:
+            with redirect_stdout(output), redirect_stderr(output):
+                render.local_full_openbao.configure(objects, "additiveregression", github=True, client_id="synthetic-client")
+        except (ValueError, KeyError, StopIteration) as error:
+            self.fail("G1: private GitLab IAM composition refused: " + type(error).__name__)
+        after = tomllib.loads(base64.b64decode(secret["data"]["development.toml"]).decode())
+        connectors = after["idp"]["connectors"]
+        self.assertEqual([c["id"] for c in connectors], ["gitlab", "github"])
+        github = connectors.pop()
+        self.assertEqual(after, before, "G1: IAM settings or GitLab configuration changed")
+        self.assertEqual(github, {"id": "github", "base_url": "https://github-connect:8443/github-connect",
+            "hmac_secret": "__GITHUB_OPENBAO_HMAC__", "pkce_supported": False,
+            "redirect_uris": ["http://127.0.0.1:18080/iam/api/auth/github/callback",
+                              "http://127.0.0.1:18080/iam/api/auth/github/relink-callback"]})
+        public = output.getvalue() + json.dumps([o for o in objects if o["kind"] != "Secret"])
+        for sentinel in ("1" * 64, "SYNTHETIC_STATE_PRIVATE", base64.b64encode(text.encode()).decode()):
+            self.assertNotIn(sentinel, public, "G5: private IAM value escaped into public artifacts")
+
+    def test_g2_ambiguous_private_registries_are_refused_without_replacing_source(self):
+        for mutation in (lambda t: t + '\n[[idp.connectors]]\n' +
+                         t.split('[[idp.connectors]]')[1].split('[jwt]')[0].replace('id = "gitlab"', 'id = "GitLab"'),
+                         lambda t: t + '\n[idp]\nconnectors=[]\n',
+                         lambda t: t.replace("1" * 64, "__UNEXPECTED_HMAC__")):
+            objects, secret, text = self.private_iam()
+            secret["data"]["development.toml"] = base64.b64encode(mutation(text).encode()).decode()
+            original = copy.deepcopy(secret)
+            with self.subTest(case=mutation.__code__.co_firstlineno):
+                # KeyError is not an acceptable domain refusal of a private Secret.
+                with self.assertRaises(ValueError):
+                    render.local_full_openbao.configure(objects, "additiveregression", github=True)
+                self.assertEqual(secret, original)
+
+    def test_g4_seed_partial_cas_and_lost_ack_never_erase_committed_document(self):
+        inputs = {"version": 1, "client_id": "synthetic", "client_secret": "SYNTHETIC_OAUTH_PRIVATE", "hmac_secret": "a" * 64}
+        for failure in ("second-cas", "first-ack"):
+            with self.subTest(failure=failure):
+                values, writes = {}, []
+                def request(method, path, body=None, missing=False):
+                    key = path.rsplit("/", 2)[-2] + "/" + path.rsplit("/", 1)[-1]
+                    if method == "POST":
+                        self.assertEqual(body["options"], {"cas": 0})
+                        writes.append(key)
+                        if failure == "second-cas" and len(writes) == 2:
+                            raise workload.Refused("CAS conflict")
+                        values[key] = copy.deepcopy(body["data"])
+                        if failure == "first-ack":
+                            raise workload.Refused("transport ACK lost")
+                        return {}
+                    return None
+                output = io.StringIO()
+                with redirect_stdout(output), redirect_stderr(output), self.assertRaises(workload.Refused) as raised:
+                    workload.seed(SimpleNamespace(request=request), inputs)
+                self.assertEqual(values, {"github-connect/oauth": {"client_secret": inputs["client_secret"]}})
+                self.assertEqual(writes, ["github-connect/oauth", "github-connect/iam"] if failure == "second-cas" else ["github-connect/oauth"])
+                for value in (inputs["client_secret"], inputs["hmac_secret"]):
+                    self.assertNotIn(value, str(raised.exception) + output.getvalue())
 
 
 class LocalOpenBaoTests(unittest.TestCase):
