@@ -506,10 +506,21 @@ constitue ni préparation réussie ni permission de lancer.
 
 Cette section traduit l'accord utilisateur relayé par le parent ; elle prime sur
 les formulations préalables « à arbitrer » relatives à C. Le mot ratifié concerne
-**cette exception locale**, pas une ADR Accepted ni du code livré. Les sources Ops
-décrites plus haut n'ont pas encore ce mode. Aucun lot Rust n'est nécessaire ou
+**cette exception locale**, pas une ADR Accepted. Aucun lot Rust n'est nécessaire ou
 autorisé. Le parent publie le lot Ops/test-engineer après intégration des deux
 contrats, avec revue secrets/trust si son diff touche cette frontière.
+
+**Photographie du 2026-11-04 — noyau Ops partiel :** entrées v2, autorité privée
+claim/consumed, capacité vivante, journaux fermés, terminal RETAINED et codes du
+driver sont intégrés dans les deux modules Ops. Sur le contenu intégré,
+`test_local_full_e2e.py` passe 52 tests et `test_local_full_acceptance_source.py`
+35 tests, sans modification des tests par l'auteur de production. La preuve
+native de source IAM reste volontairement `BLOCKED SOURCE_IAM_UNAVAILABLE` avant
+projection privée, claim ou signup ; la capacité d'ancre et la qualification du
+snapshot du [complément IAM](local-full-iam-preimage-qualification.md) ne sont pas
+livrées par ce noyau. Concurrence/fichiers/fermeture technique et manifeste doivent
+encore recevoir leurs compléments QA et la revue indépendante. Aucun essai réel,
+inverse qualifié, nettoyage PASS ou départ E2E n'est déduit de ces tests hermétiques.
 
 ### 8.1 Entrées et consentement fermés
 

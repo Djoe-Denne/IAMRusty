@@ -174,8 +174,21 @@ def e2e_adapter():
 
 def explicit_probe_action(args, data):
     # Legacy empty cleanup remains a proven no-op, never deletion authority.
+    if args.inputs and args.inputs.stat().st_size > 1_048_576:
+        raise ValidationBlocked("bounded private E2E inputs required")
     inputs = strict_json(args.inputs) if args.inputs else None
     if args.action == "cleanup-probes" and (inputs is None or inputs == {"version": 1, "created_resources": []}):
+        try:
+            target = runtime.target()
+        except anchor_module.AnchorError:
+            # Historical offline no-op only. The CLI has already required and
+            # bound a lease here; a broken/active binding must never be ignored.
+            if runtime.TARGET_LEASE_PATH is not None or getattr(args, "lease", None) is not None:
+                raise
+        else:
+            adapter = e2e_adapter()
+            if adapter._slot_claimed(SimpleNamespace(**globals())):
+                raise ValidationBlocked("claimed retention slot requires its bound inputs/receipt; no empty cleanup")
         args.executed += 1
         return
     if not isinstance(inputs, dict) or not {"version", "run_id", "suite"} <= inputs.keys():
@@ -499,16 +512,30 @@ def main():
     except Exception as error:
         blocked = isinstance(error, (ValidationBlocked, ValueError, OSError, ImportError, anchor_module.AnchorError))
         executed = args.executed if blocked else min(expected, args.executed + 1)
+        cleanup_failure = getattr(args, "cleanup_report", None)
+        if cleanup_failure is None:
+            cleanup_failure = getattr(args, "e2e_report", {}).get("cleanup")
+        if cleanup_failure is not None and cleanup_failure.get("mode") == "RETAIN_LOCAL_V1":
+            # Includes failure while releasing our outer/fixed mutex after the
+            # adapter returned. A durable terminal is not proof of that release.
+            cleanup_failure.update(status="BLOCKED", technical_status="BLOCKED",
+                uncertainties=list(dict.fromkeys([*cleanup_failure.get("uncertainties", []), "technical-cleanup"])))
+            if args.action == "cleanup-probes":
+                print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action, "status": "BLOCKED",
+                                  "cleanup": cleanup_failure, "evidence": "NOT RUN", "expected": expected,
+                                  "executed": 0, "failed": 0, "blocked": 1, "launch_status": "NOT_PROVEN"}))
+                return 2
         if args.action == "e2e" and args.suite:
             report = getattr(args, "e2e_report", None)
             if report is None:
                 inventory = e2e_adapter().Results(args.suite)
                 inventory.block_remaining("action prerequisite rejected; no oracle completed")
                 report = inventory.report()
+            failed = bool(report["failed"]) or not blocked
             print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action, "suite": args.suite,
-                              "status": "BLOCKED" if blocked else "FAIL", "evidence": "LIVE" if report["executed"] else "NOT RUN",
+                              "status": "FAIL" if failed else "BLOCKED", "evidence": "LIVE" if report["executed"] else "NOT RUN",
                               **report, "reason": "validation prerequisite or journal failed; details redacted"}))
-            return 2 if blocked else 1
+            return 1 if failed else 2
         print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action,
                           **public_coverage_report(args, "BLOCKED" if blocked else "FAIL", "NOT RUN" if not executed else "LIVE"),
                           "status": "BLOCKED" if blocked else "FAIL", "evidence": "NOT RUN" if not executed else "LIVE",
@@ -519,17 +546,30 @@ def main():
         return 2 if blocked else 1
     if getattr(args, "e2e_report", None) is not None:
         report = args.e2e_report
-        status = "FAIL" if report["failed"] else "BLOCKED" if report["blocked"] or report["cleanup"]["status"] != "PASS" else "PASS"
+        cleanup = report["cleanup"]
+        retained = cleanup.get("complete") is False and cleanup.get("technical_status") is not None
+        status = ("FAIL" if report["failed"] else
+                  "BLOCKED" if report["blocked"] or cleanup["status"] not in ({"RETAINED"} if retained else {"PASS"})
+                  or retained and cleanup["technical_status"] != "PASS" else
+                  "RETAINED" if retained else "PASS")
         print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action, "suite": args.suite,
                           "status": status, "evidence": "LIVE" if report["executed"] else "NOT RUN", **report}))
-        return 0 if status == "PASS" else 1 if status == "FAIL" else 2
+        return {"PASS": 0, "FAIL": 1, "BLOCKED": 2, "RETAINED": 3}[status]
     if getattr(args, "preparation_report", None) is not None:
         report = args.preparation_report
-        status = "PASS" if report["prepared"] else "BLOCKED"
+        status = "READY_RETAINED" if report["prepared"] and report.get("status") == "READY_RETAINED" else "PASS" if report["prepared"] else "BLOCKED"
         print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action, "status": status,
                           "expected": 1, "executed": args.executed, "failed": 0, "blocked": int(not report["prepared"]),
                           "evidence": "NOT RUN", **report}))
         return 0 if report["prepared"] else 2
+    cleanup = getattr(args, "cleanup_report", None)
+    if cleanup is not None and cleanup.get("mode") == "RETAIN_LOCAL_V1":
+        status = "RETAINED" if cleanup["status"] == "RETAINED" and cleanup.get("technical_status") == "PASS" else "BLOCKED"
+        print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action, "status": status,
+                          "cleanup": cleanup, "evidence": "NOT RUN", "expected": expected,
+                          "executed": 0, "failed": 0, "blocked": int(status == "BLOCKED"),
+                          "launch_status": "NOT_PROVEN"}))
+        return 3 if status == "RETAINED" else 2
     print(json.dumps({"git": revision, "target": CONTEXT, "mode": args.action, "status": "PASS",
                        **({"cleanup": args.cleanup_report} if getattr(args, "cleanup_report", None) else {}),
                       **public_coverage_report(args, "PASS", "LIVE"),

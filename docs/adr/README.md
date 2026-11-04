@@ -205,7 +205,8 @@ Les surfaces actuelles ne qualifient pas la provenance et la fermeture causale
 des effets ; la garde avant signup reste active par défaut. Les registres durables
 et le contexte d'événement versionné restent Proposed. Le §8 et l'amendement du
 contrat E2E fixent l'exception utilisateur de rétention locale pour un seul run,
-sans qualifier un inverse ou modifier le Statut d'une ADR ; code non livré.
+sans qualifier un inverse ou modifier le Statut d'une ADR ; noyau Ops livré le
+2026-11-04, qualification IAM native et compléments QA non livrés, aucun départ réel.
 Le témoin de lancement reste un oracle métier réellement exécuté, même rouge,
 pas un simple PID, smoke ou préflight bloqué.
 
