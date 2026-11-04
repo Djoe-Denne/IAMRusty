@@ -39,8 +39,9 @@ Contrats :
 
 - [`local-full-iam-preimage-qualification.md`](local-full-iam-preimage-qualification.md)
   — Proposed / Unimplemented : qualification initiale et post-snapshot IAM.
-  Lecture ciblée du Secret et couture d'ancre proposées, non autorisées ;
-  identité courante manquante = activation bloquée avant écrit.
+  Exception locale de lecture ciblée choisie le 2026-11-04 ; méthode d'ancre et
+  tests attendent admission native. Identité courante non prouvée = activation
+  toujours bloquée avant écrit, aucun droit de lecture général.
 
 - [`local-full-telegraph-e2e-inverse.md`](local-full-telegraph-e2e-inverse.md)
   — Constat sourcé : inverse actuel non qualifié, garde avant signup conservée.

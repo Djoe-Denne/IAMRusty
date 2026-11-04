@@ -195,9 +195,9 @@ déduite de ce livrable documentaire. Ne modifie le Statut d'aucune ADR.
 **Qualification IAM initiale et post-snapshot (2026-11-04)** :
 [complément](../contracts/local-full-iam-preimage-qualification.md),
 **Proposed / Unimplemented**. Reconstruction privée déterministe, UID courant et
-chaîne snapshot fermée ; exception ciblée de lecture Secret non autorisée,
-raccord d'ancre non livré. Aucune activation, permission générale ou ratification
-ADR déduite du document.
+chaîne snapshot fermée ; exception locale de lecture ciblée choisie le 2026-11-04,
+raccord d'ancre et tests non admis/non livrés. Aucune activation, permission
+générale ou ratification ADR déduite du document.
 
 **Nettoyage des effets Telegraph avant E2E (2026-11-03)** :
 [constat et options à arbitrer](../contracts/local-full-telegraph-e2e-inverse.md).

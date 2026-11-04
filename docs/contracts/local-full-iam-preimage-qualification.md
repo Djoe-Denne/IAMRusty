@@ -7,6 +7,17 @@ Ce fichier propose un delta aux §2–3 du [contrat additif A1](local-full-githu
 pas une permission, une activation, une ADR Accepted ou une preuve LIVE nouvelle.
 Intégration et arbitrage du parent requis avant son consommateur.
 
+**Accord utilisateur local reçu le 2026-11-04 :** « Autoriser la lecture ciblée
+(Recommended) ». Il autorise la préparation de l'exception nommée décrite au §3
+pour les deux seules configurations IAM du même bail, y compris le transit
+possible de leur contenu complet dans la mémoire privée de kubectl avant
+projection. Aucune extraction/décodage de `.data`, sortie ou capture brute n'est
+autorisée. La méthode fermée de `local_full_target.py` et ses tests indépendants
+doivent être admis par une révision native de politique avant code ; aucune
+permission générale, nouvelle lecture effective ou implémentation n'est acquise
+par le document seul. Cette autorisation locale prime sur les formulations
+pré-arbitrage du §3, sans modifier le Statut d'une ADR ou le refus générique.
+
 ## 1. Sources, acquis et contradictions bornées
 
 - [0409](../adr/0409-confiance-callback-oauth-idp-connect.md) et

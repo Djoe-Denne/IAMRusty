@@ -18,8 +18,10 @@ déploiement ou lancement E2E n'est déduit de cette tranche. Les sections ci-de
 conservent leur statut de contrat cible, pas de description d'une activation faite.
 
 Complément à arbitrer : [qualification IAM initiale et post-snapshot](local-full-iam-preimage-qualification.md),
-**Proposed / Unimplemented**. Il ne lève pas l'interdiction de Secret GET ;
-l'exception ciblée et le raccord d'ancre nécessitent leurs autorisations distinctes.
+**Proposed / Unimplemented**. Accord utilisateur local reçu le 2026-11-04 pour
+la seule exception nommée du §3 de ce complément ; admission native de la couture
+d'ancre et de ses tests encore requise. Le refus générique Secret GET reste
+applicable hors de cette exception, qui n'est pas encore implémentée.
 
 ## 1. Autorité, décision et sources
 
@@ -75,7 +77,8 @@ Confrontation aux sources, chemins relatifs à la racine :
 autorisés, sans API produit, protocole, stockage externe ou droit nouveau.
 Le journal local privé proposé ci-dessous précise l'état d'une opération existante,
 pas un nouveau service de stockage. Nouveau transport de secrets, lecture Secret
-GET, rotation, élargissement réseau ou protocole durable ⇒ STOP et arbitrage
+GET hors exception locale du complément de qualification, rotation,
+élargissement réseau ou protocole durable ⇒ STOP et arbitrage
 forward approprié. Aucun digest Serena requis sans écriture ADR. Le lead possède
 le lien entrant depuis l'index ADR et les références communes, non modifiés ici.
 
@@ -85,8 +88,9 @@ La **préimage est le fichier IAM privé réellement sélectionné/monté**, non
 template base à registre vide, ni une liste providers soumise par l'opérateur.
 Qualifier sa provenance depuis le déploiement d'origine, son lien au Secret
 monté/UID et au Deployment IAM du bail, et l'égalité de configuration effective
-par un contrôle trusted expurgé. Aucun Secret GET, export de configuration Pod,
-dump base64 ou copie du HMAC GitLab dans un artefact public.
+par un contrôle trusted expurgé. Secret GET interdit hors de l'exception locale
+nommée du complément de qualification et de son admission native ; aucun export
+de configuration Pod, dump base64 ou copie du HMAC GitLab dans un artefact public.
 
 La source privée IAM d'origine doit donc être disponible et liée au montage
 courant ; la projection publique historique SHA/providers ne remplace pas cette
