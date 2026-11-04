@@ -1388,6 +1388,109 @@ class RetentionContractTests(unittest.TestCase):
                              ("BLOCKED", "BLOCKED", False), "body failure cannot erase teardown uncertainty")
 
 
+    # Complements the integrated lock/binding/terminal/teardown tests.
+    # Oracles: ratified contract §8.2–8.3; doubles do not prove LIVE.
+    def test_g2_authority_readback_failure_spends_slot_without_capability(self):
+        for name in ("claim.json", "consumed.json"):
+            with self.subTest(record=name), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                cap = e2e._Retention(f.driver, f.inputs, f.bound, lambda: copy.deepcopy(f.bound))
+                record = f.authority / name
+                original_read = Path.read_bytes
+
+                def uncertain_readback(path):
+                    return b"PRIVATE-READBACK-SENTINEL" if path == record else original_read(path)
+
+                with cap.operation():
+                    if name == "consumed.json":
+                        cap.prepare()
+                        receipt = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound, create=True)
+                        receipt.append("retention-prepared", copy.deepcopy(e2e.RETENTION_PREPARED))
+                    with patch.object(Path, "read_bytes", uncertain_readback), self.assertRaises(e2e.Blocked) as raised:
+                        cap.prepare() if name == "claim.json" else cap.consume(receipt)
+                    self.assertNotIn("PRIVATE-READBACK-SENTINEL", str(raised.exception))
+                    self.assertFalse(cap.active, "no capability before successful authority read-back")
+                    if name == "consumed.json":
+                        self.assertIsNone(receipt.last("execution-started"))
+                        self.assertIsNone(receipt.retention)
+                before = record.read_bytes()
+                self.assertEqual(json.loads(before), f.claim, "the write succeeded; only its read-back ACK failed")
+                with self.action(f), self.assertRaises(e2e.Blocked):
+                    e2e.run_action(f.driver, f.args, {})
+                self.assertEqual(record.read_bytes(), before, "uncertain ACK must not rearm or replace the record")
+                self.assertEqual(f.http.calls, [])
+                self.assertFalse(f.pg.account)
+
+    def test_g6_subject_manifest_requires_both_status_subject_and_response_json(self):
+        # me-sub must check both the response body and its authenticated subject;
+        # evaluating one assertion is not a complete PASS for this business case.
+        valid = {"id": "me-sub", "status": "PASS", "attempted": True, "observed": True,
+                 "completed": True, "evidence": "LIVE", "http_status": 200,
+                 "checked_assertions": ["response-json", "status-subject"], "failed_assertions": []}
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            cap = e2e._Retention(f.driver, f.inputs, f.bound, lambda: copy.deepcopy(f.bound))
+            with cap.operation():
+                cap.prepare()
+                receipt = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound, create=True)
+                receipt.append("retention-prepared", copy.deepcopy(e2e.RETENTION_PREPARED))
+                cap.consume(receipt)
+                receipt.append("case-observed", valid)
+                self.assertEqual(e2e.Receipt(receipt.path, f.driver, f.bound).last("case-observed"), valid)
+                before = {p.name: p.read_bytes() for p in receipt.path.iterdir()}
+                for missing in ("response-json", "status-subject"):
+                    with self.subTest(missing=missing), self.assertRaises(e2e.Blocked):
+                        receipt.append("case-observed", {**valid, "checked_assertions": [
+                            value for value in valid["checked_assertions"] if value != missing]})
+                self.assertEqual({p.name: p.read_bytes() for p in receipt.path.iterdir()}, before)
+                self.assertEqual(receipt.last("case-observed"), valid)
+
+    def test_g6_response_bound_only_failure_never_attests_required_business_start(self):
+        # G-6: a real Services.request under a doubled connection can fail its
+        # safety bound before me-no-jwt's required HTTP-status oracle runs.
+        # That must not be promoted to a business launch merely because HTTP
+        # was observed. All authority files and bodies are synthetic/temp-only.
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            f.driver.runtime.target().check = Mock(return_value={})
+            connection = Mock()
+            response = connection.getresponse.return_value
+            response.status = 401
+            response.read.return_value = b"PRIVATE-MAIL-HMAC-SENTINEL" + b"x" * e2e.LIMIT
+            services_class = e2e.Services  # action() doubles construction, not this transport under test.
+
+            def business(mesh):
+                transport = services_class(f.driver, f.args, {}, f.inputs)
+                transport.retention = mesh.receipt.retention
+
+                def oracle(case):
+                    status, _ = transport.request("GET", "/iam/api/me", case=case)
+                    e2e._check(case, "http-status", lambda: status == 401)
+
+                mesh.results.case("me-no-jwt", oracle)
+                mesh.results.block_remaining("isolated response-bound negative control")
+
+            with self.action(f):
+                e2e.run_action(f.driver, f.args, {})
+                f.args.action, f.args.suite = "e2e", "mesh-authn"
+                with patch.object(e2e.http.client, "HTTPConnection", return_value=connection), patch.object(
+                        e2e.Mesh, "run", autospec=True, side_effect=business):
+                    report = e2e.run_action(f.driver, f.args, {})
+            connection.request.assert_called_once_with("GET", "/iam/api/me", None, {})
+            connection.close.assert_called_once_with()
+            response.read.assert_called_once_with(e2e.LIMIT + 1)
+            case = next(value for value in report["cases"] if value["id"] == "me-no-jwt")
+            self.assertEqual((case["checked_assertions"], case["failed_assertions"]),
+                             (["response-bound"], ["response-bound"]))
+            self.assertNotIn("http-status", case["checked_assertions"], "required business oracle was never evaluated")
+            self.assertEqual((report["expected"], len(report["cases"]), len(e2e.APPARATUS_CASES)), (39, 39, 6))
+            receipt = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound)
+            self.assertNotIn("PRIVATE-MAIL-HMAC-SENTINEL", json.dumps(report) + json.dumps(receipt.events))
+            self.assertEqual(report["launch_status"], "NOT_PROVEN",
+                             "response size gate alone cannot attest a required business oracle")
+            self.assertIsNone(receipt.last("case-observed"))
+
+
 class TransportTests(unittest.TestCase):
     def services(self):
         anchor = SimpleNamespace(check=Mock())

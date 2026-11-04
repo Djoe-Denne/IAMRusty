@@ -525,6 +525,12 @@ restent à vérifier. La revue sécurité statique initiale est bornée au noyau
 qualification native. Aucun essai réel,
 inverse qualifié, nettoyage PASS ou départ E2E n'est déduit de ces tests hermétiques.
 
+**Complément QA vérifié ensuite :** trois scénarios supplémentaires portent le
+module à 71 tests, dont un échec conservé : le seul refus d'une réponse trop
+volumineuse peut encore produire à tort `STARTED`, sans assertion métier requise
+évaluée. La correction du témoin de lancement reste bloquante ; les 68 tests
+verts précédents ne constituaient pas un PASS global de ce complément.
+
 ### 8.1 Entrées et consentement fermés
 
 - V1 strict conserve ses champs et ses refus, sans nouveau défaut implicite.
