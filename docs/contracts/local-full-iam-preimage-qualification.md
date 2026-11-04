@@ -25,8 +25,8 @@ préimage limitée à l'activation, post-template limité à l'activation et aux
 phases E2E prévues. Aucun émetteur de cette autorité n'est livré : le chemin réel
 refuse encore avant toute sonde faute d'autorité. Les 76 tests, dont 20 ajouts
 indépendants, passent sur le contenu intégré après correction de la chaîne
-d'exception décrite ci-dessous. La relecture secrets/confiance de ce correctif
-reste requise avant tout usage réel.
+d'exception décrite ci-dessous. La relecture secrets/confiance du correctif
+`572f3cd` conclut PASS borné ; elle ne qualifie aucun futur émetteur ou consommateur.
 La qualification complète du snapshot, sa comparaison privée, l'activation initiale
 et leur raccord au pilote E2E ne sont pas livrés par cette méthode. Aucun Secret
 réel lu, mutation d'activation, claim ou départ E2E n'en découle.
@@ -38,7 +38,9 @@ Le contexte explicite désormais intégré efface effectivement cause et context
 après la levée de l'erreur constante, en conservant l'observation après le corps.
 Les 76 tests indépendants inchangés passent, dont les contrôles du traceback et
 des deux observations. Cas exclusivement synthétique : aucune fuite de Secret
-réel observée. Relecture de sécurité du correctif encore bloquante avant usage.
+réel observée. Relecture indépendante : S-1/T-4 résolu sur `572f3cd`, sans nouveau
+finding. Le futur émetteur, le snapshot complet et l'activation restent exclus
+de ce verdict et nécessitent leurs propres preuves avant usage réel.
 
 ## 1. Sources, acquis et contradictions bornées
 

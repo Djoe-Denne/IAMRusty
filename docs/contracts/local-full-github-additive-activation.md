@@ -22,7 +22,8 @@ Complément à arbitrer : [qualification IAM initiale et post-snapshot](local-fu
 **Proposed / Partial**. Accord utilisateur local reçu le 2026-11-04 pour
 la seule exception nommée du §3 de ce complément ; méthode privée d'ancre intégrée,
 sans émetteur d'autorité livré. Ses 76 tests passent après correction de la chaîne
-d'exception ; relecture de sécurité ciblée encore requise. Le refus
+d'exception et relecture de sécurité ciblée PASS sur `572f3cd`, hors futur émetteur
+et activation. Le refus
 générique Secret GET est inchangé ; la méthode sans autorité refuse avant sonde.
 Ni ce code ni ses 56 tests historiques ne qualifient l'activation ou le snapshot.
 
