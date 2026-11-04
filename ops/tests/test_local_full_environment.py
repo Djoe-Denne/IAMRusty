@@ -1,17 +1,143 @@
 """Bounded local lifecycle oracles; no Docker/Kind/credentials contacted."""
 import copy
-from contextlib import ExitStack, nullcontext
+from contextlib import ExitStack, nullcontext, redirect_stdout, redirect_stderr
+import io
 import json
 from pathlib import Path
+import stat
 import sys
 import tempfile
+import traceback
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "deploy"))
 from ops.tests.test_local_full_target import Fixture, FakeCommands, anchor
+from ops.tests.test_openbao_local import load
 import local_full_environment as environment
+
+deployer = load("github_private_input_tests", "ops/deploy/deploy-local-full.py")
+
+
+class PrivateGitHubInputTests(unittest.TestCase):
+    """G2/G5: synthetic files and modeled metadata, no credentials/runtime."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name).resolve() / "github-input.json"
+        self.inputs = {"version": 1, "client_id": "synthetic-client", "client_secret": "SYNTHETIC_OAUTH_PRIVATE",
+                       "hmac_secret": "b" * 64}
+        self.path.write_text(json.dumps(self.inputs), encoding="utf-8")
+        self.stack = ExitStack()
+        self.addCleanup(self.stack.close)
+        # Same synthetic-file privacy seam as the existing OAuth input tests.
+        self.privacy = self.stack.enter_context(patch.object(environment, "private_file", return_value=True))
+        self.stack.enter_context(patch.object(deployer, "private_file", return_value=True))
+
+    def assert_redacted_refusal(self, operation):
+        before = self.path.read_bytes() if self.path.exists() else None
+        output = io.StringIO()
+        with redirect_stdout(output), redirect_stderr(output):
+            try:
+                operation()
+            except (ValueError, anchor.AnchorError) as error:
+                # The contract requires a redacted refusal, not one exception
+                # type: duplicate JSON uses the existing unique_json guard.
+                diagnostic = "".join(traceback.format_exception(error))
+            else:
+                self.fail("G2: invalid or changed private input must be refused")
+        public = output.getvalue() + diagnostic
+        for sentinel in (self.inputs["client_secret"], self.inputs["hmac_secret"]):
+            self.assertTrue(sentinel not in public, "G5: private input escaped through diagnostics")
+        after = self.path.read_bytes() if self.path.exists() else None
+        self.assertTrue(after == before, "G2: rejected input was overwritten")
+
+    def test_g2_g5_valid_private_json_round_trips_with_metadata_only_reference(self):
+        reference = environment.input_reference(self.path)
+        self.assertEqual(reference, {"path": str(self.path), "size": self.path.stat().st_size,
+                                     "mtime_ns": self.path.stat().st_mtime_ns})
+        before = self.path.read_bytes()
+        output = io.StringIO()
+        with redirect_stdout(output), redirect_stderr(output):
+            result = deployer.github_inputs(self.path)
+        self.assertTrue(result == self.inputs, "G2: valid private JSON did not round trip")
+        self.assertEqual(self.path.read_bytes(), before)
+        for value in (self.inputs["client_secret"], self.inputs["hmac_secret"]):
+            self.assertTrue(value not in output.getvalue() + json.dumps(reference), "G5: private input was published")
+
+    def test_g2_changed_reference_before_read_is_refused_without_calling_reader(self):
+        reference = environment.input_reference(self.path)
+        self.path.write_text(json.dumps({**self.inputs, "client_id": "changed-synthetic-client"}), encoding="utf-8")
+        reader = Mock()
+        self.assert_redacted_refusal(lambda: environment.read_private_input(reference, reader))
+        reader.assert_not_called()
+
+    def test_g2_source_change_during_read_cannot_return_credentials(self):
+        reference = environment.input_reference(self.path)
+        original = copy.deepcopy(reference)
+        def reader(path):
+            self.assertEqual(path, self.path)
+            value = json.loads(path.read_text(encoding="utf-8"))
+            path.write_text(json.dumps({**value, "client_id": "changed-synthetic-client"}), encoding="utf-8")
+            return value
+        output = io.StringIO()
+        with redirect_stdout(output), redirect_stderr(output):
+            with self.assertRaisesRegex(ValueError, "changed during reading"):
+                environment.read_private_input(reference, reader)
+        self.assertEqual(reference, original, "G2: changed source silently re-registered")
+        self.assertNotEqual(self.path.stat().st_size, reference["size"], "fixture must actually change the reference")
+        for value in (self.inputs["client_secret"], self.inputs["hmac_secret"]):
+            self.assertTrue(value not in output.getvalue(), "G5: source change leaked private values")
+
+    def test_g2_missing_source_or_unqualified_acl_is_refused_before_reader(self):
+        reference = environment.input_reference(self.path)
+        reader = Mock()
+        self.privacy.return_value = False
+        self.assert_redacted_refusal(lambda: environment.read_private_input(reference, reader))
+        reader.assert_not_called()
+        self.privacy.return_value = True
+        self.path.unlink()
+        self.assert_redacted_refusal(lambda: deployer.github_inputs(self.path))
+
+    def test_g2_symlink_and_reparse_metadata_are_refused_before_private_read(self):
+        # Reuse the existing target fixture's modeled filesystem metadata pattern;
+        # never create real links or require Windows symlink privileges.
+        original_lstat = Path.lstat
+        for metadata in ("symlink", "reparse"):
+            with self.subTest(metadata=metadata):
+                def attributes(path, *args, **kwargs):
+                    result = original_lstat(path, *args, **kwargs)
+                    if path == self.path:
+                        result = Mock(wraps=result)
+                        result.st_mode = stat.S_IFLNK if metadata == "symlink" else stat.S_IFREG
+                        result.st_file_attributes = 0x400 if metadata == "reparse" else 0
+                    return result
+                with patch.object(Path, "lstat", attributes), patch.object(Path, "read_text") as read:
+                    self.assert_redacted_refusal(lambda: deployer.github_inputs(self.path))
+                read.assert_not_called()
+
+    def test_g2_g5_invalid_duplicate_or_unknown_json_is_refused_and_redacted(self):
+        valid = json.dumps(self.inputs)
+        cases = {"syntax": valid[:-1], "duplicate": valid[:-1] + ',"client_secret":"duplicate"}',
+                 "unknown-field": json.dumps({**self.inputs, "unexpected": self.inputs["client_secret"]}),
+                 "wrong-version": json.dumps({**self.inputs, "version": True}),
+                 "invalid-hmac": json.dumps({**self.inputs, "hmac_secret": "SYNTHETIC_OAUTH_PRIVATE"}),
+                 "utf8": b'{"client_secret":"SYNTHETIC_OAUTH_PRIVATE",\xff}',
+                 "oversized": valid + " " * 65536}
+        for case, text in cases.items():
+            with self.subTest(case=case):
+                self.path.write_bytes(text if isinstance(text, bytes) else text.encode("utf-8"))
+                self.assert_redacted_refusal(lambda: deployer.github_inputs(self.path))
+
+    def test_g5_reader_exceptions_cannot_escape_private_values_or_chained_tracebacks(self):
+        reference = environment.input_reference(self.path)
+        for exception in (OSError, ValueError, KeyError, TypeError, UnicodeError):
+            with self.subTest(exception=exception.__name__):
+                reader = Mock(side_effect=exception(self.inputs["client_secret"] + self.inputs["hmac_secret"]))
+                self.assert_redacted_refusal(lambda: environment.read_private_input(reference, reader))
+                reader.assert_called_once_with(self.path)
 
 
 class PowerCommands(FakeCommands):

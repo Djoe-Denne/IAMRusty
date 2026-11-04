@@ -16,6 +16,8 @@ from urllib.parse import unquote
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "deploy"))
+
 spec = importlib.util.spec_from_file_location(
     "local_full_target", Path(__file__).resolve().parents[1] / "deploy/local_full_target.py")
 anchor = importlib.util.module_from_spec(spec)

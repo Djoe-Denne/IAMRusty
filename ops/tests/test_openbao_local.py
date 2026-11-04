@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+import traceback
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -107,6 +108,154 @@ class AdditiveGitHubTests(unittest.TestCase):
                 self.assertEqual(writes, ["github-connect/oauth", "github-connect/iam"] if failure == "second-cas" else ["github-connect/oauth"])
                 for value in (inputs["client_secret"], inputs["hmac_secret"]):
                     self.assertNotIn(value, str(raised.exception) + output.getvalue())
+
+    def assert_private_refusal(self, objects, operation):
+        original = copy.deepcopy(objects)
+        output = io.StringIO()
+        with redirect_stdout(output), redirect_stderr(output):
+            try:
+                operation()
+            except ValueError as error:
+                diagnostic = "".join(traceback.format_exception(error))
+            else:
+                self.fail("G2: ambiguous/private preimage must be refused")
+        self.assertTrue(objects == original, "G2: refusal changed the input plan")
+        public = output.getvalue() + diagnostic
+        for sentinel in ("1" * 64, "SYNTHETIC_STATE_PRIVATE", "SYNTHETIC_MALFORMED_PRIVATE"):
+            self.assertTrue(sentinel not in public, "G5: private source escaped through refusal diagnostics")
+
+    def test_g2_selected_iam_mount_volume_and_source_must_be_unique(self):
+        cases = ("no-mount", "two-mounts", "no-volume", "two-volumes", "unknown-volume-type",
+                 "unknown-source", "two-sources", "foreign-namespace", "two-volume-source-types")
+        for case in cases:
+            with self.subTest(case=case):
+                objects, secret, _ = self.private_iam()
+                pod, volume, _, _ = render.local_full_openbao.iam_template(objects)
+                app = next(c for c in pod["containers"] if c["name"] == "iam")
+                selected = next(m for m in app["volumeMounts"] if m["name"] == volume["name"])
+                if case == "no-mount":
+                    app["volumeMounts"].remove(selected)
+                elif case == "two-mounts":
+                    app["volumeMounts"].append(copy.deepcopy(selected))
+                elif case == "no-volume":
+                    pod["volumes"].remove(volume)
+                elif case == "two-volumes":
+                    pod["volumes"].append(copy.deepcopy(volume))
+                elif case == "unknown-volume-type":
+                    volume.pop("secret")
+                    volume["emptyDir"] = {}
+                elif case == "unknown-source":
+                    volume["secret"]["secretName"] = "not-in-this-plan"
+                elif case == "two-sources":
+                    objects.append(copy.deepcopy(secret))
+                elif case == "foreign-namespace":
+                    secret["metadata"]["namespace"] = "foreign-namespace"
+                else:
+                    volume["configMap"] = {"name": "unrelated-public-source"}
+                self.assert_private_refusal(objects, lambda: render.local_full_openbao.iam_template(objects))
+                self.assert_private_refusal(objects, lambda: render.local_full_openbao.configure(
+                    objects, "additiveregression", github=True))
+
+    def test_g2_malformed_private_source_is_refused_without_changing_any_object(self):
+        for case in ("base64", "utf8", "missing-key", "non-string", "stringData", "projected-key", "subPath", "writable"):
+            with self.subTest(case=case):
+                objects, secret, _ = self.private_iam()
+                pod, volume, _, _ = render.local_full_openbao.iam_template(objects)
+                if case == "base64":
+                    secret["data"]["development.toml"] = "SYNTHETIC_MALFORMED_PRIVATE!"
+                elif case == "utf8":
+                    secret["data"]["development.toml"] = base64.b64encode(b"\xff").decode()
+                elif case == "missing-key":
+                    secret["data"].pop("development.toml")
+                elif case == "non-string":
+                    secret["data"]["development.toml"] = ["SYNTHETIC_MALFORMED_PRIVATE"]
+                elif case == "stringData":
+                    secret["stringData"] = {"development.toml": "SYNTHETIC_MALFORMED_PRIVATE"}
+                elif case == "projected-key":
+                    volume["secret"]["items"] = [{"key": "other.toml", "path": "development.toml"}]
+                else:
+                    selected = next(m for c in pod["containers"] if c["name"] == "iam"
+                                    for m in c["volumeMounts"] if m["name"] == volume["name"])
+                    selected.update({"subPath": "other.toml"} if case == "subPath" else {"readOnly": False})
+                self.assert_private_refusal(objects, lambda: render.local_full_openbao.configure(
+                    objects, "additiveregression", github=True))
+
+    def test_g2_g5_private_toml_parse_errors_do_not_publish_source_excerpts(self):
+        objects, secret, text = self.private_iam()
+        malformed = text + '\nSYNTHETIC_MALFORMED_PRIVATE = "unterminated'
+        secret["data"]["development.toml"] = base64.b64encode(malformed.encode()).decode()
+        self.assert_private_refusal(objects, lambda: render.local_full_openbao.compose_github_template(malformed))
+        self.assert_private_refusal(objects, lambda: render.local_full_openbao.configure(
+            objects, "additiveregression", github=True))
+
+    def test_g2_second_configuration_cannot_adopt_or_duplicate_a_snapshot_plan(self):
+        objects, _, _ = self.private_iam()
+        render.local_full_openbao.configure(objects, "additiveregression", github=True)
+        self.assert_private_refusal(objects, lambda: render.local_full_openbao.configure(
+            objects, "additiveregression", github=True))
+
+    def test_g1_snapshot_uses_selected_private_template_and_preserves_gitlab_trust(self):
+        objects, secret, text = self.private_iam()
+        pod, volume, _, _ = render.local_full_openbao.iam_template(objects)
+        selected_volume = copy.deepcopy(volume)
+        app = next(c for c in pod["containers"] if c["name"] == "iam")
+        old_trust = copy.deepcopy(next(c for c in pod["initContainers"] if c["name"] == "oauth-proof-trust"))
+        old_mount = copy.deepcopy(next(m for m in app["volumeMounts"] if m["name"] == "oauth-proof-trust"))
+        old_volumes = copy.deepcopy(pod["volumes"])
+        old_objects = {(o["kind"], o["metadata"]["name"]): copy.deepcopy(o) for o in objects
+                       if o["metadata"]["name"].startswith("oauth-proof-") and o is not secret}
+        render.local_full_openbao.configure(objects, "additiveregression", github=True)
+        pod = next(o for o in objects if o["kind"] == "Deployment" and o["metadata"]["name"] == "iam")["spec"]["template"]["spec"]
+        app = next(c for c in pod["containers"] if c["name"] == "iam")
+        self.assertEqual([e for e in app["env"] if e["name"] == "SSL_CERT_FILE"],
+                         [{"name": "SSL_CERT_FILE", "value": "/run/iam-trust/ca-bundle.crt"}])
+        self.assertIn(old_trust, pod["initContainers"], "G1: GitLab trust producer changed")
+        self.assertIn(old_mount, app["volumeMounts"], "G1: original trust bundle became inaccessible")
+        for old_volume in old_volumes:
+            self.assertIn(old_volume, pod["volumes"], "G1: pre-existing volume changed")
+        extended = next(c for c in pod["initContainers"] if c["name"] == "trusted-roots")
+        self.assertIn(old_mount, extended["volumeMounts"])
+        self.assertIn("/oauth-proof-trust/ca-bundle.pem /run/openbao-ca/ca.crt > /trust/ca-bundle.crt", extended["command"][-1])
+        self.assertLess(pod["initContainers"].index(old_trust), pod["initContainers"].index(extended))
+        snapshot = next(c for c in pod["initContainers"] if c["name"] == "openbao-snapshot")
+        self.assertIn({"name": selected_volume["name"], "mountPath": "/template", "readOnly": True}, snapshot["volumeMounts"])
+        selected_app_mounts = [m for m in app["volumeMounts"] if m["mountPath"] == "/app/config/development.toml"]
+        self.assertEqual(selected_app_mounts, [{"name": "private-config", "mountPath": "/app/config/development.toml",
+                                              "subPath": "development.toml", "readOnly": True}])
+        self.assertIn({"name": "private-config", "emptyDir": {"medium": "Memory", "sizeLimit": "1Mi"}}, pod["volumes"])
+        for obj in objects:
+            key = (obj["kind"], obj["metadata"]["name"])
+            if key in old_objects:
+                self.assertTrue(obj == old_objects[key], "G1: GitLab resource changed")
+        after = tomllib.loads(base64.b64decode(secret["data"]["development.toml"]).decode())
+        self.assertEqual(after["idp"]["connectors"].pop()["id"], "github")
+        self.assertTrue(after == tomllib.loads(text), "G1: private IAM settings changed")
+
+    def test_g2_invalid_or_ambiguous_gitlab_bundle_is_refused_atomically(self):
+        for case in ("two-env", "valueFrom", "relative-path", "traversal", "no-mount", "two-mounts", "writable-mount"):
+            with self.subTest(case=case):
+                objects, _, _ = self.private_iam()
+                pod, _, _, _ = render.local_full_openbao.iam_template(objects)
+                app = next(c for c in pod["containers"] if c["name"] == "iam")
+                env = next(e for e in app["env"] if e["name"] == "SSL_CERT_FILE")
+                mounted = next(m for m in app["volumeMounts"] if m["name"] == "oauth-proof-trust")
+                if case == "two-env":
+                    app["env"].append(copy.deepcopy(env))
+                elif case == "valueFrom":
+                    env.pop("value")
+                    env["valueFrom"] = {"secretKeyRef": {"name": "unqualified", "key": "bundle"}}
+                elif case == "relative-path":
+                    env["value"] = "relative/ca.pem"
+                elif case == "traversal":
+                    env["value"] = "/oauth-proof-trust/../foreign.pem"
+                elif case == "no-mount":
+                    app["volumeMounts"].remove(mounted)
+                elif case == "two-mounts":
+                    app["volumeMounts"].append(copy.deepcopy(mounted))
+                else:
+                    mounted["readOnly"] = False
+                self.assert_private_refusal(objects, lambda: render.local_full_openbao.configure(
+                    objects, "additiveregression", github=True))
 
 
 class LocalOpenBaoTests(unittest.TestCase):
