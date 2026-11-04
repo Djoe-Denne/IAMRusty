@@ -37,6 +37,11 @@ Contrats :
   livrées ; activation initiale du full existant, provenance courante et promotion
   ready non livrées. Aucun déploiement ou départ E2E déduit de cette tranche.
 
+- [`local-full-iam-preimage-qualification.md`](local-full-iam-preimage-qualification.md)
+  — Proposed / Unimplemented : qualification initiale et post-snapshot IAM.
+  Lecture ciblée du Secret et couture d'ancre proposées, non autorisées ;
+  identité courante manquante = activation bloquée avant écrit.
+
 - [`local-full-telegraph-e2e-inverse.md`](local-full-telegraph-e2e-inverse.md)
   — Constat sourcé : inverse actuel non qualifié, garde avant signup conservée.
   Le §8 fixe l'exception locale de rétention consentie pour un seul run, encore

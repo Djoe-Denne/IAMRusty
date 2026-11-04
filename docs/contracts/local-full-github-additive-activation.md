@@ -17,6 +17,10 @@ la qualification de la postimage snapshot restent bloquantes ; aucun Secret GET,
 déploiement ou lancement E2E n'est déduit de cette tranche. Les sections ci-dessous
 conservent leur statut de contrat cible, pas de description d'une activation faite.
 
+Complément à arbitrer : [qualification IAM initiale et post-snapshot](local-full-iam-preimage-qualification.md),
+**Proposed / Unimplemented**. Il ne lève pas l'interdiction de Secret GET ;
+l'exception ciblée et le raccord d'ancre nécessitent leurs autorisations distinctes.
+
 ## 1. Autorité, décision et sources
 
 Recommandation : opération spécialisée d'activation sur le **full existant**,

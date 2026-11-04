@@ -192,6 +192,13 @@ distincte de la reprise OpenBao, références privées et UID des ressources see
 déjà ACKées ; aucune rotation, adoption par nom, activation ou qualification E2E
 déduite de ce livrable documentaire. Ne modifie le Statut d'aucune ADR.
 
+**Qualification IAM initiale et post-snapshot (2026-11-04)** :
+[complément](../contracts/local-full-iam-preimage-qualification.md),
+**Proposed / Unimplemented**. Reconstruction privée déterministe, UID courant et
+chaîne snapshot fermée ; exception ciblée de lecture Secret non autorisée,
+raccord d'ancre non livré. Aucune activation, permission générale ou ratification
+ADR déduite du document.
+
 **Nettoyage des effets Telegraph avant E2E (2026-11-03)** :
 [constat et options à arbitrer](../contracts/local-full-telegraph-e2e-inverse.md).
 Les surfaces actuelles ne qualifient pas la provenance et la fermeture causale
