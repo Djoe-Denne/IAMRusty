@@ -11,8 +11,8 @@ bundle CA GitLab conservé et lectures privées revalidées. Les régressions in
 OpenBao et leurs compléments passent (19 tests), ainsi que l'environnement (26)
 et les profils (2, preuve antérieure réutilisée),
 sans modification des tests par l'auteur de production. Le module d'alignement
-navigateur conserve une erreur préexistante vérifiée (12 tests, une erreur de
-fixture), pas un PASS. **L'activation initiale, l'état pending/active, ses ACK et
+navigateur passe 12 tests après correction indépendante de sa seule fixture :
+gardes du renderer et assertions inchangées. **L'activation initiale, l'état pending/active, ses ACK et
 la promotion ready ne sont pas livrés.** L'identité courante du Secret source et
 la qualification de la postimage snapshot restent bloquantes ; aucun Secret GET,
 déploiement ou lancement E2E n'est déduit de cette tranche. Les sections ci-dessous

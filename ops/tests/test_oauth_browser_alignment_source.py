@@ -233,13 +233,27 @@ class BrowserAlignmentTests(unittest.TestCase):
         source = yaml.safe_load_all((ROOT / "ops/deploy/apps/overlays/kind-mesh/envoy-mesh.yaml").read_text())
         mesh = next(obj for obj in source if obj["kind"] == "ConfigMap")
         mesh["metadata"]["namespace"] = "aiforall-local-full"
+        # Keep the real storage guard active while isolating route filtering.
+        persistent = []
+        for name, volume_name, claim, auxiliary in (
+                ("postgres", "data", "postgres-data", [
+                    {"name": "init", "configMap": {"name": "synthetic-postgres-init"}}]),
+                ("zot", "data", "zot-data", [
+                    {"name": "config", "configMap": {"name": "synthetic-zot-config"}},
+                    {"name": "htpasswd", "secret": {"secretName": "synthetic-zot-auth"}}]),
+                ("apparatus-operator", "admission-store", "admission-store", [])):
+            persistent.append({"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {
+                "name": name, "namespace": "aiforall-local-full"},
+                "spec": {"template": {"spec": {"volumes": [
+                    {"name": volume_name, "persistentVolumeClaim": {"claimName": claim}},
+                    *auxiliary]}}}})
         configs = ['[idp]\nconnectors = []\n',
                    '[[idp.connectors]]\nid = "gitlab"\nredirect_uris = ["http://127.0.0.1:18080/iam/api/auth/gitlab/relink-callback"]\n']
         for enabled, config in enumerate(configs):
             iam = {"apiVersion": "v1", "kind": "Secret" if enabled else "ConfigMap", "metadata": {
                 "name": "oauth-proof-iam-config-effective" if enabled else "iam-dev-config-effective", "namespace": "aiforall-local-full"},
                 "data": {"development.toml": base64.b64encode(config.encode()).decode() if enabled else config}}
-            output = SimpleNamespace(returncode=0, stdout=yaml.safe_dump_all([mesh, iam]))
+            output = SimpleNamespace(returncode=0, stdout=yaml.safe_dump_all([mesh, iam, *persistent]))
             # This deliberately minimal fixture tests route filtering only; real
             # profile renders separately cover the coffer/workload wiring.
             with patch.object(renderer.subprocess, "run", return_value=output) as command, \
