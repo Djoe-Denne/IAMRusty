@@ -33,9 +33,9 @@ Contrats :
   — Proposed : notification/livraison/outbox same-txn, disabled/no-op suspendu, cycle de vie SQS cancellation-safe autorisé (sous-lot T2 préalable), oracles AC1–AC7 ; prépare l'ADR complémentaire 0313, sans modifier 0301.
 
 - [`local-full-github-additive-activation.md`](local-full-github-additive-activation.md)
-  — Proposed / Unimplemented : activation GitHubConnect dans le full existant en
-  conservant GitLab, sources privées, identités des ressources et reprise OpenBao.
-  Aucun déploiement ou départ E2E autorisé par le seul contrat.
+  — Proposed / Partial : composition privée GitLab+GitHub et lectures cohérentes
+  livrées ; activation initiale du full existant, provenance courante et promotion
+  ready non livrées. Aucun déploiement ou départ E2E déduit de cette tranche.
 
 - [`local-full-telegraph-e2e-inverse.md`](local-full-telegraph-e2e-inverse.md)
   — Constat sourcé : inverse actuel non qualifié, garde avant signup conservée.

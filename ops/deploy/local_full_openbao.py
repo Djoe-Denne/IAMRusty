@@ -1,8 +1,14 @@
-"""Offline wiring for the local-only hardened coffer; contains no private inputs."""
+"""In-memory local coffer wiring; selected private IAM sources stay private.
+
+This is not an activation authority: it never reads a live Secret, qualifies a
+source's runtime provenance, or applies objects to an existing environment.
+"""
 import copy
+import base64
 import json
 from pathlib import Path
 import re
+import tomllib
 
 OVERLAY = Path(__file__).parent / "apps/overlays/local-full"
 NAMESPACE = "aiforall-local-full"
@@ -29,13 +35,14 @@ def identity(role):
         {"serviceAccountToken": {"path": "jwt", "audience": "openbao-" + role, "expirationSeconds": 600}}]}}
 
 
-def snapshot(pod, role, account, scripts):
+def snapshot(pod, role, account, scripts, config_volume="config"):
     pod["serviceAccountName"] = account
     pod["automountServiceAccountToken"] = False
     pod["securityContext"] = copy.deepcopy(POD_SECURITY)
     volumes = pod.setdefault("volumes", [])
-    config = next(v for v in volumes if v["name"] == "config")
-    # Original config remains a non-secret template; the app sees only the snapshot.
+    config = next(v for v in volumes if v["name"] == config_volume)
+    # Preserve the selected source's privacy; only the Memory snapshot is mounted
+    # by the application. A combined GitLab template is still a private Secret.
     volumes.extend([identity(role), {"name": "private-config", "emptyDir": {"medium": "Memory", "sizeLimit": "1Mi"}},
                     {"name": "openbao-ca", "configMap": {"name": "openbao-public-ca"}},
                     {"name": "openbao-scripts", "configMap": {"name": scripts}}])
@@ -48,8 +55,9 @@ def snapshot(pod, role, account, scripts):
     pod.setdefault("initContainers", []).insert(0, init)
     for container in pod["containers"]:
         for item in container.get("volumeMounts", []):
-            if item["name"] == "config" and (item["mountPath"].endswith("development.toml") or item["mountPath"] == "/app/config"):
+            if item["name"] == config_volume and (item["mountPath"].endswith("development.toml") or item["mountPath"] == "/app/config"):
                 item["name"] = "private-config"
+                item["readOnly"] = True
         container.setdefault("volumeMounts", []).append(mount("openbao-ca", "/run/openbao-ca"))
 
 
@@ -68,15 +76,123 @@ def github_seed_job(run_id, script_name):
         "ttlSecondsAfterFinished": 300, "template": {"metadata": {"labels": {"app.kubernetes.io/name": "github-seed"}}, "spec": pod}})
 
 
+def iam_template(objects):
+    """Find the single actually mounted IAM source, never an unused base CM.
+
+    Returns (pod, volume, source object, text). Only operates on in-memory
+    objects; it does not read a live Secret or attest deployment provenance.
+    """
+    try:
+        deployments = [o for o in objects if o["kind"] == "Deployment" and o["metadata"]["name"] == "iam"]
+        if len(deployments) != 1:
+            raise ValueError
+        pod = deployments[0]["spec"]["template"]["spec"]
+        containers = [c for c in pod["containers"] if c["name"] == "iam"]
+        if len(containers) != 1:
+            raise ValueError
+        mounts = [m for m in containers[0]["volumeMounts"]
+                  if m["mountPath"] in {"/app/config", "/app/config/development.toml"}]
+        if len(mounts) != 1:
+            raise ValueError
+        volumes = [v for v in pod["volumes"] if v["name"] == mounts[0]["name"]]
+        if len(volumes) != 1:
+            raise ValueError
+        volume = volumes[0]
+        private = "secret" in volume
+        reference = volume["secret" if private else "configMap"]
+        name = reference["secretName" if private else "name"]
+        sources = [o for o in objects if o["kind"] == ("Secret" if private else "ConfigMap")
+                   and o["metadata"]["name"] == name and o["metadata"].get("namespace") == NAMESPACE]
+        if (len(sources) != 1 or "items" in reference or (private and mounts[0].get("readOnly") is not True)
+                or mounts[0].get("subPath", "development.toml") != "development.toml"):
+            raise ValueError
+        source = sources[0]
+        if "development.toml" in source.get("stringData", {}):
+            raise ValueError
+        text = source["data"]["development.toml"]
+        if not isinstance(text, str):
+            raise ValueError
+        if private:
+            text = base64.b64decode("".join(text.split()), validate=True).decode("utf-8")
+        if not isinstance(text, str) or len(text.encode("utf-8")) > 1048576:
+            raise ValueError
+        return pod, volume, source, text
+    except (KeyError, TypeError, ValueError, UnicodeError):
+        raise ValueError("SOURCE_IAM_UNAVAILABLE: unique selected IAM source required (values redacted)") from None
+
+
+def compose_github_template(template, private=True):
+    """Add exactly one GitHub table and prove semantic equality of the preimage.
+
+    Private preimages must be complete GitLab-only configurations. The historical
+    public empty-registry profile remains separate and is never a migration.
+    """
+    github = {"id": "github", "base_url": "https://github-connect:8443/github-connect",
+              "hmac_secret": "__GITHUB_OPENBAO_HMAC__", "pkce_supported": False,
+              "redirect_uris": ["http://127.0.0.1:18080/iam/api/auth/github/callback",
+                                "http://127.0.0.1:18080/iam/api/auth/github/relink-callback"]}
+    try:
+        before = tomllib.loads(template)
+        connectors = before["idp"]["connectors"]
+        if not isinstance(connectors, list) or re.search(r"__[A-Z][A-Z0-9_]*__", template):
+            raise ValueError
+        if private:
+            if len(connectors) != 1:
+                raise ValueError
+            connector = connectors[0]
+            if (set(connector) != set(github) or not isinstance(connector["id"], str)
+                    or connector["id"].lower() != "gitlab"
+                    or connector["base_url"] != "https://gitlab-connect:8443/gitlab-connect"
+                    or not isinstance(connector["hmac_secret"], str) or len(connector["hmac_secret"].encode()) < 16
+                    or type(connector["pkce_supported"]) is not bool or not connector["pkce_supported"]
+                    or connector["redirect_uris"] != ["http://127.0.0.1:18080/iam/api/auth/gitlab/callback",
+                                                     "http://127.0.0.1:18080/iam/api/auth/gitlab/relink-callback"]):
+                raise ValueError
+            base = template
+        else:
+            if connectors or len(re.findall(r"(?m)^connectors = \[\]\s*$", template)) != 1:
+                raise ValueError
+            base = re.sub(r"(?m)^connectors = \[\]\s*$", "", template, count=1)
+        # An explicit dotted table switches back to the root even when the last
+        # preimage section was [queue.queues]. Parsing and equality below are the
+        # authority, not the textual placement alone.
+        rendered = base + "\n[[idp.connectors]]\n" + "\n".join(
+            key + " = " + json.dumps(value) for key, value in github.items()) + "\n"
+        after = tomllib.loads(rendered)
+        added = after["idp"]["connectors"].pop()
+        if added != github or after != before or rendered.count(github["hmac_secret"]) != 1:
+            raise ValueError
+        return rendered
+    except (KeyError, TypeError, ValueError):
+        # TOML errors may include private source excerpts: never propagate them.
+        raise ValueError("invalid or ambiguous IAM connector preimage (values redacted)") from None
+
+
 def configure(objects, run_id, github=False, client_id="offline-synthetic-client"):
-    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", client_id):
+    """Plan in isolation so a refused private preimage leaves all inputs intact."""
+    planned = copy.deepcopy(objects)
+    _configure(planned, run_id, github, client_id)
+    for original, replacement in zip(objects, planned):
+        original.clear()
+        original.update(replacement)
+    objects.extend(planned[len(objects):])
+
+
+def _configure(objects, run_id, github=False, client_id="offline-synthetic-client"):
+    if not isinstance(client_id, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", client_id):
         raise ValueError("invalid GitHub client ID")
+    if github:
+        pod, selected_volume, config, template = iam_template(objects)
+        combined = compose_github_template(template, private=config["kind"] == "Secret")
     scripts = next(o for o in objects if o["kind"] == "ConfigMap" and o["metadata"]["name"].startswith("local-full-bootstrap-scripts"))
     scripts["data"]["check-github-token.sh"] = (OVERLAY / "helpers/check-github-token.sh").read_text()
     script_name = scripts["metadata"]["name"]
-    objects.append(resource("ServiceAccount", "lazaret", automountServiceAccountToken=False))
+    if not any(o["kind"] == "ServiceAccount" and o["metadata"]["name"] == "lazaret" for o in objects):
+        objects.append(resource("ServiceAccount", "lazaret", automountServiceAccountToken=False))
     for namespace in (NAMESPACE, "aiforall-local-apparatus"):
-        objects.append(resource("ConfigMap", "openbao-public-ca", namespace, data={"ca.crt": ""}))
+        if not any(o["kind"] == "ConfigMap" and o["metadata"]["name"] == "openbao-public-ca"
+                   and o["metadata"].get("namespace") == namespace for o in objects):
+            objects.append(resource("ConfigMap", "openbao-public-ca", namespace, data={"ca.crt": ""}))
     for obj in objects:
         name = obj["metadata"]["name"]
         if obj["kind"] == "NetworkPolicy":
@@ -88,7 +204,7 @@ def configure(objects, run_id, github=False, client_id="offline-synthetic-client
         pod = obj["spec"]["template"]["spec"]
         if name == "openbao":
             pod["securityContext"] = copy.deepcopy(POD_SECURITY)
-        if name == "lazaret":
+        if name == "lazaret" and not any(c["name"] == "openbao-snapshot" for c in pod.get("initContainers", [])):
             snapshot(pod, "lazaret", "lazaret", script_name)
         if name == "apparatus-operator":
             pod.setdefault("volumes", []).append({"name": "openbao-ca", "configMap": {"name": "openbao-public-ca"}})
@@ -105,22 +221,36 @@ def configure(objects, run_id, github=False, client_id="offline-synthetic-client
         objects.append(resource("ServiceAccount", account, automountServiceAccountToken=False))
     iam = next(o for o in objects if o["kind"] == "Deployment" and o["metadata"]["name"] == "iam")
     pod = iam["spec"]["template"]["spec"]
-    config_name = next(v["configMap"]["name"] for v in pod["volumes"] if v["name"] == "config")
-    config = next(o for o in objects if o["kind"] == "ConfigMap" and o["metadata"]["name"] == config_name)
-    template = config["data"]["development.toml"]
-    if template.count("connectors = []") != 1:
-        raise ValueError("GitHub profile requires the explicit empty base connector registry")
-    config["data"]["development.toml"] = template.replace("connectors = []", "") + '\n[[idp.connectors]]\nid = "github"\nbase_url = "https://github-connect:8443/github-connect"\nhmac_secret = "__GITHUB_OPENBAO_HMAC__"\npkce_supported = false\nredirect_uris = ["http://127.0.0.1:18080/iam/api/auth/github/callback", "http://127.0.0.1:18080/iam/api/auth/github/relink-callback"]\n'
-    snapshot(pod, "iam-hmac", "iam-openbao", script_name)
-    # Extend the actual IAM image's trust store, do not replace its public roots.
+    config["data"]["development.toml"] = (base64.b64encode(combined.encode()).decode()
+        if config["kind"] == "Secret" else combined)
+    snapshot(pod, "iam-hmac", "iam-openbao", script_name, selected_volume["name"])
+    # Extend the actual IAM trust store, including a pre-existing GitLab proof CA.
+    # Replacing that bundle or appending a duplicate SSL_CERT_FILE breaks GitLab.
+    app = next(c for c in pod["containers"] if c["name"] == "iam")
+    trust_env = [e for e in app.get("env", []) if e["name"] == "SSL_CERT_FILE"]
+    source_trust = "/etc/ssl/certs/ca-certificates.crt"
+    source_mounts = []
+    if trust_env:
+        if (len(trust_env) != 1 or set(trust_env[0]) != {"name", "value"}
+                or not re.fullmatch(r"/[A-Za-z0-9_./-]+", trust_env[0]["value"])
+                or ".." in trust_env[0]["value"].split("/")):
+            raise ValueError("ambiguous IAM trust source")
+        source_trust = trust_env[0]["value"]
+        source_mounts = [copy.deepcopy(m) for m in app.get("volumeMounts", [])
+                         if source_trust.startswith(m["mountPath"].rstrip("/") + "/")]
+        if len(source_mounts) != 1 or not source_mounts[0].get("readOnly"):
+            raise ValueError("IAM private trust source is not a unique read-only mount")
     pod["volumes"].append({"name": "iam-trust", "emptyDir": {"medium": "Memory", "sizeLimit": "1Mi"}})
     pod["initContainers"].append({"name": "trusted-roots", "image": pod["containers"][0]["image"],
         "imagePullPolicy": "Never", "command": ["sh", "-ec",
-            "cat /etc/ssl/certs/ca-certificates.crt /run/openbao-ca/ca.crt > /trust/ca-bundle.crt; chmod 0444 /trust/ca-bundle.crt"],
+            "cat " + source_trust + " /run/openbao-ca/ca.crt > /trust/ca-bundle.crt; chmod 0444 /trust/ca-bundle.crt"],
         "securityContext": copy.deepcopy(SECURITY), "resources": copy.deepcopy(RESOURCES),
-        "volumeMounts": [mount("openbao-ca", "/run/openbao-ca"), mount("iam-trust", "/trust", False)]})
-    pod["containers"][0].setdefault("volumeMounts", []).append(mount("iam-trust", "/run/iam-trust"))
-    pod["containers"][0].setdefault("env", []).append({"name": "SSL_CERT_FILE", "value": "/run/iam-trust/ca-bundle.crt"})
+        "volumeMounts": [mount("openbao-ca", "/run/openbao-ca"), mount("iam-trust", "/trust", False)] + source_mounts})
+    app.setdefault("volumeMounts", []).append(mount("iam-trust", "/run/iam-trust"))
+    if trust_env:
+        trust_env[0]["value"] = "/run/iam-trust/ca-bundle.crt"
+    else:
+        app.setdefault("env", []).append({"name": "SSL_CERT_FILE", "value": "/run/iam-trust/ca-bundle.crt"})
     connector_config = (OVERLAY / "github-openbao/github.toml").read_text().replace("__GITHUB_CLIENT_ID__", client_id)
     objects.append(resource("ConfigMap", "github-openbao-config", data={"development.toml": connector_config,
         "agent.hcl": (OVERLAY / "github-openbao/agent.hcl").read_text()}))

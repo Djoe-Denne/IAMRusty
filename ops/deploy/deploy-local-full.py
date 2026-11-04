@@ -167,6 +167,15 @@ def oauth_cert_inputs(path, run_id):
 
 
 def github_inputs(path):
+    from local_full_environment import input_reference, read_private_input
+    try:
+        reference = input_reference(path)
+        return read_private_input(reference, _parse_github_inputs)
+    except (OSError, ValueError, KeyError, TypeError, UnicodeError):
+        raise ValueError("invalid private GitHub input source (values redacted)") from None
+
+
+def _parse_github_inputs(path):
     if not path or not path.is_file() or path.is_symlink() or not private_file(path) or path.stat().st_size > 65536:
         raise ValueError("private read-only GitHub input file in a private directory required")
     text = path.read_text(encoding="utf-8")

@@ -1,8 +1,21 @@
 # Local-full — activation additive GitHub, GitLab conservé
 
-2026-11-03 — **Proposed / Unimplemented** pour le raccord décrit ici. Base
-inspectée `7fdb17d33601ce85995fac8f1d89bef68d3c6b97`. Livrable documentaire,
-ni autorisation runtime, ni consommateur publié, ni preuve E2E.
+2026-11-03 — **Proposed / Partial** pour le raccord décrit ici. Base
+inspectée `7fdb17d33601ce85995fac8f1d89bef68d3c6b97`. Le livrable initial était
+documentaire ; le contrat seul ne constitue ni autorisation runtime ni preuve E2E.
+
+**Photographie du 2026-11-04 :** première tranche de code intégrée depuis la base
+`1e89ff58143aaa59342d266d2611fd70036f43f4` : sélection du document IAM réellement
+monté, composition privée GitLab+GitHub conservatrice, snapshot suivant ce volume,
+bundle CA GitLab conservé et lectures privées revalidées. Les régressions initiales
+OpenBao passent (13 tests), ainsi que l'environnement (19) et les profils (2),
+sans modification des tests par l'auteur de production. Le module d'alignement
+navigateur conserve une erreur préexistante vérifiée (12 tests, une erreur de
+fixture), pas un PASS. **L'activation initiale, l'état pending/active, ses ACK et
+la promotion ready ne sont pas livrés.** L'identité courante du Secret source et
+la qualification de la postimage snapshot restent bloquantes ; aucun Secret GET,
+déploiement ou lancement E2E n'est déduit de cette tranche. Les sections ci-dessous
+conservent leur statut de contrat cible, pas de description d'une activation faite.
 
 ## 1. Autorité, décision et sources
 

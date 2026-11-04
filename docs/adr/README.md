@@ -184,7 +184,10 @@ Contrats : cloud C/0602 = `docs/platform-cloud-v1-implementation-contract.md` ; 
 
 **Activation additive sur le full existant (2026-11-03)** :
 [contrat GitHub/GitLab](../contracts/local-full-github-additive-activation.md),
-**Proposed / Unimplemented**. Préimage IAM privée conservée, activation initiale
+**Proposed / Partial**. Première tranche de composition privée et lectures
+cohérentes intégrée le 2026-11-04 ; activation initiale et promotion ready non
+livrées, provenance courante et postimage snapshot non qualifiées. Préimage IAM
+privée conservée, activation initiale
 distincte de la reprise OpenBao, références privées et UID des ressources seed
 déjà ACKées ; aucune rotation, adoption par nom, activation ou qualification E2E
 déduite de ce livrable documentaire. Ne modifie le Statut d'aucune ADR.

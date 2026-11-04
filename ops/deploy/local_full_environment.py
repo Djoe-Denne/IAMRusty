@@ -21,13 +21,34 @@ IDENTITY = ("task_id", "cluster", "context", "nodeContainerIds", "control_plane_
 
 
 def input_reference(path):
-    path = Path(path).resolve()
-    if not private_file(path):
-        raise ValueError("local input must remain private and read-only")
-    info = path.stat()
+    try:
+        # Check before resolving: resolve() alone would hide a symlink/reparse
+        # source. Reuse the existing private-input path/ACL policy.
+        path = pki.checked_path(path)
+        if not path.is_file() or not private_file(path):
+            raise ValueError
+        info = path.stat()
+    except (OSError, ValueError, TypeError):
+        raise ValueError("local input must remain private and read-only") from None
     # No hash/copy of secrets in environment metadata. Changed private sources
     # require an explicit new registration/rotation, never an implicit rotation.
     return {"path": str(path), "size": info.st_size, "mtime_ns": info.st_mtime_ns}
+
+
+def read_private_input(reference, reader):
+    """Read one unchanged private source without persisting a secret fingerprint."""
+    if (not isinstance(reference, dict) or set(reference) != {"path", "size", "mtime_ns"}
+            or not isinstance(reference["path"], str)
+            or type(reference["size"]) is not int or type(reference["mtime_ns"]) is not int
+            or input_reference(reference["path"]) != reference):
+        raise ValueError("unchanged private input source required")
+    try:
+        value = reader(Path(reference["path"]))
+    except (OSError, ValueError, KeyError, TypeError, UnicodeError):
+        raise ValueError("invalid private input source (values redacted)") from None
+    if input_reference(reference["path"]) != reference:
+        raise ValueError("private input source changed during reading")
+    return value
 
 
 def owned(target, kind, name, namespace=CLUSTER):
@@ -72,7 +93,7 @@ def recover_coffer(target, state, save, runtime, read_github, make_secret):
         reference = state.get("github_input")
         if not reference or input_reference(reference["path"]) != reference:
             raise ValueError("new coffer epoch needs the unchanged private GitHub input source")
-        inputs = read_github(Path(reference["path"]))
+        inputs = read_private_input(reference, read_github)
         connector = owned(target, "Deployment", "github-connect")
         volumes = connector["spec"]["template"]["spec"]["volumes"]
         config_name = next(v["configMap"]["name"] for v in volumes if v["name"] == "github-config")
@@ -91,6 +112,8 @@ def recover_coffer(target, state, save, runtime, read_github, make_secret):
         if not any(container["name"] == expected for container in initializers):
             raise ValueError("existing deployment predates managed OpenBao identities; explicit initial upgrade required: " + name)
     if inputs is not None and state.get("recovery_seeded_epoch") != state["pending_epoch"]:
+        if input_reference(reference["path"]) != reference:
+            raise ValueError("private GitHub source changed before seed")
         if state.get("recovery_job"):
             job_name = state["recovery_job"]
             owned(target, "Job", job_name)  # Do not silently recreate a failed/expired attempt.
@@ -111,6 +134,8 @@ def recover_coffer(target, state, save, runtime, read_github, make_secret):
         state["recovery_seeded_epoch"] = state["pending_epoch"]
         save()
     for namespace, name, deployment in deployments:
+        if inputs is not None and input_reference(reference["path"]) != reference:
+            raise ValueError("private GitHub source changed before rollout")
         # Re-read after seed: reject a concurrent change, not a stale preflight RV.
         deployment = owned(target, "Deployment", name, namespace)
         metadata = deployment["metadata"]
