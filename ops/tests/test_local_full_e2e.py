@@ -6,6 +6,7 @@ import contextlib
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
@@ -939,6 +940,452 @@ class RetentionContractTests(unittest.TestCase):
             with self.assertRaises(e2e.Blocked):
                 receipt.append("case-observed", event)
             self.assertIsNone(receipt.last("case-observed"))
+
+    # Additional §8 gaps: G-1 lock/slot, G-2 durable private JSON, G-3 binding,
+    # G-4 terminal repair, G-5 owned teardown, G-6 source assertion manifest.
+    # Production was read in this context; the oracles are the ratified §8, not
+    # observations promoted into expected behaviour. No live qualification here.
+
+    def capability(self, fixture):
+        return e2e._Retention(fixture.driver, fixture.inputs, fixture.bound,
+                              lambda: copy.deepcopy(fixture.bound))
+
+    def prepared_receipt(self, fixture):
+        receipt = e2e.Receipt(fixture.inputs["receipt_path"], fixture.driver, fixture.bound, create=True)
+        receipt.append("retention-prepared", copy.deepcopy(e2e.RETENTION_PREPARED))
+        return receipt
+
+    def test_g1_lock_contention_and_stale_marker_never_release_another_owner(self):
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            first, second = self.capability(f), self.capability(f)
+            lock = f.authority / "operation.lock"
+            with first.operation():
+                before = lock.read_bytes()
+                with self.assertRaises(e2e.Blocked), second.operation():
+                    self.fail("contending operation entered")
+                self.assertEqual(lock.read_bytes(), before)
+            self.assertFalse(lock.exists())
+            lock.write_bytes(b'{"version":1,"owner":"stale-foreign"}')
+            stale = lock.read_bytes()
+            with self.assertRaises(e2e.Blocked), second.operation():
+                self.fail("stale marker was adopted")
+            self.assertEqual(lock.read_bytes(), stale)
+            self.assertFalse((f.authority / "claim.json").exists())
+
+    def test_g1_replaced_lock_survives_owner_exit_without_business_effect(self):
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            cap = self.capability(f)
+            lock = f.authority / "operation.lock"
+            foreign = b'{"version":1,"owner":"foreign-replacement"}'
+            with self.assertRaises(e2e.Blocked), cap.operation():
+                lock.unlink()
+                lock.write_bytes(foreign)
+                with self.assertRaises(e2e.Blocked):
+                    cap.prepare()
+            self.assertEqual(lock.read_bytes(), foreign)
+            self.assertFalse((f.authority / "claim.json").exists())
+            self.assertEqual(f.http.calls, [])
+
+    def test_g1_exclusive_claim_and_consumed_collisions_preserve_winner(self):
+        # Insert the competing file at O_EXCL, after the preliminary lexists.
+        for name in ("claim.json", "consumed.json"):
+            with self.subTest(record=name), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                cap = self.capability(f)
+                original_open = os.open
+                record = f.authority / name
+                winner = b'{"foreign":"do-not-adopt"}'
+
+                def competing_open(path, flags, *args, **kwargs):
+                    if Path(path) == record:
+                        record.write_bytes(winner)
+                    return original_open(path, flags, *args, **kwargs)
+
+                with cap.operation():
+                    if name == "consumed.json":
+                        cap.prepare()
+                        receipt = self.prepared_receipt(f)
+                    with patch.object(e2e.os, "open", side_effect=competing_open), self.assertRaises(e2e.Blocked):
+                        cap.prepare() if name == "claim.json" else cap.consume(receipt)
+                    self.assertEqual(record.read_bytes(), winner)
+                    self.assertFalse(cap.active)
+                    self.assertFalse(cap.consumption_owned)
+                with self.action(f), self.assertRaises(e2e.Blocked):
+                    e2e.run_action(f.driver, f.args, {})
+                self.assertEqual(record.read_bytes(), winner)
+                self.assertEqual(f.http.calls, [])
+
+    def test_g2_failed_fsync_leaves_claim_or_consumed_spent_without_capability(self):
+        for name in ("claim.json", "consumed.json"):
+            with self.subTest(record=name), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                cap = self.capability(f)
+                with cap.operation():
+                    if name == "consumed.json":
+                        cap.prepare()
+                        receipt = self.prepared_receipt(f)
+                    with patch.object(e2e.os, "fsync", side_effect=OSError("PRIVATE-HMAC-SENTINEL")), self.assertRaises(e2e.Blocked) as raised:
+                        cap.prepare() if name == "claim.json" else cap.consume(receipt)
+                    self.assertNotIn("PRIVATE-HMAC-SENTINEL", str(raised.exception))
+                    self.assertFalse(cap.active)
+                    self.assertEqual(cap.consumption_owned, name == "consumed.json")
+                    if name == "consumed.json":
+                        self.assertIsNone(receipt.last("execution-started"))
+                record = f.authority / name
+                before = record.read_bytes()
+                self.assertTrue(before, "the exclusive record exists despite failed durability ACK")
+                with self.action(f), self.assertRaises(e2e.Blocked):
+                    e2e.run_action(f.driver, f.args, {})
+                self.assertEqual(record.read_bytes(), before)
+                self.assertEqual(f.http.calls, [])
+
+    def test_g2_failed_privacy_or_readback_never_advances_partial_receipt(self):
+        for failure in ("privacy", "readback"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                receipt = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound, create=True)
+                file = receipt.path / "000001.json"
+                original_read = Path.read_bytes
+
+                def readback(path):
+                    return b"PRIVATE-READBACK-SENTINEL" if path == file else original_read(path)
+
+                seam = (patch.object(f.driver.anchor_module, "secure", side_effect=ValueError("PRIVATE-ACL-SENTINEL"))
+                        if failure == "privacy" else patch.object(Path, "read_bytes", readback))
+                with seam, self.assertRaises(e2e.Blocked) as raised:
+                    receipt.append("retention-prepared", copy.deepcopy(e2e.RETENTION_PREPARED))
+                self.assertNotIn("PRIVATE-", str(raised.exception))
+                self.assertIsNone(receipt.last("retention-prepared"))
+                before = file.read_bytes()
+                with self.assertRaises(e2e.Blocked):
+                    receipt.append("retention-prepared", copy.deepcopy(e2e.RETENTION_PREPARED))
+                self.assertEqual(file.read_bytes(), before, "no replacement/retry of an uncertain event")
+
+    def test_g2_bom_valid_and_duplicate_nonfinite_or_partial_json_refused(self):
+        for name in ("inputs", "consent"):
+            with self.subTest(record=name), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                path = f.args.inputs if name == "inputs" else f.authority / "consent.json"
+                raw = path.read_bytes()
+                path.write_bytes(b"\xef\xbb\xbf" + raw)
+                if name == "inputs":
+                    self.assertEqual(e2e.read_inputs(path, f.driver)["cleanup_policy"], self.POLICY)
+                else:
+                    self.assertEqual(self.capability(f).claim["consent_sha256"], hashlib.sha256(path.read_bytes()).hexdigest())
+                for invalid in (b'{"version":2,' + raw[1:], b'{"unknown":NaN,' + raw[1:],
+                                b'{"unknown":Infinity,' + raw[1:], b'{"unknown":1e999,' + raw[1:],
+                                b'{"unknown":"PRIVATE-JSON-SENTINEL",' + raw[1:], b"{", b"\xff"):
+                    with self.subTest(invalid=invalid[:25]):
+                        path.write_bytes(invalid)
+                        with self.assertRaises(e2e.Blocked) as raised:
+                            e2e.read_inputs(path, f.driver) if name == "inputs" else self.capability(f)
+                        self.assertNotIn("PRIVATE-JSON-SENTINEL", str(raised.exception))
+                self.assertFalse((f.authority / "claim.json").exists())
+                self.assertEqual(f.http.calls, [])
+
+    def test_g2_receipt_closed_envelope_and_strict_json_rejected_on_reload(self):
+        for bad in ("extra", "duplicate", "nonfinite", "partial"):
+            with self.subTest(bad=bad), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                receipt = self.prepared_receipt(f)
+                file = receipt.path / "000001.json"
+                raw = file.read_bytes()
+                if bad == "extra":
+                    changed = json.loads(raw)
+                    changed["foreign"] = "PRIVATE-RECEIPT-SENTINEL"
+                    file.write_text(json.dumps(changed), encoding="utf-8")
+                elif bad == "duplicate":
+                    file.write_bytes(b'{"kind":"retention-prepared",' + raw[1:])
+                elif bad == "nonfinite":
+                    file.write_bytes(b'{"foreign":NaN,' + raw[1:])
+                else:
+                    file.write_bytes(b"{")
+                before = file.read_bytes()
+                with self.assertRaises(e2e.Blocked) as raised:
+                    e2e.Receipt(receipt.path, f.driver, f.bound)
+                self.assertNotIn("PRIVATE-RECEIPT-SENTINEL", str(raised.exception))
+                self.assertEqual(file.read_bytes(), before)
+
+    def test_g2_private_acl_and_reparse_refusals_precede_claim(self):
+        for failure in ("acl", "reparse"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                target = f.driver.runtime.target()
+                consent = f.authority / "consent.json"
+                # Actual path traversal; only Windows lstat metadata or ACL
+                # verdict is doubled. No junction or elevated privilege required.
+                original_lstat = Path.lstat
+
+                def lstat(path, *args, **kwargs):
+                    info = original_lstat(path, *args, **kwargs)
+                    return SimpleNamespace(st_mode=info.st_mode, st_file_attributes=0x400) if path == consent else info
+
+                seam = (patch.object(target, "privacy", side_effect=lambda path: path != consent)
+                        if failure == "acl" else patch.object(Path, "lstat", lstat))
+                with seam, self.assertRaises(e2e.Blocked):
+                    self.capability(f)
+                self.assertFalse((f.authority / "operation.lock").exists())
+                self.assertFalse((f.authority / "claim.json").exists())
+
+    @contextlib.contextmanager
+    def real_binding(self, fixture):
+        f = fixture
+        f.driver.ROOT = Path(__file__).resolve().parents[2]
+        f.driver.CONTEXT = "kind-aiforall-local-full"
+        f.driver.NAMESPACES = {"namespace": e2e.NAMESPACE, "apparatus_namespace": "aiforall-local-apparatus",
+                               "cluster_namespace": "aiforall-local-cluster"}
+        f.driver.git_revision = Mock(return_value="c" * 40)
+        f.data = {"namespaceUids": {name: "uid-" + name for name in f.driver.NAMESPACES.values()},
+                  "task_id": "retention-test-only", "kube_system_uid": "uid-system",
+                  "nodeContainerIds": ["3" * 64, "1" * 64, "2" * 64]}
+        f.current = copy.deepcopy(f.data)
+        f.driver.runtime.target().check = Mock(side_effect=lambda: copy.deepcopy(f.current))
+        f.http.pki_root = Mock(return_value=f.inputs["pki_directory"])
+        f.epoch = "b" * 64
+        # binding remains real, including file fingerprints and target checks.
+        # Only the existing coffer_epoch transport seam is replaced, not a new
+        # target API or an operator boolean qualifying the private IAM source.
+        module = SimpleNamespace(coffer_epoch=lambda target: f.epoch)
+        spec = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda module: None))
+        with patch.object(e2e.importlib.util, "spec_from_file_location", return_value=spec), patch.object(
+                e2e.importlib.util, "module_from_spec", return_value=module):
+            yield lambda: e2e.binding(f.driver, f.args, f.data, f.inputs, f.http)
+
+    def test_g3_real_binding_tracks_three_uids_target_epoch_sources_head_and_consent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            with self.real_binding(f) as bind:
+                f.bound = bind()
+                self.assertEqual(f.bound["namespace_uids"], f.data["namespaceUids"])
+                self.assertEqual(len(f.bound["namespace_uids"]), 3)
+                self.assertEqual(f.bound["target_anchor"], {"task_id": "retention-test-only",
+                    "kube_system_uid": "uid-system", "nodeContainerIds": [str(n) * 64 for n in (1, 2, 3)],
+                    "openbao_epoch_sha256": "b" * 64})
+                self.assertEqual(f.bound["git"], "c" * 40)
+                self.assertEqual(set(f.bound["source"]), {"local_full_e2e.py", "local-full-acceptance.py",
+                    "prepare-local-full-certs.py", "mesh-authn-kind-e2e-cases.sh"})
+                self.assertTrue(all(len(value) == 64 for value in f.bound["source"].values()))
+                self.assertEqual(f.driver.namespace_owned.call_args_list,
+                                 [unittest.mock.call(f.data, name) for name in f.driver.NAMESPACES.values()])
+                self.rebind_attempt(f)
+                cap = e2e._Retention(f.driver, f.inputs, f.bound, bind)
+                with cap.operation():
+                    cap.prepare()
+                self.assertEqual(json.loads((f.authority / "claim.json").read_bytes()), cap.claim)
+                self.assertEqual(cap.binding["consent_sha256"], f.bound["consent_sha256"])
+
+    def test_g3_real_binding_drift_blocks_before_claim_instead_of_recapturing(self):
+        for drift in ("namespace", "task", "system", "nodes", "epoch", "head", "source", "consent"):
+            with self.subTest(drift=drift), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                with self.real_binding(f) as bind:
+                    f.bound = bind()
+                    self.rebind_attempt(f)
+                    cap = e2e._Retention(f.driver, f.inputs, f.bound, bind)
+                    with cap.operation():
+                        if drift == "namespace":
+                            f.current["namespaceUids"][e2e.NAMESPACE] = "replacement-uid"
+                        elif drift == "task":
+                            f.current["task_id"] = "another-task"
+                        elif drift == "system":
+                            f.current["kube_system_uid"] = "replacement-system"
+                        elif drift == "nodes":
+                            f.current["nodeContainerIds"][0] = "4" * 64
+                        elif drift == "epoch":
+                            f.epoch = "d" * 64
+                        elif drift == "head":
+                            f.driver.git_revision.return_value = "d" * 40
+                        elif drift == "consent":
+                            path = f.authority / "consent.json"
+                            path.write_bytes(path.read_bytes() + b" ")
+                        original_read = Path.read_bytes
+
+                        def source_read(path):
+                            raw = original_read(path)
+                            return raw + b"\n# changed source" if drift == "source" and path == Path(e2e.__file__) else raw
+
+                        with patch.object(Path, "read_bytes", source_read), self.assertRaises(e2e.Blocked):
+                            cap.prepare()
+                    self.assertFalse((f.authority / "claim.json").exists())
+                    self.assertFalse(f.inputs["receipt_path"].exists())
+                    self.assertEqual(f.http.calls, [])
+
+    def test_g4_cleanup_repairs_only_identical_missing_terminal_and_is_idempotent(self):
+        for missing in ("none", "authority", "receipt"):
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                with self.action(f):
+                    e2e.run_action(f.driver, f.args, {})
+                    f.args.action = "cleanup-probes"
+                    first = e2e.run_action(f.driver, f.args, {})["cleanup"]
+                    self.assertEqual((first["status"], first["effects_possible"]), ("RETAINED", False))
+                    terminal_path = f.authority / "terminal.json"
+                    terminal = terminal_path.read_bytes()
+                    receipt = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound)
+                    event_path = receipt.path / f"{len(receipt.events) - 1:06d}.json"
+                    event = event_path.read_bytes()
+                    if missing == "authority":
+                        terminal_path.unlink()  # simulate crash between the two durable writes
+                    elif missing == "receipt":
+                        event_path.unlink()
+                    repaired = e2e.run_action(f.driver, f.args, {})["cleanup"]
+                    self.assertEqual(repaired, first)
+                    self.assertEqual(terminal_path.read_bytes(), terminal)
+                    self.assertEqual(event_path.read_bytes(), event)
+                    before = {p: p.read_bytes() for folder in (f.authority, receipt.path) for p in folder.iterdir()}
+                    self.assertEqual(e2e.run_action(f.driver, f.args, {})["cleanup"], first)
+                    self.assertEqual({p: p.read_bytes() for folder in (f.authority, receipt.path) for p in folder.iterdir()}, before)
+                self.assertEqual(f.http.calls, [])
+                self.assertFalse(f.pg.account)
+
+    def test_g4_partial_or_contradictory_terminal_is_blocked_without_rewrite(self):
+        for failure in ("partial", "foreign", "contradictory"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                with self.action(f):
+                    e2e.run_action(f.driver, f.args, {})
+                    f.args.action = "cleanup-probes"
+                    e2e.run_action(f.driver, f.args, {})
+                    terminal = f.authority / "terminal.json"
+                    value = json.loads(terminal.read_bytes())
+                    if failure == "partial":
+                        terminal.write_bytes(b"{")
+                    else:
+                        value["run_id" if failure == "foreign" else "effects_possible"] = USER if failure == "foreign" else True
+                        terminal.write_text(json.dumps(value), encoding="utf-8")
+                    before = {p: p.read_bytes() for folder in (f.authority, f.inputs["receipt_path"]) for p in folder.iterdir()}
+                    outcome = e2e.run_action(f.driver, f.args, {})["cleanup"]
+                self.assertEqual((outcome["status"], outcome["removed"], outcome["complete"]), ("BLOCKED", 0, False))
+                self.assertEqual({p: p.read_bytes() for folder in (f.authority, f.inputs["receipt_path"]) for p in folder.iterdir()}, before)
+                self.assertEqual(f.http.calls, [])
+
+    def test_g6_fixed_manifest_accepts_observed_pass_fail_and_rejects_false_started(self):
+        # A simple fixed source oracle avoids deriving expectations by calling
+        # _required_assertions itself. Other cases remain in the 39-case inventory.
+        valid = {"id": "me-no-jwt", "status": "PASS", "attempted": True, "observed": True,
+                 "completed": True, "evidence": "LIVE", "http_status": 401,
+                 "checked_assertions": ["http-status"], "failed_assertions": []}
+        variants = [{"id": "jwks"}, {"id": "smoke"}, {"id": "unknown"}, {"status": "BLOCKED"},
+                    {"attempted": 1}, {"observed": False}, {"completed": False}, {"evidence": "NOT RUN"},
+                    {"http_status": True}, {"http_status": 99}, {"http_status": 600},
+                    {"checked_assertions": ["response-bound"]}, {"checked_assertions": ["http-status", "http-status"]},
+                    {"checked_assertions": ["PRIVATE-BODY-SENTINEL"]}, {"failed_assertions": ["http-status"]},
+                    {"status": "FAIL"}, {"status": "FAIL", "failed_assertions": ["response-bound"]},
+                    {"extra": "PRIVATE-HMAC-SENTINEL"}]
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            cap = self.capability(f)
+            with cap.operation():
+                cap.prepare()
+                receipt = self.prepared_receipt(f)
+                cap.consume(receipt)
+                receipt.append("case-observed", valid)
+                self.assertEqual(e2e.Receipt(receipt.path, f.driver, f.bound).last("case-observed"), valid)
+                failed = {**valid, "status": "FAIL", "http_status": 500, "failed_assertions": ["http-status"]}
+                receipt.append("case-observed", failed)
+                self.assertEqual(receipt.last("case-observed"), failed)
+                before = {p.name: p.read_bytes() for p in receipt.path.iterdir()}
+                for change in variants:
+                    with self.subTest(change=change), self.assertRaises(e2e.Blocked) as raised:
+                        receipt.append("case-observed", {**valid, **change})
+                    self.assertNotIn("PRIVATE-", str(raised.exception))
+                self.assertEqual({p.name: p.read_bytes() for p in receipt.path.iterdir()}, before)
+                self.assertEqual(set(e2e.CASE_ASSERTIONS), {case for case, _ in e2e.mesh_cases()} - {"jwks"})
+                self.assertEqual((len(e2e.mesh_cases()), len(e2e.APPARATUS_CASES)), (39, 6))
+
+    def test_g6_case_journal_ack_failure_never_attests_started_or_leaks_body(self):
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            with self.action(f):
+                e2e.run_action(f.driver, f.args, {})
+                f.args.action, f.args.suite = "e2e", "mesh-authn"
+                original_append = e2e.Receipt.append
+
+                def append(receipt, kind, data):
+                    if kind == "case-observed":
+                        raise e2e.Blocked("PRIVATE-OAUTH-BODY-SENTINEL")
+                    return original_append(receipt, kind, data)
+
+                def business(mesh):
+                    def oracle(case):
+                        case.update(attempted=True, observed=True, http_status=401)
+                        e2e._check(case, "http-status", lambda: True)
+                    mesh.results.case("me-no-jwt", oracle)
+                    mesh.results.block_remaining("isolated oracle")
+
+                with patch.object(e2e.Receipt, "append", append), patch.object(e2e.Mesh, "run", autospec=True, side_effect=business):
+                    report = e2e.run_action(f.driver, f.args, {})
+            self.assertEqual((report["passed"], report["executed"], report["expected"]), (1, 1, 39))
+            self.assertEqual(report["launch_status"], "NOT_PROVEN")
+            self.assertEqual(report["cleanup"]["status"], "BLOCKED")
+            self.assertIn("case-journal", report["cleanup"]["uncertainties"])
+            receipt = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound)
+            self.assertIsNone(receipt.last("case-observed"))
+            self.assertNotIn("PRIVATE-OAUTH-BODY-SENTINEL", json.dumps(report) + json.dumps(receipt.events))
+
+    def test_g5_forward_closes_and_joins_only_owned_handle_on_body_failure(self):
+        for body_fails in (False, True):
+            with self.subTest(body_fails=body_fails), tempfile.TemporaryDirectory() as directory:
+                f = self.fixture(Path(directory).resolve())
+                owned, foreign = Mock(name="owned-handle"), Mock(name="foreign-handle")
+
+                @contextlib.contextmanager
+                def forward(service, **identity):
+                    self.assertEqual((service, identity), ("iam", {"namespace_uid": "namespace-fixture-uid", "service_uid": "service-fixture-uid"}))
+                    try:
+                        yield 12345
+                    finally:
+                        owned.close()
+                        owned.wait()
+
+                f.driver.runtime.target().e2e_forward = forward
+                services = e2e.Services(f.driver, f.args, {"namespaceUids": {e2e.NAMESPACE: "namespace-fixture-uid"}}, f.inputs)
+                with patch.object(services, "resource", return_value={"metadata": {"uid": "service-fixture-uid"}}):
+                    try:
+                        with services.forward("iam") as port:
+                            self.assertEqual(port, 12345)
+                            if body_fails:
+                                raise ValueError("PRIVATE-BUSINESS-SENTINEL")
+                    except e2e.Blocked as error:
+                        self.assertTrue(body_fails)
+                        self.assertNotIn("PRIVATE-BUSINESS-SENTINEL", str(error))
+                self.assertEqual(owned.mock_calls, [unittest.mock.call.close(), unittest.mock.call.wait()])
+                self.assertEqual(foreign.mock_calls, [])
+                self.assertFalse(getattr(services, "technical_cleanup_failed", False))
+
+    def test_g5_body_and_teardown_failures_never_report_technical_pass(self):
+        # T-1: a failed business oracle must not hide a failed context teardown.
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            owned = Mock(name="owned-handle")
+
+            @contextlib.contextmanager
+            def forward(service, **identity):
+                try:
+                    yield 12345
+                finally:
+                    owned.close()
+                    owned.wait()
+                    raise RuntimeError("PRIVATE-TEARDOWN-SENTINEL")
+
+            f.driver.runtime.target().e2e_forward = forward
+            services = e2e.Services(f.driver, f.args, {"namespaceUids": {e2e.NAMESPACE: "namespace-fixture-uid"}}, f.inputs)
+            cap = self.capability(f)
+            with cap.operation():
+                cap.prepare()
+                receipt = self.prepared_receipt(f)
+                cap.consume(receipt)
+                receipt.append("execution-started", {"suite": "mesh-authn"})
+                with patch.object(services, "resource", return_value={"metadata": {"uid": "service-fixture-uid"}}):
+                    with self.assertRaises(e2e.Blocked) as raised, services.forward("iam"):
+                        raise ValueError("PRIVATE-BUSINESS-SENTINEL")
+                self.assertNotIn("PRIVATE-", str(raised.exception))
+                outcome = e2e._terminalize(cap, receipt, services)
+            self.assertEqual(owned.mock_calls, [unittest.mock.call.close(), unittest.mock.call.wait()])
+            self.assertEqual((outcome["status"], outcome["technical_status"], outcome["complete"]),
+                             ("BLOCKED", "BLOCKED", False), "body failure cannot erase teardown uncertainty")
 
 
 class TransportTests(unittest.TestCase):

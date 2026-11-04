@@ -27,7 +27,7 @@ class RetentionDriverContractTests(unittest.TestCase):
     claim to prove its causal journal or tunnel ownership using fake results.
     """
 
-    def invoke(self, action, report_name, adapter_report):
+    def invoke(self, action, report_name, adapter_report, *, release_error=None):
         module = AcceptanceGuardTests().load()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
@@ -44,10 +44,18 @@ class RetentionDriverContractTests(unittest.TestCase):
                 setattr(args, report_name, adapter_report)
                 args.executed = adapter_report.get("executed", 0)
 
+            @contextlib.contextmanager
+            def mutex():
+                try:
+                    yield
+                finally:
+                    if release_error is not None:
+                        raise ValueError(release_error)
+
             output = io.StringIO()
             with patch("sys.argv", argsv), patch.object(module, "git_revision", return_value="test-fixed-head"), patch.object(
                     module, "bind_environment", side_effect=bind), patch.object(
-                    module.runtime, "operation_lock", return_value=contextlib.nullcontext()), patch.object(
+                    module.runtime, "operation_lock", return_value=mutex()), patch.object(
                     module.runtime, "lease", return_value={}), patch.object(
                     module, "explicit_probe_action", side_effect=run), contextlib.redirect_stdout(output):
                 code = module.main()
@@ -127,6 +135,45 @@ class RetentionDriverContractTests(unittest.TestCase):
                 kubectl.assert_not_called()
             self.assertEqual(claim.read_bytes(), before)
             self.assertEqual(args.executed, 0)
+
+    def test_g5_driver_outer_lock_release_failure_cannot_keep_retention_technical_pass(self):
+        # §8.4/5: even after adapter terminal success, outer mutex uncertainty
+        # remains BLOCKED. The sentinel models a private exception, not a token.
+        for action in ("e2e", "cleanup-probes"):
+            with self.subTest(action=action):
+                adapter = self.suite_report()
+                adapter["cleanup"]["mode"] = "RETAIN_LOCAL_V1"
+                if action == "cleanup-probes":
+                    adapter = adapter["cleanup"]
+                code, report = self.invoke(action, "e2e_report" if action == "e2e" else "cleanup_report",
+                                           adapter, release_error="PRIVATE-HMAC-LOCK-SENTINEL")
+                self.assertEqual((code, report["status"]), (2, "BLOCKED"))
+                self.assertEqual((report["cleanup"]["status"], report["cleanup"]["technical_status"],
+                                  report["cleanup"]["complete"], report["cleanup"]["removed"]),
+                                 ("BLOCKED", "BLOCKED", False, 0))
+                self.assertIn("technical-cleanup", report["cleanup"]["uncertainties"])
+                self.assertNotIn("PRIVATE-HMAC-LOCK-SENTINEL", json.dumps(report))
+                if action == "e2e":
+                    self.assertEqual((report["expected"], report["passed"], len(report["cases"])), (39, 39, 39))
+                else:
+                    self.assertEqual((report["executed"], report["evidence"], report["launch_status"]), (0, "NOT RUN", "NOT_PROVEN"))
+
+    def test_g6_driver_keeps_launch_evidence_distinct_from_fail_and_retention(self):
+        # These are adapter inputs, not a claim that this pure driver test
+        # observed LIVE HTTP. Causal/schema validation lives in E2E core tests.
+        for oracle, launch, code_expected, status_expected in (
+                ("PASS", "STARTED", 3, "RETAINED"), ("FAIL", "STARTED", 1, "FAIL"),
+                ("BLOCKED", "NOT_PROVEN", 2, "BLOCKED")):
+            with self.subTest(oracle=oracle, launch=launch):
+                adapter = self.suite_report(oracle=oracle)
+                adapter["launch_status"] = launch
+                code, report = self.invoke("e2e", "e2e_report", adapter)
+                self.assertEqual((code, report["status"], report["launch_status"]), (code_expected, status_expected, launch))
+                self.assertEqual((report["expected"], len(report["cases"])), (39, 39))
+                self.assertIn("s2s-revoke", {case["id"] for case in report["cases"]})
+                self.assertIn("s2s-after-revoke", {case["id"] for case in report["cases"]})
+                self.assertEqual(report["provider_fixture"], "SIMULATED_PROVIDER")
+                self.assertEqual((report["cleanup"]["complete"], report["cleanup"]["removed"]), (False, 0))
 
 
 class AcceptanceGuardTests(unittest.TestCase):
