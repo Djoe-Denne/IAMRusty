@@ -33,6 +33,53 @@ class AnchorError(RuntimeError):
     pass
 
 
+@dataclass(frozen=True)
+class _IAMMetadataAuthority:
+    """Private, in-process proof issued by the trusted activation, never an input.
+
+    There is deliberately no issuer in this tranche. The future trusted issuer
+    must install this exact object only under the invocation's live operation
+    lock. Activation alone admits a preimage; prepare-probes/e2e only observe an
+    already ACKed post-template. Original activation operation/run/HEAD/epoch,
+    lease and source ACK provenance remain required, not reissued by observation.
+    The post-template tuple is (operation_id, name, UID) from exclusive create ACK,
+    never from discovery. Neither a lease entry nor an operator reference issues
+    this authority. No public activation API or persisted state is introduced.
+    """
+    anchor: object
+    lease: str
+    lock_identity: tuple
+    operation_id: str
+    run_id: str
+    head: str
+    epoch: str
+    role: str
+    phase: str
+    namespace_uid: str
+    deployment_uid: str
+    pod: tuple
+    replica_set: tuple
+    original_secret: tuple
+    template_create_ack: tuple | None
+
+
+# Only these fields may leave kubectl for the named Secret read. Its client can
+# receive a complete Secret in memory; this is NOT PartialObjectMetadata.
+_IAM_METADATA = ('jsonpath={.metadata.name}{"\\t"}{.metadata.namespace}{"\\t"}'
+                 '{.metadata.uid}{"\\t"}{.metadata.resourceVersion}{"\\t"}'
+                 '{.metadata.deletionTimestamp}{"\\n"}')
+_IAM_OWNERS = ('{range .metadata.ownerReferences[*]}R{"\\t"}{.kind}{"\\t"}{.name}'
+               '{"\\t"}{.uid}{"\\t"}{.controller}{"\\n"}{end}')
+_IAM_MOUNTS = ('{range .volumeMounts[*]}M{"\\t"}{.name}{"\\t"}{.mountPath}'
+               '{"\\t"}{.subPath}{"\\t"}{.readOnly}{"\\t"}{.subPathExpr}{"\\n"}{end}')
+_IAM_POD = (_IAM_METADATA + _IAM_OWNERS
+            + '{range .spec.containers[*]}C{"\\t"}{.name}{"\\n"}' + _IAM_MOUNTS + '{end}'
+            + '{range .spec.initContainers[*]}I{"\\t"}{.name}{"\\n"}' + _IAM_MOUNTS + '{end}'
+            + '{range .spec.ephemeralContainers[*]}E{"\\n"}{end}'
+            + '{range .spec.volumes[*]}V{"\\t"}{.name}{"\\t"}{.secret.secretName}'
+              '{"\\t"}{.configMap.name}{"\\t"}{.emptyDir.medium}{"\\t"}{.emptyDir.sizeLimit}{"\\n"}{end}')
+
+
 def registry_config_path(version, configuration):
     """Read the CRI registry section, not transfer-service or unrelated paths."""
     match = re.search(r"\sv?([12])\.[0-9]+\.", version)
@@ -1139,6 +1186,223 @@ class LocalClusterTargetAnchor:
         self._uid_check()
         suffix = list(op.argv) + (["--"] + list(op.remote_argv) if op.remote_argv else [])
         return self.runner(self.prefix() + suffix, env=self.environment(), **kwargs)
+
+    def _iam_metadata_binding(self, authority):
+        """Validate the private issuer binding before any probe; no adoption."""
+        def require(condition):
+            if not condition:
+                raise AnchorError("IAM metadata qualification refused")
+
+        require(type(authority) is _IAMMetadataAuthority
+                and getattr(self, "_iam_metadata_authority", None) is authority
+                and authority.anchor is self)
+        require(self.data["cluster"] == "aiforall-local-full"
+                and self.data["context"] == "kind-aiforall-local-full")
+        # Role and phase select one existing mutex action; no free action input.
+        action = {("activation", "preimage"): "github-activate",
+                  ("activation", "post-template"): "github-activate",
+                  ("prepare-probes", "post-template"): "acceptance-prepare-probes",
+                  ("e2e", "post-template"): "acceptance-e2e"}.get((authority.role, authority.phase))
+        require(action is not None)
+        for value, pattern in ((authority.operation_id, r"[a-f0-9]{32}"),
+                               (authority.run_id, r"[a-f0-9]{32}"),
+                               (authority.head, r"[a-f0-9]{40}"),
+                               (authority.epoch, r"[a-f0-9]{64}")):
+            require(isinstance(value, str) and re.fullmatch(pattern, value))
+        require(json.loads(authority.lease, object_pairs_hook=unique_json) == self.data
+                and json.loads(self.path.read_text(encoding="utf-8-sig"), object_pairs_hook=unique_json) == self.data)
+        require(self.data.get("namespaceUids", {}).get("aiforall-local-full") == authority.namespace_uid)
+        lock = self.path.with_name(self.path.name + ".local-full-lock")
+        require(not lock.is_symlink())
+        before = lock.stat()
+        require(stat.S_ISREG(before.st_mode)
+                and not getattr(before, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+                and before.st_size <= 1024)
+        require((before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) == authority.lock_identity)
+        require(json.loads(lock.read_text(encoding="utf-8"), object_pairs_hook=unique_json)
+                == {"action": action, "pid": os.getpid()})
+        after = lock.stat()
+        require((after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns) == authority.lock_identity)
+
+        def owned(kind, pair):
+            require(type(pair) is tuple and len(pair) == 2 and _log_name(pair[0])
+                    and isinstance(pair[1], str) and re.fullmatch(r"[a-f0-9-]{36}", pair[1]))
+            entries = [e for e in self.data.get("ownedResources", [])
+                       if e.get("kind") == kind and e.get("name") == pair[0]
+                       and e.get("namespace") == "aiforall-local-full"]
+            require(len(entries) == 1 and all(entries[0].get(k) == v for k, v in {
+                "uid": pair[1], "cluster": "aiforall-local-full", "context": "kind-aiforall-local-full"}.items()))
+
+        owned("Deployment", ("iam", authority.deployment_uid))
+        owned("Secret", authority.original_secret)
+        for pair in (authority.pod, authority.replica_set):
+            require(type(pair) is tuple and len(pair) == 2 and _log_name(pair[0])
+                    and isinstance(pair[1], str) and re.fullmatch(r"[a-f0-9-]{36}", pair[1]))
+        if authority.phase == "preimage":
+            require(authority.template_create_ack is None)
+            return authority.original_secret
+        ack = authority.template_create_ack
+        require(type(ack) is tuple and len(ack) == 3 and ack[0] == authority.operation_id)
+        selected = ack[1:]
+        require(selected[0] != authority.original_secret[0] and selected[1] != authority.original_secret[1])
+        owned("Secret", selected)
+        return selected
+
+    def _iam_metadata_read(self, authority, resource):
+        """Internal fixed projections only; sanitize BEFORE run/capture_failure.
+
+        Use the same kubectl connection/credentials/environment, but never the
+        generic runner: it captures error buffers before its caller can redact.
+        No caller-controlled options, transport or diagnostic sink are exposed.
+        """
+        selected = self._iam_metadata_binding(authority)
+        namespace = "aiforall-local-full"
+        # Closed resource roles, not a name/namespace/JSONPath/argv interface.
+        if resource == "pod-roster":
+            args = ["get", "pods", "-n", namespace, "-l", "app.kubernetes.io/name=iam", "-o",
+                    'jsonpath={range .items[*]}{.metadata.name}{"\\t"}{.metadata.uid}{"\\t"}'
+                    '{.metadata.deletionTimestamp}{"\\t"}{.status.phase}{"\\n"}{end}']
+        elif resource in {"namespace", "deployment", "replicaset", "pod", "secret"}:
+            names = {"namespace": namespace, "deployment": "iam", "replicaset": authority.replica_set[0],
+                     "pod": authority.pod[0], "secret": selected[0]}
+            projection = (_IAM_POD if resource == "pod" else _IAM_METADATA + _IAM_OWNERS
+                          if resource in {"deployment", "replicaset"} else _IAM_METADATA)
+            args = ["get", resource, names[resource]]
+            if resource != "namespace":
+                args += ["-n", namespace]
+            args += ["-o", projection]
+        else:
+            raise AnchorError("IAM metadata qualification refused")
+        self._uid_check()  # unchanged full connection/credentials/cluster check
+        self._iam_metadata_binding(authority)
+        failed, result, output = False, None, None
+        try:
+            result = subprocess.run(self.prefix() + args, env=self.environment(),
+                                    stdin=subprocess.DEVNULL, capture_output=True,
+                                    check=False, timeout=5)
+            if (result.returncode != 0 or type(result.stdout) is not bytes
+                    or type(result.stderr) is not bytes or result.stderr
+                    or len(result.stdout) > 65536):
+                failed = True
+            else:
+                output = result.stdout.decode("utf-8", errors="strict")
+                if "\x00" in output or "\r" in output:
+                    failed = True
+        except Exception:
+            # Do not retain/chaining even TimeoutExpired.output or decoder input.
+            failed = True
+        finally:
+            result = None  # discard even malformed/failed command buffers
+        if failed:
+            output = None
+            raise AnchorError("IAM metadata qualification refused")
+        return output
+
+    def _iam_metadata_identity(self, authority):
+        selected = self._iam_metadata_binding(authority)
+        namespace = "aiforall-local-full"
+
+        def require(condition):
+            if not condition:
+                raise AnchorError("IAM metadata qualification refused")
+
+        def get(resource):
+            return self._iam_metadata_read(authority, resource).splitlines()
+
+        def metadata(lines, name, uid, ns=namespace):
+            require(bool(lines))
+            fields = lines[0].split("\t")
+            require(len(fields) == 5 and fields[:3] == [name, ns, uid]
+                    and re.fullmatch(r"[0-9]{1,30}", fields[3]) and fields[4] == "")
+            return fields
+
+        ns = get("namespace")
+        metadata(ns, namespace, authority.namespace_uid, "")
+        require(len(ns) == 1)
+        deployment = get("deployment")
+        metadata(deployment, "iam", authority.deployment_uid)
+        require(len(deployment) == 1)
+        rs = get("replicaset")
+        metadata(rs, *authority.replica_set)
+        require(rs[1:] == ["\t".join(("R", "Deployment", "iam", authority.deployment_uid, "true"))])
+        roster = get("pod-roster")
+        require(roster == ["\t".join((*authority.pod, "", "Running"))])
+        pod = get("pod")
+        metadata(pod, *authority.pod)
+        require(pod[1:2] == ["\t".join(("R", "ReplicaSet", *authority.replica_set, "true"))])
+        containers, volumes, current = {}, {}, None
+        for line in pod[2:]:
+            row = line.split("\t")
+            if row[0] in {"C", "I"}:
+                require(len(row) == 2 and _log_name(row[1], container=True) and tuple(row) not in containers)
+                current = tuple(row)
+                containers[current] = []
+            elif row[0] == "M":
+                require(len(row) == 6 and current is not None)
+                containers[current].append(row[1:])
+            elif row[0] == "V":
+                require(len(row) == 6 and _log_name(row[1], container=True) and row[1] not in volumes)
+                volumes[row[1]] = row[2:]
+                current = None
+            else:
+                require(False)  # includes ephemeral containers and extra owners
+        require([k for k in containers if k[0] == "C"] == [("C", "iam")])
+        mounts = containers[("C", "iam")]
+        path = "/app/config/development.toml"
+        config = [m for m in mounts if m[1] == path]
+        require(len(config) == 1 and config[0][2:] == ["development.toml", "true", ""])
+        require(all(m is config[0] or not (path == m[1] or path.startswith(m[1].rstrip("/") + "/")) for m in mounts))
+        volume = config[0][0]
+        if authority.phase == "preimage":
+            require(volumes.get(volume) == [selected[0], "", "", ""])
+        else:
+            require(volume == "private-config" and volumes.get(volume) == ["", "", "Memory", "1Mi"])
+            require([m for m in mounts if m[0] == volume] == config)
+            snapshot = containers.get(("I", "openbao-snapshot"), [])
+            templates = [m for m in snapshot if m[1] == "/template"]
+            require(len(templates) == 1 and templates[0][2:] == ["", "true", ""]
+                    and volumes.get(templates[0][0]) == [selected[0], "", "", ""])
+            runtime = [m for m in snapshot if m[1] == "/runtime"]
+            require(len(runtime) == 1 and runtime[0][:3] == [volume, "/runtime", ""]
+                    and runtime[0][3] in {"", "false"} and runtime[0][4] == ""
+                    and [m for m in snapshot if m[0] == volume] == runtime)
+            require(all(key == ("I", "openbao-snapshot") or not any(m[0] == volume for m in values)
+                        for key, values in containers.items() if key[0] == "I"))
+        # The name comes ONLY from this live selected mount and the issued role
+        # ACK. This dedicated GET never passes through the generic Secret parser.
+        self._iam_metadata_binding(authority)
+        secret = get("secret")
+        fields = metadata(secret, *selected)
+        require(len(secret) == 1)
+        self._uid_check()
+        self._iam_metadata_binding(authority)
+        return {"name": fields[0], "namespace": fields[1], "uid": fields[2],
+                "resourceVersion": fields[3], "deletionTimestamp": None}, (ns, deployment, rs, roster, pod)
+
+    @contextlib.contextmanager
+    def _iam_secret_metadata(self):
+        """Bracket private qualification with stable UID/RV/mount observations.
+
+        No issuer exists yet: absent trusted operation authority refuses before
+        any probe. The yielded metadata is provisional until normal context exit.
+        Full snapshot provenance, private equality and epoch qualification remain
+        mandatory in the consumer; these minimal mount checks do not replace it.
+        """
+        failed = False
+        try:
+            authority = getattr(self, "_iam_metadata_authority", None)
+            before = self._iam_metadata_identity(authority)
+            try:
+                yield dict(before[0])
+            finally:
+                after = self._iam_metadata_identity(authority)
+                if before != after:
+                    raise AnchorError("IAM metadata qualification refused")
+        except BaseException:
+            failed = True
+        if failed:
+            # Outside the except block: no raw exception context or buffers.
+            raise AnchorError("IAM metadata qualification refused")
 
     def diagnostic_logs(self, args, *, namespace_uid, pod_uid, container, owner_chain):
         """Parent-attested diagnostic only; consume via private Context Mode capture.

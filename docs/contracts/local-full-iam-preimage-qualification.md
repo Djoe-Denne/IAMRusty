@@ -1,6 +1,6 @@
 # Local-full — qualification IAM initiale et après snapshot
 
-2026-11-04 — **Proposed / Unimplemented** pour ce complément de qualification.
+2026-11-04 — **Proposed / Partial** pour ce complément de qualification.
 Base inspectée : `1e89ff58143aaa59342d266d2611fd70036f43f4`.
 Jalon : raccord Ops du local-full existant, hors Apparatus P0–P6.
 Ce fichier propose un delta aux §2–3 du [contrat additif A1](local-full-github-additive-activation.md),
@@ -17,6 +17,18 @@ doivent être admis par une révision native de politique avant code ; aucune
 permission générale, nouvelle lecture effective ou implémentation n'est acquise
 par le document seul. Cette autorisation locale prime sur les formulations
 pré-arbitrage du §3, sans modifier le Statut d'une ADR ou le refus générique.
+
+**Photographie vérifiée du 2026-11-04 :** la méthode privée fermée
+`LocalClusterTargetAnchor._iam_secret_metadata()` est intégrée. Elle lie les
+métadonnées avant/après à une autorité privée, au bail et au verrou de l'opération ;
+préimage limitée à l'activation, post-template limité à l'activation et aux deux
+phases E2E prévues. Aucun émetteur de cette autorité n'est livré : le chemin réel
+refuse encore avant toute sonde faute d'autorité. Les 56 tests historiques passent
+sur ce contenu intégré ; ils ne qualifient pas cette nouvelle méthode. Ses tests
+indépendants et sa revue secrets/confiance restent requis avant tout usage réel.
+La qualification complète du snapshot, sa comparaison privée, l'activation initiale
+et leur raccord au pilote E2E ne sont pas livrés par cette méthode. Aucun Secret
+réel lu, mutation d'activation, claim ou départ E2E n'en découle.
 
 ## 1. Sources, acquis et contradictions bornées
 
