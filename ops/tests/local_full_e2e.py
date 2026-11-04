@@ -126,7 +126,8 @@ class Results:
                 case.update(status="BLOCKED", completed=False, evidence="NOT RUN",
                             reason="business assertion not completed; details redacted")
             if (case["status"] in {"PASS", "FAIL"} and case.get("attempted") is True
-                    and case.get("observed") is True and checked and type(case.get("http_status")) is int):
+                    and case.get("observed") is True and checked and type(case.get("http_status")) is int
+                    and _required_assertions(name).intersection(checked)):
                 event = {key: case[key] for key in ("id", "status", "attempted", "observed", "completed", "evidence",
                                                    "http_status", "checked_assertions", "failed_assertions")}
                 try:
@@ -1121,7 +1122,11 @@ def _case_schema(data):
             or len(set(checked)) != len(checked) or len(set(failed)) != len(failed)
             or not set(failed) <= set(checked) or bool(failed) != (data["status"] == "FAIL")):
         raise Blocked("source assertion manifest required")
-    if data["status"] == "PASS" and not _required_assertions(data["id"]) <= set(checked):
+    required = _required_assertions(data["id"])
+    # A partial FAIL can attest business start, but a transport bound alone cannot.
+    if not required.intersection(checked):
+        raise Blocked("required business assertion not evaluated")
+    if data["status"] == "PASS" and not required <= set(checked):
         raise Blocked("complete source assertion manifest required for PASS")
 
 
@@ -1769,7 +1774,8 @@ def _run_retention(driver, args, data, inputs, services, database, bound, creden
         report["suite_status"] = "FAIL" if report["failed"] else "BLOCKED" if report["blocked"] else "PASS"
         try:
             capability.current()
-            launch = bool(receipt.last("case-observed")) and not capability.journal_failed
+            _case_schema(receipt.last("case-observed"))
+            launch = not capability.journal_failed
         except Exception:
             launch = False
         report["launch_status"] = "STARTED" if launch else "NOT_PROVEN"

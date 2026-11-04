@@ -63,6 +63,50 @@ class _IAMMetadataAuthority:
     template_create_ack: tuple | None
 
 
+class _IAMSecretMetadataContext:
+    """Keep exception redaction at the actual context exit, not a generator."""
+
+    def __init__(self, anchor):
+        self._anchor = anchor
+
+    @staticmethod
+    def _refuse():
+        failure = AnchorError("IAM metadata qualification refused")
+        try:
+            raise failure from None
+        finally:
+            # A with-body exception is still active in __exit__. Clear the
+            # chain AFTER raising: from None only hides, not removes, context.
+            failure.__cause__ = None
+            failure.__context__ = None
+
+    def __enter__(self):
+        failed = False
+        try:
+            self._authority = getattr(self._anchor, "_iam_metadata_authority", None)
+            self._before = self._anchor._iam_metadata_identity(self._authority)
+            return dict(self._before[0])
+        except BaseException:
+            failed = True
+        if failed:
+            self._refuse()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        failed = exc_type is not None
+        # Do not keep the private body exception in the outgoing traceback's
+        # frame locals. Only its failure status is needed for qualification.
+        exc_type = exc_value = traceback = None
+        try:
+            after = self._anchor._iam_metadata_identity(self._authority)
+            if self._before != after:
+                failed = True
+        except BaseException:
+            failed = True
+        if failed:
+            self._refuse()
+        return False
+
+
 # Only these fields may leave kubectl for the named Secret read. Its client can
 # receive a complete Secret in memory; this is NOT PartialObjectMetadata.
 _IAM_METADATA = ('jsonpath={.metadata.name}{"\\t"}{.metadata.namespace}{"\\t"}'
@@ -1379,7 +1423,6 @@ class LocalClusterTargetAnchor:
         return {"name": fields[0], "namespace": fields[1], "uid": fields[2],
                 "resourceVersion": fields[3], "deletionTimestamp": None}, (ns, deployment, rs, roster, pod)
 
-    @contextlib.contextmanager
     def _iam_secret_metadata(self):
         """Bracket private qualification with stable UID/RV/mount observations.
 
@@ -1388,21 +1431,7 @@ class LocalClusterTargetAnchor:
         Full snapshot provenance, private equality and epoch qualification remain
         mandatory in the consumer; these minimal mount checks do not replace it.
         """
-        failed = False
-        try:
-            authority = getattr(self, "_iam_metadata_authority", None)
-            before = self._iam_metadata_identity(authority)
-            try:
-                yield dict(before[0])
-            finally:
-                after = self._iam_metadata_identity(authority)
-                if before != after:
-                    raise AnchorError("IAM metadata qualification refused")
-        except BaseException:
-            failed = True
-        if failed:
-            # Outside the except block: no raw exception context or buffers.
-            raise AnchorError("IAM metadata qualification refused")
+        return _IAMSecretMetadataContext(self)
 
     def diagnostic_logs(self, args, *, namespace_uid, pod_uid, container, owner_chain):
         """Parent-attested diagnostic only; consume via private Context Mode capture.

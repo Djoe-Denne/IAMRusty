@@ -21,7 +21,8 @@ conservent leur statut de contrat cible, pas de description d'une activation fai
 Complément à arbitrer : [qualification IAM initiale et post-snapshot](local-full-iam-preimage-qualification.md),
 **Proposed / Partial**. Accord utilisateur local reçu le 2026-11-04 pour
 la seule exception nommée du §3 de ce complément ; méthode privée d'ancre intégrée,
-sans émetteur d'autorité livré. Ses tests nouveaux restent en cours. Le refus
+sans émetteur d'autorité livré. Ses 76 tests passent après correction de la chaîne
+d'exception ; relecture de sécurité ciblée encore requise. Le refus
 générique Secret GET est inchangé ; la méthode sans autorité refuse avant sonde.
 Ni ce code ni ses 56 tests historiques ne qualifient l'activation ou le snapshot.
 

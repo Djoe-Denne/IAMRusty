@@ -513,9 +513,10 @@ contrats, avec revue secrets/trust si son diff touche cette frontière.
 **Photographie du 2026-11-04 — noyau Ops partiel :** entrées v2, autorité privée
 claim/consumed, capacité vivante, journaux fermés, terminal RETAINED et codes du
 driver sont intégrés dans les deux modules Ops. Sur le contenu intégré,
-`test_local_full_e2e.py` passe 68 tests et `test_local_full_acceptance_source.py`
-37 tests après intégration de 18 compléments indépendants et correction du double
-échec métier/fermeture, sans modification des tests par l'auteur de production. La preuve
+`test_local_full_e2e.py` passe 71 tests et `test_local_full_acceptance_source.py`
+37 tests après intégration de 21 compléments indépendants et correction du double
+échec métier/fermeture et du faux témoin de lancement, sans modification des tests
+par l'auteur de production. La preuve
 native de source IAM reste volontairement `BLOCKED SOURCE_IAM_UNAVAILABLE` avant
 projection privée, claim ou signup ; la capacité d'ancre et la qualification du
 snapshot du [complément IAM](local-full-iam-preimage-qualification.md) ne sont pas
@@ -525,11 +526,11 @@ restent à vérifier. La revue sécurité statique initiale est bornée au noyau
 qualification native. Aucun essai réel,
 inverse qualifié, nettoyage PASS ou départ E2E n'est déduit de ces tests hermétiques.
 
-**Complément QA vérifié ensuite :** trois scénarios supplémentaires portent le
-module à 71 tests, dont un échec conservé : le seul refus d'une réponse trop
-volumineuse peut encore produire à tort `STARTED`, sans assertion métier requise
-évaluée. La correction du témoin de lancement reste bloquante ; les 68 tests
-verts précédents ne constituaient pas un PASS global de ce complément.
+**Complément QA vérifié ensuite :** trois scénarios supplémentaires ont démontré
+un faux `STARTED` après le seul contrôle de taille de réponse. Le correctif intégré
+exige maintenant l'évaluation d'une assertion métier requise avant production
+ou utilisation du témoin. Les 71 tests passent, FAIL métier légitime toujours
+admis comme départ prouvé. Cela ne prouve aucun départ réel de la campagne.
 
 ### 8.1 Entrées et consentement fermés
 

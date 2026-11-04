@@ -23,19 +23,22 @@ pré-arbitrage du §3, sans modifier le Statut d'une ADR ou le refus générique
 métadonnées avant/après à une autorité privée, au bail et au verrou de l'opération ;
 préimage limitée à l'activation, post-template limité à l'activation et aux deux
 phases E2E prévues. Aucun émetteur de cette autorité n'est livré : le chemin réel
-refuse encore avant toute sonde faute d'autorité. Les 56 tests historiques passent
-sur ce contenu intégré ; ils ne qualifient pas cette nouvelle méthode. Ses tests
-indépendants et sa revue secrets/confiance restent requis avant tout usage réel.
+refuse encore avant toute sonde faute d'autorité. Les 76 tests, dont 20 ajouts
+indépendants, passent sur le contenu intégré après correction de la chaîne
+d'exception décrite ci-dessous. La relecture secrets/confiance de ce correctif
+reste requise avant tout usage réel.
 La qualification complète du snapshot, sa comparaison privée, l'activation initiale
 et leur raccord au pilote E2E ne sont pas livrés par cette méthode. Aucun Secret
 réel lu, mutation d'activation, claim ou départ E2E n'en découle.
 
 **Complément QA ensuite intégré :** 20 tests indépendants portent le module à
-76 tests ; un échec est conservé. Une exception du corps de qualification peut
-rester attachée à l'erreur finale et exposer ses détails dans un traceback
-formaté, malgré le message constant. Cas démontré avec données synthétiques,
-pas de fuite de Secret réel observée. Expurgation effective et relecture de
-sécurité restent bloquantes avant tout usage de cette méthode.
+76 tests ; un échec initial démontrait qu'une exception du corps pouvait rester
+attachée à l'erreur finale et exposer ses détails dans un traceback formaté.
+Le contexte explicite désormais intégré efface effectivement cause et contexte
+après la levée de l'erreur constante, en conservant l'observation après le corps.
+Les 76 tests indépendants inchangés passent, dont les contrôles du traceback et
+des deux observations. Cas exclusivement synthétique : aucune fuite de Secret
+réel observée. Relecture de sécurité du correctif encore bloquante avant usage.
 
 ## 1. Sources, acquis et contradictions bornées
 
