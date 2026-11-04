@@ -30,6 +30,13 @@ La qualification complète du snapshot, sa comparaison privée, l'activation ini
 et leur raccord au pilote E2E ne sont pas livrés par cette méthode. Aucun Secret
 réel lu, mutation d'activation, claim ou départ E2E n'en découle.
 
+**Complément QA ensuite intégré :** 20 tests indépendants portent le module à
+76 tests ; un échec est conservé. Une exception du corps de qualification peut
+rester attachée à l'erreur finale et exposer ses détails dans un traceback
+formaté, malgré le message constant. Cas démontré avec données synthétiques,
+pas de fuite de Secret réel observée. Expurgation effective et relecture de
+sécurité restent bloquantes avant tout usage de cette méthode.
+
 ## 1. Sources, acquis et contradictions bornées
 
 - [0409](../adr/0409-confiance-callback-oauth-idp-connect.md) et

@@ -1,5 +1,6 @@
 """Fake-command S-11 tests and a native Windows ACL invocation boundary."""
 import base64
+import contextlib
 import hashlib
 import importlib.util
 import io
@@ -8,7 +9,9 @@ import os
 import re
 import tempfile
 import sys
+import traceback
 import unittest
+from dataclasses import replace
 from email.message import Message
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
@@ -1937,6 +1940,545 @@ class NativeRunnerTextTests(unittest.TestCase):
         value = bytes([0, 255, 13, 10, 128])
         command = [sys.executable, "-c", "import sys;sys.stdout.buffer.write(sys.stdin.buffer.read())"]
         self.assertEqual(anchor.run(command, input=value, text=False), value)
+
+
+class IAMMetadataFixture(Fixture):
+    """Synthetic authority and wire replies, not a trusted issuer or LIVE proof."""
+
+    namespace = "aiforall-local-full"
+    namespace_uid = "11111111-1111-4111-8111-111111111111"
+    deployment_uid = "22222222-2222-4222-8222-222222222222"
+    pod = ("iam-current-pod", "33333333-3333-4333-8333-333333333333")
+    replica_set = ("iam-current-rs", "44444444-4444-4444-8444-444444444444")
+    original = ("iam-oauth-original-ab12", "55555555-5555-4555-8555-555555555555")
+    template = ("iam-github-template-cd34", "66666666-6666-4666-8666-666666666666")
+    unused = ("iam-unused-config", "77777777-7777-4777-8777-777777777777")
+    operation_id = "e" * 32
+
+    def __init__(self, root, phase="preimage", role="activation", runtime_readonly=""):
+        super().__init__(root)
+        self.data["namespaceUids"] = {self.namespace: self.namespace_uid}
+        self.data["ownedResources"] = [
+            {"kind": kind, "name": name, "uid": uid, "namespace": self.namespace,
+             "cluster": self.data["cluster"], "context": self.data["context"]}
+            for kind, name, uid in [("Deployment", "iam", self.deployment_uid),
+                                    ("Secret", *self.original), ("Secret", *self.template),
+                                    ("Secret", *self.unused)]]
+        self.save()
+        self.commands = FakeCommands(self)
+        self.subject = self.target(self.commands)
+        self.lock = self.lease.with_name(self.lease.name + ".local-full-lock")
+        action = {"activation": "github-activate", "prepare-probes": "acceptance-prepare-probes",
+                  "e2e": "acceptance-e2e"}[role]
+        self.lock.write_text(json.dumps({"action": action, "pid": os.getpid()}), encoding="utf-8")
+        info = self.lock.stat()
+        self.authority = anchor._IAMMetadataAuthority(
+            anchor=self.subject, lease=json.dumps(self.data),
+            lock_identity=(info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns),
+            operation_id=self.operation_id, run_id="f" * 32, head="c" * 40, epoch="b" * 64,
+            role=role, phase=phase, namespace_uid=self.namespace_uid,
+            deployment_uid=self.deployment_uid, pod=self.pod, replica_set=self.replica_set,
+            original_secret=self.original,
+            template_create_ack=None if phase == "preimage" else (self.operation_id, *self.template))
+        self.subject._iam_metadata_authority = self.authority
+        self.selected = self.original if phase == "preimage" else self.template
+        self.expected = {"name": self.selected[0], "namespace": self.namespace,
+                         "uid": self.selected[1], "resourceVersion": "17", "deletionTimestamp": None}
+        self.responses = {
+            "namespace": self.row(self.namespace, "", self.namespace_uid, "10", ""),
+            "deployment": self.metadata("iam", self.deployment_uid),
+            "replicaset": self.metadata(*self.replica_set)
+                + self.row("R", "Deployment", "iam", self.deployment_uid, "true"),
+            "pod-roster": self.row(*self.pod, "", "Running"),
+            "pod": self.metadata(*self.pod)
+                + self.row("R", "ReplicaSet", *self.replica_set, "true"),
+            "secret": self.metadata(*self.selected),
+        }
+        if phase == "preimage":
+            self.responses["pod"] += (self.row("C", "iam")
+                + self.row("M", "oauth-proof-config", "/app/config/development.toml", "development.toml", "true", "")
+                + self.row("V", "oauth-proof-config", self.original[0], "", "", ""))
+        else:
+            self.responses["pod"] += (self.row("C", "iam")
+                + self.row("M", "private-config", "/app/config/development.toml", "development.toml", "true", "")
+                + self.row("I", "openbao-snapshot")
+                + self.row("M", "oauth-proof-config", "/template", "", "true", "")
+                + self.row("M", "private-config", "/runtime", "", runtime_readonly, "")
+                + self.row("I", "gitlab-trust")
+                + self.row("M", "gitlab-trust", "/trust", "", "false", "")
+                + self.row("V", "private-config", "", "", "Memory", "1Mi")
+                + self.row("V", "oauth-proof-config", self.template[0], "", "", "")
+                + self.row("V", "gitlab-trust", "", "", "", ""))
+        self.transport_calls, self.overrides = [], {}
+
+    @staticmethod
+    def row(*fields):
+        return "\t".join(fields) + "\n"
+
+    def metadata(self, name, uid):
+        return self.row(name, self.namespace, uid, "17", "")
+
+    def bind(self, **changes):
+        self.authority = replace(self.authority, **changes)
+        self.subject._iam_metadata_authority = self.authority
+
+    def refresh_lock_identity(self):
+        info = self.lock.stat()
+        self.bind(lock_identity=(info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns))
+
+    def transport(self, command, **kwargs):
+        self.transport_calls.append((list(command), kwargs))
+        resource = command[6]
+        key = "pod-roster" if resource == "pods" else resource
+        reply = self.overrides.get(key)
+        if isinstance(reply, BaseException):
+            raise reply
+        if reply is not None:
+            return reply
+        return anchor.subprocess.CompletedProcess(command, 0, self.responses[key].encode("utf-8"), b"")
+
+
+class IAMSecretMetadataTests(unittest.TestCase):
+    """G-1..G-4: IAM qualification §3 and the independent-tests briefing.
+
+    Only the metadata seam is exercised. Snapshot execution, private equality,
+    trusted authority issuance and RBAC are deliberately not qualified here.
+    """
+
+    sentinels = ("OAUTH_PRIVATE_SENTINEL_not_a_credential", "HMAC_PRIVATE_SENTINEL_not_a_hash")
+    refusal = "IAM metadata qualification refused"
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        environment = patch.dict(os.environ, {}, clear=True)
+        environment.start()
+        self.addCleanup(environment.stop)
+        native = patch.object(anchor.subprocess, "run", side_effect=AssertionError("unarranged process"))
+        self.native = native.start()
+        self.addCleanup(native.stop)
+        capture = patch("private_diagnostics.capture_failure")
+        self.capture = capture.start()
+        self.addCleanup(capture.stop)
+        self.fixture_number = 0
+
+    def fixture(self, **kwargs):
+        self.fixture_number += 1
+        root = Path(self.temp.name) / str(self.fixture_number)
+        root.mkdir()
+        fixture = IAMMetadataFixture(root, **kwargs)
+        self.native.side_effect = fixture.transport
+        return fixture
+
+    def clear_calls(self, fixture):
+        fixture.commands.calls.clear()
+        fixture.transport_calls.clear()
+        self.native.reset_mock()
+
+    def admitted(self, fixture):
+        """Positive prerequisite for the same path before introducing a fault."""
+        with fixture.subject._iam_secret_metadata() as metadata:
+            self.assertEqual(metadata, fixture.expected)
+        self.assertEqual(metadata, fixture.expected)
+        self.assertEqual([command[6] for command, _ in fixture.transport_calls],
+                         ["namespace", "deployment", "replicaset", "pods", "pod", "secret"] * 2)
+        self.assertEqual(len(fixture.commands.api()), 14, "connection UID must bracket both observations")
+        self.assertTrue(all(command[5:] == ["get", "namespace", "kube-system", "-o", "jsonpath={.metadata.uid}"]
+                            for command in fixture.commands.api()))
+        self.capture.assert_not_called()
+        self.clear_calls(fixture)
+
+    def refused(self, fixture, *, before_probe=False, body=None):
+        stdout, stderr, entered = io.StringIO(), io.StringIO(), []
+        failure, formatted = None, ""
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            try:
+                with fixture.subject._iam_secret_metadata() as metadata:
+                    entered.append(metadata)
+                    if body is not None:
+                        body()
+            except anchor.AnchorError as error:
+                failure = error
+                formatted = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+        self.assertIsNotNone(failure, "qualification must refuse, not validate provisional metadata")
+        self.assertEqual(str(failure), self.refusal)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(stderr.getvalue(), "")
+        for sentinel in self.sentinels:
+            self.assertNotIn(sentinel, formatted + stdout.getvalue() + stderr.getvalue(),
+                             "private qualification details must not escape through a formatted traceback")
+        self.assertIsNone(failure.__cause__)
+        self.assertIsNone(failure.__context__, "private exception must not survive in formatted traceback")
+        self.capture.assert_not_called()
+        if before_probe:
+            self.assertEqual(fixture.commands.calls, [], "invalid authority must fail before even local probes")
+            self.native.assert_not_called()
+        return entered
+
+    def test_g1_admits_only_four_closed_role_phase_pairs(self):
+        for role, phase in (("activation", "preimage"), ("activation", "post-template"),
+                            ("prepare-probes", "post-template"), ("e2e", "post-template")):
+            with self.subTest(role=role, phase=phase):
+                self.admitted(self.fixture(role=role, phase=phase))
+
+    def test_g1_generic_secret_aliases_remain_refused_before_all_probes(self):
+        fixture = self.fixture()
+        self.admitted(fixture)
+        for resource in ("se", "secret", "secrets", "se/iam-oauth-original-ab12",
+                         "secret/iam-oauth-original-ab12", "secrets/iam-oauth-original-ab12"):
+            with self.subTest(resource=resource):
+                with self.assertRaises(anchor.AnchorError):
+                    fixture.subject.kubectl(["get", resource, "-n", fixture.namespace,
+                                            "-o", "jsonpath={.metadata.uid}"], text=True)
+                self.assertEqual(fixture.commands.calls, [])
+                self.native.assert_not_called()
+
+    def test_g1_absent_operator_shaped_and_subclass_authorities_do_not_issue_permission(self):
+        fixture = self.fixture()
+        self.admitted(fixture)
+        class LookalikeAuthority(anchor._IAMMetadataAuthority):
+            pass
+        for authority in (None, True, vars(fixture.authority).copy(),
+                          LookalikeAuthority(**vars(fixture.authority))):
+            with self.subTest(authority_type=type(authority).__name__):
+                fixture.subject._iam_metadata_authority = authority
+                self.assertEqual(self.refused(fixture, before_probe=True), [])
+
+    def test_g1_authority_identity_target_lease_and_ack_must_match_before_transport(self):
+        changes = (
+            {"anchor": object()}, {"lease": "{}"}, {"lease": '{"duplicate":1,"duplicate":2}'},
+            {"lock_identity": (0, 0, 0, 0)}, {"operation_id": "not-an-operation"},
+            {"run_id": True}, {"head": "g" * 40}, {"epoch": "0" * 63},
+            {"namespace_uid": IAMMetadataFixture.unused[1]},
+            {"deployment_uid": IAMMetadataFixture.unused[1]},
+            {"original_secret": (IAMMetadataFixture.original[0], IAMMetadataFixture.unused[1])},
+            {"pod": [*IAMMetadataFixture.pod]}, {"replica_set": ("../foreign", "invalid")},
+            {"template_create_ack": None},
+            {"template_create_ack": ("a" * 32, *IAMMetadataFixture.template)},
+            {"template_create_ack": (IAMMetadataFixture.operation_id, *IAMMetadataFixture.original)},
+            {"template_create_ack": (IAMMetadataFixture.operation_id, "unowned-template", IAMMetadataFixture.template[1])},
+        )
+        for change in changes:
+            with self.subTest(field=tuple(change), value_type=type(next(iter(change.values()))).__name__):
+                fixture = self.fixture(phase="post-template")
+                self.admitted(fixture)
+                fixture.bind(**change)
+                self.assertEqual(self.refused(fixture, before_probe=True), [])
+
+    def test_g1_unapproved_roles_phases_and_mutex_actions_fail_before_probe(self):
+        for role, phase in (("prepare-probes", "preimage"), ("e2e", "preimage"),
+                            ("operator", "post-template"), ("activation", "other")):
+            with self.subTest(role=role, phase=phase):
+                fixture = self.fixture(phase="post-template")
+                self.admitted(fixture)
+                fixture.bind(role=role, phase=phase)
+                self.refused(fixture, before_probe=True)
+        for role in ("activation", "prepare-probes", "e2e"):
+            for action, pid in (("github-activate-other", os.getpid()),
+                                ("github-activate", os.getpid() + 1)):
+                with self.subTest(role=role, action=action, pid_matches=pid == os.getpid()):
+                    fixture = self.fixture(role=role, phase="post-template")
+                    self.admitted(fixture)
+                    fixture.lock.write_text(json.dumps({"action": action, "pid": pid}), encoding="utf-8")
+                    fixture.refresh_lock_identity()  # Wrong content, not an accidental stat mismatch.
+                    self.refused(fixture, before_probe=True)
+
+    def test_g1_closed_cluster_lease_and_unique_resource_ack_fail_before_probe(self):
+        for change in ("target", "lease-on-disk", "namespace", "missing-ack", "duplicate-ack", "foreign-ack"):
+            with self.subTest(change=change):
+                fixture = self.fixture()
+                self.admitted(fixture)
+                data = fixture.subject.data
+                if change == "target":
+                    data.update(cluster="aiforall-local", context="kind-aiforall-local")
+                elif change == "lease-on-disk":
+                    fixture.data["task_id"] = "a" * 32
+                    fixture.save()
+                elif change == "namespace":
+                    data["namespaceUids"][fixture.namespace] = fixture.unused[1]
+                elif change == "missing-ack":
+                    data["ownedResources"] = [entry for entry in data["ownedResources"] if entry["name"] != fixture.original[0]]
+                elif change == "duplicate-ack":
+                    data["ownedResources"].append(dict(data["ownedResources"][1]))
+                else:
+                    data["ownedResources"][1]["context"] = "kind-foreign"
+                if change not in {"target", "lease-on-disk"}:
+                    fixture.lease.write_text(json.dumps(data), encoding="utf-8")
+                    fixture.bind(lease=json.dumps(data))  # Reach the ACK/namespace guard itself.
+                self.refused(fixture, before_probe=True)
+
+    def test_g1_missing_replaced_linked_or_reparse_lock_never_reaches_transport(self):
+        from types import SimpleNamespace
+        for change in ("absent", "directory", "replacement", "symlink", "reparse"):
+            with self.subTest(change=change):
+                fixture = self.fixture()
+                self.admitted(fixture)
+                if change in {"absent", "directory"}:
+                    fixture.lock.unlink()
+                    if change == "directory":
+                        fixture.lock.mkdir()
+                    self.refused(fixture, before_probe=True)
+                elif change == "replacement":
+                    content = fixture.lock.read_bytes()
+                    fixture.lock.rename(fixture.root / "previous-lock")
+                    fixture.lock.write_bytes(content)
+                    self.refused(fixture, before_probe=True)
+                elif change == "symlink":
+                    original = Path.is_symlink
+                    with patch.object(Path, "is_symlink", lambda path: path == fixture.lock or original(path)):
+                        self.refused(fixture, before_probe=True)
+                else:
+                    original = Path.stat
+                    def reparse_stat(path, *args, **kwargs):
+                        value = original(path, *args, **kwargs)
+                        if path == fixture.lock:
+                            return SimpleNamespace(st_mode=value.st_mode, st_file_attributes=0x400)
+                        return value
+                    with patch.object(Path, "stat", reparse_stat):
+                        self.refused(fixture, before_probe=True)
+
+    def test_g2_fixed_named_projections_select_only_original_or_created_template(self):
+        projection = ('jsonpath={.metadata.name}{"\\t"}{.metadata.namespace}{"\\t"}'
+                      '{.metadata.uid}{"\\t"}{.metadata.resourceVersion}{"\\t"}'
+                      '{.metadata.deletionTimestamp}{"\\n"}')
+        names = []
+        for phase in ("preimage", "post-template"):
+            fixture = self.fixture(phase=phase)
+            with fixture.subject._iam_secret_metadata() as metadata:
+                self.assertEqual(metadata, fixture.expected)
+            for command, kwargs in fixture.transport_calls:
+                self.assertEqual(command[:5], ["kubectl", "--kubeconfig", str(fixture.config_path),
+                                               "--context", "kind-aiforall-local-full"])
+                self.assertEqual(command[5], "get")
+                self.assertEqual(kwargs, {"env": fixture.subject.environment(), "stdin": anchor.subprocess.DEVNULL,
+                                          "capture_output": True, "check": False, "timeout": 5})
+                self.assertNotIn(".data", command[-1])
+                self.assertNotIn(".stringData", command[-1])
+                if command[6] == "secret":
+                    self.assertEqual(command[5:], ["get", "secret", fixture.selected[0],
+                                                  "-n", fixture.namespace, "-o", projection])
+                    names.append(command[7])
+        self.assertEqual(names, [IAMMetadataFixture.original[0]] * 2 + [IAMMetadataFixture.template[0]] * 2)
+        self.capture.assert_not_called()
+
+    def test_g2_read_resource_roles_are_not_free_names_or_output_requests(self):
+        fixture = self.fixture()
+        self.admitted(fixture)
+        for resource in ("secrets", "secret/foreign", "iam-unused-config", "-o=json", "--raw", "data", None):
+            with self.subTest(resource=resource):
+                with self.assertRaisesRegex(anchor.AnchorError, "^" + self.refusal + "$"):
+                    fixture.subject._iam_metadata_read(fixture.authority, resource)
+                self.assertEqual(fixture.commands.calls, [])
+                self.native.assert_not_called()
+
+    def test_g2_connection_endpoint_and_cluster_uid_are_still_checked(self):
+        for change in ("endpoint", "cluster-uid"):
+            with self.subTest(change=change):
+                fixture = self.fixture()
+                self.admitted(fixture)
+                if change == "endpoint":
+                    fixture.nodes[fixture.ids[0]]["ports"]["6443/tcp"][0]["HostPort"] = "60124"
+                else:
+                    fixture.commands.uid = "foreign-system-uid"
+                self.refused(fixture)
+                self.native.assert_not_called()
+                self.assertEqual(len(fixture.commands.api()), 0 if change == "endpoint" else 1)
+
+    def test_g2_namespace_owner_chain_and_roster_must_be_unique_and_current(self):
+        fixture = self.fixture()
+        self.admitted(fixture)
+        cases = (
+            ("namespace", lambda text: text.replace(fixture.namespace_uid, fixture.unused[1])),
+            ("deployment", lambda text: text + fixture.row("R", "Deployment", "foreign", fixture.unused[1], "true")),
+            ("replicaset", lambda text: text.replace(fixture.deployment_uid, fixture.unused[1])),
+            ("replicaset", lambda text: text.replace("\ttrue\n", "\tfalse\n")),
+            ("replicaset", lambda text: text + text.splitlines(keepends=True)[1]),
+            ("pod-roster", lambda text: text + text),
+            ("pod-roster", lambda text: text.replace("Running", "Pending")),
+            ("pod-roster", lambda text: text.replace(fixture.pod[1], fixture.unused[1])),
+            ("pod-roster", lambda text: text.replace("\t\tRunning", "\t2026-11-04T00:00:00Z\tRunning")),
+            ("pod", lambda text: text.replace(fixture.replica_set[1], fixture.unused[1])),
+            ("pod", lambda text: text.replace(fixture.namespace, "foreign-namespace")),
+            ("pod", lambda text: text.replace(fixture.pod[1], fixture.unused[1])),
+            ("pod", lambda text: text + fixture.row("E")),
+        )
+        for index, (resource, mutate) in enumerate(cases):
+            with self.subTest(resource=resource, case=index):
+                original = fixture.responses[resource]
+                fixture.responses[resource] = mutate(original)
+                self.assertEqual(self.refused(fixture), [])
+                self.assertFalse(any(command[6] == "secret" for command, _ in fixture.transport_calls))
+                fixture.responses[resource] = original
+                self.clear_calls(fixture)
+
+    def test_g2_direct_mount_requires_selected_secret_without_parent_or_duplicate_mount(self):
+        fixture = self.fixture()
+        self.admitted(fixture)
+        mount = fixture.row("M", "oauth-proof-config", "/app/config/development.toml", "development.toml", "true", "")
+        cases = (
+            lambda text: text.replace(fixture.original[0], fixture.unused[0]),
+            lambda text: text.replace(mount, mount + mount),
+            lambda text: text.replace(mount, mount + fixture.row("M", "other", "/app/config", "", "true", "")),
+            lambda text: text.replace(mount, mount.replace("\ttrue\t", "\tfalse\t")),
+            lambda text: text.replace(mount, mount.replace("\ttrue\t\n", "\ttrue\t$(CONFIG)\n")),
+            lambda text: text.replace(mount, mount.replace("\tdevelopment.toml\t", "\tother.toml\t")),
+            lambda text: text.replace("C\tiam\n", "C\tiam\nC\tsidecar\n"),
+            lambda text: text + fixture.row("V", "oauth-proof-config", fixture.original[0], "", "", ""),
+        )
+        original = fixture.responses["pod"]
+        for index, mutate in enumerate(cases):
+            with self.subTest(case=index):
+                fixture.responses["pod"] = mutate(original)
+                self.assertEqual(self.refused(fixture), [])
+                self.assertFalse(any(command[6] == "secret" for command, _ in fixture.transport_calls))
+                self.clear_calls(fixture)
+
+    def test_g2_snapshot_accepts_absent_or_false_runtime_readonly_with_gitlab_trust_preserved(self):
+        for readonly in ("", "false"):
+            with self.subTest(runtime_readonly=readonly):
+                self.admitted(self.fixture(phase="post-template", runtime_readonly=readonly))
+
+    def test_g2_snapshot_rejects_readonly_runtime_aliases_extra_writers_and_wrong_template(self):
+        fixture = self.fixture(phase="post-template")
+        self.admitted(fixture)
+        runtime = fixture.row("M", "private-config", "/runtime", "", "", "")
+        template = fixture.row("M", "oauth-proof-config", "/template", "", "true", "")
+        cases = (
+            lambda text: text.replace(runtime, fixture.row("M", "private-config", "/runtime", "", "true", "")),
+            lambda text: text.replace(runtime, runtime + runtime),
+            lambda text: text.replace(runtime, runtime + fixture.row("M", "private-config", "/alias", "", "false", "")),
+            lambda text: text.replace(runtime, runtime + fixture.row("I", "foreign-writer")
+                                      + fixture.row("M", "private-config", "/foreign", "", "false", "")),
+            lambda text: text.replace("I\tgitlab-trust\n", "I\tgitlab-trust\n"
+                                      + fixture.row("M", "private-config", "/runtime", "", "false", "")),
+            lambda text: text.replace(template, template + template),
+            lambda text: text.replace(template, template.replace("\ttrue\t", "\tfalse\t")),
+            lambda text: text.replace(fixture.template[0], fixture.original[0]),
+            lambda text: text.replace("\tMemory\t1Mi", "\t\t1Mi"),
+            lambda text: text.replace("\tMemory\t1Mi", "\tMemory\t2Mi"),
+            lambda text: text.replace("I\topenbao-snapshot\n", "I\tnot-the-snapshot\n"),
+            lambda text: text.replace("C\tiam\n", "C\tiam\n"
+                                      + fixture.row("M", "private-config", "/extra", "", "true", "")),
+        )
+        original = fixture.responses["pod"]
+        for index, mutate in enumerate(cases):
+            with self.subTest(case=index):
+                fixture.responses["pod"] = mutate(original)
+                self.assertEqual(self.refused(fixture), [])
+                self.assertFalse(any(command[6] == "secret" for command, _ in fixture.transport_calls))
+                self.clear_calls(fixture)
+
+    def test_g3_uid_rv_deletion_and_enclosing_chain_changes_in_body_invalidate_result(self):
+        cases = (
+            ("secret", "uid"), ("secret", "rv"), ("secret", "deletion"),
+            ("namespace", "rv"), ("deployment", "rv"), ("replicaset", "rv"),
+            ("pod", "rv"), ("pod", "uid"), ("pod-roster", "uid"), ("pod", "mount"),
+        )
+        for resource, change in cases:
+            with self.subTest(resource=resource, change=change):
+                fixture = self.fixture(phase="post-template")
+                self.admitted(fixture)
+                def mutate():
+                    text = fixture.responses[resource]
+                    if change == "uid":
+                        old = fixture.selected[1] if resource == "secret" else fixture.pod[1]
+                        text = text.replace(old, fixture.unused[1])
+                    elif change == "rv":
+                        old = "10" if resource == "namespace" else "17"
+                        text = text.replace("\t" + old + "\t", "\t18\t", 1)
+                    elif change == "deletion":
+                        text = text.replace("\t17\t\n", "\t17\t2026-11-04T00:00:00Z\n")
+                    else:
+                        text = text.replace(fixture.template[0], fixture.unused[0])
+                    fixture.responses[resource] = text
+                self.assertEqual(self.refused(fixture, body=mutate), [fixture.expected])
+
+    def test_g3_epoch_run_head_ack_authority_and_lock_changes_in_body_invalidate_result(self):
+        for change in ("epoch", "run_id", "head", "template_create_ack", "lease", "lock", "target"):
+            with self.subTest(change=change):
+                fixture = self.fixture(phase="post-template")
+                self.admitted(fixture)
+                def mutate():
+                    if change == "lock":
+                        fixture.lock.unlink()
+                    elif change == "lease":
+                        fixture.data["task_id"] = "a" * 32
+                        fixture.save()
+                    elif change == "target":
+                        fixture.subject.data["context"] = "kind-aiforall-local"
+                    elif change == "template_create_ack":
+                        fixture.bind(template_create_ack=(fixture.operation_id, *fixture.unused))
+                    else:
+                        fixture.bind(**{change: "a" * {"epoch": 64, "run_id": 32, "head": 40}[change]})
+                self.assertEqual(self.refused(fixture, body=mutate), [fixture.expected])
+
+    def test_g3_qualification_body_error_is_redacted_and_never_a_validated_return(self):
+        """G-3/G-4, T-3: a body exception must not be chained by contextlib on exit."""
+        fixture = self.fixture(phase="post-template")
+        self.admitted(fixture)
+        def fail():
+            raise RuntimeError(" ".join(self.sentinels))
+        self.assertEqual(self.refused(fixture, body=fail), [fixture.expected])
+        self.assertEqual(len(fixture.transport_calls), 12, "post-observation must still run after body failure")
+
+    def test_g3_lock_replaced_during_connection_check_is_refused_before_metadata_transport(self):
+        fixture = self.fixture()
+        self.admitted(fixture)
+        def race(command, **kwargs):
+            result = fixture.commands(command, **kwargs)
+            if command[0] == "kubectl":
+                fixture.lock.rename(fixture.root / "raced-lock")
+                fixture.lock.write_text('{"action":"github-activate","pid":0}', encoding="utf-8")
+            return result
+        fixture.subject.runner = race
+        self.assertEqual(self.refused(fixture), [])
+        self.assertEqual(len(fixture.commands.api()), 1)
+        self.native.assert_not_called()
+
+    def test_g4_malformed_extra_duplicate_and_invalid_metadata_are_opaque(self):
+        fixture = self.fixture()
+        self.admitted(fixture)
+        original = fixture.responses["secret"]
+        private = " ".join(self.sentinels)
+        cases = (
+            "", original + original, original + private + "\n", original.rstrip("\n") + "\t" + private + "\n",
+            original.replace("\t17\t", "\t" + private + "\t"),
+            original.replace("\t17\t", "\t" + "1" * 31 + "\t"),
+            original.replace(fixture.original[1], fixture.unused[1]),
+            original.replace(fixture.namespace, "foreign-namespace"),
+            original.replace(fixture.original[0], fixture.unused[0]),
+            original.replace("\t17\t\n", "\t17\t2026-11-04T00:00:00Z\n"),
+            original + "\x00" + private, original.replace("\n", "\r\n"),
+        )
+        for index, response in enumerate(cases):
+            with self.subTest(case=index):
+                fixture.responses["secret"] = response
+                self.assertEqual(self.refused(fixture), [])
+                self.assertEqual(sum(command[6] == "secret" for command, _ in fixture.transport_calls), 1)
+                self.clear_calls(fixture)
+
+    def test_g4_subprocess_timeout_nonzero_stderr_utf8_and_oversize_never_reach_capture(self):
+        fixture = self.fixture(phase="post-template")
+        self.admitted(fixture)
+        private = " ".join(self.sentinels)
+        encoded = private.encode("utf-8")
+        good = fixture.responses["secret"].encode("utf-8")
+        cases = (
+            Mock(returncode=1, stdout=encoded, stderr=encoded),
+            Mock(returncode=0, stdout=good, stderr=encoded),
+            Mock(returncode=0, stdout=encoded + b"\xff", stderr=b""),
+            Mock(returncode=0, stdout=encoded * (65536 // len(encoded) + 1), stderr=b""),
+            Mock(returncode=0, stdout=private, stderr=b""),
+            Mock(returncode=0, stdout=good, stderr=private),
+            anchor.subprocess.TimeoutExpired([private], 5, output=encoded, stderr=encoded),
+            OSError(private),
+        )
+        for index, response in enumerate(cases):
+            with self.subTest(case=index):
+                fixture.overrides["secret"] = response
+                self.assertEqual(self.refused(fixture), [])
+                self.assertEqual(sum(command[6] == "secret" for command, _ in fixture.transport_calls), 1)
+                self.clear_calls(fixture)
 
 
 if __name__ == "__main__":
