@@ -19,6 +19,7 @@ from pathlib import Path
 import re
 import ssl
 import stat
+import sys
 import time
 from urllib.parse import parse_qs, quote, urlencode, urlsplit
 import uuid
@@ -71,10 +72,69 @@ IAM_PROVIDER_SCRIPT = ("set -eu\n"
     "sha256sum /app/config/development.toml\n"
     "awk '" + IAM_PROVIDER_AWK + "' /app/config/development.toml\n"
     "sha256sum /app/config/development.toml\n")
+IAM_RETAIN_PROVIDER_SCRIPT = ("set -eu\nexec 2>/dev/null\n"
+    'test "$RUST_ENVIRONMENT" = development\n'
+    "test ! -e /app/config/local.toml\n"
+    'before=$(sha256sum /app/config/development.toml)\n'
+    "projection=$(awk '" + IAM_PROVIDER_AWK + "' /app/config/development.toml)\n"
+    'after=$(sha256sum /app/config/development.toml)\n'
+    'test "$before" = "$after"\n'
+    'printf "%s\\n" "$projection"\n')
 
 
 class Blocked(ValueError):
     """A named, nonsecret prerequisite is unavailable; no fabricated evidence."""
+
+
+def _standard_iam_snapshot(pod):
+    """Recognize the existing local OpenBao profile, not arbitrary emptyDir."""
+    path = Path(__file__).resolve().parents[1] / "deploy/local_full_openbao.py"
+    spec = importlib.util.spec_from_file_location("local_full_e2e_openbao_profile", path)
+    profile = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(profile)
+    actual = pod["spec"]
+    volumes = {v["name"]: v for v in actual["volumes"]}
+    if len(volumes) != len(actual["volumes"]):
+        raise Blocked("ambiguous IAM snapshot volumes")
+    snapshots = [c for c in actual.get("initContainers", []) if c.get("name") == "openbao-snapshot"]
+    if len(snapshots) != 1:
+        raise Blocked("standard IAM snapshot init required")
+    init = snapshots[0]
+    templates = [m for m in init.get("volumeMounts", []) if m.get("mountPath") == "/template"]
+    if len(templates) != 1:
+        raise Blocked("standard IAM snapshot template required")
+    source = volumes[templates[0]["name"]]
+    if set(source) not in ({"name", "secret"}, {"name", "configMap"}):
+        raise Blocked("standard IAM snapshot source reference required")
+    scripts = volumes["openbao-scripts"]["configMap"]["name"]
+    if not re.fullmatch(r"local-full-bootstrap-scripts-[A-Za-z0-9-]+", scripts):
+        raise Blocked("standard IAM snapshot scripts required")
+    expected = {"containers": [{"name": "iam", "volumeMounts": []}], "volumes": [source]}
+    profile.snapshot(expected, "iam-hmac", "iam-openbao", scripts, config_volume=source["name"])
+    for key in ("serviceAccountName", "automountServiceAccountToken"):
+        if actual.get(key) != expected[key]:
+            raise Blocked("standard IAM snapshot identity required")
+    for volume in expected["volumes"][1:]:
+        observed = volumes.get(volume["name"], {})
+        if "configMap" in observed:
+            reference = observed["configMap"]
+            if reference.get("defaultMode", 0o644) != 0o644 or reference.get("optional", False) is not False:
+                raise Blocked("standard IAM snapshot ConfigMap defaults required")
+            observed = {**observed, "configMap": {k: v for k, v in reference.items() if k not in {"defaultMode", "optional"}}}
+        if observed != volume:
+            raise Blocked("standard IAM snapshot volume required")
+    fixed = expected["initContainers"][0]
+    if (any(init.get(key) != fixed[key] for key in ("image", "command", "volumeMounts", "securityContext"))
+            or any(init.get(key) for key in ("args", "env", "envFrom"))):
+        raise Blocked("standard IAM snapshot command/mounts required")
+    states = [s for s in pod.get("status", {}).get("initContainerStatuses", []) if s.get("name") == init["name"]]
+    if len(states) != 1 or states[0].get("state", {}).get("terminated", {}).get("exitCode") != 0:
+        raise Blocked("successful IAM snapshot init required")
+    writers = [(kind, c["name"], m.get("mountPath")) for kind, containers in
+               (("init", actual.get("initContainers", [])), ("app", actual["containers"])) for c in containers
+               for m in c.get("volumeMounts", []) if m.get("name") == "private-config" and m.get("readOnly") is not True]
+    if writers != [("init", "openbao-snapshot", "/runtime")]:
+        raise Blocked("exclusive IAM snapshot writer required")
 
 
 def mesh_cases():
@@ -721,37 +781,58 @@ class Services:
             if len(mounts) != 1 or mounts[0].get("subPath") != "development.toml" or mounts[0].get("readOnly") is not True:
                 raise Blocked("fixed read-only IAM startup config mount required")
             volumes = [v for v in pod["spec"].get("volumes", []) if v.get("name") == mounts[0]["name"]]
-            if _retaining(self.inputs):
-                # Snapshot acceptance needs the DELIVERED closed provenance/UID
-                # capability of local-full-iam-preimage-qualification §3–4.
-                # Separate local consent does not implement that capability.
-                # A mount, slug or historic ACK cannot replace it; do not execute
-                # the private hash projection while source proof is unavailable.
-                raise Blocked("SOURCE_IAM_UNAVAILABLE: qualified private IAM source/Secret UID capability unavailable")
-            if len(volumes) != 1 or not (volumes[0].get("secret") or volumes[0].get("configMap")):
+            retaining = _retaining(self.inputs)
+            if retaining:
+                if len(volumes) != 1 or volumes[0].get("name") != "private-config":
+                    raise Blocked("standard IAM snapshot output required")
+                _standard_iam_snapshot(pod)
+            elif len(volumes) != 1 or not (volumes[0].get("secret") or volumes[0].get("configMap")):
                 raise Blocked("IAM startup config source reference unavailable")
             before = driver.obj("Pod", metadata["name"], NAMESPACE)
             if before != pod:
                 raise Blocked("IAM Pod changed before provider projection")
-            raw = driver.runtime.kubectl("exec", "-n", NAMESPACE, metadata["name"], "-c", "iam", "--",
-                                         "sh", "-ec", IAM_PROVIDER_SCRIPT, timeout=20)
-            match = re.fullmatch(r"([a-f0-9]{64})  /app/config/development\.toml\nCONNECTORS ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+)\n\1  /app/config/development\.toml", raw.strip())
+            # Keep the same guarded CLI. Its optional raw failure capture must
+            # not persist a private projection or a subprocess exception payload.
+            diagnostics = None
+            if retaining:
+                diagnostics = sys.modules.get("private_diagnostics")
+                if diagnostics is None:
+                    path = Path(__file__).resolve().parents[1] / "deploy/private_diagnostics.py"
+                    spec = importlib.util.spec_from_file_location("private_diagnostics", path)
+                    diagnostics = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(diagnostics)
+                    sys.modules[spec.name] = diagnostics
+            token = diagnostics.CURRENT.set(None) if retaining else None
+            try:
+                raw = driver.runtime.kubectl("exec", "-n", NAMESPACE, metadata["name"], "-c", "iam", "--",
+                    "sh", "-ec", IAM_RETAIN_PROVIDER_SCRIPT if retaining else IAM_PROVIDER_SCRIPT, timeout=20)
+            finally:
+                if retaining:
+                    diagnostics.CURRENT.reset(token)
+            pattern = (r"CONNECTORS ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+)" if retaining else
+                r"([a-f0-9]{64})  /app/config/development\.toml\nCONNECTORS ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+)\n\1  /app/config/development\.toml")
+            match = re.fullmatch(pattern, raw.strip())
             if not match:
                 raise Blocked("IAM config hash/projection malformed or changed")
-            tables, ids, github, gitlab, unknown, bad = map(int, match.groups()[1:])
+            tables, ids, github, gitlab, unknown, bad = map(int, match.groups() if retaining else match.groups()[1:])
             if bad or unknown or tables != ids or ids != github + gitlab or github > 1 or gitlab > 1:
                 raise Blocked("IAM provider projection ambiguous or unsupported")
+            if retaining and (tables, ids, github, gitlab) != (1, 1, 1, 0):
+                raise Blocked("effective IAM GitHub-only profile required")
             after = driver.obj("Pod", metadata["name"], NAMESPACE)
             current_deployment = self.resource("Deployment", "iam")
             if before != after or current_deployment["metadata"]["uid"] != deployment["metadata"]["uid"]:
                 raise Blocked("IAM Pod/incarnation changed during provider projection")
             return {"namespace_uid": self.data["namespaceUids"][NAMESPACE], "deployment_uid": deployment["metadata"]["uid"],
-                    "replica_set_uid": rs["metadata"]["uid"], "pod_uid": metadata["uid"], "config_sha256": match[1],
+                    "replica_set_uid": rs["metadata"]["uid"], "pod_uid": metadata["uid"],
+                    **({} if retaining else {"config_sha256": match[1]}),
                     "providers": [name for name, present in (("github", github), ("gitlab", gitlab)) if present]}
         except Blocked:
             raise
-        except Exception as error:
-            raise Blocked("guarded effective IAM provider qualification unavailable; details redacted") from error
+        except Exception:
+            pass
+        # Raise outside the handler so neither context nor cause retains output.
+        raise Blocked("guarded effective IAM provider qualification unavailable; details redacted")
 
     @contextmanager
     def forward(self, service):
@@ -1184,7 +1265,7 @@ class Mesh:
         if self.inputs["suite"] == "mesh-authn":
             registry = self.http.iam_providers()
             self.receipt.append("iam-provider-registry", _iam_provider_evidence(registry) if self._retention_mode else registry)
-            if "github" not in registry["providers"] or self._retention_mode and "gitlab" not in registry["providers"]:
+            if "github" not in registry["providers"] or self._retention_mode and registry["providers"] != ["github"]:
                 raise Blocked("effective IAM connector github absent; mesh39 expectations unchanged; signup forbidden")
         if not self._retention_mode:
             self.db.qualify_notifications_cleanup(self.values)
@@ -1602,8 +1683,8 @@ def binding(driver, args, data, inputs, services, *, _qualify_transport=False):
 
 def _preflight_retention(services, database, inputs, driver):
     registry = services.iam_providers()
-    if set(registry["providers"]) != {"github", "gitlab"} or len(registry["providers"]) != 2:
-        raise Blocked("effective IAM github and gitlab required before retention claim/consumption")
+    if registry["providers"] != ["github"]:
+        raise Blocked("effective IAM GitHub-only profile required before retention claim/consumption")
     if not callable(getattr(driver.runtime.target(), "e2e_forward", None)):
         raise Blocked("fixed E2E transport capability required")
     for identity in IDENTITIES:

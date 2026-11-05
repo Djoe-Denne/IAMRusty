@@ -73,6 +73,117 @@ class ImageSourceTests(unittest.TestCase):
             self.assertNotEqual(sources.target_identity(first, name), sources.target_identity(second, name))
         self.assertEqual(first["sdk_revision"], second["sdk_revision"])
 
+    def tracked_public_config_sources(self):
+        public = {
+            "rustycog/rustycog-config/src/secrets/mod.rs":
+                'pub fn public_config_backend() -> &\'static str { "openbao" }\n',
+            "rustycog/rustycog-config/src/secrets/tests.rs":
+                "// Public rustycog-config test module source fixture.\n",
+        }
+        for name, contents in public.items():
+            self.write(name, contents)
+        sdk = self.root / "rustycog"
+        relative = {name.removeprefix("rustycog/") for name in public}
+        self.git(sdk, "add", *sorted(relative))
+        self.git(sdk, "commit", "-m", "Public config source fixture")
+        self.assertEqual(set(self.git(sdk, "ls-files", "--", "rustycog-config/src/secrets").splitlines()), relative)
+        return public
+
+    def test_tracked_public_config_sources_are_captured_and_copied(self):
+        # G-1: the two approved public SDK paths must reach the image snapshot.
+        public = self.tracked_public_config_sources()
+        destination = self.root / "snapshot"
+        captured = sources.capture(self.root, destination)
+        entries = {entry["path"]: entry for entry in captured["files"]}
+        for name, contents in public.items():
+            expected = (self.root / name).read_bytes()
+            with self.subTest(path=name, observable="manifest"):
+                self.assertIn(name, entries, "tracked public SDK source missing from capture")
+                self.assertEqual(entries[name]["sha256"], hashlib.sha256(expected).hexdigest())
+            with self.subTest(path=name, observable="copy"):
+                copied = destination / name
+                self.assertTrue(copied.is_file(), "tracked public SDK source missing from image copy")
+                self.assertEqual(copied.read_bytes(), expected)
+
+    def test_public_config_exception_does_not_read_traverse_or_copy_private_neighbors(self):
+        # G-2: opening this directory must not open its arbitrary/private content.
+        self.tracked_public_config_sources()
+        first = sources.capture(self.root)
+        private = (
+            "rustycog/rustycog-config/src/secrets/extra.rs",
+            "rustycog/rustycog-config/src/secrets/.env",
+            "rustycog/rustycog-config/src/secrets/.env.local",
+            "rustycog/rustycog-config/src/secrets/credentials",
+            "rustycog/rustycog-config/src/secrets/credentials.json",
+            "rustycog/rustycog-config/src/secrets/credentials.toml",
+            "rustycog/rustycog-config/src/secrets/openbao.key",
+            "rustycog/rustycog-config/src/secrets/signing.pem",
+            "rustycog/rustycog-config/src/secrets/nested/mod.rs",
+            "rustycog/rustycog-config/src/secrets/nested/tests.rs",
+            "rustycog/rustycog-config/src/secrets/private/mod.rs",
+            "rustycog/rustycog-config/src/secrets/certs/leaf.pem",
+            "rustycog/rustycog-config/src/secrets/keys/signing.key",
+            "rustycog/rustycog-config/src/secrets/secrets/mod.rs",
+            "rustycog/rustycog-config/src/other/secrets/mod.rs",
+            "rustycog/rustycog-config/src/private/secrets/mod.rs",
+            "rustycog/rustycog-core/src/secrets/mod.rs",
+            "rustycog/rustycog-core/src/secrets/tests.rs",
+            "rustycog/src/secrets/mod.rs",
+            "rustycog/src/secrets/tests.rs",
+            "services/GitHubConnect/src/secrets/mod.rs",
+            "services/GitHubConnect/src/secrets/tests.rs",
+            "services/GitHubConnect/rustycog-config/src/secrets/mod.rs",
+        )
+        for name in private:
+            self.write(name, "SYNTHETIC_PRIVATE_DO_NOT_READ_OR_COPY")
+        forbidden_files = {self.root / name for name in private}
+        forbidden_directories = {self.root / name for name in (
+            "rustycog/rustycog-config/src/secrets/nested",
+            "rustycog/rustycog-config/src/secrets/private",
+            "rustycog/rustycog-config/src/secrets/certs",
+            "rustycog/rustycog-config/src/secrets/keys",
+            "rustycog/rustycog-config/src/secrets/secrets",
+            "rustycog/rustycog-config/src/other/secrets",
+            "rustycog/rustycog-config/src/private",
+            "rustycog/rustycog-core/src/secrets",
+            "rustycog/src/secrets",
+            "services/GitHubConnect/src/secrets",
+            "services/GitHubConnect/rustycog-config/src/secrets",
+        )}
+        original_open, original_iterdir = Path.open, Path.iterdir
+
+        def guarded_open(path, *args, **kwargs):
+            self.assertNotIn(path, forbidden_files, "private fixture must never be opened")
+            return original_open(path, *args, **kwargs)
+
+        def guarded_iterdir(path):
+            self.assertNotIn(path, forbidden_directories, "private directory must never be traversed")
+            return original_iterdir(path)
+
+        destination = self.root / "snapshot"
+        with patch.object(Path, "open", guarded_open), patch.object(Path, "iterdir", guarded_iterdir):
+            captured = sources.capture(self.root, destination)
+        self.assertEqual(first["files"], captured["files"], "private neighbors must not enter the manifest")
+        self.assertEqual(first["sha256"], captured["sha256"])
+        copied = {path.relative_to(destination).as_posix() for path in destination.rglob("*") if path.is_file()}
+        self.assertEqual(copied, {entry["path"] for entry in first["files"]})
+        self.assertTrue(copied.isdisjoint(private), "private neighbors must not enter the image copy")
+
+    def test_each_public_config_source_byte_change_invalidates_sdk_consumers(self):
+        # G-3: dirty bytes, not merely the SDK commit, determine consumer identity.
+        public = self.tracked_public_config_sources()
+        self.assertIn("github", sources.TARGETS)
+        for name, contents in public.items():
+            first = sources.capture(self.root)
+            self.write(name, contents + "// Changed public SDK bytes.\n")
+            second = sources.capture(self.root)
+            with self.subTest(path=name):
+                self.assertEqual(first["sdk_revision"], second["sdk_revision"])
+                self.assertEqual(first["revision"], second["revision"])
+                unchanged = [target for target in sources.TARGETS
+                             if sources.target_identity(first, target) == sources.target_identity(second, target)]
+                self.assertEqual(unchanged, [], "public SDK byte change must invalidate every consumer, including github")
+
     def test_git_ignored_module_asset_and_effective_filter_are_captured(self):
         first = sources.capture(self.root)
         self.write(".gitignore", "services/Hive/src/ignored.rs\nservices/Hive/config/ignored.toml\nDockerfile.build.dockerignore\n")

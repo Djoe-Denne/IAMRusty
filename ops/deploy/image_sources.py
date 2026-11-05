@@ -29,6 +29,10 @@ PUBLIC_NAMES = {"Cargo.toml", "Cargo.lock", "CMakeLists.txt", "Makefile", "READM
 # Public synthetic fixtures shipped in the service config COPY, not general JWT
 # or credential-file permission. Private/generated tokens remain inadmissible.
 PUBLIC_FIXTURES = {"services/Hive/config/test-oidc.jwt", "services/IAMRusty/config/test-oidc.jwt"}
+# Public SDK code, not permission to traverse arbitrary credential directories.
+# The directory entry permits walking to these two files; all neighbors stay private.
+SDK_CONFIG_PUBLIC_PATHS = {"rustycog-config/src/secrets", "rustycog-config/src/secrets/mod.rs",
+                           "rustycog-config/src/secrets/tests.rs"}
 
 
 def git(root, *args):
@@ -38,17 +42,18 @@ def git(root, *args):
     return result.stdout.decode("utf-8", errors="strict")
 
 
-def public_input(path):
+def public_input(path, sdk=False):
     parts = Path(path).parts
     name = parts[-1].lower()
-    return (not any(part.lower() in PRIVATE_DIRS for part in parts)
+    public_sdk_code = sdk and Path(path).as_posix() in SDK_CONFIG_PUBLIC_PATHS
+    return ((public_sdk_code or not any(part.lower() in PRIVATE_DIRS for part in parts))
             and not any(part.lower().startswith(".env") for part in parts) and Path(name).suffix not in PRIVATE_SUFFIXES
             and not name.startswith("kubeconfig")
             and name not in {"credentials", "credentials.toml", "credentials.json"})
 
 
 def included(path, sdk=False):
-    if not public_input(path):
+    if not public_input(path, sdk=sdk):
         return False
     name = Path(path).name
     if not (Path(path).suffix.lower() in PUBLIC_SUFFIXES or name in PUBLIC_NAMES
@@ -80,7 +85,7 @@ def paths(root, sdk=False):
         for entry in sorted(directory.iterdir()):
             relative = entry.relative_to(root).as_posix()
             # Prune private directories BEFORE traversing or reading any bytes.
-            if not public_input(relative):
+            if not public_input(relative, sdk=sdk):
                 continue
             ordinary_path(entry, root)
             if entry.is_dir():

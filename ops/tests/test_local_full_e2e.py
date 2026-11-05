@@ -5,11 +5,14 @@ import copy
 import contextlib
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
+import sys
+import traceback
 import unittest
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlsplit
@@ -18,6 +21,10 @@ import uuid
 SPEC = importlib.util.spec_from_file_location("local_full_e2e_unit", Path(__file__).with_name("local_full_e2e.py"))
 e2e = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(e2e)
+BAO_SPEC = importlib.util.spec_from_file_location(
+    "local_full_openbao_e2e_unit", Path(__file__).resolve().parents[1] / "deploy/local_full_openbao.py")
+bao = importlib.util.module_from_spec(BAO_SPEC)
+BAO_SPEC.loader.exec_module(bao)
 RUN = "20661d5f-522a-4dac-bb93-1fa79449f063"
 USER = "ed6ae7de-7535-4b0f-a007-a94ab4647273"
 ORG = "d2d8b1f7-0b7d-46c4-8e35-0e6e2d415f77"
@@ -563,6 +570,7 @@ class RetentionContractTests(unittest.TestCase):
     def fixture(self, root):
         pg = FakePg()
         http = FakeHttp(pg)
+        http.providers = ["github"]  # G-1: the approved C profile, not GitLab coexistence.
         inputs, driver, args = ProvenanceAndSqlTests().action_fixture(root, pg, http)
         inputs.update(version=2, provider_mode="SIMULATED_PROVIDER", cleanup_policy=dict(self.POLICY))
         inputs["pki_directory"].mkdir()
@@ -687,8 +695,10 @@ class RetentionContractTests(unittest.TestCase):
                 "exceptions": ["telegraph-final-inverse", "account-final-inverse"]})
             self.assertIsNone(receipt.last("execution-started"))
 
-    def test_c_g3_missing_effective_provider_never_claims_or_creates_receipt(self):
-        for providers in (["gitlab"], ["github"]):
+    def test_c_g3_non_github_only_profile_never_claims_or_creates_receipt(self):
+        # G-1: GitHub alone moved to the positive fixture; mixed/ambiguous is not
+        # an alternative authority to consume the one local retention chance.
+        for providers in ([], ["gitlab"], ["github", "gitlab"], ["github", "github"], ["other"]):
             with self.subTest(providers=providers), tempfile.TemporaryDirectory() as directory:
                 f = self.fixture(Path(directory).resolve())
                 f.http.providers = providers
@@ -702,6 +712,40 @@ class RetentionContractTests(unittest.TestCase):
                 self.assertFalse(f.inputs["receipt_path"].exists())
                 self.assertEqual(f.http.calls, [])
                 self.assertFalse(f.pg.account)
+
+    def test_gh_g1_github_only_runs_mesh39_and_retains_without_final_inverses(self):
+        """G-1: valid C reaches real Mesh.run; no reduced inventory or cleanup PASS."""
+        with tempfile.TemporaryDirectory() as directory:
+            f = self.fixture(Path(directory).resolve())
+            with self.action(f):
+                prepared = e2e.run_action(f.driver, f.args, {})
+            self.assertTrue(prepared["prepared"])
+            self.assertEqual(f.http.calls, [], "read-only preparation must precede signup")
+            f.args.action, f.args.suite = "e2e", "mesh-authn"
+            with self.action(f), patch.object(f.pg, "qualify_notifications_cleanup") as notifications, patch.object(
+                    f.pg, "qualify_account_cleanup") as account, patch.object(f.pg, "cleanup_account") as inverse:
+                report = e2e.run_action(f.driver, f.args, {})
+            notifications.assert_not_called()
+            account.assert_not_called()
+            inverse.assert_not_called()
+            self.assertEqual((report["expected"], report["passed"], report["executed"]), (39, 39, 39))
+            self.assertEqual(len(report["cases"]), 39)
+            self.assertEqual(len(e2e.APPARATUS_CASES), 6)
+            self.assertEqual(report["provider_fixture"], "SIMULATED_PROVIDER")
+            self.assertEqual(report["launch_status"], "STARTED")
+            self.assertEqual(report["cleanup"]["status"], "RETAINED")
+            self.assertIs(report["cleanup"]["complete"], False)
+            self.assertTrue(f.pg.account)
+            self.assertFalse(f.pg.provider, "the required business revoke is not a final cleanup inverse")
+            deletes = [(path, service) for method, path, service, _ in f.http.calls if method == "DELETE"]
+            self.assertEqual(len(deletes), 12, "keep the authorized revoke and its 11 negative controls")
+            self.assertEqual(set(deletes), {("/iam/internal/github/revoke", "iam")})
+            self.assertNotIn("provider-delete", f.pg.calls)
+            current = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound)
+            self.assertEqual(current.last("iam-provider-registry")["providers"], ["github"])
+            self.assertEqual(current.last("retained")["business_cleanup"], "NOT_ATTEMPTED")
+            self.assertEqual(json.loads((f.authority / "terminal.json").read_text(encoding="utf-8"))["status"], "RETAINED")
+            self.assertNotIn("a" * 64, json.dumps(current.last("iam-provider-registry")))
 
     def test_c_g4_claimed_crash_cannot_rearm_via_new_receipt_uuid_consent_or_strict(self):
         # Crash after exclusive claim, before receipt exists: the allowed chance
@@ -1612,14 +1656,27 @@ class TransportTests(unittest.TestCase):
 
 
 class ProviderProjectionTests(unittest.TestCase):
-    def fixture(self, projection="CONNECTORS 1 1 0 1 0 0"):
+    """G-2/3: standard snapshot provenance and nonsecret C projection.
+
+    The production source was read to use real seams, not to derive the oracle:
+    the GitHub-only mission briefing supplies the profile and confidentiality rules.
+    """
+
+    def fixture(self, projection="CONNECTORS 1 1 0 1 0 0", *, retention=False):
         pod = {"metadata": {"name": "iam-test", "uid": "iam-pod", "ownerReferences": [
             {"kind": "ReplicaSet", "name": "iam-rs", "uid": "iam-rs-uid"}]},
             "spec": {"containers": [{"name": "iam", "env": [{"name": "RUST_ENVIRONMENT", "value": "development"}],
                        "volumeMounts": [{"name": "config", "mountPath": "/app/config/development.toml", "subPath": "development.toml", "readOnly": True}]}],
                      "volumes": [{"name": "config", "secret": {"secretName": "owned-config-reference-only"}}]},
             "status": {"phase": "Running", "containerStatuses": [{"name": "iam", "restartCount": 0, "imageID": "sha256:fixture"}]}}
-        raw = "a" * 64 + "  /app/config/development.toml\n" + projection + "\n" + "a" * 64 + "  /app/config/development.toml"
+        if retention:
+            # Reuse the real, in-memory deployment helper. No Secret contents,
+            # lease, runtime, source-qualification issuer or new harness.
+            bao.snapshot(pod["spec"], "iam-hmac", "iam-openbao", "local-full-bootstrap-scripts-fixture")
+            pod["status"]["initContainerStatuses"] = [{"name": "openbao-snapshot", "restartCount": 0,
+                "state": {"terminated": {"exitCode": 0, "reason": "Completed"}}}]
+        raw = projection + "\n" if retention else (
+            "a" * 64 + "  /app/config/development.toml\n" + projection + "\n" + "a" * 64 + "  /app/config/development.toml")
         def kubectl(*args, **kwargs):
             return json.dumps({"items": [pod]}) if args[0] == "get" else raw
         driver = SimpleNamespace(namespace_owned=Mock(), owned=Mock(return_value={"metadata": {"uid": "iam-deployment"}}),
@@ -1627,7 +1684,182 @@ class ProviderProjectionTests(unittest.TestCase):
                 {"kind": "Deployment", "uid": "iam-deployment"}]}} if kind == "ReplicaSet" else copy.deepcopy(pod)),
             runtime=SimpleNamespace(kubectl=Mock(side_effect=kubectl)))
         data = {"namespaceUids": {e2e.NAMESPACE: "namespace-uid"}}
-        return e2e.Services(driver, SimpleNamespace(), data, {}), driver, pod
+        inputs = {"version": 2, "cleanup_policy": dict(RetentionContractTests.POLICY)} if retention else {}
+        return e2e.Services(driver, SimpleNamespace(), data, inputs), driver, pod
+
+    def test_gh_g2_standard_openbao_snapshot_admits_github_only_without_private_hash(self):
+        services, driver, pod = self.fixture("CONNECTORS 1 1 1 0 0 0", retention=True)
+        self.assertEqual(pod["spec"]["serviceAccountName"], "iam-openbao")
+        self.assertEqual(pod["spec"]["initContainers"][0]["image"], bao.PYTHON)
+        self.assertEqual(pod["spec"]["initContainers"][0]["command"],
+                         ["python", "-B", "/scripts/openbao-workload.py", "iam-hmac"])
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            proof = services.iam_providers()
+        self.assertEqual(proof, {"namespace_uid": "namespace-uid", "deployment_uid": "iam-deployment",
+            "replica_set_uid": "iam-rs-uid", "pod_uid": "iam-pod", "providers": ["github"]})
+        self.assertEqual((stdout.getvalue(), stderr.getvalue()), ("", ""))
+        commands = [call.args for call in driver.runtime.kubectl.call_args_list]
+        self.assertEqual([command[0] for command in commands], ["get", "exec"])
+        self.assertEqual(commands[-1][:-1], ("exec", "-n", e2e.NAMESPACE, "iam-test", "-c", "iam", "--", "sh", "-ec"))
+        self.assertFalse(any("secret" in str(command).lower() for command in commands))
+        script = commands[-1][-1]
+        self.assertIn("CONNECTORS", script)
+        self.assertNotIn("cat ", script)
+        # CLI source guard only: private hashes may be compared inside the Pod,
+        # never emitted as the old standalone stdout lines. No shell is started.
+        self.assertNotIn("\nsha256sum /app/config/development.toml\n", script)
+
+    def test_g1_real_snapshot_preflight_precedes_claim_and_journals_no_private_hash(self):
+        # Retained from the independent author's late, otherwise duplicate delta.
+        with tempfile.TemporaryDirectory() as directory:
+            f = RetentionContractTests().fixture(Path(directory).resolve())
+            services, driver, _ = self.fixture("CONNECTORS 1 1 1 0 0 0", retention=True)
+            f.http.iam_providers = services.iam_providers
+            with RetentionContractTests().action(f):
+                report = e2e.run_action(f.driver, f.args, {})
+            self.assertTrue(report["prepared"], report)
+            self.assertEqual([call.args[0] for call in driver.runtime.kubectl.call_args_list], ["get", "exec"])
+            self.assertEqual(f.http.calls, [])
+            self.assertEqual(json.loads((f.authority / "claim.json").read_text(encoding="utf-8")), f.claim)
+            receipt = e2e.Receipt(f.inputs["receipt_path"], f.driver, f.bound)
+            self.assertEqual(receipt.last("iam-provider-registry"), {
+                "namespace_uid": "namespace-uid", "deployment_uid": "iam-deployment",
+                "replica_set_uid": "iam-rs-uid", "pod_uid": "iam-pod", "providers": ["github"]})
+            self.assertNotIn("config_sha256", json.dumps(receipt.events))
+
+    def test_gh_g2_unqualified_snapshot_variants_refused_before_claim_and_exec(self):
+        mutations = {
+            "direct-source-not-C": lambda p: p["spec"]["containers"][0]["volumeMounts"][0].update(name="config"),
+            "arbitrary-source": lambda p: p["spec"]["volumes"][0].update(secret=None, hostPath={"path": "/foreign"}),
+            "ambiguous-source": lambda p: p["spec"]["volumes"][0].update(configMap={"name": "foreign"}),
+            "arbitrary-emptydir": lambda p: p["spec"].update(initContainers=[]),
+            "wrong-service-account": lambda p: p["spec"].update(serviceAccountName="other"),
+            "automatic-token": lambda p: p["spec"].update(automountServiceAccountToken=True),
+            "wrong-audience": lambda p: p["spec"]["volumes"][1]["projected"]["sources"][0]["serviceAccountToken"].update(audience="other"),
+            "wrong-role": lambda p: p["spec"]["initContainers"][0]["command"].__setitem__(-1, "github-seed"),
+            "wrong-command": lambda p: p["spec"]["initContainers"][0].update(command=["sh", "-c", "true"]),
+            "extra-args": lambda p: p["spec"]["initContainers"][0].update(args=["other"]),
+            "wrong-image": lambda p: p["spec"]["initContainers"][0].update(image="python:latest"),
+            "missing-init-status": lambda p: p["status"].update(initContainerStatuses=[]),
+            "failed-init": lambda p: p["status"]["initContainerStatuses"][0]["state"]["terminated"].update(exitCode=1),
+            "unfinished-init": lambda p: p["status"]["initContainerStatuses"][0].update(state={"running": {}}),
+            "nonmemory-output": lambda p: p["spec"]["volumes"][2]["emptyDir"].update(medium=""),
+            "oversized-output": lambda p: p["spec"]["volumes"][2]["emptyDir"].update(sizeLimit="2Mi"),
+            "writable-template": lambda p: p["spec"]["initContainers"][0]["volumeMounts"][3].update(readOnly=False),
+            "wrong-template-mount": lambda p: p["spec"]["initContainers"][0]["volumeMounts"][3].update(mountPath="/elsewhere"),
+            "wrong-output-mount": lambda p: p["spec"]["initContainers"][0]["volumeMounts"][4].update(mountPath="/elsewhere"),
+            "writable-app": lambda p: p["spec"]["containers"][0]["volumeMounts"][0].update(readOnly=False),
+            "wrong-app-subpath": lambda p: p["spec"]["containers"][0]["volumeMounts"][0].update(subPath="other.toml"),
+            "second-writer": lambda p: p["spec"]["containers"].append({"name": "other", "volumeMounts": [
+                {"name": "private-config", "mountPath": "/other", "readOnly": False}]}),
+            "second-init-writer": lambda p: p["spec"]["initContainers"].append({"name": "other", "volumeMounts": [
+                {"name": "private-config", "mountPath": "/other", "readOnly": False}]}),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(profile=name), tempfile.TemporaryDirectory() as directory:
+                f = RetentionContractTests().fixture(Path(directory).resolve())
+                services, driver, pod = self.fixture("CONNECTORS 1 1 1 0 0 0", retention=True)
+                mutate(pod)
+                f.http.iam_providers = services.iam_providers
+                with RetentionContractTests().action(f), self.assertRaises(e2e.Blocked):
+                    e2e.run_action(f.driver, f.args, {})
+                self.assertFalse((f.authority / "claim.json").exists())
+                self.assertFalse(f.inputs["receipt_path"].exists())
+                self.assertEqual(f.http.calls, [])
+                self.assertEqual(f.pg.calls, [])
+                self.assertTrue(all(call.args[0] == "get" for call in driver.runtime.kubectl.call_args_list))
+
+    def test_gh_g3_malformed_or_private_projection_never_validates_or_claims(self):
+        for raw in ("", "CONNECTORS 1 1 1 0 0 0\nCONNECTORS 1 1 1 0 0 0", "CONNECTORS 1 1 1 0 0 0 extra",
+                    "CONNECTORS 1 2 1 0 0 0", "CONNECTORS 2 2 1 1 0 0", "CONNECTORS 1 1 0 0 1 0",
+                    "CONNECTORS 1 1 1 0 0 1", "CONNECTORS 0 0 0 0 0 0", "CONNECTORS 1 1 0 1 0 0",
+                    "a" * 64 + "  /app/config/development.toml\nCONNECTORS 1 1 1 0 0 0\n" + "a" * 64 + "  /app/config/development.toml"):
+            with self.subTest(response_kind=raw.splitlines()[0][:30] if raw else "empty"), tempfile.TemporaryDirectory() as directory:
+                f = RetentionContractTests().fixture(Path(directory).resolve())
+                services, driver, _ = self.fixture(raw, retention=True)
+                f.http.iam_providers = services.iam_providers
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with RetentionContractTests().action(f), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                    with self.assertRaises(e2e.Blocked) as failure:
+                        e2e.run_action(f.driver, f.args, {})
+                self.assertEqual((stdout.getvalue(), stderr.getvalue()), ("", ""))
+                self.assertNotIn("a" * 64, "".join(traceback.format_exception(failure.exception)))
+                self.assertFalse((f.authority / "claim.json").exists())
+                self.assertFalse(f.inputs["receipt_path"].exists())
+                self.assertEqual(f.http.calls, [])
+                self.assertEqual(f.pg.calls, [])
+                self.assertEqual(sum(call.args[0] == "exec" for call in driver.runtime.kubectl.call_args_list), 1,
+                                 "response rejection must reach the same projection as the valid snapshot")
+
+    def test_gh_g3_snapshot_pod_change_during_projection_never_validates(self):
+        services, driver, _ = self.fixture("CONNECTORS 1 1 1 0 0 0", retention=True)
+        original = driver.obj.side_effect
+        observations = []
+        def obj(kind, *args):
+            value = original(kind, *args)
+            if kind == "Pod":
+                observations.append(value)
+                if len(observations) == 2:
+                    value["metadata"]["uid"] = "replacement-pod"
+            return value
+        driver.obj.side_effect = obj
+        with self.assertRaises(e2e.Blocked):
+            services.iam_providers()
+        self.assertEqual(len(observations), 2, "replacement must be tested across the executed projection")
+        self.assertEqual(sum(call.args[0] == "exec" for call in driver.runtime.kubectl.call_args_list), 1)
+
+    def test_gh_g3_cli_failures_redact_sentinels_before_diagnostics_and_exception(self):
+        """G-3: existing CLI runner with a fake process, not an alternate client."""
+        deploy = Path(__file__).resolve().parents[1] / "deploy"
+        diagnostic_spec = importlib.util.spec_from_file_location("private_diagnostics", deploy / "private_diagnostics.py")
+        diagnostics = importlib.util.module_from_spec(diagnostic_spec)
+        diagnostic_spec.loader.exec_module(diagnostics)
+        target_spec = importlib.util.spec_from_file_location("local_full_target_e2e_unit", deploy / "local_full_target.py")
+        target = importlib.util.module_from_spec(target_spec)
+        # dataclasses resolves annotations against the defining module.
+        with patch.dict(sys.modules, {target_spec.name: target}):
+            target_spec.loader.exec_module(target)
+        sentinels = ("OAUTH_PRIVATE_SYNTHETIC_SENTINEL", "HMAC_PRIVATE_SYNTHETIC_SENTINEL", "a" * 64)
+        for fault in ("success", "nonzero", "timeout"):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
+                services, driver, _ = self.fixture("CONNECTORS 1 1 1 0 0 0", retention=True)
+                original = driver.runtime.kubectl.side_effect
+                def kubectl(*args, **kwargs):
+                    if args[0] == "get":
+                        return original(*args, **kwargs)
+                    return target.run(["kubectl", *args], text=True, **kwargs)
+                driver.runtime.kubectl.side_effect = kubectl
+                payload = " ".join(sentinels).encode()
+                if fault == "timeout":
+                    result = target.subprocess.TimeoutExpired(["kubectl"], 20, output=payload, stderr=payload)
+                elif fault == "success":
+                    result = target.subprocess.CompletedProcess(["kubectl"], 0, b"CONNECTORS 1 1 1 0 0 0\n", b"")
+                else:
+                    result = target.subprocess.CompletedProcess(["kubectl"], 1, payload, payload)
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with patch.dict(sys.modules, {"private_diagnostics": diagnostics}), patch.object(
+                        target.subprocess, "run", side_effect=result if isinstance(result, BaseException) else None,
+                        return_value=result) as process, patch.object(diagnostics, "_directory", return_value=Path(directory)), diagnostics.operation(
+                        "github-projection", Path(directory)), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                    scope = diagnostics.CURRENT.get()
+                    if fault == "success":
+                        proof = services.iam_providers()
+                        self.assertEqual(proof, {"namespace_uid": "namespace-uid", "deployment_uid": "iam-deployment",
+                            "replica_set_uid": "iam-rs-uid", "pod_uid": "iam-pod", "providers": ["github"]})
+                    else:
+                        with self.assertRaises(e2e.Blocked) as failure:
+                            services.iam_providers()
+                    self.assertIs(diagnostics.CURRENT.get(), scope, "projection must restore the outer diagnostics scope")
+                captured = b"".join(path.read_bytes() for path in Path(directory).iterdir() if path.is_file())
+                formatted = "" if fault == "success" else "".join(traceback.format_exception(failure.exception))
+                for sentinel in sentinels:
+                    self.assertNotIn(sentinel, stdout.getvalue() + stderr.getvalue() + formatted)
+                    self.assertNotIn(sentinel.encode(), captured)
+                if fault != "success":
+                    self.assertIsNone(failure.exception.__cause__)
+                    self.assertIsNone(failure.exception.__context__)
+                process.assert_called_once()  # No pre-projection refusal may masquerade as redaction.
 
     def test_current_gitlab_projection_bound_to_owned_pod_and_hash(self):
         services, driver, _ = self.fixture()
