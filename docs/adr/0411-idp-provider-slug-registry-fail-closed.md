@@ -6,9 +6,15 @@
 - Décideurs : acceptation humaine 2026-09-22
 - Jalon concerné : IAM-IdP (hors Apparatus P0–P6)
 - SuperSède : aucune — gradue le leftover 0407 §8 et le « long terme » 0408 sans réécrire 0407–0410
-- SuperSédée par : —
+- SuperSédée par : [0413](0413-oauthconnect-multi-instances-profils.md), **partiellement** pour l'onboarding, depuis le 2026-11-06
 
 `Accepted` ratifie la cible (humain, 2026-09-22). `Réalité` : **Implemented** pour GitHub+GitLab existants (newtype slug, registry ouvert fail-closed, 400/422).
+
+## Actualisation du 2026-11-06 — onboarding partiellement supersédé par 0413
+
+L'utilisateur a explicitement accepté [0413](0413-oauthconnect-multi-instances-profils.md) et son [contrat actif](../contracts/oauthconnect-multi-instances.md). La partie de Décision 5 et des conséquences/slices documentaires imposant copie du gabarit + nouveau service est remplacée par l'ajout d'une instance compatible dans OAuthConnect et de sa ligne registry IAM. L'exclusion historique du service multi-instances dans les alternatives/hors scope ne s'applique plus au service borné aux deux profils de 0413 ; elle n'autorise ni moteur universel ni nouveau profil. L'interface OIDC minimale auparavant hors décision est désormais cadrée par 0413.
+
+Slug typé, charset/case-fold, catalogue boot, complétude fail-closed, codes 400/422, absence de hot-load, règles de redémarrage et HMAC/allowlists sont conservés. Les sections ci-dessous restent historiques ; Statut **Accepted** et Réalité **Implemented** de 0411 inchangés, sans annoncer l'implémentation de 0413 (**Accepted / Unimplemented**). Les gates E2E/cutover et retrait des anciens services restent actives ; elles ne bloquent pas les unités/IT TDD autorisées après intégration documentaire.
 
 ## Contexte
 

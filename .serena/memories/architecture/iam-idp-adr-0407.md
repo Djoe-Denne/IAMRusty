@@ -6,3 +6,4 @@ Jalon : IAM-IdP (hors Apparatus). Canon : `docs/adr/0407-contrat-authn-federee-v
 - `OAuthService` reste IAM. Subject = `(provider_id, provider_user_id)`.
 - Leftover : enum `Provider` GitHub|GitLab = adapter v1 de route (0407 §8). Pas de Google.
 - Voir le fichier ADR.
+- Actualisation 2026-11-06 : interface d'authentification partiellement supersédée par ADR0413 Accepted/Unimplemented ; cible v2 authorize+complete, tokens+profil minimal validé et nonce durable IAM. Les chemins v1 ci-dessus sont historiques, pas une implémentation v2 ; claims riches/actions toujours différés. Voir l'annotation canonique dans 0407.

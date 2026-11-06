@@ -13,13 +13,15 @@ provenance:
   inferred: 0.14
   ambiguous: 0.08
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-09-22T12:49:00Z
+updated: 2026-11-06
 ---
 
 # OAuth Provider Linking
 
 > [!note] Catalogue providers
 > Open question « only GH/GL » : cible vivante [[projects/iamrusty/decisions/0407-contrat-federe]] / [[projects/iamrusty/decisions/0408-connecteurs-http]] / [[projects/iamrusty/decisions/0411-slug-registry]] (**Accepted**). Linking **reste IAM** ([[projects/iamrusty/decisions/0409-confiance-oauth]]).
+>
+> Actualisation 2026-11-06 : [ADR-0413 canonique](../../../../../docs/adr/0413-oauthconnect-multi-instances-profils.md) **Accepted / Unimplemented**, [contrat actif](../../../../../docs/contracts/oauthconnect-multi-instances.md). Cible : OAuthConnect RustyCog unique, instances logiques et profils OIDC/OAuth mappé API+JSONPath ; interface v2 authorize+complete, nonce durable IAM, email GitHub primaire seul. Les portions topologie/onboarding/interface de 0407/0408/0411 sont partiellement supersédées, pas les règles de compte/linking. Aucun code de la refonte ni E2E qualifié par cette ratification ; claims riches/actions toujours différés. Ce pointeur de conception ne remplace pas les ADR.
 
 `[[projects/iamrusty/iamrusty]]` treats external providers as attachable identities rather than separate users. A logged-in account can add GitHub or GitLab credentials to the same provider-agnostic user record, while provider tokens and secondary emails are stored explicitly for later reuse.
 

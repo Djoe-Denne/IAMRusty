@@ -6,7 +6,13 @@
 - Décideurs : Djoé Denne
 - Jalon concerné : IAM-IdP (hors Apparatus P0–P6)
 - SuperSède : aucune ADR — **remplace comme cible** `services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md` et le skill wiki d’extension in-process
-- SuperSédée par : —
+- SuperSédée par : [0413](0413-oauthconnect-multi-instances-profils.md), **partiellement** pour la topologie et l'onboarding, depuis le 2026-11-06
+
+## Actualisation du 2026-11-06 — topologie partiellement supersédée par 0413
+
+L'utilisateur a explicitement accepté [0413](0413-oauthconnect-multi-instances-profils.md) et son [contrat actif](../contracts/oauthconnect-multi-instances.md). La cible devient un service RustyCog OAuthConnect avec instances configurées OAuth/OIDC au boot. Sont remplacées les portions « services distincts / N+1 = nouveau service » des Décisions 1–2 et 3, les ports/préfixes distincts de 6 et l'alternative rejetant le service unique. L'interface historique à trois handlers de 5 suit l'évolution v2 de 0407/0413. Les descriptions ci-dessous restent la photographie v1, pas le nouvel état livré.
+
+Restent applicables : frontière HTTP hors IAM, rejet des vendors in-process IAM, registry typé, exceptions stateless de 5 (pas de DB/events/OpenFGA), absence de nest de 4, HMAC/HTTPS/allowlists et report des claims riches/actions de 7. Un fournisseur compatible devient une entrée de configuration, pas un nouveau service. Statut **Accepted** et Réalité **Implemented** historiques inchangés ; la nouvelle cible 0413 est **Accepted / Unimplemented**. Bascule et retrait des anciens services restent conditionnés aux preuves du contrat ; cela n'interdit pas de commencer les unités/IT TDD autorisées après intégration documentaire.
 
 ## Contexte
 
