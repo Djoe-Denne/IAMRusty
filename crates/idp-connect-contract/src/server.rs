@@ -45,6 +45,14 @@ pub fn router(state: ConnectState) -> Router {
         .with_state(state.client)
 }
 
+/// Provisional T0 v2 API scaffold, intentionally exposing no routes or middleware.
+///
+/// This empty router lets behavioral RED tests compile before v2 routing and
+/// HMAC handlers are implemented. It does not replace the existing v1 [`router`].
+pub fn router_v2(_state: ConnectState) -> Router {
+    Router::new()
+}
+
 /// Verifies `IdP` Connect HMAC, then forwards the (re-assembled) request.
 ///
 /// Missing headers, a stale timestamp, a bad signature, or a non-UTF-8 body

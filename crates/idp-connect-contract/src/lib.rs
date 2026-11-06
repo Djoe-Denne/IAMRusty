@@ -22,8 +22,10 @@ pub mod server;
 
 pub use client::FederatedOAuthClient;
 pub use dto::{
-    AuthorizeRequest, AuthorizeResponse, ProfileRequest, ProviderTokens, ProviderUserProfile,
-    TokenRequest, AUTHORIZE_PATH, PROFILE_PATH, TOKEN_PATH,
+    AuthorizeAuthenticationRequest, AuthorizeRequest, AuthorizeResponse,
+    CompleteAuthorizationRequest, ProfileRequest, ProviderAuthentication, ProviderTokens,
+    ProviderUserProfile, TokenRequest, AUTHORIZE_AUTHENTICATION_PATH, AUTHORIZE_PATH,
+    COMPLETE_AUTHORIZATION_PATH, PROFILE_PATH, TOKEN_PATH,
 };
 pub use error::FederatedOAuthError;
 pub use hmac::{

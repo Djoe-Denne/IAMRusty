@@ -2,7 +2,10 @@
 
 use async_trait::async_trait;
 
-use crate::dto::{AuthorizeResponse, ProviderTokens, ProviderUserProfile};
+use crate::dto::{
+    AuthorizeAuthenticationRequest, AuthorizeResponse, CompleteAuthorizationRequest,
+    ProviderAuthentication, ProviderTokens, ProviderUserProfile,
+};
 use crate::error::FederatedOAuthError;
 
 /// Federated authenticator used over HTTP JSON (`/v1/authorize|token|profile`).
@@ -75,4 +78,30 @@ pub trait FederatedOAuthClient: Send + Sync {
         &self,
         access_token: &str,
     ) -> Result<ProviderUserProfile, FederatedOAuthError>;
+
+    /// Build a v2 authentication URL with IAM's authentication context.
+    ///
+    /// Legacy adapters fail closed without calling any v1 operation.
+    ///
+    /// # Errors
+    /// Returns [`FederatedOAuthError::Authorize`] unless v2 is implemented.
+    async fn authorize_authentication(
+        &self,
+        _request: &AuthorizeAuthenticationRequest,
+    ) -> Result<AuthorizeResponse, FederatedOAuthError> {
+        Err(FederatedOAuthError::Authorize)
+    }
+
+    /// Complete v2 authentication and return tokens with the normalized identity.
+    ///
+    /// Legacy adapters fail closed without composing v1 token and profile calls.
+    ///
+    /// # Errors
+    /// Returns [`FederatedOAuthError::ExchangeCode`] unless v2 is implemented.
+    async fn complete_authorization(
+        &self,
+        _request: &CompleteAuthorizationRequest,
+    ) -> Result<ProviderAuthentication, FederatedOAuthError> {
+        Err(FederatedOAuthError::ExchangeCode)
+    }
 }

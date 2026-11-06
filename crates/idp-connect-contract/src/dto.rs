@@ -1,4 +1,4 @@
-//! JSON DTOs and `/v1/*` path constants shared by IAM and `IdP` Connect.
+//! JSON DTOs and versioned path constants shared by IAM and `IdP` Connect.
 
 use serde::{Deserialize, Serialize};
 
@@ -8,6 +8,10 @@ pub const AUTHORIZE_PATH: &str = "/v1/authorize";
 pub const TOKEN_PATH: &str = "/v1/token";
 /// Relative profile path (no service prefix).
 pub const PROFILE_PATH: &str = "/v1/profile";
+/// Relative v2 authentication authorize path (no service or instance prefix).
+pub const AUTHORIZE_AUTHENTICATION_PATH: &str = "/v2/authorize";
+/// Relative v2 authorization completion path (no service or instance prefix).
+pub const COMPLETE_AUTHORIZATION_PATH: &str = "/v2/complete";
 
 /// `OAuth2` tokens returned by a federated authenticator.
 #[derive(Clone, Serialize, Deserialize)]
@@ -84,6 +88,46 @@ pub struct ProfileRequest {
     pub access_token: String,
 }
 
+/// JSON body for `POST /v2/authorize`.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct AuthorizeAuthenticationRequest {
+    /// Callback URI registered for this OAuth start.
+    pub redirect_uri: String,
+    /// Opaque CSRF/state value chosen by IAM (not interpreted here).
+    pub state: String,
+    /// S256 challenge, paired with `code_challenge_method`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code_challenge: Option<String>,
+    /// PKCE method paired with `code_challenge` (S256 only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code_challenge_method: Option<String>,
+    /// Independent authentication nonce generated and persisted by IAM.
+    pub nonce: String,
+}
+
+/// JSON body for `POST /v2/complete`.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct CompleteAuthorizationRequest {
+    /// Authorization code from the vendor callback.
+    pub code: String,
+    /// Same redirect URI used at authorize time.
+    pub redirect_uri: String,
+    /// Secret verifier forwarded only after IAM's transaction writer has consumed state.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code_verifier: Option<String>,
+    /// Expected authentication nonce from the consumed IAM transaction.
+    pub expected_nonce: String,
+}
+
+/// Minimal tokens and identity returned together by `POST /v2/complete`.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ProviderAuthentication {
+    /// Provider tokens returned after successful authentication.
+    pub tokens: ProviderTokens,
+    /// Normalized provider identity associated with these tokens.
+    pub profile: ProviderUserProfile,
+}
+
 impl AuthorizeRequest {
     /// Validate the wire pair without reflecting state or challenge in errors.
     ///
@@ -135,7 +179,10 @@ redacted_debug!(
     AuthorizeRequest,
     AuthorizeResponse,
     TokenRequest,
-    ProfileRequest
+    ProfileRequest,
+    AuthorizeAuthenticationRequest,
+    CompleteAuthorizationRequest,
+    ProviderAuthentication
 );
 
 #[cfg(test)]
