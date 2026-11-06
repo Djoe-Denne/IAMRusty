@@ -597,6 +597,8 @@ async fn malformed_nonce_fields_are_bad_requests_before_client() {
         "A".repeat(44),
         format!("{NONCE}="),
         format!("+{}", "A".repeat(42)),
+        // G-6/T-5: B has nonzero final pad bits; 32 bytes require canonical
+        // base64url without padding, not merely 43 URL-safe characters.
         format!("{}B", "A".repeat(42)),
     ] {
         for (suffix, body) in [
@@ -779,4 +781,214 @@ async fn absent_optional_pkce_fields_are_omitted_from_v2_json() {
         complete_json.contains("\"expected_nonce\":"),
         "required expected nonce must remain serialized"
     );
+}
+
+struct FailingV2Client {
+    recorded: RecordingClient,
+}
+
+#[async_trait]
+impl FederatedOAuthClient for FailingV2Client {
+    async fn authorize(
+        &self,
+        redirect_uri: &str,
+        state: &str,
+    ) -> Result<AuthorizeResponse, FederatedOAuthError> {
+        self.recorded.authorize(redirect_uri, state).await
+    }
+
+    async fn exchange_code(
+        &self,
+        code: &str,
+        redirect_uri: &str,
+    ) -> Result<ProviderTokens, FederatedOAuthError> {
+        self.recorded.exchange_code(code, redirect_uri).await
+    }
+
+    async fn user_profile(
+        &self,
+        access_token: &str,
+    ) -> Result<ProviderUserProfile, FederatedOAuthError> {
+        self.recorded.user_profile(access_token).await
+    }
+
+    async fn authorize_authentication(
+        &self,
+        request: &AuthorizeAuthenticationRequest,
+    ) -> Result<AuthorizeResponse, FederatedOAuthError> {
+        self.recorded
+            .authorizations
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(request.clone());
+        Err(FederatedOAuthError::Authorize)
+    }
+
+    async fn complete_authorization(
+        &self,
+        request: &CompleteAuthorizationRequest,
+    ) -> Result<ProviderAuthentication, FederatedOAuthError> {
+        self.recorded
+            .completions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(request.clone());
+        Err(FederatedOAuthError::ExchangeCode)
+    }
+}
+
+// G-6/T-1: catches error-to-success mapping, legacy fallback and partial/contextual errors.
+#[tokio::test]
+async fn v2_client_failure_maps_to_generic_bad_gateway_without_leaking_context() {
+    let client = Arc::new(FailingV2Client {
+        recorded: RecordingClient::new("alpha"),
+    });
+    let key = HmacKey::new(b"alpha-contract-test-key");
+    let server = TestServer::new(Router::new().nest(
+        ALPHA,
+        router_v2(ConnectState {
+            hmac_key: key.clone(),
+            client: client.clone(),
+        }),
+    ))
+    .expect("contract test router");
+    for (suffix, body, counts) in [
+        (AUTHORIZE_AUTHENTICATION_PATH, AUTHORIZE_BODY, (1, 0, 0)),
+        (COMPLETE_AUTHORIZATION_PATH, COMPLETE_BODY, (1, 1, 0)),
+    ] {
+        let path = format!("{ALPHA}{suffix}");
+        let response = signed_at(
+            &server,
+            &key,
+            &path,
+            &path,
+            body,
+            unix_timestamp_secs().expect("clock"),
+        )
+        .await;
+        assert_eq!(
+            response.status_code(),
+            StatusCode::BAD_GATEWAY,
+            "outbound v2 failure must map to generic 502"
+        );
+        assert_eq!(
+            client.recorded.counts(),
+            counts,
+            "only the requested v2 operation may run"
+        );
+        // Existing common handlers return an empty 502, not an error envelope.
+        // Exact emptiness also excludes all secrets, sentinels, claims and partial tokens.
+        assert!(
+            response.text().is_empty(),
+            "generic 502 must have no context, credentials or partial result"
+        );
+    }
+    assert_authorize_forwarded(
+        &client
+            .recorded
+            .authorizations
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)[0],
+    );
+    assert_complete_forwarded(
+        &client
+            .recorded
+            .completions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)[0],
+    );
+}
+
+// G-6/T-2: catches a generic router imposing the future OIDC profile's mandatory PKCE.
+#[tokio::test]
+async fn absent_pkce_pair_is_forwarded_not_rejected() {
+    let f = fixture();
+    let authorize_body = AUTHORIZE_BODY
+        .replace(&format!(",\"code_challenge\":\"{CHALLENGE}\""), "")
+        .replace(",\"code_challenge_method\":\"S256\"", "");
+    let complete_body = COMPLETE_BODY.replace(&format!(",\"code_verifier\":\"{VERIFIER}\""), "");
+    let authorized = signed(&f, AUTHORIZE_AUTHENTICATION_PATH, &authorize_body).await;
+    assert_eq!(
+        authorized.status_code(),
+        StatusCode::OK,
+        "generic authorize must accept an absent PKCE pair"
+    );
+    assert_eq!(f.alpha.counts(), (1, 0, 0));
+    assert_eq!(f.beta.counts(), (0, 0, 0));
+    {
+        let requests = f
+            .alpha
+            .authorizations
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let request = &requests[0];
+        assert!(
+            request.code_challenge.is_none(),
+            "absent challenge must remain None"
+        );
+        assert!(
+            request.code_challenge_method.is_none(),
+            "absent method must remain None"
+        );
+        assert!(
+            request.redirect_uri == REDIRECT
+                && request.state == "browser-state-sentinel"
+                && request.nonce == NONCE,
+            "authorize must preserve redirect, state and independent nonce without PKCE"
+        );
+    }
+    let completed = signed(&f, COMPLETE_AUTHORIZATION_PATH, &complete_body).await;
+    assert_eq!(
+        completed.status_code(),
+        StatusCode::OK,
+        "generic complete must accept an absent verifier"
+    );
+    assert_authentication(&completed.json::<ProviderAuthentication>(), "alpha");
+    assert_eq!(f.alpha.counts(), (1, 1, 0));
+    assert_eq!(f.beta.counts(), (0, 0, 0));
+    let requests = f
+        .alpha
+        .completions
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    let request = &requests[0];
+    assert!(
+        request.code_verifier.is_none(),
+        "absent verifier must remain None"
+    );
+    assert!(
+        request.redirect_uri == REDIRECT
+            && request.code == "authorization-code-sentinel"
+            && request.expected_nonce == NONCE,
+        "complete must preserve redirect, code and expected nonce without PKCE"
+    );
+}
+
+// G-6/T-3: valid GET HMAC prevents authentication failure from masking an exposed GET route.
+#[tokio::test]
+async fn v2_known_paths_reject_signed_get_as_method_not_allowed_without_client_calls() {
+    let f = fixture();
+    for (suffix, body) in [
+        (AUTHORIZE_AUTHENTICATION_PATH, AUTHORIZE_BODY),
+        (COMPLETE_AUTHORIZATION_PATH, COMPLETE_BODY),
+    ] {
+        let path = format!("{ALPHA}{suffix}");
+        let timestamp = unix_timestamp_secs().expect("clock");
+        let signature = sign(f.alpha_key.as_bytes(), "GET", &path, timestamp, body)
+            .expect("contract test GET HMAC");
+        let response = f
+            .server
+            .get(&path)
+            .add_header(TIMESTAMP_HEADER, timestamp.to_string())
+            .add_header(SIGNATURE_HEADER, signature)
+            .content_type("application/json")
+            .bytes(axum::body::Bytes::from(body.to_owned()))
+            .await;
+        assert_eq!(
+            response.status_code(),
+            StatusCode::METHOD_NOT_ALLOWED,
+            "known v2 operations must be POST-only even with valid GET authentication"
+        );
+        no_calls(&f);
+    }
 }
