@@ -1,7 +1,7 @@
 # Mesh profile overlay (ADR-0308). Not loaded by plain `docker compose up`.
 # Service HTTPS stays optional (T14b) unless this file is merged:
 #   docker compose -f docker-compose.yml -f ops/deploy/mesh/compose.yaml --profile mesh up
-# Replayable e2e: bash ops/scripts/mesh-authn-e2e.sh
+# E2E entrypoint: ops/tests/k6/AUTH-WINDOWS-PARENT.md (profile admission required).
 #
 # AUTH__MESH__TRUSTED_GATEWAY_SAN: services take the principal from the
 # x-principal-iss/sub headers only on an mTLS connection whose client

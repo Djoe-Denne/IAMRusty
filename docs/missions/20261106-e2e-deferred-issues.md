@@ -47,6 +47,35 @@ de rétention après consommation du seul créneau autorisé.
    tests de tunnel et 76 tests d'ancre verts. Ne pas généraliser ce correctif en
    nouveau transport ; les anciennes preuves liées aux octets du helper ne sont
    pas réécrites ou assimilées à cette version.
+9. **Surcoût du pilote en rétention.** Inspection source pendant le run, sans
+   profilage ni modification : chaque contrôle de capacité refait le binding
+   HEAD/fichiers/certificats/cible/epoch et reconstruit le reçu complet. Sous Windows,
+   chaque contrôle d'ACL de fichier lance PowerShell. Le coût de cette relecture
+   augmente avec le nombre d'événements. En outre, sur le cluster à trois nœuds,
+   un appel utile `target.kubectl` exécute deux `local_check` : huit commandes
+   Docker, deux PowerShell et le GET kube-system avant la commande utile, soit
+   douze processus externes dans ce chemin normal. Ces contrôles sont répétés
+   avant requêtes HTTP, opérations SQL et écritures du journal. Cela explique
+   structurellement un surcoût important et constitue l'hypothèse principale de
+   lenteur ; aucune attribution chronométrée exclusive au pilote n'est encore
+   démontrée. Mesurer après le terminal, puis réduire les redondances sans enlever
+   les garanties d'identité, anti-rejeu, absence de données étrangères et durabilité.
+10. **Alignement du moteur de tests avec l'objectif utilisateur.** Le run courant
+    appelle `local-full-acceptance.py` → `local_full_e2e.py` → cas Python ; il ne
+    lance pas k6. Vérification approfondie : le circuit k6 livré comprend réellement
+    inscription, connexion, réassociation, refus et témoins de certificat, pas
+    seulement un smoke. Le lead a repris le mauvais point d'entrée. Ces scénarios
+    sont encore câblés sur GitLab et le fournisseur synthétique ; leur raccord au
+    profil GitHub seul reste à établir. Leur existence ne prouve pas l'exécution
+    k6 des 39 cas actuels ou des six Apparatus. L'utilisateur
+    rappelle la séparation attendue : environnement démarré indépendamment,
+    exécuteur k6 consommant ses interfaces publiques, préparation/provenance et
+    collecte aux frontières de campagne. Les vérifications Kubernetes répétées
+    dans le chemin de chaque assertion ne sont pas une interaction métier avec
+    le système testé. Clarifier ce raccord après le run, sans substitution à chaud,
+    perte d'oracles métier ou présentation de la campagne Python comme du k6.
+    Détail vérifié : rapport `45-tests-k6-retrouves-et-mauvais-point-entree.md`
+    sous `.opencode/missions/team_mw0tms2v_0000_tt4oe1/reports/`.
 
 ## Progression observée
 

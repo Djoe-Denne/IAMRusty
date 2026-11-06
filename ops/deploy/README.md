@@ -292,7 +292,13 @@ Write-NewJson $environment ([ordered]@{
 })
 ```
 
-Ajouter `public_ca_path` seulement si nécessaire, pointant un certificat public. Les champs inconnus, overrides ambigus et cibles/URLs contradictoires sont refusés ; le descripteur ne prouve pas la propriété, **seul le bail vérifié fait autorité**. Interface du lot validation (à utiliser après son intégration) :
+> **Retrait des anciens lanceurs, 6 novembre 2026 :** le circuit E2E retenu est
+> [k6](../tests/k6/AUTH-WINDOWS-PARENT.md). Le pilote Python décrit ci-dessous a
+> été supprimé sur demande utilisateur ; ses commandes et prérequis sont une
+> archive historique, pas des instructions exécutables. Voir la
+> [décision et les limites de couverture](../../docs/missions/20261106-k6-only-cleanup.md).
+
+Ajouter `public_ca_path` seulement si nécessaire, pointant un certificat public. Les champs inconnus, overrides ambigus et cibles/URLs contradictoires sont refusés ; le descripteur ne prouve pas la propriété, **seul le bail vérifié fait autorité**. Interface historique du lot validation :
 
 - **Smoke** : `python -B ops/tests/local-full-acceptance.py smoke --environment $environment` — readiness/disponibilité (`get`/`wait`), aucune mutation ni préparation cachée. Ready ne prouve ni métier ni AuthZ.
 - **Curl public full** : `python -B ops/tests/local-full-acceptance.py route-matrix --environment $environment --cases ops/tests/mesh-public-route-cases-local-full.json` — contrôles publics seulement, sans credentials ni seed. Ce fichier vise le **profil base** `connectors=[]` : les deux démarrages OAuth attendent exclusivement **422**, comptés dans `oauth_login_unavailable` (indisponibles, pas logins réussis). Le runtime existant peut utiliser l'oauth-proof GitLab : sélectionner alors explicitement la variante décrite ci-dessous après qualification du profil monté. La matrice générique `mesh-public-route-cases.json` vise un autre profil connecté ; ce n'est pas un fallback. `coverage.public` reste distinct de `coverage.authenticated` (**NOT RUN** par cette commande) ; aucun PASS public ne couvre les parcours métier.

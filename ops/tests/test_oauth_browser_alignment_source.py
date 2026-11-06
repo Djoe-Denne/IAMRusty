@@ -185,21 +185,6 @@ class BrowserAlignmentTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 renderer.http_downstream(value)
 
-    def test_browser_sequence_keeps_native_cookie_jar_and_request_scoped_auth(self):
-        source = (ROOT / "ops/tests/oauth-browser-local-full.js").read_text()
-        for forbidden in (".addCookies(", ".setExtraHTTPHeaders(", ".request.get(",
-                          "APIRequestContext.new", "ignoreHTTPSErrors:", "browser_run_code_unsafe"):
-            self.assertNotIn(forbidden, source)
-        self.assertEqual(source.count('headers: {Authorization:'), 1)
-        for required in ('start.status !== 200', 'start.body.auth_url',
-                         'result.status !== 200', 'result.body.operation !== "login"',
-                         'result.status === 202', 'result = await login()',
-                         'await page.goto(start.body.auth_url)',
-                         'PENDING_GATEWAY_IAM_IDP_CORRELATION',
-                         'nonce.domain !== "127.0.0.1"', 'nonce.httpOnly',
-                         'nonce.sameSite !== "Lax"', 'callbackBearer', 'callbackCookie'):
-            self.assertIn(required, source)
-
     def test_cert_option_is_explicit_and_connector_leaf_is_scoped(self):
         spec = importlib.util.spec_from_file_location("local_certs", ROOT / "ops/scripts/prepare-local-full-certs.py")
         source = importlib.util.module_from_spec(spec)

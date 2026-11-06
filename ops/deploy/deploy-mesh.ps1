@@ -177,4 +177,4 @@ Invoke-Kubectl @('rollout', 'status', 'deployment/ext-authz', '-n', $Namespace, 
 Invoke-Kubectl @('rollout', 'status', 'deployment/envoy-mesh', '-n', $Namespace, '--timeout=180s')
 
 Write-Host 'mesh : services reels, ext-authz et envoy-mesh sont Ready sur aiforall-local.' -ForegroundColor Green
-Write-Host 'Preuve : bash ops/scripts/mesh-authn-kind-e2e.sh' -ForegroundColor Green
+Write-Host 'Tests E2E : voir ops/tests/k6/AUTH-WINDOWS-PARENT.md ; aucun test lance par ce deploiement.' -ForegroundColor Yellow

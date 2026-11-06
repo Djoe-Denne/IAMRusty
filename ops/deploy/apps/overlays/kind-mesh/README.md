@@ -9,7 +9,6 @@ Le HelmRelease Flux `../kind/helmrelease-envoy-gateway.yaml` reste **commenté**
 ```bash
 # Contexte kind-aiforall-local uniquement. Ne pas viser kind-apparatus-p4-it.
 pwsh ops/deploy/deploy-mesh.ps1
-bash ops/scripts/mesh-authn-kind-e2e.sh
 ```
 
 `deploy-mesh.ps1` compile ext-authz dans Docker, `kind load` les images déjà construites (`aiforall-*-service:latest`, ext-authz, postgres, openfga, alpine), régénère les certificats, puis applique le rendu de `kubectl kustomize --load-restrictor LoadRestrictionsNone`. Les ConfigMaps de config sortent du répertoire de l’overlay ; `kubectl apply -k` seul est refusé par le load restrictor. Kind ne compile pas les services.
@@ -24,4 +23,7 @@ bash ops/scripts/mesh-authn-kind-e2e.sh
 
 Les SAN DNS `*.aiforall-platform.svc.cluster.local` sont sur les certificats de service. Compose et un pod Kind branché sur le port hôte 5432 restent exclusifs : le `DROP DATABASE … WITH (FORCE)` du compose de base ne voit pas ce Postgres.
 
-La preuve Compose reste `bash ops/scripts/mesh-authn-e2e.sh`. La preuve Kind est `bash ops/scripts/mesh-authn-kind-e2e.sh` : deny sans JWT, allow avec `user_id` / `id` du principal, contournement `mesh-client` refusé.
+Les anciens lanceurs E2E shell ont été retirés le 6 novembre 2026 à la demande de
+l'utilisateur. Le seul circuit E2E conservé est [k6](../../../../tests/k6/AUTH-WINDOWS-PARENT.md).
+Leur retrait ne qualifie pas cet overlay avec k6 et ne prouve pas le portage des
+anciens cas mesh ; le raccord au profil GitHub seul reste à établir.

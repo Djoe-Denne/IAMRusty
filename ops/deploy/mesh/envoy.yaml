@@ -1,6 +1,6 @@
 # Opt-in mesh profile (ADR-0308). NOT the default stack.
 # Launch: docker compose -f docker-compose.yml -f ops/deploy/mesh/compose.yaml --profile mesh up
-# Replayable e2e: bash ops/scripts/mesh-authn-e2e.sh
+# E2E entrypoint: ops/tests/k6/AUTH-WINDOWS-PARENT.md (profile admission required).
 # Kind: kubectl apply -k ops/deploy/apps/overlays/kind-mesh
 # HTTP ext_authz. No Envoy JWT filter. No sidecar.
 # Lua strips every request header whose name starts with x-principal- BEFORE ext_authz.

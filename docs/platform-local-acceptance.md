@@ -1,5 +1,9 @@
 # Local acceptance — final integration gate, not a completed run
 
+> Historical document. On 2026-11-06 the user retired the non-k6 E2E launchers,
+> including `local-full-acceptance.py`. Commands below are historical, not usable
+> entrypoints. See [the retirement decision](missions/20261106-k6-only-cleanup.md).
+
 No IT/E2E has been executed by Package E. Source coverage below is **uncompiled**;
 static parsing does not close the security, persistence or network findings.
 Do not reuse historical S2S hashes as evidence for this working tree.
