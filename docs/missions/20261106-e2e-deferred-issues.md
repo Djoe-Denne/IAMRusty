@@ -74,8 +74,9 @@ de rétention après consommation du seul créneau autorisé.
     dans le chemin de chaque assertion ne sont pas une interaction métier avec
     le système testé. Clarifier ce raccord après le run, sans substitution à chaud,
     perte d'oracles métier ou présentation de la campagne Python comme du k6.
-    Détail vérifié : rapport `45-tests-k6-retrouves-et-mauvais-point-entree.md`
-    sous `.opencode/missions/team_mw0tms2v_0000_tt4oe1/reports/`.
+    Détail et décision courante : [nettoyage k6 seul](20261106-k6-only-cleanup.md).
+    Les rapports de la mission sont conservés dans sa sauvegarde externe, pas
+    laissés comme fichiers non suivis dans le checkout principal.
 
 ## Progression observée
 

@@ -57,8 +57,57 @@ associations de branches hors de leur espace de conservation. Pas de contourneme
 par suppression manuelle de références protégées. Nettoyage Git non terminé tant
 que ce blocage et la disposition des copies de travail ne sont pas résolus.
 
-Le changement Obsidian préexistant reste préservé ; il n'est pas effacé ou mélangé
-silencieusement au commit de nettoyage.
+Progression après publication du retrait : les 33 copies de travail secondaires
+ont été retirées par l'outil natif après sauvegarde ; Git ne recense plus que le
+checkout principal sur master. L'équipe courante a été archivée par son cleanup
+natif. Ce cleanup n'a introduit aucun changement de code dans le checkout, ce
+qui a été vérifié avec le diff. Le nombre de branches locales est passé de 140
+à 82 ; les associations anciennes bloquantes restent à résoudre. Le retrait des
+anciens moteurs est publié en `6f2d7632df5aa6798d3643c9c4d7f1be22a72870`,
+`origin/master` relu identique. Cela ne vaut pas clôture du nettoyage global.
+
+Le changement Obsidian préexistant a été sauvegardé dans un fichier externe exact,
+empreinte relue, puis le seul fichier suivi a été restauré sur choix explicite
+de l'utilisateur. Aucun autre travail utilisateur n'a été restauré ou écrasé.
+Les 51 fichiers de mission ont été archivés et vérifiés hors du dépôt ; la purge
+native de cette seule équipe a ensuite été confirmée par l'utilisateur et exécutée
+(34 membres, 28 tâches, 113 messages). Les autres archives ne sont pas purgées.
+
+## Blocage restant : compatibilité des archives natives
+
+Le diagnostic du plugin natif localise le refus dans `validatePurgeResources`
+et la reconnaissance des anciens noms dans `staleEnsembleBranchNames`. Certaines
+branches anciennes incluent le nom du projet et un suffixe d'équipe, format que
+cette liste ne reconnaît pas. Il reste 82 branches locales, pas une seule.
+
+Finir par l'outil natif nécessite de réparer cette compatibilité, sans désactiver
+les contrôles de propriété, de namespace ou d'équipe active. Cela implique le
+plugin OpenCode installé hors de ce dépôt ; aucune modification de ce plugin ou
+de sa base de données n'est effectuée sans mandat explicite. Supprimer les refs
+ou modifier la base pour éviter le refus n'est pas le repli retenu.
+
+Le projet n'est donc pas annoncé entièrement nettoyé : code et copies secondaires
+sont traités, mais les branches historiques et leur disposition native restent
+un travail ouvert. La sauvegarde vérifiée est conservée sous
+`C:/Users/djden/AppData/Local/Temp/opencode/aiforall-cleanup-20261106-sPA514/`.
+Les 72 fichiers temporaires du run et les 12 fichiers d'inventaire/outillage du
+nettoyage sont également archivés avec vérification d'empreinte, puis leurs deux
+dossiers précis retirés du dépôt. Les registres Docker, autres missions et
+autorités privées du run ne sont pas effacés.
+
+### Décision de reprise requise
+
+Option recommandée : autoriser une correction ciblée de compatibilité des anciens
+noms dans le plugin Ensemble installé, avec tests des noms reconnus et refusés,
+sans modification de base de données ni affaiblissement des contrôles. Risque :
+le plugin est global et utilisé par d'autres projets ; le changement doit rester
+borné et vérifié. Ensuite reprendre le tri des branches et la purge native avec
+les confirmations exactes qu'elle exige. Aucun délai ou résultat garanti.
+
+Alternative : ne pas modifier ce plugin. Le code nettoyé, le checkout principal
+et les sauvegardes restent conservés, mais les 82 branches locales subsistent et
+l'objectif de nettoyage intégral n'est pas atteint. Aucune nouvelle autorisation
+de supprimer les données du runtime n'est demandée ou déduite de ces options.
 
 ## Vérification du retrait des anciens moteurs
 
