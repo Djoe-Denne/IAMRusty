@@ -124,7 +124,10 @@ def _standard_iam_snapshot(pod):
         if observed != volume:
             raise Blocked("standard IAM snapshot volume required")
     fixed = expected["initContainers"][0]
-    if (any(init.get(key) != fixed[key] for key in ("image", "command", "volumeMounts", "securityContext"))
+    # Kubernetes omits the false default when serializing writable mounts.
+    observed_mounts = [{**mount, "readOnly": mount.get("readOnly", False)} for mount in init.get("volumeMounts", [])]
+    if (observed_mounts != fixed["volumeMounts"]
+            or any(init.get(key) != fixed[key] for key in ("image", "command", "securityContext"))
             or any(init.get(key) for key in ("args", "env", "envFrom"))):
         raise Blocked("standard IAM snapshot command/mounts required")
     states = [s for s in pod.get("status", {}).get("initContainerStatuses", []) if s.get("name") == init["name"]]

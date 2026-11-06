@@ -1710,6 +1710,23 @@ class ProviderProjectionTests(unittest.TestCase):
         # never emitted as the old standalone stdout lines. No shell is started.
         self.assertNotIn("\nsha256sum /app/config/development.toml\n", script)
 
+    def test_gh_g2_snapshot_writer_accepts_omitted_readonly_false(self):
+        services, driver, pod = self.fixture("CONNECTORS 1 1 1 0 0 0", retention=True)
+        writer = pod["spec"]["initContainers"][0]["volumeMounts"][4]
+        self.assertEqual(writer, {"name": "private-config", "mountPath": "/runtime", "readOnly": False})
+        del writer["readOnly"]
+        proof = services.iam_providers()
+        self.assertEqual(proof, {"namespace_uid": "namespace-uid", "deployment_uid": "iam-deployment",
+            "replica_set_uid": "iam-rs-uid", "pod_uid": "iam-pod", "providers": ["github"]})
+        self.assertEqual([call.args[0] for call in driver.runtime.kubectl.call_args_list], ["get", "exec"])
+
+    def test_gh_g2_snapshot_readonly_writer_refused_before_exec(self):
+        services, driver, pod = self.fixture("CONNECTORS 1 1 1 0 0 0", retention=True)
+        pod["spec"]["initContainers"][0]["volumeMounts"][4]["readOnly"] = True
+        with self.assertRaises(e2e.Blocked):
+            services.iam_providers()
+        self.assertEqual([call.args[0] for call in driver.runtime.kubectl.call_args_list], ["get"])
+
     def test_g1_real_snapshot_preflight_precedes_claim_and_journals_no_private_hash(self):
         # Retained from the independent author's late, otherwise duplicate delta.
         with tempfile.TemporaryDirectory() as directory:

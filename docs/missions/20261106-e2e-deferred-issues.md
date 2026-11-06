@@ -33,6 +33,12 @@ de rétention après consommation du seul créneau autorisé.
    d'ancre gardait en mémoire le bail précédant la création du Job. Son contrôle
    d'ownership final a donc refusé un Job réellement terminé avec succès. Relecture
    du bail actuel et de l'UID/condition Complete effectuée, aucun seed rejoué.
+7. **Valeur par défaut Kubernetes dans le préflight.** Le champ `readOnly=false`
+   du writer de snapshot est omis par l'API. Le pilote comparait sa représentation
+   strictement au rendu source et refusait ce montage équivalent. Correction
+   compatible de la seule valeur par défaut, avec deux tests indépendants :
+   omission acceptée, writer `readOnly=true` toujours refusé. ROUGE avant correction
+   puis 80 tests réussis. Aucun contournement du préflight ou modification des cas.
 
 ## Progression observée
 
@@ -40,7 +46,8 @@ de rétention après consommation du seul créneau autorisé.
   non redémarrés par cette opération. La cause durable du renouvellement reste différée.
 - Après rétablissement du réseau, Job de restauration terminé avec succès,
   même UID revalidé sur le bail actuel, sans nouvel essai après son succès.
-- GitHub/IAM et départ E2E restent à vérifier séparément ; aucun PASS global déduit.
+- GitHub puis IAM ont terminé leur activation et sont prêts. La vérification du
+  profil effectif et le préflight E2E restent distincts ; aucun PASS global déduit.
 
 Les observations et reçus précis restent dans le handoff de lancement et sous
 `.tmp/github-only-restart-20261105/`. Ce registre ne constitue pas une preuve
