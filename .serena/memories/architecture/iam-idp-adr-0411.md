@@ -5,4 +5,4 @@ Jalon : IAM-IdP (hors Apparatus). Canon : `docs/adr/0411-idp-provider-slug-regis
 - Admission = ligne complète (HMAC ≥16, `base_url`, Callback+Relink). Skip silencieux interdit. 400 syntaxe / 422 hors registry. 0409 inchangé.
 - SuperSède : aucune (gradue leftover 0407 §8 / 0408 long terme). Accepted+Implemented 2026-09-22 (GH/GL). Pas de service HF.
 - Voir le fichier ADR.
-- Actualisation 2026-11-06 : onboarding N+1 par nouveau service partiellement supersédé par ADR0413 Accepted/Unimplemented ; cible entrée d'instance compatible dans OAuthConnect + registry IAM. Slugs/fail-closed/400-422/no-hot-load demeurent ; pas de confusion entre type de profil, instance logique et replica/cluster.
+- Actualisation 2026-11-06 : onboarding N+1 par nouveau service partiellement supersédé par ADR0413 Accepted/Partial ; seule frontière de contrat v2 vérifiée, catalogue d'instances OAuthConnect et raccord registryIAM encore à réaliser. Slugs/fail-closed/400-422/no-hot-load demeurent ; pas de confusion entre type de profil, instance logique et replica/cluster.

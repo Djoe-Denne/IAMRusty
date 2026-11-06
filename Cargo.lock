@@ -3957,6 +3957,7 @@ dependencies = [
  "async-trait",
  "axum 0.8.9",
  "axum-test 17.3.0",
+ "base64 0.22.1",
  "hex",
  "hmac 0.12.1",
  "serde",

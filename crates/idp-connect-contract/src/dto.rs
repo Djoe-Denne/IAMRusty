@@ -56,6 +56,7 @@ pub struct AuthorizeRequest {
     /// S256 challenge, paired with `code_challenge_method`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub code_challenge: Option<String>,
+    /// PKCE method paired with `code_challenge` (S256 only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub code_challenge_method: Option<String>,
 }

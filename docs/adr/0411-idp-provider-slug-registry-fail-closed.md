@@ -14,7 +14,7 @@
 
 L'utilisateur a explicitement accepté [0413](0413-oauthconnect-multi-instances-profils.md) et son [contrat actif](../contracts/oauthconnect-multi-instances.md). La partie de Décision 5 et des conséquences/slices documentaires imposant copie du gabarit + nouveau service est remplacée par l'ajout d'une instance compatible dans OAuthConnect et de sa ligne registry IAM. L'exclusion historique du service multi-instances dans les alternatives/hors scope ne s'applique plus au service borné aux deux profils de 0413 ; elle n'autorise ni moteur universel ni nouveau profil. L'interface OIDC minimale auparavant hors décision est désormais cadrée par 0413.
 
-Slug typé, charset/case-fold, catalogue boot, complétude fail-closed, codes 400/422, absence de hot-load, règles de redémarrage et HMAC/allowlists sont conservés. Les sections ci-dessous restent historiques ; Statut **Accepted** et Réalité **Implemented** de 0411 inchangés, sans annoncer l'implémentation de 0413 (**Accepted / Unimplemented**). Les gates E2E/cutover et retrait des anciens services restent actives ; elles ne bloquent pas les unités/IT TDD autorisées après intégration documentaire.
+Slug typé, charset/case-fold, catalogue boot, complétude fail-closed, codes 400/422, absence de hot-load, règles de redémarrage et HMAC/allowlists sont conservés. Les sections ci-dessous restent historiques ; Statut **Accepted** et Réalité **Implemented** de 0411 inchangés. 0413 est **Accepted / Partial** pour sa première tranche de contrat v2, pas pour le service/catalogue ou le raccord IAM. Les gates E2E/cutover et retrait des anciens services restent actives ; elles ne bloquent pas les unités/IT TDD autorisées après intégration documentaire.
 
 ## Contexte
 

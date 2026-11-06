@@ -1,4 +1,4 @@
-//! G-6: contract-boundary v2 tests, not OAuthConnect service integration tests.
+//! G-6: contract-boundary v2 tests, not `OAuthConnect` service integration tests.
 //! Oracles: accepted contract §§3.1–3.2 and QA T6. The outbound trait alone is
 //! faked; the nested Axum router, HMAC middleware and JSON boundary are real.
 //! Run the two positive routing tests before interpreting any negative result.
@@ -592,7 +592,7 @@ async fn missing_nonce_fields_are_unprocessable_before_client() {
 async fn malformed_nonce_fields_are_bad_requests_before_client() {
     let f = fixture();
     for nonce in [
-        "".to_owned(),
+        String::new(),
         "A".repeat(42),
         "A".repeat(44),
         format!("{NONCE}="),
@@ -916,12 +916,12 @@ async fn absent_pkce_pair_is_forwarded_not_rejected() {
     assert_eq!(f.alpha.counts(), (1, 0, 0));
     assert_eq!(f.beta.counts(), (0, 0, 0));
     {
-        let requests = f
+        let request = f
             .alpha
             .authorizations
             .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        let request = &requests[0];
+            .unwrap_or_else(PoisonError::into_inner)[0]
+            .clone();
         assert!(
             request.code_challenge.is_none(),
             "absent challenge must remain None"
@@ -946,12 +946,12 @@ async fn absent_pkce_pair_is_forwarded_not_rejected() {
     assert_authentication(&completed.json::<ProviderAuthentication>(), "alpha");
     assert_eq!(f.alpha.counts(), (1, 1, 0));
     assert_eq!(f.beta.counts(), (0, 0, 0));
-    let requests = f
+    let request = f
         .alpha
         .completions
         .lock()
-        .unwrap_or_else(PoisonError::into_inner);
-    let request = &requests[0];
+        .unwrap_or_else(PoisonError::into_inner)[0]
+        .clone();
     assert!(
         request.code_verifier.is_none(),
         "absent verifier must remain None"

@@ -1,5 +1,12 @@
 # OAuthConnect — plan de lot TDD RED/GREEN
 
+## Première tranche vérifiée — contrat serveur v2 (2026-11-06)
+
+- Frontière `idp-connect-contract` seulement : types/méthodes, deux routes, HMAC par instance, nonce/PKCE, forwarding et erreurs génériques ; aucun provider ni parcours IAM nouveau qualifié.
+- Preuve TDD : 16 cas exécutés sur le socle, 5 témoins verts / 11 échecs d'assertion404, puis 16/16 verts sur l'implémentation sans modifier les attentes. Les ajouts T-1/T-2/T-3 couvrent502générique, absencePKCE et GETsigné405 ; T-4 (allowlistredirect) reste à la tranche service.
+- Régressions15/15 tests lib existants, check sans `server`, fmt et Clippy strict all-targets verts. Quatre lints de tests corrigés par l'auteur, sans allow ni changement d'oracle ; les16cas corrigés ont été réexécutés.
+- Logs locaux et chronologie : `.tmp/oauthconnect-tdd/` et ledger parent. Zéro test ignoré/filtré dans les runs retenus, aucun Docker/Kind/E2E. Les autres tranches et M-1/M-2 restent ouvertes ; le cadrage historique ci-dessous n'atteste aucune exécution de ces autres tranches.
+
 ## État et périmètre
 
 - Cadrage du 2026-11-06, **aucun test/Cargo/runtime exécuté**. Aucun PASS de la refonte revendiqué.

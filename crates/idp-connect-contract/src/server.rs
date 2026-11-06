@@ -15,10 +15,13 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use axum::{Json, Router};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 
 use crate::client::FederatedOAuthClient;
 use crate::dto::{
-    AuthorizeRequest, ProfileRequest, TokenRequest, AUTHORIZE_PATH, PROFILE_PATH, TOKEN_PATH,
+    valid_pkce_verifier, valid_s256_challenge, AuthorizeAuthenticationRequest, AuthorizeRequest,
+    CompleteAuthorizationRequest, ProfileRequest, TokenRequest, AUTHORIZE_AUTHENTICATION_PATH,
+    AUTHORIZE_PATH, COMPLETE_AUTHORIZATION_PATH, PROFILE_PATH, TOKEN_PATH,
 };
 use crate::hmac::{self, HmacKey, SIGNATURE_HEADER, TIMESTAMP_HEADER};
 
@@ -45,12 +48,24 @@ pub fn router(state: ConnectState) -> Router {
         .with_state(state.client)
 }
 
-/// Provisional T0 v2 API scaffold, intentionally exposing no routes or middleware.
+/// Router exposing only `POST` `/v2/authorize` and `/v2/complete`.
 ///
-/// This empty router lets behavioral RED tests compile before v2 routing and
-/// HMAC handlers are implemented. It does not replace the existing v1 [`router`].
-pub fn router_v2(_state: ConnectState) -> Router {
+/// Nest this under the instance prefix. HMAC verifies the full [`OriginalUri`]
+/// with this instance's key before JSON extraction or client calls. The v1
+/// [`router`] remains separate; no legacy aliases or fallback are installed.
+pub fn router_v2(state: ConnectState) -> Router {
+    let hmac_key = state.hmac_key.clone();
     Router::new()
+        .route(
+            AUTHORIZE_AUTHENTICATION_PATH,
+            post(handle_authorize_authentication),
+        )
+        .route(
+            COMPLETE_AUTHORIZATION_PATH,
+            post(handle_complete_authorization),
+        )
+        .route_layer(middleware::from_fn_with_state(hmac_key, hmac_middleware))
+        .with_state(state.client)
 }
 
 /// Verifies `IdP` Connect HMAC, then forwards the (re-assembled) request.
@@ -119,6 +134,50 @@ fn json_or_bad_gateway<T: serde::Serialize>(
         |_| StatusCode::BAD_GATEWAY.into_response(),
         |body| (StatusCode::OK, Json(body)).into_response(),
     )
+}
+
+/// An authentication nonce is exactly 32 bytes in canonical unpadded base64url.
+fn valid_authentication_nonce(nonce: &str) -> bool {
+    if nonce.len() != 43 {
+        return false;
+    }
+    let Ok(bytes) = URL_SAFE_NO_PAD.decode(nonce) else {
+        return false;
+    };
+    bytes.len() == 32 && URL_SAFE_NO_PAD.encode(&bytes) == nonce
+}
+
+async fn handle_authorize_authentication(
+    State(client): State<Arc<dyn FederatedOAuthClient>>,
+    Json(req): Json<AuthorizeAuthenticationRequest>,
+) -> impl IntoResponse {
+    let valid_pkce = match (
+        req.code_challenge.as_deref(),
+        req.code_challenge_method.as_deref(),
+    ) {
+        (None, None) => true,
+        (Some(challenge), Some("S256")) => valid_s256_challenge(challenge),
+        _ => false,
+    };
+    if !valid_authentication_nonce(&req.nonce) || !valid_pkce {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    json_or_bad_gateway(client.authorize_authentication(&req).await)
+}
+
+async fn handle_complete_authorization(
+    State(client): State<Arc<dyn FederatedOAuthClient>>,
+    Json(req): Json<CompleteAuthorizationRequest>,
+) -> impl IntoResponse {
+    if !valid_authentication_nonce(&req.expected_nonce)
+        || req
+            .code_verifier
+            .as_deref()
+            .is_some_and(|verifier| !valid_pkce_verifier(verifier))
+    {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    json_or_bad_gateway(client.complete_authorization(&req).await)
 }
 
 async fn handle_authorize(

@@ -1,7 +1,7 @@
 # ADR-0413 : Un service OAuthConnect héberge des instances configurées OAuth ou OIDC, sans déplacer les comptes IAM
 
 - Statut : Accepted
-- Réalité : Unimplemented
+- Réalité : Partial
 - Date : 2026-11-06
 - Décideurs : utilisateur, acceptation explicite du 2026-11-06 transmise par le parent
 - Jalon concerné : IAM-IdP / OAuthConnect, refonte TDD (hors Apparatus P0–P6)
@@ -9,7 +9,13 @@
 - SuperSédée par : —
 - Contrat d'implémentation : [oauthconnect-multi-instances.md](../contracts/oauthconnect-multi-instances.md)
 
-`Accepted` ratifie la cible, pas sa livraison. `Unimplemented` décrit cette évolution, pas les connecteurs existants. Aucun code, test ou déploiement de cette refonte n'est livré par ce document. L'utilisateur a explicitement choisi le 2026-11-06 « Valider v2 et nonce (Recommandé) » et « Email primaire seul » : API authorize+complete, nonce IAM durable indépendant, tokens+profil minimal et delta GitHub sans fallback public sont ratifiés, sans claims riches ni actions déléguées.
+`Accepted` ratifie la cible, pas sa livraison. La ratification documentaire était initialement `Unimplemented` ; la première tranche de contrat ci-dessous justifie désormais `Partial`, sans annoncer le service complet. L'utilisateur a explicitement choisi le 2026-11-06 « Valider v2 et nonce (Recommandé) » et « Email primaire seul » : API authorize+complete, nonce IAM durable indépendant, tokens+profil minimal et delta GitHub sans fallback public sont ratifiés, sans claims riches ni actions déléguées.
+
+### Réalité vérifiée — première tranche du contrat v2 (2026-11-06)
+
+- `idp-connect-contract` expose les DTO/méthodes et le routeur `authorize`/`complete` v2, HMAC par instance sur PATH complet, contrôle nonce/PKCE et erreurs génériques. Les defaults legacy refusent sans composer v1. Le default du crate reste sans Axum ; `base64` existant est optionnel avec `server`.
+- TDD Windows : 16 tests de frontière v2 exécutés en RED sur le socle (5 témoins verts, 11 assertions HTTP404 en échec), puis **16/16 verts** sans modifier leurs attentes ; **15/15 tests lib existants verts**, check sans feature serveur, fmt et Clippy strict all-targets verts. Revue statique de sécurité bornée sans finding ; les clients sortants sont des fakes de test, pas des fournisseurs réels.
+- **Restent non implémentés dans cette tranche** : service OAuthConnect/configuration/profils OAuth et OIDC, validation effective d'un ID token externe, génération/persistance/consommation du nonce IAM, adaptation des clients/parcours IAM, déploiement/cutover et retrait des services historiques. Aucun E2E, Docker ou changement de runtime n'est exécuté par ces preuves. Les claims riches/actions restent différés.
 
 ## Contexte
 
