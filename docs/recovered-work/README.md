@@ -1,7 +1,8 @@
 # Travail récupéré lors du nettoyage Git
 
-Ces artefacts préservent du travail de branches retirées. **Ils ne sont pas des
-correctifs appliqués ni des décisions Accepted.** Ne pas les appliquer à l'aveugle.
+Ces artefacts préservent du travail de branches retirées et la correction d'outil
+autorisée pendant leur nettoyage. Le statut est indiqué pour chaque artefact ;
+leur présence ne constitue pas une décision Accepted. Ne pas les appliquer à l'aveugle.
 
 ## SQS / LocalStack
 
@@ -21,3 +22,13 @@ actuels, pas réintroduit littéralement. Aucun changement Rust ni du pin SDK
 `93b890ff7b821e9cb2e7d0aeb81957d098778a2f` n'est effectué pendant ce nettoyage.
 Aucun test de ce correctif n'est annoncé exécuté. Le bundle externe complet des
 quatre anciennes branches SDK reste récupérable avec le manifeste de sauvegarde.
+
+## Compatibilité des anciens noms Ensemble — appliquée à l'outil global
+
+`20261106-ensemble-legacy-branch-names.patch` conserve le changement source
+minimal appliqué, sur autorisation utilisateur, au plugin installé et à sa source
+de déploiement. Il ne modifie pas la base de données ni les protections de purge.
+La régression locale `legacy-branch-purge.test.cjs`, dans le paquet installé,
+vérifie les fonctions extraites du bundle réellement utilisé : ROUGE avant fix,
+puis 11 tests PASS. La purge native a ensuite fonctionné avec ses confirmations
+habituelles. Ce patch concerne l'outillage, pas le code applicatif AIForAll.

@@ -1,0 +1,10 @@
+--- a/src/tools/team-cleanup.ts
++++ b/src/tools/team-cleanup.ts
+@@ -151,6 +151,7 @@
+ function staleEnsembleBranchNames(resource: PurgeMemberResource): string[] {
+   return [
++    `ensemble-${resource.project_name}-${teamResourceSegment(resource.team_name, resource.team_id)}-${resource.member_name}`,
+     `ensemble-${resource.team_id}-${resource.member_name}`,
+     `ensemble-${resource.team_name}-${resource.member_name}`,
+     `opencode/ensemble-${resource.team_name}-${resource.member_name}`,
+   ]

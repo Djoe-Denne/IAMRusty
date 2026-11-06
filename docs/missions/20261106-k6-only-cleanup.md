@@ -73,7 +73,7 @@ Les 51 fichiers de mission ont été archivés et vérifiés hors du dépôt ; l
 native de cette seule équipe a ensuite été confirmée par l'utilisateur et exécutée
 (34 membres, 28 tâches, 113 messages). Les autres archives ne sont pas purgées.
 
-## Blocage restant : compatibilité des archives natives
+## Blocage rencontré : compatibilité des archives natives (résolu ensuite)
 
 Le diagnostic du plugin natif localise le refus dans `validatePurgeResources`
 et la reconnaissance des anciens noms dans `staleEnsembleBranchNames`. Certaines
@@ -162,6 +162,33 @@ déjà intégrées/corrigées, soit les anciens pilotes et activation additive
 explicitement abandonnés. Aucun code Rust, SDK ou ancien runtime n'est restauré
 par une fusion administrative. Toutes les références originales restent aussi
 récupérables dans le bundle vérifié hors du dépôt.
+
+## État final du nettoyage
+
+- Un seul checkout AIForAll, sur une seule branche locale : `master`. Les 33
+  copies secondaires et 139 branches locales supplémentaires sont retirées.
+- Huit archives d'équipes supprimées au total, avec les deux confirmations
+  natives exactes ; aucune équipe archivée restante pour ce projet.
+- Sous-module RustyCog propre au même pin `93b890ff7b821e9cb2e7d0aeb81957d098778a2f`,
+  sans branche locale ni copie secondaire supplémentaire. Ses quatre anciennes
+  branches sont sauvegardées dans un bundle séparé vérifié.
+- Une correction SQS SDK réellement non intégrée a été rapatriée sur master
+  comme [patch de travail non appliqué](../recovered-work/README.md). Ne pas
+  prétendre qu'elle fonctionne aujourd'hui ni modifier le SDK sans validation.
+  Le code de lecture des tuples OpenFGA était déjà intégré dans le SDK épinglé.
+- La correction appliquée au plugin global est conservée comme petit patch
+  source dans le même dossier, avec provenance et niveau de tests explicites.
+- Données, certificats, secrets et environnement GitHub/IAM conservés comme
+  demandé ; aucun Docker stop/delete/prune, reset Kubernetes ou nettoyage métier.
+  Le runtime est réservé à la reprise k6 ; aucun nouveau test réel n'est lancé.
+- Preuves et fichiers temporaires de cette mission archivés hors dépôt avec
+  empreintes vérifiées ; ancienne modification Obsidian également récupérable.
+- Validations : 11 tests d'alignement source, 11 régressions du bundle Ensemble,
+  syntaxe du bundle et contrôles de diff. Aucun PASS k6/GitHub ou portage des
+  39 obligations mesh/six Apparatus déduit du nettoyage.
+
+Les paragraphes précédents décrivant les étapes bloquées constituent la
+chronologie, pas des blocages encore ouverts du nettoyage Git.
 
 ## Vérification du retrait des anciens moteurs
 
