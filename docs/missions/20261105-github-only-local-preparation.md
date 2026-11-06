@@ -69,3 +69,45 @@ fois l'image chargée sur les trois nœuds. Ses données et volumes sont conserv
 tous ses auxiliaires sont arrêtés. Les nœuds et autres workloads préexistants
 n'ont pas été arrêtés. La configuration GitHub reste sous le bail de diagnostic ;
 la mission n'est pas clôturée.
+
+## Reprise directe du 6 novembre : configuration locale réparée
+
+L'utilisateur a demandé de poursuivre directement, sans nouvelle mission ni
+extension du client de diagnostic. Les commandes utilisent toujours le kubeconfig
+privé et l'ancre locale ; les journaux et credentials sont traités en mémoire,
+sans valeurs ou empreintes privées dans les preuves.
+
+Deux défauts de configuration ont été établis et corrigés localement :
+
+- La règle `allow-api` d'OpenBao autorisait l'ancienne adresse du control-plane.
+  L'endpoint et le nœud ancrés indiquent désormais `172.19.0.5`. Seul son `/32`
+  a été ajouté ; anciens peers, ports et sélecteurs sont conservés. La sonde
+  publique depuis OpenBao passe d'une expiration à une réponse HTTP de Kubernetes.
+- La sonde de l'agent utilisait `bao token lookup -field`, option non disponible
+  dans le CLI 2.6.2 épinglé. Dans la seule ConfigMap dédiée GitHub, les deux appels
+  sont remplacés par `bao read -field=… auth/token/lookup-self`, sans relâcher
+  les limites de durée ou le refus des credentials administrateurs.
+
+La vérification indépendante confirme la portée de ces deux modifications,
+l'identité des ressources et l'agent démarré/prêt. Il s'agit d'une configuration
+locale, **pas d'un correctif de la source du helper**. La source Ops, le SDK,
+les fichiers Rust et les images sont inchangés.
+
+L'application atteint alors l'acquisition des secrets mais reçoit `secret not
+found`. Les deux chemins KV attendus ne rendent aucun document ; ce constat ne
+prouve pas à lui seul une suppression définitive. L'instance actuelle du coffre
+diffère de celle enregistrée dans l'environnement. Aucun reset ou redémarrage
+du coffre n'a été effectué dans ce diagnostic. IAM reste disponible et inchangé.
+
+L'utilisateur a autorisé la restauration des deux valeurs du fichier de préparation
+existant, sans génération ni écrasement. Le mécanisme existant vérifie les
+métadonnées des deux documents avant écriture, refuse les tombstones et conflits,
+et crée seulement les absents avec CAS=0. Le premier Job de restauration est
+toutefois bloqué **avant démarrage** : Calico refuse de créer son environnement
+réseau (`ClusterInformation … Unauthorized`). Le contrôleur l'a arrêté à son
+délai. Aucun succès de restauration ou nouvel essai E2E n'est déduit de ce Job.
+
+Le diagnostic de cette précondition réseau continue en lecture seule. Les traces
+et identités sont conservées ; aucune relance aveugle du Job, rotation de jeton,
+recréation de cluster ou correction Rust n'est engagée. Le créneau E2E unique
+n'a toujours pas été revendiqué ou consommé.

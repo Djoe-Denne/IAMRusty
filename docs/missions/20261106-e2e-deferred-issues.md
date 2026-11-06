@@ -1,0 +1,47 @@
+# Problèmes à traiter après le lancement des E2E
+
+Décision utilisateur du 6 novembre 2026 : priorité au lancement réel des E2E
+existantes. Réparer seulement les préconditions nécessaires et consigner ici les
+causes de fond, sans transformer le lancement en campagne de refactorisation.
+Préserver données, clés, certificats et ressources étrangères ; aucune réduction
+des 39 obligations mesh ou des six Apparatus, aucun faux PASS ou nouvel essai
+de rétention après consommation du seul créneau autorisé.
+
+## À reprendre ensuite
+
+1. **Adresse API dans les règles réseau.** Le control-plane local a changé
+   d'adresse ; `allow-api` d'OpenBao conservait l'ancienne. Ajout local du seul
+   `/32` actuel effectué, anciens peers conservés. Examiner ensuite le mécanisme
+   de mise à jour à la reprise du lab, sans étendre l'egress globalement.
+2. **Sonde CLI OpenBao.** `bao token lookup -field` n'est pas disponible dans
+   l'image 2.6.2. La ConfigMap dédiée utilise les appels `bao read -field` valides,
+   avec mêmes bornes de durée et refus root. Source du helper non corrigée ;
+   préparer son correctif et sa régression après le lancement.
+3. **Référence d'instance du coffre.** L'epoch courant diffère du registre
+   d'environnement ; les deux documents GitHub n'étaient pas trouvés. Restauration
+   des valeurs déjà préparées autorisée explicitement, sans rotation ou écrasement.
+   Examiner ensuite la reprise du coffre volatile et le référencement de l'entrée.
+4. **Renouvellement du JWT Calico CNI.** Les trois JWT de configuration CNI ont
+   expiré le 6 novembre vers 16:38 UTC malgré les Pods Calico Ready. Le premier
+   Job de restauration n'a pas pu démarrer et a atteint son délai. Cause de fond
+   du renouvellement à analyser ensuite ; rétablissement minimal par redémarrage
+   progressif du seul DaemonSet Calico existant, pas du cluster ou des applications.
+5. **Diagnostic et parcours opérateur.** Le kubeconfig privé a été omis dans les
+   premières commandes manuelles. Le diagnostic spécialisé ne couvre pas l'agent
+   init ; aucune extension de code n'est nécessaire au diagnostic direct choisi.
+6. **Vérification après création dans l'orchestration temporaire.** Une instance
+   d'ancre gardait en mémoire le bail précédant la création du Job. Son contrôle
+   d'ownership final a donc refusé un Job réellement terminé avec succès. Relecture
+   du bail actuel et de l'UID/condition Complete effectuée, aucun seed rejoué.
+
+## Progression observée
+
+- Redémarrage progressif du seul DaemonSet Calico terminé ; cluster et applications
+  non redémarrés par cette opération. La cause durable du renouvellement reste différée.
+- Après rétablissement du réseau, Job de restauration terminé avec succès,
+  même UID revalidé sur le bail actuel, sans nouvel essai après son succès.
+- GitHub/IAM et départ E2E restent à vérifier séparément ; aucun PASS global déduit.
+
+Les observations et reçus précis restent dans le handoff de lancement et sous
+`.tmp/github-only-restart-20261105/`. Ce registre ne constitue pas une preuve
+de lancement, de réussite globale des tests ou de résolution durable de ces sujets.
