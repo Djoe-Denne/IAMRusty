@@ -1707,8 +1707,10 @@ class LocalClusterTargetAnchor:
             '{range .status.initContainerStatuses[*]}I{"\\t"}{.name}{"\\t"}{.containerID}{"\\t"}{.restartCount}'
             '{"\\t"}{.imageID}{"\\t"}{.state.terminated.exitCode}{"\\t"}{.state.terminated.finishedAt}{"\\n"}{end}' + owners)
         lines = get("pod", ref["name"], projection).splitlines()
+        allowed_init = ("", "oauth-proof-trust", "openbao-snapshot trusted-roots",
+                        "openbao-snapshot oauth-proof-trust trusted-roots") if service == "iam" else ("",)
         require(len(lines) >= 10 and lines[:7] == [ref["uid"], ref["name"], namespace, "", service, "Running", endpoint["addresses"][0]]
-                and lines[8:10] == ["", "True"] and lines[7] in (("", "oauth-proof-trust") if service == "iam" else ("",)))
+                and lines[8:10] == ["", "True"] and lines[7] in allowed_init)
         tail = [line.split("\t") for line in lines[10:]]
         require([row for row in tail if row[0] == "C"] == [["C", service]])
         require([row for row in tail if row[:2] == ["P", port_name]] == [["P", port_name, str(remote_port), "TCP"]])
@@ -1720,11 +1722,13 @@ class LocalClusterTargetAnchor:
                 and re.fullmatch(r"[A-Za-z0-9._:/@-]{0,400}sha256:[a-f0-9]{64}", status[4]))
         init_statuses = [row for row in tail if row[0] == "I"]
         if lines[7]:
-            require(len(init_statuses) == 1 and len(init_statuses[0]) == 7)
-            init = init_statuses[0]
-            require(init[1] == "oauth-proof-trust" and re.fullmatch(r"containerd://[a-f0-9]{64}", init[2])
-                    and init[3].isdigit() and init[5] == "0" and bool(init[6])
-                    and re.fullmatch(r"[A-Za-z0-9._:/@-]{0,400}sha256:[a-f0-9]{64}", init[4]))
+            require(len(init_statuses) == len(lines[7].split())
+                    and all(len(init) == 7 for init in init_statuses))
+            require([init[1] for init in init_statuses] == lines[7].split())
+            for init in init_statuses:
+                require(re.fullmatch(r"containerd://[a-f0-9]{64}", init[2])
+                        and init[3].isdigit() and init[5] == "0" and bool(init[6])
+                        and re.fullmatch(r"[A-Za-z0-9._:/@-]{0,400}sha256:[a-f0-9]{64}", init[4]))
         else:
             require(not init_statuses)
         owner_rows = [row for row in tail if row[0] == "R"]

@@ -39,6 +39,14 @@ de rétention après consommation du seul créneau autorisé.
    compatible de la seule valeur par défaut, avec deux tests indépendants :
    omission acceptée, writer `readOnly=true` toujours refusé. ROUGE avant correction
    puis 80 tests réussis. Aucun contournement du préflight ou modification des cas.
+8. **Profil d'initialisation IAM du tunnel E2E.** Le contrôle de tunnel historique
+   ne connaissait que l'init OAuth de confiance et refusait le snapshot OpenBao
+   déjà déployé. Adaptation minimale aux deux listes ordonnées standard IAM,
+   vérification de chaque init terminé avec succès ; autres services et init
+   arbitraires/éphémères toujours refusés. Tests indépendants rouges puis dix
+   tests de tunnel et 76 tests d'ancre verts. Ne pas généraliser ce correctif en
+   nouveau transport ; les anciennes preuves liées aux octets du helper ne sont
+   pas réécrites ou assimilées à cette version.
 
 ## Progression observée
 

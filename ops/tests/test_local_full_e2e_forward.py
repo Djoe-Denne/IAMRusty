@@ -170,6 +170,44 @@ class ForwardTests(unittest.TestCase):
                     with self.assertRaises(target.AnchorError):
                         f.identity()
 
+    def test_standard_iam_snapshot_init_profiles_attest_identity(self):
+        for names in (("openbao-snapshot", "trusted-roots"),
+                      ("openbao-snapshot", "oauth-proof-trust", "trusted-roots")):
+            with self.subTest(names=names):
+                f = Fixture(self.directory)
+                f.pod_lines[7] = " ".join(names)
+                for name in names:
+                    f.pod_lines.insert(-1, "\t".join([
+                        "I", name, "containerd://" + "c" * 64, "0",
+                        "image@sha256:" + "d" * 64, "0", "2026-11-02T00:00:00Z"]))
+                identity = f.identity()
+                self.assertEqual(identity["pod_uid"], f.pod_uid)
+                self.assertEqual(identity["remote_port"], target._E2E_FORWARD_TARGETS["iam"][1])
+
+    def test_standard_iam_snapshot_init_profiles_reject_invalid_metadata(self):
+        names = ("openbao-snapshot", "oauth-proof-trust", "trusted-roots")
+        cases = [("iam", "unknown", None), ("iam", "ephemeral", None)]
+        cases += [("iam", mode, name) for mode in ("nonzero", "missing-status") for name in names]
+        cases += [(service, "other-service", None)
+                  for service in target._E2E_FORWARD_TARGETS if service != "iam"]
+        for service, mode, affected in cases:
+            with self.subTest(service=service, mode=mode, affected=affected):
+                f = Fixture(self.directory, service)
+                declared = names + ("foreign-init",) if mode == "unknown" else names
+                f.pod_lines[7] = " ".join(declared)
+                if mode == "ephemeral":
+                    f.pod_lines[8] = "debugger"
+                for name in declared:
+                    if mode == "missing-status" and name == affected:
+                        continue
+                    f.pod_lines.insert(-1, "\t".join([
+                        "I", name, "containerd://" + "c" * 64, "0",
+                        "image@sha256:" + "d" * 64,
+                        "1" if mode == "nonzero" and name == affected else "0",
+                        "2026-11-02T00:00:00Z"]))
+                with self.assertRaises(target.AnchorError):
+                    f.identity()
+
     def test_lifecycle_targets_pod_loopback_and_closes_after_success_or_caller_failure(self):
         for service in target._E2E_FORWARD_TARGETS:
             for failure in (False, True):
