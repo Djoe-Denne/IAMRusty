@@ -47,7 +47,7 @@ Hive a déjà `ExternalProviderClient` (`services/Hive/domain/src/port/service.r
    - **Oui** : member `Cargo.toml` racine, service `docker-compose.yml`, `SERVICE_PREFIX` + `create_router` / `create_prefixed_router`, HTTPS mesh T14b, fiche `docs/services/`.
    - HTTP S2S : les connecteurs activent la feature optionnelle **`server`** de `idp-connect-contract` (middleware Axum HMAC + 3 handlers wrapping `Arc<dyn FederatedOAuthClient>`, [0407](0407-contrat-authn-federee-vendor-neutral.md)). Default de la crate contrat = DTOs + trait + helpers HMAC, **sans** axum.
 6. **Ports compose** (Lazaret occupe déjà 8084) : GitHub Connect **8085** HTTP / **8446** HTTPS ; GitLab Connect **8086** / **8447**. Préfixes `/github-connect`, `/gitlab-connect`.
-7. **Hors premier slice** : org sync Hive, git API, webhooks, listing repos, « extras » IdP. Hive pourra plus tard appeler le **même** connecteur via un contrat **étendu** ; on ne le dessine pas ici.
+7. **Hors premier slice** : org sync Hive, git API, webhooks, listing repos, « extras » IdP. Hive pourra plus tard appeler le **même** connecteur via un contrat **étendu** ; on ne le dessine pas ici. Le besoin futur d’actions GitHub/GitLab au nom de l’utilisateur et la limitation actuelle sur la restitution des claims additionnels sont rappelés en [0407 — Limitation connue](0407-contrat-authn-federee-vendor-neutral.md#limitation-connue--claims-additionnels-et-usages-délégués-2026-11-06) ; leur implémentation reste différée, sans confondre claims d’identité et permissions d’API.
 
 ## Conséquences
 

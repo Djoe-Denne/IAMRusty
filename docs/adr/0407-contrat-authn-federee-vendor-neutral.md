@@ -50,6 +50,17 @@ Hors décision : topologie processus ([0408](0408-connecteurs-idp-services-http.
 - IAM continue de **persister** `ProviderTokens` (store actuel). Les tokens vendor transitent sur le canal de confiance 0409.
 - `PROVIDER_FACTORY_GUIDE` cesse d’être la cible (remplacement documentaire = 0408 / 0410).
 
+### Limitation connue — claims additionnels et usages délégués (2026-11-06)
+
+Le besoin actuel utilise les fournisseurs externes comme **autorités d’identité**. Le contrat restitue déjà une projection normalisée des informations d’identité (`ProviderUserProfile` : `id`, `username`, `email`, `avatar_url`, `email_verified`), mais **pas les claims additionnels du fournisseur**. `ProviderTokens` ne transporte pas non plus l’ID token OIDC. Sources : `crates/idp-connect-contract/src/{dto,client}.rs`.
+
+- **Évolution identifiée, explicitement différée par l’utilisateur** : permettre de demander les informations/claims supplémentaires nécessaires, puis de les restituer au consommateur du contrat. Leur exposition ne doit pas être implémentée dans la refonte courante des connecteurs à deux profils OIDC/OAuth. Cette note ne fixe ni enveloppe de claims, ni nouvelle méthode, ni regroupement des opérations existantes.
+- Pour OIDC, les scopes et, lorsqu’il est supporté, le paramètre `claims` permettent de demander des claims ; leur présence reste soumise aux capacités et politiques du fournisseur. Pour GitHub OAuth, les scopes autorisent l’accès aux informations via ses API : il ne s’agit pas d’un paramètre de claims OIDC standard.
+- Les futures actions **au nom de l’utilisateur** sur GitHub/GitLab, déjà hors premier slice en [0408 § Décision 7](0408-connecteurs-idp-services-http.md#décision), restent un besoin distinct : elles dépendent des access tokens et des scopes/permissions accordés. Retourner davantage de claims ne confère pas ces permissions et ne suffit pas à fournir une capacité d’action déléguée.
+- Le report concerne l’**exposition des claims additionnels**, pas la validation nécessaire à l’authentification OIDC ni les informations minimales requises par IAM. Les règles de compte/linking, les transactions navigateur et les frontières de confiance [0409](0409-confiance-callback-oauth-idp-connect.md) / [0412](0412-oauth-transaction-persistante-liee-navigateur.md) restent applicables.
+
+Cette limitation est une photographie du contrat et un besoin futur conservé, **pas une extension implémentée ni une modification des décisions ou statuts de cette ADR**. L’évolution OIDC du contrat, dont le traitement de l’ID token, reste à cadrer séparément ; elle n’est pas résolue par cette note.
+
 ## Alternatives rejetées
 
 | Option | Pourquoi pas |
