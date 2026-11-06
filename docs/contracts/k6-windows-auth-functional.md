@@ -135,3 +135,14 @@ Pas de nouvelle ADR : raccord réversible déjà borné par les contrats existan
 sans nouvelle frontière ni autorité. Aucun contrat Accepted modifié ; statut
 Accepted pour ce raccord borné après rapprochement ; aucune qualification runtime
 ou admission de cible déduite de cette ratification documentaire.
+
+## Delta demandé le 2026-11-06 — GitHub simulé
+
+**Suspendu avant implémentation sur interruption utilisateur.** La reprise
+attendue utilise un service OAuth 2.0 unique remplaçant les deux connecteurs,
+dont l'interface reste à examiner ; ce delta n'est pas ratifié pour ce service.
+
+Le [raccord GitHub simulé](k6-github-simulated-functional.md) borne l'adaptation à
+la stack GitHub existante et aux credentials attendus indépendamment du client.
+Il ne transfère ni les verdicts GitLab ni le stimulus SAN de ce contrat ; aucune
+exécution, qualification globale ou nouvelle acceptation d'ADR n'en découle.
