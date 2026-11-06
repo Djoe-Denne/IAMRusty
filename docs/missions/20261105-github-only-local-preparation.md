@@ -57,8 +57,10 @@ présent. Ces métadonnées ne prouvent pas la réussite de son authentification
 de l'écriture finale. La cause précise demeure inconnue : aucun correctif de
 rôle, reset ou reprovisionnement n'est justifié par ces seules observations.
 
-Le client ancré existant n'expose pas la lecture des journaux. Ne pas contourner
-cette garde ni introduire une nouvelle capacité de diagnostic implicitement.
+Le client ancré possède une lecture bornée des journaux, réservée aux conteneurs
+applicatifs ordinaires. L'agent OpenBao de GitHub est un conteneur d'initialisation
+et n'entre pas dans cette autorisation. L'appel dédié le refuse sans rendre de
+journal. Ne pas contourner cette garde ni élargir implicitement cette capacité.
 Aucun oracle métier ou départ E2E n'a été exécuté ; les 39 obligations mesh et
 six Apparatus restent conservées, non qualifiées par cette préparation.
 
