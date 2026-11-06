@@ -1,0 +1,143 @@
+From 871bf674b5b5cf8bba8a3918f33c3d8c9f3a4109 Mon Sep 17 00:00:00 2001
+From: denne <djoe.denne@gmail.com>
+Date: Wed, 9 Sep 2026 14:36:57 +0200
+Subject: [PATCH] fix: wait for LocalStack SQS API before creating test queues
+
+TCP-only readiness and localhost/IPv6 caused AWS SDK dispatch failures under CI load, then poisoned the fixture singleton.
+
+Co-authored-by: Cursor <cursoragent@cursor.com>
+
+diff --git a/rustycog-testing/src/common/sqs_testcontainer.rs b/rustycog-testing/src/common/sqs_testcontainer.rs
+index 94d9796..032db9f 100644
+--- a/rustycog-testing/src/common/sqs_testcontainer.rs
++++ b/rustycog-testing/src/common/sqs_testcontainer.rs
+@@ -71,4 +71,10 @@ impl TestSqs {
+-        let (_container, sqs_config) = get_or_create_test_sqs_container().await?;
+-        let host = sqs_config.host.clone();
+-        let port = sqs_config.actual_port();
+-        let region = sqs_config.region.clone();
++        match Self::try_new().await {
++            Ok(sqs) => Ok(sqs),
++            Err(error) => {
++                warn!("Failed to create test SQS ({error}); resetting LocalStack singleton");
++                let _ = TestSqsFixture::cleanup_container().await;
++                cleanup_existing_sqs_container();
++                Err(error)
++            }
++        }
++    }
+@@ -76,4 +82,8 @@ impl TestSqs {
+-        // Parse the endpoint URL to get host and port
+-        let endpoint_url = sqs_config
+-            .endpoint_url()
+-            .unwrap_or_else(|| "http://localhost:4566".to_string());
++    async fn try_new() -> Result<Self, Box<dyn std::error::Error>> {
++        let (container, sqs_config) = get_or_create_test_sqs_container().await?;
++        // Force IPv4: `localhost` on GitHub-hosted runners often resolves to ::1,
++        // while Docker publishes LocalStack on IPv4 only (AWS SDK "dispatch failure").
++        let host = "127.0.0.1";
++        let port = container.port;
++        let region = sqs_config.region.clone();
++        let endpoint_url = format!("http://{host}:{port}");
+@@ -91 +100,0 @@ impl TestSqs {
+-        // Set environment variables for SQS configuration so our app config picks it up
+@@ -93 +102 @@ impl TestSqs {
+-            // Configure queue type to SQS
++            std::env::set_var("AWS_EC2_METADATA_DISABLED", "true");
+@@ -95 +103,0 @@ impl TestSqs {
+-            // Configure SQS-specific settings
+@@ -102 +110 @@ impl TestSqs {
+-            std::env::set_var("IAM_QUEUE__SQS__ACCOUNT_ID", &account_id); // LocalStack default
++            std::env::set_var("IAM_QUEUE__SQS__ACCOUNT_ID", &account_id);
+@@ -105 +112,0 @@ impl TestSqs {
+-        // Create SQS client
+@@ -107,5 +114 @@ impl TestSqs {
+-
+-        // Wait for LocalStack to be ready
+-        Self::wait_for_localstack(&endpoint_url).await?;
+-
+-        // Create test queues using configured queue names
++        Self::wait_for_localstack(&client).await?;
+@@ -146,11 +149,5 @@ impl TestSqs {
+-    /// Wait for `LocalStack` to be ready
+-    async fn wait_for_localstack(endpoint_url: &str) -> Result<(), Box<dyn std::error::Error>> {
+-        info!("Waiting for LocalStack to be ready...");
+-
+-        let max_attempts = 30;
+-        let mut attempts = 0;
+-
+-        // Extract host and port from endpoint URL
+-        let url = url::Url::parse(endpoint_url)?;
+-        let host = url.host_str().unwrap_or("localhost");
+-        let port = url.port().unwrap_or(4566);
++    /// Wait until the SQS API answers — a TCP accept is not enough (port opens
++    /// before LocalStack has registered the service).
++    async fn wait_for_localstack(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
++        info!("Waiting for LocalStack SQS to be ready...");
++        const MAX_ATTEMPTS: u32 = 60;
+@@ -158,3 +155,2 @@ impl TestSqs {
+-        while attempts < max_attempts {
+-            // Try to connect to LocalStack
+-            match tokio::net::TcpStream::connect((host, port)).await {
++        for attempt in 1..=MAX_ATTEMPTS {
++            match client.list_queues().send().await {
+@@ -162,3 +158 @@ impl TestSqs {
+-                    info!("LocalStack is ready after {} attempts", attempts + 1);
+-                    // Give it a moment more to fully initialize SQS service
+-                    tokio::time::sleep(Duration::from_secs(2)).await;
++                    info!("LocalStack SQS is ready after {attempt} attempts");
+@@ -167,2 +161,2 @@ impl TestSqs {
+-                Err(e) => {
+-                    debug!("LocalStack connection failed: {}", e);
++                Err(error) => {
++                    debug!("LocalStack SQS not ready: {error}");
+@@ -172,6 +166 @@ impl TestSqs {
+-            attempts += 1;
+-            if attempts < max_attempts {
+-                debug!(
+-                    "Retrying LocalStack connection in 1 second... (attempt {}/{})",
+-                    attempts, max_attempts
+-                );
++            if attempt < MAX_ATTEMPTS {
+@@ -182 +171 @@ impl TestSqs {
+-        Err(format!("LocalStack failed to become ready after {max_attempts} attempts").into())
++        Err(format!("LocalStack failed to become ready after {MAX_ATTEMPTS} attempts").into())
+@@ -197 +186 @@ impl TestSqs {
+-            debug!("Creating test queue with configured name: {}", queue_name);
++            debug!("Creating test queue with configured name: {queue_name}");
+@@ -199 +188 @@ impl TestSqs {
+-            let result = client.create_queue().queue_name(&queue_name).send().await?;
++            let result = Self::create_queue_with_retry(client, &queue_name).await?;
+@@ -201 +190 @@ impl TestSqs {
+-            info!("Created test queue: {}", queue_url);
++            info!("Created test queue: {queue_url}");
+@@ -208,0 +198,26 @@ impl TestSqs {
++    async fn create_queue_with_retry(
++        client: &Client,
++        queue_name: &str,
++    ) -> Result<aws_sdk_sqs::operation::create_queue::CreateQueueOutput, Box<dyn std::error::Error>>
++    {
++        const MAX_ATTEMPTS: u32 = 8;
++        let mut last_error = None;
++
++        for attempt in 1..=MAX_ATTEMPTS {
++            match client.create_queue().queue_name(queue_name).send().await {
++                Ok(created) => return Ok(created),
++                Err(error) => {
++                    debug!("create_queue {queue_name} attempt {attempt} failed: {error}");
++                    last_error = Some(error.to_string());
++                    tokio::time::sleep(Duration::from_millis(500)).await;
++                }
++            }
++        }
++
++        Err(format!(
++            "Failed to create queue {queue_name}: {}",
++            last_error.unwrap_or_else(|| "unknown error".to_string())
++        )
++        .into())
++    }
++
+@@ -704 +719 @@ async fn get_or_create_test_sqs_container(
+-    let endpoint_url = format!("http://localhost:{sqs_port}");
++    let endpoint_url = format!("http://127.0.0.1:{sqs_port}");

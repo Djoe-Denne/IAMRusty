@@ -109,6 +109,60 @@ et les sauvegardes restent conservés, mais les 82 branches locales subsistent e
 l'objectif de nettoyage intégral n'est pas atteint. Aucune nouvelle autorisation
 de supprimer les données du runtime n'est demandée ou déduite de ces options.
 
+## Reprise autorisée : compatibilité native réparée
+
+L'utilisateur a autorisé la correction ciblée du plugin global. Une seule forme
+exacte de nom historique, corrélée au projet, au nom et à l'identifiant d'équipe
+et au membre, est ajoutée à `staleEnsembleBranchNames` dans le bundle installé
+et sa source TypeScript de déploiement. Aucune base de données modifiée à la
+main, aucun contrôle de propriétaire, namespace ou équipe active supprimé.
+
+Une régression sur les fonctions réellement extraites du bundle installé est
+rouge avant correction, puis 11 tests réussissent : ancien nom exact reconnu,
+trois formats précédents conservés, projet/équipe/identité/membre étrangers,
+suffixe supplémentaire, master et namespace préservé étranger refusés ; usages
+par équipe active toujours bloqués. Syntaxe du bundle vérifiée. Sauvegarde du
+bundle, de la source et des métadonnées dans `ensemble-plugin-before/` de la
+sauvegarde externe. Ce n'est pas l'exécution de la suite complète du plugin.
+
+L'appel natif suivant reconnaît désormais ces branches et retourne un aperçu
+valide, sans suppression : sept archives de ce projet,104membres,81tâches,
+850messages,11branches préservées,15anciennesbranches et7références périmées de
+copies/workspaces Git. Ce dernier décompte n'est pas un inventaire Docker/K8s.
+La purge définitive exige la confirmation native exacte `c06b57b8` ; la nouvelle
+correction ne dispense pas de cette approbation. Le code publié et le bundle de
+sauvegarde restent conservés. Refuser conserve ces archives et leurs références.
+
+## Disposition des branches historiques sans archive native restante
+
+La purge des sept archives a été approuvée avec son jeton exact et exécutée.
+L'outil natif confirme ensuite : aucune équipe archivée restante pour ce projet.
+Les références encore présentes sont donc des branches locales orphelines, à
+retirer par Git après vérification du bundle, pas une façon d'éviter la purge.
+
+Les anciens commits non ancêtres ne sont pas fusionnés aveuglément :
+
+- `f2aa9e2` est intégré avec les corrections finales par `65d2219` ; `2fe6e60`
+  par `aa400f3` ; `bc6760a` par `deac598` ; `91a8172` par `36357f6` ; `a456935`
+  par `b291eee`. Le code courant conserve les variantes finales du cycle HTTP,
+  pas leurs implémentations intermédiaires de tâches/oneshot.
+- `ca3e43d` est conservé dans les sources transactionnelles/outbox actuelles ;
+  les lignes ajoutées existent, le seul import différent a été regroupé.
+- `c9566a3` est rapproché de `e8987ed`, avec les assertions HTTP finales ;
+  `d36eac6` de `13d22ab` et `1f2dd30` (test et compatibilité port partagé).
+- Les ajouts du plan QA `4c91bc3` et du correctif de racine `1e91353` sont présents
+  dans les fichiers canoniques. Ceux de `161487f` sont conservés avec les
+  corrections ultérieures des preuves d'endpoint, pas leurs anciennes URL fixes.
+- Le contrat `3a685da` est présent avec sa décision et ses corrections finales ;
+  ne pas le rétrograder au statut Proposed de cette branche historique.
+
+La comparaison des ajouts, les sources actuelles et le journal d'intégration
+ont été rapprochés. Les patchs non committés restants étaient soit des versions
+déjà intégrées/corrigées, soit les anciens pilotes et activation additive
+explicitement abandonnés. Aucun code Rust, SDK ou ancien runtime n'est restauré
+par une fusion administrative. Toutes les références originales restent aussi
+récupérables dans le bundle vérifié hors du dépôt.
+
 ## Vérification du retrait des anciens moteurs
 
 Les 11 tests restants de `test_oauth_browser_alignment_source.py` passent après
