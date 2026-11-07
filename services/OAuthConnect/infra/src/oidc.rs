@@ -129,3 +129,6 @@ impl FederatedOAuthClient for OidcClient {
         Err(FederatedOAuthError::ExchangeCode)
     }
 }
+
+#[cfg(test)]
+mod tests;
