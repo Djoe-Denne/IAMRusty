@@ -49,3 +49,11 @@ L'[annexe §10](../contracts/oauthconnect-oidc-service-boundary.md#10-amendement
 Le point d'entrée est `oauth-connect-service` : loaderstrict `OAUTH_CONNECT`, sélection `RUN_ENV` et fichiers `config/<RUN_ENV>.toml` depuis le répertoire courant, puis loggingSDK et construction complète avant bind. Le témoin Windows a effectivement chargé `config/test.toml` avec `RUN_ENV=test`, sans voie spéciale dans la production. `/oauth-connect/health` et `/oauth-connect/ready` utilisent le support plateforme ; readiness signifie catalogue initialisé, **pas fournisseur live/IAM/bascule opérationnels**.
 
 IAM, fournisseur live, E2E GitHub/GitLab externes et déploiement restent **non qualifiés/hors lot**. TLSentrantnominal, signalWindowsgracieux, connexion3smesurée, streamsanslongueur, RSS et énumération système de sockets ne sont pas fermés par ces tests. Ledger détaillé local : `.cursor/handoffs/20261107-oauthconnect-oidc-service.md`. Plan ciblé : `.cursor/qa-plans/20261107-oauthconnect-oidc-service.md`, en continuité de QA20261106 T4/G-4 etT6/G-6. Les diagrammes restent leurs photographies datées, non des états live.
+
+## Publication et nettoyage vérifiés
+
+Le code et les tests sont publiés dans `origin/master` au commit `29bd917f43d79e42c2461a248868f657c14303a7` ; référence distante recoupée. Tous les livrables durables des branches de travail sont intégrés. Sauvegardes récupérables des propositions conservées avant alignement/retrait, sans force ni perte de modifications étrangères.
+
+Les contrôles Git, dossiers et inventaire natif OpenCode ne montrent plus que le checkout principal ; `master` est la seule branche locale, arbre propre au contrôle, SDK `93b890ff` inchangé. Un retrait partiel avait laissé un répertoire vide et une entrée native orpheline : après vérification de vacuité, la registration Git a été reconstituée au commit publié, puis retirée normalement par l'outil natif ; absence physique et disparition des deux inventaires vérifiées. Aucun prune/reset/force ni modification directe de registre.
+
+Aucun processus Cargo/rustc ou binaire de test/service de la mission ne reste observé. Aucun Docker/Kind/WSL n'a été créé ou démarré ; pas de nettoyage de ressources étrangères. Le serveur canvas partagé est conservé. Cette clôture concerne le lot OIDC/service local décrit ci-dessus, pas une bascule fournisseur ou de déploiement.
