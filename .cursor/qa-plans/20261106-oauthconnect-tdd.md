@@ -1,5 +1,9 @@
 # OAuthConnect — plan de lot TDD RED/GREEN
 
+## Troisième tranche vérifiée — transport OAuth / secrets / composition (2026-11-07)
+
+T3/G-3 OAuth et acquisition/composition OAuth-only de T6/G-6 exécutés selon `.cursor/qa-plans/20261107-oauthconnect-transport-secrets.md`. RED A32/B33/C11 avant chaque GREEN, puis gate conservé **189tests PASS** (75courants+114régressions), fmt/check/Clippystrict verts, revues sécurité ciblées sans finding. Le délai10s est maintenant prouvé par le vrai client composé, pas le client fixture. Profil OIDC refusé avant acquisition ; ses secrets peuvent être résolus sans exécuter OIDC. Restent OIDC runtime, service/listener/registry opérationnel, IAM/nonce et gates E2E/cutover. Connexion3s mesurée/streamsanslongueur non réalisés, coffre/provider réels non qualifiés. Les75cas finaux=31transport+33secrets/builder+11composition ; l'historique32A reste dans le ledger, son témoin délai ayant été déplacé enC après preuve.
+
 ## Deuxième tranche vérifiée — configuration déclarative / projection pure (2026-11-07)
 
 - T1/G-1 **partie déclarative et vrai loader couverte** :38tests, RED23PASS/15refusnominaux puis38PASS. Préflight SDK overrides indexés et booléens exécuté ; pas de second loader. Secrets réellement résolus, Discovery et registry complet avant écoute restent ouverts.

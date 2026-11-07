@@ -76,6 +76,14 @@ Restent hors lot : OIDC runtime/Discovery/JWKS/UserInfo, nonce transactionnel et
 
 ## 6. Sources vérifiées et absence d'exécution
 
+### Photographie après implémentation du lot — parent, 2026-11-07
+
+Cette note initiale n'avait livré aucun code ; son protocole a depuis été implémenté et vérifié dans la tranche transport/secrets. `OAuthClient`, résolution SDK, vrai builder et composition OAuth-only sont intégrés. Gate final189tests (31transport+33secrets/builder+11composition+114régressions), fmt/check/Clippy strict verts ; revues sécurité ciblées sans finding. Le seul warning SDK est préexistant, hors des sources modifiées.
+
+Le timeout vendor est maintenant mesuré via le vrai client composé C, avec contrôle nominal, token11s, watchdog15s non déclenché, erreur ExchangeCode9–11s et POSTunique/GET0. Le témoin de fixture A équivalent a été remplacé après preuve C, pas supprimé pour masquer un échec. SDK5s, gzip/coffre refusé, gzip vendor POST/GET, CA/SAN et transfert HMAC PATH/corps exacts sont également exercés. Le helper public `configuration::validate_provider` réemploie les mêmes validations locales ; `validate_config` conserve unicité et vrai bloc global OpenBao. Aucun second loader/validateur ou secret factice en infra.
+
+Les limites des sections précédentes restent effectives : connexion3s non mesurée, streaming sans longueur absent, pas RSS/SLO ni validation exhaustive des headers bruts pré-décodeur. Tests WireMock/TLS loopback, pas provider/OpenBao réel. La composition ne publie ni listener ni registry et refuse OIDC avant acquisition ; IAM/OIDC/E2E restent hors lot.
+
 Source T0 lue au canon **et** fichiers documentaires du worktree, même HEAD b8b1b8a ; MCP Serena canonique conservé, sans activate_project/indexation. APIs : `services/OAuthConnect/infra/src/{oauth,transport}.rs`, `setup/src/{secrets,transport,composition}.rs`, validation déclarative `configuration/src/validation.rs:71–96`. Historique HMAC : `services/GitHubConnect/setup/src/app.rs:Application::new`, `services/IAMRusty/infra/src/auth/http_connector.rs:with_security_mode_and_roots`, `crates/idp-connect-contract/src/hmac.rs:HmacKey::new`.
 
 SDK canonique (sous-module non initialisé dans ce worktree documentaire, non modifié) : `rustycog/rustycog-config/src/secrets/mod.rs:SecretValue::new`, `OpenBaoKv2Resolver::{connect,get}` ; no-decompression, limites et acquisition KV v2 réellement relues. Analogue composition root : ADR0102 ; acquis secrets : ADR0505 Proposed/Implemented, non ratifiée par ce réemploi.

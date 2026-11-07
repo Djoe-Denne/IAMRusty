@@ -1,5 +1,14 @@
 # OAuthConnect — QA transport OAuth et secrets de démarrage
 
+## Résultat d'exécution — parent, après intégration
+
+- A : RED32 échecs nominaux puis32PASS ;31 conservés après remplacement du témoin délai fixture par celui de C. B :33cas RED7PASS/26fails puis33PASS. C :11cas RED2/9 puis11PASS, avec prévalidation du loader enfant marquée avant le refus T0. Aucun échec de compilation/fixture compté RED.
+- **189 tests finaux PASS**,0 échec/ignoré/filtré :38config+20unitésbudget+44projection+12budget+31A+9builder+24secrets+11C. Deux préflights SDK/TLS ciblés verts avaient volontairement filtré les autres cas ; les suites complètes ont ensuite toutes exécuté.
+- Gate4packages `--all-targets --no-fail-fast`, fmt/check/Clippy strict avec future_not_send/too_many_lines verts. Warning `async_fn_in_trait` du SDK non modifié, pas un finding nouveau des packages sélectionnés. Logs `.tmp/oauthconnect-http-secrets/final-{all-tests,fmt,check,clippy}.log` ; chronologie et snapshots `.cursor/handoffs/20261107-oauthconnect-transport-secrets.md`.
+- Revues sécurité A/B/C PASS, sources finales recoupées identiques. Reviewtests T1 était un faux constat (versionGitHub déjà assertée surEMAIL dans blob initial), deux négatifs anti-fuite utiles ajoutés ; T2 couvert par vrai builder enC, témoin fixture remplacé ; T3LOW différé (batchfailclosed déjà couvert), sans nouveau harness environnement. Les33B/11C incluent maintenant le négatif directvalide+vault403 au niveau de composition.
+- Contrats Q1/Q3/Q4 réconciliés ; Q2 garde connexion3s mesurée/streamsanslongueur comme gaps. retrynever et contrôle avant extension sont preuves structurelles, pas mesure de retry protocolaire/RSS. Coffre/provider réels, OIDC/IAM, DB/queues/Docker/Kind/déploiement/E2E non exécutés. Service complet et bascule restent ouverts, ADR0413 Partial.
+- Les statuts `[GAP]` du plan initial ci-dessous décrivent sa préparation ; cette section et le ledger d'exécution priment pour les obligations A/B/C réellement vérifiées. Aucune qualification globale de la plateforme n'est déduite.
+
 ## Mandat, base et portée
 
 - GO utilisateur du 2026-11-07 ; `docs/missions/20261107-oauthconnect-transport-secrets.md` et `.cursor/handoffs/20261107-oauthconnect-transport-secrets.md` lus. Base transmise : `master@3ba3e3ca21210ad5ae6d4bd69ecd8e117298c077`, SDK `93b890ff7b821e9cb2e7d0aeb81957d098778a2f`. Aucune commande Git/Cargo/test/runtime exécutée par ce planner.

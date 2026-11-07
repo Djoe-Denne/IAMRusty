@@ -19,8 +19,6 @@
 #[path = "support/oauth_vendor.rs"]
 mod support;
 
-use std::time::{Duration, Instant};
-
 use idp_connect_contract::{FederatedOAuthClient, FederatedOAuthError};
 use oauth_connect_configuration::TokenAuthMethod;
 use serde_json::{json, Value};
@@ -942,45 +940,6 @@ async fn a4_get_redirect_to_other_configured_api_origin_never_forwards_bearer() 
         failed(&client.complete_authorization(&complete_request()).await);
         assert_get_failure_phase(&flow, true).await; // Only EMAIL_PATH may reach destination server.
     }
-}
-
-#[tokio::test]
-async fn a4_one_delayed_token_response_times_out_internally_before_watchdog_without_replay() {
-    let flow = Flow::new().await;
-    let client = flow.client();
-    let control = must(
-        client.complete_authorization(&complete_request()).await,
-        "timeout fixture nominal control",
-    );
-    flow.assert_profile(&control);
-    flow.counts(1, 1, 1).await;
-    flow.defaults().await;
-    flow.token.reset().await;
-    flow.token
-        .mount(
-            "POST",
-            TOKEN_PATH,
-            json_response(&tokens()).set_delay(Duration::from_secs(11)),
-        )
-        .await;
-    let started = Instant::now();
-    let completed = must(
-        tokio::time::timeout(
-            Duration::from_secs(15),
-            client.complete_authorization(&complete_request()),
-        )
-        .await,
-        "15s watchdog must NOT expire; internal 10s timeout must complete the operation",
-    );
-    assert!(
-        matches!(completed, Err(FederatedOAuthError::ExchangeCode)),
-        "delayed valid token response must fail in exchange phase"
-    );
-    assert!(
-        started.elapsed() >= Duration::from_secs(9),
-        "a fast validation/connection refusal is not the controlled 10s timeout evidence"
-    );
-    flow.counts(1, 0, 0).await;
 }
 
 #[tokio::test]
