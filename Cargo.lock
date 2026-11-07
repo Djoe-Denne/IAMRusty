@@ -5259,6 +5259,7 @@ version = "0.1.0"
 dependencies = [
  "axum 0.8.9",
  "axum-server",
+ "base64 0.22.1",
  "idp-connect-contract",
  "oauth-connect-configuration",
  "oauth-connect-infra",
@@ -5269,8 +5270,10 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "toml 0.8.23",
  "tracing",
  "tracing-subscriber",
+ "url",
  "wiremock",
 ]
 
