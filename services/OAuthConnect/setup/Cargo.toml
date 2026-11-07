@@ -16,6 +16,10 @@ oauth-connect-infra = { path = "../infra" }
 oauth-connect-http = { path = "../http" }
 idp-connect-contract = { path = "../../../crates/idp-connect-contract" }
 reqwest = { workspace = true, features = ["gzip"] }
+tokio = { workspace = true, features = ["time"] }
+tracing = { workspace = true }
+readiness = { path = "../../../crates/readiness" }
+axum = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["fs", "time", "sync"] }

@@ -5487,6 +5487,7 @@ dependencies = [
  "oauth-connect-http",
  "oauth-connect-infra",
  "rcgen",
+ "readiness",
  "reqwest 0.12.28",
  "rsa",
  "rustls 0.23.40",

@@ -1,4 +1,4 @@
-//! Standalone `OAuthConnect` entry point; application startup remains refusing in T0.
+//! Standalone `OAuthConnect` entry point with SDK logging and owned HTTP startup.
 
 use oauth_connect_configuration::{load_config, LoggingConfig};
 use oauth_connect_setup::AppBuilder;
@@ -23,7 +23,7 @@ impl HasLoggingConfig for BinaryLogging {
 ///
 /// # Errors
 /// Returns a sanitized error for configuration or application startup failure.
-/// T0 refuses startup before any listener is created.
+/// No listener is started before the complete application has initialized.
 #[tokio::main]
 async fn main() -> Result<(), DomainError> {
     let config = load_config().map_err(|_| DomainError::InvalidInput {
