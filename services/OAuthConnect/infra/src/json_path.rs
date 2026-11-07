@@ -7,7 +7,8 @@ use jsonpath_rust::parser::{
 use jsonpath_rust::query::{js_path_process, QueryRef};
 use serde_json::Value;
 
-use crate::{invalid_mapping, ApiId, ApiResponses, ClaimSource, DomainError};
+use crate::budget::Admission;
+use crate::{invalid_mapping, ApiId, ClaimSource, DomainError};
 
 mod policy;
 
@@ -34,9 +35,9 @@ impl CompiledClaim {
 
     pub(super) fn select<'a>(
         &self,
-        responses: &'a ApiResponses,
+        admission: &Admission<'a>,
     ) -> Result<Option<QueryRef<'a, Value>>, DomainError> {
-        let response = responses.get(&self.api).ok_or_else(invalid_mapping)?;
+        let response = admission.response_for(self)?;
         // This public library entry point evaluates the very AST validated above
         // and preserves every match, including duplicates and nulls.
         let mut matches = js_path_process(&self.query, response).map_err(|_| invalid_mapping())?;
@@ -65,8 +66,9 @@ impl CompiledClaim {
         &self,
         email: &QueryRef<'_, Value>,
         verified: &QueryRef<'_, Value>,
-        responses: &ApiResponses,
+        admission: &Admission<'_>,
     ) -> Result<(), DomainError> {
+        let response = admission.parent_response_for(self)?;
         // Parse the library's normalized paths with its own parser. Splitting on
         // dots/brackets would confuse literal property names with path syntax.
         let parent = localized_parent(&email.path)?;
@@ -74,12 +76,19 @@ impl CompiledClaim {
         if parent != other {
             return Err(invalid_mapping());
         }
-        let response = responses.get(&self.api).ok_or_else(invalid_mapping)?;
         let matches = js_path_process(&parent, response).map_err(|_| invalid_mapping())?;
         match matches.as_slice() {
             [selected] if selected.val.is_object() => Ok(()),
             _ => Err(invalid_mapping()),
         }
+    }
+
+    pub(super) fn api(&self) -> &str {
+        &self.api
+    }
+
+    pub(super) const fn query(&self) -> &JpQuery {
+        &self.query
     }
 }
 

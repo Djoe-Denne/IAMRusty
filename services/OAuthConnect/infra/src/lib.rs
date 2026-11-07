@@ -8,6 +8,7 @@ pub use oauth_connect_domain::{ApiId, ClaimSource, OAuthClaims};
 pub use rustycog::core::error::DomainError;
 use serde_json::Value;
 
+mod budget;
 mod json_path;
 
 use json_path::CompiledClaim;
@@ -61,17 +62,19 @@ impl CompiledMapping {
     /// Project the current completion without retaining JSON or accessing a network.
     ///
     /// # Errors
-    /// Refuses missing API responses, invalid types/cardinalities and email pairs
-    /// selected from different objects. Diagnostics contain no response values.
+    /// Refuses missing or excessive API responses, excessive estimated evaluation
+    /// cost, invalid types/cardinalities and email pairs from different objects.
+    /// Diagnostics contain no response values.
     pub fn project(&self, responses: &ApiResponses) -> Result<ProviderUserProfile, DomainError> {
-        let sub = self.sub.select(responses)?;
-        let email = self.email.select(responses)?;
-        let verified = self.email_verified.select(responses)?;
-        let username = self.preferred_username.select(responses)?;
+        let admission = budget::admit(self, responses)?;
+        let sub = self.sub.select(&admission)?;
+        let email = self.email.select(&admission)?;
+        let verified = self.email_verified.select(&admission)?;
+        let username = self.preferred_username.select(&admission)?;
         let picture = self
             .picture
             .as_ref()
-            .map(|claim| claim.select(responses))
+            .map(|claim| claim.select(&admission))
             .transpose()?
             .flatten();
 
@@ -80,7 +83,7 @@ impl CompiledMapping {
         // Validate even when email is absent: absence must not hide malformed data.
         let verified_value = optional_boolean(verified.as_ref().map(|selected| selected.val))?;
         if let (Some(email), Some(verified)) = (&email, &verified) {
-            self.email.ensure_same_parent(email, verified, responses)?;
+            self.email.ensure_same_parent(email, verified, &admission)?;
         }
         Ok(ProviderUserProfile {
             id,
@@ -90,6 +93,17 @@ impl CompiledMapping {
             email: email_value,
             avatar_url: optional_string(picture.as_ref().map(|selected| selected.val), false)?,
         })
+    }
+
+    fn claims(&self) -> impl Iterator<Item = &CompiledClaim> {
+        [
+            &self.sub,
+            &self.email,
+            &self.email_verified,
+            &self.preferred_username,
+        ]
+        .into_iter()
+        .chain(self.picture.iter())
     }
 }
 
