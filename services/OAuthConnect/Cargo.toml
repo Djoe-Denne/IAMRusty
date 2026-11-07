@@ -1,0 +1,20 @@
+[package]
+name = "oauth-connect-service"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "OAuthConnect standalone v2 service"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "oauth-connect-service"
+path = "src/main.rs"
+
+[dependencies]
+oauth-connect-configuration = { path = "configuration" }
+oauth-connect-setup = { path = "setup" }
+rustycog = { package = "rustycog-framework", version = "0.1.1", default-features = false, features = ["core", "logger"] }
+tokio = { workspace = true }

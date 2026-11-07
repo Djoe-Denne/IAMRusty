@@ -11,9 +11,11 @@ use serde_json::Value;
 mod budget;
 mod json_path;
 mod oauth;
+mod oidc;
 mod transport;
 
 pub use oauth::OAuthClient;
+pub use oidc::OidcClient;
 pub use transport::{HTTP_BODY_LIMIT, HTTP_CONNECT_TIMEOUT, HTTP_REQUEST_TIMEOUT};
 
 use json_path::CompiledClaim;

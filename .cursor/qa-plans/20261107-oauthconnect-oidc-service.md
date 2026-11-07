@@ -2,7 +2,7 @@
 
 ## Statut, entrées et frontière du lot
 
-- **Plan préliminaire indépendant, à réconcilier après intégration annexe architecture/API.** GO utilisateur « go oidc et service op » ; aucune instruction d'implémentation ajoutée par ce planner. Écriture exclusive de ce fichier, aucun test/source/Cargo/Git/runtime, aucune orchestration/sous-délégation.
+- **Plan indépendant réconcilié par le parent aux annexes et API T0 intégrées ; tests à écrire/exécuter.** GO utilisateur « go oidc et service op » ; aucune instruction d'implémentation ajoutée par ce planner. Historique : rédaction initiale sans test/source/Cargo/Git/runtime, amendements parent explicités ci-dessous.
 - Base fournie et attestée au ledger : `master@eabc6459bc5f3f5c564d8789de68594226cb7aed`, SDK `93b890ff7b821e9cb2e7d0aeb81957d098778a2f`. Pas de commande Git de revérification ici. Racine Serena canonique/LSP ready revérifiés, skills MCP/Serena/RustyCog/WireMock conservés de cette session ; aucun activate_project ni lecture du travail architecture en cours.
 - Lus : `.cursor/handoffs/20261107-oauthconnect-oidc-service.md`, ledger transport/secrets précédent (photographie finale et pointeurs), mission du même nom, contrat multi-instances §§2.4/3/4/6/7, `oauthconnect-http-secrets-boundary.md`, QA20261106 T4/G-4,T6/G-6 conservée. ADR0413 Accepted/Partial ; pas de nouvelle ratification globale à déduire de ce plan.
 - Héritage : 189 tests/qualité/revues transport-secrets attestés dans son ledger, pas rejoués ici. OAuth HTTP, secrets, builder de confiance et composition OAuth-only existent ; OIDC, registry mixte, HTTP/binaire opérationnels restent à prouver.
@@ -48,6 +48,10 @@ Preuve périmée à traiter explicitement : `setup::build_oauth_clients` et `min
 - R-provenance : conserver Option/presence typée jusqu'au contrôle de contradiction, pas defaultfalse prématuré ; null optionnel traité par parseur standard, mauvais type refusé. Email+verified de même source, attentesG3 maintenues. nbf privé typé après signature, azp signé et at_hash standard. Aucun claim additionnel renvoyé au DTO.
 - R-service : listener SDK start_router_owned/OwnedHttpServer déjà acquis, Application.start rend propriétaire/addressesport0 ; run signale/arrête/joint avec budgets5s/6s. Binaire réel doit rendre l'adresse effective observable après bind (log technique non secret), sans route shutdown de test ; détails exacts à constater T0. API HTTP reste mince, testsB avec vrais clients OAuth déjà verts (plus fort que fakeport autorisé annexe).
 - Deux auteurs T0 **indépendants sans API absente** : infraOIDC/reader et HTTP/setup/service (seulement trait/SDK intégrés, aucun import OidcClient). Intégration/compilation/versionnage ET dernière réconciliation aux signatures réelles avant consommateurs isolés. Aucun auteur tests/GREEN ni runtime lancé à cette entrée.
+- Constat T0 livré au canon : cache/claims privés `OidcClient::new_with_clocks(&ProviderConfig,SecretValue,reqwest::Client,MonotonicNow,UtcNow)` async ; aliases Arc<dyn Fn()->tokio::time::Instant + Send + Sync> et Arc<dyn Fn()->chrono::DateTime<Utc> + Send + Sync>. Test-engineerA écrit `infra/src/oidc/tests.rs` et ajoute UNIQUEMENT déclaration `#[cfg(test)] mod tests;` au parent, pas production ; tests publics `infra/tests/oidc_authentication.rs`. Pas de fichier `oidc_jwks` integration externe pour contourner la couture privée. Horloges mutées à travers Arc/Mutex testlocale, UTC fixe et monotone avancée indépendamment ; délaisreqwest réels restent indépendants.
+- APIs service T0 réelles livrées : HTTP réexporte AppState/ConnectState/ReadinessProbe/DomainError, create_router et create_prefixed_router exacts annexe ; setup exporte ConfiguredClient/build_clients, Application/AppBuilder, OwnedHttpServer/HttpShutdownBudget/HttpShutdownReport. Application.new(AppConfig)/start(&self)/run(self) async -> DomainError, AppBuilder.new puis build async. Binaire target `oauth-connect-service`, loader SDK logging puis AppBuilder ; aucun listener T0. Nouveauxrootmembersservice/http intégrés, gate4paquets en cours avant tests.
+- **Résolution dépendance et recoup achevés** : `openidconnect4.1.0`/oauth2v5.0.0, API4.1officielle/cache relus par architecte et annexe§9 intégrée. Pas de changement APIpublique T0 ; futurescallbackSend, aliasesclaimsprivésnbf, snapshots actualisés par metadonnées.set_jwks (Client copieJWKS), NoMatchingKey seulrefresh et AmbiguousKeyIdrefus sont obligatoires. Upgrade ctutils0.4.8nécessaire(crypto-bigint>=0.4.6) ethybrid-array0.4.15nécessaire(elliptic-curve^0.4.13), ancienlockincompatible prouvé ; contrainteworkspaceinchangée. Pas de nouvelleADR/bumpSDK.
+- GateT0 parent : fmt/check4paquetsPASS,31testsOAuthtransport+11minimalcomposition=42PASS0ignorés/filtrés, pasOIDC/serviceGREEN. QualitéT0bornée avantversionnageconsommateurs, aucun auteurtestavantHEADintégré. Connexion3s/streamsanslen etE2Eexternes restentgaps/horslot, pasbloquantsdesunitésautorisées.
 
 Ce plan ne choisit ni signatures, cache interne, lifecycle ni version à la place de l'architecte. Avant consommateurs isolés, parent complète ce même fichier :
 
@@ -136,15 +140,16 @@ Windows canonique court, un Cargo à la fois, jobs24 et targetE: du dépôt, auc
 ```powershell
 # Paquets existants ; preflight apres socle/API/dependances integres :
 cargo check --locked -p oauth-connect-infra -p oauth-connect-setup
-cargo test --locked -p oauth-connect-infra --test oidc_authentication --test oidc_jwks --no-run
+cargo test --locked -p oauth-connect-infra --test oidc_authentication --no-run
+cargo test --locked -p oauth-connect-infra --lib --no-run
 # Paquet HTTP/targets futurs, confirmer manifests avant invocation :
 cargo test --locked -p oauth-connect-http --test registry_routing --no-run
 # Chaque cas RED puis meme cas GREEN ; remplacer par nom effectivement decouvert :
 cargo test --locked -p oauth-connect-infra --test oidc_authentication <nom_decouvert> -- --exact
-cargo test --locked -p oauth-connect-infra --test oidc_jwks <nom_decouvert> -- --exact
+cargo test --locked -p oauth-connect-infra --lib oidc::tests::<nom_decouvert> -- --exact
 cargo test --locked -p oauth-connect-http --test registry_routing <nom_decouvert> -- --exact
 # Regressions focalisees apres chaque producteur integre :
-cargo test --locked -p oauth-connect-infra --test oidc_authentication --test oidc_jwks --no-fail-fast
+cargo test --locked -p oauth-connect-infra --test oidc_authentication --lib --no-fail-fast
 cargo test --locked -p oauth-connect-http --test registry_routing
 cargo test --locked -p idp-connect-contract --features server --test v2_contract
 # Consommateurs seulement APRES A+B et nouveaux targets integres :

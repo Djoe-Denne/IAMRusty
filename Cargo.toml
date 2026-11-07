@@ -24,9 +24,11 @@ members = [
     # GitLab IdP Connect (IAM-IdP S4)
     "services/GitLabConnect",
     # OAuthConnect declarative configuration and pure mapping (ADR 0413)
+    "services/OAuthConnect",
     "services/OAuthConnect/configuration",
     "services/OAuthConnect/domain",
     "services/OAuthConnect/infra",
+    "services/OAuthConnect/http",
     "services/OAuthConnect/setup",
     # Modular monolith binary
     "runtime/monolith",

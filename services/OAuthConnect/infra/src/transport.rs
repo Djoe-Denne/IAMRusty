@@ -21,9 +21,22 @@ pub const HTTP_BODY_LIMIT: usize = 1024 * 1024;
 /// Returns the caller's sanitized phase error on status, encoding, size, stream
 /// or JSON failure. The response is dropped immediately rather than drained.
 pub async fn read_json(
-    mut response: Response,
+    response: Response,
     error: FederatedOAuthError,
 ) -> Result<Value, FederatedOAuthError> {
+    let buffer = read_bytes(response, error).await?;
+    serde_json::from_slice(&buffer).map_err(|_| error)
+}
+
+/// Read original delivered bytes at the existing decompressed body boundary.
+///
+/// # Errors
+/// Returns the caller's sanitized phase error on status, encoding, size or stream
+/// failure. Bytes are returned only after EOF, without parsing or reserialization.
+pub async fn read_bytes(
+    mut response: Response,
+    error: FederatedOAuthError,
+) -> Result<Vec<u8>, FederatedOAuthError> {
     if !response.status().is_success() {
         return Err(error);
     }
@@ -53,5 +66,5 @@ pub async fn read_json(
         }
         buffer.extend_from_slice(&chunk);
     }
-    serde_json::from_slice(&buffer).map_err(|_| error)
+    Ok(buffer)
 }
