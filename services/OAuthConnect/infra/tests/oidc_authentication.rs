@@ -155,6 +155,7 @@ async fn preflight_isolated_discovery_and_jwks_documents_are_reachable_without_o
         let value: Value = must(response.json().await, "small fixture-only HTTP JSON");
         assert!(value.is_object(), "fixture document object");
     }
+    f.keys.wait_count(1).await;
     f.assert_counts(1, 1, 0, 0).await;
 }
 
@@ -331,7 +332,7 @@ async fn g1_invalid_oidc_declarations_refuse_before_any_discovery_io() {
         match mutation {
             "transport" => {
                 f.provider.transport_security =
-                    oauth_connect_configuration::VendorTransportSecurity::Verified
+                    oauth_connect_configuration::VendorTransportSecurity::Verified;
             }
             "pkce" => f.provider.pkce_supported = false,
             _ => f.provider.scopes.retain(|scope| scope != "openid"),
@@ -378,16 +379,17 @@ async fn g1_forbidden_endpoint_origin_never_receives_even_the_internal_discovery
         for variant in ["origin", "credentials", "fragment"] {
             let f = OidcFixture::new().await;
             let forbidden = OidcFixture::new().await;
-            let mut destination = must(
-                url::Url::parse(&f.url("/target")),
-                "local forbidden URL fixture",
-            );
-            if variant == "origin" {
-                destination = must(
+            let mut destination = if variant == "origin" {
+                must(
                     url::Url::parse(&forbidden.url("/target")),
                     "foreign-origin fixture",
-                );
-            }
+                )
+            } else {
+                must(
+                    url::Url::parse(&f.url("/target")),
+                    "local forbidden URL fixture",
+                )
+            };
             if variant == "credentials" {
                 must(
                     destination.set_username("hidden-user"),
@@ -439,7 +441,7 @@ async fn g1_discovery_issuer_auth_method_and_invalid_metadata_fail_closed() {
         match mutation {
             "issuer" => metadata["issuer"] = json!(f.url("/different-issuer")),
             "token_endpoint_auth_methods_supported" => {
-                metadata[mutation] = json!(["private_key_jwt"])
+                metadata[mutation] = json!(["private_key_jwt"]);
             }
             "id_token_signing_alg_values_supported" => metadata[mutation] = json!(["HS256"]),
             _ => remove(&mut metadata, "issuer"),
@@ -511,7 +513,7 @@ impl Endpoint {
     const fn startup(self) -> bool {
         matches!(self, Self::Discovery | Self::Jwks)
     }
-    fn document(self, f: &OidcFixture) -> &fixture::Document {
+    const fn document(self, f: &OidcFixture) -> &fixture::Document {
         match self {
             Self::Discovery => &f.discovery,
             Self::Jwks => &f.keys,
