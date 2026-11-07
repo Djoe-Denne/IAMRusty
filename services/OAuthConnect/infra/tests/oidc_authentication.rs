@@ -336,7 +336,7 @@ async fn g1_discovery_authorization_endpoint_rejects_reserved_query_parameters()
         ("code_verifier", "%63ode_verifier"),
         ("nonce", "%6Eonce"),
     ] {
-        for name in [plain, encoded] {
+        for name in <[&str; 2]>::from((plain, encoded)) {
             let f = OidcFixture::new().await;
             let mut metadata = f.metadata();
             metadata["authorization_endpoint"] =

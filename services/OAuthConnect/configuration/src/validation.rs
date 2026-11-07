@@ -143,25 +143,32 @@ fn origin(raw: &str, security: VendorTransportSecurity) -> Result<Url, DomainErr
     Ok(url)
 }
 
+/// Whether `name` is one of the reserved OAuth authorization query parameters.
+#[must_use]
+pub fn is_reserved_authorization_parameter(name: &str) -> bool {
+    matches!(
+        name,
+        "state"
+            | "redirect_uri"
+            | "client_id"
+            | "scope"
+            | "response_type"
+            | "code_challenge"
+            | "code_challenge_method"
+            | "code_verifier"
+            | "nonce"
+    )
+}
+
 fn validate_oauth(
     profile: &OAuthProfile,
     security: VendorTransportSecurity,
 ) -> Result<(), DomainError> {
     let authorize = endpoint(&profile.authorization_url, security)?;
-    if authorize.query_pairs().any(|(key, _)| {
-        matches!(
-            key.as_ref(),
-            "state"
-                | "redirect_uri"
-                | "client_id"
-                | "scope"
-                | "response_type"
-                | "code_challenge"
-                | "code_challenge_method"
-                | "code_verifier"
-                | "nonce"
-        )
-    }) {
+    if authorize
+        .query_pairs()
+        .any(|(key, _)| is_reserved_authorization_parameter(key.as_ref()))
+    {
         return Err(invalid());
     }
     endpoint(&profile.token_url, security)?;

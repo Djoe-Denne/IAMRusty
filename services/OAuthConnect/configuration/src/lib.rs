@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 
 mod validation;
 
+pub use validation::is_reserved_authorization_parameter;
+
 /// Environment prefix passed to the existing strict SDK loader.
 pub const CONFIG_PREFIX: &str = "OAUTH_CONNECT";
 

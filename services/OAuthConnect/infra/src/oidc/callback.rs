@@ -3,7 +3,9 @@
 use std::{collections::BTreeSet, future::Future, pin::Pin, sync::Arc};
 
 use idp_connect_contract::FederatedOAuthError;
-use oauth_connect_configuration::{OidcProfile, VendorTransportSecurity};
+use oauth_connect_configuration::{
+    is_reserved_authorization_parameter, OidcProfile, VendorTransportSecurity,
+};
 use openidconnect::{
     core::CoreProviderMetadata, AsyncHttpClient, HttpRequest, HttpResponse, IssuerUrl,
 };
@@ -72,7 +74,13 @@ impl BoundHttp {
         &self,
         metadata: &CoreProviderMetadata,
     ) -> Result<(), FederatedOAuthError> {
-        self.guard(metadata.authorization_endpoint().as_str())?;
+        let authorize = self.guard(metadata.authorization_endpoint().as_str())?;
+        if authorize
+            .query_pairs()
+            .any(|(key, _)| is_reserved_authorization_parameter(key.as_ref()))
+        {
+            return Err(FederatedOAuthError::ExchangeCode);
+        }
         self.guard(
             metadata
                 .token_endpoint()
