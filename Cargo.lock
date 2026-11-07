@@ -4206,9 +4206,9 @@ dependencies = [
 
 [[package]]
 name = "jsonpath-rust"
-version = "1.0.11"
+version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d23892d4caa103325a558250e9f4e406d81cf64f7c01679ae7a64e0413321e51"
+checksum = "b1c4668c489390e66d586fe2238ee8568473f7ac1607b411342f787c5e1bedd7"
 dependencies = [
  "pest",
  "pest_derive",
@@ -5147,6 +5147,33 @@ checksum = "91df4bbde75afed763b708b7eee1e8e7651e02d97f6d5dd763e89367e957b23b"
 dependencies = [
  "hermit-abi 0.5.2",
  "libc",
+]
+
+[[package]]
+name = "oauth-connect-configuration"
+version = "0.1.0"
+dependencies = [
+ "oauth-connect-domain",
+ "rustycog-framework",
+ "serde",
+]
+
+[[package]]
+name = "oauth-connect-domain"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "oauth-connect-infra"
+version = "0.1.0"
+dependencies = [
+ "idp-connect-contract",
+ "jsonpath-rust",
+ "oauth-connect-domain",
+ "rustycog-framework",
+ "serde_json",
 ]
 
 [[package]]

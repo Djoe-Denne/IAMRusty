@@ -1,0 +1,15 @@
+[package]
+name = "oauth-connect-configuration"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Declarative OAuthConnect configuration using the strict SDK loader"
+
+[lints]
+workspace = true
+
+[dependencies]
+rustycog = { package = "rustycog-framework", version = "0.1.1", default-features = false, features = ["core", "config", "secrets"] }
+oauth-connect-domain = { path = "../domain" }
+serde = { workspace = true }
