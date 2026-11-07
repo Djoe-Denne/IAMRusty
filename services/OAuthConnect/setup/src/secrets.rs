@@ -2,8 +2,8 @@
 
 use std::fmt;
 
-use oauth_connect_configuration::AppConfig;
-use rustycog::config::secrets::SecretValue;
+use oauth_connect_configuration::{validate_config, AppConfig, ProviderConfig, SecretsMode};
+use rustycog::config::secrets::{OpenBaoKv2Resolver, SecretResolver, SecretValue};
 use rustycog::core::error::DomainError;
 
 /// Startup-resolved credentials for exactly one logical provider instance.
@@ -24,16 +24,99 @@ impl fmt::Debug for ResolvedProviderSecrets {
 }
 
 /// Resolve credentials for every declaration, OAuth or OIDC, or return no result.
-/// Future acquisition uses SDK direct values or authenticated KV v2 only, after
-/// validating the complete declaration; there is no ambient or direct fallback.
+///
+/// The complete declaration and direct credentials are checked before any I/O.
+/// KV v2 uses the SDK bootstrap once per batch, only if a vault instance exists.
+/// No ambient credentials, fallback mode or partial result is exposed.
 ///
 /// # Errors
-/// Always refuses in T0 without reading files or contacting the secret service.
-/// Later errors must remain sanitized and must not expose a partial result list.
+/// Returns a sanitized domain error for invalid declarations, SDK acquisition
+/// failures or HMAC keys shorter than sixteen UTF-8 bytes after normalization.
 pub async fn resolve_secrets(
-    _config: &AppConfig,
+    config: &AppConfig,
 ) -> Result<Vec<ResolvedProviderSecrets>, DomainError> {
-    Err(DomainError::InvalidInput {
-        message: "OAuthConnect startup secret resolution not implemented".to_owned(),
+    validate_config(config).map_err(|_| invalid())?;
+    // Prepare every direct value first: an invalid later direct instance must
+    // not cause even the first vault instance to bootstrap unnecessarily.
+    let prepared = config
+        .providers
+        .iter()
+        .map(|provider| match provider.secrets_mode {
+            SecretsMode::Direct => direct_secrets(provider).map(Some),
+            SecretsMode::Openbao => Ok(None),
+        })
+        .collect::<Result<Vec<_>, DomainError>>()?;
+
+    let mut resolver = None;
+    let mut bundles = Vec::with_capacity(config.providers.len());
+    for (provider, direct) in config.providers.iter().zip(prepared) {
+        if let Some(direct) = direct {
+            bundles.push(direct);
+            continue;
+        }
+        if resolver.is_none() {
+            let declaration = config.openbao.as_ref().ok_or_else(invalid)?;
+            resolver = Some(
+                OpenBaoKv2Resolver::connect(declaration)
+                    .await
+                    .map_err(|_| invalid())?,
+            );
+        }
+        let resolver = resolver.as_ref().ok_or_else(invalid)?;
+        bundles.push(vault_secrets(provider, resolver).await?);
+    }
+    Ok(bundles)
+}
+
+fn direct_secrets(provider: &ProviderConfig) -> Result<ResolvedProviderSecrets, DomainError> {
+    let client_secret = direct_value(provider.client_secret.as_deref())?;
+    let hmac_secret = direct_value(provider.hmac_secret.as_deref())?;
+    bundle(provider, client_secret, hmac_secret)
+}
+
+fn direct_value(value: Option<&str>) -> Result<SecretValue, DomainError> {
+    // Validate the raw value (including the SDK size limit) before any trim.
+    SecretValue::new(value.ok_or_else(invalid)?.to_owned()).map_err(|_| invalid())
+}
+
+async fn vault_secrets(
+    provider: &ProviderConfig,
+    resolver: &OpenBaoKv2Resolver,
+) -> Result<ResolvedProviderSecrets, DomainError> {
+    let client_reference = provider.client_secret_ref.as_ref().ok_or_else(invalid)?;
+    let hmac_reference = provider.hmac_secret_ref.as_ref().ok_or_else(invalid)?;
+    let client_secret = resolver
+        .resolve(client_reference)
+        .await
+        .map_err(|_| invalid())?;
+    let hmac_secret = resolver
+        .resolve(hmac_reference)
+        .await
+        .map_err(|_| invalid())?;
+    bundle(provider, client_secret, hmac_secret)
+}
+
+fn bundle(
+    provider: &ProviderConfig,
+    client_secret: SecretValue,
+    hmac_secret: SecretValue,
+) -> Result<ResolvedProviderSecrets, DomainError> {
+    // SDK validation already checked the *raw* HMAC, including its 16 KiB limit.
+    // Only this local HMAC normalization changes bytes; client_secret is untouched.
+    let raw = hmac_secret.into_inner();
+    let canonical = raw.trim();
+    if canonical.len() < 16 {
+        return Err(invalid());
+    }
+    Ok(ResolvedProviderSecrets {
+        id: provider.id.to_ascii_lowercase(),
+        client_secret,
+        hmac_secret: SecretValue::new(canonical.to_owned()).map_err(|_| invalid())?,
     })
+}
+
+fn invalid() -> DomainError {
+    DomainError::InvalidInput {
+        message: "OAuthConnect startup secret resolution failed".to_owned(),
+    }
 }

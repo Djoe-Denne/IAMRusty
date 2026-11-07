@@ -25,6 +25,7 @@ impl fmt::Debug for ConfiguredOAuthClient {
 }
 
 /// Construct all requested OAuth instances atomically for a later composition.
+///
 /// A declaration needing the unsupported OIDC client must fail before any
 /// acquisition/publication, never disappear from a partially built catalogue.
 ///
