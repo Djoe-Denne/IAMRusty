@@ -5411,8 +5411,18 @@ version = "0.1.0"
 dependencies = [
  "axum 0.8.9",
  "idp-connect-contract",
+ "oauth-connect-configuration",
+ "oauth-connect-infra",
  "readiness",
+ "reqwest 0.12.28",
  "rustycog-framework",
+ "serde_json",
+ "tokio",
+ "tower 0.4.13",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "wiremock",
 ]
 
 [[package]]
