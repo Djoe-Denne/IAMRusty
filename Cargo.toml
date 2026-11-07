@@ -27,6 +27,7 @@ members = [
     "services/OAuthConnect/configuration",
     "services/OAuthConnect/domain",
     "services/OAuthConnect/infra",
+    "services/OAuthConnect/setup",
     # Modular monolith binary
     "runtime/monolith",
 

@@ -4,14 +4,17 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "Pure JSONPath profile projection for OAuthConnect"
+description = "OAuth transport and pure JSONPath profile projection for OAuthConnect"
 
 [lints]
 workspace = true
 
 [dependencies]
-rustycog = { package = "rustycog-framework", version = "0.1.1", default-features = false, features = ["core"] }
+rustycog = { package = "rustycog-framework", version = "0.1.1", default-features = false, features = ["core", "secrets"] }
+oauth-connect-configuration = { path = "../configuration" }
 oauth-connect-domain = { path = "../domain" }
 idp-connect-contract = { path = "../../../crates/idp-connect-contract" }
 serde_json = { workspace = true }
 jsonpath-rust = { workspace = true }
+async-trait = { workspace = true }
+reqwest = { workspace = true }

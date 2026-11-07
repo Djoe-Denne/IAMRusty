@@ -1,4 +1,4 @@
-//! Pure projection of already acquired JSON responses; no HTTP or OIDC verifier.
+//! OAuth transport and pure projection; no OIDC verifier.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -10,6 +10,11 @@ use serde_json::Value;
 
 mod budget;
 mod json_path;
+mod oauth;
+mod transport;
+
+pub use oauth::OAuthClient;
+pub use transport::{HTTP_BODY_LIMIT, HTTP_CONNECT_TIMEOUT, HTTP_REQUEST_TIMEOUT};
 
 use json_path::CompiledClaim;
 
