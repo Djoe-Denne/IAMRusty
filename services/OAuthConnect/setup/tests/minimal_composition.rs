@@ -8,7 +8,7 @@
 //! - Trusted builder consumed -> fixture-only policy proof -> C-created adapters on
 //!   redirects/gzip/TLS/deadline -> typed errors, complete outputs and phase receipts.
 //! - Real source assembly -> invented loader/env syntax -> marked child with real SDK
-//!   TOML/RUN_ENV -> composed authorize+complete and proof that exactly one oracle ran.
+//!   TOML/`RUN_ENV` -> composed authorize+complete and proof that exactly one oracle ran.
 //!
 //! KEEP each test: the inverse of its scenario is its targeted mutation. No new
 //! product client is constructed in any helper. OIDC/invalid-direct negatives can
@@ -94,7 +94,7 @@ async fn c1_two_oauth_instances_direct_and_vault_route_only_their_own_credential
     hmac_proof(&a.hmac_key, "forge", first_hmac, first_raw_hmac, HMAC);
     hmac_proof(&b.hmac_key, "enterprise", HMAC, HMAC_RAW, first_hmac);
     authentication(
-        must(
+        &must(
             a.client.complete_authorization(&request("forge")).await,
             "first complete",
         ),
@@ -104,7 +104,7 @@ async fn c1_two_oauth_instances_direct_and_vault_route_only_their_own_credential
         ACCESS,
     );
     authentication(
-        must(
+        &must(
             b.client
                 .complete_authorization(&request("enterprise"))
                 .await,
@@ -162,7 +162,7 @@ async fn c1_boot_snapshot_keeps_keys_without_vault_refresh_cache_or_retry_after_
         vendor.server.reset().await;
         vendor.success(number, login, email, access).await;
         authentication(
-            must(
+            &must(
                 built.client.complete_authorization(&request("forge")).await,
                 "snapshot complete",
             ),
@@ -194,7 +194,7 @@ async fn c1_boot_snapshot_keeps_keys_without_vault_refresh_cache_or_retry_after_
             ResponseTemplate::new(403).set_body_string("failed-token-body-sentinel"),
         )
         .await;
-    exchange_error(built.client.complete_authorization(&request("forge")).await);
+    exchange_error(&built.client.complete_authorization(&request("forge")).await);
     vendor.counts(1, 0, 0).await;
     vendor.credentials("forge", CLIENT, ACCESS).await;
     assert_eq!(
@@ -309,7 +309,7 @@ async fn c2_composed_client_does_not_follow_307_even_to_a_configured_profile_des
         .await;
     let clients = composed(&config(vec![p])).await;
     exchange_error(
-        instance(&clients, "forge")
+        &instance(&clients, "forge")
             .client
             .complete_authorization(&request("forge"))
             .await,
@@ -345,7 +345,7 @@ async fn c2_composed_client_really_decodes_gzip_token_post_and_both_independent_
     )]))
     .await;
     authentication(
-        must(
+        &must(
             instance(&clients, "forge")
                 .client
                 .complete_authorization(&request("forge"))
@@ -369,7 +369,7 @@ async fn c2_composed_client_verified_ca_and_san_complete_token_post_and_json_get
         p.ca_cert_file = Some(view.root);
         let clients = composed(&config(vec![p])).await;
         authentication(
-            must(
+            &must(
                 instance(&clients, "forge")
                     .client
                     .complete_authorization(&request("forge"))
@@ -419,7 +419,7 @@ async fn c2_composed_client_untrusted_ca_or_wrong_san_fails_before_any_http_hand
             });
             let clients = composed(&config(vec![p])).await;
             exchange_error(
-                instance(&clients, "forge")
+                &instance(&clients, "forge")
                     .client
                     .complete_authorization(&request("forge"))
                     .await,
@@ -557,7 +557,7 @@ async fn c1_real_sdk_file_loader_in_marked_child_feeds_the_actual_composition() 
         assert_eq!(auth.scope, "user:email");
         vendor.counts(0, 0, 0).await;
         authentication(
-            must(
+            &must(
                 built.client.complete_authorization(&request("forge")).await,
                 "SDK-loaded composed complete",
             ),
@@ -589,7 +589,7 @@ async fn c2_t2_actual_composed_client_has_ten_second_timeout_not_the_fixture_cli
     .await;
     let built = instance(&clients, "forge");
     authentication(
-        must(
+        &must(
             built.client.complete_authorization(&request("forge")).await,
             "deadline nominal control",
         ),
@@ -631,7 +631,7 @@ async fn c2_t2_actual_composed_client_has_ten_second_timeout_not_the_fixture_cli
     .await;
     let result =
         result.unwrap_or_else(|_| panic!("T-2: watchdog fired, product deadline is NOT proven"));
-    exchange_error(result);
+    exchange_error(&result);
     let elapsed = start.elapsed();
     assert!(elapsed >= Duration::from_secs(9) && elapsed < Duration::from_secs(11),
         "T-2: error must occur at product 10s deadline, not immediate refusal or valid delayed response");

@@ -67,13 +67,13 @@ pub fn rejected<T>(value: Result<T, DomainError>) {
     assert!(source.is_none(), "C: unbounded error source chain");
 }
 
-pub fn exchange_error(value: Result<ProviderAuthentication, FederatedOAuthError>) {
+pub fn exchange_error(value: &Result<ProviderAuthentication, FederatedOAuthError>) {
     let Err(error) = value else {
         panic!("C: failed exchange returned partial/successful authentication")
     };
     assert_eq!(
         error,
-        FederatedOAuthError::ExchangeCode,
+        &FederatedOAuthError::ExchangeCode,
         "C: exact existing exchange-error category"
     );
     redacted(&format!("{error:?} {error}"));
@@ -160,7 +160,7 @@ pub fn emails(email: &str) -> Value {
 }
 
 pub fn authentication(
-    value: ProviderAuthentication,
+    value: &ProviderAuthentication,
     id: &str,
     login: &str,
     email: &str,
