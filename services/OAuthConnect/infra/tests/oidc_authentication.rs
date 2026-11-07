@@ -233,6 +233,10 @@ async fn g1_nominal_startup_authorize_and_complete_use_one_initial_jwks_and_fixe
         .find(|r| r.url.path() == TOKEN)
         .map_or_else(|| panic!("token POST required"), std::convert::identity);
     assert!(
+        post.headers.get("authorization").is_none(),
+        "client_secret_post must not also send Authorization credentials"
+    );
+    assert!(
         post.method.as_str() == "POST" && post.url.query().is_none(),
         "code only in form, never URL"
     );
