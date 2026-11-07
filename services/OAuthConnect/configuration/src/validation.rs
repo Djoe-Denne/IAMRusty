@@ -27,11 +27,7 @@ pub fn validate(config: &AppConfig) -> Result<(), DomainError> {
     }
     let mut ids = BTreeSet::new();
     for provider in &config.providers {
-        if provider.id.is_empty()
-            || provider.id.len() > 50
-            || !provider.id.bytes().all(|byte| byte.is_ascii_alphabetic())
-            || !ids.insert(provider.id.to_ascii_lowercase())
-        {
+        if !ids.insert(provider.id.to_ascii_lowercase()) {
             return Err(invalid());
         }
         validate_provider(provider, config.openbao.is_some())?;
@@ -39,7 +35,13 @@ pub fn validate(config: &AppConfig) -> Result<(), DomainError> {
     Ok(())
 }
 
-fn validate_provider(provider: &ProviderConfig, has_openbao: bool) -> Result<(), DomainError> {
+pub fn validate_provider(provider: &ProviderConfig, has_openbao: bool) -> Result<(), DomainError> {
+    if provider.id.is_empty()
+        || provider.id.len() > 50
+        || !provider.id.bytes().all(|byte| byte.is_ascii_alphabetic())
+    {
+        return Err(invalid());
+    }
     if provider.client_id.trim().is_empty() || provider.redirect_uris.is_empty() {
         return Err(invalid());
     }

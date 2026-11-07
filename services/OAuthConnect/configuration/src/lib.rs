@@ -209,3 +209,14 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
 pub fn validate_config(config: &AppConfig) -> Result<(), DomainError> {
     validation::validate(config)
 }
+
+/// Validate one provider declaration without acquiring secrets or requiring global config.
+///
+/// Catalogue uniqueness and the actual global `OpenBao` declaration are validated
+/// separately by `validate_config`. This helper reuses its provider-local rules.
+///
+/// # Errors
+/// Returns the existing sanitized error for an invalid provider declaration.
+pub fn validate_provider(provider: &ProviderConfig) -> Result<(), DomainError> {
+    validation::validate_provider(provider, true)
+}
