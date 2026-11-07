@@ -15,3 +15,15 @@ oauth-connect-configuration = { path = "../configuration" }
 oauth-connect-infra = { path = "../infra" }
 idp-connect-contract = { path = "../../../crates/idp-connect-contract" }
 reqwest = { workspace = true, features = ["gzip"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["fs", "time", "sync"] }
+wiremock = { workspace = true }
+tempfile = { workspace = true }
+serde_json = { workspace = true }
+axum = { workspace = true }
+axum-server = { workspace = true }
+rcgen = { workspace = true }
+rustls = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

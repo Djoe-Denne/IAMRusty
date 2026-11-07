@@ -18,3 +18,12 @@ serde_json = { workspace = true }
 jsonpath-rust = { workspace = true }
 async-trait = { workspace = true }
 reqwest = { workspace = true, features = ["gzip"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["time"] }
+wiremock = { workspace = true }
+url = { workspace = true }
+base64 = { workspace = true }
+rustycog = { package = "rustycog-framework", version = "0.1.1", default-features = false, features = ["testing"] }
+# Already locked through reqwest gzip; fixtures need exact decompressed edges.
+flate2 = "=1.1.10"
