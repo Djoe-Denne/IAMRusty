@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OIDC — clés, rotation et responsabilités · 7 novembre 2026</title>
+  <style>
+    :root { color-scheme: light; --ink: #20272f; --muted: #52606d; --line: #c8cfd5; --accent: #345e82; --paper: #ffffff; --surface: #f7f8f9; --fill: #edf0f3; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 13px/1.45 system-ui, sans-serif; }
+    main { max-width: 1240px; margin: 0 auto; padding: 24px 28px; display: grid; gap: 15px; }
+    .eyebrow { color: var(--muted); font-size: 11px; letter-spacing: 1.4px; }
+    h1 { margin: 4px 0 0; font-size: 24px; line-height: 1.25; font-weight: 650; }
+    header p { margin: 7px 0 0; color: var(--muted); }
+    header strong { color: var(--ink); }
+    figure { margin: 0; overflow-x: auto; }
+    svg { display: block; width: 100%; min-width: 920px; font-family: system-ui, sans-serif; }
+    .timeline { background: var(--fill); padding: 8px 10px; }
+    .timeline svg { min-width: 900px; }
+    .caveat, .status, .operator { font-size: 12px; color: var(--muted); margin: 0; }
+    .status strong, .operator strong { color: var(--ink); }
+    .modules { border-top: 1px solid var(--line); padding-top: 15px; }
+    h2 { margin: 0 0 15px; font-size: 14px; font-weight: 650; }
+    .module-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); gap: 16px; }
+    h3 { font-size: 12px; font-weight: 700; margin: 0 0 4px; }
+    .module-grid p { margin: 0; color: var(--muted); font-size: 12px; }
+    .pending { color: var(--accent); }
+    .materials { background: var(--fill); padding: 11px 14px; font-size: 12px; }
+    code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+    footer { color: var(--muted); font-size: 10px; }
+    a { color: var(--accent); text-underline-offset: 2px; }
+    @media (max-width: 760px) {
+      main { padding: 18px 16px; }
+      h1 { font-size: 22px; }
+      .module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 420px) { .module-grid { grid-template-columns: 1fr; } }
+    @page { size: A4 landscape; margin: 10mm; }
+    @media print {
+      body { font-size: 11px; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      main { max-width: none; padding: 0; gap: 12px; display: block; }
+      main > * { margin-bottom: 12px; }
+      h1 { font-size: 22px; }
+      figure { overflow: visible; break-inside: avoid; }
+      svg, .timeline svg { min-width: 0; width: 100%; }
+      .modules { break-before: page; padding-top: 0; border-top: 0; }
+      .module-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+      .module-grid section, .materials, .status, .operator, footer { break-inside: avoid; }
+      .module-grid p, h3, .materials, .status, .operator { font-size: 11px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">OIDC · CLÉS, ROTATION ET RESPONSABILITÉS · 7 NOVEMBRE 2026</div>
+      <h1>La clé privée reste chez le fournisseur</h1>
+      <p>OAuthConnect est le client / RP : il vérifie les signatures avec un <strong>cache de clés publiques en RAM</strong>. Il ne génère, ne stocke ni ne renouvelle la clé privée RS256 du fournisseur.</p>
+    </header>
+
+    <figure>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 280" role="img" aria-labelledby="keys-title keys-description">
+        <title id="keys-title">Clés du fournisseur et caches publics Connect</title>
+        <desc id="keys-description">Le fournisseur détient sa clé privée et publie le JWKS public. Chaque processus OAuthConnect cible garde son cache en RAM et renvoie à IAM un profil normalisé, jamais l’ID token ni le JWKS.</desc>
+        <defs><marker id="keys-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--muted)" /></marker></defs>
+        <path d="M240 78 H515 V63 H540" fill="none" stroke="var(--muted)" stroke-dasharray="5 4" marker-end="url(#keys-arrow)" />
+        <text x="385" y="31" text-anchor="middle" font-size="12" fill="var(--muted)">ID token signé · échange du code</text>
+        <rect x="10" y="62" width="230" height="170" rx="4" fill="var(--surface)" stroke="var(--line)" />
+        <text x="26" y="91" font-size="17" font-weight="600" fill="var(--ink)">Fournisseur OIDC</text>
+        <text x="26" y="114" font-size="13" fill="var(--muted)">GitLab / autre autorité</text>
+        <rect x="26" y="127" width="198" height="39" rx="3" fill="var(--fill)" />
+        <text x="125" y="152" text-anchor="middle" font-size="13" font-weight="600" fill="var(--ink)">Clé privée RS256 · signe</text>
+        <text x="26" y="190" font-size="12" fill="var(--muted)">Rotation : opérateur fournisseur</text>
+        <text x="26" y="211" font-size="11" fill="var(--muted)">Stockage concret : à confirmer Ops</text>
+        <path d="M240 160 H285" fill="none" stroke="var(--muted)" marker-end="url(#keys-arrow)" />
+        <text x="261" y="144" text-anchor="middle" font-size="10" fill="var(--muted)">publie</text>
+        <rect x="285" y="95" width="185" height="110" rx="4" fill="var(--surface)" stroke="var(--line)" />
+        <text x="301" y="124" font-size="16" font-weight="600" fill="var(--ink)">JWKS public</text>
+        <text x="301" y="148" font-size="12" fill="var(--muted)">jwks_uri via Discovery</text>
+        <text x="301" y="169" font-size="12" fill="var(--muted)">Issuer / URLs épinglés</text>
+        <text x="301" y="190" font-size="12" fill="var(--muted)">Jamais la clé privée</text>
+        <path d="M470 160 H540" fill="none" stroke="var(--muted)" marker-end="url(#keys-arrow)" />
+        <text x="505" y="143" text-anchor="middle" font-size="11" fill="var(--muted)">GET HTTPS</text>
+        <rect x="540" y="50" width="340" height="185" rx="4" fill="var(--surface)" stroke="var(--accent)" stroke-dasharray="6 4" />
+        <text x="555" y="77" font-size="17" font-weight="600" fill="var(--ink)">OAuthConnect = client / RP</text>
+        <text x="555" y="97" font-size="12" fill="var(--accent)">Cible multi-pods · pas un déploiement livré</text>
+        <rect x="555" y="111" width="145" height="78" rx="3" fill="var(--paper)" stroke="var(--line)" />
+        <text x="569" y="134" font-size="14" font-weight="600" fill="var(--ink)">Processus / pod A</text>
+        <text x="569" y="155" font-size="12" fill="var(--muted)">Cache par instance</text>
+        <text x="569" y="175" font-size="12" fill="var(--muted)">RAM · Arc + Mutex</text>
+        <rect x="717" y="111" width="148" height="78" rx="3" fill="var(--paper)" stroke="var(--line)" />
+        <text x="730" y="134" font-size="14" font-weight="600" fill="var(--ink)">Processus / pod B</text>
+        <text x="730" y="155" font-size="12" fill="var(--muted)">Son propre cache</text>
+        <text x="730" y="175" font-size="12" fill="var(--muted)">Aucun état partagé</text>
+        <text x="710" y="214" text-anchor="middle" font-size="11" fill="var(--muted)">Boot cible : Discovery + JWKS avant écoute</text>
+        <path d="M880 150 H1005" fill="none" stroke="var(--muted)" marker-start="url(#keys-arrow)" marker-end="url(#keys-arrow)" />
+        <text x="942" y="127" text-anchor="middle" font-size="11" fill="var(--muted)">S2S · HMAC / instance</text>
+        <text x="942" y="173" text-anchor="middle" font-size="11" fill="var(--muted)">tokens + profil</text>
+        <text x="942" y="190" text-anchor="middle" font-size="10" fill="var(--muted)">pas d’ID token / JWKS</text>
+        <rect x="1005" y="80" width="145" height="145" rx="4" fill="var(--surface)" stroke="var(--line)" />
+        <text x="1020" y="111" font-size="18" font-weight="600" fill="var(--ink)">IAM</text>
+        <text x="1020" y="140" font-size="13" fill="var(--ink)">Comptes UUID</text>
+        <text x="1020" y="163" font-size="13" fill="var(--ink)">Liens · transactions</text>
+        <text x="1020" y="193" font-size="11" fill="var(--muted)">Raccord v2 : hors lot</text>
+        <text x="580" y="265" text-anchor="middle" font-size="12" fill="var(--muted)">Cache public : aucun fichier, Redis ou OpenBao · perdu au restart · sans sticky-session ni corrélation métier</text>
+      </svg>
+    </figure>
+
+    <figure class="timeline">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1140 142" role="img" aria-labelledby="rotation-title rotation-description">
+        <title id="rotation-title">Rotation fournisseur et actualisation du snapshot Connect</title>
+        <desc id="rotation-description">Publier la nouvelle clé publique avant son utilisation, conserver l’ancienne pendant la validité des tokens et les marges convenues. Boot Connect, cooldown de 30 secondes, expiration à 300 secondes : aucune garantie de zéro interruption.</desc>
+        <defs><marker id="rotation-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="var(--muted)" /></marker></defs>
+        <text x="10" y="22" font-size="12" font-weight="700" fill="var(--ink)">FOURNISSEUR</text>
+        <text x="170" y="22" font-size="13" fill="var(--ink)">1 · Publier K2 avant usage</text>
+        <path d="M365 18 H397" stroke="var(--muted)" marker-end="url(#rotation-arrow)" />
+        <text x="410" y="22" font-size="13" fill="var(--ink)">2 · Signer avec kid K2</text>
+        <path d="M592 18 H625" stroke="var(--muted)" marker-end="url(#rotation-arrow)" />
+        <text x="638" y="22" font-size="13" fill="var(--ink)">3 · Garder K1 : validité tokens + marges à convenir</text>
+        <text x="10" y="68" font-size="12" font-weight="700" fill="var(--ink)">SNAPSHOT CONNECT</text>
+        <text x="170" y="68" font-size="12" fill="var(--ink)">t0 · Discovery + 1 JWKS</text>
+        <path d="M359 64 H391" stroke="var(--muted)" marker-end="url(#rotation-arrow)" />
+        <text x="404" y="68" font-size="12" fill="var(--ink)">&lt; 30 s · new kid peut être refusé</text>
+        <path d="M649 64 H680" stroke="var(--muted)" marker-end="url(#rotation-arrow)" />
+        <text x="693" y="68" font-size="12" fill="var(--ink)">≥ 30 s · refresh possible à la demande</text>
+        <text x="170" y="99" font-size="12" fill="var(--muted)">Frais si âge &lt; 300 s ; expiré à 300 s → refresh requis, sinon refus fermé. 300 s ≠ période de rotation.</text>
+        <text x="170" y="126" font-size="12" fill="var(--muted)">Cooldown depuis la dernière tentative, succès ou échec · 1 GET en vol / instance / processus · pas de tâche périodique.</text>
+      </svg>
+    </figure>
+    <p class="caveat">Nouveau kid : seul <code>NoMatchingKey</code> peut demander un refresh borné, puis une nouvelle vérification du même ID token ; jamais de second POST du code. Une clé ancienne encore fraîche peut rester utilisable après un échec de refresh pour un autre kid. Révocation non instantanée ; aucune garantie de zéro interruption, même après restart.</p>
+
+    <section class="modules">
+      <h2>Qui fait quoi dans le dépôt ?</h2>
+      <div class="module-grid">
+        <section><h3>configuration</h3><p>Valide issuer, origines, scopes, PKCE et références de secrets.</p></section>
+        <section><h3>setup · secrets / transport</h3><p>Résout client_secret + HMAC via SDK/OpenBao ou direct au boot ; HTTP de confiance, TLS/CA.</p></section>
+        <section><h3 class="pending">setup · mixed / app</h3><p>Catalogue mixte et démarrage avant écoute : tranche C encore refusante, non livrée.</p></section>
+        <section><h3>oidc · callback</h3><p>Discovery et HTTP borné ; garde chaque URL avant I/O, y compris le JWKS interne.</p></section>
+        <section><h3>oidc · protocol</h3><p>Client standard ; métadonnées épinglées + snapshot JWKS retenu ; auth du token endpoint.</p></section>
+        <section><h3>oidc · cache</h3><p>Snapshot public en RAM, TTL/cooldown et single-flight local ; aucune rotation de clé privée.</p></section>
+        <section><h3>oidc · verify</h3><p>Signature RS256, issuer/audience/temps, azp, nbf, nonce et at_hash s’il est présent.</p></section>
+        <section><h3>oidc · profile</h3><p>Sub exact, profil normalisé ; fusion UserInfo avec contrôle du subject et des conflits.</p></section>
+        <section><h3>http</h3><p>Registry et routes v2 ; HMAC par instance sur PATH complet. Pas un serveur JWKS fournisseur.</p></section>
+        <section><h3>IAM</h3><p>Comptes UUID, liens et transactions. Adaptation v2 + nonce durable futurs, hors de ce lot.</p></section>
+      </div>
+    </section>
+    <div class="materials"><strong>Ne pas confondre :</strong> RS256 fournisseur = signature d’identité ; <code>client_secret</code> = auth au token endpoint ; HMAC IAM→Connect = secret S2S ; JWT IAM = clés de la plateforme ; TLS/CA = confiance transport. OpenBao résout les secrets OAuthConnect, pas son cache JWKS. GitHub en profil OAuth n’utilise pas de JWKS d’identité.</div>
+    <p class="status"><strong>Réalité / déploiement :</strong> code OIDC/cache et router présents au canon ; composition C encore refusante. Compose conserve GitHubConnect/GitLabConnect et leurs URLs legacy ; l’overlay oauth-proof utilise un simulateur, pas une preuve GitLab live. Pas de nest OAuthConnect dans le monolithe inspecté. ADR0413 : Accepted / Partial ; aucun cutover ni runtime qualifié.</p>
+    <p class="operator"><strong>Responsabilité opérateur :</strong> GitLab.com → opérateur SaaS ; GitLab self-managed → Ops GitLab selon sa version et son mécanisme officiel. Emplacement privé, calendrier et chevauchement réels non établis ici. Changer les clés sous le même issuer n’est pas changer l’autorité : ne pas remplacer l’issuer sous le même slug.</p>
+    <footer>Sources : canon OAuthConnect infra/oidc, setup et HTTP ; <a href="../contracts/oauthconnect-multi-instances.md">contrat multi-instances</a> / <a href="../contracts/oauthconnect-oidc-service-boundary.md">boundary §9</a> ; Compose et overlay local-full ; GitLab OIDC provider et OIDC Core §10.1.1 consultés le 07/11/2026. <a href="oidc-keys-responsibilities.md">Explication détaillée, chemins et sources</a>. Vue documentaire, non live. Rendu visuel non vérifié : navigateur déconnecté.</footer>
+  </main>
+</body>
+</html>

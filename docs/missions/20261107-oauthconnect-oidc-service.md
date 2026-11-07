@@ -22,6 +22,8 @@ Cette tranche vise OIDC standard (RS256, issuer/claims/nonce/at_hash vérifiés,
 
 Schéma pédagogique conservé : [HTML autonome](../diagrams/oauthconnect-architecture.html) · [notice et sources](../diagrams/oauthconnect-architecture.md). Photographie cible du 7 novembre, indépendante du serveur canvas ; ouverture locale et impression PDF possibles, pas une preuve de livraison.
 
+Complément demandé sur les clés : [schéma OIDC/JWKS autonome](../diagrams/oidc-keys-responsibilities.html) · [stockage, rotation, responsabilités et constats de déploiement](../diagrams/oidc-keys-responsibilities.md). Il sépare les clés privées du fournisseur, le cache public RAM Connect, les secrets client/HMAC et les clés JWT IAM ; emplacement privé GitLab et runtime actif restent à confirmer côté Ops, pas déduits des manifests.
+
 Travail en cours, **OIDC et binaire opérationnel non encore qualifiés**. Le socle refusant a été intégré en `72459ea` avec `openidconnect4.1.0` verrouillé et ses API recoupées ; compilation/fmt/Clippy strict ciblés et42régressionsOAuth passent.
 
 Le router registry immuable est intégré en `867a47f` : **18 tests passent**, après14RED comportementaux qualifiés et4caractérisations. Ils emploient de vrais clientsOAuth, le récepteurv2 existant, les clés par instance et le PATHOriginalUri complet ; routes non canoniques/aliases, extraction, erreurs, readiness et listenerSDK possédé port0/arrêtjoint sont couverts. ClippyHTTP strict passe. Cela ne qualifie ni le boot mixte, ni OIDC, ni le binaire ou un fournisseur live.
