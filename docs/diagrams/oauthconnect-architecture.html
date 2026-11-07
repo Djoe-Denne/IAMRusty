@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OAuthConnect — architecture cible · 7 novembre 2026</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #20272f;
+      --muted: #52606d;
+      --line: #c8cfd5;
+      --accent: #345e82;
+      --paper: #ffffff;
+      --surface: #f7f8f9;
+      --fill: #edf0f3;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 14px/1.45 system-ui, sans-serif; }
+    main { max-width: 1240px; margin: 0 auto; padding: 24px 28px; display: grid; gap: 15px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+    .eyebrow { font-size: 11px; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 3px; }
+    h1 { margin: 0; font-size: 24px; line-height: 1.25; font-weight: 650; }
+    .target { color: var(--accent); font-size: 12px; font-weight: 600; }
+    figure { margin: 0; overflow-x: auto; }
+    svg { display: block; width: 100%; min-width: 880px; font-family: system-ui, sans-serif; }
+    .api { background: var(--fill); padding: 11px 15px; border-radius: 4px; }
+    .routes { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 22px; font-size: 12px; }
+    code { font-family: ui-monospace, monospace; font-size: 12px; overflow-wrap: anywhere; }
+    .api p { margin: 5px 0 0; font-size: 12px; color: var(--muted); }
+    .states { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
+    h2 { margin: 0 0 5px; font-size: 12px; font-weight: 700; }
+    .states p { margin: 0; color: var(--muted); }
+    .states strong { color: var(--ink); }
+    .in-progress { color: var(--accent); }
+    .explanation { border-top: 1px solid var(--line); padding-top: 15px; font-size: 13px; display: grid; gap: 5px; }
+    .explanation p { margin: 0; }
+    footer { color: var(--muted); font-size: 11px; }
+    a { color: var(--accent); text-underline-offset: 2px; }
+    @media (max-width: 760px) {
+      main { padding: 18px 16px; }
+      h1 { font-size: 22px; }
+      .states { grid-template-columns: 1fr; gap: 14px; }
+    }
+    @page { size: A4 landscape; margin: 8mm; }
+    @media print {
+      body { font-size: 10px; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      main { max-width: none; padding: 0; gap: 9px; }
+      header { flex-wrap: nowrap; gap: 12px; }
+      h1 { font-size: 19px; }
+      .eyebrow { font-size: 9px; }
+      .target { font-size: 10px; max-width: 240px; }
+      figure { overflow: visible; }
+      svg { min-width: 0; width: 100%; }
+      .api { padding: 7px 10px; }
+      .routes, code, .api p { font-size: 10px; }
+      .states { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+      h2 { font-size: 10px; margin-bottom: 3px; }
+      .explanation { padding-top: 9px; font-size: 10px; gap: 3px; }
+      footer { font-size: 8px; }
+      header, figure, .api, .states, .explanation, footer { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <div class="eyebrow">OAUTHCONNECT · VUE PÉDAGOGIQUE · 7 NOVEMBRE 2026</div>
+        <h1>Un service configurable, deux profils de connexion</h1>
+      </div>
+      <span class="target">Cible en construction — pas encore raccordée à IAM</span>
+    </header>
+
+    <figure>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 342" role="img" aria-labelledby="diagram-title diagram-description">
+        <title id="diagram-title">OAuthConnect — architecture cible</title>
+        <desc id="diagram-description">Le navigateur passe par IAM. IAM appelle OAuthConnect par HMAC serveur à serveur. Le service sélectionne une instance puis son profil OAuth ou OIDC pour joindre les fournisseurs. Cette vue cible n'indique pas un raccordement v2 déjà livré.</desc>
+        <defs>
+          <marker id="oc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)" /></marker>
+          <marker id="oc-accent-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)" /></marker>
+        </defs>
+        <g fill="none" stroke="var(--muted)" stroke-width="1.5">
+          <path d="M90 85 V26 H1040 V85" stroke-dasharray="5 5" marker-end="url(#oc-arrow)" />
+          <path d="M170 120 H220" marker-end="url(#oc-arrow)" />
+        </g>
+        <rect x="260" y="13" width="615" height="25" fill="var(--paper)" />
+        <text x="568" y="30" text-anchor="middle" font-size="13" fill="var(--muted)">Navigateur : URL fournie par IAM → fournisseur ; callback → IAM</text>
+
+        <rect x="10" y="85" width="160" height="76" rx="5" fill="var(--surface)" stroke="var(--line)" />
+        <text x="90" y="116" text-anchor="middle" font-size="17" font-weight="600" fill="var(--ink)">Navigateur</text>
+        <text x="90" y="141" text-anchor="middle" font-size="12" fill="var(--muted)">Connexion / callback</text>
+        <text x="90" y="188" text-anchor="middle" font-size="12" fill="var(--muted)">Aucun appel direct</text>
+        <text x="90" y="205" text-anchor="middle" font-size="12" fill="var(--muted)">aux routes HMAC</text>
+
+        <rect x="220" y="85" width="185" height="176" rx="5" fill="var(--surface)" stroke="var(--line)" />
+        <text x="237" y="115" font-size="18" font-weight="600" fill="var(--ink)">IAM</text>
+        <text x="237" y="141" font-size="13" fill="var(--ink)">Comptes UUID · liens</text>
+        <text x="237" y="162" font-size="13" fill="var(--ink)">Transaction de connexion</text>
+        <path d="M237 181 H387" stroke="var(--line)" />
+        <text x="237" y="204" font-size="12" fill="var(--muted)">Existant ; adaptation v2</text>
+        <text x="237" y="222" font-size="12" fill="var(--muted)">et nonce persisté : hors lot</text>
+        <text x="237" y="245" font-size="12" fill="var(--muted)">Reste maître des comptes</text>
+
+        <path d="M405 121 H515" fill="none" stroke="var(--accent)" stroke-width="2" marker-end="url(#oc-accent-arrow)" />
+        <text x="460" y="85" text-anchor="middle" font-size="12" font-weight="600" fill="var(--accent)">S2S cible</text>
+        <text x="460" y="103" text-anchor="middle" font-size="12" fill="var(--accent)">HMAC + PATH</text>
+        <path d="M515 224 H405" fill="none" stroke="var(--accent)" stroke-width="2" marker-end="url(#oc-accent-arrow)" />
+        <text x="461" y="249" text-anchor="middle" font-size="12" fill="var(--muted)">tokens + profil</text>
+        <text x="461" y="266" text-anchor="middle" font-size="12" fill="var(--muted)">normalisé</text>
+
+        <rect x="515" y="61" width="397" height="229" rx="5" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 4" />
+        <text x="533" y="87" font-size="18" font-weight="600" fill="var(--ink)">UN service OAuthConnect</text>
+        <text x="533" y="107" font-size="12" fill="var(--accent)">En cours · catalogue construit au démarrage</text>
+        <rect x="533" y="119" width="361" height="48" rx="3" fill="var(--fill)" stroke="var(--line)" />
+        <text x="546" y="139" font-size="13" font-weight="600" fill="var(--ink)">Registry immuable</text>
+        <text x="546" y="157" font-size="12" fill="var(--muted)">{ instance github, instance gitlab, … }</text>
+        <path d="M625 167 V186 M804 167 V186" stroke="var(--muted)" fill="none" marker-end="url(#oc-arrow)" />
+        <rect x="533" y="188" width="174" height="75" rx="3" fill="var(--paper)" stroke="var(--line)" />
+        <text x="545" y="211" font-size="14" font-weight="600" fill="var(--ink)">Profil OAuth · acquis</text>
+        <text x="545" y="232" font-size="12" fill="var(--muted)">API configurable</text>
+        <text x="545" y="250" font-size="12" fill="var(--muted)">+ mapping JSONPath</text>
+        <rect x="721" y="188" width="173" height="75" rx="3" fill="var(--paper)" stroke="var(--line)" />
+        <text x="733" y="211" font-size="14" font-weight="600" fill="var(--ink)">Profil OIDC · en cours</text>
+        <text x="733" y="232" font-size="12" fill="var(--muted)">Discovery · JWKS / cache</text>
+        <text x="733" y="250" font-size="12" fill="var(--muted)">RS256 · nonce</text>
+        <text x="714" y="281" text-anchor="middle" font-size="11" fill="var(--muted)">github / gitlab : exemples de slugs, pas de types codés en dur</text>
+
+        <path d="M912 173 H960" stroke="var(--muted)" stroke-width="1.5" fill="none" marker-start="url(#oc-arrow)" marker-end="url(#oc-arrow)" />
+        <rect x="960" y="85" width="187" height="176" rx="5" fill="var(--surface)" stroke="var(--line)" />
+        <text x="977" y="115" font-size="17" font-weight="600" fill="var(--ink)">Fournisseurs</text>
+        <text x="977" y="151" font-size="14" fill="var(--ink)">GitHub</text>
+        <text x="977" y="178" font-size="14" fill="var(--ink)">GitLab</text>
+        <text x="977" y="205" font-size="14" fill="var(--ink)">Autres autorités…</text>
+        <text x="977" y="243" font-size="11" fill="var(--muted)">Selon le profil configuré</text>
+
+        <path d="M714 318 V291" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#oc-arrow)" />
+        <text x="714" y="337" text-anchor="middle" font-size="12" fill="var(--muted)">Config + secrets au startup · socle OAuth déjà livré</text>
+      </svg>
+    </figure>
+
+    <section class="api" aria-label="API backend cible">
+      <div class="routes">
+        <strong>API backend cible</strong>
+        <code>POST /oauth-connect/{instance}/v2/authorize</code>
+        <code>POST /oauth-connect/{instance}/v2/complete</code>
+      </div>
+      <p>HMAC propre à chaque instance · signature du PATH complet reçu · préfixe /oauth-connect monté une seule fois · jamais d’ID token ni de claims bruts vers IAM.</p>
+    </section>
+
+    <div class="states" aria-label="Légende et état du lot au 7 novembre 2026">
+      <section>
+        <h2>ACQUIS · lot précédent</h2>
+        <p>Config, mapping OAuth, HTTP/secrets et contrat v2. <strong>189 tests</strong> du lot précédent ; ce n’est pas une preuve OIDC.</p>
+      </section>
+      <section>
+        <h2 class="in-progress">EN COURS · ce lot</h2>
+        <p>OIDC + cache JWKS, registry et service. D’abord le socle T0, puis les preuves RED → GREEN ; aucun GREEN anticipé.</p>
+      </section>
+      <section>
+        <h2>HORS LOT · pas encore raccordé</h2>
+        <p>Adaptation IAM et nonce durable, E2E fournisseurs externes, bascule et déploiement. Aucune livraison live annoncée.</p>
+      </section>
+    </div>
+
+    <section class="explanation" aria-label="Ce qui change et ce qui reste">
+      <p><strong>Ce qui change :</strong> deux services vendor → un service configurable cible ; les services legacy restent pendant la transition.</p>
+      <p><strong>Ce qui reste :</strong> identité externe = instance + sub/id ; UUID IAM préservés, aucune migration des comptes. L’équivalence de l’ancien ID GitLab reste une gate de bascule.</p>
+      <p><strong>Pas de mémoire métier dans Connect :</strong> aucun cache de corrélation OAuth ; seul le cache technique JWKS est prévu par instance.</p>
+    </section>
+    <footer>
+      Sources locales : ledger 20261107-oauthconnect-oidc-service (checkout canonique) · contrats
+      <a href="../contracts/oauthconnect-multi-instances.md">oauthconnect-multi-instances §§2.4–5</a> et
+      <a href="../contracts/oauthconnect-oidc-service-boundary.md">oauthconnect-oidc-service-boundary</a> · photographie du 07/11/2026, pas un résultat d’exécution.
+      <a href="oauthconnect-architecture.md">Notice et source originale</a>.
+    </footer>
+  </main>
+</body>
+</html>

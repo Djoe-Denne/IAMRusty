@@ -20,4 +20,6 @@ Cette tranche vise OIDC standard (RS256, issuer/claims/nonce/at_hash vérifiés,
 
 ## État
 
+Schéma pédagogique conservé : [HTML autonome](../diagrams/oauthconnect-architecture.html) · [notice et sources](../diagrams/oauthconnect-architecture.md). Photographie cible du 7 novembre, indépendante du serveur canvas ; ouverture locale et impression PDF possibles, pas une preuve de livraison.
+
 Préparation en cours, aucune preuve nouvelle d'OIDC/service livré. Ledger détaillé local : `.cursor/handoffs/20261107-oauthconnect-oidc-service.md`. QA existante : `.cursor/qa-plans/20261106-oauthconnect-tdd.md`, T4/G-4 et T6/G-6 ; plan ciblé de cette tranche à réconcilier avant tests.
