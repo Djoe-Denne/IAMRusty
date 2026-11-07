@@ -2,7 +2,7 @@
 
 ## Statut et résultat attendu
 
-**Plan uniquement, sans lancement d'auteur ni modification applicative.** Proposition de vérification proportionnée, fondée sur le plan QA déjà accepté ; aucune mission Ensemble ni nouveau travail PM. Le niveau de QA et les critères ci-dessous restent proposés pour ce prochain lot.
+**Exécution autorisée par le GO utilisateur du 2026-11-07.** Vérification proportionnée et périmètre ci-dessous retenus à partir du plan présenté ; aucune mission Ensemble ni nouveau travail PM. Le GO n'étend pas le lot aux transports, à IAM, aux déploiements ou aux E2E. Chronologie et preuves d'exécution : `.cursor/handoffs/20261107-oauthconnect-config-mapping.md` ; tant que ces preuves n'existent pas, aucun résultat RED/GREEN n'est revendiqué.
 
 Base vérifiée le 2026-11-07 : `master@ddee62fbfd132424eb20afeeb56d1194b9dbe85e`, arbre propre, checkout canonique seul, SDK rustycog `93b890ff7b821e9cb2e7d0aeb81957d098778a2f` inchangé. La tranche précédente de contrat S2S v2 est publiée ; ses 16 tests v2 et 15 tests lib, checkdefault, fmt et Clippy sont les preuves antérieures, pas des exécutions de ce plan.
 
