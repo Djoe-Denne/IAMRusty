@@ -165,3 +165,6 @@ fn statistics<'a>(
         .find_map(|(id, stats)| (*id == api).then_some(stats))
         .ok_or_else(invalid_mapping)
 }
+
+#[cfg(test)]
+mod tests;

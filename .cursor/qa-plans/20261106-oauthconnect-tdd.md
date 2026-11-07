@@ -1,5 +1,14 @@
 # OAuthConnect — plan de lot TDD RED/GREEN
 
+## Deuxième tranche vérifiée — configuration déclarative / projection pure (2026-11-07)
+
+- T1/G-1 **partie déclarative et vrai loader couverte** :38tests, RED23PASS/15refusnominaux puis38PASS. Préflight SDK overrides indexés et booléens exécuté ; pas de second loader. Secrets réellement résolus, Discovery et registry complet avant écoute restent ouverts.
+- T2/G-2 **projection pure couverte** :41oracles RED18/23 puis41PASS, plus3caractérisations post-GREEN des quotes/échappements. Contrôles AST, cardinalités, types, u64, provenance localisée, primaire GitHub seul et absence de cache de JSON exécutés ; aucun HTTP fourni ici.
+- S-1 : annexe `docs/contracts/oauthconnect-jsonpath-budget.md`,12tests RED6/6 puis12PASS et20unités privées post-implémentation PASS (seuils/overflow/coût référence/cumul/capacité). Recoupement sécurité ciblé sans finding nouveau, conditions unités et qualité satisfaites ; S-1 clos pour le lot.
+- **114tests vérifiés**, zéro ignoré/filtré dans les runs complets ; fmt/check/Clippy strict all-targets verts. Check du consommateur kube-client via `apparatus-operator --features controller` vert après pin1.0.12 (warnings hors code modifié, pas de runtime Kubernetes).
+- Commandes retenues : `cargo test --locked -p oauth-connect-configuration --test declarative --test strict_loader --no-fail-fast` (25+13), `cargo test --locked -p oauth-connect-infra --test profile_projection --test projection_budget --no-fail-fast` (44+12), `cargo test --locked -p oauth-connect-infra --lib budget::tests` (20). Les suites externes ne sont pas masquées par `--lib`. Logs `.tmp/oauthconnect-cfg-map/`, chronologie `.cursor/handoffs/20261107-oauthconnect-config-mapping.md`.
+- T3, T4, T5, intégration service/T6/G-7 et M-1/M-2 restent ouverts ; E2E externes non exécutés. Les sections de cadrage antérieures restent historiques, pas des affirmations d'absence de cette deuxième tranche.
+
 ## Première tranche vérifiée — contrat serveur v2 (2026-11-06)
 
 - Frontière `idp-connect-contract` seulement : types/méthodes, deux routes, HMAC par instance, nonce/PKCE, forwarding et erreurs génériques ; aucun provider ni parcours IAM nouveau qualifié.

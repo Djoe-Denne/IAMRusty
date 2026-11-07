@@ -19,6 +19,13 @@
 
 ## Contexte
 
+### Réalité vérifiée — configuration déclarative et projection pure (2026-11-07)
+
+- Trois crates `services/OAuthConnect/{configuration,domain,infra}` sont intégrées : loader strict SDK conservé, catalogue et profils déclaratifs validés, normalisation des slugs, projection OAuth JSONPath typée avec contrôle de provenance email/verified. Aucun listener, client fournisseur ni binaire OAuthConnect n'est encore livré.
+- TDD Windows : configuration38cas (RED23/15 puis38/38), projection41oracles (RED18/23 puis41/41) et budget12cas (RED6/6 puis12/12). Trois caractérisations lexicales et20unités privées complémentaires sont post-implémentation, sans prétention de RED initial. **114 tests vérifiés** (38+44+12+20), zéro ignoré/filtré dans les runs complets ; fmt, check et Clippy strict all-targets verts. L'upgrade requis JSONPath1.0.11→1.0.12 a aussi passé le check du consommateur `apparatus-operator --features controller`, sans cluster.
+- Finding sécuritéS-1MEDIUM traité par le [budget préalable](../contracts/oauthconnect-jsonpath-budget.md) : scan emprunté borné, majorant AST cumulatif et admission avant les deux sites d'évaluation. Recoupement sécurité ciblé sans nouveau finding ; conditions unités privées/qualité satisfaites. Ce budget abstrait n'est ni un plafond RSS ni un SLO.
+- **Restent à réaliser** : transport token/API et résolution effective des secrets, setup/registry complet avant écoute, OIDC Discovery/JWKS/ID token/UserInfo, nonce transactionnel et raccord LOGIN/LINK/RELINK IAM, déploiement/cutover/retrait legacy. T1 boot reste partiel malgré sa partie déclarative vérifiée. Aucune IT fournisseur/DB, Docker, Kind ou E2E de ce lot ; E2E GitHub/GitLab restent externes. Réalité globale toujours **Partial**.
+
 L'utilisateur demande un service RustyCog unique, plusieurs entrées de configuration au boot, deux profils seulement : OAuth adaptable (GitHub) et OIDC standard (GitLab). Chaque claim OAuth normalisé est décrit par un objet API GET JSON + JSONPath, sans scripts, transformations configurables ni chaînage HTTP. Cette orientation contredit le choix de déploiements indépendants de [0408](0408-connecteurs-idp-services-http.md) et son onboarding repris par [0411](0411-idp-provider-slug-registry-fail-closed.md).
 
 Les connecteurs sont **déjà** des services RustyCog minces : configuration typée, setup, AppState/RouteBuilder et handlers S2S communs. Il ne s'agit ni d'introduire RustyCog, ni d'ajouter DB/events/OpenFGA/nest pour suivre un gabarit métier.
@@ -42,7 +49,7 @@ La note publiée le 2026-11-06 dans [0407](0407-contrat-authn-federee-vendor-neu
 - **0407** : préciser/faire évoluer seulement l'interface séquentielle d'authentification (§§2–5) pour les nouveaux consommateurs v2 ; conserver frontière vendor-neutral, subject mapping et report des claims/actions. Le protocole v1 historique reste documenté, pas réécrit comme livré en v2.
 - **0409/0410/0412** : ni callback déplacé, ni baisse de confiance, ni changement des URLs navigateur. Le contexte nonce complète la transaction existante ; il ne remplace aucune condition de consommation. Les en-têtes et le corps historiques de ces ADR ne sont pas modifiés par cette ratification.
 
-Les pointeurs de supersession **partielle** et le périmètre daté sont portés dans les ADR vivantes concernées. Leurs statuts Accepted et Réalités Implemented historiques restent inchangés ; la cible nouvelle est Accepted / Unimplemented. Pas de passage global de 0408/0411 à « obsolète », ni d'annonce de livraison de la refonte.
+Les pointeurs de supersession **partielle** et le périmètre daté sont portés dans les ADR vivantes concernées. Leurs statuts Accepted et Réalités Implemented historiques restent inchangés ; la cible nouvelle est Accepted / Partial, pour les seules tranches vérifiées ci-dessus. Pas de passage global de 0408/0411 à « obsolète », ni d'annonce de livraison complète de la refonte.
 
 ## Conséquences
 

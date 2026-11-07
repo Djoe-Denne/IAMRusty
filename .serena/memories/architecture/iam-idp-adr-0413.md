@@ -1,6 +1,6 @@
 # IAM-IdP — ADR-0413
 
-Statut : Accepted (acceptation humaine explicite le 2026-11-06). Réalité : Partial (première tranche de contrat v2 seulement). Voir le fichier ADR `docs/adr/0413-oauthconnect-multi-instances-profils.md` et le contrat `docs/contracts/oauthconnect-multi-instances.md`.
+Statut : Accepted (acceptation humaine explicite le 2026-11-06). Réalité : Partial (contrat v2, configuration déclarative et projection pure vérifiés). Voir le fichier ADR `docs/adr/0413-oauthconnect-multi-instances-profils.md` et le contrat `docs/contracts/oauthconnect-multi-instances.md`.
 
 - Proposition rédigée le 2026-11-06 dans le worktree isolé `oauthconnect-architecture-20261106`, base b39c6c4, puis intégrée par le parent au checkout canonique. Cette intégration documentaire ne vaut ni acceptation de l'ADR ni implémentation de la refonte ; se référer au ledger `.cursor/handoffs/20261106-oauthconnect-tdd.md` pour la publication et les gates.
 - Un service RustyCog OAuthConnect, instances logiques au boot et deux profils OAuth mappé API+JSONPath / OIDC standard ; slugs github/gitlab et UUID/liens IAM préservés.
@@ -8,3 +8,4 @@ Statut : Accepted (acceptation humaine explicite le 2026-11-06). Réalité : Par
 - Texte, regroupement v2 et delta email GitHub primaire seul sans fallback public acceptés explicitement. Bascule GitLab/retrait legacy restent conditionnés à preuve externe sub OIDC = ancien id string et aux gates de cutover ; unités/IT TDD autorisées après intégration. Claims riches/actions toujours différés.
 - HMAC PATH complet par instance, HTTPS/PKCE/secrets stricts conservés ; 0505 reste Proposed/Implemented. Aucun code, test, Cargo ou runtime exécuté dans ce cadrage.
 - Après cadrage : frontière v2 de idp-connect-contract implémentée, RED16cas5/11 puis GREEN16/16, libhistorique15/15, checkdefault/fmt/Clippystrictverts sousWindows. Aucun runtimeDocker ; profils/service/IAMnonce/cutover/E2E encore non livrés. L'absence de code dans le cadrage initial ci-dessus reste historique.
+- 2026-11-07 : trois crates OAuthConnect configuration/domain/infra, loader strict SDK et projection JSONPath pure avec budget préalable S-1 implémentés.114tests vérifiés (38config+44projection+12budget+20unités), fmt/check/Clippystrict verts ; S-1 recoupé sécurité et conditions finales satisfaites. Transport, secrets résolus, OIDC runtime, setup/service complet et IAM restent à faire ; pas de Docker/E2E. T1/G-1 boot demeure partiel. Annexe budget écrite par architecte, pinSDK inchangé.

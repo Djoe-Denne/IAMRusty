@@ -321,7 +321,7 @@ fn s1_small_relative_object_comparables_remain_admitted() -> Result<(), DomainEr
         {"id": "stable", "l'\\hs": {"a": [1, 2]}, "rhs": {"a": [1, 2]}},
         {"l'\\hs": {"a": [1, 2]}, "rhs": {"a": [1, 3]}}
     ]);
-    let claims = mapping(r#"$.items[?(@['l\'\\hs'] == @.rhs)].id"#);
+    let claims = mapping(r"$.items[?(@['l\'\\hs'] == @.rhs)].id");
     let profile = compile_mapping(&claims)?.project(&responses(user))?;
     assert_profile(&profile, None);
     Ok(())

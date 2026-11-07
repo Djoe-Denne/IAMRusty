@@ -88,10 +88,26 @@ Suite ordonnée : transport OAuth et résolution secrets/setup avec collaborateu
 
 ## Preuves de préparation et limites
 
-### Point d'exécution intermédiaire — non clôturé
+### Résultat vérifié du lot borné
 
 Configuration : 38 tests passés du socle refusant (23 réussites/15 échecs nominaux) à38/38. Projection :41oracles originaux passés de18/23 à41/41 après correction d'une permissivité du parser ;3caractérisations post-GREEN des chaînes quotées/échappements également vertes (44cas au total). Aucun ignoré/filtré dans les runs complets. La distinction entre TDD initial et caractérisations supplémentaires est conservée.
 
-Le lot reste **ouvert** : qualitéClippy finale des tests et disposition du finding sécurité **S-1 MEDIUM** (coût amplifié par filtres absolus imbriqués sur JSON fournisseur hostile). Aucun HIGH/CRITICAL relevé, mais le parent cadre une borne pré-évaluation avant clôture. Aucune validation de boot complet, réseau, secret résolu, OIDC/IAM ou E2E n'en découle. Cette photographie n'est pas un bilan final.
+Le finding sécurité **S-1 MEDIUM** (coût amplifié par filtres absolus imbriqués sur JSON fournisseur hostile) a été traité selon l'[annexe de bornage](../contracts/oauthconnect-jsonpath-budget.md) de l'architecte :12tests RED6/6→GREEN12/12,20unités privées post-implémentation, recoupement sécurité ciblé sans nouveau finding, qualité finale satisfaite. **114tests vérifiés**, fmt/check/Clippy strict all-targets verts sur les trois crates. Aucun test ignoré/filtré dans les runs complets ; le préflight SDK isolé a intentionnellement filtré les autres noms de son target, puis le target complet a été exécuté.
+
+Commandes réellement exécutées (Windows, séquentielles, jobs24 du dépôt) :
+
+```powershell
+cargo test --locked -p oauth-connect-configuration --test declarative --test strict_loader --no-fail-fast
+cargo test --locked -p oauth-connect-infra --test profile_projection --test projection_budget --no-fail-fast
+cargo test --locked -p oauth-connect-infra --lib budget::tests
+cargo fmt -p oauth-connect-configuration -p oauth-connect-domain -p oauth-connect-infra -- --check
+cargo check --locked -p oauth-connect-configuration -p oauth-connect-domain -p oauth-connect-infra
+cargo clippy --locked -p oauth-connect-configuration -p oauth-connect-domain -p oauth-connect-infra --all-targets -- -W clippy::future_not_send -W clippy::too_many_lines -D warnings
+cargo check --locked -p apparatus-operator --features controller
+```
+
+Les comptes retenus sont38configuration,44projection (41TDD+3caractérisations),12budgetTDD et20unités privées complémentaires. Derniers logs sous `.tmp/oauthconnect-cfg-map/` : `quality-final-config-tests.log`, `final-projection-tests.log`, `verified-budget-units.log`, `verified-{fmt,clippy,check}.log`, `jsonpath-kube-consumer-check.log`. L'impact kube est un check de compilation seulement (warnings dans du code non modifié), pas une preuve Kubernetes runtime.
+
+La clôture technique du lot n'est pas celle de toute la refonte : boot après résolution/Discovery, transport, OIDC exécuté, IAM et déploiement restent ouverts. Aucun Docker/Kind/DB/provider/E2E exécuté. Commit publié, référence distante et inventaire de nettoyage sont consignés dans le ledger parent après publication ; ne pas déduire leur vérification des seuls tests. ADR0413 reste **Accepted / Partial** et E2E externes bloquent toujours la bascule.
 
 État Git/inventaire vérifiés et contrat/QA relus pour cette préparation. Aucune nouvelle exploration de comportement Rust nécessaire : chemins et obligations réutilisés des artefacts intégrés. Les symboles du loader et la surface AST seront examinés par MCP avant les changements concernés, avec références et couverture des tests ; aucune conclusion nouvelle sur ces APIs n'est prétendue ici. Aucun test, build, fournisseur ou runtime exécuté pour préparer ce plan.

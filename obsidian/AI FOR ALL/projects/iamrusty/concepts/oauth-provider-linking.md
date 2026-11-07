@@ -13,7 +13,7 @@ provenance:
   inferred: 0.14
   ambiguous: 0.08
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-11-06
+updated: 2026-11-07
 ---
 
 # OAuth Provider Linking
@@ -21,7 +21,7 @@ updated: 2026-11-06
 > [!note] Catalogue providers
 > Open question « only GH/GL » : cible vivante [[projects/iamrusty/decisions/0407-contrat-federe]] / [[projects/iamrusty/decisions/0408-connecteurs-http]] / [[projects/iamrusty/decisions/0411-slug-registry]] (**Accepted**). Linking **reste IAM** ([[projects/iamrusty/decisions/0409-confiance-oauth]]).
 >
-> Actualisation 2026-11-06 : [ADR-0413 canonique](../../../../../docs/adr/0413-oauthconnect-multi-instances-profils.md) **Accepted / Partial**, [contrat actif](../../../../../docs/contracts/oauthconnect-multi-instances.md). Première tranche de frontière v2 vérifiée sous Windows (16tests nouveaux et15 historiques, check/fmt/Clippystrict), sans service/profils/raccordIAM ni E2E livrés. La cible demeure OAuthConnect RustyCog unique, instances logiques et profils OIDC/OAuth mappé API+JSONPath ; nonce durable IAM et email GitHub primaire seul restent au périmètre ratifié. Les portions topologie/onboarding/interface de 0407/0408/0411 sont partiellement supersédées, pas les règles de compte/linking. Claims riches/actions toujours différés. Ce pointeur de conception ne remplace pas les ADR.
+> Actualisation 2026-11-07 : [ADR-0413 canonique](../../../../../docs/adr/0413-oauthconnect-multi-instances-profils.md) **Accepted / Partial**, [contrat actif](../../../../../docs/contracts/oauthconnect-multi-instances.md). Frontière S2S v2, configuration déclarative et projection JSONPath pure vérifiées sous Windows ; deuxième lot114tests, fmt/check/Clippystrict verts et borne de coût S-1 recoupée. Transport, secrets réellement résolus, OIDC, setup/service, nonce/raccordIAM et E2E restent à réaliser. Les règles de compte/linking restent IAM ; primaire GitHub seul ratifié, claims riches/actions différés. Ce pointeur de conception ne remplace pas les ADR ni les gates E2E/cutover externes.
 
 `[[projects/iamrusty/iamrusty]]` treats external providers as attachable identities rather than separate users. A logged-in account can add GitHub or GitLab credentials to the same provider-agnostic user record, while provider tokens and secondary emails are stored explicitly for later reuse.
 
