@@ -302,11 +302,11 @@ async fn g4_new_kid_refresh_replaces_snapshot_instead_of_retaining_old_keys_inde
     f.set_signed(key_b(), "kid-B", &no_email);
     let info = json!({"iss": f.issuer(), "aud": CLIENT_ID, "sub": SUBJECT,
         "email": "one@example.test", "email_verified": true});
-    f.userinfo.set(
-        wiremock::ResponseTemplate::new(200)
-            .set_body_string(sign(key_b(), "kid-B", &info))
-            .insert_header("content-type", "application/jwt"),
-    );
+    f.userinfo.set(fixture::signed_userinfo_response(sign(
+        key_b(),
+        "kid-B",
+        &info,
+    )));
     clocks.at_millis(31_000);
     accepted(&f, &client, "oidc-code-rotated-signed-userinfo").await;
     f.assert_counts(1, 2, 2, 1).await;

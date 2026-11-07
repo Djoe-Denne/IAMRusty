@@ -369,6 +369,10 @@ impl OidcFixture {
     }
 }
 
+pub fn signed_userinfo_response(signed: String) -> ResponseTemplate {
+    ResponseTemplate::new(200).set_body_raw(signed.into_bytes(), "application/jwt")
+}
+
 pub fn json_response(value: &Value) -> ResponseTemplate {
     ResponseTemplate::new(200).set_body_json(value)
 }

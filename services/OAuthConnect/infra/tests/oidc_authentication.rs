@@ -156,7 +156,39 @@ async fn preflight_isolated_discovery_and_jwks_documents_are_reachable_without_o
         assert!(value.is_object(), "fixture document object");
     }
     f.keys.wait_count(1).await;
-    f.assert_counts(1, 1, 0, 0).await;
+    // Verify the actual signed UserInfo wire response independently of OidcClient.
+    let info = json!({"iss": f.issuer(), "aud": CLIENT_ID, "sub": SUBJECT,
+        "email": "one@example.test", "email_verified": true});
+    let signed = sign(key_a(), KID, &info);
+    f.userinfo
+        .set(fixture::signed_userinfo_response(signed.clone()));
+    let mut response = must(
+        http.get(f.url(USERINFO)).send().await,
+        "signed fixture HTTP",
+    );
+    assert_eq!(response.status().as_u16(), 200, "signed fixture status");
+    assert!(
+        response
+            .headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok())
+            == Some("application/jwt"),
+        "signed fixture must actually deliver application/jwt"
+    );
+    assert!(signed.len() <= 8192, "signed fixture must remain small");
+    let mut received = Vec::new();
+    while let Some(chunk) = must(response.chunk().await, "signed fixture body chunk") {
+        assert!(
+            chunk.len() <= 8192 - received.len(),
+            "signed fixture body must remain within the preflight byte bound"
+        );
+        received.extend_from_slice(&chunk);
+    }
+    assert!(
+        received.as_slice() == signed.as_bytes(),
+        "signed fixture must deliver exact original JWT bytes"
+    );
+    f.assert_counts(1, 1, 0, 1).await;
 }
 
 #[tokio::test]
@@ -1152,11 +1184,7 @@ async fn g3_signed_userinfo_is_passed_as_original_bytes_to_the_standard_parser()
     f.set_claims(&claims);
     let info = json!({"iss": f.issuer(), "aud": CLIENT_ID, "sub": SUBJECT, "email": "one@example.test", "email_verified": true});
     let signed = sign(key_a(), KID, &info);
-    f.userinfo.set(
-        ResponseTemplate::new(200)
-            .set_body_string(signed)
-            .insert_header("content-type", "application/jwt"),
-    );
+    f.userinfo.set(fixture::signed_userinfo_response(signed));
     let auth = must(
         client
             .complete_authorization(&completion("oidc-code-signed-userinfo"))
