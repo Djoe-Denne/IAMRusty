@@ -1,4 +1,4 @@
-//! T2 / G-2: independent examples from the accepted OAuthConnect contract §2.3.
+//! T2 / G-2: independent examples from the accepted `OAuthConnect` contract §2.3.
 //! No HTTP, parser reimplementation, production-derived oracle or runtime fixture.
 //!
 //! Obligations -> risks -> scenarios -> oracles:
@@ -787,4 +787,80 @@ fn g2_compilation_errors_do_not_echo_sensitive_expression_literals() {
         compile_mapping(&mapping),
         "invalid expression containing private literals",
     );
+}
+
+// Post-GREEN characterization, not part of the original 41-case TDD proof.
+// KEEP: removing layout must not rename a quoted Unicode member.
+#[test]
+fn g2_quoted_unicode_child_preserves_spaces_in_the_member_name() -> Result<(), DomainError> {
+    let mut mapping = claims();
+    mapping.sub = source("user", "$['clé avec espaces']");
+    let input = responses(json!({
+        "clé avec espaces": " 000quoted ",
+        "cléavecespaces": "wrong-member"
+    }));
+    let profile = compile_mapping(&mapping)?.project(&input)?;
+    assert_profile(&profile, &expected(" 000quoted ", "", None, false, None));
+    Ok(())
+}
+
+// Post-GREEN characterization. RFC strings allow escaped delimiter quotes and
+// backslashes (pin 1.0.12 grammar string/escapable and unquote_and_unescape).
+// KEEP: stripping literal spaces, trimming, or mishandling an escaped quote
+// selects a decoy or loses the sole result instead of preserving the literal.
+#[test]
+fn g2_filter_string_literals_preserve_spaces_escaped_quotes_and_backslashes(
+) -> Result<(), DomainError> {
+    for path in [
+        r#"$.items[?(@.label == ' l\'adresse C:\\ dossier "privé" ')].id"#,
+        r#"$.items[?(@.label == " l'adresse C:\\ dossier \"privé\" ")].id"#,
+    ] {
+        let mut mapping = claims();
+        mapping.sub = source("user", path);
+        let input = responses(json!({"items": [
+            {"id": "spaces-removed", "label": r#"l'adresseC:\dossier"privé""#},
+            {"id": "trimmed-literal", "label": r#"l'adresse C:\ dossier "privé""#},
+            {"id": "lost-backslash", "label": r#" l'adresse C: dossier "privé" "#},
+            {"id": "exact-literal", "label": r#" l'adresse C:\ dossier "privé" "#}
+        ]}));
+        let profile = compile_mapping(&mapping)?.project(&input)?;
+        assert_profile(&profile, &expected("exact-literal", "", None, false, None));
+    }
+    Ok(())
+}
+
+// Post-GREEN characterization. A literal member containing punctuation is not
+// the similarly spelled sequence of child/index selectors in the same response.
+// KEEP: protects both successful localized pairing and fixed-parent separation.
+#[test]
+fn g2_quoted_email_parent_is_not_confused_with_structural_separators() -> Result<(), DomainError> {
+    let mut mapping = claims();
+    mapping.email = source("user", "$['contact.info[0].details with space'].email");
+    mapping.email_verified = source("user", "$['contact.info[0].details with space'].verified");
+    let input = responses(json!({
+        "id": "quoted-parent",
+        "contact.info[0].details with space": {
+            "email": "selected@example.invalid", "verified": true
+        },
+        "contact": {"info": [{"details with space": {
+            "email": "decoy@example.invalid", "verified": false
+        }}]}
+    }));
+    let profile = compile_mapping(&mapping)?.project(&input)?;
+    assert_profile(
+        &profile,
+        &expected(
+            "quoted-parent",
+            "",
+            Some("selected@example.invalid"),
+            true,
+            None,
+        ),
+    );
+    mapping.email_verified = source("user", "$.contact.info[0]['details with space'].verified");
+    assert_refused(
+        compile_mapping(&mapping),
+        "literal quoted member and distinct structural parent",
+    );
+    Ok(())
 }

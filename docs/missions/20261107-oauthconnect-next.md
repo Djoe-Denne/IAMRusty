@@ -88,4 +88,10 @@ Suite ordonnée : transport OAuth et résolution secrets/setup avec collaborateu
 
 ## Preuves de préparation et limites
 
+### Point d'exécution intermédiaire — non clôturé
+
+Configuration : 38 tests passés du socle refusant (23 réussites/15 échecs nominaux) à38/38. Projection :41oracles originaux passés de18/23 à41/41 après correction d'une permissivité du parser ;3caractérisations post-GREEN des chaînes quotées/échappements également vertes (44cas au total). Aucun ignoré/filtré dans les runs complets. La distinction entre TDD initial et caractérisations supplémentaires est conservée.
+
+Le lot reste **ouvert** : qualitéClippy finale des tests et disposition du finding sécurité **S-1 MEDIUM** (coût amplifié par filtres absolus imbriqués sur JSON fournisseur hostile). Aucun HIGH/CRITICAL relevé, mais le parent cadre une borne pré-évaluation avant clôture. Aucune validation de boot complet, réseau, secret résolu, OIDC/IAM ou E2E n'en découle. Cette photographie n'est pas un bilan final.
+
 État Git/inventaire vérifiés et contrat/QA relus pour cette préparation. Aucune nouvelle exploration de comportement Rust nécessaire : chemins et obligations réutilisés des artefacts intégrés. Les symboles du loader et la surface AST seront examinés par MCP avant les changements concernés, avec références et couverture des tests ; aucune conclusion nouvelle sur ces APIs n'est prétendue ici. Aucun test, build, fournisseur ou runtime exécuté pour préparer ce plan.

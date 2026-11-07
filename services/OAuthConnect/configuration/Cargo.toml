@@ -13,6 +13,7 @@ workspace = true
 rustycog = { package = "rustycog-framework", version = "0.1.1", default-features = false, features = ["core", "config", "secrets"] }
 oauth-connect-domain = { path = "../domain" }
 serde = { workspace = true }
+url = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

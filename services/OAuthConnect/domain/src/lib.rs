@@ -11,7 +11,7 @@ pub type ApiId = String;
 pub struct ClaimSource {
     /// Configured API identifier whose response supplies this claim.
     pub api: ApiId,
-    /// JSONPath expression; AST policy is checked by infra, not deserialization.
+    /// `JSONPath` expression; AST policy is checked by infra, not deserialization.
     pub json_path: String,
 }
 

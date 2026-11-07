@@ -1,4 +1,4 @@
-//! Declarative configuration only: no network, secret resolution or JSONPath engine.
+//! Declarative configuration only: no network, secret resolution or `JSONPath` engine.
 
 use std::{collections::BTreeMap, fmt, path::PathBuf};
 
@@ -7,6 +7,8 @@ pub use rustycog::config::secrets::{OpenBaoAuthConfig, OpenBaoConfig, SecretRefe
 pub use rustycog::config::{AuthConfig, ConfigError, ConfigLoader, LoggingConfig, ServerConfig};
 pub use rustycog::core::error::DomainError;
 use serde::{Deserialize, Serialize};
+
+mod validation;
 
 /// Environment prefix passed to the existing strict SDK loader.
 pub const CONFIG_PREFIX: &str = "OAUTH_CONNECT";
@@ -96,7 +98,7 @@ pub struct OidcProfile {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ProviderProfile {
     /// Configurable OAuth GET JSON projection.
-    Oauth(OAuthProfile),
+    Oauth(Box<OAuthProfile>),
     /// Standard OIDC authority with fixed profile claim semantics.
     Oidc(OidcProfile),
 }
@@ -186,21 +188,24 @@ impl ConfigLoader<Self> for AppConfig {
 /// Load through the real fresh SDK loader, then validate the entire declaration.
 ///
 /// # Errors
-/// Returns a sanitized SDK error for invalid sources or unsupported validation.
-/// T0 deliberately refuses even nominal declarations until the T1 RED exists.
+/// Returns a sanitized SDK error for invalid sources or declarations. No secrets
+/// are resolved and no endpoints are contacted by this loader.
 pub fn load_config() -> Result<AppConfig, ConfigError> {
-    let config = rustycog::config::load_config_fresh_strict::<AppConfig>()?;
+    let mut config = rustycog::config::load_config_fresh_strict::<AppConfig>()?;
     validate_config(&config)
-        .map_err(|_| ConfigError::Message("OAuthConnect validation not implemented".to_owned()))?;
+        .map_err(|_| ConfigError::Message("Invalid OAuthConnect configuration".to_owned()))?;
+    for provider in &mut config.providers {
+        provider.id.make_ascii_lowercase();
+    }
     Ok(config)
 }
 
-/// Validate declarations only; JSONPath AST checks belong to infra compilation.
+/// Validate declarations only; `JSONPath` AST checks belong to infra compilation.
 ///
 /// # Errors
-/// Always refuses in T0. No catalogue/URL/scope/secret validation is claimed.
-pub fn validate_config(_config: &AppConfig) -> Result<(), DomainError> {
-    Err(DomainError::InvalidInput {
-        message: "OAuthConnect configuration validation not implemented".to_owned(),
-    })
+/// Returns a sanitized error for an invalid catalogue, endpoint, scope, API
+/// declaration or secret-source shape. This does not validate `JSONPath` ASTs,
+/// resolved secret values, discovery metadata or tokens.
+pub fn validate_config(config: &AppConfig) -> Result<(), DomainError> {
+    validation::validate(config)
 }
