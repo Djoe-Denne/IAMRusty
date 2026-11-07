@@ -32,7 +32,7 @@ use support::{
 };
 use wiremock::ResponseTemplate;
 
-fn near_callbacks() -> [&'static str; 8] {
+const fn near_callbacks() -> [&'static str; 8] {
     [
         "https://other.example.test/callback?flow=login",
         "https://app.example.test:444/callback?flow=login",
@@ -256,7 +256,7 @@ async fn a1_complete_rejects_bad_callback_nonce_verifier_or_code_before_token_po
         invalid.push(request);
     }
     for request in invalid {
-        failed(client.complete_authorization(&request).await);
+        failed(&client.complete_authorization(&request).await);
     }
     flow.counts(0, 0, 0).await;
 }
@@ -399,7 +399,7 @@ async fn a2_invalid_tokens_types_schema_and_lossy_expiries_stop_before_profile()
         flow.token
             .mount("POST", TOKEN_PATH, json_response(&body))
             .await;
-        failed(client.complete_authorization(&complete_request()).await);
+        failed(&client.complete_authorization(&complete_request()).await);
         flow.counts(1, 0, 0).await;
     }
 }
@@ -423,7 +423,7 @@ async fn a2_token_status_failures_never_retry_or_switch_auth_methods() {
                     ResponseTemplate::new(status).set_body_json(tokens()),
                 )
                 .await;
-            failed(client.complete_authorization(&complete_request()).await);
+            failed(&client.complete_authorization(&complete_request()).await);
             flow.counts(1, 0, 0).await;
             let requests = flow.token.requests().await;
             assert_post(&requests[0], &flow.config, SECRET, Some(VERIFIER));
@@ -445,7 +445,7 @@ async fn a2_token_html_and_invalid_json_are_not_success_or_profile_fallback() {
                 body_response(body.as_bytes().to_vec(), None),
             )
             .await;
-        failed(client.complete_authorization(&complete_request()).await);
+        failed(&client.complete_authorization(&complete_request()).await);
         flow.counts(1, 0, 0).await;
     }
 }
@@ -627,7 +627,7 @@ async fn a3_two_primary_addresses_are_errors_even_when_equal() {
             ])),
         )
         .await;
-    failed(client.complete_authorization(&complete_request()).await);
+    failed(&client.complete_authorization(&complete_request()).await);
     assert_get_failure_phase(&flow, false).await;
 }
 
@@ -651,7 +651,7 @@ async fn a3_get_status_failures_are_not_swallowed_as_empty_emails_or_partial_suc
                     ResponseTemplate::new(status).set_body_json(json!([])),
                 )
                 .await;
-            failed(client.complete_authorization(&complete_request()).await);
+            failed(&client.complete_authorization(&complete_request()).await);
             assert_get_failure_phase(&flow, is_user).await;
         }
     }
@@ -676,7 +676,7 @@ async fn a3_bad_get_json_html_and_maltyped_primary_are_errors_not_public_fallbac
                 body_response(body.as_bytes().to_vec(), None),
             )
             .await;
-        failed(client.complete_authorization(&complete_request()).await);
+        failed(&client.complete_authorization(&complete_request()).await);
         assert_get_failure_phase(&flow, false).await;
     }
 }
@@ -716,7 +716,7 @@ async fn a3_http_projection_refuses_nested_32_after_one_successful_get_without_b
     flow.user
         .mount("GET", USER_PATH, json_response(&nested_body(32)))
         .await;
-    failed(client.complete_authorization(&complete_request()).await);
+    failed(&client.complete_authorization(&complete_request()).await);
     flow.counts(1, 1, 0).await;
 }
 
@@ -739,7 +739,7 @@ async fn a4_token_identity_small_exact_limit_and_plus_one_use_decompressed_byte_
             flow.assert_profile(&must(result, "identity token at inclusive limit"));
             flow.counts(1, 1, 1).await;
         } else {
-            failed(result);
+            failed(&result);
             flow.counts(1, 0, 0).await;
         }
     }
@@ -764,7 +764,7 @@ async fn a4_get_identity_small_exact_limit_and_plus_one_do_not_confuse_scan_volu
             flow.assert_profile(&must(result, "identity GET at inclusive limit"));
             flow.counts(1, 1, 1).await;
         } else {
-            failed(result);
+            failed(&result);
             assert_get_failure_phase(&flow, true).await;
         }
     }
@@ -790,7 +790,7 @@ async fn a4_token_gzip_small_exact_limit_and_plus_one_are_checked_after_decompre
             flow.assert_profile(&must(result, "gzip token at inclusive decompressed limit"));
             flow.counts(1, 1, 1).await;
         } else {
-            failed(result);
+            failed(&result);
             flow.counts(1, 0, 0).await;
         }
     }
@@ -813,7 +813,7 @@ async fn a4_get_gzip_small_exact_limit_and_plus_one_preserve_the_same_profile_or
             flow.assert_profile(&must(result, "gzip GET at inclusive decompressed limit"));
             flow.counts(1, 1, 1).await;
         } else {
-            failed(result);
+            failed(&result);
             assert_get_failure_phase(&flow, true).await;
         }
     }
@@ -830,7 +830,7 @@ async fn a4_token_invalid_gzip_and_residual_encodings_refuse_valid_json_without_
         flow.token
             .mount("POST", TOKEN_PATH, body_response(bytes, Some(encoding)))
             .await;
-        failed(client.complete_authorization(&complete_request()).await);
+        failed(&client.complete_authorization(&complete_request()).await);
         flow.counts(1, 0, 0).await;
     }
     flow.defaults().await;
@@ -840,7 +840,7 @@ async fn a4_token_invalid_gzip_and_residual_encodings_refuse_valid_json_without_
     flow.token
         .mount("POST", TOKEN_PATH, body_response(truncated, Some("gzip")))
         .await;
-    failed(client.complete_authorization(&complete_request()).await);
+    failed(&client.complete_authorization(&complete_request()).await);
     flow.counts(1, 0, 0).await;
     // No recognized gzip here: both identity and the unsupported residual entry
     // remain visible. This does not claim inspection of headers stripped by gzip.
@@ -854,7 +854,7 @@ async fn a4_token_invalid_gzip_and_residual_encodings_refuse_valid_json_without_
             body_response(bytes, Some("identity")).append_header("content-encoding", "br"),
         )
         .await;
-    failed(client.complete_authorization(&complete_request()).await);
+    failed(&client.complete_authorization(&complete_request()).await);
     flow.counts(1, 0, 0).await;
 }
 
@@ -869,7 +869,7 @@ async fn a4_get_invalid_gzip_and_residual_encodings_do_not_return_partial_tokens
         flow.user
             .mount("GET", USER_PATH, body_response(bytes, Some(encoding)))
             .await;
-        failed(client.complete_authorization(&complete_request()).await);
+        failed(&client.complete_authorization(&complete_request()).await);
         assert_get_failure_phase(&flow, true).await;
     }
     flow.defaults().await;
@@ -879,7 +879,7 @@ async fn a4_get_invalid_gzip_and_residual_encodings_do_not_return_partial_tokens
     flow.user
         .mount("GET", USER_PATH, body_response(truncated, Some("gzip")))
         .await;
-    failed(client.complete_authorization(&complete_request()).await);
+    failed(&client.complete_authorization(&complete_request()).await);
     assert_get_failure_phase(&flow, true).await;
     flow.defaults().await;
     flow.user.reset().await;
@@ -891,7 +891,7 @@ async fn a4_get_invalid_gzip_and_residual_encodings_do_not_return_partial_tokens
             body_response(bytes, Some("identity")).append_header("content-encoding", "br"),
         )
         .await;
-    failed(client.complete_authorization(&complete_request()).await);
+    failed(&client.complete_authorization(&complete_request()).await);
     assert_get_failure_phase(&flow, true).await;
 }
 
@@ -916,7 +916,7 @@ async fn a4_token_redirect_to_configured_api_origin_is_not_followed_or_retried()
         flow.user
             .mount("GET", "/capture", json_response(&tokens()))
             .await;
-        failed(client.complete_authorization(&complete_request()).await);
+        failed(&client.complete_authorization(&complete_request()).await);
         flow.counts(1, 0, 0).await; // No destination request can carry any secret.
     }
 }
@@ -939,7 +939,7 @@ async fn a4_get_redirect_to_other_configured_api_origin_never_forwards_bearer() 
         flow.emails
             .mount("GET", "/capture", json_response(&flow.user_body()))
             .await;
-        failed(client.complete_authorization(&complete_request()).await);
+        failed(&client.complete_authorization(&complete_request()).await);
         assert_get_failure_phase(&flow, true).await; // Only EMAIL_PATH may reach destination server.
     }
 }
@@ -1005,7 +1005,7 @@ async fn a4_vendor_error_bodies_cannot_echo_sensitive_values_in_errors_or_debug(
                 })),
             )
             .await;
-        failed(client.complete_authorization(&complete_request()).await);
+        failed(&client.complete_authorization(&complete_request()).await);
         assert_redacted(&format!("{client:?}"));
         if token_phase {
             flow.counts(1, 0, 0).await;
@@ -1032,6 +1032,6 @@ async fn a2_optional_pkce_complete_omits_verifier_and_does_not_send_oauth_nonce(
     assert_post(&requests[0], &flow.config, SECRET, None);
     flow.counts(1, 1, 1).await;
     flow.defaults().await;
-    failed(client.complete_authorization(&complete_request()).await);
+    failed(&client.complete_authorization(&complete_request()).await);
     flow.counts(0, 0, 0).await;
 }

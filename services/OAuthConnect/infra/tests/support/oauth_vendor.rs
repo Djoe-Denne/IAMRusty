@@ -42,10 +42,10 @@ pub const LIMIT: usize = 1_048_576;
 pub const NESTED: &str = "$.items[?($.items[?($.items[?($.items[?(@.ok == true)])])])].id";
 
 pub fn must<T, E>(result: Result<T, E>, obligation: &str) -> T {
-    match result {
-        Ok(value) => value,
-        Err(_) => panic!("OAuth A: {obligation} must succeed (diagnostic deliberately redacted)"),
-    }
+    result.map_or_else(
+        |_| panic!("OAuth A: {obligation} must succeed (diagnostic deliberately redacted)"),
+        std::convert::identity,
+    )
 }
 
 pub fn source(api: &str, json_path: &str) -> ClaimSource {
@@ -157,10 +157,10 @@ impl Vendor {
     }
 
     pub async fn requests(&self) -> Vec<Request> {
-        match self.server.received_requests().await {
-            Some(requests) => requests,
-            None => panic!("fixture request recording must be enabled"),
-        }
+        self.server.received_requests().await.map_or_else(
+            || panic!("fixture request recording must be enabled"),
+            std::convert::identity,
+        )
     }
 }
 
@@ -358,7 +358,7 @@ pub fn assert_redacted(text: &str) {
     }
 }
 
-pub fn failed(result: Result<ProviderAuthentication, FederatedOAuthError>) {
+pub fn failed(result: &Result<ProviderAuthentication, FederatedOAuthError>) {
     match result {
         Ok(_) => panic!("complete must fail closed, not return partial tokens/profile"),
         Err(error) => {
@@ -450,16 +450,15 @@ pub fn assert_post(
                     "optional public client ID remains exact"
                 );
             }
-            let encoded =
-                match header(request, "authorization").and_then(|v| v.strip_prefix("Basic ")) {
-                    Some(value) => value,
-                    None => panic!("Basic authorization required"),
-                };
+            let Some(encoded) =
+                header(request, "authorization").and_then(|v| v.strip_prefix("Basic "))
+            else {
+                panic!("Basic authorization required");
+            };
             let decoded = must(STANDARD.decode(encoded), "Basic base64");
             let text = must(String::from_utf8(decoded), "Basic UTF-8");
-            let (id, password) = match text.split_once(':') {
-                Some(pair) => pair,
-                None => panic!("Basic username/password separator required"),
+            let Some((id, password)) = text.split_once(':') else {
+                panic!("Basic username/password separator required");
             };
             // RFC6749 §2.3.1: percent/form encoding precedes Basic base64.
             let id = fields(format!("x={id}").as_bytes());
