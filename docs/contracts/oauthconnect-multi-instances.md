@@ -103,6 +103,8 @@ Les headers Accept/User-Agent utilisés par GitHub sont fixés dans chaque API/c
 
 ### 2.4 Profil OIDC standard
 
+- Couture du lot OIDC/service du 2026-11-07 : [client standard, callback borné, cache JWKS et composition/registry/service](oauthconnect-oidc-service-boundary.md), à intégrer avant ses auteurs TDD. Détails compatibles avec 0413, sans nouvelle livraison ou promotion de Réalité par cette annexe.
+
 `profile.kind = "oidc"`, `issuer` exact épinglé, `allowed_endpoint_origins` explicites contenant l'origine issuer et celles des endpoints admis. Les scopes communs contiennent `openid` ; cible GitLab = `openid`, `profile`, `email`, sans reprise aveugle de l'ancien scope `read_user`. Ni mappings vendor, ni paramètre claims riche, ni nom de claim configurable.
 
 `setup` utilise Discovery depuis l'issuer configuré, valide l'égalité exacte du champ issuer et les URLs auth/token/JWKS/userinfo présentes contre ces origines et le mode transport ; pas de confiance à `iss`, `jku` ou `x5u` reçus pour choisir un endpoint. La méthode d'authentification token configurée doit être compatible avec les métadonnées de l'autorité ; défauts normatifs de Discovery traités par la bibliothèque standard, pas par essai successif de méthodes. Métadonnées et JWKS sont attachés à cette instance, jamais à un cache global clé `kid` seulement. Échec initial => boot refusé. Le client HTTP utilisé par Discovery/JWKS est aussi injecté et borné.
