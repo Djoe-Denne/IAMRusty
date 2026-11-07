@@ -5156,6 +5156,9 @@ dependencies = [
  "oauth-connect-domain",
  "rustycog-framework",
  "serde",
+ "serde_json",
+ "tempfile",
+ "toml 0.8.23",
 ]
 
 [[package]]
