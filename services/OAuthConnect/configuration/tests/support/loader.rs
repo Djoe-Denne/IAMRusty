@@ -27,7 +27,7 @@ pub fn loader_error(result: Result<AppConfig, ConfigError>) {
 }
 
 /// Re-execute the same test with child-only env/CWD, never mutate runner env.
-/// Source assembly still belongs solely to the SDK (RUN_ENV, TOML, dotenv).
+/// Source assembly still belongs solely to the SDK (`RUN_ENV`, TOML, dotenv).
 pub fn isolated(
     test: &str,
     case: &str,

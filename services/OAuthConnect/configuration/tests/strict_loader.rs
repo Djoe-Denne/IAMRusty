@@ -307,7 +307,7 @@ fn real_loader_rejects_unknown_enum_missing_required_field_and_foreign_profile_f
             "mode" => value["providers"][0]["secrets_mode"] = json!("unknown-mode-sentinel"),
             "kind" => value["providers"][0]["profile"]["kind"] = json!("unknown-profile-sentinel"),
             "token-auth" => {
-                value["providers"][0]["token_auth_method"] = json!("unknown-auth-sentinel")
+                value["providers"][0]["token_auth_method"] = json!("unknown-auth-sentinel");
             }
             "missing" => {
                 value["providers"][0]
@@ -317,7 +317,7 @@ fn real_loader_rejects_unknown_enum_missing_required_field_and_foreign_profile_f
             }
             _ => {
                 value["providers"][0]["profile"]["issuer"] =
-                    json!("https://foreign-sentinel.invalid")
+                    json!("https://foreign-sentinel.invalid");
             }
         }
         isolated("real_loader_rejects_unknown_enum_missing_required_field_and_foreign_profile_fields_redacted",

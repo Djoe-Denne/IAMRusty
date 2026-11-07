@@ -10,6 +10,7 @@
 //!   primary absence and ambiguous primaries -> localized pairing or refusal.
 //! - Operation isolation -> stale identity -> reuse across disjoint responses,
 //!   including a failure -> each exact profile, with no retained JSON fallback.
+//!
 //! Every test below traces to G-2. Positive cases must fail against the T0 stub;
 //! standalone refusals are only characterizations until positive cases pass.
 
