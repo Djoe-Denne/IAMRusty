@@ -651,7 +651,107 @@ async fn application_flows(origin: &str, http: &reqwest::Client, vendors: &Vendo
     }
 }
 
+fn verified_platform_bearer_fixture() -> String {
+    // Genuine RS256 access token with UUID subject; no platform trust is configured.
+    let now = chrono::Utc::now().timestamp();
+    let claims = serde_json::json!({"sub": "11111111-1111-4111-8111-111111111111",
+        "iss": "https://platform.example.test", "aud": "oauth-connect",
+        "iat": now - 5, "nbf": now - 5, "exp": now + 3600});
+    let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
+    header.typ = Some("aiforall-access+jwt".into());
+    header.kid = Some("service-key".into());
+    let encoding = jsonwebtoken::EncodingKey::from_rsa_pem(include_bytes!(
+        "../../../IAMRusty/config/keys/test-platform.pem"
+    ))
+    .unwrap_or_else(|_| panic!("access-token private fixture could not be parsed"));
+    let bearer = jsonwebtoken::encode(&header, &claims, &encoding)
+        .unwrap_or_else(|_| panic!("access-token fixture could not be signed"));
+    let decoding = jsonwebtoken::DecodingKey::from_rsa_pem(include_bytes!(
+        "../../../IAMRusty/config/keys/test-platform.pub"
+    ))
+    .unwrap_or_else(|_| panic!("access-token public fixture could not be parsed"));
+    let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::RS256);
+    validation.set_issuer(&["https://platform.example.test"]);
+    validation.set_audience(&["oauth-connect"]);
+    validation.validate_nbf = true;
+    let verified =
+        jsonwebtoken::decode::<Value>(&bearer, &decoding, &validation).unwrap_or_else(|_| {
+            panic!("access-token fixture failed independent cryptographic verification")
+        });
+    assert!(
+        verified.claims == claims,
+        "independent fixture verification must preserve the UUID-bearing claims"
+    );
+    bearer
+}
+
+// §10/G-7: a signed fixture Bearer cannot replace S2S auth or activate provider I/O.
+async fn hmac_only_bearer_boundary(origin: &str, http: &reqwest::Client, vendors: &Vendors) {
+    let authorize_path = "/oauth-connect/authority/v2/authorize";
+    let authorize_body = body(false);
+    let (at, mac) = signature(authorize_path, &authorize_body, KEY_OIDC);
+    let response = must(
+        http.post(format!("{origin}{authorize_path}"))
+            .header("content-type", "application/json")
+            .header("authorization", "arbitrary-not-a-bearer-credential")
+            .header(TIMESTAMP_HEADER, at.to_string())
+            .header(SIGNATURE_HEADER, mac)
+            .body(authorize_body.clone())
+            .send()
+            .await,
+        "valid HMAC authorize with irrelevant Authorization",
+    );
+    let (status, bytes) = response_bytes(response).await;
+    assert_eq!(status, reqwest::StatusCode::OK);
+    let authorized: Value = must(
+        serde_json::from_slice(&bytes),
+        "HMAC-only authorize response",
+    );
+    assert!(
+        authorized["authorization_url"].as_str().is_some(),
+        "valid HMAC must still authorize"
+    );
+    let bearer = verified_platform_bearer_fixture();
+    let mut counts = Vec::new();
+    for oidc in [false, true] {
+        for route in [DISCOVERY, "/keys", "/token"] {
+            counts.push(vendors.count(oidc, route).await);
+        }
+    }
+    for wrong_hmac in [false, true] {
+        let mut request = http
+            .post(format!("{origin}{authorize_path}"))
+            .header("content-type", "application/json")
+            .bearer_auth(&bearer)
+            .body(authorize_body.clone());
+        if wrong_hmac {
+            let (at, mac) = signature(authorize_path, &authorize_body, KEY_OAUTH);
+            request = request
+                .header(TIMESTAMP_HEADER, at.to_string())
+                .header(SIGNATURE_HEADER, mac);
+        }
+        let response = must(request.send().await, "Bearer cannot replace valid S2S HMAC");
+        let (status, bytes) = response_bytes(response).await;
+        assert_eq!(status, reqwest::StatusCode::UNAUTHORIZED);
+        assert!(
+            bytes.is_empty(),
+            "Bearer refusal must expose no contextual content"
+        );
+        let mut after = Vec::new();
+        for oidc in [false, true] {
+            for route in [DISCOVERY, "/keys", "/token"] {
+                after.push(vendors.count(oidc, route).await);
+            }
+        }
+        assert_eq!(
+            after, counts,
+            "Bearer-only/wrong-HMAC must not trigger provider acquisition or token exchange"
+        );
+    }
+}
+
 async fn application_refusals(origin: &str, http: &reqwest::Client, vendors: &Vendors) {
+    hmac_only_bearer_boundary(origin, http, vendors).await;
     let before = vendors.count(true, "/token").await;
     let (status, bytes) = signed_call(http, origin, "authority", true, KEY_OAUTH).await;
     assert_eq!(status, reqwest::StatusCode::UNAUTHORIZED);

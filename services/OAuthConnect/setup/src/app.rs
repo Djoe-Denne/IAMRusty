@@ -145,3 +145,6 @@ fn failed() -> DomainError {
         message: "OAuthConnect service lifecycle failed".to_owned(),
     }
 }
+
+#[cfg(test)]
+mod tests;

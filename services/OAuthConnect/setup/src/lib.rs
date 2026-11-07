@@ -1,4 +1,4 @@
-//! Startup composition boundaries; service and mixed-client T0 remain refusing.
+//! Atomic startup composition and SDK-owned HTTP execution for `OAuthConnect`.
 
 pub mod app;
 mod composition;
