@@ -24,17 +24,17 @@ fn target(uri: &str, mode: VendorTransportSecurity) -> ProviderConfig {
     let ProviderProfile::Oauth(profile) = &mut p.profile else {
         panic!("OAuth fixture seed")
     };
-    profile.authorization_url = uri.to_owned();
-    profile.token_url = uri.to_owned();
-    profile.apis.get_mut("user").unwrap().url = uri.to_owned();
+    uri.clone_into(&mut profile.authorization_url);
+    uri.clone_into(&mut profile.token_url);
+    uri.clone_into(&mut profile.apis.get_mut("user").unwrap().url);
     p
 }
 
 fn built(value: &ProviderConfig) -> reqwest::Client {
-    match build_http_client(value) {
-        Ok(client) => client,
-        Err(_) => panic!("B-builder: valid explicit transport must construct the actual client"),
-    }
+    build_http_client(value).map_or_else(
+        |_| panic!("B-builder: valid explicit transport must construct the actual client"),
+        std::convert::identity,
+    )
 }
 
 fn sanitized(text: &str) {
@@ -245,9 +245,8 @@ async fn b_http_verified_default_trust_or_unrelated_ca_does_not_accept_fixture_r
             let mut value = target(&view.uri, VendorTransportSecurity::Verified);
             value.ca_cert_file = roots;
             let client = built(&value);
-            let error = match client.get(&view.uri).send().await {
-                Err(error) => error,
-                Ok(_) => panic!("B-builder: untrusted peer was accepted"),
+            let Err(error) = client.get(&view.uri).send().await else {
+                panic!("B-builder: untrusted peer was accepted");
             };
             assert!(
                 error.is_connect(),
@@ -270,9 +269,8 @@ async fn b_http_verified_wrong_san_is_refused_even_with_the_signing_ca() {
         let mut value = target(&view.uri, VendorTransportSecurity::Verified);
         value.ca_cert_file = Some(view.root);
         let client = built(&value);
-        let error = match client.get(&view.uri).send().await {
-            Err(error) => error,
-            Ok(_) => panic!("B-builder: wrong SAN was accepted"),
+        let Err(error) = client.get(&view.uri).send().await else {
+            panic!("B-builder: wrong SAN was accepted");
         };
         assert!(
             error.is_connect(),
@@ -308,9 +306,8 @@ async fn b_http_invalid_urls_or_ca_files_fail_closed_without_network() {
         cases.push(value);
     }
     for value in cases {
-        let error = match build_http_client(&value) {
-            Err(error) => error,
-            Ok(_) => panic!("B-builder: invalid transport declaration constructed a client"),
+        let Err(error) = build_http_client(&value) else {
+            panic!("B-builder: invalid transport declaration constructed a client");
         };
         sanitized(&format!("{error:?} {error}"));
     }

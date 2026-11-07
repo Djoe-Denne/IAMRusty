@@ -1,4 +1,4 @@
-//! B-builder local CA/SAN fixture, adapted from IAM's verified_idp_tls pattern.
+//! B-builder local CA/SAN fixture, adapted from IAM's `verified_idp_tls` pattern.
 //! No S2S protocol, legacy reqwest types, environment trust or invalid-cert bypass.
 
 use axum::{extract::State, routing::get, Router};
@@ -164,10 +164,12 @@ where
         joined,
         "B TLS graceful shutdown/join failed; parent reconciliation required"
     );
-    match result {
-        Ok(Ok(())) => {}
-        Ok(Err(error)) if error.is_panic() => std::panic::resume_unwind(error.into_panic()),
-        Ok(Err(_)) => panic!("B TLS assertion task was cancelled"),
-        Err(_) => panic!("B TLS fixture watchdog fired; no transport result established"),
-    }
+    result
+        .unwrap_or_else(|_| panic!("B TLS fixture watchdog fired; no transport result established"))
+        .unwrap_or_else(|error| {
+            if error.is_panic() {
+                std::panic::resume_unwind(error.into_panic());
+            }
+            panic!("B TLS assertion task was cancelled");
+        });
 }

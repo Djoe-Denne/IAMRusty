@@ -24,8 +24,8 @@ pub fn provider(id: &str) -> ProviderConfig {
             }
         }
     }));
-    match result {
-        Ok(value) => value,
-        Err(_) => panic!("fixture must match the integrated provider declaration"),
-    }
+    result.map_or_else(
+        |_| panic!("fixture must match the integrated provider declaration"),
+        std::convert::identity,
+    )
 }

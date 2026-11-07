@@ -26,7 +26,7 @@ use oauth_connect_configuration::TokenAuthMethod;
 use serde_json::{json, Value};
 use support::{
     assert_post, assert_redacted, authorize_request, body_response, complete_request, failed,
-    fields, gzip, header, json_response, must, nested_body, nested_config, nonce, oauth, padded,
+    fields, gzip, header, json_response, must, nested_body, nested_config, nonce, padded,
     parsed_url, tokens, trusted_client, Flow, ACCESS, CALLBACK, CHALLENGE, CLIENT_ID, CODE,
     EMAIL_PATH, LIMIT, REFRESH, RELINK, SECRET, STATE, TOKEN_PATH, USER_PATH, VERIFIER,
 };
@@ -473,6 +473,14 @@ async fn a3_independent_apis_use_declared_auth_headers_one_get_each_and_no_pictu
     assert!(header(&user[0], "accept") == Some("application/json"));
     assert!(header(&user[0], "user-agent") == Some("oauth-a-fixture"));
     assert!(header(&email[0], "x-github-api-version") == Some("2022-11-28"));
+    assert!(
+        header(&user[0], "x-github-api-version").is_none(),
+        "version header belongs only to the emails API"
+    );
+    assert!(
+        header(&email[0], "user-agent") != Some("oauth-a-fixture"),
+        "user API's configured User-Agent must not leak to emails; generic defaults are allowed"
+    );
     assert!(header(&user[0], "cookie").is_none() && header(&email[0], "cookie").is_none());
 }
 

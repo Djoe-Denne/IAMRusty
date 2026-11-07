@@ -87,9 +87,8 @@ fn sanitized(text: &str) {
 }
 
 fn failure<T>(result: Result<T, DomainError>) -> DomainError {
-    let error = match result {
-        Err(error) => error,
-        Ok(_) => panic!("B: invalid acquisition returned a usable result"),
+    let Err(error) = result else {
+        panic!("B: invalid acquisition returned a usable result");
     };
     sanitized(&format!("{error:?} {error}"));
     let mut source = error.source();
@@ -257,7 +256,7 @@ async fn b2_direct_rejects_blank_short_after_trim_and_raw_oversize_before_trim()
         p.hmac_secret = Some(raw);
         failure(resolve_secrets(&config(vec![p])).await);
     }
-    for raw in ["".to_owned(), "\t\n".to_owned(), "x".repeat(16_385)] {
+    for raw in [String::new(), "\t\n".to_owned(), "x".repeat(16_385)] {
         let mut p = provider("forge");
         p.client_secret = Some(raw);
         failure(resolve_secrets(&config(vec![p])).await);
@@ -411,7 +410,7 @@ async fn b2_invalid_later_declarations_are_rejected_before_any_vault_io() {
                         "field_sentinel".into(),
                     )
                     .unwrap(),
-                )
+                );
             }
             "missing-reference" => {
                 bad = vault_provider("other", "other");
@@ -781,9 +780,8 @@ async fn b3_real_acquisition_logs_debug_and_error_sources_hide_values_and_refere
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .clone();
-    let logs = match String::from_utf8(bytes) {
-        Ok(logs) => logs,
-        Err(_) => panic!("B-3: tracing fixture produced invalid UTF-8"),
+    let Ok(logs) = String::from_utf8(bytes) else {
+        panic!("B-3: tracing fixture produced invalid UTF-8");
     };
     assert!(
         logs.contains("B3_CAPTURE_WITNESS"),
