@@ -19,6 +19,11 @@ pub(super) struct BoundHttp {
     security: VendorTransportSecurity,
 }
 
+struct DiscoveryHttp<'a> {
+    http: &'a BoundHttp,
+    discovery_url: String,
+}
+
 impl BoundHttp {
     pub(super) fn new(
         client: Client,
@@ -102,22 +107,9 @@ impl BoundHttp {
             .join(".well-known/openid-configuration")
             .map_err(|_| FederatedOAuthError::ExchangeCode)?
             .to_string();
-        let callback = |request: HttpRequest| {
-            let is_metadata = request.uri().to_string() == discovery_url;
-            async move {
-                let response = self.send(request).await?;
-                if is_metadata {
-                    // http::Uri drops fragments before AsyncHttpClient sees the
-                    // internal JWKS request. Inspect the STANDARD metadata type's
-                    // original URL strings before allowing that request to exist.
-                    // The standard discovery parser still receives unchanged bytes
-                    // (including duplicate fields); no Value/reserialization path.
-                    let metadata: CoreProviderMetadata = serde_json::from_slice(response.body())
-                        .map_err(|_| FederatedOAuthError::ExchangeCode)?;
-                    self.guard_endpoints(&metadata)?;
-                }
-                Ok::<_, FederatedOAuthError>(response)
-            }
+        let callback = DiscoveryHttp {
+            http: self,
+            discovery_url,
         };
         CoreProviderMetadata::discover_async(issuer, &callback)
             .await
@@ -147,6 +139,31 @@ impl BoundHttp {
         *response.status_mut() = status;
         *response.headers_mut() = headers;
         Ok(response)
+    }
+}
+
+// `&'c self` supplies the required outlives relation inside `call`. Putting that
+// relation on this impl instead prevents Send inference for nested discovery
+// futures (rust-lang/rust#110338).
+impl<'c> AsyncHttpClient<'c> for DiscoveryHttp<'_> {
+    type Error = FederatedOAuthError;
+    type Future = Pin<Box<dyn Future<Output = Result<HttpResponse, Self::Error>> + Send + 'c>>;
+
+    fn call(&'c self, request: HttpRequest) -> Self::Future {
+        let is_metadata = request.uri().to_string() == self.discovery_url;
+        let http = self.http;
+        Box::pin(async move {
+            let response = http.send(request).await?;
+            if is_metadata {
+                // Preserve original URL strings before http::Uri drops fragments
+                // from the internal JWKS request. Standard parsing still receives
+                // unchanged bytes, including any duplicate metadata fields.
+                let metadata: CoreProviderMetadata = serde_json::from_slice(response.body())
+                    .map_err(|_| FederatedOAuthError::ExchangeCode)?;
+                http.guard_endpoints(&metadata)?;
+            }
+            Ok(response)
+        })
     }
 }
 
