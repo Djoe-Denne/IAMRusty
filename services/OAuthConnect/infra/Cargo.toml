@@ -17,4 +17,4 @@ idp-connect-contract = { path = "../../../crates/idp-connect-contract" }
 serde_json = { workspace = true }
 jsonpath-rust = { workspace = true }
 async-trait = { workspace = true }
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = ["gzip"] }
