@@ -128,10 +128,12 @@ impl OAuthClient {
         &self,
         request: &CompleteAuthorizationRequest,
     ) -> Result<(), FederatedOAuthError> {
-        let pkce = match request.code_verifier.as_deref() {
-            Some(verifier) => self.pkce_supported && valid_pkce_verifier(verifier),
-            None => !self.pkce_supported,
-        };
+        let pkce = request
+            .code_verifier
+            .as_deref()
+            .map_or(!self.pkce_supported, |verifier| {
+                self.pkce_supported && valid_pkce_verifier(verifier)
+            });
         if !self.allowed_redirect(&request.redirect_uri)
             || request.code.trim().is_empty()
             || !valid_nonce(&request.expected_nonce)

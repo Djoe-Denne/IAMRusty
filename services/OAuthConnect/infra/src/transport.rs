@@ -20,7 +20,7 @@ pub const HTTP_BODY_LIMIT: usize = 1024 * 1024;
 /// # Errors
 /// Returns the caller's sanitized phase error on status, encoding, size, stream
 /// or JSON failure. The response is dropped immediately rather than drained.
-pub(super) async fn read_json(
+pub async fn read_json(
     mut response: Response,
     error: FederatedOAuthError,
 ) -> Result<Value, FederatedOAuthError> {
