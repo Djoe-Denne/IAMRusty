@@ -8,7 +8,7 @@ use axum::{
 };
 use idp_connect_contract::{
     hmac::{sign, unix_timestamp_secs, HmacKey, SIGNATURE_HEADER, TIMESTAMP_HEADER},
-    AuthorizeAuthenticationRequest, CompleteAuthorizationRequest, FederatedOAuthClient,
+    AuthorizeAuthenticationRequest, CompleteAuthorizationRequest,
 };
 use oauth_connect_configuration::ProviderConfig;
 use oauth_connect_http::{AppState, ConnectState, DomainError};

@@ -211,7 +211,7 @@ async fn b5_empty_registry_is_rejected_by_both_builders_without_panic() {
 async fn b5_noncanonical_registry_slugs_are_rejected_before_publishing_routes() {
     let pair = Pair::start().await;
     for id in [
-        "".to_owned(),
+        String::new(),
         "Forge".into(),
         "with-dash".into(),
         "forge1".into(),
