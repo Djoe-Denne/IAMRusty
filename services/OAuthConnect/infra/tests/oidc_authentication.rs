@@ -289,6 +289,67 @@ async fn g1_nominal_startup_authorize_and_complete_use_one_initial_jwks_and_fixe
 }
 
 #[tokio::test]
+async fn g1_discovery_authorization_endpoint_rejects_reserved_query_parameters() {
+    // OIDC-S1 / G-1, contract §1: reject reserved names, not all endpoint queries.
+    let nominal = OidcFixture::new().await;
+    let mut metadata = nominal.metadata();
+    metadata["authorization_endpoint"] = json!(nominal.url("/authorize?tenant=oidc-team"));
+    nominal.discovery.json(&metadata);
+    let client = initialized(&nominal).await;
+    let request = authorize();
+    let response = must(
+        client.authorize_authentication(&request).await,
+        "nonreserved discovery query must remain allowed",
+    );
+    let url = must(
+        url::Url::parse(&response.authorization_url),
+        "authorize URL",
+    );
+    let pairs: Vec<_> = url.query_pairs().into_owned().collect();
+    for (name, expected) in [
+        ("tenant", "oidc-team"),
+        ("state", request.state.as_str()),
+        ("nonce", request.nonce.as_str()),
+    ] {
+        let values: Vec<_> = pairs
+            .iter()
+            .filter(|(key, _)| key == name)
+            .map(|(_, value)| value.as_str())
+            .collect();
+        assert!(
+            values.as_slice() == [expected],
+            "authorize must preserve tenant and exactly one caller security context"
+        );
+    }
+    nominal.assert_counts(1, 1, 0, 0).await;
+
+    // Exact existing OAuth policy (configuration/validation.rs), independently
+    // enumerated as test data; no dependency on a future production guard.
+    for (plain, encoded) in [
+        ("state", "%73tate"),
+        ("redirect_uri", "%72edirect_uri"),
+        ("client_id", "%63lient_id"),
+        ("scope", "%73cope"),
+        ("response_type", "%72esponse_type"),
+        ("code_challenge", "%63ode_challenge"),
+        ("code_challenge_method", "%63ode_challenge_method"),
+        ("code_verifier", "%63ode_verifier"),
+        ("nonce", "%6Eonce"),
+    ] {
+        for name in [plain, encoded] {
+            let f = OidcFixture::new().await;
+            let mut metadata = f.metadata();
+            metadata["authorization_endpoint"] =
+                json!(f.url(&format!("/authorize?tenant=oidc-team&{name}=injected")));
+            f.discovery.json(&metadata);
+            let result = OidcClient::new(&f.provider, secret(), http()).await;
+            refused(&result, "reserved discovery authorization query");
+            f.assert_counts(1, 0, 0, 0).await;
+        }
+    }
+}
+
+#[tokio::test]
 async fn g1_direct_v2_calls_reject_redirect_nonce_and_pkce_before_token_io() {
     let f = OidcFixture::new().await;
     let client = initialized(&f).await;
