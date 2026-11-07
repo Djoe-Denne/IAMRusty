@@ -5455,10 +5455,21 @@ dependencies = [
 name = "oauth-connect-service"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "idp-connect-contract",
+ "jsonwebtoken",
  "oauth-connect-configuration",
  "oauth-connect-setup",
+ "reqwest 0.12.28",
+ "rsa",
  "rustycog-framework",
+ "serde_json",
+ "tempfile",
  "tokio",
+ "toml 0.8.23",
+ "url",
+ "wiremock",
 ]
 
 [[package]]
@@ -5468,12 +5479,16 @@ dependencies = [
  "axum 0.8.9",
  "axum-server",
  "base64 0.22.1",
+ "chrono",
+ "flate2",
  "idp-connect-contract",
+ "jsonwebtoken",
  "oauth-connect-configuration",
  "oauth-connect-http",
  "oauth-connect-infra",
  "rcgen",
  "reqwest 0.12.28",
+ "rsa",
  "rustls 0.23.40",
  "rustycog-framework",
  "serde_json",
