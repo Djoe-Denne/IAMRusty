@@ -6,7 +6,10 @@ use crate::error::DomainError;
 use async_trait::async_trait;
 use uuid::Uuid;
 
-pub use idp_connect_contract::FederatedOAuthClient;
+pub use idp_connect_contract::{
+    AuthorizeAuthenticationRequest, AuthorizeResponse, CompleteAuthorizationRequest,
+    FederatedOAuthClient, FederatedOAuthError, ProviderAuthentication,
+};
 
 /// JWT token encoder/decoder
 ///
