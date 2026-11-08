@@ -93,10 +93,16 @@ mission ; un checkout, aucune branche/worktree créé. SDK inchangé :
 
 ## Publication et nettoyage
 
-Livrables intégrés directement sur `master` ; commit/push et référence distante
-à vérifier à la clôture. Aucune branche ou worktree créé pour cette mission,
-aucune équipe Ensemble créée. Le reviewer read-only a terminé ; aucun runtime
-possédé à arrêter, aucune suppression ni prune effectué.
+Implémentation publiée : `f78108bec6288b52517abb51546d8a044001fc62` sur
+`origin/master` ; push réussi et égalité HEAD / référence de suivi / véritable
+`refs/heads/master` distante vérifiée par `git ls-remote`. Le présent amendement
+documentaire clôture le rapport sans modifier les sources testées.
+
+Inventaire de clôture : seul `master`, unique checkout principal propre après
+publication de l'implémentation, sous-module SDK inchangé. Aucune branche ou
+worktree créé pour cette mission, aucune équipe Ensemble créée. Le reviewer
+read-only a terminé ; aucun runtime possédé à arrêter, aucune suppression ni
+prune effectué.
 
 **Non exécutés** : build image Linux, déploiement local, coffre/Agent réels,
 qualification navigateur, confiance CA système, connexion GitHub réelle, E2E
