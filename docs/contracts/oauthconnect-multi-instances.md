@@ -158,6 +158,8 @@ La cible déployée n'a pas de `/v2/profile`, d'alias `/v1` multi-instances ni d
 
 ## 5. Adaptation IAM et contexte OIDC
 
+Raccord borné du 2026-11-08 : [contrat IAM v2](iam-oauthconnect-v2.md) (coutures BEGIN/consume/complete, refus legacy après purge writer, migration enregistrée, transport IAM et séquence TDD). Il précise les invariants acceptés ci-dessous, sans rouvrir le service Connect livré ni modifier le Statut/Réalité de 0413.
+
 Modules touchés : `infra/src/auth/http_connector.rs`, composition du registry `setup/src/app.rs`, `domain/src/entity/oauth_transaction.rs`, ports/repos/modèles de transaction, `domain/src/service/oauth_service.rs`, `application/src/usecase/link_provider.rs`, démarrage navigateur et fixtures HTTP. Le domaine IAM dépend toujours du contrat vendor-neutral, pas de `oauth-connect-infra` ni de JSONPath/openidconnect.
 
 1. Au BEGIN v2, générer avec OsRng un nonce indépendant 32 octets encodé base64url sans padding. Le persister comme **secret temporaire de la transaction IAM**, avant de renvoyer le contexte public au START. `BegunOAuthTransaction` expose nonce+challenge, jamais verifier. Ni dérivation depuis state/cookie/PKCE ni cache mémoire. IAM génère ce contexte de manière uniforme, sans enum GitHub/GitLab/OIDC.
