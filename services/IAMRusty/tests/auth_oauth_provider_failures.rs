@@ -1,3 +1,7 @@
+//! G5: former standalone profile refusals are atomic v2 complete refusals.
+//! Historical 401/authentication_failed expectations are retained. A change of
+//! error phase/category must be reported, not hidden by returning partial tokens
+//! or by relaxing these existing browser-contract assertions.
 #[path = "support/browser_flow.rs"]
 mod browser_flow;
 mod common;
@@ -42,8 +46,7 @@ async fn github_rate_limit_and_server_error_are_http_failures_without_account_si
         let db = fixture.db();
         let idp = IdpConnectFixtures::service().await;
 
-        idp.mock_token("github").await;
-        idp.mock_profile_status("github", 429).await;
+        idp.mock_complete_failure("github", 429).await;
         let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
         let rate_limited = client
             .get(format!("{base_url}/api/auth/github/callback"))
@@ -55,8 +58,7 @@ async fn github_rate_limit_and_server_error_are_http_failures_without_account_si
         assert_failed_without_persistence(rate_limited, db.clone()).await;
 
         idp.reset().await;
-        idp.mock_token("github").await;
-        idp.mock_profile_status("github", 502).await;
+        idp.mock_complete_failure("github", 502).await;
         let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
         let unavailable = client
             .get(format!("{base_url}/api/auth/github/callback"))
@@ -78,8 +80,7 @@ async fn gitlab_forbidden_rate_limit_and_server_error_keep_the_same_public_contr
         let db = fixture.db();
         let idp = IdpConnectFixtures::service().await;
 
-        idp.mock_token("gitlab").await;
-        idp.mock_profile_status("gitlab", 403).await;
+        idp.mock_complete_failure("gitlab", 403).await;
         let (state, cookie) = browser_flow::login(&client, &base_url, "gitlab", &idp).await;
         let forbidden = client
             .get(format!("{base_url}/api/auth/gitlab/callback"))
@@ -91,8 +92,7 @@ async fn gitlab_forbidden_rate_limit_and_server_error_keep_the_same_public_contr
         assert_failed_without_persistence(forbidden, db.clone()).await;
 
         idp.reset().await;
-        idp.mock_token("gitlab").await;
-        idp.mock_profile_status("gitlab", 429).await;
+        idp.mock_complete_failure("gitlab", 429).await;
         let (state, cookie) = browser_flow::login(&client, &base_url, "gitlab", &idp).await;
         let rate_limited = client
             .get(format!("{base_url}/api/auth/gitlab/callback"))
@@ -104,8 +104,7 @@ async fn gitlab_forbidden_rate_limit_and_server_error_keep_the_same_public_contr
         assert_failed_without_persistence(rate_limited, db.clone()).await;
 
         idp.reset().await;
-        idp.mock_token("gitlab").await;
-        idp.mock_profile_status("gitlab", 502).await;
+        idp.mock_complete_failure("gitlab", 502).await;
         let (state, cookie) = browser_flow::login(&client, &base_url, "gitlab", &idp).await;
         let unavailable = client
             .get(format!("{base_url}/api/auth/gitlab/callback"))
@@ -127,7 +126,7 @@ async fn github_rejects_invalid_authorization_codes_and_clients_without_writing_
         let db = fixture.db();
         let idp = IdpConnectFixtures::service().await;
 
-        idp.mock_s2s_unauthorized("github", "/v1/token").await;
+        idp.mock_complete_failure("github", 401).await;
         let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
         let invalid_code = client
             .get(format!("{base_url}/api/auth/github/callback"))
@@ -139,7 +138,7 @@ async fn github_rejects_invalid_authorization_codes_and_clients_without_writing_
         assert_failed_without_persistence(invalid_code, db.clone()).await;
 
         idp.reset().await;
-        idp.mock_s2s_unauthorized("github", "/v1/token").await;
+        idp.mock_complete_failure("github", 401).await;
         let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
         let invalid_client = client
             .get(format!("{base_url}/api/auth/github/callback"))
@@ -161,7 +160,7 @@ async fn gitlab_rejects_invalid_authorization_codes_and_clients_without_writing_
         let db = fixture.db();
         let idp = IdpConnectFixtures::service().await;
 
-        idp.mock_s2s_unauthorized("gitlab", "/v1/token").await;
+        idp.mock_complete_failure("gitlab", 401).await;
         let (state, cookie) = browser_flow::login(&client, &base_url, "gitlab", &idp).await;
         let invalid_code = client
             .get(format!("{base_url}/api/auth/gitlab/callback"))
@@ -173,7 +172,7 @@ async fn gitlab_rejects_invalid_authorization_codes_and_clients_without_writing_
         assert_failed_without_persistence(invalid_code, db.clone()).await;
 
         idp.reset().await;
-        idp.mock_s2s_unauthorized("gitlab", "/v1/token").await;
+        idp.mock_complete_failure("gitlab", 401).await;
         let (state, cookie) = browser_flow::login(&client, &base_url, "gitlab", &idp).await;
         let invalid_client = client
             .get(format!("{base_url}/api/auth/gitlab/callback"))

@@ -166,33 +166,13 @@ impl ConsumedOAuthTransaction {
         let request = CompleteAuthorizationRequest {
             code: code.to_string(),
             redirect_uri: self.redirect_uri().to_string(),
-            code_verifier: self.transaction.pkce_verifier.clone(),
+            code_verifier: self.pkce_verifier().map(str::to_owned),
             expected_nonce: nonce.to_string(),
         };
         client
             .complete_authorization(&request)
             .await
             .map_err(|_| DomainError::OAuth2Error("OAuth authorization completion failed".into()))
-    }
-
-    /// Exchange only with this consumed context's redirect and private verifier.
-    ///
-    /// Temporary compatibility for v1 orchestrations awaiting their v2 migration;
-    /// never called as a fallback from `complete_authorization`.
-    ///
-    /// # Errors
-    /// Returns a generic OAuth error for a failed/unsupported PKCE exchange.
-    pub async fn exchange_code(
-        &self,
-        client: &dyn crate::port::service::FederatedOAuthClient,
-        code: &str,
-    ) -> Result<super::provider::ProviderTokens, crate::error::DomainError> {
-        client
-            .exchange_code_with_pkce(code, self.redirect_uri(), self.pkce_verifier())
-            .await
-            .map_err(|_| {
-                crate::error::DomainError::OAuth2Error("OAuth token exchange failed".into())
-            })
     }
 
     /// Obtain a callback capability only after committed writer consumption.

@@ -10,7 +10,9 @@ use iam_domain::entity::oauth_transaction::{
 };
 use iam_domain::entity::{provider::Provider, user::User, user_email::UserEmail};
 use iam_domain::error::DomainError;
-use iam_domain::port::service::FederatedOAuthClient;
+use iam_domain::port::service::{
+    AuthorizeAuthenticationRequest, FederatedOAuthClient, ProviderAuthentication,
+};
 use iam_domain::service::ProviderLinkService;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -137,13 +139,19 @@ where
             .get(&provider)
             .map_err(|_| LinkProviderError::ProviderNotConfigured(provider.as_str().to_string()))?;
         let response = client
-            .authorize_with_pkce(&redirect_uri, &state, begun.code_challenge.as_deref())
+            .authorize_authentication(&AuthorizeAuthenticationRequest {
+                redirect_uri,
+                state,
+                nonce: begun.authentication_nonce.clone(),
+                code_challenge: begun.code_challenge.clone(),
+                code_challenge_method: begun.code_challenge_method.clone(),
+            })
             .await
             .map_err(|_| LinkProviderError::AuthError("OAuth authorization failed".into()))?;
         Ok(response.authorization_url)
     }
 
-    /// Exchange authorization code for tokens and user profile
+    /// Complete authorization for tokens and user profile.
     async fn fetch_provider_profile(
         &self,
         provider: &Provider,
@@ -165,11 +173,9 @@ where
         if consumed.provider() != provider || consumed.redirect_uri() != redirect_uri {
             return Err(DomainError::InvalidToken.into());
         }
-        let tokens = consumed.exchange_code(client.as_ref(), &code).await?;
-        let profile = client
-            .user_profile(&tokens.access_token)
-            .await
-            .map_err(|_| LinkProviderError::AuthError("OAuth profile request failed".into()))?;
+        let ProviderAuthentication { tokens, profile } = consumed
+            .complete_authorization(client.as_ref(), &code)
+            .await?;
 
         Ok((tokens, profile))
     }

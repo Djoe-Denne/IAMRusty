@@ -11,7 +11,7 @@ async fn begin(
     user: Option<Uuid>,
     idp: &IdpConnectMockService,
 ) -> (String, String) {
-    idp.mock_authorize(provider).await;
+    idp.mock_authorize_authentication(provider).await;
     let mut request = client.get(format!("{base}/api/auth/{provider}/{route}"));
     if let Some(user) = user {
         let config = iam_configuration::load_config_part::<iam_configuration::JwtConfig>("jwt")

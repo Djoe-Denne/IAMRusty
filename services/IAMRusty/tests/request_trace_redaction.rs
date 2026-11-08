@@ -79,10 +79,10 @@ async fn real_request_logs_do_not_expose_credentials_raw_oauth_urls_states_or_ve
             .send().await.expect("actual credential request");
         assert_eq!(login.status(),401);
         let idp = fixtures::IdpConnectFixtures::service().await;
-        idp.mock_authorize("github").await;
+        idp.mock_authorize_authentication("github").await;
         let vendor = rustycog::testing::wiremock::get_mock_server().await;
         wiremock::Mock::given(wiremock::matchers::method("POST"))
-            .and(wiremock::matchers::path(format!("/github-connect{}",idp_connect_contract::dto::TOKEN_PATH)))
+            .and(wiremock::matchers::path(format!("/github-connect{}",idp_connect_contract::dto::COMPLETE_AUTHORIZATION_PATH)))
             .respond_with(wiremock::ResponseTemplate::new(500).set_body_string("SentinelABC-vendor-body-with-test-credential"))
             .mount(&vendor).await;
         let begin = client.get(format!("{base}/api/auth/github/login")).send().await.expect("actual BEGIN");
@@ -97,7 +97,7 @@ async fn real_request_logs_do_not_expose_credentials_raw_oauth_urls_states_or_ve
         assert_eq!(failed.status(),401);
         let body: Value = failed.json().await.expect("generic error");
         assert_eq!(body["error"]["error_code"],"authentication_failed");
-        assert_eq!(idp.received_requests().await.iter().filter(|r|r.url.path()==format!("/github-connect{}",idp_connect_contract::dto::TOKEN_PATH)).count(),1,
+        assert_eq!(idp.received_requests().await.iter().filter(|r|r.url.path()==format!("/github-connect{}",idp_connect_contract::dto::COMPLETE_AUTHORIZATION_PATH)).count(),1,
             "upstream sentinel body path must actually have been exercised");
         assert_eq!(client.get(format!("{base}/api/me")).bearer_auth("SentinelABC-invalid-bearer")
             .send().await.expect("Bearer rejection").status(),401);

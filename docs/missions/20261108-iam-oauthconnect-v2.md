@@ -29,7 +29,9 @@ E2E GitHub/GitLab réels et déploiement restent à l'autre propriétaire. L'éq
 - **Writer et migration** : unité SQL3PASS/1RED avant changement, puis **4PASS** (142filtrés). Colonne nullable additive, chaîne Migrator enregistrée, INSERT du nonce et double purge commitée implémentés ; `down` préserve la colonne et `up` est réapplicable. Tests Postgres/upgrade compilés, **non encore exécutés**. Clippy strict domaine+migration passe. Aucun SQL appliqué à un environnement de déploiement.
 - **HTTPS** : fixture existante enrichie, nominal v1 conservé, nominal v2 et refus CA/SAN/redirection compilés ; exécution finale à venir.
 
-Clippy strict `iam-infra --all-targets` reste rouge sur neuf diagnostics `dead_code` préexistants/non modifiés ; aucun allow ou masquage. Les preuves ci-dessus restent **partielles** : orchestration LOGIN/LINK/RELINK encore à transposer, IT réelles et revues finales non faites, aucun PASS global annoncé.
+Les orchestrations LOGIN/LINK/RELINK utilisent désormais authorize/complete v2, sans helper d'échange v1 ni appel de profil autonome dans leurs parcours. Leurs témoins ont atteint le RED avant correction (4LOGIN ;6LINK/RELINK), puis **87tests domaine et30application passent**, sans ignorés/filtrés. Les gardes de contexte et les blocs métier sont conservés. Clippy strict domaine+application+migration passe ; onze binaires IT compilent. Leurs exécutions réelles restent à faire.
+
+Clippy strict `iam-infra --all-targets` reste rouge sur neuf diagnostics `dead_code` préexistants/non modifiés ; aucun allow ou masquage. Les preuves ci-dessus restent **partielles** : IT réelles et revues finales non terminées, aucun PASS global annoncé. La revue sécurité producteurs/LOGIN n'a trouvé aucun finding ; son verdict statique doit encore être complété pour le delta final LINK/retrait helper.
 
 ## Livraison par dépendances
 

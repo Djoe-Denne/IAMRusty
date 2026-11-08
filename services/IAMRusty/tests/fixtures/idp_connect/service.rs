@@ -1,7 +1,10 @@
 use super::resources::{github_arthur, github_bob, gitlab_alice, success_tokens, TEST_HMAC_SECRET};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use idp_connect_contract::dto::{
-    valid_pkce_verifier, AuthorizeRequest, AuthorizeResponse, ProviderUserProfile, TokenRequest,
-    AUTHORIZE_PATH, PROFILE_PATH, TOKEN_PATH,
+    valid_pkce_verifier, AuthorizeAuthenticationRequest, AuthorizeRequest, AuthorizeResponse,
+    CompleteAuthorizationRequest, ProviderAuthentication, ProviderTokens, ProviderUserProfile,
+    TokenRequest, AUTHORIZE_AUTHENTICATION_PATH, AUTHORIZE_PATH, COMPLETE_AUTHORIZATION_PATH,
+    PROFILE_PATH, TOKEN_PATH,
 };
 use idp_connect_contract::hmac::{unix_timestamp_secs, verify, SIGNATURE_HEADER, TIMESTAMP_HEADER};
 use rustycog::testing::wiremock::MockServerFixture;
@@ -38,30 +41,135 @@ impl IdpConnectMockService {
     }
 
     pub async fn mock_github_happy_arthur(&self) -> &Self {
-        self.mock_authorize("github")
+        self.mock_authorize_authentication("github")
             .await
-            .mock_token("github")
-            .await
-            .mock_profile("github", github_arthur())
+            .mock_complete_success("github", success_tokens(), github_arthur())
             .await
     }
 
     pub async fn mock_github_happy_bob(&self) -> &Self {
-        self.mock_authorize("github")
+        self.mock_authorize_authentication("github")
             .await
-            .mock_token("github")
-            .await
-            .mock_profile("github", github_bob())
+            .mock_complete_success("github", success_tokens(), github_bob())
             .await
     }
 
     pub async fn mock_gitlab_happy_alice(&self) -> &Self {
-        self.mock_authorize("gitlab")
+        self.mock_authorize_authentication("gitlab")
             .await
-            .mock_token("gitlab")
+            .mock_complete_success("gitlab", success_tokens(), gitlab_alice())
             .await
-            .mock_profile("gitlab", gitlab_alice())
+    }
+
+    /// G2/G8: separate receipts, never count token+profile as one completion.
+    pub async fn endpoint_counts(&self) -> [usize; 5] {
+        let requests = self.received_requests().await;
+        [
+            AUTHORIZE_AUTHENTICATION_PATH,
+            COMPLETE_AUTHORIZATION_PATH,
+            AUTHORIZE_PATH,
+            TOKEN_PATH,
+            PROFILE_PATH,
+        ]
+        .map(|suffix| {
+            requests
+                .iter()
+                .filter(|request| request.url.path().ends_with(suffix))
+                .count()
+        })
+    }
+
+    pub async fn mock_authorize_authentication(&self, slug: &str) -> &Self {
+        self.mock_authorize_observed(slug, |_| {}).await
+    }
+
+    /// Observe durable BEGIN from a test-local closure before returning authorize.
+    pub async fn mock_authorize_observed<F>(&self, slug: &str, observe: F) -> &Self
+    where
+        F: Fn(&AuthorizeAuthenticationRequest) + Send + Sync + 'static,
+    {
+        let slug = slug.to_owned();
+        let full_path = format!("/{slug}-connect{AUTHORIZE_AUTHENTICATION_PATH}");
+        Mock::given(method("POST"))
+            .and(path(full_path))
+            .respond_with(move |request: &Request| {
+                if !hmac_ok(request) {
+                    return ResponseTemplate::new(401);
+                }
+                let Ok(body) =
+                    serde_json::from_slice::<AuthorizeAuthenticationRequest>(&request.body)
+                else {
+                    return ResponseTemplate::new(400);
+                };
+                if !canonical_nonce(&body.nonce) {
+                    return ResponseTemplate::new(400);
+                }
+                observe(&body);
+                authorize_response(
+                    &slug,
+                    AuthorizeRequest {
+                        redirect_uri: body.redirect_uri,
+                        state: body.state,
+                        code_challenge: body.code_challenge,
+                        code_challenge_method: body.code_challenge_method,
+                    },
+                )
+            })
+            .mount(&self.server)
+            .await;
+        self
+    }
+
+    pub async fn mock_complete_success(
+        &self,
+        slug: &str,
+        tokens: ProviderTokens,
+        profile: ProviderUserProfile,
+    ) -> &Self {
+        let authentication = ProviderAuthentication { tokens, profile };
+        self.mock_complete_with(slug, move |_| {
+            ResponseTemplate::new(200).set_body_json(&authentication)
+        })
+        .await
+    }
+
+    /// Refusal is atomic: there is no preliminary token response or profile fallback.
+    pub async fn mock_complete_failure(&self, slug: &str, status: u16) -> &Self {
+        self.mock_complete_with(slug, move |_| ResponseTemplate::new(status))
             .await
+    }
+
+    /// G2/G5: inspect committed storage before releasing the network result.
+    /// Call reset before overriding an already mounted response (first match wins).
+    pub async fn mock_complete_with<F>(&self, slug: &str, respond: F) -> &Self
+    where
+        F: Fn(&CompleteAuthorizationRequest) -> ResponseTemplate + Send + Sync + 'static,
+    {
+        let full_path = format!("/{slug}-connect{COMPLETE_AUTHORIZATION_PATH}");
+        Mock::given(method("POST"))
+            .and(path(full_path))
+            .respond_with(move |request: &Request| {
+                if !hmac_ok(request) {
+                    return ResponseTemplate::new(401);
+                }
+                let Ok(body) =
+                    serde_json::from_slice::<CompleteAuthorizationRequest>(&request.body)
+                else {
+                    return ResponseTemplate::new(400);
+                };
+                if !canonical_nonce(&body.expected_nonce)
+                    || body
+                        .code_verifier
+                        .as_deref()
+                        .is_some_and(|value| !valid_pkce_verifier(value))
+                {
+                    return ResponseTemplate::new(400);
+                }
+                respond(&body)
+            })
+            .mount(&self.server)
+            .await;
+        self
     }
 
     pub async fn mock_authorize(&self, slug: &str) -> &Self {
@@ -184,6 +292,16 @@ fn authorize_ok(slug: &str, request: &Request) -> ResponseTemplate {
     let Ok(body) = serde_json::from_slice::<AuthorizeRequest>(&request.body) else {
         return ResponseTemplate::new(401);
     };
+    authorize_response(slug, body)
+}
+
+fn canonical_nonce(nonce: &str) -> bool {
+    URL_SAFE_NO_PAD
+        .decode(nonce)
+        .is_ok_and(|bytes| bytes.len() == 32 && URL_SAFE_NO_PAD.encode(bytes) == nonce)
+}
+
+fn authorize_response(slug: &str, body: AuthorizeRequest) -> ResponseTemplate {
     let Ok(challenge) = body.pkce_challenge() else {
         return ResponseTemplate::new(400);
     };

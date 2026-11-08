@@ -497,7 +497,7 @@ async fn test_oauth_callback_fails_on_invalid_authorization_code() {
 
         // Setup GitHub mock server to return error for invalid code
         let idp = IdpConnectFixtures::service().await;
-        idp.mock_s2s_unauthorized("github", "/v1/token").await;
+        idp.mock_complete_failure("github", 401).await;
 
         // Create valid state
         let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
@@ -568,7 +568,7 @@ async fn test_oauth_callback_fails_on_expired_authorization_code() {
 
         // Setup GitHub mock server to return error for expired code
         let idp = IdpConnectFixtures::service().await;
-        idp.mock_s2s_unauthorized("github", "/v1/token").await; // Using invalid_code as expired_code may not exist
+        idp.mock_complete_failure("github", 401).await;
 
         // Create valid state
         let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
@@ -799,10 +799,11 @@ async fn test_oauth_callback_returns_401_when_provider_refuses_user() {
     fixture_cleanup::run(&fixture, async {
         let db = fixture.db();
 
-        // Setup GitHub mock server to return successful token exchange but unauthorized user profile
+        // G5: the legacy profile refusal is now an atomic complete refusal.
+        // Keep the historical 401/authentication_failed browser oracle; if the
+        // phase mapping changes it needs explicit review, not a partial profile.
         let idp = IdpConnectFixtures::service().await;
-        idp.mock_token("github").await;
-        idp.mock_profile_status("github", 401).await;
+        idp.mock_complete_failure("github", 401).await;
 
         // Create valid state
         let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
@@ -871,10 +872,10 @@ async fn test_oauth_callback_returns_401_when_provider_rejects_user() {
     fixture_cleanup::run(&fixture, async {
         let db = fixture.db();
 
-        // Setup GitHub mock server to simulate provider rejection (e.g., account suspended)
+        // G5: v2 refuses authentication as a whole (e.g. account suspended).
+        // Historical browser status/code assertions below are intentionally kept.
         let idp = IdpConnectFixtures::service().await;
-        idp.mock_token("github").await;
-        idp.mock_profile_status("github", 401).await; // Using unauthorized as account_suspended may not exist
+        idp.mock_complete_failure("github", 401).await;
 
         // Create valid state
         let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
@@ -1045,7 +1046,7 @@ async fn oauth_callback_connector_401_is_iam_error() {
         .expect("Failed to setup test server");
     fixture_cleanup::run(&fixture, async {
         let idp = IdpConnectFixtures::service().await;
-        idp.mock_s2s_unauthorized("github", "/v1/token").await;
+        idp.mock_complete_failure("github", 401).await;
 
         let (state, cookie) = browser_flow::login(&client, &base_url, "github", &idp).await;
         let response = client

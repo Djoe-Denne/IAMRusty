@@ -107,7 +107,7 @@ async fn published_organization_signer_with_victim_sub_cannot_me_link_or_relink(
             200
         );
         let idp = IdpConnectFixtures::service().await;
-        idp.mock_authorize("github").await;
+        idp.mock_authorize_authentication("github").await;
         let before = idp.received_requests().await.len();
         for route in ["me", "auth/github/link", "auth/github/relink-start"] {
             let response = client

@@ -190,6 +190,8 @@ Chaque preuve consigne sélection/nombre de tests, code de sortie, oracle observ
 
 ## Registre final groupé — rares/ambigus rouges et décisions utilisateur
 
+GREEN intermédiaire orchestration complète : **87domain+30application PASS**, sans échec/ignoré/filtré ; les14cas LINK/RELINK passent après6RED/8PASS. Clippy strict domaine+application+migration passe, fmt passe. Onze binaires IT (les10retenus et request_trace_redaction directement adapté) compilent, **aucun encore exécuté**. Browser/fixtures v2 intégrés ; correction de syntaxe par l'auteur avant compilation, aucun oracle métier changé. Revue sécurité producteurs+LOGIN sans finding ; delta final LINK/helper doit encore être revu.
+
 RED intermédiaire LINK/RELINK : **8PASS/6FAIL/0ignoré/16filtrés** après compilation. Quatre START±PKCE et deux refus complete constatent v2absent ; huit gardes opération/cible/provider/redirect passent avec les deux clients effectivement enregistrés. Ces échecs contractuels ne sont pas des rouges rares à supprimer.
 
 GREEN intermédiaire LOGIN : **87tests domaine PASS/0échec/0ignoré/0filtré**, dont les4oracles LOGIN précédemment rouges, fmt et Clippy strict all-targets passent. LINK/RELINK et navigateur ne sont pas encore qualifiés ; la façade de types v2 est intégrée et compile pour permettre leurs témoins sans dépendance nouvelle.

@@ -41,7 +41,7 @@ async fn test_generate_relink_provider_start_url_github_success() {
         let token = relink_bearer(fixture.db()).await;
 
         let idp = IdpConnectFixtures::service().await;
-        idp.mock_authorize("github").await;
+        idp.mock_authorize_authentication("github").await;
 
         // Make request to generate GitHub relink start URL
         let response = client
@@ -103,7 +103,7 @@ async fn test_generate_relink_provider_start_url_gitlab_success() {
         let token = relink_bearer(fixture.db()).await;
 
         let idp = IdpConnectFixtures::service().await;
-        idp.mock_authorize("gitlab").await;
+        idp.mock_authorize_authentication("gitlab").await;
 
         // Make request to generate GitLab relink start URL
         let response = client

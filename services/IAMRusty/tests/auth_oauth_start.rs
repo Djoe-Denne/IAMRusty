@@ -616,7 +616,7 @@ async fn oauth_start_connector_401_is_not_redirect() {
         .await
         .expect("Failed to setup test server");
     let idp = IdpConnectFixtures::service().await;
-    idp.mock_s2s_unauthorized("github", "/v1/authorize").await;
+    idp.mock_s2s_unauthorized("github", "/v2/authorize").await;
 
     let response = client
         .get(format!("{base_url}/api/auth/github/login"))
