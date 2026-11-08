@@ -12,8 +12,10 @@ use axum::{
 use base64::Engine;
 use idp_connect_contract::{
     dto::{
-        AuthorizeRequest, AuthorizeResponse, ProfileRequest, TokenRequest, AUTHORIZE_PATH,
-        PROFILE_PATH, TOKEN_PATH,
+        AuthorizeAuthenticationRequest, AuthorizeRequest, AuthorizeResponse,
+        CompleteAuthorizationRequest, ProfileRequest, ProviderAuthentication, TokenRequest,
+        AUTHORIZE_AUTHENTICATION_PATH, AUTHORIZE_PATH, COMPLETE_AUTHORIZATION_PATH, PROFILE_PATH,
+        TOKEN_PATH,
     },
     hmac::{unix_timestamp_secs, verify, SIGNATURE_HEADER, TIMESTAMP_HEADER},
 };
@@ -32,6 +34,8 @@ use std::{
 pub const HMAC_SECRET: &str = "SentinelABC-isolated-HMAC-fixture-secret";
 pub const VERIFIER: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ";
 pub const STATE: &str = "SentinelABC-nonsecret-protocol-state";
+// Canonical base64url encoding of 32 zero bytes, independent of state and PKCE.
+pub const NONCE: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 pub const REDIRECT_URI: &str = "https://iam.example/iam/api/auth/github/callback";
 
 #[derive(Clone, Default)]
@@ -40,6 +44,8 @@ pub struct Receipts {
     pub authorize: usize,
     pub token: usize,
     pub profile: usize,
+    pub authorize_authentication: usize,
+    pub complete_authorization: usize,
 }
 struct Protocol {
     requests: AtomicUsize,
@@ -114,6 +120,12 @@ async fn protocol(
         )
             .into_response();
     }
+    if uri.path() == format!("/connect{AUTHORIZE_AUTHENTICATION_PATH}") {
+        return authentication_authorize(&state, &body);
+    }
+    if uri.path() == format!("/connect{COMPLETE_AUTHORIZATION_PATH}") {
+        return authentication_complete(&state, &body);
+    }
     if uri.path() == format!("/connect{AUTHORIZE_PATH}") {
         let Ok(request) = serde_json::from_slice::<AuthorizeRequest>(&body) else {
             return StatusCode::BAD_REQUEST.into_response();
@@ -167,6 +179,67 @@ async fn protocol(
         return Json(crate::fixtures::idp_connect::resources::github_arthur()).into_response();
     }
     StatusCode::NOT_FOUND.into_response()
+}
+
+fn authentication_authorize(state: &Protocol, body: &[u8]) -> Response {
+    let Ok(request) = serde_json::from_slice::<AuthorizeAuthenticationRequest>(body) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    // Inspect the actual wire object too: serde DTOs intentionally ignore unknown fields.
+    let Ok(wire) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    if request.state != STATE
+        || request.redirect_uri != REDIRECT_URI
+        || request.nonce != NONCE
+        || request.code_challenge.as_deref() != Some(state.challenge.as_str())
+        || request.code_challenge_method.as_deref() != Some("S256")
+        || wire.get("code_verifier").is_some()
+        || wire.get("slug").is_some()
+    {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    state
+        .receipts
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .authorize_authentication += 1;
+    let mut url =
+        url::Url::parse("https://provider.example/authorize").expect("fixed nonsecret vendor URL");
+    url.query_pairs_mut()
+        .append_pair("state", STATE)
+        .append_pair("redirect_uri", REDIRECT_URI)
+        .append_pair("nonce", NONCE)
+        .append_pair("code_challenge", &state.challenge)
+        .append_pair("code_challenge_method", "S256");
+    Json(AuthorizeResponse {
+        authorization_url: url.to_string(),
+        scope: "profile".into(),
+    })
+    .into_response()
+}
+
+fn authentication_complete(state: &Protocol, body: &[u8]) -> Response {
+    let Ok(request) = serde_json::from_slice::<CompleteAuthorizationRequest>(body) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    if request.code != "fixed-test-code"
+        || request.redirect_uri != REDIRECT_URI
+        || request.code_verifier.as_deref() != Some(VERIFIER)
+        || request.expected_nonce != NONCE
+    {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    state
+        .receipts
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .complete_authorization += 1;
+    Json(ProviderAuthentication {
+        tokens: crate::fixtures::idp_connect::resources::success_tokens(),
+        profile: crate::fixtures::idp_connect::resources::github_arthur(),
+    })
+    .into_response()
 }
 
 pub struct VerifiedIdpTls {
@@ -223,6 +296,14 @@ impl VerifiedIdpTls {
             challenge,
         });
         let router = Router::new()
+            .route(
+                &format!("/connect{AUTHORIZE_AUTHENTICATION_PATH}"),
+                post(protocol),
+            )
+            .route(
+                &format!("/connect{COMPLETE_AUTHORIZATION_PATH}"),
+                post(protocol),
+            )
             .route(&format!("/connect{AUTHORIZE_PATH}"), post(protocol))
             .route(&format!("/connect{TOKEN_PATH}"), post(protocol))
             .route(&format!("/connect{PROFILE_PATH}"), post(protocol))
@@ -277,7 +358,7 @@ impl VerifiedIdpTls {
     }
     pub fn redirect_to(&self, other: &Self) {
         *self.state.redirect.lock().expect("redirect lock") =
-            Some(format!("{}{AUTHORIZE_PATH}", other.uri()));
+            Some(format!("{}{AUTHORIZE_AUTHENTICATION_PATH}", other.uri()));
     }
     pub async fn shutdown(&mut self) -> anyhow::Result<()> {
         let _ = self.stop.send(true);
