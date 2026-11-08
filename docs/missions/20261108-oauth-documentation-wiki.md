@@ -48,3 +48,11 @@ L'aperçu de l'HTML actuel est ouvert dans le panneau Review. Le navigateur atta
 ## Limite de recherche indexée
 
 La distillation est écrite dans les fichiers versionnés du wiki. **Le rafraîchissement de l'index QMD n'est pas exécuté** : la CLI installée `qmd update` parcourt toutes les collections et efface un cache ; le SDK public filtre les collections mais appelle également `internal.clearCache()`. Ces opérations ne respectent pas le contrat local interdisant `clear_cache` et les changements globaux. Aucun contournement interne, changement de modèle ou de configuration n'est ajouté pour forcer un succès. La recherche indexée peut donc rester en retard sur ces fichiers ; une méthode compatible ou un arbitrage explicite est nécessaire pour ce refresh, sans remettre en cause les pages conservées.
+
+## Publication et nettoyage vérifiés
+
+Livrables publiés en **`d0c4b0820b4f0a52ac68038e59773313def29552`**, `origin/master` recoupé identique par `git ls-remote`. Sept nouvelles pages wiki et actualisations ciblées ;37fichiers documentaires conservés, aucun code applicatif/SDK/config déployée modifié. `git diff --check` et le validateur documentaire passent dans la portée ci-dessus ; les tests antérieurs ne sont pas réexécutés pour ce lot.
+
+Les neuf fichiers du worktree auteur sont recoupés byte-identiques aux livrables publiés et à une sauvegarde récupérable avec tailles/SHA, puis alignés sur ce HEAD. Ancêtre commun vérifié, aucun commit worker hors intégration ; retrait natif du worktree sans force. Git, dossier physique et inventaire OpenCode confirment ensuite **le seul checkout principal, branche master, arbre propre**. Le pin SDK reste `93b890ff7b821e9cb2e7d0aeb81957d098778a2f`. Les trois feuilles directes ont terminé ; aucune équipe Ensemble n'a été créée ou ne demande d'archivage.
+
+Zéro runtime ou ressource Docker créé/redémarré par la mission ; registre de création non applicable. Les ressources conservées sur demande lors du lot précédent restent intactes. Aucun Cargo actif observé à la clôture. Cette note de publication/nettoyage est enregistrée dans un commit documentaire ultérieur ; elle ne transforme ni le rendu navigateur/PDF inconclusif ni le refresh QMD non exécuté en PASS.
