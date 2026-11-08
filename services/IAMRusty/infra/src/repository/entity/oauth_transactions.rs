@@ -13,6 +13,8 @@ pub struct Model {
     pub target_user_id: Option<Uuid>,
     pub redirect_uri: String,
     pub pkce_verifier: Option<String>,
+    /// Nullable additive column (OAuthConnect v2); populated once the additive migration lands.
+    pub authentication_nonce: Option<String>,
     pub expires_at: DateTimeWithTimeZone,
     pub consumed_at: Option<DateTimeWithTimeZone>,
 }

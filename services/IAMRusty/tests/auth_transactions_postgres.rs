@@ -57,6 +57,7 @@ fn transaction() -> OAuthTransaction {
         expires_at: chrono::Utc::now().timestamp() + 600,
         consumed_at: None,
         pkce_verifier: Some("fixed-test-verifier-not-a-live-credential".into()),
+        authentication_nonce: None,
     }
 }
 fn consume(record: &OAuthTransaction) -> ConsumeOAuthTransaction {

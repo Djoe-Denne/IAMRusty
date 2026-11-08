@@ -100,6 +100,9 @@ impl OAuthTransactionWriteRepository for SeaOrmOAuthTransactionWriteRepository {
             expires_at: input.expires_at,
             consumed_at: Some(chrono::Utc::now().timestamp()),
             pkce_verifier: verifier,
+            // PROVISIONAL v2 scaffold: the SELECT FOR UPDATE projection does not read
+            // authentication_nonce yet; the v2 callback adds it to the projection.
+            authentication_nonce: None,
         };
         tx.commit().await.map_err(storage_error)?;
         Ok(Some(transaction))
@@ -185,6 +188,7 @@ mod tests {
             target_user_id: None,
             redirect_uri: "https://iam.example/callback".into(),
             pkce_verifier: Some("unit-pkce-verifier".into()),
+            authentication_nonce: None,
             expires_at: chrono::DateTime::from_timestamp(expires, 0)
                 .unwrap()
                 .fixed_offset(),

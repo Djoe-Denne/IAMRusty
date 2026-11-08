@@ -61,10 +61,20 @@ pub struct BeginOAuthTransaction {
     pub pkce_required: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BegunOAuthTransaction {
     pub code_challenge: Option<String>,
     pub code_challenge_method: Option<String>,
+    /// Original provider authentication nonce (OAuthConnect v2).
+    pub authentication_nonce: String,
+}
+
+/// Manual redacted Debug: the authentication nonce must never reach logs,
+/// including when this type is nested inside a command (contract §2).
+impl std::fmt::Debug for BegunOAuthTransaction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("BegunOAuthTransaction([redacted])")
+    }
 }
 
 #[derive(Clone)]
@@ -90,6 +100,8 @@ pub struct OAuthTransaction {
     pub expires_at: i64,
     pub consumed_at: Option<i64>,
     pub pkce_verifier: Option<String>,
+    /// `None` only for pre-migration/legacy rows; a BEGIN v2 success persists `Some`.
+    pub authentication_nonce: Option<String>,
 }
 
 /// Only constructed after a committed consume. Fields are private; neither a query
@@ -203,11 +215,17 @@ impl OAuthTransaction {
             expires_at: input.expires_at,
             consumed_at: None,
             pkce_verifier: verifier,
+            // PROVISIONAL v2 scaffold: BEGIN does not generate the authentication
+            // nonce yet; this must become Some(canonical nonce) with the v2 BEGIN.
+            authentication_nonce: None,
         };
         repository.create(&transaction).await?;
         Ok(BegunOAuthTransaction {
             code_challenge: challenge,
             code_challenge_method: input.pkce_required.then(|| "S256".to_string()),
+            // PROVISIONAL v2 scaffold: empty until v2 BEGIN generates and persists the
+            // nonce; intentionally fails future nonce oracles (RED, not GREEN).
+            authentication_nonce: String::new(),
         })
     }
 
@@ -274,6 +292,7 @@ mod tests {
                 expires_at: tx.expires_at,
                 consumed_at: None,
                 pkce_verifier: tx.pkce_verifier.clone(),
+                authentication_nonce: tx.authentication_nonce.clone(),
             };
             let mut slot = self.0.lock().unwrap();
             *slot = Some(stored);

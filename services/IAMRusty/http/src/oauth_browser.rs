@@ -372,6 +372,7 @@ mod tests {
                     expires_at: tx.expires_at,
                     consumed_at: tx.consumed_at,
                     pkce_verifier: tx.pkce_verifier.clone(),
+                    authentication_nonce: tx.authentication_nonce.clone(),
                 },
             );
             drop(rows);
@@ -611,10 +612,12 @@ mod tests {
         let required = BegunOAuthTransaction {
             code_challenge: Some(challenge.clone()),
             code_challenge_method: Some("S256".into()),
+            authentication_nonce: String::new(),
         };
         let absent = BegunOAuthTransaction {
             code_challenge: None,
             code_challenge_method: None,
+            authentication_nonce: String::new(),
         };
         let plain = url::Url::parse("https://vendor/authorize?state=opaque").unwrap();
         assert!(validate_authorization_pkce(&plain, &required).is_err());

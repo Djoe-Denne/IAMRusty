@@ -490,6 +490,7 @@ mod missing_client_tests {
                 &crate::entity::oauth_transaction::BegunOAuthTransaction {
                     code_challenge: None,
                     code_challenge_method: None,
+                    authentication_nonce: String::new(),
                 },
             )
             .await
