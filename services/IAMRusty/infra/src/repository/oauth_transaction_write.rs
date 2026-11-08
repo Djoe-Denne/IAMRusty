@@ -115,6 +115,9 @@ mod tests {
     use iam_domain::entity::oauth_transaction::OAuthOperation;
     use sea_orm::{MockDatabase, MockExecResult};
 
+    // G-2: canonical base64url encoding of 32 zero octets (test data only).
+    const AUTHENTICATION_NONCE: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
     #[tokio::test]
     async fn purge_rejects_invalid_cap_before_any_sql() {
         let db = Arc::new(MockDatabase::new(DbBackend::Postgres).into_connection());
@@ -188,7 +191,7 @@ mod tests {
             target_user_id: None,
             redirect_uri: "https://iam.example/callback".into(),
             pkce_verifier: Some("unit-pkce-verifier".into()),
-            authentication_nonce: None,
+            authentication_nonce: Some(AUTHENTICATION_NONCE.into()),
             expires_at: chrono::DateTime::from_timestamp(expires, 0)
                 .unwrap()
                 .fixed_offset(),
@@ -218,6 +221,10 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(result.pkce_verifier.as_deref(), Some("unit-pkce-verifier"));
+        assert!(
+            result.authentication_nonce.as_deref() == Some(AUTHENTICATION_NONCE),
+            "G-2: committed consume must return the original durable nonce"
+        );
         assert!(result.consumed_at.is_some());
         drop(repository);
         let transactions = Arc::try_unwrap(db).unwrap().into_transaction_log();
@@ -227,8 +234,39 @@ mod tests {
         assert!(log.contains("browser_nonce_hash"));
         assert!(log.contains("consumed_at IS NULL"));
         assert!(log.contains("clock_timestamp()"));
-        assert!(log.contains("pkce_verifier=NULL"));
-        assert!(log.contains("COMMIT"));
+        let normalized: String = log
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .flat_map(char::to_uppercase)
+            .collect();
+        let projection = normalized
+            .split("SELECT")
+            .nth(1)
+            .expect("G-2: locked SELECT")
+            .split_once("FROMOAUTH_TRANSACTIONS")
+            .expect("G-2: locked secret projection")
+            .0;
+        assert!(projection.contains("AUTHENTICATION_NONCE"));
+        assert!(projection.contains("PKCE_VERIFIER"));
+        assert!(!normalized.contains("AUTHENTICATION_NONCEISNOTNULL"));
+        let update = normalized
+            .find("UPDATEOAUTH_TRANSACTIONSSET")
+            .expect("G-2: consume updates the locked row");
+        let update_sql = normalized[update..]
+            .split_once("WHEREID=$1")
+            .expect("G-2: purge is scoped to the locked row id")
+            .0;
+        assert!(update_sql.contains("CONSUMED_AT=CLOCK_TIMESTAMP()"));
+        assert!(update_sql.contains("PKCE_VERIFIER=NULL"));
+        assert!(update_sql.contains("AUTHENTICATION_NONCE=NULL"));
+        assert!(
+            update
+                < normalized
+                    .find("COMMIT")
+                    .expect("G-2: commit before return"),
+            "G-2: double purge must precede the recorded commit"
+        );
         assert!(!log.contains("unit-pkce-verifier"));
+        assert!(!log.contains(AUTHENTICATION_NONCE));
     }
 }

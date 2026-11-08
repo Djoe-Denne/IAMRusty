@@ -14,7 +14,8 @@ use fixtures::DbFixtures;
 use iam_domain::{
     entity::{
         oauth_transaction::{
-            ConsumeOAuthTransaction, OAuthOperation, OAuthTransaction, OAuthTransactionError,
+            ConsumeOAuthTransaction, ConsumedOAuthTransaction, OAuthOperation, OAuthTransaction,
+            OAuthTransactionError,
         },
         provider::Provider,
         token::RefreshToken,
@@ -32,6 +33,154 @@ use sea_orm::{ConnectionTrait, DatabaseBackend, DbErr, Statement, TransactionTra
 use serial_test::serial;
 use std::sync::Arc;
 use uuid::Uuid;
+
+// G-2/G-3: canonical base64url encoding of 32 zero octets, not a live secret.
+const AUTHENTICATION_NONCE: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
+// G-3: reuse RustyCog's DB/container ownership without starting an IAM app or
+// resetting the shared database. The test migrates a fresh owned schema below.
+struct UpgradeDatabaseDescriptor;
+
+#[async_trait::async_trait]
+impl common::ServiceTestDescriptor<common::TestFixture> for UpgradeDatabaseDescriptor {
+    type Config = iam_configuration::AppConfig;
+
+    async fn build_app(
+        &self,
+        _config: Self::Config,
+        _server: iam_configuration::ServerConfig,
+    ) -> anyhow::Result<()> {
+        anyhow::bail!("upgrade fixture must not build the service app")
+    }
+
+    async fn run_app(
+        &self,
+        _config: Self::Config,
+        _server: iam_configuration::ServerConfig,
+    ) -> anyhow::Result<()> {
+        anyhow::bail!("upgrade fixture must not start the service app")
+    }
+
+    async fn run_migrations_up(&self, _db: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+        // The test invokes the real registered Migrator inside its fresh schema.
+        Ok(())
+    }
+
+    async fn run_migrations_down(&self, _db: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+        // TestDatabase calls this unconditionally: never reset to fake a preimage.
+        Ok(())
+    }
+
+    fn has_db(&self) -> bool {
+        true
+    }
+    fn has_sqs(&self) -> bool {
+        false
+    }
+    fn has_openfga(&self) -> bool {
+        false
+    }
+}
+
+async fn upgrade_snapshot(db: &impl ConnectionTrait, remove_nonce: bool) -> String {
+    let transaction_projection = if remove_nonce {
+        "to_jsonb(t)-'authentication_nonce'"
+    } else {
+        "to_jsonb(t)"
+    };
+    let sql = format!(
+        "SELECT jsonb_build_object(
+            'transactions',(SELECT jsonb_agg({transaction_projection} ORDER BY id) FROM oauth_transactions t),
+            'users',(SELECT jsonb_agg(to_jsonb(u) ORDER BY id) FROM users u),
+            'tokens',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM provider_tokens p),
+            'emails',(SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM user_emails e)
+        )::text AS snapshot"
+    );
+    db.query_one(Statement::from_string(DatabaseBackend::Postgres, sql))
+        .await
+        .expect("G-3: snapshot fixture-owned rows")
+        .expect("snapshot row")
+        .try_get("", "snapshot")
+        .expect("snapshot text")
+}
+
+async fn schema_integrity_snapshot(db: &impl ConnectionTrait) -> String {
+    let row = db.query_one(Statement::from_string(DatabaseBackend::Postgres,
+        "SELECT jsonb_build_object(
+            'indexes',(SELECT jsonb_agg(indexdef ORDER BY tablename,indexname) FROM pg_indexes WHERE schemaname=current_schema()),
+            'constraints',(SELECT jsonb_agg(jsonb_build_array(c.relname,k.conname,pg_get_constraintdef(k.oid)) ORDER BY c.relname,k.conname)
+                FROM pg_constraint k JOIN pg_class c ON c.oid=k.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=current_schema())
+        )::text AS snapshot".to_owned()))
+        .await.expect("G-3: schema integrity snapshot").expect("schema snapshot row");
+    row.try_get("", "snapshot").expect("schema snapshot text")
+}
+
+// G-3: exercises registration, not a hand-written ALTER or initial-schema copy.
+#[tokio::test]
+#[serial]
+async fn registered_upgrade_preserves_legacy_transactions_accounts_and_constraints() {
+    use iammigration::{Migrator, MigratorTrait};
+    let fixture = common::TestFixture::new(Arc::new(UpgradeDatabaseDescriptor))
+        .await
+        .expect("owned DB fixture without service app or automatic reset");
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
+        let tx = db.begin().await.expect("owned upgrade schema transaction");
+        let schema = format!("test_nonce_upgrade_{}", Uuid::new_v4().simple());
+        tx.execute_unprepared(&format!("CREATE SCHEMA {schema}; SET LOCAL search_path TO {schema}"))
+            .await.expect("fresh schema, not a reset of an existing database");
+        Migrator::up(&tx, Some(1)).await.expect("registered initial migration only");
+        let before_column = tx.query_one(Statement::from_string(DatabaseBackend::Postgres,
+            "SELECT COUNT(*) AS total FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='oauth_transactions' AND column_name='authentication_nonce'".to_owned()))
+            .await.expect("pre-upgrade column query").expect("column count row");
+        assert_eq!(before_column.try_get::<i64>("", "total").expect("column count"), 0,
+            "G-3: initial migration must remain the real preimage without the nonce column");
+        let user = Uuid::new_v4();
+        tx.execute(Statement::from_sql_and_values(DatabaseBackend::Postgres,
+            "INSERT INTO users(id,username) VALUES ($1,'upgrade-fixture-user')", [user.into()]))
+            .await.expect("legacy user sentinel");
+        tx.execute(Statement::from_sql_and_values(DatabaseBackend::Postgres,
+            "INSERT INTO provider_tokens(user_id,provider,provider_user_id,access_token,refresh_token) VALUES ($1,'github','000042','upgrade-fixture-access','upgrade-fixture-refresh')", [user.into()]))
+            .await.expect("legacy identity/token sentinel");
+        tx.execute(Statement::from_sql_and_values(DatabaseBackend::Postgres,
+            "INSERT INTO user_emails(user_id,email,is_primary,is_verified) VALUES ($1,'upgrade-fixture@example.test',true,true)", [user.into()]))
+            .await.expect("legacy email sentinel");
+        tx.execute(Statement::from_sql_and_values(DatabaseBackend::Postgres,
+            "INSERT INTO oauth_transactions(id,nonce_hash,state_hash,browser_nonce_hash,provider,operation,target_user_id,redirect_uri,pkce_verifier,expires_at,consumed_at)
+             SELECT gen_random_uuid(),decode(repeat(lpad(to_hex(n),2,'0'),32),'hex'),decode(repeat(lpad(to_hex(n+32),2,'0'),32),'hex'),decode(repeat(lpad(to_hex(n+64),2,'0'),32),'hex'),
+                'github',CASE n%3 WHEN 1 THEN 'login' WHEN 2 THEN 'link' ELSE 'relink' END,
+                CASE WHEN n%3=1 THEN NULL ELSE $1::uuid END,'https://iam.example.test/callback',
+                CASE WHEN n>3 THEN NULL ELSE 'upgrade-fixture-verifier' END,
+                NOW()+CASE WHEN n%2=0 THEN INTERVAL '-1 minute' ELSE INTERVAL '5 minutes' END,
+                CASE WHEN n>3 THEN NOW() ELSE NULL END FROM generate_series(1,6) n", [user.into()]))
+            .await.expect("legacy login/link/relink active/expired/consumed rows");
+        let before = upgrade_snapshot(&tx, false).await;
+        let integrity = schema_integrity_snapshot(&tx).await;
+        Migrator::up(&tx, None).await.expect("apply pending registered additive migration");
+        assert!(before == upgrade_snapshot(&tx, true).await,
+            "G-3: upgrade must preserve UUIDs, links, tokens, emails and all legacy transaction values");
+        assert!(integrity == schema_integrity_snapshot(&tx).await,
+            "G-3: upgrade must preserve existing indexes and constraints");
+        let column = tx.query_one(Statement::from_string(DatabaseBackend::Postgres,
+            "SELECT data_type,is_nullable,column_default FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='oauth_transactions' AND column_name='authentication_nonce'".to_owned()))
+            .await.expect("upgraded column metadata").expect("G-3: registered migration added nonce");
+        assert_eq!(column.try_get::<String>("", "data_type").expect("type"), "text");
+        assert_eq!(column.try_get::<String>("", "is_nullable").expect("nullable"), "YES");
+        assert!(column.try_get::<Option<String>>("", "column_default").expect("default").is_none());
+        let rows = tx.query_one(Statement::from_string(DatabaseBackend::Postgres,
+            "SELECT COUNT(*) AS total,COUNT(*) FILTER (WHERE authentication_nonce IS NULL) AS legacy_null FROM oauth_transactions".to_owned()))
+            .await.expect("upgrade rows").expect("count row");
+        assert_eq!(rows.try_get::<i64>("", "total").expect("rows"), 6);
+        assert_eq!(rows.try_get::<i64>("", "legacy_null").expect("NULL rows"), 6);
+        let history = tx.query_one(Statement::from_string(DatabaseBackend::Postgres,
+            "SELECT COUNT(*) AS total FROM seaql_migrations".to_owned()))
+            .await.expect("real migration history").expect("history count");
+        let migration_count = i64::try_from(Migrator::migrations().len()).expect("migration count fits");
+        assert!(migration_count >= 2, "G-3: an additive migration must follow the initial schema");
+        assert_eq!(history.try_get::<i64>("", "total").expect("applied migrations"), migration_count);
+        tx.rollback().await.expect("remove only this fixture-owned transactional schema");
+    }).await;
+}
 
 fn refresh(user: Uuid) -> RefreshToken {
     RefreshToken {
@@ -57,7 +206,7 @@ fn transaction() -> OAuthTransaction {
         expires_at: chrono::Utc::now().timestamp() + 600,
         consumed_at: None,
         pkce_verifier: Some("fixed-test-verifier-not-a-live-credential".into()),
-        authentication_nonce: None,
+        authentication_nonce: Some(AUTHENTICATION_NONCE.into()),
     }
 }
 fn consume(record: &OAuthTransaction) -> ConsumeOAuthTransaction {
@@ -135,6 +284,12 @@ async fn e3_consume_uses_writer_lock_one_committed_capability_and_erases_db_veri
     let record = transaction();
     writer.create(&record).await.expect("real transaction");
     let separate = writer_barrier::independent_writer(db.as_ref()).await;
+    let persisted = separate.query_one(Statement::from_sql_and_values(DatabaseBackend::Postgres,
+        "SELECT authentication_nonce=$2 AS nonce_matches, pkce_verifier=$3 AS verifier_matches FROM oauth_transactions WHERE id=$1",
+        [record.id.into(), AUTHENTICATION_NONCE.into(), record.pkce_verifier.clone().into()]))
+        .await.expect("G-2: independent durable BEGIN read").expect("persisted transaction");
+    assert!(persisted.try_get::<bool>("", "nonce_matches").expect("durable nonce"));
+    assert!(persisted.try_get::<bool>("", "verifier_matches").expect("durable verifier"));
     let (held, holder) = writer_barrier::hold(&separate, "oauth_transactions", record.id).await;
     let mut tasks = Vec::new();
     for _ in 0..2 {
@@ -158,11 +313,18 @@ async fn e3_consume_uses_writer_lock_one_committed_capability_and_erases_db_veri
         usize::from(first.is_some()) + usize::from(second.is_some()),
         1
     );
-    let row = db.query_one(Statement::from_sql_and_values(DatabaseBackend::Postgres,
-        "SELECT consumed_at IS NOT NULL AS consumed, pkce_verifier IS NULL AS erased FROM oauth_transactions WHERE id=$1", [record.id.into()]))
+    let winner = first.or(second).expect("G-2: exactly one writer result");
+    assert_eq!(winner.id, record.id, "G-2: capability comes from the locked row");
+    assert!(winner.authentication_nonce == record.authentication_nonce,
+        "G-2: winner retains the exact original nonce, not a generated replacement");
+    assert!(winner.pkce_verifier == record.pkce_verifier,
+        "G-2: winner retains the original verifier");
+    let row = separate.query_one(Statement::from_sql_and_values(DatabaseBackend::Postgres,
+        "SELECT consumed_at IS NOT NULL AS consumed, pkce_verifier IS NULL AS erased, authentication_nonce IS NULL AS nonce_erased FROM oauth_transactions WHERE id=$1", [record.id.into()]))
         .await.expect("committed consume").expect("transaction row");
     assert!(row.try_get::<bool>("", "consumed").expect("consumed"));
     assert!(row.try_get::<bool>("", "erased").expect("erased"));
+    assert!(row.try_get::<bool>("", "nonce_erased").expect("G-2: nonce erased before return"));
     assert!(writer
         .consume(&consume(&record))
         .await
@@ -193,12 +355,104 @@ async fn e3_consume_uses_writer_lock_one_committed_capability_and_erases_db_veri
         .expect("expired consume")
         .is_none());
     let row = db.query_one(Statement::from_sql_and_values(DatabaseBackend::Postgres,
-        "SELECT consumed_at IS NULL AS untouched, pkce_verifier IS NOT NULL AS retained FROM oauth_transactions WHERE id=$1", [expired.id.into()]))
+        "SELECT consumed_at IS NULL AS untouched, pkce_verifier IS NOT NULL AS retained, authentication_nonce=$2 AS nonce_retained FROM oauth_transactions WHERE id=$1", [expired.id.into(), AUTHENTICATION_NONCE.into()]))
         .await.expect("expired state").expect("expired row remains");
     assert!(row.try_get::<bool>("", "untouched").expect("untouched"));
     assert!(row
         .try_get::<bool>("", "retained")
         .expect("retained until purge"));
+    assert!(row.try_get::<bool>("", "nonce_retained").expect("G-2: expired nonce retained until cleanup"));
+    }).await;
+}
+
+// G-2: each mismatch must preserve BOTH secrets and leave a later authentic
+// consume possible. A false-positive WHERE predicate would burn the valid row.
+#[tokio::test]
+#[serial]
+async fn mismatched_bindings_preserve_nonce_and_verifier_until_authentic_consume() {
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
+        .await
+        .expect("Postgres harness");
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
+        let writer = SeaOrmOAuthTransactionWriteRepository::new(db.clone());
+        let record = transaction();
+        writer.create(&record).await.expect("valid BEGIN row");
+        let separate = writer_barrier::independent_writer(db.as_ref()).await;
+        for binding in ["nonce", "state", "browser", "provider", "operation", "redirect", "expiry"] {
+            let mut input = consume(&record);
+            match binding {
+                "nonce" => input.nonce_hash[0] ^= 1,
+                "state" => input.state_hash[0] ^= 1,
+                "browser" => input.browser_nonce_hash[0] ^= 1,
+                "provider" => input.provider = Provider::parse_slug("gitlab").expect("provider"),
+                "operation" => input.operation = OAuthOperation::Link { user_id: Uuid::new_v4() },
+                "redirect" => input.redirect_uri.push_str("?untrusted=1"),
+                "expiry" => input.expires_at -= 1,
+                _ => unreachable!("fixed binding cases"),
+            }
+            assert!(writer.consume(&input).await.expect("mismatched consume").is_none(),
+                "G-2: mismatched {binding} must not consume");
+            let row = separate.query_one(Statement::from_sql_and_values(DatabaseBackend::Postgres,
+                "SELECT consumed_at IS NULL AS untouched, authentication_nonce=$2 AS nonce_retained, pkce_verifier=$3 AS verifier_retained FROM oauth_transactions WHERE id=$1",
+                [record.id.into(), AUTHENTICATION_NONCE.into(), record.pkce_verifier.clone().into()]))
+                .await.expect("independent mismatch read").expect("row retained");
+            for column in ["untouched", "nonce_retained", "verifier_retained"] {
+                assert!(row.try_get::<bool>("", column).expect("binding invariant"),
+                    "G-2: {binding} mismatch violated {column}");
+            }
+        }
+        assert!(ConsumedOAuthTransaction::consume(&writer, consume(&record)).await.is_ok(),
+            "G-2: authentic callback still obtains a capability after all mismatches");
+    }).await;
+}
+
+// G-3 / contract §4 Q-2: refuse only AFTER committed consume/purge, never
+// synthesize a nonce or retain the verifier for another callback.
+#[tokio::test]
+#[serial]
+async fn legacy_and_corrupt_nonce_are_committed_and_purged_before_capability_refusal() {
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
+        .await
+        .expect("Postgres harness");
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
+        let writer = SeaOrmOAuthTransactionWriteRepository::new(db.clone());
+        let separate = writer_barrier::independent_writer(db.as_ref()).await;
+        let cases = [
+            ("legacy NULL", None),
+            ("empty", Some("")),
+            ("short", Some("not-a-32-byte-nonce")),
+            ("wrong alphabet", Some("+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")),
+            ("padding", Some("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")),
+            ("noncanonical trailing bits", Some("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB")),
+        ];
+        for (case, nonce) in cases {
+            let record = transaction();
+            writer.create(&record).await.expect("valid BEGIN before fixture corruption");
+            // Explicit fixture corruption also supports writers that require a
+            // nonce for new BEGINs; legacy NULL is not a new production default.
+            db.execute(Statement::from_sql_and_values(DatabaseBackend::Postgres,
+                "UPDATE oauth_transactions SET authentication_nonce=$2 WHERE id=$1",
+                [record.id.into(), nonce.map(str::to_owned).into()]))
+                .await.expect("arrange legacy/corrupt fixture row");
+            let result = ConsumedOAuthTransaction::consume(&writer, consume(&record)).await;
+            assert!(matches!(result, Err(OAuthTransactionError::InvalidTransaction)),
+                "G-3: {case} must not grant a callback capability");
+            let row = separate.query_one(Statement::from_sql_and_values(DatabaseBackend::Postgres,
+                "SELECT consumed_at IS NOT NULL AS consumed, authentication_nonce IS NULL AS nonce_erased, pkce_verifier IS NULL AS verifier_erased FROM oauth_transactions WHERE id=$1",
+                [record.id.into()])).await.expect("independent post-refusal read").expect("replay marker retained");
+            for column in ["consumed", "nonce_erased", "verifier_erased"] {
+                assert!(row.try_get::<bool>("", column).expect("legacy invariant"),
+                    "G-3: {case} violated committed {column}");
+            }
+            assert!(matches!(
+                ConsumedOAuthTransaction::consume(&writer, consume(&record)).await,
+                Err(OAuthTransactionError::InvalidTransaction)
+            ), "G-3: {case} replay must remain denied");
+            assert!(writer.consume(&consume(&record)).await.expect("writer replay").is_none(),
+                "G-3: {case} leaves no consumable writer row");
+        }
     }).await;
 }
 
@@ -367,6 +621,15 @@ async fn cleanup_cap_skip_locked_and_two_replicas_preserve_valid_transactions() 
             .expect("expired rows/verifiers"),
         0
     );
+    // G-3: bounded cleanup removes whole expired rows, but neither strips the
+    // valid BEGIN's secrets nor restores the valid consumed row's secrets.
+    let row = separate.query_one(Statement::from_sql_and_values(DatabaseBackend::Postgres,
+        "SELECT (SELECT authentication_nonce=$3 AND pkce_verifier IS NOT NULL AND consumed_at IS NULL FROM oauth_transactions WHERE id=$1) AS valid_retained,
+                (SELECT authentication_nonce IS NULL AND pkce_verifier IS NULL AND consumed_at IS NOT NULL FROM oauth_transactions WHERE id=$2) AS consumed_purged",
+        [valid.id.into(), valid_consumed.id.into(), AUTHENTICATION_NONCE.into()]))
+        .await.expect("G-3: independent post-cleanup secrets read").expect("valid row states");
+    assert!(row.try_get::<bool>("", "valid_retained").expect("G-3: valid secrets retained"));
+    assert!(row.try_get::<bool>("", "consumed_purged").expect("G-3: consumed secrets stay erased"));
     assert!(writer
         .consume(&consume(&valid))
         .await

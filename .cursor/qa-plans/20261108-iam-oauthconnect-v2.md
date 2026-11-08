@@ -190,6 +190,8 @@ Chaque preuve consigne sélection/nombre de tests, code de sortie, oracle observ
 
 ## Registre final groupé — rares/ambigus rouges et décisions utilisateur
 
+RED intermédiaire writer : unités SQL compilent, **3 PASS/1 FAIL/0 ignoré/142 filtrés** ; le consume ne retourne pas encore le nonce original. Les nouveaux tests Postgres/upgrade compilent (`auth_transactions_postgres --no-run`) mais **aucune IT n'a tourné**. Le schéma de préimage est isolé dans une transaction fixture avec search_path sans public, pas un reset ; preuve DDL transactionnelle à distinguer d'un rollout opérationnel.
+
 GREEN intermédiaire domaine : **75 PASS/0 FAIL/0 ignoré/0 filtré**, Clippy domaine all-targets strict et fmt passent. Les22casnonce passent sur les mêmes oracles ; tirageOsRng distinct vérifié dans le delta. Nouvelle API complete du contexte privé intégrée mais forwarding et suppression finale des usages v1 restent à prouver ; SQL réel toujours non exécuté.
 
 État TDD intermédiaire nonce : **22 nouveaux cas compilent ;9 PASS/13 FAIL/0 ignoré/53 filtrés**. Six BEGIN échouent sur nonce vide, sept legacy/corrompus échouent sur capacité accordée malgré writer témoin déjà consommé/purgé. Ce sont des écarts contractuels à corriger, pas des cas métier nouveaux ; SQL réel, migration et ordre réseau restent à prouver par leurs tests dédiés.
