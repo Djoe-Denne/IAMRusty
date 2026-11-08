@@ -190,6 +190,8 @@ Chaque preuve consigne sélection/nombre de tests, code de sortie, oracle observ
 
 ## Registre final groupé — rares/ambigus rouges et décisions utilisateur
 
+GREEN intermédiaire LOGIN : **87tests domaine PASS/0échec/0ignoré/0filtré**, dont les4oracles LOGIN précédemment rouges, fmt et Clippy strict all-targets passent. LINK/RELINK et navigateur ne sont pas encore qualifiés ; la façade de types v2 est intégrée et compile pour permettre leurs témoins sans dépendance nouvelle.
+
 RED intermédiaire LOGIN orchestration : **0PASS/4FAIL/0 ignoré/83 filtrés**, compilation réussie. Deux START (±PKCE) et deux callbacks (complete refusé/email absent) constatent zéro appel v2 au lieu d'un, sans erreur de montage stricte repository/JWT. LINK/RELINK restent à préparer après accès aux types du port en application ; cette absence de préparation n'est pas un test RED.
 
 GREEN intermédiaire domaine/helper/writer : **83 tests domaine PASS** (8 nouveaux de forwarding/refus), **4 unités writer PASS** ; aucun ignoré, filtres writer142. Migration additive et IT Postgres compilent ; Clippy strict domaine+migration passe après import explicite du réexport `async_trait`. Les IT réelles n'ont pas encore tourné et l'orchestration utilise encore v1 : **raccord global non terminé**.

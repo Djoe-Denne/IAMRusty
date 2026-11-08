@@ -8,6 +8,7 @@ use crate::port::{
     repository::{TokenRepository, UserEmailRepository, UserRepository},
     service::FederatedOAuthClient,
 };
+use idp_connect_contract::{AuthorizeAuthenticationRequest, ProviderAuthentication};
 use tracing::{debug, info};
 use uuid::Uuid;
 
@@ -86,7 +87,13 @@ where
     ) -> Result<String, DomainError> {
         let client = self.get_provider_client(provider)?;
         let response = client
-            .authorize_with_pkce(redirect_uri, state, begun.code_challenge.as_deref())
+            .authorize_authentication(&AuthorizeAuthenticationRequest {
+                redirect_uri: redirect_uri.to_string(),
+                state: state.to_string(),
+                nonce: begun.authentication_nonce.clone(),
+                code_challenge: begun.code_challenge.clone(),
+                code_challenge_method: begun.code_challenge_method.clone(),
+            })
             .await
             .map_err(|_| DomainError::OAuth2Error("OAuth authorization failed".into()))?;
         Ok(response.authorization_url)
@@ -96,8 +103,8 @@ where
     ///
     /// # Errors
     ///
-    /// Returns [`DomainError`] if the provider is unsupported, code exchange or profile
-    /// lookup fails, the profile has no email, persistence fails, or JWT generation fails.
+    /// Returns [`DomainError`] if the provider is unsupported, authentication completion
+    /// fails, the profile has no email, persistence fails, or JWT generation fails.
     pub async fn process_callback(
         &self,
         provider: &Provider,
@@ -118,14 +125,11 @@ where
 
         let client = self.get_provider_client(provider)?;
 
-        let tokens = consumed.exchange_code(client.as_ref(), code).await?;
+        let ProviderAuthentication { tokens, profile } = consumed
+            .complete_authorization(client.as_ref(), code)
+            .await?;
 
-        debug!("Successfully exchanged code for tokens");
-
-        let profile = client
-            .user_profile(&tokens.access_token)
-            .await
-            .map_err(|_| DomainError::UserProfileError("OAuth profile request failed".into()))?;
+        debug!("Successfully completed OAuth authorization");
 
         debug!("Retrieved user profile: {}", profile.username);
 
