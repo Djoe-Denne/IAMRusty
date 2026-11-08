@@ -1,4 +1,4 @@
-"""Synthetic GitLab provider behind the REAL connector; never emits IAM JWTs.
+"""Synthetic OAuth provider behind a REAL connector; never emits IAM JWTs.
 
 Parent-run only. Credentials come from a private mounted JSON file, never argv.
 No request/URL/header logging. Observations contain counters and run ID only.
@@ -26,12 +26,16 @@ class Rejected(ValueError):
 
 
 class Provider:
-    def __init__(self, client_id, client_secret, run_id, clock=time.monotonic):
+    def __init__(self, client_id, client_secret, run_id, clock=time.monotonic, *, instance="gitlab"):
         if (not re.fullmatch(r"[a-z0-9]{12,32}", run_id)
                 or not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", client_id)
-                or not isinstance(client_secret, str) or not 16 <= len(client_secret) <= 256):
+                or not isinstance(client_secret, str) or not 16 <= len(client_secret) <= 256
+                or instance not in {"gitlab", "simulated"}):
             raise Rejected()
         self.client_id, self.secret, self.run_id = client_id, client_secret, run_id
+        scheme = "https" if instance == "simulated" else "http"
+        self.redirects = frozenset(scheme + "://127.0.0.1:18080/iam/api/auth/" + instance + "/" + path
+                                  for path in ("callback", "relink-callback"))
         self.user_id = int.from_bytes(hashlib.sha256(run_id.encode()).digest()[:8], "big") & ((1 << 63) - 1)
         self.clock, self.lock = clock, threading.Lock()
         self.codes, self.tokens = {}, {}
@@ -44,7 +48,7 @@ class Provider:
 
     def authorize(self, values):
         if (values.get("response_type") != "code" or values.get("client_id") != self.client_id
-                or values.get("redirect_uri") not in REDIRECTS
+                or values.get("redirect_uri") not in self.redirects
                 or values.get("code_challenge_method") != "S256"
                 or not re.fullmatch(r"[A-Za-z0-9_-]{43}", values.get("code_challenge", ""))
                 or not 1 <= len(values.get("state", "")) <= 2048):
@@ -85,7 +89,8 @@ class Provider:
                 raise Rejected()
             self.counts["profile"] += 1
             return dict(id=self.user_id, username=self.run_id, name="OAuth proof account",
-                        email=self.run_id + "@example.invalid", confirmed_at="2026-10-28T00:00:00Z")
+                        email=self.run_id + "@example.invalid", email_verified=True,
+                        confirmed_at="2026-10-28T00:00:00Z")
 
     def observations(self):
         with self.lock:
@@ -133,7 +138,7 @@ def handler(provider):
                     values = fields(url.query)
                     code = provider.authorize(values)
                     self.reply(303, {}, values["redirect_uri"] + "?" + urlencode(dict(code=code, state=values["state"])))
-                elif url.path == "/api/v4/user" and not url.query:
+                elif url.path in {"/api/v4/user", "/user"} and not url.query:
                     self.reply(200, provider.profile(self.headers.get("Authorization", "")))
                 elif url.path == "/observations" and not url.query:
                     self.reply(200, provider.observations())
@@ -181,7 +186,8 @@ def handler(provider):
 def main():
     try:
         inputs = json.loads(Path(os.environ["OAUTH_PROOF_INPUT_FILE"]).read_text(encoding="utf-8"))
-        provider = Provider(inputs["client_id"], inputs["client_secret"], inputs["run_id"])
+        provider = Provider(inputs["client_id"], inputs["client_secret"], inputs["run_id"],
+                            instance=inputs.get("instance", "gitlab"))
         server = ThreadingHTTPServer(("0.0.0.0", 8080), handler(provider))
         server.daemon_threads = True
         server.serve_forever()

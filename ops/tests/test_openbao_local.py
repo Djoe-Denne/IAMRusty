@@ -474,10 +474,10 @@ class LocalOpenBaoTests(unittest.TestCase):
 
             invoke()
             before = contents()
-            invoke(["--openbao-github", "--registry"])
+            invoke(["--openbao-github", "--registry", "--oauth-connect"])
             extended = contents()
             self.assertTrue(all(extended[p] == data for p, data in before.items()), "old PKI bytes changed")
-            invoke(["--openbao-github", "--registry"])
+            invoke(["--openbao-github", "--registry", "--oauth-connect"])
             self.assertTrue(extended == contents(), "idempotent PKI extension changed bytes")
             leaf = directory / "extensions/openbao-github/openbao.key"
             held = leaf.with_suffix(".held")
@@ -496,6 +496,15 @@ class LocalOpenBaoTests(unittest.TestCase):
             after = contents()
             self.assertTrue(all(after[p].startswith(data) if p.as_posix() == "openssl-error.log" else after[p] == data
                                 for p, data in partial.items()), "partial registry extension changed old PKI bytes or diagnostic prefix")
+            held.rename(leaf)
+            leaf = directory / "extensions/openbao-oauthconnect/oauth-connect.key"
+            held = leaf.with_suffix(".held")
+            leaf.rename(held)
+            partial = contents()
+            invoke(["--oauth-connect"], expected=1)
+            after = contents()
+            self.assertTrue(all(after[p].startswith(data) if p.as_posix() == "openssl-error.log" else after[p] == data
+                                for p, data in partial.items()), "partial OAuthConnect extension changed existing PKI")
             held.rename(leaf)
 
 

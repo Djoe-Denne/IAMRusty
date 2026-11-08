@@ -64,3 +64,44 @@ bao write auth/kubernetes/role/github-seed bound_service_account_names=github-se
   bound_service_account_namespaces=aiforall-local-full audience=openbao-github-seed \
   token_policies=local-full-github-seed token_no_default_policy=true token_type=service \
   token_ttl=5m token_max_ttl=5m token_explicit_max_ttl=5m >/dev/null
+
+# Additive OAuthConnect roles. Existing GitHub KV paths remain authoritative.
+bao policy write local-full-oauth-connect - >/dev/null <<'EOF'
+path "auth/token/lookup-self" { capabilities = ["read"] }
+path "secret/data/github-connect/oauth" { capabilities = ["read"] }
+path "secret/data/github-connect/iam" { capabilities = ["read"] }
+path "secret/data/oauth-connect/simulated/oauth" { capabilities = ["read"] }
+path "secret/data/oauth-connect/simulated/iam" { capabilities = ["read"] }
+EOF
+bao policy write local-full-iam-oauth-hmac - >/dev/null <<'EOF'
+path "auth/token/lookup-self" { capabilities = ["read"] }
+path "secret/data/github-connect/iam" { capabilities = ["read"] }
+path "secret/data/oauth-connect/simulated/iam" { capabilities = ["read"] }
+EOF
+bao policy write local-full-oauth-simulator - >/dev/null <<'EOF'
+path "auth/token/lookup-self" { capabilities = ["read"] }
+path "secret/data/oauth-connect/simulated/oauth" { capabilities = ["read"] }
+EOF
+bao policy write local-full-oauth-connect-seed - >/dev/null <<'EOF'
+path "auth/token/lookup-self" { capabilities = ["read"] }
+path "secret/data/github-connect/oauth" { capabilities = ["read", "create", "update"] }
+path "secret/data/github-connect/iam" { capabilities = ["read", "create", "update"] }
+path "secret/metadata/github-connect/oauth" { capabilities = ["read"] }
+path "secret/metadata/github-connect/iam" { capabilities = ["read"] }
+path "secret/data/oauth-connect/simulated/oauth" { capabilities = ["read", "create", "update"] }
+path "secret/data/oauth-connect/simulated/iam" { capabilities = ["read", "create", "update"] }
+path "secret/metadata/oauth-connect/simulated/oauth" { capabilities = ["read"] }
+path "secret/metadata/oauth-connect/simulated/iam" { capabilities = ["read"] }
+EOF
+bao write auth/kubernetes/role/oauth-connect bound_service_account_names=oauth-connect \
+  bound_service_account_namespaces=aiforall-local-full audience=openbao-oauth-connect \
+  token_policies=local-full-oauth-connect token_no_default_policy=true token_type=service \
+  token_ttl=15m token_max_ttl=1h token_explicit_max_ttl=1h >/dev/null
+for role in iam-oauth-hmac oauth-simulator oauth-connect-seed; do
+  account=$role
+  if [ "$role" = iam-oauth-hmac ]; then account=iam-openbao; fi
+  bao write "auth/kubernetes/role/$role" "bound_service_account_names=$account" \
+    bound_service_account_namespaces=aiforall-local-full "audience=openbao-$role" \
+    "token_policies=local-full-$role" token_no_default_policy=true token_type=service \
+    token_ttl=5m token_max_ttl=5m token_explicit_max_ttl=5m >/dev/null
+done

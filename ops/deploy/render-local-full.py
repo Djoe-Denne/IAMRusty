@@ -17,11 +17,14 @@ import yaml
 _bao_spec = importlib.util.spec_from_file_location("local_full_openbao", Path(__file__).with_name("local_full_openbao.py"))
 local_full_openbao = importlib.util.module_from_spec(_bao_spec)
 _bao_spec.loader.exec_module(local_full_openbao)
+_oauth_spec = importlib.util.spec_from_file_location("local_full_oauthconnect", Path(__file__).with_name("local_full_oauthconnect.py"))
+local_full_oauthconnect = importlib.util.module_from_spec(_oauth_spec)
+_oauth_spec.loader.exec_module(local_full_oauthconnect)
 
 ROOT = Path(__file__).resolve().parents[2]
 OVERLAY = ROOT / "ops/deploy/apps/overlays/local-full"
 DEPENDENCIES = {"postgres", "openfga", "redis", "localstack", "openbao", "zot", "component-catalog", "mailhog"}
-APPLICATIONS = {"iam", "hive", "telegraph", "manifesto", "lazaret", "sentinel-sync", "ext-authz", "envoy-mesh", "apparatus-operator", "gitlab-connect", "github-connect", "oauth-idp-simulator"}
+APPLICATIONS = {"iam", "hive", "telegraph", "manifesto", "lazaret", "sentinel-sync", "ext-authz", "envoy-mesh", "apparatus-operator", "gitlab-connect", "github-connect", "oauth-connect", "oauth-idp-simulator"}
 
 
 def validate_proof_inputs(value):
@@ -99,6 +102,22 @@ def http_downstream(envoy):
     chains[0].pop("filter_chain_match", None)
 
 
+def https_downstream(envoy):
+    """Browser TLS using the existing localhost leaf; internal mTLS is untouched."""
+    listeners = [listener for listener in envoy["static_resources"]["listeners"] if listener.get("name") == "listener_mesh"]
+    if (len(listeners) != 1 or listeners[0]["address"]["socket_address"]["port_value"] != 10000
+            or len(listeners[0]["filter_chains"]) != 1):
+        raise ValueError("unique local-full TLS listener required")
+    chain = listeners[0]["filter_chains"][0]
+    tls = chain["transport_socket"]["typed_config"]
+    if tls["common_tls_context"]["tls_certificates"] != [{"certificate_chain": {
+            "filename": "/etc/envoy/certs/envoy-mesh.crt"}, "private_key": {"filename": "/etc/envoy/certs/envoy-mesh.key"}}]:
+        raise ValueError("unexpected browser TLS identity")
+    tls["require_client_certificate"] = False
+    tls["common_tls_context"].pop("validation_context", None)
+    chain.pop("filter_chain_match", None)
+
+
 def validate_persistent_storage(objects):
     """A successful Kustomize exit alone does not prove the storage patches ran."""
     expected = {"postgres": ("data", "postgres-data"), "zot": ("data", "zot-data"),
@@ -130,11 +149,12 @@ def validate_persistent_storage(objects):
 
 
 def render(run_id, images=None, cert_identity="", oauth_proof=False, proof_inputs=None,
-           github_openbao=False, github_client_id="offline-synthetic-client"):
+           github_openbao=False, github_client_id="offline-synthetic-client", oauth_connect=False,
+           simulated_client_id="offline-simulated-client"):
     if not re.fullmatch(r"[a-z0-9]{12,32}", run_id):
         raise ValueError("run-id must be 12-32 lowercase alphanumeric characters")
-    if github_openbao and oauth_proof:
-        raise ValueError("GitHub OpenBao and GitLab OAuth proof are distinct profiles")
+    if sum(map(bool, (github_openbao, oauth_proof, oauth_connect))) > 1:
+        raise ValueError("GitHub legacy, GitLab legacy and OAuthConnect are distinct profiles")
     if proof_inputs is not None:
         validate_proof_inputs(proof_inputs)
         if not oauth_proof or proof_inputs["run_id"] != run_id:
@@ -154,6 +174,8 @@ def render(run_id, images=None, cert_identity="", oauth_proof=False, proof_input
     if oauth_proof:
         proof_profile(objects, run_id, proof_inputs)
     local_full_openbao.configure(objects, run_id, github_openbao, github_client_id)
+    if oauth_connect:
+        local_full_oauthconnect.configure(objects, run_id, github_client_id, simulated_client_id)
     # Read the effective rendered profile, never the empty base registry after
     # selecting a proof overlay. It is also the configuration included in hash.
     iam_configs = []
@@ -171,7 +193,7 @@ def render(run_id, images=None, cert_identity="", oauth_proof=False, proof_input
     relink_paths = set()
     for connector in iam_config.get("idp", {}).get("connectors", []):
         slug = connector.get("id")
-        if slug not in {"github", "gitlab"}:
+        if slug not in {"github", "gitlab", "simulated"}:
             continue
         path = "/iam/api/auth/" + slug + "/relink-callback"
         if any(urlsplit(uri).path == path for uri in connector.get("redirect_uris", [])):
@@ -180,12 +202,20 @@ def render(run_id, images=None, cert_identity="", oauth_proof=False, proof_input
         if obj["kind"] == "ConfigMap" and obj["metadata"]["name"] == "envoy-mesh-config":
             obj["data"]["envoy.yaml"] = obj["data"]["envoy.yaml"].replace("aiforall-platform.svc", "aiforall-local-full.svc").replace("aiforall-gateway.svc", "aiforall-local-full.svc")
             envoy = yaml.safe_load(obj["data"]["envoy.yaml"])
-            http_downstream(envoy)
+            if oauth_connect:
+                https_downstream(envoy)
+            else:
+                http_downstream(envoy)
             for listener in envoy["static_resources"]["listeners"]:
                 for chain in listener["filter_chains"]:
                     for network_filter in chain["filters"]:
                         config = network_filter.get("typed_config", {})
                         for host in config.get("route_config", {}).get("virtual_hosts", []):
+                            if oauth_connect:
+                                source = next(route for route in host["routes"] if route.get("match", {}).get("path") == "/iam/api/auth/github/relink-callback")
+                                route = copy.deepcopy(source)
+                                route["match"]["path"] = "/iam/api/auth/simulated/relink-callback"
+                                host["routes"].insert(host["routes"].index(source), route)
                             host["routes"] = [route for route in host["routes"]
                                               if not route.get("match", {}).get("path", "").endswith("/relink-callback")
                                               or route["match"]["path"] in relink_paths]
@@ -231,9 +261,11 @@ def main():
     parser.add_argument("--cert-identity", default="")
     parser.add_argument("--oauth-proof", action="store_true")
     parser.add_argument("--github-openbao", action="store_true")
+    parser.add_argument("--oauth-connect", action="store_true")
     args = parser.parse_args()
     images = json.loads(args.image_manifest.read_text()) if args.image_manifest else None
-    objects = render(args.run_id, images, args.cert_identity, args.oauth_proof, github_openbao=args.github_openbao)
+    objects = render(args.run_id, images, args.cert_identity, args.oauth_proof,
+                     github_openbao=args.github_openbao, oauth_connect=args.oauth_connect)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     if any(args.output_dir.iterdir()):
         raise ValueError("render output directory must be empty (no overwrite)")

@@ -207,17 +207,17 @@ def _parse_github_inputs(path):
     return value
 
 
-def openbao_cert_inputs(path, run_id, github):
-    extension = path / "extensions/openbao-github"
+def openbao_cert_inputs(path, run_id, github, oauth_connect=False):
+    extension = path / ("extensions/openbao-oauthconnect" if oauth_connect else "extensions/openbao-github")
     if not extension.is_dir():
-        raise ValueError("explicit --openbao-github certificate extension must be prepared first")
+        raise ValueError("explicit OpenBao connector certificate extension must be prepared first")
     # Same shared PKI verifier on both OS; an existing complete bundle is mandatory.
     validation = subprocess.run([sys.executable, "-B", str(ROOT / "ops/scripts/prepare-local-full-certs.py"),
-        "--output-dir", str(path), "--openbao-github"], capture_output=True, timeout=300)
+        "--output-dir", str(path), "--oauth-connect" if oauth_connect else "--openbao-github"], capture_output=True, timeout=300)
     if validation.returncode:
         raise ValueError("OpenBao certificate bundle validation failed (details redacted)")
     result = []
-    for name in ["openbao"] + (["github-connect"] if github else []):
+    for name in ["openbao"] + (["github-connect"] if github else []) + (["oauth-connect"] if oauth_connect else []):
         result.append(secret(name + "-server-tls-" + run_id, {
             "tls.crt": (extension / (name + ".crt")).read_bytes(), "tls.key": (extension / (name + ".key")).read_bytes()}))
     return result
@@ -226,7 +226,7 @@ def openbao_cert_inputs(path, run_id, github):
 def preflight_oauth_objects(objects, data):
     for obj in objects:
         name = obj["metadata"]["name"]
-        if not (name.startswith("oauth-proof-") or name in {"gitlab-connect", "oauth-idp-simulator"}):
+        if not (name.startswith(("oauth-proof-", "oauth-connect-", "oauth-simulator-")) or name in {"gitlab-connect", "oauth-connect", "oauth-idp-simulator", "iam-openbao"}):
             continue
         if obj["kind"] == "Secret":
             continue  # CREATE only later: collision fails without GET/overwrite.
@@ -792,19 +792,29 @@ def configure_envoy_ingress(*, evidence_directory, journal_path):
 
 
 def deploy_locked(args):
+    oauth_connect = getattr(args, "oauth_connect", False)
+    if sum(map(bool, (args.oauth_proof, args.github_openbao, oauth_connect))) > 1:
+        raise ValueError("distinct explicit connector profiles required")
     images = json.loads(args.image_manifest.read_text())
     mesh, identity, cert_hash = cert_inputs(args.cert_directory)
     inputs = oauth_inputs(args.oauth_proof_input_file) if args.oauth_proof else None
-    github = github_inputs(args.github_input_file) if args.github_openbao else None
-    if args.github_input_file and not args.github_openbao:
-        raise ValueError("private GitHub input requires --github-openbao")
+    github = github_inputs(args.github_input_file) if args.github_openbao or oauth_connect else None
+    simulated = github_inputs(getattr(args, "simulated_input_file", None)) if oauth_connect else None
+    if oauth_connect:
+        from local_full_oauthconnect import seed_inputs
+        combined = seed_inputs(github, simulated)
+    if args.github_input_file and not (args.github_openbao or oauth_connect):
+        raise ValueError("private GitHub input requires an explicit connector profile")
+    if getattr(args, "simulated_input_file", None) and not oauth_connect:
+        raise ValueError("private simulated input requires --oauth-connect")
     if args.oauth_proof_input_file and not args.oauth_proof:
         raise ValueError("private proof input requires --oauth-proof")
     run_id = inputs["run_id"] if inputs else uuid.uuid4().hex[:16]
     proof_certs, proof_cert_hash = oauth_cert_inputs(args.cert_directory, run_id) if inputs else ([], "")
-    tls_objects = openbao_cert_inputs(args.cert_directory, run_id, args.github_openbao)
+    tls_objects = openbao_cert_inputs(args.cert_directory, run_id, args.github_openbao, oauth_connect)
     objects = renderer.render(run_id, images, cert_hash + proof_cert_hash, args.oauth_proof, inputs,
-        github_openbao=args.github_openbao, github_client_id=github["client_id"] if github else "offline-synthetic-client")
+        github_openbao=args.github_openbao, github_client_id=github["client_id"] if github else "offline-synthetic-client",
+        oauth_connect=oauth_connect, simulated_client_id=simulated["client_id"] if simulated else "offline-simulated-client")
     objects += proof_certs
     for obj in objects:
         if obj["kind"] == "ConfigMap" and obj["metadata"]["name"] == "openbao-public-ca":
@@ -812,7 +822,7 @@ def deploy_locked(args):
         if obj["kind"] == "Deployment":
             for volume in obj["spec"]["template"]["spec"].get("volumes", []):
                 reference = volume.get("secret", {})
-                if reference.get("secretName") in {"openbao-server-tls", "github-connect-server-tls"}:
+                if reference.get("secretName") in {"openbao-server-tls", "github-connect-server-tls", "oauth-connect-server-tls"}:
                     reference["secretName"] += "-" + run_id
     capability_sources = {}
     if args.isolated_plugins:
@@ -860,13 +870,17 @@ def deploy_locked(args):
         image_provenance.verify(images)
     bootstrap_local_kind.initialize(args.lease, CLUSTER, ROOT / "ops/deploy/kind/cluster-local-full.yaml", args.after_final_it)
     data = runtime.lease(args.lease)
+    if oauth_connect:
+        data["publicEndpoint"] = renderer.local_full_oauthconnect.PUBLIC_ORIGIN
+        data["connectorProfile"] = "oauth-connect"
+        runtime.save_lease(args.lease, data)
     if capability_sources:
         data["isolatedPluginSourceSha256"] = capability_sources
         runtime.save_lease(args.lease, data)
     preflight_cluster_objects(objects, args, data)
     verify_images(images, getattr(args, "registry_state", None))
     prepare_namespaces(args, data)
-    if args.oauth_proof:
+    if args.oauth_proof or oauth_connect:
         preflight_oauth_objects(objects, data)
     # No concurrent bootstrap or migration runs in this exclusive namespace.
     for namespace in NAMESPACES:
@@ -922,14 +936,16 @@ def deploy_locked(args):
         apply(groups["bootstrap"])
         record_resources(groups["bootstrap"], args, data)
         if github:
-            job = next(o for o in groups["bootstrap"] if o["metadata"]["name"].startswith("github-openbao-seed-"))
+            job_prefix = "oauth-connect-seed-" if oauth_connect else "github-openbao-seed-"
+            job = next(o for o in groups["bootstrap"] if o["metadata"]["name"].startswith(job_prefix))
             uid = k("get", "job", job["metadata"]["name"], "-n", "aiforall-local-full", "-o", "jsonpath={.metadata.uid}")
             if not uid or not any(entry.get("kind") == "Job" and entry.get("name") == job["metadata"]["name"]
                     and entry.get("namespace") == "aiforall-local-full" and entry.get("uid") == uid
                     and entry.get("context") == CONTEXT and entry.get("cluster") == CLUSTER
                     for entry in data.get("ownedResources", [])):
                 raise ValueError("seed Job UID differs from the recorded owned job")
-            seed_input = secret("github-seed-inputs-" + run_id, {"inputs.json": json.dumps(github).encode()})
+            seed_input = secret(("oauth-connect-seed-inputs-" if oauth_connect else "github-seed-inputs-") + run_id,
+                                {"inputs.json": json.dumps(combined if oauth_connect else github).encode()})
             # UID-bound GC: Job TTL removes its private child, without adding a generic
             # delete/Secret-read escape hatch to the target authority. etcd is not RAM-only.
             seed_input["metadata"]["ownerReferences"] = [{"apiVersion": "batch/v1", "kind": "Job",
@@ -975,6 +991,7 @@ def refresh(args):
     # list requires a separately qualified migration-free startup contract.
     workloads = {"ext-authz": (CLUSTER, "ext-authz"), "sentinel": (CLUSTER, "sentinel-sync"),
                  "github": (CLUSTER, "github-connect"), "gitlab": (CLUSTER, "gitlab-connect"),
+                 "oauth": (CLUSTER, "oauth-connect"),
                  "controller": ("aiforall-local-apparatus", "apparatus-operator")}
     if any(name not in workloads for name in names):
         raise ValueError("image-only refresh refuses automatic-migration services; use an explicit migration plan")
@@ -1071,14 +1088,17 @@ def main():
     parser.add_argument("--oauth-proof-input-file", type=Path)
     parser.add_argument("--github-openbao", action="store_true")
     parser.add_argument("--github-input-file", type=Path)
+    parser.add_argument("--oauth-connect", action="store_true")
+    parser.add_argument("--simulated-input-file", type=Path)
     args = parser.parse_args()
     if args.action == "render":
         # No runtime inspection, startup or API contact. Source secrets remain
         # in render artifacts; report only resource kind/name metadata.
         images = json.loads(args.image_manifest.read_text()) if args.image_manifest else None
-        if args.oauth_proof_input_file or args.github_input_file:
+        if args.oauth_proof_input_file or args.github_input_file or args.simulated_input_file:
             raise ValueError("offline render does not accept private runtime inputs")
-        objects = renderer.render("staticvalidation", images, oauth_proof=args.oauth_proof, github_openbao=args.github_openbao)
+        objects = renderer.render("staticvalidation", images, oauth_proof=args.oauth_proof,
+                                  github_openbao=args.github_openbao, oauth_connect=args.oauth_connect)
         if args.output_dir:
             args.output_dir.mkdir(parents=True, exist_ok=True)
             file = args.output_dir / "local-full.json"
@@ -1093,7 +1113,7 @@ def main():
         host = data["api_host"]
         endpoint = "https://" + ("[" + host + "]" if ":" in host else host) + ":" + str(data["api_port"])
         print(json.dumps({"context": CONTEXT, "cluster": CLUSTER, "api_endpoint": endpoint,
-                          "http_endpoint": "http://127.0.0.1:18080", "leased_node_ids": data["nodeContainerIds"]}))
+                          "http_endpoint": data.get("publicEndpoint", "http://127.0.0.1:18080"), "leased_node_ids": data["nodeContainerIds"]}))
         for namespace in NAMESPACES:
             uid = k("get", "namespace", namespace, "-o", "jsonpath={.metadata.uid}")
             if data.get("namespaceUids", {}).get(namespace) != uid:

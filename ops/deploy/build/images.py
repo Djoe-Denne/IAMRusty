@@ -82,6 +82,8 @@ def run(args):
         names.append("github")
     if args.oauth_proof:
         names.append("gitlab")
+    if getattr(args, "oauth_connect", False):
+        names.append("oauth")
     targets = select(names)
     snapshot = capture()
     profile = args.profile or "dev-image"
@@ -178,6 +180,7 @@ def main():
     profiles = parser.add_mutually_exclusive_group()
     profiles.add_argument("--github-openbao", action="store_true")
     profiles.add_argument("--oauth-proof", action="store_true")
+    profiles.add_argument("--oauth-connect", action="store_true")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--owner", default="image-toolchain")
     parser.add_argument("--cold", action="store_true", help="reserved for the gated commit-release implementation")

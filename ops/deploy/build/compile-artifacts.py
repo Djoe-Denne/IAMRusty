@@ -75,7 +75,7 @@ def compile_artifacts():
         if any(not re.fullmatch(r"[a-f0-9]{40}", os.environ.get(key, "")) for key in ("SOURCE_REVISION", "SDK_REVISION")):
             raise ValueError("attested OpenBao delivery requires exact source and SDK revisions")
     elif delivery == "workspace":
-        names = [*LOCAL_FULL, "github", "gitlab"]
+        names = [*LOCAL_FULL, "github", "gitlab", "oauth"]
     elif delivery == "images":
         names = os.environ.get("IMAGE_TARGETS", "").split(",")
     else:

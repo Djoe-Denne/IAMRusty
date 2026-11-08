@@ -12,12 +12,13 @@ SOURCES = ["aiforall-iam-service:latest", "aiforall-hive-service:latest", "aifor
             "aiforall-ext-authz:local", "aiforall-apparatus-controller:j2", "aiforall-zot:gold"]
 
 
-def source_images(oauth_proof=False, github_openbao=False):
+def source_images(oauth_proof=False, github_openbao=False, oauth_connect=False):
     """Only an explicit proof profile adds the real connector, never a mock."""
-    if oauth_proof and github_openbao:
+    if sum(map(bool, (oauth_proof, github_openbao, oauth_connect))) > 1:
         raise ValueError("distinct GitLab/GitHub profiles required")
     return SOURCES + (["aiforall-gitlab-connect-service:latest"] if oauth_proof else []) + (
-        ["aiforall-github-connect-service:latest"] if github_openbao else [])
+        ["aiforall-github-connect-service:latest"] if github_openbao else []) + (
+        ["aiforall-oauth-connect-service:latest"] if oauth_connect else [])
 
 
 def main():
@@ -26,6 +27,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--oauth-proof", action="store_true")
     parser.add_argument("--github-openbao", action="store_true")
+    parser.add_argument("--oauth-connect", action="store_true")
     parser.add_argument("--build-manifest", type=Path, help="explicit output of build/images.py; never rebuild implicitly")
     parser.add_argument("--release-manifest", type=Path, help="published OCI receipt; never falls back to kind load")
     parser.add_argument("--registry-state", type=Path)
@@ -34,7 +36,7 @@ def main():
     target.check()
     if args.output.exists():
         raise ValueError("image manifest exists; refuse overwrite")
-    sources = source_images(args.oauth_proof, args.github_openbao)
+    sources = source_images(args.oauth_proof, args.github_openbao, args.oauth_connect)
     if args.release_manifest:
         if args.build_manifest or not args.registry_state:
             raise ValueError("OCI receipt requires --registry-state and no --build-manifest")

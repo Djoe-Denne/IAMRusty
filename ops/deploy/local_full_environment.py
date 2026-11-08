@@ -88,44 +88,74 @@ def recover_coffer(target, state, save, runtime, read_github, make_secret):
     apps = [(CLUSTER, "lazaret")]
     github = any(e.get("kind") == "Deployment" and e.get("name") == "github-connect"
                  and e.get("namespace") == CLUSTER for e in target.data.get("ownedResources", []))
+    oauth = any(e.get("kind") == "Deployment" and e.get("name") == "oauth-connect"
+                and e.get("namespace") == CLUSTER for e in target.data.get("ownedResources", []))
+    if github and oauth:
+        raise ValueError("ambiguous connector profiles in environment lease")
     inputs = None
-    if github:
+    simulated_reference = None
+    if github or oauth:
         reference = state.get("github_input")
         if not reference or input_reference(reference["path"]) != reference:
             raise ValueError("new coffer epoch needs the unchanged private GitHub input source")
         inputs = read_private_input(reference, read_github)
-        connector = owned(target, "Deployment", "github-connect")
+        connector_name = "oauth-connect" if oauth else "github-connect"
+        connector = owned(target, "Deployment", connector_name)
         volumes = connector["spec"]["template"]["spec"]["volumes"]
-        config_name = next(v["configMap"]["name"] for v in volumes if v["name"] == "github-config")
+        config_name = next(v["configMap"]["name"] for v in volumes if v["name"] == ("config" if oauth else "github-config"))
         config = owned(target, "ConfigMap", config_name)
-        if tomllib.loads(config["data"]["development.toml"])["github"]["client_id"] != inputs["client_id"]:
+        declaration = tomllib.loads(config["data"]["development.toml"])
+        public_github = declaration["providers"][0] if oauth else declaration["github"]
+        if public_github["client_id"] != inputs["client_id"]:
             raise ValueError("GitHub input source belongs to a different connector")
-        scripts = next(v["configMap"]["name"] for v in volumes if v["name"] == "openbao-scripts")
+        if oauth:
+            from local_full_oauthconnect import seed_inputs
+            simulated_reference = state.get("simulated_input")
+            if not simulated_reference:
+                raise ValueError("new coffer epoch requires the private simulated input source")
+            simulated = read_private_input(simulated_reference, read_github)
+            providers = declaration["providers"]
+            simulator_config = owned(target, "ConfigMap", "oauth-simulator-config")
+            if ([p["id"] for p in providers] != ["github", "simulated"]
+                    or providers[1]["client_id"] != simulated["client_id"]
+                    or json.loads(simulator_config["data"]["provider.json"])["client_id"] != simulated["client_id"]):
+                raise ValueError("simulated input source belongs to a different connector")
+            inputs = seed_inputs(inputs, simulated)
+        scripts = next(v["configMap"]["name"] for v in volumes if v["name"] == ("scripts" if oauth else "openbao-scripts"))
         owned(target, "ConfigMap", scripts)
         owned(target, "ConfigMap", "openbao-public-ca")
-        apps += [(CLUSTER, "iam"), (CLUSTER, "github-connect")]
+        apps += [(CLUSTER, "iam"), (CLUSTER, connector_name)]
+        if oauth:
+            apps.append((CLUSTER, "oauth-idp-simulator"))
     # Preflight every workload before creating a seed or patching a template.
     deployments = [(namespace, name, owned(target, "Deployment", name, namespace)) for namespace, name in apps]
     for _, name, deployment in deployments:
         initializers = deployment["spec"]["template"]["spec"].get("initContainers", [])
-        expected = "openbao-agent" if name == "github-connect" else "openbao-snapshot"
+        expected = "openbao-agent" if name in {"github-connect", "oauth-connect"} else "openbao-snapshot"
         if not any(container["name"] == expected for container in initializers):
             raise ValueError("existing deployment predates managed OpenBao identities; explicit initial upgrade required: " + name)
     if inputs is not None and state.get("recovery_seeded_epoch") != state["pending_epoch"]:
         if input_reference(reference["path"]) != reference:
             raise ValueError("private GitHub source changed before seed")
+        if simulated_reference and input_reference(simulated_reference["path"]) != simulated_reference:
+            raise ValueError("private simulated source changed before seed")
         if state.get("recovery_job"):
             job_name = state["recovery_job"]
             owned(target, "Job", job_name)  # Do not silently recreate a failed/expired attempt.
         else:
             run_id = "resume-" + uuid.uuid4().hex[:16]
-            job = github_seed_job(run_id, scripts)
+            if oauth:
+                from local_full_oauthconnect import seed_job
+                job = seed_job(run_id, scripts)
+            else:
+                job = github_seed_job(run_id, scripts)
             job["metadata"]["name"] += "-" + run_id
             state["recovery_job"] = job["metadata"]["name"]
             save()  # Crash before/after create is visible; no blind retry/adoption.
             data = runtime.lease(Path(state["lease_path"]))
             created = runtime.create(job, SimpleNamespace(lease=Path(state["lease_path"])), data)
-            secret = make_secret("github-seed-inputs-" + run_id, {"inputs.json": json.dumps(inputs).encode()})
+            secret = make_secret(("oauth-connect-seed-inputs-" if oauth else "github-seed-inputs-") + run_id,
+                                 {"inputs.json": json.dumps(inputs).encode()})
             secret["metadata"]["ownerReferences"] = [{"apiVersion": "batch/v1", "kind": "Job", "name": job["metadata"]["name"],
                                                        "uid": created["metadata"]["uid"], "controller": True}]
             runtime.create(secret, SimpleNamespace(lease=Path(state["lease_path"])), data)
@@ -136,6 +166,8 @@ def recover_coffer(target, state, save, runtime, read_github, make_secret):
     for namespace, name, deployment in deployments:
         if inputs is not None and input_reference(reference["path"]) != reference:
             raise ValueError("private GitHub source changed before rollout")
+        if simulated_reference and input_reference(simulated_reference["path"]) != simulated_reference:
+            raise ValueError("private simulated source changed before rollout")
         # Re-read after seed: reject a concurrent change, not a stale preflight RV.
         deployment = owned(target, "Deployment", name, namespace)
         metadata = deployment["metadata"]
@@ -193,16 +225,21 @@ def _register(args, directory):
     if registry and registry.state["engine"] != engine:
         raise ValueError("registry and environment engines differ")
     reference = input_reference(args.github_input_file) if args.github_input_file else None
+    simulated_reference = input_reference(args.simulated_input_file) if getattr(args, "simulated_input_file", None) else None
     if not any(e.get("kind") == "Deployment" and e.get("name") == "openbao" and e.get("namespace") == CLUSTER
             for e in target.data.get("ownedResources", [])):
         raise ValueError("initial deployment must be explicitly installed before registering local-up")
-    if not reference and any(e.get("kind") == "Deployment" and e.get("name") == "github-connect"
+    if not reference and any(e.get("kind") == "Deployment" and e.get("name") in {"github-connect", "oauth-connect"}
             and e.get("namespace") == CLUSTER for e in target.data.get("ownedResources", [])):
         raise ValueError("register the GitHub profile with its private --github-input-file for future coffer epochs")
+    if not simulated_reference and any(e.get("kind") == "Deployment" and e.get("name") == "oauth-connect"
+            and e.get("namespace") == CLUSTER for e in target.data.get("ownedResources", [])):
+        raise ValueError("register OAuthConnect with --simulated-input-file for future coffer epochs")
     pki.private_directory(directory, create=True)
     state = {"schema": SCHEMA, "lease_path": str(args.lease.resolve()), "engine": engine,
              "identity": {key: target.data[key] for key in IDENTITY}, "epoch": None,
-             "registry_state": str(registry.directory) if registry else None, "github_input": reference}
+              "registry_state": str(registry.directory) if registry else None, "github_input": reference,
+              "simulated_input": simulated_reference}
     persist(directory / "environment.json", state)
 
 
@@ -224,6 +261,8 @@ def operate(args, runtime, read_github, make_secret):
         raise ValueError("environment registry reference changed")
     if args.github_input_file and input_reference(args.github_input_file) != state.get("github_input"):
         raise ValueError("environment private source changed; explicit rotation required")
+    if getattr(args, "simulated_input_file", None) and input_reference(args.simulated_input_file) != state.get("simulated_input"):
+        raise ValueError("environment private simulated source changed; explicit rotation required")
     target = LocalClusterTargetAnchor(lease, expected_cluster=CLUSTER)
     if {key: target.data[key] for key in IDENTITY} != state["identity"]:
         raise ValueError("original environment anchor identity changed")
@@ -238,6 +277,9 @@ def operate(args, runtime, read_github, make_secret):
         if args.action == "up" and state.get("github_input"):
             if input_reference(state["github_input"]["path"]) != state["github_input"]:
                 raise ValueError("private GitHub source changed; no implicit rotation")
+        if args.action == "up" and state.get("simulated_input"):
+            if input_reference(state["simulated_input"]["path"]) != state["simulated_input"]:
+                raise ValueError("private simulated source changed; no implicit rotation")
         with power_cleanup(target, registry, nodes, state["engine"], args.action == "up"):
             return running_operation(args, state, save, target, registry, nodes, runtime, read_github, make_secret)
 

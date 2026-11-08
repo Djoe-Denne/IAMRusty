@@ -226,17 +226,18 @@ def validate(tool, directory, profiles):
             tool.run("verify", "-CAfile", target / "ca.crt", "-purpose", purpose, certificate)
 
 
-def extend_openbao_github(tool, directory):
+def extend_openbao_github(tool, directory, *, oauth_connect=False):
     """Explicit additive bundle; never touches old leaves or CA serial counters."""
     parent = directory / "extensions"
     if not parent.exists():
         parent.mkdir(mode=0o777 if os.name == "nt" else 0o700)
-    target = parent / "openbao-github"
-    lock = parent / ".openbao-github.lock"
+    bundle_name = "openbao-oauthconnect" if oauth_connect else "openbao-github"
+    target = parent / bundle_name
+    lock = parent / ("." + bundle_name + ".lock")
     profiles = {
         name: ["DNS:" + name, "DNS:" + name + ".aiforall-local-full.svc",
                "DNS:" + name + ".aiforall-local-full.svc.cluster.local"]
-        for name in ("openbao", "github-connect")
+        for name in ("openbao", "oauth-connect" if oauth_connect else "github-connect")
     }
 
     def verify_bundle(bundle):
@@ -256,7 +257,7 @@ def extend_openbao_github(tool, directory):
         if target.exists():
             verify_bundle(target)  # A partial bundle fails, never repaired in place.
             return
-        stage = parent / (".openbao-github-" + secrets.token_hex(8))
+        stage = parent / ("." + bundle_name + "-" + secrets.token_hex(8))
         stage.mkdir(mode=0o777 if os.name == "nt" else 0o700)
         for name, sans in profiles.items():
             tool.run("req", "-new", "-newkey", "rsa:2048", "-noenc", "-sha256",
@@ -349,6 +350,7 @@ def main():
     parser.add_argument("--openssl", default=os.environ.get("OPENSSL"))
     parser.add_argument("--oauth-proof", action="store_true")
     parser.add_argument("--openbao-github", action="store_true", help="explicit additive TLS bundle")
+    parser.add_argument("--oauth-connect", action="store_true", help="additive OpenBao/OAuthConnect TLS bundle")
     parser.add_argument("--registry", action="store_true", help="explicit additive registry mTLS bundle")
     args = parser.parse_args()
     if not args.output_dir:
@@ -378,6 +380,8 @@ def main():
         validate(tool, directory, profiles)
         if args.openbao_github:
             extend_openbao_github(tool, directory)
+        if args.oauth_connect:
+            extend_openbao_github(tool, directory, oauth_connect=True)
         if args.registry:
             extend_registry(tool, directory)
         print(("reused" if existed else "created") + " verified local-full certificates; "

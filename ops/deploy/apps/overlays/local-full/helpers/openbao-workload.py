@@ -59,16 +59,42 @@ class Bao:
 
 
 def seed(bao, inputs):
+    credentials(inputs)
+    seed_documents(bao, [("github-connect/oauth", {"client_secret": inputs["client_secret"]}),
+                         ("github-connect/iam", {"hmac_secret": inputs["hmac_secret"]})])
+
+
+def credentials(inputs):
     expected = {"version", "client_id", "client_secret", "hmac_secret"}
-    if set(inputs) != expected or type(inputs["version"]) is not int or inputs["version"] != 1:
+    if (not isinstance(inputs, dict) or set(inputs) != expected
+            or type(inputs["version"]) is not int or inputs["version"] != 1
+            or not isinstance(inputs["client_id"], str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", inputs["client_id"])):
         raise Refused("invalid private seed schema")
     if (not isinstance(inputs["client_secret"], str) or not 1 <= len(inputs["client_secret"]) <= 4096
             or not inputs["client_secret"].strip() or any(ord(c) < 32 for c in inputs["client_secret"])):
         raise Refused("invalid OAuth secret")
     if not isinstance(inputs["hmac_secret"], str) or not re.fullmatch(r"[a-f0-9]{64}", inputs["hmac_secret"]):
         raise Refused("invalid HMAC")
-    documents = [("github-connect/oauth", {"client_secret": inputs["client_secret"]}),
-                 ("github-connect/iam", {"hmac_secret": inputs["hmac_secret"]})]
+
+
+def oauth_seed(bao, inputs):
+    if (not isinstance(inputs, dict) or set(inputs) != {"version", "github", "simulated"}
+            or type(inputs["version"]) is not int or inputs["version"] != 1):
+        raise Refused("invalid OAuthConnect seed schema")
+    for value in (inputs["github"], inputs["simulated"]):
+        credentials(value)
+    github, simulated = inputs["github"], inputs["simulated"]
+    if (not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", simulated["client_id"])
+            or not 16 <= len(simulated["client_secret"]) <= 256
+            or len({github["hmac_secret"], simulated["hmac_secret"], github["client_secret"], simulated["client_secret"]}) != 4):
+        raise Refused("dedicated distinct OAuthConnect credentials required")
+    seed_documents(bao, [("github-connect/oauth", {"client_secret": github["client_secret"]}),
+                        ("github-connect/iam", {"hmac_secret": github["hmac_secret"]}),
+                        ("oauth-connect/simulated/oauth", {"client_secret": simulated["client_secret"]}),
+                        ("oauth-connect/simulated/iam", {"hmac_secret": simulated["hmac_secret"]})])
+
+
+def seed_documents(bao, documents):
     pending = []
     # Validate both before writing either. A 404 data read is NOT proof of absence.
     for path, values in documents:
@@ -89,7 +115,34 @@ def seed(bao, inputs):
 
 
 def snapshot(bao, role):
+    if role == "oauth-simulator":
+        value = bao.request("GET", "secret/data/oauth-connect/simulated/oauth")["data"]["data"]["client_secret"]
+        if not isinstance(value, str) or not 16 <= len(value) <= 256 or any(ord(c) < 32 for c in value):
+            raise Refused("invalid simulated credential")
+        template = json.loads(Path("/template/provider.json").read_text())
+        if (set(template) != {"client_id", "run_id", "instance"} or template["instance"] != "simulated"
+                or not re.fullmatch(r"[a-z0-9]{12,32}", template["run_id"])
+                or not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", template["client_id"])):
+            raise Refused("invalid simulator template")
+        publish("provider.json", json.dumps({**template, "client_secret": value}))
+        return
     template = Path("/template/development.toml").read_text()
+    if role == "iam-oauth-hmac":
+        for slug, path in (("github", "github-connect/iam"), ("simulated", "oauth-connect/simulated/iam")):
+            marker = '"__' + slug.upper() + '_OPENBAO_HMAC__"'
+            value = bao.request("GET", "secret/data/" + path)["data"]["data"]["hmac_secret"]
+            if not isinstance(value, str) or not re.fullmatch(r"[a-f0-9]{64}", value) or template.count(marker) != 1:
+                raise Refused("invalid HMAC snapshot")
+            template = template.replace(marker, json.dumps(value))
+        import tomllib
+        config = tomllib.loads(template)
+        connectors = config["idp"]["connectors"]
+        if ([c["id"] for c in connectors] != ["github", "simulated"]
+                or connectors[0]["hmac_secret"] == connectors[1]["hmac_secret"]
+                or re.search(r"__[A-Z0-9_]+__", template)):
+            raise Refused("invalid IAM OAuthConnect snapshot")
+        publish("development.toml", template)
+        return
     if role == "lazaret":
         marker, value = '"__LAZARET_OPENBAO_TOKEN__"', bao.token
     elif role == "iam-hmac":
@@ -105,7 +158,11 @@ def snapshot(bao, role):
     # Parse before publishing; Python 3.12 in the pinned init image has tomllib.
     import tomllib
     tomllib.loads(rendered)
-    output = Path("/runtime/development.toml")
+    publish("development.toml", rendered)
+
+
+def publish(filename, rendered):
+    output = Path("/runtime") / filename
     temporary = output.with_suffix(".tmp")
     with temporary.open("w", encoding="utf-8") as target:
         target.write(rendered)
@@ -128,6 +185,8 @@ def main():
             time.sleep(2)
     if role == "github-seed":
         seed(bao, json.loads(Path("/inputs/inputs.json").read_text()))
+    elif role == "oauth-connect-seed":
+        oauth_seed(bao, json.loads(Path("/inputs/inputs.json").read_text()))
     else:
         snapshot(bao, role)
     print("OpenBao workload bootstrap complete")

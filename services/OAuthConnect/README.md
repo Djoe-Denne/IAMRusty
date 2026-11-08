@@ -2,6 +2,11 @@
 
 Service HTTP d'authentification fédérée : instances configurées avec profil OAuth ou OIDC, contrat v2 groupant tokens et identité normalisée. IAM conserve les transactions navigateur, comptes UUID, liens, emails et décisions métier.
 
+Le [profil ops local-full `--oauth-connect`](../../ops/deploy/README.md#oauthconnect--github--fournisseur-simulé-entrée-https)
+prépare GitHub et l'instance OAuth `simulated`, via OpenBao, derrière une entrée
+navigateur HTTPS. Il reste distinct des profils legacy et n'est pas une preuve
+de déploiement live ou d'E2E fournisseur.
+
 ## Comprendre avant de configurer
 
 - [Guide pédagogique : clés, JWKS, rotation et TLS](../../docs/guides/iam-oauthconnect-securite-clefs-jwks-tls.md).

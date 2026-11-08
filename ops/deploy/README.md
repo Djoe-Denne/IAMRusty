@@ -4,6 +4,93 @@ Contrat : [runtime autonome, validations explicites](../../docs/contracts/ops-ki
 
 Le **seul parcours nominal est local-full** : cluster `aiforall-local-full`, contexte `kind-aiforall-local-full`, un control-plane et deux workers. Il ne réutilise ni ne remplace le cluster legacy `aiforall-local`. Aucun repli vers Compose, une démo monolithe ou des stubs. Les commandes ci-dessous sont une procédure opérateur, **pas une preuve live** ; un rendu valide ou des Pods Ready ne prouvent pas un parcours métier.
 
+## OAuthConnect : GitHub + fournisseur simulé, entrée HTTPS
+
+Le profil explicite **`--oauth-connect`** lance le vrai service générique avec
+deux instances OAuth : `github` et `simulated`. Il est incompatible avec
+`--github-openbao` / `--oauth-proof`, qui restent des profils historiques distincts.
+Il ne retire aucun service existant et n'est pas une migration automatique d'un
+environnement déjà installé. Les gardes de bail/UID, d'ownership et de quiescence
+restent obligatoires ; ne pas relancer un apply global pour contourner leur refus.
+
+- Entrée navigateur : **`https://127.0.0.1:18080`**, certificat `envoy-mesh`
+  existant avec SAN IP. Le navigateur n'a pas besoin de certificat client ; les
+  hops internes Envoy→services conservent leur mTLS. Aucun `-k`/skip TLS.
+- IAM utilise cette origine HTTPS pour sa politique cookie et son issuer ; les
+  consommateurs sont alignés sur cet issuer, sans changer leurs endpoints JWKS.
+- Callbacks GitHub : `https://127.0.0.1:18080/iam/api/auth/github/callback` et
+  `https://127.0.0.1:18080/iam/api/auth/github/relink-callback`. Vérifier leur
+  compatibilité avec l'application OAuth GitHub **existante** avant activation.
+  Le déployeur ne modifie ni l'application GitHub ni ses secrets enregistrés.
+- Faire approuver la CA locale `mesh/ca.crt` par le navigateur/outil appelant,
+  de manière explicite. Aucune installation de confiance système automatique.
+- GitHub conserve TLS vérifié, scope de connexion `user:email`, identité `/user`
+  et sélection de l'email primaire via `/user/emails`, sans fallback email public.
+- `simulated` n'est ni GitHub ni GitLab : autre slug, client et HMAC. Il utilise
+  le simulateur existant, PKCE S256 et un booléen `email_verified`. Seul son hop
+  local vers `oauth-idp-simulator:8080` bénéficie de l'exception `isolated_test`.
+  Son URL d'autorisation est `http://127.0.0.1:18081/oauth/authorize` : le futur
+  scénario navigateur doit ouvrir le tunnel loopback ancré existant. Déployer
+  le profil n'ouvre pas ce tunnel et ne lance pas d'E2E.
+
+### Secrets et reprise
+
+Réutiliser `--github-input-file` (fichier privé en lecture seule déjà utilisé)
+et fournir `--simulated-input-file`, JSON privé en lecture seule de même forme :
+`version` entier `1`, `client_id`, `client_secret`, `hmac_secret`. Pour le simulé,
+client ID de 8–128 caractères `[A-Za-z0-9_-]`, secret de 16–256 caractères sans
+contrôle et HMAC de 64 caractères hexadécimaux minuscules. Générer des valeurs
+aléatoires dédiées : les quatre valeurs secrètes doivent être distinctes. Ne pas
+mettre ces fichiers dans Git, les logs ou la ligne de commande.
+
+Le seed non-root conserve les chemins KVv2 GitHub **`github-connect/oauth`** et
+**`github-connect/iam`**. Les nouveaux chemins sont
+`oauth-connect/simulated/oauth` et `oauth-connect/simulated/iam`. Les quatre
+préimages sont vérifiées avant toute écriture ; entrées identiques réutilisées,
+absentes créées par CAS0, conflit/suppression refusés sans écrasement ni rollback
+des écritures acquittées. Aucune lecture d'un Secret Kubernetes live.
+
+Connect reçoit un token-file par Agent OpenBao/identité Kubernetes et résout les
+références au boot. IAM ne peut lire que les deux HMAC ; le simulateur ne peut
+lire que son secret OAuth. Les snapshots privés sont dans des `emptyDir` Memory ;
+le Secret d'entrée éphémère du seed est lié au Job par UID/TTL (pas une garantie
+RAM-only dans etcd). Le coffre local reste volatil. Enregistrer **les deux**
+sources privées au premier `local-up`, pour reseed/restart contrôlé des quatre
+workloads dépendants après une nouvelle epoch :
+
+```powershell
+just local-up --lease "BAIL_ORIGINAL" --github-input-file "GITHUB_PRIVE" --simulated-input-file "SIMULATED_PRIVE"
+```
+
+### Préparer et déployer explicitement
+
+Les actions restent séparées : aucune commande render ne build ni ne démarre
+Docker/Kind. Les commandes build/deploy ci-dessous ne sont à exécuter qu'après
+les gates et autorisations runtime habituelles ; sorties neuves privées requises.
+
+```powershell
+python -B ops/deploy/deploy-local-full.py render --oauth-connect
+python -B ops/scripts/prepare-local-full-certs.py --output-dir "CERTIFICATS_PRIVES" --oauth-connect
+python -B ops/deploy/build/images.py plan --oauth-connect
+python -B ops/deploy/build/images.py build --oauth-connect --output "BUILD_MANIFEST_NEUF"
+python -B ops/deploy/local-full-images.py --lease "BAIL_ORIGINAL" --oauth-connect --build-manifest "BUILD_MANIFEST_NEUF" --output "IMAGE_MANIFEST_NEUF"
+python -B ops/deploy/deploy-local-full.py deploy --lease "BAIL_ORIGINAL" --image-manifest "IMAGE_MANIFEST_NEUF" --cert-directory "CERTIFICATS_PRIVES" --oauth-connect --github-input-file "GITHUB_PRIVE" --simulated-input-file "SIMULATED_PRIVE" --after-final-it
+```
+
+L'extension additive `extensions/openbao-oauthconnect/` crée/vérifie les feuilles
+OpenBao et OAuthConnect sous la CA transport existante, sans modifier les anciens
+certificats/clés. Une extension partielle est refusée, pas réparée en place.
+Le catalogue d'image utilise la cible `oauth` ; le reçu remplace le nom source
+par une référence immuable vérifiée. L'alternative registre OCI conserve ses
+flags `--release-manifest` / `--registry-state`, sans repli implicite kind-load.
+Le refresh image-only peut sélectionner `--targets oauth` ; il ne prépare ni la
+configuration, ni les certificats, ni les secrets d'un premier déploiement.
+
+Qualification : tests offline de configuration/rendu/PKI/secrets et mappings,
+**pas** preuve de build Linux, de coffre réel, de navigateur ou de connexion
+GitHub. ADR0413 reste Accepted/Partial. Voir le
+[rapport du raccord ops](../../docs/missions/20261108-ops-oauthconnect.md).
+
 ## Cycle quotidien : up / stop / status
 
 Après une **première installation explicite** avec les outils ci-dessous,

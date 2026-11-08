@@ -23,6 +23,7 @@ TARGETS = {
                        "aiforall-lazaret-service:local-full"),
     "github": service("GitHubConnect", "github-connect-service"),
     "gitlab": service("GitLabConnect", "gitlab-connect-service"),
+    "oauth": service("OAuthConnect", "oauth-connect-service"),
     "sentinel": {"source": "aiforall-sentinel-sync:local-full", "dockerfile": "ops/deploy/build/Dockerfile.worker",
                  "outputs": {"sentinel-sync": "sentinel-sync"}, "inputs": ["workers/sentinel-sync/"]},
     "ext-authz": {"source": "aiforall-ext-authz:local", "dockerfile": "ops/deploy/build/Dockerfile.ext-authz",
