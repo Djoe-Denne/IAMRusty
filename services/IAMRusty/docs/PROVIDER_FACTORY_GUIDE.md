@@ -1,60 +1,61 @@
-# Adding a federated IdP (GitHub Connect gabarit)
+# Adding a federated identity-provider instance
 
-IAM does **not** take a new vendor OAuth client in-process. A new identity provider is a **copy of the GitHubConnect gabarit**, a compose service, and one `[[idp.connectors]]` line. Routes `/iam/api/auth/{provider}/*` stay on IAM.
+Target: [ADR-0413](../../../docs/adr/0413-oauthconnect-multi-instances-profils.md), **Accepted / Partial**, and the [IAM v2 implementation contract](../../../docs/contracts/iam-oauthconnect-v2.md). The [multi-instance contract](../../../docs/contracts/oauthconnect-multi-instances.md) defines the Connect profiles, secrets and cutover conditions.
 
-Canon: [ADR-0407](../../docs/adr/0407-contrat-authn-federee-vendor-neutral.md), [0408](../../docs/adr/0408-connecteurs-idp-services-http.md), [0409](../../docs/adr/0409-confiance-callback-oauth-idp-connect.md), [0410](../../docs/adr/0410-migration-iam-connecteurs-idp.md), [0411](../../docs/adr/0411-idp-provider-slug-registry-fail-closed.md).
+IAM does **not** host a vendor OAuth/OIDC client. Add an instance to the existing **OAuthConnect** service and register its base URL in IAM. Do not copy GitHubConnect into a new service for each provider. Legacy services remain present until the separately qualified cutover; this guide does not activate a deployment.
 
-`Provider` is a typed **slug** (letters-only, ASCII case-fold, length 1–50). Do **not** add an enum variant. IdP N+1 does not recompile `iam-domain`.
+`Provider` remains a typed slug: ASCII letters only, case-folded to lowercase, length 1–50. `huggingface` is compatible; `hugging-face` and digits are not. No enum variant or recompilation of `iam-domain` is required for another compatible registered instance. Preserve existing `github`/`gitlab` slugs and their account links.
 
-## What IAM owns vs what the connector owns
+## Responsibilities and protocol
 
-| Surface | Owner |
-|---|---|
-| Browser callback, CSRF `OAuthState` (HMAC + `exp`), account linking, JWT, `provider_tokens` | IAM |
-| Vendor `client_id` / `client_secret`, authorize/token/profile HTTP to the vendor | Connector |
-| IAM → connector hop | HMAC S2S (`idp-connect-contract`), not a user JWT |
+- **IAM** owns signed state, browser-cookie binding, the durable authentication transaction, account/link rules, IAM UUIDs, sessions and JWT issuance.
+- **IAM BEGIN** generates an independent 32-byte base64url authentication nonce, persists it before START, and exposes only nonce and optional S256 challenge. The verifier remains private.
+- **OAuthConnect** owns vendor credentials, endpoint/scopes/profile configuration, OAuth/OIDC completion and normalized identity. Private OIDC signing keys remain with the provider, not IAM or Connect.
+- **The S2S hop** uses the instance's HMAC key and the complete received PATH/body, not a user Bearer token. TLS trust and the HMAC key are separate from vendor credentials and IAM JWT keys.
 
-## Architecture
-
-```
-Browser  →  IAM /iam/api/auth/{slug}/login|callback|link|relink
-                 │  OAuthState CSRF, redirect_uri from registry
-                 ▼
-            HttpIdpConnector  (HMAC, 10s, no redirect follow)
-                 │  HTTP JSON /v1/authorize|token/profile
-                 ▼
-            GitHubConnect / GitLabConnect / (copied gabarit)
+```text
+Browser → IAM /iam/api/auth/{slug}/login|callback|link|relink
+                   │ signed state + cookie + durable writer transaction
+                   ▼
+              HttpIdpConnector (verified TLS, HMAC, bounded response)
+                   │ POST <instance-base>/v2/authorize
+                   │ POST <instance-base>/v2/complete
+                   ▼
+              OAuthConnect instance → configured OAuth or OIDC provider
 ```
 
-`OAuthProviderFactory` is a `HashMap<Provider, Arc<dyn FederatedOAuthClient>>` filled at boot from every **complete** `[[idp.connectors]]` line and injected as a shared `Arc` at `OAuthService::new` (there is no `register_provider_client`). There is no generic `OAuthProviderFactory<GH, GL>` and no in-process vendor client in IAM.
+LOGIN, LINK and RELINK use the same v2 completion result containing **tokens and identity together**. There is no IAM fallback to v1 token/profile calls or profile lookup from the access token alone. The transaction writer consumes and erases nonce/verifier in one commit before completion; replay or legacy/corrupt context requires a new START.
 
-## Add a connector (checklist)
+`OAuthProviderFactory` remains a boot-filled `HashMap<Provider, Arc<dyn FederatedOAuthClient>>`, shared with the usecases. Application consumers import the port's existing v2 types through `iam_domain::port::service`; do not add a vendor client, duplicate DTO or new SDK dependency. The monolith keeps this HTTP adapter; it does not nest OAuthConnect or introduce an in-process vendor bridge.
 
-1. **Copy the gabarit** `services/GitHubConnect/` (hexagon mince, no Postgres, no OpenFGA, no user JWT). Implement `FederatedOAuthClient` from `idp-connect-contract`. Serve `/v1/*` via the crate’s `server` feature (`connect_router`).
-2. **Compose**: add a service (GitHub Connect is 8085/8446, GitLab Connect 8086/8447; next host ports follow that sequence). Do **not** nest the connector in `oodhive-monolith` (0408).
-3. **Allowlist** the public IAM callback **and** relink-callback (exact last-segment match). Compose IAM is **8080** (Telegraph is 8081).
-4. **Register IAM** in `services/IAMRusty/config/{development,default,production,test}.toml`:
+## Register an instance
+
+1. Configure an instance in OAuthConnect using its existing OAuth or OIDC profile. Keep vendor credentials and mappings there, not in IAM. Align instance slug and PKCE policy; do not infer profile kind from `github` or `gitlab`.
+2. Provision the instance's HMAC key through the approved secret mechanism. Both ends must use the same value, at least 16 bytes after normalization; never reuse a vendor client secret or an IAM JWT key for this purpose.
+3. Register a **complete** `[[idp.connectors]]` entry in IAM. The example below is illustrative, not a deployed endpoint or production secret:
 
 ```toml
 [[idp.connectors]]
 id = "github"
-base_url = "http://github-connect-service:8080/github-connect"
-hmac_secret = "change-me-github-connect-hmac"   # ≥ 16 chars; same value as the connector
+base_url = "https://connect.example.test/oauth-connect/github"
+hmac_secret = "illustrative-instance-key-change-me"
 redirect_uris = [
   "http://127.0.0.1:8080/iam/api/auth/github/callback",
   "http://127.0.0.1:8080/iam/api/auth/github/relink-callback",
 ]
 ```
 
-`id` is letters-only (`huggingface` is fine; `hugging-face` is not). Restart **Connect** then **IAM**. Hot-load is not supported ([0411](../../docs/adr/0411-idp-provider-slug-registry-fail-closed.md)).
+4. Configure verified TLS trust and the existing public IAM callback allowlist. S2S Connect routes must not become browser routes. No wildcard alias or shortened signed PATH; plaintext needs an existing explicit local/test exception, not an implicit fallback.
+5. Boot validation stays fail-closed: empty registry, incomplete entry, illegal/duplicate slug, invalid redirect/transport or missing/short HMAC does not silently disable an instance. A valid but unregistered slug remains a request-time `connector_not_configured` error. Registry hot-load is not supported.
 
-5. **Boot is fail-closed**: empty `idp.connectors`, incomplete line (empty `base_url`, missing Callback or Relink `redirect_uris`), illegal `id`, or HMAC shorter than 16 bytes after trim → IAM does not start. A well-formed slug **absent from the registry** is a **422** `connector_not_configured` at request time, not a skipped boot line.
-6. **IT**: IAM tests mock the **connector** (WireMock HMAC), never `api.github.com`. Connector tests mock the **vendor**.
+## Migration, identity and cutover
 
-## What not to do
+Apply the additive IAM migration before the new binary: `oauth_transactions.authentication_nonce TEXT NULL`, without backfill or account/token migration. Drain old STARTs for their TTL (at most 600 seconds), or expect their callbacks to be refused with a new START required. Rollback keeps the nullable column and restores the prior binary/config; do not reset the database or run a destructive down migration.
 
-- Put `client_secret` in IAM TOML.
-- Implement a vendor OAuth2 client inside `services/IAMRusty/infra`.
-- Remount vendor APIs on IAM test port `:3000`.
-- Treat Telegraph `:8081` as the IAM public callback in development compose.
-- Skip unknown slugs at boot, add a flag `enabled`, or key the client map by `String`.
+Identity remains **instance + opaque external ID**, linked to the same IAM UUID. Do not normalize IDs numerically, force email matching, relink in bulk or rewrite an issuer in place. LOGIN still requires an email even for an existing link; LINK/RELINK retain their distinct existing rules. See the contract for the exact business ordering and unresolved rare-case arbitration.
+
+Pointing deployed IAM URLs at OAuthConnect and retiring legacy services are separate operations. Real GitHub/GitLab E2E evidence is owned elsewhere. In particular, GitLab's new `sub` must equal the existing canonical GitLab ID on the same real account; a mock cannot prove this. Stop the cutover if it differs—do not improvise an account migration.
+
+## Verification boundaries
+
+Native Windows units exercise the real IAM adapter against outbound HTTP collaborators. PostgreSQL guarantees use the existing RustyCog testcontainer fixtures; TLS uses the existing local verified-CA/SAN fixture. Neither mocks nor a successful compile qualify a real provider or deployment. Keep codes, tokens, nonce and verifier out of diagnostics; preserve the existing trace-redaction checks.

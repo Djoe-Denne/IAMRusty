@@ -22,7 +22,7 @@ $iamBinaries = @(
     $oauthBinary, 'auth_transactions_postgres', 'oauth_cleanup_lifecycle',
     'auth_oauth_start', 'auth_oauth_callback', 'auth_oauth_provider_failures',
     'relink_provider', 'verified_idp_https', 'organization_account_guard',
-    'app_cleanup_supervision'
+    'app_cleanup_supervision', 'request_trace_redaction'
 )
 foreach ($name in $iamBinaries) {
     if ((Resolve-ItTestBinary -Suites @('iam') -Binary $name) -cne $name) { throw 'Valid exact IAM selection rejected' }
