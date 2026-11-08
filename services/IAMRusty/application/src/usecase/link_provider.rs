@@ -1,5 +1,8 @@
 //! Link Provider use case module
 
+#[cfg(test)]
+mod tests_v2;
+
 use crate::usecase::factory::OAuthProviderFactory;
 use async_trait::async_trait;
 use iam_domain::entity::oauth_transaction::{

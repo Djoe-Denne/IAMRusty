@@ -190,6 +190,8 @@ Chaque preuve consigne sélection/nombre de tests, code de sortie, oracle observ
 
 ## Registre final groupé — rares/ambigus rouges et décisions utilisateur
 
+RED intermédiaire LINK/RELINK : **8PASS/6FAIL/0ignoré/16filtrés** après compilation. Quatre START±PKCE et deux refus complete constatent v2absent ; huit gardes opération/cible/provider/redirect passent avec les deux clients effectivement enregistrés. Ces échecs contractuels ne sont pas des rouges rares à supprimer.
+
 GREEN intermédiaire LOGIN : **87tests domaine PASS/0échec/0ignoré/0filtré**, dont les4oracles LOGIN précédemment rouges, fmt et Clippy strict all-targets passent. LINK/RELINK et navigateur ne sont pas encore qualifiés ; la façade de types v2 est intégrée et compile pour permettre leurs témoins sans dépendance nouvelle.
 
 RED intermédiaire LOGIN orchestration : **0PASS/4FAIL/0 ignoré/83 filtrés**, compilation réussie. Deux START (±PKCE) et deux callbacks (complete refusé/email absent) constatent zéro appel v2 au lieu d'un, sans erreur de montage stricte repository/JWT. LINK/RELINK restent à préparer après accès aux types du port en application ; cette absence de préparation n'est pas un test RED.
