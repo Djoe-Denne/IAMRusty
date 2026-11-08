@@ -4,12 +4,15 @@
 mod tests_v2;
 
 use async_trait::async_trait;
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use iam_configuration::security::{validate_connector_url, SecurityMode};
 use iam_domain::error::DomainError;
 use iam_domain::port::service::FederatedOAuthClient;
 use idp_connect_contract::dto::{
-    AuthorizeRequest, AuthorizeResponse, ProfileRequest, ProviderTokens, ProviderUserProfile,
-    TokenRequest, AUTHORIZE_PATH, PROFILE_PATH, TOKEN_PATH,
+    valid_pkce_verifier, valid_s256_challenge, AuthorizeAuthenticationRequest, AuthorizeRequest,
+    AuthorizeResponse, CompleteAuthorizationRequest, ProfileRequest, ProviderAuthentication,
+    ProviderTokens, ProviderUserProfile, TokenRequest, AUTHORIZE_AUTHENTICATION_PATH,
+    AUTHORIZE_PATH, COMPLETE_AUTHORIZATION_PATH, PROFILE_PATH, TOKEN_PATH,
 };
 use idp_connect_contract::hmac::{
     sign, unix_timestamp_secs, HmacKey, SIGNATURE_HEADER, TIMESTAMP_HEADER,
@@ -22,6 +25,9 @@ use std::time::Duration;
 
 /// Minimum HMAC secret length after trim (test.toml `iam-idp-connect-test-hmac` is 26 bytes).
 const MIN_HMAC_SECRET_LEN: usize = 16;
+
+/// Inclusive limit for decoded response bytes accumulated before JSON parsing.
+const MAX_RESPONSE_BYTES: usize = 1024 * 1024;
 
 /// Outbound IAM client for a single `IdP` Connect slug.
 pub struct HttpIdpConnector {
@@ -103,6 +109,7 @@ impl HttpIdpConnector {
         validate_connector_url(&base_url, mode)
             .map_err(|message| DomainError::OAuth2Error(message.to_string()))?;
         let mut builder = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(3))
             .timeout(Duration::from_secs(10))
             .redirect(reqwest::redirect::Policy::none());
         for certificate in additional_roots {
@@ -153,7 +160,33 @@ impl HttpIdpConnector {
             return Err(on_fail);
         }
 
-        response.json::<R>().await.map_err(|_| on_fail)
+        Self::read_response(response, on_fail).await
+    }
+
+    async fn read_response<R: DeserializeOwned>(
+        mut response: reqwest::Response,
+        on_fail: FederatedOAuthError,
+    ) -> Result<R, FederatedOAuthError> {
+        let mut body = Vec::new();
+        // Count actual chunks, regardless of Content-Length. Reqwest's request
+        // timeout remains active while reading, including automatic decompression
+        // when enabled by the client's existing features.
+        while let Some(chunk) = response.chunk().await.map_err(|_| on_fail)? {
+            if chunk.len() > MAX_RESPONSE_BYTES - body.len() {
+                return Err(on_fail);
+            }
+            body.extend_from_slice(&chunk);
+        }
+        serde_json::from_slice(&body).map_err(|_| on_fail)
+    }
+
+    fn valid_authentication_nonce(nonce: &str) -> bool {
+        if nonce.len() != 43 {
+            return false;
+        }
+        URL_SAFE_NO_PAD
+            .decode(nonce)
+            .is_ok_and(|decoded| decoded.len() == 32 && URL_SAFE_NO_PAD.encode(&decoded) == nonce)
     }
 }
 
@@ -188,6 +221,49 @@ pub fn parse_certificate_pem(pem: &[u8]) -> Result<reqwest::Certificate, DomainE
 
 #[async_trait]
 impl FederatedOAuthClient for HttpIdpConnector {
+    async fn authorize_authentication(
+        &self,
+        request: &AuthorizeAuthenticationRequest,
+    ) -> Result<AuthorizeResponse, FederatedOAuthError> {
+        if !Self::valid_authentication_nonce(&request.nonce) {
+            return Err(FederatedOAuthError::Authorize);
+        }
+        match (
+            request.code_challenge.as_deref(),
+            request.code_challenge_method.as_deref(),
+        ) {
+            (None, None) => {}
+            (Some(challenge), Some("S256")) if valid_s256_challenge(challenge) => {}
+            _ => return Err(FederatedOAuthError::Authorize),
+        }
+        self.signed_post(
+            AUTHORIZE_AUTHENTICATION_PATH,
+            request,
+            FederatedOAuthError::Authorize,
+        )
+        .await
+    }
+
+    async fn complete_authorization(
+        &self,
+        request: &CompleteAuthorizationRequest,
+    ) -> Result<ProviderAuthentication, FederatedOAuthError> {
+        if !Self::valid_authentication_nonce(&request.expected_nonce)
+            || request
+                .code_verifier
+                .as_deref()
+                .is_some_and(|value| !valid_pkce_verifier(value))
+        {
+            return Err(FederatedOAuthError::ExchangeCode);
+        }
+        self.signed_post(
+            COMPLETE_AUTHORIZATION_PATH,
+            request,
+            FederatedOAuthError::ExchangeCode,
+        )
+        .await
+    }
+
     async fn authorize(
         &self,
         redirect_uri: &str,
