@@ -190,6 +190,8 @@ Chaque preuve consigne sélection/nombre de tests, code de sortie, oracle observ
 
 ## Registre final groupé — rares/ambigus rouges et décisions utilisateur
 
+GREEN intermédiaire domaine : **75 PASS/0 FAIL/0 ignoré/0 filtré**, Clippy domaine all-targets strict et fmt passent. Les22casnonce passent sur les mêmes oracles ; tirageOsRng distinct vérifié dans le delta. Nouvelle API complete du contexte privé intégrée mais forwarding et suppression finale des usages v1 restent à prouver ; SQL réel toujours non exécuté.
+
 État TDD intermédiaire nonce : **22 nouveaux cas compilent ;9 PASS/13 FAIL/0 ignoré/53 filtrés**. Six BEGIN échouent sur nonce vide, sept legacy/corrompus échouent sur capacité accordée malgré writer témoin déjà consommé/purgé. Ce sont des écarts contractuels à corriger, pas des cas métier nouveaux ; SQL réel, migration et ordre réseau restent à prouver par leurs tests dédiés.
 
 GREEN intermédiaire transport : **22 PASS/0 FAIL/0 ignoré/124 filtrés** (11v2+11v1), timeout réel10s inclus, mêmes oracles. Clippy strict infra **rouge sur 9 dead_code préexistants/non modifiés**, dont huit comparés au log baseline ; détail `.cursor/review-briefings/20261108-iam-http-green-quality.md`. Ne pas confondre cette dette avec un test rare rouge ou annoncer un PASS global. Aucun allow/affaiblissement appliqué.

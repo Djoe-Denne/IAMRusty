@@ -2,13 +2,16 @@
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::Utc;
+use idp_connect_contract::CompleteAuthorizationRequest;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use super::provider::Provider;
+use crate::error::DomainError;
 use crate::port::repository::OAuthTransactionWriteRepository;
+use crate::port::service::FederatedOAuthClient;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type")]
@@ -69,7 +72,7 @@ pub struct BegunOAuthTransaction {
     pub authentication_nonce: String,
 }
 
-/// Manual redacted Debug: the authentication nonce must never reach logs,
+/// Manual redacted `Debug`: the authentication nonce must never reach logs,
 /// including when this type is nested inside a command (contract §2).
 impl std::fmt::Debug for BegunOAuthTransaction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -143,7 +146,39 @@ impl ConsumedOAuthTransaction {
         self.transaction.pkce_verifier.as_deref()
     }
 
+    /// Complete with this consumed context's redirect and original private secrets.
+    ///
+    /// # Errors
+    /// Returns a generic OAuth error for an invalid nonce or failed completion.
+    pub async fn complete_authorization(
+        &self,
+        client: &dyn FederatedOAuthClient,
+        code: &str,
+    ) -> Result<idp_connect_contract::ProviderAuthentication, DomainError> {
+        let nonce = self
+            .transaction
+            .authentication_nonce
+            .as_deref()
+            .filter(|nonce| is_valid_authentication_nonce(nonce))
+            .ok_or_else(|| {
+                DomainError::OAuth2Error("OAuth authorization completion failed".into())
+            })?;
+        let request = CompleteAuthorizationRequest {
+            code: code.to_string(),
+            redirect_uri: self.redirect_uri().to_string(),
+            code_verifier: self.transaction.pkce_verifier.clone(),
+            expected_nonce: nonce.to_string(),
+        };
+        client
+            .complete_authorization(&request)
+            .await
+            .map_err(|_| DomainError::OAuth2Error("OAuth authorization completion failed".into()))
+    }
+
     /// Exchange only with this consumed context's redirect and private verifier.
+    ///
+    /// Temporary compatibility for v1 orchestrations awaiting their v2 migration;
+    /// never called as a fallback from `complete_authorization`.
     ///
     /// # Errors
     /// Returns a generic OAuth error for a failed/unsupported PKCE exchange.
@@ -173,7 +208,13 @@ impl ConsumedOAuthTransaction {
             .consume(&input)
             .await?
             .ok_or(OAuthTransactionError::InvalidTransaction)?;
-        if tx.consumed_at.is_none() || !tx.matches(&input) {
+        if tx.consumed_at.is_none()
+            || !tx.matches(&input)
+            || !tx
+                .authentication_nonce
+                .as_deref()
+                .is_some_and(is_valid_authentication_nonce)
+        {
             return Err(OAuthTransactionError::InvalidTransaction);
         }
         Ok(Self { transaction: tx })
@@ -181,7 +222,7 @@ impl ConsumedOAuthTransaction {
 }
 
 impl OAuthTransaction {
-    /// Persist the authorization transaction before returning public PKCE data.
+    /// Persist the authorization transaction before returning START context.
     ///
     /// # Errors
     /// Rejects invalid lifetimes/redirects or propagates a generic writer failure.
@@ -196,6 +237,9 @@ impl OAuthTransaction {
         {
             return Err(OAuthTransactionError::InvalidTransaction);
         }
+        let mut nonce_bytes = [0_u8; 32];
+        rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
+        let authentication_nonce = URL_SAFE_NO_PAD.encode(nonce_bytes);
         let verifier = input.pkce_required.then(|| {
             let mut bytes = [0_u8; 32];
             rand::rngs::OsRng.fill_bytes(&mut bytes);
@@ -215,17 +259,13 @@ impl OAuthTransaction {
             expires_at: input.expires_at,
             consumed_at: None,
             pkce_verifier: verifier,
-            // PROVISIONAL v2 scaffold: BEGIN does not generate the authentication
-            // nonce yet; this must become Some(canonical nonce) with the v2 BEGIN.
-            authentication_nonce: None,
+            authentication_nonce: Some(authentication_nonce.clone()),
         };
         repository.create(&transaction).await?;
         Ok(BegunOAuthTransaction {
             code_challenge: challenge,
             code_challenge_method: input.pkce_required.then(|| "S256".to_string()),
-            // PROVISIONAL v2 scaffold: empty until v2 BEGIN generates and persists the
-            // nonce; intentionally fails future nonce oracles (RED, not GREEN).
-            authentication_nonce: String::new(),
+            authentication_nonce,
         })
     }
 
@@ -248,6 +288,13 @@ impl OAuthTransaction {
 #[must_use]
 pub fn hash_oauth_bytes(value: &[u8]) -> [u8; 32] {
     Sha256::digest(value).into()
+}
+
+fn is_valid_authentication_nonce(nonce: &str) -> bool {
+    nonce.len() == 43
+        && URL_SAFE_NO_PAD
+            .decode(nonce)
+            .is_ok_and(|bytes| bytes.len() == 32 && URL_SAFE_NO_PAD.encode(bytes) == nonce)
 }
 
 fn constant_time_equal(a: &[u8; 32], b: &[u8; 32]) -> bool {
