@@ -143,7 +143,7 @@ async fn registered_upgrade_preserves_legacy_transactions_accounts_and_constrain
             "INSERT INTO provider_tokens(user_id,provider,provider_user_id,access_token,refresh_token) VALUES ($1,'github','000042','upgrade-fixture-access','upgrade-fixture-refresh')", [user.into()]))
             .await.expect("legacy identity/token sentinel");
         tx.execute(Statement::from_sql_and_values(DatabaseBackend::Postgres,
-            "INSERT INTO user_emails(user_id,email,is_primary,is_verified) VALUES ($1,'upgrade-fixture@example.test',true,true)", [user.into()]))
+            "INSERT INTO user_emails(id,user_id,email,is_primary,is_verified) VALUES ($1,$2,'upgrade-fixture@example.test',true,true)", [Uuid::new_v4().into(), user.into()]))
             .await.expect("legacy email sentinel");
         tx.execute(Statement::from_sql_and_values(DatabaseBackend::Postgres,
             "INSERT INTO oauth_transactions(id,nonce_hash,state_hash,browser_nonce_hash,provider,operation,target_user_id,redirect_uri,pkce_verifier,expires_at,consumed_at)
