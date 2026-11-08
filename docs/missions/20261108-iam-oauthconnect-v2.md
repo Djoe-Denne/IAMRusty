@@ -22,6 +22,15 @@ E2E GitHub/GitLab réels et déploiement restent à l'autre propriétaire. L'éq
 
 `cargo test --locked -p iam-domain --lib` : **53 PASS, 0 échec, 0 ignoré, 0 filtré** sur la base du mandat, avant changement applicatif. Ce résultat caractérise l'existant ; il ne prouve pas le raccord v2. Aucun runtime Docker n'a été démarré.
 
+## Progression vérifiée — raccord encore incomplet
+
+- **Transport v2** : tests compilables d'abord,3PASS/8RED sur les11nouveaux cas avant implémentation ; puis **22PASS** (11v2+11v1,124filtrés), dont HMAC sur PATH/corps réels, nonce/PKCE, borne1MiB inclusive, redirections et timeout10s avec une seule requête. Lecture bornée avant parsing, connexion3s ; aucune preuve RSS/gzip/streaming sans longueur revendiquée.
+- **Domaine et capacité** :22nouveaux cas donnaient9PASS/13RED (BEGIN sans nonce et capacité legacy indûment accordée), puis passent avec tirageOsRng indépendant. Huit preuves supplémentaires couvrent forwarding des secrets originaux après consommation, erreur v2 sans fallback/retry et zéro appel sans capacité. **83tests domaine passent**, sans ignorés/filtrés ; Clippy all-targets strict passe.
+- **Writer et migration** : unité SQL3PASS/1RED avant changement, puis **4PASS** (142filtrés). Colonne nullable additive, chaîne Migrator enregistrée, INSERT du nonce et double purge commitée implémentés ; `down` préserve la colonne et `up` est réapplicable. Tests Postgres/upgrade compilés, **non encore exécutés**. Clippy strict domaine+migration passe. Aucun SQL appliqué à un environnement de déploiement.
+- **HTTPS** : fixture existante enrichie, nominal v1 conservé, nominal v2 et refus CA/SAN/redirection compilés ; exécution finale à venir.
+
+Clippy strict `iam-infra --all-targets` reste rouge sur neuf diagnostics `dead_code` préexistants/non modifiés ; aucun allow ou masquage. Les preuves ci-dessus restent **partielles** : orchestration LOGIN/LINK/RELINK encore à transposer, IT réelles et revues finales non faites, aucun PASS global annoncé.
+
 ## Livraison par dépendances
 
 1. Intégrer le cadrage des coutures IAM et le [plan QA](../../.cursor/qa-plans/20261108-iam-oauthconnect-v2.md) avant leurs auteurs.

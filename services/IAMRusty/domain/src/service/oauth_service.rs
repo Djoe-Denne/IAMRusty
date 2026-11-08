@@ -319,6 +319,8 @@ where
 
 #[cfg(test)]
 mod missing_client_tests {
+    mod tests_v2;
+
     use super::*;
     use crate::entity::provider_link::ProviderLink;
     use crate::entity::token::JwkSet;

@@ -190,6 +190,8 @@ Chaque preuve consigne sélection/nombre de tests, code de sortie, oracle observ
 
 ## Registre final groupé — rares/ambigus rouges et décisions utilisateur
 
+RED intermédiaire LOGIN orchestration : **0PASS/4FAIL/0 ignoré/83 filtrés**, compilation réussie. Deux START (±PKCE) et deux callbacks (complete refusé/email absent) constatent zéro appel v2 au lieu d'un, sans erreur de montage stricte repository/JWT. LINK/RELINK restent à préparer après accès aux types du port en application ; cette absence de préparation n'est pas un test RED.
+
 GREEN intermédiaire domaine/helper/writer : **83 tests domaine PASS** (8 nouveaux de forwarding/refus), **4 unités writer PASS** ; aucun ignoré, filtres writer142. Migration additive et IT Postgres compilent ; Clippy strict domaine+migration passe après import explicite du réexport `async_trait`. Les IT réelles n'ont pas encore tourné et l'orchestration utilise encore v1 : **raccord global non terminé**.
 
 RED intermédiaire writer : unités SQL compilent, **3 PASS/1 FAIL/0 ignoré/142 filtrés** ; le consume ne retourne pas encore le nonce original. Les nouveaux tests Postgres/upgrade compilent (`auth_transactions_postgres --no-run`) mais **aucune IT n'a tourné**. Le schéma de préimage est isolé dans une transaction fixture avec search_path sans public, pas un reset ; preuve DDL transactionnelle à distinguer d'un rollout opérationnel.
