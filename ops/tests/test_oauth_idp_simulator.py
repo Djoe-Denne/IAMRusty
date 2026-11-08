@@ -1,10 +1,13 @@
-"""Provider-fixture units only; no product, browser, cluster or socket."""
+"""Provider-fixture units and loopback HTTP tests; no product, browser or cluster."""
 import base64
 import hashlib
 import importlib.util
 from email.message import Message
 import io
+from http.client import HTTPConnection
+import json
 from pathlib import Path
+import threading
 import unittest
 from unittest.mock import Mock
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -122,6 +125,110 @@ class SimulatorTests(unittest.TestCase):
             handler.do_POST()
             self.assertEqual(handler.reply.call_args.args, (400, {"error": "invalid_grant"}))
             self.assertEqual(self.provider.observations()["token"], 0)
+
+
+class SimulatedProviderHttpTests(unittest.TestCase):
+    """Exercise the deployed handler protocol, not a mocked reply method."""
+
+    def setUp(self):
+        self.module = load()
+        self.client_id = "simulatedclient"
+        self.client_secret = "expected-simulated-client-secret"
+        self.run_id = "simulatedrun123456"
+        self.redirect = "https://127.0.0.1:18080/iam/api/auth/simulated/callback"
+        self.verifier = "a" * 43
+        self.provider = self.module.Provider(self.client_id, self.client_secret, self.run_id,
+                                             instance="simulated")
+        self.server = self.module.ThreadingHTTPServer(
+            ("127.0.0.1", 0), self.module.handler(self.provider))
+        self.server.daemon_threads = True
+        self.thread = threading.Thread(target=self.server.serve_forever,
+                                       kwargs={"poll_interval": 0.01}, daemon=True)
+        self.thread.start()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=2)
+        self.assertFalse(self.thread.is_alive(), "simulated HTTP fixture must stop")
+
+    def request(self, method, path, values=None, authorization=None):
+        connection = HTTPConnection("127.0.0.1", self.server.server_port, timeout=2)
+        headers = {"Connection": "close"}
+        body = None
+        if values is not None:
+            body = urlencode(values).encode()
+            headers["Content-Type"] = "application/x-www-form-urlencoded"
+        if authorization is not None:
+            headers["Authorization"] = authorization
+        try:
+            connection.request(method, path, body=body, headers=headers)
+            response = connection.getresponse()
+            raw = response.read(4097)
+            self.assertLessEqual(len(raw), 4096, "fixture response must remain bounded")
+            return response.status, dict(response.getheaders()), json.loads(raw)
+        finally:
+            connection.close()
+
+    def authorize(self):
+        values = dict(response_type="code", client_id=self.client_id,
+                      redirect_uri=self.redirect, state="simulated-http-state",
+                      code_challenge=base64.urlsafe_b64encode(hashlib.sha256(
+                          self.verifier.encode()).digest()).rstrip(b"=").decode(),
+                      code_challenge_method="S256")
+        status, headers, _ = self.request("GET", "/oauth/authorize?" + urlencode(values))
+        self.assertEqual(status, 303)
+        location = urlsplit(headers["Location"])
+        self.assertEqual(location.scheme + "://" + location.netloc + location.path, self.redirect)
+        query = parse_qs(location.query)
+        self.assertEqual(query["state"], [values["state"]])
+        self.assertEqual(len(query["code"]), 1)
+        return query["code"][0]
+
+    def token_values(self, code):
+        return dict(grant_type="authorization_code", code=code, client_id=self.client_id,
+                    client_secret=self.client_secret, redirect_uri=self.redirect,
+                    code_verifier=self.verifier)
+
+    def test_simulated_accepts_configured_client_secret_post_over_http(self):
+        status, _, payload = self.request("POST", "/oauth/token", self.token_values(self.authorize()))
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["token_type"], "Bearer")
+        self.assertTrue(payload["access_token"])
+        status, _, profile = self.request("GET", "/user", authorization="Bearer " + payload["access_token"])
+        self.assertEqual(status, 200)
+        self.assertEqual(profile["email"], self.run_id + "@example.invalid")
+        status, _, counts = self.request("GET", "/observations")
+        self.assertEqual(status, 200)
+        self.assertEqual(counts, dict(run_id=self.run_id, authorize=1, token=1, profile=1, pkce_validated=1))
+
+    def test_wrong_or_missing_client_secret_returns_400_without_token_and_burns_code(self):
+        for supplied in ("wrong-simulated-client-secret", None):
+            with self.subTest(missing=supplied is None):
+                code = self.authorize()
+                values = self.token_values(code)
+                if supplied is None:
+                    del values["client_secret"]
+                else:
+                    values["client_secret"] = supplied
+                status, _, payload = self.request("POST", "/oauth/token", values)
+                self.assertEqual((status, payload), (400, {"error": "invalid_grant"}))
+                # Even the correct secret cannot replay a code consumed by refusal.
+                status, _, payload = self.request("POST", "/oauth/token", self.token_values(code))
+                self.assertEqual((status, payload), (400, {"error": "invalid_grant"}))
+                _, _, counts = self.request("GET", "/observations")
+                self.assertEqual((counts["token"], counts["profile"], counts["pkce_validated"]), (0, 0, 0))
+        # The same valid request with a fresh code succeeds: the negative oracle
+        # above is not merely an unreachable service or an invalid PKCE fixture.
+        status, _, payload = self.request("POST", "/oauth/token", self.token_values(self.authorize()))
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["access_token"])
+
+    def test_wrong_access_token_returns_400_without_profile(self):
+        status, _, payload = self.request("GET", "/user", authorization="Bearer unknown-test-token")
+        self.assertEqual((status, payload), (400, {"error": "invalid_request"}))
+        _, _, counts = self.request("GET", "/observations")
+        self.assertEqual((counts["token"], counts["profile"]), (0, 0))
 
 
 if __name__ == "__main__":
