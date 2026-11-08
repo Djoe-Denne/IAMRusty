@@ -31,6 +31,32 @@ Ce helper construit `CompleteAuthorizationRequest` depuis le code reçu et **le 
 
 Le domaine réutilise `ProviderAuthentication` du contrat, dont `tokens` et `profile` sont déjà les types vendor-neutral réexportés par IAM. Pas de nouveau DTO concurrent, ni d'exposition d'ID token. La signature empruntée ne constitue pas une garantie linéaire du langage : les orchestrations ne l'appellent qu'une fois ; aucun retry, fallback ou seconde complétion sur la même capacité n'est autorisé.
 
+### 2.1 Amendement — types du port accessibles à l'application
+
+2026-11-08, checkpoint documentaire propre **`0c82269ea5154e025520827d4e4e495b70b879d2`**. Couture localisée pendant la préparation de l'orchestration, sans réouverture du métier ni de Connect. Sources de ce checkpoint relues : `application/Cargo.toml` dépend de `iam-domain`, **pas** de `idp-connect-contract` ; `domain/src/port/service.rs:9` réexporte seulement `FederatedOAuthClient` ; `domain/src/entity/provider.rs:6` réexporte `ProviderTokens` et `ProviderUserProfile`. La crate contrat expose déjà les cinq types ci-dessous à sa racine (`crates/idp-connect-contract/src/lib.rs:23–30`). Leur présence dans les signatures du trait ne fournit pas à l'application un chemin d'import directement nommable pour construire ses requêtes ou implémenter un spy.
+
+**Décision A, retenue : compléter la façade du port domaine existant**, dans le seul `services/IAMRusty/domain/src/port/service.rs`. L'ensemble explicite des réexports de cette couture devient :
+
+```rust
+pub use idp_connect_contract::{
+    AuthorizeAuthenticationRequest, AuthorizeResponse, CompleteAuthorizationRequest,
+    FederatedOAuthClient, FederatedOAuthError, ProviderAuthentication,
+};
+```
+
+Ce bloc décrit l'export **à implémenter après intégration du document**, pas du code déjà livré par cet auteur. Il ajoute cinq réexports au trait déjà exposé ; **mêmes types et identité Rust**, sans copie de DTO, wrapper, conversion, sérialisation, nouvelle méthode ou changement des signatures/defaults du trait. Les réexports `entity::provider::{ProviderTokens, ProviderUserProfile}` restent inchangés ; pas de réexport wildcard du crate, des helpers HMAC, des constantes HTTP ou du récepteur `server`.
+
+- **Production application** : `application/src/usecase/link_provider.rs` importe `AuthorizeAuthenticationRequest` et les types effectivement nécessaires depuis `iam_domain::port::service`, comme il y importe déjà `FederatedOAuthClient`. La requête authorize v2 est construite à la couture existante `LinkProviderUseCaseImpl::authorize_url`, avec le contexte `BegunOAuthTransaction` selon §3 ; LINK/RELINK utilisent la complétion depuis `ConsumedOAuthTransaction` selon §5. Cet accès aux types est nécessaire à la production, pas seulement à un test. Il n'autorise aucun getter de secrets ni nouvelle capacité.
+- **Tests application** : leurs spies implémentent le même `iam_domain::port::service::FederatedOAuthClient` et nomment `AuthorizeAuthenticationRequest`, `CompleteAuthorizationRequest`, `AuthorizeResponse`, `ProviderAuthentication` et `FederatedOAuthError` par cette façade ; tokens/profil par les réexports domaine déjà présents. Pas de dépendance directe au contrat ajoutée uniquement sous `dev-dependencies`, d'API de fixture dans le domaine ou de fuite de `ConsumedOAuthTransaction` pour contourner ses champs privés.
+- **B, non retenue pour ce lot** : ajouter `idp-connect-contract` à `application/Cargo.toml` (et faire évoluer le graphe/lock si nécessaire) fonctionnerait comme autre couture, mais introduirait une dépendance directe inutile alors que l'application consomme déjà le port via le domaine. Aucun manifeste, lockfile ou feature n'est à changer pour A.
+- **C, non retenue** : ajouter un helper d'authorize sur `BegunOAuthTransaction` uniquement pour cacher ces types ferait évoluer une API sans besoin fonctionnel. Ne pas déplacer l'orchestration ni ajouter ce helper ; le helper de complétion consommée reste inchangé.
+
+**Portée / seuil ADR** : réexport additif de types déjà publics du port vendor-neutral, application locale de 0407/0413 et de la séparation ports/adapters0103 ; pas de nouvelle frontière, protocole, route ou dépendance. **Aucune nouvelle ADR ni acceptation humaine requise**, aucun Statut/Réalité modifié. Blast radius borné : façade `iam-domain::port::service`, imports et spies `iam-application` ; les implémentations du port et services v1 restent compatibles.
+
+**Précédence de préparation et preuve** : parent intègre/versionne cet amendement **avant** l'export réel, puis intègre/versionne l'export explicite et confirme la compilation de ses consommateurs avant de libérer l'auteur de tests application LINK/RELINK. Une vérification ciblée candidate, sous son slot unique, est `cargo check --locked -p iam-domain -p iam-application --all-targets` ; compilation nécessaire, **pas RED comportemental**. Aucun stub de succès/refus, nouveau comportement ni modification d'oracle n'est requis pour rendre ces types accessibles. Ensuite seulement, écrire/exécuter les témoins d'orchestration avec assertions sur authorize v2/complete et absence de v1, avant correction des orchestrations encore v1 ; absence de types, import invalide ou méthode inaccessible ne vaut jamais RED.
+
+État rapporté par le parent à ce checkpoint : producteurs intégrés/compilés, **83 tests domaine, 4 writer unitaires et 22 HTTP PASS** sur leurs périmètres ; quatre tests natifs LOGIN candidats livrés **non exécutés**, tests application LINK/RELINK encore bloqués par cet accès aux types. Ni ces résultats partiels ni les candidats ne constituent une livraison de l'orchestration ou un RED LOGIN déjà observé. Aucun de ces runs n'est exécuté/réexécuté par cet auteur. Les garanties métier, le traitement legacy, G-5 conditionnel et le bilan rare groupé restent ceux des sections suivantes.
+
 ## 3. BEGIN et START : données exactes et précédences
 
 1. Conserver l'admission provider/registry, l'intention et la cible authentifiées, le state signé, le cookie navigateur et la politique de redirect existants. `OAuthRouteContext::begin` reste la couture HTTP vers le BEGIN de domaine.
