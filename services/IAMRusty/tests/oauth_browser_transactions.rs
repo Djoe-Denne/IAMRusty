@@ -1178,3 +1178,232 @@ async fn identical_opaque_ids_in_two_provider_instances_stay_distinct_and_replic
     )
     .await;
 }
+
+// T-1/G7: exact email snapshots catch reassignment, promotion and extra rows.
+async fn email_rows_snapshot(db: &sea_orm::DatabaseConnection) -> String {
+    db.query_one(Statement::from_string(DatabaseBackend::Postgres,
+        "SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.id),'[]'::jsonb)::text AS snapshot FROM user_emails t".to_owned()))
+        .await.expect("email snapshot").expect("snapshot row")
+        .try_get("", "snapshot").expect("email snapshot JSON")
+}
+
+// Q1: do not print snapshots containing fixture credentials on failure.
+async fn provider_links_snapshot(db: &sea_orm::DatabaseConnection) -> String {
+    db.query_one(Statement::from_string(DatabaseBackend::Postgres,
+        "SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.id),'[]'::jsonb)::text AS snapshot FROM provider_tokens t".to_owned()))
+        .await.expect("provider links snapshot").expect("snapshot row")
+        .try_get("", "snapshot").expect("provider links snapshot JSON")
+}
+
+async fn mock_delivered_authentication(
+    idp: &IdpConnectMockService,
+    tokens: idp_connect_contract::dto::ProviderTokens,
+    profile: idp_connect_contract::dto::ProviderUserProfile,
+) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
+    let delivered = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let receipt = delivered.clone();
+    let authentication = idp_connect_contract::dto::ProviderAuthentication { tokens, profile };
+    // No default complete responder is mounted before this observer.
+    idp.mock_complete_with("github", move |_| {
+        receipt.store(true, std::sync::atomic::Ordering::SeqCst);
+        wiremock::ResponseTemplate::new(200).set_body_json(&authentication)
+    })
+    .await;
+    delivered
+}
+
+/// T-1/G7: RELINK ignores an email already owned elsewhere, without borrowing
+/// LINK's refusal policy or transferring/verifying that email.
+#[tokio::test]
+#[serial]
+async fn relink_with_another_users_primary_email_replaces_tokens_without_reassigning_email() {
+    let (fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
+        let owner = fixtures::DbFixtures::user().arthur().commit(db.clone()).await.expect("relink owner");
+        fixtures::DbFixtures::user_email().arthur_primary(owner.id()).commit(db.clone()).await.expect("owner primary email");
+        let other = fixtures::DbFixtures::user().bob().commit(db.clone()).await.expect("other email owner");
+        fixtures::DbFixtures::user_email().bob_primary(other.id()).commit(db.clone()).await.expect("other primary email");
+        fixtures::DbFixtures::provider_token().arthur_github(owner.id()).provider_user_id("12345")
+            .access_token("old_github_token_123").commit(db.clone()).await.expect("existing relink tokens");
+        let before_emails = email_rows_snapshot(&db).await;
+        let idp = IdpConnectFixtures::service().await;
+        let mut profile = fixtures::idp_connect::resources::github_arthur();
+        profile.email = Some("bob@example.com".to_owned());
+        profile.email_verified = true;
+        let mut tokens = fixtures::idp_connect::resources::success_tokens();
+        tokens.refresh_token = Some("new_github_refresh_token_123".to_owned());
+        let delivered = mock_delivered_authentication(&idp, tokens.clone(), profile).await;
+        let client = browser_client();
+        let (state, cookie) = browser_flow::relink(&client, &base, "github", owner.id(), &idp).await;
+        let response = callback(&client, &base, "github/relink-callback", &state, Some(&cookie)).await;
+        assert!(delivered.load(std::sync::atomic::Ordering::SeqCst), "valid complete must reach RELINK");
+        assert_eq!(response.status(), 200, "foreign email must not turn RELINK into LINK's refusal policy");
+        let response: Value = response.json().await.expect("RELINK response");
+        assert_eq!(response["user"]["id"], owner.id().to_string());
+        assert_eq!(response["new_email_added"], false);
+        assert!(email_rows_snapshot(&db).await == before_emails, "RELINK must not reassign, verify or add the other user's email");
+        let row = db.query_one(Statement::from_sql_and_values(DatabaseBackend::Postgres,
+            "SELECT COUNT(*) AS count FROM provider_tokens WHERE user_id=$1 AND provider='github' AND provider_user_id='12345' AND access_token=$2 AND refresh_token=$3 AND expires_in=3600",
+            [owner.id().into(), tokens.access_token.into(), tokens.refresh_token.into()]))
+            .await.expect("replaced relink tokens").expect("count row");
+        assert_eq!(row.try_get::<i64>("", "count").expect("replacement count"), 1, "RELINK must replace tokens on the original target");
+        assert_consumed_and_purged(&db, &state).await;
+        assert_eq!(idp.endpoint_counts().await, [1, 1, 0, 0, 0]);
+    }).await;
+}
+
+/// T-1/G7: a provider's verification flag does not verify a newly linked IAM
+/// email. The added email belongs to the signed transaction target only.
+#[tokio::test]
+#[serial]
+async fn link_with_new_provider_email_adds_it_unverified_to_the_exact_target() {
+    let (fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
+        let owner = fixtures::DbFixtures::user().arthur().commit(db.clone()).await.expect("link target");
+        let primary = fixtures::DbFixtures::user_email().arthur_primary(owner.id()).commit(db.clone()).await.expect("existing primary email");
+        let idp = IdpConnectFixtures::service().await;
+        let mut profile = fixtures::idp_connect::resources::github_arthur();
+        profile.email = Some("provider-new@example.com".to_owned());
+        profile.email_verified = true;
+        let delivered = mock_delivered_authentication(&idp, fixtures::idp_connect::resources::success_tokens(), profile).await;
+        let absent = db.query_one(Statement::from_string(DatabaseBackend::Postgres,
+            "SELECT COUNT(*) AS count FROM user_emails WHERE email='provider-new@example.com'".to_owned()))
+            .await.expect("new email precondition").expect("count row");
+        assert_eq!(absent.try_get::<i64>("", "count").expect("absent email"), 0);
+        let client = browser_client();
+        let (state, cookie) = browser_flow::link(&client, &base, "github", owner.id(), &idp).await;
+        let response = callback(&client, &base, "github/callback", &state, Some(&cookie)).await;
+        assert!(delivered.load(std::sync::atomic::Ordering::SeqCst), "valid complete must reach LINK");
+        assert_eq!(response.status(), 200);
+        let response: Value = response.json().await.expect("LINK response");
+        assert_eq!(response["user"]["id"], owner.id().to_string());
+        assert_eq!(response["new_email_added"], true);
+        let row = db.query_one(Statement::from_string(DatabaseBackend::Postgres,
+            "SELECT user_id,is_verified FROM user_emails WHERE email='provider-new@example.com'".to_owned()))
+            .await.expect("added provider email").expect("new email row");
+        assert_eq!(row.try_get::<uuid::Uuid>("", "user_id").expect("email target"), owner.id());
+        assert!(!row.try_get::<bool>("", "is_verified").expect("verification flag"), "LINK must not copy the provider's verified flag into IAM email verification");
+        assert!(primary.check(db.clone()).await.expect("primary email unchanged"));
+        assert_consumed_and_purged(&db, &state).await;
+        assert_eq!(idp.endpoint_counts().await, [1, 1, 0, 0, 0]);
+    }).await;
+}
+
+/// Q1/G7: characterize the existing unique(provider,provider_user_id) boundary,
+/// not a new RELINK conflict guard. No email keeps LINK/RELINK email policy out.
+#[tokio::test]
+#[serial]
+async fn relink_to_another_users_external_identity_refuses_without_replacing_either_link() {
+    let (fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
+        let owner = fixtures::DbFixtures::user()
+            .arthur()
+            .commit(db.clone())
+            .await
+            .expect("relink owner");
+        fixtures::DbFixtures::user_email()
+            .arthur_primary(owner.id())
+            .commit(db.clone())
+            .await
+            .expect("owner primary email");
+        let other = fixtures::DbFixtures::user()
+            .bob()
+            .commit(db.clone())
+            .await
+            .expect("other link owner");
+        fixtures::DbFixtures::user_email()
+            .bob_primary(other.id())
+            .commit(db.clone())
+            .await
+            .expect("other primary email");
+        fixtures::DbFixtures::provider_token()
+            .arthur_github(owner.id())
+            .provider_user_id("12345")
+            .access_token("old_github_token_123")
+            .commit(db.clone())
+            .await
+            .expect("owner link");
+        fixtures::DbFixtures::provider_token()
+            .arthur_github(other.id())
+            .provider_user_id("67890")
+            .access_token("other_github_token_678")
+            .commit(db.clone())
+            .await
+            .expect("distinct other link");
+        let idp = IdpConnectFixtures::service().await;
+        let mut profile = fixtures::idp_connect::resources::github_arthur();
+        profile.id = "67890".to_owned();
+        profile.email = None;
+        let delivered = mock_delivered_authentication(
+            &idp,
+            fixtures::idp_connect::resources::success_tokens(),
+            profile,
+        )
+        .await;
+        let client = browser_client();
+        let (state, cookie) =
+            browser_flow::relink(&client, &base, "github", owner.id(), &idp).await;
+        let before_links = provider_links_snapshot(&db).await;
+        let before_emails = email_rows_snapshot(&db).await;
+        let response = callback(
+            &client,
+            &base,
+            "github/relink-callback",
+            &state,
+            Some(&cookie),
+        )
+        .await;
+        assert!(
+            delivered.load(std::sync::atomic::Ordering::SeqCst),
+            "collision must be tested after valid complete, not a fixture failure"
+        );
+        assert!(
+            response.status().is_client_error() || response.status().is_server_error(),
+            "existing identity uniqueness must refuse the collision"
+        );
+        let body: Value = response.json().await.expect("generic collision refusal");
+        for credential in [
+            "access_token",
+            "refresh_token",
+            "registration_token",
+            "user",
+        ] {
+            assert!(
+                body.get(credential).is_none(),
+                "collision refusal must not expose {credential}"
+            );
+        }
+        assert!(
+            provider_links_snapshot(&db).await == before_links,
+            "collision must preserve both original links and every token field"
+        );
+        assert!(
+            email_rows_snapshot(&db).await == before_emails,
+            "no-email collision must preserve email ownership"
+        );
+        assert_consumed_and_purged(&db, &state).await;
+        assert_eq!(idp.endpoint_counts().await, [1, 1, 0, 0, 0]);
+        assert_denied_without_exchange(
+            callback(
+                &client,
+                &base,
+                "github/relink-callback",
+                &state,
+                Some(&cookie),
+            )
+            .await,
+            &idp,
+            1,
+        )
+        .await;
+        assert!(
+            provider_links_snapshot(&db).await == before_links,
+            "replay must preserve both links and tokens"
+        );
+        assert_eq!(idp.endpoint_counts().await, [1, 1, 0, 0, 0]);
+    })
+    .await;
+}
