@@ -2,6 +2,8 @@
 
 ## Mandat et périmètre
 
+**Résultats finaux du périmètre local : [325 unités et80 IT passantes](20261108-iam-oauthconnect-v2-results.md).** Les états intermédiaires ci-dessous conservent la chronologie ; le rapport de résultats distingue les preuves finales, les deux incidents de préparation/environnement, les gates externes et le nettoyage restant sous autorisation.
+
 Raccorder LOGIN, LINK et RELINK aux opérations v2 du service OAuthConnect déjà livré, sans bascule de déploiement. Conserver UUID, comptes, identités externes et liens existants. Réutiliser RustyCog et son pin ; aucun second harness E2E fournisseur.
 
 Base : `e8952d805e81e49a940ef6d999bb74776f1d3166`. Cible : ADR0413 Accepted/Partial et [contrat §§5–7](../contracts/oauthconnect-multi-instances.md#5-adaptation-iam-et-contexte-oidc). **Travail en cours, aucune preuve IAM nouvelle de compilation/test à ce stade.**
@@ -23,6 +25,12 @@ E2E GitHub/GitLab réels et déploiement restent à l'autre propriétaire. L'éq
 `cargo test --locked -p iam-domain --lib` : **53 PASS, 0 échec, 0 ignoré, 0 filtré** sur la base du mandat, avant changement applicatif. Ce résultat caractérise l'existant ; il ne prouve pas le raccord v2. Aucun runtime Docker n'a été démarré.
 
 ## Progression vérifiée — raccord encore incomplet
+
+### IT réelles — état intermédiaire
+
+Sur le contenu intégré (`79105b8`, puis correction de préimage test seule `b28a922`) : **39 IT passent**, sans ignoré/filtré : transactions Postgres9, navigateur17, cleanup2 et START11. Les témoins de purge avant I/O, concurrence, upgrade réel, T-1 email et Q1 collision RELINK sont effectivement exécutés. Le premier test d'upgrade avait un INSERT de préimage sans UUID obligatoire ; correction de montage, mêmes oracles, puis9PASS. Aucun changement de production pour ce prérequis.
+
+La première invocation callback a échoué avant assertions : démarrage Postgres opaque, puis collisions au port déclaré54070. Le lanceur a conservé le conteneur Engine `5f5d1b72938b8346ad5c234e4f1ddecab3ad58e04de0fcea817576fae36881e0`, sans l'adopter faute d'ID retourné par la fixture. Ces17échecs de setup **ne sont pas des rouges fonctionnels IAM**. Réessai unique demandé explicitement par l'utilisateur, sans modification du harness/SDK ou nettoyage du conteneur inconnu. Résultats restants à compléter ; aucun PASS global annoncé.
 
 - **Transport v2** : tests compilables d'abord,3PASS/8RED sur les11nouveaux cas avant implémentation ; puis **22PASS** (11v2+11v1,124filtrés), dont HMAC sur PATH/corps réels, nonce/PKCE, borne1MiB inclusive, redirections et timeout10s avec une seule requête. Lecture bornée avant parsing, connexion3s ; aucune preuve RSS/gzip/streaming sans longueur revendiquée.
 - **Domaine et capacité** :22nouveaux cas donnaient9PASS/13RED (BEGIN sans nonce et capacité legacy indûment accordée), puis passent avec tirageOsRng indépendant. Huit preuves supplémentaires couvrent forwarding des secrets originaux après consommation, erreur v2 sans fallback/retry et zéro appel sans capacité. **83tests domaine passent**, sans ignorés/filtrés ; Clippy all-targets strict passe.
