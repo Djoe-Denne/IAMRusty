@@ -1,5 +1,8 @@
 //! HTTP + HMAC adapter for `idp-connect-contract::FederatedOAuthClient`.
 
+#[cfg(test)]
+mod tests_v2;
+
 use async_trait::async_trait;
 use iam_configuration::security::{validate_connector_url, SecurityMode};
 use iam_domain::error::DomainError;
