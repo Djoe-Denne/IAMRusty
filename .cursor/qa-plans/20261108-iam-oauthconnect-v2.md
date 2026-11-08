@@ -190,6 +190,8 @@ Chaque preuve consigne sélection/nombre de tests, code de sortie, oracle observ
 
 ## Registre final groupé — rares/ambigus rouges et décisions utilisateur
 
+GREEN intermédiaire domaine/helper/writer : **83 tests domaine PASS** (8 nouveaux de forwarding/refus), **4 unités writer PASS** ; aucun ignoré, filtres writer142. Migration additive et IT Postgres compilent ; Clippy strict domaine+migration passe après import explicite du réexport `async_trait`. Les IT réelles n'ont pas encore tourné et l'orchestration utilise encore v1 : **raccord global non terminé**.
+
 RED intermédiaire writer : unités SQL compilent, **3 PASS/1 FAIL/0 ignoré/142 filtrés** ; le consume ne retourne pas encore le nonce original. Les nouveaux tests Postgres/upgrade compilent (`auth_transactions_postgres --no-run`) mais **aucune IT n'a tourné**. Le schéma de préimage est isolé dans une transaction fixture avec search_path sans public, pas un reset ; preuve DDL transactionnelle à distinguer d'un rollout opérationnel.
 
 GREEN intermédiaire domaine : **75 PASS/0 FAIL/0 ignoré/0 filtré**, Clippy domaine all-targets strict et fmt passent. Les22casnonce passent sur les mêmes oracles ; tirageOsRng distinct vérifié dans le delta. Nouvelle API complete du contexte privé intégrée mais forwarding et suppression finale des usages v1 restent à prouver ; SQL réel toujours non exécuté.

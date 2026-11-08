@@ -6,12 +6,18 @@ use super::{
     BeginOAuthTransaction, BegunOAuthTransaction, ConsumeOAuthTransaction,
     ConsumedOAuthTransaction, OAuthOperation, OAuthTransaction, OAuthTransactionError,
 };
+use crate::error::DomainError;
 use crate::port::repository::OAuthTransactionWriteRepository;
 use async_trait::async_trait;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::Utc;
+use idp_connect_contract::{
+    AuthorizeAuthenticationRequest, AuthorizeResponse, CompleteAuthorizationRequest,
+    FederatedOAuthClient, FederatedOAuthError, ProviderAuthentication, ProviderTokens,
+    ProviderUserProfile,
+};
 use sha2::{Digest, Sha256};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use uuid::Uuid;
 
 #[derive(Default)]
@@ -459,4 +465,313 @@ async fn legacy_or_corrupt_nonce_is_consumed_and_purged_before_generic_refusal(
     ));
     assert_committed_and_purged(&writer);
     assert_eq!(writer.state().consumes, 2);
+}
+
+struct CompletionReceipt {
+    request: CompleteAuthorizationRequest,
+    saw_consumed_and_purged: bool,
+}
+
+#[derive(Default)]
+struct CompletionCalls {
+    // authorize, exchange, profile, authorize-PKCE, exchange-PKCE: separate counts
+    // ensure an override cannot conceal fallback through a default trait method.
+    legacy: [usize; 5],
+    authorize_v2: usize,
+    completions: Vec<CompletionReceipt>,
+}
+
+struct CompletionSpy {
+    writer: Arc<Writer>,
+    calls: Mutex<CompletionCalls>,
+    failure: Option<FederatedOAuthError>,
+}
+
+impl CompletionSpy {
+    fn calls(&self) -> MutexGuard<'_, CompletionCalls> {
+        self.calls.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+// Port-level canned identity, independent of the helper implementation/request.
+// This is not a Connect HTTP response or a cryptographic identity proof.
+fn completion_authentication() -> ProviderAuthentication {
+    ProviderAuthentication {
+        tokens: ProviderTokens {
+            access_token: "HelperAccessTokenSentinel".into(),
+            refresh_token: Some("HelperRefreshTokenSentinel".into()),
+            expires_in: Some(1234),
+        },
+        profile: ProviderUserProfile {
+            id: "github-user-42".into(),
+            username: "iam-helper-user".into(),
+            email: None,
+            avatar_url: None,
+            email_verified: false,
+        },
+    }
+}
+
+#[async_trait]
+impl FederatedOAuthClient for CompletionSpy {
+    async fn authorize(
+        &self,
+        _redirect_uri: &str,
+        _state: &str,
+    ) -> Result<AuthorizeResponse, FederatedOAuthError> {
+        self.calls().legacy[0] += 1;
+        Err(FederatedOAuthError::Authorize)
+    }
+
+    async fn exchange_code(
+        &self,
+        _code: &str,
+        _redirect_uri: &str,
+    ) -> Result<ProviderTokens, FederatedOAuthError> {
+        self.calls().legacy[1] += 1;
+        Err(FederatedOAuthError::ExchangeCode)
+    }
+
+    async fn user_profile(
+        &self,
+        _access_token: &str,
+    ) -> Result<ProviderUserProfile, FederatedOAuthError> {
+        self.calls().legacy[2] += 1;
+        Err(FederatedOAuthError::UserProfile)
+    }
+
+    async fn authorize_with_pkce(
+        &self,
+        _redirect_uri: &str,
+        _state: &str,
+        _code_challenge: Option<&str>,
+    ) -> Result<AuthorizeResponse, FederatedOAuthError> {
+        self.calls().legacy[3] += 1;
+        Err(FederatedOAuthError::Authorize)
+    }
+
+    async fn exchange_code_with_pkce(
+        &self,
+        _code: &str,
+        _redirect_uri: &str,
+        _code_verifier: Option<&str>,
+    ) -> Result<ProviderTokens, FederatedOAuthError> {
+        self.calls().legacy[4] += 1;
+        Err(FederatedOAuthError::ExchangeCode)
+    }
+
+    async fn authorize_authentication(
+        &self,
+        _request: &AuthorizeAuthenticationRequest,
+    ) -> Result<AuthorizeResponse, FederatedOAuthError> {
+        self.calls().authorize_v2 += 1;
+        Err(FederatedOAuthError::Authorize)
+    }
+
+    async fn complete_authorization(
+        &self,
+        request: &CompleteAuthorizationRequest,
+    ) -> Result<ProviderAuthentication, FederatedOAuthError> {
+        // Observe storage AT the outbound port call, not just after completion.
+        let stored = self.writer.snapshot();
+        let saw_consumed_and_purged = stored.consumed_at.is_some()
+            && stored.pkce_verifier.is_none()
+            && stored.authentication_nonce.is_none()
+            && self.writer.state().committed_consumes == 1;
+        self.calls().completions.push(CompletionReceipt {
+            request: request.clone(),
+            saw_consumed_and_purged,
+        });
+        if let Some(error) = self.failure {
+            return Err(error);
+        }
+        Ok(completion_authentication())
+    }
+}
+
+fn completion_setup(
+    pkce: bool,
+    failure: Option<FederatedOAuthError>,
+) -> (
+    BeginOAuthTransaction,
+    CompletionSpy,
+    CompleteAuthorizationRequest,
+) {
+    let input = begin_input("relink", pkce);
+    let writer = Arc::new(Writer::default());
+    writer.install(&input, Some(URL_SAFE_NO_PAD.encode([107; 32])));
+    // Only the fixture snapshots secrets; the capability is obtained by consume.
+    let original = writer.snapshot();
+    let expected = CompleteAuthorizationRequest {
+        code: "HelperAuthorizationCodeSentinel".into(),
+        redirect_uri: original.redirect_uri,
+        code_verifier: original.pkce_verifier,
+        expected_nonce: original
+            .authentication_nonce
+            .expect("fixture canonical nonce"),
+    };
+    let spy = CompletionSpy {
+        writer,
+        calls: Mutex::new(CompletionCalls::default()),
+        failure,
+    };
+    (input, spy, expected)
+}
+
+fn assert_exact_completion(spy: &CompletionSpy, expected: &CompleteAuthorizationRequest) {
+    let calls = spy.calls();
+    assert_eq!(calls.legacy, [0; 5], "G-2: no legacy port operation");
+    assert_eq!(calls.authorize_v2, 0, "G-2: callback must not re-authorize");
+    assert_eq!(calls.completions.len(), 1, "G-2: one v2 call, no retry");
+    let receipt = &calls.completions[0];
+    assert!(
+        receipt.saw_consumed_and_purged,
+        "G-2: writer consumption/double-purge precedes complete"
+    );
+    assert!(
+        receipt.request.code == expected.code,
+        "G-2: exact callback code"
+    );
+    assert!(
+        receipt.request.redirect_uri == expected.redirect_uri,
+        "G-2: redirect belongs to consumed context"
+    );
+    assert!(
+        receipt.request.expected_nonce == expected.expected_nonce,
+        "G-2: original durable nonce, not a replacement"
+    );
+    assert!(
+        receipt.request.code_verifier == expected.code_verifier,
+        "G-2: original optional verifier, not challenge or replacement"
+    );
+}
+
+fn assert_same_authentication(actual: &ProviderAuthentication) {
+    let expected = completion_authentication();
+    assert!(actual.tokens.access_token == expected.tokens.access_token);
+    assert!(actual.tokens.refresh_token == expected.tokens.refresh_token);
+    assert!(actual.tokens.expires_in == expected.tokens.expires_in);
+    assert!(actual.profile.id == expected.profile.id);
+    assert!(actual.profile.username == expected.profile.username);
+    assert!(actual.profile.email == expected.profile.email);
+    assert!(actual.profile.avatar_url == expected.profile.avatar_url);
+    assert!(actual.profile.email_verified == expected.profile.email_verified);
+}
+
+// Obligation G-2 / §2: only committed context supplies the secrets to complete.
+// Scenario: consume a matching row, then invoke the real helper once, ±PKCE.
+// Oracle: exact captured request, storage already purged at call time, one v2/
+// zero v1 operations, and complete tokens+identity returned unchanged.
+// Mutation caught: regenerated nonce, verifier/challenge confusion, split v1 flow.
+#[rstest::rstest]
+#[case::pkce(true)]
+#[case::no_pkce(false)]
+#[tokio::test]
+async fn complete_forwards_original_consumed_context_once_v2(#[case] pkce: bool) {
+    let (input, spy, expected) = completion_setup(pkce, None);
+    let capability = ConsumedOAuthTransaction::consume(spy.writer.as_ref(), callback(&input))
+        .await
+        .expect("canonical matching fixture must yield real capability");
+    let actual = capability
+        .complete_authorization(&spy, &expected.code)
+        .await
+        .expect("v2 port returns complete authentication fixture");
+    assert_exact_completion(&spy, &expected);
+    assert_same_authentication(&actual);
+    assert_committed_and_purged(&spy.writer);
+}
+
+fn assert_completion_error_is_sanitized(
+    error: &DomainError,
+    expected: &CompleteAuthorizationRequest,
+) {
+    assert!(
+        matches!(error, DomainError::OAuth2Error(_)),
+        "G-2: generic OAuth error"
+    );
+    let display = error.to_string();
+    let debug = format!("{error:?}");
+    // The port enum carries no message/body: malicious HTTP-body reflection is
+    // tested at the transport boundary, not simulated by inventing an error API.
+    let authentication = completion_authentication();
+    for secret in [
+        Some(expected.code.as_str()),
+        Some(expected.expected_nonce.as_str()),
+        expected.code_verifier.as_deref(),
+        Some(authentication.tokens.access_token.as_str()),
+        authentication.tokens.refresh_token.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        assert!(
+            !display.contains(secret),
+            "G-2: Display must not reveal secrets"
+        );
+        assert!(
+            !debug.contains(secret),
+            "G-2: Debug must not reveal secrets"
+        );
+    }
+}
+
+// Obligation G-2 / §2: v2 failure is generic, with no retry/fallback/profile call.
+// Scenario: a real consumed capability gets ExchangeCode or UserProfile, ±PKCE.
+// Oracle: sanitized DomainError, exact single receipt, still consumed/purged.
+// Mutation caught: retrying completion, v1 fallback, echoing consumed secrets.
+#[rstest::rstest]
+#[case::exchange_pkce(true, FederatedOAuthError::ExchangeCode)]
+#[case::exchange_no_pkce(false, FederatedOAuthError::ExchangeCode)]
+#[case::profile_pkce(true, FederatedOAuthError::UserProfile)]
+#[case::profile_no_pkce(false, FederatedOAuthError::UserProfile)]
+#[tokio::test]
+async fn complete_failure_is_generic_without_retry_or_legacy_fallback(
+    #[case] pkce: bool,
+    #[case] failure: FederatedOAuthError,
+) {
+    let (input, spy, expected) = completion_setup(pkce, Some(failure));
+    let capability = ConsumedOAuthTransaction::consume(spy.writer.as_ref(), callback(&input))
+        .await
+        .expect("canonical matching fixture must yield real capability");
+    let result = capability
+        .complete_authorization(&spy, &expected.code)
+        .await;
+    let error = match result {
+        Err(error) => error,
+        Ok(_) => panic!("G-2: refused completion must not return partial authentication"),
+    };
+    assert_completion_error_is_sanitized(&error, &expected);
+    assert_exact_completion(&spy, &expected);
+    assert_committed_and_purged(&spy.writer);
+}
+
+// Obligation G-2 / §4: legacy/corrupt context never reaches the helper's port.
+// Scenario: try consume, calling the helper only if a capability is granted.
+// Oracle: generic refusal after purge, zero calls of every client operation.
+// Mutation caught: accepting legacy context and synthesizing a nonce at completion.
+#[rstest::rstest]
+#[case::legacy(None)]
+#[case::corrupt(Some("CorruptNonceSentinel".into()))]
+#[tokio::test]
+async fn refused_nonce_context_never_calls_completion_client(#[case] nonce: Option<String>) {
+    let (input, spy, expected) = completion_setup(true, None);
+    spy.writer.install(&input, nonce);
+    let consumed = ConsumedOAuthTransaction::consume(spy.writer.as_ref(), callback(&input)).await;
+    if let Ok(capability) = &consumed {
+        let _ = capability
+            .complete_authorization(&spy, &expected.code)
+            .await;
+    }
+    assert!(matches!(
+        consumed,
+        Err(OAuthTransactionError::InvalidTransaction)
+    ));
+    assert_committed_and_purged(&spy.writer);
+    let calls = spy.calls();
+    assert!(
+        calls.completions.is_empty(),
+        "G-2: no complete without capability"
+    );
+    assert_eq!(calls.authorize_v2, 0);
+    assert_eq!(calls.legacy, [0; 5]);
 }
