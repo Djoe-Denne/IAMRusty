@@ -3,15 +3,20 @@ title: AIForAll Skills Index
 category: navigation
 tags: [index, skills, platform]
 summary: >-
-  Project-specific AIForAll workflows, currently focused on choosing and validating microservice versus modular monolith runtime modes.
+  Procédures AIForAll : modes runtime, validation explicite et préparation OAuthConnect HTTPS/OpenBao ; legacy et preuves live restent séparés.
+sources:
+  - ops/deploy/README.md
+  - docs/missions/20261108-ops-oauthconnect.md
 provenance:
-  extracted: 0.9
-  inferred: 0.08
-  ambiguous: 0.02
-updated: 2026-10-03T15:10:00Z
+  extracted: 0.94
+  inferred: 0.05
+  ambiguous: 0.01
+updated: 2026-11-08
 ---
 
 # AIForAll Skills
+
+- [[projects/aiforall/skills/deploying-oauthconnect-local]] — profil GitHub+simulated HTTPS/OpenBao, sources privées et reprise d'epoch ; pas E2E implicite.
 
 - [[projects/aiforall/skills/running-mesh-authn-e2e]] — e2e Compose 0308 ; `hivemigration`, FORCE, `build-artifacts` d’abord.
 - [[projects/aiforall/skills/running-it-tests-docker]] — IT Rust en Docker depuis Windows : préfixes alignés, réseau fixture, fuite Ryuk, noms fixes. (**obsolète 2026-10-07** : dev/IT natif Windows.)

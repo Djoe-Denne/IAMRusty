@@ -7,14 +7,16 @@ sources:
   - docs/contracts/ops-kind-runtime-validation-separation.md
   - docs/contracts/ops-kind-runtime-validation-manifest.md
   - .cursor/handoffs/20261018-ops-kind-runtime-validation-preparation.md
+  - docs/missions/20261108-ops-oauthconnect.md
+  - ops/deploy/README.md
 summary: >-
-  Un seul chemin nominal (local-full) sous bail opérateur, validations explicites séparées (smoke/curl/E2E/IT), manifeste de tri 150 fichiers à ownership unique.
+  Local-full sous bail sépare préparation, déploiement et preuves. Le profil OAuthConnect HTTPS/OpenBao est livré hors ligne ; readiness ou revue statique ne valent pas E2E.
 provenance:
-  extracted: 0.93
-  inferred: 0.07
+  extracted: 0.95
+  inferred: 0.05
   ambiguous: 0.0
 created: 2026-10-19
-updated: 2026-10-19
+updated: 2026-11-08
 ---
 
 # Séparation runtime/validation — contrat ops Kind
@@ -31,6 +33,12 @@ opérateur neuf → bootstrap → images épinglées → déploiement → valida
 séparée. Les 5 autres chemins (M1/M2/M3, J2 hybride, J3/gold, mesh, dette
 schedule-reference-kv) restent **non nominaux avec cibles explicites** —
 conservés, jamais rebaptisés full, jamais supprimés sans arbitrage.
+
+Cette séquence décrit le contrat d'octobre. Le profil OAuthConnect ajouté
+le8novembre utilise aussi les outils explicites `build/images.py` puis
+`local-full-images.py` : plan/build, provenance/reçu immuable et déploiement
+restent des actions séparées, sans build implicite lors d'un render/up.
+Voir [[projects/aiforall/skills/deploying-oauthconnect-local]].
 
 ## D6 — Le bail est produit par l'opérateur (premier maillon)
 
@@ -60,6 +68,21 @@ procédure opérateur documentée au README runtime.
 
 Code0 seulement si toutes les obligations sont exécutées ; skip ⇒ non-zéro
 avec raison non secrète ; rapport LIVE/SIMULÉ/NOT RUN.
+
+## Extension livrée, validation live non acquise
+
+Le profil **`--oauth-connect`** prépare GitHub+simulated, chaîne OpenBao et
+entrée **HTTPS** `127.0.0.1:18080`. Le profil de base et les deux flags legacy
+restent distincts ; les attentes HTTP/`connectors=[]` ci-dessus ne sont pas les
+oracles du nouveau profil. Ni un ancien script HTTP/GitLab ni un nom de port ne
+prouvent leur compatibilité avec celui-ci.
+
+La session ops qualifie des tests de configuration/rendu/PKI synthétique et une
+revue statique, pas un build Linux, apply Kind ou parcours navigateur. Une source
+privée changée ou un UID inconnu n'est pas une invitation à relancer un seed ou
+adopter l'objet. Voir
+[[projects/oauthconnect/concepts/local-ops-and-secret-distribution]] et
+[[projects/aiforall/references/session-ops-oauthconnect-20261108]].
 
 ## Manifeste de tri — ownership unique
 

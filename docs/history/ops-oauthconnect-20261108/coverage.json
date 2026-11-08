@@ -1,0 +1,55 @@
+{
+  "schema": "aiforall.public-session-distillation/v1",
+  "captured_through": "2026-11-08T14:32:54.690Z",
+  "boundary": "explicit user wiki-ingest session et sous-agent request",
+  "root_session": "ses_e449ec10affeZ5b0fUHSKL1PZI",
+  "source_commit": "1866517e88ea40949574b2baa2e6da45d4b34bd1",
+  "sessions": [
+    {
+      "id": "ses_e449ec10affeZ5b0fUHSKL1PZI",
+      "parent_id": null,
+      "role": "root",
+      "api_pages_exhausted": 3,
+      "messages_before_boundary": 138,
+      "visible_projected_messages": 15,
+      "visible_text_parts": 15,
+      "reasoning_parts_excluded": 165,
+      "tool_parts_excluded": 209
+    },
+    {
+      "id": "ses_e447e48acfferuDDDS3orLXEC6",
+      "parent_id": "ses_e449ec10affeZ5b0fUHSKL1PZI",
+      "role": "infra-verifier",
+      "api_pages_exhausted": 2,
+      "messages_before_boundary": 37,
+      "visible_projected_messages": 15,
+      "visible_text_parts": 15,
+      "reasoning_parts_excluded": 33,
+      "tool_parts_excluded": 53,
+      "final_message": "msg_1bb8ca83a001QBabfe3UvhQmJv",
+      "final_message_created": "2026-11-08T14:25:19.933Z"
+    }
+  ],
+  "direct_child_inventory": {
+    "pages_exhausted": 2,
+    "complete": true,
+    "children": ["ses_e447e48acfferuDDDS3orLXEC6"]
+  },
+  "total_messages_before_boundary": 175,
+  "total_visible_projected_messages": 30,
+  "private_projections_published": false,
+  "raw_tool_logs_published": false,
+  "hidden_reasoning_published": false,
+  "additional_exclusions": [
+    "system and compaction content",
+    "model and runtime metadata",
+    "shell output and synthetic notifications",
+    "messages after the ingestion boundary"
+  ],
+  "limits": [
+    "Accessible native root and direct-child affiliation only; deleted or unlinked sessions not covered",
+    "Form choices are witnessed session decisions, not user-type API message exports",
+    "Only distilled knowledge and non-secret inventory are published",
+    "No runtime, provider E2E, CA installation or secret operation performed by this ingestion"
+  ]
+}

@@ -8,11 +8,12 @@ sources:
   - docs/adr/0413-oauthconnect-multi-instances-profils.md
   - docs/contracts/oauthconnect-multi-instances.md
   - docs/contracts/iam-oauthconnect-v2.md
+  - docs/missions/20261108-ops-oauthconnect.md
 summary: >-
   Un fournisseur compatible devient une instance configurée d'OAuthConnect et une entrée IAM complète, sans copier un service ni ajouter un client vendor in-process.
 provenance:
-  extracted: 0.96
-  inferred: 0.04
+  extracted: 0.97
+  inferred: 0.03
   ambiguous: 0.0
 created: 2026-04-14T17:46:37.6929647Z
 updated: 2026-11-08
@@ -39,6 +40,13 @@ updated: 2026-11-08
 LOGIN/LINK/RELINK utilisent authorize/complete v2 et la transaction durable décrite dans [[projects/iamrusty/concepts/oauthconnect-v2-durable-context]]. La clé d'identité est instance+ID opaque, pas l'email ni une conversion numérique.
 
 ## Vérification et limites de bascule
+
+Le profil ops local livré `--oauth-connect` fournit un exemple concret : GitHub
+et `simulated` sont deux instances **OAuth**, HMAC propres, références OpenBao
+distinctes et callbacks HTTPS. Il ne migre aucun lien GitLab ni ne change son
+autorité. La préférence HTTPS s'applique au profil nouveau seulement ; GitHub
+reste en transport vérifié. Voir
+[[projects/aiforall/skills/deploying-oauthconnect-local]].
 
 IAM simule son collaborateur Connect HTTP sortant ; Connect simule le vendor, avec jeux OIDC signés pour les tests cryptographiques. Un mock S2S IAM n'est pas cette validation de signature. Le gap de chaîne intégrée IAM→Connect réel→vendor ne doit pas conduire à créer un deuxième harness ou à inventer une preuve.
 

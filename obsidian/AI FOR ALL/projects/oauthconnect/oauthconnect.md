@@ -9,11 +9,13 @@ sources:
   - docs/contracts/oauthconnect-oidc-service-boundary.md
   - docs/missions/20261107-oauthconnect-oidc-service.md
   - docs/missions/20261108-iam-oauthconnect-v2-results.md
+  - docs/missions/20261108-ops-oauthconnect.md
+  - docs/history/ops-oauthconnect-20261108/README.md
 summary: >-
-  Connect authentifie l'identité externe et rend tokens+profil ; IAM conserve les comptes. Profils OAuth/OIDC, confiance HMAC/TLS et clés publiques sont séparés.
+  Connect rend tokens+identité, IAM garde les comptes. Profils OAuth/OIDC et ops GitHub+simulated HTTPS/OpenBao livrés ; déploiement et fournisseurs live restent non qualifiés.
 provenance:
-  extracted: 0.96
-  inferred: 0.04
+  extracted: 0.97
+  inferred: 0.03
   ambiguous: 0.0
 created: 2026-11-08
 updated: 2026-11-08
@@ -60,6 +62,19 @@ La couture AppState SDK HMAC-only emploie un JWKS inline vide : elle ne crée pa
 
 ## État qualifié et gates restants
 
+Le raccord ops du8novembre ajoute le profil explicite `--oauth-connect` :
+instances `github` et `simulated`, entrée navigateur HTTPS sur127.0.0.1:18080,
+issuer/callbacks IAM alignés et secrets distribués par OpenBao. Les références
+GitHub existantes sont conservées ; le fournisseur simulé est **OAuth**, pas
+un troisième profil ni une preuve OIDC signée. Les profils legacy restent
+distincts et aucun environnement n'a été basculé par cette livraison.
+
+Voir [[projects/oauthconnect/concepts/local-ops-and-secret-distribution]] et
+[[projects/aiforall/skills/deploying-oauthconnect-local]]. Configuration/mappings,
+rendu, PKI synthétique, seed/reprise et revue infra sont vérifiés hors ligne.
+Build Linux, coffre/Agent réels, confiance CA navigateur, application GitHub
+enregistrée et E2E restent non exécutés.
+
 Le lot Connect a exécuté295tests regroupés, dont jeux OIDC signés, routage HMAC, catalogue mixte et vrai binaire natif Windows. Le raccord IAM a ensuite exécuté325unités+80IT sur son périmètre retenu. Ces nombres ne sont pas additionnés pour prétendre qualifier une chaîne de bout en bout non exécutée.
 
 ADR0413 reste Accepted/Partial. La chaîne intégrée IAM→Connect réel→vendor signé est un gap explicite, les E2E GitHub/GitLab et la comparaison réelle `sub` GitLab/ancien ID sont externes, aucune bascule ou suppression legacy n'est faite. Les schémas pédagogiques décrivent des responsabilités et preuves datées, pas un inventaire live de certificats ou pods.
@@ -72,4 +87,5 @@ ADR0413 reste Accepted/Partial. La chaîne intégrée IAM→Connect réel→vend
 - [[projects/oauthconnect/concepts/oidc-jwks-and-key-rotation]] — propriétaire des clés et refresh.
 - [[projects/oauthconnect/concepts/tls-hmac-and-signatures]] — ce que protège chaque couche.
 - [[projects/aiforall/references/session-oauthconnect-iam-20261108]] — provenance de la session et contributions des agents.
+- [[projects/aiforall/references/session-ops-oauthconnect-20261108]] — session ops et revue indépendante, preuves offline séparées du live.
 - [Guide d'ajout d'instance](../../../../services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md) et [preuve du service](../../../../docs/missions/20261107-oauthconnect-oidc-service.md).

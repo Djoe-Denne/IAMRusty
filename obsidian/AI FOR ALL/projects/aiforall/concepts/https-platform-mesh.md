@@ -11,15 +11,16 @@ sources:
   - docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md
   - ops/deploy/mesh/compose.yaml
   - services/Manifesto/config/development.toml
+  - docs/missions/20261108-ops-oauthconnect.md
+  - ops/deploy/render-local-full.py
 summary: >-
-  Mesh HTTPS T14b : dual-bind 8080+8443, CA platform-mesh ≠ Lazaret.
-  Hôtes : IAM 8443, Telegraph 8444, Hive 8445, Manifesto 8448.
+  T14b distingue CA transport et workload. Le profil OAuthConnect ajoute une entrée navigateur HTTPS sans certificat client, en conservant le mTLS upstream ; live non qualifié.
 provenance:
-  extracted: 0.84
-  inferred: 0.13
-  ambiguous: 0.03
+  extracted: 0.90
+  inferred: 0.08
+  ambiguous: 0.02
 created: 2026-09-20T10:35:00Z
-updated: 2026-10-01T16:45:00Z
+updated: 2026-11-08
 ---
 
 # Mesh HTTPS plateforme (T14b)
@@ -41,6 +42,24 @@ Identité workload Lazaret : [[projects/lazaret/concepts/workload-identity]]. Hu
 L’authentification client T14b est branchée seulement si une CA client est fournie. Absent de CA client : HTTPS serveur, pas d’exigence de certificat pair. T14b ferme le trou « pas de TLS compose entre les slices », pas une politique mTLS obligatoire.
 
 Le profil `--profile mesh` est autre chose : `ops/deploy/mesh/compose.yaml` pose `TLS_REQUIRE_CLIENT_CERT=true` sur iam/hive/telegraph/manifesto, et `generate-platform-mesh-certs.sh` émet aussi `manifesto-service`. AuthN JWT derrière Envoy : [[projects/aiforall/concepts/mesh-ext-authz-opt-in]].
+
+## Entrée navigateur HTTPS du nouveau profil local
+
+La photographie T14b/Compose ci-dessus ne décrit pas tous les profils actuels.
+Le8novembre, `--oauth-connect` est livré avec une entrée
+`https://127.0.0.1:18080`, feuille Envoy avec SAN IP existante et **sans certificat
+client navigateur**. Les transport_socket upstream gardent le mTLS du profil
+Kind ; enlever l'exigence client à l'entrée ne revient pas à enlever le TLS des
+services.
+
+Callbacks publics, cookie/issuer IAM et consommateurs sont alignés. GitHub garde
+le contrôle CA/SAN ; la préférence utilisateur pour HTTPS évite d'introduire une
+exception callback dans le validateur. Les profils historiques restent HTTP à
+l'entrée ; aucune réécriture de leur preuve n'est faite.
+
+Confiance navigateur à la CA, enregistrement GitHub et handshake réel restent
+non exécutés. Lire [[projects/oauthconnect/concepts/tls-hmac-and-signatures]] et
+[[projects/oauthconnect/concepts/local-ops-and-secret-distribution]].
 
 ## Preuves
 

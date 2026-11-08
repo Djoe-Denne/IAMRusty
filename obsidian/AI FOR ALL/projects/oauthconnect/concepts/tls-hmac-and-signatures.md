@@ -7,11 +7,13 @@ sources:
   - docs/guides/iam-oauthconnect-securite-sources.md
   - services/OAuthConnect/setup/src/transport.rs
   - services/IAMRusty/infra/src/auth/http_connector.rs
+  - docs/missions/20261108-ops-oauthconnect.md
+  - ops/deploy/render-local-full.py
 summary: >-
   TLS protège un hop et son serveur ; HMAC authentifie une requête interservices ; OIDC signe une identité contextualisée. Aucun ne remplace les deux autres.
 provenance:
-  extracted: 0.96
-  inferred: 0.04
+  extracted: 0.97
+  inferred: 0.03
   ambiguous: 0.0
 created: 2026-11-08
 updated: 2026-11-08
@@ -51,6 +53,15 @@ Cette explication du protocole ne prouve pas que chaque environnement emploie TL
 
 Si Envoy termine TLS, le hop suivant doit être décrit explicitement comme TLS/mTLS ou clair. Les configurations historiques HTTP interne et la cible HTTPS ne constituent pas une preuve de chiffrement de bout en bout live.
 
+Application au profil local `--oauth-connect` livré le8novembre : l'entrée
+`https://127.0.0.1:18080` utilise le SAN IP de la feuille Envoy existante sans
+exiger de certificat client navigateur. Le changement reste downstream ; les
+transport_socket mTLS upstream sont conservés. Callbacks HTTPS, origine/cookie
+IAM et issuer des consommateurs sont alignés, sans exception dans le validateur
+Connect et sans passer GitHub en mode insecure. Les profils legacy gardent leur
+entrée HTTP. Ce sont des configurations/revues offline, pas des handshakes live.
+Voir [[projects/oauthconnect/concepts/local-ops-and-secret-distribution]].
+
 ## Deux builders, deux exceptions différentes
 
 IAM→Connect Verified exige HTTPS et garde la validation du certificat/nom, même avec des racines additionnelles. Les exceptions d'URL HTTP de ce constructeur ne désactivent pas les vérifications d'un endpoint HTTPS.
@@ -58,6 +69,12 @@ IAM→Connect Verified exige HTTPS et garde la validation du certificat/nom, mê
 Le builder vendor Connect est Verified par défaut. Ses modes explicites `LocalInsecure`/`IsolatedTest` activent en revanche `danger_accept_invalid_certs/hostnames(true)`. Ce n'est **pas** une simple CA privée supplémentaire ; ne pas extrapoler ce comportement au builder IAM. L'exception n'est pas inférée du nom localhost ou du type de build.
 
 Une CA additionnelle en mode vérifié étend les racines admises sans retirer le contrôle du hostname. Ne pas désactiver CA/SAN pour faire passer une fixture. Les tests synthétiques de mauvaise CA, mauvais SAN et redirect refusé restent des preuves locales, pas des captures de certificats en production.
+
+Pour le profil ops, la confiance navigateur envers `mesh/ca.crt` et le callback
+HTTPS enregistré chez GitHub restent à vérifier explicitement. L'extension PKI
+OpenBao/Connect ne constitue ni une installation de confiance système ni une
+rotation de clés IAM. Le hop HTTP `simulated` reste une exception isolée de test,
+pas une relaxation du TLS GitHub.
 
 ## HMAC concret et limites
 

@@ -1,13 +1,39 @@
 ﻿{
     "version":  1,
     "stats":  {
-                  "total_sources_ingested":  1361,
-                  "total_pages":  259,
+                  "total_sources_ingested":  1373,
+                  "total_pages":  262,
                   "total_pages_scope": "markdown excluding dot/underscore files and directories; includes navigation and log; recounted 2026-11-08",
                   "last_commit_synced":  "2473baa7a54595931a4eff76a33431f56776db20"
               },
     "projects":  {
                      "aiforall":  {
+                                      "scoped_ingest_20261108_ops_oauthconnect": {
+                                          "at": "2026-11-08T14:43:13Z",
+                                          "scope": "Current ops OAuthConnect root session plus its independent infra reviewer; not a full project resync or a replay of historical IAM leaves",
+                                          "source_commit": "1866517e88ea40949574b2baa2e6da45d4b34bd1",
+                                          "root_session": "ses_e449ec10affeZ5b0fUHSKL1PZI",
+                                          "sessions_captured": 2,
+                                          "messages_before_boundary": 175,
+                                          "captured_through": "2026-11-08T14:32:54.690Z",
+                                          "api_message_pages_exhausted": 5,
+                                          "direct_children_pages_exhausted": 2,
+                                          "coverage": "docs/history/ops-oauthconnect-20261108/coverage.json",
+                                          "distillation": "docs/history/ops-oauthconnect-20261108/README.md",
+                                          "review": "docs/history/ops-oauthconnect-20261108/infra-review.md",
+                                          "sources_new": 12,
+                                          "sources_modified": 0,
+                                          "pages_created": 3,
+                                          "pages_updated": 9,
+                                          "taxonomy": "absent; existing tags preserved",
+                                          "obsidian_cli": "app not running; targeted file patch fallback",
+                                          "private_projections_published": false,
+                                          "reasoning_parts_excluded": 198,
+                                          "tool_parts_excluded": 262,
+                                          "qmd_refresh": "not run; previously verified CLI/SDK update paths clear cache, forbidden by local policy; new wiki files may not be indexed yet",
+                                          "full_project_sync": false,
+                                          "runtime_started": false
+                                      },
                                       "scoped_ingest_20261108_oauthconnect_iam": {
                                           "at": "2026-11-08",
                                           "scope": "OAuthConnect/IAM session 2026-11-06 through 2026-11-08T12:25:19.929Z, 36 historical leaf sessions, current code-sourced security guide and durable diagrams; not a full project resync",
@@ -120,6 +146,138 @@
                                   }
                  },
     "sources":  {
+                    "docs/history/ops-oauthconnect-20261108/README.md": {
+                        "ingested_at": "2026-11-08T14:43:13Z",
+                        "size_bytes": 8268,
+                        "modified_at": "2026-11-08T14:38:54Z",
+                        "content_hash": "sha256:1d323bcf52621ca2aa3bb0e735d6a3a7b95073f07270cf7ad9c627fad04f888d",
+                        "source_type": "document",
+                        "project": "aiforall",
+                        "pages_created": ["projects/oauthconnect/concepts/local-ops-and-secret-distribution.md", "projects/aiforall/references/session-ops-oauthconnect-20261108.md"],
+                        "pages_updated": ["projects/oauthconnect/oauthconnect.md", "projects/aiforall/aiforall.md", "journal/2026-11-08.md", "index.md"],
+                        "scope": "OAuthConnect ops session plus independent infra review; offline qualification only"
+                    },
+                    "docs/history/ops-oauthconnect-20261108/infra-review.md": {
+                        "ingested_at": "2026-11-08T14:43:13Z",
+                        "size_bytes": 4704,
+                        "modified_at": "2026-11-08T14:38:54Z",
+                        "content_hash": "sha256:5d551ca352de57475e73c87c79cdf88bf1dbea87f6322e960a1f7eb89c553ae8",
+                        "source_type": "document",
+                        "project": "aiforall",
+                        "pages_created": ["projects/oauthconnect/concepts/local-ops-and-secret-distribution.md", "projects/aiforall/skills/deploying-oauthconnect-local.md", "projects/aiforall/references/session-ops-oauthconnect-20261108.md"],
+                        "pages_updated": ["journal/2026-11-08.md"],
+                        "scope": "OAuthConnect ops session plus independent infra review; offline qualification only"
+                    },
+                    "docs/history/ops-oauthconnect-20261108/coverage.json": {
+                        "ingested_at": "2026-11-08T14:43:13Z",
+                        "size_bytes": 2019,
+                        "modified_at": "2026-11-08T14:38:54Z",
+                        "content_hash": "sha256:3e345780ba3bb08a0a671b1b21aff84e251c90caae22874ccb0c37b24a733d68",
+                        "source_type": "document",
+                        "project": "aiforall",
+                        "pages_created": ["projects/aiforall/references/session-ops-oauthconnect-20261108.md"],
+                        "pages_updated": [],
+                        "scope": "OAuthConnect ops session plus independent infra review; offline qualification only"
+                    },
+                    "docs/missions/20261108-ops-oauthconnect.md": {
+                        "ingested_at": "2026-11-08T14:43:13Z",
+                        "size_bytes": 8112,
+                        "modified_at": "2026-11-08T14:30:12Z",
+                        "content_hash": "sha256:18bf21a2d921a2a7b2b24e6e76a6c4ebc3daf9722475ba7fc3db2fb663ed88d7",
+                        "source_type": "document",
+                        "project": "aiforall",
+                        "pages_created": ["projects/oauthconnect/concepts/local-ops-and-secret-distribution.md", "projects/aiforall/skills/deploying-oauthconnect-local.md", "projects/aiforall/references/session-ops-oauthconnect-20261108.md"],
+                        "pages_updated": ["projects/oauthconnect/oauthconnect.md", "projects/oauthconnect/concepts/tls-hmac-and-signatures.md", "projects/aiforall/concepts/runtime-validation-separation.md", "projects/aiforall/concepts/https-platform-mesh.md", "projects/iamrusty/skills/extending-iamrusty-with-oauth-providers.md", "projects/aiforall/aiforall.md", "projects/aiforall/skills/index.md", "journal/2026-11-08.md", "index.md"],
+                        "scope": "OAuthConnect ops session plus independent infra review; offline qualification only"
+                    },
+                    "ops/deploy/README.md": {
+                        "ingested_at": "2026-11-08T14:43:13Z",
+                        "size_bytes": 43037,
+                        "modified_at": "2026-11-08T14:12:47Z",
+                        "content_hash": "sha256:475688a77498dd37c29c7e572ecd73e2d3dbfe55dab59f2661c64cf398012b31",
+                        "source_type": "document",
+                        "project": "aiforall",
+                        "pages_created": ["projects/aiforall/skills/deploying-oauthconnect-local.md"],
+                        "pages_updated": ["projects/aiforall/concepts/runtime-validation-separation.md", "projects/aiforall/skills/index.md"],
+                        "scope": "OAuthConnect ops session plus independent infra review; offline qualification only"
+                    },
+                    "ops/deploy/local_full_oauthconnect.py": {
+                        "ingested_at": "2026-11-08T14:43:13Z",
+                        "size_bytes": 15575,
+                        "modified_at": "2026-11-08T14:07:14Z",
+                        "content_hash": "sha256:156f90c8ea4c599499add83779dcb85772e9642aa9ea017771ebb3fa216359ae",
+                        "source_type": "document",
+                        "project": "aiforall",
+                        "pages_created": ["projects/oauthconnect/concepts/local-ops-and-secret-distribution.md", "projects/aiforall/skills/deploying-oauthconnect-local.md"],
+                        "pages_updated": [],
+                        "scope": "OAuthConnect ops session plus independent infra review; offline qualification only"
+                    },
+                    "ops/deploy/render-local-full.py": {
+                        "ingested_at": "2026-11-08T14:43:13Z",
+                        "size_bytes": 18238,
+                        "modified_at": "2026-11-08T14:07:14Z",
+                        "content_hash": "sha256:796608b6b029e737f48439587e17dd750ee065beb21bd9ed50f1231f0eb31547",
+                        "source_type": "document",
+                        "project": "aiforall",
+                        "pages_created": [],
+                        "pages_updated": ["projects/oauthconnect/concepts/tls-hmac-and-signatures.md", "projects/aiforall/concepts/https-platform-mesh.md"],
+                        "scope": "OAuthConnect ops session plus independent infra review; offline qualification only"
+                    },
+                    "ops/deploy/local_full_environment.py": {
+                        "ingested_at": "2026-11-08T14:43:13Z",
+                        "size_bytes": 23696,
+                        "modified_at": "2026-11-08T13:55:28Z",
+                        "content_hash": "sha256:56ad34f377528dfc8e38a057ca175791b53f8997e5e0c7a5e89d26b829eea347",
+                        "source_type": "document",
+                        "project": "aiforall",
+                        "pages_created": ["projects/aiforall/skills/deploying-oauthconnect-local.md"],
+                        "pages_updated": [],
+                        "scope": "OAuthConnect ops session plus independent infra review; offline qualification only"
+                    },
+                    "ops/scripts/prepare-local-full-certs.py": {
+                        "ingested_at": "2026-11-08T14:43:13Z",
+                        "size_bytes": 20903,
+                        "modified_at": "2026-11-08T13:53:47Z",
+                        "content_hash": "sha256:aab5cc6ee2fa42c1392469f64d32f37aff2debfd99ec34597dae14f1c29d048e",
+                        "source_type": "document",
+                        "project": "aiforall",
+                        "pages_created": ["projects/aiforall/skills/deploying-oauthconnect-local.md"],
+                        "pages_updated": [],
+                        "scope": "OAuthConnect ops session plus independent infra review; offline qualification only"
+                    },
+                    "ops/deploy/apps/overlays/local-full/oauth-connect/connect.toml": {
+                        "ingested_at": "2026-11-08T14:43:13Z",
+                        "size_bytes": 3198,
+                        "modified_at": "2026-11-08T14:06:37Z",
+                        "content_hash": "sha256:98215a6f234e45160198abc6c7a1d5ec1db9e4a65b52b268fcddeaf1ce7a7cc1",
+                        "source_type": "document",
+                        "project": "aiforall",
+                        "pages_created": ["projects/oauthconnect/concepts/local-ops-and-secret-distribution.md"],
+                        "pages_updated": [],
+                        "scope": "OAuthConnect ops session plus independent infra review; offline qualification only"
+                    },
+                    "ops/deploy/apps/overlays/local-full/helpers/openbao-workload.py": {
+                        "ingested_at": "2026-11-08T14:43:13Z",
+                        "size_bytes": 9312,
+                        "modified_at": "2026-11-08T13:53:47Z",
+                        "content_hash": "sha256:39efd7f09be4b206ebcb7a58f03feb0bd0f23be3a9683d45db47a9a74768d5da",
+                        "source_type": "document",
+                        "project": "aiforall",
+                        "pages_created": ["projects/oauthconnect/concepts/local-ops-and-secret-distribution.md"],
+                        "pages_updated": [],
+                        "scope": "OAuthConnect ops session plus independent infra review; offline qualification only"
+                    },
+                    "ops/deploy/apps/overlays/local-full/helpers/seed-openbao.sh": {
+                        "ingested_at": "2026-11-08T14:43:13Z",
+                        "size_bytes": 6800,
+                        "modified_at": "2026-11-08T13:53:47Z",
+                        "content_hash": "sha256:e290babfa7cd98bcd4c3b2dd373293a9b2789d9e5f420be7321ff7c217d82002",
+                        "source_type": "document",
+                        "project": "aiforall",
+                        "pages_created": ["projects/oauthconnect/concepts/local-ops-and-secret-distribution.md"],
+                        "pages_updated": [],
+                        "scope": "OAuthConnect ops session plus independent infra review; offline qualification only"
+                    },
         "docs/diagrams/README.md": {
             "ingested_at": "2026-11-08",
             "size_bytes": 6062,

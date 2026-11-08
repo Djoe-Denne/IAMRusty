@@ -4,6 +4,8 @@ title: >-
 category: project
 tags: [platform, microservices, rust, visibility/internal]
 sources:
+  - docs/missions/20261108-ops-oauthconnect.md
+  - docs/history/ops-oauthconnect-20261108/README.md
   - docs/missions/20261031-k6-auth-handover.md
   - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/99-cas-minimal-windows-verifie.md
   - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/107-nettoyage-et-archivage-verifies.md
@@ -23,13 +25,13 @@ sources:
   - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
   - docs/adr/0007-closeout.md
 summary: >-
-  Plateforme RustyCog : OAuth historique qualifié et socle k6 Windows PASS ; portage auth intégré mais non exécuté, mission arrêtée. Linux différé.
+  Plateforme RustyCog : IAM/Connect v2 et ops GitHub+simulated HTTPS/OpenBao livrés. Qualifications offline et historiques distinctes du déploiement et des E2E fournisseurs.
 provenance:
-  extracted: 0.87
-  inferred: 0.10
-  ambiguous: 0.03
+  extracted: 0.91
+  inferred: 0.07
+  ambiguous: 0.02
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-10-31
+updated: 2026-11-08
 ---
 
 # AIForAll
@@ -50,6 +52,12 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 
 ## Runtime Modes
 
+- **OAuth fédéré** : [[projects/oauthconnect/oauthconnect]] reste un service
+  externe à IAM, sans comptes propres. Le profil local explicite GitHub+simulated
+  ajoute une entrée HTTPS/OpenBao ; il n'est pas une preuve de déploiement ou un
+  nouveau nest monolithe. Voir
+  [[projects/oauthconnect/concepts/local-ops-and-secret-distribution]].
+
 - **Microservices:** `iam-service`, `telegraph-service`, `hive-service`, `manifesto-service`, and `lazaret-service` remain independently runnable packages.
 - **Modular monolith:** `[[projects/aiforall/references/modular-monolith-runtime]]` documents the `oodhive-monolith` package, which composes IAMRusty, Telegraph, Hive, Manifesto, and Lazaret routers at `/iam`, `/telegraph`, `/hive`, `/manifesto`, and `/lazaret` while keeping SQS/event semantics unchanged.
 
@@ -58,6 +66,8 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 - [[projects/aiforall/roadmap]] still tracks Sentinel Sync tests, transactional DB load, the outbox, and IAM provider adapters. The 2026-08 wave added Sonar/Clippy policy, rustycog pinning, readiness signaling, and architecture-coherence follow-ups.
 
 ## Skills
+
+- [[projects/aiforall/skills/deploying-oauthconnect-local]] — images, PKI, secrets et gates avant activation du profil HTTPS.
 
 - [[projects/aiforall/skills/running-aiforall-runtime-modes]]
 - [[projects/aiforall/skills/fixing-sonar-clippy-in-services]]
@@ -76,6 +86,10 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 - [[projects/manifesto/decisions/index]] — vague 1 Apparatus (0002–0008 Implemented ; 0001 Partial ; 0009–0011 Proposed)
 
 ## Recent history
+
+- [[projects/aiforall/references/session-ops-oauthconnect-20261108]] — raccord ops
+  publié, choix OAuth simulé/HTTPS et revue indépendante statique PASS ; aucun
+  runtime ou E2E nouveau. La chaîne intégrée reste à qualifier.
 
 - [[projects/aiforall/references/auth-security-closure-20261029]] — correctif d'autorité OAuth, Chrome réel et refus Envoy qualifiés localement ; limites production/HA/HSM conservées.
 - [[projects/aiforall/concepts/k6-functional-linux]] — socle k6/Chrome Windows PASS ; portage auth intégré et inspecté, mais aucune campagne auth exécutée. Arrêt utilisateur après échec de déploiement de cause inconnue ; trois nœuds arrêtés, données et arbres conservés. Source : `docs/missions/20261031-k6-auth-handover.md`. Linux reste différé.
