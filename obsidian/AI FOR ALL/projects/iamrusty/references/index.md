@@ -8,10 +8,14 @@ provenance:
   extracted: 0.9
   inferred: 0.08
   ambiguous: 0.02
-updated: 2026-04-19T12:08:26.9393504Z
+updated: 2026-11-08
+sources:
+  - docs/history/oauthconnect-iam-20261108/README.md
 ---
 
 # IAMRusty References
+
+- [[projects/aiforall/references/session-oauthconnect-iam-20261108]] — histoire complète accessible, preuves et sous-agents ; guides et schémas.
 
 Use `[[projects/rustycog/references/index]]` for shared command, config, HTTP, queue, permission, and testing behavior. Use the pages below for what IAMRusty changes, adds, or leaves unresolved on top of that baseline.
 

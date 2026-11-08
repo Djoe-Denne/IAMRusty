@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>IAM / OAuthConnect — atlas de sécurité · 8 novembre 2026</title>
+  <style>
+    :root { color-scheme:light; --ink:#202c3a; --muted:#546477; --line:#cbd5df; --paper:#fff; --surface:#f4f7fa; --iam:#456dba; --iam-fill:#eaf1fc; --connect:#218273; --connect-fill:#e8f6f2; --vendor:#8361ba; --vendor-fill:#f1edfb; --ops:#a77418; --ops-fill:#fff4de; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:auto; }
+    body { margin:0; color:var(--ink); background:#eef2f6; font:15px/1.55 "Segoe UI",system-ui,sans-serif; }
+    main { max-width:1320px; padding:30px 26px 44px; margin:0 auto; }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { font-size:clamp(27px,4vw,42px); line-height:1.18; max-width:900px; margin-bottom:14px; letter-spacing:-.5px; }
+    h2 { font-size:24px; line-height:1.25; margin-bottom:8px; }
+    h3 { font-size:15px; margin-bottom:6px; }
+    p { margin-bottom:10px; }
+    a { color:#28558e; text-underline-offset:3px; }
+    a:focus-visible { outline:3px solid var(--ops); outline-offset:4px; }
+    code { font-family:ui-monospace,monospace; font-size:.94em; overflow-wrap:anywhere; }
+    .intro,.view,.history { background:var(--paper); border:1px solid var(--line); border-radius:12px; }
+    .intro { padding:28px 30px; }
+    .eyebrow { color:var(--muted); font-size:12px; font-weight:700; letter-spacing:1.6px; text-transform:uppercase; margin-bottom:9px; }
+    .lead { color:var(--muted); max-width:1000px; font-size:16px; }
+    .badges,.legend,nav { display:flex; gap:9px 16px; align-items:center; flex-wrap:wrap; }
+    .badges { margin:19px 0 15px; }
+    .badge { display:inline-block; border:1px solid var(--line); border-radius:999px; padding:5px 12px; font-size:12px; font-weight:650; background:var(--surface); }
+    .badge.primary { color:#17365e; border-color:#b6c9ed; background:var(--iam-fill); }
+    .badge.warn { color:#6f5016; border-color:#e2c58b; background:var(--ops-fill); }
+    .scope { border-left:4px solid var(--ops); background:var(--ops-fill); padding:12px 15px; font-size:13px; margin:16px 0; }
+    .legend { font-size:12px; color:var(--muted); margin:18px 0 0; }
+    .dot { display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+    nav { margin:23px 0; padding:0 4px; font-size:14px; }
+    nav a { font-weight:600; }
+    .view { margin:22px 0; padding:24px 26px 20px; scroll-margin-top:16px; }
+    .view-head { display:grid; grid-template-columns:46px minmax(0,1fr); gap:14px; align-items:start; margin-bottom:12px; }
+    .number { width:44px; height:44px; display:grid; place-items:center; border-radius:12px; background:var(--iam-fill); color:#254f92; font-size:20px; font-weight:750; }
+    .view-head p { color:var(--muted); font-size:14px; margin:0; }
+    figure { margin:0; overflow-x:auto; padding:8px 0 4px; }
+    svg { display:block; width:100%; min-width:1100px; height:auto; font-family:"Segoe UI",system-ui,sans-serif; }
+    .details { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; margin-top:16px; padding-top:16px; border-top:1px solid var(--line); }
+    .details p { color:var(--muted); font-size:13px; margin:0; }
+    .details strong { color:var(--ink); }
+    .sources { margin:15px 0 0; font-size:12px; color:var(--muted); }
+    .history { padding:20px 26px; font-size:13px; }
+    .history p:last-child { margin-bottom:0; }
+    footer { font-size:12px; color:var(--muted); padding:20px 4px 0; }
+    @media(max-width:760px) { main { padding:16px 12px; } .intro,.view { padding:20px 16px; } .details { grid-template-columns:1fr; gap:12px; } h2 { font-size:21px; } }
+    @page { size:A4 landscape; margin:9mm; }
+    @media print {
+      body { background:#fff; font-size:11px; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+      main { max-width:none; padding:0; }
+      .intro { border:0; padding:0; }
+      h1 { font-size:30px; }
+      nav { display:none; }
+      .view { break-before:page; margin:0; padding:0; border:0; border-radius:0; }
+      .view-head { margin-bottom:3px; gap:10px; grid-template-columns:34px minmax(0,1fr); }
+      .number { width:32px; height:32px; font-size:16px; border-radius:8px; }
+      h2 { font-size:20px; margin-bottom:4px; }
+      .view-head p { font-size:11px; }
+      figure { overflow:visible; padding:0; break-inside:avoid; }
+      svg { min-width:0; width:100%; max-height:132mm; }
+      .details { gap:15px; padding-top:8px; margin-top:7px; }
+      .details h3 { font-size:11px; }
+      .details p,.sources { font-size:10px; }
+      .sources { margin-top:6px; }
+      .history { break-before:page; border:0; padding:0; }
+      footer { font-size:10px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header class="intro">
+    <div class="eyebrow">Atlas pédagogique · photographie du 8 novembre 2026</div>
+    <h1>Une identité, plusieurs preuves.<br>Chaque clé a sa responsabilité.</h1>
+    <p class="lead">Suivre un login IAM → OAuthConnect → fournisseur, distinguer cinq familles de matériaux, comprendre les deux rotations et retrouver la bonne frontière quand une validation échoue.</p>
+    <div class="badges">
+      <span class="badge primary">ADR0413 · Accepted / Partial</span>
+      <span class="badge">Connect : 295 tests locaux rapportés</span>
+      <span class="badge">Raccord IAM : 325 unités + 80 IT rapportées</span>
+      <span class="badge warn">Pas de cutover ni de qualification live</span>
+    </div>
+    <div class="scope"><strong>La portée compte autant que le dessin.</strong> Ces preuves locales ne ferment pas G5 (IAM → Connect réel → vendor signé), l'E2E fournisseur, l'équivalence du <code>sub</code> GitLab ou le retrait legacy. Aucun test ni accès runtime n'est exécuté pour cet atlas. Les clés, certificats et opérateurs live restent non observés.</div>
+    <p><a href="iam-oauthconnect-current.md">Sources Mermaid et explications</a> · <a href="../guides/iam-oauthconnect-securite-clefs-jwks-tls.md">Guide approfondi</a> · <a href="../guides/iam-oauthconnect-securite-sources.md">Sources, preuves et inconnus</a> · <a href="README.md">Sommaire des schémas</a></p>
+    <div class="legend" aria-label="Légende des rôles">
+      <span><i class="dot" style="background:#456dba"></i>IAM / Hive / état métier</span>
+      <span><i class="dot" style="background:#218273"></i>Connect / validation externe</span>
+      <span><i class="dot" style="background:#8361ba"></i>Fournisseur</span>
+      <span><i class="dot" style="background:#a77418"></i>Opérations et précautions</span>
+      <span><i class="dot" style="background:#6a7d90"></i>Transport / contexte</span>
+    </div>
+  </header>
+
+  <nav aria-label="Les cinq vues">
+    <a href="#architecture">01 Architecture</a><a href="#materiaux">02 Cinq familles</a><a href="#rotation">03 Deux rotations</a><a href="#tls">04 TLS et preuves</a><a href="#transaction">05 Nonce / PKCE / commit</a>
+  </nav>
+
+  <section class="view" id="architecture">
+    <header class="view-head"><div class="number">01</div><div><h2>Le compte est chez IAM. L'identité externe est vérifiée par Connect.</h2><p>Flux logique et frontières de confiance — les flèches HTTPS expriment la politique, pas une capture de production.</p></div></header>
+    <figure>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img" aria-labelledby="a-title a-desc">
+        <title id="a-title">Architecture IAM, Connect, fournisseur et writer</title>
+        <desc id="a-desc">Le navigateur commence et revient chez IAM. IAM possède comptes, liens et transactions ; il appelle les routes v2 Connect avec HMAC. Connect choisit un client d'instance OAuth ou OIDC, joint le fournisseur et retourne seulement tokens fournisseur et profil minimal. Le writer IAM assure la consommation avant la complétion.</desc>
+        <defs><marker id="a-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="#546477"/></marker></defs>
+        <path d="M112 68 V30 H1082 V68" fill="none" stroke="#8361ba" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#a-arrow)"/>
+        <g data-box="278 10 650 40"><rect x="278" y="10" width="650" height="40" fill="#fff"/><text x="603" y="35" text-anchor="middle" font-size="14" fill="#694892">Navigation d'autorisation vers le fournisseur · retour navigateur vers IAM</text></g>
+        <g data-box="24 68 176 240"><rect x="24" y="68" width="176" height="240" rx="9" fill="#f0f3f7" stroke="#a9b7c7"/>
+          <text x="40" y="100" font-size="18" font-weight="700" fill="#273a4d">Navigateur</text>
+          <text x="40" y="132" font-size="14" fill="#273a4d">START</text><text x="40" y="154" font-size="14" fill="#273a4d">puis callback IAM</text>
+          <text x="40" y="198" font-size="14" fill="#546477">Code + state</text><text x="40" y="220" font-size="14" fill="#546477">Cookie du parcours</text>
+          <text x="40" y="264" font-size="13" fill="#546477">Aucun secret HMAC</text><text x="40" y="286" font-size="13" fill="#546477">Aucun appel S2S</text>
+        </g>
+        <path d="M200 132 H255" stroke="#546477" stroke-width="1.8" marker-end="url(#a-arrow)"/>
+        <g data-box="255 68 254 240"><rect x="255" y="68" width="254" height="240" rx="9" fill="#eaf1fc" stroke="#456dba"/>
+          <text x="273" y="100" font-size="20" font-weight="700" fill="#254f92">IAM</text>
+          <text x="273" y="132" font-size="14" fill="#17365e">Comptes UUID · liens</text><text x="273" y="155" font-size="14" fill="#17365e">LOGIN / LINK / RELINK</text>
+          <text x="273" y="188" font-size="14" fill="#17365e">Nonce et verifier durables</text><text x="273" y="211" font-size="14" fill="#17365e">Bindings navigateur validés</text>
+          <text x="273" y="254" font-size="14" fill="#17365e">Consommer avant complete</text><text x="273" y="278" font-size="14" fill="#17365e">Puis appliquer le métier</text>
+        </g>
+        <path d="M509 132 H622 M622 257 H509" fill="none" stroke="#218273" stroke-width="2" marker-end="url(#a-arrow)"/>
+        <g data-box="512 83 107 35"><text x="565" y="106" text-anchor="middle" font-size="13" font-weight="600" fill="#176d5f">v2 + HMAC</text></g>
+        <g data-box="509 270 113 31"><text x="565" y="291" text-anchor="middle" font-size="12" fill="#176d5f">tokens + profil</text></g>
+        <g data-box="622 68 278 240"><rect x="622" y="68" width="278" height="240" rx="9" fill="#e8f6f2" stroke="#218273"/>
+          <text x="640" y="100" font-size="20" font-weight="700" fill="#176d5f">OAuthConnect</text>
+          <text x="640" y="132" font-size="14" fill="#174e47">Catalogue entier avant écoute</text><text x="640" y="155" font-size="14" fill="#174e47">Un client et HMAC par instance</text>
+          <text x="640" y="194" font-size="14" font-weight="600" fill="#174e47">OAuth : API JSON + projection</text><text x="640" y="220" font-size="14" font-weight="600" fill="#174e47">OIDC : Discovery / JWKS</text>
+          <text x="640" y="245" font-size="14" fill="#174e47">RS256 + claims + nonce</text><text x="640" y="282" font-size="13" fill="#176d5f">Support Bearer : aucune autorité</text>
+        </g>
+        <path d="M900 132 H991 M991 257 H900" fill="none" stroke="#8361ba" stroke-width="1.8" marker-end="url(#a-arrow)"/>
+        <g data-box="902 83 86 35"><text x="945" y="106" text-anchor="middle" font-size="13" font-weight="600" fill="#694892">HTTPS</text></g>
+        <g data-box="900 270 91 31"><text x="945" y="291" text-anchor="middle" font-size="12" fill="#694892">tokens / API</text></g>
+        <g data-box="991 68 185 240"><rect x="991" y="68" width="185" height="240" rx="9" fill="#f1edfb" stroke="#8361ba"/>
+          <text x="1007" y="100" font-size="18" font-weight="700" fill="#694892">Fournisseur</text><text x="1007" y="132" font-size="14" fill="#4d3477">Autorisation</text><text x="1007" y="155" font-size="14" fill="#4d3477">Token endpoint</text>
+          <text x="1007" y="194" font-size="14" fill="#4d3477">GitHub : OAuth</text><text x="1007" y="218" font-size="14" fill="#4d3477">GitLab : OIDC</text><text x="1007" y="253" font-size="13" fill="#694892">Exemples de slugs</text><text x="1007" y="277" font-size="13" fill="#694892">Pas des types fixes</text>
+        </g>
+        <path d="M382 308 V392 M761 392 V308" stroke="#546477" fill="none" stroke-width="1.5" marker-end="url(#a-arrow)"/>
+        <g data-box="401 332 130 37"><text x="417" y="357" font-size="14" fill="#546477">writer primaire</text></g>
+        <g data-box="781 332 160 37"><text x="797" y="357" font-size="14" fill="#546477">secrets au boot</text></g>
+        <g data-box="24 392 176 139"><rect x="24" y="392" width="176" height="139" rx="9" fill="#f0f3f7" stroke="#a9b7c7"/>
+          <text x="40" y="421" font-size="16" font-weight="700" fill="#273a4d">Callback sur IAM</text><text x="40" y="451" font-size="13" fill="#546477">Pas sur Connect</text><text x="40" y="476" font-size="13" fill="#546477">Même route métier</text><text x="40" y="506" font-size="13" fill="#546477">UUID conservés</text>
+        </g>
+        <g data-box="255 392 254 139"><rect x="255" y="392" width="254" height="139" rx="9" fill="#eaf1fc" stroke="#456dba"/>
+          <text x="273" y="421" font-size="17" font-weight="700" fill="#254f92">Writer / DB IAM</text><text x="273" y="451" font-size="14" fill="#17365e">Transactions et liaisons</text><text x="273" y="476" font-size="14" fill="#17365e">Verrou + double purge</text><text x="273" y="506" font-size="14" fill="#17365e">COMMIT avant capacité</text>
+        </g>
+        <g data-box="622 392 278 139"><rect x="622" y="392" width="278" height="139" rx="9" fill="#fff4de" stroke="#bf8a27"/>
+          <text x="640" y="421" font-size="17" font-weight="700" fill="#795318">Config + secrets</text><text x="640" y="451" font-size="14" fill="#6f5016">Direct ou OpenBao KV v2</text><text x="640" y="476" font-size="14" fill="#6f5016">Client secret ≠ HMAC</text><text x="640" y="506" font-size="14" fill="#6f5016">Pas le privé du fournisseur</text>
+        </g>
+        <g data-box="991 392 185 139"><rect x="991" y="392" width="185" height="139" rx="9" fill="#f1edfb" stroke="#8361ba"/>
+          <text x="1007" y="421" font-size="16" font-weight="700" fill="#694892">Signature OIDC</text><text x="1007" y="451" font-size="13" fill="#4d3477">Privé fournisseur</text><text x="1007" y="476" font-size="13" fill="#4d3477">Public via JWKS</text><text x="1007" y="506" font-size="13" fill="#4d3477">Vérifié par Connect</text>
+        </g>
+        <g data-box="24 563 1152 52"><rect x="24" y="563" width="1152" height="52" rx="7" fill="#fff4de"/>
+          <text x="42" y="586" font-size="14" font-weight="600" fill="#795318">Instance = autorité logique, pas Pod. Plusieurs replicas : snapshots techniques indépendants.</text><text x="42" y="606" font-size="13" fill="#6f5016">Connect ne possède ni compte IAM ni cache de corrélation métier. Le rendu ne prouve aucun déploiement ou cutover.</text>
+        </g>
+      </svg>
+    </figure>
+    <div class="details"><div><h3>Ce qui reste chez IAM</h3><p>Les comptes, liens, intentions et valeurs attendues du parcours. Une authentification externe ne décide pas seule quel UUID ou quelle action est autorisé.</p></div><div><h3>Ce que Connect renvoie</h3><p>Un résultat complet : tokens fournisseur + profil minimal. Jamais l'ID token, un JWKS à faire confiance aveuglément ou un profil partiel.</p></div><div><h3>Ce qui ne passe pas cette frontière</h3><p>La clé privée OIDC. L'AppState de support reste sans clé Bearer de confiance ; seules les routes HMAC v2 font leur travail.</p></div></div>
+    <p class="sources">Sources : <a href="../guides/iam-oauthconnect-securite-sources.md#faits-locaux">S01, S05–S10</a> · <a href="../contracts/oauthconnect-oidc-service-boundary.md">contrat OIDC/service, dont §10 HMAC-only</a> · <a href="iam-oauthconnect-current.md#architecture">Mermaid et explications</a>.</p>
+  </section>
+
+  <section class="view" id="materiaux">
+    <header class="view-head"><div class="number">02</div><div><h2>Cinq familles. Cinq usages. Aucun secret universel.</h2><p>Privé, public, MAC et certificat ne sont pas interchangeables — les détenteurs opérationnels live restent à confirmer.</p></div></header>
+    <figure>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img" aria-labelledby="m-title m-desc">
+        <title id="m-title">Cinq familles de matériaux, propriétaires et consommateurs</title>
+        <desc id="m-desc">Clé OIDC fournisseur, clé JWT IAM, HMAC d'instance, clé et certificat TLS et secret client OAuth sont séparés. Chaque ligne distingue leur garde, leur consommation et leur renouvellement.</desc>
+        <g data-box="24 1 1152 43"><text x="40" y="28" font-size="13" font-weight="700" fill="#546477">MATÉRIAU</text><text x="250" y="28" font-size="13" font-weight="700" fill="#546477">GARDE / SECRET</text><text x="550" y="28" font-size="13" font-weight="700" fill="#546477">CONSOMMATEUR / PUBLIC</text><text x="900" y="28" font-size="13" font-weight="700" fill="#546477">RENOUVELLEMENT</text></g>
+        <rect x="24" y="48" width="1152" height="92" rx="8" fill="#f1edfb" stroke="#d8cdeb"/>
+        <g data-box="24 48 205 92"><text x="40" y="75" font-size="16" font-weight="700" fill="#694892">01 · Fournisseur</text><text x="40" y="99" font-size="16" font-weight="700" fill="#694892">OIDC</text><text x="40" y="123" font-size="13" fill="#4d3477">Paire de signature</text></g>
+        <g data-box="234 48 294 92"><text x="250" y="77" font-size="14" fill="#4d3477">Privé chez le fournisseur</text><text x="250" y="101" font-size="14" fill="#4d3477">ou son service de signature</text><text x="250" y="125" font-size="13" fill="#694892">Jamais reçu par Connect</text></g>
+        <g data-box="534 48 344 92"><text x="550" y="77" font-size="14" fill="#4d3477">Public via JWKS → Connect</text><text x="550" y="101" font-size="14" fill="#4d3477">Vérifie l'ID token externe</text><text x="550" y="125" font-size="13" fill="#694892">Pas une liste d'utilisateurs</text></g>
+        <g data-box="884 48 292 92"><text x="900" y="77" font-size="14" fill="#4d3477">Opérateur du fournisseur</text><text x="900" y="101" font-size="14" fill="#4d3477">Prépublication et overlap</text><text x="900" y="125" font-size="13" fill="#694892">Procédure live inconnue ici</text></g>
+        <rect x="24" y="152" width="1152" height="92" rx="8" fill="#eaf1fc" stroke="#c5d5ef"/>
+        <g data-box="24 152 205 92"><text x="40" y="179" font-size="16" font-weight="700" fill="#254f92">02 · JWT IAM</text><text x="40" y="204" font-size="14" fill="#17365e">Paire indépendante</text><text x="40" y="228" font-size="13" fill="#254f92">Autorité plateforme / org</text></g>
+        <g data-box="234 152 294 92"><text x="250" y="181" font-size="14" fill="#17365e">Privé délégué en production</text><text x="250" y="205" font-size="14" fill="#17365e">IAM garde claims et binding</text><text x="250" y="229" font-size="13" fill="#254f92">PEM : dev/test explicite seulement</text></g>
+        <g data-box="534 152 344 92"><text x="550" y="181" font-size="14" fill="#17365e">JWKS IAM → services / proxy</text><text x="550" y="205" font-size="14" fill="#17365e">Vérifie les tokens émis par IAM</text><text x="550" y="229" font-size="13" fill="#254f92">Pas le JWKS de l'IdP externe</text></g>
+        <g data-box="884 152 292 92"><text x="900" y="181" font-size="14" fill="#17365e">Cycle IAM + provider</text><text x="900" y="205" font-size="14" fill="#17365e">Rotate inspecté : Transit</text><text x="900" y="229" font-size="13" fill="#254f92">Remote Sign ≠ Remote Rotate</text></g>
+        <rect x="24" y="256" width="1152" height="92" rx="8" fill="#e8f6f2" stroke="#bbded5"/>
+        <g data-box="24 256 205 92"><text x="40" y="283" font-size="16" font-weight="700" fill="#176d5f">03 · HMAC S2S</text><text x="40" y="308" font-size="14" fill="#174e47">Secret symétrique</text><text x="40" y="332" font-size="13" fill="#176d5f">Propre à une instance</text></g>
+        <g data-box="234 256 294 92"><text x="250" y="285" font-size="14" fill="#174e47">Secret chez IAM et Connect</text><text x="250" y="309" font-size="14" fill="#174e47">Chacun peut produire le MAC</text><text x="250" y="333" font-size="13" fill="#176d5f">Aucun public à distribuer</text></g>
+        <g data-box="534 256 344 92"><text x="550" y="285" font-size="14" fill="#174e47">IAM calcule, Connect vérifie</text><text x="550" y="309" font-size="14" fill="#174e47">METHOD / PATH / TIME / BODY</text><text x="550" y="333" font-size="13" fill="#176d5f">Fenêtre ±30 s, pas anti-replay unique</text></g>
+        <g data-box="884 256 292 92"><text x="900" y="285" font-size="14" fill="#174e47">Provisionnement coordonné</text><text x="900" y="309" font-size="14" fill="#174e47">Configurations des deux côtés</text><text x="900" y="333" font-size="13" fill="#176d5f">Pas de hot-reload démontré</text></g>
+        <rect x="24" y="360" width="1152" height="92" rx="8" fill="#f0f3f7" stroke="#cad3dd"/>
+        <g data-box="24 360 205 92"><text x="40" y="387" font-size="16" font-weight="700" fill="#273a4d">04 · TLS / CA</text><text x="40" y="412" font-size="14" fill="#273a4d">Privé + certificat</text><text x="40" y="436" font-size="13" fill="#546477">Clés de trafic de session</text></g>
+        <g data-box="234 360 294 92"><text x="250" y="389" font-size="14" fill="#273a4d">Privé au terminator TLS</text><text x="250" y="413" font-size="14" fill="#273a4d">Certificat public signé par CA</text><text x="250" y="437" font-size="13" fill="#546477">Racines approuvées côté client</text></g>
+        <g data-box="534 360 344 92"><text x="550" y="389" font-size="14" fill="#273a4d">Client de chaque connexion</text><text x="550" y="413" font-size="14" fill="#273a4d">Vérifie chaîne et SAN / nom</text><text x="550" y="437" font-size="13" fill="#546477">mTLS ajoute un certificat client</text></g>
+        <g data-box="884 360 292 92"><text x="900" y="389" font-size="14" fill="#273a4d">Gestion du transport / Ops</text><text x="900" y="413" font-size="14" fill="#273a4d">Leaf ≠ changement de CA</text><text x="900" y="437" font-size="13" fill="#546477">Outil et calendrier non observés</text></g>
+        <rect x="24" y="464" width="1152" height="92" rx="8" fill="#fff4de" stroke="#e4cfaa"/>
+        <g data-box="24 464 205 92"><text x="40" y="491" font-size="16" font-weight="700" fill="#795318">05 · Client secret</text><text x="40" y="516" font-size="14" fill="#6f5016">OAuth / OIDC</text><text x="40" y="540" font-size="13" fill="#795318">Authentifie l'application</text></g>
+        <g data-box="234 464 294 92"><text x="250" y="493" font-size="14" fill="#6f5016">Enregistrement fournisseur</text><text x="250" y="517" font-size="14" fill="#6f5016">Résolu au boot de Connect</text><text x="250" y="541" font-size="13" fill="#795318">Direct / KV v2, octets préservés</text></g>
+        <g data-box="534 464 344 92"><text x="550" y="493" font-size="14" fill="#6f5016">Connect → token endpoint</text><text x="550" y="517" font-size="14" fill="#6f5016">Basic ou form explicitement choisi</text><text x="550" y="541" font-size="13" fill="#795318">Jamais au navigateur ou au JWKS</text></g>
+        <g data-box="884 464 292 92"><text x="900" y="493" font-size="14" fill="#6f5016">Fournisseur + secret déployé</text><text x="900" y="517" font-size="14" fill="#6f5016">Redémarrage à coordonner</text><text x="900" y="541" font-size="13" fill="#795318">Refresh JWKS ne relit pas KV</text></g>
+        <g data-box="24 575 1152 42"><text x="42" y="600" font-size="14" font-weight="600" fill="#273a4d">JWKS public ≠ certificat TLS. Clé publique ≠ capacité de signer. Signature ≠ chiffrement. KV v2 ≠ Transit.</text></g>
+      </svg>
+    </figure>
+    <div class="details"><div><h3>La clé publique peut circuler</h3><p>Elle vérifie une signature ; elle ne fournit pas le privé. Mais sa provenance doit être établie : un JWKS arbitraire n'est pas une autorité.</p></div><div><h3>Le HMAC reste secret</h3><p>Symétrique : les deux côtés connaissent de quoi produire le MAC. Il ne doit jamais apparaître dans un JWKS public.</p></div><div><h3>Les inconnus sont conservés</h3><p>Fichier privé, coffre réel, HSM, outil de certificat, équipe nominative et fréquence de rotation ne sont pas déduits du protocole.</p></div></div>
+    <p class="sources">Sources : <a href="../guides/iam-oauthconnect-securite-sources.md#faits-locaux">S07–S09, S11–S16</a> · <a href="../guides/iam-oauthconnect-securite-clefs-jwks-tls.md#familles">guide des cinq familles</a> · <a href="iam-oauthconnect-current.md#materiaux">Mermaid et explications</a>.</p>
+  </section>
+
+  <section class="view" id="rotation">
+    <header class="view-head"><div class="number">03</div><div><h2>Le fournisseur tourne son privé. Connect actualise sa vue. IAM suit son cycle.</h2><p>Trois responsabilités, deux autorités de signature — aucun TTL de cache ne devient un calendrier de rotation.</p></div></header>
+    <figure>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img" aria-labelledby="r-title r-desc">
+        <title id="r-title">Rotation OIDC, cache Connect et lifecycle IAM</title>
+        <desc id="r-desc">Le fournisseur prépublie puis signe avec un nouveau kid et conserve les anciens publics selon sa politique. Connect garde un cache frais moins de 300 secondes et un cooldown de 30 secondes. Indépendamment, un Admin organisation via Hive déclenche IAM et Transit, puis la prépublication Pending et la promotion writer. Retiring reste publiable TTL IAM plus 60 secondes ; l'émission a une fence finale.</desc>
+        <defs><marker id="r-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#546477"/></marker></defs>
+        <g data-box="24 0 1152 43"><text x="40" y="27" font-size="16" font-weight="700" fill="#694892">A · AUTORITÉ OIDC — rotation du matériau par son opérateur</text></g>
+        <g data-box="24 51 250 96"><rect x="24" y="51" width="250" height="96" rx="8" fill="#f1edfb" stroke="#8361ba"/><text x="40" y="79" font-size="16" font-weight="700" fill="#694892">1 · Prépublier</text><text x="40" y="106" font-size="14" fill="#4d3477">Ancien + nouveau publics</text><text x="40" y="130" font-size="14" fill="#4d3477">Nouveau matériau, kid distinct</text></g>
+        <path d="M274 100 H315 M565 100 H606 M856 100 H897" stroke="#546477" stroke-width="1.5" marker-end="url(#r-arrow)"/>
+        <g data-box="315 51 250 96"><rect x="315" y="51" width="250" height="96" rx="8" fill="#f1edfb" stroke="#8361ba"/><text x="331" y="79" font-size="16" font-weight="700" fill="#694892">2 · Signer au nouveau kid</text><text x="331" y="106" font-size="14" fill="#4d3477">Le privé reste fournisseur</text><text x="331" y="130" font-size="14" fill="#4d3477">L'issuer ne change pas</text></g>
+        <g data-box="606 51 250 96"><rect x="606" y="51" width="250" height="96" rx="8" fill="#e8f6f2" stroke="#218273"/><text x="622" y="79" font-size="16" font-weight="700" fill="#176d5f">3 · Actualiser Connect</text><text x="622" y="106" font-size="14" fill="#174e47">GET JWKS déjà épinglé</text><text x="622" y="130" font-size="14" fill="#174e47">Même ID token revérifié</text></g>
+        <g data-box="897 51 279 96"><rect x="897" y="51" width="279" height="96" rx="8" fill="#f1edfb" stroke="#8361ba"/><text x="913" y="79" font-size="16" font-weight="700" fill="#694892">4 · Conserver puis retirer</text><text x="913" y="106" font-size="14" fill="#4d3477">Ancien public : tokens + marges</text><text x="913" y="130" font-size="14" fill="#4d3477">Durée fournisseur non inventée</text></g>
+        <g data-box="24 167 1152 93"><rect x="24" y="167" width="1152" height="93" rx="8" fill="#e8f6f2" stroke="#bbded5"/>
+          <text x="42" y="192" font-size="14" font-weight="700" fill="#176d5f">CACHE CONNECT · local au client d'instance / processus, single-flight ; aucune tâche périodique</text>
+          <text x="42" y="216" font-size="14" fill="#174e47">Frais si âge depuis succès &lt; 300 s. À 300 s : refresh exigé avant validation, sinon refus. Échec ne rajeunit rien.</text>
+          <text x="42" y="240" font-size="14" fill="#174e47">NoMatchingKey seulement : refresh réactif si ≥ 30 s depuis toute tentative, boot inclus. Pas de second POST code.</text>
+        </g>
+        <g data-box="24 274 1152 44"><text x="40" y="302" font-size="16" font-weight="700" fill="#254f92">B · CLÉS IAM — demande Admin organisation via Hive, orchestration IAM et signature privée déléguée</text></g>
+        <g data-box="24 330 210 113"><rect x="24" y="330" width="210" height="113" rx="8" fill="#eaf1fc" stroke="#456dba"/><text x="40" y="358" font-size="16" font-weight="700" fill="#254f92">Admin → Hive</text><text x="40" y="385" font-size="14" fill="#17365e">Principal authentifié</text><text x="40" y="408" font-size="14" fill="#17365e">Permission Admin org</text><text x="40" y="431" font-size="13" fill="#254f92">Commande de rotation</text></g>
+        <path d="M234 386 H262 M472 386 H500 M710 386 H738 M948 386 H976" fill="none" stroke="#546477" stroke-width="1.5" marker-end="url(#r-arrow)"/>
+        <g data-box="262 330 210 113"><rect x="262" y="330" width="210" height="113" rx="8" fill="#eaf1fc" stroke="#456dba"/><text x="278" y="358" font-size="16" font-weight="700" fill="#254f92">IAM interne</text><text x="278" y="385" font-size="14" fill="#17365e">Token de service requis</text><text x="278" y="408" font-size="14" fill="#17365e">Façade puis rotator</text><text x="278" y="431" font-size="13" fill="#254f92">Binding/version contrôlés</text></g>
+        <g data-box="500 330 210 113"><rect x="500" y="330" width="210" height="113" rx="8" fill="#fff4de" stroke="#bf8a27"/><text x="516" y="358" font-size="16" font-weight="700" fill="#795318">Transit</text><text x="516" y="385" font-size="14" fill="#6f5016">Nouvelle version privée</text><text x="516" y="408" font-size="14" fill="#6f5016">Public épinglé + preuve</text><text x="516" y="431" font-size="13" fill="#795318">Rotate livré inspecté</text></g>
+        <g data-box="738 330 210 113"><rect x="738" y="330" width="210" height="113" rx="8" fill="#eaf1fc" stroke="#456dba"/><text x="754" y="358" font-size="16" font-weight="700" fill="#254f92">Pending</text><text x="754" y="385" font-size="14" fill="#17365e">Admission writer</text><text x="754" y="408" font-size="14" fill="#17365e">Public prépublié</text><text x="754" y="431" font-size="13" fill="#254f92">Ne peut pas émettre</text></g>
+        <g data-box="976 330 200 113"><rect x="976" y="330" width="200" height="113" rx="8" fill="#eaf1fc" stroke="#456dba"/><text x="992" y="358" font-size="16" font-weight="700" fill="#254f92">Promotion writer</text><text x="992" y="385" font-size="14" fill="#17365e">Nouveau → Active</text><text x="992" y="408" font-size="14" fill="#17365e">Ancien → Retiring</text><text x="992" y="431" font-size="13" fill="#254f92">Publication atomique</text></g>
+        <g data-box="24 465 552 103"><rect x="24" y="465" width="552" height="103" rx="8" fill="#f4f7fa" stroke="#cbd5df"/><text x="42" y="492" font-size="16" font-weight="700" fill="#254f92">PUBLIC ANCIEN · rétention propre à IAM</text><text x="42" y="519" font-size="14" fill="#17365e">Retiring publiable : date de retrait + TTL access IAM + 60 s &gt; as_of</text><text x="42" y="544" font-size="14" fill="#17365e">À la borne : retiré de la vue. Revoked exclu, pas de résurrection.</text></g>
+        <g data-box="600 465 576 103"><rect x="600" y="465" width="576" height="103" rx="8" fill="#f4f7fa" stroke="#cbd5df"/><text x="618" y="492" font-size="16" font-weight="700" fill="#254f92">ÉMISSION · fence finale sur l'époque Active</text><text x="618" y="519" font-size="14" fill="#17365e">Signature candidate vérifiée → contrôle autoritatif writer → retour</text><text x="618" y="544" font-size="14" fill="#17365e">Pas de bail éternel ; pas de révocation rétroactive des JWT rendus.</text></g>
+        <g data-box="24 580 1152 37"><rect x="24" y="580" width="1152" height="37" rx="7" fill="#fff4de"/><text x="42" y="604" font-size="13" fill="#795318">Remote Sign ≠ Rotate. Même kid : refresh précoce non promis. Ancien public frais parfois utilisable. Pas de révocation instantanée.</text></g>
+      </svg>
+    </figure>
+    <div class="details"><div><h3>Les deux « 30 s » diffèrent</h3><p>Le cooldown JWKS limite les acquisitions. La fenêtre HMAC borne l'âge d'une requête. Ils ne constituent ni le même état, ni une fréquence de rotation.</p></div><div><h3>Prépublication ≠ diffusion prouvée</h3><p>Pending est durable, mais le helper enchaîne préparation et promotion. Aucun délai d'attente de tous les caches n'est démontré.</p></div><div><h3>Changer l'issuer change l'autorité</h3><p>Ne pas remplacer une autorité sous le même slug par un reset de cache. Aucun calendrier Ops live ou zéro interruption n'est promis.</p></div></div>
+    <p class="sources">Sources : <a href="../guides/iam-oauthconnect-securite-sources.md#faits-locaux">S02–S04, S11–S14</a> · <a href="../adr/0311-crypto-privee-deleguee-aux-providers.md">ADR0311</a> · <a href="iam-oauthconnect-current.md#rotation">Mermaid et conditions exactes</a>.</p>
+  </section>
+
+  <section class="view" id="tls">
+    <header class="view-head"><div class="number">04</div><div><h2>TLS protège une connexion. Le HMAC et la signature répondent à d'autres questions.</h2><p>Le nom attendu et le vérificateur doivent être nommés sur chaque hop ; un proxy qui termine TLS est une frontière réelle.</p></div></header>
+    <figure>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img" aria-labelledby="t-title t-desc">
+        <title id="t-title">TLS par hop, HMAC et signature comme preuves complémentaires</title>
+        <desc id="t-desc">Le navigateur valide l'entrée IAM ; IAM valide Connect ; Connect valide les origines fournisseur. Si Envoy termine TLS, son lien backend est une autre connexion. TLS vérifie chaîne et nom et protège le canal ; HMAC authentifie la requête ; signature et claims valident le token. Le handshake TLS1.3 est pédagogique, non une observation live.</desc>
+        <g data-box="24 0 1152 43"><text x="40" y="27" font-size="16" font-weight="700" fill="#273a4d">TROIS CLIENTS, TROIS CONTRÔLES DE SERVEUR — plus le hop proxy → backend à qualifier séparément</text></g>
+        <g data-box="24 56 354 151"><rect x="24" y="56" width="354" height="151" rx="9" fill="#f0f3f7" stroke="#a9b7c7"/><text x="42" y="85" font-size="18" font-weight="700" fill="#273a4d">Navigateur → entrée IAM</text><text x="42" y="116" font-size="14" fill="#273a4d">Le navigateur vérifie le nom public IAM.</text><text x="42" y="140" font-size="14" fill="#273a4d">Envoy ou service termine le TLS.</text><text x="42" y="164" font-size="14" fill="#273a4d">Un hop backend distinct suit si proxy.</text><text x="42" y="190" font-size="13" fill="#546477">Le navigateur valide aussi le fournisseur.</text></g>
+        <g data-box="423 56 354 151"><rect x="423" y="56" width="354" height="151" rx="9" fill="#eaf1fc" stroke="#456dba"/><text x="441" y="85" font-size="18" font-weight="700" fill="#254f92">IAM → Connect</text><text x="441" y="116" font-size="14" fill="#17365e">Le client IAM vérifie le serveur Connect.</text><text x="441" y="140" font-size="14" fill="#17365e">CA additionnelles locales à ce client.</text><text x="441" y="164" font-size="14" fill="#17365e">Chaîne et hostname restent vérifiés.</text><text x="441" y="190" font-size="13" fill="#254f92">HMAC d'instance nécessaire en plus.</text></g>
+        <g data-box="822 56 354 151"><rect x="822" y="56" width="354" height="151" rx="9" fill="#e8f6f2" stroke="#218273"/><text x="840" y="85" font-size="18" font-weight="700" fill="#176d5f">Connect → fournisseur</text><text x="840" y="116" font-size="14" fill="#174e47">Connect vérifie chaque serveur joint.</text><text x="840" y="140" font-size="14" fill="#174e47">Discovery / JWKS / token / UserInfo.</text><text x="840" y="164" font-size="14" fill="#174e47">Origines admises ≠ contrôle TLS.</text><text x="840" y="190" font-size="13" fill="#176d5f">Verified : racines et nom contrôlés.</text></g>
+        <g data-box="24 232 354 148"><rect x="24" y="232" width="354" height="148" rx="9" fill="#f4f7fa" stroke="#cbd5df"/><text x="42" y="261" font-size="19" font-weight="700" fill="#273a4d">TLS · le canal</text><text x="42" y="292" font-size="14" fill="#273a4d">Suis-je relié au bon serveur ?</text><text x="42" y="316" font-size="14" fill="#273a4d">Qui peut lire ou modifier le trajet ?</text><text x="42" y="340" font-size="14" fill="#273a4d">Chaîne CA + SAN / nom attendu.</text><text x="42" y="365" font-size="13" fill="#546477">mTLS : certificat client aussi.</text></g>
+        <g data-box="423 232 354 148"><rect x="423" y="232" width="354" height="148" rx="9" fill="#e8f6f2" stroke="#218273"/><text x="441" y="261" font-size="19" font-weight="700" fill="#176d5f">HMAC · la requête</text><text x="441" y="292" font-size="14" fill="#174e47">Ces octets S2S sont-ils authentiques ?</text><text x="441" y="316" font-size="14" fill="#174e47">METHOD + PATH complet + TIME</text><text x="441" y="340" font-size="14" fill="#174e47">+ BODY exact, secret par instance.</text><text x="441" y="365" font-size="13" fill="#176d5f">Ne chiffre pas le corps HTTP.</text></g>
+        <g data-box="822 232 354 148"><rect x="822" y="232" width="354" height="148" rx="9" fill="#f1edfb" stroke="#8361ba"/><text x="840" y="261" font-size="19" font-weight="700" fill="#694892">Signature · le token</text><text x="840" y="292" font-size="14" fill="#4d3477">Bon signataire et contenu intact ?</text><text x="840" y="316" font-size="14" fill="#4d3477">Public de confiance et algorithme admis.</text><text x="840" y="340" font-size="14" fill="#4d3477">Puis iss / aud / nonce / temps.</text><text x="840" y="365" font-size="13" fill="#694892">Ne chiffre pas les claims.</text></g>
+        <g data-box="24 405 746 151"><rect x="24" y="405" width="746" height="151" rx="9" fill="#f0f3f7" stroke="#a9b7c7"/><text x="42" y="434" font-size="17" font-weight="700" fill="#273a4d">HANDSHAKE TLS 1.3 · exemple à certificat, pas version live observée</text><text x="42" y="462" font-size="14" fill="#273a4d">ClientHello / SNI / part éphémère → ServerHello / part éphémère</text><text x="42" y="486" font-size="14" fill="#273a4d">Certificat + preuve du privé → vérifier chaîne, nom attendu et transcript</text><text x="42" y="510" font-size="14" fill="#273a4d">Finished → données HTTP protégées par clés symétriques AEAD</text><text x="42" y="538" font-size="13" fill="#546477">SNI aide le serveur à choisir le certificat ; il ne remplace pas la validation du nom.</text></g>
+        <g data-box="796 405 380 151"><rect x="796" y="405" width="380" height="151" rx="9" fill="#fff4de" stroke="#bf8a27"/><text x="814" y="434" font-size="17" font-weight="700" fill="#795318">RENOUVELER LE BON OBJET</text><text x="814" y="462" font-size="14" fill="#6f5016">Certificat leaf sous CA admise ≠ CA neuve.</text><text x="814" y="486" font-size="14" fill="#6f5016">CA neuve : confiance clients à distribuer.</text><text x="814" y="510" font-size="14" fill="#6f5016">Rien à voir avec le TTL JWKS 300 s.</text><text x="814" y="538" font-size="13" fill="#795318">Outil, calendrier et responsables live inconnus.</text></g>
+        <g data-box="24 577 1152 40"><text x="42" y="602" font-size="14" font-weight="600" fill="#795318">CA privée ajoutée ≠ accepter tout certificat. Exception HTTP locale ≠ production. TLS terminé au proxy ≠ TLS jusqu'au backend.</text></g>
+      </svg>
+    </figure>
+    <div class="details"><div><h3>CA n'est pas identité utilisateur</h3><p>La racine est déjà admise côté client ; le serveur ne peut pas la rendre fiable en l'envoyant. Un certificat valide ne donne pas un compte ou une permission IAM.</p></div><div><h3>Qualifier les exceptions</h3><p>Le builder vendor nonVerified peut désactiver les contrôles cert/nom. Ce n'est pas le comportement du constructeur HTTPS IAM→Connect.</p></div><div><h3>Ne pas réparer en désactivant</h3><p>Nom/SAN, chaîne, dates et racines se diagnostiquent sur le client qui refuse. Aucun mode insecure partagé n'est recommandé.</p></div></div>
+    <p class="sources">Sources : <a href="../guides/iam-oauthconnect-securite-sources.md#faits-locaux">S15–S17</a> · <a href="../guides/iam-oauthconnect-securite-clefs-jwks-tls.md#tls">guide TLS et standards primaires</a> · <a href="iam-oauthconnect-current.md#tls">Mermaid et frontières de transport</a>.</p>
+  </section>
+
+  <section class="view" id="transaction">
+    <header class="view-head"><div class="number">05</div><div><h2>La ligne SQL est consommée avant que le verifier parte vers Connect.</h2><p>Une transaction navigateur ne se répare pas par un retry après commit. Les valeurs attendues viennent du contexte durable IAM.</p></div></header>
+    <figure>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img" aria-labelledby="n-title n-desc">
+        <title id="n-title">Nonce et PKCE, persistance, consommation et commit avant complete</title>
+        <desc id="n-desc">START persiste nonce et verifier avant authorize. Après callback et validation des bindings, le writer verrouille, consomme et efface les deux secrets, puis commit avant le retour de capacité et l'appel complete. Toute erreur après consommation impose un nouveau START.</desc>
+        <defs><marker id="n-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#546477"/></marker></defs>
+        <g fill="none" stroke="#cbd5df" stroke-width="1.2" stroke-dasharray="4 5"><path d="M100 86 V560 M340 86 V560 M580 86 V560 M820 86 V560 M1100 86 V560"/></g>
+        <g data-box="24 24 152 62"><rect x="24" y="24" width="152" height="62" rx="8" fill="#f0f3f7" stroke="#a9b7c7"/><text x="100" y="62" text-anchor="middle" font-size="17" font-weight="700" fill="#273a4d">Navigateur</text></g>
+        <g data-box="264 24 152 62"><rect x="264" y="24" width="152" height="62" rx="8" fill="#eaf1fc" stroke="#456dba"/><text x="340" y="62" text-anchor="middle" font-size="17" font-weight="700" fill="#254f92">IAM</text></g>
+        <g data-box="504 24 152 62"><rect x="504" y="24" width="152" height="62" rx="8" fill="#eaf1fc" stroke="#456dba"/><text x="580" y="62" text-anchor="middle" font-size="17" font-weight="700" fill="#254f92">Writer IAM</text></g>
+        <g data-box="744 24 152 62"><rect x="744" y="24" width="152" height="62" rx="8" fill="#e8f6f2" stroke="#218273"/><text x="820" y="62" text-anchor="middle" font-size="17" font-weight="700" fill="#176d5f">Connect</text></g>
+        <g data-box="1024 24 152 62"><rect x="1024" y="24" width="152" height="62" rx="8" fill="#f1edfb" stroke="#8361ba"/><text x="1100" y="62" text-anchor="middle" font-size="17" font-weight="700" fill="#694892">Fournisseur</text></g>
+        <g data-box="126 99 188 27"><rect x="126" y="99" width="188" height="27" fill="#fff"/><text x="220" y="119" text-anchor="middle" font-size="14" font-weight="600" fill="#273a4d">START</text></g><path d="M100 132 H340" fill="none" stroke="#546477" stroke-width="1.6" marker-end="url(#n-arrow)"/>
+        <g data-box="353 144 214 27"><rect x="353" y="144" width="214" height="27" fill="#fff"/><text x="460" y="164" text-anchor="middle" font-size="13" fill="#17365e">Persister nonce + verifier</text></g><path d="M340 177 H580" fill="none" stroke="#456dba" stroke-width="1.6" marker-end="url(#n-arrow)"/>
+        <g data-box="354 189 452 27"><rect x="354" y="189" width="452" height="27" fill="#fff"/><text x="580" y="209" text-anchor="middle" font-size="13" fill="#174e47">authorize v2 : state + nonce + challenge, jamais verifier</text></g><path d="M340 222 H820" fill="none" stroke="#218273" stroke-width="1.6" marker-end="url(#n-arrow)"/>
+        <g data-box="24 243 1152 43"><rect x="24" y="243" width="1152" height="43" rx="7" fill="#f0f3f7"/><text x="600" y="270" text-anchor="middle" font-size="14" fill="#546477">URL renvoyée via IAM, autorisation chez le fournisseur, puis callback navigateur vers IAM — nonce vendor seulement en OIDC</text></g>
+        <g data-box="110 300 220 27"><rect x="110" y="300" width="220" height="27" fill="#fff"/><text x="220" y="320" text-anchor="middle" font-size="13" fill="#17365e">Code + state + cookie</text></g><path d="M100 333 H340" fill="none" stroke="#546477" stroke-width="1.6" marker-end="url(#n-arrow)"/>
+        <g data-box="24 348 290 62"><rect x="24" y="348" width="290" height="62" rx="7" fill="#fff4de"/><text x="40" y="373" font-size="13" font-weight="600" fill="#795318">D'abord : valider les bindings HTTP</text><text x="40" y="397" font-size="13" fill="#795318">Route, state, intention, cible, cookie, redirect</text></g>
+        <g data-box="350 347 220 27"><rect x="350" y="347" width="220" height="27" fill="#fff"/><text x="460" y="367" text-anchor="middle" font-size="12" fill="#17365e">Verrou, consume, 2 secrets NULL</text></g><path d="M340 380 H580" fill="none" stroke="#456dba" stroke-width="1.7" marker-end="url(#n-arrow)"/>
+        <g data-box="350 391 220 27"><rect x="350" y="391" width="220" height="27" fill="#fff"/><text x="460" y="411" text-anchor="middle" font-size="13" font-weight="700" fill="#254f92">COMMIT puis capacité</text></g><path d="M580 424 H340" fill="none" stroke="#456dba" stroke-width="2.4" marker-end="url(#n-arrow)"/>
+        <g data-box="354 435 452 27"><rect x="354" y="435" width="452" height="27" fill="#fff"/><text x="580" y="455" text-anchor="middle" font-size="13" fill="#174e47">complete v2 : code + redirect + verifier + nonce attendu</text></g><path d="M340 468 H820" fill="none" stroke="#218273" stroke-width="1.7" marker-end="url(#n-arrow)"/>
+        <g data-box="832 479 256 27"><rect x="832" y="479" width="256" height="27" fill="#fff"/><text x="960" y="499" text-anchor="middle" font-size="13" fill="#4d3477">Un échange du code puis validation</text></g><path d="M820 512 H1100" fill="none" stroke="#8361ba" stroke-width="1.7" marker-end="url(#n-arrow)"/>
+        <g data-box="354 523 452 27"><rect x="354" y="523" width="452" height="27" fill="#fff"/><text x="580" y="543" text-anchor="middle" font-size="13" fill="#174e47">Tokens + profil validé, ou refus sans résultat partiel</text></g><path d="M820 556 H340" fill="none" stroke="#218273" stroke-width="1.7" marker-end="url(#n-arrow)"/>
+        <g data-box="24 578 1152 39"><rect x="24" y="578" width="1152" height="39" rx="7" fill="#fff4de"/><text x="42" y="603" font-size="14" font-weight="600" fill="#795318">Échec après COMMIT → nouveau START. Pas de replay, restauration SQL, nonce fabriqué au callback ou fallback v1.</text></g>
+      </svg>
+    </figure>
+    <div class="details"><div><h3>Le nonce est indépendant</h3><p>Ni dérivé du state, ni choisi au retour. L'attendu provient de la transaction persistée. OAuth ne transmet pas ce nonce comme paramètre OIDC au vendor.</p></div><div><h3>Deux secrets purgés sur writer</h3><p>La capacité consommée porte temporairement les valeurs originales. La ligne SQL ne permet plus de les récupérer pour une nouvelle complétion.</p></div><div><h3>Le réseau ne rend pas le commit réversible</h3><p>Un timeout ne restaure pas la transaction. Le nonce legacy manquant est refusé après consommation/purge, sans complete.</p></div></div>
+    <p class="sources">Sources : <a href="../guides/iam-oauthconnect-securite-sources.md#faits-locaux">S10 et S18</a> · <a href="../contracts/iam-oauthconnect-v2.md">raccord IAM v2 §§3–4</a> · <a href="iam-oauthconnect-current.md#transaction">source de séquence complète</a>.</p>
+  </section>
+
+  <section class="history" aria-labelledby="history-title"><h2 id="history-title">Les originaux du 7 novembre sont conservés.</h2><p><a href="oauthconnect-architecture.html">Architecture historique</a> · <a href="oidc-keys-responsibilities.html">Clés et responsabilités historiques</a>. Leurs SVG/CSS restent ceux appréciés à l'origine ; un bandeau précise la date et pointe vers cet atlas.</p><p>Ce fichier est autonome : cinq SVG inline, CSS intégré, police système, aucun JavaScript ou asset externe. Les liens vers d'autres documents ne sont chargés que sur demande. Les sources logiques et les limites de fabrication sont dans <a href="iam-oauthconnect-current.md#fabrication">la note de fabrication</a>.</p></section>
+  <footer>Base factuelle : guides au commit eb32349 · <a href="../adr/0413-oauthconnect-multi-instances-profils.md">ADR0413 Accepted / Partial</a> · Lecture documentaire, pas nouvelle qualification runtime. Impression A4 paysage prévue ; aperçu navigateur et pagination à contrôler sur le poste de lecture.</footer>
+</main>
+</body>
+</html>

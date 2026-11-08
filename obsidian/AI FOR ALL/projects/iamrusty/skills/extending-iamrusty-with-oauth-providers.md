@@ -1,55 +1,52 @@
 ---
-title: Extending IAMRusty with OAuth Providers
+title: >-
+  Ajouter une instance fournisseur OAuth ou OIDC
 category: skills
-tags: [oauth, services, rust, visibility/internal]
+tags: [oauth, services, rust, security, visibility/internal]
 sources:
   - services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md
-  - services/IAMRusty/setup/src/app.rs
-  - docs/adr/0407-contrat-authn-federee-vendor-neutral.md
-  - docs/adr/0408-connecteurs-idp-services-http.md
-  - docs/adr/0410-migration-iam-connecteurs-idp.md
-  - docs/adr/0411-idp-provider-slug-registry-fail-closed.md
+  - docs/adr/0413-oauthconnect-multi-instances-profils.md
+  - docs/contracts/oauthconnect-multi-instances.md
+  - docs/contracts/iam-oauthconnect-v2.md
 summary: >-
-  Add an IdP by shipping a Connect HMAC service and one [[idp.connectors]]
-  line. IAM keeps /api/auth/{provider} routes; vendor clients stay out of IAM.
+  Un fournisseur compatible devient une instance configurée d'OAuthConnect et une entrée IAM complète, sans copier un service ni ajouter un client vendor in-process.
 provenance:
-  extracted: 0.82
-  inferred: 0.14
-  ambiguous: 0.04
+  extracted: 0.96
+  inferred: 0.04
+  ambiguous: 0.0
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-09-22T12:49:00Z
+updated: 2026-11-08
 ---
 
-# Extending IAMRusty with OAuth Providers
+# Ajouter une instance fournisseur
 
-> [!note] Cible vivante (Implemented)
-> Canon : [[projects/iamrusty/decisions/index]] (ADR-0407–**0411**, Réalité **Implemented**). Ajouter un IdP = **nouveau service connecteur** + ligne `[[idp.connectors]]` **complète**, pas un client in-process dans IAM. Détail slug/registry : [[projects/iamrusty/decisions/0411-slug-registry]].
+> [!important] Supersession partielle, pas réécriture historique
+> Les recettes anciennes «copier GitHubConnect en un nouveau service» correspondaient à0408/0411. ADR0413 **Accepted / Partial** change cette cible pour les profils compatibles : ajouter une instance au service [[projects/oauthconnect/oauthconnect|OAuthConnect]]. Les anciens services ne sont pas supprimés par le raccord local et la bascule reste à qualifier.
 
-Adding a provider to `[[projects/iamrusty/iamrusty]]` is no longer a cross-cutting IAM enum + factory change. GitHub and GitLab already live in `services/GitHubConnect/` and `services/GitLabConnect/`. IAM talks to them only through `HttpIdpConnector` (HMAC S2S).
+## Procédure de conception et configuration
 
-## Key Ideas
+1. Identifier l'autorité, son issuer pour OIDC et son profil OAuth ou OIDC. Un slug désigne une autorité logique stable, pas un pod ; ne pas modifier son issuer en place pour simuler une rotation.
+2. Configurer dans OAuthConnect les endpoints/scopes/mapping et secrets vendor selon le profil accepté. Aucun script métier caché, nouvel interpréteur de claims ou fallback de profil n'est ajouté dans IAM.
+3. Aligner le slug et la politique PKCE, les callbacks publics exacts, et une clé HMAC propre à l'instance. Client secret OAuth, HMAC S2S, clé privée fournisseur et clés JWT IAM ne sont pas la même matière.
+4. Ajouter une entrée IAM **complète** `[[idp.connectors]]` avec base URL de l'instance, HMAC et allowlist callback/relink-callback. Le boot reste fail-closed ; aucun catalogue partiel ni hot-load opportuniste.
+5. Configurer TLS vérifié/CA nécessaires pour les hops effectifs. Une exception claire locale/test ne constitue pas une politique production. Ne pas désactiver la validation des certificats pour faire passer un test.
+6. Vérifier les preuves de protocole et de métier aux frontières existantes, puis traiter séparément migration additive IAM, drainage TTL, E2E fournisseur et déploiement. Aucun compte/lien/UUID n'est migré implicitement.
 
-- IAM owns browser callbacks, CSRF `OAuthState`, linking, JWT, and `provider_tokens`. The connector owns vendor `client_id` / `client_secret` and the GitHub/GitLab HTTP calls.
-- Register the connector in IAM TOML: `id`, `base_url` (service prefix included), `hmac_secret` (≥ 16 chars), `redirect_uris` (callback **and** relink-callback). Compose IAM is port **8080**.
-- Boot fails closed if `idp.connectors` is empty, any line is incomplete (empty `base_url`, missing Callback or Relink `redirect_uris`, illegal `id`, HMAC shorter than 16 bytes). **Hot-load is not supported** — restart IAM after a registry change ([0411](docs/adr/0411-idp-provider-slug-registry-fail-closed.md)).
-- `Provider` is a typed **slug** (letters-only, ASCII case-fold, length 1–50), not an enum. Parse: `Provider::parse_slug`. Illegal syntax → **400** `invalid_provider`. Well-formed slug absent from the registry → **422** `connector_not_configured`. Catalogue = shared `Arc<HashMap<Provider, Arc<dyn FederatedOAuthClient>>>` injected at `OAuthService::new`.
-- Integration tests: IAM mocks the **connector**; the connector mocks the **vendor**. Do not remount vendor APIs on IAM `:3000`. Do not nest Connect in `oodhive-monolith` (v1).
+## Ce qui ne change pas dans IAM
 
-## Workflow
+`Provider` est un slug typé : lettres ASCII, case-fold minuscule,1–50caractères ; pas d'enum vendor. Le registry immuable fournit `Arc<dyn FederatedOAuthClient>` ; application et tests accèdent aux types v2 via la façade `iam_domain::port::service`. Aucun client vendor in-process, dépendance directe supplémentaire ou nest OAuthConnect dans le monolithe.
 
-- Scaffold a Connect service (hexagon mince, no Postgres, no OpenFGA, no user JWT) implementing `FederatedOAuthClient` from `idp-connect-contract` feature `server`.
-- Allowlist the public IAM callback URIs; keep HMAC secrets aligned between IAM `[[idp.connectors]]` and the connector config.
-- Add a **complete** IAM registry line. Boot builds `HashMap<Provider, Arc<dyn FederatedOAuthClient>>` and injects it at `OAuthService::new` (no `register_provider_client`, no skip of extra slugs).
-- Cover login/callback/link/relink with the existing IAM WireMock connector fixture; cover token+profile in the connector crate against WireMock vendor.
+LOGIN/LINK/RELINK utilisent authorize/complete v2 et la transaction durable décrite dans [[projects/iamrusty/concepts/oauthconnect-v2-durable-context]]. La clé d'identité est instance+ID opaque, pas l'email ni une conversion numérique.
 
-## Leftover (accurate)
+## Vérification et limites de bascule
 
-- HMAC S2S Connect remains ADR-0409 (unchanged). Wiki is not more canonical than [ADR-0411](docs/adr/0411-idp-provider-slug-registry-fail-closed.md). ^[extracted]
+IAM simule son collaborateur Connect HTTP sortant ; Connect simule le vendor, avec jeux OIDC signés pour les tests cryptographiques. Un mock S2S IAM n'est pas cette validation de signature. Le gap de chaîne intégrée IAM→Connect réel→vendor ne doit pas conduire à créer un deuxième harness ou à inventer une preuve.
 
-## Sources
+Pour GitLab, vérifier `sub` nouveau égal à l'ancien identifiant canonique du même compte réel **avant bascule**. En cas de différence, arrêter et cadrer l'autorité/linking ; ne pas réassocier automatiquement les comptes. L'ajout d'une instance dans les fichiers ne prouve ni fournisseur live ni rollout.
 
-- [[projects/iamrusty/iamrusty]] - Platform IdP that consumes Connect.
-- [[projects/iamrusty/concepts/oauth-provider-linking]] - Linking stays on IAM.
-- [[projects/iamrusty/decisions/0408-connecteurs-http]] - Connect = HTTP services.
-- [[projects/iamrusty/decisions/0411-slug-registry]] - Typed slug + fail-closed registry.
-- [[projects/iamrusty/references/iamrusty-api-and-auth-flows]] - `/iam/api/auth/{provider_name}/login|callback|link|relink-*` stays.
+## Navigation
+
+- [Guide versionné détaillé](../../../../../services/IAMRusty/docs/PROVIDER_FACTORY_GUIDE.md).
+- [[projects/iamrusty/decisions/0413-oauthconnect-multi-instances]] et [[projects/iamrusty/decisions/index]].
+- [[projects/iamrusty/concepts/oauth-provider-linking]] — politiques des comptes et des emails.
+- [[projects/oauthconnect/concepts/oidc-jwks-and-key-rotation]] — clés publiques et coordination de rotation.

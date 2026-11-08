@@ -8,7 +8,9 @@ provenance:
   extracted: 0.9
   inferred: 0.08
   ambiguous: 0.02
-updated: 2026-09-17T10:55:00Z
+updated: 2026-11-08
+sources:
+  - docs/adr/0413-oauthconnect-multi-instances-profils.md
 ---
 
 # Projects Index
@@ -16,6 +18,8 @@ updated: 2026-09-17T10:55:00Z
 Use this page to navigate service hubs. Each project page links to its local concepts, skills, and references.
 
 ## Service Hubs
+
+- [[projects/oauthconnect/oauthconnect]] — authenticator OAuth/OIDC multi-instances ; clés/JWKS/rotation/TLS, service distinct des comptes IAM.
 
 - [[projects/aiforall/aiforall]] - Platform-level map across services, shared SDKs, local development flow, and roadmap.
 - [[projects/hive/hive]] - Organization domain service and integration workflows.

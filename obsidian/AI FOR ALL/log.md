@@ -1,8 +1,22 @@
 ---
 title: Wiki Log
+category: journal
+tags: [wiki, index]
+sources:
+  - docs/missions/20261108-oauth-documentation-wiki.md
+summary: Journal append-only des ingestions et synchronisations du wiki AIForAll ; chaque entrée garde sa portée et ses limites.
+provenance:
+  extracted: 1.0
+  inferred: 0.0
+  ambiguous: 0.0
+updated: 2026-11-08
 ---
 
 # Wiki Log
+
+- [2026-11-08] INDEX_LIMIT scope="aiforall-wiki" qmd_refresh=false reason="CLI/SDK update installés appellent clearCache, interdit par le contrat local ; fichiers wiki versionnés ingérés, recherche indexée potentiellement en retard" global_configuration_changed=false
+
+- [2026-11-08] SCOPED_INGEST source="docs/history/oauthconnect-iam-20261108/" scope="OAuthConnect/IAM session du6–8novembre et36feuilles accessibles ;37captures4458messages234pages, frontière12:25:19.929UTC" publication="distillation expurgée, inventaire et identifiants de provenance ; pas de projections privées/raisonnement/instructions internes" documentation="guide clés/JWKS/rotation/TLS/HMAC, sources et atlas versionné ; historiques7novembre conservés" limits="revues et tests antérieurs distingués ; aucune campagne runtime nouvelle ; G5/fournisseurs/sub GitLab/cutover restent ouverts ; rétention Docker précédente respectée" full_project_sync=false
 
 - [2026-04-14T17:40:04.0639452Z] REBUILD archived_to="_archives/2026-04-14T17-40-04Z" previous_pages=27
 - [2026-04-14T17:46:37.6929647Z] INGEST source="services/IAMRusty/README.md" pages_updated=0 pages_created=3 mode=full

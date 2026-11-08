@@ -4,6 +4,11 @@
 **Accepted / Partial** et du code effectivement lu, pas une nouvelle décision,
 une procédure de rotation autorisée ou une qualification de déploiement live.
 
+> **Archive historique, avant la fin du lot service Connect et le raccord IAM.**
+> Les descriptions de composition refusante et de nonce IAM hors lot sont datées.
+> Voir l'[atlas courant du8novembre](iam-oauthconnect-current.md), son
+> [HTML autonome](iam-oauthconnect-current.html) et le [sommaire](README.md).
+
 ## Réponse courte : stockées où, tournées par qui ?
 
 OAuthConnect est un **client OIDC / Relying Party**, pas l’émetteur des ID tokens.
@@ -28,8 +33,8 @@ privée. Le profil OAuth GitHub utilise les API JSON, pas un JWKS d’identité.
 - [HTML autonome](oidc-keys-responsibilities.html) : deux vues SVG (frontières des
   clés, puis rotation et snapshot), fiches des modules ; CSS intégré, sans JS,
   React, CDN, police distante ni requête externe.
-- [Source canvas originale](C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/canvases/oidc-keys-responsibilities.canvas.tsx),
-  locale au poste de création ; non nécessaire pour ouvrir l’HTML. Le précédent
+- Provenance : Canvas original local au poste de création, sans dépendance de
+  consultation ni lien absolu propre à une machine. Le précédent
   [schéma d’architecture](oauthconnect-architecture.html) est préservé.
 - Ouvrir l’HTML par double-clic ; pour un PDF : **Ctrl+P → Enregistrer en PDF → A4
   paysage**, désactiver les en-têtes/pieds du navigateur, ajuster l’échelle au
@@ -201,8 +206,8 @@ legacy pendant la transition, les UUID et les liens ; aucun déploiement promis.
 
 ## Preuves, sources et limites
 
-- **Sources du code** : racine Serena vérifiée
-  `C:/Users/djden/source/repos/AIForAll`, code OIDC effectif au canon ; ce worktree
+- **Sources du code** : racine Serena canonique du dépôt vérifiée,
+  code OIDC effectif au canon ; ce worktree
   documentaire est à la base `b55e0ce`, où les anciens stubs ne décrivent pas les
   modules OIDC nouveaux. Aucun `activate_project`, aucune édition de code.
 - **Preuve communiquée par le parent** : gate ciblé de 60 tests et Clippy terminé

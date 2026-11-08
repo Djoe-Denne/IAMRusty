@@ -4,13 +4,15 @@ title: >-
 category: navigation
 tags: [index, navigation, wiki]
 summary: >-
-  Index AIForAll : architecture, OAuth local, Telegraph durable et cas minimal k6 Windows PASS ; HTTP/Linux restent non qualifiés.
+  Index AIForAll : OAuthConnect/IAM v2, clés/JWKS/TLS et session distillée ; architecture, Telegraph et cas k6 Windows. Fournisseurs live et bascule restent non qualifiés.
 provenance:
   extracted: 0.88
   inferred: 0.10
   ambiguous: 0.02
-updated: 2026-10-31
+updated: 2026-11-08
 sources:
+  - docs/history/oauthconnect-iam-20261108/README.md
+  - docs/guides/iam-oauthconnect-securite-clefs-jwks-tls.md
   - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/99-cas-minimal-windows-verifie.md
   - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/107-nettoyage-et-archivage-verifies.md
   - docs/contracts/20261029-auth-security-qualified-state.md
@@ -32,6 +34,10 @@ sources:
 Central entry point for this vault. Use the area indexes for full catalogs; use project hubs for service-scoped concepts, skills, and references.
 
 ## Browse by area
+
+- [[projects/aiforall/references/session-oauthconnect-iam-20261108]] — session du6–8novembre et36feuilles : conception, essais, résultats et limites.
+- [[projects/oauthconnect/oauthconnect]] — profils OAuth/OIDC, frontières IAM et navigation pédagogique.
+- [[projects/oauthconnect/concepts/oidc-jwks-and-key-rotation]] ; [[projects/oauthconnect/concepts/tls-hmac-and-signatures]] — du modèle mental aux mécanismes concrets.
 
 - [[projects/aiforall/references/auth-security-closure-20261029]] — qualification locale OAuth et Envoy, revues et limites ; pas validation production/HA/HSM.
 - [[projects/aiforall/concepts/k6-functional-linux]] — socle Windows PASS ; portage auth intégré mais non exécuté, mission arrêtée après échec du déploiement. Linux différé.
@@ -72,6 +78,10 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/manifesto/references/apparatus-implementation-plan]] — phases et preuves P0–P3.
 
 ## Recent Additions
+
+- [[journal/2026-11-08]] — raccord IAM v2 localement qualifié, guide approfondi et schémas versionnés horsligne ; aucun nouveau runtime ou cutover.
+- [[projects/iamrusty/concepts/oauthconnect-v2-durable-context]] — nonce indépendant, PKCE et purge commitée avant complete.
+- [[projects/iamrusty/decisions/0413-oauthconnect-multi-instances]] — Accepted/Partial, supersession partielle et gates externes.
 
 - [[projects/aiforall/references/mission-telegraph-outbox-20261027]] — session et livrables de sous-agents distillés ; preuves composant/verticale distinctes, commit et gitlink publiés, réserves conservées ( #events #testing #reference).
 - [[projects/telegraph/concepts/durable-notification-publication]] — notification, livraison éventuelle et événement dans la même transaction ; NoOp suspendu sans faux succès ( #events #notifications #architecture).

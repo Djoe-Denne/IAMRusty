@@ -1,9 +1,14 @@
 # OAuthConnect — schéma d’architecture cible
 
-Photographie pédagogique du **7 novembre 2026**, exportée depuis le
-[canvas original](C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/canvases/oauthconnect-architecture.canvas.tsx).
-Le chemin source est local au poste de création ; il n’est pas nécessaire pour
-consulter l’export. Les blocs, flèches et textes du schéma sont conservés dans
+> **Archive historique, avant la fin du lot service Connect et le raccord IAM.**
+> Pour les faits courants du8novembre : [atlas actuel](iam-oauthconnect-current.md)
+> et [HTML autonome](iam-oauthconnect-current.html). Les mentions « en cours » et
+> « hors lot » ci-dessous conservent leur sens au7novembre, pas le statut actuel.
+
+Photographie pédagogique du **7 novembre 2026**, exportée depuis un Canvas original
+local au poste de création. Cette provenance ne constitue pas une dépendance de
+consultation : aucun chemin propre à une machine n'est nécessaire.
+Les blocs, flèches et textes du schéma sont conservés dans
 l’[HTML autonome](oauthconnect-architecture.html), avec SVG et CSS intégrés.
 
 ## Ouvrir et imprimer
@@ -47,5 +52,5 @@ bascule. Connect n’a pas de cache de corrélation métier.
 - [Coutures OIDC, registry et service](../contracts/oauthconnect-oidc-service-boundary.md).
 - [Frontière HTTP et secrets](../contracts/oauthconnect-http-secrets-boundary.md).
 - Ledger du lot : `.cursor/handoffs/20261107-oauthconnect-oidc-service.md`, consulté
-  dans le checkout canonique `C:/Users/djden/source/repos/AIForAll` ; document local
+  dans le checkout canonique du dépôt ; document local
   évolutif, non embarqué dans l’export et distinct de cette photographie figée.

@@ -4,6 +4,13 @@ Documentation d’implémentation et de parcours métier pour ce workspace. Le v
 
 ## Commencer ici
 
+### Authentification fédérée, clés et transport
+
+- [Guide pédagogique IAM/OAuthConnect : clés, JWKS, rotation et TLS](guides/iam-oauthconnect-securite-clefs-jwks-tls.md) — des notions de signature aux responsabilités et chemins de code, avec limites explicites.
+- [Atlas des schémas OAuth/OIDC](diagrams/README.md) — sources versionnées, rendus HTML/SVG horsligne et photographies historiques des vues Canvas.
+- [Sources et vérifications du guide](guides/iam-oauthconnect-securite-sources.md) — code, ADR et normes primaires ; aucune supposition sur les secrets d'un déploiement.
+- [Raccord IAM qualifié localement](missions/20261108-iam-oauthconnect-v2-results.md) — 325 unités et 80 IT ; fournisseurs réels et bascule non qualifiés par ces suites.
+
 | Besoin | Page |
 |---|---|
 | Atlas visuel (C4, runtime, AuthZ, Apparatus) | [architecture/README.md](architecture/README.md) |
@@ -26,6 +33,8 @@ Documentation d’implémentation et de parcours métier pour ce workspace. Le v
 - [guides/livrables-durables-et-worktrees.md](guides/livrables-durables-et-worktrees.md) — publier les livrables réutilisables des worktrees, sans les données temporaires
 
 ## Campagnes et limites de preuve
+
+- [Documentation et ingestion de la session OAuthConnect/IAM](missions/20261108-oauth-documentation-wiki.md) — couverture des sessions, schémas durables et statut des contrôles documentaires.
 
 - [État qualifié de l'authentification](contracts/20261029-auth-security-qualified-state.md) — portée locale et limites production/HA/HSM
 - [Publication et réconciliation des livrables](missions/20261029-auth-security-publication.md) — intégration des worktrees, alternatives écartées et traces restant locales

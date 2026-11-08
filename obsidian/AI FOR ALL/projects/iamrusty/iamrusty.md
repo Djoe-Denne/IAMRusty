@@ -10,18 +10,28 @@ sources:
   - services/IAMRusty/domain/src/entity/events.rs
   - services/IAMRusty/setup/src/app.rs
   - services/IAMRusty/http/src/lib.rs
+  - docs/contracts/iam-oauthconnect-v2.md
+  - docs/guides/iam-oauthconnect-securite-sources.md
 summary: >-
-  IAMRusty : IAM, OAuth, JWT RS256 (0304 Partial). IdP via GitHubConnect
-  et GitLabConnect. HTTPS compose port 8444.
+  IAM garde comptes, liens et transactions durables ; OAuthConnect v2 authentifie l'identité externe. JWT plateforme et clés fournisseur sont séparés ; bascule non qualifiée.
 provenance:
   extracted: 0.74
   inferred: 0.18
   ambiguous: 0.08
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-09-27T09:20:00Z
+updated: 2026-11-08
 ---
 
 # IAMRusty
+
+## Actualisation du8novembre : fédération et clés
+
+- [[projects/oauthconnect/oauthconnect]] : service OAuth/OIDC multi-instances, sans compte IAM ni autorité JWT utilisateur.
+- [[projects/iamrusty/concepts/oauthconnect-v2-durable-context]] : nonce indépendant persistant, purge nonce+verifier commitée avant complete v2.
+- [[projects/oauthconnect/concepts/oidc-jwks-and-key-rotation]] et [[projects/oauthconnect/concepts/tls-hmac-and-signatures]] : propriétaires, cache, rotation IAM via Transit et confiance hop par hop.
+- [[projects/aiforall/references/session-oauthconnect-iam-20261108]] : session complète accessible et36anciennes feuilles distillées ;325unités+80IT IAM,295tests Connect dans leurs périmètres distincts. E2E fournisseurs/G5/cutover restent non qualifiés.
+
+Les sections héritées conservent leurs références historiques. Elles ne décrivent pas les certificats ou pods actuellement déployés.
 
 ## Indexes
 
@@ -41,7 +51,7 @@ updated: 2026-09-27T09:20:00Z
 ## Service-Specific Differences
 
 - Authentication is intentionally dual-mode: unauthenticated users enter OAuth login, while authenticated users can attach extra providers through `[[projects/iamrusty/concepts/oauth-provider-linking]]`.
-- JWT cryptography is RS256-only in production for both access tokens and registration tokens, but the strict constructor checks are gated by a Cargo feature so the in-tree HS256 `test.toml` boots the suite — see `[[projects/iamrusty/concepts/jwt-algorithm-enforcement-and-test-relaxation]]`. Consumers still verify HS256 only; unification with rustycog-http / JWKS is open — [[projects/aiforall/concepts/jwt-issuer-vs-consumer]].
+- La cible access JWT plateforme est RS256/JWKS ; le constat historique «consommateurs HS256 seulement» est dépassé. Voir [[projects/aiforall/concepts/jwt-issuer-vs-consumer]] pour l'état ciblé et [[projects/iamrusty/concepts/jwt-algorithm-enforcement-and-test-relaxation]] pour l'historique des gardes de test, sans en déduire la politique de chaque binaire live.
 - The shared SDK is consumed via [[projects/aiforall/concepts/rustycog-git-submodule]]; CI must init that gitlink or `rustycog/Cargo.toml` is missing.
 - Runtime behavior depends on `[[concepts/structured-service-configuration]]`, including environment-specific TOML files, cached random ports in tests, queue settings, and JWT secret resolution.
 - Command orchestration is centralized through `[[concepts/command-registry-and-retry-policies]]`, but IAMRusty is the clearest example where `CommandConfig`-driven retry policy is wired all the way into the live registry.
@@ -60,7 +70,7 @@ updated: 2026-09-27T09:20:00Z
 - [[projects/iamrusty/references/iamrusty-command-execution]] - How the command registry wraps the service's use cases.
 - [[projects/iamrusty/references/iamrusty-testing-and-fixtures]] - Test server, database fixture, and Kafka-backed validation patterns.
 - [[projects/iamrusty/skills/testing-rust-services-with-fixtures]] - Preferred workflow for building IAM-style integration tests.
-- [[projects/iamrusty/skills/extending-iamrusty-with-oauth-providers]] — nouvel IdP = service Connect + `[[idp.connectors]]` ([[projects/iamrusty/decisions/index]], Implemented).
+- [[projects/iamrusty/skills/extending-iamrusty-with-oauth-providers]] — nouvelle instance compatible d'OAuthConnect + entrée IAM complète ; anciens services conservés, bascule externe (ADR0413 Accepted/Partial).
 - [[projects/aiforall/concepts/https-platform-mesh]] — T14b HTTPS + CA client optionnelle.
 
 ## Open Questions

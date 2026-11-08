@@ -5,10 +5,9 @@ tags: [architecture, iam, oauth, visibility/internal]
 status: accepted
 feature_status: partial
 summary: >-
-  Hub ADR 0407–0411 Accepted / Implemented ; 0412 Accepted / Partial. Crates GitHubConnect et
-  GitLabConnect en HEAD. OAuth démarre sur /login. Slug fail-closed.
+  Hub IAM : transactions0412 Implemented, OAuthConnect0413 Accepted/Partial et supersession partielle ; code local v2 qualifié, fournisseurs et bascule restent externes.
 created: 2026-09-20T16:15:00Z
-updated: 2026-10-08
+updated: 2026-11-08
 sources:
   - docs/adr/README.md
   - docs/adr/0407-contrat-authn-federee-vendor-neutral.md
@@ -17,6 +16,8 @@ sources:
   - docs/adr/0410-migration-iam-connecteurs-idp.md
   - docs/adr/0411-idp-provider-slug-registry-fail-closed.md
   - docs/adr/0412-oauth-transaction-persistante-liee-navigateur.md
+  - docs/adr/0413-oauthconnect-multi-instances-profils.md
+  - docs/missions/20261108-iam-oauthconnect-v2-results.md
 provenance:
   extracted: 0.90
   inferred: 0.08
@@ -24,6 +25,12 @@ provenance:
 ---
 
 # IAMRusty — décisions vivantes
+
+## État courant : supersession partielle
+
+[[projects/iamrusty/decisions/0413-oauthconnect-multi-instances]] est **Accepted / Partial** : service OAuthConnect multi-instances et opérations authorize/complete v2, puis raccord IAM local325unités+80IT. Elle modifie partiellement le contrat/topologie/onboarding0407/0408/0411, pas leur responsabilité HTTP ni les UUID/liens IAM. Les anciens services restent dans les sources ; aucun cutover n'est annoncé. ADR0412 est désormais **Accepted / Implemented** pour le périmètre qualifié, sans transformer des E2E non exécutés en PASS.
+
+Les mentions Partial de0412 ci-dessous sont la photographie d'octobre, conservée comme historique. Canon complet : `docs/adr/`, contrats dans `docs/contracts/`, code pour la réalité.
 
 Canon : `docs/adr/0407`–`0411`. Jalon **IAM-IdP** (hors Apparatus). Statut **Accepted**. Réalité **Implemented** : IAM parle aux vendors via Connect HMAC S2S ; `Provider` = slug registry (0411). Pas de HuggingFaceConnect, pas de nest monolith.
 

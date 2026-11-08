@@ -1,49 +1,62 @@
 ---
-title: OAuth State and CSRF Protection
+title: >-
+  OAuth State and CSRF Protection — trois contextes distincts
 category: concepts
-tags: [security, oauth, csrf, visibility/internal]
+tags: [security, oauth, csrf, iam, visibility/internal]
 sources:
-  - services/IAMRusty/docs/OAUTH_SECURITY_GUIDE.md
-  - services/IAMRusty/http/src/oauth_state.rs
-  - services/IAMRusty/http/src/handlers/auth.rs
   - docs/adr/0409-confiance-callback-oauth-idp-connect.md
+  - docs/adr/0412-oauth-transaction-persistante-liee-navigateur.md
+  - docs/contracts/iam-oauthconnect-v2.md
+  - services/IAMRusty/http/src/oauth_browser.rs
+  - services/IAMRusty/domain/src/entity/oauth_transaction.rs
 summary: >-
-  OAuthState carries operation, nonce, provider, exp (TTL 600 s) and HMAC.
-  Path slug ≠ state.provider → 400 invalid_state. redirect_uri comes from
-  [[idp.connectors]] redirect_uris, not a hardcoded 8081 handler.
+  State signé, liaison au navigateur et nonce d'authentification sont distincts ; le writer durable, non un cache mémoire, consomme et purge avant complete.
 provenance:
-  extracted: 0.84
-  inferred: 0.12
-  ambiguous: 0.04
+  extracted: 0.95
+  inferred: 0.05
+  ambiguous: 0.0
 created: 2026-04-14T17:46:37.6929647Z
-updated: 2026-09-22T12:49:00Z
+updated: 2026-11-08
 ---
 
 # OAuth State and CSRF Protection
 
-> [!note] Code (2026-09-22)
-> `OAuthState` a `operation`, `nonce`, `provider`, `exp` (TTL 600 s), HMAC et anti-rejeu. `redirect_uri` login/relink vient du registry `[[idp.connectors]]` (last-segment `callback` vs `relink-callback`). Canon CSRF HMAC : [[projects/iamrusty/decisions/0409-confiance-oauth]]. Binding slug : [[projects/iamrusty/decisions/0411-slug-registry]] / [ADR-0411](docs/adr/0411-idp-provider-slug-registry-fail-closed.md).
+## Ne pas appeler tous ces éléments «le nonce»
 
-IAM treats OAuth `state` as a security control, not a pass-through cookie. The connector **propagates** `state` to the vendor; it does not mint CSRF.
+- Le **state signé** porte et protège le contexte OAuth interprété par IAM : provider, intention, expiration et liaison à la transaction. Il traverse le navigateur et le fournisseur, puis revient au callback.
+- Le **contexte navigateur/cookie** lie le callback au navigateur ayant initié le START. Un state signé seul n'établit pas cette propriété.
+- Le **nonce d'authentification v2** est un tirage indépendant32octets OsRng, base64url canonique sans padding, persisté dans IAM. OAuthConnect le transmet au fournisseur OIDC puis vérifie sa présence/égalité dans l'ID token. Ce n'est ni le nonce du state ni le cookie.
+- Le **verifier PKCE** est encore un autre secret : le START n'expose que son challenge S256. Le verifier original ne part dans complete qu'après consommation commitée.
 
-## Key Ideas
+Ces contrôles couvrent des frontières différentes ; les réutiliser comme une seule valeur rendrait leur séparation de responsabilités illusoire. ^[inferred]
 
-- Login and link create an `OAuthState` before redirecting (`new_login(provider)`, `new_link(user_id, provider)`). The callback decodes it before any auth command runs.
-- `http/src/oauth_state.rs` stores operation, nonce, **provider**, and `exp`. Encode is HMAC-signed. Link carries the authenticated user ID.
-- Path slug ≠ `state.provider` → `400` `invalid_state`.
-- TTL is **600 s**. HMAC/TTL remain ADR-0409. ^[extracted]
-- `redirect_uri` is chosen from the connector’s `redirect_uris[]` (exact public IAM URLs). Development compose uses **8080**; IAM **tests** still use **8081** because that is the rustycog-testing IAM port, not Telegraph. ^[extracted]
-- The callback rejects missing code/state, provider errors, illegal slugs (400), unregistered slugs (422), and invalid state before login or link.
-- Authenticated link also runs `GetUserCommand`, so link is bound to bearer auth and the state payload.
+## Ce qui rend le callback consommable une seule fois
 
-## Leftover (accurate)
+La photographie de septembre décrivant `USED_NONCES` process-local n'est plus la cible actuelle. ADR0412 est **Accepted / Implemented** pour les preuves locales qualifiées ; elle impose une transaction persistante liée au navigateur et partagée par les replicas via le writer.
 
-- Vendor `client_secret` is on GitHub Connect / GitLab Connect. IAM’s remaining HMAC secret is the IdP-connect S2S key plus `jwt.oauth_state_secret`. ^[extracted]
+Le record garde les empreintes du state et du contexte navigateur, provider canonique, opération, UUID cible éventuel, redirect exact, expiration et état de consommation. Le delta v2 ajoute le nonce d'authentification nullable pour compatibilité des lignes anciennes. Le record garde aussi le verifier PKCE quand la politique le requiert.
 
-## Sources
+Le writer réalise les prédicats de binding et un `SELECT … FOR UPDATE`, charge les secrets originaux, marque consommé et efface `authentication_nonce`/`pkce_verifier` dans **la même transaction**. Le commit précède le retour de capacité et l'I/O Connect. Une course concurrente a un seul gagnant ; un replica n'a pas besoin du cache mémoire d'un autre.
 
-- [[projects/iamrusty/iamrusty]] - Service that mints and checks state.
-- [[projects/iamrusty/concepts/oauth-provider-linking]] - Flow that depends on operation-aware state.
-- [[projects/iamrusty/decisions/0409-confiance-oauth]] - Callback/CSRF ownership.
-- [[projects/iamrusty/decisions/0411-slug-registry]] - Provider slug bound in state.
-- [[projects/iamrusty/references/iamrusty-api-and-auth-flows]] - Handler-level callback validation.
+Un binding invalide ne brûle pas la transaction authentique ; une transaction expirée ne devient pas valide parce que son nonce est correct. Les expirations restent bornées, TTL maximal600s et cleanup borné des lignes selon le mécanisme existant.
+
+## Après une erreur, on ne restaure pas les secrets
+
+- Complete refusé, réponse partielle, erreur réseau : aucune mutation métier IAM, mais consommation déjà commitée ; replay refusé, nouveau START requis.
+- Ligne legacy/corrompue avec bindings valides : le writer consomme/purge d'abord, puis le domaine refuse sans capacité utilisable. Aucun nonce n'est fabriqué pour la réparer.
+- Échec writer/commit : pas de capacité, pas de complete. Une erreur d'environnement avant montage d'un test n'est pas un RED de ce comportement.
+
+Les autorisations LINK/RELINK sont établies au START depuis le principal plateforme. Le callback transactionnel utilise la cible persistée ; il ne prend pas une nouvelle cible dans la query et n'exige pas de recréer l'autorité depuis un Bearer arbitraire. Voir [[projects/iamrusty/concepts/oauth-provider-linking]].
+
+## Frontières qui ne sont pas couvertes par state
+
+Le state ne remplace ni TLS, ni HMAC S2S, ni validation cryptographique OIDC. Le navigateur ne doit pas appeler directement les routes Connect HMAC ; le connecteur ne devient pas propriétaire des cookies, des UUID ou du rapprochement de comptes.
+
+Le profil OAuth ne transmet pas un nonce OIDC à un vendor qui n'a pas ce protocole, mais IAM maintient le même contexte durable v2. Les règles exactes de profil et PKCE viennent du catalogue validé, pas d'une déduction sur le nom `github`/`gitlab`.
+
+## Sources et navigation
+
+- [[projects/iamrusty/concepts/oauthconnect-v2-durable-context]] — chronologie complète START/consume/complete et portée de la capacité.
+- [[projects/oauthconnect/concepts/tls-hmac-and-signatures]] — les différentes protections, sans interchangeabilité.
+- [[projects/iamrusty/decisions/0413-oauthconnect-multi-instances]] — évolution minimale v2 et bornes.
+- [ADR0412 courante](../../../../../docs/adr/0412-oauth-transaction-persistante-liee-navigateur.md), [contrat IAM](../../../../../docs/contracts/iam-oauthconnect-v2.md), [preuves80IT](../../../../../docs/missions/20261108-iam-oauthconnect-v2-results.md).

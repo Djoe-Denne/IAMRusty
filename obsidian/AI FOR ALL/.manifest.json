@@ -1,13 +1,29 @@
 ﻿{
     "version":  1,
     "stats":  {
-                  "total_sources_ingested":  1351,
-                  "total_pages":  250,
-                  "total_pages_scope": "markdown excluding dot/underscore files and directories; includes navigation and log; recounted 2026-10-31",
+                  "total_sources_ingested":  1361,
+                  "total_pages":  259,
+                  "total_pages_scope": "markdown excluding dot/underscore files and directories; includes navigation and log; recounted 2026-11-08",
                   "last_commit_synced":  "2473baa7a54595931a4eff76a33431f56776db20"
               },
     "projects":  {
                      "aiforall":  {
+                                      "scoped_ingest_20261108_oauthconnect_iam": {
+                                          "at": "2026-11-08",
+                                          "scope": "OAuthConnect/IAM session 2026-11-06 through 2026-11-08T12:25:19.929Z, 36 historical leaf sessions, current code-sourced security guide and durable diagrams; not a full project resync",
+                                          "root_session": "ses_e4db70249ffd7v3AV0y0zQ6443",
+                                          "sessions_related": 39,
+                                          "sessions_captured": 37,
+                                          "messages_before_boundary": 4458,
+                                          "message_pages_exhausted": 234,
+                                          "coverage": "docs/history/oauthconnect-iam-20261108/coverage.json",
+                                          "distillation": "docs/history/oauthconnect-iam-20261108/README.md",
+                                          "private_projections_published": false,
+                                          "qmd_refresh": "not run: installed CLI and public SDK update paths call clearCache; preserve local no-clear-cache policy; indexed search may lag versioned wiki files",
+                                          "exclusions": "5542 reasoning parts; system/compaction content; 512 private/runtime messages metadata-only; 30 later root messages; two new documentation leaves",
+                                          "limits": "Accessible native affiliations only; deleted/unlinked sessions not covered; prior tests reused, no runtime or rotation performed; G5/live providers/GitLab sub/cutover remain unqualified; earlier scoped sync history preserved",
+                                          "full_project_sync": false
+                                      },
                                       "scoped_ingest_20261031_k6": {
                                           "at": "2026-10-31T10:33:52.784Z",
                                           "scope": "k6 Windows functional proof and mission cleanup only; written sources, not exhaustive transcripts or all intervening commits",
@@ -104,6 +120,73 @@
                                   }
                  },
     "sources":  {
+        "docs/diagrams/README.md": {
+            "ingested_at": "2026-11-08",
+            "size_bytes": 6062,
+            "content_hash": "sha256:907077dd9d897028e8f674be69a26009b1d2b7e5c02798ad65d94cfeda8c18af",
+            "pages": ["projects/oauthconnect/oauthconnect.md", "projects/aiforall/references/session-oauthconnect-iam-20261108.md"],
+            "scope": "Current five-view atlas and preserved historical diagrams"
+        },
+        "docs/diagrams/iam-oauthconnect-current.md": {
+            "ingested_at": "2026-11-08",
+            "size_bytes": 21511,
+            "content_hash": "sha256:86babeecf1183ded46fa9cd40ce5b50d70272facf6866e9eb963a7a08ddae28d",
+            "pages": ["projects/oauthconnect/concepts/oidc-jwks-and-key-rotation.md", "projects/oauthconnect/concepts/tls-hmac-and-signatures.md", "projects/iamrusty/concepts/oauthconnect-v2-durable-context.md"]
+        },
+        "docs/diagrams/iam-oauthconnect-current.html": {
+            "ingested_at": "2026-11-08",
+            "size_bytes": 49510,
+            "content_hash": "sha256:06c63b104912f8f53c8fd0ca1ff149b37ca8f3980cfb6144585abdeafb14a59c",
+            "pages": ["projects/aiforall/references/session-oauthconnect-iam-20261108.md"],
+            "scope": "Offline SVG/CSS rendering, no scripts/external assets; current browser/PDF verification inconclusive"
+        },
+        "docs/history/oauthconnect-iam-20261108/README.md": {
+            "ingested_at": "2026-11-08",
+            "size_bytes": 32417,
+            "content_hash": "sha256:f0e23a0567452e9dbc209ca6044fd7bdcd56d2971a23931a391735a4026a6dfc",
+            "pages": ["projects/aiforall/references/session-oauthconnect-iam-20261108.md", "journal/2026-11-08.md", "projects/aiforall/concepts/testcontainers-resource-churn.md"],
+            "scope": "Full accessible historical session distillation through fixed boundary, not raw transcript publication"
+        },
+        "docs/history/oauthconnect-iam-20261108/sessions.md": {
+            "ingested_at": "2026-11-08",
+            "size_bytes": 26127,
+            "content_hash": "sha256:87235d4a983c66c12e2d004a07ae6946a2e9370d464308058ac18a9e283ebf1d",
+            "pages": ["projects/aiforall/references/session-oauthconnect-iam-20261108.md"],
+            "scope": "Root and 36 historical leaves, stable anchors and public provenance identifiers"
+        },
+        "docs/history/oauthconnect-iam-20261108/coverage.json": {
+            "ingested_at": "2026-11-08",
+            "size_bytes": 23813,
+            "content_hash": "sha256:0d31437f7ee546bedfb0fd22a4f7c838a2684599b20560a4d4ecba8cf50ebd7c",
+            "pages": ["projects/aiforall/references/session-oauthconnect-iam-20261108.md"],
+            "scope": "39 linked sessions, 37 historical projections, 4458 messages, 234 pages; private content excluded"
+        },
+        "docs/guides/iam-oauthconnect-securite-clefs-jwks-tls.md": {
+            "ingested_at": "2026-11-08",
+            "size_bytes": 67953,
+            "content_hash": "sha256:9b8b7c61888c38e9962052a6c7ccde597f66313fcf0f0f8ca9a21f37e650430d",
+            "pages": ["projects/oauthconnect/oauthconnect.md", "projects/oauthconnect/concepts/oidc-jwks-and-key-rotation.md", "projects/oauthconnect/concepts/tls-hmac-and-signatures.md"],
+            "scope": "Code-sourced security pedagogy, no runtime or live rotation claim"
+        },
+        "docs/guides/iam-oauthconnect-securite-sources.md": {
+            "ingested_at": "2026-11-08",
+            "size_bytes": 38761,
+            "content_hash": "sha256:fcd90ce01f90026d46834dec66c859ec3d9ff8a878a1556204ea150f280e0448",
+            "pages": ["projects/oauthconnect/concepts/oidc-jwks-and-key-rotation.md", "projects/oauthconnect/concepts/tls-hmac-and-signatures.md", "projects/aiforall/concepts/jwt-issuer-vs-consumer.md", "projects/iamrusty/concepts/jwt-secret-storage-abstraction.md"]
+        },
+        "docs/contracts/iam-oauthconnect-v2.md": {
+            "ingested_at": "2026-11-08",
+            "size_bytes": 34819,
+            "content_hash": "sha256:1de8b8ac0a271d82c7f6e0648594f85c971ce0ef720ff7f310b8b0c4498da376",
+            "pages": ["projects/iamrusty/concepts/oauthconnect-v2-durable-context.md", "projects/iamrusty/concepts/oauth-provider-linking.md", "projects/iamrusty/concepts/oauth-state-and-csrf-protection.md"]
+        },
+        "docs/adr/0413-oauthconnect-multi-instances-profils.md": {
+            "ingested_at": "2026-11-08",
+            "size_bytes": 19815,
+            "content_hash": "sha256:9dcc8afc2e0bf1afade9e6a728a33a24858ae7a28f180115070d4b5eb441e068",
+            "pages": ["projects/iamrusty/decisions/0413-oauthconnect-multi-instances.md", "projects/iamrusty/skills/extending-iamrusty-with-oauth-providers.md", "projects/oauthconnect/oauthconnect.md"],
+            "status": "Accepted / Partial"
+        },
         "docs/missions/20261031-k6-auth-handover.md": {
             "ingested_at": "2026-10-31T17:52:17.803Z",
             "size_bytes": 2792,
@@ -26337,5 +26420,5 @@
                                                                                                                                                                         ]
                                                                                                                                                   }
                 },
-    "last_updated":  "2026-10-31T17:52:17.803Z"
+    "last_updated":  "2026-11-08"
 }
