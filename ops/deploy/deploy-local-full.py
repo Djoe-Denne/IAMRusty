@@ -45,6 +45,13 @@ def apply(items):
           stdin=json.dumps({"apiVersion": "v1", "kind": "List", "items": items}))
 
 
+def apply_owned(items, args, data):
+    """Record each acknowledged apply before attempting the next resource."""
+    for item in items:
+        apply([item])
+        record_resources([item], args, data)
+
+
 def prepare_namespaces(args, data):
     for name in NAMESPACES:
         uid = k("get", "namespace", name, "--ignore-not-found", "-o", "jsonpath={.metadata.uid}")
@@ -793,6 +800,11 @@ def configure_envoy_ingress(*, evidence_directory, journal_path):
 
 def deploy_locked(args):
     oauth_connect = getattr(args, "oauth_connect", False)
+    preserve_tls = getattr(args, "preserve_platform_tls", False)
+    if preserve_tls and not oauth_connect:
+        raise ValueError("--preserve-platform-tls requires --oauth-connect")
+    if preserve_tls and getattr(args, "isolated_plugins", False):
+        raise ValueError("TLS preservation cannot be combined with --isolated-plugins; identity CA attestation required")
     if sum(map(bool, (args.oauth_proof, args.github_openbao, oauth_connect))) > 1:
         raise ValueError("distinct explicit connector profiles required")
     images = json.loads(args.image_manifest.read_text())
@@ -857,6 +869,19 @@ def deploy_locked(args):
     if data.get("context") != CONTEXT or data.get("cluster") != CLUSTER:
         raise ValueError("parent local runtime lease required")
     if data.get("anchor_state") == "anchored":
+        # Bind and revalidate the original target before any API preflight.
+        # A pending first installation still binds only after its bootstrap.
+        data = runtime.lease(args.lease)
+    from local_full_tls import preserved_platform_tls, omit_preserved_tls, reuse_openbao_tls
+    preserved_tls = preserved_platform_tls(data, enabled=preserve_tls, oauth_connect=oauth_connect,
+        read_deployment=lambda name: json.loads(k("get", "deployment", name, "-n", CLUSTER, "-o", "json")))
+    if preserve_tls:
+        current_ca = json.loads(k("get", "configmap", "openbao-public-ca", "-n", CLUSTER, "-o", "json"))
+        if current_ca.get("data", {}).get("ca.crt", "").strip() != mesh["ca.crt"].decode("ascii").strip():
+            raise ValueError("TLS preservation requires the unchanged OpenBao public CA")
+        tls_objects = reuse_openbao_tls(objects, tls_objects, data,
+            lambda name: json.loads(k("get", "deployment", name, "-n", CLUSTER, "-o", "json")))
+    if data.get("anchor_state") == "anchored":
         # Before bootstrap, quiescing or apply: a normal deploy must not discard
         # an existing emptyDir or silently change a PVC backing the same mount.
         preflight_storage_transitions(objects)
@@ -911,6 +936,7 @@ def deploy_locked(args):
         else:
             groups["foundation"].append(obj)
     groups["foundation"] += [secret("platform-mesh-certs", mesh), secret("lazaret-identity-ca", identity)]
+    groups["foundation"] = omit_preserved_tls(groups["foundation"], preserved_tls)
     proof_secrets = [obj for obj in groups["foundation"] if obj["kind"] == "Secret" and obj["metadata"]["name"].startswith("oauth-proof-")]
     groups["foundation"] = [obj for obj in groups["foundation"] if obj not in proof_secrets]
     try:
@@ -926,15 +952,12 @@ def deploy_locked(args):
             runtime.create(obj, args, data)  # No overwrite/adoption of existing secrets, even a same-name one.
         for obj in tls_objects:
             runtime.create(obj, args, data)
-        apply(groups["foundation"])
-        record_resources(groups["foundation"], args, data)
+        apply_owned(groups["foundation"], args, data)
         configure_api_policy()
-        apply(groups["dependencies"])
-        record_resources(groups["dependencies"], args, data)
+        apply_owned(groups["dependencies"], args, data)
         for obj in groups["dependencies"]:
             k("rollout", "status", "deployment/" + obj["metadata"]["name"], "-n", "aiforall-local-full", "--timeout=300s")
-        apply(groups["bootstrap"])
-        record_resources(groups["bootstrap"], args, data)
+        apply_owned(groups["bootstrap"], args, data)
         if github:
             job_prefix = "oauth-connect-seed-" if oauth_connect else "github-openbao-seed-"
             job = next(o for o in groups["bootstrap"] if o["metadata"]["name"].startswith(job_prefix))
@@ -953,8 +976,7 @@ def deploy_locked(args):
             runtime.create(seed_input, args, data)
         for obj in groups["bootstrap"]:
             k("wait", "--for=condition=complete", "job/" + obj["metadata"]["name"], "-n", "aiforall-local-full", "--timeout=240s")
-        apply(groups["applications"])
-        record_resources(groups["applications"], args, data)
+        apply_owned(groups["applications"], args, data)
         for obj in groups["applications"]:
             k("rollout", "status", "deployment/" + obj["metadata"]["name"], "-n", obj["metadata"]["namespace"], "--timeout=300s")
         for name in RUST_APPS:
@@ -1089,8 +1111,12 @@ def main():
     parser.add_argument("--github-openbao", action="store_true")
     parser.add_argument("--github-input-file", type=Path)
     parser.add_argument("--oauth-connect", action="store_true")
+    parser.add_argument("--preserve-platform-tls", action="store_true",
+                        help="OAuthConnect activation only: leave acknowledged existing platform TLS Secrets untouched")
     parser.add_argument("--simulated-input-file", type=Path)
     args = parser.parse_args()
+    if args.preserve_platform_tls and (args.action != "deploy" or not args.oauth_connect):
+        parser.error("--preserve-platform-tls is only valid for deploy --oauth-connect")
     if args.action == "render":
         # No runtime inspection, startup or API contact. Source secrets remain
         # in render artifacts; report only resource kind/name metadata.

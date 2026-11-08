@@ -84,14 +84,23 @@ def coffer_epoch(target):
     return hashlib.sha256((pods[0]["metadata"]["uid"] + "|" + statuses[0]["containerID"]).encode()).hexdigest()
 
 
-def recover_coffer(target, state, save, runtime, read_github, make_secret):
-    apps = [(CLUSTER, "lazaret")]
-    github = any(e.get("kind") == "Deployment" and e.get("name") == "github-connect"
-                 and e.get("namespace") == CLUSTER for e in target.data.get("ownedResources", []))
-    oauth = any(e.get("kind") == "Deployment" and e.get("name") == "oauth-connect"
-                and e.get("namespace") == CLUSTER for e in target.data.get("ownedResources", []))
+def selected_connectors(data):
+    """Respect an explicit activation without dropping historical ownership."""
+    names = {e.get("name") for e in data.get("ownedResources", [])
+             if e.get("kind") == "Deployment" and e.get("namespace") == CLUSTER}
+    github, oauth = "github-connect" in names, "oauth-connect" in names
+    if data.get("connectorProfile") == "oauth-connect":
+        if not oauth:
+            raise ValueError("selected OAuthConnect profile is not installed in the original lease")
+        return False, True
     if github and oauth:
         raise ValueError("ambiguous connector profiles in environment lease")
+    return github, oauth
+
+
+def recover_coffer(target, state, save, runtime, read_github, make_secret):
+    apps = [(CLUSTER, "lazaret")]
+    github, oauth = selected_connectors(target.data)
     inputs = None
     simulated_reference = None
     if github or oauth:
@@ -334,6 +343,9 @@ def running_operation(args, state, save, target, registry, nodes, runtime, read_
     if args.action == "status" and not all(n["running"] for n in nodes):
         return {"status": "stopped" if not any(n["running"] for n in nodes) else "partially-stopped",
                 "nodes": [{"id": n["id"], "running": n["running"]} for n in nodes], "recovery_pending": bool(state.get("pending_epoch"))}
+    selected_oauth = target.data.get("connectorProfile") == "oauth-connect"
+    if selected_oauth:
+        selected_connectors(target.data)  # A partial activation is not an installed profile.
     if args.action == "up":
         if registry:
             with registry.operation():
@@ -360,6 +372,8 @@ def running_operation(args, state, save, target, registry, nodes, runtime, read_
     for entry in target.data.get("ownedResources", []):
         if entry.get("kind") != "Deployment":
             continue
+        if selected_oauth and entry.get("namespace") == CLUSTER and entry.get("name") in {"github-connect", "gitlab-connect"}:
+            continue  # Historical resources remain leased, but are not the selected service.
         obj = owned(target, "Deployment", entry["name"], entry["namespace"])
         if args.action == "up":
             target.kubectl(["rollout", "status", "deployment/" + entry["name"], "-n", entry["namespace"], "--timeout=300s"], text=True, timeout=330)

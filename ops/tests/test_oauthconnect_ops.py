@@ -272,11 +272,15 @@ class SecretBoundaryTests(unittest.TestCase):
         target.kubectl.assert_not_called()
         save.assert_not_called()
 
-    def test_new_coffer_epoch_reseeds_both_sources_then_restarts_exact_dependents(self):
+    def test_new_coffer_epoch_reseeds_both_sources_then_restarts_exact_dependents(self, legacy=False):
         objects = renderer.render("oauthopsregression", oauth_connect=True,
                                   github_client_id="github-public", simulated_client_id="simulated-public")
         target, runtime, save = Mock(), Mock(), Mock()
         target.data = {"ownedResources": [{"kind": "Deployment", "name": "oauth-connect", "namespace": environment.CLUSTER}]}
+        if legacy:
+            target.data["connectorProfile"] = "oauth-connect"
+            target.data["ownedResources"] += [{"kind": "Deployment", "name": name, "namespace": environment.CLUSTER}
+                                             for name in ("github-connect", "gitlab-connect")]
         github, simulated = credentials()
         refs = {name: {"path": name, "size": 1, "mtime_ns": 1} for name in ("github-private", "simulated-private")}
         state = {"github_input": refs["github-private"], "simulated_input": refs["simulated-private"],
@@ -307,6 +311,42 @@ class SecretBoundaryTests(unittest.TestCase):
             self.assertEqual(patch_ops[0]["path"], "/metadata/uid")
             self.assertEqual(patch_ops[1], {"op": "test", "path": "/metadata/resourceVersion", "value": "10"})
         self.assertEqual(state["recovery_seeded_epoch"], "next-epoch")
+
+    def test_selected_oauth_epoch_preserves_legacy_inventory_without_ambiguity(self):
+        self.test_new_coffer_epoch_reseeds_both_sources_then_restarts_exact_dependents(legacy=True)
+
+    def test_profile_selection_requires_explicit_marker_and_installed_oauth(self):
+        entries = [{"kind": "Deployment", "name": name, "namespace": environment.CLUSTER}
+                   for name in ("github-connect", "oauth-connect")]
+        with self.assertRaisesRegex(ValueError, "ambiguous"):
+            environment.selected_connectors({"ownedResources": entries})
+        self.assertEqual(environment.selected_connectors({"connectorProfile": "oauth-connect", "ownedResources": entries}),
+                         (False, True))
+        with self.assertRaisesRegex(ValueError, "not installed"):
+            environment.selected_connectors({"connectorProfile": "oauth-connect", "ownedResources": entries[:1]})
+
+    def test_readiness_scopes_selected_profile_without_adopting_or_dropping_legacy(self):
+        entries = [{"kind": "Deployment", "name": name, "namespace": environment.CLUSTER}
+                   for name in ("github-connect", "gitlab-connect", "oauth-connect", "iam")]
+        for explicit in (False, True):
+            target = Mock()
+            target.data = {"ownedResources": copy.deepcopy(entries)}
+            if explicit:
+                target.data["connectorProfile"] = "oauth-connect"
+            before = copy.deepcopy(target.data)
+            def read(_target, kind, name, namespace):
+                return {"spec": {"replicas": 1, "template": {"spec": {"containers": [{"image": "synthetic"}]}}},
+                        "status": {"readyReplicas": 0 if name.endswith("-connect") and name != "oauth-connect" else 1}}
+            with patch.object(environment, "owned", side_effect=read) as owned, \
+                    patch.object(environment, "coffer_epoch", return_value="same"):
+                result = environment.running_operation(SimpleNamespace(action="status"), {"epoch": "same"},
+                    Mock(), target, None, [{"running": True}], Mock(), Mock(), Mock())
+            expected = ["oauth-connect", "iam"] if explicit else [e["name"] for e in entries]
+            self.assertEqual([o["name"] for o in result["deployments"]], expected)
+            self.assertEqual([c.args[2] for c in owned.call_args_list], expected)
+            self.assertEqual(result["ready"], explicit)
+            self.assertEqual(target.data, before)
+            target.kubectl.assert_not_called()
 
     def test_seed_partial_failure_never_deletes_or_rewrites_acquired_documents(self):
         github, simulated = credentials()

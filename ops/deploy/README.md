@@ -6,6 +6,14 @@ Le **seul parcours nominal est local-full** : cluster `aiforall-local-full`, con
 
 ## OAuthConnect : GitHub + fournisseur simulé, entrée HTTPS
 
+Pour la reconstruction locale explicitement autorisée du 8 novembre 2026, voir
+[ADR-0608](../../docs/adr/0608-recreer-local-full-pour-oauthconnect.md) et son
+[contrat borné](../../docs/contracts/local-full-oauthconnect-recreation.md).
+Elle réutilise les images et la PKI complète mais crée un nouveau bail ; elle
+ne qualifie pas une migration de l'ancien environnement avec conservation des
+données. Les modes de préservation ci-dessous ne sont pas utilisés pour cette
+première installation neuve. Aucun reset n'est implicite dans les commandes Ops.
+
 Le profil explicite **`--oauth-connect`** lance le vrai service générique avec
 deux instances OAuth : `github` et `simulated`. Il est incompatible avec
 `--github-openbao` / `--oauth-proof`, qui restent des profils historiques distincts.
@@ -85,6 +93,42 @@ par une référence immuable vérifiée. L'alternative registre OCI conserve ses
 flags `--release-manifest` / `--registry-state`, sans repli implicite kind-load.
 Le refresh image-only peut sélectionner `--targets oauth` ; il ne prépare ni la
 configuration, ni les certificats, ni les secrets d'un premier déploiement.
+
+Pour l'activation dans un **local-full déjà installé**, le `deploy --oauth-connect`
+peut ajouter **`--preserve-platform-tls`** : les Secrets existants
+`platform-mesh-certs`, `lazaret-identity-ca`, `lazaret-workload-ca` ne sont pas
+appliqués, et OpenBao conserve sa référence TLS déjà enregistrée dans le bail.
+Seule la nouvelle feuille OAuthConnect est créée. Ce mode exige les namespaces,
+les inputs antérieurement acquittés, les UID et les montages des consommateurs
+existants, ainsi que la même CA publique OpenBao ; il ne lit aucun Secret live.
+Il ne renouvelle pas un certificat expiré, ne prouve pas les octets/UID actuels
+des Secrets et ne désactive aucun contrôle TLS. Un Secret manquant ou un échec
+TLS reste un blocage, sans recréation ni rotation cachée.
+Sans lecture de Secret, son absence n'est détectée qu'au montage du Pod, donc
+éventuellement **après** la quiescence. La combinaison `--isolated-plugins` est
+refusée : l'attestation de sa CA d'identité exige une opération distincte.
+
+Le bundle `--cert-directory` fournit alors les **nouveaux** inputs Connect et la
+CA OpenBao, pas l'identité préservée d'Envoy : la confiance navigateur doit viser
+la CA du certificat Envoy effectivement conservé, qui peut être différente.
+Les anciens profils et l'installation initiale restent inchangés. Dette locale
+à reprendre : [certificats et reprise après arrêt Docker](../../docs/guides/local-tls-reprise.md).
+
+Si le cycle quotidien est déjà enregistré pour un ancien profil, ne pas modifier
+ses sources privées dans `environment.json` pour contourner les gardes. Après
+activation réussie, enregistrer le profil dans un **nouveau dossier d'état**, avec
+le même bail d'origine et les deux sources privées :
+
+```powershell
+just local-up --environment-dir "ETAT_OAUTH_NEUF" --lease "BAIL_ORIGINAL" --github-input-file "GITHUB_PRIVE" --simulated-input-file "SIMULATED_PRIVE"
+just local-status --environment-dir "ETAT_OAUTH_NEUF"
+```
+
+Réutiliser ensuite ce dossier pour `local-up`, `local-status`, `local-stop`. Avec
+le marqueur explicite `connectorProfile=oauth-connect`, reprise du coffre et
+readiness concernent le profil actif ; les entrées d'ownership des anciens
+connecteurs sont conservées sans garantir leur fonctionnement. Sans ce marqueur,
+un inventaire ambigu reste refusé, sans bascule implicite.
 
 Qualification : tests offline de configuration/rendu/PKI/secrets et mappings,
 **pas** preuve de build Linux, de coffre réel, de navigateur ou de connexion
