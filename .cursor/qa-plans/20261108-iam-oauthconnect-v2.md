@@ -190,6 +190,8 @@ Chaque preuve consigne sélection/nombre de tests, code de sortie, oracle observ
 
 ## Registre final groupé — rares/ambigus rouges et décisions utilisateur
 
+État TDD intermédiaire nonce : **22 nouveaux cas compilent ;9 PASS/13 FAIL/0 ignoré/53 filtrés**. Six BEGIN échouent sur nonce vide, sept legacy/corrompus échouent sur capacité accordée malgré writer témoin déjà consommé/purgé. Ce sont des écarts contractuels à corriger, pas des cas métier nouveaux ; SQL réel, migration et ordre réseau restent à prouver par leurs tests dédiés.
+
 GREEN intermédiaire transport : **22 PASS/0 FAIL/0 ignoré/124 filtrés** (11v2+11v1), timeout réel10s inclus, mêmes oracles. Clippy strict infra **rouge sur 9 dead_code préexistants/non modifiés**, dont huit comparés au log baseline ; détail `.cursor/review-briefings/20261108-iam-http-green-quality.md`. Ne pas confondre cette dette avec un test rare rouge ou annoncer un PASS global. Aucun allow/affaiblissement appliqué.
 
 État TDD intermédiaire transport (avant implémentation, pas bilan final rare) : 11 tests v2 compilent ; **3 PASS/8 FAIL/0 ignoré/135 filtrés**. Les nominaux échouent par refus v2 default, les négatifs réseau par absence de reçu. Cela qualifie l'absence de raccord v2, **pas encore les erreurs de réponse, le timeout ou la borne 1MiB**. Les trois pré-I/O peuvent passer par refus default et seront réévalués après GREEN. Les oracles ne sont pas modifiés pour les faire passer.

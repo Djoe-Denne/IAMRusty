@@ -403,3 +403,6 @@ mod tests {
             .is_err());
     }
 }
+
+#[cfg(test)]
+mod tests_v2;
