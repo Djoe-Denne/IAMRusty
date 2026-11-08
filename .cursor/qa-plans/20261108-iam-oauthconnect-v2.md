@@ -4,6 +4,10 @@ Date : 2026-11-08. Statut : **plan avant implémentation, aucune exécution ni p
 
 Réconciliation parent après cadrage architecte : `docs/contracts/iam-oauthconnect-v2.md` §§4/5/6 prévaut pour les coutures. Q-2 est tranchée : bindings valides d'une ligne legacy/corrompue → writer committe consumed_at et purge nonce/verifier, puis domaine refuse sans capacité ni complete. Bindings invalides restent intacts, expirées au cleanup. Q-1 RELINK reste comportement existant sans garde métier ajouté ; résultat conflit réel à caractériser et, si rouge/ambigu, bilan groupé utilisateur. G-5 réel Connect conditionné à la couture existante, aucune extension manifeste/harness implicite. Baseline transport parent : 11 PASS,0 échec,0 ignoré,124 filtrés par module ; pas preuve v2.
 
+**Choix d'exécution approuvé par l'utilisateur** : extension bornée de l'allowlist du lanceur existant aux sept binaires OAuth supplémentaires ci-dessous, sans changement de garde ni nouveau harness. Cette décision remplace l'alternative suite IAM entière décrite historiquement aux étapes4–5 : ne pas lancer cette suite, car sqs_event_routing_tests active SQS sans ignore. Test PowerShell/AST sélection étendu : RED avant extension, GREEN après ; régression threads GREEN, aucun runtime exécuté.
+
+Commandes IT finales retenues : `& .\ops\tests\it-native.ps1 -Suite iam -TestBinary <binaire>` pour les dix binaires `auth_transactions_postgres`, `oauth_browser_transactions`, `oauth_cleanup_lifecycle`, `auth_oauth_start`, `auth_oauth_callback`, `auth_oauth_provider_failures`, `relink_provider`, `verified_idp_https`, `organization_account_guard`, `app_cleanup_supervision`. Réutiliser les preuves non affectées ; compiler tous consommateurs mais aucune campagne queues.
+
 Complément parent reçu après rédaction : baseline `cargo test --locked -p iam-domain --lib` **53 PASS,0 fail,0 ignored,0 filtered**, log `.tmp/iam-oauthconnect-v2/baseline-domain.log`. Résultat rapporté par le parent, non réexécuté par le planner ; témoin de base, pas preuve de raccord v2. Aucun runtime Docker observé/démarré par le parent à ce préflight ; slot Cargo libéré après cette baseline.
 
 ## Base, contrat et périmètre

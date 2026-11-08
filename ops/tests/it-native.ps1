@@ -29,7 +29,12 @@ function Resolve-ItTestBinary {
     param([string[]]$Suites, [string]$Binary)
     if ([string]::IsNullOrEmpty($Binary)) { return '' }
     if ($Suites.Count -eq 1 -and $Suites[0] -ceq 'iam' -and
-        $Binary -cin @('oauth_browser_transactions', 'auth_transactions_postgres', 'oauth_cleanup_lifecycle')) {
+        $Binary -cin @(
+            'oauth_browser_transactions', 'auth_transactions_postgres', 'oauth_cleanup_lifecycle',
+            'auth_oauth_start', 'auth_oauth_callback', 'auth_oauth_provider_failures',
+            'relink_provider', 'verified_idp_https', 'organization_account_guard',
+            'app_cleanup_supervision'
+        )) {
         return $Binary
     }
     if ($Suites.Count -ne 1 -or $Suites[0] -ne 'manifesto' -or

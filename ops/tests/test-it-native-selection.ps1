@@ -18,7 +18,12 @@ foreach ($name in $names) {
 }
 $oauthBinary = 'oauth_browser_transactions'
 if ((Resolve-ItTestBinary -Suites @('iam') -Binary $oauthBinary) -cne $oauthBinary) { throw 'Valid IAM OAuth selection rejected' }
-$iamBinaries = @($oauthBinary, 'auth_transactions_postgres', 'oauth_cleanup_lifecycle')
+$iamBinaries = @(
+    $oauthBinary, 'auth_transactions_postgres', 'oauth_cleanup_lifecycle',
+    'auth_oauth_start', 'auth_oauth_callback', 'auth_oauth_provider_failures',
+    'relink_provider', 'verified_idp_https', 'organization_account_guard',
+    'app_cleanup_supervision'
+)
 foreach ($name in $iamBinaries) {
     if ((Resolve-ItTestBinary -Suites @('iam') -Binary $name) -cne $name) { throw 'Valid exact IAM selection rejected' }
     foreach ($suiteName in @('manifesto', 'hive', 'telegraph', 'lazaret', 'IAM')) {
@@ -55,7 +60,9 @@ foreach ($case in @(
     @{suite=@('iam'); binary='oauth_browser_transactions.exe'},
     @{suite=@('iam'); binary='tests/oauth_browser_transactions.rs'},
     @{suite=@('iam'); binary='--jobs=1'}, @{suite=@('iam'); binary='-j 1'},
-    @{suite=@('iam'); binary='oauth_browser_transactions; anything'}
+    @{suite=@('iam'); binary='oauth_browser_transactions; anything'},
+    @{suite=@('iam'); binary='sqs_event_routing_tests'},
+    @{suite=@('iam'); binary='signup_sqs'}, @{suite=@('iam'); binary='signup_kafka'}
 )) {
     $rejected = $false
     try { $null = Resolve-ItTestBinary -Suites $case.suite -Binary $case.binary } catch { $rejected = $true }

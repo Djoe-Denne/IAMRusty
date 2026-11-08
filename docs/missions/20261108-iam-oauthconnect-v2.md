@@ -29,3 +29,11 @@ E2E GitHub/GitLab réels et déploiement restent à l'autre propriétaire. L'éq
 3. Intégrer nonce/migration/writer et transport avant leurs consommateurs LOGIN/LINK/RELINK, navigateur et fixtures ; vérifier les compteurs v2 et l'absence de fallback.
 4. Exécuter les IT réelles sur contenu intégré avec les fixtures et leur garde de ressources existantes. Vérifier les régressions IAM et compilation du monolithe, sans l'exécuter.
 5. Revues indépendantes ciblées selon le diff, bilan groupé des rouges rares éventuels, publication et nettoyage. Pas de verdict global à partir des seuls PASS partiels.
+
+## Choix de campagne IT à approuver
+
+Le lanceur gardé existant `ops/tests/it-native.ps1` sélectionne seulement trois binaires IAM : transactions Postgres, navigateur et cleanup. Les autres régressions utiles au raccord (start/callback, refus fournisseur, relink, HTTPS vérifié, garde de comptes et supervision cleanup) ne sont pas sélectionnables individuellement par ce lanceur.
+
+La suite IAM entière n'est pas une alternative neutre : `tests/sqs_event_routing_tests.rs` active explicitement SQS, n'est pas ignorée et sort du périmètre OAuth. L'utilisateur a **approuvé l'extension bornée de l'allowlist existante** à `auth_oauth_start`, `auth_oauth_callback`, `auth_oauth_provider_failures`, `relink_provider`, `verified_idp_https`, `organization_account_guard` et `app_cleanup_supervision`. Les gardes de propriété/registre/cleanup restent inchangées, sans nouveau harness ni activation des queues.
+
+Les tests PowerShell/AST de sélection ont échoué avant l'extension puis passent après ; la régression de sélection des threads passe aussi. Aucun Cargo, conteneur ou runtime n'est lancé par ces deux vérifications. Les IT IAM restent à exécuter sur le contenu intégré.
