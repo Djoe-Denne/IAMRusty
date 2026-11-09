@@ -41,6 +41,16 @@ Un nouvel apply de fondation peut le retirer. Ne pas le réinjecter aveuglément
 nouvelle mesure et autorisation ciblée requises. Voir [ADR-0608](../adr/0608-recreer-local-full-pour-oauthconnect.md).
 `status` prêt ne remplace pas la vérification HTTPS.
 
+### Vérification indépendante finale
+
+Le vérificateur infra read-only confirme **PASS** pour l'installation/readiness,
+la règle ingress exacte et HTTPS : JWKS200, login simulé303, et GET `/telegraph/`
+sans Bearer **403 avec corps vide**. Il n'a créé aucune ressource ni lu de Secret.
+Le parcours navigateur complet reste **NOT RUN** ; l'ACK/préimage historique et
+la mesure conntrack restent les preuves du parent, pas une nouvelle capture réseau
+indépendante. Le parent a recoupé l'UID du Node Kubernetes control-plane et son
+annotation IPIP en live ; cet UID n'est pas un ID de conteneur Docker.
+
 ## Trajectoire finale retenue : reconstruction locale bornée
 
 Après clarification, l'utilisateur a préféré une reconstruction rapide du lab à
