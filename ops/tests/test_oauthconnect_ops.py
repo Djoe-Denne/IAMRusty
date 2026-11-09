@@ -88,6 +88,12 @@ class OAuthProfileTests(unittest.TestCase):
             self.assertEqual(set(c["resources"]), {"requests", "limits"})
         self.assertEqual(pod["containers"][0]["readinessProbe"]["httpGet"]["path"], "/oauth-connect/ready")
 
+    def test_connector_disables_service_links_conflicting_with_strict_config_prefix(self):
+        pod = self.obj("Deployment", "oauth-connect")["spec"]["template"]["spec"]
+        self.assertIs(pod.get("enableServiceLinks"), False)
+        self.assertFalse(any(e["name"].startswith("OAUTH_CONNECT_")
+                             for c in pod["containers"] for e in c.get("env", [])))
+
     def test_images_are_selected_explicitly_and_require_immutable_mapping(self):
         self.assertEqual(select(["oauth"])["oauth"]["outputs"], {"oauth-connect-service": "oauth-connect-service"})
         selected = images.source_images(oauth_connect=True)

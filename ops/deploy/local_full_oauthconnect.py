@@ -143,7 +143,8 @@ def _configure(objects, run_id, github_client_id, simulated_client_id):
             mount("openbao-identity", "/run/identity"), mount("oauth-token", "/run/oauth-openbao", False), mount("scripts", "/scripts")],
         "startupProbe": {"exec": {"command": ["sh", "/scripts/check-oauth-token.sh"]},
                          "periodSeconds": 2, "timeoutSeconds": 15, "failureThreshold": 120}}
-    spec = {"serviceAccountName": "oauth-connect", "automountServiceAccountToken": False,
+    # Kubelet OAUTH_CONNECT_SERVICE_* variables collide with strict SDK config.
+    spec = {"serviceAccountName": "oauth-connect", "automountServiceAccountToken": False, "enableServiceLinks": False,
         "securityContext": copy.deepcopy(POD_SECURITY), "initContainers": [agent],
         "containers": [{"name": "oauth-connect", "image": IMAGE, "imagePullPolicy": "Never",
             "env": [{"name": "RUN_ENV", "value": "development"}], "ports": [{"name": "https", "containerPort": 8443}],

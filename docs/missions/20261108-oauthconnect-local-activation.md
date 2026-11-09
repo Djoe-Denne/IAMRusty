@@ -49,6 +49,30 @@ au rollout OAuthConnect (« 1 old replicas are pending termination »).
 **Activation encore non qualifiée**, diagnostic ciblé en cours ; aucun E2E
 navigateur ou succès HTTPS n'est déduit des tests unitaires.
 
+### Premier démarrage applicatif : collision des variables Kubernetes
+
+Après la sonde, l'application a réellement démarré pour la première fois puis
+rejeté sa configuration. Les noms des variables injectées par kubelet comprenaient
+`OAUTH_CONNECT_SERVICE_HOST`, `OAUTH_CONNECT_SERVICE_PORT` et six autres variables
+de Service. Elles entrent dans le préfixe SDK strict `OAUTH_CONNECT_`, et sont donc
+refusées par la désérialisation `deny_unknown_fields`.
+
+Un A/B natif avec le binaire Windows existant et un TOML public à identifiants
+factices reproduit le rejet avec ces variables ; sans elles, la configuration
+passe cette étape (échec de setup attendu, sans fichiers de secrets/TLS locaux).
+La correction borne le changement au Pod OAuthConnect :
+`enableServiceLinks: false`, sans modification Rust ni nouvelle image. Voir la
+[documentation Kubernetes](https://kubernetes.io/docs/tutorials/services/connect-applications-service/#environment-variables).
+Le test de rendu a été rouge avant correction ; **74 tests ciblés passent**.
+
+Le patch live a vérifié UID/RV/template complet et sa postimage ; seul ce champ
+de spec a changé. **Rollout OAuthConnect réussi**, puis reprise CAS achevée pour
+Lazaret, IAM, OAuthConnect et le simulateur, mêmes credentials et même epoch.
+L'ancien ReplicaSet se résorbe normalement, sans suppression forcée de Pod.
+L'accès HTTPS par NodePort reste à qualifier séparément : le listener TLS et la
+route JWKS répondent HTTP200 par tunnel, mais l'ingress réseau ne permet pas
+encore l'entrée hôte. La source effective doit être mesurée avant toute règle /32.
+
 ## Périmètre et décisions
 
 Activation explicitement demandée du profil Ops existant `--oauth-connect` dans
