@@ -24,6 +24,31 @@ ADR0608 : sources exactes et empreintes sauvegardées dans l'archive privée,
 module/tests/hook CLI retirés de la livraison. La dette reste documentée, pas
 déclarée résolue. **67 tests ciblés du contenu conservé passent.**
 
+## Reprise du 9 novembre — correction de la sonde OpenBao
+
+Le premier déploiement neuf a atteint les applications, puis expiré au rollout
+OAuthConnect. Le blocage initial était dans la startupProbe de `openbao-agent`,
+avant le démarrage de l'application : **OpenBao v2.6.2 refuse l'option `-field`
+sur `bao token lookup`**. Son aide live confirme que `bao read` la supporte.
+La lecture `bao read -field=ttl auth/token/lookup-self` a réussi avec le même
+token non-root, les mêmes droits, CA et timeout `5s` (TTL numérique observé :
+721 secondes). Aucune divergence de policy ou expiration TLS n'est démontrée.
+
+Le helper partagé GitHub/OAuth utilise maintenant `bao read` pour les champs
+TTL et policies. Le contrôle TTL a également reçu un `|| exit 1` explicite :
+les tests shell ont montré que `set -e` seul ne rejetait pas les valeurs 0 et 29
+dans l'ancienne expression `&&`. **73 tests ciblés passent**, dont six nouveaux
+tests shell natifs : CLI supporté, bornes TTL, root refusé, échec CLI et sink absent.
+
+L'application live est limitée aux deux clés de sonde du ConfigMap monté,
+sous tests UID/resourceVersion/préimages et vérification des autres données.
+Ni image, rôle OpenBao, credential ni identité TLS n'a changé. Docker Desktop
+était arrêté à la reprise ; son redémarrage a retrouvé les mêmes trois nœuds.
+La reprise existante non-root/CAS a réinjecté les mêmes secrets, puis a expiré
+au rollout OAuthConnect (« 1 old replicas are pending termination »).
+**Activation encore non qualifiée**, diagnostic ciblé en cours ; aucun E2E
+navigateur ou succès HTTPS n'est déduit des tests unitaires.
+
 ## Périmètre et décisions
 
 Activation explicitement demandée du profil Ops existant `--oauth-connect` dans

@@ -6,8 +6,9 @@ export BAO_CACERT=/run/openbao-ca/ca.crt
 export BAO_CLIENT_TIMEOUT=5s
 BAO_TOKEN=$(cat /run/github-openbao/token)
 export BAO_TOKEN
-ttl=$(bao token lookup -field=ttl 2>/dev/null)
+# OpenBao 2.6 exposes -field on read, not on token lookup.
+ttl=$(bao read -field=ttl auth/token/lookup-self 2>/dev/null)
 case "$ttl" in ''|*[!0-9]*) exit 1 ;; esac
-[ "$ttl" -ge 30 ] && [ "$ttl" -le 3600 ]
-policies=$(bao token lookup -field=policies 2>/dev/null)
+[ "$ttl" -ge 30 ] && [ "$ttl" -le 3600 ] || exit 1
+policies=$(bao read -field=policies auth/token/lookup-self 2>/dev/null)
 case "$policies" in *root*) exit 1 ;; esac
