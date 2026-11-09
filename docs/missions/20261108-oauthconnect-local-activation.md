@@ -1,5 +1,46 @@
 # Activation locale OAuthConnect et fournisseur simulé
 
+## Résultat local au 9 novembre 2026
+
+- **18 Deployments prêts**, dont OAuthConnect, simulateur, IAM et Lazaret ;
+  IAM/Hive/Telegraph/Manifesto ont chacun **2/2** replicas prêts.
+- Reprise non-root/CAS du coffre achevée, puis cycle quotidien **`up` et `status`
+  réussis** dans le nouveau dossier `~/.aiforall-local-full-oauthconnect`.
+- Entrée **`https://127.0.0.1:18080`** : JWKS IAM **200**, une clé publique,
+  vérification CA/hostname active ; login simulé **303** vers le fournisseur attendu.
+- **74 tests ciblés réussis**. Correctifs publiés : `9cf4e02` (sonde OpenBao)
+  et `f9febab` (service-links OAuthConnect). Aucun rebuild d'image pour ces correctifs.
+- Parcours OAuth complet navigateur GitHub/simulé : **NOT RUN**. Le port fournisseur
+  simulé 18081 et le retour callback complet ne sont pas qualifiés par le 303.
+- Trois nœuds possédés conservés actifs sur demande ; deux conteneurs étrangers
+  présents, mêmes IDs/états ; aucun conteneur inattendu dans l'inventaire final.
+  Aucun worktree/branche temporaire créé pour la mission ; preuves privées conservées,
+  pas de purge. L'acceptation formelle de l'ADR et la qualification production restent distinctes.
+
+### Exception ingress manuelle explicitement autorisée
+
+Après mesure fraîche conntrack, la source vue à l'entrée Envoy est l'adresse
+IPIP du control-plane **`10.244.230.64`**, et non son IP Kind `172.19.0.4`.
+Le helper spécialisé existant ne couvre pas les politiques générées OAuthConnect.
+L'utilisateur a donc explicitement choisi une intervention manuelle bornée,
+plutôt qu'un chantier d'adaptation de cette qualification.
+
+Seul ajout : `allow-envoy`, peer **`10.244.230.64/32`**, TCP **10000**.
+UID/RV/spec déclarée, annotation du nœud et destination Envoy ont été vérifiés,
+puis ACK et postimage contrôlés. Le contrôle d'identité a d'abord refusé sans
+mutation un UID de policy rapporté périmé ; le GET parent a confirmé l'UID live
+`c9052729-defb-4c6e-8552-8b68bc3c4144`, identique au nouveau bail.
+HTTPS et le redirect simulé ont réussi après l'ajout, sans changer TLS,
+ConfigMap Envoy, rôle OpenBao, images ou credentials. Aucun paramètre de
+redirection n'a été journalisé. Le retrait conditionnel du seul ajout était
+autorisé et prévu en cas d'échec ; il n'a pas été nécessaire.
+
+**Limite :** ce /32 n'est pas automatisé par `deploy/up`, ni qualifié par le
+helper spécialisé, ni portable après changement de source/reconstruction.
+Un nouvel apply de fondation peut le retirer. Ne pas le réinjecter aveuglément :
+nouvelle mesure et autorisation ciblée requises. Voir [ADR-0608](../adr/0608-recreer-local-full-pour-oauthconnect.md).
+`status` prêt ne remplace pas la vérification HTTPS.
+
 ## Trajectoire finale retenue : reconstruction locale bornée
 
 Après clarification, l'utilisateur a préféré une reconstruction rapide du lab à
@@ -14,8 +55,9 @@ consommateur, ont été arrêtés puis retirés par Kind ; leur absence a été 
 Le nœud legacy et le PostgreSQL opaque ont gardé leurs IDs et états. Ni images,
 ni caches, ni registre OCI externe, ni credentials, ni PKI n'ont été supprimés.
 Nouveau bail v2/kubeconfig privé et nouvel UID `kube-system` : bootstrap/CNI et
-chargement des images existantes réussis, sans recompilation. Installation neuve
-`--oauth-connect` en cours, sans mode de préservation des anciennes identités.
+chargement des images existantes réussis, sans recompilation. L'installation neuve
+`--oauth-connect` a ensuite été débloquée par les corrections bornées ci-dessous,
+sans mode de préservation des anciennes identités.
 
 Disposition des changements : gardes TLS opt-in, correction du binding, acquittement
 des applies par objet et sélection explicite du profil lifecycle conservés. Le
@@ -73,7 +115,7 @@ L'accès HTTPS par NodePort reste à qualifier séparément : le listener TLS et
 route JWKS répondent HTTP200 par tunnel, mais l'ingress réseau ne permet pas
 encore l'entrée hôte. La source effective doit être mesurée avant toute règle /32.
 
-## Périmètre et décisions
+## Historique : périmètre du premier parcours en place
 
 Activation explicitement demandée du profil Ops existant `--oauth-connect` dans
 `kind-aiforall-local-full`, pas un déploiement cloud. GitHub et `simulated` sont
@@ -125,7 +167,7 @@ Le souvenir d'expiration pendant un arrêt n'a pas été confirmé : les certifi
 locaux inspectés n'étaient pas expirés. Il ne faut pas assimiler ce cas à une
 validation globale de tous les certificats du cluster.
 
-## Validations à ce stade
+## Historique : validations avant reconstruction
 
 - Tests ciblés finaux : 37 réussites (onze préservations TLS, dont câblage réel de
   `deploy_locked` sous mocks, plus 26 Ops/simulateur existants).
@@ -148,8 +190,8 @@ validation globale de tous les certificats du cluster.
   ressources de fondation ont pu être appliquées avant le refus. Le handler a
   tenté de rétablir les nombres de replicas initiaux ; l'état réel est à vérifier.
   Aucun `--force-conflicts`, nettoyage ou nouvelle tentative aveugle. Diagnostic
-  Kubernetes read-only en cours avant une réconciliation bornée qui conserve les
-  réparations précédentes. **Activation non terminée**, pas de succès live/E2E.
+  Kubernetes read-only réalisé avant réorientation vers la reconstruction.
+  Cette tentative en place a été abandonnée ; aucun succès live/E2E n'en est déduit.
 
 ## Archives et publication
 

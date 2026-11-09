@@ -1,6 +1,6 @@
 # Reconstruction locale bornée pour OAuthConnect
 
-Version : 1 — 2026-11-08. Décision : [ADR-0608](../adr/0608-recreer-local-full-pour-oauthconnect.md), **Proposed / Unimplemented** à la rédaction. Autorisation opérationnelle acquise ; aucun résultat live implicite.
+Version : 1 — 2026-11-08. Décision : [ADR-0608](../adr/0608-recreer-local-full-pour-oauthconnect.md), **Proposed / Partial** au suivi du 9 novembre. Autorisation opérationnelle acquise ; les résultats live et l'exception ingress manuelle sont détaillés dans l'ADR et le rapport, pas déduits de ce contrat.
 
 ## Périmètre et invariants
 
@@ -29,3 +29,9 @@ Version : 1 — 2026-11-08. Décision : [ADR-0608](../adr/0608-recreer-local-ful
 La reconstruction n'établit pas une procédure de convergence prod, upgrade avec données, HA/cloud, GitLab ou reprise à expiration Docker OFF. Les conflits SSA et dérives manuelles de l'ancien lab deviennent des constats historiques, pas des corrections démontrées. Le parent consigne ce qu'il garde/remplace/écarte parmi les correctifs testés, sans rollback global ni exécution de `recover_apply_receipts.py` ou du nouveau mode réseau pour cette opération.
 
 Suivi d'exécution : [ledger parent](../../.cursor/handoffs/20261108-ops-oauthconnect-reprise.md). Aucun runtime, test ou cleanup exécuté par ce livrable documentaire.
+
+Exception explicitement autorisée par l'utilisateur le 2026-11-09 : intervention
+manuelle sur le seul `allow-envoy`, source IPIP mesurée `/32`, TCP10000, contrôles
+UID/préimage et validation HTTPS, retrait conditionnel du seul ajout en cas d'échec.
+Elle ne modifie pas les gates du helper spécialisé ni sa qualification ; elle est
+spécifique au lab courant et ne constitue pas une automatisation de reconstruction.

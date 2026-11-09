@@ -14,6 +14,14 @@ ne qualifie pas une migration de l'ancien environnement avec conservation des
 données. Les modes de préservation ci-dessous ne sont pas utilisés pour cette
 première installation neuve. Aucun reset n'est implicite dans les commandes Ops.
 
+Suivi du 9 novembre : OAuthConnect et le simulateur sont prêts ; l'entrée HTTPS
+a été vérifiée après une **exception ingress manuelle autorisée**, limitée à
+la source IPIP mesurée `/32` et au port Envoy 10000. Elle n'est pas maintenue
+automatiquement par `deploy/up` et peut disparaître lors d'un apply de fondation.
+Ne pas recopier son adresse sur un autre lab : nouvelle mesure et autorisation
+requises. Le [rapport de mission](../../docs/missions/20261108-oauthconnect-local-activation.md)
+sépare readiness, HTTPS et parcours navigateur complet (non exécuté).
+
 Le profil explicite **`--oauth-connect`** lance le vrai service générique avec
 deux instances OAuth : `github` et `simulated`. Il est incompatible avec
 `--github-openbao` / `--oauth-proof`, qui restent des profils historiques distincts.

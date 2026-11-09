@@ -1,7 +1,7 @@
 # ADR-0608 : Recréer le seul lab local-full pour activer OAuthConnect, sans migration de ses données
 
 - Statut : Proposed
-- Réalité : Unimplemented — reconstruction et activation non qualifiées à la rédaction
+- Réalité : Partial — lab reconstruit, services prêts et HTTPS vérifié le 2026-11-09 ; exception ingress manuelle, OAuth navigateur non qualifié
 - Date : 2026-11-08
 - Décideurs : autorisation opérationnelle explicite de l'utilisateur le 2026-11-08 ; Accept du texte final distinct
 - Jalon concerné : Local-full / Vague 4 locale, hors Apparatus P0–P6
@@ -42,7 +42,34 @@ Le [ledger de reprise](../../.cursor/handoffs/20261108-ops-oauthconnect-reprise.
 
 ## Sources et preuves
 
+### Suivi opérationnel du 9 novembre 2026
+
+Le parent a reconstruit le seul full et rechargé les neuf images sans les
+recompiler. Les 18 Deployments sont prêts ; IAM, Hive, Telegraph et Manifesto
+ont chacun deux replicas prêts. Le cycle quotidien `up` / `status` du nouveau
+dossier d'état passe. Les correctifs conservés incluent la sonde OpenBao 2.6
+(`read -field`, rejet TTL explicite) et `enableServiceLinks: false` sur le seul
+Pod OAuthConnect, pour éviter la collision avec son préfixe de configuration strict.
+
+**Exception locale explicitement choisie par l'utilisateur le 9 novembre :**
+ajout manuel d'un seul peer ingress `10.244.230.64/32`, TCP 10000, dans
+`allow-envoy`. Cette source IPIP est mesurée par conntrack puis recoupée avec
+l'annotation du nœud possédé ; ce n'est pas son adresse interne Kind.
+Le patch vérifie UID/RV/spec et postimage, sans changer TLS, Envoy ou OpenBao.
+JWKS IAM répond HTTPS200 avec CA vérifiée ; le login simulé répond 303 vers
+l'origine attendue, sans journalisation des paramètres de redirection.
+
+Cette intervention **n'est pas une qualification par le helper ingress existant**,
+qui ne couvre pas ce nouveau profil. Elle n'est ni automatisée dans `deploy/up`,
+ni portable à une autre adresse/source ou reconstruction. Une réapplication de
+la fondation peut retirer cette règle : nouvelle mesure et autorisation ciblée
+requises, pas de réemploi aveugle du /32. Cette limite ne devient pas un mécanisme
+de convergence production. Le parcours OAuth navigateur complet GitHub/simulé
+reste **NOT RUN**. Le statut Proposed et l'Accept distinct restent inchangés.
+
 - Canon : ADR0606 (isolation, bail v2, stockage local) et ADR0607 (provenance/cache, distribution proposée).
 - [Procédure Ops existante](../../ops/deploy/README.md#oauthconnect--github--fournisseur-simulé-entrée-https) : profil, inputs privés, chargement explicite, TLS et distinction premier déploiement/reprise.
 - [Ledger de mission](../../.cursor/handoffs/20261108-ops-oauthconnect-reprise.md), fin du 2026-11-08 : autorisation et état des tentatives. Il porte les preuves runtime futures.
-- Cette rédaction est documentaire seulement : aucune exécution runtime ni nouveau test ; **aucun PASS d'activation revendiqué**.
+- La rédaction initiale de l'architecte était documentaire seulement ; le suivi
+  opérationnel ci-dessus est celui du parent. Voir le [rapport de mission](../missions/20261108-oauthconnect-local-activation.md)
+  pour les preuves et limites, sans déduire un PASS navigateur des Pods prêts.
