@@ -1,0 +1,74 @@
+{{- $s := .Values.storage -}}
+{{- if has $s.mode (list "volume" "postgres") }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ $s.name }}
+  namespace: {{ $s.namespace }}
+  labels:
+    aiforall.dev/profile: local-full
+    app.kubernetes.io/name: local-full-storage
+spec:
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  activeDeadlineSeconds: 900
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: {{ ternary 70 65534 (eq $s.mode "postgres") }}
+    runAsGroup: {{ ternary 70 65534 (eq $s.mode "postgres") }}
+    {{- if or (eq $s.mode "postgres") (not $s.readOnly) }}
+    fsGroup: {{ ternary 70 65534 (eq $s.mode "postgres") }}
+    {{- end }}
+    seccompProfile: {type: RuntimeDefault}
+  containers:
+    - name: storage
+      image: postgres:15.12-alpine3.21@sha256:ef9d1517df69c4d27dbb9ddcec14f431a2442628603f4e9daa429b92ae6c3cd1
+      {{- if eq $s.mode "postgres" }}
+      env:
+        - {name: POSTGRES_USER, value: postgres}
+        - {name: POSTGRES_PASSWORD, value: postgres}
+        - {name: POSTGRES_DB, value: {{ $s.database | quote }}}
+        - {name: PGDATA, value: /data/pgdata}
+      readinessProbe:
+        exec: {command: [pg_isready, -U, postgres, -d, {{ $s.database | quote }}]}
+        periodSeconds: 5
+      {{- else }}
+      command: [sh, -c, "trap 'exit 0' TERM INT; sleep 900 & wait"]
+      {{- end }}
+      resources:
+        requests: {cpu: 10m, memory: 32Mi}
+        limits: {cpu: {{ ternary "1" "200m" (eq $s.mode "postgres") | quote }}, memory: {{ ternary "512Mi" "128Mi" (eq $s.mode "postgres") }}}
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      volumeMounts:
+        - {name: data, mountPath: /data, readOnly: {{ $s.readOnly }}}
+  volumes:
+    - name: data
+      persistentVolumeClaim: {claimName: {{ $s.claim }}, readOnly: {{ $s.readOnly }}}
+{{- else if eq $s.mode "foundation" }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $s.namespace }}
+  labels: {aiforall.dev/profile: local-full-restore, pod-security.kubernetes.io/enforce: baseline}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: {{ $s.namespace }}}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata: {name: restore-budget, namespace: {{ $s.namespace }}}
+spec:
+  hard: {pods: "2", persistentvolumeclaims: "1", requests.storage: 2Gi, requests.cpu: "1", requests.memory: 512Mi, limits.cpu: "2", limits.memory: 1Gi}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: {{ $s.claim }}, namespace: {{ $s.namespace }}}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: standard
+  resources: {requests: {storage: 2Gi}}
+{{- end }}

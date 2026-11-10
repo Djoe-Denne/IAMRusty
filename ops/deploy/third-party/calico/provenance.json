@@ -1,0 +1,11 @@
+{
+  "version": "3.29.7",
+  "repository": "https://github.com/projectcalico/calico",
+  "tag": "v3.29.7",
+  "commit": "82fd18c202ac5400cd7760597a510de9d028b035",
+  "url": "https://raw.githubusercontent.com/projectcalico/calico/82fd18c202ac5400cd7760597a510de9d028b035/manifests/calico.yaml",
+  "file": "base/calico.yaml",
+  "bytes": 325176,
+  "sha256": "b200cb3c2c7341717abe98e4acc80a13117bcd2c9c46ad46e8c209c5753f0b2f",
+  "verification": "SHA256 computed over unmodified upstream bytes fetched by HTTPS; tag resolved with GitHub Git refs API. Not an upstream-signed checksum."
+}

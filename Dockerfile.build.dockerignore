@@ -1,4 +1,4 @@
-# Clean delivery checkout only. Do not replace the operator's local .dockerignore.
+# Native delivery context; this Dockerfile-specific file overrides .dockerignore.
 .git
 **/.git
 .tmp
@@ -17,3 +17,20 @@ obsidian
 **/node_modules
 **/.env
 **/.env.*
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx
+**/id_rsa
+**/id_ed25519
+**/.netrc
+**/.vault-token
+**/.bao-token
+**/credentials.toml
+**/kubeconfig
+**/kubeconfig.*
+**/__pycache__
+**/*.log
+**/*.tar
+**/*.tar.gz
+**/*.zip

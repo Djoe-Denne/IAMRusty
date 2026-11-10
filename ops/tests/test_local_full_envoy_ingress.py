@@ -29,6 +29,7 @@ def uid():
 class FakeGuard:
     def __init__(self, directory):
         self.directory = directory
+        self.path = directory / "synthetic-original-lease.json"
         self.calls, self.patches = [], []
         self.on_patch = None
         self.on_nodes = None
@@ -50,8 +51,7 @@ class FakeGuard:
         self.data = {"cluster": runner.CLUSTER, "context": runner.CONTEXT,
             "control_plane_container_id": self.identity["control_plane_container_id"],
             "nodeContainerIds": ["c" * 64, "d" * 64, "e" * 64], "ownedResources": []}
-        declared = {item["metadata"]["name"]: item["spec"] for item in runner.target_authority.yaml.safe_load_all(
-            (DEPLOY / "apps/overlays/local-full/platform/policies.yaml").read_text()) if item}
+        declared = runner.ingress_policy_catalog()
         self.policies = []
         for name in ("allow-envoy", "default-deny", "allow-dns", "allow-test-client"):
             item = {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
@@ -233,7 +233,8 @@ class EnvoyIngressTests(unittest.TestCase):
         # Heartbeat RV is deliberately not requested or compared for Nodes.
         self.assertTrue(all("resourceVersion" not in " ".join(call) for call in self.guard.calls if call[:2] == ["get", "nodes"]))
         module = ast.parse((DEPLOY / "deploy-local-full.py").read_text())
-        for name in ("main", "deploy", "deploy_locked", "configure_api_policy"):
+        self.assertFalse(hasattr(runner, "configure_api_policy"), "retired imperative policy builder must not remain")
+        for name in ("main", "deploy", "deploy_locked"):
             node = next(n for n in module.body if isinstance(n, ast.FunctionDef) and n.name == name)
             self.assertFalse(any(isinstance(n, ast.Name) and n.id == "configure_envoy_ingress" for n in ast.walk(node)))
         specialized = [n for n in module.body if isinstance(n, (ast.ClassDef, ast.FunctionDef))
@@ -509,9 +510,8 @@ class EnvoyIngressTests(unittest.TestCase):
                     self.assertEqual(len(guard.calls), calls)
 
     def test_envoy_ingress_accepts_declared_oauth_profile_and_rejects_unknown_policy(self):
-        declarations = [item for item in runner.target_authority.yaml.safe_load_all(
-            (DEPLOY / "apps/overlays/local-full/oauth-proof/resources.yaml").read_text())
-            if item and item["kind"] == "NetworkPolicy"]
+        declarations = [{"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy", "metadata": {"name": name, "namespace": runner.CLUSTER}, "spec": spec}
+                        for name, spec in runner.ingress_policy_catalog("gitlab-proof").items() if name.startswith("oauth-proof-")]
         self.assertEqual({item["metadata"]["name"] for item in declarations},
                          {"oauth-proof-iam-egress", "oauth-proof-connector", "oauth-proof-provider"})
         for mode in ("declared", "unknown", "selector-drift"):

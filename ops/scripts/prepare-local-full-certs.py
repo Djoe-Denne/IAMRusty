@@ -2,6 +2,7 @@
 """Local-only PKI preparation shared by Windows and Linux; no third-party modules."""
 import argparse
 import base64
+import configparser
 import os
 from pathlib import Path
 import re
@@ -11,34 +12,21 @@ import subprocess
 import sys
 import secrets
 
-AUTHORITIES = {
-    "mesh": "aiforall-local-full-transport",
-    "workload": "aiforall-local-full-workload",
-}
+CONFIG_PATH = Path(__file__).with_name("local-full-certificates.cnf")
+PKI = configparser.ConfigParser(interpolation=None)
+PKI.optionxform = str
+with CONFIG_PATH.open(encoding="ascii") as source:
+    PKI.read_file(source)
+AUTHORITIES = dict(PKI.items("authorities"))
 
 
 def leaf_profiles(oauth_proof=False):
-    profiles = []
-    for name in ("iam", "hive", "telegraph", "manifesto"):
-        profiles.append(("mesh", name + "-service", [
-            "DNS:" + name + "-service", "DNS:" + name,
-            "DNS:" + name + ".aiforall-local-full.svc.cluster.local",
-            "DNS:localhost", "IP:127.0.0.1",
-        ]))
-    for name in ("envoy-mesh", "ext-authz", "mesh-client"):
-        profiles.append(("mesh", name, [
-            "DNS:" + name, "DNS:" + name + ".aiforall-local-full.svc.cluster.local",
-            "DNS:localhost", "IP:127.0.0.1",
-        ]))
-    if oauth_proof:
-        profiles.append(("mesh", "gitlab-connect", [
-            "DNS:gitlab-connect", "DNS:gitlab-connect.aiforall-local-full.svc.cluster.local",
-        ]))
-    profiles.append(("workload", "server", [
-        "DNS:lazaret-service", "DNS:lazaret", "DNS:lazaret.aiforall-local-full.svc.cluster.local",
-        "DNS:localhost", "IP:127.0.0.1",
-    ]))
-    return profiles
+    return [(*section.split("/"), profile_sans(section)) for section, selection in PKI.items("leaves")
+            if selection == "base" or oauth_proof and selection == "oauth-proof"]
+
+
+def profile_sans(section):
+    return [value.strip() for value in PKI.get(section, "subjectAltName", fallback="").split(",") if value.strip()]
 
 
 def openssl_path(explicit):
@@ -151,20 +139,15 @@ def generate(tool, directory, profiles):
         target.mkdir(mode=0o777 if os.name == "nt" else 0o700)
         tool.run("req", "-x509", "-newkey", "rsa:2048", "-noenc", "-sha256", "-days", "365",
                  "-keyout", target / "ca.key", "-out", target / "ca.crt", "-subj", "/CN=" + common_name,
-                 "-addext", "basicConstraints=critical,CA:TRUE",
-                 "-addext", "keyUsage=critical,keyCertSign,cRLSign")
+                 "-config", CONFIG_PATH, "-extensions", "authority")
     for folder, name, sans in profiles:
         target = directory / folder
         tool.run("req", "-new", "-newkey", "rsa:2048", "-noenc", "-sha256",
                  "-keyout", target / (name + ".key"), "-out", target / (name + ".csr"),
                  "-subj", "/CN=" + name)
-        extension = target / (name + ".ext")
-        extension.write_text("basicConstraints=critical,CA:FALSE\nsubjectAltName=" + ",".join(sans)
-                             + "\nkeyUsage=digitalSignature,keyEncipherment\n"
-                             "extendedKeyUsage=serverAuth,clientAuth\n", encoding="ascii")
         tool.run("x509", "-req", "-in", target / (name + ".csr"), "-CA", target / "ca.crt",
                  "-CAkey", target / "ca.key", "-CAcreateserial", "-sha256", "-days", "90",
-                 "-out", target / (name + ".crt"), "-extfile", extension)
+                 "-out", target / (name + ".crt"), "-extfile", CONFIG_PATH, "-extensions", folder + "/" + name)
 
 
 def validate_pair(tool, directory, name, authority=False, server_only=False, client_only=False):
@@ -234,11 +217,7 @@ def extend_openbao_github(tool, directory, *, oauth_connect=False):
     bundle_name = "openbao-oauthconnect" if oauth_connect else "openbao-github"
     target = parent / bundle_name
     lock = parent / ("." + bundle_name + ".lock")
-    profiles = {
-        name: ["DNS:" + name, "DNS:" + name + ".aiforall-local-full.svc",
-               "DNS:" + name + ".aiforall-local-full.svc.cluster.local"]
-        for name in ("openbao", "oauth-connect" if oauth_connect else "github-connect")
-    }
+    profiles = {name: profile_sans(name) for name in PKI.get("bundles", bundle_name).split(",")}
 
     def verify_bundle(bundle):
         private_directory(directory)
@@ -263,14 +242,10 @@ def extend_openbao_github(tool, directory, *, oauth_connect=False):
             tool.run("req", "-new", "-newkey", "rsa:2048", "-noenc", "-sha256",
                      "-keyout", stage / (name + ".key"), "-out", stage / (name + ".csr"),
                      "-subj", "/CN=" + name)
-            extension = stage / (name + ".ext")
-            extension.write_text("basicConstraints=critical,CA:FALSE\nsubjectAltName=" + ",".join(sans)
-                                 + "\nkeyUsage=digitalSignature,keyEncipherment\n"
-                                 "extendedKeyUsage=serverAuth\n", encoding="ascii")
             tool.run("x509", "-req", "-in", stage / (name + ".csr"),
                      "-CA", directory / "mesh/ca.crt", "-CAkey", directory / "mesh/ca.key",
                      "-set_serial", "0x" + secrets.token_hex(20), "-sha256", "-days", "90",
-                     "-out", stage / (name + ".crt"), "-extfile", extension)
+                     "-out", stage / (name + ".crt"), "-extfile", CONFIG_PATH, "-extensions", name)
         verify_bundle(stage)
         if target.exists():
             raise ValueError("extension publication conflict; staging retained")
@@ -280,11 +255,8 @@ def extend_openbao_github(tool, directory, *, oauth_connect=False):
 
 
 def registry_profiles():
-    return {
-        "aiforall-apps-registry": (["DNS:aiforall-apps-registry", "IP:127.0.0.1"], "serverAuth"),
-        "registry-publisher": ([], "clientAuth"),
-        "registry-reader": ([], "clientAuth"),
-    }
+    return {name: (profile_sans(name), PKI.get(name, "extendedKeyUsage"))
+            for name in PKI.get("registry", "leaves").split(",")}
 
 
 def validate_registry(tool, directory, bundle=None):
@@ -329,13 +301,10 @@ def extend_registry(tool, directory):
         for name, (sans, purpose) in registry_profiles().items():
             tool.run("req", "-new", "-newkey", "rsa:2048", "-noenc", "-sha256",
                      "-keyout", stage / (name + ".key"), "-out", stage / (name + ".csr"), "-subj", "/CN=" + name)
-            extension = stage / (name + ".ext")
-            extension.write_text("basicConstraints=critical,CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\n"
-                                 + "extendedKeyUsage=" + purpose + "\n"
-                                 + ("subjectAltName=" + ",".join(sans) + "\n" if sans else ""), encoding="ascii")
             tool.run("x509", "-req", "-in", stage / (name + ".csr"), "-CA", directory / "mesh/ca.crt",
-                     "-CAkey", directory / "mesh/ca.key", "-set_serial", "0x" + secrets.token_hex(20),
-                     "-sha256", "-days", "90", "-out", stage / (name + ".crt"), "-extfile", extension)
+                      "-CAkey", directory / "mesh/ca.key", "-set_serial", "0x" + secrets.token_hex(20),
+                     "-sha256", "-days", "90", "-out", stage / (name + ".crt"),
+                     "-extfile", CONFIG_PATH, "-extensions", name)
         validate_registry(tool, directory, stage)
         if target.exists():
             raise ValueError("registry certificate publication conflict; staging retained")

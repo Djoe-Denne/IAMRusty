@@ -1,0 +1,152 @@
+# Public local-development PKI inventory and native OpenSSL extension sections.
+# No private keys, generated certificates, credentials or operator paths.
+[req]
+prompt = no
+distinguished_name = default_dn
+
+[default_dn]
+CN = overridden-by-explicit-subject
+
+[authorities]
+mesh = aiforall-local-full-transport
+workload = aiforall-local-full-workload
+
+[leaves]
+mesh/iam-service = base
+mesh/hive-service = base
+mesh/telegraph-service = base
+mesh/manifesto-service = base
+mesh/envoy-mesh = base
+mesh/ext-authz = base
+mesh/mesh-client = base
+mesh/gitlab-connect = oauth-proof
+workload/server = base
+
+[bundles]
+openbao-github = openbao,github-connect
+openbao-oauthconnect = openbao,oauth-connect
+
+[registry]
+leaves = aiforall-apps-registry,registry-publisher,registry-reader
+
+[authority]
+basicConstraints = critical,CA:TRUE
+keyUsage = critical,keyCertSign,cRLSign
+
+[mesh/iam-service]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:iam-service,DNS:iam,DNS:iam.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth,clientAuth
+
+[mesh/hive-service]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:hive-service,DNS:hive,DNS:hive.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth,clientAuth
+
+[mesh/telegraph-service]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:telegraph-service,DNS:telegraph,DNS:telegraph.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth,clientAuth
+
+[mesh/manifesto-service]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:manifesto-service,DNS:manifesto,DNS:manifesto.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth,clientAuth
+
+[mesh/envoy-mesh]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:envoy-mesh,DNS:envoy-mesh.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth,clientAuth
+
+[mesh/ext-authz]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:ext-authz,DNS:ext-authz.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth,clientAuth
+
+[mesh/mesh-client]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:mesh-client,DNS:mesh-client.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth,clientAuth
+
+[mesh/gitlab-connect]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:gitlab-connect,DNS:gitlab-connect.aiforall-local-full.svc.cluster.local
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth,clientAuth
+
+[mesh/postgres]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:postgres,DNS:postgres.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+
+[mesh/redis]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:redis,DNS:redis.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+
+[mesh/openfga]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:openfga,DNS:openfga.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+
+[mesh/localstack]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:localstack,DNS:localstack.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+
+[mesh/zot]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:zot,DNS:zot.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+
+[workload/server]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:lazaret-service,DNS:lazaret,DNS:lazaret.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth,clientAuth
+
+[openbao]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:openbao,DNS:openbao.aiforall-local-full.svc,DNS:openbao.aiforall-local-full.svc.cluster.local
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+
+[github-connect]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:github-connect,DNS:github-connect.aiforall-local-full.svc,DNS:github-connect.aiforall-local-full.svc.cluster.local
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+
+[oauth-connect]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:oauth-connect,DNS:oauth-connect.aiforall-local-full.svc,DNS:oauth-connect.aiforall-local-full.svc.cluster.local
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+
+[aiforall-apps-registry]
+basicConstraints = critical,CA:FALSE
+subjectAltName = DNS:aiforall-apps-registry,IP:127.0.0.1
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+
+[registry-publisher]
+basicConstraints = critical,CA:FALSE
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = clientAuth
+
+[registry-reader]
+basicConstraints = critical,CA:FALSE
+keyUsage = digitalSignature,keyEncipherment
+extendedKeyUsage = clientAuth

@@ -1,5 +1,7 @@
 # Contrat ratifié — frontière AuthZ des trust domains
 
+> Raccord Ops du 2026-11-09 : la source IAM publique courante est `ops/deploy/charts/local-full/files/config/iam.toml` ; les citations de l'ancien overlay restent des constats historiques à `5199613`. Voir le [guide des déclarations](../guides/ops-declarative-boundaries.md). Aucun changement de frontière AuthZ ou de ratification.
+
 - Version : 1, 2026-10-28 ; **Accepted / Unimplemented**.
 - Canon décisionnel : [ADR-0314](../adr/0314-principal-authority-through-openfga.md), complète [0305](../adr/0305-account-identity-trust-domain.md).
 - Base examinée : application c72ae362b950c63d6736a6818c68babc5a8d6f40 ; SDK d60a88b2f2f499768a807941a1b4c80c9a366b3f.

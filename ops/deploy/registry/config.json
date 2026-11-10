@@ -1,0 +1,22 @@
+{
+  "distSpecVersion": "1.1.1",
+  "storage": {"rootDirectory": "/data"},
+  "http": {
+    "address": "0.0.0.0",
+    "port": "5000",
+    "tls": {"cert": "/runtime/server.crt", "key": "/runtime/server.key", "cacert": "/runtime/ca.crt"},
+    "accessControl": {
+      "repositories": {
+        "apps/**": {
+          "anonymousPolicy": [],
+          "defaultPolicy": [],
+          "policies": [
+            {"users": ["registry-publisher"], "actions": ["read", "create", "update"]},
+            {"users": ["registry-reader"], "actions": ["read"]}
+          ]
+        }
+      }
+    }
+  },
+  "log": {"level": "error"}
+}

@@ -24,7 +24,7 @@ PRIVATE_DIRS = {".git", ".tmp", ".worktrees", ".cursor", ".codex", ".opencode", 
 PRIVATE_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".keystore", ".jks"}
 PUBLIC_SUFFIXES = {".rs", ".toml", ".lock", ".sh", ".sql", ".proto", ".json", ".yaml", ".yml", ".py",
                    ".html", ".txt", ".css", ".js", ".ts", ".tsx", ".cjs", ".c", ".h", ".cc", ".cpp", ".hpp",
-                   ".cmake", ".wit", ".wasm", ".svg", ".png", ".hbs", ".tera", ".mustache", ".dockerignore"}
+                    ".cmake", ".wit", ".wasm", ".svg", ".png", ".hbs", ".tera", ".mustache", ".dockerignore", ".hcl"}
 PUBLIC_NAMES = {"Cargo.toml", "Cargo.lock", "CMakeLists.txt", "Makefile", "README.md"}
 # Public synthetic fixtures shipped in the service config COPY, not general JWT
 # or credential-file permission. Private/generated tokens remain inadmissible.

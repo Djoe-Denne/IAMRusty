@@ -1,0 +1,3956 @@
+# Public local-full resources and operational metadata.
+profile: base
+phase: final
+runId: staticvalidation
+certIdentity: ''
+githubClientId: offline-synthetic-client
+simulatedClientId: offline-simulated-client
+publicCa: ''
+images: {}
+secretRefs: {}
+network:
+  apiCidr: ''
+  ingressCidr: ''
+isolatedPlugins: false
+pluginCaSha256: ''
+storage:
+  mode: none
+  namespace: aiforall-local-restore-offline
+  name: offline-storage
+  claim: offline-claim
+  readOnly: true
+  database: offline_restore
+resources:
+  namespace-cluster-aiforall-local-apparatus:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          aiforall.dev/storage: persistent
+          pod-security.kubernetes.io/audit: restricted
+          pod-security.kubernetes.io/enforce: baseline
+          pod-security.kubernetes.io/warn: restricted
+        name: aiforall-local-apparatus
+  namespace-cluster-aiforall-local-full:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          aiforall.dev/storage: persistent
+          pod-security.kubernetes.io/audit: restricted
+          pod-security.kubernetes.io/enforce: baseline
+          pod-security.kubernetes.io/warn: restricted
+        name: aiforall-local-full
+  namespace-cluster-aiforall-local-plugins:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          pod-security.kubernetes.io/audit: restricted
+          pod-security.kubernetes.io/enforce: baseline
+          pod-security.kubernetes.io/warn: restricted
+        name: aiforall-local-plugins
+  resourcequota-aiforall-local-apparatus-apparatus-budget:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: apparatus-budget
+        namespace: aiforall-local-apparatus
+      spec:
+        hard:
+          limits.cpu: '4'
+          limits.memory: 1Gi
+          persistentvolumeclaims: '1'
+          pods: '8'
+          requests.cpu: '1'
+          requests.memory: 512Mi
+          requests.storage: 1Gi
+  resourcequota-aiforall-local-full-local-full-budget:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: local-full-budget
+        namespace: aiforall-local-full
+      spec:
+        hard:
+          limits.cpu: '20'
+          limits.memory: 10Gi
+          persistentvolumeclaims: '4'
+          pods: '45'
+          requests.cpu: '4'
+          requests.memory: 4Gi
+          requests.storage: 6Gi
+  resourcequota-aiforall-local-plugins-plugins-budget:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: plugins-budget
+        namespace: aiforall-local-plugins
+      spec:
+        hard:
+          limits.cpu: '4'
+          limits.memory: 1Gi
+          pods: '8'
+          requests.cpu: '1'
+          requests.memory: 512Mi
+  customresourcedefinition-cluster-admissionrecords.apparatus.aiforall.dev:
+    category: foundation
+    object:
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: admissionrecords.apparatus.aiforall.dev
+      spec:
+        group: apparatus.aiforall.dev
+        names:
+          kind: AdmissionRecord
+          listKind: AdmissionRecordList
+          plural: admissionrecords
+          singular: admissionrecord
+        scope: Namespaced
+        versions:
+        - additionalPrinterColumns:
+          - jsonPath: .status.phase
+            name: Phase
+            type: string
+          name: v1alpha1
+          schema:
+            openAPIV3Schema:
+              properties:
+                spec:
+                  properties:
+                    criImage:
+                      description: "Image CRI pin\xE9e name@sha256 (\u2260 digest OCI enveloppe)."
+                      type: string
+                    descriptorDigest:
+                      description: "Identit\xE9 catalogue ReleaseDigest ADR-0002 (descripteur)."
+                      type: string
+                    policyVersion:
+                      type: string
+                    reportDigest:
+                      type: string
+                  required:
+                  - descriptorDigest
+                  - policyVersion
+                  - reportDigest
+                  type: object
+                status:
+                  properties:
+                    phase:
+                      description: "VALID uniquement si \xE9crit par admit."
+                      type: string
+                  type: object
+              type: object
+          served: true
+          storage: true
+          subresources:
+            status: {}
+  serviceaccount-aiforall-local-apparatus-admit-sign:
+    category: foundation
+    object:
+      apiVersion: v1
+      automountServiceAccountToken: false
+      kind: ServiceAccount
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: apparatus-operator
+          app.kubernetes.io/part-of: aiforall
+        name: admit-sign
+        namespace: aiforall-local-apparatus
+  serviceaccount-aiforall-local-apparatus-build:
+    category: foundation
+    object:
+      apiVersion: v1
+      automountServiceAccountToken: false
+      kind: ServiceAccount
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: apparatus-operator
+          app.kubernetes.io/part-of: aiforall
+        name: build
+        namespace: aiforall-local-apparatus
+  serviceaccount-aiforall-local-apparatus-controller:
+    category: foundation
+    object:
+      apiVersion: v1
+      automountServiceAccountToken: true
+      kind: ServiceAccount
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: apparatus-operator
+          app.kubernetes.io/part-of: aiforall
+        name: controller
+        namespace: aiforall-local-apparatus
+  serviceaccount-aiforall-local-full-local-full-bootstrap:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: local-full-bootstrap
+        namespace: aiforall-local-full
+  serviceaccount-aiforall-local-full-openbao:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: openbao
+        namespace: aiforall-local-full
+  role-aiforall-local-apparatus-apparatus-admit-sign:
+    category: foundation
+    object:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: apparatus-operator
+          app.kubernetes.io/part-of: aiforall
+        name: apparatus-admit-sign
+        namespace: aiforall-local-apparatus
+      rules:
+      - apiGroups:
+        - apparatus.aiforall.dev
+        resources:
+        - admissionrecords
+        verbs:
+        - create
+        - get
+        - delete
+        - update
+        - patch
+      - apiGroups:
+        - apparatus.aiforall.dev
+        resources:
+        - admissionrecords/status
+        verbs:
+        - create
+        - get
+        - update
+        - patch
+  role-aiforall-local-apparatus-apparatus-controller-watch:
+    category: foundation
+    object:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: apparatus-operator
+          app.kubernetes.io/part-of: aiforall
+        name: apparatus-controller-watch
+        namespace: aiforall-local-apparatus
+      rules:
+      - apiGroups:
+        - apparatus.aiforall.dev
+        resources:
+        - admissionrecords
+        verbs:
+        - get
+        - list
+        - watch
+  role-aiforall-local-full-local-full-bootstrap:
+    category: foundation
+    object:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: local-full-bootstrap
+        namespace: aiforall-local-full
+      rules:
+      - apiGroups:
+        - ''
+        resourceNames:
+        - local-full-fga
+        resources:
+        - configmaps
+        verbs:
+        - get
+        - patch
+  role-aiforall-local-plugins-local-full-controller-plugins:
+    category: foundation
+    object:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: local-full-controller-plugins
+        namespace: aiforall-local-plugins
+      rules:
+      - apiGroups:
+        - ''
+        resources:
+        - pods
+        verbs:
+        - create
+        - get
+        - list
+        - watch
+        - delete
+      - apiGroups:
+        - ''
+        resources:
+        - services
+        verbs:
+        - create
+        - get
+        - patch
+  clusterrole-cluster-aiforall-local-full-token-review:
+    category: foundation
+    object:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: aiforall-local-full-token-review
+      rules:
+      - apiGroups:
+        - authentication.k8s.io
+        resources:
+        - tokenreviews
+        verbs:
+        - create
+  rolebinding-aiforall-local-apparatus-apparatus-admit-sign:
+    category: foundation
+    object:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: apparatus-operator
+          app.kubernetes.io/part-of: aiforall
+        name: apparatus-admit-sign
+        namespace: aiforall-local-apparatus
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: apparatus-admit-sign
+      subjects:
+      - kind: ServiceAccount
+        name: admit-sign
+        namespace: aiforall-local-apparatus
+  rolebinding-aiforall-local-apparatus-apparatus-controller-watch:
+    category: foundation
+    object:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: apparatus-operator
+          app.kubernetes.io/part-of: aiforall
+        name: apparatus-controller-watch
+        namespace: aiforall-local-apparatus
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: apparatus-controller-watch
+      subjects:
+      - kind: ServiceAccount
+        name: controller
+        namespace: aiforall-local-apparatus
+  rolebinding-aiforall-local-full-local-full-bootstrap:
+    category: foundation
+    object:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: local-full-bootstrap
+        namespace: aiforall-local-full
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: local-full-bootstrap
+      subjects:
+      - kind: ServiceAccount
+        name: local-full-bootstrap
+        namespace: aiforall-local-full
+  rolebinding-aiforall-local-plugins-local-full-controller-plugins:
+    category: foundation
+    object:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: local-full-controller-plugins
+        namespace: aiforall-local-plugins
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: local-full-controller-plugins
+      subjects:
+      - kind: ServiceAccount
+        name: controller
+        namespace: aiforall-local-apparatus
+  clusterrolebinding-cluster-aiforall-local-full-token-review:
+    category: foundation
+    object:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: aiforall-local-full-token-review
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: aiforall-local-full-token-review
+      subjects:
+      - kind: ServiceAccount
+        name: openbao
+        namespace: aiforall-local-full
+  configmap-aiforall-local-full-catalog-config-b69gk9dbk7:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: catalog-config-b69gk9dbk7
+        namespace: aiforall-local-full
+    files:
+      catalog.json: files/public/d846d6aee3fc/catalog.json
+      server.js: files/public/663ac2b03a84/server.js
+  configmap-aiforall-local-full-envoy-mesh-config:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/component: mesh-authn
+          app.kubernetes.io/name: envoy-mesh
+          app.kubernetes.io/part-of: aiforall
+        name: envoy-mesh-config
+        namespace: aiforall-local-full
+    files:
+      envoy.yaml: files/config/envoy.yaml
+  configmap-aiforall-local-full-hive-dev-config-md8t6mt7t8:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: hive-dev-config-md8t6mt7t8
+        namespace: aiforall-local-full
+    files:
+      development.toml: files/public/0b3abed338a5/development.toml
+  configmap-aiforall-local-full-iam-dev-config-7ctdd25hb2:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: iam-dev-config-7ctdd25hb2
+        namespace: aiforall-local-full
+    files:
+      development.toml: files/config/iam.toml
+      test-platform.pub: files/public/e0f5284db6c1/test-platform.pub
+  configmap-aiforall-local-full-lazaret-dev-config-cf9hgm64fh:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: lazaret-dev-config-cf9hgm64fh
+        namespace: aiforall-local-full
+    files:
+      development.toml: files/public/afb2afcd1d4f/development.toml
+  configmap-aiforall-local-full-local-full-bootstrap-scripts-9m6d5kt255:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: local-full-bootstrap-scripts-9m6d5kt255
+        namespace: aiforall-local-full
+    files:
+      fga-bootstrap.py: files/public/c30ceb629bb4/fga-bootstrap.py
+      openbao-workload.py: files/public/39efd7f09be4/openbao-workload.py
+      openbao.hcl: files/public/e3318c34dc9a/openbao.hcl
+      run-openbao.sh: files/public/337352d157c7/run-openbao.sh
+      seed-openbao.sh: files/public/e290babfa7cd/seed-openbao.sh
+      check-github-token.sh: files/public/819c50aa5f69/check-github-token.sh
+  configmap-aiforall-local-full-local-full-fga:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: local-full-fga
+        namespace: aiforall-local-full
+    files: {}
+  configmap-aiforall-local-full-local-full-fga-model-hdt2gc4hgg:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: local-full-fga-model-hdt2gc4hgg
+        namespace: aiforall-local-full
+    files:
+      model.json: files/public/33c82ee3cbb8/model.json
+  configmap-aiforall-local-full-localstack-init-b56fgd6t65:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: localstack-init-b56fgd6t65
+        namespace: aiforall-local-full
+    files:
+      init-aws.sh: files/public/562dadac227b/init-aws.sh
+  configmap-aiforall-local-full-manifesto-dev-config-92h57m9mfd:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: manifesto-dev-config-92h57m9mfd
+        namespace: aiforall-local-full
+    files:
+      development.toml: files/public/583210df9203/development.toml
+  configmap-aiforall-local-full-mesh-postgres-init:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: mesh-postgres-init
+        namespace: aiforall-local-full
+    files:
+      init.sql: files/public/410fcba82abf/init.sql
+  configmap-aiforall-local-full-sentinel-config-fkftk68b67:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: sentinel-config-fkftk68b67
+        namespace: aiforall-local-full
+    files:
+      sentinel-sync.toml: files/public/43f454880cd0/sentinel-sync.toml
+  configmap-aiforall-local-full-telegraph-dev-config-d58dft2tmk:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: telegraph-dev-config-d58dft2tmk
+        namespace: aiforall-local-full
+    files:
+      development.toml: files/public/6070222aa694/development.toml
+  configmap-aiforall-local-full-zot-config:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: zot
+          app.kubernetes.io/part-of: aiforall
+        name: zot-config
+        namespace: aiforall-local-full
+    files:
+      config.json: files/public/da90ca7b57a5/config.json
+  secret-aiforall-local-apparatus-zot-registry-accounts:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: zot-registry-accounts
+          app.kubernetes.io/part-of: aiforall
+        name: zot-registry-accounts
+        namespace: aiforall-local-apparatus
+        annotations:
+          aiforall.dev/private-envelope: secret-aiforall-local-apparatus-zot-registry-accounts
+      type: Opaque
+    privateFiles:
+      reader-password: files/private/secret-aiforall-local-apparatus-zot-registry-accounts/reader-password
+      reader-user: files/private/secret-aiforall-local-apparatus-zot-registry-accounts/reader-user
+      signer-password: files/private/secret-aiforall-local-apparatus-zot-registry-accounts/signer-password
+      signer-user: files/private/secret-aiforall-local-apparatus-zot-registry-accounts/signer-user
+  secret-aiforall-local-full-zot-htpasswd:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: zot
+          app.kubernetes.io/part-of: aiforall
+        name: zot-htpasswd
+        namespace: aiforall-local-full
+        annotations:
+          aiforall.dev/private-envelope: secret-aiforall-local-full-zot-htpasswd
+      type: Opaque
+    privateFiles:
+      htpasswd: files/private/secret-aiforall-local-full-zot-htpasswd/htpasswd
+  secret-aiforall-local-plugins-lazaret-workload-ca:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: lazaret-workload-ca
+        namespace: aiforall-local-plugins
+        annotations:
+          aiforall.dev/private-envelope: workload-public-ca
+      type: Opaque
+    privateFiles: {}
+  service-aiforall-local-full-component-catalog:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: component-catalog
+        namespace: aiforall-local-full
+      spec:
+        ports:
+        - port: 9000
+          targetPort: http
+        selector:
+          app.kubernetes.io/name: component-catalog
+  service-aiforall-local-full-envoy-mesh:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/component: mesh-authn
+          app.kubernetes.io/name: envoy-mesh
+          app.kubernetes.io/part-of: aiforall
+        name: envoy-mesh
+        namespace: aiforall-local-full
+      spec:
+        ports:
+        - name: http
+          nodePort: 30080
+          port: 10000
+          targetPort: http
+        selector:
+          app.kubernetes.io/name: envoy-mesh
+        type: NodePort
+  service-aiforall-local-full-ext-authz:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/component: mesh-authn
+          app.kubernetes.io/name: ext-authz
+          app.kubernetes.io/part-of: aiforall
+        name: ext-authz
+        namespace: aiforall-local-full
+      spec:
+        ports:
+        - name: http
+          port: 8090
+          targetPort: http
+        selector:
+          app.kubernetes.io/name: ext-authz
+  service-aiforall-local-full-hive:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: hive
+          app.kubernetes.io/part-of: aiforall
+        name: hive
+        namespace: aiforall-local-full
+      spec:
+        ports:
+        - name: http
+          port: 8080
+          targetPort: http
+        - name: https
+          port: 8443
+          targetPort: https
+        selector:
+          app.kubernetes.io/name: hive
+  service-aiforall-local-full-iam:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: iam
+          app.kubernetes.io/part-of: aiforall
+        name: iam
+        namespace: aiforall-local-full
+      spec:
+        ports:
+        - name: http
+          port: 8080
+          targetPort: http
+        - name: https
+          port: 8443
+          targetPort: https
+        selector:
+          app.kubernetes.io/name: iam
+  service-aiforall-local-full-lazaret:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: lazaret
+        namespace: aiforall-local-full
+      spec:
+        ports:
+        - name: https
+          port: 8080
+          targetPort: https
+        selector:
+          app.kubernetes.io/name: lazaret
+  service-aiforall-local-full-localstack:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: localstack
+        namespace: aiforall-local-full
+      spec:
+        ports:
+        - port: 4566
+          targetPort: sqs
+        selector:
+          app.kubernetes.io/name: localstack
+  service-aiforall-local-full-mailhog:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: mailhog
+        namespace: aiforall-local-full
+      spec:
+        ports:
+        - name: smtp
+          port: 1025
+          targetPort: smtp
+        - name: ui
+          port: 8025
+          targetPort: ui
+        selector:
+          app.kubernetes.io/name: mailhog
+  service-aiforall-local-full-manifesto:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: manifesto
+          app.kubernetes.io/part-of: aiforall
+        name: manifesto
+        namespace: aiforall-local-full
+      spec:
+        ports:
+        - name: http
+          port: 8080
+          targetPort: http
+        - name: https
+          port: 8443
+          targetPort: https
+        selector:
+          app.kubernetes.io/name: manifesto
+  service-aiforall-local-full-openbao:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: openbao
+        namespace: aiforall-local-full
+      spec:
+        ports:
+        - port: 8443
+          targetPort: bao
+        selector:
+          app.kubernetes.io/name: openbao
+  service-aiforall-local-full-openfga:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: openfga
+          app.kubernetes.io/part-of: aiforall
+        name: openfga
+        namespace: aiforall-local-full
+      spec:
+        ports:
+        - name: http
+          port: 8080
+          targetPort: http
+        - name: grpc
+          port: 8081
+          targetPort: grpc
+        selector:
+          app.kubernetes.io/name: openfga
+  service-aiforall-local-full-postgres:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: postgres
+          app.kubernetes.io/part-of: aiforall
+        name: postgres
+        namespace: aiforall-local-full
+      spec:
+        ports:
+        - name: postgres
+          port: 5432
+          targetPort: postgres
+        selector:
+          app.kubernetes.io/name: postgres
+  service-aiforall-local-full-redis:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: redis
+        namespace: aiforall-local-full
+      spec:
+        ports:
+        - port: 6379
+          targetPort: redis
+        selector:
+          app.kubernetes.io/name: redis
+  service-aiforall-local-full-telegraph:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: telegraph
+          app.kubernetes.io/part-of: aiforall
+        name: telegraph
+        namespace: aiforall-local-full
+      spec:
+        ports:
+        - name: http
+          port: 8080
+          targetPort: http
+        - name: https
+          port: 8443
+          targetPort: https
+        selector:
+          app.kubernetes.io/name: telegraph
+  service-aiforall-local-full-zot:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: zot
+          app.kubernetes.io/part-of: aiforall
+        name: zot
+        namespace: aiforall-local-full
+      spec:
+        ports:
+        - name: http
+          port: 5000
+          targetPort: http
+        selector:
+          app.kubernetes.io/name: zot
+  limitrange-aiforall-local-full-local-full-container-budget:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: local-full-container-budget
+        namespace: aiforall-local-full
+      spec:
+        limits:
+        - default:
+            cpu: 500m
+            memory: 256Mi
+          defaultRequest:
+            cpu: 50m
+            memory: 64Mi
+          max:
+            cpu: '2'
+            memory: 1Gi
+          type: Container
+  limitrange-aiforall-local-plugins-plugins-budget:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: plugins-budget
+        namespace: aiforall-local-plugins
+      spec:
+        limits:
+        - default:
+            cpu: '1'
+            memory: 256Mi
+          defaultRequest:
+            cpu: 100m
+            memory: 64Mi
+          max:
+            cpu: '1'
+            memory: 256Mi
+          type: Container
+  persistentvolumeclaim-aiforall-local-apparatus-admission-store:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: admission-store
+        namespace: aiforall-local-apparatus
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+        storageClassName: standard
+  persistentvolumeclaim-aiforall-local-full-postgres-data:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: postgres-data
+        namespace: aiforall-local-full
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+        storageClassName: standard
+  persistentvolumeclaim-aiforall-local-full-redis-data:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: redis-data
+        namespace: aiforall-local-full
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+        storageClassName: standard
+  persistentvolumeclaim-aiforall-local-full-zot-data:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: zot-data
+        namespace: aiforall-local-full
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+        storageClassName: standard
+  deployment-aiforall-local-apparatus-apparatus-operator:
+    category: applications
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/component: operator
+          app.kubernetes.io/name: apparatus-operator
+          app.kubernetes.io/part-of: aiforall
+        name: apparatus-operator
+        namespace: aiforall-local-apparatus
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: apparatus-operator
+        strategy:
+          type: Recreate
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: operator
+              app.kubernetes.io/name: apparatus-operator
+              app.kubernetes.io/part-of: aiforall
+            annotations: {}
+          spec:
+            automountServiceAccountToken: true
+            containers:
+            - env:
+              - name: APPARATUS_SYSTEM_NAMESPACE
+                value: aiforall-local-apparatus
+              - name: APPARATUS_PLUGINS_NAMESPACE
+                value: aiforall-local-plugins
+              - name: APPARATUS_PLUGIN_ENROLL_URL
+                value: https://lazaret.aiforall-local-full.svc.cluster.local:8080/lazaret/enroll
+              - name: APPARATUS_REGISTRY_HOST
+                value: zot.aiforall-local-full.svc.cluster.local:5000
+              - name: APPARATUS_REGISTRY_NETWORK
+                value: zot.aiforall-local-full.svc.cluster.local:5000
+              - name: APPARATUS_VAULT_ADDR
+                value: https://openbao.aiforall-local-full.svc.cluster.local:8443
+              - name: APPARATUS_VAULT_ADDR_NETWORK
+                value: https://openbao.aiforall-local-full.svc.cluster.local:8443
+              - name: APPARATUS_ADMISSION_STORE_PATH
+                value: /var/lib/apparatus/admission.json
+              - name: APPARATUS_COSIGN_BIN
+                value: /usr/local/bin/cosign
+              - name: APPARATUS_DOCKER_NETWORK
+                value: unused-host-bins
+              - name: APPARATUS_VAULT_AUTH
+                value: kubernetes
+              - name: APPARATUS_VAULT_K8S_ROLE
+                value: controller
+              - name: APPARATUS_TRANSIT_KEY
+                value: apparatus-p4-cosign
+              - name: APPARATUS_REGISTRY_USER
+                valueFrom:
+                  secretKeyRef:
+                    key: reader-user
+                    name: zot-registry-accounts
+              - name: APPARATUS_REGISTRY_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    key: reader-password
+                    name: zot-registry-accounts
+              - name: APPARATUS_REPOSITORY
+                value: apparatus/envelope
+              - name: APPARATUS_ENVELOPE_TAG
+                value: gold
+              - name: APPARATUS_VAULT_CA_CERT
+                value: /run/openbao-ca/ca.crt
+              image: aiforall-apparatus-controller:j2
+              imagePullPolicy: Never
+              name: operator
+              resources:
+                limits:
+                  cpu: '1'
+                  memory: 256Mi
+                requests:
+                  cpu: 100m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+                runAsGroup: 65534
+                runAsNonRoot: true
+                runAsUser: 65534
+                seccompProfile:
+                  type: RuntimeDefault
+              volumeMounts:
+              - mountPath: /var/lib/apparatus
+                name: admission-store
+              - name: openbao-ca
+                mountPath: /run/openbao-ca
+                readOnly: true
+            securityContext:
+              fsGroup: 65534
+              runAsGroup: 65534
+              runAsNonRoot: true
+              runAsUser: 65534
+              seccompProfile:
+                type: RuntimeDefault
+            serviceAccountName: controller
+            volumes:
+            - name: admission-store
+              persistentVolumeClaim:
+                claimName: admission-store
+            - name: openbao-ca
+              configMap:
+                name: openbao-public-ca
+    refreshTarget: controller
+    persistence:
+      volume: admission-store
+      claim: admission-store
+      auxiliary:
+      - openbao-ca
+  deployment-aiforall-local-full-component-catalog:
+    category: dependencies
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: component-catalog
+        namespace: aiforall-local-full
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: component-catalog
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: simulator
+              app.kubernetes.io/name: component-catalog
+            annotations: {}
+          spec:
+            automountServiceAccountToken: false
+            containers:
+            - command:
+              - node
+              - /catalog/server.js
+              env:
+              - name: CATALOG_JSON
+                value: /catalog/catalog.json
+              - name: CATALOG_PORT
+                value: '9000'
+              - name: CATALOG_TOKEN
+                value: aiforall-gold-catalog
+              image: node:20.19.0-alpine@sha256:8bda036ddd59ea51a23bc1a1035d3b5c614e72c01366d989f4120e8adca196d4
+              name: catalog
+              ports:
+              - containerPort: 9000
+                name: http
+              readinessProbe:
+                periodSeconds: 5
+                tcpSocket:
+                  port: http
+              resources:
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+                readOnlyRootFilesystem: true
+              startupProbe:
+                failureThreshold: 36
+                periodSeconds: 5
+                tcpSocket:
+                  port: http
+              volumeMounts:
+              - mountPath: /catalog
+                name: catalog
+                readOnly: true
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1000
+              seccompProfile:
+                type: RuntimeDefault
+            volumes:
+            - configMap:
+                name: catalog-config-b69gk9dbk7
+              name: catalog
+  deployment-aiforall-local-full-envoy-mesh:
+    category: applications
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/component: mesh-authn
+          app.kubernetes.io/name: envoy-mesh
+          app.kubernetes.io/part-of: aiforall
+        name: envoy-mesh
+        namespace: aiforall-local-full
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: envoy-mesh
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: mesh-authn
+              app.kubernetes.io/name: envoy-mesh
+              app.kubernetes.io/part-of: aiforall
+            annotations: {}
+          spec:
+            automountServiceAccountToken: false
+            containers:
+            - args:
+              - -c
+              - /etc/envoy/envoy.yaml
+              - --log-level
+              - info
+              image: envoyproxy/envoy:v1.31.2@sha256:c56804e9fc8d5184c45862ad851173a925ff383151cb94156f86bed047da29bc
+              name: envoy
+              ports:
+              - containerPort: 10000
+                name: http
+              readinessProbe:
+                periodSeconds: 5
+                tcpSocket:
+                  port: http
+                timeoutSeconds: 2
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+                runAsGroup: 101
+                runAsNonRoot: true
+                runAsUser: 101
+                seccompProfile:
+                  type: RuntimeDefault
+              startupProbe:
+                failureThreshold: 36
+                periodSeconds: 5
+                tcpSocket:
+                  port: http
+              volumeMounts:
+              - mountPath: /etc/envoy
+                name: config
+                readOnly: true
+              - mountPath: /etc/envoy/certs
+                name: certs
+                readOnly: true
+            volumes:
+            - configMap:
+                name: envoy-mesh-config
+              name: config
+            - name: certs
+              secret:
+                secretName: platform-mesh-certs
+  deployment-aiforall-local-full-ext-authz:
+    category: applications
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/component: mesh-authn
+          app.kubernetes.io/name: ext-authz
+          app.kubernetes.io/part-of: aiforall
+        name: ext-authz
+        namespace: aiforall-local-full
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: ext-authz
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: mesh-authn
+              app.kubernetes.io/name: ext-authz
+              app.kubernetes.io/part-of: aiforall
+            annotations: {}
+          spec:
+            automountServiceAccountToken: false
+            containers:
+            - env:
+              - name: EXT_AUTHZ_JWKS_URL
+                value: https://iam:8443/iam/.well-known/jwks.json
+              - name: PORT
+                value: '8090'
+              - name: EXT_AUTHZ_AUDIENCE
+                value: aiforall
+              - name: EXT_AUTHZ_JWKS_POLL_SECS
+                value: '2'
+              - name: EXT_AUTHZ_TLS_CERT
+                value: /app/certs/ext-authz.crt
+              - name: EXT_AUTHZ_TLS_KEY
+                value: /app/certs/ext-authz.key
+              - name: EXT_AUTHZ_TLS_CA
+                value: /app/certs/ca.crt
+              image: aiforall-ext-authz:local
+              imagePullPolicy: Never
+              name: ext-authz
+              ports:
+              - containerPort: 8090
+                name: http
+              readinessProbe:
+                periodSeconds: 5
+                tcpSocket:
+                  port: http
+                timeoutSeconds: 2
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+                runAsGroup: 65534
+                runAsNonRoot: true
+                runAsUser: 65534
+                seccompProfile:
+                  type: RuntimeDefault
+              startupProbe:
+                failureThreshold: 36
+                periodSeconds: 5
+                tcpSocket:
+                  port: http
+              volumeMounts:
+              - mountPath: /app/certs
+                name: certs
+                readOnly: true
+            volumes:
+            - name: certs
+              secret:
+                secretName: platform-mesh-certs
+    refreshTarget: ext-authz
+  deployment-aiforall-local-full-hive:
+    category: applications
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/component: platform
+          app.kubernetes.io/name: hive
+          app.kubernetes.io/part-of: aiforall
+        name: hive
+        namespace: aiforall-local-full
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: hive
+        strategy:
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 0
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: platform
+              app.kubernetes.io/name: hive
+              app.kubernetes.io/part-of: aiforall
+            annotations: {}
+          spec:
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                  - matchExpressions:
+                    - key: node-role.kubernetes.io/control-plane
+                      operator: DoesNotExist
+            automountServiceAccountToken: false
+            containers:
+            - env:
+              - name: HIVE_IAM_SERVICE__BASE_URL
+                value: http://iam:8080
+              - name: HIVE_PLATFORM_IAM_SERVICE__BASE_URL
+                value: http://iam:8080
+              - name: HIVE_AUTH__JWT__JWKS_URL
+                value: http://iam:8080/iam/.well-known/jwks.json
+              - name: HIVE_QUEUE__ENABLED
+                value: 'true'
+              - name: HIVE_QUEUE__HOST
+                value: localstack
+              - name: HIVE_OPENFGA__STORE_ID
+                valueFrom:
+                  configMapKeyRef:
+                    key: store-id
+                    name: local-full-fga
+              - name: HIVE_OPENFGA__AUTHORIZATION_MODEL_ID
+                valueFrom:
+                  configMapKeyRef:
+                    key: model-id
+                    name: local-full-fga
+              - name: RUST_LOG
+                value: info
+              - name: RUST_ENVIRONMENT
+                value: development
+              - name: DATABASE_URL
+                value: postgres://postgres:postgres@postgres:5432/hive_dev
+              - name: HIVE_IAM_SERVICE__API_KEY
+                value: iam-internal-dev-token
+              - name: HIVE_SERVER__TLS_REQUIRE_CLIENT_CERT
+                value: 'true'
+              - name: HIVE_AUTH__MESH__TRUSTED_GATEWAY_SAN
+                value: envoy-mesh
+              image: aiforall-hive-service:latest
+              imagePullPolicy: Never
+              name: hive
+              ports:
+              - containerPort: 8080
+                name: http
+              - containerPort: 8443
+                name: https
+              readinessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /hive/ready
+                  port: http
+                periodSeconds: 5
+                timeoutSeconds: 2
+              resources:
+                limits:
+                  cpu: '1'
+                  memory: 512Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+                runAsGroup: 1000
+                runAsNonRoot: true
+                runAsUser: 1000
+                seccompProfile:
+                  type: RuntimeDefault
+              startupProbe:
+                failureThreshold: 36
+                httpGet:
+                  path: /hive/health
+                  port: http
+                periodSeconds: 5
+              volumeMounts:
+              - mountPath: /app/config/development.toml
+                name: config
+                subPath: development.toml
+              - mountPath: /app/certs
+                name: certs
+                readOnly: true
+            topologySpreadConstraints:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/component: platform
+              matchLabelKeys:
+              - app.kubernetes.io/name
+              maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: DoNotSchedule
+            volumes:
+            - configMap:
+                name: hive-dev-config-md8t6mt7t8
+              name: config
+            - name: certs
+              secret:
+                items:
+                - key: ca.crt
+                  path: ca.crt
+                - key: hive-service.crt
+                  path: hive-service.crt
+                - key: hive-service.key
+                  path: hive-service.key
+                secretName: platform-mesh-certs
+    principalPrefix: HIVE_AUTH__JWT
+    migrationScope: hive_dev
+  deployment-aiforall-local-full-iam:
+    category: applications
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/component: platform
+          app.kubernetes.io/name: iam
+          app.kubernetes.io/part-of: aiforall
+        name: iam
+        namespace: aiforall-local-full
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: iam
+        strategy:
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 0
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: platform
+              app.kubernetes.io/name: iam
+              app.kubernetes.io/part-of: aiforall
+            annotations: {}
+          spec:
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                  - matchExpressions:
+                    - key: node-role.kubernetes.io/control-plane
+                      operator: DoesNotExist
+            automountServiceAccountToken: false
+            containers:
+            - env:
+              - name: IAM_QUEUE__ENABLED
+                value: 'true'
+              - name: IAM_QUEUE__HOST
+                value: localstack
+              - name: RUST_LOG
+                value: info
+              - name: RUST_ENVIRONMENT
+                value: development
+              - name: DATABASE_URL
+                value: postgres://postgres:postgres@postgres:5432/iam_dev
+              - name: IAM_INTERNAL_SERVICE_TOKEN
+                value: iam-internal-dev-token
+              - name: IAM_SERVER__TLS_REQUIRE_CLIENT_CERT
+                value: 'true'
+              - name: IAM_AUTH__MESH__TRUSTED_GATEWAY_SAN
+                value: envoy-mesh
+              image: aiforall-iam-service:latest
+              imagePullPolicy: Never
+              name: iam
+              ports:
+              - containerPort: 8080
+                name: http
+              - containerPort: 8443
+                name: https
+              readinessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /iam/ready
+                  port: http
+                periodSeconds: 5
+                timeoutSeconds: 2
+              resources:
+                limits:
+                  cpu: '1'
+                  memory: 512Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+                runAsGroup: 1000
+                runAsNonRoot: true
+                runAsUser: 1000
+                seccompProfile:
+                  type: RuntimeDefault
+              startupProbe:
+                failureThreshold: 36
+                httpGet:
+                  path: /iam/health
+                  port: http
+                periodSeconds: 5
+              volumeMounts:
+              - mountPath: /app/config/development.toml
+                name: config
+                subPath: development.toml
+                readOnly: true
+              - mountPath: /app/config/keys/test-platform.pem
+                name: signing-key
+                subPath: test-platform.pem
+                readOnly: true
+              - mountPath: /app/config/keys/test-platform.pub
+                name: config
+                subPath: test-platform.pub
+                readOnly: true
+              - mountPath: /app/certs
+                name: certs
+                readOnly: true
+            topologySpreadConstraints:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/component: platform
+              matchLabelKeys:
+              - app.kubernetes.io/name
+              maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: DoNotSchedule
+            volumes:
+            - name: config
+              secret:
+                secretName: iam-runtime-template-{{ .Values.runId }}
+                defaultMode: 292
+            - name: certs
+              secret:
+                items:
+                - key: ca.crt
+                  path: ca.crt
+                - key: iam-service.crt
+                  path: iam-service.crt
+                - key: iam-service.key
+                  path: iam-service.key
+                secretName: platform-mesh-certs
+            - name: signing-key
+              secret:
+                secretName: iam-local-signing-key
+                defaultMode: 292
+    migrationScope: iam_dev
+  deployment-aiforall-local-full-lazaret:
+    category: applications
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: lazaret
+        namespace: aiforall-local-full
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: lazaret
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: platform
+              app.kubernetes.io/name: lazaret
+            annotations: {}
+          spec:
+            automountServiceAccountToken: false
+            containers:
+            - env:
+              - name: RUST_ENVIRONMENT
+                value: development
+              - name: DATABASE_URL
+                value: postgres://postgres:postgres@postgres:5432/lazaret_dev
+              - name: RUST_LOG
+                value: info
+              image: aiforall-lazaret-service:local-full
+              imagePullPolicy: Never
+              name: lazaret
+              ports:
+              - containerPort: 8080
+                name: https
+              readinessProbe:
+                httpGet:
+                  path: /lazaret/ready
+                  port: https
+                  scheme: HTTPS
+                periodSeconds: 5
+                timeoutSeconds: 2
+              resources:
+                limits:
+                  cpu: '1'
+                  memory: 512Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+              startupProbe:
+                failureThreshold: 60
+                httpGet:
+                  path: /lazaret/health
+                  port: https
+                  scheme: HTTPS
+                periodSeconds: 5
+              volumeMounts:
+              - mountPath: /app/config/development.toml
+                name: private-config
+                readOnly: true
+                subPath: development.toml
+              - mountPath: /app/identity-ca
+                name: identity-ca
+                readOnly: true
+              - mountPath: /app/certs
+                name: certs
+              - name: openbao-ca
+                mountPath: /run/openbao-ca
+                readOnly: true
+            initContainers:
+            - name: openbao-snapshot
+              image: python:3.12.9-alpine3.21@sha256:28b8a72c4e0704dd2048b79830e692e94ac2d43d30c914d54def6abf74448a4e
+              command:
+              - python
+              - -B
+              - /scripts/openbao-workload.py
+              - lazaret
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                  - ALL
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              volumeMounts:
+              - name: openbao-identity
+                mountPath: /run/identity
+                readOnly: true
+              - name: openbao-ca
+                mountPath: /run/openbao-ca
+                readOnly: true
+              - name: openbao-scripts
+                mountPath: /scripts
+                readOnly: true
+              - name: config
+                mountPath: /template
+                readOnly: true
+              - name: private-config
+                mountPath: /runtime
+                readOnly: false
+            - command:
+              - sh
+              - -ec
+              - cp /app/identity-ca/server.crt /app/certs/server.crt; cp /app/identity-ca/server.key /app/certs/server.key
+              image: aiforall-lazaret-service:local-full
+              imagePullPolicy: Never
+              name: server-leaf
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+              volumeMounts:
+              - mountPath: /app/identity-ca
+                name: identity-ca
+                readOnly: true
+              - mountPath: /app/certs
+                name: certs
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1000
+              runAsGroup: 1000
+              fsGroup: 1000
+              seccompProfile:
+                type: RuntimeDefault
+            volumes:
+            - name: config
+              secret:
+                secretName: lazaret-runtime-template-{{ .Values.runId }}
+                defaultMode: 292
+            - name: identity-ca
+              secret:
+                secretName: lazaret-identity-ca
+            - emptyDir: {}
+              name: certs
+            - name: openbao-identity
+              projected:
+                defaultMode: 288
+                sources:
+                - serviceAccountToken:
+                    path: jwt
+                    audience: openbao-lazaret
+                    expirationSeconds: 600
+            - name: private-config
+              emptyDir:
+                medium: Memory
+                sizeLimit: 1Mi
+            - name: openbao-ca
+              configMap:
+                name: openbao-public-ca
+            - name: openbao-scripts
+              configMap:
+                name: local-full-bootstrap-scripts-9m6d5kt255
+            serviceAccountName: lazaret
+    epoch: openbao-snapshot
+    principalPrefix: LAZARET_AUTH__JWT
+    migrationScope: lazaret_dev
+  deployment-aiforall-local-full-localstack:
+    category: dependencies
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: localstack
+        namespace: aiforall-local-full
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: localstack
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: queue
+              app.kubernetes.io/name: localstack
+            annotations: {}
+          spec:
+            automountServiceAccountToken: false
+            containers:
+            - env:
+              - name: SERVICES
+                value: sqs
+              - name: EAGER_SERVICE_LOADING
+                value: '1'
+              - name: AWS_DEFAULT_REGION
+                value: us-east-1
+              - name: SQS_ENDPOINT_STRATEGY
+                value: path
+              - name: LOCALSTACK_HOST
+                value: localstack:4566
+              image: localstack/localstack:3.0.2@sha256:e606c4421419030b12d63a59f1211f57f5b0fbf7e9ce769e6250ee62ff4f9293
+              name: localstack
+              ports:
+              - containerPort: 4566
+                name: sqs
+              readinessProbe:
+                exec:
+                  command:
+                  - sh
+                  - -ec
+                  - awslocal --endpoint-url=http://127.0.0.1:4566 sqs get-queue-url --queue-name sentinel-sync-events >/dev/null && awslocal --endpoint-url=http://127.0.0.1:4566
+                    sqs get-queue-url --queue-name telegraph-events >/dev/null
+                periodSeconds: 5
+                timeoutSeconds: 5
+              resources:
+                limits:
+                  cpu: '1'
+                  memory: 768Mi
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+              startupProbe:
+                failureThreshold: 60
+                httpGet:
+                  path: /_localstack/health
+                  port: sqs
+                periodSeconds: 5
+              volumeMounts:
+              - mountPath: /etc/localstack/init/ready.d/init-aws.sh
+                name: init
+                readOnly: true
+                subPath: init-aws.sh
+            securityContext:
+              seccompProfile:
+                type: RuntimeDefault
+            volumes:
+            - configMap:
+                defaultMode: 365
+                name: localstack-init-b56fgd6t65
+              name: init
+  deployment-aiforall-local-full-mailhog:
+    category: dependencies
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: mailhog
+        namespace: aiforall-local-full
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: mailhog
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: simulator
+              app.kubernetes.io/name: mailhog
+            annotations: {}
+          spec:
+            automountServiceAccountToken: false
+            containers:
+            - image: mailhog/mailhog:v1.0.1@sha256:8d76a3d4ffa32a3661311944007a415332c4bb855657f4f6c57996405c009bea
+              name: mailhog
+              ports:
+              - containerPort: 1025
+                name: smtp
+              - containerPort: 8025
+                name: ui
+              readinessProbe:
+                periodSeconds: 5
+                tcpSocket:
+                  port: smtp
+              resources:
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+              startupProbe:
+                failureThreshold: 36
+                periodSeconds: 5
+                tcpSocket:
+                  port: smtp
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1000
+              seccompProfile:
+                type: RuntimeDefault
+  deployment-aiforall-local-full-manifesto:
+    category: applications
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/component: platform
+          app.kubernetes.io/name: manifesto
+          app.kubernetes.io/part-of: aiforall
+        name: manifesto
+        namespace: aiforall-local-full
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: manifesto
+        strategy:
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 0
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: platform
+              app.kubernetes.io/name: manifesto
+              app.kubernetes.io/part-of: aiforall
+            annotations: {}
+          spec:
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                  - matchExpressions:
+                    - key: node-role.kubernetes.io/control-plane
+                      operator: DoesNotExist
+            automountServiceAccountToken: false
+            containers:
+            - env:
+              - name: MANIFESTO_AUTH__JWT__JWKS_URL
+                value: http://iam:8080/iam/.well-known/jwks.json
+              - name: MANIFESTO_QUEUE__ENABLED
+                value: 'true'
+              - name: MANIFESTO_QUEUE__HOST
+                value: localstack
+              - name: MANIFESTO_SERVICE__COMPONENT_SERVICE__BASE_URL
+                value: http://component-catalog:9000
+              - name: MANIFESTO_SERVICE__COMPONENT_SERVICE__API_KEY
+                value: aiforall-gold-catalog
+              - name: MANIFESTO_OPENFGA__STORE_ID
+                valueFrom:
+                  configMapKeyRef:
+                    key: store-id
+                    name: local-full-fga
+              - name: MANIFESTO_OPENFGA__AUTHORIZATION_MODEL_ID
+                valueFrom:
+                  configMapKeyRef:
+                    key: model-id
+                    name: local-full-fga
+              - name: RUST_LOG
+                value: info
+              - name: RUST_ENVIRONMENT
+                value: development
+              - name: DATABASE_URL
+                value: postgres://postgres:postgres@postgres:5432/manifesto_dev
+              - name: MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__HS256_SECRET
+                valueFrom:
+                  secretKeyRef:
+                    name: manifesto-runtime-template-{{ .Values.runId }}
+                    key: grant-hmac
+              - name: MANIFESTO_SERVER__TLS_REQUIRE_CLIENT_CERT
+                value: 'true'
+              - name: MANIFESTO_AUTH__MESH__TRUSTED_GATEWAY_SAN
+                value: envoy-mesh
+              image: aiforall-manifesto-service:latest
+              imagePullPolicy: Never
+              name: manifesto
+              ports:
+              - containerPort: 8080
+                name: http
+              - containerPort: 8443
+                name: https
+              readinessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /manifesto/ready
+                  port: http
+                periodSeconds: 5
+                timeoutSeconds: 2
+              resources:
+                limits:
+                  cpu: '1'
+                  memory: 512Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+                runAsGroup: 1000
+                runAsNonRoot: true
+                runAsUser: 1000
+                seccompProfile:
+                  type: RuntimeDefault
+              startupProbe:
+                failureThreshold: 36
+                httpGet:
+                  path: /manifesto/health
+                  port: http
+                periodSeconds: 5
+              volumeMounts:
+              - mountPath: /app/config/development.toml
+                name: config
+                subPath: development.toml
+                readOnly: true
+              - mountPath: /app/certs
+                name: certs
+                readOnly: true
+            topologySpreadConstraints:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/component: platform
+              matchLabelKeys:
+              - app.kubernetes.io/name
+              maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: DoNotSchedule
+            volumes:
+            - name: config
+              secret:
+                secretName: manifesto-runtime-template-{{ .Values.runId }}
+                defaultMode: 292
+            - name: certs
+              secret:
+                items:
+                - key: ca.crt
+                  path: ca.crt
+                - key: manifesto-service.crt
+                  path: manifesto-service.crt
+                - key: manifesto-service.key
+                  path: manifesto-service.key
+                secretName: platform-mesh-certs
+    principalPrefix: MANIFESTO_AUTH__JWT
+    migrationScope: manifesto_dev
+  deployment-aiforall-local-full-openbao:
+    category: dependencies
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: openbao
+        namespace: aiforall-local-full
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: openbao
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: secrets
+              app.kubernetes.io/name: openbao
+            annotations: {}
+          spec:
+            containers:
+            - command:
+              - sh
+              - /scripts/run-openbao.sh
+              env:
+              - name: SKIP_SETCAP
+                value: 'true'
+              image: openbao/openbao:2.6.2@sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641
+              name: openbao
+              ports:
+              - containerPort: 8443
+                name: bao
+              readinessProbe:
+                exec:
+                  command:
+                  - sh
+                  - -ec
+                  - test -f /run/openbao/bootstrap-ready && BAO_ADDR=http://127.0.0.1:8200 bao status >/dev/null 2>&1
+                periodSeconds: 5
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+              startupProbe:
+                exec:
+                  command:
+                  - test
+                  - -f
+                  - /run/openbao/bootstrap-ready
+                failureThreshold: 60
+                periodSeconds: 5
+              volumeMounts:
+              - mountPath: /scripts
+                name: bootstrap-scripts
+                readOnly: true
+              - mountPath: /tls
+                name: bao-tls
+                readOnly: true
+              - mountPath: /run/openbao
+                name: bao-runtime
+              - mountPath: /kube-ca
+                name: kube-ca
+                readOnly: true
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1000
+              runAsGroup: 1000
+              fsGroup: 1000
+              seccompProfile:
+                type: RuntimeDefault
+            serviceAccountName: openbao
+            volumes:
+            - configMap:
+                name: local-full-bootstrap-scripts-9m6d5kt255
+              name: bootstrap-scripts
+            - name: bao-tls
+              secret:
+                defaultMode: 288
+                secretName: openbao-server-tls-{{ .Values.runId }}
+            - emptyDir:
+                medium: Memory
+                sizeLimit: 1Mi
+              name: bao-runtime
+            - configMap:
+                name: kube-root-ca.crt
+              name: kube-ca
+    coffer: true
+  deployment-aiforall-local-full-openfga:
+    category: dependencies
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/component: mesh-authn
+          app.kubernetes.io/name: openfga
+          app.kubernetes.io/part-of: aiforall
+        name: openfga
+        namespace: aiforall-local-full
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: openfga
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: mesh-authn
+              app.kubernetes.io/name: openfga
+              app.kubernetes.io/part-of: aiforall
+            annotations: {}
+          spec:
+            automountServiceAccountToken: false
+            containers:
+            - args:
+              - run
+              env:
+              - name: OPENFGA_DATASTORE_ENGINE
+                value: postgres
+              - name: OPENFGA_DATASTORE_URI
+                value: postgres://postgres:postgres@postgres:5432/openfga_dev?sslmode=disable
+              - name: OPENFGA_PLAYGROUND_ENABLED
+                value: 'false'
+              image: openfga/openfga:v1.8.5@sha256:d023be1d5b75df633c1efa6ab6b86748e77b05d5e78d0f40973a5e47d4264ce7
+              imagePullPolicy: IfNotPresent
+              name: openfga
+              ports:
+              - containerPort: 8080
+                name: http
+              - containerPort: 8081
+                name: grpc
+              readinessProbe:
+                failureThreshold: 24
+                httpGet:
+                  path: /healthz
+                  port: http
+                periodSeconds: 5
+              resources:
+                limits:
+                  cpu: '1'
+                  memory: 256Mi
+                requests:
+                  cpu: 100m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                seccompProfile:
+                  type: RuntimeDefault
+            initContainers:
+            - args:
+              - migrate
+              env:
+              - name: OPENFGA_DATASTORE_ENGINE
+                value: postgres
+              - name: OPENFGA_DATASTORE_URI
+                value: postgres://postgres:postgres@postgres:5432/openfga_dev?sslmode=disable
+              image: openfga/openfga:v1.8.5@sha256:d023be1d5b75df633c1efa6ab6b86748e77b05d5e78d0f40973a5e47d4264ce7
+              imagePullPolicy: IfNotPresent
+              name: migrate
+              resources:
+                limits:
+                  cpu: '1'
+                  memory: 256Mi
+                requests:
+                  cpu: 100m
+                  memory: 64Mi
+  deployment-aiforall-local-full-postgres:
+    category: dependencies
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/component: mesh-authn
+          app.kubernetes.io/name: postgres
+          app.kubernetes.io/part-of: aiforall
+        name: postgres
+        namespace: aiforall-local-full
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: postgres
+        strategy:
+          type: Recreate
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: mesh-authn
+              app.kubernetes.io/name: postgres
+              app.kubernetes.io/part-of: aiforall
+            annotations: {}
+          spec:
+            automountServiceAccountToken: false
+            containers:
+            - env:
+              - name: PGDATA
+                value: /var/lib/postgresql/data/pgdata
+              - name: POSTGRES_USER
+                value: postgres
+              - name: POSTGRES_PASSWORD
+                value: postgres
+              - name: POSTGRES_DB
+                value: iam_dev
+              image: postgres:15.12-alpine3.21@sha256:ef9d1517df69c4d27dbb9ddcec14f431a2442628603f4e9daa429b92ae6c3cd1
+              imagePullPolicy: IfNotPresent
+              name: postgres
+              ports:
+              - containerPort: 5432
+                name: postgres
+              readinessProbe:
+                exec:
+                  command:
+                  - pg_isready
+                  - -U
+                  - postgres
+                failureThreshold: 12
+                periodSeconds: 5
+              resources:
+                limits:
+                  cpu: '1'
+                  memory: 512Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+              volumeMounts:
+              - mountPath: /var/lib/postgresql/data
+                name: data
+              - mountPath: /docker-entrypoint-initdb.d
+                name: init
+                readOnly: true
+            securityContext:
+              fsGroup: 70
+              runAsGroup: 70
+              runAsNonRoot: true
+              runAsUser: 70
+              seccompProfile:
+                type: RuntimeDefault
+            volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: postgres-data
+            - configMap:
+                name: mesh-postgres-init
+              name: init
+    persistence:
+      volume: data
+      claim: postgres-data
+      auxiliary:
+      - init
+  deployment-aiforall-local-full-redis:
+    category: dependencies
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: redis
+        namespace: aiforall-local-full
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: redis
+        strategy:
+          type: Recreate
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: data
+              app.kubernetes.io/name: redis
+            annotations: {}
+          spec:
+            automountServiceAccountToken: false
+            containers:
+            - command:
+              - redis-server
+              - --appendonly
+              - 'yes'
+              - --appendfsync
+              - always
+              image: redis:7.2.7-alpine@sha256:ddd16a9b1575a774c7e62956be8daa1de5b32cfb5c25b7a216aefed8e0919f9b
+              name: redis
+              ports:
+              - containerPort: 6379
+                name: redis
+              readinessProbe:
+                exec:
+                  command:
+                  - redis-cli
+                  - ping
+                periodSeconds: 5
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+              startupProbe:
+                exec:
+                  command:
+                  - redis-cli
+                  - ping
+                failureThreshold: 36
+                periodSeconds: 5
+              volumeMounts:
+              - mountPath: /data
+                name: data
+            securityContext:
+              fsGroup: 999
+              runAsGroup: 999
+              runAsNonRoot: true
+              runAsUser: 999
+              seccompProfile:
+                type: RuntimeDefault
+            volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: redis-data
+    persistence:
+      volume: data
+      claim: redis-data
+      auxiliary: []
+  deployment-aiforall-local-full-sentinel-sync:
+    category: applications
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: sentinel-sync
+        namespace: aiforall-local-full
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: sentinel-sync
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: projection
+              app.kubernetes.io/name: sentinel-sync
+            annotations: {}
+          spec:
+            automountServiceAccountToken: false
+            containers:
+            - env:
+              - name: SENTINEL_SYNC_OPENFGA__STORE_ID
+                valueFrom:
+                  configMapKeyRef:
+                    key: store-id
+                    name: local-full-fga
+              - name: SENTINEL_SYNC_OPENFGA__AUTHORIZATION_MODEL_ID
+                valueFrom:
+                  configMapKeyRef:
+                    key: model-id
+                    name: local-full-fga
+              - name: RUST_LOG
+                value: info
+              image: aiforall-sentinel-sync:local-full
+              imagePullPolicy: Never
+              name: sentinel-sync
+              readinessProbe:
+                exec:
+                  command:
+                  - sh
+                  - -ec
+                  - kill -0 1 && curl --max-time 2 -fsS http://openfga:8080/healthz >/dev/null && curl --max-time 2 -fsS http://localstack:4566/_localstack/health
+                    >/dev/null
+                periodSeconds: 5
+                timeoutSeconds: 5
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+                readOnlyRootFilesystem: true
+              startupProbe:
+                exec:
+                  command:
+                  - sh
+                  - -ec
+                  - curl --max-time 2 -fsS http://openfga:8080/healthz >/dev/null && curl --max-time 2 -fsS http://localstack:4566/_localstack/health
+                    >/dev/null
+                failureThreshold: 60
+                periodSeconds: 5
+              volumeMounts:
+              - mountPath: /app/config/sentinel-sync.toml
+                name: config
+                readOnly: true
+                subPath: sentinel-sync.toml
+            securityContext:
+              runAsGroup: 1000
+              runAsNonRoot: true
+              runAsUser: 1000
+              seccompProfile:
+                type: RuntimeDefault
+            volumes:
+            - configMap:
+                name: sentinel-config-fkftk68b67
+              name: config
+    principalPrefix: SENTINEL_SYNC_PRINCIPAL
+    refreshTarget: sentinel
+  deployment-aiforall-local-full-telegraph:
+    category: applications
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/component: platform
+          app.kubernetes.io/name: telegraph
+          app.kubernetes.io/part-of: aiforall
+        name: telegraph
+        namespace: aiforall-local-full
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: telegraph
+        strategy:
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 0
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/component: platform
+              app.kubernetes.io/name: telegraph
+              app.kubernetes.io/part-of: aiforall
+            annotations: {}
+          spec:
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                  - matchExpressions:
+                    - key: node-role.kubernetes.io/control-plane
+                      operator: DoesNotExist
+            automountServiceAccountToken: false
+            containers:
+            - env:
+              - name: TELEGRAPH_AUTH__JWT__JWKS_URL
+                value: http://iam:8080/iam/.well-known/jwks.json
+              - name: TELEGRAPH_QUEUE__ENABLED
+                value: 'true'
+              - name: TELEGRAPH_QUEUE__HOST
+                value: localstack
+              - name: TELEGRAPH_COMMUNICATION__EMAIL__SMTP__HOST
+                value: mailhog
+              - name: TELEGRAPH_COMMUNICATION__EMAIL__SMTP__PORT
+                value: '1025'
+              - name: TELEGRAPH_COMMUNICATION__EMAIL__SMTP__USE_TLS
+                value: 'false'
+              - name: TELEGRAPH_OPENFGA__STORE_ID
+                valueFrom:
+                  configMapKeyRef:
+                    key: store-id
+                    name: local-full-fga
+              - name: TELEGRAPH_OPENFGA__AUTHORIZATION_MODEL_ID
+                valueFrom:
+                  configMapKeyRef:
+                    key: model-id
+                    name: local-full-fga
+              - name: RUST_LOG
+                value: info
+              - name: RUST_ENVIRONMENT
+                value: development
+              - name: DATABASE_URL
+                value: postgres://postgres:postgres@postgres:5432/telegraph_dev
+              - name: TELEGRAPH_SERVER__TLS_REQUIRE_CLIENT_CERT
+                value: 'true'
+              - name: TELEGRAPH_AUTH__MESH__TRUSTED_GATEWAY_SAN
+                value: envoy-mesh
+              image: aiforall-telegraph-service:latest
+              imagePullPolicy: Never
+              name: telegraph
+              ports:
+              - containerPort: 8080
+                name: http
+              - containerPort: 8443
+                name: https
+              readinessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /telegraph/ready
+                  port: http
+                periodSeconds: 5
+                timeoutSeconds: 2
+              resources:
+                limits:
+                  cpu: '1'
+                  memory: 512Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+                runAsGroup: 1000
+                runAsNonRoot: true
+                runAsUser: 1000
+                seccompProfile:
+                  type: RuntimeDefault
+              startupProbe:
+                failureThreshold: 36
+                httpGet:
+                  path: /telegraph/health
+                  port: http
+                periodSeconds: 5
+              volumeMounts:
+              - mountPath: /app/config/development.toml
+                name: config
+                subPath: development.toml
+              - mountPath: /app/certs
+                name: certs
+                readOnly: true
+            topologySpreadConstraints:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/component: platform
+              matchLabelKeys:
+              - app.kubernetes.io/name
+              maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: DoNotSchedule
+            volumes:
+            - configMap:
+                name: telegraph-dev-config-d58dft2tmk
+              name: config
+            - name: certs
+              secret:
+                items:
+                - key: ca.crt
+                  path: ca.crt
+                - key: telegraph-service.crt
+                  path: telegraph-service.crt
+                - key: telegraph-service.key
+                  path: telegraph-service.key
+                secretName: platform-mesh-certs
+    principalPrefix: TELEGRAPH_AUTH__JWT
+    migrationScope: telegraph_dev
+  deployment-aiforall-local-full-zot:
+    category: dependencies
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+          app.kubernetes.io/name: zot
+          app.kubernetes.io/part-of: aiforall
+        name: zot
+        namespace: aiforall-local-full
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: zot
+        strategy:
+          type: Recreate
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/name: zot
+              app.kubernetes.io/part-of: aiforall
+            annotations: {}
+          spec:
+            automountServiceAccountToken: false
+            containers:
+            - args:
+              - serve
+              - /etc/zot/config.json
+              image: aiforall-zot:gold
+              imagePullPolicy: Never
+              name: zot
+              ports:
+              - containerPort: 5000
+                name: http
+              readinessProbe:
+                httpGet:
+                  httpHeaders:
+                  - name: Authorization
+                    value: Basic cmVhZGVyOmFwcGFyYXR1cy1yZWFkZXItcHVsbA==
+                  path: /v2/
+                  port: http
+                initialDelaySeconds: 2
+                periodSeconds: 5
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+                runAsGroup: 65534
+                runAsNonRoot: true
+                runAsUser: 65534
+                seccompProfile:
+                  type: RuntimeDefault
+              startupProbe:
+                failureThreshold: 36
+                periodSeconds: 5
+                tcpSocket:
+                  port: http
+              volumeMounts:
+              - mountPath: /etc/zot/config.json
+                name: config
+                readOnly: true
+                subPath: config.json
+              - mountPath: /etc/zot/htpasswd
+                name: htpasswd
+                readOnly: true
+                subPath: htpasswd
+              - mountPath: /var/lib/zot
+                name: data
+            securityContext:
+              fsGroup: 65534
+              runAsGroup: 65534
+              runAsNonRoot: true
+              runAsUser: 65534
+              seccompProfile:
+                type: RuntimeDefault
+            volumes:
+            - configMap:
+                items:
+                - key: config.json
+                  path: config.json
+                name: zot-config
+              name: config
+            - name: htpasswd
+              secret:
+                items:
+                - key: htpasswd
+                  path: htpasswd
+                secretName: zot-htpasswd
+            - name: data
+              persistentVolumeClaim:
+                claimName: zot-data
+    persistence:
+      volume: data
+      claim: zot-data
+      auxiliary:
+      - config
+      - htpasswd
+  poddisruptionbudget-aiforall-local-full-hive:
+    category: foundation
+    object:
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: hive
+        namespace: aiforall-local-full
+      spec:
+        minAvailable: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: hive
+  poddisruptionbudget-aiforall-local-full-iam:
+    category: foundation
+    object:
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: iam
+        namespace: aiforall-local-full
+      spec:
+        minAvailable: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: iam
+  poddisruptionbudget-aiforall-local-full-manifesto:
+    category: foundation
+    object:
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: manifesto
+        namespace: aiforall-local-full
+      spec:
+        minAvailable: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: manifesto
+  poddisruptionbudget-aiforall-local-full-telegraph:
+    category: foundation
+    object:
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: telegraph
+        namespace: aiforall-local-full
+      spec:
+        minAvailable: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: telegraph
+  job-aiforall-local-full-fga-bootstrap:
+    category: bootstrap
+    object:
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: fga-bootstrap-{{ .Values.runId }}
+        namespace: aiforall-local-full
+      spec:
+        activeDeadlineSeconds: 240
+        backoffLimit: 0
+        template:
+          metadata:
+            labels:
+              aiforall.dev/profile: local-full
+              app.kubernetes.io/name: local-full-bootstrap
+          spec:
+            containers:
+            - command:
+              - python
+              - /scripts/fga-bootstrap.py
+              env:
+              - name: POD_NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.namespace
+              - name: PYTHONDONTWRITEBYTECODE
+                value: '1'
+              image: python:3.12.9-alpine3.21@sha256:28b8a72c4e0704dd2048b79830e692e94ac2d43d30c914d54def6abf74448a4e
+              name: bootstrap
+              resources:
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+                readOnlyRootFilesystem: true
+              volumeMounts:
+              - mountPath: /scripts
+                name: scripts
+                readOnly: true
+              - mountPath: /model
+                name: model
+                readOnly: true
+            restartPolicy: Never
+            securityContext:
+              runAsGroup: 1000
+              runAsNonRoot: true
+              runAsUser: 1000
+              seccompProfile:
+                type: RuntimeDefault
+            serviceAccountName: local-full-bootstrap
+            volumes:
+            - configMap:
+                name: local-full-bootstrap-scripts-9m6d5kt255
+              name: scripts
+            - configMap:
+                name: local-full-fga-model-hdt2gc4hgg
+              name: model
+  networkpolicy-aiforall-local-apparatus-allow-api:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-api
+        namespace: aiforall-local-apparatus
+      spec:
+        egress:
+        - ports:
+          - port: 443
+            protocol: TCP
+          - port: 6443
+            protocol: TCP
+          to:
+          - ipBlock:
+              cidr: 10.96.0.1/32
+        podSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - apparatus-operator
+            - local-full-admit
+        policyTypes:
+        - Egress
+  networkpolicy-aiforall-local-apparatus-allow-dns:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-dns
+        namespace: aiforall-local-apparatus
+      spec:
+        egress:
+        - ports:
+          - port: 53
+            protocol: UDP
+          - port: 53
+            protocol: TCP
+          to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+            podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+        podSelector: {}
+        policyTypes:
+        - Egress
+  networkpolicy-aiforall-local-apparatus-allow-local-trust-services:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-local-trust-services
+        namespace: aiforall-local-apparatus
+      spec:
+        egress:
+        - ports:
+          - port: 5000
+            protocol: TCP
+          to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: aiforall-local-full
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: zot
+        - ports:
+          - port: 8443
+            protocol: TCP
+          to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: aiforall-local-full
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: openbao
+        podSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - apparatus-operator
+            - local-full-admit
+        policyTypes:
+        - Egress
+  networkpolicy-aiforall-local-apparatus-default-deny:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: default-deny
+        namespace: aiforall-local-apparatus
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+        - Egress
+  networkpolicy-aiforall-local-full-allow-api:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-api
+        namespace: aiforall-local-full
+      spec:
+        egress:
+        - ports:
+          - port: 443
+            protocol: TCP
+          - port: 6443
+            protocol: TCP
+          to:
+          - ipBlock:
+              cidr: 10.96.0.1/32
+        podSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - local-full-bootstrap
+            - openbao
+        policyTypes:
+        - Egress
+  networkpolicy-aiforall-local-full-allow-app-data-egress:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-app-data-egress
+        namespace: aiforall-local-full
+      spec:
+        egress:
+        - ports:
+          - port: 5432
+            protocol: TCP
+          to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: postgres
+        - ports:
+          - port: 8080
+            protocol: TCP
+          to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: openfga
+        - ports:
+          - port: 4566
+            protocol: TCP
+          to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: localstack
+        - ports:
+          - port: 8080
+            protocol: TCP
+          to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: iam
+        podSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - iam
+            - hive
+            - telegraph
+            - manifesto
+            - lazaret
+            - sentinel-sync
+        policyTypes:
+        - Egress
+  networkpolicy-aiforall-local-full-allow-bootstrap:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-bootstrap
+        namespace: aiforall-local-full
+      spec:
+        egress:
+        - ports:
+          - port: 8080
+            protocol: TCP
+          to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: openfga
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: local-full-bootstrap
+        policyTypes:
+        - Egress
+  networkpolicy-aiforall-local-full-allow-catalog:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-catalog
+        namespace: aiforall-local-full
+      spec:
+        ingress:
+        - from:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: manifesto
+          ports:
+          - port: 9000
+            protocol: TCP
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: component-catalog
+        policyTypes:
+        - Ingress
+  networkpolicy-aiforall-local-full-allow-dns:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-dns
+        namespace: aiforall-local-full
+      spec:
+        egress:
+        - ports:
+          - port: 53
+            protocol: UDP
+          - port: 53
+            protocol: TCP
+          to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+            podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+        podSelector: {}
+        policyTypes:
+        - Egress
+  networkpolicy-aiforall-local-full-allow-envoy:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-envoy
+        namespace: aiforall-local-full
+      spec:
+        egress:
+        - ports:
+          - port: 8090
+            protocol: TCP
+          to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: ext-authz
+        - ports:
+          - port: 8443
+            protocol: TCP
+          to:
+          - podSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - iam
+                - hive
+                - telegraph
+                - manifesto
+        ingress:
+        - from:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: local-full-client
+          ports:
+          - port: 10000
+            protocol: TCP
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: envoy-mesh
+        policyTypes:
+        - Ingress
+        - Egress
+  networkpolicy-aiforall-local-full-allow-ext-authz:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-ext-authz
+        namespace: aiforall-local-full
+      spec:
+        egress:
+        - ports:
+          - port: 8443
+            protocol: TCP
+          to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: iam
+        ingress:
+        - from:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: envoy-mesh
+          ports:
+          - port: 8090
+            protocol: TCP
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: ext-authz
+        policyTypes:
+        - Ingress
+        - Egress
+  networkpolicy-aiforall-local-full-allow-iam-internal:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-iam-internal
+        namespace: aiforall-local-full
+      spec:
+        ingress:
+        - from:
+          - podSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - hive
+                - telegraph
+                - manifesto
+                - lazaret
+          ports:
+          - port: 8080
+            protocol: TCP
+        - from:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: ext-authz
+          ports:
+          - port: 8443
+            protocol: TCP
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: iam
+        policyTypes:
+        - Ingress
+  networkpolicy-aiforall-local-full-allow-lazaret:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-lazaret
+        namespace: aiforall-local-full
+      spec:
+        egress:
+        - ports:
+          - port: 6379
+            protocol: TCP
+          to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: redis
+        - ports:
+          - port: 8443
+            protocol: TCP
+          to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: openbao
+        - ports:
+          - port: 8080
+            protocol: TCP
+          to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: manifesto
+        - ports:
+          - port: 8080
+            protocol: TCP
+          to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: aiforall-local-plugins
+            podSelector:
+              matchExpressions:
+              - key: apparatus.aiforall.dev/project
+                operator: Exists
+              - key: apparatus.aiforall.dev/binding
+                operator: Exists
+              - key: app.kubernetes.io/instance
+                operator: Exists
+        ingress:
+        - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: aiforall-local-plugins
+            podSelector:
+              matchExpressions:
+              - key: apparatus.aiforall.dev/project
+                operator: Exists
+              - key: apparatus.aiforall.dev/binding
+                operator: Exists
+              - key: app.kubernetes.io/instance
+                operator: Exists
+          ports:
+          - port: 8080
+            protocol: TCP
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: lazaret
+        policyTypes:
+        - Ingress
+        - Egress
+  networkpolicy-aiforall-local-full-allow-manifesto-catalog:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-manifesto-catalog
+        namespace: aiforall-local-full
+      spec:
+        egress:
+        - ports:
+          - port: 9000
+            protocol: TCP
+          to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: component-catalog
+        ingress:
+        - from:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: lazaret
+          ports:
+          - port: 8080
+            protocol: TCP
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: manifesto
+        policyTypes:
+        - Ingress
+        - Egress
+  networkpolicy-aiforall-local-full-allow-openbao:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-openbao
+        namespace: aiforall-local-full
+      spec:
+        ingress:
+        - from:
+          - podSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - lazaret
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: aiforall-local-apparatus
+            podSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - apparatus-operator
+                - local-full-admit
+          ports:
+          - port: 8443
+            protocol: TCP
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: openbao
+        policyTypes:
+        - Ingress
+  networkpolicy-aiforall-local-full-allow-openfga:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-openfga
+        namespace: aiforall-local-full
+      spec:
+        egress:
+        - ports:
+          - port: 5432
+            protocol: TCP
+          to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: postgres
+        ingress:
+        - from:
+          - podSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - hive
+                - telegraph
+                - manifesto
+                - sentinel-sync
+                - local-full-bootstrap
+          ports:
+          - port: 8080
+            protocol: TCP
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: openfga
+        policyTypes:
+        - Ingress
+        - Egress
+  networkpolicy-aiforall-local-full-allow-platform-mesh-ingress:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-platform-mesh-ingress
+        namespace: aiforall-local-full
+      spec:
+        ingress:
+        - from:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: envoy-mesh
+          ports:
+          - port: 8443
+            protocol: TCP
+        podSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - iam
+            - hive
+            - telegraph
+            - manifesto
+        policyTypes:
+        - Ingress
+  networkpolicy-aiforall-local-full-allow-postgres:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-postgres
+        namespace: aiforall-local-full
+      spec:
+        ingress:
+        - from:
+          - podSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - iam
+                - hive
+                - telegraph
+                - manifesto
+                - lazaret
+                - openfga
+                - sentinel-sync
+          ports:
+          - port: 5432
+            protocol: TCP
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: postgres
+        policyTypes:
+        - Ingress
+  networkpolicy-aiforall-local-full-allow-redis:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-redis
+        namespace: aiforall-local-full
+      spec:
+        ingress:
+        - from:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: lazaret
+          ports:
+          - port: 6379
+            protocol: TCP
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: redis
+        policyTypes:
+        - Ingress
+  networkpolicy-aiforall-local-full-allow-smtp:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-smtp
+        namespace: aiforall-local-full
+      spec:
+        ingress:
+        - from:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: telegraph
+          ports:
+          - port: 1025
+            protocol: TCP
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: mailhog
+        policyTypes:
+        - Ingress
+  networkpolicy-aiforall-local-full-allow-smtp-egress:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-smtp-egress
+        namespace: aiforall-local-full
+      spec:
+        egress:
+        - ports:
+          - port: 1025
+            protocol: TCP
+          to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: mailhog
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: telegraph
+        policyTypes:
+        - Egress
+  networkpolicy-aiforall-local-full-allow-sqs:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-sqs
+        namespace: aiforall-local-full
+      spec:
+        ingress:
+        - from:
+          - podSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - iam
+                - hive
+                - telegraph
+                - manifesto
+                - lazaret
+                - sentinel-sync
+          ports:
+          - port: 4566
+            protocol: TCP
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: localstack
+        policyTypes:
+        - Ingress
+  networkpolicy-aiforall-local-full-allow-test-client:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-test-client
+        namespace: aiforall-local-full
+      spec:
+        egress:
+        - ports:
+          - port: 10000
+            protocol: TCP
+          to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: envoy-mesh
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: local-full-client
+        policyTypes:
+        - Egress
+  networkpolicy-aiforall-local-full-allow-zot:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: allow-zot
+        namespace: aiforall-local-full
+      spec:
+        ingress:
+        - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: aiforall-local-apparatus
+            podSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - apparatus-operator
+                - local-full-admit
+          ports:
+          - port: 5000
+            protocol: TCP
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: zot
+        policyTypes:
+        - Ingress
+  networkpolicy-aiforall-local-full-default-deny:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        labels:
+          aiforall.dev/profile: local-full
+        name: default-deny
+        namespace: aiforall-local-full
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+        - Egress
+  networkpolicy-aiforall-local-plugins-allow-dns:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-dns
+        namespace: aiforall-local-plugins
+      spec:
+        egress:
+        - ports:
+          - port: 53
+            protocol: UDP
+          - port: 53
+            protocol: TCP
+          to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+            podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+        podSelector: {}
+        policyTypes:
+        - Egress
+  networkpolicy-aiforall-local-plugins-allow-lazaret-hop:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-lazaret-hop
+        namespace: aiforall-local-plugins
+      spec:
+        egress:
+        - ports:
+          - port: 8080
+            protocol: TCP
+          to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: aiforall-local-full
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: lazaret
+        ingress:
+        - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: aiforall-local-full
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: lazaret
+          ports:
+          - port: 8080
+            protocol: TCP
+        podSelector:
+          matchExpressions:
+          - key: apparatus.aiforall.dev/project
+            operator: Exists
+          - key: apparatus.aiforall.dev/binding
+            operator: Exists
+          - key: app.kubernetes.io/instance
+            operator: Exists
+        policyTypes:
+        - Ingress
+        - Egress
+  networkpolicy-aiforall-local-plugins-default-deny:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny
+        namespace: aiforall-local-plugins
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+        - Egress
+  serviceaccount-aiforall-local-full-lazaret:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: lazaret
+        namespace: aiforall-local-full
+      automountServiceAccountToken: false
+  configmap-aiforall-local-full-openbao-public-ca:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: openbao-public-ca
+        namespace: aiforall-local-full
+    files:
+      ca.crt: files/public/e3b0c44298fc/ca.crt
+  configmap-aiforall-local-apparatus-openbao-public-ca:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: openbao-public-ca
+        namespace: aiforall-local-apparatus
+    files:
+      ca.crt: files/public/e3b0c44298fc/ca.crt
+  secret-aiforall-local-full-iam-local-signing-key:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: iam-local-signing-key
+        namespace: aiforall-local-full
+        annotations:
+          aiforall.dev/private-envelope: fixture-iam-signing-key
+      type: Opaque
+  secret-aiforall-local-full-iam-runtime-template:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Secret
+      type: Opaque
+      metadata:
+        name: iam-runtime-template-{{ .Values.runId }}
+        namespace: aiforall-local-full
+        annotations:
+          aiforall.dev/private-envelope: runtime-template
+          aiforall.dev/template-configmap: iam-dev-config-7ctdd25hb2
+          aiforall.dev/attempt-bound: 'true'
+  secret-aiforall-local-full-lazaret-runtime-template:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Secret
+      type: Opaque
+      metadata:
+        name: lazaret-runtime-template-{{ .Values.runId }}
+        namespace: aiforall-local-full
+        annotations:
+          aiforall.dev/private-envelope: runtime-template
+          aiforall.dev/template-configmap: lazaret-dev-config-cf9hgm64fh
+          aiforall.dev/attempt-bound: 'true'
+  secret-aiforall-local-full-manifesto-runtime-template:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Secret
+      type: Opaque
+      metadata:
+        name: manifesto-runtime-template-{{ .Values.runId }}
+        namespace: aiforall-local-full
+        annotations:
+          aiforall.dev/private-envelope: runtime-template
+          aiforall.dev/template-configmap: manifesto-dev-config-92h57m9mfd
+          aiforall.dev/private-field-markers: '{"grant-hmac":"__LOCAL_GRANT_HMAC__"}'
+          aiforall.dev/attempt-bound: 'true'
+enforcePrincipal: false
+principalIssuer: http://127.0.0.1:8080/iam

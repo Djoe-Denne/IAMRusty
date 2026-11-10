@@ -52,7 +52,7 @@ def omit_preserved_tls(objects, preserved):
 
 
 def reuse_openbao_tls(objects, tls_objects, data, read_deployment):
-    """Keep the existing leased OpenBao TLS reference instead of rotating its leaf."""
+    """Return filtered leaves and public refs; never mutate a rendered spec."""
     current = read_deployment("openbao")
     metadata = current.get("metadata", {})
     if not any(entry.get("kind") == "Deployment" and entry.get("name") == "openbao"
@@ -82,5 +82,5 @@ def reuse_openbao_tls(objects, tls_objects, data, read_deployment):
                 and o["metadata"]["name"].startswith("openbao-server-tls-")]
     if len(targets) != 1 or len(proposed) != 1 or targets[0]["secretName"] != proposed[0]["metadata"]["name"]:
         raise ValueError("ambiguous proposed OpenBao TLS preservation")
-    targets[0]["secretName"] = name
-    return [o for o in tls_objects if o is not proposed[0]]
+    return ([o for o in tls_objects if o is not proposed[0]],
+            {targets[0]["secretName"]: name})

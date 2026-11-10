@@ -190,21 +190,33 @@ deploy-j3:
 deploy-mesh:
     Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & ./ops/deploy/deploy-mesh.ps1
 
-# Autonomous local-full source profile. Defaults to OFFLINE render; deployment
-# needs the parent lease, immutable prebuilt image map and prepared local CAs.
-deploy-local-full action="render" *args:
+# Stable local PKI through OpenSSL (OPENSSL may select its native executable).
+kind-local mode="keep-data":
+    & ./ops/deploy/kind-local.ps1 -Mode "{{mode}}"
+
+kind-local-certs private_directory:
+    & ./ops/deploy/kind-local-pki.ps1 -Directory "{{private_directory}}"
+
+# Native Linux delivery for Kind; no Python driver, registry or provenance state.
+kind-local-build build_tag:
+    & ./ops/deploy/kind-local-images.ps1 -Action build -BuildTag "{{build_tag}}"
+
+# Import exactly the image references produced by the same native Bake group/tag.
+kind-local-import build_tag:
+    & ./ops/deploy/kind-local-images.ps1 -Action import -BuildTag "{{build_tag}}"
+
+# Historical campaign interface only; never called by the native launcher.
+legacy-deploy-local-full action="render" *args:
     python ./ops/deploy/deploy-local-full.py {{action}} {{args}}
 
-# Durable local environment. First up explicitly registers its original anchored
-# lease; subsequent calls reuse private state. Never build/reset/recreate here.
-local-up *args:
-    python -B ./ops/deploy/deploy-local-full.py up {{args}}
+# Daily entry now uses the same native rebuild/keep-data path.
+local-up: kind-local
 
-local-stop *args:
-    python -B ./ops/deploy/deploy-local-full.py stop {{args}}
+local-stop:
+    kubectl --context kind-aiforall-local-full --namespace aiforall-local-full scale deployment --selector aiforall.dev/kind-minimal-compute=true --replicas=0
 
-local-status *args:
-    python -B ./ops/deploy/deploy-local-full.py status {{args}}
+local-status:
+    kubectl --context kind-aiforall-local-full --namespace aiforall-local-full get pods,pvc,jobs
 
 # Full-profile Linux delivery artifacts only. Requires the operator's runtime
 # lease/GO; no cluster creation, Compose startup, certificates or data seeding.
@@ -217,16 +229,6 @@ kind-full-artifacts:
     docker build --platform linux/amd64 -t aiforall-sentinel-sync:local-full -f ops/deploy/build/Dockerfile.worker .; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; \
     docker build --platform linux/amd64 --provenance=false --sbom=false -t aiforall-apparatus-controller:j2 -f workers/apparatus-operator/Dockerfile.controller .; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; \
     docker build --platform linux/amd64 --provenance=false -t aiforall-zot:gold -f ops/deploy/p4/Dockerfile.zot ops/deploy/p4; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-# Validation consumes an explicitly prepared environment; no deploy/bootstrap.
-kind-full-smoke environment:
-    python -B ops/tests/local-full-acceptance.py smoke --environment "{{environment}}"
-
-kind-full-curl environment cases:
-    python -B ops/tests/local-full-acceptance.py route-matrix --environment "{{environment}}" --cases "{{cases}}"
-
-kind-full-e2e environment suite inputs:
-    python -B ops/tests/local-full-acceptance.py e2e --environment "{{environment}}" --suite "{{suite}}" --inputs "{{inputs}}"
 
 # Native Windows testcontainers suites; caller owns the single Cargo slot.
 it-native suite:

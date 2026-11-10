@@ -1,1 +1,5 @@
 .githooks/* text eol=lf
+ops/deploy/charts/local-full/** text eol=lf
+ops/deploy/profiles/local-full/** text eol=lf
+ops/deploy/local-full.just text eol=lf
+ops/deploy/registry/*.sh text eol=lf

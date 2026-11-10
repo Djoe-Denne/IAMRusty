@@ -1,5 +1,7 @@
 # OAuthConnect multi-instances — contrat d'implémentation v1
 
+> Raccord Ops du 2026-11-09 : le lot déclaratif déplace les configurations/montages de l'ancien overlay vers le chart et ses profils, sans changer les chemins KV ni les contrats produit. Voir le [guide courant](../guides/ops-declarative-boundaries.md) ; les chemins cités plus bas restent les constats à `5199613`, pas un second chemin de déploiement maintenu.
+
 Date : 2026-11-06. Canon secondaire de [ADR-0413](../adr/0413-oauthconnect-multi-instances-profils.md), **Accepted / Partial**. Base initiale inspectée : `b39c6c4dcc6de9b7f123c00c9bd168aad08eca74`, SDK `93b890ff7b821e9cb2e7d0aeb81957d098778a2f` ; proposition documentaire intégrée à `0a51206b1f9f4a999de7fc4812e947aee0445531`.
 
 **Contrat actif**, ratifié explicitement par l'utilisateur le 2026-11-06 : « Valider v2 et nonce (Recommandé) » et « Email primaire seul ». API authorize+complete, nonce IAM durable indépendant, profil minimal et delta GitHub sans fallback public sont acceptés ; aucune nouvelle capacité de claims riches/actions. Frontière `idp-connect-contract` v2, configuration/projection pure, transport OAuth et résolution/composition minimale des clients sont implémentés et testés. OIDC exécuté, service/listener/registry complet et parcours IAM restent des cibles, pas des composants livrés.

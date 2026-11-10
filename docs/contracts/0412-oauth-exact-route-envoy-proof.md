@@ -1,5 +1,7 @@
 # Contrat de preuve — E2E exact-route Envoy de l'ADR 0412
 
+> Raccord Ops du 2026-11-09 : les références `apps/overlays/local-full` sont historiques (`5199613`). Consulter désormais le [chart, les profils et le guide](../guides/ops-declarative-boundaries.md), sans changement des oracles ni qualification runtime implicite.
+
 Canon secondaire de [ADR 0412](../adr/0412-oauth-transaction-persistante-liee-navigateur.md).
 Statut ADR : Accepted. Réalité ADR : Implemented après ratification2026-10-29,
 qualification locale détaillée dans [l'état qualifié](20261029-auth-security-qualified-state.md).

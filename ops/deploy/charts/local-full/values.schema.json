@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profile", "phase", "runId", "resources", "storage"],
+  "properties": {
+    "profile": {"enum": ["base", "gitlab-proof", "github-openbao", "oauth-connect"]},
+    "phase": {"enum": ["quiesce", "foundation", "dependencies", "bootstrap", "applications-first", "final"]},
+    "runId": {"type": "string", "pattern": "^[a-z0-9]{12,32}$"},
+    "certIdentity": {"type": "string", "maxLength": 256},
+    "githubClientId": {"type": "string", "pattern": "^[A-Za-z0-9_.-]{1,128}$"},
+    "simulatedClientId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{8,128}$"},
+    "publicCa": {"type": "string", "maxLength": 65536},
+    "images": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[a-z0-9./:_-]+(:sha256-[a-f0-9]{64}|@sha256:[a-f0-9]{64})$"}},
+    "secretRefs": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,252}$"}},
+    "network": {"type": "object", "additionalProperties": false, "required": ["apiCidr", "ingressCidr"], "properties": {
+      "apiCidr": {"type": "string", "pattern": "^$|^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])/32$"},
+      "ingressCidr": {"type": "string", "pattern": "^$|^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])/32$"}}},
+    "isolatedPlugins": {"type": "boolean"},
+    "enforcePrincipal": {"type": "boolean"},
+    "principalIssuer": {"type": "string", "enum": ["http://127.0.0.1:8080/iam", "https://127.0.0.1:18080/iam"]},
+    "pluginCaSha256": {"type": "string", "pattern": "^$|^[a-f0-9]{64}$"},
+    "storage": {"type": "object", "additionalProperties": false, "required": ["mode", "namespace", "name", "claim", "readOnly", "database"], "properties": {
+      "mode": {"enum": ["none", "volume", "postgres", "foundation"]},
+      "namespace": {"type": "string", "pattern": "^aiforall-local-(full|apparatus|restore-[a-z0-9][a-z0-9-]{0,31})$"},
+      "name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"},
+      "claim": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"},
+      "readOnly": {"type": "boolean"},
+      "database": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,62}$"}}},
+    "resources": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["category", "object"], "properties": {
+      "category": {"enum": ["foundation", "dependencies", "bootstrap", "applications"]},
+      "epoch": {"type": "string", "enum": ["openbao-snapshot", "openbao-agent"]},
+      "migrationScope": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,62}$"},
+      "refreshTarget": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$"},
+      "principalPrefix": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]+$"},
+      "persistence": {"type": "object", "additionalProperties": false, "required": ["volume", "claim", "auxiliary"], "properties": {
+        "volume": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"},
+        "claim": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"},
+        "auxiliary": {"type": "array", "items": {"type": "string"}}}},
+      "coffer": {"type": "boolean"}, "seed": {"type": "string", "enum": ["github-openbao", "oauth-connect"]},
+      "files": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^files/(public|config)/"}},
+      "privateFiles": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^files/private/"}},
+      "object": {"type": "object", "required": ["apiVersion", "kind", "metadata"], "allOf": [
+        {"if": {"properties": {"kind": {"not": {"enum": ["Namespace", "CustomResourceDefinition", "ClusterRole", "ClusterRoleBinding"]}}}},
+         "then": {"properties": {"metadata": {"required": ["namespace"]}}}}
+      ], "properties": {
+        "apiVersion": {"type": "string"}, "kind": {"type": "string"}, "metadata": {"type": "object", "required": ["name"], "properties": {
+          "name": {"type": "string"}, "namespace": {"enum": ["aiforall-local-full", "aiforall-local-apparatus", "aiforall-local-plugins"]}}}}}
+    }}}
+  }
+}

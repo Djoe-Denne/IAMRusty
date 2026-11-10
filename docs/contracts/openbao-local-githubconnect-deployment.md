@@ -1,5 +1,7 @@
 # Plan de raccord — OpenBao local / GitHubConnect
 
+> Raccord Ops du 2026-11-09 : les chemins d'overlay ci-dessous sont ceux de la base `5199613`. Les définitions publiques sont désormais dans le chart et ses profils ; la PKI publique est dans le `.cnf` natif OpenSSL. Voir le [guide](../guides/ops-declarative-boundaries.md) et l'[exception HTTP stricte au pin OpenBao 2.6.2](ops-local-full-declarative-iac.md). Aucun changement des garanties TLS/CAS ni qualification runtime implicite.
+
 - **Statut : Proposed ; Réalité : Partial**, actualisé le 2026-11-01. GO d'implémentation acquis ; code et vérifications offline/natives livrés dans l'arbre. Qualification OpenBao/Kind/Linux et credentials réels **non exécutés**, sous gate distincte. Aucun Accept global d'ADR.
 - Jalon : Ops local-full / portabilité, hors Apparatus P0–P6. Préparation publiée en `2f3505d` ; sources inchangées depuis `c3da69f3de244b3534f0215e746cc87441e93054`, service livré en `21caa8b`, SDK consommé `93b890f`.
 - Canon lié : [0505](../adr/0505-startup-secrets-sdk-openbao.md), [contrat SDK](startup-secrets-openbao.md), [0606](../adr/0606-local-full-kind-isole.md), [séparation runtime/validation](ops-kind-runtime-validation-separation.md). Aucune ADR Accepted modifiée ou acceptation générale de ces ADR déduite.

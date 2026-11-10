@@ -47,7 +47,7 @@ esac
             file = self.bin / name
             file.write_text(text, encoding="utf-8", newline="\n")
             file.chmod(0o755)
-        self.scripts = {"github": (ROOT / "ops/deploy/apps/overlays/local-full/helpers/check-github-token.sh").read_text()}
+        self.scripts = {"github": (ROOT / "ops/deploy/charts/local-full/files/public/819c50aa5f69/check-github-token.sh").read_text()}
         objects = renderer.render("nativeprobecheck", oauth_connect=True)
         self.scripts["oauth"] = next(o for o in objects if o["kind"] == "ConfigMap"
             and o["metadata"]["name"].startswith("local-full-bootstrap-scripts"))["data"]["check-oauth-token.sh"]

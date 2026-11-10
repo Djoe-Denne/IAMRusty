@@ -1,0 +1,78 @@
+# Public references only. No token, unseal part, private key or operator path.
+buildTag: ""
+applications:
+  enabled: false
+  services:
+    iam: {target: iam, enabled: true, port: 8443, prefix: IAM, ready: /iam/ready, configPath: /app/config/development.toml, user: 1000, mtls: true}
+    hive: {target: hive, enabled: true, port: 8443, prefix: HIVE, ready: /hive/ready, configPath: /app/config/development.toml, user: 1000, mtls: true}
+    telegraph: {target: telegraph, enabled: true, port: 8443, prefix: TELEGRAPH, ready: /telegraph/ready, configPath: /app/config/development.toml, user: 1000, mtls: true}
+    manifesto: {target: manifesto, enabled: true, port: 8443, prefix: MANIFESTO, ready: /manifesto/ready, configPath: /app/config/development.toml, user: 1000, mtls: true}
+    lazaret: {target: lazaret, enabled: true, port: 8080, prefix: LAZARET, ready: /lazaret/ready, configPath: /app/config/development.toml, user: 1000, mtls: false}
+    sentinel-sync: {target: sentinel, enabled: true, port: 0, prefix: SENTINEL_SYNC, ready: "", configPath: /app/config/sentinel-sync.toml, user: 1000, mtls: false}
+    ext-authz: {target: ext-authz, enabled: true, port: 8090, prefix: "", ready: /check, configPath: "", user: 65534, mtls: true, allowHttpErrors: true}
+    github-connect: {target: github, enabled: false, port: 8443, prefix: "", ready: /health, configPath: /app/config/development.toml, user: 1000, mtls: false}
+    gitlab-connect: {target: gitlab, enabled: false, port: 8443, prefix: "", ready: /health, configPath: /app/config/development.toml, user: 1000, mtls: false}
+    oauth-connect: {target: oauth, enabled: false, port: 8443, prefix: "", ready: /health, configPath: /app/config/development.toml, user: 1000, mtls: false}
+    envoy-mesh: {target: envoy, enabled: true, port: 10000, prefix: "", ready: /iam/health, configPath: /etc/envoy/envoy.yaml, user: 101, mtls: false}
+  envoyImage: envoyproxy/envoy:v1.31.2@sha256:c56804e9fc8d5184c45862ad851173a925ff383151cb94156f86bed047da29bc
+network:
+  create: false
+openbao:
+  # The launcher must select true only for an absent Deployment, never convert DEV.
+  create: false
+  image: openbao/openbao:2.6.2@sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641
+  tlsSecret: openbao-server-tls
+  caSecret: transport-ca
+  storageClass: standard
+  storageSize: 1Gi
+
+openfga:
+  # Server/migration and first-install CLI Jobs are independently selected.
+  create: false
+  inspect: false
+  initialize: false
+  cliImage: openfga/cli:v0.8.2@sha256:31a565d14d1c5ca8170d3a2225eb66517d9f490539967bcb3421613c5e2538a4
+  caSecret: transport-ca
+  modelConfigMap: kind-local-fga-model
+  image: openfga/openfga:v1.8.5@sha256:d023be1d5b75df633c1efa6ab6b86748e77b05d5e78d0f40973a5e47d4264ce7
+  tlsSecret: openfga-server-tls
+  datastoreSecret: openfga-datastore
+
+postgres:
+  # Separate missing-server creation and explicit missing-database initialization.
+  # Neither is a detector or permission to reconfigure a running data service.
+  create: false
+  initialize: false
+  image: postgres:15.12-alpine3.21@sha256:ef9d1517df69c4d27dbb9ddcec14f431a2442628603f4e9daa429b92ae6c3cd1
+  tlsSecret: postgres-server-tls
+  caSecret: transport-ca
+  credentialsSecret: postgres-credentials
+  storageClass: standard
+  storageSize: 1Gi
+  # Existing platform database names, not fixture/simulator data.
+  databases: [iam_dev, telegraph_dev, hive_dev, manifesto_dev, lazaret_dev, openfga_dev, sentinel_dev]
+
+redis:
+  create: false
+  image: redis:7.2.7-alpine@sha256:ddd16a9b1575a774c7e62956be8daa1de5b32cfb5c25b7a216aefed8e0919f9b
+  tlsSecret: redis-server-tls
+  caSecret: transport-ca
+  storageClass: standard
+  storageSize: 1Gi
+
+localstack:
+  create: false
+  initialize: false
+  image: localstack/localstack:3.0.2@sha256:e606c4421419030b12d63a59f1211f57f5b0fbf7e9ce769e6250ee62ff4f9293
+  tlsSecret: localstack-server-tls
+  caSecret: transport-ca
+  queues: [sentinel-sync-events, telegraph-events, user-events, lazaret-kv-events]
+
+# P4/plugin OCI storage, NOT an application-image publisher/registry.
+zot:
+  create: false
+  image: ghcr.io/project-zot/zot:v2.1.8@sha256:cd2aea942f428630bcb4190542be6abd35e14177aab84fc7ccad0dca8ecb363d
+  configSecret: kind-local-zot-config
+  tlsSecret: zot-server-tls
+  storageClass: standard
+  storageSize: 1Gi

@@ -1,0 +1,633 @@
+profile: github-openbao
+resources:
+  configmap-aiforall-local-full-envoy-mesh-config:
+    files:
+      envoy.yaml: files/config/envoy.yaml
+  configmap-aiforall-local-full-iam-dev-config-7ctdd25hb2:
+    files:
+      development.toml: files/config/iam.toml
+  deployment-aiforall-local-full-iam:
+    object:
+      spec:
+        template:
+          spec:
+            containers:
+            - env:
+              - name: IAM_QUEUE__ENABLED
+                value: 'true'
+              - name: IAM_QUEUE__HOST
+                value: localstack
+              - name: RUST_LOG
+                value: info
+              - name: RUST_ENVIRONMENT
+                value: development
+              - name: DATABASE_URL
+                value: postgres://postgres:postgres@postgres:5432/iam_dev
+              - name: IAM_INTERNAL_SERVICE_TOKEN
+                value: iam-internal-dev-token
+              - name: IAM_SERVER__TLS_REQUIRE_CLIENT_CERT
+                value: 'true'
+              - name: IAM_AUTH__MESH__TRUSTED_GATEWAY_SAN
+                value: envoy-mesh
+              - name: SSL_CERT_FILE
+                value: /run/iam-trust/ca-bundle.crt
+              image: aiforall-iam-service:latest
+              imagePullPolicy: Never
+              name: iam
+              ports:
+              - containerPort: 8080
+                name: http
+              - containerPort: 8443
+                name: https
+              readinessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /iam/ready
+                  port: http
+                periodSeconds: 5
+                timeoutSeconds: 2
+              resources:
+                limits:
+                  cpu: '1'
+                  memory: 512Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+                runAsGroup: 1000
+                runAsNonRoot: true
+                runAsUser: 1000
+                seccompProfile:
+                  type: RuntimeDefault
+              startupProbe:
+                failureThreshold: 36
+                httpGet:
+                  path: /iam/health
+                  port: http
+                periodSeconds: 5
+              volumeMounts:
+              - mountPath: /app/config/development.toml
+                name: private-config
+                subPath: development.toml
+                readOnly: true
+              - mountPath: /app/config/keys/test-platform.pem
+                name: signing-key
+                subPath: test-platform.pem
+                readOnly: true
+              - mountPath: /app/config/keys/test-platform.pub
+                name: config
+                subPath: test-platform.pub
+                readOnly: true
+              - mountPath: /app/certs
+                name: certs
+                readOnly: true
+              - name: openbao-ca
+                mountPath: /run/openbao-ca
+                readOnly: true
+              - name: iam-trust
+                mountPath: /run/iam-trust
+                readOnly: true
+            volumes:
+            - name: config
+              secret:
+                secretName: iam-runtime-template-{{ .Values.runId }}
+                defaultMode: 292
+            - name: certs
+              secret:
+                items:
+                - key: ca.crt
+                  path: ca.crt
+                - key: iam-service.crt
+                  path: iam-service.crt
+                - key: iam-service.key
+                  path: iam-service.key
+                secretName: platform-mesh-certs
+            - name: openbao-identity
+              projected:
+                defaultMode: 288
+                sources:
+                - serviceAccountToken:
+                    path: jwt
+                    audience: openbao-iam-hmac
+                    expirationSeconds: 600
+            - name: private-config
+              emptyDir:
+                medium: Memory
+                sizeLimit: 1Mi
+            - name: openbao-ca
+              configMap:
+                name: openbao-public-ca
+            - name: openbao-scripts
+              configMap:
+                name: local-full-bootstrap-scripts-9m6d5kt255
+            - name: iam-trust
+              emptyDir:
+                medium: Memory
+                sizeLimit: 1Mi
+            - name: signing-key
+              secret:
+                secretName: iam-local-signing-key
+                defaultMode: 292
+            serviceAccountName: iam-openbao
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1000
+              runAsGroup: 1000
+              fsGroup: 1000
+              seccompProfile:
+                type: RuntimeDefault
+            initContainers:
+            - name: openbao-snapshot
+              image: python:3.12.9-alpine3.21@sha256:28b8a72c4e0704dd2048b79830e692e94ac2d43d30c914d54def6abf74448a4e
+              command:
+              - python
+              - -B
+              - /scripts/openbao-workload.py
+              - iam-hmac
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                  - ALL
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              volumeMounts:
+              - name: openbao-identity
+                mountPath: /run/identity
+                readOnly: true
+              - name: openbao-ca
+                mountPath: /run/openbao-ca
+                readOnly: true
+              - name: openbao-scripts
+                mountPath: /scripts
+                readOnly: true
+              - name: config
+                mountPath: /template
+                readOnly: true
+              - name: private-config
+                mountPath: /runtime
+                readOnly: false
+            - name: trusted-roots
+              image: aiforall-iam-service:latest
+              imagePullPolicy: Never
+              command:
+              - sh
+              - -ec
+              - cat /etc/ssl/certs/ca-certificates.crt /run/openbao-ca/ca.crt > /trust/ca-bundle.crt; chmod 0444 /trust/ca-bundle.crt
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                  - ALL
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              volumeMounts:
+              - name: openbao-ca
+                mountPath: /run/openbao-ca
+                readOnly: true
+              - name: iam-trust
+                mountPath: /trust
+                readOnly: false
+    epoch: openbao-snapshot
+  networkpolicy-aiforall-local-full-allow-openbao:
+    object:
+      spec:
+        ingress:
+        - from:
+          - podSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - lazaret
+                - github-seed
+                - iam
+                - github-connect
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: aiforall-local-apparatus
+            podSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - apparatus-operator
+                - local-full-admit
+          ports:
+          - port: 8443
+            protocol: TCP
+  serviceaccount-aiforall-local-full-github-connect:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: github-connect
+        namespace: aiforall-local-full
+      automountServiceAccountToken: false
+    refreshTarget: github
+  serviceaccount-aiforall-local-full-github-seed:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: github-seed
+        namespace: aiforall-local-full
+      automountServiceAccountToken: false
+  serviceaccount-aiforall-local-full-iam-openbao:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: iam-openbao
+        namespace: aiforall-local-full
+      automountServiceAccountToken: false
+  configmap-aiforall-local-full-github-openbao-config:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: github-openbao-config
+        namespace: aiforall-local-full
+    files:
+      development.toml: files/public/da5c071a40ce/development.toml
+      agent.hcl: files/public/351e565cd3e0/agent.hcl
+  deployment-aiforall-local-full-github-connect:
+    category: applications
+    object:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: github-connect
+        namespace: aiforall-local-full
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: github-connect
+        template:
+          metadata:
+            labels:
+              app.kubernetes.io/name: github-connect
+          spec:
+            automountServiceAccountToken: false
+            serviceAccountName: github-connect
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1000
+              runAsGroup: 1000
+              fsGroup: 1000
+              seccompProfile:
+                type: RuntimeDefault
+            initContainers:
+            - name: openbao-agent
+              image: openbao/openbao:2.6.2@sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641
+              restartPolicy: Always
+              command:
+              - bao
+              - agent
+              - -config=/agent/agent.hcl
+              - -log-level=warn
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                  - ALL
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              volumeMounts:
+              - name: github-config
+                mountPath: /agent
+                readOnly: true
+              - name: openbao-ca
+                mountPath: /run/openbao-ca
+                readOnly: true
+              - name: openbao-identity
+                mountPath: /run/identity
+                readOnly: true
+              - name: github-token
+                mountPath: /run/github-openbao
+                readOnly: false
+              - name: openbao-scripts
+                mountPath: /scripts
+                readOnly: true
+              startupProbe:
+                exec:
+                  command:
+                  - sh
+                  - /scripts/check-github-token.sh
+                periodSeconds: 2
+                timeoutSeconds: 15
+                failureThreshold: 120
+            containers:
+            - name: github-connect
+              image: aiforall-github-connect-service:latest
+              imagePullPolicy: Never
+              env:
+              - name: RUN_ENV
+                value: development
+              ports:
+              - name: https
+                containerPort: 8443
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                  - ALL
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              volumeMounts:
+              - name: github-config
+                mountPath: /app/config
+                readOnly: true
+              - name: openbao-ca
+                mountPath: /run/openbao-ca
+                readOnly: true
+              - name: connector-tls
+                mountPath: /run/connector-tls
+                readOnly: true
+              - name: github-token
+                mountPath: /run/github-openbao
+                readOnly: true
+              readinessProbe:
+                tcpSocket:
+                  port: https
+                periodSeconds: 5
+              startupProbe:
+                tcpSocket:
+                  port: https
+                periodSeconds: 2
+                failureThreshold: 30
+            volumes:
+            - name: openbao-identity
+              projected:
+                defaultMode: 288
+                sources:
+                - serviceAccountToken:
+                    path: jwt
+                    audience: openbao-github-connect
+                    expirationSeconds: 600
+            - name: github-config
+              configMap:
+                name: github-openbao-config
+            - name: openbao-ca
+              configMap:
+                name: openbao-public-ca
+            - name: connector-tls
+              secret:
+                secretName: github-connect-server-tls-{{ .Values.runId }}
+                defaultMode: 288
+            - name: github-token
+              emptyDir:
+                medium: Memory
+                sizeLimit: 1Mi
+            - name: openbao-scripts
+              configMap:
+                name: local-full-bootstrap-scripts-9m6d5kt255
+    epoch: openbao-agent
+    refreshTarget: github
+  service-aiforall-local-full-github-connect:
+    category: foundation
+    object:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: github-connect
+        namespace: aiforall-local-full
+      spec:
+        selector:
+          app.kubernetes.io/name: github-connect
+        ports:
+        - name: https
+          port: 8443
+          targetPort: https
+    refreshTarget: github
+  job-aiforall-local-full-github-openbao-seed:
+    category: bootstrap
+    object:
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: github-openbao-seed-{{ .Values.runId }}
+        namespace: aiforall-local-full
+      spec:
+        backoffLimit: 0
+        activeDeadlineSeconds: 240
+        ttlSecondsAfterFinished: 300
+        template:
+          metadata:
+            labels:
+              app.kubernetes.io/name: github-seed
+          spec:
+            serviceAccountName: github-seed
+            automountServiceAccountToken: false
+            restartPolicy: Never
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1000
+              runAsGroup: 1000
+              fsGroup: 1000
+              seccompProfile:
+                type: RuntimeDefault
+            containers:
+            - name: seed
+              image: python:3.12.9-alpine3.21@sha256:28b8a72c4e0704dd2048b79830e692e94ac2d43d30c914d54def6abf74448a4e
+              command:
+              - python
+              - -B
+              - /scripts/openbao-workload.py
+              - github-seed
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                  - ALL
+              volumeMounts:
+              - name: scripts
+                mountPath: /scripts
+                readOnly: true
+              - name: openbao-ca
+                mountPath: /run/openbao-ca
+                readOnly: true
+              - name: openbao-identity
+                mountPath: /run/identity
+                readOnly: true
+              - name: private-inputs
+                mountPath: /inputs
+                readOnly: true
+            volumes:
+            - name: openbao-identity
+              projected:
+                defaultMode: 288
+                sources:
+                - serviceAccountToken:
+                    path: jwt
+                    audience: openbao-github-seed
+                    expirationSeconds: 600
+            - name: scripts
+              configMap:
+                name: local-full-bootstrap-scripts-9m6d5kt255
+            - name: openbao-ca
+              configMap:
+                name: openbao-public-ca
+            - name: private-inputs
+              secret:
+                secretName: github-seed-inputs-{{ .Values.runId }}
+                defaultMode: 288
+    seed: github-openbao
+  networkpolicy-aiforall-local-full-allow-github-openbao:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-github-openbao
+        namespace: aiforall-local-full
+      spec:
+        podSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - github-connect
+            - github-seed
+            - iam
+        policyTypes:
+        - Egress
+        egress:
+        - to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: openbao
+          ports:
+          - protocol: TCP
+            port: 8443
+  networkpolicy-aiforall-local-full-allow-iam-github:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-iam-github
+        namespace: aiforall-local-full
+      spec:
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: iam
+        policyTypes:
+        - Egress
+        egress:
+        - to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: github-connect
+          ports:
+          - protocol: TCP
+            port: 8443
+  networkpolicy-aiforall-local-full-allow-github-iam:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-github-iam
+        namespace: aiforall-local-full
+      spec:
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: github-connect
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: iam
+          ports:
+          - protocol: TCP
+            port: 8443
+  networkpolicy-aiforall-local-full-allow-github-jwks:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-github-jwks
+        namespace: aiforall-local-full
+      spec:
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: github-connect
+        policyTypes:
+        - Egress
+        egress:
+        - to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: iam
+          ports:
+          - protocol: TCP
+            port: 8080
+  networkpolicy-aiforall-local-full-allow-iam-jwks:
+    category: foundation
+    object:
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-iam-jwks
+        namespace: aiforall-local-full
+      spec:
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: iam
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: github-connect
+          ports:
+          - protocol: TCP
+            port: 8080
+enforcePrincipal: false
+principalIssuer: http://127.0.0.1:8080/iam

@@ -1,0 +1,151 @@
+{{- if .Values.redis.create }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: aiforall
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.redis.storageClass | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.redis.storageSize | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kind-local-redis-tls
+  namespace: {{ .Release.Namespace }}
+data:
+  redis.conf: |
+    bind 0.0.0.0
+    # Explicit no-auth lab, reached by Lazaret in another Pod. In Redis 7.2.7
+    # protected-mode yes denies every non-loopback NOPASS client, including TLS.
+    # Server-auth TLS does not authenticate clients; scope access with the mesh.
+    protected-mode no
+    port 0
+    tls-port 6379
+    tls-cert-file /tls/tls.crt
+    tls-key-file /tls/tls.key
+    tls-ca-cert-file /tls/ca.crt
+    tls-protocols "TLSv1.2 TLSv1.3"
+    tls-auth-clients no
+    dir /data
+    appendonly yes
+    appendfsync always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: aiforall
+spec:
+  selector:
+    app.kubernetes.io/name: redis
+  ports:
+    - name: redis-tls
+      port: 6379
+      targetPort: redis-tls
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: aiforall
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/component: data
+        aiforall.dev/kind-minimal: "true"
+        app.kubernetes.io/part-of: aiforall
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [redis-server, /etc/redis/redis.conf]
+          ports:
+            - name: redis-tls
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                # redis-cli 7.2.7 verifies CA, sends SNI, and checks PONG here.
+                # SNI alone is NOT hostname verification. Lazaret's Rustls
+                # client verifies the DNS SAN; do not claim the probe does so.
+                - test "$(redis-cli --tls --cacert /tls/ca.crt --sni redis.{{ .Release.Namespace }}.svc.cluster.local -h 127.0.0.1 -p 6379 --raw PING)" = PONG
+            periodSeconds: 5
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /etc/redis
+              readOnly: true
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: redis-data
+        - name: config
+          configMap:
+            name: kind-local-redis-tls
+        - name: tls
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Values.redis.tlsSecret }}
+                  items:
+                    - key: tls.crt
+                      path: tls.crt
+                    - key: tls.key
+                      path: tls.key
+              - secret:
+                  name: {{ .Values.redis.caSecret }}
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+{{- end }}

@@ -1,5 +1,7 @@
 # Local-full — activation additive GitHub, GitLab conservé
 
+> Raccord Ops du 2026-11-09 : les chemins de l'ancien overlay sont historiques à `5199613`. Les déclarations et helpers publics résident maintenant dans le chart, voir le [guide](../guides/ops-declarative-boundaries.md). Seeds CAS, préimages et critères d'activation restent inchangés ; aucune activation n'est déduite de la migration.
+
 2026-11-03 — **Proposed / Partial** pour le raccord décrit ici. Base
 inspectée `7fdb17d33601ce85995fac8f1d89bef68d3c6b97`. Le livrable initial était
 documentaire ; le contrat seul ne constitue ni autorisation runtime ni preuve E2E.

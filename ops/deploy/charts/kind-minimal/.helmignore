@@ -1,0 +1,7 @@
+.git
+.gitignore
+.tmp/
+*.key
+*.pem
+*.p12
+*.pfx

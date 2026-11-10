@@ -1,8 +1,32 @@
-# Déploiement local : nominal local-full et compatibilité legacy
+# Déploiement local natif et archives legacy
 
-Contrat : [runtime autonome, validations explicites](../../docs/contracts/ops-kind-runtime-validation-separation.md) · [profil local-full](apps/overlays/local-full/README.md) · [ADR-0606](../../docs/adr/0606-local-full-kind-isole.md).
+Parcours courant : **`just kind-local`**, données conservées, ou
+**`just kind-local reset-data`**, reset explicite du seul lab dédié.
+Préparer les fichiers complets décrits dans le [guide natif](kind-minimal.md).
+Build/import, données manquantes, CLI natifs et services sont raccordés sans Python.
+Ce code n'a pas encore été lancé contre le lab ; aucune qualification globale
+ou autorisation de destruction des données historiques n'est implicite.
+
+## Archive de l'ancien parcours
+
+Les commandes et protocoles ci-dessous sont **historiques**, pas le nominal.
+Leur façade restante est `just legacy-deploy-local-full <action> ...`.
+`local-up`, `local-stop` et `local-status` désignent désormais les commandes
+natives ; ne pas leur passer les anciens flags/baux. L'ancien code est conservé
+uniquement pour ses consommateurs historiques encore non migrés, jamais appelé
+par `kind-local`.
+
+Contrat : [runtime autonome, validations explicites](../../docs/contracts/ops-kind-runtime-validation-separation.md) · [profil déclaratif local-full](charts/local-full/README.md) · [contrat IaC](../../docs/contracts/ops-local-full-declarative-iac.md) · [ADR-0606](../../docs/adr/0606-local-full-kind-isole.md).
 
 Le **seul parcours nominal est local-full** : cluster `aiforall-local-full`, contexte `kind-aiforall-local-full`, un control-plane et deux workers. Il ne réutilise ni ne remplace le cluster legacy `aiforall-local`. Aucun repli vers Compose, une démo monolithe ou des stubs. Les commandes ci-dessous sont une procédure opérateur, **pas une preuve live** ; un rendu valide ou des Pods Ready ne prouvent pas un parcours métier.
+
+Depuis la migration Ops du 9 novembre : **Helm4.3.1+gc0d08d0 offline**, profils
+et phases dans `profiles/local-full/`, graphe dans `local-full.just` ; Python
+conserve seulement les gardes et protocoles privés. `AIFORALL_HELM` pointe vers
+l'exécutable qualifié (ou PATH). Aucun install/upgrade ni secret dans les valeurs
+Helm. Voir le [guide du chart](charts/local-full/README.md) pour outils, enveloppes
+privées, reprise, blocages d'un bail ancien et validation synthétique. Les bases
+legacy/P4 partagées restent présentes ; l'ancien overlay local-full est retiré.
 
 ## OAuthConnect : GitHub + fournisseur simulé, entrée HTTPS
 
@@ -16,8 +40,10 @@ première installation neuve. Aucun reset n'est implicite dans les commandes Ops
 
 Suivi du 9 novembre : OAuthConnect et le simulateur sont prêts ; l'entrée HTTPS
 a été vérifiée après une **exception ingress manuelle autorisée**, limitée à
-la source IPIP mesurée `/32` et au port Envoy 10000. Elle n'est pas maintenue
-automatiquement par `deploy/up` et peut disparaître lors d'un apply de fondation.
+la source IPIP mesurée `/32` et au port Envoy10000. Le nouveau renderer sait la
+déclarer, mais sa préservation exige une attestation persistée par le protocole
+parent existant et revalidée contre UID/source/spec. Sans cette attestation, un
+nouvel apply de fondation **bloque avant quiescence**, sans retirer la règle.
 Ne pas recopier son adresse sur un autre lab : nouvelle mesure et autorisation
 requises. Le [rapport de mission](../../docs/missions/20261108-oauthconnect-local-activation.md)
 sépare readiness, HTTPS et parcours navigateur complet (non exécuté).
@@ -256,7 +282,7 @@ n'est pas activée implicitement pour tous les imports/tests du runner.
 
 ## 1. Préflight Windows, sans démarrage implicite
 
-Exécuter depuis la racine du dépôt dans une nouvelle session PowerShell Windows (5.1 ou ultérieur). Python **3.11+**, PyYAML, OpenSSL **3+**, Docker avec Compose/BuildKit, Kind et kubectl avec Kustomize intégré sont requis. Outil absent ou commande native en échec ⇒ **STOP**, jamais skip réussi. La préparation des certificats appelle OpenSSL directement, sans Bash/WSL ; sous Windows, elle détecte aussi OpenSSL fourni par Git. Le préflight ci-dessous ne demande aucun démarrage de Docker/Kind/WSL :
+Exécuter depuis la racine du dépôt dans une nouvelle session PowerShell Windows (5.1 ou ultérieur). Python **3.11+**, PyYAML, Helm **4.3.1+gc0d08d0**, just, OpenSSL **3+**, Docker avec Compose/BuildKit, Kind et kubectl avec Kustomize intégré sont requis (Kustomize reste celui du CNI/legacy, pas le renderer local-full). Outil absent ou commande native en échec ⇒ **STOP**, jamais skip réussi. La PKI est décrite dans `ops/scripts/local-full-certificates.cnf` ; son wrapper appelle OpenSSL directement, sans Bash/WSL, et détecte aussi OpenSSL fourni par Git sous Windows. Le préflight ne demande aucun démarrage de Docker/Kind/WSL :
 
 ```powershell
 Set-StrictMode -Version Latest
@@ -349,7 +375,7 @@ docker build --platform linux/amd64 --provenance=false -t aiforall-zot:gold -f o
 Assert-NativeSuccess 'Zot'
 ```
 
-Les neuf sources attendues sont énumérées dans `local-full-images.py` (dont `aiforall-ext-authz:local`). Ne jamais monter ni partager le target Windows `E:\cargo-target\AIForAll` avec un build Linux. Le développement et les IT se compilent nativement sous Windows, un seul Cargo à la fois.
+Les sources attendues sont dérivées des références d'images du profil Helm sélectionné par `local-full-images.py` (dont `aiforall-ext-authz:local`), sans seconde liste de workloads. Ne jamais monter ni partager le target Windows `E:\cargo-target\AIForAll` avec un build Linux. Le développement et les IT se compilent nativement sous Windows, un seul Cargo à la fois.
 
 ## 3. Certificats et rendu offline
 
@@ -370,7 +396,12 @@ Les sorties restent `mesh/{ca,iam-service,hive-service,telegraph-service,manifes
 
 En CI, créer une destination temporaire par **job E2E**, la conserver pour tous les consommateurs de ce job puis la retirer en fin de job ; aucune clé dans les caches ou artifacts. Le job `infra-static` fait seulement une génération/réutilisation Linux réelle, sans cluster ; ce n'est pas une preuve E2E. Ne pas imprimer le contenu des clés, tokens, kubeconfigs ou manifests rendus ; les sorties de rendu restent privées hors Git. Ce générateur est local/test, pas un émetteur PKI cloud ni un distributeur KMS. Documentation OpenSSL : [req](https://docs.openssl.org/3.5/man1/openssl-req/) et [x509](https://docs.openssl.org/3.5/man1/openssl-x509/).
 
-Le rendu est **offline par design**. `render-local-full.py:23–26` impose le chemin **inexistant** `ops/deploy/offline-no-kubeconfig` pour empêcher le fallback vers des credentials ambiants : **ne pas créer ni « réparer » ce fichier**. Aucun cluster, bail ou appel API n'est requis pour `render` (action par défaut de `just deploy-local-full`). Le rendu n'autorise pas le lancement.
+Le rendu est **offline par design** : `helm template` client-side, sans lookup,
+hook ni post-renderer ; aucun cluster, bail, kubeconfig ou appel API requis pour
+`render` (action par défaut de `just deploy-local-full`). Les JSON publics ne
+contiennent pas les valeurs privées à hydrater dans les enveloppes. Le rendu
+n'autorise pas le lancement. `offline-no-kubeconfig` n'est plus consommé par ce
+renderer ; ne pas créer un kubeconfig de secours.
 
 ## 4. Bail JSON v2 écrit par l'opérateur
 

@@ -1,0 +1,50 @@
+{{- if .Values.zot.create }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: zot-data, namespace: {{ .Release.Namespace }}}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.zot.storageClass | quote }}
+  resources: {requests: {storage: {{ .Values.zot.storageSize }}}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: zot, namespace: {{ .Release.Namespace }}}
+spec:
+  selector: {app.kubernetes.io/name: zot}
+  ports: [{name: https, port: 5000, targetPort: https}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: zot, namespace: {{ .Release.Namespace }}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app.kubernetes.io/name: zot}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: zot, aiforall.dev/kind-minimal: "true"}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 65534, runAsGroup: 65534, fsGroup: 65534}
+      containers:
+        - name: zot
+          image: {{ .Values.zot.image | quote }}
+          args: [serve, /etc/zot/config.json]
+          ports: [{name: https, containerPort: 5000}]
+          # Authentication stays in the operator's complete config/htpasswd.
+          # A port probe is not a claim of CA/SAN or authenticated OCI readiness.
+          readinessProbe: {tcpSocket: {port: https}, periodSeconds: 5}
+          volumeMounts:
+            - {name: config, mountPath: /etc/zot/config.json, subPath: config.json, readOnly: true}
+            - {name: config, mountPath: /etc/zot/htpasswd, subPath: htpasswd, readOnly: true}
+            - {name: tls, mountPath: /tls, readOnly: true}
+            - {name: data, mountPath: /var/lib/zot}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 500m, memory: 256Mi}}
+      volumes:
+        - {name: config, secret: {secretName: {{ .Values.zot.configSecret }}, defaultMode: 0440}}
+        - {name: tls, secret: {secretName: {{ .Values.zot.tlsSecret }}, defaultMode: 0440}}
+        - {name: data, persistentVolumeClaim: {claimName: zot-data}}
+{{- end }}

@@ -3,6 +3,8 @@ import copy
 from contextlib import ExitStack, nullcontext, redirect_stdout, redirect_stderr
 import io
 import json
+import os
+import shutil
 from pathlib import Path
 import stat
 import sys
@@ -166,7 +168,8 @@ class PowerFixture(unittest.TestCase):
         self.f = Fixture(self.temp.name)
         self.cmd = PowerCommands(self.f)
         self.target = self.f.target(self.cmd)
-        self.variables = patch.dict("os.environ", {}, clear=True)
+        tool = os.environ.get("AIFORALL_HELM") or shutil.which("helm")
+        self.variables = patch.dict("os.environ", {"AIFORALL_HELM": tool} if tool else {}, clear=True)
         self.variables.start()
         self.addCleanup(self.variables.stop)
 
@@ -228,11 +231,20 @@ class ApiPolicyTests(unittest.TestCase):
         self.target = Mock()
         self.target.kubectl.return_value = json.dumps({"items": [{"status": {
             "addresses": [{"type": "InternalIP", "address": "172.19.0.2"}]}}]})
-        self.policies = {namespace: {"metadata": {"uid": namespace, "resourceVersion": "12"},
-            "spec": {"podSelector": {"matchLabels": {"app": namespace}}, "policyTypes": ["Egress"],
-                     "egress": [{"to": [{"ipBlock": {"cidr": "10.96.0.1/32"}}, {"ipBlock": {"cidr": "172.19.0.3/32"}}],
-                                 "ports": [{"protocol": "TCP", "port": 443}, {"protocol": "TCP", "port": 6443}]}]}}
-            for namespace in (environment.CLUSTER, "aiforall-local-apparatus")}
+        import local_full_helm
+        objects = local_full_helm.render(phase="foundation", values={"network": {"apiCidr": "172.19.0.3/32", "ingressCidr": ""}})
+        self.policies = {o["metadata"]["namespace"]: o for o in objects if o["kind"] == "NetworkPolicy" and o["metadata"]["name"] == "allow-api"}
+        for namespace, obj in self.policies.items():
+            obj["metadata"].update(uid=namespace, resourceVersion="12")
+        def call(args, **kwargs):
+            if args[0] == "patch":
+                namespace = args[args.index("-n") + 1]
+                ack = copy.deepcopy(self.policies[namespace])
+                ack["spec"] = json.loads(args[args.index("-p") + 1])[-1]["value"]
+                ack["metadata"]["resourceVersion"] = "13"
+                return json.dumps(ack)
+            return self.target.kubectl.return_value
+        self.target.kubectl.side_effect = call
 
     def run_sync(self):
         with patch.object(environment, "owned", side_effect=lambda _t, _k, _n, ns: self.policies[ns]):
@@ -446,6 +458,27 @@ class CofferRecoveryTests(unittest.TestCase):
             target.assert_not_called()
             self.assertEqual(state_file.read_bytes(), original)
 
+    def test_child_secret_ack_loss_refuses_retry_even_with_acknowledged_job(self):
+        target, state, inputs, _deployment, resource = self.recovery_fixture()
+        runtime, save = Mock(), Mock()
+        runtime.create.side_effect = [{"metadata": {"uid": "parent-job"}}, ValueError("child ACK lost")]
+        secret = lambda name, values: {"kind": "Secret", "metadata": {"name": name}, "data": values}
+        def read(t, kind, name, *args):
+            if kind == "Job": return {"metadata": {"uid": "parent-job"}}
+            return resource(t, kind, name, *args)
+        with patch.object(environment, "owned", side_effect=read), \
+             patch.object(environment, "input_reference", return_value=state["github_input"]):
+            with self.assertRaisesRegex(ValueError, "child ACK lost"):
+                environment.recover_coffer(target, state, save, runtime, Mock(return_value=inputs), secret)
+            self.assertEqual(state["recovery_job_uid"], "parent-job")
+            self.assertNotIn("recovery_input_uid", state)
+            self.assertNotIn("recovery_seeded_epoch", state)
+            runtime.create.reset_mock()
+            with self.assertRaisesRegex(ValueError, "no adoption"):
+                environment.recover_coffer(target, state, save, runtime, Mock(return_value=inputs), secret)
+            runtime.create.assert_not_called()
+            target.kubectl.assert_not_called()
+
     def test_g4_seed_foundations_require_ack_uid_and_original_lease(self):
         for kind, name in (("ServiceAccount", "github-seed"),
                            ("NetworkPolicy", "allow-openbao-from-github-seed"),
@@ -475,6 +508,7 @@ class CofferRecoveryTests(unittest.TestCase):
                  "recovery_job": "same-attempt", "recovery_seeded_epoch": "epoch-two"}
         original = copy.deepcopy(state)
         target, save, runtime = Mock(), Mock(), Mock()
+        target.data = {"connectorProfile": "base", "ownedResources": []}
         with patch.object(environment, "coffer_epoch", return_value="epoch-three"), \
                 patch.object(environment, "resync_api_policies"), \
                 patch.object(environment, "recover_coffer") as recover:

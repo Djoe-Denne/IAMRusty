@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import sys
 import tempfile
 import tomllib
@@ -19,9 +20,6 @@ import image_sources as sources
 spec = importlib.util.spec_from_file_location("image_builder", ROOT / "ops/deploy/build/images.py")
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
-spec = importlib.util.spec_from_file_location("artifact_compiler", ROOT / "ops/deploy/build/compile-artifacts.py")
-compiler = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(compiler)
 
 
 class ImageSourceTests(unittest.TestCase):
@@ -72,6 +70,20 @@ class ImageSourceTests(unittest.TestCase):
         for name in sources.TARGETS:
             self.assertNotEqual(sources.target_identity(first, name), sources.target_identity(second, name))
         self.assertEqual(first["sdk_revision"], second["sdk_revision"])
+
+    def test_inventory_and_bake_recipes_are_captured_and_invalidate_every_target(self):
+        for name in ("targets.json", "docker-bake.hcl"):
+            path = "ops/deploy/build/" + name
+            self.write(path, (ROOT / path).read_text(encoding="utf-8"))
+        first = sources.capture(self.root)
+        for name in ("targets.json", "docker-bake.hcl"):
+            path = "ops/deploy/build/" + name
+            contents = (self.root / path).read_text(encoding="utf-8")
+            self.write(path, contents + "\n")
+            second = sources.capture(self.root)
+            for target in sources.TARGETS:
+                self.assertNotEqual(sources.target_identity(first, target), sources.target_identity(second, target))
+            self.write(path, contents)
 
     def tracked_public_config_sources(self):
         public = {
@@ -201,44 +213,18 @@ class ImageSourceTests(unittest.TestCase):
         os.utime(path, ns=(stamp, stamp))
         self.assertNotEqual(sources.target_identity(second, "hive"), sources.target_identity(sources.capture(self.root), "hive"))
 
-    def test_cache_journal_precedes_failed_build_and_rollback_advances_time(self):
-        target = self.root / "cargo-cache"
-        source = self.root / "services/Hive/src/main.rs"
-        manifest = self.root / "image-inputs.json"
-        def sync(value):
-            source.write_text(value)
-            manifest.write_text(json.dumps({"files": [{"path": "services/Hive/src/main.rs",
-                "sha256": hashlib.sha256(source.read_bytes()).hexdigest()}]}))
-            return compiler.cached_source_times(self.root, target)
-        first = sync("A")
-        second = sync("B")
-        self.assertNotEqual(first[source.relative_to(self.root).as_posix()]["sha256"], second[source.relative_to(self.root).as_posix()]["sha256"])
-        journal = target / ".aiforall-source-times.json"
-        self.assertEqual(json.loads(journal.read_text()), second)
-        # A failed Cargo has already updated a retained fingerprint after sync B.
-        fingerprint = target / "dev-image/.fingerprint/input/dep-lib-input"
-        fingerprint.parent.mkdir(parents=True)
-        fingerprint.write_bytes(b"partial B")
-        retained = fingerprint.stat().st_mtime_ns
-        third = sync("A")
-        self.assertGreater(third["services/Hive/src/main.rs"]["mtime_ns"], retained)
-        self.assertEqual(json.loads(journal.read_text()), third)
-        with patch.object(compiler.time, "time_ns", return_value=0), self.assertRaises(ValueError):
-            compiler.cached_source_times(self.root, target)
-        self.assertTrue(fingerprint.exists(), "clock refusal must not purge the cache")
-
-    @unittest.skipUnless(os.environ.get("AIFORALL_IMAGE_CACHE_PROOF") == "1", "explicit native Cargo cache proof")
-    def test_native_binary_follows_rollback_after_partial_cargo_failure(self):
+    @unittest.skipUnless(os.environ.get("AIFORALL_IMAGE_REBUILD_PROOF") == "1", "explicit native Cargo fresh-target proof")
+    def test_native_fresh_targets_follow_rollback_after_partial_cargo_failure(self):
         config = tomllib.loads((ROOT / ".cargo/config.toml").read_text(encoding="utf-8"))
         self.assertEqual(config["build"]["jobs"], 24)
         self.assertIn(os.environ.get("CARGO_BUILD_JOBS"), (None, "24"))
         self.write(".cargo/config.toml", (ROOT / ".cargo/config.toml").read_text(encoding="utf-8"))
-        target = (Path(config["build"]["target-dir"]) / "image-cache-proof" / self.root.name
+        target = (Path(config["build"]["target-dir"]) / "image-rebuild-proof" / self.root.name
                   if os.name == "nt" else self.root / "target")
         if os.name == "nt":
             self.assertEqual(target.drive.upper(), "E:")
         env = {**os.environ, "CARGO_TARGET_DIR": str(target), "CARGO_TERM_COLOR": "never"}
-        evidence = ROOT / ".tmp" / ("image-cache-" + self.root.name)
+        evidence = ROOT / ".tmp" / ("image-rebuild-" + self.root.name)
         evidence.mkdir(parents=True)
         self.write("Cargo.toml", '[workspace]\nmembers = ["input"]\n[package]\nname = "cache-image-oracle"\nversion = "0.0.0"\nedition = "2021"\n[dependencies]\ninput = { package = "cache-input-oracle", path = "input" }\n')
         self.write("input/Cargo.toml", '[package]\nname = "cache-input-oracle"\nversion = "0.0.0"\nedition = "2021"\n[lib]\nname = "cache_input"\n')
@@ -249,6 +235,8 @@ class ImageSourceTests(unittest.TestCase):
         self.write("asset.txt", "A")
 
         def cargo(label, arguments):
+            env["CARGO_TARGET_DIR"] = str(target / label)
+            self.assertFalse((target / label).exists(), "each rebuild needs a fresh target")
             result = subprocess.run(["cargo", *arguments], cwd=self.root, env=env, capture_output=True, text=True, timeout=120)
             (evidence / (label + ".stdout")).write_text(result.stdout, encoding="utf-8")
             (evidence / (label + ".stderr")).write_text(result.stderr, encoding="utf-8")
@@ -256,11 +244,6 @@ class ImageSourceTests(unittest.TestCase):
 
         self.assertEqual(cargo("lock", ["generate-lockfile", "--offline"]).returncode, 0)
         names = ["Cargo.toml", "Cargo.lock", "input/Cargo.toml", "input/src/lib.rs", "src/main.rs", "build.rs", "asset.txt", ".cargo/config.toml"]
-        states = []
-        def sync():
-            (self.root / "image-inputs.json").write_text(json.dumps({"files": [{"path": name,
-                "sha256": hashlib.sha256((self.root / name).read_bytes()).hexdigest()} for name in names]}))
-            states.append(compiler.cached_source_times(self.root, target))
         def build(label):
             result = cargo(label, ["build", "--locked", "--offline", "--message-format=json-render-diagnostics"])
             return result, [json.loads(line) for line in result.stdout.splitlines() if line]
@@ -268,7 +251,6 @@ class ImageSourceTests(unittest.TestCase):
             executable = next(r["executable"] for r in records if r.get("reason") == "compiler-artifact" and r.get("executable"))
             return subprocess.run([executable], capture_output=True, text=True, check=True, timeout=10).stdout.strip()
 
-        sync()
         first, records = build("A")
         self.assertEqual(first.returncode, 0, "native fixture build failed; see evidence logs")
         self.assertEqual(output(records), "A:A")
@@ -278,7 +260,6 @@ class ImageSourceTests(unittest.TestCase):
         self.write("src/main.rs", 'compile_error!("INTENTIONAL_PARTIAL_FAILURE"); fn main() {}\n')
         for name in names:
             os.utime(self.root / name, ns=(stamps[name], stamps[name]))
-        sync()
         failed, partial = build("B-failed")
         self.assertNotEqual(failed.returncode, 0)
         self.assertTrue(any(r.get("reason") == "compiler-artifact" and r["target"]["name"] == "cache_input" and not r["fresh"] for r in partial))
@@ -288,15 +269,14 @@ class ImageSourceTests(unittest.TestCase):
         self.write("src/main.rs", main)
         for name in names:
             os.utime(self.root / name, ns=(stamps[name], stamps[name]))
-        sync()
         final, records = build("A-rollback")
         self.assertEqual(final.returncode, 0, "native rollback build failed; see evidence logs")
         self.assertEqual(output(records), "A:A")
         proof = {"platform": sys.platform, "jobs": 24, "sequence": ["A:A", "partial B + asset B then failure", "A:A"],
-                 "compiler_sha256": hashlib.sha256((ROOT / "ops/deploy/build/compile-artifacts.py").read_bytes()).hexdigest(),
-                 "journal_states": states}
+                 "recipe_sha256": hashlib.sha256((ROOT / "Dockerfile.build").read_bytes()).hexdigest(),
+                 "targets": [str(target / label) for label in ("A", "B-failed", "A-rollback")]}
         (evidence / "proof.json").write_text(json.dumps(proof, indent=2), encoding="utf-8")
-        print("native cache rollback proof: " + str(evidence.relative_to(ROOT)) + "; target cache retained")
+        print("native fresh-target rollback proof: " + str(evidence.relative_to(ROOT)))
 
     def test_private_inputs_are_not_read_or_copied(self):
         first = sources.capture(self.root)
@@ -328,17 +308,98 @@ class ImageSourceTests(unittest.TestCase):
             "aiforall.dev.build-targets": "hive", "aiforall.dev.build-context": builder.build_context(["hive"], "dev-image"),
             "aiforall.dev.sdk-revision": snapshot["sdk_revision"]}}}
         args = self.arguments()
-        with self.builder_context(), patch.object(builder, "inspect", return_value=value), patch.object(builder, "build") as compile_image:
+        with self.builder_context(), patch.object(builder, "inspect", return_value=value), patch.object(builder, "bake") as compile_image:
             builder.run(args)
         compile_image.assert_not_called()
         self.assertTrue(args.output.is_file())
 
-    def test_source_change_during_compile_prevents_packaging_and_manifest(self):
+    def test_exact_wrapper_bake_plan_exports_every_receipted_image(self):
+        self.assert_wrapper_plan(reused_controller=False)
+
+    def test_wrapper_reused_controller_still_contributes_to_artifact_selection(self):
+        self.assert_wrapper_plan(reused_controller=True)
+
+    def test_wrapper_filters_all_reserved_environment_names_case_insensitively(self):
+        reserved = {"IMAGE_TARGETS", "CARGO_PROFILE", "SOURCE_REVISION", "SDK_REVISION", "ARTIFACTS_REF",
+                    "inventory", "BUILDX_BAKE_FILE", "BUILDX_BAKE_FILES"}
+        # A plain mapping retains every casing even on Windows, where os.environ
+        # itself normalizes names. Exercise the actual wrapper-to-Bake boundary.
+        ambient = dict(os.environ)
+        for name in reserved:
+            for variant in (name, name.lower(), name.upper(), name.swapcase(), name.title()):
+                ambient[variant] = "INVALID_AMBIENT_BAKE_INPUT"
+        ambient["AIFORALL_BAKE_ENV_TEST"] = "preserved-public-sentinel"
+        self.assert_wrapper_plan(reused_controller=False, ambient=ambient, forbidden=reserved)
+
+    def assert_wrapper_plan(self, reused_controller, ambient=None, forbidden=()):
+        docker = shutil.which("docker")
+        if not docker:
+            self.skipTest("Docker client unavailable (NOT RUN)")
+        for name in ("targets.json", "docker-bake.hcl"):
+            path = "ops/deploy/build/" + name
+            self.write(path, (ROOT / path).read_text(encoding="utf-8"))
+        args = self.arguments()
+        args.targets = "github,controller"
+        built, plans = {}, []
+        pending = ["github"] if reused_controller else ["github", "controller"]
+        if reused_controller:
+            snapshot = sources.capture(self.root)
+            context = builder.build_context(["github", "controller"], "dev-image")
+            source_input = sources.target_identity(snapshot, "controller")
+            suffix = json.dumps([source_input, context, "local"])
+            reference = builder.select(["controller"])["controller"]["source"].split(":")[0] + ":inputs-" + hashlib.sha256(suffix.encode()).hexdigest()
+            built[reference] = {"Id": "sha256:" + "9" * 64, "Os": "linux", "Architecture": "amd64", "Config": {"Labels": {
+                "aiforall.dev.source-input": source_input, "aiforall.dev.source-policy": "local",
+                "aiforall.dev.freshness-policy": builder.FRESHNESS_POLICY,
+                "aiforall.dev.cargo-profile": "dev-image", "aiforall.dev.build-context": context,
+                "aiforall.dev.build-targets": "controller,github", "org.opencontainers.image.revision": snapshot["revision"],
+                "aiforall.dev.sdk-revision": snapshot["sdk_revision"]}}}
+        original_run = subprocess.run
+        def run(command, **kwargs):
+            if command[:3] != ["docker", "buildx", "bake"]:
+                return original_run(command, **kwargs)
+            if forbidden:
+                self.assertTrue({key.casefold() for key in kwargs["env"]}.isdisjoint(
+                    name.casefold() for name in forbidden))
+                self.assertEqual(kwargs["env"], {key: value for key, value in ambient.items()
+                                               if key.casefold() not in {name.casefold() for name in forbidden}})
+                self.assertEqual(kwargs["env"]["AIFORALL_BAKE_ENV_TEST"], "preserved-public-sentinel")
+            # Execute the actual wrapper argv/overrides/snapshot through standard
+            # Bake --print, not a hand-reconstructed approximation of its plan.
+            self.assertEqual(command[-len(pending) - 1:], ["artifacts", *pending])
+            environment = {**kwargs["env"], "DOCKER_HOST": "tcp://127.0.0.1:1"}
+            result = original_run([docker, *command[1:], "--print"], cwd=kwargs["cwd"],
+                                  env=environment, capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            plan = json.loads(result.stdout)
+            plans.append(plan)
+            self.assertEqual(set(plan["target"]), {"artifacts", *pending})
+            self.assertEqual(plan["target"]["artifacts"]["args"]["IMAGE_TARGETS"], "controller,github")
+            receipts = {}
+            for index, (name, target) in enumerate(plan["target"].items(), 1):
+                # Never invent an exported image for a cache-only dependency.
+                self.assertTrue(any(output["type"] == "docker" for output in target["output"]))
+                image_id = "sha256:" + str(index) * 64
+                receipts[name] = {"containerimage.config.digest": image_id}
+                built[target["tags"][0]] = {"Id": image_id, "Os": "linux", "Architecture": "amd64",
+                                            "Config": {"Labels": target.get("labels", {})}}
+            metadata = Path(command[command.index("--metadata-file") + 1])
+            metadata.write_text(json.dumps(receipts))
+            return subprocess.CompletedProcess(command, 0)
+        with patch.object(builder.os, "environ", dict(os.environ) if ambient is None else ambient), \
+                self.builder_context(), patch.object(builder, "inspect", side_effect=lambda ref: built.get(ref)), \
+                patch.object(builder.subprocess, "run", side_effect=run), patch.object(builder, "record_image") as record:
+            builder.run(args)
+        self.assertEqual(len(plans), 1)
+        self.assertEqual(record.call_count, 1 + len(pending))
+        self.assertEqual(set(json.loads(args.output.read_text())["targets"]), {"github", "controller"})
+
+    def test_source_change_during_bake_prevents_manifest(self):
         def artifact_build(*args, **kwargs):
             self.write("services/Hive/src/main.rs", "changed while compiling immutable snapshot")
             return {"Id": "sha256:" + "d" * 64}
         args = self.arguments()
-        with self.builder_context(), patch.object(builder, "inspect", return_value=None), patch.object(builder, "build", side_effect=artifact_build) as compile_image:
+        with self.builder_context(), patch.object(builder, "inspect", return_value=None), patch.object(builder, "bake", side_effect=artifact_build) as compile_image:
             with self.assertRaises(ValueError):
                 builder.run(args)
         compile_image.assert_called_once()

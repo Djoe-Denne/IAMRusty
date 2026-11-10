@@ -11,6 +11,7 @@ lazaret-domain = { path = "../domain" }
 rustycog = { package = "rustycog-framework", version = "0.1.1", features = ["full"] }
 serde = { workspace = true }
 thiserror = { workspace = true }
+url = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

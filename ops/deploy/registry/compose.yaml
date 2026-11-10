@@ -1,0 +1,89 @@
+# No ambient .env: invoke with --env-file <empty-file>, explicit -p and -f.
+x-owner: &owner
+  aiforall.registry.owner: ${REGISTRY_OWNER:?private receipt owner required}
+x-helper: &helper
+  image: quay.io/skopeo/stable@sha256:35bf578e3fa75a1f23bbec819fc1bd9745eacb4a0594dea203e426da66e95e5a
+  platform: linux/amd64
+  pull_policy: never
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: "no"
+services:
+  permissions:
+    <<: *helper
+    container_name: ${REGISTRY_PROJECT:?}-permissions
+    labels:
+      <<: *owner
+      aiforall.registry.role: permissions
+    user: "0:0"
+    cap_add: [CHOWN, DAC_OVERRIDE]
+    network_mode: none
+    entrypoint: [/bin/sh, /scripts/prepare.sh]
+    volumes:
+      - data:/data
+      - runtime:/runtime
+      - type: bind
+        source: ./prepare.sh
+        target: /scripts/prepare.sh
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./config.json
+        target: /inputs/config.json
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${REGISTRY_CERTS:?}/mesh/ca.crt
+        target: /inputs/ca.crt
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${REGISTRY_CERTS:?}/extensions/registry/aiforall-apps-registry.crt
+        target: /inputs/server.crt
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${REGISTRY_CERTS:?}/extensions/registry/aiforall-apps-registry.key
+        target: /inputs/server.key
+        read_only: true
+        bind: {create_host_path: false}
+  registry:
+    image: ghcr.io/project-zot/zot@sha256:46f688dc26315a35a247e1784368829e66a67bf91de94c7d8d1645044fac1d5b
+    platform: linux/amd64
+    pull_policy: never
+    container_name: ${REGISTRY_PROJECT:?}-registry
+    labels:
+      <<: *owner
+      aiforall.registry.role: registry
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: "no"
+    tmpfs: [/tmp:rw,nosuid,nodev,size=32m]
+    command: [serve, /runtime/config.json]
+    depends_on:
+      permissions: {condition: service_completed_successfully}
+    ports:
+      - target: 5000
+        published: ${REGISTRY_PORT:?}
+        host_ip: 127.0.0.1
+        protocol: tcp
+    networks:
+      registry: {aliases: [aiforall-apps-registry]}
+    volumes:
+      - data:/data
+      - runtime:/runtime:ro
+volumes:
+  data:
+    name: ${REGISTRY_PROJECT:?}-data
+    labels: *owner
+  runtime:
+    name: ${REGISTRY_PROJECT:?}-runtime
+    labels: *owner
+networks:
+  registry:
+    name: ${REGISTRY_PROJECT:?}-network
+    driver: bridge
+    labels: *owner

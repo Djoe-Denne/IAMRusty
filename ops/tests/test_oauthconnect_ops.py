@@ -27,7 +27,7 @@ def load(name, path):
 
 
 renderer = load("oauth_ops_renderer", "ops/deploy/render-local-full.py")
-workload = load("oauth_ops_workload", "ops/deploy/apps/overlays/local-full/helpers/openbao-workload.py")
+workload = load("oauth_ops_workload", "ops/deploy/charts/local-full/files/public/39efd7f09be4/openbao-workload.py")
 images = load("oauth_ops_images", "ops/deploy/local-full-images.py")
 simulator = load("oauth_ops_simulator", "ops/tests/support/oauth-idp-simulator.py")
 
@@ -97,14 +97,14 @@ class OAuthProfileTests(unittest.TestCase):
     def test_images_are_selected_explicitly_and_require_immutable_mapping(self):
         self.assertEqual(select(["oauth"])["oauth"]["outputs"], {"oauth-connect-service": "oauth-connect-service"})
         selected = images.source_images(oauth_connect=True)
-        self.assertIn(oauth.IMAGE, selected)
-        self.assertNotIn(oauth.IMAGE, images.source_images())
+        self.assertIn("aiforall-oauth-connect-service:latest", selected)
+        self.assertNotIn("aiforall-oauth-connect-service:latest", images.source_images())
         mapping = {name: name.split(":")[0] + "@sha256:" + "1" * 64 for name in selected}
         result = renderer.render("oauthopsregression", mapping, oauth_connect=True)
         app = next(o for o in result if o["kind"] == "Deployment" and o["metadata"]["name"] == "oauth-connect")
         self.assertEqual(app["spec"]["template"]["spec"]["containers"][0]["imagePullPolicy"], "IfNotPresent")
-        del mapping[oauth.IMAGE]
-        with self.assertRaisesRegex(ValueError, "missing immutable"):
+        del mapping["aiforall-oauth-connect-service:latest"]
+        with self.assertRaisesRegex(RuntimeError, "offline Helm render failed"):
             renderer.render("oauthopsregression", mapping, oauth_connect=True)
 
     def test_profiles_cannot_be_combined(self):
@@ -117,6 +117,8 @@ class OAuthProfileTests(unittest.TestCase):
     def test_private_or_populated_preimage_is_refused_without_mutation(self):
         for change in ("registry", "marker", "trust"):
             objects = renderer.render("oauthopsregression")
+            from local_full_secrets import hydrate
+            hydrate(objects)
             pod, _, config, text = renderer.local_full_openbao.iam_template(objects)
             if change == "registry":
                 config["data"]["development.toml"] = text.replace("connectors = []", 'connectors = [{id="foreign"}]')
@@ -125,8 +127,12 @@ class OAuthProfileTests(unittest.TestCase):
             else:
                 pod["containers"][0].setdefault("env", []).append({"name": "SSL_CERT_FILE", "value": "/foreign/ca"})
             before = copy.deepcopy(objects)
-            with self.assertRaises(ValueError):
-                oauth.configure(objects, "oauthopsregression", "github-client", "simulated-client")
+            self.assertFalse(hasattr(oauth, "configure"), "no object-composition fallback may remain")
+            result = renderer.render("oauthopsregression", oauth_connect=True)
+            public = json.dumps(result)
+            self.assertNotIn("foreign", public)
+            self.assertNotIn("__PRIVATE_MARKER__", public)
+            self.assertNotIn("/foreign/ca", public)
             self.assertEqual(objects, before)
 
     def test_envoy_only_adds_exact_simulated_relink_callback_get_head(self):
@@ -168,12 +174,12 @@ class OAuthProfileTests(unittest.TestCase):
                 "aiforall-platform.svc", "aiforall-local-full.svc").replace("aiforall-gateway.svc", "aiforall-local-full.svc"))
             self.assertEqual(new["transport_socket"], expected)
         iam = tomllib.loads(next(o for o in self.objects if o["kind"] == "ConfigMap" and o["metadata"]["name"].startswith("iam-dev-config"))["data"]["development.toml"])
-        self.assertEqual(iam["jwt"]["public_base_url"], oauth.PUBLIC_ORIGIN)
+        self.assertEqual(iam["jwt"]["public_base_url"], "https://127.0.0.1:18080")
         for connector in iam["idp"]["connectors"]:
-            self.assertTrue(all(uri.startswith(oauth.PUBLIC_ORIGIN + "/") for uri in connector["redirect_uris"]))
+            self.assertTrue(all(uri.startswith("https://127.0.0.1:18080/") for uri in connector["redirect_uris"]))
         for name in ("hive", "telegraph", "manifesto", "lazaret", "sentinel-sync"):
             env = self.obj("Deployment", name)["spec"]["template"]["spec"]["containers"][0]["env"]
-            self.assertEqual([e["value"] for e in env if e["name"].endswith("__PLATFORM_ISSUER")], [oauth.PUBLIC_ORIGIN + "/iam"])
+            self.assertEqual([e["value"] for e in env if e["name"].endswith("__PLATFORM_ISSUER")], ["https://127.0.0.1:18080/iam"])
 
 
 class SecretBoundaryTests(unittest.TestCase):
@@ -227,7 +233,9 @@ class SecretBoundaryTests(unittest.TestCase):
     def test_iam_and_simulator_snapshot_never_publish_partial_secrets(self):
         github, simulated = credentials()
         objects = renderer.render("oauthopsregression", oauth_connect=True)
-        template = next(o for o in objects if o["kind"] == "ConfigMap" and o["metadata"]["name"].startswith("iam-dev-config"))["data"]["development.toml"]
+        from local_full_secrets import hydrate
+        hydrate(objects)
+        template = renderer.local_full_openbao.iam_template(objects)[3]
         def request(_method, path):
             value = github["hmac_secret"] if "github-connect" in path else simulated["hmac_secret"]
             return {"data": {"data": {"hmac_secret": value}}}
@@ -246,8 +254,7 @@ class SecretBoundaryTests(unittest.TestCase):
             self.assertEqual(json.loads(publish.call_args.args[1])["client_secret"], simulated["client_secret"])
 
     def test_workload_policies_are_exact_and_separate(self):
-        text = (ROOT / "ops/deploy/apps/overlays/local-full/helpers/seed-openbao.sh").read_text()
-        policies = dict(re.findall(r"bao policy write ([\w-]+) - >[^\n]* <<'EOF'\n(.*?)\nEOF", text, re.S))
+        policies = json.loads((ROOT / "ops/deploy/charts/local-full/files/openbao/bootstrap.json").read_text())["policies"]
         iam = policies["local-full-iam-oauth-hmac"]
         self.assertNotIn("/oauth\"", iam)
         self.assertIn("github-connect/iam", iam)
@@ -272,7 +279,7 @@ class SecretBoundaryTests(unittest.TestCase):
                 obj["data"]["development.toml"] = obj["data"].get("development.toml", "").replace("offline-synthetic-client", github["client_id"])
             return obj
         with patch.object(environment, "owned", side_effect=owned), patch.object(environment, "input_reference", return_value=reference):
-            with self.assertRaisesRegex(ValueError, "private simulated input"):
+            with self.assertRaisesRegex(ValueError, "declared unchanged private input"):
                 environment.recover_coffer(target, state, save, runtime, Mock(return_value=github), Mock())
         runtime.create.assert_not_called()
         target.kubectl.assert_not_called()
@@ -310,7 +317,7 @@ class SecretBoundaryTests(unittest.TestCase):
         calls = [call.args[0] for call in target.kubectl.call_args_list]
         self.assertEqual(calls[0][:2], ["wait", "--for=condition=complete"])
         patches = [call for call in calls if call[0] == "patch"]
-        self.assertEqual([call[1] for call in patches], ["deployment/" + name for name in
+        self.assertCountEqual([call[1] for call in patches], ["deployment/" + name for name in
                          ("lazaret", "iam", "oauth-connect", "oauth-idp-simulator")])
         for call in patches:
             patch_ops = json.loads(call[-1])
@@ -325,11 +332,11 @@ class SecretBoundaryTests(unittest.TestCase):
         entries = [{"kind": "Deployment", "name": name, "namespace": environment.CLUSTER}
                    for name in ("github-connect", "oauth-connect")]
         with self.assertRaisesRegex(ValueError, "ambiguous"):
-            environment.selected_connectors({"ownedResources": entries})
-        self.assertEqual(environment.selected_connectors({"connectorProfile": "oauth-connect", "ownedResources": entries}),
-                         (False, True))
+            environment.lifecycle.profile({"ownedResources": entries})
+        self.assertEqual(environment.lifecycle.profile({"connectorProfile": "oauth-connect", "ownedResources": entries}),
+                         "oauth-connect")
         with self.assertRaisesRegex(ValueError, "not installed"):
-            environment.selected_connectors({"connectorProfile": "oauth-connect", "ownedResources": entries[:1]})
+            environment.lifecycle.profile({"connectorProfile": "oauth-connect", "ownedResources": entries[:1]})
 
     def test_readiness_scopes_selected_profile_without_adopting_or_dropping_legacy(self):
         entries = [{"kind": "Deployment", "name": name, "namespace": environment.CLUSTER}

@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import socket
 import ssl
 import subprocess
 import tarfile
@@ -22,6 +23,7 @@ from local_full_image_provenance import BOUNDARIES, verify_labels
 
 AUTHORITY = "aiforall-apps-registry:5000"
 LOCK = ROOT / "ops/deploy/registry/transport.lock.json"
+DECLARATIONS = LOCK.parent
 SPEC = importlib.util.spec_from_file_location("registry_pki", ROOT / "ops/scripts/prepare-local-full-certs.py")
 pki = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(pki)
@@ -39,10 +41,10 @@ def refresh_inputs(snapshot):
         or any(part in {"migration", "migrations"} for part in Path(entry["path"]).parts)])
 
 
-def run(args, timeout=60):
+def run(args, timeout=60, env=None):
     from private_diagnostics import capture_failure
     try:
-        result = subprocess.run(args, capture_output=True, timeout=timeout)
+        result = subprocess.run(args, capture_output=True, timeout=timeout, env=env)
     except subprocess.TimeoutExpired as error:
         capture_failure(args, error.output, error.stderr, timeout=True)
         raise
@@ -52,25 +54,32 @@ def run(args, timeout=60):
     return result.stdout.decode("utf-8")
 
 
-def record(kind, identity, owner, event="created", safe="no"):
+def record(kind, identity, owner, event="created", safe="no", intended=None):
     now = datetime.now(timezone.utc)
     directory = ROOT / ".tmp"
     directory.mkdir(exist_ok=True)
     with (directory / ("docker-resources-" + now.strftime("%Y%m%d") + ".log")).open("a", encoding="utf-8") as stream:
         stream.write(json.dumps({"timestamp": now.isoformat(), "event": event, "kind": kind,
-            "id": identity, "owner": owner, "safe_to_delete": safe, "source": "local_registry"}) + "\n")
+            "id": identity, "owner": owner, "safe_to_delete": safe, "source": "local_registry", "intended_name": intended}) + "\n")
         stream.flush()
         os.fsync(stream.fileno())
 
 
-def config():
-    return {"distSpecVersion": "1.1.1", "storage": {"rootDirectory": "/data"},
-        "http": {"address": "0.0.0.0", "port": "5000", "tls": {
-            "cert": "/runtime/server.crt", "key": "/runtime/server.key", "cacert": "/runtime/ca.crt"},
-            "accessControl": {"repositories": {"apps/**": {"anonymousPolicy": [], "defaultPolicy": [],
-                "policies": [{"users": ["registry-publisher"], "actions": ["read", "create", "update"]},
-                             {"users": ["registry-reader"], "actions": ["read"]}]}}}},
-        "log": {"level": "error"}}
+def fingerprint(item):
+    """Immutable inspect preimage; exclude runtime addresses, PID and counters."""
+    keys = ("Config", "HostConfig", "Mounts", "Image") if "Config" in item else (
+        "Id", "Name", "Created", "CreatedAt", "Labels", "Driver", "Options", "IPAM", "Internal", "Scope")
+    return digest(json.dumps({key: item.get(key) for key in keys}, sort_keys=True).encode())
+
+
+def bind_source(path):
+    path = path.replace("\\", "/")
+    if re.match(r"^[A-Za-z]:/", path):
+        return "/" + path[0].lower() + path[2:]
+    for prefix in ("/run/desktop/mnt/host/", "/host_mnt/"):
+        if path.startswith(prefix):
+            return "/" + path.removeprefix(prefix)
+    return path
 
 
 def artifact_hashes(archive, target):
@@ -117,7 +126,7 @@ class Registry:
             pki.private_directory(self.directory, create=True)
             context = run(["docker", "context", "show"]).strip()
             self.state = {"schema": "aiforall.local-registry/v1", "owner": uuid.uuid4().hex,
-                          "context": context, "helpers": [], "port": None}
+                          "context": context, "helpers": [], "port": None, "compose": {"receipts": {}}}
             engine, platform = self.docker(["info", "--format", "{{.ID}}|{{.OSType}}"], 20).strip().split("|")
             if platform != "linux":
                 raise ValueError("Linux Docker engine required")
@@ -159,24 +168,136 @@ class Registry:
         return values[0]
 
     def owned(self, identity):
-        item = self.inspect("container", identity)
-        if item["Id"] != identity or item["Config"].get("Labels", {}).get("aiforall.registry.owner") != self.state["owner"]:
+        if identity not in [self.state.get("container"), *self.state.get("helpers", [])]:
             raise ValueError("foreign registry container refused")
+        return self.receipt("container", identity, self.inspect("container", identity))
+
+    def receipt(self, kind, identity, item):
+        transport = self.state.get("transport", {})
+        labels = item["Config"].get("Labels", {}) if kind == "container" else item.get("Labels", {})
+        if item.get("Id", item.get("Name")) != identity or labels.get("aiforall.registry.owner") != self.state["owner"]:
+            raise ValueError("foreign registry identity refused")
+        if labels.get("aiforall.registry.role") == "publisher" and identity not in transport.get("helpers", []):
+            raise ValueError("transport creation ACK lost")
+        ledger = transport if identity in transport.get("helpers", []) else self.state.get("compose")
+        if ledger is not None and ledger.get("receipts", {}).get(kind + ":" + identity) != fingerprint(item):
+            raise ValueError("Compose resource drift or lost creation ACK")
         return item
 
-    def create(self, arguments, role):
-        identity = self.docker(["container", "create", "--label", "aiforall.registry.owner=" + self.state["owner"],
-                                "--label", "aiforall.registry.role=" + role, *arguments]).strip()
-        if not re.fullmatch(r"[a-f0-9]{64}", identity):
-            record("container", "UNKNOWN", self.state["owner"], safe="ask")
-            raise ValueError("Docker did not return a container ID")
-        if role != "registry":
-            self.state["helpers"].append(identity)
-        else:
-            self.state["container"] = identity
+    def declarations(self, *ledgers):
+        sources = {p.name: digest(p.read_bytes()) for p in DECLARATIONS.iterdir() if p.suffix in {".json", ".yaml", ".sh"}}
+        for ledger in filter(None, ledgers):
+            if ledger.get("pending"):
+                raise ValueError("incomplete registry operation; no automatic retry/adoption")
+            if (ledger["receipts"] and not ledger.get("sources")) or ledger.get("sources", sources) != sources:
+                raise ValueError("registry declarations changed; explicit reconfiguration required")
+            ledger["sources"] = sources
+
+    def compose(self, filename="compose.yaml", **inputs):
+        ledger = self.state["compose"] if filename == "compose.yaml" else self.state.setdefault("transport", {"receipts": {}, "helpers": []})
+        self.declarations(ledger)
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("COMPOSE_", "REGISTRY_"))}
+        project = "aiforall-images-" + self.state["owner"] + inputs.pop("suffix", "")
+        env.update(REGISTRY_PROJECT=project, REGISTRY_OWNER=self.state["owner"],
+                   REGISTRY_CERTS=self.state["cert_directory"], REGISTRY_PORT=str(self.state["port"]), **inputs)
+        command = ["docker", "--context", self.state["context"], "compose", "--env-file", os.devnull,
+                   "-p", project, "-f", str(DECLARATIONS / filename), "--profile", "transport"]
+        model = json.loads(run([*command, "config", "--format", "json"], env=env))
+        return command, env, model
+
+    def service_check(self, item, service, model):
+        config, host = item["Config"], item["HostConfig"]
+        image = self.inspect("image", service["image"])
+        expected = {v["target"]: (v["type"], bind_source(v["source"]) if v["type"] == "bind" else model["volumes"][v["source"]]["name"],
+                    not v.get("read_only", False)) for v in service.get("volumes", [])}
+        mounted = {m["Destination"]: (m["Type"], m.get("Name") if m["Type"] == "volume" else bind_source(m["Source"]), m["RW"]) for m in item["Mounts"]}
+        network = service.get("network_mode") or next(model["networks"][name]["name"] for name in service["networks"])
+        if (service["image"] not in image.get("RepoDigests", []) or item["Image"] != image["Id"]
+                or config["User"] != service.get("user", "") or not host["ReadonlyRootfs"]
+                or host.get("Privileged", False) or host.get("NetworkMode") != network
+                or set(host.get("CapDrop") or []) != set(service.get("cap_drop", []))
+                or set(host.get("CapAdd") or []) != set(service.get("cap_add", []))
+                or not any(s in {"no-new-privileges", "no-new-privileges:true"} for s in host.get("SecurityOpt", []))
+                or mounted != expected or ("command" in service and config.get("Cmd") != service["command"])
+                or ("entrypoint" in service and config.get("Entrypoint") != service["entrypoint"])):
+            raise ValueError("created Compose service differs from declaration")
+
+    def compose_create(self, filename="compose.yaml", **inputs):
+        """Create-only transaction: absent preimage + daemon creation events + private ACK."""
+        command, env, model = self.compose(filename, **inputs)
+        ledger = self.state["compose"] if filename == "compose.yaml" else self.state["transport"]
+        if filename != "compose.yaml" and (set(model["services"]) != {"publisher"} or model.get("volumes")
+                or set(model["networks"]) != {"registry"} or not model["networks"]["registry"].get("external")
+                or model["networks"]["registry"]["name"] != self.inspect("network", self.state["network"])["Name"]):
+            raise ValueError("transport must only use the verified external network")
+        wanted = {("container", v["container_name"]): (key, v) for key, v in model["services"].items()}
+        wanted.update({(kind, v["name"]): (key, v) for kind in ("volume", "network")
+                       for key, v in model.get(kind + "s", {}).items() if not v.get("external")})
+        for kind in ("container", "network", "volume"):
+            rows = self.docker([kind, "ls", *(["-a"] if kind == "container" else []), "--format", "{{json .}}"])
+            if any((kind, v.get("Names", v.get("Name"))) in wanted or
+                   "com.docker.compose.project=" + env["REGISTRY_PROJECT"] in v.get("Labels", "").split(",")
+                   for v in map(json.loads, rows.splitlines())):
+                raise ValueError("Compose name/project occupied; adoption/recreation refused")
+        pins = {self.lock[k]["reference"]: k for k in ("zot", "skopeo")}
+        for reference in {service["image"] for service in model["services"].values()}:
+            if reference not in pins:
+                raise ValueError("Compose transport pin differs from lock")
+            self.image(pins[reference])
+        since = self.docker(["info", "--format", "{{.SystemTime}}"], 20).strip()
+        ledger["pending"] = True
         self.save()
-        record("container", identity, self.state["owner"])
-        return identity
+        for kind, name in wanted:
+            record(kind, "UNKNOWN", self.state["owner"], safe="ask", intended=name)
+        try:
+            run([*command, "create", "--no-recreate", "--no-build", "--pull", "never"], 120, env=env)
+        finally:
+            until = self.docker(["info", "--format", "{{.SystemTime}}"], 20).strip()
+            events = [json.loads(line) for line in self.docker(["events", "--since", since, "--until", until,
+                "--filter", "event=create", "--format", "{{json .}}"], 30).splitlines()]
+            observed = []
+            for kind, name in wanted:
+                matches = [e for e in events if e.get("Type") == kind and e.get("Action") == "create"
+                    and (e["Actor"].get("Attributes", {}).get("name") == name or (kind == "volume" and e["Actor"]["ID"] == name))]
+                for event in matches:
+                    record(kind, event["Actor"]["ID"], self.state["owner"], event="observed", safe="ask", intended=name)
+                if len(matches) != 1:
+                    continue  # Opaque/partial creation stays UNKNOWN/ask, never adopted on retry.
+                observed.append((kind, name, matches[0]["Actor"]["ID"]))
+            for kind, name, identity in observed:
+                key, declaration = wanted[kind, name]
+                item = self.inspect(kind, identity)
+                labels = item["Config"].get("Labels", {}) if kind == "container" else item.get("Labels", {})
+                if labels.get("aiforall.registry.owner") != self.state["owner"] or labels.get("com.docker.compose.project") != env["REGISTRY_PROJECT"]:
+                    raise ValueError("Compose creation identity mismatch")
+                if item["Name"].lstrip("/") != name or (kind != "volume" and (not re.fullmatch(r"[a-f0-9]{64}", identity) or item["Id"] != identity)):
+                    raise ValueError("invalid Compose creation ID")
+                ledger["receipts"][kind + ":" + identity] = fingerprint(item)
+                if kind == "container":
+                    if item["State"]["Status"] != "created":
+                        raise ValueError("Compose container started before creation ACK")
+                    self.service_check(item, declaration, model)
+                    if labels["com.docker.compose.service"] != key:
+                        raise ValueError("Compose service identity mismatch")
+                    if key == "registry":
+                        self.state["container"] = identity
+                    else:
+                        self.state["helpers"].append(identity)
+                        if filename != "compose.yaml":
+                            ledger["helpers"].append(identity)
+                else:
+                    if (item["Driver"] != declaration.get("driver", "local" if kind == "volume" else "bridge")
+                            or (item.get("Options") or {}) != declaration.get("driver_opts", {})
+                            or item.get("Internal", False) != declaration.get("internal", False)
+                            or any(cid not in [self.state.get("container"), *self.state["helpers"]] for cid in item.get("Containers", {}))):
+                        raise ValueError("created Compose storage/network drift/foreign member")
+                    self.state["network" if kind == "network" else key] = identity
+                self.save()
+                record(kind, identity, self.state["owner"], event="resolved", intended=name)
+        if len(observed) != len(wanted):
+            raise ValueError("Compose creation incomplete; resources retained, retry refused")
+        ledger["pending"] = filename == "compose.yaml"  # Fresh storage remains pending until permissions succeed.
+        self.save()
 
     def stop_container(self, identity):
         item = self.owned(identity)
@@ -186,16 +307,37 @@ class Registry:
             raise ValueError("owned container did not stop")
         record("container", identity, self.state["owner"], event="stopped")
 
-    def helper(self, args):
-        identity = self.create(["--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", *args], "helper")
+    def helper(self, filename="compose.yaml", preimage=None, **inputs):
+        previous = set(self.state["helpers"])
         try:
-            self.docker(["container", "start", "--attach", identity], 1800)
-            item = self.owned(identity)
-            if item["State"]["Running"] or item["State"]["ExitCode"] != 0:
-                raise ValueError("registry helper failed; output withheld")
-            return identity
+            self.compose_create(filename, **inputs)
+            if preimage is not None:
+                self.unchanged(preimage)
+            for identity in set(self.state["helpers"]) - previous:
+                if self.owned(identity)["State"].get("Status") != "created":
+                    raise ValueError("helper already executed; replay refused")
+                self.docker(["container", "start", "--attach", identity], 1800)
+                item = self.owned(identity)
+                if item["State"]["Running"] or item["State"]["ExitCode"] != 0:
+                    raise ValueError("registry helper failed; output withheld")
         finally:
-            self.stop_container(identity)
+            for identity in set(self.state["helpers"]) - previous:
+                try:
+                    self.stop_container(identity)
+                except (ValueError, OSError, subprocess.TimeoutExpired):
+                    self.state["transport" if filename != "compose.yaml" else "compose"]["pending"] = True
+                    self.save()
+                    record("container", identity, self.state["owner"], event="stop-failed", safe="ask")
+                    raise
+            if preimage is not None and not self.state["transport"].get("pending"):
+                self.unchanged(preimage)
+
+    def unchanged(self, before):
+        self.check()
+        if self.preimage != before:
+            self.state["transport"]["pending"] = True
+            self.save()
+            raise ValueError("registry/network/volumes changed during transport")
 
     def image(self, key):
         pin = self.lock[key]
@@ -203,6 +345,7 @@ class Registry:
             raise ValueError("immutable transport image pin required")
         existing = subprocess.run(["docker", "--context", self.state["context"], "image", "inspect", pin["reference"]], capture_output=True)
         if existing.returncode:
+            record("image", "UNKNOWN", self.state["owner"], safe="ask")
             self.docker(["image", "pull", "--platform", "linux/amd64", pin["reference"]], 600)
             value = self.inspect("image", pin["reference"])
             record("image", value["Id"], self.state["owner"])
@@ -217,18 +360,25 @@ class Registry:
         self.save()
         return pin["reference"]
 
-    def certificates(self):
+    def certificates(self, initialize=False):
         directory = pki.checked_path(self.state["cert_directory"])
         pki.private_directory(directory)
+        if initialize:
+            pki.validate_registry(pki.OpenSSL(pki.openssl_path(None), directory), directory)
         files = {"ca": directory / "mesh/ca.crt", **{name: directory / "extensions/registry" / (name + ".crt")
                  for name in pki.registry_profiles()}}
         actual = {name: digest(path.read_bytes()) for name, path in files.items()}
+        if initialize:
+            self.state["certificates"] = actual
         if actual != self.state["certificates"]:
             raise ValueError("registry certificates changed; explicit rotation required")
         return directory
 
     def check(self):
+        self.declarations(self.state.get("compose"), self.state.get("transport"))
+        self.certificates()
         item = self.owned(self.state["container"])
+        self.preimage = {("container", item["Id"]): fingerprint(item)}
         pinned = self.inspect("image", self.lock["zot"]["reference"])
         expected = {self.state["data"], self.state["runtime"]}
         mounted = {m["Name"] for m in item["Mounts"] if m["Type"] == "volume"}
@@ -239,14 +389,18 @@ class Registry:
             raise ValueError("registry container configuration changed")
         for volume in expected:
             value = self.inspect("volume", volume)
-            if value.get("Labels", {}).get("aiforall.registry.owner") != self.state["owner"]:
-                raise ValueError("foreign registry volume refused")
+            self.preimage["volume", volume] = fingerprint(value)
+            self.receipt("volume", volume, value)
         network = self.inspect("network", self.state["network"])
-        if network.get("Labels", {}).get("aiforall.registry.owner") != self.state["owner"]:
-            raise ValueError("foreign registry network")
+        self.preimage["network", self.state["network"]] = fingerprint(network)
+        self.receipt("network", self.state["network"], network)
         known = {self.state["container"], *self.state["helpers"]}
         if any(identity not in known for identity in network.get("Containers", {})):
             raise ValueError("unexpected container on registry network")
+        if item["State"]["Running"] and self.state["container"] not in network.get("Containers", {}):
+            raise ValueError("registry detached from its network")
+        if any(self.owned(identity)["State"]["Running"] for identity in self.state["helpers"]):
+            raise ValueError("another registry helper is active")
         return item
 
     def request(self, path, role="registry-reader", method="GET", body=None, headers=None):
@@ -274,45 +428,23 @@ class Registry:
                 self.docker(["container", "start", item["Id"]])
                 record("container", item["Id"], self.state["owner"], event="started")
         else:
-            if self.state.get("network"):
+            if self.state.get("network") or "compose" not in self.state:
                 raise ValueError("incomplete setup retained; inspect its IDs before retrying with a new state directory")
             directory = pki.checked_path(cert_directory)
-            tool = pki.OpenSSL(pki.openssl_path(None), directory)
-            pki.validate_registry(tool, directory)
             self.state.update(cert_directory=str(directory), port=port)
-            files = {"ca": directory / "mesh/ca.crt", **{name: directory / "extensions/registry" / (name + ".crt")
-                     for name in pki.registry_profiles()}}
-            self.state["certificates"] = {name: digest(path.read_bytes()) for name, path in files.items()}
-            zot, client = self.image("zot"), self.image("skopeo")
-            network = self.docker(["network", "create", "--label", "aiforall.registry.owner=" + self.state["owner"],
-                                   "aiforall-images-" + self.state["owner"]]).strip()
-            record("network", network, self.state["owner"])
-            self.state["network"] = network
+            self.certificates(initialize=True)
+            with socket.socket() as probe:
+                if os.name == "nt":
+                    probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+                probe.bind(("127.0.0.1", port))
+            for identity in self.docker(["container", "ls", "-aq", "--no-trunc"]).splitlines():
+                occupied = self.inspect("container", identity)["HostConfig"].get("PortBindings") or {}
+                if any(binding["HostPort"] == str(port) for values in occupied.values() for binding in (values or [])):
+                    raise ValueError("registry port reserved by an existing container")
+            self.helper()
+            self.state["compose"]["pending"] = False
             self.save()
-            for role in ("data", "runtime"):
-                name = self.docker(["volume", "create", "--label", "aiforall.registry.owner=" + self.state["owner"],
-                                    "aiforall-images-" + self.state["owner"] + "-" + role]).strip()
-                record("volume", name, self.state["owner"])
-                self.state[role] = name
-                self.save()
-            path = self.directory / "registry.json"
-            path.write_text(json.dumps(config()), encoding="utf-8")
-            path.chmod(0o600)
-            mounts = []
-            for source, target in [(path, "config.json"), (directory / "mesh/ca.crt", "ca.crt"),
-                                   (directory / "extensions/registry/aiforall-apps-registry.crt", "server.crt"),
-                                   (directory / "extensions/registry/aiforall-apps-registry.key", "server.key")]:
-                mounts.extend(["--mount", "type=bind,src=" + str(source) + ",dst=/inputs/" + target + ",readonly"])
-            script = "set -eu; test -z \"$(ls -A /runtime)\"; test -z \"$(ls -A /data)\"; cp /inputs/* /runtime/; chmod 700 /runtime /data; chmod 400 /runtime/*; chown -R 10001:10001 /runtime /data"
-            self.helper(["--user", "0:0", "--cap-add", "CHOWN", "--cap-add", "DAC_OVERRIDE", "--network", "none",
-                         "--mount", "type=volume,src=" + self.state["data"] + ",dst=/data",
-                         "--mount", "type=volume,src=" + self.state["runtime"] + ",dst=/runtime", *mounts,
-                         "--entrypoint", "/bin/sh", client, "-c", script])
-            self.create(["--user", "10001:10001", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-                         "--tmpfs", "/tmp:rw,nosuid,nodev,size=32m", "--network", network, "--network-alias", AUTHORITY.split(":")[0],
-                         "--publish", "127.0.0.1:" + str(port) + ":5000", "--mount", "type=volume,src=" + self.state["data"] + ",dst=/data",
-                         "--mount", "type=volume,src=" + self.state["runtime"] + ",dst=/runtime,readonly", zot,
-                         "serve", "/runtime/config.json"], "registry")
+            self.check()
             self.docker(["container", "start", self.state["container"]])
         deadline = time.monotonic() + 30
         while True:
@@ -373,29 +505,30 @@ class Registry:
         require_unchanged(snapshot)
 
     def copy(self, local, repo, archive):
+        if not re.fullmatch(r"apps/[a-z0-9][a-z0-9._-]*", repo):
+            raise ValueError("invalid publication repository")
         self.check()
-        directory = self.certificates()
+        before = self.preimage
         with tempfile.TemporaryDirectory(prefix="transfer-", dir=self.directory) as temporary:
-            work = Path(temporary)
-            image = work / "image.tar"
+            work = Path(temporary) / "private"
+            pki.private_directory(work, create=True)
+            # Python 3.13 mkdir(0700) overrides Windows ACLs; children must inherit this private DACL.
+            for path in (work / "inputs", work / "outputs", work / "outputs/tmp"):
+                path.mkdir(mode=0o777 if os.name == "nt" else 0o700)
+            image = work / "inputs/image.tar"
             self.docker(["image", "save", "--output", str(image), local["Id"]], 1800)
             image.chmod(0o600)
             archive(image)
-            (work / "tmp").mkdir(mode=0o700)
-            policy = work / "policy.json"
-            policy.write_text(json.dumps({"default": [{"type": "reject"}], "transports": {"docker-archive": {"": [{"type": "insecureAcceptAnything"}]}}}))
-            policy.chmod(0o600)
-            mounts = ["--mount", "type=bind,src=" + str(work) + ",dst=/work"]
-            for source, filename in [(directory / "mesh/ca.crt", "ca.crt"),
-                                     (directory / "extensions/registry/registry-publisher.crt", "client.cert"),
-                                     (directory / "extensions/registry/registry-publisher.key", "client.key")]:
-                mounts.extend(["--mount", "type=bind,src=" + str(source) + ",dst=/certs/" + filename + ",readonly"])
-            user = str(os.getuid()) + ":" + str(os.getgid()) if os.name != "nt" else "10001:10001"
-            self.helper(["--user", user, "--network", self.state["network"], *mounts, "--env", "TMPDIR=/work/tmp",
-                "--entrypoint", "/bin/sh", self.image("skopeo"), "-c", 'umask 077; exec /usr/bin/skopeo "$@"', "skopeo",
-                "--policy", "/work/policy.json", "copy", "--format", "oci", "--dest-tls-verify=true", "--dest-cert-dir", "/certs",
-                "--digestfile", "/work/digest", "docker-archive:/work/image.tar", "docker://" + AUTHORITY + "/" + repo + ":candidate-" + uuid.uuid4().hex])
-            result = (work / "digest").read_text().strip()
+            destination = work / "inputs/destination"
+            destination.write_text("docker://" + AUTHORITY + "/" + repo + ":candidate-" + uuid.uuid4().hex + "\n")
+            destination.chmod(0o600)
+            pki.private_directory(work)
+            self.helper("publish.compose.yaml", preimage=before, suffix="-" + uuid.uuid4().hex,
+                REGISTRY_INPUTS=str(work / "inputs"), REGISTRY_OUTPUTS=str(work / "outputs"),
+                REGISTRY_NETWORK=self.inspect("network", self.state["network"])["Name"],
+                REGISTRY_USER=str(os.getuid()) + ":" + str(os.getgid()) if os.name != "nt" else "10001:10001")
+            pki.private_directory(work)
+            result = (work / "outputs/digest").read_text().strip()
             if not re.fullmatch(r"sha256:[a-f0-9]{64}", result):
                 raise ValueError("OCI transport returned no manifest digest")
             return self.remote(repo, result, local)

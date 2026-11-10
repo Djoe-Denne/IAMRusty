@@ -1,0 +1,89 @@
+# Manifesto Service - Development Configuration
+#
+# Mirrors test.toml but targets the docker-compose stack on the shared
+# `aiforall-network`. Hostnames `postgres`, `localstack`, and `openfga`
+# resolve to the matching compose services.
+
+[server]
+host = "0.0.0.0"
+port = 8080
+tls_enabled = true
+tls_port = 8443
+tls_cert_path = "/app/certs/manifesto-service.crt"
+tls_key_path = "/app/certs/manifesto-service.key"
+tls_client_ca_path = "/app/certs/ca.crt"
+
+[auth.jwt]
+platform_issuer = "http://127.0.0.1:8080/iam"
+allow_historical_platform_issuer = false
+audience = "aiforall"
+# Host process. Compose overrides with MANIFESTO_AUTH__JWT__JWKS_URL=http://iam-service:8080/...
+jwks_url = "http://127.0.0.1:8080/iam/.well-known/jwks.json"
+allowed_algorithms = ["RS256"]
+
+
+[database]
+host = "postgres"
+port = 5432
+db = "manifesto_dev"
+[database.creds]
+username = "postgres"
+password = "postgres"
+
+[command]
+[command.retry]
+max_attempts = 0
+base_delay_ms = 50
+max_delay_ms = 5000
+backoff_multiplier = 2.0
+use_jitter = false
+
+[queue]
+type = "sqs"
+enabled = true
+region = "us-east-1"
+account_id = "000000000000"
+default_queues = ["sentinel-sync-events"]
+host = "localstack"
+port = 4566
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30
+
+[queue.queues]
+project_created = ["sentinel-sync-events"]
+project_visibility_changed = ["sentinel-sync-events"]
+project_published = ["sentinel-sync-events"]
+project_archived = ["sentinel-sync-events"]
+component_added = ["sentinel-sync-events"]
+component_removed = ["sentinel-sync-events", "lazaret-kv-events"]
+member_added = ["sentinel-sync-events"]
+member_permissions_updated = ["sentinel-sync-events"]
+member_removed = ["sentinel-sync-events"]
+permission_granted = ["sentinel-sync-events"]
+permission_revoked = ["sentinel-sync-events"]
+project_deleted = ["sentinel-sync-events"]
+project_suspended = ["sentinel-sync-events"]
+project_resumed = ["sentinel-sync-events"]
+project_ownership_transferred = ["sentinel-sync-events"]
+
+[logging]
+level = "debug"
+
+# Centralized authorization (OpenFGA). Override store_id /
+# authorization_model_id via MANIFESTO_OPENFGA__* env vars after
+# bootstrapping a store with the fga CLI.
+[openfga]
+scheme = "http"
+host = "openfga"
+port = 8080
+store_id = ""
+# authorization_model_id = ""
+# api_token = ""
+
+[apparatus.grant_snapshot_auth]
+hs256_secret = "__LOCAL_GRANT_HMAC__"
+issuer = "aiforall-platform"
+audience = "manifesto-bindings"
+service_principal_issuer = "aiforall-platform"

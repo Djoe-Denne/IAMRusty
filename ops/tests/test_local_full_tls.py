@@ -129,10 +129,11 @@ class PlatformTlsTests(unittest.TestCase):
 
     def test_openbao_leaf_reference_is_preserved_and_only_connector_tls_is_created(self):
         proposed, tls = self.openbao()
-        filtered = reuse_openbao_tls([proposed], tls, self.data, self.read)
+        original = copy.deepcopy(proposed)
+        filtered, refs = reuse_openbao_tls([proposed], tls, self.data, self.read)
         self.assertEqual(filtered, [tls[1]])
-        self.assertEqual(proposed["spec"]["template"]["spec"]["volumes"][0]["secret"]["secretName"],
-                         "openbao-server-tls-original")
+        self.assertEqual(refs, {"openbao-server-tls-new": "openbao-server-tls-original"})
+        self.assertEqual(proposed, original, "preservation returns references, never rewrites a spec")
         self.read.assert_called_once_with("openbao")
 
     def test_unknown_openbao_reference_and_ambiguous_proposal_refuse_without_mutation(self):
@@ -151,76 +152,73 @@ class PlatformTlsTests(unittest.TestCase):
                 self.assertEqual((proposed, tls), before)
 
     def test_actual_deploy_omits_preserved_tls_and_creates_only_new_connector_leaf(self):
-        class StopAfterFoundation(Exception):
-            pass
-
+        import hashlib
+        from types import SimpleNamespace
+        import local_full_phases as phases
+        import local_full_declarations
+        import local_full_network
         proposed, _ = self.openbao()
-        proposed["spec"]["template"]["spec"]["volumes"][0]["secret"]["secretName"] = "openbao-server-tls"
-        objects = [proposed, {"kind": "ConfigMap", "metadata": {"namespace": "aiforall-local-full", "name": "public-fixture"}}] + [{"kind": "Secret", "metadata": {"namespace": ns, "name": name}}
-                                for ns, name in PLATFORM_TLS]
         run_id = "a" * 16
+        new_bao = "openbao-server-tls-" + run_id
+        proposed["spec"]["template"]["spec"]["volumes"][0]["secret"]["secretName"] = new_bao
+        original = copy.deepcopy(proposed)
+        foundation = [{"kind": "ConfigMap", "metadata": {"namespace": "aiforall-local-full", "name": "public-fixture"}}]
+        foundation += [{"kind": "Secret", "metadata": {"namespace": ns, "name": name}} for ns, name in PLATFORM_TLS]
         tls = [{"kind": "Secret", "metadata": {"namespace": "aiforall-local-full", "name": name + "-" + run_id}}
                for name in ("openbao-server-tls", "oauth-connect-server-tls")]
-
+        def render(*args, **kwargs):
+            if kwargs.get("phase") == "foundation":
+                return copy.deepcopy(foundation)
+            result = copy.deepcopy(proposed)
+            result["spec"]["template"]["spec"]["volumes"][0]["secret"]["secretName"] = kwargs.get("secret_refs", {}).get(new_bao, new_bao)
+            return [result]
         def query(*args, **kwargs):
-            self.assertGreater(deploy.runtime.lease.call_count, 0, "runtime must bind the explicit lease before API reads")
+            self.assertGreater(deploy.runtime.lease.call_count, 0, "explicit lease binding must precede API reads")
             if args[:2] == ("get", "configmap"):
                 return json.dumps({"data": {"ca.crt": "public-root"}})
-            if args[:2] == ("get", "deployment") and args[-1] == "json":
-                return json.dumps(self.deployments[args[2]])
-            return ""
-
+            return json.dumps(self.deployments[args[2]])
         with tempfile.TemporaryDirectory() as directory:
             lease = Path(directory) / "lease.json"
             lease.write_text(json.dumps(self.data))
-            images = Path(directory) / "images.json"
-            images.write_text("{}")
-            args = SimpleNamespace(oauth_connect=True, preserve_platform_tls=True, oauth_proof=False,
-                github_openbao=False, image_manifest=images, cert_directory=Path(directory), github_input_file=None,
-                simulated_input_file=None, oauth_proof_input_file=None, isolated_plugins=False, lease=lease,
-                after_final_it=True, confirm_quiesce=True)
-            inputs = {"version": 1, "client_id": "synthetic-client", "client_secret": "synthetic-secret-1", "hmac_secret": "a" * 64}
-            simulated = {**inputs, "client_secret": "synthetic-secret-2", "hmac_secret": "b" * 64}
-            with (patch.object(deploy, "cert_inputs", return_value=({"ca.crt": b"public-root"}, {"ca.crt": b"identity-root"}, "hash")),
-                  patch.object(deploy, "github_inputs", side_effect=[inputs, simulated]),
-                  patch.object(deploy, "openbao_cert_inputs", return_value=tls),
-                  patch.object(deploy.uuid, "uuid4", return_value=SimpleNamespace(hex="a" * 32)),
-                  patch.object(deploy.renderer, "render", return_value=objects),
-                  patch.object(deploy, "k", side_effect=query),
-                  patch.object(deploy.image_provenance, "verify"),
-                  patch.object(deploy.bootstrap_local_kind, "initialize"),
-                  patch.object(deploy.runtime, "lease", return_value=self.data),
-                  patch.object(deploy.runtime, "save_lease"),
-                  patch.object(deploy.runtime, "create") as create,
-                  patch.object(deploy, "preflight_storage_transitions"),
-                  patch.object(deploy, "preflight_cluster_objects"),
-                  patch.object(deploy, "preflight_oauth_objects"),
-                  patch.object(deploy, "verify_images"),
-                  patch.object(deploy, "prepare_namespaces"),
-                  patch.object(deploy, "apply", side_effect=StopAfterFoundation) as apply):
-                with self.assertRaises(StopAfterFoundation):
-                    deploy.deploy_locked(args)
-                applied = apply.call_args.args[0]
-                self.assertTrue(all((o["metadata"].get("namespace"), o["metadata"]["name"]) not in PLATFORM_TLS
-                                    for o in applied if o["kind"] == "Secret"))
-                self.assertEqual([c.args[0]["metadata"]["name"] for c in create.call_args_list],
-                                 ["oauth-connect-server-tls-" + run_id])
-                self.assertEqual(proposed["spec"]["template"]["spec"]["volumes"][0]["secret"]["secretName"],
-                                 "openbao-server-tls-original")
-                create.reset_mock()
-                apply.reset_mock()
-                deploy.bootstrap_local_kind.initialize.reset_mock()
-                deploy.github_inputs.side_effect = [inputs, simulated]
-                def mismatched_ca(*arguments, **kwargs):
+            lease.with_name(lease.name + ".local-full-lock").write_text(json.dumps({"operation": "owned-operation", "action": "deploy"}))
+            args = SimpleNamespace(lease=lease, cert_directory=Path(directory), oauth_connect=True,
+                                   preserve_platform_tls=True, isolated_plugins=False, registry_state=None)
+            invocation = Path(directory) / "invocation.json"
+            def context(phase, predecessor):
+                value = {"operation": "owned-operation", "runId": run_id, "inputs": [],
+                    "graphSha256": hashlib.sha256((deploy.ROOT / "ops/deploy/local-full.just").read_bytes()).hexdigest(),
+                    "declarationsId": local_full_declarations.identity(), "args": {
+                        key: {"path": str(value)} if isinstance(value, Path) else value for key, value in vars(args).items()},
+                    "completed": [] if predecessor == "none" else [predecessor],
+                    "state": "prepared" if predecessor == "none" else "acknowledged",
+                    "publicOptions": {"network": {"apiCidr": "192.0.2.20/32", "ingressCidr": ""},
+                        "secret_refs": {new_bao: "openbao-server-tls-original"}}}
+                invocation.write_text(json.dumps(value))
+            api = SimpleNamespace(**vars(deploy))
+            with (patch.object(phases, "private_file", return_value=True), patch.object(phases, "input_stamp", return_value=[]),
+                  patch.object(phases, "inputs", return_value=({"network": {"apiCidr": "192.0.2.20/32", "ingressCidr": ""}}, {"ca.crt": b"public-root"}, {"ca.crt": b"identity-root"}, None, None, tls)),
+                  patch.object(deploy.renderer, "render", side_effect=render), patch.object(deploy, "k", side_effect=query),
+                  patch.object(api, "k", side_effect=query), patch.object(api, "apply_owned") as apply,
+                  patch.object(deploy.runtime, "lease", return_value=self.data), patch.object(deploy.runtime, "save_lease"),
+                  patch.object(deploy.runtime, "target", return_value=SimpleNamespace(data=self.data)),
+                  patch.object(local_full_network, "api_preimages", return_value=[]), patch.object(local_full_network, "apply_changes"),
+                  patch.object(deploy.runtime, "create", return_value={"metadata": {"uid": "new-leaf-uid"}}) as create):
+                context("foundation", "quiesce")
+                phases.guarded_phase(api, invocation, "foundation", "quiesce")
+                self.assertEqual([c.args[0]["metadata"]["name"] for c in create.call_args_list], ["oauth-connect-server-tls-" + run_id])
+                self.assertTrue(all(o["kind"] != "Secret" for c in apply.call_args_list for o in c.args[0]))
+                self.assertEqual(proposed, original, "preservation must not mutate a rendered spec")
+                self.assertEqual(json.loads(invocation.read_text())["publicOptions"]["secret_refs"], {new_bao: "openbao-server-tls-original"})
+                create.reset_mock(); apply.reset_mock()
+                context("plan", "none")
+                def mismatch(*arguments, **kwargs):
                     if arguments[:2] == ("get", "configmap"):
                         return json.dumps({"data": {"ca.crt": "different-root"}})
                     return query(*arguments, **kwargs)
-                with patch.object(deploy, "k", side_effect=mismatched_ca):
+                with patch.object(api, "k", side_effect=mismatch):
                     with self.assertRaisesRegex(ValueError, "unchanged OpenBao public CA"):
-                        deploy.deploy_locked(args)
-                create.assert_not_called()
-                apply.assert_not_called()
-                deploy.bootstrap_local_kind.initialize.assert_not_called()
+                        phases.guarded_phase(api, invocation, "plan", "none")
+                create.assert_not_called(); apply.assert_not_called()
 
     def test_each_successful_apply_is_recorded_before_a_later_conflict(self):
         first, second, third = [{"kind": "ConfigMap", "metadata": {"name": name}} for name in ("first", "second", "third")]
@@ -232,9 +230,14 @@ class PlatformTlsTests(unittest.TestCase):
                 raise ValueError("synthetic conflict")
         def record(items, args, data):
             order.append(("record", items[0]["metadata"]["name"]))
-        with patch.object(deploy, "apply", side_effect=apply), patch.object(deploy, "record_resources", side_effect=record):
+        data = {"ownedResources": [{"kind": "ConfigMap", "name": obj["metadata"]["name"], "namespace": None,
+                "uid": "uid-" + obj["metadata"]["name"], "context": deploy.CONTEXT, "cluster": deploy.CLUSTER}
+                for obj in (first, second, third)]}
+        def current(*args, **kwargs):
+            return json.dumps({"metadata": {"uid": "uid-" + args[2], "resourceVersion": "1"}})
+        with patch.object(deploy, "k", side_effect=current), patch.object(deploy, "apply", side_effect=apply), patch.object(deploy, "record_resources", side_effect=record):
             with self.assertRaisesRegex(ValueError, "synthetic conflict"):
-                deploy.apply_owned([first, second, third], SimpleNamespace(), {})
+                deploy.apply_owned([first, second, third], SimpleNamespace(), data)
         self.assertEqual(order, [("apply", "first"), ("record", "first"), ("apply", "second")])
 
 

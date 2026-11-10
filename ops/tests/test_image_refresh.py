@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "ops/deploy"))
 import image_sources
 import local_registry
+import local_full_declarations
 from local_full_target import parse_kubectl_operation
 
 spec = importlib.util.spec_from_file_location("refresh_deploy", ROOT / "ops/deploy/deploy-local-full.py")
@@ -44,6 +45,7 @@ class RefreshTests(unittest.TestCase):
         self.data = {"namespaceUids": {deploy.CLUSTER: "namespace-uid"}, "ownedResources": [
             {"kind": "Deployment", "namespace": deploy.CLUSTER, "name": "ext-authz", "uid": "deployment-uid",
              "context": deploy.CONTEXT, "cluster": deploy.CLUSTER}]}
+        self.data["localFullDeclarationsSha256"] = local_full_declarations.identity()
         self.registry = Mock()
         self.registry.operation.side_effect = nullcontext
         self.registry.remote.return_value = ({}, {"config": {"Labels": {"aiforall.dev.cargo-profile": "release"}}})
@@ -96,10 +98,35 @@ class RefreshTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             deploy.refresh(self.args)
         self.args.targets = "hive"
+        self.snapshot["files"].pop()
         with self.assertRaisesRegex(ValueError, "automatic-migration"):
             deploy.refresh(self.args)
         self.assertEqual(self.calls, [])
         self.target.registry_pull.assert_not_called()
+
+    def test_declaration_template_profile_phase_and_graph_drift_refused_before_pull(self):
+        import shutil
+        for relative in ("ops/deploy/charts/local-full/templates/synthetic.tpl",
+                         "ops/deploy/profiles/local-full/oauth-connect.yaml",
+                         "ops/deploy/profiles/local-full/phases/final.yaml", "ops/deploy/local-full.just"):
+            with self.subTest(source=relative), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                shutil.copytree(ROOT / "ops/deploy/charts", root / "ops/deploy/charts")
+                shutil.copytree(ROOT / "ops/deploy/profiles", root / "ops/deploy/profiles")
+                (root / "ops/deploy/local-full.just").write_bytes((ROOT / "ops/deploy/local-full.just").read_bytes())
+                (root / "ops/scripts").mkdir(parents=True)
+                (root / "ops/scripts/local-full-certificates.cnf").write_bytes((ROOT / "ops/scripts/local-full-certificates.cnf").read_bytes())
+                self.data["localFullDeclarationsSha256"] = local_full_declarations.identity(root)
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text((path.read_text() if path.exists() else "") + "\n# declaration drift\n", encoding="utf-8")
+                identity = local_full_declarations.identity
+                with patch.object(local_full_declarations, "identity", side_effect=lambda: identity(root)):
+                    with self.assertRaisesRegex(ValueError, "unattested"):
+                        deploy.refresh(self.args)
+                self.assertEqual(self.calls, [])
+                self.registry.verify_mapping.assert_not_called()
+                self.target.registry_pull.assert_not_called()
 
     def test_unchanged_image_is_noop_without_node_operations(self):
         self.args.release_manifest.write_bytes(self.args.previous_release_manifest.read_bytes())

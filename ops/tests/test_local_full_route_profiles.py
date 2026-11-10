@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import tomllib
+import sys
 import unittest
 
 
@@ -23,7 +24,10 @@ class PublicRouteProfileTests(unittest.TestCase):
                                   "disabled-relink-gitlab-protected": ([401, 403], [400])})
 
     def test_gitlab_profile_has_one_declared_connector_and_keeps_github_disabled(self):
-        config = tomllib.loads((DIRECTORY.parent / "deploy/apps/overlays/local-full/oauth-proof/iam.toml").read_text())
+        sys.path.insert(0, str(DIRECTORY.parent / "deploy"))
+        from local_full_helm import render
+        config = tomllib.loads(next(o for o in render("gitlab-proof") if o["kind"] == "ConfigMap"
+            and o["metadata"]["name"].startswith("iam-dev-config"))["data"]["development.toml"])
         self.assertEqual([row["id"] for row in config["idp"]["connectors"]], ["gitlab"])
         self.assertIn("http://127.0.0.1:18080/iam/api/auth/gitlab/relink-callback",
                       config["idp"]["connectors"][0]["redirect_uris"])

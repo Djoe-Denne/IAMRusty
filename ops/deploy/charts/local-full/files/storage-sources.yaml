@@ -1,0 +1,5 @@
+# Source references for the existing backup protocol, not another resource spec.
+sources:
+  postgres: {namespace: aiforall-local-full, deployment: postgres, claim: postgres-data, format: postgres}
+  zot: {namespace: aiforall-local-full, deployment: zot, claim: zot-data, format: tar}
+  admission: {namespace: aiforall-local-apparatus, deployment: apparatus-operator, claim: admission-store, format: tar}

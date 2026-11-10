@@ -1,0 +1,151 @@
+{{- define "kind-minimal.app" -}}
+{{- $root := .root -}}
+{{- $app := .app -}}
+{{- $name := .name -}}
+{{- $image := $root.Values.applications.envoyImage -}}
+{{- if ne $app.target "envoy" -}}
+{{- $inventory := $root.Values.variable.inventory.default -}}
+{{- $source := (index $inventory.targets $app.target).source -}}
+{{- $image = printf "%s:%s" (first (splitList ":" $source)) (required "buildTag required for application images" $root.Values.buildTag) -}}
+{{- end -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ $root.Release.Namespace }}
+  labels: {aiforall.dev/kind-minimal-compute: "true"}
+  annotations:
+    aiforall.dev/tls-leaf: {{ if eq $app.target "lazaret" }}workload/server{{ else if eq $app.target "sentinel" }}""{{ else if has $app.target (list "iam" "hive" "telegraph" "manifesto") }}mesh/{{ $app.target }}-service{{ else }}mesh/{{ $name }}{{ end }}
+    aiforall.dev/config-file: {{ if $app.configPath }}{{ base $app.configPath | quote }}{{ else }}""{{ end }}
+spec:
+  replicas: {{ ternary 1 0 $app.enabled }}
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app.kubernetes.io/name: {{ $name }}}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $name }}
+        app.kubernetes.io/part-of: aiforall
+        aiforall.dev/kind-minimal: "true"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ $app.user }}
+        runAsGroup: {{ $app.user }}
+        fsGroup: {{ $app.user }}
+        seccompProfile: {type: RuntimeDefault}
+      initContainers:
+        - name: trust
+          image: {{ $image | quote }}
+          imagePullPolicy: {{ ternary "IfNotPresent" "Never" (eq $app.target "envoy") }}
+          command: [sh, -ec]
+          args: ["cat /etc/ssl/certs/ca-certificates.crt /local-ca/ca-bundle.crt /bao-ca/ca.crt > /trust/ca-bundle.crt"]
+          volumeMounts:
+            - {name: certs, mountPath: /local-ca, readOnly: true}
+            - {name: openbao-ca, mountPath: /bao-ca, readOnly: true}
+            - {name: trust, mountPath: /trust}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+      containers:
+        - name: {{ $name }}
+          image: {{ $image | quote }}
+          imagePullPolicy: {{ ternary "IfNotPresent" "Never" (eq $app.target "envoy") }}
+          {{- if eq $app.target "envoy" }}
+          args: [-c, /etc/envoy/envoy.yaml, --log-level, info]
+          {{- else }}
+          envFrom:
+            - secretRef: {name: "kind-local-{{ $name }}-env"}
+          {{- end }}
+          env:
+            - {name: RUN_ENV, value: development}
+            - {name: SSL_CERT_FILE, value: /app/trust/ca-bundle.crt}
+            - {name: SSL_CERT_DIR, value: /etc/ssl/certs}
+            {{- if $app.prefix }}
+            - name: {{ $app.prefix }}_OPENFGA__STORE_ID
+              valueFrom: {configMapKeyRef: {name: local-full-fga, key: store-id}}
+            - name: {{ $app.prefix }}_OPENFGA__AUTHORIZATION_MODEL_ID
+              valueFrom: {configMapKeyRef: {name: local-full-fga, key: model-id}}
+            - {name: {{ $app.prefix }}_OPENFGA__SCHEME, value: https}
+            - {name: {{ $app.prefix }}_OPENFGA__HOST, value: openfga.{{ $root.Release.Namespace }}.svc.cluster.local}
+            - {name: {{ $app.prefix }}_OPENFGA__PORT, value: "8080"}
+            {{- end }}
+          {{- if gt (int $app.port) 0 }}
+          ports: [{name: https, containerPort: {{ $app.port }}}]
+          readinessProbe:
+            {{- if eq $app.target "envoy" }}
+            httpGet: {scheme: HTTPS, path: {{ $app.ready }}, port: https}
+            {{- else }}
+            exec:
+              command:
+                - curl
+                - --silent
+                - --show-error
+                {{- if not (default false $app.allowHttpErrors) }}
+                - --fail
+                {{- end }}
+                - --output
+                - /dev/null
+                - --cacert
+                - {{ ternary "/app/identity-ca/ca.crt" "/app/certs/ca.crt" (eq $app.target "lazaret") }}
+                {{- if $app.mtls }}
+                - --cert
+                - /app/certs/mesh-client.crt
+                - --key
+                - /app/certs/mesh-client.key
+                {{- end }}
+                - --resolve
+                - {{ $name }}.{{ $root.Release.Namespace }}.svc.cluster.local:{{ $app.port }}:127.0.0.1
+                - https://{{ $name }}.{{ $root.Release.Namespace }}.svc.cluster.local:{{ $app.port }}{{ $app.ready }}
+            {{- end }}
+            periodSeconds: 5
+            timeoutSeconds: 5
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          volumeMounts:
+            {{- if $app.configPath }}
+            - name: config
+              mountPath: {{ dir $app.configPath }}
+              readOnly: true
+            {{- end }}
+            - {name: certs, mountPath: /app/certs, readOnly: true}
+            - {name: trust, mountPath: /app/trust, readOnly: true}
+            {{- if eq $app.target "lazaret" }}
+            - {name: identity-ca, mountPath: /app/identity-ca, readOnly: true}
+            {{- end }}
+            - {name: openbao-ca, mountPath: /run/openbao-ca, readOnly: true}
+      volumes:
+        - {name: trust, emptyDir: {medium: Memory}}
+        {{- if $app.configPath }}
+        - name: config
+          secret: {secretName: "kind-local-{{ $name }}-config", defaultMode: 0440}
+        {{- end }}
+        - name: certs
+          secret: {secretName: "kind-local-{{ $name }}-tls", defaultMode: 0440}
+        {{- if eq $app.target "lazaret" }}
+        - name: identity-ca
+          secret: {secretName: lazaret-identity-ca, defaultMode: 0440}
+        {{- end }}
+        - name: openbao-ca
+          secret: {secretName: kind-local-openbao-client-ca, defaultMode: 0440}
+{{- end -}}
+{{- if .Values.applications.enabled -}}
+{{- $items := list -}}
+{{- range $name, $app := .Values.applications.services -}}
+{{- $items = append $items (include "kind-minimal.app" (dict "root" $ "name" $name "app" $app) | fromYaml) -}}
+{{- if and $app.enabled (gt (int $app.port) 0) -}}
+{{- $items = append $items (dict "apiVersion" "v1" "kind" "Service" "metadata" (dict "name" $name "namespace" $.Release.Namespace) "spec" (dict "selector" (dict "app.kubernetes.io/name" $name) "ports" (list (dict "name" "https" "port" $app.port "targetPort" "https")))) -}}
+{{- end -}}
+{{- end -}}
+{{- range $items }}
+---
+{{ . | toJson }}
+{{- end }}
+{{- end -}}

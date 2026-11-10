@@ -20,7 +20,8 @@ chrono = { workspace = true }
 jsonwebtoken = { workspace = true }
 rand = { workspace = true }
 rcgen = { workspace = true }
-redis = { workspace = true }
+redis = { workspace = true, features = ["tls-rustls"] }
+rustls = { workspace = true }
 reqwest = { workspace = true, features = ["stream"] }
 sea-orm = { workspace = true }
 serde = { workspace = true }

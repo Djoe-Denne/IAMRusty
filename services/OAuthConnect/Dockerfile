@@ -15,7 +15,7 @@ ARG SDK_REVISION=unattested
 LABEL org.opencontainers.image.source="https://github.com/Djoe-Denne/AIForAll" \
       org.opencontainers.image.revision=$SOURCE_REVISION aiforall.dev.sdk-revision=$SDK_REVISION
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 curl \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 1000 appuser && useradd --uid 1000 --gid 1000 --no-create-home appuser \
     && mkdir /app/config

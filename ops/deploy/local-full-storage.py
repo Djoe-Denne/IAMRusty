@@ -1,5 +1,4 @@
 """Lease-gated local backup/restore. Never deletes resources or overwrites targets."""
-import argparse
 from contextlib import contextmanager
 import hashlib
 import json
@@ -10,6 +9,11 @@ import tarfile
 import uuid
 from pathlib import Path, PurePosixPath
 from local_full_target import LocalClusterTargetAnchor, AnchorError
+from local_full_target import private_file, unique_json
+from local_full_helm import CHART, parser
+import yaml
+
+STORAGE_SOURCES = yaml.safe_load((CHART / "files/storage-sources.yaml").read_text(encoding="utf-8"))["sources"]
 
 CONTEXT = "kind-aiforall-local-full"
 CLUSTER = "aiforall-local-full"
@@ -25,15 +29,21 @@ def target():
 
 @contextmanager
 def operation_lock(path, action):
+    prior = json.loads(path.read_text(encoding="utf-8-sig"), object_pairs_hook=unique_json).get("localFullOperation")
+    if prior and prior.get("state") != "complete" and action not in {"local-stop", "local-status"}:
+        raise ValueError("previous local-full operation is unresolved; parent arbitration required")
     lock = path.with_name(path.name + ".local-full-lock")
+    operation = uuid.uuid4().hex
     try:
         with lock.open("x", encoding="utf-8") as file:
-            json.dump({"action": action, "pid": os.getpid()}, file)
+            json.dump({"action": action, "pid": os.getpid(), "operation": operation}, file)
     except FileExistsError as error:
         raise ValueError("local-full operation lock exists; parent must resolve active/stale ownership") from error
     try:
-        yield
+        yield operation
     finally:
+        if json.loads(lock.read_text(encoding="utf-8")).get("operation") != operation:
+            raise ValueError("operation lock ownership changed; retain the marker and arbitrate")
         lock.unlink()
 
 
@@ -101,50 +111,61 @@ def fingerprint(namespace, pod, database):
 
 
 def volume_pod(namespace, name, claim, read_only):
-    result = {"apiVersion": "v1", "kind": "Pod", "metadata": {"name": name, "namespace": namespace, "labels": {"aiforall.dev/profile": "local-full", "app.kubernetes.io/name": "local-full-storage"}}, "spec": {
-        "automountServiceAccountToken": False, "restartPolicy": "Never", "activeDeadlineSeconds": 900,
-        "securityContext": {"runAsNonRoot": True, "runAsUser": 65534, "runAsGroup": 65534, "fsGroup": 65534, "seccompProfile": {"type": "RuntimeDefault"}},
-        "containers": [{"name": "storage", "image": "postgres:15.12-alpine3.21@sha256:ef9d1517df69c4d27dbb9ddcec14f431a2442628603f4e9daa429b92ae6c3cd1", "command": ["sh", "-c", "trap 'exit 0' TERM INT; sleep 900 & wait"],
-                        "resources": {"requests": {"cpu": "10m", "memory": "32Mi"}, "limits": {"cpu": "200m", "memory": "128Mi"}},
-                        "securityContext": {"allowPrivilegeEscalation": False, "capabilities": {"drop": ["ALL"]}},
-                        "volumeMounts": [{"name": "data", "mountPath": "/data", "readOnly": read_only}]}],
-        "volumes": [{"name": "data", "persistentVolumeClaim": {"claimName": claim, "readOnly": read_only}}]}}
-    if read_only:
-        result["spec"]["securityContext"].pop("fsGroup")
-    return result
+    from local_full_helm import storage
+    return storage("volume", namespace, name, claim, read_only=read_only)[0]
 
 
 def postgres_restore_pod(namespace, name, claim, database):
-    pod = volume_pod(namespace, name, claim, False)
-    pod["spec"]["securityContext"] = {"runAsNonRoot": True, "runAsUser": 70, "runAsGroup": 70, "fsGroup": 70, "seccompProfile": {"type": "RuntimeDefault"}}
-    container = pod["spec"]["containers"][0]
-    container.pop("command")
-    container["env"] = [{"name": "POSTGRES_USER", "value": "postgres"}, {"name": "POSTGRES_PASSWORD", "value": "postgres"}, {"name": "POSTGRES_DB", "value": database}, {"name": "PGDATA", "value": "/data/pgdata"}]
-    container["readinessProbe"] = {"exec": {"command": ["pg_isready", "-U", "postgres", "-d", database]}, "periodSeconds": 5}
-    container["resources"]["limits"] = {"cpu": "1", "memory": "512Mi"}
-    return pod
+    from local_full_helm import storage
+    return storage("postgres", namespace, name, claim, database=database)[0]
+
+
+def guarded_replicas(namespace, name, uid, replicas, expected):
+    current = json.loads(kubectl("get", "deployment", name, "-n", namespace, "-o", "json"))
+    if current["metadata"]["uid"] != uid or current["spec"].get("replicas", 1) != expected:
+        raise ValueError("backup source UID/replicas changed; no adoption or replica rollback")
+    if replicas == expected:
+        return
+    patch = [{"op": "test", "path": "/metadata/uid", "value": uid},
+             {"op": "test", "path": "/metadata/resourceVersion", "value": current["metadata"]["resourceVersion"]},
+             {"op": "test", "path": "/spec/replicas", "value": expected},
+             {"op": "replace", "path": "/spec/replicas", "value": replicas}]
+    ack = json.loads(kubectl("patch", "deployment/" + name, "-n", namespace, "--type=json", "-p", json.dumps(patch), "-o", "json"))
+    if ack["metadata"]["uid"] != uid or ack["spec"]["replicas"] != replicas:
+        raise ValueError("backup replica mutation ACK differs; source retained for arbitration")
 
 
 def backup(args, data):
-    namespace = SOURCE if args.volume != "admission" else "aiforall-local-apparatus"
+    from local_registry import pki
+    pki.checked_path(args.archive)
+    pki.private_directory(args.archive.parent)
+    source = STORAGE_SOURCES[args.volume]
+    namespace = source["namespace"]
     assert_namespace_owned(namespace, data)
     if args.archive.exists() or args.archive.with_suffix(args.archive.suffix + ".json").exists():
         raise ValueError("backup output already exists; no overwrite")
     if not args.archive.parent.is_dir():
         raise ValueError("archive parent directory must already exist")
-    name = {"postgres": "postgres", "zot": "zot", "admission": "apparatus-operator"}[args.volume]
-    claim = {"postgres": "postgres-data", "zot": "zot-data", "admission": "admission-store"}[args.volume]
+    name, claim = source["deployment"], source["claim"]
     identity = pvc_identity(namespace, claim)
     deployment_uid = kubectl("get", "deployment", name, "-n", namespace, "-o", "jsonpath={.metadata.uid}")
     owned = data.get("ownedResources", [])
-    if not any(o.get("kind") == "Deployment" and o.get("namespace") == namespace and o.get("name") == name and o.get("uid") == deployment_uid for o in owned):
+    if not any(o.get("kind") == "Deployment" and o.get("namespace") == namespace and o.get("name") == name and o.get("uid") == deployment_uid
+               and o.get("context") == CONTEXT and o.get("cluster") == CLUSTER for o in owned):
         raise ValueError("source Deployment UID is not explicitly owned")
-    if not any(o.get("kind") == "PersistentVolumeClaim" and o.get("namespace") == namespace and o.get("uid") == identity["uid"] for o in owned):
+    if not any(o.get("kind") == "PersistentVolumeClaim" and o.get("namespace") == namespace and o.get("name") == claim and o.get("uid") == identity["uid"]
+               and o.get("context") == CONTEXT and o.get("cluster") == CLUSTER for o in owned):
         raise ValueError("source PVC UID is not explicitly owned")
     original_replicas = None
     staging_pod = None
+    staging_uid = None
+    source_quiesced = False
+    stop_verified = True
+    data["localFullOperation"] = {"id": uuid.uuid4().hex, "phase": "backup", "state": "in-progress",
+                                 "sourceUid": deployment_uid, "sourcePvcUid": identity["uid"]}
+    save_lease(args.lease, data)
     try:
-        if args.volume == "postgres":
+        if source["format"] == "postgres":
             pod = running_pod(namespace, name)
             before = fingerprint(namespace, pod, args.database)
             # Custom binary output goes through Python bytes, not PowerShell redirection.
@@ -157,33 +178,45 @@ def backup(args, data):
             if not args.confirm_quiesce:
                 raise ValueError("volume backup interrupts the owned workload; --confirm-quiesce required")
             original_replicas = int(kubectl("get", "deployment", name, "-n", namespace, "-o", "jsonpath={.spec.replicas}"))
-            kubectl("scale", "deployment/" + name, "-n", namespace, "--replicas=0")
+            data["localFullOperation"]["originalReplicas"] = original_replicas
+            save_lease(args.lease, data)
+            guarded_replicas(namespace, name, deployment_uid, 0, original_replicas)
+            source_quiesced = True
             kubectl("wait", "--for=delete", "pod", "-n", namespace, "-l", "app.kubernetes.io/name=" + name, "--timeout=120s")
             staging_pod = "backup-volume-" + uuid.uuid4().hex[:12]
-            create(volume_pod(namespace, staging_pod, claim, True), args, data)
+            acknowledged = create(volume_pod(namespace, staging_pod, claim, True), args, data)
+            staging_uid = acknowledged["metadata"]["uid"]
             kubectl("wait", "--for=condition=Ready", "pod/" + staging_pod, "-n", namespace, "--timeout=180s")
             contents = kubectl("exec", "-n", namespace, staging_pod, "--", "tar", "-C", "/data", "-czf", "-", ".", binary=True, timeout=300)
             counts_hash = None
         with args.archive.open("xb") as target:
             target.write(contents)
-        metadata = {"volume": args.volume, "database": args.database if args.volume == "postgres" else None, "source": identity,
+        metadata = {"volume": args.volume, "format": source["format"], "database": args.database if source["format"] == "postgres" else None, "source": identity,
                     "archive_sha256": hashlib.sha256(contents).hexdigest(), "relation_counts_sha256": counts_hash}
         with args.archive.with_suffix(args.archive.suffix + ".json").open("x", encoding="utf-8") as target:
             json.dump(metadata, target, indent=2)
-        print("backup created; contents not printed; PVC retained")
     finally:
         try:
             if staging_pod:
-                # Process stop only; retain exact Pod/PVC UID inventory. Failure
-                # to stop must not prevent rollback of the source replicas.
+                # No stop by name after a lost ACK, and no PVC reuse until the
+                # exact acknowledged helper has completed its process stop.
                 try:
+                    if not staging_uid or kubectl("get", "pod", staging_pod, "-n", namespace, "-o", "jsonpath={.metadata.uid}") != staging_uid:
+                        raise ValueError("backup helper UID ACK lost or changed")
                     kubectl("exec", "-n", namespace, staging_pod, "--", "sh", "-c", "kill -TERM 1")
-                except (RuntimeError, subprocess.TimeoutExpired):
+                    kubectl("wait", "--for=jsonpath={.status.phase}=Succeeded", "pod/" + staging_pod, "-n", namespace, "--timeout=60s")
+                except (ValueError, RuntimeError, subprocess.TimeoutExpired):
+                    stop_verified = False
                     print("WARNING: owned backup Pod stop unverified; parent must release it before PVC reuse")
         finally:
-            if original_replicas is not None:
-                kubectl("scale", "deployment/" + name, "-n", namespace, "--replicas=" + str(original_replicas))
+            if source_quiesced and stop_verified:
+                guarded_replicas(namespace, name, deployment_uid, original_replicas, 0)
                 kubectl("rollout", "status", "deployment/" + name, "-n", namespace, "--timeout=180s")
+    if not stop_verified:
+        raise ValueError("backup bytes retained but helper stop is unverified; operation receipt remains incomplete")
+    data["localFullOperation"]["state"] = "complete"
+    save_lease(args.lease, data)
+    print("backup created; contents not printed; PVC retained")
 
 
 def restore(args, data):
@@ -191,18 +224,32 @@ def restore(args, data):
         raise ValueError("--confirm-restore required: creates an isolated target, never overwrites a source")
     if not re.fullmatch(r"aiforall-local-restore-[a-z0-9][a-z0-9-]{0,31}", args.target_namespace or ""):
         raise ValueError("target namespace must be a new aiforall-local-restore-* namespace")
+    from local_registry import pki
+    for path in (args.archive, args.archive.with_suffix(args.archive.suffix + ".json")):
+        pki.checked_path(path)
+        if not private_file(path):
+            raise ValueError("private original backup/archive metadata required")
     metadata = json.loads(args.archive.with_suffix(args.archive.suffix + ".json").read_text())
+    if metadata.get("volume") not in STORAGE_SOURCES:
+        raise ValueError("unknown declared backup source")
+    format = STORAGE_SOURCES[metadata["volume"]]["format"]
+    if metadata.get("format", format) != format:
+        raise ValueError("archive format differs from its declared source")
     assert_namespace_owned(metadata["source"]["namespace"], data)
+    if not any(e.get("kind") == "PersistentVolumeClaim" and e.get("namespace") == metadata["source"]["namespace"]
+               and e.get("name") == metadata["source"]["name"] and e.get("uid") == metadata["source"]["uid"]
+               and e.get("context") == CONTEXT and e.get("cluster") == CLUSTER for e in data.get("ownedResources", [])):
+        raise ValueError("archive source PVC UID is not acknowledged by the original lease")
     contents = args.archive.read_bytes()
     if hashlib.sha256(contents).hexdigest() != metadata["archive_sha256"]:
         raise ValueError("archive checksum mismatch")
     if metadata["source"]["namespace"] == args.target_namespace:
         raise ValueError("source/target namespace collision")
-    if metadata["volume"] == "postgres" and (not args.target_database or args.target_database == metadata["database"]):
+    if format == "postgres" and (not args.target_database or args.target_database == metadata["database"]):
         raise ValueError("restore database must be distinct from the source")
     if kubectl("get", "namespace", args.target_namespace, "--ignore-not-found", "-o", "name"):
         raise ValueError("target namespace already exists; refuse even an apparently empty target")
-    if metadata["volume"] != "postgres":
+    if format != "postgres":
         with tarfile.open(args.archive) as archive:
             members = archive.getmembers()
             if len(members) > 100000 or sum(m.size for m in members) > 5 * 1024 ** 3:
@@ -212,15 +259,17 @@ def restore(args, data):
                 if path.is_absolute() or ".." in path.parts or not (member.isfile() or member.isdir()):
                     raise ValueError("unsafe archive member")
     namespace = args.target_namespace
-    create({"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": namespace, "labels": {"aiforall.dev/profile": "local-full-restore", "pod-security.kubernetes.io/enforce": "baseline"}}}, args, data)
-    create({"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy", "metadata": {"name": "default-deny", "namespace": namespace}, "spec": {"podSelector": {}, "policyTypes": ["Ingress", "Egress"]}}, args, data)
-    create({"apiVersion": "v1", "kind": "ResourceQuota", "metadata": {"name": "restore-budget", "namespace": namespace}, "spec": {"hard": {"pods": "2", "persistentvolumeclaims": "1", "requests.storage": "2Gi", "requests.cpu": "1", "requests.memory": "512Mi", "limits.cpu": "2", "limits.memory": "1Gi"}}}, args, data)
+    data["localFullOperation"] = {"id": uuid.uuid4().hex, "phase": "restore", "state": "in-progress",
+                                 "sourcePvcUid": metadata["source"]["uid"], "targetNamespace": namespace}
+    save_lease(args.lease, data)
     claim = "restored-" + metadata["volume"] + "-" + uuid.uuid4().hex[:12]
     if claim == metadata["source"]["name"]:
         raise ValueError("PVC name collision")
-    create({"apiVersion": "v1", "kind": "PersistentVolumeClaim", "metadata": {"name": claim, "namespace": namespace}, "spec": {"accessModes": ["ReadWriteOnce"], "storageClassName": "standard", "resources": {"requests": {"storage": "2Gi"}}}}, args, data)
+    from local_full_helm import storage
+    for obj in storage("foundation", namespace, "restore-foundation", claim):
+        create(obj, args, data)
     pod = "restore-" + uuid.uuid4().hex[:12]
-    obj = postgres_restore_pod(namespace, pod, claim, args.target_database) if metadata["volume"] == "postgres" else volume_pod(namespace, pod, claim, False)
+    obj = postgres_restore_pod(namespace, pod, claim, args.target_database) if format == "postgres" else volume_pod(namespace, pod, claim, False)
     create(obj, args, data)
     kubectl("wait", "--for=condition=Ready", "pod/" + pod, "-n", namespace, "--timeout=240s")
     target_identity = pvc_identity(namespace, claim)
@@ -229,7 +278,7 @@ def restore(args, data):
     remote = "/tmp/local-full-restore.archive"
     # Stream bytes into a fixed new target path, never log contents.
     kubectl("exec", "-i", "-n", namespace, pod, "--", "sh", "-ec", "test ! -e " + remote + "; cat > " + remote, binary=True, stdin=contents, timeout=300)
-    if metadata["volume"] == "postgres":
+    if format == "postgres":
         count = kubectl("exec", "-n", namespace, pod, "--", "psql", "-U", "postgres", "-d", args.target_database, "-At", "-c", "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog','information_schema');")
         if count != "0":
             raise ValueError("restore database is not empty")
@@ -240,22 +289,14 @@ def restore(args, data):
         kubectl("exec", "-n", namespace, pod, "--", "sh", "-ec", "test -z \"$(find /data -mindepth 1 -maxdepth 1 -print -quit)\"; tar -xzf " + remote + " -C /data --no-same-owner", timeout=300)
     # Target is deliberately not wired over any live workload. Parent must
     # release this Pod after assertions; preserve PVC/namespace for inspection.
+    data["localFullOperation"]["state"] = "complete"
+    save_lease(args.lease, data)
     print(json.dumps({"result": "restored-distinct-target", "namespace": namespace, "pod": pod, "pvc": claim, "source_not_targeted": True}))
 
 
 def main():
     os.umask(0o077)
-    parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["backup", "restore"])
-    parser.add_argument("--lease", type=Path, required=True)
-    parser.add_argument("--archive", type=Path, required=True)
-    parser.add_argument("--volume", choices=["postgres", "zot", "admission"], default="postgres")
-    parser.add_argument("--database", default="manifesto_dev")
-    parser.add_argument("--target-namespace")
-    parser.add_argument("--target-database")
-    parser.add_argument("--confirm-quiesce", action="store_true")
-    parser.add_argument("--confirm-restore", action="store_true")
-    args = parser.parse_args()
+    args = parser("storage", choices={"--volume": list(STORAGE_SOURCES)}).parse_args()
     for name in [args.database, args.target_database]:
         if name is not None and not re.fullmatch(r"[a-z][a-z0-9_]{0,62}", name):
             raise ValueError("invalid explicit database identifier")

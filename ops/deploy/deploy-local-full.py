@@ -1,5 +1,5 @@
-"""Parent-run local-full entrypoint; offline render is the only worker-safe action."""
-import argparse
+"""Parent-run local-full facade and authority guards; sequencing lives in just."""
+import copy
 import hashlib
 import importlib.util
 import json
@@ -13,12 +13,11 @@ import bootstrap_local_kind
 from pathlib import Path
 import local_full_target as target_authority
 from local_full_target import private_file
+from local_full_secrets import envelope as secret
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTEXT = "kind-aiforall-local-full"
 CLUSTER = "aiforall-local-full"
-NAMESPACES = ["aiforall-local-full", "aiforall-local-apparatus", "aiforall-local-plugins"]
-RUST_APPS = ["iam", "hive", "telegraph", "manifesto"]
 
 
 def load_module(name, file):
@@ -45,61 +44,76 @@ def apply(items):
           stdin=json.dumps({"apiVersion": "v1", "kind": "List", "items": items}))
 
 
+def resource_state(obj, data):
+    """One ownership rule for preflight and apply, including missing ACKed objects."""
+    kind, metadata = obj["kind"], obj["metadata"]
+    namespace, name = metadata.get("namespace"), metadata["name"]
+    flags = ["get", kind, name, "--ignore-not-found", "-o", "json"]
+    if namespace:
+        flags += ["-n", namespace]
+    raw = k(*flags)
+    expected = {e["uid"] for e in data.get("ownedResources", []) if e.get("kind") == kind
+                and e.get("name") == name and e.get("namespace") == namespace
+                and e.get("context") == CONTEXT and e.get("cluster") == CLUSTER}
+    if kind == "Namespace":
+        expected = set(filter(None, [data.get("namespaceUids", {}).get(name)]))
+    if kind in {"CustomResourceDefinition", "ClusterRole", "ClusterRoleBinding"}:
+        expected = set(filter(None, [data.get("clusterResourceUids", {}).get(kind + "/" + name)]))
+    current = json.loads(raw) if raw else None
+    if raw:
+        if current["metadata"]["uid"] not in expected:
+            raise ValueError("resource UID is not explicitly owned")
+        if kind == "Namespace" and current["metadata"].get("labels", {}).get("aiforall.dev/profile") != "local-full":
+            raise ValueError("namespace belongs to another profile")
+    elif expected:
+        raise ValueError("previously owned resource disappeared; no implicit recreation")
+    return current
+
+
 def apply_owned(items, args, data):
-    """Record each acknowledged apply before attempting the next resource."""
+    """Create-only or UID/RV-bound apply, with an ACK before the next object."""
     for item in items:
-        apply([item])
+        if item["kind"] == "Secret":
+            raise ValueError("confidential envelopes require the create-only/CAS boundary")
+        current = resource_state(item, data)
+        if current:
+            item = copy.deepcopy(item)
+            item["metadata"].update(uid=current["metadata"]["uid"], resourceVersion=current["metadata"]["resourceVersion"])
+            apply([item])
+        else:
+            item = runtime.create(item, args, data)
+            if not item["metadata"].get("uid"):
+                raise ValueError("resource creation UID ACK missing")
         record_resources([item], args, data)
 
 
-def prepare_namespaces(args, data):
-    for name in NAMESPACES:
-        uid = k("get", "namespace", name, "--ignore-not-found", "-o", "jsonpath={.metadata.uid}")
-        if uid:
-            if data.get("namespaceUids", {}).get(name) != uid:
-                raise ValueError("namespace exists with unknown ownership: " + name)
-            profile = k("get", "namespace", name, "-o", "jsonpath={.metadata.labels.aiforall\\.dev/profile}")
-            if profile != "local-full":
-                raise ValueError("namespace belongs to another profile: " + name)
-        else:
-            runtime.create({"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": name, "labels": {"aiforall.dev/profile": "local-full"}}}, args, data)
-
-
-def preflight_cluster_objects(objects, args, data):
+def prepare_namespaces(args, data, objects):
     for obj in objects:
-        if obj["kind"] not in {"CustomResourceDefinition", "ClusterRole", "ClusterRoleBinding"}:
+        if obj["kind"] == "Namespace" and not resource_state(obj, data):
+            runtime.create(obj, args, data)
+
+
+def preflight_resources(objects, data):
+    """Validate every live preimage before quiescence; never a storage/schema migration."""
+    for obj in objects:
+        if obj["kind"] == "Secret":
+            continue  # Create-only collision handling never reads a live Secret.
+        current = resource_state(obj, data)
+        if not current:
             continue
-        name = obj["metadata"]["name"]
-        uid = k("get", obj["kind"], name, "--ignore-not-found", "-o", "jsonpath={.metadata.uid}")
-        key = obj["kind"] + "/" + name
-        if uid and data.get("clusterResourceUids", {}).get(key) != uid:
-            raise ValueError("shared cluster object requires explicit parent UID lease: " + key)
-        if uid and obj["kind"] == "CustomResourceDefinition":
-            existing = json.loads(k("get", obj["kind"], name, "-o", "json"))
-            expected = obj["spec"]
-            actual = existing["spec"]
+        if obj["kind"] == "CustomResourceDefinition":
+            expected, actual = obj["spec"], current["spec"]
             if actual["names"]["kind"] != expected["names"]["kind"] or actual["scope"] != expected["scope"] or actual["versions"] != expected["versions"]:
                 raise ValueError("existing AdmissionRecord schema differs; preserve it and escalate")
-
-
-def preflight_storage_transitions(objects):
-    """Full deploy is not an emptyDir/hostPath/PVC migration operation."""
-    volumes_by_name = {"postgres": "data", "zot": "data", "apparatus-operator": "admission-store"}
-    for obj in objects:
-        name = obj["metadata"]["name"]
-        if obj["kind"] != "Deployment" or name not in volumes_by_name:
+        encoded = obj["metadata"].get("annotations", {}).get("aiforall.dev/persistence")
+        if obj["kind"] != "Deployment" or not encoded:
             continue
-        namespace = obj["metadata"]["namespace"]
-        raw = k("get", "deployment", name, "-n", namespace, "--ignore-not-found", "-o", "json")
-        if not raw.strip():
-            continue  # Initial explicit installation has no source data to replace.
-        current = json.loads(raw)
-        volume_name = volumes_by_name[name]
+        volume_name = json.loads(encoded)["volume"]
         def selected(deployment):
             return [v for v in deployment["spec"]["template"]["spec"].get("volumes", []) if v["name"] == volume_name]
         if selected(current) != selected(obj):
-            raise ValueError("storage transition refused for " + namespace + "/" + name
-                             + "; preserve and verify the existing data before an explicit cutover; --confirm-quiesce is not a migration approval")
+            raise ValueError("storage transition refused for " + obj["metadata"]["namespace"] + "/" + obj["metadata"]["name"]
+                              + "; preserve and verify the existing data before an explicit cutover; --confirm-quiesce is not a migration approval")
 
 
 def record_resources(objects, args, data):
@@ -111,7 +125,7 @@ def record_resources(objects, args, data):
         flags = ["get", obj["kind"], obj["metadata"]["name"], "-o", "jsonpath={.metadata.uid}"]
         if obj["metadata"].get("namespace"):
             flags += ["-n", obj["metadata"]["namespace"]]
-        uid = k(*flags)
+        uid = obj["metadata"].get("uid") or k(*flags)
         metadata = obj["metadata"]
         entry = {"kind": obj["kind"], "name": metadata["name"], "namespace": metadata.get("namespace"), "uid": uid, "context": CONTEXT, "cluster": CLUSTER}
         prior = data.setdefault("ownedResources", [])
@@ -128,37 +142,29 @@ def cert_inputs(path):
     mesh = path / "mesh"
     workload = path / "workload"
     files = {"ca.crt": (mesh / "ca.crt").read_bytes()}
-    for name in ["iam-service", "hive-service", "telegraph-service", "manifesto-service", "envoy-mesh", "ext-authz", "mesh-client"]:
+    from local_registry import pki
+    for _, name, _ in (row for row in pki.leaf_profiles() if row[0] == "mesh"):
         for suffix in ["crt", "key"]:
             file = name + "." + suffix
             files[file] = (mesh / file).read_bytes()
     identity_files = {name: (workload / name).read_bytes() for name in ["ca.crt", "ca.key", "server.crt", "server.key"]}
     if files["ca.crt"] == identity_files["ca.crt"]:
         raise ValueError("transport and workload CA must be distinct")
-    digest = hashlib.sha256(b"".join(files[key] for key in sorted(files)) + b"".join(identity_files[key] for key in sorted(identity_files))).hexdigest()
+    # Public rollout identity only: never send a private-key fingerprint to Helm.
+    digest = hashlib.sha256(b"".join(files[key] for key in sorted(files) if key.endswith(".crt"))
+                            + b"".join(identity_files[key] for key in sorted(identity_files) if key.endswith(".crt"))).hexdigest()
     return files, identity_files, digest
-
-
-def secret(name, values):
-    import base64
-    return {"apiVersion": "v1", "kind": "Secret", "metadata": {"name": name, "namespace": "aiforall-local-full", "labels": {"aiforall.dev/profile": "local-full"}},
-            "type": "Opaque", "data": {key: base64.b64encode(value).decode() for key, value in values.items()}}
 
 
 def oauth_inputs(path):
     if not path or not path.is_file() or path.is_symlink() or not private_file(path):
         raise ValueError("private read-only OAuth proof input and private parent directory required")
-    # Duplicate JSON keys must not silently select credentials/configuration.
-    def unique(pairs):
-        value = {}
-        for key, item in pairs:
-            if key in value:
-                raise ValueError("ambiguous private OAuth proof input")
-            value[key] = item
-        return value
     if path.stat().st_size > 4096:
         raise ValueError("private OAuth proof input exceeds bound")
-    return renderer.validate_proof_inputs(json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique))
+    try:
+        return renderer.validate_proof_inputs(json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=target_authority.unique_json))
+    except target_authority.AnchorError:
+        raise ValueError("ambiguous private OAuth proof input") from None
 
 
 def oauth_cert_inputs(path, run_id):
@@ -169,7 +175,7 @@ def oauth_cert_inputs(path, run_id):
     # New per-run objects, never copies of the parent CA or gateway private key.
     objects = [secret("oauth-proof-public-ca-" + run_id, {"ca.crt": public}),
                secret("oauth-proof-connector-tls-" + run_id, leaf)]
-    digest = hashlib.sha256(public + leaf["tls.crt"] + leaf["tls.key"]).hexdigest()
+    digest = hashlib.sha256(public + leaf["tls.crt"]).hexdigest()
     return objects, digest
 
 
@@ -214,35 +220,28 @@ def _parse_github_inputs(path):
     return value
 
 
-def openbao_cert_inputs(path, run_id, github, oauth_connect=False):
+def openbao_cert_inputs(path, run_id, github, oauth_connect=False, *, validate=True):
     extension = path / ("extensions/openbao-oauthconnect" if oauth_connect else "extensions/openbao-github")
     if not extension.is_dir():
         raise ValueError("explicit OpenBao connector certificate extension must be prepared first")
     # Same shared PKI verifier on both OS; an existing complete bundle is mandatory.
-    validation = subprocess.run([sys.executable, "-B", str(ROOT / "ops/scripts/prepare-local-full-certs.py"),
-        "--output-dir", str(path), "--oauth-connect" if oauth_connect else "--openbao-github"], capture_output=True, timeout=300)
-    if validation.returncode:
-        raise ValueError("OpenBao certificate bundle validation failed (details redacted)")
+    if validate:
+        validation = subprocess.run([sys.executable, "-B", str(ROOT / "ops/scripts/prepare-local-full-certs.py"),
+            "--output-dir", str(path), "--oauth-connect" if oauth_connect else "--openbao-github"], capture_output=True, timeout=300)
+        if validation.returncode:
+            raise ValueError("OpenBao certificate bundle validation failed (details redacted)")
+    from local_full_lifecycle import _objects
+    from local_full_declarations import identity as declarations_identity
+    profile = "oauth-connect" if oauth_connect else "github-openbao" if github else "base"
+    declarations = _objects(profile, declarations_identity())
+    leaves = {match.group(1) for obj in declarations if obj["kind"] == "Deployment"
+              for volume in obj["spec"]["template"]["spec"].get("volumes", [])
+              if (match := re.fullmatch(r"([a-z0-9-]+)-server-tls-[a-z0-9]{12,32}", volume.get("secret", {}).get("secretName", "")))}
     result = []
-    for name in ["openbao"] + (["github-connect"] if github else []) + (["oauth-connect"] if oauth_connect else []):
+    for name in sorted(leaves):
         result.append(secret(name + "-server-tls-" + run_id, {
             "tls.crt": (extension / (name + ".crt")).read_bytes(), "tls.key": (extension / (name + ".key")).read_bytes()}))
     return result
-
-
-def preflight_oauth_objects(objects, data):
-    for obj in objects:
-        name = obj["metadata"]["name"]
-        if not (name.startswith(("oauth-proof-", "oauth-connect-", "oauth-simulator-")) or name in {"gitlab-connect", "oauth-connect", "oauth-idp-simulator", "iam-openbao"}):
-            continue
-        if obj["kind"] == "Secret":
-            continue  # CREATE only later: collision fails without GET/overwrite.
-        uid = k("get", obj["kind"], name, "-n", "aiforall-local-full", "--ignore-not-found", "-o", "jsonpath={.metadata.uid}")
-        if uid and not any(entry.get("kind") == obj["kind"] and entry.get("name") == name
-                           and entry.get("namespace") == "aiforall-local-full" and entry.get("uid") == uid
-                           and entry.get("context") == CONTEXT and entry.get("cluster") == CLUSTER
-                           for entry in data.get("ownedResources", [])):
-            raise ValueError("existing OAuth proof resource UID not explicitly owned")
 
 
 def verify_images(images, registry_state=None):
@@ -269,39 +268,22 @@ def verify_images(images, registry_state=None):
         runtime.target().kind_load(image)
 
 
-def configure_api_policy():
-    address = k("get", "nodes", "-l", "node-role.kubernetes.io/control-plane", "-o", "jsonpath={.items[0].status.addresses[?(@.type=='InternalIP')].address}")
-    import ipaddress
-    address = str(ipaddress.IPv4Address(address))
-    for namespace in ["aiforall-local-full", "aiforall-local-apparatus"]:
-        patch = {"spec": {"egress": [{"to": [{"ipBlock": {"cidr": "10.96.0.1/32"}}, {"ipBlock": {"cidr": address + "/32"}}], "ports": [{"protocol": "TCP", "port": 443}, {"protocol": "TCP", "port": 6443}]}]}}
-        # kube API egress is scoped to the actual control-plane address, not a wildcard.
-        k("patch", "networkpolicy/allow-api", "-n", namespace, "--type=merge", "-p", json.dumps(patch))
+def ingress_policy_catalog(profile="base"):
+    """Read the same declared policy objects; never maintain an overlay copy."""
+    from local_full_declarations import identity
+    from local_full_lifecycle import _objects
+    return {obj["metadata"]["name"]: copy.deepcopy(obj["spec"]) for obj in _objects(profile, identity())
+            if obj["kind"] == "NetworkPolicy" and obj["metadata"]["namespace"] == CLUSTER}
 
 
-_INGRESS_HISTORICAL_OBSERVATION = "0ad1c639efe15aa5a8e183a95a5171e761fba7fa2d3e2c0d841c5720f8781280"
-_INGRESS_HISTORICAL_CAPTURE_HEAD = "ff12007a837eaf8c013e519b33e0c9bdb1d2ec5f"
-_INGRESS_PROJECTION_NAMES = ("observation", "summary", "baseline", "passive-baseline",
-                             "admin-before", "admin-after", "causal-review")
+_INGRESS_PROTOCOL = json.loads((renderer.helm.CHART / "files/ingress-attestation.json").read_text(encoding="utf-8"))
+_INGRESS_HISTORICAL_OBSERVATION = _INGRESS_PROTOCOL["_INGRESS_HISTORICAL_OBSERVATION"]
+_INGRESS_HISTORICAL_CAPTURE_HEAD = _INGRESS_PROTOCOL["_INGRESS_HISTORICAL_CAPTURE_HEAD"]
+_INGRESS_PROJECTION_NAMES = tuple(_INGRESS_PROTOCOL["_INGRESS_PROJECTION_NAMES"])
 # Exact producer/mutation/manifest qualified by the lead and sealed audit receipt.
 # No runtime file, caller argument or environment variable can authorize a pair.
-_INGRESS_CAPTURE_COMPATIBILITY = (
-    (
-        "ff12007a837eaf8c013e519b33e0c9bdb1d2ec5f",
-        "7385b551a7d154873cecc5375b5dc18f161b295c9b80d249b0befaea349322be",
-        (
-            ("observation", "0ad1c639efe15aa5a8e183a95a5171e761fba7fa2d3e2c0d841c5720f8781280"),
-            ("summary", "41fbbdc4a51f5f3a0fb78a842a327a0ea5ed93008f6c1cbe65f8c400a1b7ff65"),
-            ("baseline", "e08365c60b6ccceb00fdb418a6a2234e317a1b86652cba0e733ec98edf54d034"),
-            ("passive-baseline", "e08365c60b6ccceb00fdb418a6a2234e317a1b86652cba0e733ec98edf54d034"),
-            ("admin-before", "f5df36bffb90edfd1c564d5f51e1c9e584c2a005da1a789ca926e3cea32275d3"),
-            ("admin-after", "269c9868662f2fe7138d6d5f2d5ad145b3b7a8e9fb42066b04672c05986111de"),
-            ("causal-review", "ec695cb6eba701d85339b5d5f4139af2ab8d6d8e970dff7b0c91edabf9cefcf6"),
-        ),
-        "9b0da96b7e0db6ace93628d4d55f059d997231384c44737ff2a39ea4f1a64605",
-        "b79ec6aa1aab145e136e397d3f18242aaa59a9375272b46417d7baac620c3250",
-    ),
-)
+_INGRESS_CAPTURE_COMPATIBILITY = tuple((head, helper, tuple(map(tuple, manifest)), mutation, receipt)
+    for head, helper, manifest, mutation, receipt in _INGRESS_PROTOCOL["_INGRESS_CAPTURE_COMPATIBILITY"])
 
 
 def _ingress_json(value):
@@ -311,6 +293,11 @@ def _ingress_json(value):
 def _ingress_require(condition):
     if not condition:
         raise ValueError("INCONCLUSIVE: Envoy ingress gate refused; details redacted")
+
+
+def _ingress_fields(value, group):
+    return all(type(value[key]) is type(expected) and value[key] == expected
+               for key, expected in _INGRESS_PROTOCOL[group].items())
 
 
 def _ingress_authority(files, hashes):
@@ -377,8 +364,7 @@ def _ingress_policy_postimage(raw, uid, spec, *, previous_version=None):
 
 
 def _ingress_admin_pair(before, after, identity):
-    expected = {key: identity[key] for key in ("namespace_uid", "pod", "pod_uid", "owner_chain",
-                "container", "container_id", "restart_count", "image_id")}
+    expected = {key: identity[key] for key in _INGRESS_PROTOCOL["adminIdentityFields"]}
     for item in (before, after):
         _ingress_require(_ingress_json(item["identity"]) == _ingress_json(expected) and item["state"] == "LIVE"
                          and item["version"] == "1.31.2"
@@ -388,8 +374,7 @@ def _ingress_admin_pair(before, after, identity):
                          and 0 <= before[key] <= after[key])
     # Only explicit counters count. Other collector fields can legitimately be
     # MISSING; never turn those into zero or claim per-flow packet attribution.
-    for suffix in ("upstream_cx_total", "upstream_rq_total", "ssl.handshake",
-                   "ssl.fail_verify_san", "ssl.fail_verify_error"):
+    for suffix in _INGRESS_PROTOCOL["upstreamCounters"]:
         key = "cluster.iam." + suffix
         a, b = before["stats"][key], after["stats"][key]
         _ingress_require(type(a) is int and type(b) is int and 0 <= a <= b)
@@ -415,21 +400,12 @@ def _ingress_evidence(directory):
     source = str(address)
     _ingress_require(source == binding["reply"]["dst"] and source != identity["control_plane_ipv4"]
         and not any((address.is_unspecified, address.is_loopback, address.is_multicast, address.is_link_local)))
-    _ingress_require(review["schema"] == "aiforall.envoy.ingress-causal-review.v1"
-        and review["decision"] == "QUALIFIED_EQUIVALENT_LAB_ONLY"
+    _ingress_require(_ingress_fields(review, "review")
         and review["observation_sha256"] == hashes["observation"]
-        and review["namespace"] == "aiforall-local-full"
         and review["measured_source_ipv4"] == source
-        and review["source_annotation"] == "projectcalico.org/IPv4IPIPTunnelAddr"
-        and review["source_provenance"] == "UNIQUE_MEASURED_BINDING_AND_EXACT_K8S_NODE_IPIP_ANNOTATION"
         and isinstance(review["reason"], str) and len(review["reason"].strip()) >= 80
         and isinstance(review["limitations"], list) and len(review["limitations"]) >= 5)
-    required_basis = {"ONE_EXACT_FRESH_TCP_REQUEST_UNDER_PARENT_LEASE",
-        "UNIQUE_NEW_CLOSED_FILTERED_NAT_BINDING", "EXACT_OWNED_CP_NODE_UID_AND_UNIQUE_IPIP_SOURCE",
-        "POD_LINKED_CALICO_TO_WORKLOAD_POLICY_DENY_TEMPLATE", "STABLE_IDENTITIES_RULES_AND_NAMESPACE_POLICIES",
-        "PASSIVE_COUNTERS_STABLE_WITH_RESIDENT_NODE_PROBES", "NO_OTHER_KNOWN_MISSION_CLIENT_OR_TEST_FOR_THIS_ENTRY",
-        "IAM_UPSTREAM_TLS_DELTAS_ZERO_WITH_STABLE_LIVE_ENVOY"}
-    _ingress_require(set(review["causal_basis"]) == required_basis)
+    _ingress_require(set(review["causal_basis"]) == set(_INGRESS_PROTOCOL["causalBasis"]))
     for key, identity_key in (("control_plane_container_id", "control_plane_container_id"),
             ("control_plane_node_uid", "control_plane_node_uid"), ("envoy_pod_uid", "pod_uid"),
             ("service_uid", "service_uid")):
@@ -438,23 +414,17 @@ def _ingress_evidence(directory):
         and binding["original"]["dport"] == 30080 and binding["reply"]["src"] == identity["pod_ipv4"]
         and binding["reply"]["sport"] == 10000 and binding["id"] == review["nat_id"]
         and binding["zone_evidence"] == "SOURCE_FILTERED" and binding["requested_zone"] == 0
-        and obs["status"] == "PARENT_CORRELATION_REQUIRED"
-        and obs["counter_scope"] == "POD_CHAIN_SHARED"
-        and obs["packet_attribution"] == "NOT_ESTABLISHED_BY_COUNTER")
+        and _ingress_fields(obs, "observation"))
     for item in (files["baseline"], files["passive-baseline"]):
         _ingress_require(item["status"] == "BASELINE_ONLY" and item["identity"] == identity
             and item["rules_fingerprint"] == obs["rules_fingerprint"])
     _ingress_require(files["baseline"]["deny"] == files["passive-baseline"]["deny"]
         and review["rules_fingerprint"] == obs["rules_fingerprint"]
-        and summary["exit"] == 0 and summary["stage"] == "complete"
-        and summary["cluster_mutation"] is False and summary["policy_fingerprint_stable"] is True
-        and summary["verdict"] == "PENDING_LEAD_CAUSAL_REVIEW"
+        and _ingress_fields(summary, "summary")
         and bool(re.fullmatch(r"[a-f0-9]{40}", summary["ops_head"]))
-        and summary["known_probe_transport"] == "TCP_RESIDENT_NODE_TO_POD_10000"
         and summary["counter_scope"] == obs["counter_scope"]
         and summary["packet_attribution"] == obs["packet_attribution"]
         and summary["envoy_pod_uid"] == identity["pod_uid"]
-        and summary["source_equals_anchored_cp"] is False
         and summary["restart_epoch"] == files["admin-after"]["restart_epoch"]
         and summary["http_attempts"] == review["http_attempts"] == 1
         and summary["passive_deny_delta"] == review["passive_deny_delta"] == {"packets": 0, "bytes": 0}
@@ -467,8 +437,7 @@ def _ingress_evidence(directory):
     _ingress_authority(files, hashes)
     _ingress_admin_pair(files["admin-before"], files["admin-after"], identity)
     _ingress_require(files["admin-before"]["stats"] == files["admin-after"]["stats"])
-    _ingress_require(summary["iam_upstream_deltas"] == {"cluster.iam." + suffix: 0 for suffix in (
-        "upstream_cx_total", "upstream_rq_total", "ssl.handshake", "ssl.fail_verify_san", "ssl.fail_verify_error")})
+    _ingress_require(summary["iam_upstream_deltas"] == {"cluster.iam." + suffix: 0 for suffix in _INGRESS_PROTOCOL["upstreamCounters"]})
     return files, hashes, source
 
 
@@ -512,7 +481,7 @@ def _ingress_live(guard, identity, review, source):
         _ingress_require(any(ref.get("kind") == "Service" and ref.get("uid") == identity["service_uid"]
             and ref.get("name") == "envoy-mesh" and ref.get("controller") is True
             for ref in item["metadata"]["ownerReferences"]))
-        _ingress_require(item["ports"] == [{"name": "http", "port": 10000, "protocol": "TCP"}])
+        _ingress_require(item["ports"] == _INGRESS_PROTOCOL["endpointPorts"])
         endpoints.extend(item["endpoints"])
     _ingress_require(len(endpoints) == 1 and endpoints[0]["conditions"]["ready"] is True
         and endpoints[0]["conditions"].get("terminating", False) is False
@@ -538,12 +507,9 @@ def _ingress_live(guard, identity, review, source):
 
 def _ingress_base_full_witness(witness, identity):
     """Validate closed parent observations, not the truth of HTTP/profile claims."""
-    _ingress_require(set(witness) == {"schema", "journal_sha256", "entry", "probes", "observations_sha256",
-        "profile_before", "profile_after", "profile_sha256", "admin_before", "admin_after"})
+    _ingress_require(set(witness) == set(_INGRESS_PROTOCOL["witnessFields"]))
     profile = witness["profile_before"]
-    _ingress_require(profile == witness["profile_after"] and set(profile) == {
-        "name", "connectors", "namespace_uid", "config_map_name", "config_map_uid", "config_resource_version",
-        "config_sha256", "iam_pod_uid", "iam_container_id", "iam_restart_count"})
+    _ingress_require(profile == witness["profile_after"] and set(profile) == set(_INGRESS_PROTOCOL["profileFields"]))
     _ingress_require(profile["name"] == "local-full" and profile["connectors"] == []
         and profile["namespace_uid"] == identity["namespace_uid"]
         and bool(re.fullmatch(r"iam-dev-config(?:-[a-z0-9]+)?", profile["config_map_name"]))
@@ -556,11 +522,8 @@ def _ingress_base_full_witness(witness, identity):
     _ingress_require(witness["profile_sha256"] == hashlib.sha256(_ingress_json(profile).encode()).hexdigest())
     probes = witness["probes"]
     _ingress_require(isinstance(probes, list) and len(probes) == 3)
-    expected = (("/iam/.well-known/jwks.json", (200,), "PUBLIC_RS256_JWKS"),
-        ("/iam/api/auth/gitlab/login", (422,), "CONNECTOR_DISABLED_NOT_LOGIN"),
-        ("/iam/api/me", (401, 403), "PROTECTED_WITHOUT_BEARER_DENIED"))
-    for probe, (path, statuses, outcome) in zip(probes, expected):
-        _ingress_require(set(probe) == {"method", "path", "status", "outcome", "response_sha256"}
+    for probe, (path, statuses, outcome) in zip(probes, _INGRESS_PROTOCOL["probes"]):
+        _ingress_require(set(probe) == set(_INGRESS_PROTOCOL["probeFields"])
             and probe["method"] == "GET" and probe["path"] == path
             and type(probe["status"]) is int and probe["status"] in statuses and probe["outcome"] == outcome
             and bool(re.fullmatch(r"[a-f0-9]{64}", probe["response_sha256"])))
@@ -682,6 +645,15 @@ class EnvoyIngressChange:
                 _ingress_require(witness["admin_before"]["stats"][key] == witness["admin_after"]["stats"][key])
             self._validated = True
             self._result = "PARENT_WITNESS_ACCEPTED_LAB_ONLY"
+            # Preservation authority, not adoption of the rule or a runtime proof
+            # for another source/node. Future foundation renders must reverify it.
+            lease = self._guard.check()
+            lease["localFullIngress"] = {"source": data["source"],
+                "nodeUid": data["files"]["observation"]["identity"]["control_plane_node_uid"],
+                "policyUid": data["ack"]["uid"], "spec": data["desired"],
+                "journalSha256": data["journal_sha256"], "authority": data["authority"]}
+            target_authority.persist(self._guard.path, lease)
+            self._guard.data = lease
             return self._result
         except Exception:
             self.rollback()
@@ -710,13 +682,10 @@ def configure_envoy_ingress(*, evidence_directory, journal_path):
             and old["spec"]["policyTypes"] == ["Ingress", "Egress"]
             and old["spec"]["ingress"] in ([client], [client, entry], [entry, client]))
         # Freeze all applicable policies against the declared, unchanged source.
-        declared = {item["metadata"]["name"]: item["spec"] for item in target_authority.yaml.safe_load_all(
-            (Path(__file__).parent / "apps/overlays/local-full/platform/policies.yaml").read_text()) if item}
+        declared = ingress_policy_catalog()
         # The existing opt-in browser profile adds three declared policies.
         # Recognize their exact source, never unknown live policies or selectors.
-        oauth = {item["metadata"]["name"]: item["spec"] for item in target_authority.yaml.safe_load_all(
-            (Path(__file__).parent / "apps/overlays/local-full/oauth-proof/resources.yaml").read_text())
-            if item and item["kind"] == "NetworkPolicy"}
+        oauth = {name: spec for name, spec in ingress_policy_catalog("gitlab-proof").items() if name.startswith("oauth-proof-")}
         _ingress_require(set(oauth) == {"oauth-proof-iam-egress", "oauth-proof-connector", "oauth-proof-provider"}
             and not set(oauth).intersection(declared))
         declared.update(oauth)
@@ -798,208 +767,18 @@ def configure_envoy_ingress(*, evidence_directory, journal_path):
         raise ValueError("STOP: Envoy ingress refused; details redacted; inspect parent journal") from None
 
 
-def deploy_locked(args):
-    oauth_connect = getattr(args, "oauth_connect", False)
-    preserve_tls = getattr(args, "preserve_platform_tls", False)
-    if preserve_tls and not oauth_connect:
-        raise ValueError("--preserve-platform-tls requires --oauth-connect")
-    if preserve_tls and getattr(args, "isolated_plugins", False):
-        raise ValueError("TLS preservation cannot be combined with --isolated-plugins; identity CA attestation required")
-    if sum(map(bool, (args.oauth_proof, args.github_openbao, oauth_connect))) > 1:
-        raise ValueError("distinct explicit connector profiles required")
-    images = json.loads(args.image_manifest.read_text())
-    mesh, identity, cert_hash = cert_inputs(args.cert_directory)
-    inputs = oauth_inputs(args.oauth_proof_input_file) if args.oauth_proof else None
-    github = github_inputs(args.github_input_file) if args.github_openbao or oauth_connect else None
-    simulated = github_inputs(getattr(args, "simulated_input_file", None)) if oauth_connect else None
-    if oauth_connect:
-        from local_full_oauthconnect import seed_inputs
-        combined = seed_inputs(github, simulated)
-    if args.github_input_file and not (args.github_openbao or oauth_connect):
-        raise ValueError("private GitHub input requires an explicit connector profile")
-    if getattr(args, "simulated_input_file", None) and not oauth_connect:
-        raise ValueError("private simulated input requires --oauth-connect")
-    if args.oauth_proof_input_file and not args.oauth_proof:
-        raise ValueError("private proof input requires --oauth-proof")
-    run_id = inputs["run_id"] if inputs else uuid.uuid4().hex[:16]
-    proof_certs, proof_cert_hash = oauth_cert_inputs(args.cert_directory, run_id) if inputs else ([], "")
-    tls_objects = openbao_cert_inputs(args.cert_directory, run_id, args.github_openbao, oauth_connect)
-    objects = renderer.render(run_id, images, cert_hash + proof_cert_hash, args.oauth_proof, inputs,
-        github_openbao=args.github_openbao, github_client_id=github["client_id"] if github else "offline-synthetic-client",
-        oauth_connect=oauth_connect, simulated_client_id=simulated["client_id"] if simulated else "offline-simulated-client")
-    objects += proof_certs
-    for obj in objects:
-        if obj["kind"] == "ConfigMap" and obj["metadata"]["name"] == "openbao-public-ca":
-            obj["data"]["ca.crt"] = mesh["ca.crt"].decode("ascii")
-        if obj["kind"] == "Deployment":
-            for volume in obj["spec"]["template"]["spec"].get("volumes", []):
-                reference = volume.get("secret", {})
-                if reference.get("secretName") in {"openbao-server-tls", "github-connect-server-tls", "oauth-connect-server-tls"}:
-                    reference["secretName"] += "-" + run_id
-    capability_sources = {}
-    if args.isolated_plugins:
-        required = {
-            "services/Lazaret/configuration/src/lib.rs": ["pub namespace: String", "fn validate"],
-            "services/Lazaret/application/src/invoke.rs": ["NamespacedDigestDnsPluginLocator", "try_new"],
-            "services/Lazaret/setup/src/app.rs": ["NamespacedDigestDnsPluginLocator::try_new", "config.plugin_hop.namespace.clone()", "config.plugin_hop.validate()"],
-            "crates/apparatus-reference-kv/src/bin/reference-kv-http.rs": ["LAZARET_CA_CERT_PATH", "add_root_certificate"],
-        }
-        for file, markers in required.items():
-            source = (ROOT / file).read_bytes()
-            text = source.decode("utf-8")
-            if any(marker not in text for marker in markers):
-                raise ValueError("isolated plugin capability source is missing: " + file)
-            capability_sources[file] = hashlib.sha256(source).hexdigest()
-        if not args.namespace_wiring_confirmed:
-            raise ValueError("detected capability source hashes still require parent confirmation against built artifacts/final tests")
-        for obj in objects:
-            if obj["kind"] == "Deployment" and obj["metadata"]["name"] == "lazaret":
-                obj["spec"]["template"]["spec"]["containers"][0]["env"] += [
-                    {"name": "LAZARET_PLUGIN_HOP__USE_DNS_FORMULA", "value": "true"},
-                    {"name": "LAZARET_PLUGIN_HOP__NAMESPACE", "value": "aiforall-local-plugins"}]
-            if obj["kind"] == "Deployment" and obj["metadata"]["name"] == "apparatus-operator":
-                obj["spec"]["template"]["spec"]["containers"][0]["env"] += [
-                    {"name": "APPARATUS_PLUGIN_CA_SECRET", "value": "lazaret-workload-ca"},
-                    {"name": "APPARATUS_PLUGIN_CA_SHA256", "value": hashlib.sha256(identity["ca.crt"]).hexdigest()}]
-    for obj in objects:
-        if obj["kind"] == "Secret" and obj["metadata"]["name"] == "lazaret-workload-ca":
-            # Separate plugin-namespace object; never mirror ca.key/server.key.
-            obj["data"] = secret("unused", {"ca.crt": identity["ca.crt"]})["data"]
-    data = json.loads(args.lease.read_text(encoding="utf-8-sig"))
-    if data.get("context") != CONTEXT or data.get("cluster") != CLUSTER:
-        raise ValueError("parent local runtime lease required")
-    if data.get("anchor_state") == "anchored":
-        # Bind and revalidate the original target before any API preflight.
-        # A pending first installation still binds only after its bootstrap.
-        data = runtime.lease(args.lease)
-    from local_full_tls import preserved_platform_tls, omit_preserved_tls, reuse_openbao_tls
-    preserved_tls = preserved_platform_tls(data, enabled=preserve_tls, oauth_connect=oauth_connect,
-        read_deployment=lambda name: json.loads(k("get", "deployment", name, "-n", CLUSTER, "-o", "json")))
-    if preserve_tls:
-        current_ca = json.loads(k("get", "configmap", "openbao-public-ca", "-n", CLUSTER, "-o", "json"))
-        if current_ca.get("data", {}).get("ca.crt", "").strip() != mesh["ca.crt"].decode("ascii").strip():
-            raise ValueError("TLS preservation requires the unchanged OpenBao public CA")
-        tls_objects = reuse_openbao_tls(objects, tls_objects, data,
-            lambda name: json.loads(k("get", "deployment", name, "-n", CLUSTER, "-o", "json")))
-    if data.get("anchor_state") == "anchored":
-        # Before bootstrap, quiescing or apply: a normal deploy must not discard
-        # an existing emptyDir or silently change a PVC backing the same mount.
-        preflight_storage_transitions(objects)
-    # Reject stale service/SDK binaries before creating/altering the local cluster.
-    if any("@sha256:" in image for image in images.values()):
-        if not getattr(args, "registry_state", None):
-            raise ValueError("OCI images require --registry-state")
-        from local_registry import Registry
-        Registry(args.registry_state).verify_mapping(images)
-    else:
-        image_provenance.verify(images)
-    bootstrap_local_kind.initialize(args.lease, CLUSTER, ROOT / "ops/deploy/kind/cluster-local-full.yaml", args.after_final_it)
-    data = runtime.lease(args.lease)
-    if oauth_connect:
-        data["publicEndpoint"] = renderer.local_full_oauthconnect.PUBLIC_ORIGIN
-        data["connectorProfile"] = "oauth-connect"
-        runtime.save_lease(args.lease, data)
-    if capability_sources:
-        data["isolatedPluginSourceSha256"] = capability_sources
-        runtime.save_lease(args.lease, data)
-    preflight_cluster_objects(objects, args, data)
-    verify_images(images, getattr(args, "registry_state", None))
-    prepare_namespaces(args, data)
-    if args.oauth_proof or oauth_connect:
-        preflight_oauth_objects(objects, data)
-    # No concurrent bootstrap or migration runs in this exclusive namespace.
-    for namespace in NAMESPACES:
-        active = k("get", "jobs", "-n", namespace, "-o", "jsonpath={.items[*].status.active}")
-        if any(value not in {"0", ""} for value in active.split()):
-            raise ValueError("active job remains in local-full inventory; no implicit cleanup")
-    groups = {"foundation": [], "dependencies": [], "bootstrap": [], "applications": []}
-    original_replicas = {}
-    for obj in objects:
-        if obj["kind"] == "Deployment":
-            name = obj["metadata"]["name"]
-            key = (obj["metadata"]["namespace"], name)
-            old = k("get", "deployment", name, "-n", key[0], "--ignore-not-found", "-o", "jsonpath={.spec.replicas}")
-            if old:
-                uid = k("get", "deployment", name, "-n", key[0], "-o", "jsonpath={.metadata.uid}")
-                if not any(entry.get("kind") == "Deployment" and entry.get("namespace") == key[0]
-                           and entry.get("name") == name and entry.get("uid") == uid
-                           for entry in data.get("ownedResources", [])):
-                    raise ValueError("existing deployment UID not explicitly owned: " + name)
-                original_replicas[key] = int(old)
-            if name in renderer.DEPENDENCIES:
-                groups["dependencies"].append(obj)
-            else:
-                obj["spec"]["replicas"] = 1
-                groups["applications"].append(obj)
-        elif obj["kind"] == "Job":
-            groups["bootstrap"].append(obj)
-        else:
-            groups["foundation"].append(obj)
-    groups["foundation"] += [secret("platform-mesh-certs", mesh), secret("lazaret-identity-ca", identity)]
-    groups["foundation"] = omit_preserved_tls(groups["foundation"], preserved_tls)
-    proof_secrets = [obj for obj in groups["foundation"] if obj["kind"] == "Secret" and obj["metadata"]["name"].startswith("oauth-proof-")]
-    groups["foundation"] = [obj for obj in groups["foundation"] if obj not in proof_secrets]
-    try:
-        if original_replicas and not args.confirm_quiesce:
-            raise ValueError("existing owned deployment: --confirm-quiesce required before serial migration/rollout")
-        for obj in groups["applications"]:
-            namespace, name = obj["metadata"]["namespace"], obj["metadata"]["name"]
-            if (namespace, name) in original_replicas:
-                k("scale", "deployment/" + name, "-n", namespace, "--replicas=0")
-                k("wait", "--for=delete", "pod", "-n", namespace,
-                  "-l", "app.kubernetes.io/name=" + name, "--timeout=180s")
-        for obj in proof_secrets:
-            runtime.create(obj, args, data)  # No overwrite/adoption of existing secrets, even a same-name one.
-        for obj in tls_objects:
-            runtime.create(obj, args, data)
-        apply_owned(groups["foundation"], args, data)
-        configure_api_policy()
-        apply_owned(groups["dependencies"], args, data)
-        for obj in groups["dependencies"]:
-            k("rollout", "status", "deployment/" + obj["metadata"]["name"], "-n", "aiforall-local-full", "--timeout=300s")
-        apply_owned(groups["bootstrap"], args, data)
-        if github:
-            job_prefix = "oauth-connect-seed-" if oauth_connect else "github-openbao-seed-"
-            job = next(o for o in groups["bootstrap"] if o["metadata"]["name"].startswith(job_prefix))
-            uid = k("get", "job", job["metadata"]["name"], "-n", "aiforall-local-full", "-o", "jsonpath={.metadata.uid}")
-            if not uid or not any(entry.get("kind") == "Job" and entry.get("name") == job["metadata"]["name"]
-                    and entry.get("namespace") == "aiforall-local-full" and entry.get("uid") == uid
-                    and entry.get("context") == CONTEXT and entry.get("cluster") == CLUSTER
-                    for entry in data.get("ownedResources", [])):
-                raise ValueError("seed Job UID differs from the recorded owned job")
-            seed_input = secret(("oauth-connect-seed-inputs-" if oauth_connect else "github-seed-inputs-") + run_id,
-                                {"inputs.json": json.dumps(combined if oauth_connect else github).encode()})
-            # UID-bound GC: Job TTL removes its private child, without adding a generic
-            # delete/Secret-read escape hatch to the target authority. etcd is not RAM-only.
-            seed_input["metadata"]["ownerReferences"] = [{"apiVersion": "batch/v1", "kind": "Job",
-                "name": job["metadata"]["name"], "uid": uid, "controller": True}]
-            runtime.create(seed_input, args, data)
-        for obj in groups["bootstrap"]:
-            k("wait", "--for=condition=complete", "job/" + obj["metadata"]["name"], "-n", "aiforall-local-full", "--timeout=240s")
-        apply_owned(groups["applications"], args, data)
-        for obj in groups["applications"]:
-            k("rollout", "status", "deployment/" + obj["metadata"]["name"], "-n", obj["metadata"]["namespace"], "--timeout=300s")
-        for name in RUST_APPS:
-            k("scale", "deployment/" + name, "-n", "aiforall-local-full", "--replicas=2")
-            k("rollout", "status", "deployment/" + name, "-n", "aiforall-local-full", "--timeout=300s")
-        print("local-full source profile applied and rollout waits passed; parent must run final behavioral proofs")
-    except Exception:
-        # Reversible rollback to pre-existing replica counts only, no resource
-        # deletion, reset, Secret fetch or unknown workload adoption.
-        for (namespace, name), replicas in original_replicas.items():
-            try:
-                k("scale", "deployment/" + name, "-n", namespace, "--replicas=" + str(replicas))
-            except Exception:
-                print("WARNING: replica rollback blocked; parent lease/inventory retained")
-        raise
+def deploy_locked(args, operation=None):
+    from types import SimpleNamespace
+    from local_full_phases import run
+    run(SimpleNamespace(**globals()), args, operation)
 
 
 def deploy(args):
     # A persistent exclusive-operation marker prevents concurrent deploys from
     # sharing a parent ledger. A killed process leaves a stale marker: STOP and
     # ask the parent to inspect ownership; never reclaim it by PID/name alone.
-    with runtime.operation_lock(args.lease, "deploy"):
-        deploy_locked(args)
+    with runtime.operation_lock(args.lease, "deploy") as operation:
+        deploy_locked(args, operation)
 
 
 def refresh(args):
@@ -1009,14 +788,6 @@ def refresh(args):
     from local_registry import Registry, refresh_inputs
     names = list(dict.fromkeys(args.targets.split(",")))
     select(names)
-    # These images have no automatic DB migration entrypoint. Extending this
-    # list requires a separately qualified migration-free startup contract.
-    workloads = {"ext-authz": (CLUSTER, "ext-authz"), "sentinel": (CLUSTER, "sentinel-sync"),
-                 "github": (CLUSTER, "github-connect"), "gitlab": (CLUSTER, "gitlab-connect"),
-                 "oauth": (CLUSTER, "oauth-connect"),
-                 "controller": ("aiforall-local-apparatus", "apparatus-operator")}
-    if any(name not in workloads for name in names):
-        raise ValueError("image-only refresh refuses automatic-migration services; use an explicit migration plan")
     before = json.loads(args.previous_release_manifest.read_text(encoding="utf-8"))
     after = json.loads(args.release_manifest.read_text(encoding="utf-8"))
     snapshot = capture()
@@ -1028,9 +799,22 @@ def refresh(args):
             raise ValueError("refresh needs two publication receipts with unchanged recipe/config/migration inputs")
     if before.get("profile") != after.get("profile") or before.get("toolchain_id") != after.get("toolchain_id"):
         raise ValueError("refresh profile/transport toolchain changed; explicit delivery plan required")
-    images = {TARGETS[name]["source"]: after["images"][name]["oci_ref"] for name in names}
     with runtime.operation_lock(args.lease, "refresh"):
         data = runtime.lease(args.lease)
+        from local_full_declarations import identity as declarations_identity
+        if data.get("localFullDeclarationsSha256") != declarations_identity():
+            raise ValueError("refresh refuses changed or unattested manifests/configuration/phase declarations; explicit full deployment required")
+        from local_full_lifecycle import objects as declared_objects
+        workloads = {o["metadata"]["annotations"]["aiforall.dev/refresh-target"]:
+                     (o["metadata"]["namespace"], o["metadata"]["name"])
+                     for o in declared_objects(data) if o["kind"] == "Deployment"
+                     and o["metadata"].get("annotations", {}).get("aiforall.dev/refresh-target")
+                     and not o["metadata"].get("annotations", {}).get("aiforall.dev/migration-scope")}
+        if any(name not in workloads for name in names):
+            raise ValueError("image-only refresh refuses automatic-migration services; use an explicit migration plan")
+        if any(not receipt.get("images", {}).get(name, {}).get("oci_ref") for receipt in (before, after) for name in names):
+            raise ValueError("refresh publication receipts must cover every selected target")
+        images = {TARGETS[name]["source"]: after["images"][name]["oci_ref"] for name in names}
         registry = Registry(args.registry_state)
         with registry.operation():
             registry.verify_mapping(images)
@@ -1091,29 +875,12 @@ def refresh(args):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["render", "deploy", "inventory", "refresh", "up", "stop", "status"])
-    parser.add_argument("--lease", type=Path)
-    parser.add_argument("--image-manifest", type=Path)
-    parser.add_argument("--registry-state", type=Path)
-    parser.add_argument("--environment-dir", type=Path, default=Path.home() / ".aiforall-local-full")
-    parser.add_argument("--release-manifest", type=Path)
-    parser.add_argument("--previous-release-manifest", type=Path)
-    parser.add_argument("--targets", help="explicit comma-separated image-only refresh targets")
-    parser.add_argument("--cert-directory", type=Path)
-    parser.add_argument("--output-dir", type=Path)
-    parser.add_argument("--isolated-plugins", action="store_true")
-    parser.add_argument("--namespace-wiring-confirmed", action="store_true")
-    parser.add_argument("--confirm-quiesce", action="store_true")
-    parser.add_argument("--after-final-it", action="store_true")
-    parser.add_argument("--oauth-proof", action="store_true")
-    parser.add_argument("--oauth-proof-input-file", type=Path)
-    parser.add_argument("--github-openbao", action="store_true")
-    parser.add_argument("--github-input-file", type=Path)
-    parser.add_argument("--oauth-connect", action="store_true")
-    parser.add_argument("--preserve-platform-tls", action="store_true",
-                        help="OAuthConnect activation only: leave acknowledged existing platform TLS Secrets untouched")
-    parser.add_argument("--simulated-input-file", type=Path)
+    if len(sys.argv) > 1 and sys.argv[1] == "_phase":
+        from types import SimpleNamespace
+        from local_full_phases import main as phase_main
+        phase_main(SimpleNamespace(**globals()))
+        return
+    parser = renderer.helm.parser("deploy")
     args = parser.parse_args()
     if args.preserve_platform_tls and (args.action != "deploy" or not args.oauth_connect):
         parser.error("--preserve-platform-tls is only valid for deploy --oauth-connect")
@@ -1140,7 +907,7 @@ def main():
         endpoint = "https://" + ("[" + host + "]" if ":" in host else host) + ":" + str(data["api_port"])
         print(json.dumps({"context": CONTEXT, "cluster": CLUSTER, "api_endpoint": endpoint,
                           "http_endpoint": data.get("publicEndpoint", "http://127.0.0.1:18080"), "leased_node_ids": data["nodeContainerIds"]}))
-        for namespace in NAMESPACES:
+        for namespace in data.get("namespaceUids", {}):
             uid = k("get", "namespace", namespace, "-o", "jsonpath={.metadata.uid}")
             if data.get("namespaceUids", {}).get(namespace) != uid:
                 raise ValueError("inventory namespace is not owned")

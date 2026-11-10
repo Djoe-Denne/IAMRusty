@@ -1,0 +1,86 @@
+{{- $jobs := list
+    (dict "name" "inspect" "enabled" .Values.openfga.inspect "model" false "args" (list "store" "list" "--max-pages=20"))
+    (dict "name" "initialize" "enabled" .Values.openfga.initialize "model" true "args" (list "store" "create" "--name" "aiforall-local-full" "--model" "/model/model.fga" "--format" "fga"))
+}}
+{{- range $job := $jobs }}
+{{- if $job.enabled }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kind-local-fga-{{ $job.name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: openfga-{{ $job.name }}
+    app.kubernetes.io/part-of: aiforall
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 150
+  # No TTL: preserve ambiguous native results for explicit operator recovery.
+  template:
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cli
+          image: {{ $.Values.openfga.cliImage | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [/fga]
+          args: {{ $job.args | toJson }}
+          env:
+            - name: FGA_API_URL
+              value: https://openfga.{{ $.Release.Namespace }}.svc.cluster.local:8080
+            - name: SSL_CERT_FILE
+              value: /ca/ca.crt
+            - name: NO_COLOR
+              value: "1"
+            - name: HOME
+              value: /nonexistent
+            - name: XDG_CONFIG_HOME
+              value: /nonexistent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: ca
+              mountPath: /ca
+              readOnly: true
+            {{- if $job.model }}
+            - name: model
+              mountPath: /model
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: ca
+          secret:
+            secretName: {{ $.Values.openfga.caSecret }}
+            defaultMode: 0444
+            items:
+              - key: ca.crt
+                path: ca.crt
+        {{- if $job.model }}
+        - name: model
+          configMap:
+            name: {{ $.Values.openfga.modelConfigMap }}
+            items:
+              - key: model.fga
+                path: model.fga
+        {{- end }}
+{{- end }}
+{{- end }}

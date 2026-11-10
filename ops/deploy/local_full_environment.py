@@ -1,18 +1,14 @@
-"""Durable local-full references and reversible power operations; no build/reset."""
-import copy
+"""Durable local-full references and reversible, metadata-selected power operations."""
 import hashlib
-import ipaddress
 import json
-import os
 from pathlib import Path
-import tomllib
 import uuid
 from contextlib import contextmanager
 from types import SimpleNamespace
 
 from local_full_target import LocalClusterTargetAnchor, persist, private_file, unique_json
 from local_registry import Registry, pki
-from local_full_openbao import github_seed_job
+import local_full_lifecycle as lifecycle
 
 CLUSTER = "aiforall-local-full"
 SCHEMA = "aiforall.local-environment/v1"
@@ -65,136 +61,125 @@ def owned(target, kind, name, namespace=CLUSTER):
 
 
 def coffer_epoch(target):
-    deployment = owned(target, "Deployment", "openbao")
+    declaration = lifecycle.coffer(target.data)
+    deployment = owned(target, "Deployment", declaration["name"], declaration["namespace"])
     replicas = json.loads(target.kubectl(["get", "replicasets", "-n", CLUSTER, "-o", "json"], text=True, timeout=30))["items"]
     owners = {r["metadata"]["uid"] for r in replicas if any(
         o.get("controller") and o.get("kind") == "Deployment" and o.get("uid") == deployment["metadata"]["uid"]
         for o in r["metadata"].get("ownerReferences", []))}
-    pods = json.loads(target.kubectl(["get", "pods", "-n", CLUSTER, "-l", "app.kubernetes.io/name=openbao", "-o", "json"],
+    pods = json.loads(target.kubectl(["get", "pods", "-n", declaration["namespace"], "-l", "app.kubernetes.io/name=" + declaration["name"], "-o", "json"],
                                      text=True, timeout=30))["items"]
     pods = [pod for pod in pods if not pod["metadata"].get("deletionTimestamp") and any(
         o.get("controller") and o.get("kind") == "ReplicaSet" and o.get("uid") in owners
         for o in pod["metadata"].get("ownerReferences", []))]
     if len(pods) != 1:
         raise ValueError("expected one owned OpenBao pod")
-    statuses = [c for c in pods[0].get("status", {}).get("containerStatuses", []) if c["name"] == "openbao"]
+    container_name = declaration["containerName"]
+    statuses = [c for c in pods[0].get("status", {}).get("containerStatuses", []) if c["name"] == container_name]
     if len(statuses) != 1 or not statuses[0].get("ready") or not statuses[0].get("containerID"):
         raise ValueError("OpenBao bootstrap is not ready")
     # Public pod/container identities, never tokens/keys or their hashes.
     return hashlib.sha256((pods[0]["metadata"]["uid"] + "|" + statuses[0]["containerID"]).encode()).hexdigest()
 
 
-def selected_connectors(data):
-    """Respect an explicit activation without dropping historical ownership."""
-    names = {e.get("name") for e in data.get("ownedResources", [])
-             if e.get("kind") == "Deployment" and e.get("namespace") == CLUSTER}
-    github, oauth = "github-connect" in names, "oauth-connect" in names
-    if data.get("connectorProfile") == "oauth-connect":
-        if not oauth:
-            raise ValueError("selected OAuthConnect profile is not installed in the original lease")
-        return False, True
-    if github and oauth:
-        raise ValueError("ambiguous connector profiles in environment lease")
-    return github, oauth
-
-
 def recover_coffer(target, state, save, runtime, read_github, make_secret):
-    apps = [(CLUSTER, "lazaret")]
-    github, oauth = selected_connectors(target.data)
-    inputs = None
-    simulated_reference = None
-    if github or oauth:
-        reference = state.get("github_input")
-        if not reference or input_reference(reference["path"]) != reference:
-            raise ValueError("new coffer epoch needs the unchanged private GitHub input source")
-        inputs = read_private_input(reference, read_github)
-        connector_name = "oauth-connect" if oauth else "github-connect"
-        connector = owned(target, "Deployment", connector_name)
-        volumes = connector["spec"]["template"]["spec"]["volumes"]
-        config_name = next(v["configMap"]["name"] for v in volumes if v["name"] == ("config" if oauth else "github-config"))
-        config = owned(target, "ConfigMap", config_name)
-        declaration = tomllib.loads(config["data"]["development.toml"])
-        public_github = declaration["providers"][0] if oauth else declaration["github"]
-        if public_github["client_id"] != inputs["client_id"]:
-            raise ValueError("GitHub input source belongs to a different connector")
-        if oauth:
+    from local_full_lifecycle import objects, profile, profiles, validate_public_input
+    from local_full_helm import render
+    selected_profile = profile(target.data)
+    contract = profiles()[selected_profile]
+    sources = {}
+    for key, declaration in contract['inputs'].items():
+        reference = state.get(key)
+        if not reference:
+            raise ValueError('new coffer epoch needs every declared unchanged private input source')
+        sources[key] = read_private_input(reference, read_github)
+        validate_public_input(target, owned, declaration, sources[key])
+    seed = None
+    if sources:
+        if contract['seedContract'] == 'oauth-connect':
             from local_full_oauthconnect import seed_inputs
-            simulated_reference = state.get("simulated_input")
-            if not simulated_reference:
-                raise ValueError("new coffer epoch requires the private simulated input source")
-            simulated = read_private_input(simulated_reference, read_github)
-            providers = declaration["providers"]
-            simulator_config = owned(target, "ConfigMap", "oauth-simulator-config")
-            if ([p["id"] for p in providers] != ["github", "simulated"]
-                    or providers[1]["client_id"] != simulated["client_id"]
-                    or json.loads(simulator_config["data"]["provider.json"])["client_id"] != simulated["client_id"]):
-                raise ValueError("simulated input source belongs to a different connector")
-            inputs = seed_inputs(inputs, simulated)
-        scripts = next(v["configMap"]["name"] for v in volumes if v["name"] == ("scripts" if oauth else "openbao-scripts"))
-        owned(target, "ConfigMap", scripts)
-        owned(target, "ConfigMap", "openbao-public-ca")
-        apps += [(CLUSTER, "iam"), (CLUSTER, connector_name)]
-        if oauth:
-            apps.append((CLUSTER, "oauth-idp-simulator"))
-    # Preflight every workload before creating a seed or patching a template.
-    deployments = [(namespace, name, owned(target, "Deployment", name, namespace)) for namespace, name in apps]
-    for _, name, deployment in deployments:
-        initializers = deployment["spec"]["template"]["spec"].get("initContainers", [])
-        expected = "openbao-agent" if name in {"github-connect", "oauth-connect"} else "openbao-snapshot"
-        if not any(container["name"] == expected for container in initializers):
-            raise ValueError("existing deployment predates managed OpenBao identities; explicit initial upgrade required: " + name)
-    if inputs is not None and state.get("recovery_seeded_epoch") != state["pending_epoch"]:
-        if input_reference(reference["path"]) != reference:
-            raise ValueError("private GitHub source changed before seed")
-        if simulated_reference and input_reference(simulated_reference["path"]) != simulated_reference:
-            raise ValueError("private simulated source changed before seed")
-        if state.get("recovery_job"):
-            job_name = state["recovery_job"]
-            owned(target, "Job", job_name)  # Do not silently recreate a failed/expired attempt.
+            seed = seed_inputs(sources['github_input'], sources['simulated_input'])
         else:
-            run_id = "resume-" + uuid.uuid4().hex[:16]
-            if oauth:
-                from local_full_oauthconnect import seed_job
-                job = seed_job(run_id, scripts)
-            else:
-                job = github_seed_job(run_id, scripts)
-            job["metadata"]["name"] += "-" + run_id
-            state["recovery_job"] = job["metadata"]["name"]
-            save()  # Crash before/after create is visible; no blind retry/adoption.
-            data = runtime.lease(Path(state["lease_path"]))
-            created = runtime.create(job, SimpleNamespace(lease=Path(state["lease_path"])), data)
-            secret = make_secret(("oauth-connect-seed-inputs-" if oauth else "github-seed-inputs-") + run_id,
-                                 {"inputs.json": json.dumps(inputs).encode()})
-            secret["metadata"]["ownerReferences"] = [{"apiVersion": "batch/v1", "kind": "Job", "name": job["metadata"]["name"],
-                                                       "uid": created["metadata"]["uid"], "controller": True}]
-            runtime.create(secret, SimpleNamespace(lease=Path(state["lease_path"])), data)
-            job_name = job["metadata"]["name"]
-        target.kubectl(["wait", "--for=condition=complete", "job/" + job_name, "-n", CLUSTER, "--timeout=240s"], text=True, timeout=270)
-        state["recovery_seeded_epoch"] = state["pending_epoch"]
+            seed = sources['github_input']
+    deployments = []
+    for desired in objects(target.data):
+        initializer = desired['metadata'].get('annotations', {}).get('aiforall.dev/epoch-initializer')
+        if not initializer:
+            continue
+        namespace, name = desired['metadata']['namespace'], desired['metadata']['name']
+        deployment = owned(target, 'Deployment', name, namespace)
+        if not any(c['name'] == initializer for c in deployment['spec']['template']['spec'].get('initContainers', [])):
+            raise ValueError('existing deployment predates declared OpenBao identity; explicit initial upgrade required')
+        deployments.append((namespace, name))
+    def require_sources():
+        for key in sources:
+            reference = state[key]
+            if input_reference(reference['path']) != reference:
+                raise ValueError('private source changed during epoch recovery')
+    if seed is not None and state.get('recovery_seeded_epoch') == state['pending_epoch'] and not state.get('recovery_input_uid'):
+        raise ValueError('legacy epoch receipt lacks private input ACK; explicit parent arbitration required')
+    if seed is not None and state.get('recovery_seeded_epoch') != state['pending_epoch']:
+        require_sources()
+        if state.get('recovery_job'):
+            job_name = state['recovery_job']
+            acknowledged = owned(target, 'Job', job_name)
+            if (acknowledged['metadata']['uid'] != state.get('recovery_job_uid')
+                    or not state.get('recovery_input_uid')
+                    or not any(e.get('kind') == 'Secret' and e.get('name') == state.get('recovery_input_name')
+                               and e.get('uid') == state['recovery_input_uid'] and e.get('namespace') == CLUSTER
+                               and e.get('context') == target.data.get('context') and e.get('cluster') == target.data.get('cluster')
+                               for e in target.data.get('ownedResources', []))):
+                raise ValueError('private epoch transfer ACK absent; no adoption or implicit retry')
+        else:
+            run_id = uuid.uuid4().hex[:16]
+            jobs = [o for o in render(selected_profile, 'bootstrap', values={'runId': run_id})
+                    if o['metadata'].get('annotations', {}).get('aiforall.dev/seed') == contract['seedContract']]
+            if len(jobs) != 1:
+                raise ValueError('unique declared epoch seed required')
+            job = jobs[0]
+            for volume in job['spec']['template']['spec']['volumes']:
+                if volume.get('configMap'):
+                    owned(target, 'ConfigMap', volume['configMap']['name'])
+            state['recovery_job'] = job['metadata']['name']
+            save()
+            data = runtime.lease(Path(state['lease_path']))
+            created = runtime.create(job, SimpleNamespace(lease=Path(state['lease_path'])), data)
+            if not created['metadata'].get('uid'):
+                raise ValueError('epoch seed Job UID ACK missing')
+            input_name = next(v['secret']['secretName'] for v in job['spec']['template']['spec']['volumes'] if v.get('secret'))
+            state['recovery_job_uid'] = created['metadata']['uid']
+            state['recovery_input_name'] = input_name
+            save()  # Persist the acknowledged parent before confidential transfer.
+            secret = make_secret(input_name, {'inputs.json': json.dumps(seed).encode()})
+            secret['metadata']['ownerReferences'] = [{'apiVersion': job['apiVersion'], 'kind': 'Job',
+                'name': job['metadata']['name'], 'uid': created['metadata']['uid'], 'controller': True}]
+            acknowledged = runtime.create(secret, SimpleNamespace(lease=Path(state['lease_path'])), data)
+            if not acknowledged['metadata'].get('uid'):
+                raise ValueError('private epoch input UID ACK missing')
+            state['recovery_input_uid'] = acknowledged['metadata']['uid']
+            save()
+            job_name = job['metadata']['name']
+        target.kubectl(['wait', '--for=condition=complete', 'job/' + job_name, '-n', CLUSTER, '--timeout=240s'], text=True, timeout=270)
+        state['recovery_seeded_epoch'] = state['pending_epoch']
         save()
-    for namespace, name, deployment in deployments:
-        if inputs is not None and input_reference(reference["path"]) != reference:
-            raise ValueError("private GitHub source changed before rollout")
-        if simulated_reference and input_reference(simulated_reference["path"]) != simulated_reference:
-            raise ValueError("private simulated source changed before rollout")
-        # Re-read after seed: reject a concurrent change, not a stale preflight RV.
-        deployment = owned(target, "Deployment", name, namespace)
-        metadata = deployment["metadata"]
-        template = deployment["spec"]["template"]
-        annotations = template.get("metadata", {}).get("annotations")
-        path = "/spec/template/metadata/annotations"
-        if annotations is None:
-            value = {"aiforall.dev/openbao-epoch": state["pending_epoch"]}
-        else:
-            path += "/aiforall.dev~1openbao-epoch"
-            value = state["pending_epoch"]
-        patch = [{"op": "test", "path": "/metadata/uid", "value": metadata["uid"]},
-                 {"op": "test", "path": "/metadata/resourceVersion", "value": metadata["resourceVersion"]},
-                 {"op": "add", "path": path, "value": value}]
-        target.kubectl(["patch", "deployment/" + name, "-n", namespace, "--type=json", "-p", json.dumps(patch)], text=True, timeout=30)
-        target.kubectl(["rollout", "status", "deployment/" + name, "-n", namespace, "--timeout=300s"], text=True, timeout=330)
-    if coffer_epoch(target) != state["pending_epoch"]:
-        raise ValueError("OpenBao restarted during recovery; environment not ready")
+    for namespace, name in deployments:
+        require_sources()
+        deployment = owned(target, 'Deployment', name, namespace)
+        metadata = deployment['metadata']
+        annotations = deployment['spec']['template'].get('metadata', {}).get('annotations')
+        path = '/spec/template/metadata/annotations'
+        value = {'aiforall.dev/openbao-epoch': state['pending_epoch']}
+        if annotations is not None:
+            path += '/aiforall.dev~1openbao-epoch'
+            value = state['pending_epoch']
+        patch = [{'op': 'test', 'path': '/metadata/uid', 'value': metadata['uid']},
+                 {'op': 'test', 'path': '/metadata/resourceVersion', 'value': metadata['resourceVersion']},
+                 {'op': 'add', 'path': path, 'value': value}]
+        target.kubectl(['patch', 'deployment/' + name, '-n', namespace, '--type=json', '-p', json.dumps(patch)], text=True, timeout=30)
+        target.kubectl(['rollout', 'status', 'deployment/' + name, '-n', namespace, '--timeout=300s'], text=True, timeout=330)
+    if coffer_epoch(target) != state['pending_epoch']:
+        raise ValueError('OpenBao restarted during recovery; environment not ready')
+
 
 
 @contextmanager
@@ -235,15 +220,13 @@ def _register(args, directory):
         raise ValueError("registry and environment engines differ")
     reference = input_reference(args.github_input_file) if args.github_input_file else None
     simulated_reference = input_reference(args.simulated_input_file) if getattr(args, "simulated_input_file", None) else None
-    if not any(e.get("kind") == "Deployment" and e.get("name") == "openbao" and e.get("namespace") == CLUSTER
+    coffer = lifecycle.coffer(target.data)
+    if not any(e.get("kind") == "Deployment" and e.get("name") == coffer["name"] and e.get("namespace") == coffer["namespace"]
             for e in target.data.get("ownedResources", [])):
         raise ValueError("initial deployment must be explicitly installed before registering local-up")
-    if not reference and any(e.get("kind") == "Deployment" and e.get("name") in {"github-connect", "oauth-connect"}
-            and e.get("namespace") == CLUSTER for e in target.data.get("ownedResources", [])):
-        raise ValueError("register the GitHub profile with its private --github-input-file for future coffer epochs")
-    if not simulated_reference and any(e.get("kind") == "Deployment" and e.get("name") == "oauth-connect"
-            and e.get("namespace") == CLUSTER for e in target.data.get("ownedResources", [])):
-        raise ValueError("register OAuthConnect with --simulated-input-file for future coffer epochs")
+    required = lifecycle.profiles()[lifecycle.profile(target.data)]["inputs"]
+    if any({"github_input": reference, "simulated_input": simulated_reference}.get(key) is None for key in required):
+        raise ValueError("register every declared private profile source for future coffer epochs")
     pki.private_directory(directory, create=True)
     state = {"schema": SCHEMA, "lease_path": str(args.lease.resolve()), "engine": engine,
              "identity": {key: target.data[key] for key in IDENTITY}, "epoch": None,
@@ -294,40 +277,12 @@ def operate(args, runtime, read_github, make_secret):
 
 
 def resync_api_policies(target):
-    """Keep the existing API-only allowlist aligned after Docker reassigns node IPs."""
+    """Measure under the existing authority; reconcile only declared API deltas."""
+    from local_full_network import api_preimages, apply_changes, control_plane
     nodes = json.loads(target.kubectl(["get", "nodes", "-l", "node-role.kubernetes.io/control-plane", "-o", "json"], text=True, timeout=30))["items"]
-    if len(nodes) != 1:
-        raise ValueError("unique local control-plane required for API policy")
-    addresses = [entry["address"] for entry in nodes[0]["status"]["addresses"] if entry["type"] == "InternalIP"]
-    if len(addresses) != 1:
-        raise ValueError("unique local control-plane IPv4 required for API policy")
-    address = ipaddress.IPv4Address(addresses[0])
-    if not address.is_private or address.is_loopback or address.is_unspecified or address.is_multicast:
-        raise ValueError("local control-plane address refused for API policy")
-    changes = []
-    for namespace in (CLUSTER, "aiforall-local-apparatus"):
-        current = owned(target, "NetworkPolicy", "allow-api", namespace)
-        desired = copy.deepcopy(current["spec"])
-        rules = desired.get("egress", [])
-        if (desired.get("policyTypes") != ["Egress"] or len(rules) != 1
-                or rules[0].get("ports") != [{"protocol": "TCP", "port": 443}, {"protocol": "TCP", "port": 6443}]
-                or len(rules[0].get("to", [])) != 2
-                or rules[0]["to"][0] != {"ipBlock": {"cidr": "10.96.0.1/32"}}):
-            raise ValueError("unexpected local API policy; no automatic overwrite")
-        previous = rules[0]["to"][1]
-        cidr = ipaddress.IPv4Network(previous.get("ipBlock", {}).get("cidr", ""))
-        if cidr.prefixlen != 32 or previous != {"ipBlock": {"cidr": str(cidr)}}:
-            raise ValueError("unexpected local API endpoint peer")
-        rules[0]["to"][1] = {"ipBlock": {"cidr": str(address) + "/32"}}
-        if desired != current["spec"]:
-            changes.append((namespace, current, desired))
-    # Validate both owned preimages before writing either; CAS rejects concurrent edits.
-    for namespace, current, desired in changes:
-        patch = [{"op": "test", "path": "/metadata/uid", "value": current["metadata"]["uid"]},
-                 {"op": "test", "path": "/metadata/resourceVersion", "value": current["metadata"]["resourceVersion"]},
-                 {"op": "test", "path": "/spec", "value": current["spec"]},
-                 {"op": "replace", "path": "/spec", "value": desired}]
-        target.kubectl(["patch", "networkpolicy/allow-api", "-n", namespace, "--type=json", "-p", json.dumps(patch)], text=True, timeout=30)
+    _, address = control_plane(nodes)
+    changes = api_preimages(target, address, owned)
+    apply_changes(target, changes)
 
 
 def running_operation(args, state, save, target, registry, nodes, runtime, read_github, make_secret):
@@ -342,10 +297,14 @@ def running_operation(args, state, save, target, registry, nodes, runtime, read_
                 "openbao": "local volatile state intentionally lost"}
     if args.action == "status" and not all(n["running"] for n in nodes):
         return {"status": "stopped" if not any(n["running"] for n in nodes) else "partially-stopped",
-                "nodes": [{"id": n["id"], "running": n["running"]} for n in nodes], "recovery_pending": bool(state.get("pending_epoch"))}
-    selected_oauth = target.data.get("connectorProfile") == "oauth-connect"
-    if selected_oauth:
-        selected_connectors(target.data)  # A partial activation is not an installed profile.
+                 "nodes": [{"id": n["id"], "running": n["running"]} for n in nodes], "recovery_pending": bool(state.get("pending_epoch"))}
+    operation = target.data.get("localFullOperation")
+    if operation and operation.get("state") != "complete":
+        if args.action == "up":
+            raise ValueError("previous local-full operation is unresolved; parent arbitration required")
+        return {"status": "incomplete-operation", "ready": False, "phase": operation.get("phase"),
+                "requires_parent_arbitration": True}
+    declarations = None if args.action == "status" and not target.data.get("connectorProfile") else lifecycle.objects(target.data)
     if args.action == "up":
         if registry:
             with registry.operation():
@@ -353,7 +312,8 @@ def running_operation(args, state, save, target, registry, nodes, runtime, read_
         target.resume_nodes(state["engine"])
         target.kubectl(["wait", "--for=condition=Ready", "nodes", "--all", "--timeout=300s"], text=True, timeout=330)
         resync_api_policies(target)
-        target.kubectl(["rollout", "status", "deployment/openbao", "-n", CLUSTER, "--timeout=300s"], text=True, timeout=330)
+        coffer = lifecycle.coffer(target.data)
+        target.kubectl(["rollout", "status", "deployment/" + coffer["name"], "-n", coffer["namespace"], "--timeout=300s"], text=True, timeout=330)
     epoch = coffer_epoch(target)
     changed = state.get("pending_epoch") or (state["epoch"] is not None and epoch != state["epoch"])
     if args.action == "up" and (changed or any(not n["running"] for n in nodes)):
@@ -362,18 +322,17 @@ def running_operation(args, state, save, target, registry, nodes, runtime, read_
         state["pending_epoch"] = epoch
         save()
         recover_coffer(target, state, save, runtime, read_github, make_secret)
-        state.pop("pending_epoch", None)
-        state.pop("recovery_job", None)
-        state.pop("recovery_seeded_epoch", None)
+        for key in ("pending_epoch", "recovery_job", "recovery_seeded_epoch", "recovery_job_uid", "recovery_input_name", "recovery_input_uid"):
+            state.pop(key, None)
     if args.action == "up":
         state["epoch"] = epoch
         save()
     deployments = []
+    selected = None if declarations is None else {(o["metadata"].get("namespace"), o["metadata"]["name"])
+                for o in declarations if o["kind"] == "Deployment"}
     for entry in target.data.get("ownedResources", []):
-        if entry.get("kind") != "Deployment":
+        if entry.get("kind") != "Deployment" or (selected is not None and (entry.get("namespace"), entry.get("name")) not in selected):
             continue
-        if selected_oauth and entry.get("namespace") == CLUSTER and entry.get("name") in {"github-connect", "gitlab-connect"}:
-            continue  # Historical resources remain leased, but are not the selected service.
         obj = owned(target, "Deployment", entry["name"], entry["namespace"])
         if args.action == "up":
             target.kubectl(["rollout", "status", "deployment/" + entry["name"], "-n", entry["namespace"], "--timeout=300s"], text=True, timeout=330)

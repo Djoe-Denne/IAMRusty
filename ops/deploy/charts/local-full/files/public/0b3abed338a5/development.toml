@@ -1,0 +1,84 @@
+# Hive Service - Development Configuration
+#
+# Mirrors test.toml but targets the docker-compose stack on the shared
+# `aiforall-network`. Hostnames `postgres`, `localstack`, `openfga`, and
+# `iam-service` resolve to the matching compose services.
+
+[server]
+host = "0.0.0.0"
+port = 8080
+tls_enabled = true
+tls_port = 8443
+tls_cert_path = "/app/certs/hive-service.crt"
+tls_key_path = "/app/certs/hive-service.key"
+tls_client_ca_path = "/app/certs/ca.crt"
+
+[auth.jwt]
+platform_issuer = "http://127.0.0.1:8080/iam"
+allow_historical_platform_issuer = false
+audience = "aiforall"
+# Host process. Compose overrides with HIVE_AUTH__JWT__JWKS_URL=http://iam-service:8080/...
+jwks_url = "http://127.0.0.1:8080/iam/.well-known/jwks.json"
+allowed_algorithms = ["RS256"]
+
+[database]
+host = "postgres"
+port = 5432
+db = "hive_dev"
+[database.creds]
+username = "postgres"
+password = "postgres"
+
+[iam_service]
+base_url = "http://iam-service:8080"
+api_key = ""
+timeout_seconds = 10
+
+[external_provider_service]
+base_url = "http://iam-service:8080"
+api_key = ""
+timeout_seconds = 10
+max_retries = 3
+
+[command]
+[command.retry]
+max_attempts = 0
+base_delay_ms = 50
+max_delay_ms = 5000
+backoff_multiplier = 2.0
+use_jitter = false
+
+[queue]
+type = "sqs"
+enabled = true
+region = "us-east-1"
+account_id = "000000000000"
+default_queues = ["sentinel-sync-events"]
+host = "localstack"
+port = 4566
+access_key_id = "test"
+secret_access_key = "test"
+max_retries = 3
+timeout_seconds = 30
+
+[queue.queues]
+organization_created = ["sentinel-sync-events"]
+organization_updated = ["sentinel-sync-events"]
+organization_deleted = ["sentinel-sync-events"]
+member_joined = ["sentinel-sync-events"]
+member_removed = ["sentinel-sync-events"]
+member_roles_updated = ["sentinel-sync-events"]
+
+[logging]
+level = "debug"
+
+# Centralized authorization (OpenFGA). Override store_id /
+# authorization_model_id via HIVE_OPENFGA__* env vars after
+# bootstrapping a store with the fga CLI.
+[openfga]
+scheme = "http"
+host = "openfga"
+port = 8080
+store_id = ""
+# authorization_model_id = ""
+# api_token = ""

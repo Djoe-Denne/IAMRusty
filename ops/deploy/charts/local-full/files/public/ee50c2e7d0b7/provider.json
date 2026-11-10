@@ -1,0 +1,1 @@
+{"client_id": {{ .Values.simulatedClientId | toJson }}, "run_id": {{ .Values.runId | toJson }}, "instance": "simulated"}

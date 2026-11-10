@@ -5,6 +5,7 @@ use rustycog::config::{
     AuthConfig, HasDbConfig, HasLoggingConfig, HasQueueConfig, HasServerConfig,
 };
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 pub use rustycog::config::{
     load_config_fresh, CommandConfig, ConfigError, ConfigLoader, DatabaseConfig, LoggingConfig,
@@ -134,6 +135,12 @@ pub struct RedisConfig {
     /// TCP port (`0` unused in tests; the fixture supplies the mapped port).
     #[serde(default = "default_redis_port")]
     pub port: u16,
+    /// Enable verified native Redis TLS (legacy configurations default to false).
+    #[serde(default)]
+    pub tls_enabled: bool,
+    /// Explicit PEM trust anchors; required exactly when TLS is enabled.
+    #[serde(default)]
+    pub tls_ca_cert_path: Option<PathBuf>,
 }
 
 impl Default for RedisConfig {
@@ -141,6 +148,8 @@ impl Default for RedisConfig {
         Self {
             hostname: default_redis_hostname(),
             port: default_redis_port(),
+            tls_enabled: false,
+            tls_ca_cert_path: None,
         }
     }
 }
@@ -154,10 +163,28 @@ const fn default_redis_port() -> u16 {
 }
 
 impl RedisConfig {
-    /// `redis://hostname:port`
-    #[must_use]
-    pub fn url(&self) -> String {
-        format!("redis://{}:{}", self.hostname, self.port)
+    /// Validated `redis://hostname:port` or `rediss://hostname:port`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid hostname or inconsistent TLS/CA settings.
+    pub fn url(&self) -> Result<String, ConfigError> {
+        match (self.tls_enabled, self.tls_ca_cert_path.as_deref()) {
+            (true, None) => {
+                return Err(ConfigError::Message("Redis TLS requires a CA path".into()));
+            }
+            (false, Some(_)) => {
+                return Err(ConfigError::Message("Redis CA requires TLS".into()));
+            }
+            (true, Some(path)) if path.as_os_str().is_empty() => {
+                return Err(ConfigError::Message("Redis TLS requires a CA path".into()));
+            }
+            _ => {}
+        }
+        let host = url::Host::parse(&self.hostname)
+            .map_err(|_| ConfigError::Message("Invalid Redis hostname".into()))?;
+        let scheme = if self.tls_enabled { "rediss" } else { "redis" };
+        Ok(format!("{scheme}://{host}:{}", self.port))
     }
 }
 
@@ -403,6 +430,62 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn redis_legacy_configuration_keeps_plaintext_url() {
+        let config: RedisConfig = serde_json::from_value(serde_json::json!({
+            "hostname": "redis", "port": 6379
+        }))
+        .expect("legacy Redis config");
+        assert!(!config.tls_enabled);
+        assert!(config.tls_ca_cert_path.is_none());
+        assert_eq!(config.url().expect("valid URL"), "redis://redis:6379");
+    }
+
+    #[test]
+    fn redis_tls_configuration_uses_rediss() {
+        let config: RedisConfig = serde_json::from_value(serde_json::json!({
+            "hostname": "redis", "port": 6379,
+            "tls_enabled": true, "tls_ca_cert_path": "/run/ca.crt"
+        }))
+        .expect("TLS Redis config");
+        assert_eq!(config.url().expect("valid URL"), "rediss://redis:6379");
+    }
+
+    #[test]
+    fn redis_rejects_inconsistent_tls_configuration() {
+        for fields in [
+            serde_json::json!({"tls_enabled": true}),
+            serde_json::json!({"tls_enabled": true, "tls_ca_cert_path": ""}),
+            serde_json::json!({"tls_ca_cert_path": "/run/ca.crt"}),
+        ] {
+            let config: RedisConfig = serde_json::from_value(fields).expect("typed config");
+            assert!(config.url().is_err());
+        }
+    }
+
+    #[test]
+    fn redis_hostname_cannot_supply_url_options_or_credentials() {
+        for hostname in [
+            "redis/#insecure",
+            "rediss://redis",
+            "user@redis",
+            "redis?x=1",
+            "",
+            "redis:6379",
+        ] {
+            let config = RedisConfig {
+                hostname: hostname.into(),
+                ..RedisConfig::default()
+            };
+            assert!(config.url().is_err(), "hostname accepted URL syntax");
+        }
+        let config = RedisConfig {
+            hostname: "[::1]".into(),
+            ..RedisConfig::default()
+        };
+        assert_eq!(config.url().expect("IPv6 URL"), "redis://[::1]:6379");
+    }
 
     #[test]
     fn vault_token_is_deserializable_but_never_debugged_or_serialized() {

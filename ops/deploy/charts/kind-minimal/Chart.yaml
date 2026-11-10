@@ -1,0 +1,8 @@
+apiVersion: v2
+name: kind-minimal
+description: Native local-lab declarations; existing data services remain outside mutations.
+type: application
+version: 0.1.0
+appVersion: "local"
+annotations:
+  aiforall.dev/architecture: ADR-0610-Proposed,ADR-0611-Proposed

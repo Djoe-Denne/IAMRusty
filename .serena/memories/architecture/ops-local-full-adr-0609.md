@@ -1,0 +1,8 @@
+# Ops local-full — ADR-0609
+
+- Canon `docs/adr/0609-local-full-declaratif-helm-compose-just.md` ; Statut **Proposed**, Réalité **Partial**. Contrat historique `docs/contracts/ops-local-full-declarative-iac.md` v1.7 ; `Unimplemented` décrit la baseline5199613, pas le candidat livré. Aucun Accept.
+- Candidat déclaratif livré : Helm4profils/6phases+just, Compose/Kustomize/Bake/PKI ; gates parent314PASS+2SKIP sur316,151.696s, infra8Kustomize/24Helm/12shell et diffcheck0. Preuves parent non réexécutées ; pas de qualification runtime. Les revues annoncées en cours dans cette photographie ont ensuite été interrompues selon le ledger courant, ne pas les relancer par défaut.
+- Mesure parent7355→7267lignes,22→29fichiers,AST288→310fonctions : baisse modeste, pas de gain perf/temps démontré. Définitions publiques/CLI/attestation dans chart/fichiers ; gardes privées et secrets distincts.
+- Exception snapshotHTTP strict au pinOpenBao2.6.2 et tokenLazaret legacy : défaut clone auto-auth perd DisableRedirects, pas de fallback/bump/proxy implicite. Le maintien de ces mécanismes appartenait à la cible0609, pas à toute cible locale future.
+- **Nouvelle demande utilisateur2026-11-09 : ADR0610 Proposed/Unimplemented + contrat `docs/contracts/kind-local-native-launcher.md` remplacent la parité de lancementv1.7 pour le mandat Kind minimal.** Retrait des protocoles maison, natifs+keep-data/reset explicite ; ne pas invoquer0609 pour conserver du Python ou imposer Ensemble. Voir `mem:architecture/kind-local-minimal-adr-0610`.
+- Les sources/candidats antérieurs restent préservés et non publiés selon le parent ; 0610 ne supersède aucune Accepted et ne ratifie ni ne rejette formellement0609. Voir le fichier ADR.

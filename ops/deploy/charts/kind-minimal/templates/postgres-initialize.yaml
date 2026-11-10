@@ -1,0 +1,106 @@
+{{- if .Values.postgres.initialize }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kind-local-postgres-databases
+  namespace: {{ .Release.Namespace }}
+data:
+  initialize.sql: |
+    \set ON_ERROR_STOP on
+    -- Native missing-only creation; no DROP, reseed or password alteration.
+    SELECT format('CREATE DATABASE %I', desired.name)
+    FROM (VALUES
+    {{- range $index, $name := .Values.postgres.databases }}
+      {{ if $index }},{{ end }}('{{ $name }}')
+    {{- end }}
+    ) AS desired(name)
+    WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = desired.name)
+    \gexec
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # An explicit rerun removes/recreates this Job only, never its database/PVC.
+  # The launcher must wait for Complete, not reuse an old completed Job as proof.
+  name: kind-local-postgres-initialize
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: postgres-initialize
+    app.kubernetes.io/part-of: aiforall
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 180
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: initialize
+          image: {{ .Values.postgres.image | quote }}
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -ec
+            - export PGPASSWORD="$(cat /run/postgres/password)"; exec psql --no-password --no-psqlrc --file=/init/initialize.sql
+          env:
+            - name: PGUSER
+              value: postgres
+            - name: PGDATABASE
+              value: postgres
+            - name: PGHOST
+              value: postgres.{{ .Release.Namespace }}.svc.cluster.local
+            - name: PGSSLMODE
+              value: verify-full
+            - name: PGSSLROOTCERT
+              value: /ca/ca.crt
+            - name: PGCONNECT_TIMEOUT
+              value: "5"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: init
+              mountPath: /init
+              readOnly: true
+            - name: ca
+              mountPath: /ca
+              readOnly: true
+            - name: credentials
+              mountPath: /run/postgres
+              readOnly: true
+      volumes:
+        - name: init
+          configMap:
+            name: kind-local-postgres-databases
+        - name: ca
+          secret:
+            secretName: {{ .Values.postgres.caSecret }}
+            defaultMode: 0440
+            items:
+              - key: ca.crt
+                path: ca.crt
+        - name: credentials
+          secret:
+            secretName: {{ .Values.postgres.credentialsSecret }}
+            defaultMode: 0440
+            items:
+              - key: password
+                path: password
+{{- end }}

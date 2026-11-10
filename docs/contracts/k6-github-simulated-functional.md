@@ -1,5 +1,7 @@
 # k6 Windows — GitHub existant, fournisseur simulé
 
+> Raccord Ops du 2026-11-09 : les configurations de l'ancien overlay sont déplacées dans le chart et ses profils ; les chemins cités restent consultables à `5199613`. Voir le [guide courant](../guides/ops-declarative-boundaries.md). Le déplacement n'est pas une exécution ou qualification k6.
+
 > **Brouillon suspendu, non ratifié et non implémenté.** Après sa rédaction,
 > l'utilisateur a interrompu le travail : GitHubConnect et GitLabConnect seront
 > remplacés par un service OAuth 2.0 unique à interface encore inconnue ici.

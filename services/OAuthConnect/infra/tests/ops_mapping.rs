@@ -6,7 +6,7 @@ use serde_json::json;
 
 fn catalogue() -> AppConfig {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../ops/deploy/apps/overlays/local-full/oauth-connect/connect.toml");
+        .join("../../../ops/deploy/charts/local-full/files/config/oauth-connect.toml");
     toml::from_str(&std::fs::read_to_string(path).expect("public ops configuration"))
         .expect("typed ops catalogue")
 }

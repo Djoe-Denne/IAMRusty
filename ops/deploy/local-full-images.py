@@ -7,18 +7,18 @@ from pathlib import Path
 from local_full_target import LocalClusterTargetAnchor
 from local_full_image_provenance import verify as verify_provenance
 
-SOURCES = ["aiforall-iam-service:latest", "aiforall-hive-service:latest", "aiforall-telegraph-service:latest",
-           "aiforall-manifesto-service:latest", "aiforall-lazaret-service:local-full", "aiforall-sentinel-sync:local-full",
-            "aiforall-ext-authz:local", "aiforall-apparatus-controller:j2", "aiforall-zot:gold"]
-
-
 def source_images(oauth_proof=False, github_openbao=False, oauth_connect=False):
     """Only an explicit proof profile adds the real connector, never a mock."""
     if sum(map(bool, (oauth_proof, github_openbao, oauth_connect))) > 1:
         raise ValueError("distinct GitLab/GitHub profiles required")
-    return SOURCES + (["aiforall-gitlab-connect-service:latest"] if oauth_proof else []) + (
-        ["aiforall-github-connect-service:latest"] if github_openbao else []) + (
-        ["aiforall-oauth-connect-service:latest"] if oauth_connect else [])
+    from local_full_helm import render
+    profile = "oauth-connect" if oauth_connect else "github-openbao" if github_openbao else "gitlab-proof" if oauth_proof else "base"
+    return sorted({c["image"] for obj in render(profile) if obj["kind"] == "Deployment"
+                   for c in obj["spec"]["template"]["spec"].get("containers", []) + obj["spec"]["template"]["spec"].get("initContainers", [])
+                   if c["image"].startswith("aiforall-")})
+
+
+SOURCES = source_images()  # Compatibility view, never a second maintained roster.
 
 
 def main():

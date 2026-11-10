@@ -10,6 +10,8 @@ command -v "$PYTHON" >/dev/null || { echo 'Python required (set PYTHON to its ex
 # effect on Linux, where UTF-8 is already the default.
 export PYTHONUTF8=1
 command -v kubectl >/dev/null || { echo 'kubectl required for offline kustomize rendering' >&2; exit 1; }
+HELM=${AIFORALL_HELM:-helm}
+command -v "$HELM" >/dev/null || { echo 'Helm required for offline local-full rendering' >&2; exit 1; }
 
 scripts=0
 while IFS= read -r -d '' script; do
@@ -32,7 +34,8 @@ def compose_value(loader, node):
     return loader.construct_scalar(node)
 for tag in ('!override', '!reset'):
     SourceLoader.add_constructor(tag, compose_value)
-paths = sorted(Path('ops').rglob('*.yaml')) + sorted(Path('ops').rglob('*.yml'))
+paths = [p for p in sorted(Path('ops').rglob('*.yaml')) + sorted(Path('ops').rglob('*.yml'))
+         if not ('charts' in p.parts and ('templates' in p.parts or 'files' in p.parts))]
 paths.append(Path('.github/workflows/ci.yml'))
 for path in paths:
     try:
@@ -50,17 +53,15 @@ expected = {
     'ops/deploy/apps/overlays/kind',
     'ops/deploy/apps/overlays/kind-mesh',
     'ops/deploy/apps/overlays/kind-demo-monolith',
-    'ops/deploy/apps/overlays/local-full',
-    'ops/deploy/apps/overlays/local-full/platform',
-    'ops/deploy/apps/overlays/local-full/apparatus',
-    'ops/deploy/apps/overlays/local-full/oauth-proof',
     'ops/deploy/p4',
     'ops/deploy/p4/knative',
+    'ops/deploy/third-party/calico',
+    'ops/deploy/third-party/calico/base',
 }
 actual = [p.parent.as_posix() for p in Path('ops/deploy').rglob('*')
           if p.name in {'kustomization.yaml', 'kustomization.yml'}]
 if set(actual) != expected or len(actual) != len(expected):
-    raise SystemExit('Deployment kustomization inventory differs from the ten approved renders')
+    raise SystemExit('Deployment kustomization inventory differs from the eight declared renders')
 PY
 renders=0
 while IFS= read -r -d '' manifest; do
@@ -80,5 +81,31 @@ print("OK rendered resource identities:", len(docs))
   printf 'OK offline render: %s\n' "$directory"
   renders=$((renders + 1))
 done < <(find ops/deploy -type f \( -name kustomization.yaml -o -name kustomization.yml \) -print0)
-[ "$renders" -eq 10 ] || { echo 'Expected exactly ten deployment renders (including opt-in OAuth proof)' >&2; exit 1; }
+[ "$renders" -eq 8 ] || { echo 'Expected exactly eight Kustomize renders (including pinned Calico)' >&2; exit 1; }
+chart=ops/deploy/charts/local-full
+helm_renders=0
+for profile in base gitlab-proof github-openbao oauth-connect; do
+  for phase in foundation quiesce dependencies bootstrap applications-first final; do
+    profile_values="ops/deploy/profiles/local-full/$profile.yaml"
+    phase_values="ops/deploy/profiles/local-full/phases/$phase.yaml"
+    "$HELM" lint "$chart" --strict -f "$profile_values" -f "$phase_values" >/dev/null
+    "$HELM" template local-full "$chart" -f "$profile_values" -f "$phase_values" | "$PYTHON" -c '
+import sys, yaml
+docs = [d for d in yaml.safe_load_all(sys.stdin) if d is not None]
+if not docs or any(not isinstance(d, dict) or not d.get("apiVersion") or not d.get("kind") or not d.get("metadata", {}).get("name") for d in docs):
+    raise SystemExit("Missing Kubernetes identity in Helm render")
+identities = [(d["apiVersion"], d["kind"], d["metadata"].get("namespace", ""), d["metadata"]["name"]) for d in docs]
+if len(identities) != len(set(identities)):
+    raise SystemExit("Duplicate Kubernetes identity in Helm render")
+for doc in docs:
+    if doc["kind"] == "ConfigMap":
+        for key, content in doc.get("data", {}).items():
+            if key.endswith((".yaml", ".yml")):
+                list(yaml.safe_load_all(content))
+'
+    helm_renders=$((helm_renders + 1))
+  done
+done
+[ "$helm_renders" -eq 24 ] || { echo 'Expected all 24 local-full Helm renders' >&2; exit 1; }
+printf 'OK Helm lint and offline renders: %s\n' "$helm_renders"
 printf 'OK shell syntax: %s scripts; offline renders: %s\n' "$scripts" "$renders"

@@ -1,0 +1,93 @@
+{{- if .Values.localstack.create }}
+apiVersion: v1
+kind: Service
+metadata: {name: localstack, namespace: {{ .Release.Namespace }}}
+spec:
+  selector: {app.kubernetes.io/name: localstack}
+  ports: [{name: https, port: 4566, targetPort: https}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: localstack, namespace: {{ .Release.Namespace }}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app.kubernetes.io/name: localstack}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: localstack, aiforall.dev/kind-minimal: "true"}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: localstack
+          image: {{ .Values.localstack.image | quote }}
+          command: [bash, -ec]
+          args:
+            - umask 077; cat /tls/tls.key /tls/tls.crt > /server-cert/server.pem; exec /usr/local/bin/docker-entrypoint.sh
+          env:
+            - {name: SERVICES, value: sqs}
+            - {name: EAGER_SERVICE_LOADING, value: "1"}
+            - {name: USE_SSL, value: "1"}
+            - {name: SKIP_SSL_CERT_DOWNLOAD, value: "1"}
+            - {name: CUSTOM_SSL_CERT_PATH, value: /server-cert/server.pem}
+            - {name: LOCALSTACK_HOST, value: "localstack.{{ .Release.Namespace }}.svc.cluster.local:4566"}
+            - {name: SQS_ENDPOINT_STRATEGY, value: path}
+            - {name: AWS_DEFAULT_REGION, value: us-east-1}
+            - {name: AWS_ACCESS_KEY_ID, value: test}
+            - {name: AWS_SECRET_ACCESS_KEY, value: test}
+          ports: [{name: https, containerPort: 4566}]
+          readinessProbe:
+            exec:
+              command: [aws, --endpoint-url=https://localhost:4566, --ca-bundle=/tls/ca.crt, sqs, list-queues, --max-items, "1"]
+            periodSeconds: 5
+            timeoutSeconds: 10
+          volumeMounts:
+            - {name: tls, mountPath: /tls, readOnly: true}
+            - {name: server-cert, mountPath: /server-cert}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources: {requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: "1", memory: 768Mi}}
+      volumes:
+        - {name: server-cert, emptyDir: {medium: Memory}}
+        - name: tls
+          projected:
+            defaultMode: 0400
+            sources:
+              - secret:
+                  name: {{ .Values.localstack.tlsSecret }}
+                  items: [{key: tls.crt, path: tls.crt}, {key: tls.key, path: tls.key}]
+              - secret:
+                  name: {{ .Values.localstack.caSecret }}
+                  items: [{key: ca.crt, path: ca.crt}]
+{{- end }}
+{{- if .Values.localstack.initialize }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata: {name: kind-local-sqs-initialize, namespace: {{ .Release.Namespace }}}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 180
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+        - name: initialize
+          image: {{ .Values.localstack.image | quote }}
+          command: [sh, -ec]
+          args:
+            - |
+              {{- range .Values.localstack.queues }}
+              aws --endpoint-url=https://localstack.{{ $.Release.Namespace }}.svc.cluster.local:4566 --ca-bundle=/ca/ca.crt sqs create-queue --queue-name {{ . | quote }} >/dev/null
+              {{- end }}
+          env:
+            - {name: AWS_DEFAULT_REGION, value: us-east-1}
+            - {name: AWS_ACCESS_KEY_ID, value: test}
+            - {name: AWS_SECRET_ACCESS_KEY, value: test}
+          volumeMounts: [{name: ca, mountPath: /ca, readOnly: true}]
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+      volumes:
+        - name: ca
+          secret: {secretName: {{ .Values.localstack.caSecret }}, items: [{key: ca.crt, path: ca.crt}]}
+{{- end }}

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["openbao", "postgres", "redis", "openfga"],
+  "properties": {
+    "buildTag": {"type": "string", "pattern": "^([A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?$"},
+    "variable": {"type": "object"},
+    "applications": {"type": "object", "required": ["enabled", "services", "envoyImage"], "properties": {
+      "enabled": {"type": "boolean"}, "services": {"type": "object"}, "envoyImage": {"type": "string"}
+    }},
+    "network": {"type": "object", "required": ["create"], "properties": {"create": {"type": "boolean"}}},
+    "zot": {"type": "object", "required": ["create", "image", "configSecret", "tlsSecret", "storageClass", "storageSize"], "properties": {
+      "create": {"type": "boolean"}, "image": {"type": "string"}, "configSecret": {"type": "string"}, "tlsSecret": {"type": "string"},
+      "storageClass": {"type": "string"}, "storageSize": {"type": "string"}
+    }},
+    "localstack": {"type": "object", "required": ["create", "initialize", "image", "tlsSecret", "caSecret", "queues"], "properties": {
+      "create": {"type": "boolean"}, "initialize": {"type": "boolean"}, "image": {"type": "string"},
+      "tlsSecret": {"type": "string"}, "caSecret": {"type": "string"},
+      "queues": {"type": "array", "items": {"type": "string", "pattern": "^[a-zA-Z0-9_-]{1,80}$"}}
+    }},
+    "openbao": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["create", "image", "tlsSecret", "caSecret", "storageClass", "storageSize"],
+      "properties": {
+        "create": {"type": "boolean"},
+        "image": {"type": "string", "pattern": "^openbao/openbao:2\\.6\\.2@sha256:[a-f0-9]{64}$"},
+        "tlsSecret": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,252}$"},
+        "caSecret": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,252}$"},
+        "storageClass": {"type": "string", "minLength": 1},
+        "storageSize": {"type": "string", "pattern": "^[1-9][0-9]*(Mi|Gi)$"}
+      }
+    },
+    "postgres": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["create", "initialize", "image", "tlsSecret", "caSecret", "credentialsSecret", "storageClass", "storageSize", "databases"],
+      "properties": {
+        "create": {"type": "boolean"},
+        "initialize": {"type": "boolean"},
+        "image": {"type": "string", "pattern": "^postgres:15\\.12-alpine3\\.21@sha256:[a-f0-9]{64}$"},
+        "tlsSecret": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,252}$"},
+        "caSecret": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,252}$"},
+        "credentialsSecret": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,252}$"},
+        "storageClass": {"type": "string", "minLength": 1},
+        "storageSize": {"type": "string", "pattern": "^[1-9][0-9]*(Mi|Gi)$"},
+        "databases": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z_][a-z0-9_]{0,62}$"}
+        }
+      }
+    },
+    "openfga": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inspect", "initialize", "cliImage", "caSecret", "modelConfigMap"],
+      "properties": {
+        "create": {"type": "boolean"},
+        "image": {"type": "string"},
+        "tlsSecret": {"type": "string"},
+        "datastoreSecret": {"type": "string"},
+        "inspect": {"type": "boolean"},
+        "initialize": {"type": "boolean"},
+        "cliImage": {"type": "string", "pattern": "^openfga/cli:v0\\.8\\.2@sha256:[a-f0-9]{64}$"},
+        "caSecret": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,252}$"},
+        "modelConfigMap": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,252}$"}
+      }
+    },
+    "redis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["create", "image", "tlsSecret", "caSecret", "storageClass", "storageSize"],
+      "properties": {
+        "create": {"type": "boolean"},
+        "image": {"type": "string", "pattern": "^redis:7\\.2\\.7-alpine@sha256:[a-f0-9]{64}$"},
+        "tlsSecret": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,252}$"},
+        "caSecret": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,252}$"},
+        "storageClass": {"type": "string", "minLength": 1},
+        "storageSize": {"type": "string", "pattern": "^[1-9][0-9]*(Mi|Gi)$"}
+      }
+    }
+  }
+}

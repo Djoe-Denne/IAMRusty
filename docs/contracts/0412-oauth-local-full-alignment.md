@@ -1,5 +1,7 @@
 # Contrat ratifié — aligner la preuve OAuth navigateur sur l'entrée HTTP local-full
 
+> Raccord Ops du 2026-11-09 : les chemins `apps/overlays/local-full` cités ci-dessous désignent les sources historiques, consultables à `5199613`. Les définitions courantes sont dans le [chart et ses profils](../guides/ops-declarative-boundaries.md). Ce déplacement ne modifie ni la ratification ni les oracles du présent contrat et ne qualifie aucun déploiement.
+
 - Statut : **Accepted / Implemented, qualification locale limitée au laboratoire ratifié**. Ratification initiale explicite du lead le2026-10-28 après examen des alternatives ; réalisation qualifiée et réconciliation ratifiée le2026-10-29, [preuves et limites](20261029-auth-security-qualified-state.md).
 - État historique2026-10-28 : assemblage36ffab6 et tests statiques verts, campagne navigateur/confianceTLS exacte/Envoy non exécutés ; aucune preuve déduite du seul rendu à cette date.
 - Canon secondaire : [contrat exact-route0412](0412-oauth-exact-route-envoy-proof.md), référencé par [ADR0412](../adr/0412-oauth-transaction-persistante-liee-navigateur.md) **Accepted / Implemented localement après ratification2026-10-29**.

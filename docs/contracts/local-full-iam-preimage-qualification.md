@@ -1,5 +1,7 @@
 # Local-full — qualification IAM initiale et après snapshot
 
+> Raccord Ops du 2026-11-09 : les liens vers l'ancien overlay désignent les sources à `5199613`. Le chart courant porte les montages, et son helper snapshot HTTP strict est conservé sous l'exception versionnée du [contrat Ops §4.1](ops-local-full-declarative-iac.md). Voir le [guide](../guides/ops-declarative-boundaries.md) ; les préimages et critères du présent contrat restent exigés, sans qualification runtime nouvelle.
+
 2026-11-04 — **Proposed / Partial** pour ce complément de qualification.
 Base inspectée : `1e89ff58143aaa59342d266d2611fd70036f43f4`.
 Jalon : raccord Ops du local-full existant, hors Apparatus P0–P6.
@@ -61,13 +63,13 @@ de ce verdict et nécessitent leurs propres preuves avant usage réel.
   **pas** `emptyDir`. Son retour comprend `config_sha256` ; `run_action`
   (1048–1062) le sérialise actuellement dans `iam-provider-registry` : ne pas
   recopier ce retour brut dans les nouveaux reçus/rapports de qualification.
-- [snapshot Ops](../../ops/deploy/local_full_openbao.py) (32–53) prépare
+- [snapshot Ops historique](https://github.com/Djoe-Denne/IAMRusty/blob/51996139ec31317aaef85e49ab3c9266591f3902/ops/deploy/local_full_openbao.py) (32–53) prépare
   `openbao-snapshot`, son image `PYTHON` épinglée, `/template`, `/runtime` et
   `private-config` Memory. Le code initial sélectionne le volume nommé `config` ;
   ce nom ne prouve pas qu'il s'agit du fichier OAuth effectivement sélectionné.
-  Le [montage OAuth](../../ops/deploy/apps/overlays/local-full/oauth-proof/kustomization.yaml)
+  Le [montage OAuth historique](https://github.com/Djoe-Denne/IAMRusty/blob/51996139ec31317aaef85e49ab3c9266591f3902/ops/deploy/apps/overlays/local-full/oauth-proof/kustomization.yaml)
   nomme celui-ci `oauth-proof-config` et ajoute l'init de trust GitLab.
-- [helper snapshot](../../ops/deploy/apps/overlays/local-full/helpers/openbao-workload.py)
+- [helper snapshot historique](https://github.com/Djoe-Denne/IAMRusty/blob/51996139ec31317aaef85e49ab3c9266591f3902/ops/deploy/apps/overlays/local-full/helpers/openbao-workload.py)
   `snapshot` (91–113) : rôle `iam-hmac`, un seul marker GitHub, lecture KV HMAC,
   validation hex64/TOML puis publication du fichier privé. C'est la chaîne à
   qualifier, pas une autorisation générale des fichiers écrits par un init.

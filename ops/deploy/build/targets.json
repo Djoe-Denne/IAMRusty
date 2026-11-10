@@ -1,0 +1,69 @@
+{
+  "variable": {"inventory": {"default": {
+  "schema": "aiforall.image-targets/v1",
+  "groups": {
+    "local-full": ["iam", "hive", "telegraph", "manifesto", "lazaret", "sentinel", "ext-authz", "controller"],
+    "workspace": ["iam", "hive", "telegraph", "manifesto", "lazaret", "sentinel", "ext-authz", "controller", "github", "gitlab", "oauth"],
+    "openbao": ["github", "lazaret"]
+  },
+  "extra_outputs": {"workspace": {"oodhive-monolith": "oodhive-monolith"}},
+  "targets": {
+    "iam": {
+      "source": "aiforall-iam-service:latest", "dockerfile": "services/IAMRusty/Dockerfile",
+      "outputs": {"iam-service": "iam-service", "iam-migration": "iammigration"},
+      "inputs": ["services/IAMRusty/"], "features": []
+    },
+    "hive": {
+      "source": "aiforall-hive-service:latest", "dockerfile": "services/Hive/Dockerfile",
+      "outputs": {"hive-service": "hive-service", "hive-migration": "hivemigration"},
+      "inputs": ["services/Hive/"], "features": []
+    },
+    "telegraph": {
+      "source": "aiforall-telegraph-service:latest", "dockerfile": "services/Telegraph/Dockerfile",
+      "outputs": {"telegraph-service": "telegraph-service", "telegraph-migration": "telegraphmigration"},
+      "inputs": ["services/Telegraph/"], "features": []
+    },
+    "manifesto": {
+      "source": "aiforall-manifesto-service:latest", "dockerfile": "services/Manifesto/Dockerfile",
+      "outputs": {"manifesto-service": "manifesto-service", "manifesto-migration": "manifestomigration"},
+      "inputs": ["services/Manifesto/"], "features": []
+    },
+    "lazaret": {
+      "source": "aiforall-lazaret-service:local-full", "dockerfile": "services/Lazaret/Dockerfile",
+      "outputs": {"lazaret-service": "lazaret-service", "lazaret-migration": "migration"},
+      "inputs": ["services/Lazaret/"], "features": []
+    },
+    "github": {
+      "source": "aiforall-github-connect-service:latest", "dockerfile": "services/GitHubConnect/Dockerfile",
+      "outputs": {"github-connect-service": "github-connect-service"},
+      "inputs": ["services/GitHubConnect/"], "features": []
+    },
+    "gitlab": {
+      "source": "aiforall-gitlab-connect-service:latest", "dockerfile": "services/GitLabConnect/Dockerfile",
+      "outputs": {"gitlab-connect-service": "gitlab-connect-service"},
+      "inputs": ["services/GitLabConnect/"], "features": []
+    },
+    "oauth": {
+      "source": "aiforall-oauth-connect-service:latest", "dockerfile": "services/OAuthConnect/Dockerfile",
+      "outputs": {"oauth-connect-service": "oauth-connect-service"},
+      "inputs": ["services/OAuthConnect/"], "features": []
+    },
+    "sentinel": {
+      "source": "aiforall-sentinel-sync:local-full", "dockerfile": "ops/deploy/build/Dockerfile.worker",
+      "outputs": {"sentinel-sync": "sentinel-sync"},
+      "inputs": ["workers/sentinel-sync/"], "features": []
+    },
+    "ext-authz": {
+      "source": "aiforall-ext-authz:local", "dockerfile": "ops/deploy/build/Dockerfile.ext-authz",
+      "outputs": {"ext-authz": "ext-authz"},
+      "inputs": ["workers/ext-authz/", "services/IAMRusty/domain/"], "features": []
+    },
+    "controller": {
+      "source": "aiforall-apparatus-controller:j2", "dockerfile": "ops/deploy/build/Dockerfile.controller",
+      "outputs": {"apparatus-operator": "apparatus-controller"},
+      "inputs": ["workers/apparatus-operator/", "services/Lazaret/"],
+      "features": ["apparatus-operator/controller"]
+    }
+  }
+  }}}
+}

@@ -130,16 +130,49 @@ jobs:
 
   infra-static:
     name: Infrastructure (offline render + shell syntax)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # kubectl is used only as an offline kustomize renderer; no cluster access.
       - name: Install YAML parser
         run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.2
+      - name: Install pinned Helm renderer (no cluster)
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool_dir="$RUNNER_TEMP/aiforall-helm-4.3.1"
+          mkdir -p "$tool_dir"
+          curl --fail --silent --show-error --location \
+            https://get.helm.sh/helm-v4.3.1-linux-amd64.tar.gz \
+            --output "$tool_dir/helm-v4.3.1-linux-amd64.tar.gz"
+          printf '%s  %s\n' \
+            0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b \
+            "$tool_dir/helm-v4.3.1-linux-amd64.tar.gz" | sha256sum --check --status
+          tar -xzf "$tool_dir/helm-v4.3.1-linux-amd64.tar.gz" -C "$tool_dir" linux-amd64/helm
+          "$tool_dir/linux-amd64/helm" version --short
+          printf '%s\n' "$tool_dir/linux-amd64" >> "$GITHUB_PATH"
+      - name: Install pinned just phase runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool_dir="$RUNNER_TEMP/aiforall-just-1.40.0"
+          mkdir -p "$tool_dir"
+          curl --fail --silent --show-error --location \
+            https://github.com/casey/just/releases/download/1.40.0/just-1.40.0-x86_64-unknown-linux-musl.tar.gz \
+            --output "$tool_dir/just.tar.gz"
+          printf '%s  %s\n' \
+            181b91d0ceebe8a57723fb648ed2ce1a44d849438ce2e658339df4f8db5f1263 \
+            "$tool_dir/just.tar.gz" | sha256sum --check --status
+          tar -xzf "$tool_dir/just.tar.gz" -C "$tool_dir" just
+          "$tool_dir/just" --version
+          printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
       - name: Check scripts and render deployment overlays
         run: bash ops/tests/infra-static.sh
-      - name: Hardened OpenBao offline boundary and additive PKI smoke
-        run: python3 -B -m unittest discover -s ops/tests -p test_openbao_local.py -v
+      - name: Declarative Ops parity and hermetic boundary regressions
+        env:
+          AIFORALL_IMAGE_CACHE_PROOF: '0'
+          AIFORALL_REGISTRY_SMOKE: '0'
+        run: python3 -B -m unittest discover -s ops/tests -p 'test_*.py' -v
       - name: Prepare and reuse local certificates (Linux, no cluster)
         shell: bash
         run: |
@@ -147,10 +180,10 @@ jobs:
           private=$(mktemp -d "$RUNNER_TEMP/local-full-certs.XXXXXX")
           trap 'rm -rf -- "$private"' EXIT
           export LOCAL_FULL_CERT_DIR="$private/certs with spaces"
-          bash ops/scripts/prepare-local-full-certs.sh --oauth-proof
-          find "$LOCAL_FULL_CERT_DIR" -name '*.key' -print0 | sort -z | xargs -0 sha256sum > "$private/before"
-          bash ops/scripts/prepare-local-full-certs.sh --oauth-proof
-          find "$LOCAL_FULL_CERT_DIR" -name '*.key' -print0 | sort -z | xargs -0 sha256sum > "$private/after"
+          bash ops/scripts/prepare-local-full-certs.sh --oauth-proof --openbao-github --oauth-connect --registry
+          find "$LOCAL_FULL_CERT_DIR" \( -name '*.key' -o -name '*.crt' \) -print0 | sort -z | xargs -0 sha256sum > "$private/before"
+          bash ops/scripts/prepare-local-full-certs.sh --oauth-proof --openbao-github --oauth-connect --registry
+          find "$LOCAL_FULL_CERT_DIR" \( -name '*.key' -o -name '*.crt' \) -print0 | sort -z | xargs -0 sha256sum > "$private/after"
           cmp "$private/before" "$private/after"
 
   apparatus-p0:

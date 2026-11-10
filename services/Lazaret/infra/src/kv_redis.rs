@@ -6,7 +6,8 @@ use apparatus_contracts::{
 };
 use async_trait::async_trait;
 use lazaret_domain::AsyncKvStore;
-use redis::Commands;
+use redis::{Commands, IntoConnectionInfo};
+use std::path::Path;
 
 /// Redis KV namespaced by `binding_id`. Caller still only passes `key`.
 #[derive(Clone)]
@@ -19,9 +20,64 @@ impl RedisKvStore {
     ///
     /// # Errors
     ///
-    /// Returns [`ApparatusError::InvalidOperation`] if the URL is unusable.
+    /// Returns [`ApparatusError::InvalidOperation`] if the URL is unusable or not plaintext TCP.
+    /// Use [`Self::connect_tls`] for a verified TLS endpoint with an explicit CA.
     pub fn connect(url: &str) -> Result<Self, ApparatusError> {
         let client = redis::Client::open(url).map_err(|_| store_failed())?;
+        if !matches!(
+            client.get_connection_info().addr,
+            redis::ConnectionAddr::Tcp(..)
+        ) {
+            return Err(store_failed());
+        }
+        Ok(Self { client })
+    }
+
+    /// Construct a native TLS client with explicit PEM trust anchors.
+    /// No network connection is made until a KV operation is performed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApparatusError::InvalidOperation`] for a non-TLS/insecure URL,
+    /// unreadable or invalid CA bundle, or invalid native client parameters.
+    pub fn connect_tls(url: &str, ca_cert_path: &Path) -> Result<Self, ApparatusError> {
+        let info = url.into_connection_info().map_err(|_| store_failed())?;
+        if !matches!(
+            info.addr,
+            redis::ConnectionAddr::TcpTls {
+                insecure: false,
+                ..
+            }
+        ) {
+            return Err(store_failed());
+        }
+        let ca_pem = std::fs::read(ca_cert_path).map_err(|_| store_failed())?;
+        // The driver accepts a PEM stream with zero certificates. Refuse it
+        // here instead of deferring an invalid CA input to the first handshake.
+        use rustls::pki_types::{pem::PemObject, CertificateDer};
+        let mut roots = rustls::RootCertStore::empty();
+        for cert in CertificateDer::pem_slice_iter(&ca_pem) {
+            roots
+                .add(cert.map_err(|_| store_failed())?)
+                .map_err(|_| store_failed())?;
+        }
+        if roots.is_empty() {
+            return Err(store_failed());
+        }
+        // Redis also enables ring. With both providers compiled, Rustls cannot
+        // pick one implicitly. Respect an installed provider, otherwise use the
+        // workspace's native aws-lc-rs provider (a racing install is harmless).
+        if rustls::crypto::CryptoProvider::get_default().is_none() {
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        }
+        let client = redis::Client::build_with_tls(
+            info,
+            redis::TlsCertificates {
+                client_tls: None,
+                root_cert: Some(ca_pem),
+            },
+        )
+        .map_err(|_| store_failed())?;
         Ok(Self { client })
     }
 
@@ -237,5 +293,61 @@ impl AsyncKvStore for RedisKvStore {
         tokio::task::spawn_blocking(move || store.purge_namespace(&binding))
             .await
             .map_err(|_| store_failed())?
+    }
+}
+
+#[cfg(test)]
+mod tls_tests {
+    use super::RedisKvStore;
+
+    #[test]
+    fn tls_requires_a_readable_nonempty_certificate_bundle() {
+        let dir = tempfile::tempdir().expect("test directory");
+        let ca = dir.path().join("ca.pem");
+        assert!(RedisKvStore::connect_tls("rediss://localhost:6379", &ca).is_err());
+        for contents in [
+            "",
+            "not a certificate",
+            "-----BEGIN CERTIFICATE-----\n!\n-----END CERTIFICATE-----",
+        ] {
+            std::fs::write(&ca, contents).expect("CA test file");
+            assert!(RedisKvStore::connect_tls("rediss://localhost:6379", &ca).is_err());
+        }
+    }
+
+    #[test]
+    fn tls_refuses_plaintext_and_insecure_urls() {
+        let dir = tempfile::tempdir().expect("test directory");
+        let ca = dir.path().join("ca.pem");
+        let cert =
+            rcgen::generate_simple_self_signed(vec!["localhost".into()]).expect("test certificate");
+        std::fs::write(&ca, cert.cert.pem()).expect("valid CA control");
+        for url in [
+            "redis://localhost:6379",
+            "rediss://localhost:6379/#insecure",
+        ] {
+            assert!(RedisKvStore::connect_tls(url, &ca).is_err());
+        }
+        assert!(RedisKvStore::connect("rediss://localhost:6379/#insecure").is_err());
+    }
+
+    #[test]
+    fn tls_installs_a_standard_provider_without_prior_http_setup() {
+        let dir = tempfile::tempdir().expect("test directory");
+        let ca = dir.path().join("ca.pem");
+        let cert =
+            rcgen::generate_simple_self_signed(vec!["localhost".into()]).expect("test certificate");
+        std::fs::write(&ca, cert.cert.pem()).expect("CA test file");
+        let store = RedisKvStore::connect_tls("rediss://localhost:6379", &ca)
+            .expect("valid native client parameters");
+        assert!(rustls::crypto::CryptoProvider::get_default().is_some());
+        assert!(matches!(
+            store.client.get_connection_info().addr,
+            redis::ConnectionAddr::TcpTls {
+                insecure: false,
+                ..
+            }
+        ));
+        // Construction is deliberately not asserted as a successful handshake.
     }
 }

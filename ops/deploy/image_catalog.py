@@ -1,42 +1,36 @@
-"""Explicit Linux deliverables; never discover executables in a shared Cargo cache."""
+"""Validated declarative Linux deliverables; no Cargo-cache discovery."""
 import hashlib
 import json
+from pathlib import Path
+import re
 
 FRESHNESS_POLICY = "snapshot-final-v1"
 
 
-def service(directory, package, migration=None, source=None):
-    outputs = {package: package}
-    if migration:
-        outputs[migration[0]] = migration[1]
-    return {"source": source or "aiforall-" + package + ":latest",
-            "dockerfile": "services/" + directory + "/Dockerfile", "outputs": outputs,
-            "inputs": ["services/" + directory + "/"]}
+def load(path=Path(__file__).parent / "build/targets.json"):
+    value = json.loads(Path(path).read_text(encoding="utf-8"))["variable"]["inventory"]["default"]
+    if value.get("schema") != "aiforall.image-targets/v1":
+        raise ValueError("unknown image inventory schema")
+    targets = value["targets"]
+    for name, item in targets.items():
+        if (not re.fullmatch(r"[a-z][a-z0-9-]*", name)
+                or set(item) != {"source", "dockerfile", "outputs", "inputs", "features"}
+                or not isinstance(item["source"], str) or not item["source"]
+                or not isinstance(item["outputs"], dict) or not item["outputs"]
+                or not isinstance(item["inputs"], list) or not item["inputs"]
+                or not isinstance(item["features"], list)
+                or any(not isinstance(s, str) or not s for s in
+                       [item["dockerfile"], *item["outputs"], *item["outputs"].values(), *item["inputs"], *item["features"]])):
+            raise ValueError("invalid typed image target")
+    if any(not isinstance(names, list) or not names or any(n not in targets for n in names)
+           for names in value["groups"].values()):
+        raise ValueError("invalid image inventory group")
+    return value
 
 
-TARGETS = {
-    "iam": service("IAMRusty", "iam-service", ("iam-migration", "iammigration")),
-    "hive": service("Hive", "hive-service", ("hive-migration", "hivemigration")),
-    "telegraph": service("Telegraph", "telegraph-service", ("telegraph-migration", "telegraphmigration")),
-    "manifesto": service("Manifesto", "manifesto-service", ("manifesto-migration", "manifestomigration")),
-    "lazaret": service("Lazaret", "lazaret-service", ("lazaret-migration", "migration"),
-                       "aiforall-lazaret-service:local-full"),
-    "github": service("GitHubConnect", "github-connect-service"),
-    "gitlab": service("GitLabConnect", "gitlab-connect-service"),
-    "oauth": service("OAuthConnect", "oauth-connect-service"),
-    "sentinel": {"source": "aiforall-sentinel-sync:local-full", "dockerfile": "ops/deploy/build/Dockerfile.worker",
-                 "outputs": {"sentinel-sync": "sentinel-sync"}, "inputs": ["workers/sentinel-sync/"]},
-    "ext-authz": {"source": "aiforall-ext-authz:local", "dockerfile": "ops/deploy/build/Dockerfile.ext-authz",
-                  "outputs": {"ext-authz": "ext-authz"},
-                  "inputs": ["workers/ext-authz/", "services/IAMRusty/domain/"]},
-    "controller": {"source": "aiforall-apparatus-controller:j2",
-                   "dockerfile": "ops/deploy/build/Dockerfile.controller",
-                   "outputs": {"apparatus-operator": "apparatus-controller"},
-                   "inputs": ["workers/apparatus-operator/", "services/Lazaret/"],
-                   "features": ["apparatus-operator/controller"]},
-}
-
-LOCAL_FULL = ("iam", "hive", "telegraph", "manifesto", "lazaret", "sentinel", "ext-authz", "controller")
+INVENTORY = load()
+TARGETS = INVENTORY["targets"]  # Compatibility view, never a second maintained catalogue.
+LOCAL_FULL = tuple(INVENTORY["groups"]["local-full"])
 
 
 def select(names):

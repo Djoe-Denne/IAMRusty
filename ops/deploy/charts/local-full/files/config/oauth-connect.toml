@@ -1,0 +1,85 @@
+# Public declarations only. All four credentials are resolved from OpenBao.
+[server]
+host = "0.0.0.0"
+port = 8080
+tls_enabled = true
+tls_port = 8443
+tls_cert_path = "/run/connector-tls/tls.crt"
+tls_key_path = "/run/connector-tls/tls.key"
+[logging]
+level = "info"
+[openbao]
+endpoint = "https://openbao.aiforall-local-full.svc.cluster.local:8443"
+ca_cert_file = "/run/openbao-ca/ca.crt"
+allow_loopback_http = false
+[openbao.auth]
+method = "token_file"
+path = "/run/oauth-openbao/token"
+
+[[providers]]
+id = "github"
+client_id = "{{ .Values.githubClientId }}"
+redirect_uris = ["https://127.0.0.1:18080/iam/api/auth/github/callback", "https://127.0.0.1:18080/iam/api/auth/github/relink-callback"]
+scopes = ["user:email"]
+pkce_supported = false
+secrets_mode = "openbao"
+transport_security = "verified"
+token_auth_method = "client_secret_post"
+[providers.client_secret_ref]
+mount = "secret"
+path = "github-connect/oauth"
+field = "client_secret"
+[providers.hmac_secret_ref]
+mount = "secret"
+path = "github-connect/iam"
+field = "hmac_secret"
+[providers.profile]
+kind = "oauth"
+authorization_url = "https://github.com/login/oauth/authorize"
+token_url = "https://github.com/login/oauth/access_token"
+[providers.profile.apis.user]
+url = "https://api.github.com/user"
+access_token_auth = "bearer"
+headers = {Accept = "application/vnd.github+json", User-Agent = "AIForAll-OAuthConnect", X-GitHub-Api-Version = "2022-11-28"}
+[providers.profile.apis.emails]
+url = "https://api.github.com/user/emails"
+access_token_auth = "bearer"
+headers = {Accept = "application/vnd.github+json", User-Agent = "AIForAll-OAuthConnect", X-GitHub-Api-Version = "2022-11-28"}
+[providers.profile.claims]
+sub = {api = "user", json_path = "$.id"}
+preferred_username = {api = "user", json_path = "$.login"}
+email = {api = "emails", json_path = "$[?(@.primary == true)].email"}
+email_verified = {api = "emails", json_path = "$[?(@.primary == true)].verified"}
+picture = {api = "user", json_path = "$.avatar_url"}
+
+[[providers]]
+id = "simulated"
+client_id = "{{ .Values.simulatedClientId }}"
+redirect_uris = ["https://127.0.0.1:18080/iam/api/auth/simulated/callback", "https://127.0.0.1:18080/iam/api/auth/simulated/relink-callback"]
+scopes = ["read_user"]
+pkce_supported = true
+secrets_mode = "openbao"
+# Local-only exception: never copied to the GitHub instance or a cloud profile.
+transport_security = "isolated_test"
+token_auth_method = "client_secret_post"
+[providers.client_secret_ref]
+mount = "secret"
+path = "oauth-connect/simulated/oauth"
+field = "client_secret"
+[providers.hmac_secret_ref]
+mount = "secret"
+path = "oauth-connect/simulated/iam"
+field = "hmac_secret"
+[providers.profile]
+kind = "oauth"
+# Browser reaches this future E2E endpoint through the anchored loopback forward.
+authorization_url = "http://127.0.0.1:18081/oauth/authorize"
+token_url = "http://oauth-idp-simulator:8080/oauth/token"
+[providers.profile.apis.user]
+url = "http://oauth-idp-simulator:8080/user"
+access_token_auth = "bearer"
+[providers.profile.claims]
+sub = {api = "user", json_path = "$.id"}
+preferred_username = {api = "user", json_path = "$.username"}
+email = {api = "user", json_path = "$.email"}
+email_verified = {api = "user", json_path = "$.email_verified"}

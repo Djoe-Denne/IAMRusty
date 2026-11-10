@@ -1,0 +1,38 @@
+[server]
+host = "0.0.0.0"
+port = 8080
+tls_enabled = true
+tls_port = 8443
+tls_cert_path = "/run/connector-tls/tls.crt"
+tls_key_path = "/run/connector-tls/tls.key"
+[auth.jwt]
+platform_issuer = "http://127.0.0.1:8080/iam"
+allow_historical_platform_issuer = false
+audience = "aiforall"
+jwks_url = "http://iam:8080/iam/.well-known/jwks.json"
+allowed_algorithms = ["RS256"]
+[logging]
+level = "info"
+[github]
+secrets_mode = "openbao"
+pkce_supported = false
+client_id = "{{ .Values.githubClientId }}"
+auth_url = "https://github.com/login/oauth/authorize"
+token_url = "https://github.com/login/oauth/access_token"
+user_url = "https://api.github.com/user"
+redirect_uris = ["http://127.0.0.1:18080/iam/api/auth/github/callback", "http://127.0.0.1:18080/iam/api/auth/github/relink-callback"]
+[github.client_secret_ref]
+mount = "secret"
+path = "github-connect/oauth"
+field = "client_secret"
+[github.hmac_secret_ref]
+mount = "secret"
+path = "github-connect/iam"
+field = "hmac_secret"
+[openbao]
+endpoint = "https://openbao.aiforall-local-full.svc.cluster.local:8443"
+ca_cert_file = "/run/openbao-ca/ca.crt"
+allow_loopback_http = false
+[openbao.auth]
+method = "token_file"
+path = "/run/github-openbao/token"

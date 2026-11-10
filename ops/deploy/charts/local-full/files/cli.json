@@ -1,0 +1,324 @@
+{
+  "deploy": [
+    [
+      [
+        "action"
+      ],
+      {
+        "choices": [
+          "render",
+          "deploy",
+          "inventory",
+          "refresh",
+          "up",
+          "stop",
+          "status"
+        ]
+      }
+    ],
+    [
+      [
+        "--lease"
+      ],
+      {
+        "type": "path"
+      }
+    ],
+    [
+      [
+        "--image-manifest"
+      ],
+      {
+        "type": "path"
+      }
+    ],
+    [
+      [
+        "--registry-state"
+      ],
+      {
+        "type": "path"
+      }
+    ],
+    [
+      [
+        "--environment-dir"
+      ],
+      {
+        "type": "path",
+        "default": "~/.aiforall-local-full"
+      }
+    ],
+    [
+      [
+        "--release-manifest"
+      ],
+      {
+        "type": "path"
+      }
+    ],
+    [
+      [
+        "--previous-release-manifest"
+      ],
+      {
+        "type": "path"
+      }
+    ],
+    [
+      [
+        "--targets"
+      ],
+      {
+        "help": "explicit comma-separated image-only refresh targets"
+      }
+    ],
+    [
+      [
+        "--cert-directory"
+      ],
+      {
+        "type": "path"
+      }
+    ],
+    [
+      [
+        "--output-dir"
+      ],
+      {
+        "type": "path"
+      }
+    ],
+    [
+      [
+        "--isolated-plugins"
+      ],
+      {
+        "action": "store_true"
+      }
+    ],
+    [
+      [
+        "--namespace-wiring-confirmed"
+      ],
+      {
+        "action": "store_true"
+      }
+    ],
+    [
+      [
+        "--confirm-quiesce"
+      ],
+      {
+        "action": "store_true"
+      }
+    ],
+    [
+      [
+        "--after-final-it"
+      ],
+      {
+        "action": "store_true"
+      }
+    ],
+    [
+      [
+        "--oauth-proof"
+      ],
+      {
+        "action": "store_true"
+      }
+    ],
+    [
+      [
+        "--oauth-proof-input-file"
+      ],
+      {
+        "type": "path"
+      }
+    ],
+    [
+      [
+        "--github-openbao"
+      ],
+      {
+        "action": "store_true"
+      }
+    ],
+    [
+      [
+        "--github-input-file"
+      ],
+      {
+        "type": "path"
+      }
+    ],
+    [
+      [
+        "--oauth-connect"
+      ],
+      {
+        "action": "store_true"
+      }
+    ],
+    [
+      [
+        "--preserve-platform-tls"
+      ],
+      {
+        "action": "store_true",
+        "help": "OAuthConnect activation only: leave acknowledged existing platform TLS Secrets untouched"
+      }
+    ],
+    [
+      [
+        "--simulated-input-file"
+      ],
+      {
+        "type": "path"
+      }
+    ]
+  ],
+  "render": [
+    [
+      [
+        "--output-dir"
+      ],
+      {
+        "type": "path",
+        "required": true
+      }
+    ],
+    [
+      [
+        "--run-id"
+      ],
+      {
+        "default": "staticvalidation"
+      }
+    ],
+    [
+      [
+        "--image-manifest"
+      ],
+      {
+        "type": "path"
+      }
+    ],
+    [
+      [
+        "--cert-identity"
+      ],
+      {
+        "default": ""
+      }
+    ],
+    [
+      [
+        "--oauth-proof"
+      ],
+      {
+        "action": "store_true"
+      }
+    ],
+    [
+      [
+        "--github-openbao"
+      ],
+      {
+        "action": "store_true"
+      }
+    ],
+    [
+      [
+        "--oauth-connect"
+      ],
+      {
+        "action": "store_true"
+      }
+    ],
+    [
+      [
+        "--phase"
+      ],
+      {
+        "default": "final"
+      }
+    ]
+  ],
+  "storage": [
+    [
+      [
+        "action"
+      ],
+      {
+        "choices": [
+          "backup",
+          "restore"
+        ]
+      }
+    ],
+    [
+      [
+        "--lease"
+      ],
+      {
+        "type": "path",
+        "required": true
+      }
+    ],
+    [
+      [
+        "--archive"
+      ],
+      {
+        "type": "path",
+        "required": true
+      }
+    ],
+    [
+      [
+        "--volume"
+      ],
+      {
+        "default": "postgres"
+      }
+    ],
+    [
+      [
+        "--database"
+      ],
+      {
+        "default": "manifesto_dev"
+      }
+    ],
+    [
+      [
+        "--target-namespace"
+      ],
+      {}
+    ],
+    [
+      [
+        "--target-database"
+      ],
+      {}
+    ],
+    [
+      [
+        "--confirm-quiesce"
+      ],
+      {
+        "action": "store_true"
+      }
+    ],
+    [
+      [
+        "--confirm-restore"
+      ],
+      {
+        "action": "store_true"
+      }
+    ]
+  ]
+}

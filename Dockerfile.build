@@ -1,8 +1,7 @@
 # syntax=docker/dockerfile:1
 # rustc 1.94 : Cargo.lock (aws-sdk/smithy) exige rustc >= 1.91.1.
 # Même base que runtime/monolith/Dockerfile.
-# Le cache BuildKit (registre Cargo + target/) survit aux relances :
-# un changement de script ne recompile pas tout le workspace.
+# Registry/git downloads may be cached; compiled Cargo outputs never are.
 FROM rust:1.94-slim-bookworm AS builder
 
 # Install build dependencies
@@ -14,7 +13,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nasm \
     perl \
     pkg-config \
-    python3 \
     libssl-dev \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -24,22 +22,28 @@ WORKDIR /usr/src
 COPY . .
 
 ENV CARGO_TERM_COLOR=never
-# Keep Linux delivery artifacts in their cache, not the copied Windows target-dir.
-# Cargo's configured 24 jobs remain unchanged.
-ENV CARGO_TARGET_DIR=/usr/src/target
+# Outside the copied checkout and without a cache mount: every uncached build
+# starts with an empty Linux target. Cargo's configured 24 jobs stay unchanged.
+ENV CARGO_TARGET_DIR=/var/tmp/aiforall-cargo-target
 ARG DELIVERY_PROFILE=workspace
 ARG SOURCE_REVISION=unattested
 ARG SDK_REVISION=unattested
-ARG IMAGE_TARGETS
 ARG CARGO_PROFILE=release
-ARG TARGET_CACHE=aiforall-workspace-target-bookworm
+# Bake supplies package/bin/feature arguments from targets.json. The default
+# retains the legacy Compose whole-workspace build, including its controller.
+ARG CARGO_BUILD_ARGS="--workspace --bins --features apparatus-operator/controller"
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,id=${TARGET_CACHE},sharing=locked,target=/usr/src/target \
-    python3 ops/deploy/build/compile-artifacts.py
+    cargo build --locked --profile "$CARGO_PROFILE" $CARGO_BUILD_ARGS \
+    && install -d /opt/release \
+    && find "$CARGO_TARGET_DIR/$CARGO_PROFILE" -maxdepth 1 -type f -perm /111 \
+       -exec install -m 0755 -t /opt/release {} + \
+    && printf '%s' "$DELIVERY_PROFILE" > /opt/release/delivery-profile \
+    && printf '%s' "$SOURCE_REVISION" > /opt/release/source-revision \
+    && printf '%s' "$SDK_REVISION" > /opt/release/sdk-revision
 
-# Release binaries only. The Cargo target stays in the BuildKit cache.
-FROM rust:1.94-slim-bookworm AS artifacts
+# Executables only, not the toolchain, source tree or Cargo dependencies.
+FROM debian:bookworm-slim AS artifacts
 
 WORKDIR /app
 

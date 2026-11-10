@@ -1,0 +1,2 @@
+# The checksum attests upstream bytes, independently of Windows core.autocrlf.
+base/calico.yaml -text

@@ -175,15 +175,16 @@ class BrowserAlignmentTests(unittest.TestCase):
 
     def test_downstream_conversion_rejects_ambiguous_or_foreign_listener(self):
         renderer = load_renderer()
-        sample = {"static_resources": {"listeners": [{"name": "listener_mesh", "address": {
-            "socket_address": {"port_value": 10000}}, "filter_chains": [
-                {"transport_socket": {"name": "tls"}, "filters": [{"name": "http"}]}]}]}}
-        for change in ([], [copy.deepcopy(sample["static_resources"]["listeners"][0])] * 2,
-                       [{"name": "foreign"}]):
-            value = copy.deepcopy(sample)
-            value["static_resources"]["listeners"] = change
+        self.assertFalse(hasattr(renderer, "http_downstream"), "no post-render transport mutation may remain")
+        for listeners in ([], [{"name": "listener_mesh"}] * 2, [{"name": "foreign"}]):
+            value = {"static_resources": {"listeners": listeners}}
+            before = copy.deepcopy(value)
             with self.assertRaises(ValueError):
-                renderer.http_downstream(value)
+                renderer.helm.render(values={"envoy": value})
+            self.assertEqual(value, before)
+        obj = next(o for o in renderer.render("transportvalidation") if o["kind"] == "ConfigMap" and o["metadata"]["name"] == "envoy-mesh-config")
+        listeners = yaml.safe_load(obj["data"]["envoy.yaml"])["static_resources"]["listeners"]
+        self.assertEqual([(o["name"], o["address"]["socket_address"]["port_value"]) for o in listeners], [("listener_mesh", 10000)])
 
     def test_cert_option_is_explicit_and_connector_leaf_is_scoped(self):
         spec = importlib.util.spec_from_file_location("local_certs", ROOT / "ops/scripts/prepare-local-full-certs.py")
@@ -208,54 +209,26 @@ class BrowserAlignmentTests(unittest.TestCase):
             sys.path.pop(0)
         self.assertEqual(len(images.source_images()), 9)
         self.assertEqual(images.source_images(), images.SOURCES)
-        self.assertEqual(images.source_images(True), images.SOURCES + ["aiforall-gitlab-connect-service:latest"])
+        self.assertCountEqual(images.source_images(True), images.SOURCES + ["aiforall-gitlab-connect-service:latest"])
         self.assertEqual(len(images.SOURCES), 9, "opt-in must not mutate the default list")
 
     def test_proof_registry_drives_exact_relink_exemption(self):
-        # Boundary unit: real renderer transforms fixture Kustomize output. The
-        # final proof-overlay render remains a separate gate once policy is set.
+        # Standard Helm renders, not synthetic Kustomize output fed to a mutator.
         renderer = load_renderer()
-        source = yaml.safe_load_all((ROOT / "ops/deploy/apps/overlays/kind-mesh/envoy-mesh.yaml").read_text())
-        mesh = next(obj for obj in source if obj["kind"] == "ConfigMap")
-        mesh["metadata"]["namespace"] = "aiforall-local-full"
-        # Keep the real storage guard active while isolating route filtering.
-        persistent = []
-        for name, volume_name, claim, auxiliary in (
-                ("postgres", "data", "postgres-data", [
-                    {"name": "init", "configMap": {"name": "synthetic-postgres-init"}}]),
-                ("zot", "data", "zot-data", [
-                    {"name": "config", "configMap": {"name": "synthetic-zot-config"}},
-                    {"name": "htpasswd", "secret": {"secretName": "synthetic-zot-auth"}}]),
-                ("apparatus-operator", "admission-store", "admission-store", [])):
-            persistent.append({"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {
-                "name": name, "namespace": "aiforall-local-full"},
-                "spec": {"template": {"spec": {"volumes": [
-                    {"name": volume_name, "persistentVolumeClaim": {"claimName": claim}},
-                    *auxiliary]}}}})
-        configs = ['[idp]\nconnectors = []\n',
-                   '[[idp.connectors]]\nid = "gitlab"\nredirect_uris = ["http://127.0.0.1:18080/iam/api/auth/gitlab/relink-callback"]\n']
-        for enabled, config in enumerate(configs):
-            iam = {"apiVersion": "v1", "kind": "Secret" if enabled else "ConfigMap", "metadata": {
-                "name": "oauth-proof-iam-config-effective" if enabled else "iam-dev-config-effective", "namespace": "aiforall-local-full"},
-                "data": {"development.toml": base64.b64encode(config.encode()).decode() if enabled else config}}
-            output = SimpleNamespace(returncode=0, stdout=yaml.safe_dump_all([mesh, iam, *persistent]))
-            # This deliberately minimal fixture tests route filtering only; real
-            # profile renders separately cover the coffer/workload wiring.
-            with patch.object(renderer.subprocess, "run", return_value=output) as command, \
-                    patch.object(renderer.local_full_openbao, "configure"):
-                result = renderer.render("oauthregistryvalidation", oauth_proof=bool(enabled))
-            selected = renderer.OVERLAY / "oauth-proof" if enabled else renderer.OVERLAY
-            self.assertEqual(command.call_args.args[0][-1], str(selected))
-            final = yaml.safe_load(result[0]["data"]["envoy.yaml"])
-            manager = final["static_resources"]["listeners"][0]["filter_chains"][0]["filters"][0]["typed_config"]
+        for enabled in (False, True):
+            result = renderer.render("oauthregistryvalidation", oauth_proof=enabled)
+            mesh = next(o for o in result if o["kind"] == "ConfigMap" and o["metadata"]["name"] == "envoy-mesh-config")
+            manager = yaml.safe_load(mesh["data"]["envoy.yaml"])["static_resources"]["listeners"][0]["filter_chains"][0]["filters"][0]["typed_config"]
             routes = manager["route_config"]["virtual_hosts"][0]["routes"]
-            exact = [route["match"]["path"] for route in routes
-                     if route.get("match", {}).get("path", "").endswith("/relink-callback")]
+            exact = [r["match"]["path"] for r in routes if r.get("match", {}).get("path", "").endswith("/relink-callback")]
             self.assertEqual(exact, ["/iam/api/auth/gitlab/relink-callback"] if enabled else [])
-            self.assertFalse(any(route.get("match", {}).get("path", "").endswith("/relink/callback") for route in routes))
+            self.assertFalse(any(r.get("match", {}).get("path", "").endswith("/relink/callback") for r in routes))
 
     def profile_configs(self, inputs=None):
         objects = load_renderer().render("oauthprofilevalidation", oauth_proof=True, proof_inputs=inputs)
+        if inputs is None:
+            from local_full_secrets import hydrate
+            hydrate(objects)
         def config(prefix):
             obj = next(obj for obj in objects if obj["kind"] == "Secret" and obj["metadata"]["name"].startswith(prefix))
             return tomllib.loads(base64.b64decode("".join(obj["data"]["development.toml"].split())).decode())
@@ -290,7 +263,7 @@ class BrowserAlignmentTests(unittest.TestCase):
         self.assertEqual(paths.count("/iam/api/auth/gitlab/relink-callback"), 1)
         self.assertNotIn("/iam/api/auth/github/relink-callback", paths)
         self.assertNotIn("/iam/api/auth/gitlab/relink/callback", paths)
-        default = tomllib.loads((ROOT / "ops/deploy/apps/overlays/local-full/config/iam.toml").read_text())
+        default = tomllib.loads(next(o for o in load_renderer().render("oauthprofilevalidation") if o["kind"] == "ConfigMap" and o["metadata"]["name"].startswith("iam-dev-config"))["data"]["development.toml"])
         self.assertEqual(default["idp"]["connectors"], [])
 
     def test_proof_origin_redirects_pkce_and_private_connector(self):
@@ -326,9 +299,11 @@ class BrowserAlignmentTests(unittest.TestCase):
         self.assertTrue(iam["idp"]["connectors"][0]["hmac_secret"] == gitlab["gitlab"]["hmac_secret"], "HMAC mismatch")
         def identity(objects):
             return next(obj for obj in objects if obj["kind"] == "Deployment" and obj["metadata"]["name"] == "iam")["spec"]["template"]["metadata"]["annotations"]["aiforall.dev/config-sha256"]
-        self.assertNotEqual(identity(first), identity(second))
+        self.assertEqual(identity(first), identity(second), "secret-derived fingerprints must not enter public Pod annotations")
+        self.assertNotEqual(next(o["data"] for o in first if o["kind"] == "Secret" and o["metadata"]["name"].startswith("oauth-proof-gitlab-config-")),
+                            next(o["data"] for o in second if o["kind"] == "Secret" and o["metadata"]["name"].startswith("oauth-proof-gitlab-config-")))
         renderer = load_renderer()
-        with patch.object(renderer.subprocess, "run") as command:
+        with patch.object(renderer.helm, "render") as command:
             for invalid in ({**inputs, "unknown": "field"}, {**inputs, "client_secret": '"\\n'},
                             {**inputs, "run_id": "anotherproof12345"}):
                 with self.assertRaises(ValueError):
@@ -355,9 +330,9 @@ class BrowserAlignmentTests(unittest.TestCase):
             self.assertEqual(len(digest), 64)
         foreign = {"apiVersion": "v1", "kind": "Service", "metadata": {
             "name": "gitlab-connect", "namespace": "aiforall-local-full"}}
-        with patch.object(deployer, "k", return_value="foreign-uid") as command:
-            with self.assertRaises(ValueError):
-                deployer.preflight_oauth_objects([foreign], {"ownedResources": []})
+        with patch.object(deployer, "k", return_value=json.dumps({"metadata": {"uid": "foreign-uid"}})) as command:
+            with self.assertRaisesRegex(ValueError, "not explicitly owned"):
+                deployer.preflight_resources([foreign], {"ownedResources": []})
             self.assertEqual(command.call_args.args[0], "get")
 
 

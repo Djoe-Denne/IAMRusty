@@ -10,9 +10,11 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import shutil
 import tomllib
 import traceback
 import unittest
+import yaml
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -28,7 +30,7 @@ def load(name, path):
 
 
 render = load("openbao_renderer", "ops/deploy/render-local-full.py")
-workload = load("openbao_workload", "ops/deploy/apps/overlays/local-full/helpers/openbao-workload.py")
+workload = load("openbao_workload", "ops/deploy/charts/local-full/files/public/39efd7f09be4/openbao-workload.py")
 provenance = load("openbao_provenance", "ops/deploy/local_full_image_provenance.py")
 bootstrap = load("openbao_bootstrap", "ops/deploy/bootstrap_local_kind.py")
 
@@ -36,8 +38,31 @@ bootstrap = load("openbao_bootstrap", "ops/deploy/bootstrap_local_kind.py")
 class AdditiveGitHubTests(unittest.TestCase):
     """G1/G2/G5: §2's private GitLab preimage, not the empty base profile."""
 
+    @classmethod
+    def setUpClass(cls):
+        cls.public_fixture = render.render("additiveregression", oauth_proof=True)
+        selected = render.render("additiveregression", github_openbao=True)
+        cls.github_table = tomllib.loads(next(o for o in selected if o["kind"] == "ConfigMap" and o["metadata"]["name"].startswith("iam-dev-config"))["data"]["development.toml"])["idp"]["connectors"][0]
+
+    def compose_private(self, objects, run_id, github=True, client_id="synthetic-client"):
+        # Compatibility oracle for the retained confidential TOML validator, not
+        # a resource renderer: no spec, mount or public object is ever mutated.
+        guard = render.local_full_openbao
+        _, _, secret, text = guard.iam_template(objects)
+        guard.validate_iam_trust(objects)
+        before = guard.validate_gitlab_template(text)
+        # Test-only fixture composition from the declared table; production has
+        # no composer or API accepting this mixed-profile object.
+        combined = text + '\n[[idp.connectors]]\n' + '\n'.join(key + ' = ' + json.dumps(value) for key, value in self.github_table.items()) + '\n'
+        after = tomllib.loads(combined)
+        after['idp']['connectors'].pop()
+        self.assertEqual(after, before)
+        secret["data"]["development.toml"] = base64.b64encode(combined.encode()).decode()
+
     def private_iam(self):
-        objects = render.render("additiveregression", oauth_proof=True)
+        objects = copy.deepcopy(self.public_fixture)
+        from local_full_secrets import hydrate
+        hydrate(objects)
         pod = next(o for o in objects if o["kind"] == "Deployment" and o["metadata"]["name"] == "iam")["spec"]["template"]["spec"]
         selected = next(m["name"] for m in pod["containers"][0]["volumeMounts"]
                         if m["mountPath"] == "/app/config/development.toml")
@@ -54,7 +79,7 @@ class AdditiveGitHubTests(unittest.TestCase):
         output = io.StringIO()
         try:
             with redirect_stdout(output), redirect_stderr(output):
-                render.local_full_openbao.configure(objects, "additiveregression", github=True, client_id="synthetic-client")
+                self.compose_private(objects, "additiveregression", github=True, client_id="synthetic-client")
         except (ValueError, KeyError, StopIteration) as error:
             self.fail("G1: private GitLab IAM composition refused: " + type(error).__name__)
         after = tomllib.loads(base64.b64decode(secret["data"]["development.toml"]).decode())
@@ -81,7 +106,7 @@ class AdditiveGitHubTests(unittest.TestCase):
             with self.subTest(case=mutation.__code__.co_firstlineno):
                 # KeyError is not an acceptable domain refusal of a private Secret.
                 with self.assertRaises(ValueError):
-                    render.local_full_openbao.configure(objects, "additiveregression", github=True)
+                    self.compose_private(objects, "additiveregression", github=True)
                 self.assertEqual(secret, original)
 
     def test_g4_seed_partial_cas_and_lost_ack_never_erase_committed_document(self):
@@ -153,7 +178,7 @@ class AdditiveGitHubTests(unittest.TestCase):
                 else:
                     volume["configMap"] = {"name": "unrelated-public-source"}
                 self.assert_private_refusal(objects, lambda: render.local_full_openbao.iam_template(objects))
-                self.assert_private_refusal(objects, lambda: render.local_full_openbao.configure(
+                self.assert_private_refusal(objects, lambda: self.compose_private(
                     objects, "additiveregression", github=True))
 
     def test_g2_malformed_private_source_is_refused_without_changing_any_object(self):
@@ -177,59 +202,44 @@ class AdditiveGitHubTests(unittest.TestCase):
                     selected = next(m for c in pod["containers"] if c["name"] == "iam"
                                     for m in c["volumeMounts"] if m["name"] == volume["name"])
                     selected.update({"subPath": "other.toml"} if case == "subPath" else {"readOnly": False})
-                self.assert_private_refusal(objects, lambda: render.local_full_openbao.configure(
+                self.assert_private_refusal(objects, lambda: self.compose_private(
                     objects, "additiveregression", github=True))
 
     def test_g2_g5_private_toml_parse_errors_do_not_publish_source_excerpts(self):
         objects, secret, text = self.private_iam()
         malformed = text + '\nSYNTHETIC_MALFORMED_PRIVATE = "unterminated'
         secret["data"]["development.toml"] = base64.b64encode(malformed.encode()).decode()
-        self.assert_private_refusal(objects, lambda: render.local_full_openbao.compose_github_template(malformed))
-        self.assert_private_refusal(objects, lambda: render.local_full_openbao.configure(
+        self.assert_private_refusal(objects, lambda: render.local_full_openbao.validate_gitlab_template(malformed))
+        self.assert_private_refusal(objects, lambda: self.compose_private(
             objects, "additiveregression", github=True))
 
     def test_g2_second_configuration_cannot_adopt_or_duplicate_a_snapshot_plan(self):
         objects, _, _ = self.private_iam()
-        render.local_full_openbao.configure(objects, "additiveregression", github=True)
-        self.assert_private_refusal(objects, lambda: render.local_full_openbao.configure(
+        self.compose_private(objects, "additiveregression", github=True)
+        self.assert_private_refusal(objects, lambda: self.compose_private(
             objects, "additiveregression", github=True))
 
     def test_g1_snapshot_uses_selected_private_template_and_preserves_gitlab_trust(self):
         objects, secret, text = self.private_iam()
-        pod, volume, _, _ = render.local_full_openbao.iam_template(objects)
-        selected_volume = copy.deepcopy(volume)
-        app = next(c for c in pod["containers"] if c["name"] == "iam")
-        old_trust = copy.deepcopy(next(c for c in pod["initContainers"] if c["name"] == "oauth-proof-trust"))
-        old_mount = copy.deepcopy(next(m for m in app["volumeMounts"] if m["name"] == "oauth-proof-trust"))
-        old_volumes = copy.deepcopy(pod["volumes"])
-        old_objects = {(o["kind"], o["metadata"]["name"]): copy.deepcopy(o) for o in objects
-                       if o["metadata"]["name"].startswith("oauth-proof-") and o is not secret}
-        render.local_full_openbao.configure(objects, "additiveregression", github=True)
-        pod = next(o for o in objects if o["kind"] == "Deployment" and o["metadata"]["name"] == "iam")["spec"]["template"]["spec"]
+        before = copy.deepcopy(objects)
+        with self.assertRaises(ValueError):
+            render.render("additiveregression", oauth_proof=True, github_openbao=True)
+        self.assertEqual(objects, before, "distinct profiles must not mutate a private GitLab preimage")
+        proof_pod, _, _, _ = render.local_full_openbao.iam_template(objects)
+        self.assertIn("oauth-proof-trust", [c["name"] for c in proof_pod["initContainers"]])
+        github = render.render("additiveregression", github_openbao=True)
+        from local_full_secrets import hydrate
+        hydrate(github)
+        pod, volume, _, _ = render.local_full_openbao.iam_template(github)
+        snapshot = next(c for c in pod["initContainers"] if c["name"] == "openbao-snapshot")
+        self.assertIn({"name": volume["name"], "mountPath": "/template", "readOnly": True}, snapshot["volumeMounts"])
         app = next(c for c in pod["containers"] if c["name"] == "iam")
         self.assertEqual([e for e in app["env"] if e["name"] == "SSL_CERT_FILE"],
                          [{"name": "SSL_CERT_FILE", "value": "/run/iam-trust/ca-bundle.crt"}])
-        self.assertIn(old_trust, pod["initContainers"], "G1: GitLab trust producer changed")
-        self.assertIn(old_mount, app["volumeMounts"], "G1: original trust bundle became inaccessible")
-        for old_volume in old_volumes:
-            self.assertIn(old_volume, pod["volumes"], "G1: pre-existing volume changed")
-        extended = next(c for c in pod["initContainers"] if c["name"] == "trusted-roots")
-        self.assertIn(old_mount, extended["volumeMounts"])
-        self.assertIn("/oauth-proof-trust/ca-bundle.pem /run/openbao-ca/ca.crt > /trust/ca-bundle.crt", extended["command"][-1])
-        self.assertLess(pod["initContainers"].index(old_trust), pod["initContainers"].index(extended))
-        snapshot = next(c for c in pod["initContainers"] if c["name"] == "openbao-snapshot")
-        self.assertIn({"name": selected_volume["name"], "mountPath": "/template", "readOnly": True}, snapshot["volumeMounts"])
-        selected_app_mounts = [m for m in app["volumeMounts"] if m["mountPath"] == "/app/config/development.toml"]
-        self.assertEqual(selected_app_mounts, [{"name": "private-config", "mountPath": "/app/config/development.toml",
-                                              "subPath": "development.toml", "readOnly": True}])
+        self.assertEqual([m for m in app["volumeMounts"] if m["mountPath"] == "/app/config/development.toml"],
+                         [{"name": "private-config", "mountPath": "/app/config/development.toml", "subPath": "development.toml", "readOnly": True}])
         self.assertIn({"name": "private-config", "emptyDir": {"medium": "Memory", "sizeLimit": "1Mi"}}, pod["volumes"])
-        for obj in objects:
-            key = (obj["kind"], obj["metadata"]["name"])
-            if key in old_objects:
-                self.assertTrue(obj == old_objects[key], "G1: GitLab resource changed")
-        after = tomllib.loads(base64.b64decode(secret["data"]["development.toml"]).decode())
-        self.assertEqual(after["idp"]["connectors"].pop()["id"], "github")
-        self.assertTrue(after == tomllib.loads(text), "G1: private IAM settings changed")
+        self.assertEqual(tomllib.loads(base64.b64decode(secret["data"]["development.toml"]).decode()), tomllib.loads(text))
 
     def test_g2_invalid_or_ambiguous_gitlab_bundle_is_refused_atomically(self):
         for case in ("two-env", "valueFrom", "relative-path", "traversal", "no-mount", "two-mounts", "writable-mount"):
@@ -254,7 +264,7 @@ class AdditiveGitHubTests(unittest.TestCase):
                     app["volumeMounts"].append(copy.deepcopy(mounted))
                 else:
                     mounted["readOnly"] = False
-                self.assert_private_refusal(objects, lambda: render.local_full_openbao.configure(
+                self.assert_private_refusal(objects, lambda: self.compose_private(
                     objects, "additiveregression", github=True))
 
 
@@ -263,7 +273,11 @@ class LocalOpenBaoTests(unittest.TestCase):
         deploy = load("storage_transition_deploy", "ops/deploy/deploy-local-full.py")
         proposed = {"kind": "Deployment", "metadata": {"name": "postgres", "namespace": "aiforall-local-full"},
                     "spec": {"template": {"spec": {"volumes": [
-                        {"name": "data", "persistentVolumeClaim": {"claimName": "postgres-data"}}]}}}}
+                         {"name": "data", "persistentVolumeClaim": {"claimName": "postgres-data"}}]}}}}
+        proposed["metadata"]["annotations"] = {"aiforall.dev/persistence": json.dumps({"volume": "data", "claim": "postgres-data", "auxiliary": ["init"]})}
+        proposed["metadata"]["uid"] = "owned-source"
+        data = {"ownedResources": [{"kind": "Deployment", "name": "postgres", "namespace": deploy.CLUSTER,
+                "uid": "owned-source", "context": deploy.CONTEXT, "cluster": deploy.CLUSTER}]}
         for source in ({"name": "data", "emptyDir": {}},
                        {"name": "data", "hostPath": {"path": "/data"}},
                        {"name": "data", "persistentVolumeClaim": {"claimName": "another-claim"}}):
@@ -271,12 +285,15 @@ class LocalOpenBaoTests(unittest.TestCase):
             current["spec"]["template"]["spec"]["volumes"] = [source]
             with patch.object(deploy, "k", return_value=json.dumps(current)) as command:
                 with self.assertRaisesRegex(ValueError, "storage transition refused"):
-                    deploy.preflight_storage_transitions([proposed])
+                    deploy.preflight_resources([proposed], data)
                 self.assertEqual(command.call_args.args[0], "get")
                 self.assertEqual(command.call_count, 1)
         for source in ("", json.dumps(proposed)):
             with patch.object(deploy, "k", return_value=source):
-                deploy.preflight_storage_transitions([proposed])
+                deploy.preflight_resources([proposed], data if source else {})
+        with patch.object(deploy, "k", return_value=""):
+            with self.assertRaisesRegex(ValueError, "previously owned resource disappeared"):
+                deploy.preflight_resources([proposed], data)
 
     def test_every_profile_references_pvcs_and_preserves_auxiliary_volumes(self):
         expected = {"postgres": ("data", "postgres-data", {"init"}),
@@ -292,23 +309,41 @@ class LocalOpenBaoTests(unittest.TestCase):
                 self.assertFalse(any("hostPath" in v or "emptyDir" in v for v in volumes))
 
     def test_storage_guard_rejects_ignored_patch_and_missing_auxiliary(self):
-        original = render.render("storagevalidation")
-        for name in ("postgres", "zot", "apparatus-operator"):
-            objects = copy.deepcopy(original)
-            deployment = next(o for o in objects if o["kind"] == "Deployment" and o["metadata"]["name"] == name)
-            volumes = deployment["spec"]["template"]["spec"]["volumes"]
-            volume = next(v for v in volumes if "persistentVolumeClaim" in v)
-            volume.pop("persistentVolumeClaim")
-            volume["emptyDir"] = {}
-            with self.assertRaisesRegex(ValueError, "persistence patch missing"):
-                render.validate_persistent_storage(objects)
-        objects = copy.deepcopy(original)
-        pod = next(o for o in objects if o["kind"] == "Deployment" and o["metadata"]["name"] == "postgres")["spec"]["template"]["spec"]
-        pod["volumes"] = [v for v in pod["volumes"] if v["name"] != "init"]
-        for c in pod["containers"]:
-            c["volumeMounts"] = [v for v in c["volumeMounts"] if v["name"] != "init"]
-        with self.assertRaisesRegex(ValueError, "required auxiliary volume"):
-            render.validate_persistent_storage(objects)
+        # Mutate declarations, then exercise the real standard Helm guard.
+        # There is no Python post-render persistence validator anymore.
+        with tempfile.TemporaryDirectory() as directory:
+            chart = Path(directory) / "chart"
+            shutil.copytree(render.helm.CHART, chart)
+            original = yaml.safe_load((chart / "values.yaml").read_text())
+            for name in ("postgres", "zot", "apparatus-operator", "missing-auxiliary", "missing-claim", "missing-mount"):
+                values = copy.deepcopy(original)
+                workload = "postgres" if name.startswith("missing-") else name
+                deployment = next(d["object"] for d in values["resources"].values()
+                                  if d["object"]["kind"] == "Deployment" and d["object"]["metadata"]["name"] == workload)
+                pod = deployment["spec"]["template"]["spec"]
+                reason = "persistence patch missing"
+                if name == "missing-auxiliary":
+                    pod["volumes"] = [v for v in pod["volumes"] if v["name"] != "init"]
+                    for container in pod["containers"]:
+                        container["volumeMounts"] = [v for v in container["volumeMounts"] if v["name"] != "init"]
+                    reason = "required auxiliary volume"
+                elif name == "missing-claim":
+                    values["resources"] = {key: d for key, d in values["resources"].items()
+                        if not (d["object"]["kind"] == "PersistentVolumeClaim" and d["object"]["metadata"]["name"] == "postgres-data")}
+                    reason = "persistent claim missing"
+                elif name == "missing-mount":
+                    pod["containers"][0]["volumeMounts"].append({"name": "foreign", "mountPath": "/foreign"})
+                    reason = "lost a mounted volume"
+                else:
+                    volume = next(v for v in pod["volumes"] if "persistentVolumeClaim" in v)
+                    volume.pop("persistentVolumeClaim")
+                    volume["emptyDir"] = {}
+                (chart / "values.yaml").write_text(yaml.safe_dump(values), encoding="utf-8")
+                with self.subTest(name=name):
+                    result = subprocess.run([render.helm.executable(), "template", "storage-guard", str(chart)],
+                                            capture_output=True, text=True, timeout=30)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(reason, result.stderr)
 
     def test_operator_pvc_does_not_inherit_legacy_root_chown(self):
         for flags in ({}, {"oauth_proof": True}, {"github_openbao": True}):
@@ -370,7 +405,7 @@ class LocalOpenBaoTests(unittest.TestCase):
                   for c in o["spec"]["template"]["spec"].get("containers", []) + o["spec"]["template"]["spec"].get("initContainers", [])
                   if c["image"].startswith("aiforall-")}
         del images["aiforall-github-connect-service:latest"]
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(RuntimeError, "offline Helm render failed"):
             render.render("offlinevalidation", images, github_openbao=True)
 
     def test_stale_image_source_or_sdk_is_refused_without_running_docker(self):

@@ -1,0 +1,5 @@
+{
+  "description": "Publicly known development fixtures, NOT operator credentials; never emitted by Helm. No production use.",
+  "__LOCAL_OAUTH_STATE__": "b9a3475cd01f826ee684f2703acb15d96c02e85147bd6a3905f8a63e12d9c407",
+  "__LOCAL_GRANT_HMAC__": "manifesto-grant-snapshot-dev-hs256"
+}

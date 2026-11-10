@@ -97,8 +97,6 @@ async fn get_or_create_test_redis_container() -> Result<u16, Box<dyn std::error:
         return Ok(port);
     }
 
-    cleanup_existing_redis_container();
-
     let port = {
         let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
         listener.local_addr()?.port()
@@ -133,13 +131,123 @@ async fn get_or_create_test_redis_container() -> Result<u16, Box<dyn std::error:
     Ok(port)
 }
 
-fn cleanup_existing_redis_container() {
-    use std::process::Command;
-    debug!("Checking for existing lazaret_test-redis");
-    let _ = Command::new("docker")
-        .args(["stop", "lazaret_test-redis"])
-        .output();
-    let _ = Command::new("docker")
-        .args(["rm", "-f", "lazaret_test-redis"])
-        .output();
+/// TLS mode of the same real Redis fixture, supervised by the existing harness.
+/// The initial plaintext listener is only used to seed data and test rejection;
+/// [`Self::disable_plaintext`] switches this owned fixture to TLS-only in place.
+pub struct TestRedisTls {
+    container: rustycog::testing::common::OwnedTestContainer,
+    directory: tempfile::TempDir,
+    pub plaintext_port: u16,
+    pub tls_port: u16,
+}
+
+impl TestRedisTls {
+    pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        use rcgen::{BasicConstraints, CertificateParams, IsCa, KeyPair};
+        use testcontainers::core::ContainerPort::Tcp;
+
+        let ca_key = KeyPair::generate()?;
+        let mut ca_params = CertificateParams::default();
+        ca_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+        let ca = ca_params.self_signed(&ca_key)?;
+        let server_key = KeyPair::generate()?;
+        // No IP SAN: connecting to 127.0.0.1 instead of localhost must fail.
+        let server = CertificateParams::new(vec!["localhost".into()])?.signed_by(
+            &server_key,
+            &ca,
+            &ca_key,
+        )?;
+        let directory = tempfile::tempdir()?;
+        std::fs::write(directory.path().join("ca.pem"), ca.pem())?;
+        let name = format!("lazaret-test-redis-tls-{}", uuid::Uuid::new_v4().simple());
+        // The supervisor requires a known, nonzero port before creation.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let tls_port = listener.local_addr()?.port();
+        let plain_listener = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let plaintext_port = plain_listener.local_addr()?.port();
+        drop(listener);
+        drop(plain_listener);
+        let image = GenericImage::new("redis", "7-alpine")
+            .with_exposed_port(Tcp(6379))
+            .with_mapped_port(plaintext_port, Tcp(6379))
+            .with_mapped_port(tls_port, Tcp(6380))
+            .with_container_name(&name)
+            .with_copy_to("/tls/server.crt", server.pem().into_bytes())
+            .with_copy_to("/tls/server.key", server_key.serialize_pem().into_bytes())
+            .with_copy_to("/tls/ca.crt", ca.pem().into_bytes())
+            .with_cmd([
+                "redis-server",
+                "--port",
+                "6379",
+                "--tls-port",
+                "6380",
+                "--tls-cert-file",
+                "/tls/server.crt",
+                "--tls-key-file",
+                "/tls/server.key",
+                "--tls-ca-cert-file",
+                "/tls/ca.crt",
+                "--tls-auth-clients",
+                "no",
+                "--timeout",
+                "2",
+            ]);
+        let container = rustycog::testing::common::start_service_testcontainer(
+            image.start(),
+            "redis-tls",
+            &name,
+            tls_port,
+        )
+        .await?;
+        let plaintext_port = container.mapped_port(Tcp(6379)).await?;
+        let tls_port = container.mapped_port(Tcp(6380)).await?;
+        let fixture = Self {
+            container,
+            directory,
+            plaintext_port,
+            tls_port,
+        };
+        // Readiness uses the real plaintext protocol only for the seed listener;
+        // TLS readiness/validation is asserted by actual KV operations in tests.
+        for _ in 0..40 {
+            let client = redis::Client::open(fixture.plaintext_url())?;
+            if let Ok(mut connection) = client.get_connection_with_timeout(Duration::from_secs(1)) {
+                let ping: redis::RedisResult<String> = redis::cmd("PING").query(&mut connection);
+                if ping.ok().as_deref() == Some("PONG") {
+                    fixture.container.ready()?;
+                    return Ok(fixture);
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        Err("Redis TLS fixture seed listener readiness timeout".into())
+    }
+
+    pub fn ca_path(&self) -> std::path::PathBuf {
+        self.directory.path().join("ca.pem")
+    }
+
+    pub fn url(&self) -> String {
+        format!("rediss://localhost:{}", self.tls_port)
+    }
+
+    pub fn plaintext_url(&self) -> String {
+        format!("redis://127.0.0.1:{}", self.plaintext_port)
+    }
+
+    pub fn disable_plaintext(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let client = redis::Client::open(self.plaintext_url())?;
+        let mut connection = client.get_connection_with_timeout(Duration::from_secs(2))?;
+        redis::cmd("CONFIG")
+            .arg("SET")
+            .arg("port")
+            .arg(0)
+            .query::<()>(&mut connection)?;
+        Ok(())
+    }
+
+    pub async fn cleanup(self) -> Result<(), String> {
+        self.container.stop().await?;
+        self.container.rm().await
+    }
 }

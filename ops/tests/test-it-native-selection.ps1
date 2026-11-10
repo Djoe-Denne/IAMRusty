@@ -16,6 +16,17 @@ $names = @('apparatus_p3_t4_gateway', 'apparatus_p3_t5_consent')
 foreach ($name in $names) {
     if ((Resolve-ItTestBinary -Suites @('manifesto') -Binary $name) -cne $name) { throw 'Valid named selection rejected' }
 }
+if ((Resolve-ItTestBinary -Suites @('lazaret') -Binary 'redis_tls') -cne 'redis_tls') {
+    throw 'Valid exact Lazaret Redis TLS selection rejected'
+}
+foreach ($suites in @(@('iam'), @('manifesto'), @('Lazaret'), @('lazaret','iam'), @('lazaret','lazaret'))) {
+    try { $null = Resolve-ItTestBinary -Suites $suites -Binary 'redis_tls'; throw 'unexpected-accept' }
+    catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Cross-suite Redis TLS selection accepted' } }
+}
+foreach ($binary in @('REDIS_TLS', ' redis_tls', 'redis_tls ', 'redis_tls.exe', 'tests/redis_tls.rs', 'redis_tls; anything')) {
+    try { $null = Resolve-ItTestBinary -Suites @('lazaret') -Binary $binary; throw 'unexpected-accept' }
+    catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Non-exact Redis TLS selection accepted' } }
+}
 $oauthBinary = 'oauth_browser_transactions'
 if ((Resolve-ItTestBinary -Suites @('iam') -Binary $oauthBinary) -cne $oauthBinary) { throw 'Valid IAM OAuth selection rejected' }
 $iamBinaries = @(
@@ -81,9 +92,11 @@ $branch = $ast.Find({ param($node)
 }, $true)
 if ($null -eq $branch) { throw 'Missing actual Cargo selection branch' }
 function cargo { $script:seen = @($args) }
-$packages = @{manifesto='manifesto-service'; iam='iam-service'}
-foreach ($selected in @('manifesto', 'iam')) {
-    $selections = if ($selected -eq 'iam') { @('') + $iamBinaries } else { @('', $names[0], $names[1]) }
+$packages = @{manifesto='manifesto-service'; iam='iam-service'; lazaret='lazaret-service'}
+foreach ($selected in @('manifesto', 'iam', 'lazaret')) {
+    $selections = if ($selected -eq 'iam') { @('') + $iamBinaries }
+                  elseif ($selected -eq 'lazaret') { @('', 'redis_tls') }
+                  else { @('', $names[0], $names[1]) }
     foreach ($testBinary in $selections) {
         $script:seen = @()
         . ([scriptblock]::Create($branch.Extent.Text))
@@ -92,4 +105,4 @@ foreach ($selected in @('manifesto', 'iam')) {
         if (($script:seen -join '|') -cne ($expected -join '|')) { throw 'Actual Cargo arguments do not match the closed selection' }
     }
 }
-Write-Host 'PASS: exact IAM OAuth/Manifesto selections, default compatibility, refusals, placement and actual Cargo branches; no runtime executed'
+Write-Host 'PASS: exact IAM OAuth/Manifesto/Lazaret Redis TLS selections, default compatibility, refusals, placement and actual Cargo branches; no runtime executed'

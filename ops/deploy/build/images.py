@@ -46,32 +46,34 @@ def inspect(reference):
     return values[0]
 
 
-def build(context, recipe, reference, arguments, labels, work, owner, *, builder, cold=False):
-    iid = work / "image-id"
-    if iid.exists():
-        iid.unlink()
-    args = ["docker", "buildx", "build", "--builder", builder, "--platform", "linux/amd64", "--load", "--provenance=false",
-            "--iidfile", str(iid), "--tag", reference, "--file", str(context / recipe)]
-    for key, value in arguments.items():
-        args.extend(["--build-arg", key + "=" + value])
-    for key, value in labels.items():
-        args.extend(["--label", key + "=" + value])
-    if cold:
-        args.extend(["--no-cache-filter", "builder"])
-    args.append(str(context))
-    result = subprocess.run(args)
-    # Register the returned ID before subsequent validation, also on a late CLI
-    # failure. No image/cache deletion is part of this tool.
-    if iid.exists():
-        record_image(iid.read_text().strip(), owner)
-    elif result.returncode:
-        record_image("UNKNOWN", owner, opaque=True)
-    if result.returncode or not iid.exists():
-        raise RuntimeError("Linux image build failed; no manifest published")
-    value = inspect(reference)
-    if value is None or value["Id"] != iid.read_text().strip():
-        raise ValueError("built image ID changed before verification")
-    return value
+def bake(context, names, overrides, work, owner, *, builder):
+    """Only runtime tags/provenance vary; recipes and dependencies belong to Bake."""
+    override = work / "invocation.json"
+    override.write_text(json.dumps(overrides), encoding="utf-8")
+    metadata = work / "bake-metadata.json"
+    args = ["docker", "buildx", "bake", "--builder", builder,
+            "-f", "ops/deploy/build/targets.json", "-f", "ops/deploy/build/docker-bake.hcl",
+            "-f", str(override), "--metadata-file", str(metadata), "artifacts", *names]
+    # Do not let ambient Bake variables replace attested inputs or recipes.
+    reserved = {k.casefold() for k in {*overrides["variable"], "inventory", "BUILDX_BAKE_FILE", "BUILDX_BAKE_FILES"}}
+    env = {k: v for k, v in os.environ.items()
+           if k.casefold() not in reserved}
+    result = subprocess.run(args, cwd=context, env=env)
+    receipts = json.loads(metadata.read_text(encoding="utf-8")) if metadata.is_file() else {}
+    values = {}
+    for name in overrides["target"]:
+        image_id = receipts.get(name, {}).get("containerimage.config.digest", "UNKNOWN")
+        record_image(image_id, owner, opaque=image_id == "UNKNOWN")
+    if result.returncode:
+        raise RuntimeError("Linux Bake build failed; no manifest published")
+    for name, item in overrides["target"].items():
+        image_id = receipts.get(name, {}).get("containerimage.config.digest", "UNKNOWN")
+        value = inspect(item["tags"][0])
+        if (value is None or value["Id"] != image_id or value.get("Os") != "linux"
+                or value.get("Architecture") != "amd64"):
+            raise ValueError("Bake output identity/platform disagrees with its receipt")
+        values[name] = value
+    return values
 
 
 def run(args):
@@ -136,25 +138,24 @@ def run(args):
         # This belongs to the owned snapshot; the operator's ignore file is untouched.
         (context / ".dockerignore").write_text(".git\n**/.env\n**/.env.*\n", encoding="utf-8")
         if pending:
-            # Keep Cargo feature unification stable for the requested selection.
-            # Cargo decides which artifacts need rebuilding; only pending images
-            # are repackaged below.
-            arguments = {"DELIVERY_PROFILE": "images", "IMAGE_TARGETS": ",".join(sorted(targets)),
-                         "CARGO_PROFILE": profile, "SOURCE_REVISION": snapshot["revision"], "SDK_REVISION": snapshot["sdk_revision"]}
             artifacts_ref = "local/build-artifacts:inputs-" + snapshot["sha256"] + "-" + work.name
-            artifacts = build(context, "Dockerfile.build", artifacts_ref, arguments, {}, work, args.owner, builder=builder)
+            variables = {"IMAGE_TARGETS": ",".join(sorted(targets)), "CARGO_PROFILE": profile,
+                         "SOURCE_REVISION": snapshot["revision"], "SDK_REVISION": snapshot["sdk_revision"],
+                         "ARTIFACTS_REF": artifacts_ref}
+            overrides = {"variable": {k: {"default": v} for k, v in variables.items()},
+                         "target": {"artifacts": {"tags": [artifacts_ref]}}}
             for name, labels in pending:
-                require_unchanged(snapshot)
-                labels = {**labels, "org.opencontainers.image.revision": snapshot["revision"],
-                          "aiforall.dev.sdk-revision": snapshot["sdk_revision"]}
-                if inspect(artifacts_ref)["Id"] != artifacts["Id"]:
-                    raise ValueError("owned artifact reference changed before packaging")
-                arguments = {"BUILD_IMAGE": artifacts_ref, "SOURCE_REVISION": snapshot["revision"], "SDK_REVISION": snapshot["sdk_revision"]}
-                value = build(context, targets[name]["dockerfile"], records[name]["local_ref"], arguments, labels, work, args.owner, builder=builder)
+                overrides["target"][name] = {"tags": [records[name]["local_ref"]], "labels": {
+                    **labels, "org.opencontainers.image.revision": snapshot["revision"],
+                    "aiforall.dev.sdk-revision": snapshot["sdk_revision"]}}
+            require_unchanged(snapshot)
+            values = bake(context, [name for name, _ in pending], overrides, work, args.owner, builder=builder)
+            require_unchanged(snapshot)
+            for name, _ in pending:
+                value = values[name]
+                labels = overrides["target"][name]["labels"]
                 if any(value["Config"].get("Labels", {}).get(k) != v for k, v in labels.items()):
                     raise ValueError("built image did not retain expected source labels")
-                if inspect(artifacts_ref)["Id"] != artifacts["Id"]:
-                    raise ValueError("owned artifact reference changed during packaging")
                 records[name]["image_id"] = value["Id"]
                 records[name]["build_revision"] = snapshot["revision"]
                 records[name]["sdk_revision"] = snapshot["sdk_revision"]

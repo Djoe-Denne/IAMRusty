@@ -1,0 +1,214 @@
+{{- if .Values.openbao.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: openbao
+    app.kubernetes.io/part-of: aiforall
+---
+# Same narrow TokenReview capability as the existing platform, not auth-delegator.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Namespace }}-token-review
+  labels:
+    app.kubernetes.io/part-of: aiforall
+rules:
+  - apiGroups: [authentication.k8s.io]
+    resources: [tokenreviews]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Namespace }}-token-review
+  labels:
+    app.kubernetes.io/part-of: aiforall
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Release.Namespace }}-token-review
+subjects:
+  - kind: ServiceAccount
+    name: openbao
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openbao-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: openbao
+    app.kubernetes.io/part-of: aiforall
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.openbao.storageClass | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.openbao.storageSize | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kind-local-openbao-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: openbao
+    app.kubernetes.io/part-of: aiforall
+data:
+  openbao.hcl: |
+    ui = true
+    disable_mlock = true
+    api_addr = "https://openbao.{{ .Release.Namespace }}.svc.cluster.local:8443"
+    cluster_addr = "https://openbao.{{ .Release.Namespace }}.svc.cluster.local:8444"
+    storage "raft" {
+      path = "/openbao/data"
+      node_id = "openbao-local"
+    }
+    listener "tcp" {
+      address = "0.0.0.0:8443"
+      cluster_address = "0.0.0.0:8444"
+      tls_cert_file = "/tls/tls.crt"
+      tls_key_file = "/tls/tls.key"
+      tls_min_version = "tls12"
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbao
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: openbao
+    app.kubernetes.io/part-of: aiforall
+spec:
+  selector:
+    app.kubernetes.io/name: openbao
+  ports:
+    - name: https
+      port: 8443
+      targetPort: https
+    - name: cluster
+      port: 8444
+      targetPort: cluster
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openbao
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: openbao
+    app.kubernetes.io/component: secrets
+    app.kubernetes.io/part-of: aiforall
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openbao
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openbao
+        app.kubernetes.io/component: secrets
+        app.kubernetes.io/part-of: aiforall
+    spec:
+      serviceAccountName: openbao
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: openbao
+          image: {{ .Values.openbao.image | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [bao]
+          args: [server, -config=/openbao/config/openbao.hcl]
+          env:
+            - name: BAO_ADDR
+              value: https://127.0.0.1:8443
+            - name: BAO_TLS_SERVER_NAME
+              value: openbao.{{ .Release.Namespace }}.svc.cluster.local
+            - name: BAO_CACERT
+              value: /tls/ca.crt
+            - name: BAO_DISABLE_REDIRECTS
+              value: "true"
+            - name: BAO_TOKEN_PATH
+              value: /dev/null
+          ports:
+            - name: https
+              containerPort: 8443
+            - name: cluster
+              containerPort: 8444
+          readinessProbe:
+            exec:
+              command: [bao, status]
+            periodSeconds: 5
+            timeoutSeconds: 5
+          # Status 2 means sealed/uninitialized: live, not ready. No startup
+          # deadline is allowed to restart a server waiting for operator input.
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - code=0; bao status >/dev/null 2>&1 || code=$?; test "$code" -eq 0 -o "$code" -eq 2
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /openbao/data
+            - name: config
+              mountPath: /openbao/config
+              readOnly: true
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: openbao-data
+        - name: config
+          configMap:
+            name: kind-local-openbao-config
+        - name: tls
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Values.openbao.tlsSecret }}
+                  items:
+                    - key: tls.crt
+                      path: tls.crt
+                    - key: tls.key
+                      path: tls.key
+              - secret:
+                  name: {{ .Values.openbao.caSecret }}
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+{{- end }}
