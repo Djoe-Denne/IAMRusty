@@ -11,7 +11,7 @@ command -v "$PYTHON" >/dev/null || { echo 'Python required (set PYTHON to its ex
 export PYTHONUTF8=1
 command -v kubectl >/dev/null || { echo 'kubectl required for offline kustomize rendering' >&2; exit 1; }
 HELM=${AIFORALL_HELM:-helm}
-command -v "$HELM" >/dev/null || { echo 'Helm required for offline local-full rendering' >&2; exit 1; }
+command -v "$HELM" >/dev/null || { echo 'Helm required for offline native Kind rendering' >&2; exit 1; }
 
 scripts=0
 while IFS= read -r -d '' script; do
@@ -82,14 +82,13 @@ print("OK rendered resource identities:", len(docs))
   renders=$((renders + 1))
 done < <(find ops/deploy -type f \( -name kustomization.yaml -o -name kustomization.yml \) -print0)
 [ "$renders" -eq 8 ] || { echo 'Expected exactly eight Kustomize renders (including pinned Calico)' >&2; exit 1; }
-chart=ops/deploy/charts/local-full
-helm_renders=0
-for profile in base gitlab-proof github-openbao oauth-connect; do
-  for phase in foundation quiesce dependencies bootstrap applications-first final; do
-    profile_values="ops/deploy/profiles/local-full/$profile.yaml"
-    phase_values="ops/deploy/profiles/local-full/phases/$phase.yaml"
-    "$HELM" lint "$chart" --strict -f "$profile_values" -f "$phase_values" >/dev/null
-    "$HELM" template local-full "$chart" -f "$profile_values" -f "$phase_values" | "$PYTHON" -c '
+chart=ops/deploy/charts/kind-minimal
+flags=(-f ops/deploy/build/targets.json)
+for setting in applications.enabled=true buildTag=offline-static openbao.create=true postgres.create=true postgres.initialize=true redis.create=true openfga.create=true openfga.inspect=true openfga.initialize=true localstack.create=true localstack.initialize=true network.create=true zot.create=true; do
+  flags+=(--set "$setting")
+done
+"$HELM" lint "$chart" --strict "${flags[@]}" >/dev/null
+"$HELM" template kind-local "$chart" --namespace aiforall-local-full "${flags[@]}" | "$PYTHON" -c '
 import sys, yaml
 docs = [d for d in yaml.safe_load_all(sys.stdin) if d is not None]
 if not docs or any(not isinstance(d, dict) or not d.get("apiVersion") or not d.get("kind") or not d.get("metadata", {}).get("name") for d in docs):
@@ -103,9 +102,5 @@ for doc in docs:
             if key.endswith((".yaml", ".yml")):
                 list(yaml.safe_load_all(content))
 '
-    helm_renders=$((helm_renders + 1))
-  done
-done
-[ "$helm_renders" -eq 24 ] || { echo 'Expected all 24 local-full Helm renders' >&2; exit 1; }
-printf 'OK Helm lint and offline renders: %s\n' "$helm_renders"
+printf 'OK native Helm lint and offline render\n'
 printf 'OK shell syntax: %s scripts; offline renders: %s\n' "$scripts" "$renders"

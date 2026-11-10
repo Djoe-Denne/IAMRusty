@@ -2057,9 +2057,6 @@ class IAMSecretMetadataTests(unittest.TestCase):
         native = patch.object(anchor.subprocess, "run", side_effect=AssertionError("unarranged process"))
         self.native = native.start()
         self.addCleanup(native.stop)
-        capture = patch("private_diagnostics.capture_failure")
-        self.capture = capture.start()
-        self.addCleanup(capture.stop)
         self.fixture_number = 0
 
     def fixture(self, **kwargs):
@@ -2085,7 +2082,6 @@ class IAMSecretMetadataTests(unittest.TestCase):
         self.assertEqual(len(fixture.commands.api()), 14, "connection UID must bracket both observations")
         self.assertTrue(all(command[5:] == ["get", "namespace", "kube-system", "-o", "jsonpath={.metadata.uid}"]
                             for command in fixture.commands.api()))
-        self.capture.assert_not_called()
         self.clear_calls(fixture)
 
     def refused(self, fixture, *, before_probe=False, body=None):
@@ -2109,7 +2105,6 @@ class IAMSecretMetadataTests(unittest.TestCase):
                              "private qualification details must not escape through a formatted traceback")
         self.assertIsNone(failure.__cause__)
         self.assertIsNone(failure.__context__, "private exception must not survive in formatted traceback")
-        self.capture.assert_not_called()
         if before_probe:
             self.assertEqual(fixture.commands.calls, [], "invalid authority must fail before even local probes")
             self.native.assert_not_called()
@@ -2259,7 +2254,6 @@ class IAMSecretMetadataTests(unittest.TestCase):
                                                   "-n", fixture.namespace, "-o", projection])
                     names.append(command[7])
         self.assertEqual(names, [IAMMetadataFixture.original[0]] * 2 + [IAMMetadataFixture.template[0]] * 2)
-        self.capture.assert_not_called()
 
     def test_g2_read_resource_roles_are_not_free_names_or_output_requests(self):
         fixture = self.fixture()

@@ -1,7 +1,6 @@
 """Offline standard-tool oracles; no Docker daemon, Kubernetes API or Cargo."""
 import copy
 import hashlib
-import importlib.util
 import json
 import os
 from pathlib import Path
@@ -14,14 +13,11 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
+spec_path = ROOT / "ops/deploy/build/targets.json"
+INVENTORY = json.loads(spec_path.read_text())["variable"]["inventory"]["default"]
+TARGETS = INVENTORY["targets"]
 sys.path.insert(0, str(ROOT / "ops/deploy"))
 import bootstrap_local_kind as bootstrap
-import image_catalog as catalog
-import image_sources as sources
-
-spec = importlib.util.spec_from_file_location("bake_builder", ROOT / "ops/deploy/build/images.py")
-builder = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(builder)
 
 
 class DeclarativeToolsTests(unittest.TestCase):
@@ -50,7 +46,7 @@ class DeclarativeToolsTests(unittest.TestCase):
 
     def test_bake_resolves_catalogue_and_shared_artifact_graph(self):
         value = self.bake_print()
-        for name, item in catalog.TARGETS.items():
+        for name, item in TARGETS.items():
             with self.subTest(target=name):
                 resolved = value["target"][name]
                 self.assertEqual(resolved["dockerfile"], item["dockerfile"])
@@ -61,12 +57,12 @@ class DeclarativeToolsTests(unittest.TestCase):
         self.assertEqual(value["target"]["artifacts"]["dockerfile"], "Dockerfile.build")
 
     def test_direct_groups_and_targets_share_image_superset_not_monolith(self):
-        selections = {"default": catalog.INVENTORY["groups"]["local-full"], **catalog.INVENTORY["groups"],
-                      **{name: [name] for name in catalog.TARGETS}}
-        superset = catalog.INVENTORY["groups"]["workspace"]
-        self.assertEqual(set(superset), set(catalog.TARGETS))
-        outputs = {b for name in superset for b in catalog.TARGETS[name]["outputs"].values()}
-        features = {f for name in superset for f in catalog.TARGETS[name]["features"]}
+        selections = {"default": INVENTORY["groups"]["local-full"], **INVENTORY["groups"],
+                      **{name: [name] for name in TARGETS}}
+        superset = INVENTORY["groups"]["workspace"]
+        self.assertEqual(set(superset), set(TARGETS))
+        outputs = {b for name in superset for b in TARGETS[name]["outputs"].values()}
+        features = {f for name in superset for f in TARGETS[name]["features"]}
         self.assertNotIn("oodhive-monolith", outputs)
         self.assert_native_selection(superset, outputs, features)
         for entry, expected in selections.items():
@@ -91,7 +87,7 @@ class DeclarativeToolsTests(unittest.TestCase):
         for entries in combinations:
             expected = set()
             for entry in entries:
-                expected.update(catalog.INVENTORY["groups"].get(
+                expected.update(INVENTORY["groups"].get(
                     "local-full" if entry == "default" else entry, [entry]))
             name = "github" if "github" in expected else "iam"
             settings = (name + ".tags=review-" + name + ":custom",
@@ -131,7 +127,7 @@ class DeclarativeToolsTests(unittest.TestCase):
             value = self.bake_print(extra=override, targets=("github",))
             self.assertEqual(set(value["target"]), {"github", "artifacts"})
             self.assertEqual(value["target"]["artifacts"]["args"]["IMAGE_TARGETS"], "github")
-            self.assert_native_selection(["github"], set(catalog.TARGETS["github"]["outputs"].values()), set())
+            self.assert_native_selection(["github"], set(TARGETS["github"]["outputs"].values()), set())
 
     def test_new_target_and_invocation_provenance_need_no_python_recipe(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -147,7 +143,6 @@ class DeclarativeToolsTests(unittest.TestCase):
             data["groups"]["local-full"].append("synthetic")
             data["groups"]["workspace"].append("synthetic")
             (directory / "targets.json").write_text(json.dumps(inventory))
-            self.assertIn("synthetic", catalog.load(directory / "targets.json")["targets"])
             direct = self.bake_print(root, targets=("synthetic",))
             self.assertEqual(direct["target"]["artifacts"]["args"]["IMAGE_TARGETS"].split(","), data["groups"]["workspace"])
             grouped = self.bake_print(root, targets=("local-full",))
@@ -160,17 +155,6 @@ class DeclarativeToolsTests(unittest.TestCase):
             self.assertEqual(value["target"]["synthetic"]["tags"], ["synthetic:inputs-fixture"])
             self.assertEqual(value["target"]["synthetic"]["labels"]["aiforall.dev.sdk-revision"], "d" * 40)
             self.assertEqual(value["target"]["artifacts"]["args"]["IMAGE_TARGETS"], "synthetic")
-
-    def test_inventory_types_and_unknown_groups_fail_closed(self):
-        raw = json.loads((ROOT / "ops/deploy/build/targets.json").read_text())
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "bad.json"
-            raw["variable"]["inventory"]["default"]["targets"]["hive"]["features"] = "not-a-list"
-            path.write_text(json.dumps(raw))
-            with self.assertRaises(ValueError):
-                catalog.load(path)
-        with self.assertRaises(ValueError):
-            catalog.select(["unknown"])
 
     def test_calico_real_kustomize_exact_pin_cidr_and_felix(self):
         self.tool("kubectl")
@@ -227,42 +211,6 @@ class DeclarativeToolsTests(unittest.TestCase):
                         bootstrap.initialize(Path("private-fixture"), "aiforall-local-full", Path("cluster-local-full.yaml"), True)
                     render.assert_not_called()
                     self.assertFalse(any("apply" in a for a, _ in calls))
-
-    def test_failed_bake_registers_opaque_outputs_and_never_verifies_as_success(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            work = Path(tmp)
-            overrides = {"variable": {}, "target": {"artifacts": {"tags": ["fixture:artifacts"]},
-                                                       "hive": {"tags": ["fixture:hive"]}}}
-            with patch.object(builder.subprocess, "run", return_value=subprocess.CompletedProcess([], 1)), \
-                    patch.object(builder, "inspect") as inspect, patch.object(builder, "record_image") as record:
-                with self.assertRaises(RuntimeError):
-                    builder.bake(work, ["hive"], overrides, work, "fixture", builder="existing")
-            inspect.assert_not_called()
-            self.assertEqual(record.call_count, 2)
-            self.assertTrue(all(c.kwargs["opaque"] for c in record.call_args_list))
-
-    def test_bake_adapter_invokes_one_graph_not_per_image_builds(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            work = Path(tmp)
-            ids = {name: "sha256:" + char * 64 for name, char in (("artifacts", "a"), ("hive", "b"), ("iam", "c"))}
-            overrides = {"variable": {"SDK_REVISION": {"default": "d" * 40}},
-                         "target": {name: {"tags": [name + ":fixture"]} for name in ids}}
-            def fake_run(args, **kwargs):
-                self.assertEqual(args[:3], ["docker", "buildx", "bake"])
-                self.assertEqual(args[-3:], ["artifacts", "hive", "iam"])
-                self.assertEqual(kwargs["cwd"], work)
-                self.assertNotIn("SDK_REVISION", kwargs["env"])
-                (work / "bake-metadata.json").write_text(json.dumps({
-                    k: {"containerimage.config.digest": v} for k, v in ids.items()}))
-                return subprocess.CompletedProcess(args, 0)
-            def inspect(ref):
-                return {"Id": ids[ref.split(":")[0]], "Os": "linux", "Architecture": "amd64"}
-            with patch.object(builder.subprocess, "run", side_effect=fake_run) as run, \
-                    patch.object(builder, "inspect", side_effect=inspect), patch.object(builder, "record_image") as record:
-                values = builder.bake(work, ["hive", "iam"], overrides, work, "fixture", builder="existing")
-            self.assertEqual(set(values), set(ids))
-            self.assertEqual(run.call_count, 1)
-            self.assertEqual(record.call_count, 3)
 
 
 if __name__ == "__main__":

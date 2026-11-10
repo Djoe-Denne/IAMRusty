@@ -92,9 +92,7 @@ mod tests {
 
     #[test]
     fn local_full_default_projection_policy_is_explicit_and_aligned() {
-        let source = include_str!(
-            "../../../ops/deploy/charts/local-full/files/public/43f454880cd0/sentinel-sync.toml"
-        );
+        let source = include_str!("../tests/fixtures/local-projection.toml");
         let config: SentinelSyncConfig = Config::builder()
             .add_source(File::from_str(source, FileFormat::Toml))
             .build()

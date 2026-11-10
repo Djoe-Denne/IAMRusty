@@ -248,7 +248,7 @@ function Invoke-KindOpenBaoBootstrap {
             if (-not $ProductOutputDirectory -or -not [IO.Path]::IsPathRooted($ProductOutputDirectory) -or
                 (Test-Path -LiteralPath $ProductOutputDirectory)) { throw 'A new absolute product output directory is required.' }
         }
-        $publicFile = Join-Path $PSScriptRoot 'charts/local-full/files/openbao/bootstrap.json'
+        $publicFile = Join-Path $PSScriptRoot 'openbao/bootstrap.json'
         $public = ConvertFrom-KindBaoJson ([IO.File]::ReadAllText($publicFile))
         $policies = @()
         foreach ($name in @($TokenConsumers) + @($KubernetesRoles)) {

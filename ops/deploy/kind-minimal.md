@@ -197,8 +197,12 @@ LocalStack3.0.2 sait aussi accepter HTTP sur son listener multiplexé : tous les
 consommateurs de ce profil doivent utiliser explicitement HTTPS, pas un fallback.
 `OPS-OPENBAO-262-REDIRECTS` reste ouvert pour Agent auto-auth.
 
-Python historique : façade `legacy-deploy-local-full` et campagnes séparées,
-jamais appelées ici. `local_full_target.py` reste notamment consommé par les outils
-k6 Windows/Linux ; ces consommateurs ne sont pas déclarés migrés et leurs modules
-ne sont pas supprimés aveuglément. Aucun nouveau test n'est écrit dans cette
-finalisation, conformément à la direction utilisateur.
+L'ancien framework Python, sa façade legacy, son chart/profils et ses tests
+exclusifs sont supprimés. Les seules exceptions dans `ops/deploy` sont
+`local_full_target.py` (gardes encore consommées par common.ps1/k6 Windows/Linux)
+et `bootstrap_local_kind.py` (wrappers Kind/CNI historiques). Ils ne sont jamais
+appelés par cette entrée ; leur migration n'est pas annoncée acquise. La PKI
+Python et le registre applicatif sont retirés, pas le registre P4/plugins.
+Les déclarations Bao sont désormais dans `ops/deploy/openbao/bootstrap.json`.
+Aucun nouveau test n'est écrit ; seuls les imports/chemins des vérifications
+conservées sont adaptés au retrait de leurs anciens supports.

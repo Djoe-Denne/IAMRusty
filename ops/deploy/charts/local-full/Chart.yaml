@@ -1,9 +1,0 @@
-apiVersion: v2
-name: local-full
-description: Offline local-full declarations; apply authority and private hydration remain external.
-type: application
-version: 0.1.0
-appVersion: "local-full"
-annotations:
-  aiforall.dev/helm-version: v4.3.1+gc0d08d0
-  aiforall.dev/architecture: ADR-0609-Proposed

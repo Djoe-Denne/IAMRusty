@@ -328,21 +328,14 @@ def run(command, **kwargs):
             kwargs["input"] = value.encode(encoding, errors="strict")
         except (UnicodeError, LookupError):
             raise AnchorError("invalid target input encoding; output redacted") from None
-    from private_diagnostics import capture_failure
-    try:
-        result = subprocess.run(command, capture_output=True, check=False, **kwargs)
-    except subprocess.TimeoutExpired as error:
-        capture_failure(command, error.output, error.stderr, timeout=True)
-        raise
+    result = subprocess.run(command, capture_output=True, check=False, **kwargs)
     if result.returncode:
-        capture_failure(command, result.stdout, result.stderr, result.returncode)
         raise AnchorError("target operation failed; output redacted")
     if textual:
         try:
             output = result.stdout.decode(encoding, errors="strict")
             result.stderr.decode(encoding, errors="strict")
         except (UnicodeError, LookupError):
-            capture_failure(command, result.stdout, result.stderr, result.returncode, reason="strict text decoding failed")
             raise AnchorError("invalid target text encoding; output redacted") from None
         return output.replace("\r\n", "\n").replace("\r", "\n")
     return result.stdout
@@ -1293,7 +1286,7 @@ class LocalClusterTargetAnchor:
         return selected
 
     def _iam_metadata_read(self, authority, resource):
-        """Internal fixed projections only; sanitize BEFORE run/capture_failure.
+        """Internal fixed projections only; sanitize BEFORE native invocation.
 
         Use the same kubectl connection/credentials/environment, but never the
         generic runner: it captures error buffers before its caller can redact.

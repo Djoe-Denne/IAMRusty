@@ -10,7 +10,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = ROOT / "ops/deploy/openbao-cli.psm1"
-PUBLIC = ROOT / "ops/deploy/charts/local-full/files/openbao/bootstrap.json"
+PUBLIC = ROOT / "ops/deploy/openbao/bootstrap.json"
 NEW_BUNDLE = {"unseal_keys_b64": ["ZmFrZS11bnNlYWwtc2VudGluZWw="],
               "unseal_shares": 1, "unseal_threshold": 1,
               "root_token": "fake-root-private-sentinel"}

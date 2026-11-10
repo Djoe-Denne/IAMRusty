@@ -1,4 +1,4 @@
-# Public declarations only. All four credentials are resolved from OpenBao.
+# Historical public catalogue fixture. All four credentials are resolved from OpenBao.
 [server]
 host = "0.0.0.0"
 port = 8080

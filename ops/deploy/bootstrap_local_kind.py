@@ -69,6 +69,4 @@ def main():
 
 
 if __name__ == "__main__":
-    from private_diagnostics import operation
-    with operation("bootstrap-kind"):
-        main()
+    main()

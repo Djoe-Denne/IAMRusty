@@ -205,10 +205,6 @@ kind-local-build build_tag:
 kind-local-import build_tag:
     & ./ops/deploy/kind-local-images.ps1 -Action import -BuildTag "{{build_tag}}"
 
-# Historical campaign interface only; never called by the native launcher.
-legacy-deploy-local-full action="render" *args:
-    python ./ops/deploy/deploy-local-full.py {{action}} {{args}}
-
 # Daily entry now uses the same native rebuild/keep-data path.
 local-up: kind-local
 

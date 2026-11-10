@@ -4,8 +4,8 @@ use oauth_connect_configuration::{validate_config, AppConfig, ProviderProfile};
 
 #[test]
 fn local_ops_github_and_simulated_catalogue_matches_the_typed_service_contract() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../ops/deploy/charts/local-full/files/config/oauth-connect.toml");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ops-connect.toml");
     let source = std::fs::read_to_string(path).expect("public ops configuration");
     let source = source
         .replace("__GITHUB_CLIENT_ID__", "synthetic-github")

@@ -4,7 +4,6 @@ Envoy v1.31.2 common.proto defines match_typed_subject_alt_names. Identities
 come from the certificate generators, independently of SNI or DNS routing.
 The real same-CA/wrong-name control remains a separate runtime gate.
 """
-import importlib.util
 import re
 import unittest
 from pathlib import Path
@@ -71,33 +70,6 @@ class UpstreamServerIdentityTests(unittest.TestCase):
         for cluster, short in SHORT_NAMES.items():
             with self.subTest(cluster=cluster):
                 self.assertEqual(issued[short], "DNS:" + KIND_NAMES[cluster])
-        spec = importlib.util.spec_from_file_location("local_certs", ROOT / "ops/scripts/prepare-local-full-certs.py")
-        full = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(full)
-        profiles = {name: sans for _, name, sans in full.leaf_profiles()}
-        for name in ("iam", "hive", "telegraph", "manifesto"):
-            self.assertEqual(profiles[name + "-service"], [
-                "DNS:" + name + "-service", "DNS:" + name,
-                "DNS:" + name + ".aiforall-local-full.svc.cluster.local", "DNS:localhost", "IP:127.0.0.1",
-            ])
-        for name in ("envoy-mesh", "ext-authz", "mesh-client"):
-            self.assertEqual(profiles[name], [
-                "DNS:" + name, "DNS:" + name + ".aiforall-local-full.svc.cluster.local",
-                "DNS:localhost", "IP:127.0.0.1",
-            ])
-
-    def test_local_full_render_requires_its_rewritten_server_dns_identities(self):
-        spec = importlib.util.spec_from_file_location("identity_renderer", ROOT / "ops/deploy/render-local-full.py")
-        renderer = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(renderer)
-        self.assertEqual(renderer.ROOT, ROOT)
-        # Actual offline Kustomize subprocess; no mocked rendering, main, output
-        # files, API calls or Secret dumps. Environment failures are errors.
-        objects = renderer.render("serveridentityvalidation")
-        full_names = {cluster: ("ext-authz" if cluster == "ext_authz" else cluster)
-                      + ".aiforall-local-full.svc.cluster.local" for cluster in SHORT_NAMES}
-        self.assert_identities(self.envoy_config(objects), full_names)
-
 
 if __name__ == "__main__":
     unittest.main()
