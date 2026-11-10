@@ -150,8 +150,12 @@ try {
     if (-not $exists) {
         & kind.exe create cluster --name $cluster --config (Join-Path $PSScriptRoot 'kind/cluster-local-full.yaml')
         if ($LASTEXITCODE -ne 0) { throw 'Kind creation failed.' }
-        $null = K apply -f (Join-Path $PSScriptRoot 'third-party/calico/base/calico.yaml')
-        $null = K -n kube-system rollout status daemonset/calico-node --timeout=240s
+        # Calico declares kube-system and cluster-scoped objects; do not impose
+        # the application namespace through K's fixed prefix.
+        $null = & kubectl.exe --context $context apply -f (Join-Path $PSScriptRoot 'third-party/calico/base/calico.yaml')
+        if ($LASTEXITCODE -ne 0) { throw 'Calico installation failed.' }
+        $null = & kubectl.exe --context $context --namespace kube-system rollout status daemonset/calico-node --timeout=240s
+        if ($LASTEXITCODE -ne 0) { throw 'Calico rollout failed.' }
     }
     & (Join-Path $PSScriptRoot 'kind-local-images.ps1') -Action import -BuildTag $tag
     if (-not $?) { throw 'Native image import failed; no deployments applied.' }
