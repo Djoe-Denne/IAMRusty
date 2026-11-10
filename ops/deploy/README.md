@@ -7,8 +7,10 @@ just kind-local reset-data       # destruction explicite du seul lab dédié
 
 Préparer les fichiers complets du [guide opérateur](kind-minimal.md).
 Le parcours utilise Bake, Kind, Helm, kubectl, OpenSSL et les CLI fournisseurs,
-sans déployeur Python. Sa qualification live reste à faire ; aucun reset ou
-démarrage réel n'est implicite.
+sans déployeur Python. Un [cycle opérateur réel](../../docs/missions/20261110-kind-local-operator-cycle.md)
+a atteint 13 disponibles et HTTPS 200 après corrections/reprises explicites ;
+ce n'est pas un bootstrap sans intervention ni une qualification métier globale.
+Le rapport contient aussi l'arrêt/redémarrage, l'unseal Bao et la reprise SQS volatile.
 
 L'ancien déployeur local-full, sa façade just, son chart/profils, le registre
 applicatif, les outils Python de build/provenance/stockage/reprise/PKI et leurs

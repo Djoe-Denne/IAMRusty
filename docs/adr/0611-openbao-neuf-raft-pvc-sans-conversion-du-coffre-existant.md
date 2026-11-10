@@ -1,7 +1,7 @@
 # ADR-0611 : Installer les nouveaux coffres OpenBao sur Raft/PVC sans convertir le coffre existant au rebuild
 
 - Statut : Proposed
-- Réalité : Partial — chart, primitives CLI/bootstrap et raccord du lanceur natif présents en code ; vérifications offline parent seulement, API OpenBao/init/unseal/remise opérateur/PVC/reset/Kind réels NOT RUN
+- Réalité : Partial — coffre neuf TLS/Raft/Shamir1/1 initialisé et root révoqué avec token produit borné 8 h ; unseal réel après stop/start des mêmes nœuds, données et reprise complète non exhaustivement qualifiées
 - Date : 2026-11-09
 - Dernière photographie : 2026-11-10, reprise directe sur GO humain après veille ; aucun nouvel arbitrage structurel
 - Décideurs : choix utilisateur explicite du 2026-11-09 « 1/1 local (Recommended) » pour le coffre neuf du lab mono-opérateur ; Statut de l'ADR maintenu Proposed, pas d'Accept global implicite
@@ -57,8 +57,12 @@ Le « lanceur encore absent » mentionné à cette étape est historique ; le ra
 - Guide opérateur disponible : `ops/deploy/kind-minimal.md`, factuel et distinct du canon. Sources/consommateurs utiles relus avec la fin de `.cursor/handoffs/20261109-ops-python-provider-local.md` ; aucune modification de code/guide/ledger/brief ou réexécution par l'architecte. 0610 reste **Proposed / Partial**, preuves Build/Redis/PKI antérieures inchangées.
 - **Non qualifiés :** réseau/API OpenBao réels, première init/unseal/bootstrap live, PVC/persistance/restart, détection/exclusion Kubernetes de l'existant, raccord du lanceur/profil complet, reset-data et démarrage Kind global. Aucun coffre existant ni secret réel lu/muté ici, aucun commit/push ou clôture inféré ; Statut **Proposed** maintenu, Accept distinct. Cette photographie met à jour une ADR vivante, sans nouvelle ADR ou campagne imposée.
 
-### Raccord courant — code livré, runtime NOT RUN, 10 novembre 2026
+### Historique — raccord en code avant cycle opérateur, 10 novembre 2026
 
 `ops/deploy/kind-local.ps1` / `just kind-local` raccordent maintenant les primitives Bao : inputs explicites du [guide](../../ops/deploy/kind-minimal.md), CLI2.6.2, CA, sorties init/produit neuves et `KIND_LOCAL_INITIALIZE_EMPTY=1` pour le neuf Shamir1/1. Premier passage Bao neuf : arrêt avant applications pour remise du token et préparation humaine des fichiers complets ; aucune hydratation Agent/rotation/backup ajouté. `reset-data` est codé mais non exécuté, anciens fichiers hôtes préservés sans validité pour le coffre neuf.
 
 Les vérifications finales parent sont uniquement syntaxe PS5.1, lint/rendus Helm et dry-runs just (détail 0610/contrat lanceur §5.5), **sans nouveau test/runtime**. API/init/unseal/bootstrap/remise réelle, CA cross-Pod/PVC/restart/reset/Kind global **NOT RUN**. Passe infra indépendante encore en cours, aucun verdict attribué par cette mise à jour. **Proposed / Partial** maintenu, pas d'Accept/clôture ; source : dernière section du ledger parent et guide opérateur, sans rerun ni édition code/guide/ledger/brief ici.
+
+### Photographie courante — cycle Bao réel, 10 novembre 2026
+
+Le [cycle opérateur et ses commandes](../missions/20261110-kind-local-operator-cycle.md) a observé le coffre neuf **TLS/Raft/Shamir1/1**, remise privée avec **root révoqué/token produit 8 h**, puis après restart des mêmes nœuds **sealed=true→false** par `Unlock-KindOpenBao` et fichier privé explicitement fourni, sans nouvel init/reseed. PVC inchangés constatés, pas d'audit des secrets/données ni de qualification backup/reset ; la remise humaine reste nécessaire. Le retour global à 13 Available a aussi exigé la recréation **manuelle** des queues LocalStack volatiles, pas seulement l'unseal. **Proposed / Partial**, pas d'Accept ou reprise autonome promise ; pas de nouveau test/Rust/persistance ajouté, trois nœuds en keepalive utilisateur, vérification indépendante finale **PASS borné** ([preuve parent](../../.cursor/review-briefings/20261110-operator-cycle-infra-result.md)), sans élargir les limites.

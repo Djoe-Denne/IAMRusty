@@ -9,8 +9,9 @@ Entrée : `ops/deploy/kind-local.ps1`. Elle utilise Bake, Kind, Helm, kubectl,
 OpenSSL et les CLI fournisseurs, **sans Python**. Contrats
 [lanceur](../../docs/contracts/kind-local-native-launcher.md) et
 [OpenBao](../../docs/contracts/kind-local-openbao-bootstrap.md), ADR0610/0611
-**Proposed / Partial**. Le code est raccordé ; le lancement réel du lab n'a pas
-encore été exécuté. Les anciens scripts de campagne ne sont pas des prérequis.
+**Proposed / Partial**. Un [cycle opérateur réel avec reprises explicites](../../docs/missions/20261110-kind-local-operator-cycle.md)
+est documenté ; ce n'est pas une installation sans intervention ou une qualification
+métier globale. Les anciens scripts de campagne ne sont pas des prérequis.
 
 ## Préparer les entrées une fois
 
@@ -59,6 +60,13 @@ Préparer des configurations **complètes**, adaptées au lab, pas des copies
 inchangées des exemples Compose qui contiennent encore HTTP, clés de test et
 backends différents. Les fichiers TOML sont lus en environnement `development`
 (`RUN_ENV`) ; le lanceur ne réécrit pas leur contenu.
+
+Préparation vérifiée dans le [cycle opérateur réel](../../docs/missions/20261110-kind-local-operator-cycle.md) :
+descripteur IAM non vide même avec le récepteur GitHub désactivé, `kid` IAM
+**UUIDv4 simple lowercase sans tirets**, `api_key` Hive non vide **pour la composition
+seulement, pas comme preuve d'authentification**, et regex Envoy trop grande
+remplacée par six chemins exacts dans l'input privé. Ce jeu local n'utilise pas
+de compte externe et ne qualifie ni OAuth ni l'autorisation organization-signer.
 
 - PostgreSQL : `postgres.aiforall-local-full.svc.cluster.local:5432`, password
   valide du backend dans `postgres.password`. Les cinq services à migrations
@@ -188,11 +196,21 @@ n'installe pas l'operator/admission-store P4 neuf et ne qualifie pas son parcour
 
 ## Portée de livraison
 
-Syntaxe PowerShell, parsing des recettes just et rendus Helm sont vérifiables sans
-runtime. Ils ne prouvent **pas** build Linux, import, API bootstrap, handshake
-cross-Pod, persistance/restart/reset ou disponibilité globale : ces opérations
-réelles restent non exécutées. Les probes HTTPS natives Kubernetes ne qualifient
-pas la CA/SAN ; `redis-cli --sni` non plus. Les clients doivent vérifier leurs pairs.
+Le [rapport du cycle réel et ses commandes](../../docs/missions/20261110-kind-local-operator-cycle.md)
+documente build/import Linux, Kind et 13 déploiements disponibles, HTTPS edge200
+avant/après stop/start. Des reprises ont été nécessaires : Calico réparé manuellement
+après correctif publié `bd1fb33`, inputs privés corrigés, puis **unseal Bao et
+recréation manuelle des quatre queues SQS** après restart (liste vide constatée).
+Ce n'est pas un bootstrap sans intervention ou une reprise autonome. Le stop exit0
+a laissé les nœuds **Exited137** : pas de propreté d'arrêt revendiquée.
+
+Mêmes PVC UID/PV et références FGA constatés, **pas d'audit des données DB/cache ni
+de messages SQS conservés** ; aucun nouveau backend persistant ajouté. Le contrôle
+Schannel a nécessité `--ssl-revoke-best-effort` explicite (sinon exit60), avec
+CA/SAN vérifiés, sans `-k` ou modification de confiance globale : commande au rapport.
+Les trois nœuds sont laissés running sur demande, forwards temporaires fermés.
+Reset automatisé et qualification métier globale restent hors preuve. Les probes
+HTTPS natives Kubernetes et `redis-cli --sni` ne prouvent pas la CA/SAN des clients.
 LocalStack3.0.2 sait aussi accepter HTTP sur son listener multiplexé : tous les
 consommateurs de ce profil doivent utiliser explicitement HTTPS, pas un fallback.
 `OPS-OPENBAO-262-REDIRECTS` reste ouvert pour Agent auto-auth.
