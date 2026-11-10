@@ -1,7 +1,7 @@
 # ADR-0609 : Définir local-full avec Helm, Compose et un graphe just, sans générateur de ressources Python
 
 - Statut : Proposed
-- Réalité : Partial — code livré et vérifié offline selon les gates parent ; revues delta sécurité/correctness/infra encore en cours ; runtime NOT RUN/non qualifié
+- Réalité : Partial — photographie historique du code livré offline ; implémentation legacy retirée le 2026-11-10, parcours courant 0610 ; runtime historique non qualifié
 - Date : 2026-11-09
 - Décideurs : GO utilisateur pour l'implémentation Ops ; Accept du texte final distinct
 - Jalon concerné : Ops local-full / Vague 4 locale, hors Apparatus P0–P6
@@ -11,6 +11,8 @@
 - Contrat implementer : [ops-local-full-declarative-iac.md](../contracts/ops-local-full-declarative-iac.md)
 
 `Proposed` n'annule pas le GO d'implémentation de cette mission ; ce GO ne ratifie pas implicitement les ADR précédentes. Aucun ordre de priorité ou score n'est fixé ici.
+
+**Retrait constaté le 2026-11-10, base `37d530d` :** implémentation historique de cette proposition (déployeur/façade/chart/profils/registre applicatif/PKI legacy) supprimée ; payloads utiles et P4 préservés. Le parcours actif est [0610](0610-kind-local-natif-rebuild-donnees-conservees.md)/son contrat §6 ; les prescriptions, chemins et gates ci-dessous restent **historiques**, pas une instruction de restaurer le framework. Statut **Proposed** conservé, aucun Accept/rejet/supersede formel ou résultat runtime ajouté.
 
 ## Contexte
 
