@@ -155,6 +155,8 @@ Contrat secondaire test-side : [m6 proof hardening](../contracts/20261018-m6-pro
 
 **0506** : opportunité conditionnelle **en veille**, **Proposed / Unimplemented** pour une éventuelle extension, distincte du KV déjà livré de 0505. [Audit de référence](../missions/20261031-openbao-lazaret-iam-reuse-audit.md) ; récurrence réelle, besoins proches et abstraction significative à démontrer ensemble. Aucun contrat/API ou module SDK nouveau décidé, aucune extraction Transit ni migration implicite ; conserver local reste une issue normale, sans calendrier ou promotion automatique.
 
+**k6 — cadrage ouvert du 2026-11-11** : [préparations natives et options de suite orientée produit](../contracts/k6-native-campaign-preparation.md), **Proposed**, interfaces non livrées. Réutilisation sélective ou petite réécriture JS à comparer ; conservation des anciens scénarios discutée, ni suppression ni recodage autorisés. Aucune ADR nouvelle ou modification de0504/contrats Accepted, aucun verdict runtime.
+
 ## Vague 3 — IAM living / IdP fédérés (0407+, hors Apparatus)
 
 Jalon **IAM-IdP** : le template P0–P6 Apparatus ne s’applique pas. IAM reste l’IdP *plateforme* ([0400](0400-iamrusty-identite-hexagonale.md)) ; les Connect sont des *federated authenticators*. **0009** est Apparatus (gate pré-prod) — **interdit** de le réutiliser pour IAM. **Ne pas** réécrire 0100–0502. Prochains libres services/runtimes : **0414+** (0412 : transaction OAuth navigateur, Accepted / Implemented, qualification locale ratifiée2026-10-29 ; pas production/HA ; 0413 : OAuthConnect multi-instances Accepted / Partial, socle OAuth avec transport/secrets vérifié sous Windows, pas OIDC/service/IAM complets).
