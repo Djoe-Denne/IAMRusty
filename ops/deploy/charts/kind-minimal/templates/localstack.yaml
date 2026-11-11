@@ -64,7 +64,11 @@ spec:
 ---
 apiVersion: batch/v1
 kind: Job
-metadata: {name: kind-local-sqs-initialize, namespace: {{ .Release.Namespace }}}
+metadata:
+  name: kind-local-sqs-initialize
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    aiforall.dev/queues: {{ .Values.localstack.queues | toJson | quote }}
 spec:
   backoffLimit: 0
   activeDeadlineSeconds: 180

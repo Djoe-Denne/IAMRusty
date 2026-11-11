@@ -3,6 +3,10 @@
 ```powershell
 just kind-local                  # rebuild/import/lancement, données conservées
 just kind-local reset-data       # destruction explicite du seul lab dédié
+just local-status               # nœuds et services, sans démarrer Docker
+just local-stop                 # arrêter complètement le lab (nouveau sens)
+just local-start                # reprendre sans reconstruire, avec unseal/SQS
+just local-apps-stop            # arrêter seulement les applications
 ```
 
 Préparer les fichiers complets du [guide opérateur](kind-minimal.md).

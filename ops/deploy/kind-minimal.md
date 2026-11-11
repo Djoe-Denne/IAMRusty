@@ -137,8 +137,50 @@ Accès HTTPS au premier plan après le lancement :
 kubectl --context kind-aiforall-local-full -n aiforall-local-full port-forward --address 127.0.0.1 service/envoy-mesh 18443:10000
 ```
 
-`local-up` appelle cette même entrée. `local-stop` arrête uniquement les calculs
-natifs étiquetés, **pas les données**. `local-status` affiche Pods/PVC/Jobs.
+`local-up` appelle cette même entrée. Pilotage quotidien sans ID manuel :
+
+```powershell
+just local-status      # Nœuds Docker et déploiements/Pods/PVC/Jobs
+just local-stop        # Arrêt complet des trois nœuds, conteneurs/volumes conservés
+just local-start       # Reprise du lab existant, SANS build ni création
+just local-apps-stop   # Ancien local-stop : seules les applications à zéro réplique
+```
+
+**Changement de sens de `local-stop` le 11 novembre 2026** : il arrête maintenant
+tout le lab. `local-start` ne remet pas à 1 les applications arrêtées explicitement
+par `local-apps-stop` ; `just kind-local` réapplique le profil de déploiement.
+Les commandes découvrent les nœuds par label Kind puis vérifient leurs IDs,
+topologie et rôles sur le daemon local Linux. Topologie partielle/inattendue ou
+daemon distant : refus, pas de fallback ni adoption par nom seul.
+
+Avant `local-start`, configurer dans le terminal les chemins explicites :
+
+```powershell
+$env:KIND_LOCAL_BAO = 'C:\outils\openbao-2.6.2\bao.exe'
+$env:KIND_LOCAL_OPENBAO_CA_FILE = 'C:\prive\aiforall-local-full\pki\mesh\ca.crt'
+$env:KIND_LOCAL_OPENBAO_UNSEAL_INPUT = 'C:\prive\aiforall-bao-first\init.json'
+# AIFORALL_HELM peut sélectionner un helm.exe hors PATH.
+just local-start
+```
+
+La reprise attend Kubernetes, appelle l'unseal natif sans init/rotation/reseed,
+puis lit les noms des queues dans la recette SQS publique rendue par Helm et
+consulte la CLI AWS dans LocalStack pour créer seulement les queues absentes.
+Une erreur fournisseur/transport n'est jamais interprétée comme une absence. Les queues du
+profil sont restaurées, **pas leurs anciens messages**. Les déploiements encore
+actifs sont ensuite attendus ; l'échec garde l'état partiel pour inspection.
+Les paramètres Helm publics `KIND_LOCAL_PUBLIC_VALUES` sont repris s'ils existent.
+Le port-forward Bao temporaire reste loopback et est fermé même sur échec.
+
+`local-status` ne démarre pas un Docker Desktop arrêté et n'interroge pas
+Kubernetes si des nœuds sont arrêtés. Un daemon/API inaccessible est un diagnostic,
+pas une invitation à modifier le kubeconfig ou recréer le cluster. Stop peut
+aboutir à un code137 au-delà du délai ; l'état réel est affiché.
+**Nouvelles commandes : syntaxe/dry-runs contrôlés, cycle automatisé start/stop
+non encore exécuté** pour préserver le keepalive demandé. Le statut live du
+11 novembre trouve trois nœuds running mais l'API attendue inaccessible ; aucune
+réparation automatique ou nouvelle qualification complète n'est revendiquée.
+
 Build/import séparés : `just kind-local-build <tag>`, `just kind-local-import <tag>`.
 
 ## Première installation / coffre neuf

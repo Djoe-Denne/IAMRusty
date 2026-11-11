@@ -209,10 +209,16 @@ kind-local-import build_tag:
 local-up: kind-local
 
 local-stop:
-    kubectl --context kind-aiforall-local-full --namespace aiforall-local-full scale deployment --selector aiforall.dev/kind-minimal-compute=true --replicas=0
+    & ./ops/deploy/kind-local-runtime.ps1 -Action stop
+
+local-start:
+    & ./ops/deploy/kind-local-runtime.ps1 -Action start
+
+local-apps-stop:
+    & ./ops/deploy/kind-local-runtime.ps1 -Action apps-stop
 
 local-status:
-    kubectl --context kind-aiforall-local-full --namespace aiforall-local-full get pods,pvc,jobs
+    & ./ops/deploy/kind-local-runtime.ps1 -Action status
 
 # Full-profile Linux delivery artifacts only. Requires the operator's runtime
 # lease/GO; no cluster creation, Compose startup, certificates or data seeding.
