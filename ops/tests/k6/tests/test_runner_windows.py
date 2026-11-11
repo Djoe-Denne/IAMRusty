@@ -24,12 +24,12 @@ def quote(value):
     return "'" + str(value).replace("'", "''") + "'"
 
 
-def summary(kind="Chromium"):
-    checks = ("iam-status", "iam-body") if kind == "HTTP" else ("browser-evaluation", "browser-blank", "browser-version")
+def summary(kind="HTTP"):
+    checks = ("iam-status", "iam-body")
     return dict(version=1, run_id=RUN_ID, phase=kind,
-                cases=["iam-health" if kind == "HTTP" else "browser-prerequisite"],
+                cases=["iam-health"],
                 expected=1, started=1, completed=1, iterations=1,
-                requests=1 if kind == "HTTP" else 0,
+                requests=1,
                 checks={n: dict(passes=1, fails=0) for n in checks})
 
 
@@ -39,7 +39,7 @@ def inspect(kind="HTTP"):
                     gracefulStop="2s" if kind == "HTTP" else "3s")
     if kind != "HTTP":
         scenario["options"] = {"browser": {"type": "chromium"}}
-    return dict(scenarios={"iam-health" if kind == "HTTP" else "browser-prerequisite": scenario},
+    return dict(scenarios={"iam-health": scenario},
                 thresholds=dict(checks=["rate==1"], case_started=["count==1"], case_completed=["count==1"]),
                 maxRedirects=0, discardResponseBodies=False)
 
@@ -117,19 +117,18 @@ class WindowsTests(unittest.TestCase):
                 self.rejects("ConvertFrom-K6Json " + quote(text))
         self.assertEqual(self.ps("$v=ConvertFrom-K6Json '{\"a\":[1,true,null]}'; if($v.a.Count-ne 3){exit 5}; 'OK'"), "OK")
 
-    def test_summary_positive_both_actual_callsites(self):
-        for kind in ("HTTP", "Chromium"):
-            self.ps(f"Assert-K6Summary {self.value(summary(kind))} '{RUN_ID}' '{kind}' 0; 'OK'")
+    def test_summary_http_and_retired_browser_refusal(self):
+        self.ps(f"Assert-K6Summary {self.value(summary())} '{RUN_ID}' 'HTTP' 0; 'OK'")
+        self.rejects(f"Assert-K6Summary {self.value(summary('Chromium'))} '{RUN_ID}' 'Chromium' 0")
 
     def test_empty_check_fields_schema_label_and_nominal_summary(self):
         empty_checks = summary(); empty_checks["checks"] = {}
-        code = ("try {Assert-K6Fields (ConvertFrom-K6Json '{}') @('browser-evaluation'); exit 5} "
+        code = ("try {Assert-K6Fields (ConvertFrom-K6Json '{}') @('iam-status'); exit 5} "
                 "catch {if($_.Exception.Message-cne 'SCHEMA_INVALID'){throw}}; "
-                f"try {{Assert-K6Summary {self.value(empty_checks)} '{RUN_ID}' 'Chromium' 0; exit 6}} "
+                f"try {{Assert-K6Summary {self.value(empty_checks)} '{RUN_ID}' 'HTTP' 0; exit 6}} "
                 "catch {if($_.Exception.Message-cne 'SCHEMA_INVALID'){throw}}; "
-                f"Assert-K6Summary {self.value(summary())} '{RUN_ID}' 'Chromium' 0; 'SCHEMA_AND_NOMINAL_OK'")
+                f"Assert-K6Summary {self.value(summary())} '{RUN_ID}' 'HTTP' 0; 'SCHEMA_AND_NOMINAL_OK'")
         self.assertEqual(self.ps(code), "SCHEMA_AND_NOMINAL_OK")
-        self.assertIn("'--system-tags', 'name,check,scenario,group'", (ROOT / "run-windows.ps1").read_text(encoding="utf-8"))
 
     def test_summary_nonvacant_exact_and_current(self):
         cases = []
@@ -138,21 +137,20 @@ class WindowsTests(unittest.TestCase):
                 v = summary("HTTP"); v[name] = bad; cases.append(v)
         for name in ("started", "completed", "iterations", "checks"):
             v = summary(); del v[name]; cases.append(v)
-        for patch in ({"cases": []}, {"cases": ["absent"]}, {"cases": "browser-prerequisite"},
-                      {"phase": "HTTP"}, {"run_id": "a" * 32}, {"extra": "not allowed"},
+        for patch in ({"cases": []}, {"cases": ["absent"]}, {"cases": "iam-health"},
+                      {"phase": "Chromium"}, {"run_id": "a" * 32}, {"extra": "not allowed"},
                       {"phase": ["Chromium"]}, {"run_id": [RUN_ID]},
-                      {"checks": {}}, {"checks": {"browser-evaluation": {"passes": 0, "fails": 0}}}):
+                      {"checks": {}}, {"checks": {"iam-status": {"passes": 0, "fails": 0}}}):
             v = summary(); v.update(patch); cases.append(v)
         code = ""
         for v in cases:
-            kind = v.get("phase") if v.get("phase") != "HTTP" or "iam-health" in v.get("cases", []) else "Chromium"
-            code += f"try {{ Assert-K6Summary {self.value(v)} '{RUN_ID}' '{kind}' 0; exit 5 }} catch {{}}; "
+            code += f"try {{ Assert-K6Summary {self.value(v)} '{RUN_ID}' 'HTTP' 0; exit 5 }} catch {{}}; "
         self.assertEqual(self.ps(code + "'ALL_REJECTED'"), "ALL_REJECTED")
-        self.rejects(f"Assert-K6Summary {self.value(summary())} '{RUN_ID}' 'Chromium' 1")
+        self.rejects(f"Assert-K6Summary {self.value(summary())} '{RUN_ID}' 'HTTP' 1")
 
     def test_inspect_exact_options_no_performance_threshold(self):
-        for kind in ("HTTP", "Chromium"):
-            self.ps(f"Assert-K6Inspect {self.value(inspect(kind))} '{kind}'; 'OK'")
+        self.ps(f"Assert-K6Inspect {self.value(inspect())} 'HTTP'; 'OK'")
+        self.rejects(f"Assert-K6Inspect {self.value(inspect('Chromium'))} 'Chromium'")
         changes = [dict(vus=0), dict(iterations=2), dict(executor="shared-iterations"),
                    dict(executor=["per-vu-iterations"]), dict(maxDuration=["15s"]),
                    dict(maxDuration="1m"), dict(gracefulStop="30s")]
@@ -192,7 +190,6 @@ class WindowsTests(unittest.TestCase):
                             ("Google Chrome 149.0.7827.53", "chromium"),
                             ("Google Chrome for Testing 156.0.8078.73\nEXTRA", "chromium")]:
             self.rejects(f"Assert-K6Version {quote(value)} '{kind}'")
-        self.rejects("Assert-K6ToolsOnly")
 
     def test_environment_drops_ambient_proxy_k6_loader_and_profiles(self):
         code = ("$env:K6_BROWSER_ARGS='no-sandbox'; $env:HTTPS_PROXY='sensitive'; $env:K6_OUT='cloud'; $env:NODE_OPTIONS='bad'; "
@@ -200,6 +197,9 @@ class WindowsTests(unittest.TestCase):
                 "foreach($n in @('K6_BROWSER_ARGS','HTTPS_PROXY','K6_OUT','NODE_OPTIONS','K6_INSECURE_SKIP_TLS_VERIFY')){if($e.ContainsKey($n)){exit 5}}; "
                 "if($e['K6_NO_USAGE_REPORT']-cne 'true'-or $e['K6_BROWSER_HEADLESS']-cne 'true'){exit 6}; 'OK'")
         self.assertEqual(self.ps(code), "OK")
+        self.assertEqual(self.ps(
+            f"$e=New-K6Environment {quote(self.directory)} '{RUN_ID}' '' @('PRIVATE_SENTINEL'); "
+            "foreach($n in @('K6_BROWSER_EXECUTABLE_PATH','K6_BROWSER_HEADLESS','K6_EXPECTED_BROWSER_VERSION')){if($e.ContainsKey($n)){exit 5}}; 'HTTP_ONLY'"), "HTTP_ONLY")
 
     def test_privacy_sentinels_and_credentials_in_positive_negative_streams(self):
         for text in ("PRIVATE_SENTINEL", "prefix private_sentinel suffix", "Bearer AAAAAAAAAAAA", "https://private.invalid/", r"C:\private\file",
@@ -252,7 +252,8 @@ class WindowsTests(unittest.TestCase):
                                 "-Mode", mode, "-Output", str(output)], capture_output=True, env=env)
             self.assertEqual(p.returncode, 2)
             v = json.loads(p.stdout.decode("utf-8-sig"))
-            self.assertIn(v["reason"], {"WINDOWS_LOCK_MISSING", "PIN_INVALID"}, v)
+            expected = {"INPUT_INVALID"} if mode == "browser" else {"WINDOWS_LOCK_MISSING", "PIN_INVALID"}
+            self.assertIn(v["reason"], expected, v)
             self.assertEqual(v["tools"], "NOT_EXECUTED")
             self.assertEqual(v["cleanup"], "NOT_EXECUTED")
             self.assertFalse(output.exists()); self.assertEqual(p.stderr, b"")

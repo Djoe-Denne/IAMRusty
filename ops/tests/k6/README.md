@@ -1,5 +1,13 @@
 # k6 mission1 — Linux functional foundation
 
+**Retrait utilisateur, 2026-11-11 :** le scénario autonome `browser-prerequisite`
+(`about:blank`/42) est supprimé, ainsi que les modes `browser` Windows/Linux et
+ses étapes CI/comparaison Ubuntu22. Les trois scénarios historiques conservés
+sont santé IAM, OAuth navigateur et identité TLS/SAN Envoy. Chromium et son
+contrôle de version restent dans le vrai parcours OAuth, pas une campagne de
+prérequis indépendante. Les qualifications navigateur décrites plus bas sont
+des preuves historiques, pas une commande actuelle à relancer.
+
 **IAM natif, 2026-11-11 :** nouvelle [tranche HTTP sans Python](iam/README.md),
 limitée aux lectures et refus sans fixture persistante. Parcours positifs différés,
 qualification live non effectuée. Le reste de ce document décrit le harness
@@ -136,13 +144,12 @@ protection against hostile root or a generally compromised operator account.
 ## Commands and private campaign inputs
 
 The launcher is the same in local use and CI. `tools` contains the guarded
-equivalents of `k6 version`, `"$K6_BROWSER_EXECUTABLE_PATH" --version` and both
-`k6 inspect` commands. Do not execute unverified binaries directly first.
+equivalents of `k6 version` and the HTTP `k6 inspect` command. It does not require
+or launch Chromium. Do not execute unverified binaries directly first.
 
 ```sh
 python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_*.py'
 python3 -B ops/tests/k6/run-linux.py tools --output "$PRIVATE_ROOT/tools-check"
-python3 -B ops/tests/k6/run-linux.py browser --output "$PRIVATE_ROOT/browser-check"
 ```
 
 Each `--output` must be absolute, outside Git, absent, with an existing owner-only
@@ -151,26 +158,18 @@ retries. The script emits only a small closed-label JSON result, with nonzero ex
 for FAIL or INCONCLUSIVE. `cleanup` concerns **launcher children only**, not closure
 of the parent's cluster/runtime. HTTP and Chromium verdicts are never conflated.
 
-### Temporary Ubuntu22.04 comparison — not qualification
+### Historical Ubuntu22.04 comparison — retired 2026-11-11
 
 The comparison addendum ratified in `b316668` admits **only** a temporary native
 Ubuntu22.04 amd64 non-root diagnostic. Ubuntu24.04 remains the nominal platform;
 all nominal commands still refuse22.04. This does not authorize the separately
 Proposed AppArmor exception, a security-policy change or a durable downgrade.
 
-After explicit acquisition into the same kind of fresh private root, the proposed
-command is (not a record of execution):
-
-```sh
-python3 -B ops/tests/k6/run-linux.py browser --compare-ubuntu-2204 --output "$PRIVATE_ROOT/ubuntu2204-comparison"
-```
-
-This flag is accepted only on `browser` or its guarded `diagnose-chromium`
-followup, and only on22.04. The browser comparison reuses the pinned
-archive/ELF checks, both actual binary version checks, both scenario inspections,
-then **at most one** unchanged k6/browser scenario and `Child` supervision. Failed
-prerequisites stop before that scenario. No automatic direct run, retry, application
-target, free OS/arguments/executable, package installation or fallback is added.
+The standalone comparison and its CI job have been removed with the browser
+prerequisite. `browser` is no longer an accepted command. The guarded manual
+`diagnose-chromium` tooling is not a product scenario, does not establish
+qualification and is not launched by the CI workflow. The projection below
+describes historical evidence only, not a current execution path.
 
 The one-line JSON separates tools, attempted browser launch, complete case,
 sandbox witness, child cleanup, parent cleanup and confidentiality. Its bounded
@@ -248,11 +247,9 @@ Proposed parent commands (currently HTTP integration is blocked as above):
 ```sh
 export K6_CONFIG=/home/REPLACE/.cache/opencode/private-campaign/campaign.json
 export K6_RUN_DIR="$PRIVATE_ROOT/http-run"
-export K6_BROWSER_RUN_DIR="$PRIVATE_ROOT/browser-run"
 export K6_SELFTEST_RUN_DIR="$PRIVATE_ROOT/selftest-run"
 python3 -B ops/tests/k6/run-linux.py validate --config "$K6_CONFIG"
 python3 -B ops/tests/k6/run-linux.py run --config "$K6_CONFIG" --output "$K6_RUN_DIR"
-python3 -B ops/tests/k6/run-linux.py browser --output "$K6_BROWSER_RUN_DIR"
 python3 -B ops/tests/k6/run-linux.py selftest --config "$K6_CONFIG" --output "$K6_SELFTEST_RUN_DIR"
 ```
 

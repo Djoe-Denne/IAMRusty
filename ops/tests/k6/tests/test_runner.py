@@ -54,10 +54,11 @@ class SummaryTests(unittest.TestCase):
             with self.assertRaises(runner.Rejected):
                 runner.verify_summary(data, "a" * 32, "HTTP")
 
-    def test_browser_is_distinct_and_has_no_http(self):
-        runner.verify_summary(summary("Chromium"), "a" * 32, "Chromium")
+    def test_retired_browser_phase_is_refused(self):
         with self.assertRaises(runner.Rejected):
-            runner.verify_summary(summary("Chromium"), "a" * 32, "HTTP")
+            runner.verify_summary(summary(), "a" * 32, "Chromium")
+        with self.assertRaises(runner.Rejected):
+            runner.arguments(["browser", "--output", "/private/unused"])
 
     def test_duplicate_truncated_and_nan_json(self):
         for raw in [b'{"version":1,"version":1}', b'{', b'{"a":NaN}', b'\xff']:

@@ -26,7 +26,7 @@ try {
     $helpersLoaded = $true
     Initialize-K6Windows
     if ([string]::IsNullOrEmpty($Mode)) { throw 'INPUT_MISSING' }
-    if ($Mode -cnotin @('tools', 'browser', 'validate', 'run', 'selftest', 'auth-inspect', 'auth')) { throw 'INPUT_INVALID' }
+    if ($Mode -cnotin @('tools', 'validate', 'run', 'selftest', 'auth-inspect', 'auth')) { throw 'INPUT_INVALID' }
     $result.mode = $Mode
     $authMode = $Mode -cin @('auth-inspect', 'auth')
     $authConfig = $null
@@ -47,26 +47,25 @@ try {
     Assert-K6OutsideGit $Output
     $lock = Read-K6WindowsLock (Join-Path $PSScriptRoot 'config\tools.windows.lock.json')
     $k6 = Open-K6PinnedTool $lock.k6 $env:K6_WINDOWS_EXE
-    $chrome = Open-K6PinnedTool $lock.chromium $env:K6_BROWSER_EXECUTABLE_PATH
+    $chrome = if ($authMode) { Open-K6PinnedTool $lock.chromium $env:K6_BROWSER_EXECUTABLE_PATH } else { $null }
     $outputPin = [K6Windows.OwnedDirectory]::Create($Output)
     $outputCreated = $true
     $result.cleanup = 'INCONCLUSIVE'; $result.confidentiality = 'INCONCLUSIVE'; $result.tools = 'INCONCLUSIVE'
     $runId = if ($Mode -ceq 'auth') { $authConfig.run_id } else { [Guid]::NewGuid().ToString('N') }
     $result.run_id = $runId
     $result.hashes.k6_archive = $k6.Pin.archive_sha256; $result.hashes.k6_executable = $k6.Pin.executable_sha256
-    $result.hashes.chromium_archive = $chrome.Pin.archive_sha256; $result.hashes.chromium_executable = $chrome.Pin.executable_sha256
+    if ($authMode) { $result.hashes.chromium_archive = $chrome.Pin.archive_sha256; $result.hashes.chromium_executable = $chrome.Pin.executable_sha256 }
     $leaseMinutes = if ($authMode) { 30 } else { 2 }
     [IO.File]::WriteAllText((Join-Path $Output 'lease.json'), (@{ version = 1; run_id = $runId; created_utc = [DateTime]::UtcNow.ToString('o'); expires_utc = [DateTime]::UtcNow.AddMinutes($leaseMinutes).ToString('o'); status = 'active-created-handles-only' } | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
     $sentinels = @('PRIVATE_' + [Guid]::NewGuid().ToString('N'), 'TOKEN_' + [Guid]::NewGuid().ToString('N'))
-    $environment = New-K6Environment $Output $runId $chrome.Exe $sentinels $chrome.Pin.version
-    # Copies are exact, local and run-owned. The sole browser version check is
-    # admitted by the Windows addendum; HTTP and summary sources are unchanged.
-    $sources = if ($authMode) { @('scenarios\auth\envoy-san.js', 'scenarios\auth\oauth-browser.js', 'lib\summary.js') } else { @('scenarios\smoke\iam-health.js', 'scenarios\smoke\browser-prerequisite.js', 'lib\summary.js') }
+    $environment = if ($authMode) { New-K6Environment $Output $runId $chrome.Exe $sentinels $chrome.Pin.version } else { New-K6Environment $Output $runId '' $sentinels }
+    # Browser startup/version checks belong to the actual OAuth scenario only.
+    $sources = if ($authMode) { @('scenarios\auth\envoy-san.js', 'scenarios\auth\oauth-browser.js', 'lib\summary.js') } else { @('scenarios\smoke\iam-health.js', 'lib\summary.js') }
     foreach ($relative in $sources) {
         $source = Join-Path $PSScriptRoot $relative
         $destination = Join-Path $Output $relative
         if ([IO.FileInfo]::new($source).Length -gt 65536) { throw 'INPUT_INVALID' }
-        $key = if ($relative -cin @('scenarios\smoke\iam-health.js', 'scenarios\auth\envoy-san.js')) { 'http' } elseif ($relative -cin @('scenarios\smoke\browser-prerequisite.js', 'scenarios\auth\oauth-browser.js')) { 'chromium' } else { 'summary' }
+        $key = if ($relative -cin @('scenarios\smoke\iam-health.js', 'scenarios\auth\envoy-san.js')) { 'http' } elseif ($relative -ceq 'scenarios\auth\oauth-browser.js') { 'chromium' } else { 'summary' }
         $result.sources_sha256.$key = [K6Windows.Native]::Hash($source)
         $directory = [IO.Path]::GetDirectoryName($destination)
         if (-not [IO.Directory]::Exists($directory)) { [void][IO.Directory]::CreateDirectory($directory) }
@@ -101,23 +100,10 @@ try {
             Invoke-K6AuthCampaign $context $result
         }
     } else {
-    foreach ($kind in @('HTTP', 'Chromium')) {
-        $scenario = if ($kind -ceq 'HTTP') { 'iam-health.js' } else { 'browser-prerequisite.js' }
-        $r = Invoke-K6Child $k6 @('inspect', (Join-Path $Output ('scenarios\smoke\' + $scenario))) $environment $Output $sentinels 10000 $state
-        if ($r.ExitCode -ne 0) { throw 'OPTIONS_INVALID' }
-        Assert-K6Inspect (ConvertFrom-K6Json $r.Stdout) $kind
-    }
-    if ($Mode -ceq 'tools') { Assert-K6ToolsOnly }
-    if ($Mode -ceq 'browser') {
-        Assert-K6BrowserEligibility $environment $chrome.Pin.version
-        Assert-K6PinnedTool $chrome
-        $summary = Join-Path $Output 'summary.json'
-        if (Test-Path -LiteralPath $summary) { throw 'SUMMARY_INVALID' }
-        $r = Invoke-K6Child $k6 @('run', '--quiet', '--address', '127.0.0.1:0', '--system-tags', 'name,check,scenario,group', (Join-Path $Output 'scenarios\smoke\browser-prerequisite.js')) $environment $Output $sentinels 30000 $state $chrome.Exe
-        $value = Read-K6PrivateJson $summary $outputPin
-        Assert-K6BrowserEligibility $environment $chrome.Pin.version
-        Set-K6BrowserEvidence $result $value $runId $r $state $chrome.Pin.version
-    }
+    $r = Invoke-K6Child $k6 @('inspect', (Join-Path $Output 'scenarios\smoke\iam-health.js')) $environment $Output $sentinels 10000 $state
+    if ($r.ExitCode -ne 0) { throw 'OPTIONS_INVALID' }
+    Assert-K6Inspect (ConvertFrom-K6Json $r.Stdout) 'HTTP'
+    if ($Mode -ceq 'tools') { $result.tools = 'PASS' }
     }
     $result.reason = 'NONE'; $exitCode = 0
 } catch {

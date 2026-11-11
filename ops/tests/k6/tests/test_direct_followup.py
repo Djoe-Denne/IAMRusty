@@ -10,9 +10,20 @@ from unittest import mock
 
 from test_boundaries import scratch
 from test_direct_chromium import host
-from test_linux_comparison import environment, LOCK
-from test_runner import runner, summary
+from test_runner import runner
 import safety
+
+
+LOCK = json.loads((runner.HERE / "config/tools.lock.json").read_text())
+
+
+@contextlib.contextmanager
+def environment(version="22.04", *, system="linux", machine="x86_64", uid=123, distro="ubuntu"):
+    with mock.patch.object(runner.sys, "platform", system), \
+            mock.patch.object(runner.platform, "machine", return_value=machine), \
+            mock.patch.object(runner.os, "getuid", return_value=uid, create=True), \
+            mock.patch.object(Path, "read_text", return_value=f'ID={distro}\nVERSION_ID="{version}"\n'):
+        yield
 
 
 def metadata():
@@ -148,47 +159,6 @@ class ParentGateTests(unittest.TestCase):
             execute.assert_not_called()
             versions.assert_not_called()
 
-    def test_current_browser_refusal_records_only_safe_incomplete_signal(self):
-        for completed, cleanup, stdout in ((0, True, b""), (1, True, b""), (0, False, b""),
-                                           (0, True, b"CONFIDENTIAL_SENTINEL")):
-            with self.subTest(completed=completed, cleanup=cleanup, stdout=stdout), scratch() as root:
-                output = root / "previous"
-                (output / "private").mkdir(parents=True)
-                child = safety.Child()
-                child.code, child.cleanup = 107, cleanup
-                child.stdout = stdout
-
-                def execute(argv, **kwargs):
-                    params = dict(arg.split("=", 1) for i, arg in enumerate(argv) if i and argv[i-1] == "--env")
-                    data = {**summary("Chromium"), "run_id": params["K6_RUN_ID"], "started": completed,
-                            "completed": completed, "checks": {} if not completed else summary("Chromium")["checks"]}
-                    Path(params["K6_SUMMARY_PATH"]).write_text(json.dumps(data))
-                    error = safety.Rejected("SANDBOX_UNPROVEN", True)
-                    error.browser_diagnostic = "NATIVE_CAUSE_UNCLASSIFIED"
-                    raise error
-
-                with environment(), mock.patch.object(runner, "new_output", return_value=output), \
-                        mock.patch.object(runner, "pinned_tools", return_value=({"k6": Path("/pinned/k6"), "chromium": Path("/pinned/chrome")}, LOCK)), \
-                        mock.patch.object(runner, "comparison_metadata", return_value=metadata()), \
-                        mock.patch.object(runner, "version_checks", return_value={}), \
-                        mock.patch.object(runner, "host_metadata", return_value=host()), \
-                        mock.patch.object(runner, "verify_tools"), mock.patch.object(runner, "inspect_scenario"), \
-                        mock.patch.object(runner, "private_read", lambda p: Path(p).read_bytes()), \
-                        mock.patch.object(runner, "Child", return_value=child), \
-                        mock.patch.object(child, "execute", side_effect=execute), \
-                        mock.patch.object(runner, "publish") as publish, contextlib.redirect_stdout(io.StringIO()) as log:
-                    self.assertNotEqual(runner.main(["browser", "--compare-ubuntu-2204", "--output", str(output)]), 0)
-                receipt = output / "private/comparison-result.json"
-                self.assertEqual(receipt.exists(), not completed and cleanup and not stdout)
-                self.assertEqual(json.loads(log.getvalue())["k6_exit"], "SCRIPT_EXCEPTION")
-                self.assertNotIn("CONFIDENTIAL_SENTINEL", log.getvalue())
-                publish.assert_not_called()
-                if receipt.exists():
-                    self.assertEqual(json.loads(receipt.read_bytes()), json.loads(log.getvalue()))
-                    result, _, execute, _ = self.direct(root, None)
-                    self.assertEqual(result["direct_observation"]["native_exit"], "ZERO")
-                    self.assertEqual(execute.call_count, 1)
-
     def test_missing_invalid_stale_hostile_or_failed_refusal_precedes_every_child(self):
         for raw in (None, b"{", b"CONFIDENTIAL_SENTINEL", b"x" * (safety.ARTIFACT_LIMIT + 1), {},
                     {**refusal(), "cleanup": "FAIL"}, {**refusal(), "confidentiality": "FAIL"},
@@ -206,12 +176,9 @@ class ParentGateTests(unittest.TestCase):
             execute.assert_not_called()
             versions.assert_not_called()
 
-    def test_workflow_uses_private_guard_and_keeps_both_failure_paths(self):
+    def test_workflow_no_longer_launches_browser_prerequisite(self):
         workflow = (runner.REPO / ".github/workflows/k6-functional-smoke.yml").read_text()
-        diagnostic = workflow.split("  ubuntu2204-comparison:", 1)[1]
-        self.assertEqual(diagnostic.count("run-linux.py browser --compare-ubuntu-2204"), 1)
-        self.assertEqual(diagnostic.count("run-linux.py diagnose-chromium --compare-ubuntu-2204"), 1)
-        self.assertIn("--browser-result", diagnostic)
-        self.assertIn("steps.comparison.outcome == 'failure'", diagnostic)
+        self.assertNotIn("run-linux.py browser", workflow)
+        self.assertNotIn("ubuntu2204-comparison:", workflow)
+        self.assertNotIn("steps.browser.outcome", workflow)
         self.assertNotIn("continue-on-error", workflow)
-        self.assertNotIn("upload-artifact", diagnostic)

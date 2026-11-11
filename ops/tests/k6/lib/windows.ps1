@@ -116,8 +116,10 @@ function New-K6Environment([string] $Directory, [string] $RunId, [string] $Chrom
     foreach ($key in @('TEMP', 'TMP', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'HOME')) { $e.Add($key, $Directory) }
     $e.Add('K6_NO_USAGE_REPORT', 'true'); $e.Add('K6_NO_COLOR', 'true')
     $e.Add('K6_RUN_ID', $RunId); $e.Add('K6_SUMMARY_PATH', (Join-Path $Directory 'summary.json'))
-    $e.Add('K6_BROWSER_EXECUTABLE_PATH', $Chrome); $e.Add('K6_BROWSER_HEADLESS', 'true')
-    $e.Add('K6_BROWSER_TIMEOUT', '10s')
+    if (-not [string]::IsNullOrEmpty($Chrome)) {
+        $e.Add('K6_BROWSER_EXECUTABLE_PATH', $Chrome); $e.Add('K6_BROWSER_HEADLESS', 'true')
+        $e.Add('K6_BROWSER_TIMEOUT', '10s')
+    }
     if ($null -ne $ExpectedBrowserVersion) {
         if ($ExpectedBrowserVersion -isnot [string] -or $ExpectedBrowserVersion -cne '156.0.8078.73') { throw 'BROWSER_EXPECTATION_INVALID' }
         $e.Add('K6_EXPECTED_BROWSER_VERSION', $ExpectedBrowserVersion)
@@ -175,11 +177,6 @@ function Assert-K6BrowserEligibility($Environment, $ExpectedVersion) {
         $Environment['K6_EXPECTED_BROWSER_VERSION'] -cne $ExpectedVersion) { throw 'BROWSER_EXPECTATION_INVALID' }
 }
 
-function Assert-K6ToolsOnly {
-    # No unsafe Windows chrome.exe --version or separate browser launch.
-    throw 'CHROMIUM_VERSION_PENDING'
-}
-
 function Test-K6BooleanField($Value, [string] $Name, [bool] $Expected) {
     if ($null -eq $Value) { return $false }
     if ($Value -is [Collections.IDictionary]) { $field = $Value[$Name] }
@@ -189,23 +186,6 @@ function Test-K6BooleanField($Value, [string] $Name, [bool] $Expected) {
         $field = $property.Value
     }
     return ($field -is [bool] -and $field -eq $Expected)
-}
-
-function Set-K6BrowserEvidence($Projection, $Summary, [string] $RunId, $Child, $State, $ExpectedVersion) {
-    if ($ExpectedVersion -isnot [string] -or $ExpectedVersion -cne '156.0.8078.73') { throw 'BROWSER_EXPECTATION_INVALID' }
-    if (-not (Test-K6BooleanField $State 'Cleanup' $true) -or -not (Test-K6BooleanField $Child 'Cleanup' $true) -or
-        -not (Test-K6BooleanField $Child 'IdentityComplete' $true)) { throw 'CLEANUP_UNPROVEN' }
-    if (-not (Test-K6BooleanField $State 'Privacy' $true) -or -not (Test-K6BooleanField $Child 'CaptureComplete' $true) -or
-        -not (Test-K6BooleanField $Child 'Overflow' $false)) { throw 'PRIVACY_REFUSED' }
-    if (($State.Executed -isnot [int] -and $State.Executed -isnot [long]) -or $State.Executed -lt 1) { throw 'COMPLETENESS_INVALID' }
-    Assert-K6Summary $Summary $RunId 'Chromium' $Child.ExitCode
-    # Only the successful current-run API equality check permits this projection.
-    # This is an inference of equality, not file metadata or a new CDP query.
-    $Projection.versions.chromium = $ExpectedVersion
-    $Projection.browser_version_evidence = 'K6_API_CACHED_GETVERSION_EQUALITY'
-    $Projection.tools = 'PASS'
-    # Functional qualification only. No renderer/token/sandbox attestation.
-    $Projection.chromium = 'PASS'
 }
 
 function Complete-K6WindowsVerdicts($Projection) {
@@ -295,34 +275,33 @@ function Assert-K6Version([string] $Text, [string] $Kind) {
 
 function Assert-K6Inspect($Value, [string] $Kind) {
     # inspect emits resolved options (not just the exported source object).
-    if ($Kind -cnotin @('HTTP', 'Chromium') -or $null -eq $Value -or $null -eq $Value.scenarios) { throw 'OPTIONS_INVALID' }
-    $case = if ($Kind -ceq 'HTTP') { 'iam-health' } else { 'browser-prerequisite' }
+    if ($Kind -cne 'HTTP' -or $null -eq $Value -or $null -eq $Value.scenarios) { throw 'OPTIONS_INVALID' }
+    $case = 'iam-health'
     if (@($Value.scenarios.PSObject.Properties.Name).Count -ne 1 -or @($Value.scenarios.PSObject.Properties.Name)[0] -cne $case) { throw 'OPTIONS_INVALID' }
     $scenario = $Value.scenarios.$case
     Assert-K6Integer $scenario.vus 1; Assert-K6Integer $scenario.iterations 1
     if ($scenario.executor -isnot [string] -or $scenario.maxDuration -isnot [string] -or $scenario.gracefulStop -isnot [string] -or
-        $scenario.executor -cne 'per-vu-iterations' -or $scenario.maxDuration -cne $(if ($Kind -ceq 'HTTP') { '15s' } else { '20s' }) -or
-        $scenario.gracefulStop -cne $(if ($Kind -ceq 'HTTP') { '2s' } else { '3s' })) { throw 'OPTIONS_INVALID' }
+        $scenario.executor -cne 'per-vu-iterations' -or $scenario.maxDuration -cne '15s' -or
+        $scenario.gracefulStop -cne '2s') { throw 'OPTIONS_INVALID' }
     Assert-K6Fields $Value.thresholds @('checks', 'case_started', 'case_completed')
     foreach ($name in @('checks', 'case_started', 'case_completed')) {
         $expected = if ($name -ceq 'checks') { 'rate==1' } else { 'count==1' }
         if ($Value.thresholds.$name -isnot [array] -or @($Value.thresholds.$name).Count -ne 1 -or
             @($Value.thresholds.$name)[0] -isnot [string] -or @($Value.thresholds.$name)[0] -cne $expected) { throw 'OPTIONS_INVALID' }
     }
-    if ($Kind -ceq 'HTTP') { Assert-K6Integer $Value.maxRedirects 0; if ($Value.discardResponseBodies -isnot [bool] -or $Value.discardResponseBodies) { throw 'OPTIONS_INVALID' } }
-    else { if ($scenario.options.browser.type -cne 'chromium') { throw 'OPTIONS_INVALID' } }
+    Assert-K6Integer $Value.maxRedirects 0; if ($Value.discardResponseBodies -isnot [bool] -or $Value.discardResponseBodies) { throw 'OPTIONS_INVALID' }
 }
 
 function Assert-K6Summary($Value, [string] $RunId, [string] $Kind, [int] $ExitCode) {
     Assert-K6Fields $Value @('version', 'run_id', 'phase', 'cases', 'expected', 'started', 'completed', 'iterations', 'requests', 'checks')
     Assert-K6Integer $Value.version 1
-    if ($Kind -cnotin @('HTTP', 'Chromium') -or $ExitCode -ne 0 -or $Value.run_id -isnot [string] -or $Value.run_id -cne $RunId -or
+    if ($Kind -cne 'HTTP' -or $ExitCode -ne 0 -or $Value.run_id -isnot [string] -or $Value.run_id -cne $RunId -or
         $RunId -cnotmatch '^[a-f0-9]{32}$' -or $Value.phase -isnot [string] -or $Value.phase -cne $Kind) { throw 'SUMMARY_INVALID' }
-    $case = if ($Kind -ceq 'HTTP') { 'iam-health' } else { 'browser-prerequisite' }
+    $case = 'iam-health'
     if ($Value.cases -isnot [array] -or $Value.cases.Count -ne 1 -or $Value.cases[0] -isnot [string] -or $Value.cases[0] -cne $case) { throw 'COMPLETENESS_INVALID' }
     foreach ($n in @('expected', 'started', 'completed', 'iterations')) { Assert-K6Integer $Value.$n 1 }
-    Assert-K6Integer $Value.requests $(if ($Kind -ceq 'HTTP') { 1 } else { 0 })
-    $checks = if ($Kind -ceq 'HTTP') { @('iam-status', 'iam-body') } else { @('browser-evaluation', 'browser-blank', 'browser-version') }
+    Assert-K6Integer $Value.requests 1
+    $checks = @('iam-status', 'iam-body')
     Assert-K6Fields $Value.checks $checks
     foreach ($name in $checks) { Assert-K6Fields $Value.checks.$name @('passes', 'fails'); Assert-K6Integer $Value.checks.$name.passes 1; Assert-K6Integer $Value.checks.$name.fails 0 }
 }

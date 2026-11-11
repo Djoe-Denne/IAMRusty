@@ -1,6 +1,13 @@
 # Proposition — préparations natives et suite k6 orientée produit
 
 - Statut : **Proposed** ; Réalité : **cadrage et contrat documentaire, aucune réécriture implémentée/exécutée par cette rédaction**.
+- Décision utilisateur suivante, 2026-11-11 : suppression du scénario autonome
+  de prérequis navigateur (outillage, pas produit). La référence historique de
+  parité passe explicitement de quatre à **trois scénarios utiles** : santé IAM,
+  OAuth navigateur et identité TLS/SAN Envoy. Le navigateur du vrai OAuth et ses
+  contrôles restent nécessaires ; aucun remplacement par des checks stateless
+  ni PASS d'un parcours différé. L'inventaire de quatre ci-dessous décrit l'état
+  antérieur à ce retrait, pas le catalogue désormais à exécuter.
 - Date : 2026-11-11 ; base de continuité courante fournie par le parent : `b8a6b1e` (inventaire initial sur `8da70f7`).
 - **GO utilisateur « iam go » : option B retenue pour IAM**, petite réécriture k6 orientée produit et setup Windows natif. L'interdiction antérieure d'écrire des tests est levée **pour k6 IAM seulement** ; pas de Rust, autres services, CI ou runtime implicitement autorisés. Contrat implementer : [k6-iam-native-functional.md](k6-iam-native-functional.md).
 - Réalisation parent : [première tranche native](../../ops/tests/k6/iam/README.md), lectures/refus sans comptes ; inspection k6 hors ligne, aucun run live. Parcours positif A/B différé tant que l'inverse causal des événements d'inscription n'est pas établi ou leur rétention explicitement acceptée.

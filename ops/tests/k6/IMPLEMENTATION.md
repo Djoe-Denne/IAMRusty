@@ -1,5 +1,13 @@
 # Implementation record
 
+## Current scope — 2026-11-11
+
+The standalone `browser-prerequisite` scenario and its Windows/Linux `browser`
+entrypoints were removed by user request. Its Ubuntu22 comparison and dedicated
+CI steps/tests are retired. The sections below describing that scenario are
+historical implementation evidence, not an active requirement or runbook.
+Browser startup/version and cleanup for the actual OAuth scenario remain intact.
+
 ## Windows lead verification — 2026-10-31
 
 The simplified native about:blank/42 case now passes with k6 2.3.0 and same-case

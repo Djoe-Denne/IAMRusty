@@ -382,19 +382,19 @@ class DirectTests(unittest.TestCase):
                 mock.patch.object(runner, "host_metadata", return_value=host()), \
                 mock.patch.object(runner, "scenario_run", side_effect=safety.Rejected("SANDBOX_UNPROVEN", True)), \
                 mock.patch.object(runner, "direct_chromium") as direct, contextlib.redirect_stdout(io.StringIO()) as log:
-            self.assertEqual(runner.main(["browser", "--output", str(root)]), 2)
-        self.assertEqual(json.loads(log.getvalue())["browser_source"], "K6")
+            self.assertEqual(runner.main(["browser", "--output", str(root)]), 1)
+        self.assertEqual(json.loads(log.getvalue())["diagnostic"], "INPUT_INVALID")
+        self.assertNotIn("browser_source", json.loads(log.getvalue()))
         direct.assert_not_called()
 
-    def test_ci_comparison_is_separate_and_cannot_turn_browser_failure_green(self):
+    def test_ci_no_longer_runs_browser_prerequisite_or_its_diagnostic(self):
         workflow = (runner.REPO / ".github/workflows/k6-functional-smoke.yml").read_text()
-        workflow = workflow.split("  ubuntu2204-comparison:", 1)[0]  # canonical24 path;22 has its own guarded test
-        self.assertIn("failure() && steps.tools.outcome == 'success' && steps.browser.outcome == 'failure'", workflow)
-        self.assertEqual(workflow.count("run-linux.py diagnose-chromium"), 1)
-        self.assertLess(workflow.index("run-linux.py browser"), workflow.index("run-linux.py diagnose-chromium"))
+        self.assertNotIn("steps.browser.outcome", workflow)
+        self.assertNotIn("run-linux.py browser", workflow)
+        self.assertNotIn("run-linux.py diagnose-chromium", workflow)
+        self.assertNotIn("ubuntu2204-comparison:", workflow)
         self.assertNotIn("continue-on-error", workflow)
         self.assertNotIn("chromium-direct-check/result.json", workflow)
-        self.assertIn('"$K6_PRIVATE_ROOT/chromium-direct-check"', workflow)
 
     def test_closed_projection_rejects_extra_fields_labels_and_types(self):
         good = {"version": 1, "source": "CHROMIUM_DIRECT", "native_exit": "ZERO",

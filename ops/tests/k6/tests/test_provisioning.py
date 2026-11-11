@@ -190,8 +190,8 @@ class ProvisioningTests(unittest.TestCase):
         self.assertNotIn("/private/", published)  # private parent input is not an upload
         self.assertNotIn("run-linux.py run ", workflow)
         self.assertNotIn("run-linux.py selftest ", workflow)
-        self.assertEqual(workflow.count("/result.json"), 2)
-        self.assertEqual(workflow.count("/provenance.json"), 2)
+        self.assertEqual(workflow.count("/result.json"), 1)
+        self.assertEqual(workflow.count("/provenance.json"), 1)
 
 
 if __name__ == "__main__":

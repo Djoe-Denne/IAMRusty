@@ -151,18 +151,11 @@ closures. Other focused checks cover pins/version, nonvacant/current summaries,
 environment/privacy, timeout/interruption, descendants and owned cleanup. Tests for
 the removed ACL, bundle-lock and renderer-token mechanisms have been removed.
 
-After integrating this delta and a short check, the **lead** runs the existing
-browser entrypoint with verified explicit Windows tool paths and a fresh private
-output, without another hypothetical-risk review pipeline:
-
-```powershell
-powershell.exe -NoProfile -NonInteractive -File ops/tests/k6/run-windows.ps1 -Mode browser -Output $env:K6_BROWSER_RUN_DIR
-```
-
-This is a proposed next command, **not execution evidence**. The author does not run
-the real binaries. Diagnose a real failure using its bounded private diagnostics,
-exit and observed process facts; do not add protection without a reproducible defect
-or explicit user requirement. Integration/publication/final cleanup remain with the lead.
+**Retired 2026-11-11 by user decision:** the standalone about:blank prerequisite
+and `-Mode browser` no longer exist. The observations above remain historical;
+they are not a current command or qualification requirement. Browser startup,
+version equality and cleanup remain in the actual OAuth case (`auth` /
+`auth-inspect`). `tools` now inspects the HTTP case without requiring Chromium.
 
 ## Official sources and retained choices
 

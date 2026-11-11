@@ -147,10 +147,10 @@ class LaunchTests(unittest.TestCase):
             with self.subTest(code=code), self.assertRaises(runner.Rejected):
                 self.launch(native_error=runner.Rejected(code))
 
-    def test_browser_never_reads_application_guard(self):
-        result, calls = self.launch(phase="Chromium")
-        self.assertEqual(calls, 0)
-        self.assertEqual(result["sandbox"], "PASS")
+    def test_retired_browser_phase_never_launches_a_child(self):
+        with mock.patch.object(runner, "Child") as child, self.assertRaises(runner.Rejected):
+            runner.scenario_run("Chromium", None, Path("/private/unused"), {})
+        child.assert_not_called()
 
     def test_false_check_requires_healthy_baseline_and_actual_failure(self):
         value = summary()
@@ -446,34 +446,19 @@ class BrowserDiagnosticTests(unittest.TestCase):
             runner.confidential(json.dumps({"browser_native_diagnostic": reason}).encode())
             self.assertNotIn("private", reason.lower())
 
-    def test_main_projects_allowlisted_reason_without_success_or_artifact(self):
-        cases = [("SANDBOX_UNPROVEN", True, "NO_USABLE_SANDBOX_REPORTED", 2),
-                 ("PRIVACY_FAILED", False, "NATIVE_DIAGNOSTIC_WITHHELD", 1),
-                 ("SANDBOX_UNPROVEN", True, "CONFIDENTIAL_SENTINEL /private/path", 2),
-                 ("SANDBOX_UNPROVEN", True, ["untrusted"], 2)]
-        for code, inconclusive, reason, expected_exit in cases:
-            failure = runner.Rejected(code, inconclusive)
-            failure.cleanup, failure.browser_diagnostic = "PASS", reason
-            with scratch() as root, mock.patch.object(runner, "linux_platform"), \
-                    mock.patch.object(runner, "new_output", return_value=root), \
-                    mock.patch.object(runner, "pinned_tools", return_value=({}, {})), \
-                    mock.patch.object(runner, "version_checks", return_value={}), \
-                    mock.patch.object(runner, "scenario_run", side_effect=failure), \
-                    mock.patch.object(runner, "publish") as publish, contextlib.redirect_stdout(io.StringIO()) as log:
-                self.assertEqual(runner.main(["browser", "--output", str(root)]), expected_exit)
-            projected = json.loads(log.getvalue())
-            self.assertNotEqual(projected["Chromium"], "PASS")
-            self.assertEqual(projected["diagnostic"], code)
-            self.assertEqual(projected["cleanup"], "PASS")
-            if type(reason) is str and reason in {"NO_USABLE_SANDBOX_REPORTED", "NATIVE_DIAGNOSTIC_WITHHELD"}:
-                self.assertEqual(projected["browser_native_diagnostic"], reason)
-            else:
-                self.assertNotIn("browser_native_diagnostic", projected)
-            if code == "PRIVACY_FAILED":
-                self.assertEqual(projected["confidentiality"], "FAIL")
-            self.assertNotIn("CONFIDENTIAL_SENTINEL", log.getvalue())
-            self.assertNotIn("/private/path", log.getvalue())
-            publish.assert_not_called()
+    def test_retired_browser_command_is_rejected_before_host_or_output_access(self):
+        with mock.patch.object(runner, "linux_platform") as platform_check, \
+                mock.patch.object(runner, "new_output") as output, \
+                mock.patch.object(runner, "Child") as child, \
+                mock.patch.object(runner, "publish") as publish, contextlib.redirect_stdout(io.StringIO()) as log:
+            self.assertEqual(runner.main(["browser", "--output", "/private/unused"]), 1)
+        projected = json.loads(log.getvalue())
+        self.assertEqual(projected["diagnostic"], "INPUT_INVALID")
+        self.assertEqual(projected["cleanup"], "NOT_STARTED")
+        platform_check.assert_not_called()
+        output.assert_not_called()
+        child.assert_not_called()
+        publish.assert_not_called()
 
 
 if __name__ == "__main__":
