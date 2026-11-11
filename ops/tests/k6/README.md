@@ -1,5 +1,10 @@
 # k6 mission1 — Linux functional foundation
 
+**IAM natif, 2026-11-11 :** nouvelle [tranche HTTP sans Python](iam/README.md),
+limitée aux lectures et refus sans fixture persistante. Parcours positifs différés,
+qualification live non effectuée. Le reste de ce document décrit le harness
+historique ; il n'est pas une dépendance des nouvelles recettes `k6-prepare/run/clean iam`.
+
 **Windows revision3, 2026-10-31:** see [the simplified native adapter](WINDOWS.md).
 WSL qualification is suspended/INCONCLUSIVE. The Windows
 adapter does not qualify Linux or reactivate its CI. Its Accepted version

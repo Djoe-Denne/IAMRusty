@@ -220,6 +220,16 @@ local-apps-stop:
 local-status:
     & ./ops/deploy/kind-local-runtime.ps1 -Action status
 
+# IAM-only k6 path: native Windows tools, no historical Python parent.
+k6-prepare profile config directory:
+    if ("{{profile}}" -cne "iam") { throw 'Only the iam profile is supported.' }; & ./ops/tests/k6/iam/campaign.ps1 -Action prepare -Config "{{config}}" -Directory "{{directory}}"
+
+k6-run profile directory:
+    if ("{{profile}}" -cne "iam") { throw 'Only the iam profile is supported.' }; & ./ops/tests/k6/iam/campaign.ps1 -Action run -Directory "{{directory}}"
+
+k6-clean profile directory:
+    if ("{{profile}}" -cne "iam") { throw 'Only the iam profile is supported.' }; & ./ops/tests/k6/iam/campaign.ps1 -Action clean -Directory "{{directory}}"
+
 # Full-profile Linux delivery artifacts only. Requires the operator's runtime
 # lease/GO; no cluster creation, Compose startup, certificates or data seeding.
 # Each native exit is checked before invoking the next contractual command.

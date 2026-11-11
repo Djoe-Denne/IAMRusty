@@ -155,7 +155,7 @@ Contrat secondaire test-side : [m6 proof hardening](../contracts/20261018-m6-pro
 
 **0506** : opportunité conditionnelle **en veille**, **Proposed / Unimplemented** pour une éventuelle extension, distincte du KV déjà livré de 0505. [Audit de référence](../missions/20261031-openbao-lazaret-iam-reuse-audit.md) ; récurrence réelle, besoins proches et abstraction significative à démontrer ensemble. Aucun contrat/API ou module SDK nouveau décidé, aucune extraction Transit ni migration implicite ; conserver local reste une issue normale, sans calendrier ou promotion automatique.
 
-**k6 — cadrage ouvert du 2026-11-11** : [préparations natives et options de suite orientée produit](../contracts/k6-native-campaign-preparation.md), **Proposed**, interfaces non livrées. Réutilisation sélective ou petite réécriture JS à comparer ; conservation des anciens scénarios discutée, ni suppression ni recodage autorisés. Aucune ADR nouvelle ou modification de0504/contrats Accepted, aucun verdict runtime.
+**k6 — GO « iam go » du 2026-11-11** : [cadrage natif](../contracts/k6-native-campaign-preparation.md) et [contrat IAM](../contracts/k6-iam-native-functional.md), **Proposed**. [Tranche native sans comptes](../../ops/tests/k6/iam/README.md) implémentée, inspections hors ligne seulement ; deux identités et parcours password différés (inverse causal email/outbox/Telegraph non établi). Pas de GO réparation runtime ou suppression générale. Aucune ADR nouvelle ou modification de0504/contrats Accepted, aucun verdict live.
 
 ## Vague 3 — IAM living / IdP fédérés (0407+, hors Apparatus)
 

@@ -1,0 +1,7 @@
+{
+  "k6": { "path": "C:\\Program Files\\k6\\k6.exe", "sha256": "REPLACE_WITH_REVIEWED_SHA256" },
+  "kubectl": { "path": "C:\\tools\\kubectl.exe", "sha256": "REPLACE_WITH_REVIEWED_SHA256" },
+  "docker": { "path": "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe", "sha256": "REPLACE_WITH_REVIEWED_SHA256" },
+  "kubeconfig": "C:\\private\\aiforall\\kubeconfig",
+  "ca_file": "C:\\private\\aiforall\\pki\\mesh\\ca.crt"
+}
