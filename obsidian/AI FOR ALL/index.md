@@ -4,13 +4,14 @@ title: >-
 category: navigation
 tags: [index, navigation, wiki]
 summary: >-
-  Index AIForAll : OAuthConnect/IAM v2, ops GitHub+simulated HTTPS/OpenBao, clés et sessions distillées. Preuves offline et live distinctes ; bascule non qualifiée.
+  Index AIForAll : Ops déclaratives, k6 natif qualifié, fixtures et QA proportionnées, OAuthConnect/IAM v2. Preuves statiques/live et limites globales restent distinctes.
 provenance:
   extracted: 0.92
   inferred: 0.07
   ambiguous: 0.01
-updated: 2026-11-08
+updated: 2026-11-12
 sources:
+  - docs/history/iac-k6-qa-20261112/README.md
   - docs/history/ops-oauthconnect-20261108/README.md
   - docs/missions/20261108-ops-oauthconnect.md
   - docs/history/oauthconnect-iam-20261108/README.md
@@ -37,6 +38,10 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 ## Browse by area
 
+- [[projects/aiforall/references/session-iac-k6-qa-20261112]] — discussion et22sous-agents : IaC, Kind, k6 natif et QA au coût justifié.
+- [[projects/aiforall/skills/testing-k6-fixture-first]] — déclarer les fixtures, alimenter les données par les vraies API et fermer uniquement les effets possédés.
+- [[projects/aiforall/concepts/qa-proportionate-proof]] — preuve suffisante, alternatives et coût de setup, détours nécessaires vs options.
+
 - [[projects/aiforall/references/session-ops-oauthconnect-20261108]] — raccord ops publié et revue du sous-agent : deux sessions bornées, preuves offline, pas de déploiement.
 - [[projects/oauthconnect/concepts/local-ops-and-secret-distribution]] — GitHub+simulated, HTTPS public et droits OpenBao séparés.
 - [[projects/aiforall/skills/deploying-oauthconnect-local]] — préparer images/PKI/deux sources privées avant activation explicite.
@@ -46,7 +51,7 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/oauthconnect/concepts/oidc-jwks-and-key-rotation]] ; [[projects/oauthconnect/concepts/tls-hmac-and-signatures]] — du modèle mental aux mécanismes concrets.
 
 - [[projects/aiforall/references/auth-security-closure-20261029]] — qualification locale OAuth et Envoy, revues et limites ; pas validation production/HA/HSM.
-- [[projects/aiforall/concepts/k6-functional-linux]] — socle Windows PASS ; portage auth intégré mais non exécuté, mission arrêtée après échec du déploiement. Linux différé.
+- [[projects/aiforall/concepts/k6-functional-linux]] — trois scénarios Windows qualifiés le12novembre sur slice native ; historique d'octobre conservé, Linux/CI différés.
 - [[projects/iamrusty/decisions/0412-oauth-transaction-browser-binding]] — Accepted/Implemented pour le laboratoire local, après preuve Chrome/Envoy finale.
 
 - [[projects/index]] — service hubs and project knowledge areas
@@ -84,6 +89,8 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/manifesto/references/apparatus-implementation-plan]] — phases et preuves P0–P3.
 
 ## Recent Additions
+
+- [[projects/aiforall/references/session-iac-k6-qa-20261112]] — 23sessions accessibles distillées, sans raisonnement interne ni sorties d'outils ; k6 preuve54a19ba et QA24d2a52 distincts ( #testing #ops #reference).
 
 - [[projects/aiforall/references/session-ops-oauthconnect-20261108]] — profil `--oauth-connect` livré, HTTPS préféré à une exception TLS ; revue statique PASS ( #oauth #ops #testing).
 

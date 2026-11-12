@@ -4,22 +4,52 @@ title: >-
 category: concepts
 tags: [architecture, ops, kubernetes, contracts, visibility/internal]
 sources:
+  - docs/guides/ops-declarative-boundaries.md
+  - docs/missions/20261110-kind-local-operator-cycle.md
+  - docs/history/iac-k6-qa-20261112/README.md
   - docs/contracts/ops-kind-runtime-validation-separation.md
   - docs/contracts/ops-kind-runtime-validation-manifest.md
   - .cursor/handoffs/20261018-ops-kind-runtime-validation-preparation.md
   - docs/missions/20261108-ops-oauthconnect.md
   - ops/deploy/README.md
 summary: >-
-  Local-full sous bail sépare préparation, déploiement et preuves. Le profil OAuthConnect HTTPS/OpenBao est livré hors ligne ; readiness ou revue statique ne valent pas E2E.
+  Déclarations Ops, cycle opérateur et preuves restent séparés. Kind natif disponible et slice k6 qualifiée ne valent ni déploiement sans intervention ni qualification globale.
 provenance:
   extracted: 0.95
   inferred: 0.05
   ambiguous: 0.0
 created: 2026-10-19
-updated: 2026-11-08
+updated: 2026-11-12
 ---
 
 # Séparation runtime/validation — contrat ops Kind
+
+## Actualisation — 9 au 12 novembre
+
+L'utilisateur demande que les définitions soient dans les formats standards,
+pas dans un second déployeur : Helm pour les workloads, Kustomize pour Calico,
+Bake pour les images, Compose pour le registre, OpenSSL pour la PKI. Wrappers
+bornés aux entrées privées/protocoles/contrôles indispensables ; déplacer le même
+générateur de Python vers PowerShell ne répond pas à ce but. Aucun provider cloud
+nouveau n'est livré. Le guide `docs/guides/ops-declarative-boundaries.md` porte
+les frontières, les rapports intermédiaires restent datés.
+
+Le lanceur Kind natif du10novembre a un cycle réel avec corrections et interventions :
+13/13 actifs disponibles et healthHTTPS200 après reprise des mêmes IDs. Bao doit
+être unsealed et les queues LocalStack manquantes recréées ; cela ne restaure pas
+les messages volatils. Exited137 observés au premier stop, pas d'arrêt propre global
+revendiqué. Le helper de reprise n'est pas une nouvelle installation/initialisation.
+
+L'exception Agent OpenBao2.6.2/redirections n'est pas résolue par HTTPS : pas de
+clone auto-auth implicitement sûr, de bump ou contournement. Les inputs opérateur
+restent complets et privés ; la capacité produit consommatrice n'est pas effacée
+par l'amincissement des ops.
+
+Le PASS k6 du12novembre concerne une **slice fixture**, pas l'edge nominal ni tous
+les parcours du lab. Voir [[projects/aiforall/skills/testing-k6-fixture-first]] et
+[[projects/aiforall/references/session-iac-k6-qa-20261112]]. Les sections D1–D6
+ci-dessous conservent le contrat historique d'octobre, sans les promouvoir en ADR
+Accepted ni prétendre que ses lanceurs Python retirés sont les commandes actuelles.
 
 Décisions D1–D6 du contrat `docs/contracts/ops-kind-runtime-validation-separation.md`
 (Proposed, lien secondaire vers l'ADR 0606 sans la consommer). Mission d'origine :

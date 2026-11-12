@@ -4,6 +4,8 @@ title: >-
 category: project
 tags: [platform, microservices, rust, visibility/internal]
 sources:
+  - docs/history/iac-k6-qa-20261112/README.md
+  - docs/missions/20261112-k6-three-native-results.md
   - docs/missions/20261108-ops-oauthconnect.md
   - docs/history/ops-oauthconnect-20261108/README.md
   - docs/missions/20261031-k6-auth-handover.md
@@ -25,13 +27,13 @@ sources:
   - docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md
   - docs/adr/0007-closeout.md
 summary: >-
-  Plateforme RustyCog : IAM/Connect v2 et ops GitHub+simulated HTTPS/OpenBao livrés. Qualifications offline et historiques distinctes du déploiement et des E2E fournisseurs.
+  Plateforme RustyCog : Ops déclaratives, Kind natif et trois scénarios k6 locaux qualifiés. Fixtures et QA proportionnées ; CI, legacy et garanties globales restent distincts.
 provenance:
   extracted: 0.91
   inferred: 0.07
   ambiguous: 0.02
 created: 2026-04-14T16:54:59.5971424Z
-updated: 2026-11-08
+updated: 2026-11-12
 ---
 
 # AIForAll
@@ -67,6 +69,9 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 
 ## Skills
 
+- [[projects/aiforall/skills/testing-k6-fixture-first]] — inputs privés, slice déclarée, vrais parcours API et cleanup UID/OID ; pas d'effets métier nominaux présumés annulables.
+- [[projects/aiforall/concepts/qa-proportionate-proof]] — quoi tester/comment, coût du setup challengé et détour de sécurité justifié, sans framework imposé.
+
 - [[projects/aiforall/skills/deploying-oauthconnect-local]] — images, PKI, secrets et gates avant activation du profil HTTPS.
 
 - [[projects/aiforall/skills/running-aiforall-runtime-modes]]
@@ -87,12 +92,14 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
 
 ## Recent history
 
+- [[projects/aiforall/references/session-iac-k6-qa-20261112]] — discussion9–12novembre et22sous-agents distillés : IaC, cycle Kind corrigé, k6 natif54a19ba, nettoyage prudent et profils QA24d2a52. Preuves statiques/live et historique séparés.
+
 - [[projects/aiforall/references/session-ops-oauthconnect-20261108]] — raccord ops
   publié, choix OAuth simulé/HTTPS et revue indépendante statique PASS ; aucun
   runtime ou E2E nouveau. La chaîne intégrée reste à qualifier.
 
 - [[projects/aiforall/references/auth-security-closure-20261029]] — correctif d'autorité OAuth, Chrome réel et refus Envoy qualifiés localement ; limites production/HA/HSM conservées.
-- [[projects/aiforall/concepts/k6-functional-linux]] — socle k6/Chrome Windows PASS ; portage auth intégré et inspecté, mais aucune campagne auth exécutée. Arrêt utilisateur après échec de déploiement de cause inconnue ; trois nœuds arrêtés, données et arbres conservés. Source : `docs/missions/20261031-k6-auth-handover.md`. Linux reste différé.
+- [[projects/aiforall/concepts/k6-functional-linux]] — trois scénarios Windows qualifiés le12novembre : health, OAuth Chromium26 et SAN303→503→303. L'arrêt sans PASS auth du31octobre reste historique ; Linux/CI différés et preuve liée à54a19ba, pas aux changements ultérieurs.
 - Clôture du socle k6 mission1 vérifiée : dix copies de travail retirées après sauvegardes, équipe archivée et onze références de sauvegarde conservées. Ce bilan ne décrit pas la mission auth arrêtée avec ses arbres conservés. Le nettoyage n'est pas une qualification HTTP/Linux ; enseignements dans [[projects/aiforall/concepts/orchestrator-agent-harness]].
 
 - [[projects/aiforall/references/mission-telegraph-outbox-20261027]] — transaction writer commune, NoOp suspendu, owner HTTP, reprise après lease puis verticaleSQS/OpenFGA/replay/403/200 ; commit39024b2 et SDKd60 publiés avec gitlink exact. Clippy antérieur/Sonar/CI restent des réserves, statuts ADR non promus.

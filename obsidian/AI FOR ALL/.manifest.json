@@ -1,13 +1,47 @@
 ﻿{
     "version":  1,
     "stats":  {
-                  "total_sources_ingested":  1373,
-                  "total_pages":  262,
-                  "total_pages_scope": "markdown excluding dot/underscore files and directories; includes navigation and log; recounted 2026-11-08",
+                  "total_sources_ingested":  1387,
+                  "total_pages":  266,
+                  "total_pages_scope": "markdown excluding dot/underscore files and directories; includes navigation and log; recounted 2026-11-12; includes preexisting foreign notes, not all attributed to this ingest",
                   "last_commit_synced":  "2473baa7a54595931a4eff76a33431f56776db20"
               },
     "projects":  {
-                     "aiforall":  {
+                      "aiforall":  {
+                                      "scoped_ingest_20261112_iac_k6_qa": {
+                                          "at": "2026-11-12T16:45:10Z",
+                                          "source_commit": "24d2a527ed1332d623a94e9c4b0e5127315e98ea",
+                                          "scope": "Current IaC/k6/QA root and its accessible recursive children through the user ingestion request; not a full project resync",
+                                          "root_session": "ses_e3fce1a95ffefKfnyjsMfVxmEn",
+                                          "captured_through": "2026-11-12T16:33:38.370Z",
+                                          "sessions_captured": 23,
+                                          "direct_children": 22,
+                                          "further_descendants": 0,
+                                          "messages_before_boundary": 3209,
+                                          "visible_records_private": 636,
+                                          "message_pages_exhausted": 114,
+                                          "child_inventory_pages_exhausted": 24,
+                                          "reasoning_parts_excluded": 6253,
+                                          "tool_parts_excluded": 4068,
+                                          "coverage": "docs/history/iac-k6-qa-20261112/coverage.json",
+                                          "distillation": "docs/history/iac-k6-qa-20261112/README.md",
+                                          "sources_new": 14,
+                                          "sources_modified": 0,
+                                          "pages_created": 3,
+                                          "pages_updated": 8,
+                                          "pages_created_paths": [
+                                              "projects/aiforall/references/session-iac-k6-qa-20261112.md",
+                                              "projects/aiforall/skills/testing-k6-fixture-first.md",
+                                              "projects/aiforall/concepts/qa-proportionate-proof.md"
+                                          ],
+                                          "taxonomy": "absent; existing related tags reused, no new vocabulary",
+                                          "obsidian_cli": "app not running; targeted file patch fallback",
+                                          "private_projections_published": false,
+                                          "qmd_refresh": "not run; indexed retrieval may lag updated markdown; no cache/model/global configuration changed",
+                                          "runtime_started": false,
+                                          "full_project_sync": false,
+                                          "limits": "Only accessible user/assistant messages, not all native event types or deleted/unlinked sessions. Static reviews, live runs and later prompt changes kept distinct; no agent behavior benchmark. Foreign staged notes preserved."
+                                      },
                                       "scoped_ingest_20261108_ops_oauthconnect": {
                                           "at": "2026-11-08T14:43:13Z",
                                           "scope": "Current ops OAuthConnect root session plus its independent infra reviewer; not a full project resync or a replay of historical IAM leaves",
@@ -90,6 +124,9 @@
                                       "conversations_ingested":  131,
                                       "conversations_total":  649,
                                       "pages_in_vault":  [
+                                                             "projects/aiforall/references/session-iac-k6-qa-20261112.md",
+                                                             "projects/aiforall/skills/testing-k6-fixture-first.md",
+                                                             "projects/aiforall/concepts/qa-proportionate-proof.md",
                                                              "journal/2026-10-02.md",
                                                              "projects/aiforall/references/mesh-authn-close-2026-10-02.md",
                                                              "journal/2026-09-30.md",
@@ -146,6 +183,77 @@
                                   }
                  },
     "sources":  {
+        "docs/history/iac-k6-qa-20261112/README.md": {
+            "ingested_at":"2026-11-12T16:45:10Z", "modified_at":"2026-11-12T16:43:04.044350+00:00", "size_bytes":6685,
+            "content_hash":"sha256:ea3f4253e46d4d27026878e81c5e5ada52fad00e628c6ece615cf9addebc7ed1", "source_type":"data", "project":"aiforall",
+            "pages_created":["projects/aiforall/references/session-iac-k6-qa-20261112.md","projects/aiforall/skills/testing-k6-fixture-first.md","projects/aiforall/concepts/qa-proportionate-proof.md"],
+            "pages_updated":["projects/aiforall/concepts/k6-functional-linux.md","projects/aiforall/concepts/runtime-validation-separation.md","projects/aiforall/concepts/orchestrator-agent-harness.md","projects/aiforall/aiforall.md","projects/aiforall/skills/index.md","projects/aiforall/concepts/index.md","index.md","log.md"]
+        },
+        "docs/history/iac-k6-qa-20261112/coverage.json": {
+            "ingested_at":"2026-11-12T16:45:10Z", "modified_at":"2026-11-12T16:43:04.045896+00:00", "size_bytes":3639,
+            "content_hash":"sha256:97aed1b867ee8e33e09adb6e2dad97bb7481386c615e80c2c7bf6df9d9a3c2e3", "source_type":"data", "project":"aiforall",
+            "pages_created":["projects/aiforall/references/session-iac-k6-qa-20261112.md"], "pages_updated":[]
+        },
+        "docs/guides/ops-declarative-boundaries.md": {
+            "ingested_at":"2026-11-12T16:45:10Z", "modified_at":"2026-11-09T17:43:28.506451+00:00", "size_bytes":8185,
+            "content_hash":"sha256:62800cf94776ea6e42d92b1af57cacbd78898661372fb7e10972b271e4c281ca", "source_type":"document", "project":"aiforall",
+            "pages_created":[], "pages_updated":["projects/aiforall/concepts/runtime-validation-separation.md"]
+        },
+        "docs/missions/20261109-ops-declarative-migration.md": {
+            "ingested_at":"2026-11-12T16:45:10Z", "modified_at":"2026-11-09T15:58:02.102592+00:00", "size_bytes":14607,
+            "content_hash":"sha256:de7c61daa9933e551e2907908d7c5d4acc728110ccfcf5a30d3b63e6a8e9cb32", "source_type":"document", "project":"aiforall",
+            "pages_created":["projects/aiforall/references/session-iac-k6-qa-20261112.md"], "pages_updated":["projects/aiforall/concepts/runtime-validation-separation.md"]
+        },
+        "docs/missions/20261110-kind-local-operator-cycle.md": {
+            "ingested_at":"2026-11-12T16:45:10Z", "modified_at":"2026-11-10T20:03:56.272063+00:00", "size_bytes":8728,
+            "content_hash":"sha256:217d318bdc201c1a335cc7c2ef61d653fe5bbbe614b7853251de3631cac46472", "source_type":"document", "project":"aiforall",
+            "pages_created":["projects/aiforall/references/session-iac-k6-qa-20261112.md"], "pages_updated":["projects/aiforall/concepts/runtime-validation-separation.md"]
+        },
+        "docs/missions/20261112-k6-three-native-results.md": {
+            "ingested_at":"2026-11-12T16:45:10Z", "modified_at":"2026-11-12T14:38:23.799448+00:00", "size_bytes":5855,
+            "content_hash":"sha256:cae9b8a1d4156c3a4a0ba87aa3914b66bb0f77ff62fcc473e25b21348215a3ff", "source_type":"document", "project":"aiforall",
+            "pages_created":["projects/aiforall/skills/testing-k6-fixture-first.md"], "pages_updated":["projects/aiforall/concepts/k6-functional-linux.md"]
+        },
+        "docs/missions/20261112-k6-three-native-evidence.json": {
+            "ingested_at":"2026-11-12T16:45:10Z", "modified_at":"2026-11-12T14:42:38.009235+00:00", "size_bytes":3363,
+            "content_hash":"sha256:e6d8a117cbb9fdb373fe73ceb388da41e843c4597b386eeb1175f663a7f48789", "source_type":"data", "project":"aiforall",
+            "pages_created":["projects/aiforall/references/session-iac-k6-qa-20261112.md"], "pages_updated":["projects/aiforall/concepts/k6-functional-linux.md"]
+        },
+        "docs/missions/20261112-python-dead-code-cleanup.md": {
+            "ingested_at":"2026-11-12T16:45:10Z", "modified_at":"2026-11-12T15:05:33.967346+00:00", "size_bytes":3887,
+            "content_hash":"sha256:1db6df778cb0b5dcc0ded938248274186d640961907e32d7aa0f6437fc78e144", "source_type":"document", "project":"aiforall",
+            "pages_created":["projects/aiforall/references/session-iac-k6-qa-20261112.md"], "pages_updated":["projects/aiforall/concepts/k6-functional-linux.md"]
+        },
+        ".agents/skills/aiforall-k6/SKILL.md": {
+            "ingested_at":"2026-11-12T16:45:10Z", "modified_at":"2026-11-12T16:21:53.272853+00:00", "size_bytes":9142,
+            "content_hash":"sha256:fbfbbb24fecbf9778af6f13ec6e7048ba11c0011ed0839058a0065868f0d1b39", "source_type":"document", "project":"aiforall",
+            "pages_created":["projects/aiforall/skills/testing-k6-fixture-first.md"], "pages_updated":["projects/aiforall/skills/index.md"]
+        },
+        ".agents/skills/aiforall-k6/references/native-campaign.md": {
+            "ingested_at":"2026-11-12T16:45:10Z", "modified_at":"2026-11-12T16:21:53.272853+00:00", "size_bytes":9260,
+            "content_hash":"sha256:dd5939f620ef7cd7985d84c595ca0a5b1b6f97e351b1948aa81fd43724d5460c", "source_type":"document", "project":"aiforall",
+            "pages_created":["projects/aiforall/skills/testing-k6-fixture-first.md"], "pages_updated":[]
+        },
+        ".agents/skills/aiforall-test-evidence/SKILL.md": {
+            "ingested_at":"2026-11-12T16:45:10Z", "modified_at":"2026-11-12T16:21:53.273943+00:00", "size_bytes":7266,
+            "content_hash":"sha256:d64b4f618e8e6f58f16e258a0312c7ad1ba137e6f69f8559ca9e09d0fe2086cc", "source_type":"document", "project":"aiforall",
+            "pages_created":["projects/aiforall/skills/testing-k6-fixture-first.md"], "pages_updated":[]
+        },
+        ".opencode/agents/qa-planner.md": {
+            "ingested_at":"2026-11-12T16:45:10Z", "modified_at":"2026-11-12T16:30:50.635180+00:00", "size_bytes":11220,
+            "content_hash":"sha256:7e10e8b58db322f1b8e183ffcf8d54907e8b219a421e62a63fa1575ba44128af", "source_type":"document", "project":"aiforall",
+            "pages_created":["projects/aiforall/concepts/qa-proportionate-proof.md"], "pages_updated":["projects/aiforall/concepts/orchestrator-agent-harness.md"]
+        },
+        ".opencode/agents/test-engineer.md": {
+            "ingested_at":"2026-11-12T16:45:10Z", "modified_at":"2026-11-12T16:30:50.635180+00:00", "size_bytes":9547,
+            "content_hash":"sha256:8ed8f528d7f791284b049a6e1db7ff91e9ffeabbc305bf759a25081357ad873e", "source_type":"document", "project":"aiforall",
+            "pages_created":["projects/aiforall/concepts/qa-proportionate-proof.md"], "pages_updated":["projects/aiforall/concepts/orchestrator-agent-harness.md"]
+        },
+        ".opencode/agents/test-reviewer.md": {
+            "ingested_at":"2026-11-12T16:45:10Z", "modified_at":"2026-11-12T16:30:50.636704+00:00", "size_bytes":12359,
+            "content_hash":"sha256:b097af4f9dfe33b62545efa48e9e82862c632a34d9d5bb1007943db27a3249f8", "source_type":"document", "project":"aiforall",
+            "pages_created":["projects/aiforall/concepts/qa-proportionate-proof.md"], "pages_updated":["projects/aiforall/concepts/orchestrator-agent-harness.md"]
+        },
                     "docs/history/ops-oauthconnect-20261108/README.md": {
                         "ingested_at": "2026-11-08T14:43:13Z",
                         "size_bytes": 8268,
@@ -26578,5 +26686,5 @@
                                                                                                                                                                         ]
                                                                                                                                                   }
                 },
-    "last_updated":  "2026-11-08"
+    "last_updated":  "2026-11-12"
 }

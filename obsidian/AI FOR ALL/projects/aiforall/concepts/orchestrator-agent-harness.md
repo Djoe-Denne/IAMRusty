@@ -5,6 +5,10 @@ category: concepts
 tags: [architecture, rust, visibility/internal]
 aliases: [agent-harness, orchestrator]
 sources:
+  - .opencode/agents/qa-planner.md
+  - .opencode/agents/test-engineer.md
+  - .opencode/agents/test-reviewer.md
+  - docs/history/iac-k6-qa-20261112/README.md
   - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/106-references-de-sauvegarde-a-restaurer-apres-nettoyage-natif.md
   - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/107-nettoyage-et-archivage-verifies.md
   - _raw/opencode-g17-m6-20261018/inventory.json
@@ -20,13 +24,13 @@ sources:
   - C:/Users/djden/.cursor/projects/c-Users-djden-source-repos-AIForAll/agent-transcripts/a340bab3-a47f-4710-af1e-3d4bff06e4a2/a340bab3-a47f-4710-af1e-3d4bff06e4a2.jsonl
   - .cursor/review-briefings/README.md
 summary: >-
-  Historique Cursor et lead Ensemble : ownership, preuves persistantes et clôture vérifiée des worktrees ; le succès natif ne garantit pas la conservation des références.
+  Historique Cursor/Ensemble, conservation des livrables et QA proportionnée : le planner propose une preuve suffisante, pas un framework ni un pipeline obligatoire.
 provenance:
   extracted: 0.85
   inferred: 0.12
   ambiguous: 0.03
 created: 2026-09-11T05:45:00Z
-updated: 2026-10-31
+updated: 2026-11-12
 ---
 
 # Harnais orchestrator Cursor
@@ -68,6 +72,16 @@ natif, contenu intégré et récupérabilité réduit le risque de confondre fin
 et clôture effective. ^[inferred]
 
 ## Historique Cursor (ne pas appliquer comme obligation OpenCode)
+
+> [!note] QA actualisée le12novembre2026
+> Le profil local `qa-planner` et ses consommateurs sont recentrés dans24d2a52 :
+> critères de la fonctionnalité, méthode suffisante la plus simple, challenge du
+> coût setup/maintenance avant nouveau harness. Un plan n'autorise pas cet outillage.
+> Matrices/IDs et revue indépendante ne sont pas imposés aux lots simples ; une
+> garantie de sécurité réelle ne peut pas être déclassée pour raison de coût.
+> Modèles/permissions inchangés, contrôles statiques seulement, pas benchmark d'agent.
+> Voir [[projects/aiforall/concepts/qa-proportionate-proof]] et
+> [[projects/aiforall/references/session-iac-k6-qa-20261112]].
 
 Installé le 10 septembre 2026 (commit `a72979a`). Règle always-on : `.cursor/rules/00-agent-harness.mdc`.
 

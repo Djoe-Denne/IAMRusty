@@ -1,8 +1,13 @@
 ---
-title: "k6 — socle Windows qualifié, Linux en attente"
+title: >-
+  k6 — trois scénarios Windows qualifiés, Linux différé
 category: concepts
 tags: [architecture, security, visibility/internal]
 sources:
+  - docs/missions/20261112-k6-three-native-results.md
+  - docs/missions/20261112-python-dead-code-cleanup.md
+  - docs/history/iac-k6-qa-20261112/README.md
+  - .agents/skills/aiforall-k6/SKILL.md
   - docs/adr/0504-validation-fonctionnelle-linux-k6.md
   - docs/contracts/k6-functional-linux.md
   - docs/missions/20261029-k6-recherche-et-enchainement.md
@@ -15,18 +20,49 @@ sources:
   - .opencode/missions/team_mvtz6p47_000q_4wmht0/reports/107-nettoyage-et-archivage-verifies.md
   - docs/archives/k6-wsl-20261030/README.md
   - docs/missions/20261031-k6-auth-handover.md
-summary: "Socle k6/Chrome Windows qualifié ; scénarios auth intégrés mais non exécutés, mission arrêtée après échec du déploiement. Linux reste différé."
+summary: >-
+  Santé HTTPS, OAuth Chromium et SAN qualifiés sur une slice native isolée au commit54a19ba. Fixtures IaC et preuves parent ; Linux/CI et retrait legacy différés.
 provenance:
   extracted: 0.96
   inferred: 0.04
   ambiguous: 0.0
 created: 2026-10-29
-updated: 2026-10-31
+updated: 2026-11-12
 ---
 
-# k6 : un socle Windows qualifié, pas une preuve globale Linux
+# k6 : trois scénarios Windows, pas une preuve globale Linux
 
-## État vérifié au 31 octobre 2026
+## État courant — 12 novembre 2026
+
+La campagne `ops/tests/k6/native/campaign.ps1` a réellement passé au commit
+**54a19ba**, run `e3337dff24eb470881233fdfad6f6022` : santé HTTPS, SAN
+303→503→303 et OAuth Chromium26, **34 checks réussis**. Le parent corrèle
+IAM+7/ext-authz+4/fournisseur+3/PKCE+3, users0→1/outbox0→0, même Envoy et
+restauration vérifiée. Cleanup18/18, DB dédiée et enfants/forwards fermés ;
+lab13/13 disponible laissé en marche sur accord utilisateur.
+
+La voie est **IaC/fixture-first** : slice IAM/OAuthConnect v2/Envoy/IdP déclarée,
+inputs privés hors Git, données créées par les vraies API. Postgres/ext-authz et
+autres backings restent partagés, donc pas une pile hermétique. Procédure :
+[[projects/aiforall/skills/testing-k6-fixture-first]].
+
+Le prérequis autonome `about:blank` et ses modes browser ont été retirés le
+11 novembre ; le contrôle de version reste dans le vrai parcours OAuth. La CA
+publique durable CurrentUser\Root est installée séparément, pas retirée au cleanup.
+La tranche IAM stateless à12checks est un autre chemin, pas la parité OAuth/SAN.
+
+Le nettoyage **fc5e29b** ne retire qu'une constante du simulateur : régressions
+195 k6 PASS/8 POSIX skips +9 IdP PASS, **pas de nouvel E2E**. Les skills/profils
+suivants n'étendent pas les empreintes de la preuve54a19ba. Linux, CI GitHub,
+password/refresh positif et retrait du legacy restent différés ; contrat de
+parité native **Proposed**. Provenance :
+[[projects/aiforall/references/session-iac-k6-qa-20261112]].
+
+> [!note] Historique conservé
+> Les sections datées d'octobre ci-dessous décrivent les résultats et blocages
+> d'alors, pas des commandes actuelles ni le verdict de la campagne du12novembre.
+
+## Historique — état vérifié au 31 octobre 2026
 
 L'état initial « Proposed / Unimplemented, aucune exécution » est dépassé. ADR 0504
 et le contrat Linux V1 sont **Accepted / Partial** ; ils ne sont pas qualifiés par
@@ -71,7 +107,7 @@ protections natives Chromium, pins/provenance/SHA256, profil séparé, timeout e
 nettoyage raisonnable des processus créés restent conservés. Ce choix ne transforme
 pas un PASS fonctionnel en certification du sandbox.
 
-## Portage auth Windows : livré, mais campagne non exécutée
+## Historique au 31 octobre — auth livrée, campagne non exécutée
 
 La mission suivante est **arrêtée à la demande de l'utilisateur**, sans PASS auth
 réel. Les scénarios `oauth-browser.js` et `envoy-san.js`, ainsi que les modes
@@ -108,15 +144,19 @@ Source : `docs/missions/20261031-k6-auth-handover.md` ; projet
 
 `k6/http` porte les scénarios API ; `k6/browser` utilise Chromium réel pour cookies et redirections OAuth. Une succession de requêtes HTTP n'est pas une preuve navigateur. La campagne réutilise les oracles de [[projects/aiforall/references/auth-security-closure-20261029]] et les routes exactes de [[projects/iamrusty/decisions/0412-oauth-transaction-browser-binding]], sans changer l'autorité pour faciliter le runner.
 
-Le parent opérations conserve le contrôle du laboratoire, des perturbations, observations et du nettoyage. Pas d'API administrative générique ajoutée pour k6. Setup/teardown ne garantissent pas le nettoyage après interruption. Les contrôles fonctionnels doivent avoir des thresholds qui rendent l'exécution fautive en cas d'échec, avec preuve de complétude et de non-vacuité ; les checks seuls ne suffisent pas.
+Le parent de la campagne native contrôle ses fixtures, perturbations, observations
+et nettoyage, mais ne démarre/répare/arrête pas le lab. Pas d'API administrative
+générique ajoutée pour k6. Setup/teardown ne garantissent pas la fermeture après
+kill du parent ; résumé frais, complétude, non-vacuité et fin des processus restent
+exigés. Les checks seuls ne suffisent pas.
 
 ## Trajectoire Linux et authentification
 
-Les trois ordres initiaux restent distincts : socle et smoke, portage des preuves
-d'authentification, puis propagation/reprise des droits Linux. Seul le cas minimal
-Windows décrit ici est qualifié ; le portage OAuth et les campagnes de droits ne
-sont pas admis par cette ingestion. Les tests Rust restent natifs Windows selon la
-stratégie du dépôt. OHA, performance, UI, HA exhaustive et Grafana Cloud restent exclus.
+Les trois ordres initiaux restent distincts : socle/smoke, portage des preuves
+d'authentification, propagation/reprise des droits Linux. Le portage natif Windows
+est qualifié par la campagne du12novembre, pas les campagnes de droits Linux.
+Les tests Rust restent natifs Windows. OHA, performance, UI générique, HA
+exhaustive et Grafana Cloud restent exclus.
 
 Les 24 sources de l'enquête WSL sont des archives inactives, dont cinq sources
 `ldd-only` tardives non exécutées par le lead. Leur préservation ne relance ni sonde

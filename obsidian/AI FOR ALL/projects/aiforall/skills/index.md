@@ -3,18 +3,23 @@ title: AIForAll Skills Index
 category: navigation
 tags: [index, skills, platform]
 summary: >-
-  Procédures AIForAll : modes runtime, validation explicite et préparation OAuthConnect HTTPS/OpenBao ; legacy et preuves live restent séparés.
+  Procédures AIForAll : k6 IaC/fixtures d'abord, validation explicite et préparation OAuthConnect HTTPS/OpenBao ; legacy et preuves live restent séparés.
 sources:
+  - .agents/skills/aiforall-k6/SKILL.md
+  - docs/history/iac-k6-qa-20261112/README.md
   - ops/deploy/README.md
   - docs/missions/20261108-ops-oauthconnect.md
 provenance:
   extracted: 0.94
   inferred: 0.05
   ambiguous: 0.01
-updated: 2026-11-08
+updated: 2026-11-12
 ---
 
 # AIForAll Skills
+
+- [[projects/aiforall/skills/testing-k6-fixture-first]] — campagne native à trois scénarios, inputs privés et vrais parcours API ; oracles et cleanup liés au run.
+- [[projects/aiforall/concepts/qa-proportionate-proof]] — choisir une preuve suffisante et challenger les nouveaux moyens substantiels avant de les construire.
 
 - [[projects/aiforall/skills/deploying-oauthconnect-local]] — profil GitHub+simulated HTTPS/OpenBao, sources privées et reprise d'epoch ; pas E2E implicite.
 
