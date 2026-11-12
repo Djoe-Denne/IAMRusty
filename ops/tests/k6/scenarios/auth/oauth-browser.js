@@ -163,7 +163,7 @@ export default async function () {
       });
       return response.status;
     }, { registration_token: registration.registration_token, username: runId });
-    expect('registration-completed', registered === 200 || registered === 201);
+    expect('registration-completed', registered === 200);
 
     // A fresh navigation is required: 202 preparation is never accepted as login.
     const login = await page.goto(ORIGIN + LOGIN, { timeout: 15000 });

@@ -997,9 +997,11 @@ async fn no_email_allows_link_and_relink_but_denies_login_for_the_linked_identit
         let before = business_snapshot(&db).await;
         let result = callback(&client, &base, "github/callback", &state, Some(&cookie)).await;
         assert!(delivered.load(std::sync::atomic::Ordering::SeqCst), "valid complete with email=None must actually reach LOGIN");
-        // G6 requires refusal; it does not assign a new browser error category.
-        assert!(result.status().is_client_error() || result.status().is_server_error(), "LOGIN must require email even for an already linked identity");
+        // Characterize the existing mapper: UserProfileError -> provider_error -> 401.
+        assert_eq!(result.status(), 401, "LOGIN without provider email is an authentication failure");
         let body: Value = result.json().await.expect("LOGIN denial");
+        assert_eq!(body["error"]["error_code"], "authentication_failed");
+        assert_eq!(body["error"]["status"], 401);
         for credential in ["access_token", "refresh_token", "registration_token"] {
             assert!(body.get(credential).is_none(), "no-email LOGIN must not mint credentials");
         }

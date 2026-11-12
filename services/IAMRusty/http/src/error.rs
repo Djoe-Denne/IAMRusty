@@ -57,6 +57,61 @@ mod credential_redaction_tests {
 }
 
 #[cfg(test)]
+mod oauth_login_status_characterization_tests {
+    use super::*;
+    use iam_application::command::oauth_login::OAuthLoginErrorMapper;
+    use iam_application::usecase::oauth::OAuthError;
+    use rustycog::command::CommandErrorMapper;
+
+    #[tokio::test]
+    async fn missing_provider_email_is_401_authentication_failed() {
+        let cause = OAuthError::DomainError(DomainError::UserProfileError(
+            "Email is required from OAuth provider".into(),
+        ));
+        let mapped = OAuthLoginErrorMapper.map_error(Box::new(cause));
+        assert!(matches!(
+            &mapped,
+            CommandError::Infrastructure { code, .. } if code == "provider_error"
+        ));
+        let response = AuthError::oauth_login_failed("login", &mapped).into_response();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let bytes = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["error"]["status"], 401);
+        assert_eq!(body["error"]["error_code"], "authentication_failed");
+        assert_eq!(body["error"]["message"], "Authentication failed");
+        assert!(!String::from_utf8(bytes.to_vec())
+            .unwrap()
+            .contains("Email is required"));
+    }
+
+    #[tokio::test]
+    async fn repository_failure_is_500_login_failed() {
+        const INTERNAL_CAUSE: &str = "SENTINEL-OAUTH-REPOSITORY-CAUSE";
+        let cause = OAuthError::DomainError(DomainError::RepositoryError(INTERNAL_CAUSE.into()));
+        let mapped = OAuthLoginErrorMapper.map_error(Box::new(cause));
+        assert!(matches!(
+            &mapped,
+            CommandError::Infrastructure { code, .. } if code == "database_error"
+        ));
+        let response = AuthError::oauth_login_failed("login", &mapped).into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let bytes = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["error"]["status"], 500);
+        assert_eq!(body["error"]["error_code"], "login_failed");
+        assert_eq!(body["error"]["message"], "Login failed");
+        assert!(!String::from_utf8(bytes.to_vec())
+            .unwrap()
+            .contains(INTERNAL_CAUSE));
+    }
+}
+
+#[cfg(test)]
 mod signing_admission_mapping_tests {
     use super::*;
     use iam_domain::entity::signing_key::SigningKeyAdmissionReason;
