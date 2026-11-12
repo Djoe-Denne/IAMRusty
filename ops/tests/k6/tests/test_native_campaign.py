@@ -4,13 +4,15 @@ import json
 import os
 import re
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[4]
 NATIVE = ROOT / "ops/tests/k6/native"
-HELM = ROOT / ".tmp/ops-iac-tools/helm-v4.3.1/windows-amd64/helm.exe"
+HELM = Path(os.environ.get("AIFORALL_HELM") or shutil.which("helm") or
+            ROOT / ".tmp/ops-iac-tools/helm-v4.3.1/windows-amd64/helm.exe")
 K6 = Path("C:/Program Files/k6/k6.exe")
 
 

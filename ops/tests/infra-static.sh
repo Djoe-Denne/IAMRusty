@@ -34,8 +34,15 @@ def compose_value(loader, node):
     return loader.construct_scalar(node)
 for tag in ('!override', '!reset'):
     SourceLoader.add_constructor(tag, compose_value)
+def is_helm_render_input(path):
+    # Chart.yaml, not a directory named "charts", establishes this boundary.
+    # Chart metadata and values remain ordinary YAML and must still be parsed.
+    for parent in path.parents:
+        if (parent / 'Chart.yaml').is_file():
+            return path.relative_to(parent).parts[0] in {'templates', 'files'}
+    return False
 paths = [p for p in sorted(Path('ops').rglob('*.yaml')) + sorted(Path('ops').rglob('*.yml'))
-         if not ('charts' in p.parts and ('templates' in p.parts or 'files' in p.parts))]
+         if not is_helm_render_input(p)]
 paths.append(Path('.github/workflows/ci.yml'))
 for path in paths:
     try:
@@ -103,4 +110,7 @@ for doc in docs:
                 list(yaml.safe_load_all(content))
 '
 printf 'OK native Helm lint and offline render\n'
+# Render/refusal oracles use synthetic public inputs only. This does not run k6,
+# Chromium, the campaign parent or a Kubernetes client against a cluster.
+"$PYTHON" -B -m unittest discover -s ops/tests/k6/tests -p test_native_campaign.py -k FixtureRenderTests -v
 printf 'OK shell syntax: %s scripts; offline renders: %s\n' "$scripts" "$renders"
