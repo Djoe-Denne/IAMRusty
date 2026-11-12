@@ -5,7 +5,10 @@
   `a2c0f80`. Aucun changement de workflow ni ajout d'instrumentation LLVM locale.
 - Vérification : admission crypto6PASS ; IAM/Manifesto IT57PASS ; gates38PASS ;
   Telegraph outbox7PASS :108tests dans les binaires affectés,0ignoré/filtré.
-  Ce rapport ne vaut pas PASS global, ni nouvelle décision d'architecture.
+  **CI complète PASS** sur `36d0e7c4a5fa955fea8e3c297793646aea8c5c0f`,
+  [run43287239228](https://github.com/Djoe-Denne/IAMRusty/actions/runs/43287239228),
+  23jobs réussis,0échec/annulé/ignoré. Ce résultat n'est pas une nouvelle décision
+  d'architecture ni une qualification d'E2E/production.
 
 ## P1 — Échecs vérifiés
 
@@ -98,8 +101,18 @@ Les logs CI et inventaires bruts restent sous `.tmp/ci-infra-static/`, non
 publiés. Les campagnes natives utilisent le registre Docker append-only et le
 cleanup du lanceur ; ni Kind, ni ressources préexistantes ne sont adoptés.
 
-État local :5findings traités et validés. Publication et preuve CI complète
-restent à obtenir. Les huit campagnes IT ont créé21fixtures et en ont retiré20,
+État final code :5findings traités, publiés et validés par la CI complète.
+Commits : `937d217` (fixtures/migrations/crypto), `a9011b2` (gates), `36d0e7c`
+(nettoyage SQS et preuves). Référence `origin/master` vérifiée au SHA testé avant
+publication de cette actualisation documentaire ; aucun code modifié après ce run.
+
+Jobs d'intégration verts : Manifesto131427069867, IAM131427069871,
+Telegraph131427069909, Hive131427069998, Apparatus131427069976.
+Tous les builds/units, Format, Infrastructure, Ext Authz, ApparatusP0,
+Merge coverage131439805703 et SonarCloud131440024818 sont également verts.
+Cette preuve ferme les échecs observés, pas toute possibilité de flakiness future.
+
+Les huit campagnes IT ont créé21fixtures et en ont retiré20,
 0running/0inconnue/0souci cleanup. Le dernier conteneur, identifié au registre,
 est arrêté `Exited(2)` et retenu en `ask` par le lanceur pour diagnostic :
 `0fb66e94b62533893aaf0e7a65d15fc9d38138db71c15f96b5afff09f1773e39`.
