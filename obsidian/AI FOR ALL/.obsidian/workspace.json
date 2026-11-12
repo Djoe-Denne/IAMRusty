@@ -208,6 +208,7 @@
   },
   "active": "66ebf6f7f35f706c",
   "lastOpenFiles": [
+    "projects/aiforall/decisions/0611-openbao-neuf-raft-pvc.md",
     "projects/aiforall/decisions/0505-startup-secrets-openbao.md",
     "projects/rustycog/references/index.md",
     "projects/rustycog/references/rustycog-events.md",
@@ -240,7 +241,6 @@
     "projects/sentinel/references",
     "projects/sentinel/sentinel.md",
     "projects/sentinel",
-    "projects/manifesto/references/manifesto-service.md",
     "projects/manifesto/skills",
     "_scripts/__pycache__/uncomment_links_between_islands.cpython-313.pyc",
     "_scripts/uncomment_links_between_islands.py"

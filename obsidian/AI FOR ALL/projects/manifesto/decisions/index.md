@@ -90,6 +90,8 @@ Photographie rétroactive du 12 septembre 2026. Extrait Manifesto ; index platef
 
 ## Related
 
+- Bootstrap OpenBao local (**pas** Apparatus) : [[projects/aiforall/decisions/0611-openbao-neuf-raft-pvc]] — **Proposed / Unimplemented**, complète 0610 Proposed / Partial ; coffre neuf Raft/PVC, existant intact, **choix humain Shamir 1/1 local en fichier privé protégé**, réserve de garde levée pour le neuf mono-opérateur seulement. Canon et contrat dans `docs/adr/0611-openbao-neuf-raft-pvc-sans-conversion-du-coffre-existant.md` et `docs/contracts/kind-local-openbao-bootstrap.md` ; aucun Accept global ou runtime qualifié par ce pointeur.
+
 - Veille mutualisation OpenBao (**pas** Apparatus) : [[projects/aiforall/decisions/0506-mutualisation-openbao-conditionnelle]] — **Proposed / Unimplemented** pour l’extension éventuelle ; récurrence/sémantique/gain à prouver, aucune extraction Transit ni migration décidée, KV 0505 inchangé.
 
 - SDK secrets (**pas** Apparatus) : [[projects/aiforall/decisions/0505-startup-secrets-openbao]] — **Proposed / Implemented** dans l’arbre validé, premier consommateur GitHubConnect ; SDK publié et tests Windows verts, publication finale service encore en cours ; aucune migration du contrat secrets Lazaret, preuve CI Linux/TLS live/coffre réel ou acceptation implicite.
