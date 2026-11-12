@@ -155,6 +155,33 @@ fn g7_admission_signature_header_and_unknown_kid_refuse_without_key_discovery() 
 }
 
 #[test]
+fn g7_well_formed_unpinned_kid_is_unavailable_not_malformed_proof() {
+    let fixture = vectors();
+    let case = fixture["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["expected"] == "valid")
+        .unwrap();
+    let parts: Vec<_> = case["compact_jws"].as_str().unwrap().split('.').collect();
+    let mut header: Value =
+        serde_json::from_slice(&URL_SAFE_NO_PAD.decode(parts[0]).unwrap()).unwrap();
+    header["kid"] = format!("ara-v1-{}", URL_SAFE_NO_PAD.encode([0_u8; 32])).into();
+    let compact = format!(
+        "{}.{}.{}",
+        URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header).unwrap()),
+        parts[1],
+        parts[2]
+    );
+    assert_eq!(
+        verifier(&fixture)
+            .verify(&challenge(case), &compact, now(case))
+            .err(),
+        Some(RuntimeErrorCodeV1::RuntimeKeyUnavailable)
+    );
+}
+
+#[test]
 fn g7_admission_signed_claim_context_cas_canonicality_and_repository_substitutions_refuse() {
     assert_negative_cases(|name| {
         name.starts_with("claims_")

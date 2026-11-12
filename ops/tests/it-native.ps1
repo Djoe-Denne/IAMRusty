@@ -36,12 +36,16 @@ function Resolve-ItTestBinary {
             'oauth_browser_transactions', 'auth_transactions_postgres', 'oauth_cleanup_lifecycle',
             'auth_oauth_start', 'auth_oauth_callback', 'auth_oauth_provider_failures',
             'relink_provider', 'verified_idp_https', 'organization_account_guard',
-            'app_cleanup_supervision', 'request_trace_redaction'
+            'app_cleanup_supervision', 'request_trace_redaction', 'signing_epoch_writer'
         )) {
         return $Binary
     }
-    if ($Suites.Count -ne 1 -or $Suites[0] -ne 'manifesto' -or
-        $Binary -cnotin @('apparatus_p3_t4_gateway', 'apparatus_p3_t5_consent')) {
+    if ($Suites.Count -ne 1 -or $Suites[0] -cne 'manifesto' -or
+        $Binary -cnotin @(
+            'apparatus_p3_t4_gateway', 'apparatus_p3_t5_consent',
+            'apparatus_p1_t1_migration', 'apparatus_p2_t2_migration', 'apparatus_p3_t2_migration',
+            'apparatus_p2_t4_resume', 'apparatus_p2_t7_cleanup', 'transaction_readiness_tests'
+        )) {
         throw 'Named IT selection requires one exact approved suite/binary pair; STOP before runtime'
     }
     return $Binary

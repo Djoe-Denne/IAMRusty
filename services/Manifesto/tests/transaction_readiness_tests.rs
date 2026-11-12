@@ -26,7 +26,10 @@ use rustycog::outbox::{
     },
     OutboxConfig, OutboxDispatcher, OutboxRecorder,
 };
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DatabaseBackend, EntityTrait, PaginatorTrait, QueryFilter,
+    Statement,
+};
 use serial_test::serial;
 use uuid::Uuid;
 
@@ -525,6 +528,48 @@ async fn outbox_dispatcher_publish_failure_keeps_project_and_schedules_retry() {
     assert_eq!(outbox_row.status, STATUS_FAILED);
     assert_eq!(outbox_row.attempts, 1);
     assert!(outbox_row.last_error.is_some());
+}
+
+#[tokio::test]
+#[serial]
+async fn disposable_fixture_reset_does_not_silently_retain_previous_test_tables() {
+    let first = TestFixture::new(Arc::new(ManifestoTestDescriptor))
+        .await
+        .unwrap();
+    first
+        .db()
+        .execute(Statement::from_string(
+            DatabaseBackend::Postgres,
+            "CREATE TABLE fixture_isolation_probe (id integer PRIMARY KEY)",
+        ))
+        .await
+        .unwrap();
+    drop(first);
+    let second = TestFixture::new(Arc::new(ManifestoTestDescriptor))
+        .await
+        .unwrap();
+    let row = second
+        .db()
+        .query_one(Statement::from_string(
+            DatabaseBackend::Postgres,
+            "SELECT to_regclass('public.fixture_isolation_probe') IS NULL AS absent",
+        ))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        row.try_get::<bool>("", "absent").unwrap(),
+        "the mandatory disposable reset must not retain preceding fixture data"
+    );
+    assert_eq!(
+        OutboxEvents::find()
+            .all(second.db().as_ref())
+            .await
+            .unwrap()
+            .len(),
+        0,
+        "the next fixture starts with an empty outbox"
+    );
 }
 
 #[tokio::test]

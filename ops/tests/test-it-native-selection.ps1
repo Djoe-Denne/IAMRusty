@@ -12,9 +12,21 @@ $resolver = $ast.Find({ param($node)
 }, $true)
 if ($null -eq $resolver) { throw 'Missing named selection resolver' }
 . ([scriptblock]::Create($resolver.Extent.Text))
-$names = @('apparatus_p3_t4_gateway', 'apparatus_p3_t5_consent')
+$names = @(
+    'apparatus_p3_t4_gateway', 'apparatus_p3_t5_consent',
+    'apparatus_p1_t1_migration', 'apparatus_p2_t2_migration', 'apparatus_p3_t2_migration',
+    'apparatus_p2_t4_resume', 'apparatus_p2_t7_cleanup', 'transaction_readiness_tests'
+)
 foreach ($name in $names) {
     if ((Resolve-ItTestBinary -Suites @('manifesto') -Binary $name) -cne $name) { throw 'Valid named selection rejected' }
+    foreach ($badName in @($name.ToUpperInvariant(), (' ' + $name), ($name + ' '), ('tests/' + $name + '.rs'), ($name + '; anything'))) {
+        try { $null = Resolve-ItTestBinary -Suites @('manifesto') -Binary $badName; throw 'unexpected-accept' }
+        catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Non-exact Manifesto binary accepted' } }
+    }
+    foreach ($badSuites in @(@('iam'), @('Manifesto'), @('manifesto','manifesto'), @('manifesto','hive'))) {
+        try { $null = Resolve-ItTestBinary -Suites $badSuites -Binary $name; throw 'unexpected-accept' }
+        catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Cross-suite Manifesto selection accepted' } }
+    }
 }
 if ((Resolve-ItTestBinary -Suites @('lazaret') -Binary 'redis_tls') -cne 'redis_tls') {
     throw 'Valid exact Lazaret Redis TLS selection rejected'
@@ -33,7 +45,7 @@ $iamBinaries = @(
     $oauthBinary, 'auth_transactions_postgres', 'oauth_cleanup_lifecycle',
     'auth_oauth_start', 'auth_oauth_callback', 'auth_oauth_provider_failures',
     'relink_provider', 'verified_idp_https', 'organization_account_guard',
-    'app_cleanup_supervision', 'request_trace_redaction'
+    'app_cleanup_supervision', 'request_trace_redaction', 'signing_epoch_writer'
 )
 foreach ($name in $iamBinaries) {
     if ((Resolve-ItTestBinary -Suites @('iam') -Binary $name) -cne $name) { throw 'Valid exact IAM selection rejected' }
@@ -96,7 +108,7 @@ $packages = @{manifesto='manifesto-service'; iam='iam-service'; lazaret='lazaret
 foreach ($selected in @('manifesto', 'iam', 'lazaret')) {
     $selections = if ($selected -eq 'iam') { @('') + $iamBinaries }
                   elseif ($selected -eq 'lazaret') { @('', 'redis_tls') }
-                  else { @('', $names[0], $names[1]) }
+                  else { @('') + $names }
     foreach ($testBinary in $selections) {
         $script:seen = @()
         . ([scriptblock]::Create($branch.Extent.Text))

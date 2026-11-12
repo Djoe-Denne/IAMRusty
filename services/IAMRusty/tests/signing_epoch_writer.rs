@@ -92,9 +92,11 @@ async fn initial_migration_up_down_up_removes_scope_objects_in_a_disposable_sche
         tx.execute_unprepared(&format!("CREATE SCHEMA {schema}")).await.unwrap();
         tx.execute_unprepared(&format!("SET LOCAL search_path TO {schema}")).await.unwrap();
         let manager = SchemaManager::new(&tx);
-        let mut migrations = Migrator::migrations();
-        assert_eq!(migrations.len(), 1, "the flattened initial schema remains the migration authority");
-        let migration = migrations.remove(0);
+        // This test characterizes the initial signing schema, not the absence
+        // of later additive migrations (OAuth authentication nonce, etc.).
+        let migration = Migrator::migrations().into_iter()
+            .find(|migration| migration.name() == "m20220101_000001_initial_schema")
+            .expect("the initial signing schema remains registered");
         let absence_sql = || Statement::from_sql_and_values(DatabaseBackend::Postgres,
             "SELECT to_regclass($1)::text IS NULL AS scope_absent, to_regclass($2)::text IS NULL AS prepublication_absent, to_regprocedure($3)::text IS NULL AS function_absent, to_regclass($4)::text IS NULL AS public_entries_absent, to_regclass($5)::text IS NULL AS materialized_snapshot_absent, to_regprocedure($6)::text IS NULL AS prepared_invalidation_function_absent",
             [format!("{schema}.signing_scope_epochs").into(), format!("{schema}.signing_key_prepublications").into(), format!("{schema}.iam_advance_signing_scope_epoch()").into(), format!("{schema}.signing_public_entries").into(), format!("{schema}.signing_jwks_publication").into(),format!("{schema}.iam_invalidate_signing_publication()").into()]);

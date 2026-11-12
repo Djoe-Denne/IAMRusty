@@ -38,6 +38,9 @@ use std::sync::Arc;
 
 pub struct ManifestoTestDescriptor;
 
+#[path = "common/migration_roundtrip.rs"]
+pub mod migration_roundtrip;
+
 #[async_trait]
 impl ServiceTestDescriptor<TestFixture> for ManifestoTestDescriptor {
     type Config = ManifestoConfig;
@@ -62,15 +65,20 @@ impl ServiceTestDescriptor<TestFixture> for ManifestoTestDescriptor {
         &self,
         connection: &sea_orm::DatabaseConnection,
     ) -> anyhow::Result<()> {
-        Migrator::up(connection, None).await?;
+        // This descriptor only receives the harness-owned disposable PG.
+        // Reset here, not in down: the generic harness tolerates down errors,
+        // whereas an isolation failure must abort before starting any test app.
+        Migrator::fresh(connection).await?;
         Ok(())
     }
 
     async fn run_migrations_down(
         &self,
-        connection: &sea_orm::DatabaseConnection,
+        _connection: &sea_orm::DatabaseConnection,
     ) -> anyhow::Result<()> {
-        Migrator::down(connection, None).await?;
+        // Production authority deliberately forbids down. Disposable reset and
+        // reseeding are performed by the fallible up step above, not by bypassing
+        // a production retention fence or ignoring its error.
         Ok(())
     }
 

@@ -118,7 +118,7 @@ fn t2_migration_declares_nine_additive_columns() {
 }
 
 #[test]
-fn t2_initial_schema_declares_cleanup_jobs_without_incremental_migrations() {
+fn t2_initial_schema_declares_cleanup_jobs_with_registered_control_migrations() {
     let content = std::fs::read_to_string(p2_migration_path()).expect("RED T2 : migration absente");
     let lower = content.to_lowercase();
     assert!(
@@ -138,8 +138,8 @@ fn t2_initial_schema_declares_cleanup_jobs_without_incremental_migrations() {
         );
     }
     // The initial schema legitimately contains FKs on other tables. Keep the
-    // cleanup-jobs FK contract in the table-specific DB test below, and forbid
-    // reintroducing incremental migrations after flattening.
+    // cleanup-jobs FK contract in the table-specific DB test below. §13.1/B3
+    // and §13.5 add retained runtime authority after the initial P1/P2 schema.
     let mut migrations: Vec<_> = std::fs::read_dir(migration_dir())
         .expect("migration directory readable")
         .map(|entry| entry.expect("migration entry readable").file_name())
@@ -148,7 +148,11 @@ fn t2_initial_schema_declares_cleanup_jobs_without_incremental_migrations() {
     migrations.sort();
     assert_eq!(
         migrations,
-        vec![std::ffi::OsString::from(P2_MIGRATION_FILE)]
+        vec![
+            std::ffi::OsString::from(P2_MIGRATION_FILE),
+            std::ffi::OsString::from("m20261020_000001_apparatus_runtime_control.rs"),
+            std::ffi::OsString::from("m20261020_000002_apparatus_runtime_admission.rs"),
+        ]
     );
 }
 
@@ -308,34 +312,26 @@ async fn t2_down_one_step_then_up_reversible() {
         setup_test_server().await.expect("serveur de test");
     let db = fixture.db();
 
-    // Le schéma P2 est désormais porté par la migration initiale unique.
+    // P2 remains in the initial schema; later retained authority is additive.
     let applied = Migrator::get_applied_migrations(db.as_ref())
         .await
         .expect("migrations appliquées");
-    assert_eq!(applied.len(), 1, "single initial migration only");
+    assert_eq!(
+        applied.len(),
+        Migrator::migrations().len(),
+        "all registered migrations applied"
+    );
     assert!(
         applied[0]
             .name()
             .contains("m20241015_000001_initial_schema"),
         "RED T2 : m20241015_000001_initial_schema non appliquée"
     );
-    Migrator::down(db.as_ref(), Some(1)).await.expect("down P2");
-
-    for col in P2_COLUMNS {
-        assert!(
-            column_row(&db, "apparatus_bindings", col).await.is_none(),
-            "down : {col} doit disparaître"
-        );
-    }
-    assert!(
-        !table_exists(&db, "apparatus_cleanup_jobs").await,
-        "down : apparatus_cleanup_jobs doit disparaître"
-    );
-    assert!(
-        !table_exists(&db, "apparatus_bindings").await,
-        "down of the initial migration drops apparatus_bindings, including P1"
-    );
-    // No P1-only schema exists after down of the flattened initial migration.
+    common::migration_roundtrip::assert_initial_schema_roundtrip(
+        db.as_ref(),
+        &["apparatus_bindings", "apparatus_cleanup_jobs"],
+    )
+    .await;
 
     Migrator::up(db.as_ref(), None)
         .await

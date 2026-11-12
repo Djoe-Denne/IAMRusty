@@ -454,36 +454,23 @@ async fn t2_down_one_step_then_up_reversible() {
     let applied = Migrator::get_applied_migrations(db.as_ref())
         .await
         .expect("migrations appliquées");
-    // P1/P2/P3 share one initial migration; down cannot retain an older phase.
-    assert_eq!(applied.len(), 1, "single initial migration only");
+    // P1/P2/P3 share the initial migration, followed by retained authority.
+    assert_eq!(
+        applied.len(),
+        Migrator::migrations().len(),
+        "all registered migrations applied"
+    );
     assert!(
         applied[0]
             .name()
             .contains("m20241015_000001_initial_schema"),
         "RED T2 : m20241015_000001_initial_schema non appliquée"
     );
-    Migrator::down(db.as_ref(), Some(1)).await.expect("down P3");
-
-    assert!(
-        column_row(&db, "apparatus_bindings", "grant_revision")
-            .await
-            .is_none(),
-        "down : grant_revision doit disparaître"
-    );
-    assert!(
-        column_row(&db, "apparatus_bindings", "declared_capabilities")
-            .await
-            .is_none(),
-        "down : declared_capabilities doit disparaître"
-    );
-    assert!(
-        !table_exists(&db, "apparatus_capability_consents").await,
-        "down : apparatus_capability_consents doit disparaître"
-    );
-    assert!(
-        !table_exists(&db, "apparatus_bindings").await,
-        "down of the initial migration drops apparatus_bindings, including P1/P2"
-    );
+    common::migration_roundtrip::assert_initial_schema_roundtrip(
+        db.as_ref(),
+        &["apparatus_bindings", "apparatus_capability_consents"],
+    )
+    .await;
 
     Migrator::up(db.as_ref(), None)
         .await

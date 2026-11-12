@@ -290,20 +290,13 @@ async fn t1_migration_idempotent_up_and_clean_down_up() {
         .await
         .expect("up idempotent");
     let table = require_extension_table(&db).await;
-    // down retire l'extension, up la restaure (rollback propre).
-    Migrator::down(db.as_ref(), None)
+    // Later authority migrations forbid destructive downgrade (§13.5/B6).
+    let refusal = Migrator::down(db.as_ref(), None)
         .await
-        .expect("down propre");
-    let gone = db
-        .query_all(Statement::from_string(
-            DatabaseBackend::Postgres,
-            format!(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '{table}'"
-            ),
-        ))
-        .await
-        .expect("tables lisibles");
-    assert!(gone.is_empty(), "down doit retirer {table}");
+        .expect_err("retained admission authority must refuse downgrade");
+    assert!(refusal.to_string().contains("explicit retention decision"));
+    assert_eq!(require_extension_table(&db).await, table);
+    common::migration_roundtrip::assert_initial_schema_roundtrip(db.as_ref(), &[&table]).await;
     Migrator::up(db.as_ref(), None)
         .await
         .expect("up après down");

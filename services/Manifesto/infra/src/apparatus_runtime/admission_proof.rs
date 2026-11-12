@@ -189,6 +189,12 @@ impl RuntimeAdmissionProofVerifier for PinnedRuntimeAdmissionProofVerifier {
         if header.alg != "RS256" || header.typ != ADMISSION_TYP {
             return Err(invalid);
         }
+        // §13.5 fixes kid to ara-v1- plus a canonical SHA-256 thumbprint.
+        // A malformed proof is distinct from an unavailable, well-formed key.
+        let thumbprint = header.kid.strip_prefix("ara-v1-").ok_or(invalid)?;
+        if decode(thumbprint)?.len() != 32 {
+            return Err(invalid);
+        }
         let keys = self
             .keys
             .clone()
