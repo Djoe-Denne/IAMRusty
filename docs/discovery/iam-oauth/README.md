@@ -1,9 +1,10 @@
 # Pilote — catalogue fonctionnel IAM/OAuth
 
 **Proposed, 12 novembre 2026.** Photographie du code à
-`5fad841b0b5fb984fee5ec7bea476123498962a6`. Ce pilote extrait des comportements
+`f7b557f76920f47650997062bd23e335b6a85be9`. Ce pilote extrait des comportements
 existants ; il ne décide pas des exigences futures, n'accepte aucune ADR et ne
-qualifie pas le produit. Aucun test produit n'a été exécuté pour cette analyse.
+qualifie pas le produit. L'extraction initiale était statique ; la caractérisation
+Q01/Q02 ci-dessous ajoute des validations ciblées, pas un PASS global du catalogue.
 
 ## Résultat utilisable
 
@@ -39,14 +40,21 @@ un objectif de ce pilote.
 
 ## Ce que le pilote révèle concrètement
 
-**Q01 — Contrat à préciser, pas bug établi.** Le test de LOGIN sans email vérifie
-le refus, l'absence de credentials et l'absence d'effets métier. Il accepte
-cependant une erreur4xx **ou**5xx. Un futur rapport ne doit pas prétendre qu'il
-prouve un statut public exact qui n'est pas fixé par cette assertion.
+**Q01 — Oracle actuel caractérisé, sans changement produit.** LOGIN sans email
+retourne **401 / authentication_failed** : `UserProfileError` devient
+`provider_error` dans le mapper applicatif, puis une erreur publique d'authentification.
+Une `RepositoryError` devient `database_error`, puis **500 / login_failed**.
+Deux tests unitaires distincts traversent ces conversions et vérifient aussi la
+non-divulgation des causes. L'IT sans email exige désormais exactement401 et
+`authentication_failed`, sans credentials ni effets métier. Le test500 est une
+preuve de mapping, pas une injection de panne DB dans le parcours HTTP.
+Les transactions invalides restent des400 ; la panne writer lors de leur
+consommation est un503, couvert par une autre IT : ces cas ne sont pas interchangeables.
 
-**Q02 — Précision d'oracle à valider.** La route de complétion et son IT retiennent
-200, tandis que `registration-completed` en k6 accepte200 ou201. Le catalogue
-rend cette différence visible, sans durcir silencieusement le test.
+**Q02 — Oracle actuel200.** La route et son IT retiennent200 pour la complétion.
+Le check k6 `registration-completed` exige maintenant200, sans tolérance201.
+Le prédicat réel a été exercé hors navigateur :200 accepté,201 refusé ; cela
+ne remplace pas une nouvelle exécution Chromium/k6.
 
 **Q03 — Les frontières des preuves comptent.** La race entre deux listeners est
 vérifiée par une IT Postgres ; les refus403 d'Envoy ne remplacent pas les refus400
@@ -99,10 +107,17 @@ ce document explicite leurs limites. Les données et chemins privés sont exclus
 
 ## Vérifications du livrable
 
-- JSON parsable, IDs uniques et références résolues :18sources et12entrées de tests.
+- JSON parsable, IDs uniques et références résolues (voir les registres du JSON).
 - Chemins, plages de lignes, symboles et noms des checks k6 vérifiés ; les fichiers
   de preuve sont inchangés par rapport au commit source.
 - Treize critères et leurs titres/features/relations k6 concordent entre JSON
   et canvas ; compilation TypeScript stricte sans erreur.
-- Aucun faux résultat Allure, test produit rejoué, changement de code métier,
-  instrumentation LLVM, lecture d'entrée privée ou mutation de runtime.
+- Deux caractérisations unitaires exécutées :2PASS,0échec,62autres tests filtrés.
+- Binaire IT `oauth_browser_transactions` :17PASS,0échec/ignoré/filtré ; run
+  `it-d4364c436ed149d5900782655f6a2ee4`. Les cas sans email401, complétion200,
+  refus transactionnels400 et panne consume503 ont effectivement été exécutés.
+  Fixture possédée :1créée/1retirée/0running ; trois conteneurs préexistants
+  conservés. Preuves locales privées : `.tmp/itfixtures-it-d4364c436ed149d5900782655f6a2ee4/`,
+  registre append-only `.tmp/docker-resources-20261112.log` ; aucun log brut publié.
+- Aucun faux résultat Allure, changement de code métier, instrumentation LLVM
+  ou lecture d'entrée privée. L'IT utilise uniquement les fixtures du lanceur natif.

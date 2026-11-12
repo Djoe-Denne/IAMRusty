@@ -2,17 +2,17 @@
   "schema_version": 1,
   "status": "proposed",
   "date": "2026-11-12",
-  "source_revision": "5fad841b0b5fb984fee5ec7bea476123498962a6",
+  "source_revision": "f7b557f76920f47650997062bd23e335b6a85be9",
   "method": {
     "name": "DiUS codebase-discovery, adapted code-only pilot",
     "upstream_revision_observed": "ce859b342b9451a42d3a25e4628d0be039441d24",
     "source": "https://github.com/DiUS/agent-toolkit/tree/ce859b342b9451a42d3a25e4628d0be039441d24/skills/codebase-discovery",
-    "adaptations": ["IAM browser OAuth only", "No stakeholder interview yet", "No whole-repository onboarding or instruction changes", "No global skill installation", "No test execution or Allure integration"]
+    "adaptations": ["IAM browser OAuth only", "No stakeholder interview yet", "No whole-repository onboarding or instruction changes", "No global skill installation", "Initial static extraction, followed by targeted Q01/Q02 characterization; no Allure integration"]
   },
   "domain": "Identité plateforme",
   "capability": "Authentification fédérée et liaison OAuth",
   "classification_review": "pending_product_owner",
-  "execution": {"this_pilot": "not_executed", "ci": "not_evaluated", "historical_e2e_source": "H01"},
+  "execution": {"this_pilot": "targeted_characterization", "mapping_units": {"passed": 2, "failed": 0, "filtered_out": 62}, "browser_transaction_it": {"run_id": "it-d4364c436ed149d5900782655f6a2ee4", "passed": 17, "failed": 0, "ignored": 0, "filtered_out": 0, "owned_created": 1, "owned_removed": 1, "owned_running_after": 0, "new_unowned": 0, "boundary": "Windows IAM HTTP/Postgres real, Connect WireMock; not browser E2E"}, "k6_predicate": "200 accepted, 201 rejected in Node VM; no browser run", "ci": "not_evaluated", "historical_e2e_source": "H01"},
   "scope": {
     "reviewed": ["HTTP login/link/relink browser flow", "Writer transaction consume", "OAuth account identity selection", "Selected unit and integration assertions", "Native k6 OAuth browser scenario", "ADR-0412 and ADR-0413 decisions"],
     "not_reviewed": ["Password and refresh flows", "Whole IAM route inventory", "OAuth cleanup lifecycle and exhaustive malformed-input combinations", "OAuthConnect OIDC/JWKS implementation", "External provider equivalence and cutover", "Whole-repository test inventory"]
@@ -51,11 +51,13 @@
     "T05": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [563, 662], "symbol": "pkce_s256_survives_connector_authorize_and_complete", "boundary": "DTO authorize/complete WireMock ; observation de consommation/purge DB"},
     "T06": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [254, 310], "symbol": "oauth_registration_completion_then_second_login_uses_configured_authority", "boundary": "HTTP/Postgres/JWKS réels, Connect WireMock ; signature et refresh persisté contrôlés"},
     "T07": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [664, 758], "symbol": "stored_target_and_redirect_mismatch_deny_but_query_cannot_retarget_consumed_capability", "boundary": "Altération de fixtures Postgres puis requête HTTP avec cible/redirect parasites"},
-    "T08": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [942, 1010], "symbol": "no_email_allows_link_and_relink_but_denies_login_for_the_linked_identity", "boundary": "WireMock livre email=None ; identités, tokens et snapshots DB contrôlés"},
-    "T09": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [1043, 1080], "symbol": "linked_identity_keeps_its_uuid_when_provider_email_changes_to_another_accounts_email", "boundary": "Deux comptes Postgres ; email fournisseur modifié, vérifié ou non"},
+    "T08": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [942, 1013], "symbol": "no_email_allows_link_and_relink_but_denies_login_for_the_linked_identity", "boundary": "WireMock livre email=None ;401 authentication_failed exact, identités, tokens et snapshots DB contrôlés"},
+    "T09": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [1046, 1083], "symbol": "linked_identity_keeps_its_uuid_when_provider_email_changes_to_another_accounts_email", "boundary": "Deux comptes Postgres ; email fournisseur modifié, vérifié ou non"},
     "T10": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [760, 827], "symbol": "writer_consume_failure_is_unavailable_and_has_no_connector_call_or_consumption", "boundary": "Trigger de panne Postgres possédé par la fixture ; rollback et reprise contrôlés"},
     "T11": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [347, 504], "symbol": "relink_start_requires_platform_auth_but_bound_callback_needs_no_bearer", "boundary": "IAM direct, Connect WireMock ; préparation SQL de l'email vérifié, pas test de livraison d'email"},
-    "K01": {"tier": "e2e", "path": "ops/tests/k6/scenarios/auth/oauth-browser.js", "lines": [91, 245], "symbol": "default", "boundary": "Chromium et slice IAM/Envoy/OAuthConnect réels, IdP protocolaire ; historique H01 seulement"}
+    "K01": {"tier": "e2e", "path": "ops/tests/k6/scenarios/auth/oauth-browser.js", "lines": [91, 245], "symbol": "default", "boundary": "Chromium et slice IAM/Envoy/OAuthConnect réels, IdP protocolaire ; historique H01 seulement, nouveau prédicat200 vérifié hors navigateur"},
+    "U01": {"tier": "unit", "path": "services/IAMRusty/http/src/error.rs", "lines": [66, 88], "symbol": "missing_provider_email_is_401_authentication_failed", "boundary": "UserProfileError -> mapper applicatif -> réponse HTTP401 ; pas de DB ni listener"},
+    "U02": {"tier": "unit", "path": "services/IAMRusty/http/src/error.rs", "lines": [90, 111], "symbol": "repository_failure_is_500_login_failed", "boundary": "RepositoryError injectée au mapper -> réponse HTTP500 ; pas de panne DB intégrée"}
   },
   "criteria": [
     {
@@ -105,7 +107,7 @@
       "behavior": "Après complétion, une nouvelle transaction LOGIN renvoie200 avec l'identité plateforme, un access token vérifiable par les JWKS configurés et un refresh token effectivement persisté.",
       "implementation": ["P06", "P07"], "decisions": ["A02", "N01"],
       "test_links": [{"id": "T06", "assertions": ["complétion200 et nouveau login200", "signature/JWKS et issuer/sub cohérents", "un refresh valide en DB", "rejeu des deux transactions refusé"]}],
-      "k6": {"relation": "partial", "test": "K01", "checks": ["registration-completed", "login-callback", "login-identity", "login-authority"], "limit": "Le JS décode les claims, il ne vérifie pas lui-même la signature ; l'IT porte aussi la preuve du refresh persisté. Le check de complétion tolère200 ou201."}
+      "k6": {"relation": "partial", "test": "K01", "checks": ["registration-completed", "login-callback", "login-identity", "login-authority"], "limit": "Le JS décode les claims, il ne vérifie pas lui-même la signature ; l'IT porte aussi la preuve du refresh persisté. Complétion200 exacte ; nouveau prédicat vérifié hors navigateur seulement."}
     },
     {
       "id": "IAM-OAUTH-C08", "feature": "F04", "title": "Conserver la cible LINK et le redirect autorisés, sans retargeting par query",
@@ -118,8 +120,8 @@
       "id": "IAM-OAUTH-C09", "feature": "F03", "title": "Refuser LOGIN sans email fournisseur, même si l'identité est déjà liée",
       "behavior": "L'absence d'email est refusée avant lookup de compte ; aucun access/refresh/registration token n'est émis et les données métier restent inchangées.",
       "implementation": ["P09"], "decisions": ["A02", "N01"],
-      "test_links": [{"id": "T08", "assertions": ["complete livre réellement email=None", "LOGIN en erreur4xx ou5xx", "aucun credential", "snapshot métier inchangé", "transaction consommée/purgée et rejeu refusé"]}],
-      "k6": {"relation": "not_mapped_in_pilot", "limit": "Le statut public exact du refus n'est pas fixé par cette assertion ; voir Q01."}
+      "test_links": [{"id": "T08", "assertions": ["complete livre réellement email=None", "LOGIN401 authentication_failed exact", "aucun credential", "snapshot métier inchangé", "transaction consommée/purgée et rejeu refusé"]}, {"id": "U01", "assertions": ["UserProfileError devient provider_error puis401 authentication_failed", "message public Authentication failed sans cause interne"]}],
+      "k6": {"relation": "not_mapped_in_pilot", "limit": "Oracle401 caractérisé en unité et exigé dans l'IT ; pas de scénario k6 sans email."}
     },
     {
       "id": "IAM-OAUTH-C10", "feature": "F04", "title": "Autoriser LINK et RELINK sans email fournisseur sans réattribuer l'email du compte",
@@ -151,8 +153,8 @@
     }
   ],
   "review_items": [
-    {"id": "Q01", "type": "contract_precision", "criteria": ["IAM-OAUTH-C09"], "evidence": ["T08", "N01"], "finding": "Le refus LOGIN sans email est vérifié, mais l'assertion accepte toute erreur4xx ou5xx. Le présent catalogue ne déduit pas un code HTTP public exact.", "next": "Décider si un statut/error_code précis est un contrat produit ; ne pas classer ceci comme bug établi."},
-    {"id": "Q02", "type": "oracle_precision", "criteria": ["IAM-OAUTH-C07"], "evidence": ["P07", "T06", "K01"], "finding": "La route et l'IT retiennent200 ; le check k6 registration-completed accepte200 ou201.", "next": "Faire valider si cette tolérance est voulue ; aucune modification de test dans ce pilote."},
+    {"id": "Q01", "type": "current_behavior_characterization", "status": "characterized", "criteria": ["IAM-OAUTH-C09"], "evidence": ["T08", "U01", "U02", "N01"], "finding": "Sans email :401 authentication_failed via UserProfileError/provider_error. RepositoryError distincte :500 login_failed via database_error. Deux unités PASS et IT resserrée ; aucun mapping produit modifié.", "next": "Conserver ces réponses comme oracles actuels. La preuve500 est limitée au mapping, pas une panne DB HTTP intégrée."},
+    {"id": "Q02", "type": "current_behavior_characterization", "status": "characterized", "criteria": ["IAM-OAUTH-C07"], "evidence": ["P07", "T06", "K01"], "finding": "Route et IT200 ; registration-completed k6 exige désormais200. Prédicat réel200 accepté/201 refusé vérifié en VM Node, pas de nouvelle campagne navigateur.", "next": "Conserver200 comme oracle actuel ; distinguer validation du prédicat et exécution E2E."},
     {"id": "Q03", "type": "evidence_boundary", "criteria": [], "evidence": ["A02", "H01"], "finding": "ADR0413 reste Partial et la preuve k6 utilise un IdP protocolaire local. Ni les mocks IAM ni cette slice ne prouvent un fournisseur GitLab réel, son équivalence sub, ou le cutover.", "next": "Garder la qualification fournisseur/cutover distincte ; ne pas transformer Partial en absence de code livré ni en PASS global."},
     {"id": "Q04", "type": "classification_review", "criteria": [], "evidence": ["A01", "A02"], "finding": "Les frontières Epic/Feature/Story et les13IDs sont proposées par le LLM. La sélection code-first n'est pas un dénominateur exhaustif des exigences attendues.", "next": "Validation du vocabulaire/granularité par le responsable produit avant généralisation ou calcul d'un pourcentage."}
   ]
