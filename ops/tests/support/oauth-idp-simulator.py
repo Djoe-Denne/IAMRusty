@@ -17,9 +17,6 @@ import threading
 import time
 from urllib.parse import parse_qs, unquote_plus, urlencode, urlsplit
 
-REDIRECTS = frozenset("http://127.0.0.1:18080/iam/api/auth/gitlab/" + path
-                      for path in ("callback", "relink-callback"))
-
 
 class Rejected(ValueError):
     def __init__(self):
