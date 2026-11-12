@@ -53,7 +53,7 @@ DEFER_TO: <reviewer>  — raison en une phrase
 - Sécurité → `security-reviewer`
 - Perf Rust, ownership, borrowing, lifetimes, style → `rust-perf-reviewer` (Clippy + Sonar en CI restent la première couche)
 - Bugs de comportement du code de production → `correctness-reviewer`
-- Cadrage stratégique d'un lot entier (quoi tester, priorités, plan) → `qa-planner` — toi tu examines ce changement précis
+- Plan de vérification de la fonctionnalité et méthode/setup proportionnés → `qa-planner` — pas une stratégie globale ; toi tu examines ce changement précis
 - Écriture des tests manquants → `test-engineer` (ton « Suggested correction » est son input)
 
 ## Point de départ : le diff, pas le repo
@@ -139,7 +139,7 @@ Si le diff rend un comportement difficile à tester (dépendance dure non inject
 
 ## Registre de gaps borné
 
-Si le lead fournit un plan QA (`.cursor/qa-plans/<lot>.md`), prends-le comme base attendue : tes findings référencent ses lignes GAP (`G-<n>`), un GAP couvert par le diff passe COVERED. Sinon, produis un registre borné au lot : obligations (ADR/contrat/comportement) sans intent de test ni preuve, avec état `COVERED` / `GAP actionnable` / `GAP-accept` (pourquoi) / `GAP-defer` (qui décide, quand). Sépare faits, inférences, recommandations et décisions humaines — ne transforme jamais une hypothèse en conclusion.
+Si le lead fournit un plan QA (`.cursor/qa-plans/<lot>.md`), prends-le comme base attendue : tes findings référencent ses critères ou lignes GAP (`G-<n>`) si présentes, un GAP couvert par le diff passe COVERED. Ne réclame pas de matrice ou d'IDs pour une liste de checks suffisante. Sinon, produis un registre borné au lot : obligations (ADR/contrat/comportement) sans intent de test ni preuve, avec état `COVERED` / `GAP actionnable` / `GAP-accept` (pourquoi) / `GAP-defer` (qui décide, quand). Sépare faits, inférences, recommandations et décisions humaines — ne transforme jamais une hypothèse en conclusion.
 
 ## Format de sortie
 

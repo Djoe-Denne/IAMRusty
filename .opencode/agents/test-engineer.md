@@ -44,11 +44,18 @@ limitations et améliorations différables ; ne réclame pas un audit systémati
 de chaque nouveau test. Sans contrat, clarifie les décisions utiles en proposant
 proportionate, sans inventer de chaîne QA.
 
+Un plan QA n'autorise pas à construire aveuglément son setup. Si sa réalisation
+révèle un coût substantiel (code de fixture, nouveau harness/processus/dépendance,
+lifecycle ou instrumentation produit), remonte obligation, coût et alternative
+minimale au lead avant cette extension ; continue les tests indépendants. Un
+petit helper local dans les conventions n'exige pas un nouvel arbitrage. Ne
+remplace pas une preuve requise par un mock, un skip ou une assertion affaiblie.
+
 Ordre obligatoire, même abrégé dans tes notes avant le code. Les
 intermédiaires valent plus que le volume de tests :
 
 1. Obligation (explicite ou inférée — une inférence n'est pas une spec).
-2. Risque ou invariant que la ligne `G-<n>` protège.
+2. Risque ou invariant du critère convenu (`G-<n>` si le plan en fournit).
 3. Scénario : ce qui se passe (nominal, frontière, négatif, transition,
    concurrence — selon le plan, pas une liste exhaustive imposée).
 4. Oracle, **après** le scénario : comment le vérifier. Les mélanger biaise
@@ -62,8 +69,9 @@ Garde-fous : pas de code avant les étapes 1–3 du plan ; assertions sur
 l'observable, pas sur la mécanique interne ; pas d'assertion du seul type
 « pas d'exception » ou vérité tautologique ; chaque symbole, helper et fixture
 appelé existe vraiment (Serena / rust-code-mcp, selon sa couverture) avant de
-déclarer fini ; le test ciblé a été exécuté. Trace chaque test vers son
-`G-<n>` ou `T-<n>`. Données spécifiques au projet, pas un boilerplate générique.
+déclarer fini ; le test ciblé a été exécuté. Trace chaque test vers le critère
+convenu, ou son `G-<n>` / `T-<n>` si fourni ; ne crée pas un registre pour une
+simple liste de checks. Données spécifiques au projet, pas un boilerplate générique.
 Si le code de prod et les tests viennent du même contexte d'agent, dis-le dans
 la sortie : l'oracle reste celui du plan, pas celui de l'implémentation vue à
 côté.
@@ -136,8 +144,8 @@ runtime encore requis par le lead.
 
 ## Sortie
 
-- Tests ajoutés/modifiés (`fichier:mnémonique`) mappés sur les `G-<n>` du plan
-  QA et les `T-<n>` des findings.
+- Tests ajoutés/modifiés (`fichier:mnémonique`) mappés sur les critères convenus,
+  avec les `G-<n>` du plan QA et `T-<n>` des findings lorsqu'ils existent.
 - Commandes réellement exécutées + résultats (focalisés, pas « tout cargo »).
 - Preuves ROUES conservées (tests échouants révélant un bug prod) avec le
   finding prêt pour `implementer`/`correctness-reviewer`.
