@@ -49,7 +49,7 @@ fn fail(code: RuntimeErrorCodeV1) -> RuntimeControlErrorV1 {
     )
 }
 macro_rules! unused_port {
-    ($name:ident($($arg:ident:$ty:ty),*)->$result:ty)=>{
+    ($name:ident($($arg:ident:$ty:ty),*$(,)?)->$result:ty)=>{
         fn $name<'a>(&'a self,$($arg:$ty),*)->RuntimeControlFuture<'a,$result>{
             $(let _=$arg;)* Box::pin(async{Err(fail(RuntimeErrorCodeV1::RuntimeServiceForbidden))})
         }
