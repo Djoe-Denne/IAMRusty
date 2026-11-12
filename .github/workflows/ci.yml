@@ -11,6 +11,8 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # The checked-in target-dir is the Windows development drive; never use it on Linux.
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   RUST_BACKTRACE: 1
   RUN_ENV: test

@@ -64,6 +64,10 @@ fichier, reformater puis vérifier avant de pousser.
 prennent priorité sur ce fichier. `rustup show active-toolchain` permet de
 vérifier la version effectivement sélectionnée, sans changer le défaut global.
 
+Les artefacts de développement Windows restent sur `E:\cargo-target\AIForAll`.
+La CI définit `CARGO_TARGET_DIR` dans son workspace Linux pour ne pas réutiliser
+ce chemin Windows.
+
 ```bash
 rustup show active-toolchain
 cargo test -p hive-service

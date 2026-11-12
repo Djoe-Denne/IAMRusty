@@ -5,6 +5,8 @@ import sys
 import tempfile
 import unittest
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_CHECK = (ROOT / "ops/tests/infra-static.sh").read_text(encoding="utf-8").split(
@@ -75,3 +77,13 @@ class SourceYamlTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Invalid YAML:", result.stderr)
         self.assertNotIn("DO-NOT-ECHO-TEST-SENTINEL", result.stdout + result.stderr)
+
+
+class CiCargoConfigTests(unittest.TestCase):
+    def test_ci_overrides_the_windows_artifact_directory_for_all_jobs(self):
+        workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+        expected = "${{ github.workspace }}/target"
+        self.assertEqual(workflow["env"]["CARGO_TARGET_DIR"], expected)
+        for name, job in workflow["jobs"].items():
+            with self.subTest(job=name):
+                self.assertEqual(job.get("env", {}).get("CARGO_TARGET_DIR", expected), expected)
