@@ -1,6 +1,7 @@
 import http from 'k6/http';
 import { check } from 'k6';
 import { started, completed, project } from '../../lib/summary.js';
+import { campaignTarget } from '../../lib/campaign-target.js';
 
 // One HTTP witness per parent-owned phase; never mutate certificates or access
 // Envoy Admin here. 503 alone is NOT proof of SAN rejection. Parent must supply
@@ -9,7 +10,8 @@ import { started, completed, project } from '../../lib/summary.js';
 const PHASE = __ENV.K6_AUTH_SAN_PHASE;
 if (!['good', 'bad', 'restored'].includes(PHASE)) throw new Error('AUTH_SAN_PHASE_INVALID');
 const CASE = `auth-envoy-san-${PHASE}`;
-const LOGIN = 'http://127.0.0.1:18080/iam/api/auth/gitlab/login';
+const target = campaignTarget();
+const LOGIN = target.origin + '/iam/api/auth/gitlab/login';
 
 export const options = {
   scenarios: {
@@ -21,13 +23,13 @@ export const options = {
   thresholds: {
     checks: ['rate==1'], case_started: ['count==1'], case_completed: ['count==1'], http_reqs: ['count==1'],
   },
-  systemTags: ['name', 'check', 'scenario'],
+  systemTags: ['name', 'check', 'scenario', 'group'],
   maxRedirects: 0, discardResponseBodies: true,
 };
 
 export default function () {
   started.add(1);
-  if (__ENV.K6_ORIGIN !== 'http://127.0.0.1:18080' || !/^[a-f0-9]{32}$/.test(__ENV.K6_RUN_ID)
+  if (__ENV.K6_ORIGIN !== target.origin || !/^[a-f0-9]{32}$/.test(__ENV.K6_RUN_ID)
       || !__ENV.K6_SUMMARY_PATH) throw new Error('AUTH_INPUT_INVALID');
   const response = http.get(LOGIN, { redirects: 0, timeout: '5s', tags: { name: CASE } });
   check(response, {

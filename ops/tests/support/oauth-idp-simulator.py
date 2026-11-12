@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import ssl
 import threading
 import time
 from urllib.parse import parse_qs, unquote_plus, urlencode, urlsplit
@@ -26,7 +27,7 @@ class Rejected(ValueError):
 
 
 class Provider:
-    def __init__(self, client_id, client_secret, run_id, clock=time.monotonic, *, instance="gitlab"):
+    def __init__(self, client_id, client_secret, run_id, clock=time.monotonic, *, instance="gitlab", edge_origin=None):
         if (not re.fullmatch(r"[a-z0-9]{12,32}", run_id)
                 or not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", client_id)
                 or not isinstance(client_secret, str) or not 16 <= len(client_secret) <= 256
@@ -34,7 +35,12 @@ class Provider:
             raise Rejected()
         self.client_id, self.secret, self.run_id = client_id, client_secret, run_id
         scheme = "https" if instance == "simulated" else "http"
-        self.redirects = frozenset(scheme + "://127.0.0.1:18080/iam/api/auth/" + instance + "/" + path
+        origin = edge_origin if edge_origin is not None else scheme + "://127.0.0.1:18080"
+        allowed = {"https://127.0.0.1:18080"} if instance == "simulated" else {
+            "http://127.0.0.1:18080", "https://127.0.0.1:18443"}
+        if origin not in allowed:
+            raise Rejected()
+        self.redirects = frozenset(origin + "/iam/api/auth/" + instance + "/" + path
                                   for path in ("callback", "relink-callback"))
         self.user_id = int.from_bytes(hashlib.sha256(run_id.encode()).digest()[:8], "big") & ((1 << 63) - 1)
         self.clock, self.lock = clock, threading.Lock()
@@ -187,8 +193,18 @@ def main():
     try:
         inputs = json.loads(Path(os.environ["OAUTH_PROOF_INPUT_FILE"]).read_text(encoding="utf-8"))
         provider = Provider(inputs["client_id"], inputs["client_secret"], inputs["run_id"],
-                            instance=inputs.get("instance", "gitlab"))
+                            instance=inputs.get("instance", "gitlab"), edge_origin=inputs.get("edge_origin"))
+        native = inputs.get("edge_origin") == "https://127.0.0.1:18443"
+        tls = None
+        if native:
+            # Native profile is HTTPS on both public and in-cluster transports.
+            # Only the leaf/key are mounted; never a CA private key.
+            tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            tls.minimum_version = ssl.TLSVersion.TLSv1_2
+            tls.load_cert_chain(inputs["tls_cert_file"], inputs["tls_key_file"])
         server = ThreadingHTTPServer(("0.0.0.0", 8080), handler(provider))
+        if tls is not None:
+            server.socket = tls.wrap_socket(server.socket, server_side=True)
         server.daemon_threads = True
         server.serve_forever()
     except Exception:

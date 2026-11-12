@@ -39,7 +39,7 @@ DIAGNOSTICS = frozenset("NONE OBSERVERS_ONLY NATIVE_NON_SUCCESS INPUT_INVALID CL
 FROZEN = (
     ".github/workflows/k6-functional-smoke.yml", "ops/tests/k6/IMPLEMENTATION.md", "ops/tests/k6/README.md",
     "ops/tests/k6/config/campaign.example.json", "ops/tests/k6/config/tools.lock.json", "ops/tests/k6/lib/safety.py",
-    "ops/tests/k6/lib/private_site.py", "ops/tests/k6/lib/summary.js", "ops/tests/k6/provision-linux.py", "ops/tests/k6/run-linux.py",
+    "ops/tests/k6/lib/private_site.py", "ops/tests/k6/lib/summary.js", "ops/tests/k6/lib/campaign-target.js", "ops/tests/k6/provision-linux.py", "ops/tests/k6/run-linux.py",
     "ops/tests/k6/scenarios/smoke/iam-health.js",
     "ops/tests/k6/tests/test_boundaries.py", "ops/tests/k6/tests/test_runner.py", "ops/tests/k6/tests/test_provisioning.py",
     "ops/tests/k6/tests/test_direct_chromium.py",

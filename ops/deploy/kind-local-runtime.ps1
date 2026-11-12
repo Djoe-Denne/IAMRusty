@@ -125,8 +125,10 @@ $jobJson = $jobYaml | & kubectl.exe @prefix --request-timeout=10s create --dry-r
 if ($LASTEXITCODE -ne 0) { throw 'Cannot decode the public native SQS recipe.' }
 $job = ConvertFrom-Json ($jobJson -join "`n")
 if ($job.kind -cne 'Job' -or $job.metadata.name -cne 'kind-local-sqs-initialize') { throw 'Unexpected SQS recipe.' }
-$queues = @(ConvertFrom-Json $job.metadata.annotations.'aiforall.dev/queues')
-if (-not $queues.Count -or @($queues | Where-Object { $_ -isnot [string] -or $_ -cnotmatch '^[A-Za-z0-9_-]+(\.fifo)?$' }).Count -or
+# PowerShell 5.1 returns a JSON array as one pipeline object. Wrapping the
+# cmdlet in @() would nest it and reject the valid string elements below.
+$queues = ConvertFrom-Json $job.metadata.annotations.'aiforall.dev/queues'
+if ($queues -isnot [array] -or -not $queues.Count -or @($queues | Where-Object { $_ -isnot [string] -or $_ -cnotmatch '^[A-Za-z0-9_-]+(\.fifo)?$' }).Count -or
     @($queues | Select-Object -Unique).Count -ne $queues.Count) { throw 'Invalid queue metadata in the native recipe.' }
 $null = K @('wait', '--for=condition=Ready', 'nodes', '--all', '--timeout=180s') | Out-Host
 $null = K @('wait', '--for=jsonpath={.status.phase}=Running', 'pods', '-l', 'app.kubernetes.io/name=openbao', '--timeout=180s') | Out-Host

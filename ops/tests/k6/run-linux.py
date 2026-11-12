@@ -655,7 +655,7 @@ def provenance(tools, lock, versions, config_path=None):
     # Only stable labels and hashes. No URLs, full environment, cmdlines or paths.
     verify_tools(tools, tuple(tools))
     sources = [REPO / "docs/contracts/k6-functional-linux.md", HERE / "run-linux.py",
-               HERE / "lib/safety.py", HERE / "lib/summary.js", *SCENARIOS.values(), HERE / "config/tools.lock.json"]
+               HERE / "lib/safety.py", HERE / "lib/summary.js", HERE / "lib/campaign-target.js", *SCENARIOS.values(), HERE / "config/tools.lock.json"]
     head = subprocess.run(["/usr/bin/git", "-C", str(REPO), "rev-parse", "HEAD"],
                           capture_output=True, timeout=5, check=True,
                           env={"PATH": "/usr/bin:/bin", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}).stdout.strip().decode("ascii")

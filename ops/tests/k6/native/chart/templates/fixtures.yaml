@@ -1,0 +1,137 @@
+{{- define "native.resources" -}}
+{{- $v := .Values -}}
+{{- $envoy := required "explicit canonical Envoy source required" $v.envoySource | fromYaml -}}
+{{- if or (hasKey $envoy "dynamic_resources") (ne (dig "admin" "address" "socket_address" "address" "" $envoy) "127.0.0.1") -}}
+{{- fail "static Envoy with loopback Admin required" -}}
+{{- end -}}
+{{- $found := 0 -}}
+{{- range $cluster := $envoy.static_resources.clusters -}}
+{{- if eq $cluster.name "iam" -}}
+{{- $found = add1 $found -}}
+{{- if or (ne (len $cluster.load_assignment.endpoints) 1) (ne (len (first $cluster.load_assignment.endpoints).lb_endpoints) 1) -}}
+{{- fail "one IAM backend required" -}}
+{{- end -}}
+{{- $socket := (first (first $cluster.load_assignment.endpoints).lb_endpoints).endpoint.address.socket_address -}}
+{{- if or (ne $socket.address "iam.aiforall-local-full.svc.cluster.local") (ne (int $socket.port_value) 8443) -}}
+{{- fail "unexpected canonical IAM destination" -}}
+{{- end -}}
+{{- $_ := set $socket "address" (printf "%s-iam.aiforall-local-full.svc.cluster.local" $v.name) -}}
+{{- end -}}
+{{- end -}}
+{{- if ne (int $found) 1 -}}{{- fail "one IAM cluster required" -}}{{- end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $v.name }}-envoy
+  labels: {aiforall.dev/k6-run: {{ $v.runId | quote }}}
+data:
+  envoy.json: {{ $envoy | toJson | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $v.name }}-idp-script
+  labels: {aiforall.dev/k6-run: {{ $v.runId | quote }}}
+data:
+  provider.py: {{ required "protocol fixture source required" $v.simulatorSource | quote }}
+{{ range $role := list "iam" "oauth" "envoy" "idp" }}
+{{- $port := ternary 10000 (ternary 8080 8443 (eq $role "idp")) (eq $role "envoy") }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $v.name }}-{{ $role }}
+  labels: {aiforall.dev/k6-run: {{ $v.runId | quote }}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {aiforall.dev/k6-run: {{ $v.runId | quote }}, aiforall.dev/k6-role: {{ $role }}}
+  template:
+    metadata:
+      labels:
+        aiforall.dev/k6-run: {{ $v.runId | quote }}
+        aiforall.dev/k6-role: {{ $role }}
+        aiforall.dev/kind-minimal: "true"
+      annotations: {aiforall.dev/certificate-phase: good}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 15
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: {{ $role }}
+          image: {{ index $v.images $role | quote }}
+          imagePullPolicy: {{ ternary "IfNotPresent" "Never" (has $role (list "envoy" "idp")) }}
+          {{- if eq $role "envoy" }}
+          args: [-c, /etc/envoy/envoy.json, --log-level, error]
+          {{- else if eq $role "idp" }}
+          command: [python, -B, /fixture/provider.py]
+          {{- end }}
+          env:
+            - {name: RUN_ENV, value: k6}
+            - {name: SSL_CERT_FILE, value: /app/certs/ca-bundle.crt}
+            - {name: OAUTH_PROOF_INPUT_FILE, value: /app/config/provider.json}
+            {{- if eq $role "iam" }}
+            - name: DATABASE_URL
+              valueFrom: {secretKeyRef: {name: "{{ $v.name }}-iam-env", key: DATABASE_URL}}
+            - {name: PGSSLMODE, value: verify-full}
+            - {name: PGSSLROOTCERT, value: /app/certs/ca.crt}
+            - name: IAM_OPENFGA__STORE_ID
+              valueFrom: {configMapKeyRef: {name: local-full-fga, key: store-id}}
+            - name: IAM_OPENFGA__AUTHORIZATION_MODEL_ID
+              valueFrom: {configMapKeyRef: {name: local-full-fga, key: model-id}}
+            - {name: IAM_OPENFGA__SCHEME, value: https}
+            - {name: IAM_OPENFGA__HOST, value: openfga.aiforall-local-full.svc.cluster.local}
+            - {name: IAM_OPENFGA__PORT, value: "8080"}
+            {{- end }}
+          ports: [{name: https, containerPort: {{ $port }}}]
+          # TCP presence only: never probe a business route or remove IAM's
+          # endpoint merely because the deliberately wrong certificate is live.
+          readinessProbe: {tcpSocket: {port: https}, periodSeconds: 2, timeoutSeconds: 2}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          volumeMounts:
+            - {name: tls, mountPath: /app/certs, readOnly: true}
+            {{- if eq $role "envoy" }}
+            - {name: config, mountPath: /etc/envoy, readOnly: true}
+            {{- else }}
+            - {name: config, mountPath: /app/config, readOnly: true}
+            {{- end }}
+            {{- if eq $role "idp" }}
+            - {name: script, mountPath: /fixture, readOnly: true}
+            {{- end }}
+      volumes:
+        - name: tls
+          secret: {secretName: "{{ $v.name }}-{{ $role }}-tls", defaultMode: 0440}
+        - name: config
+          {{- if eq $role "envoy" }}
+          configMap: {name: "{{ $v.name }}-envoy"}
+          {{- else }}
+          secret: {secretName: "{{ $v.name }}-{{ $role }}-config", defaultMode: 0440}
+          {{- end }}
+        {{- if eq $role "idp" }}
+        - name: script
+          configMap: {name: "{{ $v.name }}-idp-script"}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $v.name }}-{{ $role }}
+  labels: {aiforall.dev/k6-run: {{ $v.runId | quote }}}
+spec:
+  selector: {aiforall.dev/k6-run: {{ $v.runId | quote }}, aiforall.dev/k6-role: {{ $role }}}
+  ports: [{name: https, port: {{ $port }}, targetPort: https}]
+{{ end }}
+{{- end -}}
+{{- $items := list -}}
+{{- range $document := splitList "\n---\n" (include "native.resources" .) -}}
+{{- if trim $document -}}
+{{- $object := fromYaml $document -}}
+{{- if hasKey $object "Error" -}}{{- fail (index $object "Error") -}}{{- end -}}
+{{- $items = append $items $object -}}
+{{- end -}}
+{{- end -}}
+{{ dict "apiVersion" "v1" "kind" "List" "items" $items | toJson }}

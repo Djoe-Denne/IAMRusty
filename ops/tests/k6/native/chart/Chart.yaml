@@ -1,0 +1,4 @@
+apiVersion: v2
+name: k6-native-fixtures
+version: 0.1.0
+description: Isolated IAM, OAuthConnect, Envoy and protocol IdP for three-scenario parity

@@ -2,6 +2,7 @@ import { browser } from 'k6/browser';
 import { check } from 'k6';
 import encoding from 'k6/encoding';
 import { started, completed, project } from '../../lib/summary.js';
+import { campaignTarget } from '../../lib/campaign-target.js';
 
 // k6 2.3.0 only: page.on(request/response), allHeaders(), context.cookies(),
 // page.evaluate() and browser.version(); no Playwright API or Node Buffer.
@@ -19,8 +20,9 @@ import { started, completed, project } from '../../lib/summary.js';
 // relink-start-authorization, provider-authorizations, provider-no-credentials,
 // negative-headers.
 // No raw body, URL, header, token, nonce or exception is exported by project().
-const ORIGIN = 'http://127.0.0.1:18080';
-const PROVIDER = 'http://localhost:18081/oauth/authorize';
+const target = campaignTarget();
+const ORIGIN = target.origin;
+const PROVIDER = target.provider;
 const LOGIN = '/iam/api/auth/gitlab/login';
 const CALLBACK = '/iam/api/auth/gitlab/callback';
 const REGISTER = '/iam/api/auth/complete-registration';
@@ -41,7 +43,7 @@ export const options = {
     },
   },
   thresholds: { checks: ['rate==1'], case_started: ['count==1'], case_completed: ['count==1'] },
-  systemTags: ['name', 'check', 'scenario'],
+  systemTags: ['name', 'check', 'scenario', 'group'],
 };
 
 function expect(name, condition) {
@@ -59,14 +61,15 @@ function header(headers, name) {
 
 function nonceValue(cookie) {
   return typeof cookie === 'string'
-    ? cookie.match(/(?:^|;\s*)iam-oauth-browser=([^;\s]+)/)?.[1] : undefined;
+    ? cookie.match(new RegExp('(?:^|;\\s*)' + target.cookieName + '=([^;\\s]+)'))?.[1] : undefined;
 }
 
 function cookieAttributes(cookie) {
-  return typeof cookie === 'string' && cookie.startsWith('iam-oauth-browser=')
+  return typeof cookie === 'string' && cookie.startsWith(target.cookieName + '=')
     && Boolean(nonceValue(cookie)) && /;\s*HttpOnly(?:;|$)/i.test(cookie)
     && /;\s*SameSite=Lax(?:;|$)/i.test(cookie) && /;\s*Max-Age=600(?:;|$)/i.test(cookie)
-    && /;\s*Path=\/iam(?:;|$)/i.test(cookie) && !/;\s*(?:Secure(?:;|$)|Domain=)/i.test(cookie);
+    && new RegExp(';\\s*Path=' + target.cookiePath + '(?:;|$)', 'i').test(cookie) && !/;\s*Domain=/i.test(cookie)
+    && /;\s*Secure(?:;|$)/i.test(cookie) === target.secureCookie;
 }
 
 function authorization(url, redirect) {
@@ -122,11 +125,28 @@ export default async function () {
       } catch { observationFailed = true; }
     });
     async function observeNonce(name) {
-      const cookies = (await context.cookies(ORIGIN + CALLBACK))
-        .filter((cookie) => cookie.name === 'iam-oauth-browser');
+      // Fetch the fresh context's cookies, then check identity/domain/path
+      // explicitly. k6 2.3's URL-filtered call hid the existing __Host cookie.
+      const all = await context.cookies();
+      const cookies = all.filter((cookie) => cookie.name === target.cookieName);
       const nonce = cookies[0];
-      expect(name, cookies.length === 1 && Boolean(nonce.value) && nonce.domain === '127.0.0.1'
-        && nonce.path === '/iam' && nonce.httpOnly && !nonce.secure && nonce.sameSite === 'Lax');
+      const valid = cookies.length === 1 && Boolean(nonce.value) && nonce.domain === '127.0.0.1'
+        && nonce.path === target.cookiePath && nonce.httpOnly && nonce.secure === target.secureCookie && String(nonce.sameSite) === 'Lax';
+      if (!valid) {
+        // Closed diagnostics only. Never expose a cookie value, header or URL.
+        console.error('OAUTH_COOKIE_DIAGNOSTIC ' + JSON.stringify({
+          count: cookies.length, allCount: all.length,
+          allExpectedName: all.filter(c => c.name === target.cookieName).length,
+          allLegacyName: all.filter(c => c.name === 'iam-oauth-browser').length,
+          valuePresent: Boolean(nonce?.value), domainExpected: nonce?.domain === '127.0.0.1',
+          pathExpected: nonce?.path === target.cookiePath, httpOnly: Boolean(nonce?.httpOnly),
+          secureExpected: nonce?.secure === target.secureCookie, sameSiteExpected: String(nonce?.sameSite) === 'Lax',
+          sameSiteType: typeof nonce?.sameSite,
+          sameSiteValue: ['Lax', 'Strict', 'None', 'lax', 'strict', 'none', ''].includes(String(nonce?.sameSite))
+            ? String(nonce?.sameSite) : 'OTHER',
+        }));
+      }
+      expect(name, valid);
       nonces.push(nonce.value);
     }
     const first = await page.goto(ORIGIN + LOGIN, { timeout: 15000 });
@@ -153,7 +173,7 @@ export default async function () {
       && result.access_token.length > 0 && result.user?.email === expectedEmail && Boolean(result.user?.id));
     // Observation, not local trust verification: this exact token must pass Envoy at START.
     const claims = JSON.parse(encoding.b64decode(result.access_token.split('.')[1], 'rawurl', 's'));
-    expect('login-authority', claims.iss === 'http://127.0.0.1:8080/iam' && claims.aud === 'aiforall');
+    expect('login-authority', claims.iss === target.issuer && claims.aud === target.audience);
     await observeNonce('login-nonce');
     const start = await page.evaluate(async (token) => {
       const response = await fetch('/iam/api/auth/gitlab/relink-start', {

@@ -1,6 +1,9 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { started, completed, baseline, project } from '../../lib/summary.js';
+import { campaignTarget } from '../../lib/campaign-target.js';
+
+const target = campaignTarget();
 
 export const options = {
   scenarios: {
@@ -10,12 +13,12 @@ export const options = {
     },
   },
   thresholds: { checks: ['rate==1'], case_started: ['count==1'], case_completed: ['count==1'] },
-  systemTags: ['name', 'method', 'status', 'check', 'scenario'],
+  systemTags: ['name', 'method', 'status', 'check', 'scenario', 'group'],
   maxRedirects: 0, discardResponseBodies: false,
 };
 
 export default function () {
-  if (__ENV.K6_ORIGIN !== 'http://127.0.0.1:18080' || !/^[a-f0-9]{32}$/.test(__ENV.K6_RUN_ID)) {
+  if (__ENV.K6_ORIGIN !== target.origin || !/^[a-f0-9]{32}$/.test(__ENV.K6_RUN_ID)) {
     throw new Error('INPUT_INVALID');
   }
   if (__ENV.K6_INTERNAL_NEGATIVE === 'absent-case') return;

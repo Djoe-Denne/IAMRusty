@@ -87,6 +87,26 @@ class SimulatorTests(unittest.TestCase):
         with self.assertRaises(self.module.Rejected):
             self.provider.profile("Bearer unknown")
 
+    def test_native_https_redirects_keep_pkce_client_binding_and_single_use(self):
+        provider = self.module.Provider("proofclient", "private-client-secret", "proofrun123456",
+                                        edge_origin="https://127.0.0.1:18443")
+        redirect = "https://127.0.0.1:18443/iam/api/auth/gitlab/callback"
+        with self.assertRaises(self.module.Rejected):
+            provider.authorize(self.authorization)  # Historical HTTP redirect is not accepted here.
+        code = provider.authorize({**self.authorization, "redirect_uri": redirect})
+        values = dict(grant_type="authorization_code", code=code, client_id="proofclient",
+                      client_secret="private-client-secret", redirect_uri=redirect, code_verifier=self.verifier)
+        token = provider.exchange(values)["access_token"]
+        self.assertEqual(provider.profile("Bearer " + token)["email"], "proofrun123456@example.invalid")
+        with self.assertRaises(self.module.Rejected):
+            provider.exchange(values)
+        self.assertEqual(provider.observations(), dict(run_id="proofrun123456", authorize=1,
+                                                       token=1, profile=1, pkce_validated=1))
+        for origin in ("http://127.0.0.1:18443", "https://localhost:18443", "https://127.0.0.1:18443/",
+                       "https://foreign.invalid", "https://127.0.0.1:18444"):
+            with self.subTest(origin=origin), self.assertRaises(self.module.Rejected):
+                self.module.Provider("proofclient", "private-client-secret", "proofrun123456", edge_origin=origin)
+
     def test_http_handler_matches_basic_client_token_and_profile_protocol(self):
         handler = self.module.handler(self.provider).__new__(self.module.handler(self.provider))
         handler.reply = Mock()

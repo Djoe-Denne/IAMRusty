@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "scope": "local-windows-native-three-scenario-parity",
+  "source_base": "0cfb6ceae9eaedec977329f8a418f4235acae38c",
+  "run_id": "e3337dff24eb470881233fdfad6f6022",
+  "status": "PASS",
+  "source_hash_base": "ops/tests/k6/native",
+  "runtime_worktree_sha256": {
+    "campaign.ps1": "17acb12d9689fa990fa486f4b64bfd4f71261f2faa774d4df31dd765467d12ba",
+    "helpers.ps1": "b3c5ba16ccafe51a053661e474d18f267c77956d1f838d5dc541752c29ffeae4",
+    "trust-ca.ps1": "92d59b1716939aa15da876ff3396ae7164eb1ec1ce7e53eb59e8d517b283933c",
+    "provision-chromium.ps1": "730f35c237b772b9bb00dc5de33f3604797f0e922e305ecbf22253b2bb0333f3",
+    "chart/Chart.yaml": "2ef35dd079a7a3388a54d86812b6bbf58ecdc42527573c1a83e84c007ffb8d69",
+    "chart/templates/fixtures.yaml": "f38ff7287edba161dbf6c7bfd597ccf1d4ac199deaa0cb293848304c08f4236a",
+    "../config/tools.windows.lock.json": "e1446138551b3dea5843bc19fb647233901c0d2f20beb23363a37cfd1b4e1b06",
+    "../lib/windows-native.cs": "9de3cdee9b5b1a206d28f34b3879e13dfd0109fb0f6b98351aa49f69b879cc54",
+    "../lib/windows.ps1": "7da73040ddc81fa6368416145353975b7edf3a15af6a54d122b86cc7c25b30a3",
+    "../lib/windows-auth.ps1": "67335422abb0ea7c64e680f892a2c18337034cd21729c372fd77bced45e1d2bd",
+    "../lib/summary.js": "e2c18e5f528b61139f5bde4050fa0d3cc895718e21efaaf077c2077fe89b38d6",
+    "../lib/campaign-target.js": "127084c83845fedc9a6d4fd06300e3f17a688385c9643bfb3cfa65081bdb7289",
+    "../scenarios/smoke/iam-health.js": "d9c55e1b1f5e98ae5470e9a6a02e06f11502b0e5a302ceac3122ce405c7b9f4b",
+    "../scenarios/auth/envoy-san.js": "5e92ddf1b0e59f7c3d55242bafebf2d0a9f1cc8eb06c6a2136c2a625323de488",
+    "../scenarios/auth/oauth-browser.js": "9143cf8876b414bd452733f2741906054e5b871bcd1fdd38dbc7ab00e7dd39b3",
+    "../../support/oauth-idp-simulator.py": "1fcb3947f50a9677920731f7fdd38f0bf1f58bbcfb7c92f9e5f95721675aae49"
+  },
+  "scenario_checks": {
+    "iam-health": 2,
+    "auth-envoy-san-good": 2,
+    "auth-envoy-san-bad": 2,
+    "auth-envoy-san-restored": 2,
+    "auth-oauth-browser": 26
+  },
+  "failed_checks": 0,
+  "skipped_scenarios": 0,
+  "parent_evidence": {
+    "san_delta": 1,
+    "restoration": "PASS",
+    "iam_delta": 7,
+    "ext_authz_delta": 4,
+    "provider_delta": 3,
+    "pkce_delta": 3,
+    "jwks_compatible": true,
+    "user_delta": 1,
+    "outbox_delta": 0
+  },
+  "cleanup": {
+    "status": "PASS",
+    "resources_created": 18,
+    "resources_deleted": 18,
+    "database_dropped": true,
+    "owned_ca_absent": true,
+    "operator_profile_ca_preserved": true,
+    "active_child_processes": 0,
+    "lab_keepalive": true
+  },
+  "private_projection_sha256": {
+    "evidence.json": "5b11a5a10b95f2bb577046125810fb1ac3c8137d4d6c17f475c802dae233ad6a",
+    "cleanup.json": "75d708c72e385d7c9af0f03e954fbbd87342c83ec25f883b2d6345b4d4aa2a94",
+    "iam-health.json": "8534dffe91c4f9c71bddea9d9a8a2e1ec34e36179c92eda829ca1564f833a339",
+    "auth-envoy-san-good.json": "37c8c14e2748d3e828f05093b0dc97ab2b37ef26db59abc27f8a6a1af28769c8",
+    "auth-envoy-san-bad.json": "79154c84824a1e3465a8fb2a59b5dd30a919a6c8b2895d04d5a3f92093af6a08",
+    "auth-envoy-san-restored.json": "50815f97b7fb1f976a5f4764278bc5a28d9a1d38d6bdbd46e3d55840d8d7d110",
+    "auth-oauth-browser.json": "7d7db7d1809a23ec160755e3c464524092669b569b058d1d182182e90cdc049e"
+  },
+  "ci_status": "DEFERRED",
+  "legacy_retirement": "DEFERRED"
+}
