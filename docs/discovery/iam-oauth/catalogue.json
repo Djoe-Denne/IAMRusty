@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "status": "proposed",
+  "date": "2026-11-12",
+  "source_revision": "5fad841b0b5fb984fee5ec7bea476123498962a6",
+  "method": {
+    "name": "DiUS codebase-discovery, adapted code-only pilot",
+    "upstream_revision_observed": "ce859b342b9451a42d3a25e4628d0be039441d24",
+    "source": "https://github.com/DiUS/agent-toolkit/tree/ce859b342b9451a42d3a25e4628d0be039441d24/skills/codebase-discovery",
+    "adaptations": ["IAM browser OAuth only", "No stakeholder interview yet", "No whole-repository onboarding or instruction changes", "No global skill installation", "No test execution or Allure integration"]
+  },
+  "domain": "Identité plateforme",
+  "capability": "Authentification fédérée et liaison OAuth",
+  "classification_review": "pending_product_owner",
+  "execution": {"this_pilot": "not_executed", "ci": "not_evaluated", "historical_e2e_source": "H01"},
+  "scope": {
+    "reviewed": ["HTTP login/link/relink browser flow", "Writer transaction consume", "OAuth account identity selection", "Selected unit and integration assertions", "Native k6 OAuth browser scenario", "ADR-0412 and ADR-0413 decisions"],
+    "not_reviewed": ["Password and refresh flows", "Whole IAM route inventory", "OAuth cleanup lifecycle and exhaustive malformed-input combinations", "OAuthConnect OIDC/JWKS implementation", "External provider equivalence and cutover", "Whole-repository test inventory"]
+  },
+  "features": [
+    {"id": "F01", "title": "Démarrer un parcours OAuth"},
+    {"id": "F02", "title": "Autoriser un retour navigateur une seule fois"},
+    {"id": "F03", "title": "Créer ou retrouver le compte plateforme"},
+    {"id": "F04", "title": "Lier ou relier une identité à un compte"}
+  ],
+  "sources": {
+    "A01": {"kind": "adr", "path": "docs/adr/0412-oauth-transaction-persistante-liee-navigateur.md", "lines": [25, 42], "status": "Accepted / Implemented, qualification locale bornée"},
+    "A02": {"kind": "adr", "path": "docs/adr/0413-oauthconnect-multi-instances-profils.md", "lines": [36, 66], "status": "Accepted / Partial, lire les actualisations datées"},
+    "N01": {"kind": "contract", "path": "docs/contracts/oauthconnect-multi-instances.md", "lines": [17, 25]},
+    "H01": {"kind": "historical_report", "path": "docs/missions/20261112-k6-three-native-results.md", "lines": [3, 26], "execution_revision": "54a19ba", "scope": "Slice locale, IdP protocolaire, ni fournisseur réel ni CI"},
+    "P01": {"kind": "implementation", "path": "services/IAMRusty/http/src/handlers/auth.rs", "lines": [290, 389], "symbol": "oauth_login_start"},
+    "P02": {"kind": "implementation", "path": "services/IAMRusty/http/src/oauth_browser.rs", "lines": [140, 161], "symbol": "cookie_headers"},
+    "P03": {"kind": "implementation", "path": "services/IAMRusty/http/src/oauth_browser.rs", "lines": [222, 274], "symbol": "consume_callback"},
+    "P04": {"kind": "implementation", "path": "services/IAMRusty/infra/src/repository/oauth_transaction_write.rs", "lines": [70, 110], "symbol": "consume"},
+    "P05": {"kind": "implementation", "path": "services/IAMRusty/http/src/oauth_browser.rs", "lines": [294, 330], "symbol": "validate_authorization_pkce"},
+    "P06": {"kind": "implementation", "path": "services/IAMRusty/http/src/handlers/auth.rs", "lines": [583, 647], "symbol": "handle_login_callback"},
+    "P07": {"kind": "implementation", "path": "services/IAMRusty/http/src/handlers/auth.rs", "lines": [1048, 1086], "symbol": "complete_registration"},
+    "P08": {"kind": "implementation", "path": "services/IAMRusty/application/src/usecase/link_provider.rs", "lines": [219, 245], "symbol": "link_provider"},
+    "P09": {"kind": "implementation", "path": "services/IAMRusty/domain/src/service/oauth_service.rs", "lines": [188, 249], "symbol": "find_or_create_user"},
+    "P10": {"kind": "implementation", "path": "services/IAMRusty/domain/src/service/provider_link_service.rs", "lines": [195, 239], "symbol": "handle_provider_email"},
+    "P11": {"kind": "implementation", "path": "services/IAMRusty/http/src/oauth_browser.rs", "lines": [277, 292], "symbol": "transaction_error"},
+    "P12": {"kind": "implementation", "path": "services/IAMRusty/http/src/handlers/auth.rs", "lines": [1329, 1427], "symbol": "generate_relink_provider_start_url"},
+    "P13": {"kind": "implementation", "path": "services/IAMRusty/http/src/handlers/auth.rs", "lines": [1224, 1327], "symbol": "relink_provider_callback"},
+    "P14": {"kind": "implementation", "path": "services/IAMRusty/http/src/handlers/auth.rs", "lines": [391, 440], "symbol": "oauth_link_start"}
+  },
+  "tests": {
+    "T01": {"tier": "unit", "path": "services/IAMRusty/http/src/oauth_browser.rs", "lines": [517, 560], "symbol": "cookie_is_secure_host_only_and_local_exception_is_explicit", "boundary": "Politique cookie et URL, sans navigateur"},
+    "T02": {"tier": "unit", "path": "services/IAMRusty/http/src/oauth_browser.rs", "lines": [609, 631], "symbol": "authorization_response_cannot_downgrade_or_invent_pkce", "boundary": "Validation des paramètres PKCE, sans fournisseur"},
+    "T03": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [116, 177], "symbol": "browser_binding_provider_intention_expiry_and_replay_fail_before_connector", "boundary": "HTTP IAM/Postgres réels, Connect WireMock ; helper de refus lignes95–114"},
+    "T04": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [312, 345], "symbol": "replica_race_consumes_the_browser_transaction_once", "boundary": "Deux listeners IAM et writer Postgres partagé, Connect WireMock"},
+    "T05": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [563, 662], "symbol": "pkce_s256_survives_connector_authorize_and_complete", "boundary": "DTO authorize/complete WireMock ; observation de consommation/purge DB"},
+    "T06": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [254, 310], "symbol": "oauth_registration_completion_then_second_login_uses_configured_authority", "boundary": "HTTP/Postgres/JWKS réels, Connect WireMock ; signature et refresh persisté contrôlés"},
+    "T07": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [664, 758], "symbol": "stored_target_and_redirect_mismatch_deny_but_query_cannot_retarget_consumed_capability", "boundary": "Altération de fixtures Postgres puis requête HTTP avec cible/redirect parasites"},
+    "T08": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [942, 1010], "symbol": "no_email_allows_link_and_relink_but_denies_login_for_the_linked_identity", "boundary": "WireMock livre email=None ; identités, tokens et snapshots DB contrôlés"},
+    "T09": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [1043, 1080], "symbol": "linked_identity_keeps_its_uuid_when_provider_email_changes_to_another_accounts_email", "boundary": "Deux comptes Postgres ; email fournisseur modifié, vérifié ou non"},
+    "T10": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [760, 827], "symbol": "writer_consume_failure_is_unavailable_and_has_no_connector_call_or_consumption", "boundary": "Trigger de panne Postgres possédé par la fixture ; rollback et reprise contrôlés"},
+    "T11": {"tier": "integration", "path": "services/IAMRusty/tests/oauth_browser_transactions.rs", "lines": [347, 504], "symbol": "relink_start_requires_platform_auth_but_bound_callback_needs_no_bearer", "boundary": "IAM direct, Connect WireMock ; préparation SQL de l'email vérifié, pas test de livraison d'email"},
+    "K01": {"tier": "e2e", "path": "ops/tests/k6/scenarios/auth/oauth-browser.js", "lines": [91, 245], "symbol": "default", "boundary": "Chromium et slice IAM/Envoy/OAuthConnect réels, IdP protocolaire ; historique H01 seulement"}
+  },
+  "criteria": [
+    {
+      "id": "IAM-OAUTH-C01", "feature": "F01", "title": "Démarrer LOGIN avec une redirection et un state propres au parcours",
+      "behavior": "Pour un connecteur configuré, START persiste la liaison puis renvoie une redirection vers l'autorisation fournisseur avec le state IAM et le redirect configuré.",
+      "implementation": ["P01"], "decisions": ["A01"],
+      "test_links": [{"id": "T06", "assertions": ["start réel avant chaque callback", "202 à la première transaction, 200 à la seconde"]}],
+      "k6": {"relation": "direct", "test": "K01", "checks": ["login-redirects", "provider-authorizations"], "limit": "Un profil de fixture, pas tous les providers/configurations."}
+    },
+    {
+      "id": "IAM-OAUTH-C02", "feature": "F01", "title": "Émettre un cookie navigateur sécurisé et host-only sous HTTPS",
+      "behavior": "Sous HTTPS, le cookie __Host est Secure, HttpOnly, SameSite=Lax, Path=/, sans Domain ; le mode HTTP local explicite reste une variante distincte.",
+      "implementation": ["P02"], "decisions": ["A01"],
+      "test_links": [{"id": "T01", "assertions": ["attributs et absence Domain", "HTTP interdit en Verified", "exception locale explicite"]}],
+      "k6": {"relation": "direct", "test": "K01", "checks": ["oauth-cookie-attributes", "registration-nonce", "login-nonce"], "limit": "Cookie observé dans Chromium sur la slice HTTPS ; ne qualifie pas tous les modes."}
+    },
+    {
+      "id": "IAM-OAUTH-C03", "feature": "F02", "title": "Refuser un callback sans la bonne liaison navigateur/provider/intention ou expiré",
+      "behavior": "Une liaison incorrecte ou expirée est refusée par IAM avant complete, sans credentials ; les essais de mauvaise liaison ne consomment pas la transaction encore valide.",
+      "implementation": ["P03", "P04"], "decisions": ["A01"],
+      "test_links": [{"id": "T03", "assertions": ["400 invalid_state et compteur complete inchangé via helper", "cookie absent ou autre navigateur", "provider/intention/expiry", "callback valide encore accepté après mauvaises liaisons"]}],
+      "k6": {"relation": "not_mapped_in_pilot", "limit": "Les refus403 de route Envoy ne sont pas une preuve des refus400 transactionnels IAM."}
+    },
+    {
+      "id": "IAM-OAUTH-C04", "feature": "F02", "title": "Ne consommer une transaction qu'une fois entre deux replicas",
+      "behavior": "Deux listeners IAM partageant le writer ne produisent qu'un gagnant ; la consommation commitée efface les secrets temporaires du stockage avant de délivrer la capacité.",
+      "implementation": ["P04"], "decisions": ["A01", "A02"],
+      "test_links": [{"id": "T04", "assertions": ["listeners distincts", "statuts triés202/400", "un seul complete", "une ligne consommée avec verifier et nonce purgés"]}],
+      "k6": {"relation": "not_mapped_in_pilot", "limit": "La preuve concurrente est en IT ; une duplication en E2E n'est pas automatiquement nécessaire."}
+    },
+    {
+      "id": "IAM-OAUTH-C05", "feature": "F01", "title": "Conserver PKCE S256 et le nonce attendu sans downgrade",
+      "behavior": "Quand PKCE est requis, IAM refuse les paramètres absents/incohérents ; authorize/complete transportent le challenge dérivé du verifier et le même nonce durable attendu, sans exposer le verifier au START.",
+      "implementation": ["P01", "P04", "P05"], "decisions": ["A01", "A02"],
+      "test_links": [{"id": "T02", "assertions": ["challenge requis absent refusé", "PKCE non demandé injecté refusé", "S256 cohérent accepté"]}, {"id": "T05", "assertions": ["challenge=S256(verifier)", "redirect identique", "verifier absent de authorize", "nonce attendu identique", "double purge observée avant complete"]}],
+      "k6": {"relation": "partial", "test": "K01", "checks": ["provider-authorizations", "login-redirects"], "limit": "S256 positif via authorization() lignes75–89 ; pas de stimulus de downgrade dans ce scénario."}
+    },
+    {
+      "id": "IAM-OAUTH-C06", "feature": "F03", "title": "Demander la complétion d'un nouveau compte OAuth",
+      "behavior": "Un nouvel utilisateur incomplet reçoit202 avec operation=registration_required et un registration_token, et non une connexion déjà complète.",
+      "implementation": ["P06", "P09"], "decisions": ["A02", "N01"],
+      "test_links": [{"id": "T06", "assertions": ["premier callback202", "registration_token utilisé pour la vraie route de complétion"]}],
+      "k6": {"relation": "direct", "test": "K01", "checks": ["registration-callback", "registration-required"], "limit": "L'inscription observée ne couvre pas toutes les erreurs de complétion."}
+    },
+    {
+      "id": "IAM-OAUTH-C07", "feature": "F03", "title": "Compléter le compte puis se reconnecter avec une session plateforme persistée",
+      "behavior": "Après complétion, une nouvelle transaction LOGIN renvoie200 avec l'identité plateforme, un access token vérifiable par les JWKS configurés et un refresh token effectivement persisté.",
+      "implementation": ["P06", "P07"], "decisions": ["A02", "N01"],
+      "test_links": [{"id": "T06", "assertions": ["complétion200 et nouveau login200", "signature/JWKS et issuer/sub cohérents", "un refresh valide en DB", "rejeu des deux transactions refusé"]}],
+      "k6": {"relation": "partial", "test": "K01", "checks": ["registration-completed", "login-callback", "login-identity", "login-authority"], "limit": "Le JS décode les claims, il ne vérifie pas lui-même la signature ; l'IT porte aussi la preuve du refresh persisté. Le check de complétion tolère200 ou201."}
+    },
+    {
+      "id": "IAM-OAUTH-C08", "feature": "F04", "title": "Conserver la cible LINK et le redirect autorisés, sans retargeting par query",
+      "behavior": "La cible provient du principal au START et de la transaction consommée ; un mismatch stocké est refusé et une query parasite ne choisit pas un autre compte ou redirect.",
+      "implementation": ["P14", "P03", "P04", "P08"], "decisions": ["A01", "A02", "N01"],
+      "test_links": [{"id": "T07", "assertions": ["mismatch cible/redirect refusé avant complete", "query user_id/redirect_uri ne retargete pas", "lien du propriétaire=1, lien de l'autre compte=0"]}],
+      "k6": {"relation": "not_mapped_in_pilot", "limit": "relink-identity sur le parcours heureux ne prouve pas ce stimulus de retargeting."}
+    },
+    {
+      "id": "IAM-OAUTH-C09", "feature": "F03", "title": "Refuser LOGIN sans email fournisseur, même si l'identité est déjà liée",
+      "behavior": "L'absence d'email est refusée avant lookup de compte ; aucun access/refresh/registration token n'est émis et les données métier restent inchangées.",
+      "implementation": ["P09"], "decisions": ["A02", "N01"],
+      "test_links": [{"id": "T08", "assertions": ["complete livre réellement email=None", "LOGIN en erreur4xx ou5xx", "aucun credential", "snapshot métier inchangé", "transaction consommée/purgée et rejeu refusé"]}],
+      "k6": {"relation": "not_mapped_in_pilot", "limit": "Le statut public exact du refus n'est pas fixé par cette assertion ; voir Q01."}
+    },
+    {
+      "id": "IAM-OAUTH-C10", "feature": "F04", "title": "Autoriser LINK et RELINK sans email fournisseur sans réattribuer l'email du compte",
+      "behavior": "À cible autorisée, l'absence d'email fournisseur n'empêche pas la liaison ; l'UUID cible et son email existant sont conservés et les tokens/identifiants opaques sont persistés.",
+      "implementation": ["P08", "P10", "P13"], "decisions": ["A02", "N01"],
+      "test_links": [{"id": "T08", "assertions": ["LINK et RELINK200 avec user.id attendu", "new_email_added=false", "email primaire inchangé", "ID opaque et tokens exacts en DB"]}],
+      "k6": {"relation": "not_mapped_in_pilot", "limit": "Ce cas email=None est arrangé en IT, pas dans le parcours k6 retenu."}
+    },
+    {
+      "id": "IAM-OAUTH-C11", "feature": "F03", "title": "Préférer l'identité provider+ID liée à un email fournisseur ayant changé",
+      "behavior": "Si provider+ID est déjà lié, un email fournisseur correspondant désormais à un autre compte ne réattribue pas l'identité ; l'UUID et les emails des comptes sont conservés.",
+      "implementation": ["P09"], "decisions": ["A02", "N01"],
+      "test_links": [{"id": "T09", "assertions": ["variantes email_verified vrai/faux", "LOGIN200 avec UUID du propriétaire initial", "emails et autre compte inchangés", "un seul lien du propriétaire"]}],
+      "k6": {"relation": "not_mapped_in_pilot", "limit": "Ne pas étendre ce critère au rapprochement par email d'une identité non encore liée."}
+    },
+    {
+      "id": "IAM-OAUTH-C12", "feature": "F02", "title": "Refuser proprement une panne de consommation writer, sans effet aval",
+      "behavior": "Une panne writer retourne503 générique, sans complete ni consommation partielle ; le rollback conserve les secrets et permet une nouvelle présentation après rétablissement. Ce n'est pas un retry automatique d'un échange déjà consommé.",
+      "implementation": ["P04", "P11"], "decisions": ["A01"],
+      "test_links": [{"id": "T10", "assertions": ["503 oauth_transaction_unavailable", "sentinelle/state/cookie absents du corps", "compteur complete inchangé", "row non consommée et secrets conservés", "présentation ultérieure202 après retrait de la panne"]}],
+      "k6": {"relation": "not_mapped_in_pilot", "limit": "Panne contrôlée en IT ; ne pas injecter un trigger dans le lab nominal pour augmenter un indicateur."}
+    },
+    {
+      "id": "IAM-OAUTH-C13", "feature": "F04", "title": "Authentifier START RELINK, sans exiger de Bearer au callback lié",
+      "behavior": "Le START exige un principal plateforme ; le callback relink est autorisé par la transaction/state/cookie et non par un Bearer fourni par le navigateur.",
+      "implementation": ["P12", "P13"], "decisions": ["A01", "A02"],
+      "test_links": [{"id": "T11", "assertions": ["START direct sans auth401 avant authorize", "START autorisé200", "callback sans Authorization200", "intention incorrecte et rejeu refusés"]}],
+      "k6": {"relation": "direct", "test": "K01", "checks": ["relink-start-authorization", "oauth-callback-headers"], "limit": "Les refus403 de l'edge et401 d'IAM direct appartiennent à des frontières différentes."}
+    }
+  ],
+  "review_items": [
+    {"id": "Q01", "type": "contract_precision", "criteria": ["IAM-OAUTH-C09"], "evidence": ["T08", "N01"], "finding": "Le refus LOGIN sans email est vérifié, mais l'assertion accepte toute erreur4xx ou5xx. Le présent catalogue ne déduit pas un code HTTP public exact.", "next": "Décider si un statut/error_code précis est un contrat produit ; ne pas classer ceci comme bug établi."},
+    {"id": "Q02", "type": "oracle_precision", "criteria": ["IAM-OAUTH-C07"], "evidence": ["P07", "T06", "K01"], "finding": "La route et l'IT retiennent200 ; le check k6 registration-completed accepte200 ou201.", "next": "Faire valider si cette tolérance est voulue ; aucune modification de test dans ce pilote."},
+    {"id": "Q03", "type": "evidence_boundary", "criteria": [], "evidence": ["A02", "H01"], "finding": "ADR0413 reste Partial et la preuve k6 utilise un IdP protocolaire local. Ni les mocks IAM ni cette slice ne prouvent un fournisseur GitLab réel, son équivalence sub, ou le cutover.", "next": "Garder la qualification fournisseur/cutover distincte ; ne pas transformer Partial en absence de code livré ni en PASS global."},
+    {"id": "Q04", "type": "classification_review", "criteria": [], "evidence": ["A01", "A02"], "finding": "Les frontières Epic/Feature/Story et les13IDs sont proposées par le LLM. La sélection code-first n'est pas un dénominateur exhaustif des exigences attendues.", "next": "Validation du vocabulaire/granularité par le responsable produit avant généralisation ou calcul d'un pourcentage."}
+  ]
+}
