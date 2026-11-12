@@ -1,0 +1,47 @@
+name: Set up repository Rust toolchain
+description: Install the same pinned toolchain as local rustup commands.
+
+inputs:
+  components:
+    description: Additional components needed by this job (comma-separated).
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Read rust-toolchain.toml
+      id: config
+      shell: bash
+      env:
+        EXTRA_COMPONENTS: ${{ inputs.components }}
+      run: |
+        python3 - <<'PY'
+        import os
+        import re
+        import tomllib
+
+        with open("rust-toolchain.toml", "rb") as source:
+            toolchain = tomllib.load(source)["toolchain"]
+        channel = toolchain["channel"]
+        if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", channel):
+            raise SystemExit("rust-toolchain.toml must pin an exact Rust release")
+        components = list(toolchain.get("components", []))
+        components.extend(filter(None, os.environ["EXTRA_COMPONENTS"].split(",")))
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            print(f"toolchain={channel}", file=output)
+            print(f"components={','.join(components)}", file=output)
+        PY
+
+    - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # rustup installer
+      with:
+        toolchain: ${{ steps.config.outputs.toolchain }}
+        components: ${{ steps.config.outputs.components }}
+
+    - name: Show active Rust versions
+      shell: bash
+      run: |
+        rustup show active-toolchain
+        rustc --version
+        cargo --version
+        rustfmt --version

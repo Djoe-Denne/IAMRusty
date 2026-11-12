@@ -159,11 +159,49 @@ impl RuntimeControlPort for Control {
             }
         })
     }
-    unused_port!(list_bindings(caller:&'a RuntimeControlCallerV1,project:Uuid,cursor:Option<&'a RuntimeCursorV1>,size:Option<u16>)->RuntimeBindingPageV1);
-    unused_port!(register_instance(caller:&'a RuntimeControlCallerV1,project:Uuid,binding:Uuid,instance:Uuid,request:&'a RuntimeInstanceRegistrationV1)->RuntimeWriteAckV1);
-    unused_port!(revoke_instance(caller:&'a RuntimeControlCallerV1,project:Uuid,binding:Uuid,instance:Uuid,request:&'a RuntimeInstanceRevokeRequestV1)->RuntimeWriteAckV1);
-    unused_port!(begin_effect(caller:&'a RuntimeControlCallerV1,project:Uuid,binding:Uuid,request:&'a RuntimeBeginEffectRequestV1)->RuntimeEffectReservationV1);
-    unused_port!(complete_effect(caller:&'a RuntimeControlCallerV1,project:Uuid,binding:Uuid,effect:Uuid,request:&'a RuntimeCompleteEffectRequestV1)->RuntimeWriteAckV1);
+    unused_port!(
+        list_bindings(
+            caller: &'a RuntimeControlCallerV1,
+            project: Uuid,
+            cursor: Option<&'a RuntimeCursorV1>,
+            size: Option<u16>,
+        ) -> RuntimeBindingPageV1
+    );
+    unused_port!(
+        register_instance(
+            caller: &'a RuntimeControlCallerV1,
+            project: Uuid,
+            binding: Uuid,
+            instance: Uuid,
+            request: &'a RuntimeInstanceRegistrationV1,
+        ) -> RuntimeWriteAckV1
+    );
+    unused_port!(
+        revoke_instance(
+            caller: &'a RuntimeControlCallerV1,
+            project: Uuid,
+            binding: Uuid,
+            instance: Uuid,
+            request: &'a RuntimeInstanceRevokeRequestV1,
+        ) -> RuntimeWriteAckV1
+    );
+    unused_port!(
+        begin_effect(
+            caller: &'a RuntimeControlCallerV1,
+            project: Uuid,
+            binding: Uuid,
+            request: &'a RuntimeBeginEffectRequestV1,
+        ) -> RuntimeEffectReservationV1
+    );
+    unused_port!(
+        complete_effect(
+            caller: &'a RuntimeControlCallerV1,
+            project: Uuid,
+            binding: Uuid,
+            effect: Uuid,
+            request: &'a RuntimeCompleteEffectRequestV1,
+        ) -> RuntimeWriteAckV1
+    );
 }
 
 struct Admission(AdmissionRecord);

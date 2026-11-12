@@ -54,9 +54,21 @@ Mêmes préfixes qu’en standalone. Voir [`docs/platform/runtime.md`](docs/plat
 
 ## Tests et format
 
+La version de Rust et les composants `rustfmt` / `clippy` sont épinglés dans
+[`rust-toolchain.toml`](rust-toolchain.toml). Rustup sélectionne automatiquement
+cette version dans le dépôt ; la CI lit ce même fichier via l'action locale
+`.github/actions/setup-rust`. Pour changer de version, modifier uniquement ce
+fichier, reformater puis vérifier avant de pousser.
+
+Éviter les overrides `cargo +stable`, `RUSTUP_TOOLCHAIN` ou `rustup override` qui
+prennent priorité sur ce fichier. `rustup show active-toolchain` permet de
+vérifier la version effectivement sélectionnée, sans changer le défaut global.
+
 ```bash
+rustup show active-toolchain
 cargo test -p hive-service
-cargo fmt
+cargo fmt --all
+cargo fmt --all -- --check
 ```
 
 Hook fmt : [`docs/CARGO_FMT_PRE_COMMIT.md`](docs/CARGO_FMT_PRE_COMMIT.md).
