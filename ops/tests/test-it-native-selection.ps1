@@ -40,6 +40,17 @@ foreach ($binary in @('REDIS_TLS', ' redis_tls', 'redis_tls ', 'redis_tls.exe', 
     catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Non-exact Redis TLS selection accepted' } }
 }
 $oauthBinary = 'oauth_browser_transactions'
+if ((Resolve-ItTestBinary -Suites @('telegraph') -Binary 'outbox_runtime_tests') -cne 'outbox_runtime_tests') {
+    throw 'Valid exact Telegraph outbox selection rejected'
+}
+foreach ($badSuites in @(@('iam'), @('manifesto'), @('Telegraph'), @('telegraph','telegraph'), @('telegraph','hive'))) {
+    try { $null = Resolve-ItTestBinary -Suites $badSuites -Binary 'outbox_runtime_tests'; throw 'unexpected-accept' }
+    catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Cross-suite Telegraph selection accepted' } }
+}
+foreach ($badName in @('OUTBOX_RUNTIME_TESTS', ' outbox_runtime_tests', 'outbox_runtime_tests ', 'tests/outbox_runtime_tests.rs', 'outbox_runtime_tests; anything')) {
+    try { $null = Resolve-ItTestBinary -Suites @('telegraph') -Binary $badName; throw 'unexpected-accept' }
+    catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Non-exact Telegraph binary accepted' } }
+}
 if ((Resolve-ItTestBinary -Suites @('iam') -Binary $oauthBinary) -cne $oauthBinary) { throw 'Valid IAM OAuth selection rejected' }
 $iamBinaries = @(
     $oauthBinary, 'auth_transactions_postgres', 'oauth_cleanup_lifecycle',
@@ -104,10 +115,11 @@ $branch = $ast.Find({ param($node)
 }, $true)
 if ($null -eq $branch) { throw 'Missing actual Cargo selection branch' }
 function cargo { $script:seen = @($args) }
-$packages = @{manifesto='manifesto-service'; iam='iam-service'; lazaret='lazaret-service'}
-foreach ($selected in @('manifesto', 'iam', 'lazaret')) {
+$packages = @{manifesto='manifesto-service'; iam='iam-service'; lazaret='lazaret-service'; telegraph='telegraph-service'}
+foreach ($selected in @('manifesto', 'iam', 'lazaret', 'telegraph')) {
     $selections = if ($selected -eq 'iam') { @('') + $iamBinaries }
                   elseif ($selected -eq 'lazaret') { @('', 'redis_tls') }
+                  elseif ($selected -eq 'telegraph') { @('', 'outbox_runtime_tests') }
                   else { @('') + $names }
     foreach ($testBinary in $selections) {
         $script:seen = @()

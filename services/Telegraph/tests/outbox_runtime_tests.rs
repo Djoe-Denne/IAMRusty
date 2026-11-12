@@ -290,6 +290,32 @@ async fn disabled_and_factory_degraded_noop_preserve_intentions_and_http_then_re
     }
 }
 
+// Messages are asserted before this explicit test cleanup. Receiving alone only
+// hides them temporarily: serial cases share this owned SQS fixture and a long
+// expiry witness can otherwise receive an earlier case's envelope after30s.
+async fn acknowledge_received(
+    fixture: &TelegraphTestFixture,
+    queue_url: &str,
+    messages: &[aws_sdk_sqs::types::Message],
+) -> anyhow::Result<()> {
+    for message in messages {
+        fixture
+            .sqs()
+            .client
+            .delete_message()
+            .queue_url(queue_url)
+            .receipt_handle(
+                message
+                    .receipt_handle()
+                    .ok_or_else(|| anyhow::anyhow!("verified test message has no receipt"))?,
+            )
+            .send()
+            .await
+            .map_err(|_| anyhow::anyhow!("verified test message cleanup failed"))?;
+    }
+    Ok(())
+}
+
 struct SuspendedPublisher {
     entered: tokio::sync::Notify,
     destroyed: Arc<AtomicUsize>,
@@ -396,6 +422,16 @@ async fn shutdown_during_publish_destroys_future_and_preserves_unpublished_same_
     assert_eq!(messages.len(), 1);
     let envelope: serde_json::Value = serde_json::from_str(messages[0].body().unwrap()).unwrap();
     assert_eq!(envelope["event_id"], before.event_id.to_string());
+    acknowledge_received(
+        &fixture,
+        fixture
+            .sqs()
+            .queue_url_for("test-telegraph-outbound")
+            .unwrap(),
+        &messages,
+    )
+    .await
+    .unwrap();
 }
 
 // G-C117: prospective component witness, NOT a replay of SQL cancellation109
@@ -1072,6 +1108,10 @@ async fn committed_claim_recovers_same_event_after_measured_expiry_with_fixed_re
                         && envelope["version"] == before.version && envelope["data"] == before.payload_json,
                         "122 actual SQS envelope identity/version/payload mismatch");
                 }
+                acknowledge_received(&fixture,
+                    fixture.sqs().queue_url_for("test-telegraph-outbound")
+                        .ok_or_else(|| anyhow::anyhow!("122 owned outbound queue missing"))?,
+                    &messages).await?;
                 anyhow::ensure!(tokio::time::Instant::now() < deadline, "122 counts deadline exhausted");
                 anyhow::ensure!(expiry122_counts(&db, id).await? == counts, "122 business counts changed");
                 // T-1: timeout_at alone does not attest a ready inner future's
@@ -1266,10 +1306,16 @@ async fn real_sqs_long_poll_shutdown_joins_parent_and_destroys_all_poller_resour
         "no activity after shutdown"
     );
     tokio::time::sleep(Duration::from_secs(1)).await;
+    let messages = fixture.sqs().receive_messages(10, 1).await.unwrap();
     assert_eq!(
-        fixture.sqs().receive_messages(10, 1).await.unwrap().len(),
+        messages.len(),
         1,
         "cancelled handler must not acknowledge the message"
     );
+    // Only after the cancellation oracle, release this test's message so a
+    // later real consumer cannot turn it into an unrelated notification.
+    acknowledge_received(&fixture, &fixture.sqs().queue_url, &messages)
+        .await
+        .unwrap();
     drop(fixture);
 }

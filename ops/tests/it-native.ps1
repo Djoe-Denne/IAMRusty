@@ -31,6 +31,9 @@ function Resolve-ItTestBinary {
     if ($Suites.Count -eq 1 -and $Suites[0] -ceq 'lazaret' -and $Binary -ceq 'redis_tls') {
         return $Binary
     }
+    if ($Suites.Count -eq 1 -and $Suites[0] -ceq 'telegraph' -and $Binary -ceq 'outbox_runtime_tests') {
+        return $Binary
+    }
     if ($Suites.Count -eq 1 -and $Suites[0] -ceq 'iam' -and
         $Binary -cin @(
             'oauth_browser_transactions', 'auth_transactions_postgres', 'oauth_cleanup_lifecycle',
