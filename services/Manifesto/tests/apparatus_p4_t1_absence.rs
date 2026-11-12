@@ -5,6 +5,9 @@
 //! (Factory absente). Ne crée pas `Factory/`, ne retargete pas les gates P2/P3,
 //! n'ajoute pas de SQL.
 
+#[path = "common/runtime_gate_contract.rs"]
+mod runtime_gate_contract;
+
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -79,7 +82,9 @@ fn hits_case_insensitive(
         }
         let content = std::fs::read_to_string(file).expect("fichier lisible");
         for (idx, line) in content.lines().enumerate() {
-            if forbidden_line(line, needle, allow_line) {
+            if runtime_gate_contract::forbidden(file, line, needle)
+                && forbidden_line(line, needle, allow_line)
+            {
                 hits.push(format!("{}:{}: {}", file.display(), idx + 1, line.trim()));
             }
         }

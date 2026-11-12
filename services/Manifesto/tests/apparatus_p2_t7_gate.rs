@@ -4,6 +4,9 @@
 //! `desired_state`) uniquement sur l'allowlist L. Tokens P3+ interdits
 //! partout, y compris l'allowlist P2.
 
+#[path = "common/runtime_gate_contract.rs"]
+mod runtime_gate_contract;
+
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -62,7 +65,8 @@ fn hits_case_insensitive(
         }
         let content = std::fs::read_to_string(file).expect("fichier lisible");
         for (idx, line) in content.lines().enumerate() {
-            if line.to_lowercase().contains(needle) && !allow_line.iter().any(|a| line.contains(a))
+            if runtime_gate_contract::forbidden(file, line, needle)
+                && !allow_line.iter().any(|a| line.contains(a))
             {
                 hits.push(format!("{}:{}: {}", file.display(), idx + 1, line.trim()));
             }

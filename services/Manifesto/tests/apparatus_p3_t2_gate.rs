@@ -4,6 +4,9 @@
 //! capacités n'est **pas** interdit ici (Lazaret est ce BC). Manifesto T7
 //! continue de l'interdire sous `services/Manifesto/*/src`.
 
+#[path = "common/runtime_gate_contract.rs"]
+mod runtime_gate_contract;
+
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -44,7 +47,7 @@ fn hits_case_insensitive(files: &[PathBuf], needle: &str) -> Vec<String> {
     for file in files {
         let content = std::fs::read_to_string(file).expect("fichier lisible");
         for (idx, line) in content.lines().enumerate() {
-            if line.to_lowercase().contains(needle) {
+            if runtime_gate_contract::forbidden(file, line, needle) {
                 hits.push(format!("{}:{}: {}", file.display(), idx + 1, line.trim()));
             }
         }
