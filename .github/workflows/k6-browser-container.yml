@@ -2,6 +2,13 @@ name: Docker Chromium sandbox trial (NOT E2E)
 
 on:
   workflow_dispatch:
+    inputs:
+      seccomp_mode:
+        description: baseline or explicitly approved Chromium namespace seccomp trial
+        required: true
+        default: baseline
+        type: choice
+        options: [baseline, chromium]
 
 permissions:
   contents: read
@@ -28,11 +35,14 @@ jobs:
         run: >-
           python3 -B ops/tests/k6/provision-linux.py
           --output "$RUNNER_TEMP/k6-browser-container/browser"
-      - name: Package and test non-root container with default security policies
+      - name: Run selected baseline or approved Chromium namespace policy
+        env:
+          SECCOMP_MODE: ${{ inputs.seccomp_mode }}
         run: >-
           python3 -B ops/tests/k6/ci/browser_container.py host
           --directory "$RUNNER_TEMP/k6-browser-container/trial"
           --browser-directory "$RUNNER_TEMP/k6-browser-container/browser"
+          --policy "$SECCOMP_MODE"
       - name: Independently close only the received disposable trial container
         if: ${{ always() }}
         run: >-

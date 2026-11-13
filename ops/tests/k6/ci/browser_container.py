@@ -1,6 +1,8 @@
 """Baseline non-root Docker sandbox trial; never an application E2E verdict."""
 import argparse
+import copy
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -9,6 +11,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import urllib.request
 
 from binaries import ROOT, Refused, require, sha, strict_json
 import browser as browser_profile
@@ -19,6 +22,42 @@ HERE = Path(__file__).resolve().parent
 OWNER = "k6-browser-container-trial"
 FILES = ("ci/binaries.py", "ci/browser.py", "ci/browser_container.py", "ci/browser-sandbox-probe.js",
          "config/tools.lock.json", "lib/safety.py")
+NAMESPACE_RULE = {"comment": "Approved Chromium sandbox namespaces, one disposable non-root container only",
+                  "names": ["clone", "setns", "unshare"], "action": "SCMP_ACT_ALLOW", "args": []}
+
+
+def derive_seccomp(baseline):
+    require(isinstance(baseline, dict) and baseline.keys() == {"defaultAction", "defaultErrnoRet", "archMap", "syscalls"}
+            and baseline["defaultAction"] == "SCMP_ACT_ERRNO" and baseline["defaultErrnoRet"] == 1
+            and isinstance(baseline["syscalls"], list), "TRIAL_SECCOMP_BASELINE")
+    require(not any(rule.get("action") == "SCMP_ACT_ALLOW" and not rule.get("args") and not rule.get("includes")
+                    and not rule.get("excludes") and set(rule.get("names", [])) & set(NAMESPACE_RULE["names"])
+                    for rule in baseline["syscalls"]), "TRIAL_SECCOMP_ALREADY_BROAD")
+    result = copy.deepcopy(baseline)
+    result["syscalls"].append(copy.deepcopy(NAMESPACE_RULE))
+    return result
+
+
+def acquire_seccomp(root):
+    pin = strict_json((HERE / "seccomp.lock.json").read_bytes())
+    require(pin.get("schema") == "aiforall.chromium-seccomp/v1" and pin.get("approved_namespace_syscalls") == NAMESPACE_RULE["names"]
+            and re.fullmatch(r"[a-f0-9]{40}", pin.get("revision", "")) and re.fullmatch(r"[a-f0-9]{64}", pin.get("sha256", ""))
+            and pin["source"] == "https://raw.githubusercontent.com/moby/profiles/" + pin["revision"] + "/seccomp/default.json",
+            "TRIAL_SECCOMP_SOURCE_PIN")
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open(pin["source"], timeout=30) as response:
+        require(response.url == pin["source"], "TRIAL_SECCOMP_REDIRECT")
+        raw = response.read(65537)
+    require(len(raw) <= 65536 and hashlib.sha256(raw).hexdigest() == pin["sha256"], "TRIAL_SECCOMP_SOURCE_HASH")
+    baseline = strict_json(raw)
+    derived = derive_seccomp(baseline)
+    path = root / "private/chromium.seccomp.json"
+    require(not path.exists() and not path.is_symlink(), "TRIAL_SECCOMP_COLLISION")
+    write(path, derived)
+    path.chmod(0o400)
+    return path, derived, {"reference_revision": pin["revision"], "reference_sha256": pin["sha256"],
+        "derived_sha256": sha(path), "added_syscalls": NAMESPACE_RULE["names"],
+        "basis": "pinned_moby_reference_not_asserted_identical_to_daemon_builtin"}
 
 
 def write(path, value):
@@ -66,17 +105,27 @@ def record(root, state, event, kind, identity, safe):
             os.fsync(stream.fileno())
 
 
-def container_policy(value, uid, gid, applied=True):
+def container_policy(value, uid, gid, applied=True, expected_seccomp=None):
     config, host = value["Config"], value["HostConfig"]
     require(config["User"] == f"{uid}:{gid}" and uid != 0, "TRIAL_REQUIRES_NONROOT")
     require(host["Privileged"] is False and host["ReadonlyRootfs"] is True
             and host["NetworkMode"] == "none" and host.get("PidMode", "") == ""
             and not host.get("CapAdd") and host["CapDrop"] == ["ALL"], "TRIAL_CONTAINER_POLICY")
-    require(host["SecurityOpt"] in (["no-new-privileges"], ["no-new-privileges=true"]), "TRIAL_SECURITY_OVERRIDE")
+    options = host["SecurityOpt"]
+    require(isinstance(options, list) and all(isinstance(option, str) for option in options)
+            and sum(option in ("no-new-privileges", "no-new-privileges=true") for option in options) == 1,
+            "TRIAL_SECURITY_OVERRIDE")
+    if expected_seccomp is None:
+        require(len(options) == 1, "TRIAL_SECURITY_OVERRIDE")
+    else:
+        profiles = [option.removeprefix("seccomp=") for option in options if option.startswith("seccomp=")]
+        require(len(options) == 2 and len(profiles) == 1 and strict_json(profiles[0]) == expected_seccomp,
+                "TRIAL_SECCOMP_APPLIED_MISMATCH")
     require(value.get("AppArmorProfile") in (("docker-default",) if applied else ("", "docker-default")),
             "TRIAL_DEFAULT_APPARMOR_UNPROVEN")
     return {"nonroot": True, "readonly_root": True, "network": "none", "capabilities": "ALL_DROPPED",
-            "apparmor": "docker-default" if applied else "docker_default_requested", "seccomp": "docker_default_requested",
+            "apparmor": "docker-default" if applied else "docker_default_requested",
+            "seccomp": "pinned_moby_plus_chromium_namespaces" if expected_seccomp is not None else "docker_default_requested",
             "no_new_privileges": True, "privileged": False}
 
 
@@ -100,6 +149,11 @@ def create_arguments(state, root):
             "--label", "aiforall.dev/browser-trial-attempt=" + state["attempt"]]
     for key in ("GITHUB_ACTIONS", "GITHUB_JOB", "GITHUB_REF", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"):
         args += ["--env", key + "=" + os.environ[key]]
+    require(state.get("policy", "baseline") in ("baseline", "chromium"), "TRIAL_POLICY_MODE")
+    if state.get("policy") == "chromium":
+        path = Path(state["seccomp_path"])
+        require(path.is_absolute() and not path.is_symlink() and sha(path) == state["seccomp_sha256"], "TRIAL_SECCOMP_CHANGED")
+        args += ["--security-opt", "seccomp=" + str(path)]
     return [*args, state["image_id"]]
 
 
@@ -222,21 +276,30 @@ def clean(directory):
     return 0
 
 
-def host(directory, browser_directory):
+def host(directory, browser_directory, policy="baseline"):
     hosted()
+    require(policy in ("baseline", "chromium"), "TRIAL_POLICY_MODE")
     os.umask(0o077)
     root = new_output(str(Path(directory).resolve()))
     (root / "public").mkdir(mode=0o700)
     (root / "private/container-data").mkdir(mode=0o700)
     state = {"run_id": os.environ["GITHUB_RUN_ID"], "attempt": os.environ["GITHUB_RUN_ATTEMPT"],
              "host": socket.gethostname(), "boot": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
-             "uid": os.getuid(), "gid": os.getgid(), "before_containers": sorted(container_ids())}
+             "uid": os.getuid(), "gid": os.getgid(), "before_containers": sorted(container_ids()), "policy": policy}
     write(root / "private/state.json", state)
     report = {"qualification": "NOT_E2E_SANDBOX_TRIAL", "harness_sha": os.environ["GITHUB_SHA"], "verdict": "INCONCLUSIVE"}
     try:
         security = strict_json(docker(["info", "--format", "{{json .SecurityOptions}}"]).stdout)
         require("name=apparmor" in security and "name=seccomp,profile=builtin" in security, "TRIAL_DEFAULT_DAEMON_SECURITY_UNPROVEN")
         report["daemon_security"] = {"apparmor": True, "seccomp_builtin": True}
+        version = docker(["version", "--format", "{{.Server.Version}}"]).stdout.decode().strip()
+        report["docker_version"] = version if re.fullmatch(r"[A-Za-z0-9.+-]{1,64}", version) else "WITHHELD"
+        expected_seccomp = None
+        if policy == "chromium":
+            path, expected_seccomp, facts = acquire_seccomp(root)
+            state.update(seccomp_path=str(path), seccomp_sha256=facts["derived_sha256"])
+            write(root / "private/state.json", state)
+            report["seccomp_profile"] = facts
         context = prepare_context(root, browser_directory)
         base = strict_json((HERE / "images.lock.json").read_bytes())["runtime"]
         require(re.fullmatch(r"ubuntu:24\.04@sha256:[a-f0-9]{64}", base), "TRIAL_RUNTIME_PIN")
@@ -259,7 +322,8 @@ def host(directory, browser_directory):
         # Created metadata may not yet expose the applied AppArmor profile.
         # Validate requests now; require the actual profile from inside the
         # started container before observing Chromium or accepting any result.
-        report.update(policy=container_policy(value, state["uid"], state["gid"], applied=False), image_id=state["image_id"], base=base)
+        report.update(policy=container_policy(value, state["uid"], state["gid"], applied=False, expected_seccomp=expected_seccomp),
+                      image_id=state["image_id"], base=base)
         result = docker(["start", "--attach", identity], timeout=50, any_exit=True)
         source = root / "private/container-data/public/result.json"
         require(source.is_file() and not source.is_symlink() and source.stat().st_size <= 65536, "TRIAL_RESULT_MISSING")
@@ -296,11 +360,12 @@ def main():
     parser.add_argument("action", choices=("host", "run", "clean"))
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--browser-directory", type=Path)
+    parser.add_argument("--policy", choices=("baseline", "chromium"), default="baseline")
     args = parser.parse_args()
     try:
         if args.action == "clean":
             return clean(args.directory)
-        return in_container(args.directory) if args.action == "run" else host(args.directory, args.browser_directory)
+        return in_container(args.directory) if args.action == "run" else host(args.directory, args.browser_directory, args.policy)
     except Exception:
         print("Docker sandbox trial incomplete; no E2E qualification or fallback policy")
         return 1

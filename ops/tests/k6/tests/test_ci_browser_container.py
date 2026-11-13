@@ -1,8 +1,12 @@
 """Baseline Docker trial policy, ownership and no E2E substitution contracts."""
 import copy
+import hashlib
+import io
+import json
 import os
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -81,6 +85,100 @@ class ReceiptTests(unittest.TestCase):
                 c.validate_receipt([{**row, **change}], state, "a" * 64)
         with self.assertRaises(b.Refused):
             c.validate_receipt([row, {**row, "event": "reclassified", "safe_to_delete": "ask"}], state, "a" * 64)
+
+
+def seccomp_baseline():
+    return dict(defaultAction="SCMP_ACT_ERRNO", defaultErrnoRet=1, archMap=[], syscalls=[
+        dict(names=["read", "write", "exit"], action="SCMP_ACT_ALLOW"),
+        dict(names=["clone3"], action="SCMP_ACT_ERRNO", errnoRet=38),
+        dict(names=["clone", "setns", "unshare", "mount", "bpf"], action="SCMP_ACT_ALLOW", includes=dict(caps=["CAP_SYS_ADMIN"]))])
+
+
+class SeccompTests(unittest.TestCase):
+    def test_reference_retained_byte_semantics_except_one_exact_namespace_rule(self):
+        before = seccomp_baseline()
+        original = copy.deepcopy(before)
+        after = c.derive_seccomp(before)
+        self.assertEqual(before, original)
+        self.assertEqual({key: value for key, value in after.items() if key != "syscalls"},
+                         {key: value for key, value in before.items() if key != "syscalls"})
+        self.assertEqual(after["syscalls"][:-1], before["syscalls"])
+        self.assertEqual(after["syscalls"][-1], c.NAMESPACE_RULE)
+        self.assertEqual(after["syscalls"][-1]["names"], ["clone", "setns", "unshare"])
+        self.assertEqual(after["defaultAction"], "SCMP_ACT_ERRNO")
+        self.assertEqual(after["syscalls"][1]["errnoRet"], 38)
+
+    def test_allow_all_or_already_broad_baseline_refused(self):
+        for invalid in (dict(defaultAction="SCMP_ACT_ALLOW"), dict(defaultErrnoRet=0), dict(extra="unexpected")):
+            with self.assertRaises(b.Refused):
+                c.derive_seccomp({**seccomp_baseline(), **invalid})
+        value = seccomp_baseline()
+        value["syscalls"].append(dict(names=["clone"], action="SCMP_ACT_ALLOW"))
+        with self.assertRaises(b.Refused):
+            c.derive_seccomp(value)
+
+    def test_inspected_custom_profile_must_equal_verified_derived_profile(self):
+        expected = c.derive_seccomp(seccomp_baseline())
+        value = configuration()
+        value["HostConfig"]["SecurityOpt"].append("seccomp=" + json.dumps(expected))
+        policy = c.container_policy(value, 1001, 1001, expected_seccomp=expected)
+        self.assertEqual(policy["seccomp"], "pinned_moby_plus_chromium_namespaces")
+        for invalid in ("unconfined", json.dumps({**expected, "defaultAction": "SCMP_ACT_ALLOW"})):
+            changed = copy.deepcopy(value)
+            changed["HostConfig"]["SecurityOpt"][-1] = "seccomp=" + invalid
+            with self.assertRaises(b.Refused):
+                c.container_policy(changed, 1001, 1001, expected_seccomp=expected)
+        with self.assertRaises(b.Refused):
+            c.container_policy(value, 1001, 1001)
+
+    def test_acquisition_is_hashed_closed_and_never_reuses_existing_profile(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / "private").mkdir()
+            raw = json.dumps(seccomp_baseline()).encode()
+            revision = "a" * 40
+            url = "https://raw.githubusercontent.com/moby/profiles/" + revision + "/seccomp/default.json"
+            pin = dict(schema="aiforall.chromium-seccomp/v1", approved_namespace_syscalls=["clone", "setns", "unshare"],
+                       revision=revision, source=url, sha256=hashlib.sha256(raw).hexdigest())
+            (root / "seccomp.lock.json").write_text(json.dumps(pin))
+
+            def response(_url, timeout):
+                stream = io.BytesIO(raw)
+                stream.url = url
+                return stream
+
+            with patch.object(c, "HERE", root), patch.object(c.urllib.request, "build_opener") as opener:
+                opener.return_value.open.side_effect = response
+                path, derived, facts = c.acquire_seccomp(root)
+                self.assertEqual(derived, c.derive_seccomp(seccomp_baseline()))
+                self.assertEqual(facts["derived_sha256"], b.sha(path))
+                self.assertEqual(facts["added_syscalls"], ["clone", "setns", "unshare"])
+                with self.assertRaises(b.Refused):
+                    c.acquire_seccomp(root)
+
+    def test_chromium_mode_checks_the_profile_hash_before_create(self):
+        env = dict(GITHUB_ACTIONS="true", GITHUB_JOB="trial", GITHUB_REF="refs/heads/master", GITHUB_RUN_ID="123", GITHUB_RUN_ATTEMPT="1")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            path = root / "profile.json"
+            path.write_text(json.dumps(c.derive_seccomp(seccomp_baseline())))
+            state = dict(uid=1001, gid=1001, run_id="123", attempt="1", image_id="sha256:" + "a" * 64,
+                         policy="chromium", seccomp_path=str(path), seccomp_sha256=b.sha(path))
+            with patch.dict(os.environ, env):
+                args = c.create_arguments(state, root)
+                self.assertIn("seccomp=" + str(path), args)
+                path.write_text("tampered")
+                with self.assertRaises(b.Refused):
+                    c.create_arguments(state, root)
+
+    def test_pinned_source_is_immutable_and_workflow_mode_is_explicit(self):
+        pin = json.loads((CI / "seccomp.lock.json").read_text())
+        self.assertRegex(pin["source"], r"https://raw.githubusercontent.com/moby/profiles/[a-f0-9]{40}/seccomp/default.json$")
+        self.assertRegex(pin["sha256"], r"^[a-f0-9]{64}$")
+        value = yaml.load((b.ROOT / ".github/workflows/k6-browser-container.yml").read_text(), Loader=yaml.BaseLoader)
+        mode = value["on"]["workflow_dispatch"]["inputs"]["seccomp_mode"]
+        self.assertEqual(mode["default"], "baseline")
+        self.assertEqual(mode["options"], ["baseline", "chromium"])
 
 
 class WorkflowTests(unittest.TestCase):
