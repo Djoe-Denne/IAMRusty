@@ -111,6 +111,27 @@ transfert vers un autre chemin. Validation native des deux binaries P3/P4 :
 Re-review spécialisée : **PASS**, aucun affaiblissement du scanner ni nouvelle
 exemption globale détecté ; les douze cas ont été vérifiés avec mutation mindset.
 
+### Confirmation finale — campagne complète verte
+
+Correctif publié et vérifié sur `origin/master` :
+`65bc37677d176a485172e9c4969b738c9d0b4475`.
+La [CI 43414594622](https://github.com/Djoe-Denne/IAMRusty/actions/runs/43414594622)
+est **entièrement verte** : 24 jobs réussis, dont toutes les intégrations
+(Manifesto, Telegraph, IAM, Hive, Apparatus), les tests unitaires, le merge et Sonar.
+L'échec de setup LocalStack de la première campagne ne se reproduit pas dans
+cette campagne ; aucun changement de production Telegraph ni assouplissement
+de readiness n'a été appliqué pour obtenir ce résultat.
+
+Analyse Sonar `14caec52-a416-4637-a3a9-f9ec12a376ad`, 13 novembre 2026
+à 11:45:14 UTC, révision exactement égale à `65bc376` : **82,7 %**,
+41 827 lignes à couvrir, 7 219 non couvertes ; code smells 1 303,
+bugs 6, vulnérabilités 0, issues classiques 1 309. Le résultat de couverture
+est donc confirmé par une campagne complète réussie, et non seulement par la
+projection locale ou les rapports de la première campagne rouge.
+
+Cette confirmation documentaire est postérieure à la campagne ; elle ne change
+aucun source Rust, test exécutable, scanner, fixture ou réglage de coverage.
+
 Dernière campagne IT : 2 conteneurs créés, 2 retirés, 0 possédé running, 0 nouvelle
 ressource non attribuée. Les 4 conteneurs préexistants restent inchangés ; aucun
 arrêt global Docker/WSL, aucune intervention sur le cluster d'une autre campagne.

@@ -8,6 +8,6 @@
 - [x] **#1 Tests unitaires sentinel-sync absents de la matrice coverage.**
   - Preuve : baseline CI 43293107226, pas d'artefact `lcov-unit-sentinel-sync` ; matrice initiale IAM/Telegraph/Hive/Manifesto/readiness seulement. Les tests du worker sont présents dans ses modules `src`.
   - Fix : entrée Sentinel Sync, `--package sentinel-sync`, artefact `lcov-unit-sentinel-sync`, fichier `.info` dédié ; réutilisation du merge `lcov-*`.
-  - Vérification : parse YAML et assertions matrice/identité unique/dépendance/pattern PASS ; 50 tests lib + 0 bin PASS Windows instrumenté ; exécution distante après publication à vérifier.
+  - Vérification : parse YAML et assertions matrice/identité unique/dépendance/pattern PASS ; 50 tests lib + 0 bin PASS Windows instrumenté ; job Coverage - unit (Sentinel Sync) réussi dans la CI complète verte 43414594622, révision 65bc376 ; merge et Sonar réussis, coverage82.7% confirmé sur cette révision.
 
 Total : 1 corrigé, 0 finding ouvert. Limite : ce contrôle ciblé n'est pas un audit global de CI ; il ne certifie pas les anciennes décisions hors diff.
