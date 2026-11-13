@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import selectors
+import shlex
 import signal
 import stat
 import subprocess
@@ -303,8 +304,30 @@ def same(identity):
     return current if current and all(current[k] == identity[k] for k in ("pid", "start", "uid")) else None
 
 
+def browser_process_arguments(args):
+    """Read Chromium's Linux rewritten title, never execute it as a command.
+
+    Ordinary NUL-separated argv stays intact. Only a single nonempty argument
+    containing a switch after whitespace is treated as a rewritten title.
+    Malformed or ambiguous titles fail closed; namespace/filter proof remains
+    independent of this representation.
+    """
+    values = [arg for arg in args if arg]
+    if len(values) == 1 and re.search(rb"[ \t]--", values[0]):
+        try:
+            if len(values[0]) > 32768 or re.search(rb"[\x00-\x08\x0a-\x1f\x7f]", values[0]):
+                raise ValueError("invalid process title")
+            parsed = shlex.split(values[0].decode("utf-8", errors="strict"), comments=False, posix=True)
+            if not parsed or parsed[0].startswith("--"):
+                raise ValueError("missing process name")
+            return [arg.encode("utf-8") for arg in parsed]
+        except (ValueError, UnicodeError):
+            raise Rejected("SANDBOX_UNPROVEN") from None
+    return values
+
+
 def sandbox_witness(identity, parent):
-    args = identity["args"]
+    args = browser_process_arguments(identity["args"])
     forbidden = (b"--no-sandbox", b"--disable-setuid-sandbox", b"--disable-seccomp-filter-sandbox",
                  b"--disable-namespace-sandbox", b"--ignore-certificate-errors", b"--single-process")
     if any(arg.split(b"=", 1)[0] in forbidden for arg in args):
@@ -337,7 +360,7 @@ class Child:
         # Consume only already-read observations after ownership/identity binding.
         owned = self.owned.get(current["pid"])
         if (not owned or any(current[k] != owned[k] for k in ("pid", "start", "uid"))
-                or current["uid"] != os.getuid() or b"--type=renderer" not in current["args"]):
+                or current["uid"] != os.getuid() or b"--type=renderer" not in browser_process_arguments(current["args"])):
             return
         self.renderer_observed = True
         for name in ("user", "pid"):

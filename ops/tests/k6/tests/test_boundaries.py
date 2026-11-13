@@ -401,6 +401,46 @@ class PosixTests(unittest.TestCase):
 
 
 class SandboxTests(unittest.TestCase):
+    def test_rewritten_renderer_title_keeps_all_sandbox_requirements(self):
+        parent = dict(userns="u1", pidns="p1", filters=1)
+        good = dict(args=[b"/opt/chrome --type=renderer --lang=en-US", b""], uid=123,
+                    seccomp="2", userns="u2", pidns="p2", filters=2, no_new_privs="1")
+        with mock.patch.object(os, "getuid", return_value=123, create=True):
+            self.assertTrue(safety.sandbox_witness(good, parent))
+            for key, value in (("uid", 0), ("userns", "u1"), ("pidns", "p1"), ("filters", 1),
+                               ("seccomp", "0"), ("no_new_privs", "0"), ("userns", None), ("pidns", None)):
+                self.assertFalse(safety.sandbox_witness({**good, key: value}, parent))
+            child = safety.Child()
+            current = dict(good, pid=1234, start=5678, namespace_reads=dict(user="READABLE", pid="READABLE"))
+            child.observe_renderer(current)
+            self.assertFalse(child.renderer_observed)
+            child.owned[1234] = dict(current)
+            child.observe_renderer(current)
+            self.assertTrue(child.renderer_observed)
+            self.assertFalse(child.sandbox)  # recognition alone does not qualify
+            self.assertEqual(child.namespace_reads, dict(user={"READABLE"}, pid={"READABLE"}))
+
+    def test_rewritten_title_cannot_hide_forbidden_flags(self):
+        parent = dict(userns="u1", pidns="p1", filters=1)
+        good = dict(uid=123, seccomp="2", userns="u2", pidns="p2", filters=2, no_new_privs="1")
+        forbidden = ("--no-sandbox", "--disable-setuid-sandbox", "--disable-seccomp-filter-sandbox",
+                     "--disable-namespace-sandbox", "--ignore-certificate-errors", "--single-process")
+        with mock.patch.object(os, "getuid", return_value=123, create=True):
+            for flag in forbidden:
+                for suffix in (flag, flag + "=true", '"' + flag + '"'):
+                    with self.subTest(suffix=suffix), self.assertRaises(runner.Rejected):
+                        safety.sandbox_witness({**good, "args": [("/opt/chrome --type=renderer " + suffix).encode()]}, parent)
+
+    def test_title_parsing_rejects_malformed_and_false_renderer_tokens(self):
+        for raw in (b'/opt/chrome --type=renderer "unterminated', b'/opt/chrome --type=renderer\n--lang=en',
+                    b'/opt/chrome --type=renderer \xff', b'/opt/chrome --type=renderer ' + b'x' * 32768):
+            with self.assertRaises(runner.Rejected):
+                safety.browser_process_arguments([raw])
+        for raw in (b'/opt/chrome --type=renderer-fake', b'/opt/chrome --url=" --type=renderer "'):
+            self.assertNotIn(b"--type=renderer", safety.browser_process_arguments([raw]))
+        ordinary = [b"/opt/chrome", b"--type=renderer", b"--url=ordinary value"]
+        self.assertEqual(safety.browser_process_arguments(ordinary), ordinary)
+
     def test_renderer_requires_filter_and_both_namespace_boundaries(self):
         parent = {"userns": "u1", "pidns": "p1", "filters": 1}
         good = {"args": [b"--type=renderer"], "uid": 123, "seccomp": "2", "userns": "u2", "pidns": "p2", "filters": 2, "no_new_privs": "1"}
