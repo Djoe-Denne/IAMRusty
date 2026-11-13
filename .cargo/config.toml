@@ -1,3 +1,25 @@
 [build]
 jobs = 24
 target-dir = "E:\\cargo-target\\AIForAll"
+
+# Mirror .github/workflows/ci.yml, "Run Clippy report (production vs tests)".
+# Run both aliases sequentially; these check tests but do not execute them.
+[alias]
+clippy-ci-production = [
+    "clippy", "--workspace", "--locked", "--all-features",
+    "--lib", "--bins", "--examples", "--message-format=json", "--",
+    "-W", "clippy::all", "-W", "clippy::pedantic",
+    "-W", "clippy::nursery", "-W", "clippy::cargo",
+    "-W", "clippy::todo", "-W", "clippy::unimplemented",
+    "-A", "clippy::cargo_common_metadata", "-A", "clippy::multiple_crate_versions",
+    "-W", "clippy::unwrap_used", "-W", "clippy::expect_used", "-W", "clippy::panic",
+]
+clippy-ci-tests = [
+    "clippy", "--workspace", "--locked", "--all-features",
+    "--tests", "--benches", "--message-format=json", "--",
+    "-W", "clippy::all", "-W", "clippy::pedantic",
+    "-W", "clippy::nursery", "-W", "clippy::cargo",
+    "-W", "clippy::todo", "-W", "clippy::unimplemented",
+    "-A", "clippy::cargo_common_metadata", "-A", "clippy::multiple_crate_versions",
+    "-A", "clippy::unwrap_used", "-A", "clippy::expect_used", "-A", "clippy::panic",
+]

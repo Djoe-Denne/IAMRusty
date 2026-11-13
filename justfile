@@ -22,6 +22,11 @@ set shell := ["powershell.exe", "-c"]
 default:
     @just --list
 
+# Native host Clippy, matching the CI production/test scopes (no test execution).
+# JSONL reports stay at Sonar's configured paths, independently of target-dir on E:.
+clippy-ci:
+    & ./ops/scripts/clippy-ci.ps1
+
 # === Stack lifecycle =======================================================
 
 # Bring up the full stack: builds the shared artifacts image first, then
