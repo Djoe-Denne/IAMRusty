@@ -133,6 +133,18 @@ class BinaryContractTests(unittest.TestCase):
             with self.assertRaises(b.Refused):
                 b.validate_manifest({**manifest(), field: value}, EXPECTED, OUTPUTS)
 
+    def test_existing_cargo_package_underscore_is_valid_but_flags_and_paths_are_not(self):
+        # Real IAM matrix includes iam-http_server. The consumer never executes
+        # these metadata arguments, but must recognize legal Cargo names.
+        value = manifest()
+        value["build_args"] += ["--package", "iam-http_server"]
+        b.validate_manifest(value, EXPECTED, OUTPUTS)
+        for invalid in ("../iam-http_server", "--release", "iam; command", "iam/http_server"):
+            changed = copy.deepcopy(value)
+            changed["build_args"][-1] = invalid
+            with self.subTest(invalid=invalid), self.assertRaises(b.Refused):
+                b.validate_manifest(changed, EXPECTED, OUTPUTS)
+
     def test_closed_archive_and_internal_hashes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

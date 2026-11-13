@@ -51,6 +51,25 @@ dispatch du workflow manuel puis packaging/résolution des quatre ELF. Aucun
 succès de ces tests hors cluster ne vaut preuve E2E ; parent Ubuntu, bootstrap,
 confiance NSS, cinq phases health/OAuth/SAN et cleanup du cluster restent à finir.
 
+### Première publication et refus consumer
+
+La [CI productrice43415018528](https://github.com/Djoe-Denne/IAMRusty/actions/runs/43415018528)
+est entièrement verte sur `1ca9a4c83226da50adb33822233b488c98a4736b` et publie
+les trois bundles attendus. Le premier dispatch indépendant
+[43420077346](https://github.com/Djoe-Denne/IAMRusty/actions/runs/43420077346),
+harness `f8e54798` distinct de T, admet la provenance et vérifie les archives,
+mais refuse le manifeste IAM avant toute construction d'image :
+`MANIFEST_BUILD_ARGS`. Cleanup indépendant PASS, zéro probe possédée.
+
+Cause constatée dans le manifeste réel : `iam-http_server` est un package Cargo
+existant, mais le validateur des arguments n'acceptait pas l'underscore. La
+grammaire est corrigée pour reconnaître ce nom valide ; chemins, options et
+métacaractères restent refusés, cas de régression ajouté. Aucune suppression de
+contrôle de provenance, de hash ou d'instrumentation. Les mêmes bundles doivent
+être rejoués avec le harness corrigé, sans compiler T à nouveau. Les deux ELF
+IAM exigent effectivement GLIBC2.38/2.39 et OpenSSL3 ; pas de preuve ABI runtime
+avant le packaging réel.
+
 Sources externes :
 - [download-artifact au SHA réutilisé](https://raw.githubusercontent.com/actions/download-artifact/d3f86a106a0bac45b974a628896c90dbdf5c8093/README.md),
   cross-run et perte des permissions, d'où le tar fermé.

@@ -212,7 +212,7 @@ def validate_manifest(value, expected, outputs):
     require(isinstance(args, list) and args[:3] == ["build", "--locked", "--all-targets"]
             and len(args) >= 5 and (len(args) - 3) % 2 == 0, "MANIFEST_BUILD_ARGS")
     require(all(args[index] == "--package" and isinstance(args[index + 1], str)
-                and re.fullmatch(r"[a-z][a-z0-9-]+", args[index + 1])
+                and re.fullmatch(r"[a-z][a-z0-9_-]+", args[index + 1])
                 for index in range(3, len(args), 2)) and set(outputs) <= set(args[4::2]), "MANIFEST_BUILD_ARGS")
     require(isinstance(value["files"], list) and len(value["files"]) == len(outputs), "MANIFEST_FILES")
     names = set()
