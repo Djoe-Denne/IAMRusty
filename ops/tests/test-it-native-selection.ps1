@@ -16,7 +16,7 @@ $names = @(
     'apparatus_p3_t4_gateway', 'apparatus_p3_t5_consent',
     'apparatus_p1_t1_migration', 'apparatus_p2_t2_migration', 'apparatus_p3_t2_migration',
     'apparatus_p2_t4_resume', 'apparatus_p2_t7_cleanup', 'transaction_readiness_tests',
-    'runtime_writer_postgres', 'coverage90_member_persistence'
+    'runtime_writer_postgres', 'coverage90_member_persistence', 'apparatus_p1_t6_http'
 )
 foreach ($name in $names) {
     if ((Resolve-ItTestBinary -Suites @('manifesto') -Binary $name) -cne $name) { throw 'Valid named selection rejected' }

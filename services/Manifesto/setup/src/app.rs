@@ -320,12 +320,15 @@ impl Application {
             });
             tracing::info!("Starting Manifesto HTTP server and background tasks");
 
+            let mut background_selected = false;
+            let mut server_selected = false;
             let shutdown_result: Result<(), Error> = tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
                     tracing::info!("Shutdown signal received; stopping Manifesto runtime");
                     Ok(())
                 }
                 result = &mut background_handle => {
+                    background_selected = true;
                     match result {
                         Ok(Ok(())) => {
                             tracing::info!("Manifesto background tasks completed");
@@ -336,6 +339,7 @@ impl Application {
                     }
                 }
                 result = &mut server_handle => {
+                    server_selected = true;
                     match result {
                         Ok(Ok(())) => {
                             tracing::info!("HTTP server completed");
@@ -348,27 +352,22 @@ impl Application {
             };
 
             self.stop_background_tasks().await;
-            if !background_handle.is_finished() {
-                background_handle.abort();
-            }
-            if !server_handle.is_finished() {
-                server_handle.abort();
-            }
-
-            let _ = background_handle.await;
-            let _ = server_handle.await;
+            drain_unselected_task(background_handle, background_selected).await;
+            drain_unselected_task(server_handle, server_selected).await;
 
             return shutdown_result;
         }
 
         tracing::info!("Starting Manifesto HTTP server without apparatus queue consumer");
 
+        let mut server_selected = false;
         let shutdown_result: Result<(), Error> = tokio::select! {
             _ = tokio::signal::ctrl_c() => {
                 tracing::info!("Shutdown signal received; stopping Manifesto HTTP server");
                 Ok(())
             }
             result = &mut server_handle => {
+                server_selected = true;
                 match result {
                     Ok(Ok(())) => {
                         tracing::info!("HTTP server completed");
@@ -380,10 +379,7 @@ impl Application {
             }
         };
 
-        if !server_handle.is_finished() {
-            server_handle.abort();
-        }
-        let _ = server_handle.await;
+        drain_unselected_task(server_handle, server_selected).await;
 
         shutdown_result
     }
@@ -459,6 +455,14 @@ impl Application {
     }
 }
 
+/// A selected `JoinHandle` has already yielded its output and must never be polled again.
+async fn drain_unselected_task<T>(handle: tokio::task::JoinHandle<T>, selected: bool) {
+    if !selected {
+        handle.abort();
+        let _ = handle.await;
+    }
+}
+
 /// Build the dedicated snapshot GET extractor from `[apparatus.grant_snapshot_auth]`.
 ///
 /// # Errors
@@ -488,6 +492,10 @@ fn grant_snapshot_user_id_extractor(config: &AppConfig) -> Result<Arc<UserIdExtr
 #[cfg(test)]
 #[path = "../../tests/fixtures/grant_snapshot_service_policy.rs"]
 mod grant_snapshot_service_policy_tests;
+
+#[cfg(test)]
+#[path = "../../tests/fixtures/runtime_supervision.rs"]
+mod runtime_supervision_tests;
 
 /// Setup database connection
 async fn setup_database(config: &AppConfig) -> Result<DbConnectionPool, Error> {
