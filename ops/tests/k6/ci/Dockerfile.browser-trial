@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1
+# Packages the already verified tools. No Cargo or application build.
+ARG RUNTIME_IMAGE
+FROM ${RUNTIME_IMAGE} AS runtime
+LABEL org.opencontainers.image.source="https://github.com/Djoe-Denne/IAMRusty" \
+      org.opencontainers.image.title="Pinned k6 Chromium sandbox trial, not application E2E"
+WORKDIR /opt/AIForAll
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 ca-certificates libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 \
+    libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
+    libxrandr2 libgbm1 libasound2t64 libx11-6 libxcb1 libxext6 libglib2.0-0t64 \
+    libpango-1.0-0 libcairo2 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --chown=0:0 browser/ /opt/browser/
+COPY --chown=0:0 ops/ /opt/AIForAll/ops/
+# Preserve executable bits, permit non-root reads, never install a SUID helper.
+RUN chmod -R a+rX /opt/browser /opt/AIForAll \
+    && (getent group 1000 >/dev/null || groupadd --gid 1000 browser) \
+    && (getent passwd 1000 >/dev/null || useradd --uid 1000 --gid 1000 --no-create-home browser)
+ENV PYTHONDONTWRITEBYTECODE=1
+USER 1000:1000
+ENTRYPOINT ["python3", "-B", "/opt/AIForAll/ops/tests/k6/ci/browser_container.py", "run", "--directory", "/run/trial"]

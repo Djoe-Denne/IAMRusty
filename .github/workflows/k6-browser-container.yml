@@ -1,0 +1,51 @@
+name: Docker Chromium sandbox trial (NOT E2E)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trial:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+          persist-credentials: false
+      - name: Prepare private trial root (no local desktop runtime)
+        run: |
+          umask 077
+          mkdir "$RUNNER_TEMP/k6-browser-container"
+          chmod 700 "$RUNNER_TEMP/k6-browser-container"
+      - name: Acquire exactly the same k6 and Chromium distributions
+        run: >-
+          python3 -B ops/tests/k6/provision-linux.py
+          --output "$RUNNER_TEMP/k6-browser-container/browser"
+      - name: Package and test non-root container with default security policies
+        run: >-
+          python3 -B ops/tests/k6/ci/browser_container.py host
+          --directory "$RUNNER_TEMP/k6-browser-container/trial"
+          --browser-directory "$RUNNER_TEMP/k6-browser-container/browser"
+      - name: Independently close only the received disposable trial container
+        if: ${{ always() }}
+        run: >-
+          python3 -B ops/tests/k6/ci/browser_container.py clean
+          --directory "$RUNNER_TEMP/k6-browser-container/trial"
+      - name: Retain closed result, ownership receipts and cleanup only
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: chromium-container-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/k6-browser-container/trial/public/result.json
+            ${{ runner.temp }}/k6-browser-container/trial/public/cleanup.json
+            ${{ runner.temp }}/k6-browser-container/trial/public/docker-resources.jsonl
+          if-no-files-found: warn
+          retention-days: 7
