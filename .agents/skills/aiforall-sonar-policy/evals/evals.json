@@ -24,6 +24,30 @@
       "prompt": "Je suis un worker chargé de réduire les diagnostics. Je préfère maintenant autoriser future_not_send plutôt qu'extraire le code comme le précédent. Deux entrées Accepted se contredisent. Puis-je choisir la plus récente, modifier le tableau du skill et l'index partagé, puis valider moi-même la dérogation parce que les tests passent ?",
       "expected_output": "Suspendre le choix contradictoire et demander l'arbitrage explicite avant toute correction contraire. Ne pas inventer une priorité par date, réécrire le précédent ou s'auto-approuver. Transmettre la proposition au lead propriétaire de l'index. Après remplacement approuvé, conserver l'ancien historique Superseded et le lien vers le successeur.",
       "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Après une vague de corrections, beaucoup de lignes ont bougé. J'ai encore le CSV Sonar et le JSON Clippy d'avant les modifications. Attribue les prochains lots en recalculant les offsets des anciennes lignes. Les agents sont encore en train d'éditer, ils peuvent lancer chacun Clippy pour accélérer ?",
+      "expected_output": "Refuser le recalcul d'offset et le Cargo concurrent des workers. Attendre la fin des éditions et l'intégration, puis le lead relance just clippy-ci, vérifie les deux passes et reconstruit le dispatch depuis les nouveaux diagnostics. Les auteurs relisent les symboles actuels entre runs ; pas de refill depuis l'ancien inventaire.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Une règle de formatage apparaît dans cinq services, alors qu'un seul diagnostic dans IAM impose de changer une signature publique et ses appelants. Le premier cas doit-il forcément être un lot transverse et le second un lot local ?",
+      "expected_output": "Distinguer dispersion d'une règle et impact du changement. Les corrections mécaniques peuvent être réparties par fichiers exclusifs malgré leur présence dans plusieurs aires. La signature et ses consommateurs forment un seul lot transverse même si le diagnostic est unique. Aucun nombre fixe d'agents hérité des anciennes campagnes.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Clippy-first : un bug Sonar rust:S7493 n'apparaît pas dans mes diagnostics locaux. Je ferme son issue GitHub/Sonar et je l'ignore jusqu'à ce que Clippy soit à zéro ?",
+      "expected_output": "Ne pas fermer sur la seule absence d'un diagnostic Clippy. Garder une file Sonar complémentaire et prioriser selon le risque ; relocaliser par règle, symbole et contexte, sans offsets. Le scan Sonar suivant confirme le statut ; ne pas attendre zéro Clippy pour un problème critique.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "La passe production a échoué. J'ai encore un ancien clippy-tests.jsonl et le nouveau rapport production est partiel. Peut-on annoncer zéro warning sur les fichiers absents et comparer le total avec le précédent run qui utilisait moins de features ?",
+      "expected_output": "Inventaire partiel, pas zéro ni preuve d'absence. Ne pas réutiliser le rapport tests ancien. Exiger les deux passes réussies et un périmètre constant avant comparaison globale ; conserver la provenance des passes, le code actuel dirty compris et les limites de validation.",
+      "files": []
     }
   ]
 }

@@ -6,6 +6,11 @@ Sans Just, lancer successivement `cargo clippy-ci-production` puis
 Un seul processus Cargo à la fois ; les 24 jobs et le target-dir sur E: restent
 ceux de `.cargo/config.toml`.
 
+Pour classer les diagnostics, les répartir entre agents et relancer après les
+corrections, suivre [Campagnes Clippy-first](clippy-campaigns.md). Les positions
+des nouveaux rapports remplacent les anciennes lignes Sonar ; aucun calcul
+d'offset entre scans n'est requis.
+
 ## Périmètre reproduit
 
 Source : `.github/workflows/ci.yml`, étape `Run Clippy report (production vs tests)`.

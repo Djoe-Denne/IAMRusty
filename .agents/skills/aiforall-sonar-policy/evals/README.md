@@ -1,8 +1,9 @@
 # Scénarios de contrôle du skill
 
-`evals.json` fournit quatre exercices sans correction réelle de code :
+`evals.json` fournit huit exercices sans correction réelle de code :
 précédent applicable, exception de contexte en read-only, proposition non
-approuvée et conflit/dérogation en travail parallèle.
+approuvée et conflit/dérogation en travail parallèle ; puis fraîcheur des
+positions, dispersion/impact, file Sonar complémentaire et rapport incomplet.
 
 Pour chaque exercice, lire la version du skill à évaluer puis répondre avec :
 action retenue, précédent consulté, statut de la décision, accord nécessaire,

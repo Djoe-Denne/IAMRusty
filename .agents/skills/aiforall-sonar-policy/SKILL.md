@@ -4,7 +4,9 @@ description: >-
   Clippy/Sonar policy and reusable correction decisions for AIForAll services
   (IAMRusty, Hive, Telegraph, Manifesto, sentinel-sync). Consult precedents before
   fixing diagnostics or GitHub lint issues; record new decisions and obtain
-  approval for deviations. Use when fixing
+  approval for deviations. Run Clippy-first campaigns from fresh local JSON
+  diagnostics, classify impact and dispatch disjoint agent lots; refresh after
+  integration instead of calculating offsets from stale Sonar lines. Use when fixing
   Sonar/Clippy issues on Djoe-Denne_IAMRusty, writing rustdoc # Errors/# Panics,
   replacing unwrap after persist, OAuth URL construction, From vs TryFrom,
   future_not_send, too_many_lines migrations/setup, duplicate_mod in
@@ -24,6 +26,35 @@ Ne pas imposer `-j 1`, `-j 2` ou un `CARGO_BUILD_JOBS` contradictoire : les
 anciennes limites liées aux OOM LLVM (os error 1455) sont historiques. Si la
 pression mémoire réapparaît, demander un arbitrage avant de réduire les jobs.
 Pas de cargo pendant que d’autres lots éditent. Pas de compilation dans Docker.
+
+## Campagnes : Clippy d'abord, Sonar en complément
+
+Pour inventorier, classer et répartir les corrections, suivre
+[`docs/guides/clippy-campaigns.md`](../../../docs/guides/clippy-campaigns.md).
+Le workflow courant remplace le pilotage par les lignes Sonar des anciennes
+campagnes ; leurs chiffres, claims et plafonds d'agents sont historiques.
+
+- Le lead lance `just clippy-ci` **avant le dispatch**, puis lit les diagnostics
+  Cargo JSON locaux des deux passes production/tests. Garder les règles propres
+  à Sonar dans une file complémentaire ; absence dans Clippy ≠ résolution Sonar.
+- Distinguer la **dispersion** d'une règle (une ou plusieurs aires) de
+  l'**impact du correctif** (local, structure, comportement, API/appelants).
+  Répartir par fichiers exclusifs ; regrouper signatures et consommateurs dans
+  le même lot. Le nombre d'agents dépend des lots indépendants, pas d'un ancien
+  plafond fixe. Sous OpenCode, charger `opencode-ensemble` avant délégation.
+- Une position `message.spans` n'est valable que pour les sources du run.
+  Après édition, ne pas calculer d'offset Sonar/Clippy : relire le symbole/code
+  actuel. Ne pas attribuer une nouvelle tranche depuis un inventaire périmé.
+- Quand les écrivains sont arrêtés et les lots intégrés, le lead relance
+  `just clippy-ci`, reconstruit l'inventaire et le prochain dispatch. Un Clippy
+  ciblé peut aider au diagnostic, mais ne remplace pas ce passage complet pour
+  comparer les compteurs. Même périmètre, toolchain et features ; consigner
+  toute limite ou analyse partielle, ne pas transformer un échec en zéro.
+- Dédupliquer **dans un run**, avec les appartenances aux passes conservées.
+  Les lignes et offsets ne sont pas des identifiants persistants entre runs.
+  Les workers ne lancent pas Cargo pendant les éditions parallèles et ne
+  réaffectent pas seuls des fichiers. Aucun `--fix` global ni nouveau `allow`
+  pour masquer les diagnostics. Les précédents ci-dessous restent obligatoires.
 
 ## Consulter, appliquer et conserver les décisions
 
@@ -147,6 +178,10 @@ local, sans changement de signature.
 
 ## Après un lot
 
-`cargo check -p <crate>` (et `--tests` si lane tests). Clippy ciblé
-`-W clippy::future_not_send` / `-W clippy::too_many_lines` sur les fichiers
-touchés. Ne pas `change_sonar_issue_status` sauf vrai faux positif.
+En campagne, le lead valide l'arbre intégré et rafraîchit l'inventaire via
+`just clippy-ci` selon la boucle ci-dessus ; pas de Cargo par worker pendant
+les éditions parallèles. `cargo check -p <crate>` (et `--tests` si lane tests)
+ou un Clippy ciblé `-W clippy::future_not_send` / `-W clippy::too_many_lines`
+peuvent aider au diagnostic, mais ne remplacent ni le passage complet à
+périmètre constant ni les tests comportementaux requis.
+Ne pas `change_sonar_issue_status` sauf vrai faux positif.
