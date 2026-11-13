@@ -41,6 +41,17 @@ Pas de faux certificat, canal permissif, délai arbitraire ou retry du `POST` m�
 RustyCog **1feb766fe270744849e8674905d6c6874b60f76b**, publié et référence
 `origin/main` vérifiée avant mise à jour du sous-module AIForAll.
 
+Le contrôle de sa CI43483286637a ensuite trouvé un défaut de formatage préexistant
+dans `rustycog-http/src/jwks_seed_tests.rs` (job Format uniquement). Correction
+mécanique publiée en **5eb48354e3491d31bdd2f58102b4b84d22076a35**, désormais pin final.
+`cargo fmt --all -- --check` SDK passe ; comparaison des versions confirme un
+contenu identique hors espaces/retours à la ligne. Aucune assertion ou logique
+n'a changé : les preuves comportementales précédentes restent applicables.
+
+Correctif AIForAll initial : **c2ecda96427eac25d07d667c26b9e68f3400a590**, publié
+sur `origin/master`, référence vérifiée. Le suivi final porte sur la révision
+intégrant aussi ce dernier pin SDK ; résultat CI conservé dans le ledger du lot.
+
 ## Validations
 
 Windows natif,24jobs configurés, un Cargo à la fois, target surE:
