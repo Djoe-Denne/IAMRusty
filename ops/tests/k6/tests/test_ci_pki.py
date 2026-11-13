@@ -69,6 +69,8 @@ class RealPkiTests(unittest.TestCase):
             self.assertIn(b"hostname mismatch", wrong.stdout + wrong.stderr)
             execute(["verify", "-CAfile", str(root / "ca.crt"), "-verify_ip", "127.0.0.1",
                      str(root / "envoy-mesh.crt")])
+            execute(["verify", "-CAfile", str(root / "ca.crt"), "-verify_ip", "127.0.0.1",
+                     str(root / "openfga.crt")])
             execute(["verify", "-CAfile", str(root / "ca.crt"), "-verify_hostname", "localhost",
                      str(root / "idp.crt")])
             with self.assertRaises(ValueError):

@@ -22,7 +22,9 @@ def identities(run_id):
         "idp": ["DNS:" + name + "-idp" + suffix, "DNS:localhost", "IP:127.0.0.1"],
         "ext-authz": ["DNS:ext-authz", "DNS:ext-authz" + suffix],
         "postgres": ["DNS:postgres", "DNS:postgres" + suffix],
-        "openfga": ["DNS:openfga", "DNS:openfga" + suffix],
+        # v1.8.5's HTTP gateway dials the configured loopback gRPC listener
+        # with hostname verification, using the same server certificate.
+        "openfga": ["DNS:openfga", "DNS:openfga" + suffix, "IP:127.0.0.1"],
         "localstack": ["DNS:localstack", "DNS:localstack" + suffix, "DNS:localhost", "IP:127.0.0.1"],
     }
 
