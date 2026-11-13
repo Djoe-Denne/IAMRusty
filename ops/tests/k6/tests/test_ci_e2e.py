@@ -80,6 +80,16 @@ class ImageAdmissionTests(unittest.TestCase):
 
 
 class RestorationTests(unittest.TestCase):
+    def test_browser_environment_carries_pinned_version_and_keeps_sandbox_tls(self):
+        state = dict(run_id="a" * 32, tools=dict(chromium=dict(path="/private/chrome", version="156.0.8078.73")))
+        env = c.stimulus_environment(Path("/private/case"), Path("/private/campaign"), state, True)
+        self.assertEqual(env["K6_EXPECTED_BROWSER_VERSION"], "156.0.8078.73")
+        self.assertEqual(env["K6_BROWSER_EXECUTABLE_PATH"], "/private/chrome")
+        self.assertEqual(env["K6_BROWSER_ARGS"], "")
+        self.assertNotIn("K6_INSECURE_SKIP_TLS_VERIFY", env)
+        self.assertEqual(env["SSL_CERT_FILE"], str(Path("/private/campaign/private/pki/ca-bundle.crt")))
+        self.assertNotIn("K6_EXPECTED_BROWSER_VERSION", c.stimulus_environment(Path("/private/case"), Path("/private/campaign"), state, False))
+
     def test_dns_oracle_binds_clusterip_to_ready_current_pod_not_podip_to_dns(self):
         service = dict(metadata=dict(uid="service-uid"), spec=dict(clusterIP="10.96.0.10"))
         pod = dict(metadata=dict(uid="current-pod"), status=dict(podIP="10.244.0.20"))

@@ -56,6 +56,18 @@ def iam_endpoint_ready(service, slices, pod, clusters):
     return routed and selected
 
 
+def stimulus_environment(output, root, state, is_browser):
+    env = child_environment(output)
+    env.update(K6_RUN_ID=state["run_id"], K6_ORIGIN="https://127.0.0.1:18443",
+               K6_CAMPAIGN_FILE=str(root / "private/target.json"),
+               K6_SUMMARY_PATH=str(output / "private/summary.json"),
+               SSL_CERT_FILE=str(root / "private/pki/ca-bundle.crt"))
+    if is_browser:
+        env.update(K6_BROWSER_EXECUTABLE_PATH=state["tools"]["chromium"]["path"],
+                   K6_EXPECTED_BROWSER_VERSION=state["tools"]["chromium"]["version"])
+    return env
+
+
 class Campaign:
     def __init__(self, runtime):
         self.r = runtime
@@ -291,14 +303,9 @@ class Campaign:
         require(not attempt.exists(), "E2E_CASE_REPLAY_REFUSED")
         attempt.write_text("attempted", encoding="ascii")
         output = new_output(str(self.root / "private" / case))
-        env = child_environment(output)
-        env.update(K6_RUN_ID=self.state["run_id"], K6_ORIGIN="https://127.0.0.1:18443",
-                   K6_CAMPAIGN_FILE=str(self.root / "private/target.json"),
-                   K6_SUMMARY_PATH=str(output / "private/summary.json"),
-                   SSL_CERT_FILE=str(self.root / "private/pki/ca-bundle.crt"))
         is_browser = case == "auth-oauth-browser"
+        env = stimulus_environment(output, self.root, self.state, is_browser)
         if is_browser:
-            env["K6_BROWSER_EXECUTABLE_PATH"] = self.state["tools"]["chromium"]["path"]
             browser_profile.trust(output / "home", self.root / "private/pki/ca.crt", "k6-" + self.state["run_id"], self.r.cli)
         if case.startswith("auth-envoy-san-"):
             env["K6_AUTH_SAN_PHASE"] = case.removeprefix("auth-envoy-san-")
