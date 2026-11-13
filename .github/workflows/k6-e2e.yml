@@ -1,6 +1,7 @@
 name: k6 health OAuth SAN E2E (saved images)
 
 on:
+  workflow_call:
   workflow_dispatch:
     inputs:
       image_run_id:
@@ -44,6 +45,7 @@ jobs:
           chmod 700 "$RUNNER_TEMP/k6-e2e-private"
 
       - name: Acquire exact saved images with provenance and digest checks
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
           GH_TOKEN: ${{ github.token }}
           IMAGE_RUN: ${{ inputs.image_run_id }}
@@ -52,6 +54,36 @@ jobs:
         run: >-
           python3 -B ops/tests/k6/ci/image_input.py
           --run-id "$IMAGE_RUN" --attempt "$IMAGE_ATTEMPT" --target-sha "$TARGET_SHA"
+          --output "$RUNNER_TEMP/k6-e2e-private/images"
+
+      - name: Acquire this CI attempt's non-instrumented build bundles
+        if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 -B ops/tests/k6/ci/artifacts.py
+          --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --source-sha "$GITHUB_SHA"
+          --output "$RUNNER_TEMP/k6-e2e-private/acquired"
+
+      - name: Package current CI binaries without Cargo or another application build
+        if: ${{ github.event_name == 'push' }}
+        run: >-
+          python3 -B ops/tests/k6/ci/package.py
+          --acquired "$RUNNER_TEMP/k6-e2e-private/acquired" --source "$GITHUB_WORKSPACE"
+          --output "$RUNNER_TEMP/k6-e2e-private/packaged"
+
+      - name: Close packaging probes and receive the cleanup proof before image admission
+        if: ${{ always() && github.event_name == 'push' }}
+        run: >-
+          python3 -B ops/tests/k6/ci/cleanup.py
+          --output "$RUNNER_TEMP/k6-e2e-private/packaged"
+
+      - name: Admit only images packaged in this same trusted CI run attempt
+        if: ${{ github.event_name == 'push' }}
+        run: >-
+          python3 -B ops/tests/k6/ci/image_input.py
+          --packaged-directory "$RUNNER_TEMP/k6-e2e-private/packaged"
+          --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --target-sha "$GITHUB_SHA"
           --output "$RUNNER_TEMP/k6-e2e-private/images"
 
       - name: Install host libraries (no sandbox or TLS policy changes)
@@ -72,6 +104,12 @@ jobs:
           --cli-directory "$RUNNER_TEMP/k6-e2e-private/cli"
           --browser-directory "$RUNNER_TEMP/k6-e2e-private/browser"
           --image-directory "$RUNNER_TEMP/k6-e2e-private/images"
+
+      - name: Independently close only owned packaging probes
+        if: ${{ always() && github.event_name == 'push' }}
+        run: >-
+          python3 -B ops/tests/k6/ci/cleanup.py
+          --output "$RUNNER_TEMP/k6-e2e-private/packaged"
 
       - name: Independently verify owned cleanup even on cancellation
         if: ${{ always() }}
@@ -101,4 +139,51 @@ jobs:
             ${{ runner.temp }}/k6-e2e-private/campaign/public/auth-oauth-browser.json
             ${{ runner.temp }}/k6-e2e-private/campaign/public/docker-resources.jsonl
           if-no-files-found: warn
+          retention-days: 7
+
+      - name: Retain same-run packaging ownership and ABI evidence only
+        if: ${{ always() && github.event_name == 'push' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: k6-packaging-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/k6-e2e-private/packaged/provenance.json
+            ${{ runner.temp }}/k6-e2e-private/packaged/cleanup.json
+            ${{ runner.temp }}/k6-e2e-private/packaged/docker-resources.jsonl
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Project sanitized public metrics and Allure results even on campaign failure
+        id: report
+        if: ${{ always() }}
+        env:
+          REPORT_TARGET_SHA: ${{ inputs.target_sha || github.sha }}
+        run: >-
+          python3 -B ops/tests/k6/ci/reporting.py project
+          --source "$RUNNER_TEMP/k6-e2e-private/campaign/public"
+          --directory "$RUNNER_TEMP/k6-e2e-site" --repository "$GITHUB_REPOSITORY"
+          --job-run "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT"
+          --harness-sha "$GITHUB_SHA" --target-sha "$REPORT_TARGET_SHA" --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Acquire pinned Allure CLI with hash and archive checks
+        if: ${{ always() && steps.report.outcome == 'success' }}
+        run: >-
+          python3 -B ops/tests/k6/ci/reporting.py install-allure
+          --directory "$RUNNER_TEMP/k6-allure-cli"
+
+      - name: Build downloadable Allure HTML from sanitized results only
+        id: allure
+        if: ${{ always() && steps.report.outcome == 'success' }}
+        run: >-
+          "$RUNNER_TEMP/k6-allure-cli/allure-2.46.2/bin/allure" generate
+          "$RUNNER_TEMP/k6-e2e-site/allure-results" --output "$RUNNER_TEMP/k6-e2e-site/allure"
+
+      - name: Retain isolated public report and metrics for Pages publication
+        if: ${{ always() && steps.report.outcome == 'success' && steps.allure.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: k6-e2e-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/k6-e2e-site/
+          include-hidden-files: true
+          if-no-files-found: error
           retention-days: 7

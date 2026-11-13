@@ -211,6 +211,7 @@ jobs:
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_browser_audit.py' -v
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_browser_container.py' -v
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_campaign_browser.py' -v
+          python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_reporting.py' -v
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_inputs.py' -v
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_render.py' -v
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_pki.py' -v
@@ -236,6 +237,59 @@ jobs:
 
       - name: Test apparatus-reference-kv
         run: cargo test -p apparatus-reference-kv
+
+  k6-e2e:
+    name: E2E health / OAuth browser / TLS SAN
+    needs: [build]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/k6-e2e.yml
+
+  e2e-pages:
+    name: Publish sanitized E2E report
+    needs: [k6-e2e]
+    if: ${{ always() && !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.k6-e2e.result != 'skipped' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: e2e-github-pages
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Never replace current reports with a stale commit
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/master" --jq '.object.sha')"
+          attempt="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq '.run_attempt')"
+          if [ "$current" = "$GITHUB_SHA" ] && [ "$attempt" = "$GITHUB_RUN_ATTEMPT" ]; then
+            echo 'publish=true' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Download only the isolated public report from this run
+        if: ${{ steps.current.outputs.publish == 'true' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: k6-e2e-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/e2e-site
+      - name: Stage Pages report
+        if: ${{ steps.current.outputs.publish == 'true' }}
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: ${{ runner.temp }}/e2e-site
+      - name: Deploy public report and badge
+        id: deployment
+        if: ${{ steps.current.outputs.publish == 'true' }}
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
 
   coverage-integration:
     name: Coverage - integration (${{ matrix.service }})

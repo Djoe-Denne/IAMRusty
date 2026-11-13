@@ -144,9 +144,17 @@ def unwrap_zip(path, destination):
         raise Refused("ARTIFACT_ZIP_INVALID") from None
 
 
+def current_ci_source(environment, run_id, attempt, source_sha):
+    return (isinstance(source_sha, str) and re.fullmatch(r"[a-f0-9]{40}", source_sha) is not None
+            and environment.get("GITHUB_EVENT_NAME") == "push" and environment.get("GITHUB_REF") == "refs/heads/master"
+            and environment.get("GITHUB_JOB") == "e2e" and environment.get("GITHUB_RUN_ID") == str(run_id)
+            and environment.get("GITHUB_RUN_ATTEMPT") == str(attempt) and environment.get("GITHUB_SHA") == source_sha)
+
+
 def acquire(output, run_id, attempt, source_sha, environment=None):
     env = dict(os.environ if environment is None else environment)
-    require(env.get("GITHUB_REF") == "refs/heads/master" and env.get("GITHUB_EVENT_NAME") == "workflow_dispatch",
+    require(env.get("GITHUB_REF") == "refs/heads/master" and (env.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+            or current_ci_source(env, run_id, attempt, source_sha)),
             "MANUAL_MASTER_HARNESS_REQUIRED")
     repo = env["GITHUB_REPOSITORY"]
     repo_id = positive(env["GITHUB_REPOSITORY_ID"])

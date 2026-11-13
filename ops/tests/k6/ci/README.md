@@ -1,6 +1,7 @@
 # Campagne CI Ubuntu — health, OAuth navigateur et TLS/SAN
 
-Le job manuel `k6-e2e` exécute une pile autonome sur une VM Ubuntu jetable. Le
+Le workflow `k6-e2e` exécute une pile autonome sur une VM Ubuntu jetable, en
+manuel ou automatiquement depuis la CI de base après les builds. Le
 [contrat Proposed](../../../../docs/contracts/k6-three-scenario-ubuntu-ci.md)
 décrit ses frontières. Première campagne complète mesurée :
 [run43461703946](https://github.com/Djoe-Denne/IAMRusty/actions/runs/43461703946),
@@ -133,6 +134,59 @@ revérifie le cleanup. Seuls les fichiers publics explicitement allowlistés son
 uploadés dans `k6-e2e-<run_id>-<attempt>` pour sept jours : aucun raw log, profil,
 token/cookie, URL OAuth query, kubeconfig ou clé. Aucun runtime local n'est
 démarré ou nettoyé par cette campagne hébergée.
+
+## Déclenchement automatique et rapports
+
+Sur `push/master`, `ci.yml` appelle ce même workflow après `build`, en parallèle
+de `coverage-unit` et `coverage-integration`. Le job E2E ne dépend pas des
+couvertures, et Sonar ne dépend pas de l'E2E. Les PR/forks n'ont pas accès à
+cette pile hébergée :les bundles restent limités aux builds push/master.
+
+Le mode automatique acquiert les trois bundles non instrumentés du **même
+run/attempt/SHA**, avec les mêmes contrôles API/digest/ELF que le mode manuel.
+Il empaquette les images sans Cargo, ferme les probes et vérifie leur cleanup
+avant admission locale. Le SHA applicatif est donc celui de la CI courante,
+pas celui du run historique43420550908. Le mode manuel saved-images demeure
+disponible séparément ; aucun fallback «latest», cache ou recompilation cachée.
+
+Les résultats publics expurgés alimentent :
+- `k6-e2e-report-<run>-<attempt>` :HTML Allure, page d'accueil, status.json/badge.json
+  et résultats Allure JSON, sans attachments/logs privés.
+- Le résumé du job GitHub :statut et34contrôles prouvés.
+- [GitHub Pages](https://djoe-denne.github.io/IAMRusty/) et son badge README :
+  dernier run automatique publié, source/harness/SHA et lien au run affichés.
+
+Allure contient les34contrôles fonctionnels et un cas distinct pour le contrat
+parent (deltas, sandbox, restauration, cleanup). Les checks absents sont **non
+prouvés/broken**, pas des passes inventées. Même avec34checks verts, un contrat
+parent rouge rend le badge rouge. Les timings et l'historique de tests ne sont
+pas inventés ;aucun historique inter-runs persistant n'est configuré ici.
+
+Le générateur Allure2.46.2 est acquis en répertoire temporaire, par URL/version,
+taille et SHA256 épinglés dans allure.lock.json, puis extraction sans liens ni
+traversée. Aucun outil global/local Java installé par le parent ;le CLI Java
+s'exécute sur le runner Ubuntu. Un échec de génération empêche la publication
+d'un rapport HTML incomplet. Les preuves brutes autorisées de la campagne sont
+toujours conservées dans l'artefact existant, séparé du site.
+
+La publication Pages est un job distinct aux droits pages/id-token, sans
+secret transmis à la campagne. Elle fonctionne aussi pour un E2E échoué afin
+de montrer son état rouge, mais jamais pour une PR/fork. Un ancien SHA ou
+attempt ne remplace pas le rapport du master courant ;les jobs sont sérialisés.
+Les droits de test restent contents/actions lecture. Les preuves de packaging
+auto (provenance/cleanup/reçus, pas les images) sont conservées séparément dans
+`k6-packaging-evidence-<run>-<attempt>`.
+
+### Sonar et E2E :deux métriques distinctes
+
+Les badges Sonar natifs exposent le quality gate, la couverture, les ratings et
+les duplications du vrai projet `Djoe-Denne_IAMRusty`. Pas de token dans le README.
+Le [catalogue API SonarCloud](https://sonarcloud.io/api/webservices/list) consulté
+le13novembre2026 ne propose pas de création de métrique custom. L'import
+[Generic execution](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/test-coverage/generic-test-data.md)
+est un format de résultats lié aux **fichiers tests analysés**, pas une métrique
+arbitraire34/34 ;le périmètre Rust actuel n'est pas élargi pour le simuler.
+Les E2E sont donc exposés dans Allure/Pages/JSON, sans les mélanger au LCOV UT/IT.
 
 ## Validation hors cluster
 

@@ -1,5 +1,23 @@
 # AIForAll
 
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=alert_status)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=coverage)](https://sonarcloud.io/component_measures?id=Djoe-Denne_IAMRusty&metric=coverage)
+[![Reliability](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=reliability_rating)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
+[![Security](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=security_rating)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
+[![Maintainability](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=sqale_rating)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
+[![Duplicated Lines](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=duplicated_lines_density)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
+[![CI](https://github.com/Djoe-Denne/IAMRusty/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Djoe-Denne/IAMRusty/actions/workflows/ci.yml)
+[![E2E](https://img.shields.io/endpoint?url=https%3A%2F%2Fdjoe-denne.github.io%2FIAMRusty%2Fbadge.json)](https://djoe-denne.github.io/IAMRusty/)
+
+[Rapport E2E / Allure](https://djoe-denne.github.io/IAMRusty/) ·
+[Métriques E2E JSON](https://djoe-denne.github.io/IAMRusty/status.json) ·
+[SonarQube Cloud](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
+
+Les E2E (34 contrôles health/OAuth navigateur/TLS-SAN et contrat parent) tournent
+automatiquement après les builds sur `push/master`, en parallèle des couvertures
+UT/IT. Le badge E2E correspond au **dernier rapport publié**, dont le SHA est
+affiché sur le site ; il ne représente pas la couverture de code Sonar.
+
 Plateforme Rust de bounded contexts (identité, organisations, projets, notifications) sur le SDK [rustycog](https://github.com/Djoe-Denne/rustycog) (git submodule).
 
 **Handbook (implémentation + parcours métier) :** [`docs/README.md`](docs/README.md)

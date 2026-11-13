@@ -8,7 +8,7 @@ import shutil
 import stat
 import zipfile
 
-from artifacts import GitHub, MAX_DOWNLOAD, positive, validate_artifact
+from artifacts import GitHub, MAX_DOWNLOAD, positive, validate_artifact, current_ci_source
 from binaries import ROLES, Refused, require, sha, strict_json
 
 FILES = {"images.tar.gz", "provenance.json", "cleanup.json", "docker-resources.jsonl"}
@@ -97,15 +97,46 @@ def acquire(directory, run_id, attempt, source_sha, environment=None):
     return value
 
 
+def from_packaging(source, directory, run_id, attempt, source_sha, environment=None):
+    """Same trusted CI job only; never admit unrelated local/saved images."""
+    env = dict(os.environ if environment is None else environment)
+    require(re.fullmatch(r"[a-f0-9]{40}", source_sha) and current_ci_source(env, run_id, attempt, source_sha), "IMAGE_CURRENT_CI_ONLY")
+    run_id, attempt = positive(run_id), positive(attempt)
+    source, directory = Path(source), Path(directory)
+    require(source.is_absolute() and directory.is_absolute() and not directory.exists(), "IMAGE_ACQUISITION_COLLISION")
+    for name in FILES:
+        path = source / name
+        require(path.is_file() and not path.is_symlink() and 0 < path.stat().st_size <= (MAX_DOWNLOAD if name == "images.tar.gz" else 1024**2),
+                "IMAGE_LOCAL_FILE")
+    closure = strict_json((source / "cleanup.json").read_bytes())
+    value = provenance(strict_json((source / "provenance.json").read_bytes()), closure, source_sha, env["GITHUB_SHA"])
+    require(closure.get("run_id") == str(run_id) and closure.get("run_attempt") == str(attempt), "IMAGE_CLEANUP_ORIGIN")
+    require(all(item["tag"] == f"local/k6-{role}:k6-{run_id}-{attempt}" for role, item in value["roles"].items()), "IMAGE_TAG_ORIGIN")
+    require(sha(source / "images.tar.gz") == value["archive_sha256"], "IMAGE_PAYLOAD_HASH")
+    directory.mkdir(mode=0o700)
+    verified = directory / "verified"
+    verified.mkdir(mode=0o700)
+    for name in FILES:
+        shutil.copyfile(source / name, verified / name)
+    require(sha(verified / "images.tar.gz") == value["archive_sha256"], "IMAGE_PAYLOAD_HASH")
+    (directory / "admission.json").write_text(json.dumps(dict(mode="same-ci-job", run_id=run_id,
+        run_attempt=attempt, target_sha=source_sha, packaging_sha=env["GITHUB_SHA"], sdk_sha=value["sdk_sha"]), sort_keys=True), encoding="utf-8")
+    return value
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--attempt", required=True)
     parser.add_argument("--target-sha", required=True)
+    parser.add_argument("--packaged-directory", type=Path)
     args = parser.parse_args()
     try:
-        acquire(args.output, args.run_id, args.attempt, args.target_sha)
+        if args.packaged_directory:
+            from_packaging(args.packaged_directory, args.output, args.run_id, args.attempt, args.target_sha)
+        else:
+            acquire(args.output, args.run_id, args.attempt, args.target_sha)
     except Refused as error:
         raise SystemExit("E2E image acquisition refused: " + str(error)) from None
     except Exception:

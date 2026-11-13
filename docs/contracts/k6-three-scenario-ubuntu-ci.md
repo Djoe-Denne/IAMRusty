@@ -127,3 +127,30 @@ l'adoption du nœud. Cleanup navigateur par ID exact au finally et à la garde
 always, recoupé avec reçus/labels/image/inventaire ; refus des conflits et des
 ressources sans reçu. Deux artefacts fermés supplémentaires seulement :
 browser.json et browser-docker-resources.jsonl. Contrat toujours **Proposed**.
+
+## Automatisation et publication des résultats (GO utilisateur, 2026-11-13)
+
+CI de base :job réutilisable E2E dépendant de build, au même niveau que les
+couvertures UT/IT, exclusivement push/master trusted. Aucun couplage de Sonar
+aux résultats E2E. Les bundles proviennent du même run/attempt/SHA et restent
+non instrumentés ;mêmes admissions API/ELF/hash, packaging sans Cargo dans le
+job E2E, fermeture des probes avant admission locale puis garde always.
+Mode manuel saved-images conservé sans réinterprétation de provenance.
+
+Résultats dérivés des seules projections expurgées :34checks nommés +contrat
+parent distinct dans Allure. Badge vert uniquement si même source/harness,
+34checks, corrélations, witnesses sandbox et cleanup sont tous recevables.
+Une phase absente/corrompue est non prouvée, pas un faux PASS. Aucune couverture
+de code, durée de test ou historique inter-runs inventés.
+
+L'utilisateur autorise explicitement l'activation de GitHub Pages. Le site
+public héberge seulement ces résultats dérivés et métriques JSON. Générateur
+Allure épinglé/vérifié, zéro attachment raw ;pas de credentials/profils/HAR.
+Un job distinct pages-write/id-token sérialisé publie le dernier SHA/attempt
+master admissible, même si la campagne est rouge. Aucun droit de publication
+ou secret Sonar transmis au navigateur ou à un job PR/fork.
+
+Sonar conserve son périmètre et ses vrais badges de qualité/LCOV. Son import
+générique d'exécution lié aux fichiers tests n'est pas utilisé pour fabriquer
+une métrique custom E2E. Sonar/E2E restent deux mesures distinctes. Le contrat
+reste Proposed ;une publication ou un workflow vert ne vaut pas promotion ADR.

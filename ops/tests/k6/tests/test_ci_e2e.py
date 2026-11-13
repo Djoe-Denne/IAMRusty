@@ -192,9 +192,9 @@ class RestorationTests(unittest.TestCase):
 
 
 class WorkflowTests(unittest.TestCase):
-    def test_manual_saved_image_only_and_always_cleanup_before_allowlisted_upload(self):
+    def test_manual_and_reusable_workflow_keep_always_cleanup_before_raw_allowlisted_upload(self):
         value = yaml.load((b.ROOT / ".github/workflows/k6-e2e.yml").read_text(), Loader=yaml.BaseLoader)
-        self.assertEqual(set(value["on"]), {"workflow_dispatch"})
+        self.assertEqual(set(value["on"]), {"workflow_dispatch", "workflow_call"})
         self.assertEqual(value["permissions"], dict(contents="read", actions="read"))
         steps = value["jobs"]["e2e"]["steps"]
         clean = next(n for n, step in enumerate(steps) if "campaign.py clean" in step.get("run", ""))
@@ -207,9 +207,10 @@ class WorkflowTests(unittest.TestCase):
                 self.assertNotIn(forbidden, command)
             if "uses" in step:
                 self.assertRegex(step["uses"], r"@[a-f0-9]{40}$")
-        for path in steps[-1]["with"]["path"].splitlines():
+        for path in steps[clean + 1]["with"]["path"].splitlines():
             self.assertTrue(path.startswith("${{ runner.temp }}/k6-e2e-private/campaign/public/"))
             self.assertNotIn("*", path)
+        self.assertEqual(steps[-1]["with"]["path"], "${{ runner.temp }}/k6-e2e-site/")
 
     def test_private_hosted_cluster_only(self):
         with self.assertRaises(b.Refused):
