@@ -39,6 +39,23 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def iam_endpoint_ready(service, slices, pod, clusters):
+    """Envoy resolves a ClusterIP Service; EndpointSlices bind it to the Pod."""
+    routed = any(cluster.get("name") == "iam" and any(
+        host.get("address", {}).get("socket_address", {}).get("address") == service["spec"]["clusterIP"]
+        for host in cluster.get("host_statuses", [])) for cluster in clusters)
+    selected = any(
+        any(owner.get("kind") == "Service" and owner.get("uid") == service["metadata"]["uid"]
+            for owner in item["metadata"].get("ownerReferences", []))
+        and any(port.get("port") == 8443 for port in item.get("ports", []))
+        and any(endpoint.get("conditions", {}).get("ready") is True
+                and endpoint.get("targetRef", {}).get("uid") == pod["metadata"]["uid"]
+                and pod["status"]["podIP"] in endpoint.get("addresses", [])
+                for endpoint in item.get("endpoints", []))
+        for item in slices)
+    return routed and selected
+
+
 class Campaign:
     def __init__(self, runtime):
         self.r = runtime
@@ -222,14 +239,18 @@ class Campaign:
         return result
 
     def wait_endpoint(self):
-        address = self.pod("iam")["status"]["podIP"]
+        pod = self.pod("iam")
+        name = self.state["name"] + "-iam"
+        service = strict_json(self.r.k(["get", "service", name, "--output", "json"]))
+        require(service["metadata"]["uid"] == self.receipt("Service", name)["uid"]
+                and service["spec"]["clusterIP"] not in ("None", ""), "E2E_IAM_SERVICE_IDENTITY")
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
             _, body = self.http("http://127.0.0.1:19901/clusters?format=json")
             clusters = strict_json(body)["cluster_statuses"]
-            matches = [c for c in clusters if c["name"] == "iam"]
-            if len(matches) == 1 and any(h["address"]["socket_address"]["address"] == address
-                                         for h in matches[0].get("host_statuses", [])):
+            slices = strict_json(self.r.k(["get", "endpointslices", "--selector", "kubernetes.io/service-name=" + name,
+                                            "--output", "json"]))["items"]
+            if iam_endpoint_ready(service, slices, pod, clusters):
                 return
             time.sleep(0.2)
         raise Refused("E2E_IAM_DNS_ACK_MISSING")

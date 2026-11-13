@@ -80,6 +80,24 @@ class ImageAdmissionTests(unittest.TestCase):
 
 
 class RestorationTests(unittest.TestCase):
+    def test_dns_oracle_binds_clusterip_to_ready_current_pod_not_podip_to_dns(self):
+        service = dict(metadata=dict(uid="service-uid"), spec=dict(clusterIP="10.96.0.10"))
+        pod = dict(metadata=dict(uid="current-pod"), status=dict(podIP="10.244.0.20"))
+        slices = [dict(metadata=dict(ownerReferences=[dict(kind="Service", uid="service-uid")]), ports=[dict(port=8443)],
+                       endpoints=[dict(conditions=dict(ready=True), targetRef=dict(uid="current-pod"), addresses=["10.244.0.20"])])]
+        clusters = [dict(name="iam", host_statuses=[dict(address=dict(socket_address=dict(address="10.96.0.10")))])]
+        self.assertTrue(c.iam_endpoint_ready(service, slices, pod, clusters))
+        wrong_dns = copy.deepcopy(clusters)
+        wrong_dns[0]["host_statuses"][0]["address"]["socket_address"]["address"] = "10.244.0.20"
+        self.assertFalse(c.iam_endpoint_ready(service, slices, pod, wrong_dns))
+        for key, value in (("conditions", dict(ready=False)), ("targetRef", dict(uid="old-pod")), ("addresses", ["10.244.0.99"])):
+            changed = copy.deepcopy(slices)
+            changed[0]["endpoints"][0][key] = value
+            self.assertFalse(c.iam_endpoint_ready(service, changed, pod, clusters))
+        changed = copy.deepcopy(slices)
+        changed[0]["metadata"]["ownerReferences"][0]["uid"] = "foreign-service"
+        self.assertFalse(c.iam_endpoint_ready(service, changed, pod, clusters))
+
     def test_sql_socket_invocation_does_not_inherit_readiness_tcp_address(self):
         runtime = Mock()
         runtime.directory = Path("unused")
