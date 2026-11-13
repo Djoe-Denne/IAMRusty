@@ -198,9 +198,14 @@ impl CancelInvitationCommandHandler {
 impl CommandHandler<CancelInvitationCommand> for CancelInvitationCommandHandler {
     async fn handle(&self, command: CancelInvitationCommand) -> Result<(), CommandError> {
         self.invitation_usecase
-            .cancel_invitation(command.invitation_id)
+            .cancel_invitation(command.organization_id, command.invitation_id)
             .await
-            .map_err(|e| CommandError::business("cancel_invitation_failed", e.to_string()))
+            .map_err(|error| match error {
+                crate::ApplicationError::Domain(
+                    rustycog::core::error::DomainError::EntityNotFound { .. },
+                ) => CommandError::business("invitation_not_found", "Invitation not found"),
+                error => CommandError::business("cancel_invitation_failed", error.to_string()),
+            })
     }
 }
 

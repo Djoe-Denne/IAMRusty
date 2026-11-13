@@ -190,6 +190,26 @@ impl MemberRoleWriteRepositoryImpl {
         }
     }
 
+    /// Deletes only the assignments of the locked membership on `db`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the delete fails.
+    pub async fn delete_by_organization_member_with_connection<C>(
+        db: &C,
+        member_id: &Uuid,
+    ) -> Result<(), DomainError>
+    where
+        C: ConnectionTrait,
+    {
+        OrganizationMemberRolePermissions::delete_many()
+            .filter(organization_member_role_permissions::Column::MemberId.eq(*member_id))
+            .exec(db)
+            .await
+            .map_err(|e| DomainError::internal_error(&e.to_string()))?;
+        Ok(())
+    }
+
     /// Deletes member-role assignments for all members of `organization_id`.
     ///
     /// # Errors

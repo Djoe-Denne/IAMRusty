@@ -86,7 +86,11 @@ pub trait InvitationService: Send + Sync {
     /// # Errors
     ///
     /// Returns [`DomainError`] if the invitation is missing, not pending, or persistence fails.
-    async fn cancel_invitation(&self, invitation_id: Uuid) -> Result<(), DomainError>;
+    async fn cancel_invitation(
+        &self,
+        organization_id: Uuid,
+        invitation_id: Uuid,
+    ) -> Result<(), DomainError>;
 
     /// Get an invitation by ID.
     ///
@@ -333,7 +337,11 @@ where
     /// # Errors
     ///
     /// Returns [`DomainError`] if the invitation is missing, not pending, or persistence fails.
-    async fn cancel_invitation(&self, invitation_id: Uuid) -> Result<(), DomainError> {
+    async fn cancel_invitation(
+        &self,
+        organization_id: Uuid,
+        invitation_id: Uuid,
+    ) -> Result<(), DomainError> {
         let invitation = self
             .invitation_repo
             .find_by_id(&invitation_id)
@@ -342,9 +350,11 @@ where
                 message: e.to_string(),
             })?;
 
-        let mut invitation = invitation.ok_or_else(|| {
-            DomainError::entity_not_found("organization_invitation", &invitation_id.to_string())
-        })?;
+        let mut invitation = invitation
+            .filter(|invitation| invitation.organization_id == organization_id)
+            .ok_or_else(|| {
+                DomainError::entity_not_found("organization_invitation", &invitation_id.to_string())
+            })?;
 
         if invitation.status != InvitationStatus::Pending {
             return Err(DomainError::business_rule_violation(

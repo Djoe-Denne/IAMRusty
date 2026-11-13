@@ -16,7 +16,7 @@ $names = @(
     'apparatus_p3_t4_gateway', 'apparatus_p3_t5_consent',
     'apparatus_p1_t1_migration', 'apparatus_p2_t2_migration', 'apparatus_p3_t2_migration',
     'apparatus_p2_t4_resume', 'apparatus_p2_t7_cleanup', 'transaction_readiness_tests',
-    'runtime_writer_postgres'
+    'runtime_writer_postgres', 'coverage90_member_persistence'
 )
 foreach ($name in $names) {
     if ((Resolve-ItTestBinary -Suites @('manifesto') -Binary $name) -cne $name) { throw 'Valid named selection rejected' }
@@ -27,6 +27,17 @@ foreach ($name in $names) {
     foreach ($badSuites in @(@('iam'), @('Manifesto'), @('manifesto','manifesto'), @('manifesto','hive'))) {
         try { $null = Resolve-ItTestBinary -Suites $badSuites -Binary $name; throw 'unexpected-accept' }
         catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Cross-suite Manifesto selection accepted' } }
+    }
+}
+foreach ($name in @('coverage90_invitation_transitions', 'coverage90_member_roles')) {
+    if ((Resolve-ItTestBinary -Suites @('hive') -Binary $name) -cne $name) { throw 'Valid exact Hive selection rejected' }
+    foreach ($badName in @($name.ToUpperInvariant(), (' ' + $name), ($name + ' '), ('tests/' + $name + '.rs'), ($name + '; anything'))) {
+        try { $null = Resolve-ItTestBinary -Suites @('hive') -Binary $badName; throw 'unexpected-accept' }
+        catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Non-exact Hive binary accepted' } }
+    }
+    foreach ($badSuites in @(@('iam'), @('manifesto'), @('Hive'), @('hive','hive'), @('hive','manifesto'))) {
+        try { $null = Resolve-ItTestBinary -Suites $badSuites -Binary $name; throw 'unexpected-accept' }
+        catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Cross-suite Hive selection accepted' } }
     }
 }
 if ((Resolve-ItTestBinary -Suites @('lazaret') -Binary 'redis_tls') -cne 'redis_tls') {

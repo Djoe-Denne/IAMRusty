@@ -52,6 +52,16 @@ pub trait HiveOutboxUnitOfWork: Send + Sync {
         event: Box<dyn DomainEvent + 'static>,
     ) -> Result<(), ApplicationError>;
 
+    /// Replace all member grants and record the event in one writer transaction.
+    async fn replace_member_roles(
+        &self,
+        organization_id: Uuid,
+        user_id: Uuid,
+        issuer: String,
+        roles: Vec<RolePermission>,
+        event: Box<dyn DomainEvent + 'static>,
+    ) -> Result<OrganizationMember, ApplicationError>;
+
     async fn save_invitation(
         &self,
         invitation: OrganizationInvitation,

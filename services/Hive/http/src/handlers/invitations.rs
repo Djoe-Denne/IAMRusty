@@ -73,8 +73,15 @@ pub async fn cancel_invitation(
         .command_service
         .execute(command, context)
         .await
-        .map_err(|e| HttpError::Internal {
-            message: format!("Command execution failed: {e}"),
+        .map_err(|error| match error {
+            rustycog::command::CommandError::Business { ref code, .. }
+                if code == "invitation_not_found" =>
+            {
+                HttpError::NotFound
+            }
+            error => HttpError::Internal {
+                message: format!("Command execution failed: {error}"),
+            },
         })?;
 
     Ok(Json(()))

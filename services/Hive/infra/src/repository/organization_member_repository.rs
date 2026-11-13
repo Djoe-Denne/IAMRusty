@@ -229,6 +229,7 @@ impl OrganizationMemberReadRepository for OrganizationMemberReadRepositoryImpl {
         let members = OrganizationMembers::find()
             .filter(organization_members::Column::OrganizationId.eq(*organization_id))
             .order_by(organization_members::Column::CreatedAt, Order::Desc)
+            .order_by(organization_members::Column::Id, Order::Asc)
             .paginate(self.db.as_ref(), u64::from(page_size))
             .fetch_page(u64::from(page))
             .await

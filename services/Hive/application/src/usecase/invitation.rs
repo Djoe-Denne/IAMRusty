@@ -31,7 +31,11 @@ pub trait InvitationUseCase: Send + Sync {
         issuer: &str,
     ) -> Result<(), ApplicationError>;
 
-    async fn cancel_invitation(&self, invitation_id: Uuid) -> Result<(), ApplicationError>;
+    async fn cancel_invitation(
+        &self,
+        organization_id: Uuid,
+        invitation_id: Uuid,
+    ) -> Result<(), ApplicationError>;
 
     async fn get_invitation(
         &self,
@@ -244,9 +248,13 @@ impl InvitationUseCase for InvitationUseCaseImpl {
         Ok(())
     }
 
-    async fn cancel_invitation(&self, invitation_id: Uuid) -> Result<(), ApplicationError> {
+    async fn cancel_invitation(
+        &self,
+        organization_id: Uuid,
+        invitation_id: Uuid,
+    ) -> Result<(), ApplicationError> {
         self.invitation_service
-            .cancel_invitation(invitation_id)
+            .cancel_invitation(organization_id, invitation_id)
             .await
             .map_err(ApplicationError::Domain)?;
 

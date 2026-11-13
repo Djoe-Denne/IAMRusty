@@ -457,7 +457,7 @@ impl InvitationService for Probe {
         panic!("unexpected invitation acceptance");
     }
 
-    async fn cancel_invitation(&self, _: Uuid) -> Result<(), DomainError> {
+    async fn cancel_invitation(&self, _: Uuid, _: Uuid) -> Result<(), DomainError> {
         panic!("unexpected invitation cancellation");
     }
 
@@ -577,6 +577,17 @@ impl HiveOutboxUnitOfWork for Probe {
         _: Box<dyn DomainEvent + 'static>,
     ) -> Result<(), ApplicationError> {
         panic!("unexpected member removal");
+    }
+
+    async fn replace_member_roles(
+        &self,
+        _: Uuid,
+        _: Uuid,
+        _: String,
+        _: Vec<RolePermission>,
+        _: Box<dyn DomainEvent + 'static>,
+    ) -> Result<OrganizationMember, ApplicationError> {
+        panic!("unexpected member role replacement");
     }
 
     async fn save_invitation(

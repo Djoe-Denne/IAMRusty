@@ -139,6 +139,10 @@ Contrat secondaire test-side : [m6 proof hardening](../contracts/20261018-m6-pro
 | [0405](0405-readiness-crate-partagee.md) | Crate `readiness` partagée pour le health | Implemented |
 | [0406](0406-crates-apparatus-p0-pas-le-host.md) | `apparatus-contracts` + KV réf. = P0 ; host/Factory hors livré — voir 0001–0005 | Partial |
 
+Contrat correctif secondaire Hive : [coverage90-hive-corrections](../contracts/coverage90-hive-corrections.md)
+(GO local du 2026-11-13 : annulation org-scopée, pagination et remplacement transactionnel des rôles).
+Exécute 0402/0103/0301/0314 sans nouvelle ADR ni modification de leurs Statut/Réalité ; correctifs locaux et validations consignés dans le [rapport de campagne](../missions/20261113-coverage90-local.md), sans promotion globale de 0314.
+
 ### 0500 — Plateforme et qualité
 
 | ID | Décision | Réalité |

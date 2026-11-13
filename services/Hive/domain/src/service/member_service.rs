@@ -88,6 +88,13 @@ pub trait MemberService: Send + Sync {
         page_size: u32,
     ) -> Result<Vec<OrganizationMember>, DomainError>;
 
+    /// Count all memberships in the organization, regardless of status or issuer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError`] if the repository count fails.
+    async fn count_members(&self, organization_id: Uuid) -> Result<i64, DomainError>;
+
     /**
      * List active members of an organization
      *
@@ -97,22 +104,6 @@ pub trait MemberService: Send + Sync {
         &self,
         organization_id: Uuid,
     ) -> Result<Vec<OrganizationMember>, DomainError>;
-
-    /**
-     * Update a member's role
-     *
-     * @param `organization_id` - The ID of the organization to update the member's role in
-     * @param `member_id` - The ID of the member to update the role of
-     * @param `issuer` - Trust-domain issuer of the member principal
-     * @param roles - The roles to assign to the member
-     */
-    async fn update_member_roles(
-        &self,
-        organization_id: Uuid,
-        member_id: Uuid,
-        issuer: &str,
-        roles: Vec<RolePermission>,
-    ) -> Result<OrganizationMember, DomainError>;
 }
 
 impl<MR, OR, RS> MemberServiceImpl<MR, OR, RS>
@@ -152,7 +143,8 @@ where
         Ok(None)
     }
 
-    async fn update_member_roles(
+    /// Assign the initial roles when adding a new member, not a replacement path.
+    async fn assign_initial_member_roles(
         &self,
         member: &mut OrganizationMember,
         roles: Vec<RolePermission>,
@@ -221,7 +213,9 @@ where
             .await?;
 
         // Add roles to member
-        let updated_member = self.update_member_roles(&mut saved_member, roles).await?;
+        let updated_member = self
+            .assign_initial_member_roles(&mut saved_member, roles)
+            .await?;
 
         Ok(updated_member)
     }
@@ -270,22 +264,6 @@ where
         Ok(())
     }
 
-    /// Update a member's role
-    async fn update_member_roles(
-        &self,
-        organization_id: Uuid,
-        user_id: Uuid,
-        issuer: &str,
-        roles: Vec<RolePermission>,
-    ) -> Result<OrganizationMember, DomainError> {
-        let resolved_roles = self
-            .role_service
-            .find_role_permissions_by_organization(&organization_id, &roles)
-            .await?;
-        let mut member = self.get_member(organization_id, user_id, issuer).await?;
-        self.update_member_roles(&mut member, resolved_roles).await
-    }
-
     /// Get a member by organization, issuer, and user ID
     async fn get_member(
         &self,
@@ -332,6 +310,12 @@ where
 
         self.member_repo
             .find_by_organization_and_status(&organization_id, &MemberStatus::Active)
+            .await
+    }
+
+    async fn count_members(&self, organization_id: Uuid) -> Result<i64, DomainError> {
+        self.member_repo
+            .count_by_organization(&organization_id)
             .await
     }
 }

@@ -10,6 +10,7 @@ use rustycog::db::DbConnectionPool;
 use rustycog::events::DomainEvent;
 use rustycog::outbox::OutboxRecorder;
 use sea_orm::{ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, QuerySelect};
+use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 
 use crate::repository::{
@@ -230,6 +231,100 @@ impl HiveOutboxUnitOfWorkImpl {
             OrganizationMemberWriteRepositoryImpl::save_with_connection(txn, &saved_member).await?;
         Ok(saved_member)
     }
+
+    async fn lock_member_for_replacement(
+        txn: &DatabaseTransaction,
+        organization_id: Uuid,
+        user_id: Uuid,
+        issuer: &str,
+    ) -> Result<OrganizationMember, ApplicationError> {
+        use crate::repository::{
+            entity::organization_members, organization_member_repository::OrganizationMemberMapper,
+        };
+
+        rustycog::permission::PrincipalRef::new(issuer, user_id).map_err(|_| {
+            ApplicationError::Domain(DomainError::invalid_input("PRINCIPAL_INVALID"))
+        })?;
+        // Lock the parent even when it has no grants. The locked query also
+        // revalidates the exact identity; a concurrently deleted member is absent.
+        let members = organization_members::Entity::find()
+            .filter(organization_members::Column::OrganizationId.eq(organization_id))
+            .filter(organization_members::Column::Issuer.eq(issuer))
+            .filter(organization_members::Column::UserId.eq(user_id))
+            .limit(2)
+            .lock_exclusive()
+            .all(txn)
+            .await
+            .map_err(|e| ApplicationError::internal_error(&e.to_string()))?;
+        if members.len() > 1 {
+            return Err(ApplicationError::Domain(
+                DomainError::BusinessRuleViolation {
+                    rule: "MEMBER_PRINCIPAL_AMBIGUOUS".into(),
+                },
+            ));
+        }
+        let member = members.first().ok_or_else(|| {
+            ApplicationError::Domain(DomainError::entity_not_found(
+                "OrganizationMember",
+                &format!("user_id={user_id}, organization_id={organization_id}, issuer={issuer}"),
+            ))
+        })?;
+        OrganizationMemberMapper::to_domain(member).map_err(ApplicationError::Domain)
+    }
+
+    async fn resolve_replacement_roles(
+        txn: &DatabaseTransaction,
+        organization_id: Uuid,
+        roles: &[RolePermission],
+    ) -> Result<Vec<RolePermission>, ApplicationError> {
+        let mut requested = BTreeSet::new();
+        for role in roles {
+            if role.organization_id != organization_id {
+                return Err(ApplicationError::Domain(DomainError::invalid_input(
+                    "ROLE_ORGANIZATION_MISMATCH",
+                )));
+            }
+            requested.insert((
+                role.organization_id,
+                role.resource.name.clone(),
+                role.permission.level.to_str().to_string(),
+            ));
+        }
+        if requested.is_empty() {
+            return Ok(Vec::new());
+        }
+        let candidates =
+            RolePermissionReadRepositoryImpl::find_by_organization_roles_with_connection(
+                txn,
+                &organization_id,
+                roles,
+            )
+            .await?;
+        let mut resolved = BTreeMap::new();
+        for role in candidates {
+            let key = (
+                role.organization_id,
+                role.resource.name.clone(),
+                role.permission.level.to_str().to_string(),
+            );
+            // The repository's independent IN predicates can return a product
+            // of resources and permissions. Only requested exact pairs qualify.
+            if requested.contains(&key)
+                && (role.id.is_none() || resolved.insert(key, role).is_some())
+            {
+                return Err(ApplicationError::internal_error(
+                    "Replacement role is missing its ID or is ambiguous",
+                ));
+            }
+        }
+        if resolved.len() != requested.len() {
+            return Err(ApplicationError::Domain(DomainError::entity_not_found(
+                "RolePermission",
+                "requested member grants",
+            )));
+        }
+        Ok(resolved.into_values().collect())
+    }
 }
 
 #[async_trait]
@@ -380,6 +475,59 @@ impl HiveOutboxUnitOfWork for HiveOutboxUnitOfWorkImpl {
                 added_by_user_id,
             )
             .await?;
+            self.record(&txn, event.as_ref()).await?;
+            Ok(saved)
+        }
+        .await;
+        Self::finish(txn, result).await
+    }
+
+    async fn replace_member_roles(
+        &self,
+        organization_id: Uuid,
+        user_id: Uuid,
+        issuer: String,
+        roles: Vec<RolePermission>,
+        event: Box<dyn DomainEvent + 'static>,
+    ) -> Result<OrganizationMember, ApplicationError> {
+        let txn = self.begin().await?;
+        let result = async {
+            OrganizationReadRepositoryImpl::find_by_id_with_connection(&txn, &organization_id)
+                .await?
+                .ok_or_else(|| {
+                    ApplicationError::Domain(DomainError::entity_not_found(
+                        "Organization",
+                        &organization_id.to_string(),
+                    ))
+                })?;
+            let mut member =
+                Self::lock_member_for_replacement(&txn, organization_id, user_id, &issuer).await?;
+            let resolved_roles =
+                Self::resolve_replacement_roles(&txn, organization_id, &roles).await?;
+            let member_id = member.id.ok_or_else(|| {
+                ApplicationError::internal_error("locked member is missing an ID")
+            })?;
+            MemberRoleWriteRepositoryImpl::delete_by_organization_member_with_connection(
+                &txn, &member_id,
+            )
+            .await?;
+            let mut grants = Vec::with_capacity(resolved_roles.len());
+            for role in resolved_roles {
+                let grant = OrganizationMemberRolePermission::new(
+                    None,
+                    &organization_id,
+                    &member_id,
+                    &role,
+                    Utc::now(),
+                );
+                grants
+                    .push(MemberRoleWriteRepositoryImpl::save_with_connection(&txn, &grant).await?);
+            }
+            member.update_roles(grants);
+            let mut saved =
+                OrganizationMemberWriteRepositoryImpl::save_with_connection(&txn, &member).await?;
+            // Persistence maps membership metadata, not its loaded grants.
+            saved.roles = member.roles;
             self.record(&txn, event.as_ref()).await?;
             Ok(saved)
         }

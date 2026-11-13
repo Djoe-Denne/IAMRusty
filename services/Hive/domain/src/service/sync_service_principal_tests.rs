@@ -425,7 +425,7 @@ impl InvitationService for Probe {
     ) -> Result<OrganizationMember, DomainError> {
         unreachable!()
     }
-    async fn cancel_invitation(&self, _: Uuid) -> Result<(), DomainError> {
+    async fn cancel_invitation(&self, _: Uuid, _: Uuid) -> Result<(), DomainError> {
         unreachable!()
     }
     async fn get_invitation(&self, _: Uuid) -> Result<OrganizationInvitation, DomainError> {

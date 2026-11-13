@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use chrono::Utc;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -246,12 +247,12 @@ impl MemberUseCaseImpl {
         self.record_or_publish_event(event.into()).await
     }
 
-    async fn publish_member_roles_updated_event(
-        &self,
+    /// Build the replacement intent without publishing outside its writer transaction.
+    fn member_roles_updated_event(
         member: &OrganizationMember,
         organization_name: &str,
         roles: &[RolePermission],
-    ) -> Result<(), ApplicationError> {
+    ) -> HiveDomainEvent {
         let roles = roles
             .iter()
             .map(|role| {
@@ -261,7 +262,7 @@ impl MemberUseCaseImpl {
                 )
             })
             .collect();
-        let event = HiveDomainEvent::MemberRolesUpdated({
+        HiveDomainEvent::MemberRolesUpdated({
             let mut e = MemberRolesUpdatedEvent::new(
                 member.organization_id,
                 organization_name.to_string(),
@@ -271,9 +272,7 @@ impl MemberUseCaseImpl {
             );
             e.issuer = Some(member.issuer.clone());
             e
-        });
-
-        self.record_or_publish_event(event.into()).await
+        })
     }
 }
 
@@ -421,7 +420,11 @@ impl MemberUseCase for MemberUseCaseImpl {
 
         let members = self
             .member_service
-            .list_members(organization_id, pagination.page(), pagination.page_size())
+            .list_members(
+                organization_id,
+                pagination.page().saturating_sub(1),
+                pagination.page_size(),
+            )
             .await
             .map_err(ApplicationError::Domain)?;
 
@@ -430,7 +433,11 @@ impl MemberUseCase for MemberUseCaseImpl {
             .map(Self::member_to_response)
             .collect::<Result<_, _>>()?;
 
-        let total_count = i64::try_from(members.len()).unwrap_or(i64::MAX);
+        let total_count = self
+            .member_service
+            .count_members(organization_id)
+            .await
+            .map_err(ApplicationError::Domain)?;
         let page_size = u64::from(pagination.page_size());
         let total_pages = if page_size == 0 {
             0
@@ -511,18 +518,41 @@ impl MemberUseCase for MemberUseCaseImpl {
         self.require_can_assign_roles(organization_id, requester_id, issuer, &role_permissions)
             .await?;
 
-        let member = self
-            .member_service
-            .update_member_roles(
-                organization_id,
-                user_id,
-                target_issuer,
-                role_permissions.clone(),
+        let outbox_unit_of_work = self.outbox_unit_of_work.as_ref().ok_or_else(|| {
+            ApplicationError::internal_error(
+                "Member role replacement requires an outbox unit of work",
             )
+        })?;
+        let role_permissions: Vec<RolePermission> = role_permissions
+            .into_iter()
+            .map(|role| {
+                (
+                    (
+                        role.organization_id,
+                        role.resource.name.clone(),
+                        role.permission.level.to_str().to_string(),
+                    ),
+                    role,
+                )
+            })
+            .collect::<BTreeMap<_, _>>()
+            .into_values()
+            .collect();
+        let target = self
+            .member_service
+            .get_member(organization_id, user_id, target_issuer)
             .await
             .map_err(ApplicationError::Domain)?;
-
-        self.publish_member_roles_updated_event(&member, &organization.name, &role_permissions)
+        let event =
+            Self::member_roles_updated_event(&target, &organization.name, &role_permissions);
+        let member = outbox_unit_of_work
+            .replace_member_roles(
+                organization_id,
+                user_id,
+                target.issuer,
+                role_permissions,
+                event.into(),
+            )
             .await?;
 
         Self::member_to_response(&member)

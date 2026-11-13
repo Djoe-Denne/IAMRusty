@@ -28,6 +28,10 @@ function Resolve-ItTestThreads {
 function Resolve-ItTestBinary {
     param([string[]]$Suites, [string]$Binary)
     if ([string]::IsNullOrEmpty($Binary)) { return '' }
+    if ($Suites.Count -eq 1 -and $Suites[0] -ceq 'hive' -and
+        $Binary -cin @('coverage90_invitation_transitions', 'coverage90_member_roles')) {
+        return $Binary
+    }
     if ($Suites.Count -eq 1 -and $Suites[0] -ceq 'lazaret' -and $Binary -ceq 'redis_tls') {
         return $Binary
     }
@@ -48,7 +52,7 @@ function Resolve-ItTestBinary {
             'apparatus_p3_t4_gateway', 'apparatus_p3_t5_consent',
             'apparatus_p1_t1_migration', 'apparatus_p2_t2_migration', 'apparatus_p3_t2_migration',
             'apparatus_p2_t4_resume', 'apparatus_p2_t7_cleanup', 'transaction_readiness_tests',
-            'runtime_writer_postgres'
+            'runtime_writer_postgres', 'coverage90_member_persistence'
         )) {
         throw 'Named IT selection requires one exact approved suite/binary pair; STOP before runtime'
     }
