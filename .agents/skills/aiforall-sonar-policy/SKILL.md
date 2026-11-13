@@ -1,8 +1,10 @@
 ---
 name: aiforall-sonar-policy
 description: >-
-  Clippy/Sonar policy for AIForAll services (IAMRusty, Hive, Telegraph,
-  Manifesto, sentinel-sync) after the Aug 2026 campaigns. Use when fixing
+  Clippy/Sonar policy and reusable correction decisions for AIForAll services
+  (IAMRusty, Hive, Telegraph, Manifesto, sentinel-sync). Consult precedents before
+  fixing diagnostics or GitHub lint issues; record new decisions and obtain
+  approval for deviations. Use when fixing
   Sonar/Clippy issues on Djoe-Denne_IAMRusty, writing rustdoc # Errors/# Panics,
   replacing unwrap after persist, OAuth URL construction, From vs TryFrom,
   future_not_send, too_many_lines migrations/setup, duplicate_mod in
@@ -22,6 +24,47 @@ Ne pas imposer `-j 1`, `-j 2` ou un `CARGO_BUILD_JOBS` contradictoire : les
 anciennes limites liées aux OOM LLVM (os error 1455) sont historiques. Si la
 pression mémoire réapparaît, demander un arbitrage avant de réduire les jobs.
 Pas de cargo pendant que d’autres lots éditent. Pas de compilation dans Docker.
+
+## Consulter, appliquer et conserver les décisions
+
+Les modèles peuvent proposer plusieurs correctifs valides pour une même règle.
+Pour conserver les choix du projet, consulter **avant toute correction** les
+tables de ce skill et le registre partagé
+[`docs/guides/clippy-decisions/README.md`](../../../docs/guides/clippy-decisions/README.md)
+(chemin depuis la racine du dépôt). Le registre ne remplace pas les tables :
+il référence les nouveaux arbitrages et leurs preuves, sans second canon.
+
+1. **Identifier le contexte réel** : règle Clippy/Sonar, code actuel, production
+   ou tests, API/appelants, features et version d'outil si pertinentes. Une issue
+   GitHub ou un ancien numéro de ligne ne suffit pas à établir ce contexte.
+2. **Chercher un précédent** dans les tables puis l'index du registre ; lire
+   l'entrée pertinente, son statut, ses conditions et ses exceptions. Réutiliser
+   une décision `Accepted` ou une consigne existante du skill **seulement si ses
+   conditions sont remplies**. Citer son ID ou le titre de section + la règle
+   dans le compte rendu/PR de correction. Ne pas créer une entrée par occurrence
+   pour une correction mécanique déjà couverte.
+3. **Sans précédent applicable**, consigner un nouvel arbitrage non trivial
+   `Proposed`, avec le modèle du registre : règle, contexte, solution choisie,
+   justification, alternatives, exemple et validations. Faire valider avant de
+   le promouvoir en règle partagée `Accepted` ; un build vert ou l'avis du modèle
+   auteur ne constitue pas cette approbation. Une proposition n'est pas un
+   précédent acquis. L'implémentation éventuelle reste bornée au mandat du lot.
+4. **En cas de divergence**, ne pas remplacer silencieusement le précédent.
+   Documenter la différence de contexte ou la dérogation proposée et obtenir une
+   validation explicite de l'utilisateur ou d'un reviewer mandaté pour cet
+   arbitrage **avant d'appliquer un choix contraire**. Si deux précédents se
+   contredisent, suspendre ce choix et demander l'arbitrage. Un changement
+   structurel suit aussi les ADR/contrats ; ce registre ne peut les déroger.
+5. **Conserver la trace dans le même lot** : entrée et index, référence de
+   l'issue/PR/commit, validations réellement exécutées et identité/référence de
+   l'approbation. Une décision remplacée devient `Superseded` avec lien vers la
+   suivante ; conserver son historique, ne pas la réécrire rétroactivement.
+
+En audit/read-only, proposer l'entrée dans le rapport **sans écrire** dans le
+registre. Les membres parallèles rendent leurs propositions au lead, qui tient
+l'index sans écritures concurrentes. Ces consignes ne déclenchent ni mise à jour
+automatique du skill/wiki ni nouvelle campagne ; ne pas modifier le sous-module
+RustyCog pour capitaliser une décision concernant les services.
 
 ## Mécanique (faire)
 
