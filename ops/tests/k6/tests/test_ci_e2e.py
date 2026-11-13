@@ -80,6 +80,19 @@ class ImageAdmissionTests(unittest.TestCase):
 
 
 class RestorationTests(unittest.TestCase):
+    def test_sql_socket_invocation_does_not_inherit_readiness_tcp_address(self):
+        runtime = Mock()
+        runtime.directory = Path("unused")
+        runtime.state = dict(values=dict(database="k6_" + "a" * 32))
+        runtime.k.return_value = b"1\n"
+        parent = c.Campaign(runtime)
+        parent.postgres_pod = Mock(return_value="postgres-owned-pod")
+        self.assertEqual(parent.sql("SELECT 1"), "1")
+        args = runtime.k.call_args.args[0]
+        self.assertEqual(args[:11], ["exec", "postgres-owned-pod", "-c", "postgres", "--", "env", "-u", "PGHOSTADDR", "-u", "PGHOST", "psql"])
+        self.assertEqual(args[args.index("--host") + 1], "/var/run/postgresql")
+        self.assertNotIn("PGSSLMODE=disable", args)
+
     def campaign(self):
         runtime = Mock()
         runtime.directory = Path("unused")

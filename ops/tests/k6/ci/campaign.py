@@ -158,7 +158,11 @@ class Campaign:
         require(database in ("postgres", "openfga_dev", self.state["values"]["database"]), "E2E_SQL_DATABASE")
         self.state["stage"] = "sql:" + database
         self.r.save()
-        return self.r.k(["exec", self.postgres_pod(), "--", "psql", "--host", "/var/run/postgresql",
+        # The shared readiness profile sets PGHOSTADDR=127.0.0.1. Like the
+        # native helper, remove inherited TCP selectors for this socket-only
+        # administrative invocation; never relax network TLS or pg_hba.
+        return self.r.k(["exec", self.postgres_pod(), "-c", "postgres", "--", "env", "-u", "PGHOSTADDR", "-u", "PGHOST",
+                         "psql", "--host", "/var/run/postgresql",
                          "--username", "postgres", "--dbname", database, "--no-password", "--no-psqlrc",
                          "--tuples-only", "--no-align", "--set", "ON_ERROR_STOP=1", "--command", query]).decode().strip()
 
