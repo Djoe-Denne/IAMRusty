@@ -204,6 +204,39 @@ def diagnose_native(root, pins):
     return result
 
 
+def process_argument_shape(args):
+    """Diagnostic categories only, never a replacement sandbox identity proof."""
+    if not any(args):
+        return "EMPTY"
+    if b"--type=renderer" in args:
+        return "EXACT_RENDERER"
+    if any(re.search(rb"(?:^|[ \t])--type=renderer(?:[ \t]|$)", arg) for arg in args):
+        return "REWRITTEN_RENDERER_TITLE"
+    return "OTHER"
+
+
+class TrialChild(Child):
+    """Observe existing samples without changing ownership or witness checks."""
+    def __init__(self):
+        super().__init__()
+        self.argument_shapes = {label: set() for label in (
+            "EMPTY", "EXACT_RENDERER", "REWRITTEN_RENDERER_TITLE", "OTHER")}
+        self.candidate_namespace_reads = {name: set() for name in ("user", "pid")}
+
+    def observe_renderer(self, current):
+        super().observe_renderer(current)
+        owned = self.owned.get(current["pid"])
+        if not owned or any(current[key] != owned[key] for key in ("pid", "start", "uid")):
+            return
+        shape = process_argument_shape(current["args"])
+        self.argument_shapes[shape].add((current["pid"], current["start"], current["uid"]))
+        if shape in ("EXACT_RENDERER", "REWRITTEN_RENDERER_TITLE"):
+            for name in ("user", "pid"):
+                label = current.get("namespace_reads", {}).get(name, "NOT_OBSERVED")
+                if label in ("READABLE", "DENIED", "DISAPPEARED", "OTHER", "NOT_OBSERVED"):
+                    self.candidate_namespace_reads[name].add(label)
+
+
 def in_container(directory):
     hosted()
     require(Path("/.dockerenv").is_file(), "CONTAINER_TRIAL_REQUIRED")
@@ -218,7 +251,7 @@ def in_container(directory):
                K6_EXPECTED_BROWSER_VERSION=pins["chromium"]["version"],
                K6_SUMMARY_PATH=str(output / "private/progress.json"),
                K6_BROWSER_ARGS="enable-logging,log-level=2,log-file=" + str(output / "private/chromium.log"))
-    child = Child()
+    child = TrialChild()
     report = {"qualification": "NOT_E2E_SANDBOX_TRIAL", "verdict": "SANDBOX_NOT_OBSERVED"}
     try:
         policy = process_security(Path("/proc/self/attr/current").read_text(), Path("/proc/self/status").read_text())
@@ -243,6 +276,8 @@ def in_container(directory):
                       witnesses=child.sandbox_proof, k6_version=pins["k6"]["version"], chromium_version=pins["chromium"]["version"])
         report["process_observation"] = {"received": len(child.owned),
             "initial_args_empty": sum(not value["args"] for value in child.owned.values()),
+            "argument_shapes": {name: len(identities) for name, identities in child.argument_shapes.items()},
+            "candidate_namespace_reads": {name: sorted(labels) for name, labels in child.candidate_namespace_reads.items()},
             "namespace_reads": {name: sorted(labels) for name, labels in child.namespace_reads.items()}}
         report["probe_progress"] = probe_progress(output / "private/progress.json")
         if report["verdict"] != "SANDBOX_WITNESS_OBSERVED" and child.code != 0 and child.cleanup:

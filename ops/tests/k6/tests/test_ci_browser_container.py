@@ -185,6 +185,30 @@ class SeccompTests(unittest.TestCase):
 
 
 class ProbeDiagnosticTests(unittest.TestCase):
+    def test_argument_shapes_are_diagnostic_and_do_not_split_or_publish_titles(self):
+        cases = [([], "EMPTY"), ([b"", b""], "EMPTY"),
+                 ([b"chrome", b"--type=renderer"], "EXACT_RENDERER"),
+                 ([b"chrome --type=renderer --private=SENTINEL"], "REWRITTEN_RENDERER_TITLE"),
+                 ([b"chrome --type=renderer-fake"], "OTHER"),
+                 ([b"chrome", b"--url=--type=renderer"], "OTHER")]
+        for args, expected in cases:
+            self.assertEqual(c.process_argument_shape(args), expected)
+        child = c.TrialChild()
+        sample = dict(pid=123, start=456, uid=os.getuid() if hasattr(os, "getuid") else 1001,
+                      args=[b"chrome --type=renderer --private=SENTINEL"],
+                      namespace_reads=dict(user="DENIED", pid="NOT_OBSERVED"))
+        with patch.object(c.Child, "observe_renderer") as base:
+            child.observe_renderer(sample)
+            self.assertFalse(child.argument_shapes["REWRITTEN_RENDERER_TITLE"])
+            child.owned[123] = dict(sample)
+            child.observe_renderer(sample)
+            child.observe_renderer(sample)
+            self.assertEqual(base.call_count, 3)
+        self.assertEqual(len(child.argument_shapes["REWRITTEN_RENDERER_TITLE"]), 1)
+        self.assertEqual(child.candidate_namespace_reads["user"], {"DENIED"})
+        self.assertFalse(child.sandbox)
+        self.assertFalse(child.renderer_observed)
+
     def test_stage_summary_is_closed_and_never_reinterpreted_as_e2e(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "stages.json"
