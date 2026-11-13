@@ -66,17 +66,27 @@ def record(root, state, event, kind, identity, safe):
             os.fsync(stream.fileno())
 
 
-def container_policy(value, uid, gid):
+def container_policy(value, uid, gid, applied=True):
     config, host = value["Config"], value["HostConfig"]
     require(config["User"] == f"{uid}:{gid}" and uid != 0, "TRIAL_REQUIRES_NONROOT")
     require(host["Privileged"] is False and host["ReadonlyRootfs"] is True
             and host["NetworkMode"] == "none" and host.get("PidMode", "") == ""
             and not host.get("CapAdd") and host["CapDrop"] == ["ALL"], "TRIAL_CONTAINER_POLICY")
     require(host["SecurityOpt"] in (["no-new-privileges"], ["no-new-privileges=true"]), "TRIAL_SECURITY_OVERRIDE")
-    require(value.get("AppArmorProfile") == "docker-default", "TRIAL_DEFAULT_APPARMOR_UNPROVEN")
+    require(value.get("AppArmorProfile") in (("docker-default",) if applied else ("", "docker-default")),
+            "TRIAL_DEFAULT_APPARMOR_UNPROVEN")
     return {"nonroot": True, "readonly_root": True, "network": "none", "capabilities": "ALL_DROPPED",
-            "apparmor": "docker-default", "seccomp": "docker_default_requested",
+            "apparmor": "docker-default" if applied else "docker_default_requested", "seccomp": "docker_default_requested",
             "no_new_privileges": True, "privileged": False}
+
+
+def process_security(profile_text, status_text):
+    fields = dict(line.split(":", 1) for line in status_text.splitlines() if ":" in line)
+    result = {"apparmor": "DOCKER_DEFAULT" if profile_text.strip() in ("docker-default", "docker-default (enforce)") else "OTHER"}
+    for name, field in (("seccomp_mode", "Seccomp"), ("filters", "Seccomp_filters"), ("no_new_privileges", "NoNewPrivs")):
+        value = fields.get(field, "").strip()
+        result[name] = int(value) if re.fullmatch(r"[0-9]{1,9}", value) else None
+    return result
 
 
 def create_arguments(state, root):
@@ -117,6 +127,11 @@ def in_container(directory):
     child = Child()
     report = {"qualification": "NOT_E2E_SANDBOX_TRIAL", "verdict": "SANDBOX_NOT_OBSERVED"}
     try:
+        policy = process_security(Path("/proc/self/attr/current").read_text(), Path("/proc/self/status").read_text())
+        report["process_security"] = policy
+        require(policy["apparmor"] == "DOCKER_DEFAULT" and policy["seccomp_mode"] == 2
+                and policy["no_new_privileges"] == 1 and type(policy["filters"]) is int and policy["filters"] >= 1,
+                "TRIAL_PROCESS_POLICY_UNPROVEN")
         code = child.execute([pins["k6"]["path"], "run", "--quiet", "--no-usage-report", "--address", "127.0.0.1:0",
                               "--config", str(output / "private/empty.json"), str(HERE / "browser-sandbox-probe.js")],
                              output=output, env=env, timeout=25, browser=True)
@@ -241,7 +256,10 @@ def host(directory, browser_directory):
         state["container_id"] = identity
         write(root / "private/state.json", state)
         value = strict_json(docker(["inspect", "--format", "{{json .}}", identity]).stdout)
-        report.update(policy=container_policy(value, state["uid"], state["gid"]), image_id=state["image_id"], base=base)
+        # Created metadata may not yet expose the applied AppArmor profile.
+        # Validate requests now; require the actual profile from inside the
+        # started container before observing Chromium or accepting any result.
+        report.update(policy=container_policy(value, state["uid"], state["gid"], applied=False), image_id=state["image_id"], base=base)
         result = docker(["start", "--attach", identity], timeout=50, any_exit=True)
         source = root / "private/container-data/public/result.json"
         require(source.is_file() and not source.is_symlink() and source.stat().st_size <= 65536, "TRIAL_RESULT_MISSING")
@@ -249,14 +267,20 @@ def host(directory, browser_directory):
         require(observed.get("qualification") == "NOT_E2E_SANDBOX_TRIAL", "TRIAL_RESULT_SCHEMA")
         report["observation"] = observed
         report["verdict"] = "SANDBOX_NOT_OBSERVED"
+        applied = observed.get("process_security", {})
+        require(applied.get("apparmor") == "DOCKER_DEFAULT" and applied.get("seccomp_mode") == 2
+                and applied.get("no_new_privileges") == 1, "TRIAL_PROCESS_POLICY_UNPROVEN")
+        report["policy"]["apparmor"] = "docker-default (in-process verified)"
         if (result.returncode == 0 and observed.get("verdict") == "SANDBOX_WITNESS_OBSERVED"
                 and observed.get("sandbox") is True and observed.get("renderer_observed") is True
                 and observed.get("child_cleanup") is True):
             report["verdict"] = "SANDBOX_WITNESS_OBSERVED"
     except Refused as error:
         report["diagnostic"] = str(error)
+        report["verdict"] = "INCONCLUSIVE"
     except Exception:
         report["diagnostic"] = "TRIAL_UNCLASSIFIED"
+        report["verdict"] = "INCONCLUSIVE"
     finally:
         try:
             clean(root)

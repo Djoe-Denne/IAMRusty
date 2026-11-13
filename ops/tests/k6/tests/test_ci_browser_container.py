@@ -26,6 +26,17 @@ class ContainerPolicyTests(unittest.TestCase):
         self.assertEqual(value["seccomp"], "docker_default_requested")
         self.assertFalse(value["privileged"])
 
+    def test_created_request_is_distinct_from_the_applied_process_profile(self):
+        value = configuration()
+        value["AppArmorProfile"] = ""
+        self.assertEqual(c.container_policy(value, 1001, 1001, applied=False)["apparmor"], "docker_default_requested")
+        with self.assertRaises(b.Refused):
+            c.container_policy(value, 1001, 1001, applied=True)
+        actual = c.process_security("docker-default (enforce)\n", "Seccomp:\t2\nSeccomp_filters:\t1\nNoNewPrivs:\t1\n")
+        self.assertEqual(actual, dict(apparmor="DOCKER_DEFAULT", seccomp_mode=2, filters=1, no_new_privileges=1))
+        self.assertEqual(c.process_security("unconfined", "")["apparmor"], "OTHER")
+        self.assertIsNone(c.process_security("docker-default", "")["seccomp_mode"])
+
     def test_root_privileged_extra_caps_host_pid_and_security_overrides_refused(self):
         for key, invalid in (("Privileged", True), ("ReadonlyRootfs", False), ("NetworkMode", "host"),
                              ("PidMode", "host"), ("CapAdd", ["SYS_ADMIN"]), ("CapDrop", []),
