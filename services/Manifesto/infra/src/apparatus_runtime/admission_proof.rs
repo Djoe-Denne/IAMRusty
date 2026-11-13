@@ -1,5 +1,8 @@
 //! Offline, pinned-key admission proof verification. No network or private key.
 
+#[cfg(test)]
+mod tests;
+
 use apparatus_contracts::runtime::*;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use rsa::{

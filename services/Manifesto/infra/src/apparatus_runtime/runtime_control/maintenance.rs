@@ -10,6 +10,9 @@ use apparatus_contracts::runtime::*;
 use serde_json::{json, Value};
 use std::{future::Future, pin::Pin};
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone, Copy)]
 pub enum RuntimeMaintenanceAct {
     Inspect,
