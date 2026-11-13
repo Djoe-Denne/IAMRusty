@@ -1,0 +1,52 @@
+name: Chromium sandbox diagnosis only (NOT E2E)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+          persist-credentials: false
+      - name: Private diagnostic root and existing browser libraries
+        run: |
+          umask 077
+          mkdir "$RUNNER_TEMP/k6-browser-diagnostic"
+          chmod 700 "$RUNNER_TEMP/k6-browser-diagnostic"
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libnss3-tools libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64
+      - name: Acquire the same complete pinned browser bundle (no app images)
+        run: >-
+          python3 -B ops/tests/k6/provision-linux.py
+          --output "$RUNNER_TEMP/k6-browser-diagnostic/browser"
+      - name: Correlate native launch with read-only kernel audit (no navigation)
+        run: >-
+          python3 -B ops/tests/k6/ci/browser_audit.py run
+          --directory "$RUNNER_TEMP/k6-browser-diagnostic/observation"
+          --browser-directory "$RUNNER_TEMP/k6-browser-diagnostic/browser"
+      - name: Independently close only received diagnostic processes
+        if: ${{ always() }}
+        run: >-
+          python3 -B ops/tests/k6/ci/browser_audit.py clean
+          --directory "$RUNNER_TEMP/k6-browser-diagnostic/observation"
+      - name: Preserve only closed diagnostic and cleanup projections
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: chromium-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/k6-browser-diagnostic/observation/public/diagnostic.json
+            ${{ runner.temp }}/k6-browser-diagnostic/observation/public/cleanup.json
+          if-no-files-found: warn
+          retention-days: 7
