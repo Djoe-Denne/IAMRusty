@@ -14,6 +14,7 @@ import binaries as b
 import campaign as c
 import image_input as i
 import runtime as r
+import browser as browser_profile
 import yaml
 
 SHA, SDK, H = "a" * 40, "b" * 40, "c" * 40
@@ -85,7 +86,8 @@ class RestorationTests(unittest.TestCase):
         env = c.stimulus_environment(Path("/private/case"), Path("/private/campaign"), state, True)
         self.assertEqual(env["K6_EXPECTED_BROWSER_VERSION"], "156.0.8078.73")
         self.assertEqual(env["K6_BROWSER_EXECUTABLE_PATH"], "/private/chrome")
-        self.assertEqual(env["K6_BROWSER_ARGS"], "")
+        self.assertEqual(env["K6_BROWSER_ARGS"], "enable-logging,log-level=2,log-file=" + str(Path("/private/case/private/chromium.log")))
+        self.assertEqual(env["K6_BROWSER_DEBUG"], "false")
         self.assertNotIn("K6_INSECURE_SKIP_TLS_VERIFY", env)
         self.assertEqual(env["SSL_CERT_FILE"], str(Path("/private/campaign/private/pki/ca-bundle.crt")))
         self.assertNotIn("K6_EXPECTED_BROWSER_VERSION", c.stimulus_environment(Path("/private/case"), Path("/private/campaign"), state, False))
@@ -240,6 +242,31 @@ class NodeOwnershipTests(unittest.TestCase):
         with self.assertRaises(b.Refused):
             r.owned_nodes([row, row], state)
         self.assertEqual(r.owned_nodes([], state), set())
+
+
+class NativeBrowserDiagnosticTests(unittest.TestCase):
+    def test_private_fatal_projection_never_exports_urls_or_secrets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "chromium.log"
+            path.write_text('[FATAL:zygote] No usable sandbox! https://private.invalid/?token=SENTINEL\n')
+            result = browser_profile.private_log_diagnostic(path)
+            self.assertEqual(result, dict(log="CLASSIFIED", causes=["NO_USABLE_SANDBOX"]))
+            self.assertNotIn("SENTINEL", json.dumps(result))
+
+    def test_multiple_causes_unknown_empty_absent_invalid_or_large_are_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "chromium.log"
+            self.assertEqual(browser_profile.private_log_diagnostic(path)["log"], "ABSENT")
+            for raw, expected in ((b"", "EMPTY"), (b"private unknown", "UNCLASSIFIED"),
+                                  (b"\xff", "WITHHELD"), (b"a" * 65537, "WITHHELD")):
+                path.write_bytes(raw)
+                self.assertEqual(browser_profile.private_log_diagnostic(path)["log"], expected)
+            path.write_text('chrome_crashpad_handler: --database is required\nFailed to move to new namespace: Operation not permitted')
+            self.assertEqual(browser_profile.private_log_diagnostic(path)["causes"], ["CRASHPAD", "NAMESPACE_DENIED"])
+
+    def test_special_file_is_withheld(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(browser_profile.private_log_diagnostic(Path(directory))["log"], "WITHHELD")
 
 
 if __name__ == "__main__":

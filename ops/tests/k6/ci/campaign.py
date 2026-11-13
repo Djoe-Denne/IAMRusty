@@ -64,7 +64,8 @@ def stimulus_environment(output, root, state, is_browser):
                SSL_CERT_FILE=str(root / "private/pki/ca-bundle.crt"))
     if is_browser:
         env.update(K6_BROWSER_EXECUTABLE_PATH=state["tools"]["chromium"]["path"],
-                   K6_EXPECTED_BROWSER_VERSION=state["tools"]["chromium"]["version"])
+                   K6_EXPECTED_BROWSER_VERSION=state["tools"]["chromium"]["version"],
+                   K6_BROWSER_ARGS="enable-logging,log-level=2,log-file=" + str(output / "private/chromium.log"))
     return env
 
 
@@ -326,6 +327,8 @@ class Campaign:
             self.state["browser_diagnostic"] = getattr(error, "browser_diagnostic", None) if is_browser else None
             raise
         finally:
+            if is_browser:
+                self.state["chromium_diagnostic"] = browser_profile.private_log_diagnostic(output / "private/chromium.log")
             self.state["process_evidence"][case] = {"exit": child.code, "cleanup": child.cleanup,
                 "sandbox": child.sandbox if is_browser else None, "renderer_observed": child.renderer_observed if is_browser else None}
             self.r.save()
@@ -483,7 +486,7 @@ def prepare(directory, cli_directory, browser_directory, image_directory):
     cli_directory = Path(cli_directory).resolve()
     hashes = strict_json((cli_directory / "hashes.json").read_bytes())
     tools = {name: {"path": str(cli_directory / name), "sha256": hashes[name]} for name in ("kind", "helm", "kubectl")}
-    for name in ("openssl", "certutil", "docker"):
+    for name in ("openssl", "certutil", "docker", "ldd"):
         path = shutil.which(name)
         require(path is not None, "E2E_HOST_TOOL_MISSING")
         tools[name] = {"path": path, "sha256": sha(path)}
@@ -502,6 +505,8 @@ def prepare(directory, cli_directory, browser_directory, image_directory):
     state["before_containers"] = sorted(runtime.container_ids())
     state["before_volumes"] = runtime.docker(["volume", "ls", "--format", "{{.Name}}"]).decode().splitlines()
     state["known_images"] = sorted(runtime.image_ids())
+    runtime.save()
+    state["browser_preflight"] = browser_profile.preflight(tools, runtime.cli)
     runtime.save()
     try:
         runtime.docker(["image", "load", "--input", str(images_root / "verified/images.tar.gz")], timeout=180)
@@ -553,6 +558,7 @@ def finish(campaign):
             target.write(json.dumps(item, sort_keys=True) + "\n")
     campaign.publish("report.json", {"version": 1, "run_id": state["run_id"], "verdict": state["verdict"],
         "diagnostic": state.get("diagnostic"), "browser_diagnostic": state.get("browser_diagnostic"),
+        "chromium_diagnostic": state.get("chromium_diagnostic"), "browser_preflight": state.get("browser_preflight"),
         "restoration": state["restoration"], "completed_cases": state["completed_cases"], "cleanup": cleanup["status"],
         "stage": state.get("stage"), "resources": state.get("resources", [])})
     campaign.publish("provenance.json", {"harness_sha": os.environ["GITHUB_SHA"], "target_sha": state["images"]["target_sha"],
