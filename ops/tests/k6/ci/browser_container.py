@@ -241,8 +241,11 @@ def in_container(directory):
         report.update(native_exit=child.code, sandbox=child.sandbox, renderer_observed=child.renderer_observed,
                       child_cleanup=child.cleanup, chromium=browser_profile.private_log_diagnostic(output / "private/chromium.log"),
                       witnesses=child.sandbox_proof, k6_version=pins["k6"]["version"], chromium_version=pins["chromium"]["version"])
+        report["process_observation"] = {"received": len(child.owned),
+            "initial_args_empty": sum(not value["args"] for value in child.owned.values()),
+            "namespace_reads": {name: sorted(labels) for name, labels in child.namespace_reads.items()}}
         report["probe_progress"] = probe_progress(output / "private/progress.json")
-        if report["verdict"] != "SANDBOX_WITNESS_OBSERVED" and child.cleanup:
+        if report["verdict"] != "SANDBOX_WITNESS_OBSERVED" and child.code != 0 and child.cleanup:
             try:
                 report["native_diagnostic"] = diagnose_native(root, pins)
             except Exception:

@@ -260,6 +260,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("http.get(", probe)
         self.assertIn("context.newPage()", probe)
         self.assertIn("page.evaluate", probe)
+        self.assertIn("setTimeout(resolve, 1500)", probe)
         source = (CI / "browser_container.py").read_text()
         self.assertIn('"NOT_E2E_SANDBOX_TRIAL"', source)
         self.assertIn("child.sandbox is True", source)

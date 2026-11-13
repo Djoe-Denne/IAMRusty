@@ -29,7 +29,12 @@ export default async function () {
     const page = await context.newPage();
     stages.page.add(1);
     try {
-      if (await page.evaluate(() => 2 + 2) !== 4) throw new Error('RENDERER_EVALUATION_FAILED');
+      // Keep the live renderer observable across the supervisor's sampling
+      // cycles; a completed evaluation alone is never sandbox evidence.
+      if (await page.evaluate(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        return 2 + 2;
+      }) !== 4) throw new Error('RENDERER_EVALUATION_FAILED');
       stages.evaluation.add(1);
     } finally { await page.close(); }
   } finally { await context.close(); }
