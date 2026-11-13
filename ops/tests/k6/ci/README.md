@@ -9,6 +9,12 @@ décrit ses frontières. Première campagne complète mesurée :
 Voir le [bilan et ses limites](../../../../docs/missions/20261113-k6-ubuntu-e2e-results.md).
 Un succès des seuls helpers Python ou du packaging ne qualifie pas l'E2E.
 
+Première voie **automatique avec Allure/Pages** qualifiée :
+[run43473245852](https://github.com/Djoe-Denne/IAMRusty/actions/runs/43473245852),
+source741d0435, E2E34/34 et publication PASS en parallèle des couvertures.
+[Bilan et limites](../../../../docs/missions/20261113-k6-auto-reporting-results.md) :
+la CI globale de ce run reste rouge sur une IT Manifesto distincte.
+
 ## Éléments livrés
 
 - `evidence.py` : réception fermée des cinq résumés existants, 34 checks,

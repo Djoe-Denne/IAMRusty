@@ -119,3 +119,47 @@ Le producteur appelle cargo build littéral et n'invoque pas les alias. Les
 arguments des alias peuvent varier sans effet sur ce chemin ;aucune garantie
 nouvelle sur l'exécution future de ces raccourcis n'est déduite. Alias home
 restent volontairement refusés. Le succès réel de la nouvelle CI reste requis.
+
+## Run automatique qualifié pour E2E/Allure/Pages
+
+Correctif741d04359a332de78802ef59cd8b2d1480297787 publié et vérifié origin/master,
+hook fmt PASS. [CI43473245852](https://github.com/Djoe-Denne/IAMRusty/actions/runs/43473245852)
+déclenchée automatiquement sur push :huit builds verts, E2E et couvertures
+démarrent tous à17:33:57UTC. E2E PASS à17:40:27 et Pages PASS à17:40:47,
+avant fin couverture17:54. Générateur Allure réel et dépôt réutilisable qualifiés
+par ces jobs. Applications/harness/packaging tous liés à741d0435, même run/attempt,
+SDK93b890ff ;pas l'ancienT1ca9a4c8. Deltas et sandbox parent PASS, cleanupPASS0.
+
+GETpublic HTTP200 pour accueil/status.json/badge.json/allure/index.html/widget
+summary. Compteurpassed34expected34 ;Allure35passed0broken/failed/skipped,
+car un contrat parent est séparé des34checks. Bilan durable :
+[résultats auto/reporting](../../../missions/20261113-k6-auto-reporting-results.md).
+Vérification indépendante finale live/artefacts/provenance/cleanup en cours.
+
+**CI globale failure** :coverage-integration Manifesto (job132053039776), test
+t6_post_get_components_contract_bytes_frozen, panic testapparatus_p1_t6_http.rs120
+et Tokio task/core.rs422 ;3passed1failed dans ce binary. Pas de cause imputée
+au lot CI sans analyse ;pas de réparation métier autorisée implicitement.
+Les dix autres jobs couverture et Sonar sont verts, mais aucun90% ni réussite
+globale annoncés. Relecture du gros log faite en streaming filtré après un
+premier dépassement maxBuffer, sans dump/raw export. Aucun runtime local touché.
+
+## Réception indépendante et clôture du périmètre
+
+infra-verifier confirme sur API/artefacts/site live :graph et timing réels,
+E2E et publication success, H==T==packaging741d0435 du même run/attempt,
+trois probes packaging fermées, témoins sandbox et cinq processus propres,
+nœud/browser/volume retirés avec owned_running0. Campagne14/14SHA256 égaux aux
+copies locales ;bundle public111entrées/35résultats tests/0attachment, scan borné
+JWT/bearer/ghp_/sentinel sans détection. Statut public identique à l'artefact,
+badge34/34 vert, Allure35passes, aucune durée/historique fabriqué (widgettime{}).
+
+La garde Pages est recoupée statiquement et indirectement par le bon artefact
+déployé, pas par lecture de son log. Les130tests du parent n'ont pas été rejoués
+par le reviewer. CI globale failure conservée distinctement, IT Manifesto non
+diagnostiquée/réparée. Aucun90%Sonar, promotion ADR ou global green revendiqué.
+
+Livrables :code CI/reporting/README publiés7e5ec5e1, correctif collecteur741d0435,
+bilan de mission et runbook consolidés. Aucun code métier étranger embarqué,
+pas de branche/worktree de mission créé, aucun runtime local démarré ou arrêté.
+Publication documentaire finale et référence distante à vérifier pour clôture.
