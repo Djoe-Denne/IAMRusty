@@ -43,10 +43,26 @@ RustyCog **1feb766fe270744849e8674905d6c6874b60f76b**, publié et référence
 
 Le contrôle de sa CI43483286637a ensuite trouvé un défaut de formatage préexistant
 dans `rustycog-http/src/jwks_seed_tests.rs` (job Format uniquement). Correction
-mécanique publiée en **5eb48354e3491d31bdd2f58102b4b84d22076a35**, désormais pin final.
+mécanique publiée en **5eb48354e3491d31bdd2f58102b4b84d22076a35**, pin intermédiaire.
 `cargo fmt --all -- --check` SDK passe ; comparaison des versions confirme un
 contenu identique hors espaces/retours à la ligne. Aucune assertion ou logique
 n'a changé : les preuves comportementales précédentes restent applicables.
+
+Le contrôle SDK suivant43484932294a passé Format/Clippy/Sonar mais échoué sur
+un test unitaire préexistant (136/137passaient) : le parent de test de sortie de
+processus utilisait un nom `--exact` incomplet pour son enfant. Celui-ci exécutait
+zéro test puis sortait avec succès ; le parent échouait ensuite sur le ledger absent.
+L'échec a été reproduit localement avant correction. Le nom qualifié complet est
+maintenant utilisé, et une assertion exige que le processus enfant annonce
+exactement un test exécuté. Aucun hook de production ou règle de nettoyage changé.
+Correction unitaire publiée et pin SDK final vérifié :
+**015872746571482360f5dbb65b7f0d5003fac3db**.
+
+Validation complémentaire : **132/132 tests SDK passent** avec `full,testing`,
+aucun ignoré ni filtré, sous Windows (Kafka non activé). Formatage complet SDK et
+Clippy `--lib --tests` réussissent, aucun diagnostic sur le fichier corrigé.
+Ces tests hermétiques de sortie de processus ne sont pas présentés comme une
+preuve Docker ; le nettoyage réel des deux fixtures T6 reste prouvé séparément.
 
 Correctif AIForAll initial : **c2ecda96427eac25d07d667c26b9e68f3400a590**, publié
 sur `origin/master`, référence vérifiée. Le suivi final porte sur la révision
