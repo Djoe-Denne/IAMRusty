@@ -122,6 +122,36 @@ class BinaryContractTests(unittest.TestCase):
             with self.assertRaises(b.Refused):
                 b.flags(clean, root)
 
+    def test_repository_clippy_aliases_do_not_change_or_instrument_builtin_builds(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".cargo").mkdir()
+            config = root / ".cargo/config.toml"
+            config.write_text((b.ROOT / ".cargo/config.toml").read_text(encoding="utf-8"), encoding="utf-8")
+            accepted = b.flags({"CARGO_HOME": str(root / "cargo-home")}, root)
+            self.assertEqual(accepted["cargo_config_sha256"], {"0": b.sha(config)})
+            self.assertEqual(accepted["environment"], {name: "" for name in b.FLAG_NAMES})
+
+    def test_alias_exception_cannot_admit_build_shell_target_or_environment_overrides(self):
+        bad = ['[alias]\nbuild=["clippy"]\n', '[alias]\nclippy-ci-tests="!arbitrary-command"\n',
+               '[alias]\nclippy-ci-production=["build"]\n', '[build]\nrustflags=["-Cinstrument-coverage"]\n',
+               '[env]\nRUSTFLAGS="-Cinstrument-coverage"\n',
+               '[target.x86_64-unknown-linux-gnu]\nrustflags=["-Cinstrument-coverage"]\n']
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".cargo").mkdir()
+            config = root / ".cargo/config.toml"
+            environment = {"CARGO_HOME": str(root / "cargo-home")}
+            for value in bad:
+                config.write_text(value, encoding="utf-8")
+                with self.subTest(value=value), self.assertRaises(b.Refused):
+                    b.flags(environment, root)
+            config.write_text('[build]\njobs=24\n', encoding="utf-8")
+            (root / "cargo-home").mkdir()
+            (root / "cargo-home/config.toml").write_text('[alias]\nclippy-ci-tests=["clippy"]\n')
+            with self.assertRaises(b.Refused):
+                b.flags(environment, root)
+
     def test_each_manifest_provenance_field_is_bound_to_expected_source(self):
         for name, value in EXPECTED.items():
             changed = manifest()

@@ -91,8 +91,17 @@ def flags(environment, root):
             continue
         config = tomllib.loads(path.read_text(encoding="utf-8"))
         # No target/rustflags/wrapper/env indirection in the accepted producer.
-        require(set(config) <= {"build", "net", "registries", "registry"}, "CARGO_CONFIG_OVERRIDE")
+        require(set(config) <= {"build", "net", "registries", "registry", "alias"}, "CARGO_CONFIG_OVERRIDE")
         require(set(config.get("build", {})) <= {"jobs", "target-dir", "incremental"}, "CARGO_CONFIG_OVERRIDE")
+        if "alias" in config:
+            # Only the repository's lint shortcuts. The producer invokes the
+            # built-in build/metadata commands, never these aliases. Do not
+            # admit shell aliases, alternate build commands or home overrides.
+            aliases = config["alias"]
+            require(index == 0 and isinstance(aliases, dict)
+                    and set(aliases) <= {"clippy-ci-production", "clippy-ci-tests"}
+                    and all(isinstance(args, list) and bool(args) and args[0] == "clippy"
+                            and all(isinstance(arg, str) for arg in args) for args in aliases.values()), "CARGO_CONFIG_OVERRIDE")
         config_hashes[str(index)] = sha(path)
     return {"environment": values, "cargo_config_sha256": config_hashes}
 

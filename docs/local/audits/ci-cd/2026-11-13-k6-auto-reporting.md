@@ -85,3 +85,37 @@ La première tentative de publication a été différée avant staging à cause 
 bail Cargo d'un autre lot. Après libération explicite et revue, préflight libre,
 index vide ;HEAD80104de4/origin/master confirmés (lot runtime-unit publié par son
 propriétaire). Ces changements étrangers restent hors du commit CI/reporting.
+
+## Premier déclenchement automatique :refus du collecteur avant E2E
+
+Publication7e5ec5e1d68d03d8648e094f5e8152b3d496f11b vérifiée origin/master,
+13chemins seulement, hook fmt PASS. [Run43470457080](https://github.com/Djoe-Denne/IAMRusty/actions/runs/43470457080)
+créé automatiquement sur **push**, sans dispatch manuel. Infrastructure/static
+et ses helpers passent ;les compilations des trois producteurs terminent en
+dev avec succès mais la collecte refuse **CARGO_CONFIG_OVERRIDE** dans IAM,
+OAuthConnect et ext-authz. Par dépendance, couvertures/E2E/Pages sont skipped.
+Sonar job success n'est pas une mesure de couverture de ces tests sautés.
+Aucun HTML Allure/déploiement Pages qualifié par ce run.
+
+Cause locale établie :le garde TOML de binaries.flags n'acceptait pas la section
+alias des nouveaux raccourcis clippy-ci-production/clippy-ci-tests. Ces alias
+n'ont aucun effet sur les appels explicites aux commandes build/metadata ;la
+[référence Cargo](https://doc.rust-lang.org/cargo/reference/config.html#alias)
+confirme qu'un alias ne peut pas redéfinir un builtin.
+
+Correction bornée :section alias autorisée uniquement dans config.toml du
+dépôt (index0), exactement les deux noms connus, vecteurs de strings commençant
+par clippy, hash du fichier toujours capturé. Aucun alias shell, autre commande
+ou home override autorisé. Flags LLVM/wrappers/profiles/env/target et clés
+build.rustflags restent refusés. Aucun changement de la politique Clippy ou des
+alias eux-mêmes.130helpers CI PASS/0skip, dont la vraie config du dépôt admise,
+et les cas négatifs shell/build/env/target/home toujours rejetés.
+Revue indépendante du seul delta d'admission en cours ;nouveau run à mesurer
+après publication. Aucun Cargo de compilation ni runtime local lancé.
+
+Revue indépendante du delta terminée sans finding bloquant :exception limitée
+à l'index0 et aux deux vecteurs clippy, hashes conservés, autres rejets intacts.
+Le producteur appelle cargo build littéral et n'invoque pas les alias. Les
+arguments des alias peuvent varier sans effet sur ce chemin ;aucune garantie
+nouvelle sur l'exécution future de ces raccourcis n'est déduite. Alias home
+restent volontairement refusés. Le succès réel de la nouvelle CI reste requis.
