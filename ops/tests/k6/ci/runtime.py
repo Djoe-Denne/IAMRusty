@@ -61,6 +61,26 @@ def owned_nodes(records, state):
     return owned
 
 
+def cli_failure(tool, stderr):
+    """Closed categories only: kubectl can echo private YAML and credentials."""
+    patterns = (
+        ("CONTEXT_MISSING", rb"no context exists|context .* does not exist"),
+        ("TLS_AUTHORITY", rb"certificate signed by unknown authority"),
+        ("TLS_HOSTNAME", rb"certificate is valid for|doesn't contain any IP SANs"),
+        ("CONNECTION_REFUSED", rb"connection refused"),
+        ("TIMEOUT", rb"timed out|deadline exceeded|TLS handshake timeout"),
+        ("NOT_FOUND", rb"\(NotFound\)|not found"),
+        ("ALREADY_EXISTS", rb"\(AlreadyExists\)"),
+        ("FORBIDDEN", rb"\(Forbidden\)|forbidden"),
+        ("INVALID", rb"\(Invalid\)|is invalid"),
+        ("UNAUTHORIZED", rb"\(Unauthorized\)|Unauthorized"),
+        ("BAD_REQUEST", rb"\(BadRequest\)"),
+        ("UNKNOWN_FLAG", rb"unknown flag|unknown shorthand flag"),
+    )
+    category = next((name for name, pattern in patterns if re.search(pattern, stderr, re.I)), "UNCLASSIFIED")
+    return "E2E_CLI_FAILED_" + tool.upper() + "_" + category
+
+
 class Runtime:
     def __init__(self, directory, state):
         self.directory = Path(directory)
@@ -92,7 +112,7 @@ class Runtime:
             sequence = self.state.get("cli_sequence", 0) + 1
             self.state["cli_sequence"] = sequence
         (self.directory / "private" / f"cli-{sequence}.stderr").write_bytes(result.stderr)
-        require(result.returncode == expected, "E2E_CLI_FAILED_" + tool.upper())
+        require(result.returncode == expected, cli_failure(tool, result.stderr))
         return result.stdout
 
     def docker(self, args, **kwargs):

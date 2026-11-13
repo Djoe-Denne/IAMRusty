@@ -64,6 +64,8 @@ class Campaign:
         metadata.setdefault("labels", {})["aiforall.dev/k6-run"] = self.state["run_id"]
         path = self.root / "private/create.json"
         write_json(path, value)
+        self.state["stage"] = "create:" + value["kind"] + ":" + metadata["name"]
+        self.r.save()
         identity = self.r.k(["create", "--filename", str(path), "--output", "jsonpath={.metadata.uid}"]).decode().strip()
         require(re.fullmatch(r"[a-f0-9-]{36}", identity), "E2E_RESOURCE_UID")
         receipt = {"kind": value["kind"], "name": metadata["name"], "uid": identity}
@@ -154,6 +156,8 @@ class Campaign:
 
     def sql(self, query, database="postgres"):
         require(database in ("postgres", "openfga_dev", self.state["values"]["database"]), "E2E_SQL_DATABASE")
+        self.state["stage"] = "sql:" + database
+        self.r.save()
         return self.r.k(["exec", self.postgres_pod(), "--", "psql", "--host", "/var/run/postgresql",
                          "--username", "postgres", "--dbname", database, "--no-password", "--no-psqlrc",
                          "--tuples-only", "--no-align", "--set", "ON_ERROR_STOP=1", "--command", query]).decode().strip()
@@ -517,7 +521,8 @@ def finish(campaign):
             target.write(json.dumps(item, sort_keys=True) + "\n")
     campaign.publish("report.json", {"version": 1, "run_id": state["run_id"], "verdict": state["verdict"],
         "diagnostic": state.get("diagnostic"), "browser_diagnostic": state.get("browser_diagnostic"),
-        "restoration": state["restoration"], "completed_cases": state["completed_cases"], "cleanup": cleanup["status"]})
+        "restoration": state["restoration"], "completed_cases": state["completed_cases"], "cleanup": cleanup["status"],
+        "stage": state.get("stage"), "resources": state.get("resources", [])})
     campaign.publish("provenance.json", {"harness_sha": os.environ["GITHUB_SHA"], "target_sha": state["images"]["target_sha"],
         "sdk_sha": state["images"]["sdk_sha"], "packaging_sha": state["images"]["harness_sha"],
         "images": {role: value["image_id"] for role, value in state["images"]["roles"].items()},

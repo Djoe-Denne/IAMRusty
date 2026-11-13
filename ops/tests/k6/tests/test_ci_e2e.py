@@ -179,6 +179,12 @@ class WorkflowTests(unittest.TestCase):
 
 
 class NodeOwnershipTests(unittest.TestCase):
+    def test_cli_diagnostic_never_contains_private_error_content(self):
+        raw = b'Error from server (Invalid): secret invalid password=DO_NOT_EXPORT'
+        self.assertEqual(r.cli_failure("kubectl", raw), "E2E_CLI_FAILED_KUBECTL_INVALID")
+        self.assertNotIn("DO_NOT_EXPORT", r.cli_failure("kubectl", raw))
+        self.assertEqual(r.cli_failure("kubectl", b"unrecognized private output"), "E2E_CLI_FAILED_KUBECTL_UNCLASSIFIED")
+
     def test_name_or_label_does_not_grant_cleanup_authority(self):
         state = dict(job_run_id="123", job_attempt="1", run_id="a" * 32, cluster="k6-e2e-123-1", before_containers=[])
         row = dict(event="created", kind="container", id="b" * 64, owner=r.OWNER, run_id="123", run_attempt="1",
