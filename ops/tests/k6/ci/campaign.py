@@ -336,6 +336,13 @@ class Campaign:
             raise
         finally:
             if is_browser:
+                # The launcher validates and saves evidence before propagating
+                # a nonzero container exit. Retain actual child cleanup facts.
+                observed = self.state.get("browser_container", {}).get("result")
+                if observed is not None:
+                    child.code, child.cleanup = observed["exit"], observed["cleanup"]
+                    child.sandbox, child.renderer_observed = observed["sandbox"], observed["renderer_observed"]
+                    child.sandbox_proof = observed["witnesses"]
                 self.state["chromium_diagnostic"] = browser_profile.private_log_diagnostic(output / "private/chromium.log")
             self.state["process_evidence"][case] = {"exit": child.code, "cleanup": child.cleanup,
                 "sandbox": child.sandbox if is_browser else None, "renderer_observed": child.renderer_observed if is_browser else None}

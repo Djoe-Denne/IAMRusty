@@ -48,6 +48,7 @@ def native_diagnostic(raw):
         "LIBRARY_LOAD": r"error while loading shared libraries|cannot open shared object file",
         "RESOURCE_EXHAUSTION": r"Resource temporarily unavailable|Cannot allocate memory|No space left on device",
         "PROFILE_LOCK": r"Failed to create a ProcessSingleton|profile.*already in use",
+        "UNIX_SOCKET_PATH_TOO_LONG": r"Socket path too long:|File name too long|too long for Unix domain socket",
         "FILESYSTEM_SANDBOX_FAILURE": r"sys_chroot|ChrootToSafeEmptyDir|DropFileSystemAccess",
         "DISPLAY_SERVER_MISSING": r"Missing X server|\$DISPLAY|cannot open display",
         "GRAPHICS_INIT_FAILURE": r"eglInitialize.*(?:fail|error)|EGL_NOT_INITIALIZED|EGL_BAD_ALLOC|EGL_BAD_DISPLAY|GLXBadFBConfig|libGL error|failed to load driver|Failed to load libEGL|Unable to initialize EGL",

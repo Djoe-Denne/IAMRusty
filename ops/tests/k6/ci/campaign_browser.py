@@ -17,14 +17,18 @@ from binaries import ROOT, Refused, require, sha, strict_json
 import browser as browser_profile
 import browser_container as trial
 from runtime import hosted, write_json
-from safety import Child, Rejected, CODES, child_environment, new_output, private_path
+from safety import Child, Rejected, CODES, BROWSER_DIAGNOSTICS, child_environment, new_output, private_path
 
 HERE = Path(__file__).resolve().parent
 OWNER = "k6-ci-oauth-browser"
 ADDITIONAL_FILES = ("ci/campaign_browser.py", "ci/runtime.py", "scenarios/auth/oauth-browser.js",
                     "lib/summary.js", "lib/campaign-target.js")
 RESULT_FIELDS = {"qualification", "run_id", "exit", "cleanup", "sandbox", "renderer_observed",
-                 "witnesses", "diagnostic", "process_security"}
+                 "witnesses", "diagnostic", "process_security", "startup"}
+STARTUP_CAUSES = {"NO_USABLE_SANDBOX", "NAMESPACE_DENIED", "SUID_HELPER", "CRASHPAD", "LIBRARY_LOAD",
+                  "RESOURCE_EXHAUSTION", "PROFILE_LOCK", "FILESYSTEM_SANDBOX_FAILURE", "DISPLAY_SERVER_MISSING",
+                  "GRAPHICS_INIT_FAILURE", "UNIX_SOCKET_PATH_TOO_LONG"}
+CONTAINER_OUTPUT = "/run/case"
 WITNESS_FIELDS = {"pid", "uid", "start_ticks", "seccomp_mode", "filters", "additional_filter",
                   "user_namespace_isolated", "pid_namespace_isolated", "no_new_privileges", "forbidden_flags_absent"}
 
@@ -83,7 +87,7 @@ def create_arguments(runtime, output, inputs):
         "--security-opt", "no-new-privileges", "--security-opt", "seccomp=" + str(profile),
         "--user", f"{state['uid']}:{state['gid']}", "--pids-limit", "512", "--memory", "1536m",
         "--cpus", "2", "--shm-size", "256m", "--tmpfs", "/tmp:rw,nosuid,noexec,size=64m",
-        "--mount", "type=bind,src=" + str(output) + ",dst=" + str(output),
+        "--mount", "type=bind,src=" + str(output) + ",dst=" + CONTAINER_OUTPUT,
         "--mount", "type=bind,src=" + str(inputs) + ",dst=/run/campaign-input,readonly",
         "--label", "aiforall.dev/oauth-browser-campaign=" + runtime.state["run_id"],
         "--label", "aiforall.dev/oauth-browser-run=" + runtime.state["job_run_id"],
@@ -92,7 +96,7 @@ def create_arguments(runtime, output, inputs):
     for key in ("GITHUB_ACTIONS", "GITHUB_JOB", "GITHUB_REF", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"):
         args += ["--env", key + "=" + os.environ[key]]
     return [*args, state["image_id"], "-B", "/opt/AIForAll/ops/tests/k6/ci/campaign_browser.py", "run",
-            "--output", str(output), "--run-id", runtime.state["run_id"]]
+            "--output", CONTAINER_OUTPUT, "--run-id", runtime.state["run_id"]]
 
 
 def accept_result(raw, run_id, uid):
@@ -102,6 +106,11 @@ def accept_result(raw, run_id, uid):
     require(value["exit"] is None or type(value["exit"]) is int and -255 <= value["exit"] <= 255, "E2E_BROWSER_RESULT_EXIT")
     require(all(type(value[key]) is bool for key in ("cleanup", "sandbox", "renderer_observed"))
             and value["diagnostic"] in (None, *CODES, "BROWSER_EXECUTION_FAILED"), "E2E_BROWSER_RESULT_FIELDS")
+    startup = value["startup"]
+    require(isinstance(startup, dict) and startup.keys() == {"browser", "causes"}
+            and startup["browser"] in (None, *BROWSER_DIAGNOSTICS)
+            and isinstance(startup["causes"], list) and len(startup["causes"]) <= len(STARTUP_CAUSES)
+            and all(isinstance(cause, str) and cause in STARTUP_CAUSES for cause in startup["causes"]), "E2E_BROWSER_STARTUP_SCHEMA")
     require(isinstance(value["witnesses"], list) and len(value["witnesses"]) <= 4, "E2E_BROWSER_WITNESS_SCHEMA")
     identities = set()
     for witness in value["witnesses"]:
@@ -130,7 +139,7 @@ def validate_mounts(mounts, output, inputs):
     require(len(binds) == 2 and len(temporary) <= 1 and len(mounts) == len(binds) + len(temporary)
             and all(mount.get("Destination") == "/tmp" and mount.get("Source", "") == "" and mount.get("RW") is True for mount in temporary)
             and {(m["Source"], m["Destination"], m["RW"]) for m in binds}
-                == {(str(output), str(output), True), (str(inputs), "/run/campaign-input", False)}, "E2E_BROWSER_MOUNTS")
+                == {(str(output), CONTAINER_OUTPUT, True), (str(inputs), "/run/campaign-input", False)}, "E2E_BROWSER_MOUNTS")
 
 
 def execute(runtime, output):
@@ -235,6 +244,7 @@ def in_container(output, run_id):
     child = Child()
     security = trial.process_security(Path("/proc/self/attr/current").read_text(), Path("/proc/self/status").read_text())
     result = dict(qualification="OAUTH_BROWSER_EXECUTION", run_id=run_id, diagnostic=None, process_security=security)
+    result["startup"] = dict(browser=None, causes=[])
     env = child_environment(output)
     env.update(K6_RUN_ID=run_id, K6_ORIGIN="https://127.0.0.1:18443", K6_CAMPAIGN_FILE=str(inputs / "target.json"),
         K6_SUMMARY_PATH=str(output / "private/summary.json"), SSL_CERT_FILE=str(inputs / "ca-bundle.crt"),
@@ -250,9 +260,12 @@ def in_container(output, run_id):
         require(code == 0 and child.cleanup and child.sandbox and child.renderer_observed, "E2E_BROWSER_CHILD_EVIDENCE")
     except Rejected as error:
         result["diagnostic"] = error.code
+        result["startup"]["browser"] = getattr(error, "browser_diagnostic", None)
     except Exception:
         result["diagnostic"] = "BROWSER_EXECUTION_FAILED"
     finally:
+        result["startup"]["causes"] = sorted(set(browser_profile.native_diagnostic(child.stderr)["causes"]
+            + browser_profile.private_log_diagnostic(output / "private/chromium.log")["causes"]))
         result.update(exit=child.code, cleanup=child.cleanup, sandbox=child.sandbox,
                       renderer_observed=child.renderer_observed, witnesses=child.sandbox_proof)
         write_json(output / "private/browser-result.json", result)

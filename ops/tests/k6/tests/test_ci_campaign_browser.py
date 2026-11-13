@@ -23,7 +23,7 @@ CID = "b" * 64
 
 def result():
     return dict(qualification="OAUTH_BROWSER_EXECUTION", run_id=RUN, exit=0, cleanup=True, sandbox=True,
-        renderer_observed=True, diagnostic=None,
+        renderer_observed=True, diagnostic=None, startup=dict(browser=None, causes=[]),
         process_security=dict(apparmor="DOCKER_DEFAULT", seccomp_mode=2, filters=1, no_new_privileges=1),
         witnesses=[dict(pid=102, uid=1001, start_ticks=100, seccomp_mode=2, filters=2, additional_filter=True,
             user_namespace_isolated=True, pid_namespace_isolated=True, no_new_privileges=True, forbidden_flags_absent=True)])
@@ -64,7 +64,7 @@ class ResultTests(unittest.TestCase):
 class LaunchTests(unittest.TestCase):
     def test_mount_inspection_allows_only_two_exact_binds_and_private_tmpfs(self):
         output, inputs = Path("/private/case"), Path("/private/input")
-        mounts = [dict(Type="bind", Source=str(output), Destination=str(output), RW=True),
+        mounts = [dict(Type="bind", Source=str(output), Destination=c.CONTAINER_OUTPUT, RW=True),
                   dict(Type="bind", Source=str(inputs), Destination="/run/campaign-input", RW=False)]
         c.validate_mounts(mounts, output, inputs)
         c.validate_mounts(mounts + [dict(Type="tmpfs", Destination="/tmp", Source="", RW=True)], output, inputs)
@@ -107,6 +107,8 @@ class LaunchTests(unittest.TestCase):
             self.assertEqual(args[args.index("--network") + 1], "host")
             self.assertEqual(args.count("--mount"), 2)
             self.assertIn("dst=/run/campaign-input,readonly", rendered)
+            self.assertIn("dst=" + c.CONTAINER_OUTPUT, rendered)
+            self.assertEqual(args[args.index("--output") + 1], "/run/case")
             self.assertIn("--read-only", args)
             self.assertIn("--cap-drop ALL", rendered)
             self.assertNotIn("--pid", args)
@@ -169,6 +171,43 @@ class LaunchTests(unittest.TestCase):
             self.assertEqual(r.state["completed_cases"], ["auth-oauth-browser"])
             self.assertTrue(r.state["process_evidence"]["auth-oauth-browser"]["sandbox"])
             parent.publish.assert_any_call("auth-oauth-browser.json", summary)
+
+    def test_failed_container_preserves_validated_child_cleanup_without_qualifying_oauth(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "private").mkdir()
+            output = root / "private/auth-oauth-browser"
+            r = runtime(root)
+            r.cli = Mock()
+            r.state.update(tools={role: dict(path="/unexecuted/" + role, sha256="hash", version="pinned") for role in ("k6", "chromium")},
+                           completed_cases=[], process_evidence={})
+            observed = {**result(), "exit": 108, "sandbox": False, "renderer_observed": False,
+                        "witnesses": [], "diagnostic": "SANDBOX_UNPROVEN"}
+
+            def failure(*_):
+                r.state["browser_container"]["result"] = c.accept_result(json.dumps(observed).encode(), RUN, 1001)
+                raise b.Refused("E2E_BROWSER_CONTAINER_FAILED")
+
+            parent = campaign.Campaign(r)
+            parent.publish = Mock()
+            with patch.object(campaign, "new_output", return_value=output), patch.object(campaign, "sha", return_value="hash"), \
+                 patch.object(campaign.browser_profile, "trust"), patch.object(c, "execute", side_effect=failure), self.assertRaises(b.Refused):
+                parent.scenario("auth-oauth-browser")
+            self.assertTrue(r.state["process_evidence"]["auth-oauth-browser"]["cleanup"])
+            self.assertEqual(r.state["process_evidence"]["auth-oauth-browser"]["exit"], 108)
+            self.assertFalse(r.state["completed_cases"])
+            self.assertFalse(r.state["process_evidence"]["auth-oauth-browser"]["sandbox"])
+
+    def test_startup_diagnostics_are_closed_and_short_paths_bound_socket_names(self):
+        for raw in (b"Socket path too long: /private/SENTINEL", b"File name too long /private/SENTINEL"):
+            self.assertEqual(c.browser_profile.native_diagnostic(raw)["causes"], ["UNIX_SOCKET_PATH_TOO_LONG"])
+        value = result()
+        value["startup"] = dict(browser="NATIVE_CAUSE_UNCLASSIFIED", causes=["UNIX_SOCKET_PATH_TOO_LONG"])
+        c.accept_result(json.dumps(value).encode(), RUN, 1001)
+        value["startup"]["causes"] = ["SENTINEL"]
+        with self.assertRaises(b.Refused):
+            c.accept_result(json.dumps(value).encode(), RUN, 1001)
+        self.assertLess(len(c.CONTAINER_OUTPUT + "/tmp/.org.chromium.Chromium.XXXXXX/SingletonSocket"), 108)
 
 
 class CleanupTests(unittest.TestCase):
