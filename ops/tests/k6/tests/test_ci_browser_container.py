@@ -181,6 +181,47 @@ class SeccompTests(unittest.TestCase):
         self.assertEqual(mode["options"], ["baseline", "chromium"])
 
 
+class ProbeDiagnosticTests(unittest.TestCase):
+    def test_stage_summary_is_closed_and_never_reinterpreted_as_e2e(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "stages.json"
+            self.assertEqual(c.probe_progress(path), {"state": "ABSENT"})
+            stages = dict(started=1, context=1, version=1, page=0, evaluation=0)
+            path.write_text(json.dumps(stages))
+            self.assertEqual(c.probe_progress(path), dict(state="AVAILABLE", counts=stages))
+            for invalid in ({**stages, "private": "SENTINEL"}, {**stages, "started": True}, {**stages, "page": 2}):
+                path.write_text(json.dumps(invalid))
+                self.assertEqual(c.probe_progress(path), {"state": "WITHHELD"})
+
+    def test_direct_raw_fatal_distinguishes_chroot_and_display_without_text(self):
+        cases = [
+            (b'Check failed: sys_chroot("/proc/self/fdinfo/") == 0 private=SENTINEL', "FILESYSTEM_SANDBOX_FAILURE"),
+            (b'Missing X server or $DISPLAY private=SENTINEL', "DISPLAY_SERVER_MISSING"),
+            (b'EGL_NOT_INITIALIZED private=SENTINEL', "GRAPHICS_INIT_FAILURE"),
+            (b'libGL error: failed to load driver: swrast private=SENTINEL', "GRAPHICS_INIT_FAILURE"),
+        ]
+        for raw, expected in cases:
+            result = c.browser_profile.native_diagnostic(raw)
+            self.assertEqual(result, dict(log="CLASSIFIED", causes=[expected]))
+            self.assertNotIn("SENTINEL", json.dumps(result))
+        self.assertEqual(c.browser_profile.native_diagnostic(b"\xff")["log"], "WITHHELD")
+
+    def test_failed_probe_native_diagnostic_cannot_promote_verdict(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            # Only the diagnostic result is tested; it contains no PASS field.
+            with patch.object(c, "new_output", return_value=root), patch.object(c, "Child") as factory:
+                child = factory.return_value
+                child.execute.side_effect = c.Rejected("CHILD_TIMEOUT")
+                child.code = 0
+                child.cleanup = True
+                child.stderr = b""
+                result = c.diagnose_native(root, dict(chromium=dict(path="/private/chrome")))
+                self.assertEqual(result["qualification"], "DIAGNOSTIC_ONLY_NOT_A_PROBE_PASS")
+                self.assertNotIn("verdict", result)
+                self.assertTrue(result["cleanup"])
+
+
 class WorkflowTests(unittest.TestCase):
     def test_closed_context_packages_only_public_verified_tools_and_harness(self):
         dockerfile = (CI / "Dockerfile.browser-trial").read_text()
@@ -191,7 +232,7 @@ class WorkflowTests(unittest.TestCase):
         for forbidden in ("cargo ", "COPY . ", "4755", "SYS_ADMIN", "no-sandbox"):
             self.assertNotIn(forbidden, dockerfile)
         self.assertTrue((CI / "Dockerfile.browser-trial.dockerignore").read_text().startswith("**\n"))
-        self.assertEqual(len(c.FILES), 6)
+        self.assertEqual(len(c.FILES), 7)
         for name in c.FILES:
             self.assertTrue((CI.parent / name).is_file())
 

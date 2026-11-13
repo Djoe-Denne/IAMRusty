@@ -15,13 +15,14 @@ import urllib.request
 
 from binaries import ROOT, Refused, require, sha, strict_json
 import browser as browser_profile
+from browser_audit import native_arguments
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 from safety import Child, Rejected, child_environment, new_output, private_path
 
 HERE = Path(__file__).resolve().parent
 OWNER = "k6-browser-container-trial"
 FILES = ("ci/binaries.py", "ci/browser.py", "ci/browser_container.py", "ci/browser-sandbox-probe.js",
-         "config/tools.lock.json", "lib/safety.py")
+         "ci/browser_audit.py", "config/tools.lock.json", "lib/safety.py")
 NAMESPACE_RULE = {"comment": "Approved Chromium sandbox namespaces, one disposable non-root container only",
                   "names": ["clone", "setns", "unshare"], "action": "SCMP_ACT_ALLOW", "args": []}
 
@@ -165,6 +166,42 @@ def validate_receipt(records, state, identity):
                 for row in rows), "TRIAL_RECEIPT_CONFLICT")
 
 
+def probe_progress(path):
+    path = Path(path)
+    if not path.exists():
+        return {"state": "ABSENT"}
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 1024:
+        return {"state": "WITHHELD"}
+    try:
+        value = strict_json(path.read_bytes())
+        require(isinstance(value, dict) and value.keys() == {"started", "context", "version", "page", "evaluation"}
+                and all(type(count) is int and count in (0, 1) for count in value.values()), "TRIAL_STAGE_SCHEMA")
+        return {"state": "AVAILABLE", "counts": value}
+    except (ValueError, OSError):
+        return {"state": "WITHHELD"}
+
+
+def diagnose_native(root, pins):
+    """Second short launch only on failed probe, same policies, no navigation.
+
+    Direct stderr retains RAW_CHECK messages that k6 discards. It cannot grant
+    a successful trial verdict, irrespective of whether this launch succeeds.
+    """
+    output = new_output(str(root / "native-diagnostic"))
+    child = Child()
+    result = {"qualification": "DIAGNOSTIC_ONLY_NOT_A_PROBE_PASS"}
+    try:
+        child.execute(native_arguments(pins["chromium"]["path"], output), output=output,
+                      env=child_environment(output), timeout=8, browser=True)
+    except Rejected as error:
+        result["supervisor"] = error.code
+    finally:
+        result.update(native_exit=child.code, cleanup=child.cleanup,
+                      stderr=browser_profile.native_diagnostic(child.stderr),
+                      logfile=browser_profile.private_log_diagnostic(output / "private/chromium.log"))
+    return result
+
+
 def in_container(directory):
     hosted()
     require(Path("/.dockerenv").is_file(), "CONTAINER_TRIAL_REQUIRED")
@@ -177,6 +214,7 @@ def in_container(directory):
     env = child_environment(output)
     env.update(K6_BROWSER_EXECUTABLE_PATH=pins["chromium"]["path"],
                K6_EXPECTED_BROWSER_VERSION=pins["chromium"]["version"],
+               K6_SUMMARY_PATH=str(output / "private/progress.json"),
                K6_BROWSER_ARGS="enable-logging,log-level=2,log-file=" + str(output / "private/chromium.log"))
     child = Child()
     report = {"qualification": "NOT_E2E_SANDBOX_TRIAL", "verdict": "SANDBOX_NOT_OBSERVED"}
@@ -194,12 +232,21 @@ def in_container(directory):
         report["verdict"] = "SANDBOX_WITNESS_OBSERVED"
     except Rejected as error:
         report["diagnostic"] = error.code
+        report["browser_diagnostic"] = getattr(error, "browser_diagnostic", None)
     except Refused as error:
         report["diagnostic"] = str(error)
     finally:
         report.update(native_exit=child.code, sandbox=child.sandbox, renderer_observed=child.renderer_observed,
                       child_cleanup=child.cleanup, chromium=browser_profile.private_log_diagnostic(output / "private/chromium.log"),
                       witnesses=child.sandbox_proof, k6_version=pins["k6"]["version"], chromium_version=pins["chromium"]["version"])
+        report["probe_progress"] = probe_progress(output / "private/progress.json")
+        if report["verdict"] != "SANDBOX_WITNESS_OBSERVED" and child.cleanup:
+            try:
+                report["native_diagnostic"] = diagnose_native(root, pins)
+            except Exception:
+                report["native_diagnostic"] = {"status": "UNAVAILABLE"}
+            if report["native_diagnostic"].get("cleanup") is not True:
+                report["child_cleanup"] = False
         write(root / "public/result.json", report)
     return 0 if report["verdict"] == "SANDBOX_WITNESS_OBSERVED" else 1
 
@@ -324,7 +371,7 @@ def host(directory, browser_directory, policy="baseline"):
         # started container before observing Chromium or accepting any result.
         report.update(policy=container_policy(value, state["uid"], state["gid"], applied=False, expected_seccomp=expected_seccomp),
                       image_id=state["image_id"], base=base)
-        result = docker(["start", "--attach", identity], timeout=50, any_exit=True)
+        result = docker(["start", "--attach", identity], timeout=80, any_exit=True)
         source = root / "private/container-data/public/result.json"
         require(source.is_file() and not source.is_symlink() and source.stat().st_size <= 65536, "TRIAL_RESULT_MISSING")
         observed = strict_json(source.read_bytes())

@@ -27,10 +27,18 @@ def private_log_diagnostic(path):
     try:
         with path.open("rb") as stream:
             raw = stream.read(LOG_LIMIT + 1)
-        if len(raw) > LOG_LIMIT:
-            return {"log": "WITHHELD", "causes": []}
+    except OSError:
+        return {"log": "WITHHELD", "causes": []}
+    return native_diagnostic(raw)
+
+
+def native_diagnostic(raw):
+    """Classify direct native stderr too: Chromium RAW_CHECK bypasses log-file."""
+    if not isinstance(raw, bytes) or len(raw) > LOG_LIMIT:
+        return {"log": "WITHHELD", "causes": []}
+    try:
         text = raw.decode("utf-8", errors="strict")
-    except (OSError, UnicodeError):
+    except UnicodeError:
         return {"log": "WITHHELD", "causes": []}
     patterns = {
         "NO_USABLE_SANDBOX": r"No usable sandbox",
@@ -40,6 +48,9 @@ def private_log_diagnostic(path):
         "LIBRARY_LOAD": r"error while loading shared libraries|cannot open shared object file",
         "RESOURCE_EXHAUSTION": r"Resource temporarily unavailable|Cannot allocate memory|No space left on device",
         "PROFILE_LOCK": r"Failed to create a ProcessSingleton|profile.*already in use",
+        "FILESYSTEM_SANDBOX_FAILURE": r"sys_chroot|ChrootToSafeEmptyDir|DropFileSystemAccess",
+        "DISPLAY_SERVER_MISSING": r"Missing X server|\$DISPLAY|cannot open display",
+        "GRAPHICS_INIT_FAILURE": r"eglInitialize.*(?:fail|error)|EGL_NOT_INITIALIZED|EGL_BAD_ALLOC|EGL_BAD_DISPLAY|GLXBadFBConfig|libGL error|failed to load driver|Failed to load libEGL|Unable to initialize EGL",
     }
     causes = sorted(name for name, pattern in patterns.items() if re.search(pattern, text, flags=re.I))
     return {"log": "EMPTY" if not raw else "CLASSIFIED" if causes else "UNCLASSIFIED", "causes": causes}
