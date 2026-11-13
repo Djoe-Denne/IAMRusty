@@ -99,7 +99,9 @@ AIForAll is a Rust-based microservices workspace centered on [[projects/iamrusty
   runtime ou E2E nouveau. La chaîne intégrée reste à qualifier.
 
 - [[projects/aiforall/references/auth-security-closure-20261029]] — correctif d'autorité OAuth, Chrome réel et refus Envoy qualifiés localement ; limites production/HA/HSM conservées.
-- [[projects/aiforall/concepts/k6-functional-linux]] — trois scénarios Windows qualifiés le12novembre : health, OAuth Chromium26 et SAN303→503→303. L'arrêt sans PASS auth du31octobre reste historique ; Linux/CI différés et preuve liée à54a19ba, pas aux changements ultérieurs.
+- [[projects/aiforall/concepts/k6-functional-linux]] — Windows natif puis Ubuntu CI qualifiés ; health, OAuth Chromium et SAN, preuves distinctes.
+- [[projects/aiforall/references/session-ci-k6-reporting-20261113]] — session complète et quatre sous-agents ; pin Rust, gates et catalogue métier.
+- [[projects/aiforall/concepts/e2e-allure-pages-reporting]] — E2E34/34, contrat parent, Allure/Pages ; CI globale Manifesto rouge distincte.
 - Clôture du socle k6 mission1 vérifiée : dix copies de travail retirées après sauvegardes, équipe archivée et onze références de sauvegarde conservées. Ce bilan ne décrit pas la mission auth arrêtée avec ses arbres conservés. Le nettoyage n'est pas une qualification HTTP/Linux ; enseignements dans [[projects/aiforall/concepts/orchestrator-agent-harness]].
 
 - [[projects/aiforall/references/mission-telegraph-outbox-20261027]] — transaction writer commune, NoOp suspendu, owner HTTP, reprise après lease puis verticaleSQS/OpenFGA/replay/403/200 ; commit39024b2 et SDKd60 publiés avec gitlink exact. Clippy antérieur/Sonar/CI restent des réserves, statuts ADR non promus.

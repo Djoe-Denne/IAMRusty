@@ -1,13 +1,40 @@
 ﻿{
     "version":  1,
     "stats":  {
-                  "total_sources_ingested":  1387,
-                  "total_pages":  266,
+                  "total_sources_ingested":  1390,
+                  "total_pages":  269,
                   "total_pages_scope": "markdown excluding dot/underscore files and directories; includes navigation and log; recounted 2026-11-12; includes preexisting foreign notes, not all attributed to this ingest",
                   "last_commit_synced":  "2473baa7a54595931a4eff76a33431f56776db20"
               },
     "projects":  {
                       "aiforall":  {
+                                      "scoped_ingest_20261113_ci_k6_reporting": {
+                                          "at": "2026-11-13",
+                                          "source_commit": "7e7fc9656a84e8ecc843fc09af58c75c196e55ea",
+                                          "root_session": "ses_e2f50a8f4ffegiKcR00QyAu8Tb",
+                                          "boundary_message": "msg_1d61a435a001lMwCrquAvZa46s",
+                                          "sessions_captured": 5,
+                                          "direct_children": 4,
+                                          "further_descendants": 0,
+                                          "native_messages": 1519,
+                                          "visible_records": 287,
+                                          "child_inventory_pages_exhausted": 6,
+                                          "coverage": "docs/history/ci-k6-reporting-20261113/coverage.json",
+                                          "distillation": "docs/history/ci-k6-reporting-20261113/README.md",
+                                          "agent_contributions": "docs/history/ci-k6-reporting-20261113/agents.md",
+                                          "sources_new": 3,
+                                          "pages_created": 3,
+                                          "pages_updated": 4,
+                                          "private_projections_published": false,
+                                          "hidden_reasoning_published": false,
+                                          "raw_tool_logs_published": false,
+                                          "taxonomy": "absent; existing related tags reused",
+                                          "obsidian_cli": "app not running; targeted file patch fallback",
+                                          "qmd_refresh": "verified: seven scoped native content/document/FTS writes; MCP query/get retrieve new session; 77 chunks from 7 documents embedded with existing QMD embeddinggemma-300M config; no clearCache, deactivation, cleanup or model change",
+                                          "runtime_started": false,
+                                          "full_project_sync": false,
+                                          "limits": "Accessible projected native tree through user request; no deleted/unlinked sessions or foreign coverage session tree. Reviews/static/diagnostic/live evidence kept distinct; CI globally red on Manifesto IT."
+                                      },
                                       "scoped_ingest_20261112_iac_k6_qa": {
                                           "at": "2026-11-12T16:45:10Z",
                                           "source_commit": "24d2a527ed1332d623a94e9c4b0e5127315e98ea",
@@ -183,6 +210,29 @@
                                   }
                  },
     "sources":  {
+                    "docs/history/ci-k6-reporting-20261113/README.md": {
+                        "ingested_at": "2026-11-13",
+                        "content_hash": "sha256:2d467bac5dd21254c4ea632013729cd8c40dee7b5ac6895ecfece8850b1ffd01",
+                        "size_bytes": 6978,
+                        "source_type": "opencode-session-distillation",
+                        "project": "aiforall",
+                        "pages_created": ["projects/aiforall/references/session-ci-k6-reporting-20261113.md", "projects/aiforall/concepts/e2e-allure-pages-reporting.md", "projects/aiforall/concepts/functional-catalogue-and-test-evidence.md"],
+                        "pages_updated": ["projects/aiforall/concepts/k6-functional-linux.md", "projects/aiforall/aiforall.md", "index.md", "log.md"]
+                    },
+                    "docs/history/ci-k6-reporting-20261113/agents.md": {
+                        "ingested_at": "2026-11-13",
+                        "content_hash": "sha256:8c7804a4440ce7c86e6cc879aae998c38d7cdd02322975d877b68d8d4447541f",
+                        "size_bytes": 3853,
+                        "source_type": "opencode-subagents-distillation",
+                        "project": "aiforall"
+                    },
+                    "docs/history/ci-k6-reporting-20261113/coverage.json": {
+                        "ingested_at": "2026-11-13",
+                        "content_hash": "sha256:3e85c94ddde130d3f9ef4315f002980960dcdf190a076ab2fb774f8c2844b9fa",
+                        "size_bytes": 4768,
+                        "source_type": "session-coverage-and-source-hashes",
+                        "project": "aiforall"
+                    },
         "docs/history/iac-k6-qa-20261112/README.md": {
             "ingested_at":"2026-11-12T16:45:10Z", "modified_at":"2026-11-12T16:43:04.044350+00:00", "size_bytes":6685,
             "content_hash":"sha256:ea3f4253e46d4d27026878e81c5e5ada52fad00e628c6ece615cf9addebc7ed1", "source_type":"data", "project":"aiforall",
@@ -26686,5 +26736,5 @@
                                                                                                                                                                         ]
                                                                                                                                                   }
                 },
-    "last_updated":  "2026-11-12"
+    "last_updated":  "2026-11-13"
 }

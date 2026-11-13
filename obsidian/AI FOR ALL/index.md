@@ -9,7 +9,7 @@ provenance:
   extracted: 0.92
   inferred: 0.07
   ambiguous: 0.01
-updated: 2026-11-12
+updated: 2026-11-13
 sources:
   - docs/history/iac-k6-qa-20261112/README.md
   - docs/history/ops-oauthconnect-20261108/README.md
@@ -38,6 +38,10 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 
 ## Browse by area
 
+- [[projects/aiforall/references/session-ci-k6-reporting-20261113]] — cette session et quatre sous-agents : pin Rust, gates, catalogue IAM/OAuth et E2E Ubuntu public.
+- [[projects/aiforall/concepts/e2e-allure-pages-reporting]] — 34 checks + contrat parent, Allure/Pages et métriques honnêtes, distincts de la CI globale.
+- [[projects/aiforall/concepts/functional-catalogue-and-test-evidence]] — critères indépendants des tests, assertions exactes et résultats reliés.
+
 - [[projects/aiforall/references/session-iac-k6-qa-20261112]] — discussion et22sous-agents : IaC, Kind, k6 natif et QA au coût justifié.
 - [[projects/aiforall/skills/testing-k6-fixture-first]] — déclarer les fixtures, alimenter les données par les vraies API et fermer uniquement les effets possédés.
 - [[projects/aiforall/concepts/qa-proportionate-proof]] — preuve suffisante, alternatives et coût de setup, détours nécessaires vs options.
@@ -51,7 +55,7 @@ Central entry point for this vault. Use the area indexes for full catalogs; use 
 - [[projects/oauthconnect/concepts/oidc-jwks-and-key-rotation]] ; [[projects/oauthconnect/concepts/tls-hmac-and-signatures]] — du modèle mental aux mécanismes concrets.
 
 - [[projects/aiforall/references/auth-security-closure-20261029]] — qualification locale OAuth et Envoy, revues et limites ; pas validation production/HA/HSM.
-- [[projects/aiforall/concepts/k6-functional-linux]] — trois scénarios Windows qualifiés le12novembre sur slice native ; historique d'octobre conservé, Linux/CI différés.
+- [[projects/aiforall/concepts/k6-functional-linux]] — Windows natif le12novembre puis Ubuntu CI le13 ; E2E/Pages qualifiés, CI globale rouge sur une IT Manifesto.
 - [[projects/iamrusty/decisions/0412-oauth-transaction-browser-binding]] — Accepted/Implemented pour le laboratoire local, après preuve Chrome/Envoy finale.
 
 - [[projects/index]] — service hubs and project knowledge areas

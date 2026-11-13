@@ -1,9 +1,12 @@
 ---
 title: >-
-  k6 — trois scénarios Windows qualifiés, Linux différé
+  k6 — Windows et Ubuntu CI qualifiés, preuves distinctes
 category: concepts
 tags: [architecture, security, visibility/internal]
 sources:
+  - docs/missions/20261113-k6-ubuntu-e2e-results.md
+  - docs/missions/20261113-k6-auto-reporting-results.md
+  - docs/history/ci-k6-reporting-20261113/README.md
   - docs/missions/20261112-k6-three-native-results.md
   - docs/missions/20261112-python-dead-code-cleanup.md
   - docs/history/iac-k6-qa-20261112/README.md
@@ -21,18 +24,44 @@ sources:
   - docs/archives/k6-wsl-20261030/README.md
   - docs/missions/20261031-k6-auth-handover.md
 summary: >-
-  Santé HTTPS, OAuth Chromium et SAN qualifiés sur une slice native isolée au commit54a19ba. Fixtures IaC et preuves parent ; Linux/CI et retrait legacy différés.
+  Santé HTTPS, OAuth Chromium et SAN : slice Windows54a19ba puis Ubuntu CI741d0435. E2E34/34 et Allure/Pages qualifiés ; CI globale rouge sur une IT Manifesto, pas de couverture produit exhaustive.
 provenance:
   extracted: 0.96
   inferred: 0.04
   ambiguous: 0.0
 created: 2026-10-29
-updated: 2026-11-12
+updated: 2026-11-13
 ---
 
-# k6 : trois scénarios Windows, pas une preuve globale Linux
+# k6 : trois scénarios, preuves Windows et Ubuntu distinctes
 
-## État courant — 12 novembre 2026
+## État courant — 13 novembre 2026
+
+La campagne Ubuntu autonome est désormais qualifiée : manuelle
+`43461703946`, puis automatique `43473245852` sur push/master à `741d0435`.
+**34 checks** health/OAuth navigateur/TLS-SAN et contrat parent PASS, deltas et
+restauration contrôlés. H=T=packaging du même run pour la voie automatique,
+SDK `93b890ff`, binaires non instrumentés et aucun second Cargo consumer.
+
+Chromium conserve sandbox et TLS vérifiés : launcher non-root, rootfs readonly,
+capdrop ALL, AppArmor docker-default effectif et profil seccomp ciblé épinglé.
+Quatre témoins renderer kernel UID1001, namespaces isolés et filtre supplémentaire ;
+pas de `--no-sandbox`, bypass TLS ou modification globale d'AppArmor. Le diagnostic
+« No usable sandbox » n'avait pas suffi à attribuer la panne à AppArmor.
+
+E2E démarre en parallèle des couvertures UT/IT ; Allure et Pages sont publiés,
+35 passes = 34 checks et un contrat parent séparé. Cleanup possédé zéro actif,
+probes/nœud/browser/volume fermés. La CI **globale** du run reste rouge sur
+`t6_post_get_components_contract_bytes_frozen` de Manifesto, non diagnostiqué ici.
+Les 130 helpers du parent et la revue indépendante ne sont pas une preuve Sonar90%.
+Voir [[projects/aiforall/concepts/e2e-allure-pages-reporting]] et
+[[projects/aiforall/references/session-ci-k6-reporting-20261113]].
+
+Cette qualification ne modifie pas les statuts ADR/contrats Proposed, ne rejoue
+pas Windows et ne qualifie ni charge, production, HA ni toutes les fonctionnalités.
+Le site correspond au dernier rapport publié, avec SHA/run affichés.
+
+## Historique — 12 novembre 2026
 
 La campagne `ops/tests/k6/native/campaign.ps1` a réellement passé au commit
 **54a19ba**, run `e3337dff24eb470881233fdfad6f6022` : santé HTTPS, SAN
@@ -161,7 +190,7 @@ exhaustive et Grafana Cloud restent exclus.
 Les 24 sources de l'enquête WSL sont des archives inactives, dont cinq sources
 `ldd-only` tardives non exécutées par le lead. Leur préservation ne relance ni sonde
 ni seconde mesure. Le nombre de dépendances manquantes du run historique reste
-inconnu ; la qualification Linux sera une mission distincte demandée par l'utilisateur.
+inconnu ; cette enquête n'est pas la preuve de la campagne Ubuntu qualifiée le13novembre ci-dessus.
 
 La dette matérielle HSM reste acceptée et non bloquante pour ces campagnes, mais n'est pas qualifiée ; ADR 0309 reste Partial. Les résultats attendus ne deviennent pas des résultats observés par leur inscription dans le wiki.
 

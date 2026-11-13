@@ -1,0 +1,138 @@
+{
+  "schema": "aiforall.session-ingest/v1",
+  "root_session": "ses_e2f50a8f4ffegiKcR00QyAu8Tb",
+  "boundary_message": "msg_1d61a435a001lMwCrquAvZa46s",
+  "captured_through": "2026-11-13T18:10:08.090000+00:00",
+  "sessions": [
+    {
+      "id": "ses_e2f50a8f4ffegiKcR00QyAu8Tb",
+      "parentID": null,
+      "agent": "build",
+      "title": "Échec de cargo fmt sur la CI",
+      "messages": 1276,
+      "visible_records": 205,
+      "excluded_parts": {
+        "tool": 1181,
+        "reasoning": 1727
+      },
+      "children": [
+        "ses_e2b39f576ffe6sWFVATRaMqC3i",
+        "ses_e2ae5518fffec0q1hbdwyLsuvc",
+        "ses_e2bb54211ffetS1Myw6ZEFwhS5",
+        "ses_e2eeb63ddffeSSUgdV60NB2LQy"
+      ],
+      "projection_sha256": "ff5ee060e804d3553608d18d1225d580b048ea60c6e7799bca11ef4792417fe9"
+    },
+    {
+      "id": "ses_e2b39f576ffe6sWFVATRaMqC3i",
+      "parentID": "ses_e2f50a8f4ffegiKcR00QyAu8Tb",
+      "agent": "infra-verifier",
+      "title": "Vérifier preuves packaging distant",
+      "messages": 67,
+      "visible_records": 58,
+      "excluded_parts": {
+        "reasoning": 50,
+        "tool": 134
+      },
+      "children": [],
+      "projection_sha256": "bac3f47c36de74f6cd58e1da1746e3c6be4c22711d62bfe85769aebc2d2df576"
+    },
+    {
+      "id": "ses_e2ae5518fffec0q1hbdwyLsuvc",
+      "parentID": "ses_e2f50a8f4ffegiKcR00QyAu8Tb",
+      "agent": "emergency-thinker",
+      "title": "Diagnostiquer démarrage Chromium CI",
+      "messages": 68,
+      "visible_records": 10,
+      "excluded_parts": {
+        "reasoning": 117,
+        "tool": 68
+      },
+      "children": [],
+      "projection_sha256": "873efb99964e2e0a581b89955d50c495809eb14fd3879389b96bbbb0ecd91748"
+    },
+    {
+      "id": "ses_e2bb54211ffetS1Myw6ZEFwhS5",
+      "parentID": "ses_e2f50a8f4ffegiKcR00QyAu8Tb",
+      "agent": "architecte",
+      "title": "Cadrer E2E Ubuntu autonome",
+      "messages": 62,
+      "visible_records": 6,
+      "excluded_parts": {
+        "reasoning": 119,
+        "tool": 116
+      },
+      "children": [],
+      "projection_sha256": "06ae134386de72e4fe4eedf716267140f1ec7a5e654f8e411335cccc1c661d61"
+    },
+    {
+      "id": "ses_e2eeb63ddffeSSUgdV60NB2LQy",
+      "parentID": "ses_e2f50a8f4ffegiKcR00QyAu8Tb",
+      "agent": "architecte",
+      "title": "Réconcilier gates runtime CI",
+      "messages": 46,
+      "visible_records": 8,
+      "excluded_parts": {
+        "tool": 39,
+        "reasoning": 51
+      },
+      "children": [],
+      "projection_sha256": "49aa353ed8d36f25553dff9e91d99140a593145efa64a266d82850be67165ed9"
+    }
+  ],
+  "native_messages": 1519,
+  "visible_records": 287,
+  "child_inventory_pages_exhausted": 6,
+  "direct_children": 4,
+  "further_descendants": 0,
+  "private_projections_published": false,
+  "hidden_reasoning_published": false,
+  "raw_tool_logs_published": false,
+  "source_commit": "7e7fc9656a84e8ecc843fc09af58c75c196e55ea",
+  "inputs": [
+    {
+      "path": "rust-toolchain.toml",
+      "sha256": "d13306be0ecda81ce779baa290ffb417380d525928477f16200884b5169cca33"
+    },
+    {
+      "path": ".github/actions/setup-rust/action.yml",
+      "sha256": "122f6fdf9f0ef57a5a17509f2858f886f0253d5cc99f94b47d2eeeceaad698e6"
+    },
+    {
+      "path": "docs/discovery/iam-oauth/README.md",
+      "sha256": "e6be0cd5e358e1648fa40acb351b65c05c95ebd29ef16d5035793d95a72e6ba4"
+    },
+    {
+      "path": "docs/discovery/iam-oauth/catalogue.json",
+      "sha256": "697b0daf3bb32e5cd7b08f36018ce61af923f61dbf5aaf61c830ad1206c95ea4"
+    },
+    {
+      "path": "docs/contracts/ci-runtime-gates-reconciliation-proposed.md",
+      "sha256": "9e59c376e1d8be32dc3fcc22a7fec2bb0823153d3f06c0df4419420b579d77d0"
+    },
+    {
+      "path": "docs/contracts/k6-three-scenario-ubuntu-ci.md",
+      "sha256": "09c8730fbe985101511b0a6e3f1f2f5528d8f4ba4e5142039cdfec0781c06d4f"
+    },
+    {
+      "path": "docs/missions/20261113-k6-ubuntu-e2e-results.md",
+      "sha256": "8489b38b9c817aef1cc7ac9e7a5e2449ed87be19882413dd7e0bb36f22adbde5"
+    },
+    {
+      "path": "docs/missions/20261113-k6-auto-reporting-results.md",
+      "sha256": "4b9139587e3dc2c50174d00a172280dff036cf5070b9397774f1b61f1fcc1ea7"
+    },
+    {
+      "path": "docs/local/audits/ci-cd/2026-11-13-k6-ubuntu-e2e.md",
+      "sha256": "60db55ce996027307e7d2185c8fd2c61bbd69263377742c52917b24bcd771b1c"
+    },
+    {
+      "path": "docs/local/audits/ci-cd/2026-11-13-k6-auto-reporting.md",
+      "sha256": "3fd7660650d13d4a2e74235974ab1fa16dc68624bfa6dae1f5867b28880d4abf"
+    },
+    {
+      "path": "ops/tests/k6/ci/README.md",
+      "sha256": "da58798df64ba1bffd71e7dfc142ed82467b41f81ec65b956919cb2d1c8de6dd"
+    }
+  ]
+}
