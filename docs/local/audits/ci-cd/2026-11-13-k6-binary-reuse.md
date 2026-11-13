@@ -3,7 +3,7 @@
 - Skill : ci-cd, amélioration bornée du workflow existant.
 - Base : `33fddc8`, SDK `93b890ff` inchangé ; aucun changement produit Rust ou
   instrumentation de couverture. Contrat complémentaire **Proposed**, pas Accept.
-- Vérifications locales : 57 tests `test_ci_*.py`, 10 régressions natives, sans
+- Vérifications locales finales : 58 tests `test_ci_*.py`, 10 régressions natives, sans
   skip ; vrai projecteur k6, Helm et OpenSSL hors cluster. Pas de compilation,
   Docker/Kind/WSL local ou campagne E2E exécutée.
 
@@ -46,9 +46,8 @@ Pas de suppression d'image, prune ou destruction globale. `cleanup.json` et
 registre allowlistés sont collectés avant publication des images ; échec de
 cleanup empêche l'artefact de succès. Annulation dure = limite explicite.
 
-**Validation réelle encore requise** : publication des bundles par les jobs CI,
-dispatch du workflow manuel puis packaging/résolution des quatre ELF. Aucun
-succès de ces tests hors cluster ne vaut preuve E2E ; parent Ubuntu, bootstrap,
+La publication et le packaging réels sont attestés ci-dessous. Aucun succès de
+ces tests hors cluster ou du packaging ne vaut preuve E2E ; parent Ubuntu, bootstrap,
 confiance NSS, cinq phases health/OAuth/SAN et cleanup du cluster restent à finir.
 
 ### Première publication et refus consumer
@@ -69,6 +68,51 @@ contrôle de provenance, de hash ou d'instrumentation. Les mêmes bundles doiven
 être rejoués avec le harness corrigé, sans compiler T à nouveau. Les deux ELF
 IAM exigent effectivement GLIBC2.38/2.39 et OpenSSL3 ; pas de preuve ABI runtime
 avant le packaging réel.
+
+### Réutilisation distante réussie, sans recompilation
+
+[Run43420550908](https://github.com/Djoe-Denne/IAMRusty/actions/runs/43420550908),
+job131869169068 : **success**. Harness H =
+`8f614eb3a9c50245d5e5f0cb57bed03021d5ac91`, applications T =
+`1ca9a4c83226da50adb33822233b488c98a4736b`, SDK S =
+`93b890ff7b821e9cb2e7d0aeb81957d098778a2f`.
+Exactement les trois artefacts du même producteur43415018528/attempt1 sont
+réutilisés : IAM14031099701, OAuth14030629622, ext-authz14030758549.
+Le correctif de harness n'a donc pas nécessité de reconstruire T ou d'attendre
+la CI du nouveau commit H. Le workflow consumer ne contient aucun Cargo/UT/IT.
+
+Les quatre chemins `/app/iam-service`, `/app/migration`,
+`/app/oauth-connect-service`, `/app/ext-authz` ont une résolution `ldd -v` PASS.
+Trois images exportées ; provenance garde `cargo_profile=dev`,
+`instrumentation=none`, verdict **PACKAGING_AND_ABI_ONLY_NOT_E2E**.
+Trois probes créées/retirées, zéro possédée restante ; cleanup indépendant
+recoupe les trois IDs déjà absents et conclut PASS. Quatre images (porteuse et
+trois finales) enregistrées `no` sur le runner jetable, pas de suppression globale.
+Aucun Docker/Kind/WSL ou chargement d'image n'a été effectué sur le poste Windows.
+
+Job observé de11:52:50à11:54:59UTC le2026-11-13 : **129secondes**, hors file
+d'attente. Ce temps est packaging/ABI/export, pas une mesure E2E ni un SLA.
+
+Artefact final **14033787265**, `k6-images-43420550908-1`, tailleAPI747193872octets,
+expiration2026-11-20T11:54:52Z. Digest API du ZIP :
+`sha256:44112a574454ddd805c7ad742a56bbb15ed86b7a10209049df07d77b348185b9`.
+Archive interne `images.tar.gz` :
+`8dfd67758e2f2bafefc0c5178f8c8cab9a4725f8cfc570ed570a55afb0596e57`,
+recalculée sur le téléchargement local sans charger/exécuter les images.
+Les fichiers provenance/cleanup/registre ont été relus dans cette même archive.
+Vérification infra indépendante `ses_e2b39f576ffe6sWFVATRaMqC3i` : **PASS pour
+packaging / ABI / cleanup des probes**, neuf contrôles recoupés par API GitHub,
+sources, preuves locales et digest Docker Hub ; aucun bloquant. Aucun runtime,
+dispatch ou fichier modifié par le vérificateur. Les deux fichiers documentaires
+en cours de rédaction par le lead ne faisaient pas partie de sa revue.
+
+Limites conservées : pas d'inspection live de la VM après fin du job, pas de
+décomposition des couches du tar d'images, pas de re-téléchargement des trois
+ZIP producteur par le vérificateur. Leurs IDs/provenances ont été recoupés et
+leur acquisition contrôlée a réussi dans le consumer. L'empreinte de l'archive
+interne a été recalculée indépendamment ; les états de steps n'attestent ni
+HTTP/readiness ni sandbox. Contrat toujours Proposed. Le raccord de réutilisation
+est prouvé ; la mission E2E globale reste non clôturée.
 
 Sources externes :
 - [download-artifact au SHA réutilisé](https://raw.githubusercontent.com/actions/download-artifact/d3f86a106a0bac45b974a628896c90dbdf5c8093/README.md),

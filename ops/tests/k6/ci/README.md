@@ -69,6 +69,21 @@ de T pour corriger les tests sans reconstruire les applications, à condition qu
 la seam d'inventaire soit compatible. L'entrypoint IAM provient toujours de T.
 Un vert de ce workflow prouve seulement packaging et résolution ABI, **pas E2E**.
 
+### Première réutilisation réellement vérifiée
+
+[Run indépendant43420550908](https://github.com/Djoe-Denne/IAMRusty/actions/runs/43420550908),
+job129secondes (11:52:50→11:54:59UTC, 2026-11-13) : trois images empaquetées
+depuis les bundles du runCI43415018528/attempt1, quatre ELF résolus, trois probes
+retirées et cleanup indépendant PASS. Aucun Cargo/unit/IT dans ce consumer.
+Applications `1ca9a4c8`, SDK `93b890ff`, harness `8f614eb3` : réutilisation H≠T
+effective. Ce temps observé n'inclut pas une campagne E2E et n'est pas un SLA.
+
+Artefact réutilisable : **`k6-images-43420550908-1`**, ID **`14033787265`**,
+expiration annoncée **2026-11-20 11:54:52UTC**. Archive `images.tar.gz` SHA256 :
+`8dfd67758e2f2bafefc0c5178f8c8cab9a4725f8cfc570ed570a55afb0596e57`.
+Les tags et IDs des trois images sont dans sa provenance ; la future campagne
+E2E doit vérifier ce bundle, pas reconstruire les applications.
+
 ## Validation hors cluster
 
 Outils existants explicites : `AIFORALL_HELM` et `AIFORALL_K6`, sinon recherche
