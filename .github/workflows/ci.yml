@@ -400,6 +400,11 @@ jobs:
             artifact_name: lcov-unit-readiness
             output_path: lcov-unit-readiness.info
             package_args: --package readiness
+          - service: Sentinel Sync
+            cache_key: sentinel-sync-unit
+            artifact_name: lcov-unit-sentinel-sync
+            output_path: lcov-unit-sentinel-sync.info
+            package_args: --package sentinel-sync
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
