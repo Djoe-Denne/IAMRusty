@@ -18,7 +18,8 @@
     {"path":"services/Manifesto/setup/src/runtime_maintenance.rs","identifiers":["ADMISSION_AUDIENCE","ADMISSION_ISSUER","ADMISSION_PURPOSE","PinnedRuntimeAdmissionKey","PinnedRuntimeAdmissionProofVerifier","admission_keys","admission_proof"],"fragments":["\"admission key scope/purpose is not approved\"","\"pinned admission public key unavailable\"","\"pinned admission public key malformed\"","\"pinned admission key thumbprint mismatch\"","\"pinned admission key/repository policy invalid\""]},
     {"path":"services/Manifesto/configuration/src/lib.rs","identifiers":["RuntimeAdmissionPublicKeyConfig","admission_keys"]},
     {"path":"services/Manifesto/migration/src/lib.rs","identifiers":["m20261020_000002_apparatus_runtime_admission"]},
-    {"path":"services/Lazaret/infra/src/runtime_identity.rs","identifiers":["KubernetesClaims"],"fragments":["\"https://kubernetes.default.svc.cluster.local\"","\"kubernetes.io\"","kubernetes: KubernetesClaims,","claims.kubernetes;"]}
+    {"path":"services/Lazaret/infra/src/runtime_identity.rs","identifiers":["KubernetesClaims"],"fragments":["\"https://kubernetes.default.svc.cluster.local\"","\"kubernetes.io\"","kubernetes: KubernetesClaims,","claims.kubernetes;"]},
+    {"path":"services/Manifesto/tests/runtime_writer_postgres.rs","identifiers":["RuntimeCapabilityInvokeV1"],"fragments":["\"runtime.invoke\"","\\\"runtime.invoke\\\"","invoke: request.invoke.clone(),","invoke: RuntimeCapabilityInvokeV1 {","changed.invoke.params ="]}
   ],
   "cases": [
     {"path":"services/Manifesto/application/src/usecase/runtime_control.rs","line":"RuntimeWriterLeaseRequestV1,","needle":"lease","forbidden":false},
@@ -45,6 +46,18 @@
     {"path":"services/Manifesto/infra/src/apparatus_runtime/runtime_control/begin.rs","line":"request.invoke.operation();","needle":"invoke","forbidden":true},
     {"path":"services/Manifesto/infra/src/apparatus_runtime/runtime_control/begin.rs","line":"request.invoke.operation ();","needle":"invoke","forbidden":true},
     {"path":"services/Manifesto/infra/src/apparatus_runtime/runtime_control/begin.rs","line":"request.invoke.binding_id();","needle":"invoke","forbidden":true},
-    {"path":"services/Manifesto/infra/src/apparatus_runtime/runtime_control/begin.rs","line":"request.invoke.operation.as_str()","needle":"invoke","forbidden":false}
+    {"path":"services/Manifesto/infra/src/apparatus_runtime/runtime_control/begin.rs","line":"request.invoke.operation.as_str()","needle":"invoke","forbidden":false},
+    {"path":"services/Manifesto/tests/runtime_writer_postgres.rs","line":"RuntimeCapabilityInvokeV1,","needle":"invoke","forbidden":false},
+    {"path":"services/Manifesto/tests/runtime_writer_postgres.rs","line":"for capability in [\"runtime.invoke\", \"storage.kv.read\"] {","needle":"invoke","forbidden":false},
+    {"path":"services/Manifesto/tests/runtime_writer_postgres.rs","line":"VALUES ('[\\\"runtime.invoke\\\",\\\"storage.kv.read\\\"]'::jsonb)","needle":"invoke","forbidden":false},
+    {"path":"services/Manifesto/tests/runtime_writer_postgres.rs","line":"invoke: request.invoke.clone(),","needle":"invoke","forbidden":false},
+    {"path":"services/Manifesto/tests/runtime_writer_postgres.rs","line":"invoke: RuntimeCapabilityInvokeV1 {","needle":"invoke","forbidden":false},
+    {"path":"services/Manifesto/tests/runtime_writer_postgres.rs","line":"changed.invoke.params = serde_json::json!({});","needle":"invoke","forbidden":false},
+    {"path":"services/Manifesto/tests/runtime_writer_postgres.rs","line":"invoke: request.invoke.clone(), client.invoke();","needle":"invoke","forbidden":true},
+    {"path":"services/Manifesto/tests/runtime_writer_postgres.rs","line":"fn invoke() {}","needle":"invoke","forbidden":true},
+    {"path":"services/Manifesto/tests/runtime_writer_postgres.rs","line":"request.invoke.operation();","needle":"invoke","forbidden":true},
+    {"path":"services/Manifesto/tests/runtime_writer_postgres.rs","line":"RuntimeCapabilityInvokeV1Extra::new();","needle":"invoke","forbidden":true},
+    {"path":"services/Manifesto/tests/runtime_writer_postgres.rs","line":"RuntimeCapabilityInvokeV1Ω::new();","needle":"invoke","forbidden":true},
+    {"path":"services/Manifesto/tests/another_test.rs","line":"RuntimeCapabilityInvokeV1,","needle":"invoke","forbidden":true}
   ]
 }

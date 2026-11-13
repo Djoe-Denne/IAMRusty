@@ -81,6 +81,36 @@ zone non couverte importante, hors preuve de ces sept IT.
 
 ## Ressources et publication
 
+### Première publication et résultat Sonar effectif
+
+Commit `33fddc887331bbc87df78cf01ded08f653d5bc6b`, vérifié sur
+`origin/master`. Analyse Sonar `be36dae3-668e-47d6-8457-c4da4e0a7cef`,
+13 novembre 2026 à 10:59:08 UTC, **révision exactement égale au commit** :
+**82,7 % de couverture**, 41 827 lignes à couvrir et 7 219 non couvertes.
+Gain affiché : **+4,8 points** par rapport à 77,9 %. Les rapports supplémentaires
+font évoluer le dénominateur, d'où la différence avec la projection conservatrice
+à dénominateur constant. Code smells : 1 303 ; bugs : 6 ; vulnérabilités : 0 ;
+issues classiques (`violations`) : 1 309. Aucun finding Sonar sur le nouveau
+fichier de tests lors de la consultation ciblée de l'API.
+
+La [CI 43409146018](https://github.com/Djoe-Denne/IAMRusty/actions/runs/43409146018)
+a exécuté les **sept nouvelles IT sous Linux : 7 PASS**, en 7,95 secondes.
+Le job unit Sentinel Sync, le merge LCOV et Sonar sont verts. **La CI globale
+est néanmoins rouge** : deux anciens tests lexicaux P3/P4 signalent les données
+`invoke` présentes dans le nouveau test, et les tests HTTP Telegraph échouent au
+setup SQS/LocalStack (dispatch failure puis readiness après 30 tentatives).
+La cause profonde du démarrage LocalStack n'est pas établie ici : ce n'est pas
+un PASS ni un flake déclaré résolu.
+
+Correction de la régression lexicale : ajout de témoins de contrat limités au
+**chemin exact** du nouveau test dans `runtime_gate_contract.json`, sans modifier
+les scanners ni exempter le fichier entier. Douze cas accept/refus supplémentaires
+préservent les interdictions de méthode `invoke`, suffixes ASCII/Unicode et
+transfert vers un autre chemin. Validation native des deux binaries P3/P4 :
+**6 + 13 tests PASS**. Cette correction ne change ni les IT writer ni la production.
+Re-review spécialisée : **PASS**, aucun affaiblissement du scanner ni nouvelle
+exemption globale détecté ; les douze cas ont été vérifiés avec mutation mindset.
+
 Dernière campagne IT : 2 conteneurs créés, 2 retirés, 0 possédé running, 0 nouvelle
 ressource non attribuée. Les 4 conteneurs préexistants restent inchangés ; aucun
 arrêt global Docker/WSL, aucune intervention sur le cluster d'une autre campagne.
