@@ -4,6 +4,7 @@
   "revision": "9ee3204f0d0cfa19ca2c6a7b0fcf5a2b353954ae",
   "sha256": "3320527d4568265ac97a077609b1bfd4cfd0d789eeb9239b7e094b1526675406",
   "approved_namespace_syscalls": ["clone", "setns", "unshare"],
+  "approved_filesystem_syscalls": ["chroot"],
   "scope": "one_disposable_nonroot_networkless_container",
   "documentation": "https://playwright.dev/docs/docker#crawling-and-scraping",
   "verified_utc": "2026-11-13"

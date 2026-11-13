@@ -23,8 +23,8 @@ HERE = Path(__file__).resolve().parent
 OWNER = "k6-browser-container-trial"
 FILES = ("ci/binaries.py", "ci/browser.py", "ci/browser_container.py", "ci/browser-sandbox-probe.js",
          "ci/browser_audit.py", "config/tools.lock.json", "lib/safety.py")
-NAMESPACE_RULE = {"comment": "Approved Chromium sandbox namespaces, one disposable non-root container only",
-                  "names": ["clone", "setns", "unshare"], "action": "SCMP_ACT_ALLOW", "args": []}
+SANDBOX_RULE = {"comment": "Chromium namespace and filesystem isolation, one disposable non-root container only",
+                "names": ["clone", "setns", "unshare", "chroot"], "action": "SCMP_ACT_ALLOW", "args": []}
 
 
 def derive_seccomp(baseline):
@@ -32,16 +32,18 @@ def derive_seccomp(baseline):
             and baseline["defaultAction"] == "SCMP_ACT_ERRNO" and baseline["defaultErrnoRet"] == 1
             and isinstance(baseline["syscalls"], list), "TRIAL_SECCOMP_BASELINE")
     require(not any(rule.get("action") == "SCMP_ACT_ALLOW" and not rule.get("args") and not rule.get("includes")
-                    and not rule.get("excludes") and set(rule.get("names", [])) & set(NAMESPACE_RULE["names"])
+                    and not rule.get("excludes") and set(rule.get("names", [])) & set(SANDBOX_RULE["names"])
                     for rule in baseline["syscalls"]), "TRIAL_SECCOMP_ALREADY_BROAD")
     result = copy.deepcopy(baseline)
-    result["syscalls"].append(copy.deepcopy(NAMESPACE_RULE))
+    result["syscalls"].append(copy.deepcopy(SANDBOX_RULE))
     return result
 
 
 def acquire_seccomp(root):
     pin = strict_json((HERE / "seccomp.lock.json").read_bytes())
-    require(pin.get("schema") == "aiforall.chromium-seccomp/v1" and pin.get("approved_namespace_syscalls") == NAMESPACE_RULE["names"]
+    require(pin.get("schema") == "aiforall.chromium-seccomp/v1"
+            and pin.get("approved_namespace_syscalls") == ["clone", "setns", "unshare"]
+            and pin.get("approved_filesystem_syscalls") == ["chroot"]
             and re.fullmatch(r"[a-f0-9]{40}", pin.get("revision", "")) and re.fullmatch(r"[a-f0-9]{64}", pin.get("sha256", ""))
             and pin["source"] == "https://raw.githubusercontent.com/moby/profiles/" + pin["revision"] + "/seccomp/default.json",
             "TRIAL_SECCOMP_SOURCE_PIN")
@@ -57,7 +59,7 @@ def acquire_seccomp(root):
     write(path, derived)
     path.chmod(0o400)
     return path, derived, {"reference_revision": pin["revision"], "reference_sha256": pin["sha256"],
-        "derived_sha256": sha(path), "added_syscalls": NAMESPACE_RULE["names"],
+        "derived_sha256": sha(path), "added_syscalls": SANDBOX_RULE["names"],
         "basis": "pinned_moby_reference_not_asserted_identical_to_daemon_builtin"}
 
 

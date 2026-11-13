@@ -69,7 +69,7 @@ class ContainerPolicyTests(unittest.TestCase):
         self.assertIn("--read-only", args)
         self.assertEqual(args[args.index("--network") + 1], "none")
         self.assertEqual(args[args.index("--user") + 1], "1001:1001")
-        for forbidden in ("--privileged", "SYS_ADMIN", "docker.sock", "seccomp=unconfined", "apparmor=unconfined", "--pid=host"):
+        for forbidden in ("--privileged", "SYS_ADMIN", "SYS_CHROOT", "docker.sock", "seccomp=unconfined", "apparmor=unconfined", "--pid=host"):
             self.assertNotIn(forbidden, " ".join(args))
 
 
@@ -91,6 +91,7 @@ def seccomp_baseline():
     return dict(defaultAction="SCMP_ACT_ERRNO", defaultErrnoRet=1, archMap=[], syscalls=[
         dict(names=["read", "write", "exit"], action="SCMP_ACT_ALLOW"),
         dict(names=["clone3"], action="SCMP_ACT_ERRNO", errnoRet=38),
+        dict(names=["chroot"], action="SCMP_ACT_ALLOW", includes=dict(caps=["CAP_SYS_CHROOT"])),
         dict(names=["clone", "setns", "unshare", "mount", "bpf"], action="SCMP_ACT_ALLOW", includes=dict(caps=["CAP_SYS_ADMIN"]))])
 
 
@@ -103,10 +104,11 @@ class SeccompTests(unittest.TestCase):
         self.assertEqual({key: value for key, value in after.items() if key != "syscalls"},
                          {key: value for key, value in before.items() if key != "syscalls"})
         self.assertEqual(after["syscalls"][:-1], before["syscalls"])
-        self.assertEqual(after["syscalls"][-1], c.NAMESPACE_RULE)
-        self.assertEqual(after["syscalls"][-1]["names"], ["clone", "setns", "unshare"])
+        self.assertEqual(after["syscalls"][-1], c.SANDBOX_RULE)
+        self.assertEqual(after["syscalls"][-1]["names"], ["clone", "setns", "unshare", "chroot"])
         self.assertEqual(after["defaultAction"], "SCMP_ACT_ERRNO")
         self.assertEqual(after["syscalls"][1]["errnoRet"], 38)
+        self.assertEqual(after["syscalls"][2], dict(names=["chroot"], action="SCMP_ACT_ALLOW", includes=dict(caps=["CAP_SYS_CHROOT"])))
 
     def test_allow_all_or_already_broad_baseline_refused(self):
         for invalid in (dict(defaultAction="SCMP_ACT_ALLOW"), dict(defaultErrnoRet=0), dict(extra="unexpected")):
@@ -139,6 +141,7 @@ class SeccompTests(unittest.TestCase):
             revision = "a" * 40
             url = "https://raw.githubusercontent.com/moby/profiles/" + revision + "/seccomp/default.json"
             pin = dict(schema="aiforall.chromium-seccomp/v1", approved_namespace_syscalls=["clone", "setns", "unshare"],
+                       approved_filesystem_syscalls=["chroot"],
                        revision=revision, source=url, sha256=hashlib.sha256(raw).hexdigest())
             (root / "seccomp.lock.json").write_text(json.dumps(pin))
 
@@ -152,7 +155,7 @@ class SeccompTests(unittest.TestCase):
                 path, derived, facts = c.acquire_seccomp(root)
                 self.assertEqual(derived, c.derive_seccomp(seccomp_baseline()))
                 self.assertEqual(facts["derived_sha256"], b.sha(path))
-                self.assertEqual(facts["added_syscalls"], ["clone", "setns", "unshare"])
+                self.assertEqual(facts["added_syscalls"], ["clone", "setns", "unshare", "chroot"])
                 with self.assertRaises(b.Refused):
                     c.acquire_seccomp(root)
 
