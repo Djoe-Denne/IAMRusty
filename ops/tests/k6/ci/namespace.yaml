@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiforall-local-full
+  labels:
+    app.kubernetes.io/name: k6-e2e
+    app.kubernetes.io/part-of: aiforall-ci
+# The existing backings include a root LocalStack fixture. This dedicated,
+# disposable namespace does not claim Pod Security restricted conformance.

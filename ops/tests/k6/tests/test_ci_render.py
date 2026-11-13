@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[4]
 HELM = Path(os.environ.get("AIFORALL_HELM") or shutil.which("helm") or
@@ -68,6 +69,40 @@ class CiRenderTests(unittest.TestCase):
     def test_namespace_and_ext_authz_input_refusals(self):
         self.assertNotEqual(self.render(namespace="default").returncode, 0)
         self.assertNotEqual(self.render(omit_image=True).returncode, 0)
+
+    def test_ci_backing_stages_are_closed_and_non_overlapping(self):
+        values = yaml.safe_load((ROOT / "ops/tests/k6/ci/values.yaml").read_text())
+        selections = [
+            {"postgres": {"create": True}, "openfga": {"create": False}, "localstack": {"create": False}},
+            {"postgres": {"create": False}, "openfga": {"create": True}, "localstack": {"create": True}, "network": {"create": False}},
+            {"postgres": {"create": False}, "openfga": {"create": False, "initialize": True},
+             "localstack": {"create": False, "initialize": True}, "network": {"create": False}},
+        ]
+        seen = set()
+        for number, overrides in enumerate(selections):
+            import copy
+            current = copy.deepcopy(values)
+            for group, settings in overrides.items():
+                current[group].update(settings)
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "values.json"
+                path.write_text(json.dumps(current))
+                result = subprocess.run([str(HELM), "template", "k6-ci", str(ROOT / "ops/deploy/charts/kind-minimal"),
+                                         "--namespace", "aiforall-local-full", "-f", str(path)],
+                                        capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            objects = [item for item in yaml.safe_load_all(result.stdout) if item]
+            self.assertEqual(len(objects), (5, 4, 2)[number])
+            identities = {(item["kind"], item["metadata"]["name"]) for item in objects}
+            self.assertFalse(identities & seen)
+            seen |= identities
+            for item in objects:
+                self.assertEqual(item["metadata"]["namespace"], "aiforall-local-full")
+                if item["kind"] in ("Deployment", "Job"):
+                    pod = item["spec"]["template"]["spec"]
+                    self.assertFalse(pod["automountServiceAccountToken"])
+                    for container in pod.get("containers", []) + pod.get("initContainers", []):
+                        self.assertRegex(container["image"], r"@sha256:[a-f0-9]{64}$")
 
     def config(self):
         items = self.objects()

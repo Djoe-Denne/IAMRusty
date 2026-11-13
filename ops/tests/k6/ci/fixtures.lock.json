@@ -1,0 +1,7 @@
+{
+  "schema": "aiforall.k6-fixtures/v1",
+  "envoy": "envoyproxy/envoy:v1.31.2@sha256:c56804e9fc8d5184c45862ad851173a925ff383151cb94156f86bed047da29bc",
+  "idp": "python:3.13-slim-bookworm@sha256:a5a7017efc5969e00ae2b91c8eb0631049a569652aa4ffc4501769049ae45c72",
+  "idp_source": "https://registry.hub.docker.com/v2/repositories/library/python/tags/3.13-slim-bookworm",
+  "verified_utc": "2026-11-13"
+}

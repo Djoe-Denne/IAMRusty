@@ -40,25 +40,28 @@ def validate_jobs(jobs):
                 and matched[0].get("conclusion") == "success", "BUILD_JOB_NOT_SUCCESSFUL")
 
 
+def validate_artifact(item, run_id, source_sha, now=None):
+    now = datetime.now(timezone.utc) if now is None else now
+    try:
+        expiry = datetime.fromisoformat(item["expires_at"].replace("Z", "+00:00"))
+        require(expiry > now and item.get("expired") is False, "BINARY_ARTIFACT_EXPIRED")
+    except (KeyError, ValueError, TypeError):
+        raise Refused("BINARY_ARTIFACT_EXPIRY") from None
+    require(type(item.get("id")) is int and item["id"] > 0, "BINARY_ARTIFACT_ID")
+    require(isinstance(item.get("digest"), str) and re.fullmatch(r"sha256:[a-f0-9]{64}", item["digest"]), "BINARY_ARTIFACT_DIGEST")
+    require(type(item.get("size_in_bytes")) is int and 0 < item["size_in_bytes"] <= MAX_DOWNLOAD, "BINARY_ARTIFACT_SIZE")
+    origin = item.get("workflow_run", {})
+    require(origin.get("id") == run_id and origin.get("head_sha") == source_sha, "BINARY_ARTIFACT_ORIGIN")
+    return {key: item[key] for key in ("id", "name", "digest", "size_in_bytes")}
+
+
 def select_artifacts(artifacts, run_id, attempt, source_sha, now=None):
     selected = {}
-    now = datetime.now(timezone.utc) if now is None else now
     for role in ROLES:
         name = f"k6-binaries-{role}-{run_id}-{attempt}"
         matched = [artifact for artifact in artifacts if artifact.get("name") == name]
         require(len(matched) == 1, "BINARY_ARTIFACT_MISSING_OR_AMBIGUOUS")
-        item = matched[0]
-        try:
-            expiry = datetime.fromisoformat(item["expires_at"].replace("Z", "+00:00"))
-            require(expiry > now and item.get("expired") is False, "BINARY_ARTIFACT_EXPIRED")
-        except (KeyError, ValueError, TypeError):
-            raise Refused("BINARY_ARTIFACT_EXPIRY") from None
-        require(type(item.get("id")) is int and item["id"] > 0, "BINARY_ARTIFACT_ID")
-        require(isinstance(item.get("digest"), str) and re.fullmatch(r"sha256:[a-f0-9]{64}", item["digest"]), "BINARY_ARTIFACT_DIGEST")
-        require(type(item.get("size_in_bytes")) is int and 0 < item["size_in_bytes"] <= MAX_DOWNLOAD, "BINARY_ARTIFACT_SIZE")
-        origin = item.get("workflow_run", {})
-        require(origin.get("id") == run_id and origin.get("head_sha") == source_sha, "BINARY_ARTIFACT_ORIGIN")
-        selected[role] = {key: item[key] for key in ("id", "name", "digest", "size_in_bytes")}
+        selected[role] = validate_artifact(matched[0], run_id, source_sha, now)
     require(len({item["id"] for item in selected.values()}) == len(ROLES), "BINARY_ARTIFACT_IDS")
     return selected
 

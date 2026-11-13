@@ -1,0 +1,102 @@
+name: k6 health OAuth SAN E2E (saved images)
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_run_id:
+        description: Exact successful k6-images workflow run
+        required: true
+        type: string
+      image_attempt:
+        description: Exact packaging attempt
+        required: true
+        default: '1'
+        type: string
+      target_sha:
+        description: Full application commit attested by the saved images
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  e2e:
+    name: Five real phases on disposable Ubuntu Kind; no Cargo
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+    steps:
+      - name: Checkout immutable harness without credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+          persist-credentials: false
+
+      - name: Prepare private run root outside Git
+        run: |
+          umask 077
+          mkdir "$RUNNER_TEMP/k6-e2e-private"
+          chmod 700 "$RUNNER_TEMP/k6-e2e-private"
+
+      - name: Acquire exact saved images with provenance and digest checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_RUN: ${{ inputs.image_run_id }}
+          IMAGE_ATTEMPT: ${{ inputs.image_attempt }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: >-
+          python3 -B ops/tests/k6/ci/image_input.py
+          --run-id "$IMAGE_RUN" --attempt "$IMAGE_ATTEMPT" --target-sha "$TARGET_SHA"
+          --output "$RUNNER_TEMP/k6-e2e-private/images"
+
+      - name: Install host libraries (no sandbox or TLS policy changes)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libnss3-tools libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64
+          python3 -m pip install 'PyYAML==6.0.2'
+
+      - name: Acquire pinned CLI and complete k6 Chromium bundles
+        run: |
+          python3 -B ops/tests/k6/ci/provision.py --output "$RUNNER_TEMP/k6-e2e-private/cli"
+          python3 -B ops/tests/k6/provision-linux.py --output "$RUNNER_TEMP/k6-e2e-private/browser"
+
+      - name: Bootstrap owned stack and run unchanged health OAuth SAN scenarios
+        run: >-
+          python3 -B ops/tests/k6/ci/campaign.py run
+          --directory "$RUNNER_TEMP/k6-e2e-private/campaign"
+          --cli-directory "$RUNNER_TEMP/k6-e2e-private/cli"
+          --browser-directory "$RUNNER_TEMP/k6-e2e-private/browser"
+          --image-directory "$RUNNER_TEMP/k6-e2e-private/images"
+
+      - name: Independently verify owned cleanup even on cancellation
+        if: ${{ always() }}
+        run: >-
+          python3 -B ops/tests/k6/ci/campaign.py clean
+          --directory "$RUNNER_TEMP/k6-e2e-private/campaign"
+
+      - name: Retain only allowlisted sanitized evidence (never private inputs or logs)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: k6-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/report.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/provenance.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/cleanup.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/admission.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/startup.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/processes.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/correlation.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/iam-health.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/auth-envoy-san-good.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/auth-envoy-san-bad.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/auth-envoy-san-restored.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/auth-oauth-browser.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/docker-resources.jsonl
+          if-no-files-found: warn
+          retention-days: 7

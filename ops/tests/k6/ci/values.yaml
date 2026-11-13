@@ -1,0 +1,12 @@
+# Only backings needed by health/OAuth/SAN. Never apply to the existing lab.
+applications: {enabled: false}
+network: {create: true}
+postgres:
+  create: true
+  initialize: false
+  # The run-specific IAM database is created by the parent in the owned cluster.
+openfga: {create: true, initialize: false, inspect: false}
+localstack: {create: true, initialize: false, queues: [user-events]}
+redis: {create: false}
+openbao: {create: false}
+zot: {create: false}

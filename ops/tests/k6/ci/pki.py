@@ -23,7 +23,7 @@ def identities(run_id):
         "ext-authz": ["DNS:ext-authz", "DNS:ext-authz" + suffix],
         "postgres": ["DNS:postgres", "DNS:postgres" + suffix],
         "openfga": ["DNS:openfga", "DNS:openfga" + suffix],
-        "localstack": ["DNS:localstack", "DNS:localstack" + suffix],
+        "localstack": ["DNS:localstack", "DNS:localstack" + suffix, "DNS:localhost", "IP:127.0.0.1"],
     }
 
 
