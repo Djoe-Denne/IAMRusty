@@ -1,17 +1,20 @@
-# Profil CI Ubuntu — préparation, pas encore une campagne exécutable
+# Campagne CI Ubuntu — health, OAuth navigateur et TLS/SAN
 
-Le mandat porte sur un job `k6-e2e` autonome, parallèle aux tests. Le
+Le job manuel `k6-e2e` exécute une pile autonome sur une VM Ubuntu jetable. Le
 [contrat Proposed](../../../../docs/contracts/k6-three-scenario-ubuntu-ci.md)
-décrit le résultat attendu. Aucun succès des tests ci-dessous ne qualifie
-Chromium/Linux ou le parcours E2E.
+décrit ses frontières. Première campagne complète mesurée :
+[run43461703946](https://github.com/Djoe-Denne/IAMRusty/actions/runs/43461703946),
+34checks et corrélations parent PASS, restauration/cleanup PASS.
+Voir le [bilan et ses limites](../../../../docs/missions/20261113-k6-ubuntu-e2e-results.md).
+Un succès des seuls helpers Python ou du packaging ne qualifie pas l'E2E.
 
 ## Éléments livrés
 
 - `evidence.py` : réception fermée des cinq résumés existants, 34 checks,
   codes natifs explicites, deltas OAuth et causalité/restauration SAN.
 - `inputs.py`, `config/*.toml.in` : secrets neufs et configurations publiques
-  fermées, sans import de configuration opérateur. Ces templates sont validés
-  syntaxiquement ; leur chargement par les vrais services reste à prouver.
+  fermées, sans import de configuration opérateur ; chargées par les vrais
+  services dans la campagne qualifiée sur les images applicatives indiquées.
 - `config/envoy.yaml` : profil navigateur TLS, upstreams mTLS vérifiés,
   ext-authz fail-closed, stripping principal et exemptions exactes OAuth/health.
 - Extension opt-in `ciEnabled: true` du chart natif, namespace
@@ -81,8 +84,55 @@ effective. Ce temps observé n'inclut pas une campagne E2E et n'est pas un SLA.
 Artefact réutilisable : **`k6-images-43420550908-1`**, ID **`14033787265`**,
 expiration annoncée **2026-11-20 11:54:52UTC**. Archive `images.tar.gz` SHA256 :
 `8dfd67758e2f2bafefc0c5178f8c8cab9a4725f8cfc570ed570a55afb0596e57`.
-Les tags et IDs des trois images sont dans sa provenance ; la future campagne
-E2E doit vérifier ce bundle, pas reconstruire les applications.
+Les tags et IDs des trois images sont dans sa provenance ; la campagne E2E
+vérifie ce bundle, sans reconstruire les applications.
+
+## Exécuter la campagne avec des images sauvegardées
+
+Depuis un checkout autorisé du dépôt, choisir un **run de packaging** réussi,
+son attempt exact et le SHA applicatif complet attesté par ses images :
+
+```bash
+gh workflow run k6-e2e.yml --repo Djoe-Denne/IAMRusty --ref master \
+  -f image_run_id="$IMAGE_RUN" \
+  -f image_attempt="$IMAGE_ATTEMPT" \
+  -f target_sha="$TARGET_SHA"
+```
+
+Le consumer vérifie workflow/run/attempt/IDs/hash/provenance avant utilisation.
+Expiration ou incompatibilité = refus ; aucun fallback Cargo. Un nouveau run
+de packaging peut réutiliser les bundles producteur encore valides. Si ceux-ci
+ont aussi expiré, une nouvelle production nécessite son propre mandat ; pas
+de reconstruction cachée. Le run ci-dessus ne lance ni UT/IT applicatifs ni
+couverture LLVM, et n'utilise aucune image applicative instrumentée.
+
+`campaign.py` crée le Kind mono-nœud possédé, les dépendances, secrets et PKI
+neufs, les forwards et le profil NSS privé. Il exécute health, SAN bon/mauvais/
+restauré, puis le vrai scénario OAuth navigateur, et reçoit les34checks nommés
+ainsi que les deltas exacts. Une sortie k6 nulle seule ne suffit jamais.
+
+`campaign_browser.py` construit uniquement l'image d'outillage k6/Chromium avant
+les mesures. Le navigateur tourne en Docker non-root, rootfs readonly,
+capdropALL, NoNewPrivs et docker-default ; profil seccomp ciblé/pinné sans
+privileged ni sysctl global. Le témoin exige renderer possédé, namespaces user
+ET pid distincts, seccomp2 avec filtre additionnel et aucun drapeau de bypass.
+Les titres Chromium Linux réécrits sont décodés sans exécution de commande.
+
+Réseauhost uniquement dans la VM GitHub jetable pour conserver les origines
+IAM127.0.0.1:18443/IdPlocalhost:18445 et l'isolation du cookie host-only. Seule
+la case privée RW est montée sous `/run/case` (chemin court pour les sockets
+Chromium) avec trois fichiers d'entrée publics readonly ; aucun socket Docker,
+kubeconfig ou clé privée. Les scripts métiers et leurs assertions ne sont pas
+remplacés par une sonde. Le workflow `k6-browser-container.yml` reste un diagnostic
+manuel distinct, explicitement NOT_E2E_SANDBOX_TRIAL, jamais une qualification OAuth.
+
+Le parent tente la restauration SAN avant teardown, ferme les enfants et le
+conteneur navigateur, puis le cluster/volume reçus. Chaque retrait est lié aux
+IDs/reçus contemporains, pas aux seuls labels. Une étape indépendante always
+revérifie le cleanup. Seuls les fichiers publics explicitement allowlistés sont
+uploadés dans `k6-e2e-<run_id>-<attempt>` pour sept jours : aucun raw log, profil,
+token/cookie, URL OAuth query, kubeconfig ou clé. Aucun runtime local n'est
+démarré ou nettoyé par cette campagne hébergée.
 
 ## Validation hors cluster
 
@@ -99,12 +149,12 @@ Les tests de rendu utilisent réellement Helm ; ceux du projecteur exécutent
 réellement k6 sans requête réseau ni lancement Chromium. Un outil absent donne
 un skip explicite, jamais une preuve de qualification.
 
-## Restant avant raccord CI
+## Portée de la qualification
 
-Le parent Ubuntu `campaign.py`, le raccord de la PKI et confiance NSS privées, le bootstrap
-Kind/backings/OpenFGA, la provenance des images du checkout, les reçus IDs/UID,
-les forwards, la mutation/restauration SAN et le cleanup failure-safe restent à
-implémenter et tester. Le job de packaging ne doit pas annoncer un E2E vert en
-exécutant seulement les modules présents ici. Qualification finale : vrai run
-GitHub des cinq phases, puis vérification de ses artifacts allowlistés et du
-cleanup. Aucun workflow historique réactivé, aucun secret local à transférer.
+Le résultat est lié aux **images applicatives T**, au SDK S et au harness H
+indiqués dans provenance.json, pas implicitement au HEAD applicatif courant.
+La campagne finale utilise T=`1ca9a4c8`, S=`93b890ff`, H=`bc143cc8` ; les corrections
+coverage90 postérieures à T ne sont pas qualifiées par ces images. Pas de mesure
+Sonar/90%, de campagne maintenance/mTLS complète, de charge ou de qualification
+de tout le lab. Aucun workflow historique suspendu n'est réactivé et aucun
+statut ADR/contrat Proposed n'est promu par un run vert.
