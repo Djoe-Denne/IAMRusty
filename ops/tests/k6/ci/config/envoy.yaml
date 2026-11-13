@@ -1,0 +1,131 @@
+# Closed browser ingress for disposable CI only; nominal mesh is unchanged.
+admin:
+  address:
+    socket_address: {address: 127.0.0.1, port_value: 9901}
+static_resources:
+  listeners:
+    - name: ci_browser
+      address:
+        socket_address: {address: 0.0.0.0, port_value: 10000}
+      filter_chains:
+        - transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+              # Browser has no client key; mTLS remains mandatory upstream.
+              require_client_certificate: false
+              common_tls_context:
+                tls_certificates:
+                  - certificate_chain: {filename: /app/certs/envoy-mesh.crt}
+                    private_key: {filename: /app/certs/envoy-mesh.key}
+          filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ci_ingress
+                codec_type: AUTO
+                route_config:
+                  name: ci_routes
+                  virtual_hosts:
+                    - name: iam
+                      domains: ['*']
+                      routes:
+                        - match:
+                            path: /iam/health
+                            headers: [{name: ':method', string_match: {exact: GET}}]
+                          route: {cluster: iam}
+                          typed_per_filter_config: &public_route
+                            envoy.filters.http.ext_authz:
+                              '@type': type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                              disabled: true
+                        - match:
+                            safe_regex: {google_re2: {}, regex: '^/iam/api/auth/gitlab/(login|callback|relink-callback)$'}
+                            headers: [{name: ':method', string_match: {exact: GET}}]
+                          route: {cluster: iam}
+                          typed_per_filter_config: *public_route
+                        - match:
+                            path: /iam/api/auth/complete-registration
+                            headers: [{name: ':method', string_match: {exact: POST}}]
+                          route: {cluster: iam}
+                          typed_per_filter_config: *public_route
+                        # link, relink and relink-start deliberately not exempted.
+                        - match: {prefix: /iam/}
+                          route: {cluster: iam}
+                http_filters:
+                  - name: envoy.filters.http.lua
+                    typed_config:
+                      '@type': type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+                      default_source_code:
+                        inline_string: |
+                          function envoy_on_request(handle)
+                            local doomed = {}
+                            for key, _ in pairs(handle:headers()) do
+                              if string.sub(string.lower(key), 1, 12) == "x-principal-" then
+                                table.insert(doomed, key)
+                              end
+                            end
+                            for _, key in ipairs(doomed) do handle:headers():remove(key) end
+                          end
+                  - name: envoy.filters.http.ext_authz
+                    typed_config:
+                      '@type': type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                      transport_api_version: V3
+                      failure_mode_allow: false
+                      http_service:
+                        server_uri: {uri: 'https://ext-authz:8090/', cluster: ext_authz, timeout: 5s}
+                        authorization_request:
+                          allowed_headers:
+                            patterns: [{exact: authorization}]
+                        authorization_response:
+                          allowed_upstream_headers:
+                            patterns: [{exact: x-principal-iss}, {exact: x-principal-sub}]
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      '@type': type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+  clusters:
+    - name: iam
+      connect_timeout: 5s
+      type: STRICT_DNS
+      load_assignment:
+        cluster_name: iam
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: {address: iam.aiforall-local-full.svc.cluster.local, port_value: 8443}
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: iam.aiforall-local-full.svc.cluster.local
+          common_tls_context:
+            tls_certificates: &client_certificate
+              - certificate_chain: {filename: /app/certs/envoy-mesh.crt}
+                private_key: {filename: /app/certs/envoy-mesh.key}
+            validation_context:
+              trusted_ca: {filename: /app/certs/ca.crt}
+              match_typed_subject_alt_names:
+                - san_type: DNS
+                  matcher: {exact: iam.aiforall-local-full.svc.cluster.local}
+    - name: ext_authz
+      connect_timeout: 5s
+      type: STRICT_DNS
+      load_assignment:
+        cluster_name: ext_authz
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: {address: ext-authz.aiforall-local-full.svc.cluster.local, port_value: 8090}
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: ext-authz
+          common_tls_context:
+            tls_certificates: *client_certificate
+            validation_context:
+              trusted_ca: {filename: /app/certs/ca.crt}
+              match_typed_subject_alt_names:
+                - san_type: DNS
+                  matcher: {exact: ext-authz}

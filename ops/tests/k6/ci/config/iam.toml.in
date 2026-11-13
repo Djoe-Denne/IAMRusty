@@ -1,0 +1,63 @@
+[security]
+mode = "local_insecure"
+[server]
+host = "0.0.0.0"
+port = 8080
+tls_enabled = true
+tls_port = 8443
+tls_cert_path = "/app/certs/iam-service.crt"
+tls_key_path = "/app/certs/iam-service.key"
+tls_client_ca_path = "/app/certs/ca.crt"
+[auth.jwt]
+platform_issuer = "https://127.0.0.1:18443/iam"
+allow_historical_platform_issuer = false
+audience = "aiforall"
+jwks_url = "https://iam.aiforall-local-full.svc.cluster.local:8443/iam/.well-known/jwks.json"
+allowed_algorithms = ["RS256"]
+[database]
+host = "postgres.aiforall-local-full.svc.cluster.local"
+port = 5432
+db = "$database"
+[database.creds]
+username = "postgres"
+password = "$database_password"
+[[idp.connectors]]
+id = "gitlab"
+base_url = "https://$name-oauth.aiforall-local-full.svc.cluster.local:8443/oauth-connect/gitlab"
+hmac_secret = "$hmac_secret"
+pkce_supported = true
+redirect_uris = ["https://127.0.0.1:18443/iam/api/auth/gitlab/callback", "https://127.0.0.1:18443/iam/api/auth/gitlab/relink-callback"]
+[jwt]
+expiration_seconds = 900
+refresh_token_expiration_seconds = 2592000
+issuer = "https://127.0.0.1:18443/iam"
+audience = "aiforall"
+public_base_url = "https://127.0.0.1:18443"
+jwks_url = "https://127.0.0.1:18443/iam/.well-known/jwks.json"
+allowed_algorithms = ["RS256"]
+oauth_state_secret = "$oauth_state_secret"
+[jwt.secret]
+type = "pem_file"
+private_key_path = "/app/config/platform-signing.pem"
+public_key_path = "/app/config/platform-signing.pub"
+key_id = "$run_id"
+[queue]
+enabled = true
+type = "sqs"
+region = "us-east-1"
+account_id = "000000000000"
+host = "localstack.aiforall-local-full.svc.cluster.local"
+port = 4566
+scheme = "https"
+access_key_id = "$sqs_access_key"
+secret_access_key = "$sqs_secret_key"
+default_queues = ["user-events"]
+max_retries = 0
+timeout_seconds = 10
+[queue.queues]
+user_signed_up = ["user-events"]
+user_email_verified = ["user-events"]
+password_reset_requested = ["user-events"]
+[logging]
+level = "error"
+filter = "error"

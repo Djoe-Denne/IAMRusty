@@ -24,6 +24,10 @@ Les blocages de bail/cible restent explicites ; aucun résultat historique promu
 
 ## Contexte
 
+Profil additionnel en préparation : [trois scénarios sur Ubuntu CI jetable](../contracts/k6-three-scenario-ubuntu-ci.md),
+**Proposed**, mandat utilisateur du 2026-11-13. Ce lien ne modifie ni le statut
+de l'ADR ni la qualification Linux ; le workflow tooling historique reste suspendu.
+
 La campagne authentification a qualifié un parcours Chromium et des oracles
 HTTP/Envoy avec des pilotes ponctuels. Le besoin est une structure maintenable
 pour rejouer ces scénarios et tester propagation/reprise des droits sous Linux.

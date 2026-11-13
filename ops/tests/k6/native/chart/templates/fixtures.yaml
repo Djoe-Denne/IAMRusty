@@ -125,6 +125,10 @@ spec:
   selector: {aiforall.dev/k6-run: {{ $v.runId | quote }}, aiforall.dev/k6-role: {{ $role }}}
   ports: [{name: https, port: {{ $port }}, targetPort: https}]
 {{ end }}
+{{- if .Values.ciEnabled }}
+---
+{{ include "native.ci" . }}
+{{- end }}
 {{- end -}}
 {{- $items := list -}}
 {{- range $document := splitList "\n---\n" (include "native.resources" .) -}}

@@ -1,5 +1,10 @@
 # Trois scénarios k6 sur le lab HTTPS natif
 
+Le [profil Ubuntu CI autonome](../ci/README.md) est en préparation séparée :
+ne pas invoquer ce parent Windows sur Ubuntu ni déduire une qualification Linux
+de la campagne native. L'extension Helm CI est opt-in et n'autorise pas son
+application au lab partagé.
+
 `campaign.ps1` prépare une slice IAM/OAuthConnect v2/Envoy/IdP, exécute les
 trois scénarios conservés, puis ferme ses ressources même après échec. Il ne
 démarre, ne répare et n'arrête **jamais le lab**. Le simulateur Python reste

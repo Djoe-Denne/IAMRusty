@@ -1,0 +1,72 @@
+{{- define "native.ci" -}}
+{{- $v := .Values -}}
+{{- if ne .Release.Namespace "aiforall-local-full" -}}
+{{- fail "CI fixtures require the closed namespace in a disposable cluster" -}}
+{{- end -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: iam
+  labels: {aiforall.dev/k6-run: {{ $v.runId | quote }}}
+spec:
+  selector: {aiforall.dev/k6-run: {{ $v.runId | quote }}, aiforall.dev/k6-role: iam}
+  ports: [{name: https, port: 8443, targetPort: https}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ext-authz
+  labels: {aiforall.dev/k6-run: {{ $v.runId | quote }}}
+spec:
+  selector: {aiforall.dev/k6-run: {{ $v.runId | quote }}, aiforall.dev/k6-role: ext-authz}
+  ports: [{name: https, port: 8090, targetPort: https}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $v.name }}-ext-authz
+  labels: {aiforall.dev/k6-run: {{ $v.runId | quote }}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {aiforall.dev/k6-run: {{ $v.runId | quote }}, aiforall.dev/k6-role: ext-authz}
+  template:
+    metadata:
+      labels:
+        aiforall.dev/k6-run: {{ $v.runId | quote }}
+        aiforall.dev/k6-role: ext-authz
+        aiforall.dev/kind-minimal: "true"
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 15
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: ext-authz
+          image: {{ required "CI ext-authz image required" (index $v.images "ext-authz") | quote }}
+          imagePullPolicy: Never
+          env:
+            - {name: PORT, value: "8090"}
+            - {name: EXT_AUTHZ_AUDIENCE, value: aiforall}
+            - {name: EXT_AUTHZ_JWKS_URL, value: "https://iam.aiforall-local-full.svc.cluster.local:8443/iam/.well-known/jwks.json"}
+            - {name: EXT_AUTHZ_JWKS_POLL_SECS, value: "1"}
+            - {name: EXT_AUTHZ_TLS_CA, value: /app/certs/ca.crt}
+            - {name: EXT_AUTHZ_TLS_CERT, value: /app/certs/ext-authz.crt}
+            - {name: EXT_AUTHZ_TLS_KEY, value: /app/certs/ext-authz.key}
+          ports: [{name: https, containerPort: 8090}]
+          readinessProbe: {tcpSocket: {port: https}, periodSeconds: 2, timeoutSeconds: 2}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: "1", memory: 256Mi}
+          volumeMounts:
+            - {name: tls, mountPath: /app/certs, readOnly: true}
+      volumes:
+        - name: tls
+          secret: {secretName: "{{ $v.name }}-ext-authz-tls", defaultMode: 0440}
+{{- end -}}

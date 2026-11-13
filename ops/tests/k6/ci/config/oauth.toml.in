@@ -1,0 +1,33 @@
+[server]
+host = "0.0.0.0"
+port = 8080
+tls_enabled = true
+tls_port = 8443
+tls_cert_path = "/app/certs/oauth.crt"
+tls_key_path = "/app/certs/oauth.key"
+[logging]
+level = "error"
+[[providers]]
+id = "gitlab"
+client_id = "$client_id"
+client_secret = "$client_secret"
+hmac_secret = "$hmac_secret"
+redirect_uris = ["https://127.0.0.1:18443/iam/api/auth/gitlab/callback", "https://127.0.0.1:18443/iam/api/auth/gitlab/relink-callback"]
+scopes = ["read_user"]
+pkce_supported = true
+secrets_mode = "direct"
+transport_security = "verified"
+ca_cert_file = "/app/certs/ca.crt"
+token_auth_method = "client_secret_post"
+[providers.profile]
+kind = "oauth"
+authorization_url = "https://localhost:18445/oauth/authorize"
+token_url = "https://$name-idp.aiforall-local-full.svc.cluster.local:8080/oauth/token"
+[providers.profile.apis.user]
+url = "https://$name-idp.aiforall-local-full.svc.cluster.local:8080/user"
+access_token_auth = "bearer"
+[providers.profile.claims]
+sub = {api = "user", json_path = "$$.id"}
+preferred_username = {api = "user", json_path = "$$.username"}
+email = {api = "user", json_path = "$$.email"}
+email_verified = {api = "user", json_path = "$$.email_verified"}
