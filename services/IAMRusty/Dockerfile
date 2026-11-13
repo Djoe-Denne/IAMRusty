@@ -1,18 +1,23 @@
 # Get build image argument
 ARG BUILD_IMAGE=local/build-artifacts:latest
+ARG RUNTIME_IMAGE=debian:bookworm-slim
 
 # Copy artifacts from build image
 FROM ${BUILD_IMAGE} as build-source
 
 # Final stage - minimal runtime image
-FROM debian:bookworm-slim
+FROM ${RUNTIME_IMAGE} AS runtime
+ARG RUNTIME_OPENSSL_PACKAGE=libssl-dev
+ARG SOURCE_REVISION=unattested
+ARG SDK_REVISION=unattested
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION aiforall.dev.sdk-revision=$SDK_REVISION
 
 WORKDIR /app
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    libssl-dev \
+    ${RUNTIME_OPENSSL_PACKAGE} \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -28,13 +33,14 @@ RUN chmod +x /app/docker-entrypoint.sh
 RUN mkdir -p /app/keys /app/config /app/certs
 
 # Run as non-root user
-RUN adduser --disabled-password --gecos "" appuser \
-    && chown -R appuser:appuser /app
-USER appuser
+RUN (getent group 1000 >/dev/null || groupadd --gid 1000 appuser) \
+    && (getent passwd 1000 >/dev/null || useradd --uid 1000 --gid 1000 --no-create-home appuser) \
+    && chown -R 1000:1000 /app
+USER 1000:1000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8080/iam/health || exit 1
 
 # Set the entrypoint to run migrations first, then the service
-ENTRYPOINT ["/app/docker-entrypoint.sh"] 
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

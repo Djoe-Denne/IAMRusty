@@ -1,0 +1,9 @@
+{
+  "schema": "aiforall.k6-runtime/v1",
+  "platform": "linux/amd64",
+  "producer_os": "ubuntu-24.04",
+  "runtime": "ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5",
+  "openssl_package": "libssl3t64",
+  "source": "https://registry.hub.docker.com/v2/repositories/library/ubuntu/tags/24.04",
+  "verified_utc": "2026-11-13"
+}

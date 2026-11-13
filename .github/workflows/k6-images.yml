@@ -1,0 +1,99 @@
+name: k6 reusable images (packaging only, not E2E qualification)
+
+on:
+  workflow_dispatch:
+    inputs:
+      producer_run_id:
+        description: CI push/master run with the three completed build bundles
+        required: true
+        type: string
+      producer_attempt:
+        description: Exact CI attempt (no fallback to a different attempt)
+        required: true
+        default: '1'
+        type: string
+      target_sha:
+        description: Exact 40-character application commit from that CI run
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  package-images:
+    name: Package existing native binaries; no Cargo, units or IT
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+    steps:
+      - name: Checkout immutable harness without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+          persist-credentials: false
+
+      - name: Admit trusted producer attempt and acquire exact artifact IDs
+        id: acquire
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRODUCER_RUN: ${{ inputs.producer_run_id }}
+          PRODUCER_ATTEMPT: ${{ inputs.producer_attempt }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: >-
+          python3 -B ops/tests/k6/ci/artifacts.py
+          --run-id "$PRODUCER_RUN" --attempt "$PRODUCER_ATTEMPT"
+          --source-sha "$TARGET_SHA" --output "$RUNNER_TEMP/k6-acquired"
+
+      - name: Checkout target metadata and IAM entrypoint only (no build scripts executed)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.acquire.outputs.target_sha }}
+          path: target-source
+          submodules: false
+          persist-credentials: false
+          sparse-checkout: |
+            Cargo.lock
+            ops/deploy/build/targets.json
+            services/IAMRusty/docker-entrypoint.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Verify internal hashes, package images, check all four runtime ELFs
+        run: >-
+          python3 -B ops/tests/k6/ci/package.py
+          --acquired "$RUNNER_TEMP/k6-acquired"
+          --source "$GITHUB_WORKSPACE/target-source"
+          --output "$RUNNER_TEMP/k6-packaged"
+
+      - name: Independently close owned packaging probes, including cancellation
+        if: ${{ always() }}
+        run: python3 -B ops/tests/k6/ci/cleanup.py --output "$RUNNER_TEMP/k6-packaged"
+
+      - name: Save reusable images and explicit target/harness provenance
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: k6-images-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/k6-packaged/images.tar.gz
+            ${{ runner.temp }}/k6-packaged/provenance.json
+            ${{ runner.temp }}/k6-packaged/docker-resources.jsonl
+            ${{ runner.temp }}/k6-packaged/cleanup.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Preserve allowlisted failure provenance (never private inputs or raw logs)
+        if: ${{ always() && (failure() || cancelled()) }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: k6-packaging-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/k6-packaged/provenance.json
+            ${{ runner.temp }}/k6-packaged/docker-resources.jsonl
+            ${{ runner.temp }}/k6-packaged/cleanup.json
+          if-no-files-found: ignore
+          retention-days: 7

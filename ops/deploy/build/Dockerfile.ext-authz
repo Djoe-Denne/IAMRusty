@@ -1,10 +1,15 @@
 # syntax=docker/dockerfile:1
 # Packaging only. The shared Linux build owns Cargo and its persistent target.
 ARG BUILD_IMAGE=local/build-artifacts:latest
+ARG RUNTIME_IMAGE=debian:bookworm-slim
 FROM ${BUILD_IMAGE} AS artifacts
-FROM debian:bookworm-slim AS runtime
+FROM ${RUNTIME_IMAGE} AS runtime
+ARG RUNTIME_OPENSSL_PACKAGE=libssl3
+ARG SOURCE_REVISION=unattested
+ARG SDK_REVISION=unattested
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION aiforall.dev.sdk-revision=$SDK_REVISION
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 curl \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates ${RUNTIME_OPENSSL_PACKAGE} curl \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=artifacts --chown=65534:65534 /app/target/release/ext-authz /app/ext-authz
 USER 65534:65534

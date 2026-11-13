@@ -9,14 +9,14 @@
 
 ## Périmètre
 
-Job `k6-e2e` indépendant des autres tests dans `ci.yml`, `ubuntu-24.04` hébergé,
+Objectif initial : job `k6-e2e` indépendant des autres tests, `ubuntu-24.04` hébergé,
 permissions lecture. Ne pas réactiver le workflow Linux tooling suspendu.
 Kind mono-nœud neuf par run/attempt, kubeconfig privé, namespace
 `aiforall-local-full` uniquement à l'intérieur de ce cluster possédé.
 
 Vrais IAM, OAuthConnect v2 `gitlab`, Envoy et ext-authz du checkout ; simulateur
 IdP protocolaire existant ; PostgreSQL, OpenFGA et LocalStack/SQS dédiés.
-Réutiliser Bake avec sélection `iam,oauth,ext-authz`, chart natif et backings
+Réutiliser l'inventaire Bake avec sélection `iam,oauth,ext-authz`, chart natif et backings
 kind-minimal. Aucun lab local, OpenBao, service métier additionnel ou registry
 publish. Secrets, clés JWT et PKI neufs dans le répertoire privé du runner ;
 aucune clé versionnée/opérateur, aucun secret GitHub requis.
@@ -65,3 +65,32 @@ Tests ciblés de rendu, résumés/refus, projecteur réel, interruption, restaur
 et cleanup, puis vrai run GitHub sur commit publié. Outillage seul, skip Windows
 sur POSIX ou simple exit zéro ne qualifient pas cette campagne. Ce contrat reste
 Proposed même après un run réussi.
+
+## Réutilisation des binaires CI (GO utilisateur, 2026-11-13)
+
+Le producteur devient le job build existant, non les jobs LLVM/coverage. Trois
+bundles immuables (IAM avec migration, OAuthConnect, ext-authz), issus d'Ubuntu
+24.04 x64, profil réel `dev/debug`, sorties strictement tirées de l'inventaire
+Bake. Aucun second Cargo, strip, cache comme source ou fallback reconstruction.
+Rétention sept jours, manifeste source/SDK/run/attempt/outils/flags/ELF/hash.
+
+Consumer manuel séparé, permissions contents/actions lecture, inputs run,
+attempt et SHA cible attendus. Vérifier repository ID, workflow CI exact,
+push/master, head SHA, jobs build verts de cet attempt et trois IDs d'artefacts
+immuables non expirés ; le reste de CI peut continuer. Vérifier digest API de
+l'archive, puis format fermé et hashes internes avant packaging sans Cargo.
+Tout mélange PR/fork/run/attempt ou instrumentation LLVM = refus explicite.
+
+ABI : producteurs et runtime Ubuntu24, runtime par digest ; garder les défauts
+Bookworm des Dockerfiles hors ce profil. Vérifier ELF et résolution dynamique
+dans les images finales, migration comprise. Le stage porteur contient un shell
+pour les vérifications OAuthConnect, pas un compilateur. UID/GID numériques
+préservés sans supprimer l'utilisateur d'une base Ubuntu. Provenance distingue
+applications T/SDK S et harness H ; H peut différer de T si seam compatible.
+L'entrypoint IAM vient de T et est empreinté. Aucun push registry requis.
+
+Ce raccord, y compris un packaging réussi, n'est pas une qualification E2E.
+Analyse architecte lecture seule dans la même session ; aucun Accept nouveau.
+La seam livre d'abord `k6-images.yml`, workflow manuel de packaging seulement,
+pas encore le job E2E initialement visé. Le consumer n'exécute pas Bake/Cargo :
+il réutilise son inventaire et les Dockerfiles de packaging, sans compilation.

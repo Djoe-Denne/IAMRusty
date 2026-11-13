@@ -32,7 +32,8 @@ jobs:
 
   build:
     name: Build (${{ matrix.service }})
-    runs-on: ubuntu-latest
+    # Native bundles are packaged later on the same Ubuntu ABI, without Cargo.
+    runs-on: ubuntu-24.04
     needs: [fmt]
     strategy:
       fail-fast: false
@@ -40,8 +41,10 @@ jobs:
         include:
           - service: IAMRusty
             cache_key: iam
+            e2e_role: iam
             package_args: >-
               --package iam-service
+              --package iam-migration
               --package iam-domain
               --package iam-application
               --package iam-infra
@@ -86,17 +89,23 @@ jobs:
             package_args: --package sentinel-sync
           - service: Ext Authz
             cache_key: ext-authz
+            e2e_role: ext-authz
             package_args: --package ext-authz
+          - service: OAuthConnect
+            cache_key: oauth
+            e2e_role: oauth
+            package_args: --package oauth-connect-service
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
+          persist-credentials: false
 
       - uses: ./.github/actions/setup-rust
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          shared-key: ${{ matrix.cache_key }}
+          shared-key: ${{ matrix.cache_key }}-ubuntu24-native-v1
           cache-on-failure: true
 
       - name: Install native dependencies
@@ -112,6 +121,27 @@ jobs:
 
       - name: Build service
         run: cargo build --locked --all-targets ${{ matrix.package_args }}
+
+      - name: Collect existing native binaries (no rebuild or coverage flags)
+        if: ${{ matrix.e2e_role && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        env:
+          K6_BINARY_ROLE: ${{ matrix.e2e_role }}
+          K6_BUILD_PACKAGE_ARGS: ${{ matrix.package_args }}
+          # Repository CI workflow ID; consumer corroborates against the API.
+          K6_CI_WORKFLOW_ID: '267870909'
+        run: >-
+          python3 -B ops/tests/k6/ci/binaries.py --role "$K6_BINARY_ROLE"
+          --output "$RUNNER_TEMP/k6-native-bundle"
+
+      - name: Save immutable native bundle for independent E2E packaging
+        if: ${{ matrix.e2e_role && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: k6-binaries-${{ matrix.e2e_role }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/k6-native-bundle/bundle.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
 
   ext-authz-unit:
     name: Ext Authz (unit + HTTP Check stand-in, not Envoy proof)
@@ -172,6 +202,14 @@ jobs:
         env:
           AIFORALL_IMAGE_REBUILD_PROOF: '0'
         run: python3 -B -m unittest discover -s ops/tests -p 'test_*.py' -v
+      - name: Closed reusable-binary seam and CI fixture contracts (not E2E)
+        run: |
+          python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_binaries.py' -v
+          python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_workflows.py' -v
+          python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_cleanup.py' -v
+          python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_inputs.py' -v
+          python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_render.py' -v
+          python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_pki.py' -v
 
   apparatus-p0:
     name: Apparatus P0 (contracts + reference-kv)
