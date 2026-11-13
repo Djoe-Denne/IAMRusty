@@ -94,3 +94,36 @@ Analyse architecte lecture seule dans la même session ; aucun Accept nouveau.
 La seam livre d'abord `k6-images.yml`, workflow manuel de packaging seulement,
 pas encore le job E2E initialement visé. Le consumer n'exécute pas Bake/Cargo :
 il réutilise son inventaire et les Dockerfiles de packaging, sans compilation.
+
+## Raccord navigateur Docker (GO utilisateur, 2026-11-13)
+
+Le lancement natif Ubuntu n'étant pas qualifié, l'utilisateur autorise une image
+d'outillage Chromium/k6 non-root et un profil seccomp ciblé limité au conteneur.
+La référence Moby et son delta clone/setns/unshare/chroot sont épinglés et
+vérifiés ; aucun privileged, capability ajoutée, helper SUID, no-sandbox, override
+AppArmor ou sysctl global. Le run43454504050 a mesuré le témoin strict dans le
+conteneur d'essai sans réseau ; il ne qualifie pas encore OAuth.
+
+Le parent applicatif reste responsable des cinq phases, des mêmes scripts/checks,
+des deltas et de la restauration. Seul le processus OAuth navigateur passe dans
+le conteneur ; les stimuli health/SAN restent natifs sur le runner. L'image
+d'outillage est construite avant les mesures, sans compiler les applications.
+
+Réseau hôte uniquement dans la VM GitHub possédée/jetable, pour conserver
+127.0.0.1:18443 et localhost:18445 sans réécrire origine, cookie, SAN ou redirect.
+Cette adaptation réseau doit être validée par la vraie campagne ; le témoin
+networknone précédent n'en est pas une preuve. PID hôte et socket Docker restent
+interdits. Rootfs readonly, capdropALL, NoNewPrivs, docker-default effectif et
+témoin renderer userns/pidns/filtres/UID restent obligatoires.
+
+Deux mounts seulement : dossier privé de la case RW (HOME/NSS déjà préparé par
+le parent) et options/target/CA publique readonly. Ni kubeconfig, PKI privée,
+credentials de provisioning ni répertoire de campagne entier dans le navigateur.
+Environnement enfant fermé, aucun token GitHub/proxy hérité. Résumé reçu par le
+même projecteur parent ; un résultat enfant ne remplace pas la corrélation.
+
+Reçus contemporains navigateur séparés des reçus Kind, afin de ne pas élargir
+l'adoption du nœud. Cleanup navigateur par ID exact au finally et à la garde
+always, recoupé avec reçus/labels/image/inventaire ; refus des conflits et des
+ressources sans reçu. Deux artefacts fermés supplémentaires seulement :
+browser.json et browser-docker-resources.jsonl. Contrat toujours **Proposed**.

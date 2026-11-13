@@ -210,6 +210,7 @@ jobs:
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_e2e.py' -v
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_browser_audit.py' -v
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_browser_container.py' -v
+          python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_campaign_browser.py' -v
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_inputs.py' -v
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_render.py' -v
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_pki.py' -v

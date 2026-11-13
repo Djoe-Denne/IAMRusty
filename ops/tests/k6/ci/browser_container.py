@@ -108,11 +108,12 @@ def record(root, state, event, kind, identity, safe):
             os.fsync(stream.fileno())
 
 
-def container_policy(value, uid, gid, applied=True, expected_seccomp=None):
+def container_policy(value, uid, gid, applied=True, expected_seccomp=None, expected_network="none"):
     config, host = value["Config"], value["HostConfig"]
     require(config["User"] == f"{uid}:{gid}" and uid != 0, "TRIAL_REQUIRES_NONROOT")
+    require(expected_network in ("none", "host"), "TRIAL_NETWORK_POLICY")
     require(host["Privileged"] is False and host["ReadonlyRootfs"] is True
-            and host["NetworkMode"] == "none" and host.get("PidMode", "") == ""
+            and host["NetworkMode"] == expected_network and host.get("PidMode", "") == ""
             and not host.get("CapAdd") and host["CapDrop"] == ["ALL"], "TRIAL_CONTAINER_POLICY")
     options = host["SecurityOpt"]
     require(isinstance(options, list) and all(isinstance(option, str) for option in options)
@@ -126,7 +127,7 @@ def container_policy(value, uid, gid, applied=True, expected_seccomp=None):
                 "TRIAL_SECCOMP_APPLIED_MISMATCH")
     require(value.get("AppArmorProfile") in (("docker-default",) if applied else ("", "docker-default")),
             "TRIAL_DEFAULT_APPARMOR_UNPROVEN")
-    return {"nonroot": True, "readonly_root": True, "network": "none", "capabilities": "ALL_DROPPED",
+    return {"nonroot": True, "readonly_root": True, "network": expected_network, "capabilities": "ALL_DROPPED",
             "apparmor": "docker-default" if applied else "docker_default_requested",
             "seccomp": "pinned_moby_plus_chromium_namespaces" if expected_seccomp is not None else "docker_default_requested",
             "no_new_privileges": True, "privileged": False}

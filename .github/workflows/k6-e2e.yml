@@ -91,6 +91,8 @@ jobs:
             ${{ runner.temp }}/k6-e2e-private/campaign/public/admission.json
             ${{ runner.temp }}/k6-e2e-private/campaign/public/startup.json
             ${{ runner.temp }}/k6-e2e-private/campaign/public/processes.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/browser.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/browser-docker-resources.jsonl
             ${{ runner.temp }}/k6-e2e-private/campaign/public/correlation.json
             ${{ runner.temp }}/k6-e2e-private/campaign/public/iam-health.json
             ${{ runner.temp }}/k6-e2e-private/campaign/public/auth-envoy-san-good.json

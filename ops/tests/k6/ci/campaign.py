@@ -21,6 +21,7 @@ import yaml
 
 from binaries import ROOT, Refused, require, sha, strict_json
 import browser as browser_profile
+import campaign_browser
 import evidence
 import inputs
 import pki
@@ -315,7 +316,14 @@ class Campaign:
             require(sha(self.state["tools"][name]["path"]) == self.state["tools"][name]["sha256"], "E2E_STIMULUS_TOOL_CHANGED")
         child = Child()
         try:
-            code = child.execute([self.state["tools"]["k6"]["path"], "run", "--quiet", "--no-usage-report", "--address",
+            if is_browser:
+                result = campaign_browser.execute(self.r, output)
+                code = result["exit"]
+                child.code, child.cleanup = code, result["cleanup"]
+                child.sandbox, child.renderer_observed = result["sandbox"], result["renderer_observed"]
+                child.sandbox_proof = result["witnesses"]
+            else:
+                code = child.execute([self.state["tools"]["k6"]["path"], "run", "--quiet", "--no-usage-report", "--address",
                                   "127.0.0.1:0", "--config", str(self.root / "private/options.json"),
                                   str(ROOT / "ops/tests/k6/scenarios" / script)], output=output, env=env,
                                  timeout=140 if is_browser else 30, browser=is_browser)
@@ -508,6 +516,7 @@ def prepare(directory, cli_directory, browser_directory, image_directory):
     runtime.save()
     state["browser_preflight"] = browser_profile.preflight(tools, runtime.cli)
     runtime.save()
+    campaign_browser.prepare(runtime, browser_directory)
     try:
         runtime.docker(["image", "load", "--input", str(images_root / "verified/images.tar.gz")], timeout=180)
     finally:
@@ -533,6 +542,13 @@ def load(directory):
 
 def finish(campaign):
     state = campaign.state
+    browser_cleanup = True
+    try:
+        campaign_browser.clean(campaign.r)
+    except Exception:
+        browser_cleanup = False
+        state["verdict"] = "FAIL"
+        campaign.r.save()
     try:
         campaign.restore()
     except Exception:
@@ -544,6 +560,10 @@ def finish(campaign):
     except Exception:
         cleanup = {"status": "FAIL", "owned_running": None, "errors": ["CLEANUP_UNPROVEN"]}
         state["cleanup"] = cleanup
+    if not browser_cleanup:
+        cleanup.update(status="FAIL", owned_running=None)
+        cleanup.setdefault("errors", []).append("BROWSER_CONTAINER_CLEANUP_UNPROVEN")
+        state["cleanup"] = cleanup
     attempts = {path.name.removesuffix(".attempt") for path in (campaign.root / "private").glob("*.attempt")}
     if any(state.get("process_evidence", {}).get(case, {}).get("cleanup") is not True for case in attempts):
         cleanup.update(status="FAIL", owned_running=None)
@@ -552,6 +572,13 @@ def finish(campaign):
     if cleanup["status"] != "PASS":
         state["verdict"] = "FAIL"
     campaign.publish("cleanup.json", cleanup)
+    browser_state = state.get("browser_container", {})
+    campaign.publish("browser.json", {"launcher": "docker-host-network-disposable-runner", "image_id": browser_state.get("image_id"),
+        "profile": browser_state.get("profile_facts"), "policy": browser_state.get("policy"),
+        "cleanup": browser_state.get("cleanup"), "container_exit": browser_state.get("container_exit"), "result": browser_state.get("result")})
+    with (campaign.public / "browser-docker-resources.jsonl").open("w", encoding="utf-8") as target:
+        for item in campaign_browser.browser_receipts(campaign.r):
+            target.write(json.dumps(item, sort_keys=True) + "\n")
     records = campaign.r.receipts()
     with (campaign.public / "docker-resources.jsonl").open("w", encoding="utf-8") as target:
         for item in records:
