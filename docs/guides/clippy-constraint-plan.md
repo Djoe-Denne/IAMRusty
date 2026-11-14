@@ -13,12 +13,15 @@ python ops/scripts/clippy-constraint-plan.py `
   --inventory .tmp/campaign/inventory.json `
   --snapshot .tmp/campaign/snapshot.json `
   --evidence .tmp/campaign/evidence.json `
+  --observations .tmp/campaign/observations.json `
   --constraints .tmp/campaign/constraints.json `
   --output .tmp/campaign/plan.json `
   --report .tmp/campaign/plan.md
 ```
 
 Omit `--constraints` when no independently reviewed hard constraints exist.
+Omit `--observations` when no file-observation artifact exists. The work graph
+still includes every diagnostic file and any normalized symbol relations.
 Omit `--report` for JSON only. Parent directories must already exist.
 The JSON is authoritative; Markdown renders counts, components, concrete symbol
 and diagnostic examples, constraint rationales, blockers, coverage and source
@@ -38,6 +41,103 @@ constraints bind the inventory and snapshot hashes. Do not include evidence
 itself in a snapshot that it hashes: that would create a circular binding.
 Use the normalized local schemas in the contract, not guessed MCP wire payloads.
 Producer metadata is preserved as provenance, not treated as authorization.
+
+### Replay the captured bounded campaign
+
+With the parent's saved local artifacts present, run this single offline CLI:
+
+```powershell
+python -B ops/scripts/clippy-constraint-plan.py `
+  --inventory .tmp/clippy-campaign-20261114/inventory/overlap-script.json `
+  --snapshot .tmp/clippy-campaign-20261114/partition-bounded-snapshot-001.json `
+  --evidence .tmp/clippy-campaign-20261114/partition-bounded-evidence-001.json `
+  --observations .tmp/clippy-campaign-20261114/partition-bounded-observations-001.json `
+  --output .tmp/clippy-campaign-20261114/partition-work-plan-local.json `
+  --report .tmp/clippy-campaign-20261114/partition-work-plan-local.md
+```
+
+This does not recollect or refresh MCP evidence. It needs the referenced raw
+captures and the same current source hashes; drift remains explicit or fails
+qualification. Output names differ from the input artifacts and the author's
+`partition-work-plan-B-001.json/md` verification outputs.
+
+## Exploratory work graph and file observations
+
+`work_graph` is always emitted alongside the original conservative component,
+blocker and dispatch fields. It is a machine-readable ownership proposal, not a
+second execution engine:
+
+- `nodes` retains every diagnostic file, including unknown mappings, and
+  source-verified observed consumers without diagnostics. Join `diagnostic_keys`
+  to the top-level `diagnostics` array to inspect rule, namespace, original
+  Clippy provenance and Sonar issue keys. A node's diagnostic-record count is
+  the length of that array, not a semantic defect count.
+- `edges` separates qualified `hard_must_coedit` constraints from
+  `candidate_dependency` observations. Hard sets use deterministic spanning
+  stars while preserving the original complete constraint sets. Candidates
+  reference normalized relations or hashed observation JSON pointers.
+- `proposed_groups` reuses minimal components relative to qualified hard
+  constraints. Cross-group candidate edges become `boundary_edge_ids` and
+  explicit review tasks. Local blockers, unresolved observations and global
+  coverage caveats produce `unresolved_ids`; readiness is only `candidate` or
+  `review_required`, never certified independence.
+- `coverage` separates current file hashes, observed normalized symbol IDs,
+  exact-mapping symbol IDs, origin bindings, site-edge counts and unique file
+  boundaries. It retains query pagination and language/index coverage rather
+  than interpreting a complete query as global completeness.
+
+**Arrow legend:** queried declaration/provider → observed consumer is the
+**impact direction**, opposite the common `depends_on` reading. These arrows
+show boundary coupling for ownership review, not a dependency execution DAG,
+topological task order, or proof that every diagnostic in the provider file
+touches the queried declaration. Same-file loops are observations, not boundaries.
+Repeated sites on one provider/consumer pair remain distinct evidence edges;
+the unique boundary count deduplicates file pairs. Missing edges mean
+`not_observed`, never `independent`.
+
+The initial bounded neighborhood may therefore have 10 candidate site edges,
+including three same-file loops and seven cross-file sites over five unique
+provider/consumer boundaries, while retaining four unresolved span mismatches
+and zero hard unions. Tentative singleton groups are useful review/ownership
+units, not permission to dispatch 131 independent correction lots.
+
+### Observation validation and binding order
+
+`--observations` consumes the contract's `clippy-file-observations` artifact.
+Its hash is tracked as a CLI input; it references the finalized snapshot,
+evidence and inventory hashes. It **must not** appear in `snapshot.inputs`.
+Raw captures, source/context files and origin proofs are already snapshot-bound,
+avoiding a circular hash dependency.
+
+For the initial `reference` adapter, replay the captured `who_uses` page sequence:
+validate request root/target, page offsets and counts, totals, progress and
+duplicate identities. Preserve optional omitted `consumer_function`; an explicit
+null, empty or non-string value is unsupported, never an invented caller.
+Observations consume returned usage witnesses in per-query capture order,
+including unresolved rows, once per site. Cardinality/order mismatch cannot
+shift a failed row onto another row's matching file or good byte span.
+Raw offsets are not repaired.
+
+A candidate must have current endpoint hashes, a matching observed destination
+and a checked raw token span. Its origin separately requires the bounded
+`direct_crate_module_function_v1` proof: hashed default Cargo crate/module chain,
+signature, one exact definition with verified source-token coordinates, and
+hashed Serena witnesses replayed through the shared source-range utility.
+The initial chain supports only
+`apparatus_contracts::runtime::validate_runtime_uid`, not a general Rust resolver.
+Only a literal extended local Windows drive wrapper is accepted in definition
+text; UNC, device paths, traversal, ambiguous definitions, cfg/path module
+indirection and unsupported overrides cannot establish an origin.
+
+This source-bound origin-to-file candidate does not establish full HIR/Serena
+consumer identity. A `verified_symbols` assertion additionally needs matching
+normalized symbol sources and a normalized relation witness; a producer label
+alone is insufficient. Missing/forged origin evidence and path-only/unresolved
+records stay inspectable in `unresolved_observations`, not candidate edges.
+
+Recheck the observation CLI hash, source/context hashes and nested captures
+after planning and after staging outputs, before replacement. Output collision
+protection covers the observation file and referenced inputs as well as sources.
 
 ## Qualification, not dependency clustering
 
@@ -181,11 +281,22 @@ current file, not just supplied seeds, using this deliberately small subset:
   Exact token extents and whole-line extents are supported; an immediately
   preceding contiguous literal documentation prefix may be included.
 
-This is not a general Rust parser. A function in a file containing imports,
-impls, structs or unsupported syntax may therefore remain unknown until a
-shared proof-method extension is authorized. A forged all-true proof with an
-omitted nested function fails replay. Query success or a single supplied seed
-never substitutes for these checks.
+This legacy method remains unchanged, including its whole-file limitations.
+The additional `source_crosschecked_function_range_v1` method instead calls
+A's shared `ops/scripts/clippy_source_ranges.py` utility. B does not maintain a
+second expanded grammar or trust a producer-supplied witness list: it decodes
+the referenced hashed raw MCP responses, rejects conflicting text/structured
+payloads and verifies the advertised source/parent/body witnesses before replay.
+Source decoding uses raw bytes and UTF-8 without newline normalization.
+
+The shared range method supports mixed files and ordinary top-level/impl
+declarations, comments/literals and balanced opaque invocation macros under the
+contract's bounds. An ordinary header outside a body macro may map exactly;
+a diagnostic inside that token tree does not. Nested foreign declarations,
+relevant cfg, ambiguous ancestry and forged parent identities still fail
+attribution. These are shared executable checks, not all-true boolean claims.
+No mapping proof grants local correction policy, reference closure or hard
+co-edit approval.
 
 The overlap inventory already uses one-based lines and **zero-based** columns.
 Both Clippy and Sonar mappings use the proof's explicit
@@ -285,5 +396,8 @@ mixed complete/partial hard-constraint closure and mismatched candidate diagnost
 independent local candidates, non-union dependencies, missing/self approval,
 stale hashes, root/alias rejection, unknown coverage, Unicode units, overlapping
 blockers, provenance accounting, determinism and atomic publication failures.
-There is no live-data replay in this leaf lot; the parent owns producer
-integration, actual campaign reporting and representative source review.
+The integrated 2026-11-14 campaign also ran the real offline CLI on saved direct
+MCP captures. It retained all 131 diagnostic files plus one observed consumer,
+23 exact mappings and five candidate cross-file boundaries. See the
+[bounded work-graph report](../missions/20261114-clippy-partition-graph.md) for
+executed commands, verification and coverage limits.

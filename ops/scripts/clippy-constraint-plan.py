@@ -8,11 +8,21 @@ import argparse
 from collections import Counter
 from datetime import datetime, timezone
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path, PureWindowsPath
 import re
+import sys
 import tempfile
+import tomllib
+
+
+_RANGE_SPEC = importlib.util.spec_from_file_location(
+    "_constraint_source_ranges", Path(__file__).with_name("clippy_source_ranges.py"))
+_RANGES = importlib.util.module_from_spec(_RANGE_SPEC)
+sys.modules[_RANGE_SPEC.name] = _RANGES
+_RANGE_SPEC.loader.exec_module(_RANGES)
 
 
 COVERAGE = ("private", "macros", "traits", "features", "tests", "freshness")
@@ -81,7 +91,7 @@ def timestamp(value):
     return parsed
 
 
-def read_json(path):
+def json_document(raw):
     def unique(pairs):
         result = {}
         for key, value in pairs:
@@ -89,9 +99,15 @@ def read_json(path):
             result[key] = value
         return result
     try:
-        return json.loads(Path(path).read_text(encoding="utf-8"),
-                          object_pairs_hook=unique,
+        return json.loads(raw, object_pairs_hook=unique,
                           parse_constant=lambda v: (_ for _ in ()).throw(Invalid(f"invalid number: {v}")))
+    except json.JSONDecodeError as exc:
+        raise Invalid(f"invalid JSON payload: {exc}") from exc
+
+
+def read_json(path):
+    try:
+        return json_document(Path(path).read_bytes().decode("utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise Invalid(f"cannot read JSON {path}: {exc}") from exc
 
@@ -262,9 +278,11 @@ def replay_simple_function(source, symbol):
     return selected
 
 
-def build_plan(inventory_path, evidence_path, snapshot_path, constraints_path=None):
+def build_plan(inventory_path, evidence_path, snapshot_path, constraints_path=None, observations_path=None):
     paths = [Path(p).resolve() for p in (inventory_path, evidence_path, snapshot_path)]
-    cli_paths = paths + ([Path(constraints_path).resolve()] if constraints_path else [])
+    constraint_input = Path(constraints_path).resolve() if constraints_path else None
+    observation_input = Path(observations_path).resolve() if observations_path else None
+    cli_paths = paths + [p for p in (constraint_input, observation_input) if p is not None]
     initial_input_hashes = {path: digest(path) for path in cli_paths}
     inventory, evidence, snapshot = [read_json(p) for p in paths]
     envelope(snapshot, "clippy-source-snapshot",
@@ -288,7 +306,7 @@ def build_plan(inventory_path, evidence_path, snapshot_path, constraints_path=No
         validity[name] = "verified_current" if good else "stale_or_missing"
         if good:
             try:
-                current[name] = path.read_text(encoding="utf-8")
+                current[name] = path.read_bytes().decode("utf-8")
             except UnicodeError as exc:
                 raise Invalid(f"source is not UTF-8: {name}") from exc
     bound_inputs = {}
@@ -455,6 +473,70 @@ def build_plan(inventory_path, evidence_path, snapshot_path, constraints_path=No
                 require(name in bound_inputs or name in hashes, f"unbound evidence: {name}")
                 require(path.is_file() and digest(path) == sha(ref["sha256"]), f"stale evidence: {name}")
 
+    def query_payload(identifier, *, plain=False, artifact=None):
+        query = queries[identifier]
+        name = artifact or query["artifact"]
+        require(root.path(name)[0] in bound_inputs, "raw query is not snapshot-bound")
+        raw = read_json(root.root / name)
+        require(isinstance(raw, dict) and raw.get("isError") is False, "raw MCP query failed/unsupported")
+        values = []
+
+        def decode(value):
+            if isinstance(value, str):
+                if plain:
+                    return value
+                return json_document(value)
+            require(not plain, "unsupported structured text query")
+            return value
+
+        content = raw.get("content")
+        require(isinstance(content, list), "raw MCP content must be an array")
+        for item in content:
+            require(isinstance(item, dict) and item.get("type") == "text"
+                    and isinstance(item.get("text"), str), "unsupported raw MCP content")
+            values.append(decode(item["text"]))
+        structured = raw.get("structuredContent")
+        if structured is not None:
+            if isinstance(structured, dict) and set(structured) == {"result"}:
+                structured = structured["result"]
+            values.append(decode(structured))
+        require(values, "raw MCP payload missing")
+        identities = [json.dumps(v, sort_keys=True, ensure_ascii=False) for v in values]
+        require(len(set(identities)) == 1, "conflicting raw MCP payloads")
+        return values[0]
+
+    def serena_witnesses(query_ids):
+        witnesses = []
+        for identifier in query_ids:
+            query = queries[identifier]
+            require(query["status"] == "ok" and re.search(r"(?:^|[_:.])find_symbol$", query["tool"]),
+                    "local proof needs a successful decoded find_symbol query, not an overview")
+            payload = query_payload(identifier)
+            require(isinstance(payload, list), "unsupported Serena symbol payload")
+
+            def walk(rows, parent=None):
+                for row in rows:
+                    fields(row, ["name_path", "kind", "relative_path", "body_location"], "Serena symbol")
+                    name = text(row["name_path"], "Serena name_path")
+                    path = root.path(row["relative_path"])[0]
+                    if query["arguments"].get("relative_path") is not None:
+                        require(root.path(query["arguments"]["relative_path"])[0] == path,
+                                "Serena result/request file mismatch")
+                    location = fields(row["body_location"], ["start_line", "end_line"], "Serena body")
+                    require(number(location["start_line"]) and number(location["end_line"])
+                            and location["start_line"] <= location["end_line"], "invalid native body extent")
+                    if parent is not None:
+                        require(name.startswith(parent + "/"), "unadvertised Serena child hierarchy")
+                    parent_name = parent or (name.rsplit("/", 1)[0] if "/" in name else None)
+                    witnesses.append({"query_id": identifier, "name_path": name, "kind": row["kind"],
+                                      "relative_path": path, "body_location": location,
+                                      "parent_name_path": parent_name})
+                    children = row.get("children", [])
+                    require(isinstance(children, list), "invalid Serena children")
+                    walk(children, name)
+            walk(payload)
+        return witnesses
+
     def localization_proof(mapping, symbol, span):
         proofs = []
         for ref in mapping["evidence_refs"]:
@@ -478,7 +560,8 @@ def build_plan(inventory_path, evidence_path, snapshot_path, constraints_path=No
         discovery = fields(proof["local_discovery"], ["method", "scope_range", "candidate_symbol_ids",
                                                     "query_ids", "checked_predicates", "limitations"],
                            "local discovery")
-        require(discovery["method"] == "source_crosschecked_simple_function_v1",
+        require(discovery["method"] in ("source_crosschecked_simple_function_v1",
+                                        "source_crosschecked_function_range_v1"),
                 "unsupported localization proof method")
         require(discovery["candidate_symbol_ids"] == [symbol["id"]],
                 "local candidate identity is ambiguous or incomplete")
@@ -500,7 +583,17 @@ def build_plan(inventory_path, evidence_path, snapshot_path, constraints_path=No
         r = span["range"]
         lower = position(current[name], r[0], r[1], unit)
         upper = position(current[name], r[2], r[3], unit)
-        selected = replay_simple_function(current[name], symbol)
+        if discovery["method"] == "source_crosschecked_function_range_v1":
+            result = _RANGES.verify_function_range(current[name], symbol, r, unit, serena_witnesses(query_ids))
+            require(result["status"] == "verified", "range-local replay: " + "; ".join(result["reasons"]))
+            require(all(result["checked_predicates"].get(k) is True for k in
+                        LOCAL_PREDICATES - {"source_binding_verified", "source_hash_stable_before_after"}),
+                    "range-local source predicates incomplete")
+            require(len(result["candidate_name_paths"]) == 1, "range-local candidate ambiguity")
+            require(result["normalized_range"] == symbol["range"], "range-local normalized extent mismatch")
+            selected = source_range(result["normalized_range"], current[name])
+        else:
+            selected = replay_simple_function(current[name], symbol)
         scope = source_range(discovery["scope_range"], current[name])
         require(selected[0] <= lower < upper <= selected[1], "diagnostic not enclosed by selected function")
         require(scope[0] <= lower < upper <= scope[1], "diagnostic outside local discovery scope")
@@ -690,6 +783,334 @@ def build_plan(inventory_path, evidence_path, snapshot_path, constraints_path=No
         accepted.append(constraint)
         union(files)
 
+    origin_cache, usage_cache, context_hashes = {}, {}, {}
+    observation_records, unresolved_observations, candidate_observations = [], [], []
+    observation_limitations, observation_name = [], None
+    origin_target = "apparatus_contracts::runtime::validate_runtime_uid"
+    origin_path = "crates/apparatus-contracts/src/runtime.rs"
+
+    def bound_context(ref, expected):
+        references([ref], True)
+        name, path = root.path(expected)
+        require(path.is_file() and digest(path) == ref["sha256"], "current origin context mismatch: " + name)
+        context_hashes[name] = ref["sha256"]
+        return path.read_bytes().decode("utf-8")
+
+    def definition_path(raw):
+        # Only this literal local-drive wrapper is supported, not device/UNC namespaces.
+        if raw.startswith("\\\\?\\"):
+            require(re.match(r"^\\\\\?\\[A-Za-z]:\\", raw), "unsupported extended definition path")
+            raw = raw[4:]
+        require(not raw.startswith(("\\", "/")) and not re.search(r"(^|[\\/])\.\.?([\\/]|$)", raw),
+                "unsafe definition path")
+        if PureWindowsPath(raw).is_absolute():
+            path = Path(raw)
+            require(path == path.resolve() and path.is_relative_to(root.root), "definition outside root/alias")
+            raw = path.relative_to(root.root).as_posix()
+        return root.path(raw)[0]
+
+    def verify_origin(ref):
+        require(isinstance(ref, dict) and ref.get("locator") == "/", "origin binding proof required")
+        references([ref], True)
+        require(root.path(ref["path"])[0] in bound_inputs, "origin proof must be a snapshot input")
+        cache_key = (ref["path"], ref["sha256"])
+        if cache_key in origin_cache:
+            return origin_cache[cache_key]
+        proof = read_json(root.root / ref["path"])
+        envelope(proof, "clippy-origin-binding",
+                 ["target", "source_path", "source_sha256", "declaration_range",
+                  "crate_manifest_ref", "module_root_ref", "query_ids", "method"])
+        require(set(proof) == {"schema_version", "kind", "target", "source_path", "source_sha256",
+                               "declaration_range", "crate_manifest_ref", "module_root_ref", "query_ids", "method"},
+                "origin proof contains unsupported fields/backward hash dependencies")
+        require(proof["method"] == "direct_crate_module_function_v1" and proof["target"] == origin_target
+                and proof["source_path"] == origin_path, "unsupported origin binding method/target")
+        require(origin_path in current and proof["source_sha256"] == hashes[origin_path],
+                "origin declaration source stale/unbound")
+        manifest_text = bound_context(proof["crate_manifest_ref"], "crates/apparatus-contracts/Cargo.toml")
+        try:
+            manifest = tomllib.loads(manifest_text)
+        except tomllib.TOMLDecodeError as exc:
+            raise Invalid("unsupported origin Cargo manifest") from exc
+        package = manifest.get("package", {})
+        lib = manifest.get("lib", {})
+        require(isinstance(package, dict) and package.get("name") == "apparatus-contracts"
+                and package.get("autolib", True) is True
+                and isinstance(lib, dict) and "name" not in lib and "path" not in lib,
+                "origin crate/default module identity mismatch")
+        module_text = bound_context(proof["module_root_ref"], "crates/apparatus-contracts/src/lib.rs")
+        require(not any(marker in (manifest_text + module_text).lower()
+                        for marker in ("@generated", "automatically generated", "do not edit")),
+                "generated origin crate/module context")
+        pending, item, declarations = [], "", 0
+        for line in module_text.split("\n"):
+            value = line.strip()
+            if not value or value.startswith("//"):
+                continue
+            if value.startswith("#[") and not item:
+                require(re.fullmatch(r'#\[cfg\(feature\s*=\s*"[\w-]+"\)\]', value),
+                        "unsupported origin module-root attribute")
+                pending.append(value)
+                continue
+            item += " " + value
+            if not item.endswith(";"):
+                require(item.lstrip().startswith("pub use "), "unsupported origin module-root context")
+                continue
+            item = item.strip()
+            declaration = re.fullmatch(r"pub mod ([A-Za-z_]\w*);", item)
+            if declaration:
+                if declaration[1] == "runtime":
+                    require(not pending, "conditional/path origin module")
+                    declarations += 1
+            else:
+                require(re.fullmatch(
+                    r"pub use [A-Za-z_]\w*(?:::[A-Za-z_]\w*)*(?:::\{[\w,\s]+\})?;", item)
+                        and not re.search(r"\bruntime\b", item), "unsupported origin module/reexport chain")
+            pending, item = [], ""
+        require(declarations == 1 and not pending and not item, "literal unconditional runtime module missing")
+        ids_ = strings(proof["query_ids"], "origin query IDs")
+        require(ids_ and len(ids_) == len(set(ids_)) and all(q in queries for q in ids_),
+                "origin query witnesses missing")
+        signature_ids = [q for q in ids_ if re.search(r"(?:^|[_:.])function_signature$", queries[q]["tool"])]
+        definition_ids = [q for q in ids_ if re.search(r"(?:^|[_:.])find_definition$", queries[q]["tool"])]
+        symbol_ids = [q for q in ids_ if re.search(r"(?:^|[_:.])find_symbol$", queries[q]["tool"])]
+        require(len(signature_ids) == len(definition_ids) == 1 and symbol_ids
+                and len(signature_ids + definition_ids + symbol_ids) == len(ids_), "unsupported origin witnesses")
+        for identifier in signature_ids + definition_ids:
+            query = queries[identifier]
+            require(query["status"] == "ok" and query["arguments"].get("directory") == str(root.root),
+                    "origin HIR witness root/status mismatch")
+        sig_id, def_id = signature_ids[0], definition_ids[0]
+        require(queries[sig_id]["arguments"].get("target") == origin_target,
+                "origin signature request target mismatch")
+        payload = fields(query_payload(sig_id), ["target", "signature"], "origin signature")
+        signature = fields(payload["signature"],
+                           ["is_async", "self_param", "params", "return_type", "generics"], "signature")
+        require(payload["target"] == origin_target and signature["is_async"] is False
+                and signature["self_param"] is None and signature["generics"] == []
+                and signature["params"] == [{"name": "value", "ty": "&str", "by_ref": True, "mutability": False}]
+                and re.sub(r"\s+", "", text(signature["return_type"], "signature return type")) ==
+                "Result<(),RuntimeErrorCodeV1>",
+                "origin signature witness mismatch")
+        require(queries[def_id]["arguments"].get("symbol_name") == "validate_runtime_uid"
+                and queries[def_id]["arguments"].get("exact") is True, "definition request is not exact")
+        match = re.fullmatch(
+            r"Found 1 definition\(s\) for 'validate_runtime_uid':\r?\n"
+            r"([^\r\n]+):(\d+):(\d+) \(validate_runtime_uid, exact=true\)\s*", query_payload(def_id, plain=True))
+        require(match is not None, "unsupported or multiple origin definitions")
+        require(definition_path(match[1]) == origin_path, "definition file differs from origin")
+        line_no, column = int(match[2]), int(match[3])
+        lines = current[origin_path].split("\n")
+        require(1 <= line_no <= len(lines) and column >= 1, "definition coordinates outside source")
+        header = lines[line_no - 1].rstrip("\r")
+        require(header[column - 1:].startswith("validate_runtime_uid(")
+                and re.sub(r"\s+", "", header) ==
+                "pubfnvalidate_runtime_uid(value:&str)->Result<(),RuntimeErrorCodeV1>{",
+                "definition token/signature coordinate mismatch (native one-based column)")
+        witnesses = serena_witnesses(symbol_ids)
+        require(any(w["name_path"] == "validate_runtime_uid" and w["parent_name_path"] is None
+                    and w["relative_path"] == origin_path for w in witnesses), "top-level origin witness missing")
+        symbol = {"path": origin_path, "qualified_name": "serena::" + origin_path + "::validate_runtime_uid",
+                  "kind": "Function", "range": proof["declaration_range"]}
+        verified = _RANGES.verify_function_range(
+            current[origin_path], symbol, [line_no, 0, line_no, len(header)], "unicode_scalar", witnesses)
+        require(verified["status"] == "verified" and verified["normalized_range"] == proof["declaration_range"]
+                and verified["candidate_name_paths"] == ["validate_runtime_uid"],
+                "origin source range/witness replay failed: " + "; ".join(verified["reasons"]))
+        origin_cache[cache_key] = proof
+        return proof
+
+    def usage_rows(identifier):
+        if identifier in usage_cache:
+            return usage_cache[identifier]
+        query = queries[identifier]
+        require(re.search(r"(?:^|[_:.])who_uses$", query["tool"])
+                and query["status"] in ("ok", "partial"), "unsupported usage query")
+        require(query["arguments"].get("target") == origin_target
+                and query["arguments"].get("directory") == str(root.root), "usage target/root mismatch")
+        artifact = read_json(root.root / query["artifact"])
+        sequence = isinstance(artifact, dict) and "pages" in artifact
+        if sequence:
+            fields(artifact, ["target", "pagination", "pages"], "usage sequence")
+            require(artifact["target"] == origin_target and artifact["pagination"] == query["pagination"]
+                    and isinstance(artifact["pages"], list) and artifact["pages"], "usage sequence mismatch")
+            pages = artifact["pages"]
+        else:
+            pages = [{"id": identifier, "tool": query["tool"], "arguments": query["arguments"],
+                      "artifact": query["artifact"], "artifact_sha256": query["artifact_sha256"],
+                      "status": query["status"]}]
+        rows, seen, expected_offset, total, page_ids = [], set(), 0, None, set()
+        for page in pages:
+            fields(page, ["id", "tool", "arguments", "artifact", "artifact_sha256", "status"], "usage page")
+            text(page["id"], "usage page id")
+            require(page["id"] not in page_ids and page["tool"] == query["tool"]
+                    and page["status"] == "ok", "usage page identity/status mismatch")
+            page_ids.add(page["id"])
+            references([{"path": page["artifact"], "sha256": page["artifact_sha256"], "locator": "/"}], True)
+            args = fields(page["arguments"], ["target", "directory", "offset", "limit", "summary"],
+                          "usage page request")
+            require(args.get("target") == origin_target and args.get("directory") == str(root.root)
+                    and number(args.get("offset")) and number(args.get("limit"), 1)
+                    and args.get("offset") == expected_offset and args.get("summary") is False,
+                    "usage page target/root/offset mismatch")
+            payload = fields(query_payload(identifier, artifact=page["artifact"]),
+                             ["target", "total_match_count", "offset", "limit", "summary",
+                              "returned_match_count", "usages"], "HIR usages")
+            require(payload["target"] == origin_target and payload["summary"] is False
+                    and number(payload["total_match_count"]) and number(payload["returned_match_count"])
+                    and number(payload["offset"]) and payload["offset"] == expected_offset
+                    and payload["limit"] == args.get("limit")
+                    and number(payload["limit"], 1) and isinstance(payload["usages"], list)
+                    and len(payload["usages"]) == payload["returned_match_count"]
+                    and payload["returned_match_count"] <= payload["limit"], "usage count/page mismatch")
+            require(total is None or total == payload["total_match_count"], "usage total changed")
+            total = payload["total_match_count"]
+            for row in payload["usages"]:
+                fields(row, ["file", "start", "end", "category", "consumer_module"], "HIR usage")
+                path = root.path(row["file"])[0]
+                require(number(row["start"]) and number(row["end"]) and row["start"] < row["end"],
+                        "invalid raw usage span")
+                text(row["category"], "usage category")
+                text(row["consumer_module"], "consumer module")
+                if "consumer_function" in row:
+                    text(row["consumer_function"], "optional consumer function")
+                identity = (path, row["start"], row["end"], row["category"])
+                require(identity not in seen, "duplicate/repeated usage page")
+                seen.add(identity)
+                rows.append((path, row))
+            expected_offset += payload["returned_match_count"]
+            require(expected_offset <= total and (payload["returned_match_count"] > 0 or len(pages) == 1),
+                    "usage pagination overflow/nonprogress")
+        page = query["pagination"]
+        require(page["pages"] == len(pages) and page["returned"] == expected_offset
+                and page["total"] == total, "usage sequence accounting mismatch")
+        if page["status"] == "complete":
+            require(expected_offset == total, "usage sequence truncated")
+        usage_cache[identifier] = rows
+        return rows
+
+    if observation_input is not None:
+        require(observation_input.is_relative_to(root.root), "observation artifact outside workspace")
+        observation_name = root.path(observation_input.relative_to(root.root).as_posix())[0]
+        require(observation_name not in bound_inputs, "observations must not be snapshot inputs (hash cycle)")
+        observed = read_json(observation_input)
+        envelope(observed, "clippy-file-observations",
+                 ["workspace", "snapshot_sha256", "evidence_sha256", "inventory_sha256",
+                  "observations", "limitations"])
+        require(observed["workspace"] == snapshot["workspace"]
+                and sha(observed["snapshot_sha256"]) == initial_input_hashes[paths[2]]
+                and sha(observed["evidence_sha256"]) == initial_input_hashes[paths[1]]
+                and sha(observed["inventory_sha256"]) == initial_input_hashes[paths[0]],
+                "observation input binding mismatch")
+        observation_limitations = strings(observed["limitations"], "observation limitations")
+        require(isinstance(observed["observations"], list), "observations must be an array")
+        seen_observations = set()
+        usage_assignments = Counter()
+        for index, observation in enumerate(observed["observations"]):
+            fields(observation, ["id", "kind", "origin", "destination", "query_ids", "origin_binding_ref",
+                                 "identity_status", "endpoint_status", "relationship_scope", "reasons"],
+                   "file observation")
+            identifier = text(observation["id"], "observation id")
+            require(identifier not in seen_observations, "duplicate observation id")
+            seen_observations.add(identifier)
+            require(observation["kind"] in ("reference", "call", "implementation", "import", "reexport")
+                    and observation["identity_status"] in ("verified_symbols", "file_candidate", "unresolved")
+                    and observation["endpoint_status"] in ("source_verified", "path_only")
+                    and observation["relationship_scope"] == "symbol_to_file_candidate",
+                    "unsupported observation classification")
+            strings(observation["reasons"], "observation reasons")
+            ids_ = strings(observation["query_ids"], "observation query ids")
+            require(ids_ and len(ids_) == len(set(ids_)) and all(q in queries for q in ids_),
+                    "observation query references missing")
+            # The initial producer serializes one observation per returned usage,
+            # in each query's captured order, including unresolved rows. Consume
+            # each witness once, never substitute another matching row/file.
+            positions = {q: usage_assignments[q] for q in ids_}
+            usage_assignments.update(ids_)
+            files = set()
+            reasons = list(observation["reasons"]) if (
+                observation["identity_status"] == "unresolved" or observation["endpoint_status"] == "path_only") else []
+            for endpoint_name in ("origin", "destination"):
+                endpoint = fields(observation[endpoint_name], ["path", "source_sha256", "symbol_id", "range"],
+                                  "observation endpoint")
+                path = root.path(endpoint["path"])[0]
+                require(path == endpoint["path"], "observation paths must be canonical")
+                files.add(path)
+                sha(endpoint["source_sha256"])
+                require(endpoint["symbol_id"] is None or isinstance(endpoint["symbol_id"], str),
+                        "invalid observation symbol id")
+                if path not in current or endpoint["source_sha256"] != hashes.get(path):
+                    reasons.append("endpoint source stale/unbound: " + path)
+                elif endpoint["range"] is not None:
+                    source_range(endpoint["range"], current[path])
+            try:
+                if observation["origin_binding_ref"] is not None:
+                    ref = observation["origin_binding_ref"]
+                    require(isinstance(ref, dict) and ref.get("locator") == "/", "invalid origin proof reference")
+                    references([ref], True)
+                    require(root.path(ref["path"])[0] in bound_inputs, "origin proof is not snapshot-bound")
+                require(observation["identity_status"] != "unresolved", "producer identity unresolved")
+                require(observation["endpoint_status"] == "source_verified", "endpoint is path-only")
+                require(not reasons, "; ".join(reasons))
+                proof = verify_origin(observation["origin_binding_ref"])
+                origin, destination = observation["origin"], observation["destination"]
+                require(origin["path"] == proof["source_path"]
+                        and origin["source_sha256"] == proof["source_sha256"], "origin endpoint/proof mismatch")
+                if origin["range"] is not None:
+                    require(source_range(origin["range"], current[origin["path"]]) ==
+                            source_range(proof["declaration_range"], current[origin["path"]]),
+                            "origin endpoint range differs from proof")
+                require(observation["kind"] == "reference", "initial observation adapter supports who_uses only")
+                assigned = []
+                for q in ids_:
+                    rows = usage_rows(q)
+                    require(positions[q] < len(rows), "observation exceeds captured usage sequence")
+                    path, row = rows[positions[q]]
+                    require(path == destination["path"], "observation/raw usage order or destination mismatch")
+                    assigned.append(row)
+                raw_source = (root.root / destination["path"]).read_bytes()
+                require(all(row["end"] <= len(raw_source) and row["end"] - row["start"] == 20
+                            and raw_source[row["start"]:row["end"]] == b"validate_runtime_uid"
+                            for row in assigned),
+                        "captured usage byte span/spelling mismatch; no offset repair")
+                for endpoint in (origin, destination):
+                    if endpoint["symbol_id"] is not None:
+                        require(endpoint["symbol_id"] in symbols
+                                and symbols[endpoint["symbol_id"]]["path"] == endpoint["path"]
+                                and symbols[endpoint["symbol_id"]]["source_sha256"] == endpoint["source_sha256"]
+                                and (endpoint["range"] is None or source_range(
+                                    endpoint["range"], current[endpoint["path"]]) == source_range(
+                                    symbols[endpoint["symbol_id"]]["range"], current[endpoint["path"]])),
+                                "observation symbol id lacks matching normalized source evidence")
+                if observation["identity_status"] == "verified_symbols":
+                    require(all(e["symbol_id"] is not None for e in (origin, destination))
+                            and any(r["from_symbol"] == origin["symbol_id"]
+                                    and r["to_symbol"] == destination["symbol_id"]
+                                    and {ref for ref in r["evidence_refs"] if isinstance(ref, str)} & set(ids_)
+                                    for r in relations.values()),
+                            "verified symbol identity lacks a normalized relation witness")
+                candidate_observations.append((observation, index))
+                nodes.update(files)
+            except Invalid as exc:
+                reasons.append(str(exc))
+            record = {"id": identifier, "files": sorted(files), "record": observation,
+                      "reasons": sorted(set(reasons))}
+            observation_records.append(record)
+            if reasons:
+                unresolved_observations.append(record)
+        # Cardinality checks include unresolved observations: dropping a failed
+        # row cannot shift later successful observations onto a different witness.
+        invalid_sequences = {q for q, rows in usage_cache.items() if usage_assignments[q] != len(rows)}
+        if invalid_sequences:
+            for record in observation_records:
+                if set(record["record"]["query_ids"]) & invalid_sequences:
+                    record["reasons"].append("observation/usage sequence cardinality mismatch")
+                    if record not in unresolved_observations:
+                        unresolved_observations.append(record)
+            candidate_observations = [
+                pair for pair in candidate_observations
+                if not set(pair[0]["query_ids"]) & invalid_sequences]
+
     blockers = []
 
     def block(identifier, files, reason, keys=None):
@@ -726,6 +1147,15 @@ def build_plan(inventory_path, evidence_path, snapshot_path, constraints_path=No
             block(f"constraint:{constraint['id']}", constraint_scope(constraint),
                   "hard constraint not qualified before union; incomplete query closure: "
                   + ", ".join(incomplete_hard[constraint["id"]]), constraint["diagnostic_keys"])
+    for observation, _ in candidate_observations:
+        files = {observation["origin"]["path"], observation["destination"]["path"]}
+        if len(files) > 1:
+            block(f"observation:{observation['id']}", files,
+                  "source-bound file candidate; review the observed origin before partitioning corrections")
+    for record in unresolved_observations:
+        block(f"observation:{record['id']}", record["files"], "; ".join(record["reasons"]))
+    if observation_limitations:
+        block("observation-limitations", set(), "; ".join(observation_limitations))
     if snapshot["source_binding"] != "verified":
         block("source-binding", set(), "snapshot source binding is not verified")
     if evidence["limitations"] or snapshot["limitations"]:
@@ -744,6 +1174,9 @@ def build_plan(inventory_path, evidence_path, snapshot_path, constraints_path=No
             for constraint in constraints:
                 if constraint["classification"] != "rejected" and query["id"] in constraint["evidence_refs"]:
                     affected.update(constraint_scope(constraint))
+            for record in observation_records:
+                if query["id"] in record["record"]["query_ids"]:
+                    affected.update(record["files"])
             block(f"query:{query['id']}", affected,
                    "query pagination and/or language coverage incomplete (see queries)")
 
@@ -812,11 +1245,110 @@ def build_plan(inventory_path, evidence_path, snapshot_path, constraints_path=No
                            "blocker_ids": blocked,
                            "rationale": "minimal relative to qualified hard constraints only",
                            "representative_evidence": {key: mappings.get(key) for key in keys}})
+    graph_edges = []
+    for constraint in accepted:
+        files = sorted(constraint["files"])
+        # A deterministic spanning star represents the required set without
+        # inventing pair-size limits or a quadratic clique. Full sets stay above.
+        for index, other in enumerate(files[1:], 1):
+            graph_edges.append({"id": f"hard:{constraint['id']}:{index}",
+                                "origin_path": files[0], "destination_path": other,
+                                "class": "hard_must_coedit", "relationship_scope": "required_file_set",
+                                "evidence_refs": [constraint["id"]], "reasons": [constraint["rationale"]]})
+    for relation in relations.values():
+        endpoints = [symbols[relation[k]] for k in ("from_symbol", "to_symbol")]
+        if all(s["path"] in current and s["source_sha256"] == hashes[s["path"]] for s in endpoints):
+            graph_edges.append({"id": "relation:" + relation["id"],
+                                "origin_path": endpoints[0]["path"], "destination_path": endpoints[1]["path"],
+                                "class": "candidate_dependency", "relationship_scope": "verified_symbol_relation",
+                                "evidence_refs": [relation["id"]],
+                                "reasons": ["Observed " + relation["kind"] + "; no must-coedit authority"]})
+        else:
+            unresolved_observations.append({"id": "relation:" + relation["id"],
+                                            "files": sorted({s["path"] for s in endpoints}),
+                                            "record": relation, "reasons": ["relation source stale/unbound"]})
+    for observation, index in candidate_observations:
+        graph_edges.append({
+            "id": "observation:" + observation["id"],
+            "origin_path": observation["origin"]["path"], "destination_path": observation["destination"]["path"],
+            "class": "candidate_dependency", "relationship_scope": observation["relationship_scope"],
+            "evidence_refs": [{"path": observation_name,
+                               "sha256": initial_input_hashes[observation_input],
+                               "locator": f"/observations/{index}"}],
+            "reasons": ["Source-verified origin-to-file observation; consumer symbol identity not asserted",
+                        *observation["reasons"]],
+        })
+    graph_edges.sort(key=lambda edge: edge["id"])
+    graph_nodes = []
+    exact_symbols = {s["id"] for key, m in mappings.items() if effective[key] == "exact" for s in m["symbols"]}
+    for path in sorted(nodes):
+        keys = sorted(key for key, files in diag_files.items() if path in files)
+        graph_nodes.append({
+            "path": path, "diagnostic_keys": keys,
+            "symbol_ids": sorted(s["id"] for s in symbols.values()
+                                 if s["path"] == path and s["source_sha256"] == hashes.get(path)),
+            "mapping_status_counts": dict(sorted(Counter(effective[key] for key in keys).items())),
+            "source_status": validity.get(path, "unbound"),
+        })
+    proposed_groups = []
+    for component in components:
+        files = set(component["files"])
+        boundary = sorted(edge["id"] for edge in graph_edges if edge["class"] == "candidate_dependency"
+                          and ((edge["origin_path"] in files) != (edge["destination_path"] in files)))
+        unresolved = set(component["blocker_ids"])
+        unresolved.update("observation:" + record["id"] for record in unresolved_observations
+                          if set(record["files"]) & files)
+        # Global unknowns remain review work, not a claim that the file itself
+        # failed a previously established physical/local policy predicate.
+        unresolved.update(global_blockers)
+        proposed_groups.append({
+            "id": component["id"], "files": component["files"],
+            "constraint_ids": component["constraint_ids"], "diagnostic_keys": component["diagnostic_keys"],
+            "boundary_edge_ids": boundary, "unresolved_ids": sorted(unresolved),
+            "readiness": "review_required" if boundary or unresolved or
+            component["dispatchability"] == "blocked" else "candidate",
+        })
+    cross_edges = [edge for edge in graph_edges if edge["class"] == "candidate_dependency"
+                   and edge["origin_path"] != edge["destination_path"]]
+    graph = {
+        "nodes": graph_nodes, "edges": graph_edges, "proposed_groups": proposed_groups,
+        "unresolved_observations": sorted(unresolved_observations, key=lambda r: r["id"]),
+        "coverage": {
+            "diagnostic_files": len(set().union(*diag_files.values())) if diag_files else 0,
+            "files": len(graph_nodes),
+            "source_verified_files": sum(node["source_status"] == "verified_current" for node in graph_nodes),
+            "observed_normalized_symbol_ids": len({s for n in graph_nodes for s in n["symbol_ids"]}),
+            "exact_mapping_symbol_ids": len(exact_symbols),
+            "source_verified_origin_bindings": len(origin_cache),
+            "qualified_hard_constraints": len(accepted),
+            "hard_edges": sum(e["class"] == "hard_must_coedit" for e in graph_edges),
+            "candidate_edges": sum(e["class"] == "candidate_dependency" for e in graph_edges),
+            "candidate_cross_file_observations": len(cross_edges),
+            "same_file_candidate_observations": sum(
+                edge["class"] == "candidate_dependency" and edge["origin_path"] == edge["destination_path"]
+                for edge in graph_edges),
+            "unique_cross_file_boundaries": len({tuple(sorted((e["origin_path"], e["destination_path"])))
+                                                for e in cross_edges}),
+            "tentative_groups": len(proposed_groups),
+            "readiness_counts": dict(sorted(Counter(g["readiness"] for g in proposed_groups).items())),
+            "edge_absence": "not_observed",
+            "edge_orientation": "queried declaration/provider -> observed consumer (impact direction), not depends_on",
+            "partition_semantics": "file-boundary coupling for ownership review, not an execution DAG or task order",
+            "queries": [{"id": q["id"], "status": q["status"], "pagination": q["pagination"],
+                         "coverage": q["coverage"]} for q in sorted(queries.values(), key=lambda q: q["id"])],
+            "limitations": ["Observed edges cover only their captured query neighborhood, not the repository.",
+                            "File-candidate origin observations do not imply every file diagnostic touches that origin.",
+                            *observation_limitations],
+        },
+        "global_independence": "unproven" if global_blockers else "bounded observations only",
+    }
     # Final recheck detects source changes during this offline read, not historic
     # before/after collection equivalence (which remains producer evidence).
     after = {name: (root.root / name).is_file() and digest(root.root / name) == expected_hash
              for name, expected_hash in hashes.items()}
     require(all(after[n] for n in current), "source changed during planning")
+    require(all((root.root / name).is_file() and digest(root.root / name) == expected_hash
+                for name, expected_hash in context_hashes.items()), "origin context changed during planning")
     require(all(path.is_file() and digest(path) == expected_hash
                 for path, expected_hash in initial_input_hashes.items()),
             "input changed during planning")
@@ -830,7 +1362,8 @@ def build_plan(inventory_path, evidence_path, snapshot_path, constraints_path=No
         "input_hashes": {"inventory": initial_input_hashes[paths[0]],
                          "evidence": initial_input_hashes[paths[1]],
                          "snapshot": initial_input_hashes[paths[2]],
-                         "constraints": initial_input_hashes[cli_paths[3]] if constraints_path else None},
+                         "constraints": initial_input_hashes[constraint_input] if constraint_input else None,
+                         "observations": initial_input_hashes[observation_input] if observation_input else None},
         "accounting": {"input_diagnostic_records": len(diagnostics),
                        "retained_diagnostic_records": len(diagnostics), "strict_union": nc + ns - nm,
                        "exact_alias_pairs": nm, "uncertain_alias_hints": len(inventory["unmerged_hints"]),
@@ -844,6 +1377,7 @@ def build_plan(inventory_path, evidence_path, snapshot_path, constraints_path=No
         "input_mapping_status_counts": dict(sorted(Counter(m["status"] for m in mappings.values()).items())),
         "raw_path_to_canonical": dict(sorted(root.raw_paths.items())),
         "source_verification": {"before_plan": validity, "after_plan": after,
+                                "origin_context_hashes": dict(sorted(context_hashes.items())),
                                 "captured_at": snapshot["captured_at"],
                                 "head_verification": "format only; no Git execution",
                                 "collection_before_after": "not independently established by offline planner",
@@ -852,6 +1386,9 @@ def build_plan(inventory_path, evidence_path, snapshot_path, constraints_path=No
         "mappings": sorted(mappings.values(), key=lambda m: m["diagnostic_key"]),
         "evidence_limitations": evidence["limitations"],
         "relations": sorted(relations.values(), key=lambda r: r["id"]),
+        "file_observations": observation_records,
+        "observation_limitations": observation_limitations,
+        "work_graph": graph,
         "constraints": sorted(constraints, key=lambda c: c["id"]),
         "unqualified_hard_constraints": [
             {"id": identifier, "incomplete_query_ids": incomplete_hard[identifier]}
@@ -887,6 +1424,29 @@ def markdown(plan):
              f"- Snapshot captured at: {safe(plan['source_verification']['captured_at'])}.",
              "- Current source hashes checked before/after planning; collection freshness is a separate claim.",
              "", "## Components", ""]
+    overview = plan["work_graph"]["coverage"]
+    lines[-2:] = [
+        "## Work partition overview", "",
+        f"- {overview['files']} source-file nodes retain all {overview['diagnostic_files']} diagnostic files.",
+        f"- {overview['tentative_groups']} tentative ownership groups, minimal relative to qualified hard "
+        f"constraints; readiness: {safe(json.dumps(overview['readiness_counts'], sort_keys=True))}.",
+        f"- {overview['hard_edges']} hard edges; {overview['candidate_edges']} candidate site edges: "
+        f"{overview['same_file_candidate_observations']} same-file loops and "
+        f"{overview['candidate_cross_file_observations']} cross-file sites over "
+        f"{overview['unique_cross_file_boundaries']} unique file boundaries.",
+        f"- Unresolved observations: {len(plan['work_graph']['unresolved_observations'])}. "
+        "Unknown mappings remain attached to their file nodes.",
+        "- Arrows are impact direction: queried declaration/provider → observed consumer, not depends_on. "
+        "Same-file loops are not boundaries; this is not an execution DAG or certified-independent lot list.",
+    ]
+    pairs = sorted({(edge["origin_path"], edge["destination_path"]) for edge in plan["work_graph"]["edges"]
+                    if edge["class"] == "candidate_dependency" and edge["origin_path"] != edge["destination_path"]})
+    for origin, consumer in pairs:
+        lines.append(f"- Boundary review: `{safe(origin)}` → `{safe(consumer)}`; inspect the specific "
+                     "origin/correction before concurrent ownership.")
+    if not pairs:
+        lines.append("- Cross-file candidate boundaries: not_observed, not independent.")
+    lines += ["", "## Components", ""]
     for c in plan["components"]:
         lines += [f"### {c['id']} — {c['dispatchability']} ({c['classification']})",
                   "- Files: " + ", ".join(f"`{safe(f)}`" for f in c["files"]),
@@ -928,11 +1488,45 @@ def markdown(plan):
     for hint in plan["inventory"]["unmerged_hints"]:
         lines.append(f"- Unmerged alias hint `{safe(hint['clippy_id'])}` / "
                      f"`{safe(hint['sonar_id'])}`: {safe(hint.get('type', 'unknown'))}.")
+    graph = plan["work_graph"]
+    c = graph["coverage"]
+    lines += ["", "## Exploratory dependency graph", "",
+              f"- Files: {c['files']} ({c['diagnostic_files']} diagnostic files); "
+              f"current hash verified: {c['source_verified_files']}.",
+              f"- Exact-mapping symbol IDs: {c['exact_mapping_symbol_ids']}; "
+              f"verified origin bindings: {c['source_verified_origin_bindings']}.",
+              f"- Hard edges: {c['hard_edges']}; candidate site edges: {c['candidate_edges']} "
+              f"({c['same_file_candidate_observations']} same-file loops, "
+              f"{c['candidate_cross_file_observations']} cross-file sites); "
+              f"unique file boundaries: {c['unique_cross_file_boundaries']}.",
+              f"- Unresolved observations: {len(graph['unresolved_observations'])}; "
+              f"tentative ownership groups: {c['tentative_groups']}; readiness: "
+              + safe(json.dumps(c["readiness_counts"], sort_keys=True)) + ".",
+              "- These are ownership proposals relative to qualified hard constraints, not independent correction lots.",
+              "- Candidate arrows run from queried declaration/provider to observed consumer: impact direction, "
+              "not depends_on. Same-file loops are not boundaries. This coupling graph is not an execution DAG.",
+              "- Absent edges mean not_observed. No dispatch is authorized.", "",
+              "### Boundary review tasks", ""]
+    for edge in graph["edges"]:
+        if edge["class"] == "candidate_dependency":
+            lines.append(f"- `{safe(edge['id'])}`: `{safe(edge['origin_path'])}` → "
+                         f"`{safe(edge['destination_path'])}` ({edge['relationship_scope']}). "
+                         "Review the specific origin/correction before assigning concurrent ownership; evidence "
+                         + safe(json.dumps(edge["evidence_refs"], sort_keys=True)) + ".")
+    lines += ["", "### Tentative ownership groups", ""]
+    for group in graph["proposed_groups"]:
+        lines.append(f"- `{group['id']}` ({group['readiness']}): "
+                     + ", ".join(f"`{safe(path)}`" for path in group["files"])
+                     + "; boundary tasks: " + (", ".join(group["boundary_edge_ids"]) or "not_observed")
+                     + "; unresolved: " + (", ".join(group["unresolved_ids"]) or "none recorded") + ".")
+    for record in graph["unresolved_observations"]:
+        lines.append(f"- Unresolved `{safe(record['id'])}` in {safe(', '.join(record['files']))}: "
+                     + safe("; ".join(record["reasons"])))
     lines += ["", "## Limits", "", *("- " + s for s in plan["limitations"]), ""]
     return "\n".join(lines)
 
 
-def publish(outputs, inputs):
+def publish(outputs, inputs, expected_hashes=None):
     targets = [Path(path).resolve() for path, _ in outputs]
     sources = [Path(path).resolve() for path in inputs if path]
     require(len(set(targets)) == len(targets), "output/report collision")
@@ -955,6 +1549,9 @@ def publish(outputs, inputs):
                 handle.write(content)
                 handle.flush()
                 os.fsync(handle.fileno())
+        require(all(path.is_file() and digest(path) == expected
+                    for path, expected in (expected_hashes or {}).items()),
+                "input/source changed before publication")
         for temporary, target in staged:
             os.replace(temporary, target)
     finally:
@@ -967,17 +1564,28 @@ def main(argv=None):
     for name in ("inventory", "evidence", "snapshot", "output"):
         parser.add_argument("--" + name, required=True, type=Path)
     parser.add_argument("--constraints", type=Path)
+    parser.add_argument("--observations", type=Path)
     parser.add_argument("--report", type=Path)
     args = parser.parse_args(argv)
     try:
-        plan = build_plan(args.inventory, args.evidence, args.snapshot, args.constraints)
+        plan = build_plan(args.inventory, args.evidence, args.snapshot, args.constraints, args.observations)
         outputs = [(args.output, json.dumps(plan, indent=2, sort_keys=True, ensure_ascii=False) + "\n")]
         if args.report:
             outputs.append((args.report, markdown(plan)))
-        protected = [args.inventory, args.evidence, args.snapshot, args.constraints]
+        protected = [args.inventory, args.evidence, args.snapshot, args.constraints, args.observations]
         # Also protect every captured input and source, not only CLI artifacts.
         protected += [Path(plan["workspace"]) / p for p in plan["raw_path_to_canonical"].values()]
-        publish(outputs, protected)
+        expected = {getattr(args, role).resolve(): value for role, value in plan["input_hashes"].items()
+                    if value is not None}
+        for item in plan["snapshot"]["inputs"]:
+            expected[Path(plan["workspace"]) / item["path"]] = item["sha256"]
+        for item in plan["snapshot"]["files"]:
+            name = plan["raw_path_to_canonical"][item["path"]]
+            if plan["source_verification"]["before_plan"][name] == "verified_current":
+                expected[Path(plan["workspace"]) / name] = item["sha256"]
+        expected.update({Path(plan["workspace"]) / name: value
+                         for name, value in plan["source_verification"]["origin_context_hashes"].items()})
+        publish(outputs, protected, expected)
         return 0
     except (Invalid, OSError, UnicodeError, TypeError, KeyError) as exc:
         parser.exit(2, f"clippy-constraint-plan: {exc}\n")

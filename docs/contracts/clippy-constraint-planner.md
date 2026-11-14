@@ -189,7 +189,8 @@ Unsupported macro/generated expansion, ambiguous attributes, comments/string
 tokens, nesting or syntax that the implementation cannot soundly distinguish
 must fail this method rather than be silently ignored. The implementation may
 support a smaller explicit syntax subset; its fixtures must define that subset.
-Any additional proof method requires an explicit shared contract extension.
+Any additional proof method requires an explicit shared contract extension;
+section 8 authorizes the next range-local method.
 
 `checked_predicates` contains exactly these boolean fields, all true for an
 accepted exact proof:
@@ -445,3 +446,368 @@ matching A/B positive and negative fixtures in the existing unittest suites and
 one real source-bound acceptance replay; stop if the chosen case exceeds the
 declared subset. No complete Rust grammar, new dependency, reference-closure
 guarantee or broad rescan is implicitly authorized.
+
+## 8. Authorized follow-up: an exploitable partition representation
+
+The user's subsequent instruction explicitly authorizes continuing toward a
+usable work-partition representation. This section supersedes the preceding
+stop instruction **for the bounded follow-up below**, not the historical replay
+result or any safety/approval requirement. Work on canonical `master`, supplied
+baseline `bd5a102d8a2fcb04d0d23562910beb064adfde46`; no new worktrees, cleanup
+detour, repository extraction, production corrections or correction dispatch.
+Keep direct ownership and existing test suites; no new general workflow engine,
+full Rust parser, third-party dependency or runtime harness.
+
+### 8.1 Ownership and first acceptance gate
+
+A additionally owns `ops/scripts/clippy_source_ranges.py` and
+`ops/tests/test_clippy_source_ranges.py`. This is the **one shared deterministic
+source-range utility**, stdlib only, imported by both CLIs. A owns scanner changes
+exclusively; B does not copy or independently evolve its grammar. B can develop
+graph/report work against fixtures in parallel, but switches its localization
+replay to the shared utility only after A delivers the utility and tests.
+Sharing a validator is replay, not an independent implementation proof; fixture
+discriminants and source review remain necessary.
+
+First real acceptance case, inspected by the parent: `clippy:C000102`,
+`missing_panics_doc`, in
+`services/Manifesto/tests/common/migration_roundtrip.rs`, inventory range
+`[5, 0, 5, 95]`. `assert_initial_schema_roundtrip` spans lines 5–61, with a
+captured Serena Function witness whose inclusive endpoints were source-checked.
+The file has imports and the body contains strings, closures, `format!` and
+`assert!`; the diagnostic is on the ordinary function header, outside those
+macro token trees. This case must not be rejected merely for those body macros.
+Its exact physical mapping does not approve a documentation edit or establish
+that this diagnostic is a local policy candidate. Sonar alias `S000316` retains
+unknown mapping until its coordinate units are independently verified.
+
+After that gate, a second actual candidate is `clippy:C000361`,
+`unnecessary_result_map_or_else`, in
+`services/OAuthConnect/setup/tests/support/b_provider.rs`, range `[27, 4, 30, 5]`.
+`provider` has documentation at line 6, declaration at line 7 and body ending at
+line 31. Its diagnostic is outside the `json!` invocation on lines 8–26.
+`RuntimeAdmissionChallengeV1::validate` in
+`crates/apparatus-contracts/src/runtime.rs` is an additional ordinary impl-method
+fixture/seed, not a reason to delay the first real acceptance case.
+
+Gate before expanding the existing six-seed run:
+
+1. Capture current source-bound Serena parent/method/child witnesses and verify
+   body endpoints and doc attachment for this one diagnostic.
+2. Add positive and counterexample fixtures to the existing unittest layout,
+   proving imports/types/other implementations outside the selected range no
+   longer invalidate it, while a nested or unsupported local case still fails.
+3. Produce one exact normalized mapping with the new method; B must accept it
+   after deterministic replay, preserving unknown external-reference coverage.
+
+If the chosen case cannot pass, report its precise unsupported construct and
+fix the bounded method or choose one evidenced simpler actual diagnostic.
+Do not expand to a whole-repository scanner or count fixture-only success as
+real acceptance. After this gate, extend only across the current bounded seeds
+and additional named seeds justified by coverage gaps, retaining explicit
+query/source budgets. Do not repeatedly stop at an all-unknown report without
+addressing the demonstrated local grammar obstacle.
+
+### 8.2 Shared range-local method and API
+
+New proof method: `"source_crosschecked_function_range_v1"`. Keep the existing
+proof document fields and seven checked predicates; add no normalized top-level
+schema version. A/B recognize both methods without changing the meaning of the
+old whole-file method.
+
+The shared utility exports
+`verify_function_range(source, symbol, diagnostic_range, inventory_column_unit,
+witnesses) -> result`.
+`source` is the exact decoded source whose raw-byte hash was bound by the caller.
+`symbol` and `diagnostic_range` use existing normalized schemas; the latter
+contains the four inventory coordinates.
+`witnesses` is a list of `{query_id, name_path, kind, relative_path,
+body_location, parent_name_path}` records extracted from captured Serena
+payloads, not new arbitrary author assertions. Native `body_location` retains
+verified zero-based inclusive lines; `parent_name_path` is a string or null.
+The adapter must verify names, paths, hierarchy and endpoints against the
+actual query results; unadvertised children are not fabricated.
+
+`result` has `{status, normalized_range, candidate_name_paths,
+checked_predicates, reasons}`; status is `verified | ambiguous | unsupported`.
+`normalized_range` is the verified selected extent or null.
+`candidate_name_paths` is sorted and capture-local; the adapter binds these
+to normalized symbol IDs only with positive witness correspondence.
+`checked_predicates` has the existing seven keys. The utility establishes only
+source-local predicates; `source_binding_verified` and
+`source_hash_stable_before_after` stay false in its result and are set in the
+proof only by A's independent source/hash checks. B separately revalidates those
+bindings. No true flag is accepted without the matching executable check.
+
+Both callers derive witnesses by decoding referenced hashed raw queries, using
+small adapter code; B must not trust a producer-supplied witness list unattached
+to those queries. No live MCP is required for offline replay.
+
+Scope is the selected function/method declaration, attached documentation and
+body, plus the enclosing impl/trait/module context needed to identify it.
+Mixed-file declarations elsewhere are not grounds for rejection by themselves.
+Tokenization can scan the file for balanced contexts, but is not Rust semantic
+resolution or a claim that all file symbols/features are indexed.
+
+Use a source-position-preserving lexical state machine, not broad regex
+substitution. The bounded supported subset includes normal line/doc comments,
+nested block comments, escaped ordinary/byte strings, raw strings with matching
+hash delimiters, character/byte-character literals distinguished from lifetimes,
+balanced braces/parentheses/brackets, generics and ordinary impl methods,
+including trait implementations. Literal/comment contents cannot introduce fake
+braces or declarations. Unsupported or unterminated lexical states fail closed
+for the affected scope. Test Unicode and CRLF without silently normalizing bytes.
+
+Correlate the selected declaration, containing implementation and relevant nested
+declarations with actual source/Serena witnesses. Exclude competing or nested
+item symbols from the entire diagnostic extent; ambiguous nesting stays
+ambiguous. Closures/async blocks are not silently treated as item functions;
+if the diagnostic requires identifying such a symbol, retain unsupported.
+Overloads with identical method names in different impls require positive parent
+identity, not a name count across seeds.
+
+Do not claim macro expansion/cfg completeness. Source invocation macros within
+an ordinary function can be treated as opaque, lexically balanced token trees:
+their presence does not invalidate a physical mapping of an ordinary header or
+other source tokens outside those trees. Do not interpret their contents as
+ordinary declarations, count macro-generated symbols as enumerated or assign a
+diagnostic inside a macro token tree/generated expansion to the enclosing
+function as exact. Such diagnostics remain unsupported by this method.
+Relevant declaration-rewriting attribute macros, conditional compilation or
+generated code affecting the selected declaration or its identity-bearing
+ancestry remain unsupported unless a separately specified check proves they
+cannot alter attribution. Unrelated derives/types elsewhere do not invalidate
+the selected ordinary function. Nested/competing **source** declarations are
+checked in the supported lexical scope; the proof does not claim exhaustive
+expanded-code symbols. Test header-outside-macro acceptance and inside-macro
+rejection as separate discriminants.
+
+#### Narrow non-rewriting lint-attribute predicate
+
+The inspected origin file `crates/apparatus-contracts/src/runtime.rs` has
+`#![allow(missing_docs)]` at line 6. This does not by itself make its ordinary
+function declarations physically unidentifiable. The Rust Reference describes
+`allow`, `warn`, `deny` and `forbid` as lint-level controls on the entity to which
+they apply, not declaration rewriting:
+[Lint check attributes](https://doc.rust-lang.org/reference/attributes/diagnostics.html#lint-check-attributes)
+(consulted 2026-11-14).
+
+Within the existing shared source utility, permit only this bounded lexical
+subset as a non-rewriting attribute, inner or outer:
+
+```text
+attribute := "#" "!"? "[" level "(" lint ("," lint)* ","? ")" "]"
+level     := "allow" | "warn" | "deny" | "forbid"
+lint      := identifier | ("clippy" | "rustdoc") "::" identifier
+identifier := [A-Za-z_][A-Za-z0-9_]*
+```
+
+Allow ASCII whitespace between the displayed tokens. Require a complete match
+of the source attribute, balanced delimiters, an unqualified exact level name
+and at least one lint. Do not match attribute-like text inside comments,
+literals or macro token trees. For this initial predicate, comments within the
+attribute, raw identifiers, `reason` arguments, name/value syntax, nested lists,
+other tool prefixes and `expect` remain unsupported; their rejection is a
+bounded syntax limitation, not a claim that Rust rejects them.
+
+This predicate classifies source syntax for physical attribution only. It does
+not need to establish that a named lint exists, authorize changing its level,
+approve suppressions, or select a correction policy. Never add an attribute to
+the source to make this checker pass. The shared utility is the sole A/B
+implementation of this predicate; B reuses it without a separate attribute
+allowlist or policy fork.
+
+Continue associating each inner attribute with its actual nearest enclosing
+source item/scope and checking the selected declaration and its full ordered
+identity-bearing ancestry. Accepting this lint subset must **not** skip that
+scope walk or cause a later relevant attribute to be ignored.
+`cfg`, `cfg_attr`, arbitrary attribute macros, `doc = include_str!(...)` and
+unsupported relevant attributes remain unsupported under the existing method;
+in particular, an inner `#![cfg(...)]` on the selected function remains the C-2
+negative case. A harmless accepted lint attribute alongside a relevant cfg must
+still fail attribution.
+
+Add narrow fixtures for the actual module-level `#![allow(missing_docs)]`,
+the same accepted syntax on a selected function, malformed/extra-token forms,
+and accepted lint plus relevant inner cfg. Preserve the C-1 foreign-declaration
+and C-3 full-hierarchy discriminants independently. No broader attribute grammar,
+parser dependency or production-source change is authorized by this clarification.
+
+### 8.3 File observations without fabricated symbol identities
+
+Retain normalized `relations` for positively verified symbol endpoints. They can
+carry unknown language/reference coverage and remain candidates, not hard edges.
+Do not require global reference closure merely to preserve an observed relation.
+Link HIR and Serena identities only through positive current-source declaration
+evidence; equal spelling, similar names or shared files are insufficient.
+
+Where a useful dependency observation has verified file endpoints but cannot
+establish symbol identity, preserve it separately. A emits an optional local
+hashed artifact; B accepts `--observations <file>`. The observation artifact
+references the **already finalized** snapshot and normalized evidence by hash.
+Do **not** put its hash into that snapshot's `inputs`: doing so would create a
+snapshot/observation hash cycle. B hashes the observation artifact as a CLI input
+and rechecks it before publication. Raw query captures, endpoint source files,
+Cargo/module context and origin-binding proof are already bound in the existing
+snapshot before observations are serialized. These inputs must not themselves
+contain the final snapshot/evidence/observation hashes. Existing normalized
+inventory/evidence/snapshot top-level schemas stay intact.
+For graph references into this one CLI observation artifact, B validates against
+its separately captured CLI hash and locator, not membership in snapshot inputs.
+All nested query/source/origin-proof references still require the usual snapshot
+binding. Serialization order is raw captures/context/proof, snapshot, normalized
+evidence, observations, then plan; references never point backward through hashes
+to an artifact that embeds their own final hash.
+Artifact schema:
+
+- `schema_version: 1`, `kind: "clippy-file-observations"`, `workspace`,
+  `snapshot_sha256`, `evidence_sha256`, `inventory_sha256`, `observations`,
+  `limitations`;
+- each observation: `{id, kind, origin, destination, query_ids,
+  origin_binding_ref, identity_status, endpoint_status, relationship_scope,
+  reasons}`;
+- `kind`: `reference | call | implementation | import | reexport`;
+- each endpoint: `{path, source_sha256, symbol_id, range}`; symbol ID and
+  normalized range may be null, but path/hash must identify a captured file;
+- `query_ids`: nonempty references into normalized evidence queries;
+- `identity_status`: `verified_symbols | file_candidate | unresolved`;
+- `endpoint_status`: `source_verified | path_only`;
+- `relationship_scope`: `"symbol_to_file_candidate"` for this initial artifact;
+- `origin_binding_ref`: `{path, sha256, locator: "/"}` referencing the
+  snapshot-bound origin proof described below; null only for an unresolved
+  observation, never a candidate graph edge.
+
+#### Bounded positive origin binding
+
+The first supported origin is the exact target
+`apparatus_contracts::runtime::validate_runtime_uid`. Do not implement a general
+Rust resolver. The parent supplied live probes at
+`.tmp/clippy-campaign-20261114/followup-origin-function_signature.json` and
+`.tmp/clippy-campaign-20261114/followup-origin-find_definition.json`.
+`function_signature` returns the explicit target, parameter `value: &str` and
+`Result<(), RuntimeErrorCodeV1>`. `find_definition`, with
+`symbol_name: "validate_runtime_uid"` and `exact: true`, returns one definition
+at `crates/apparatus-contracts/src/runtime.rs:273:8`; the current declaration
+and Serena Function extent (native inclusive lines 268–277) were source-checked
+by the parent. These are witnesses to capture/validate, not authority to assume
+the same position on a changed source.
+
+A may add only that curated read-only definition lookup, with its real advertised
+namespace/schema verified, root/directory fixed, nonempty literal `symbol_name`
+and `exact: true`. No wildcard, arbitrary tool forwarding or code/index changes.
+Keep signature, definition and Serena lookup raw captures and normalized query
+IDs; unsupported text formats or multiple definitions remain unresolved.
+
+Use a local JSON proof with these exact required fields:
+
+- `schema_version: 1`, `kind: "clippy-origin-binding"`;
+- `target`: the exact qualified target;
+- `source_path`, `source_sha256`: the current declaration file and hash;
+- `declaration_range`: the verified normalized declaration/function range;
+- `crate_manifest_ref`, `module_root_ref`: `{path, sha256, locator}` references
+  to the captured `crates/apparatus-contracts/Cargo.toml` and `src/lib.rs`;
+- `query_ids`: the signature, exact definition and Serena symbol query IDs;
+- `method: "direct_crate_module_function_v1"`.
+
+For this method A and B independently check the same narrow chain from hashed
+files: manifest package name `apparatus-contracts`, default Rust crate identifier
+`apparatus_contracts`, no `[lib]` name/path override, default `src/lib.rs`,
+literal unconditional `pub mod runtime;`, default sibling `runtime.rs`, and
+the ordinary top-level `validate_runtime_uid` declaration. Reject path/cfg
+attributes, reexport indirection, generated declarations or any unsupported
+override along this chain. Root identity and source hashes must match; do not
+resolve module identity by a suffix/name guess.
+
+B replays the qualified chain, signature/declaration consistency, definition
+file/name/location and source-bound Serena extent using the shared source
+utility and captured queries. Verify definition coordinate conventions against
+the actual token; do not silently assume that its `:273:8` columns use the
+normalized scheme. A literal Windows extended-length prefix in the captured
+definition path may be removed only as a narrowly recognized local drive-path
+wrapper before ordinary root validation; device/UNC paths are not authorized.
+Signature text alone or the same unqualified name is insufficient.
+
+The proof has no snapshot hash, observation hash, self hash or self-approval
+flag. Its own hash is stored by the enclosing snapshot/observation reference,
+not inside the proof. It binds a queried target to a declaration file without
+requiring that declaration to have a diagnostic or a normalized symbol ID.
+It grants neither full cross-system symbol identity nor approved co-edit scope.
+
+`file_candidate` means the captured query relates a positively source-bound
+origin declaration to an observed destination file; it does not prove a specific
+consumer function or hard dependency. The origin symbol need not itself carry
+a diagnostic: `validate_runtime_uid` can provide useful boundary observations
+for `runtime.rs` without implying that every diagnostic in that file touches
+the validator. Validate returned file membership and raw
+usage shape, root and hashes. Byte-span/spelling matches strengthen a witness but
+do not alone establish semantic identity. If origin declaration identity cannot
+be bound to the queried target, keep the observation `unresolved` rather than
+inventing an origin edge. Preserve raw start/end units and mismatch reasons in
+the query artifact; never repair offsets heuristically.
+Only source-verified `file_candidate` or `verified_symbols` observations become
+candidate graph edges. Path-only/unresolved records remain visible in the
+unresolved-observation queue, not silently discarded or promoted. Recheck newly
+discovered source hashes in a subsequent bounded capture before claiming stable
+before/after binding.
+
+### 8.4 Useful work graph, not a dispatch certificate
+
+B adds a `work_graph` object to its existing JSON plan output, without changing
+the normalized input schemas. Fields:
+
+- `nodes`: `{path, diagnostic_keys, symbol_ids, mapping_status_counts,
+  source_status}` records for **every diagnostic file**, plus verified observed
+  consumers outside that inventory;
+- `edges`: `{id, origin_path, destination_path, class, relationship_scope,
+  evidence_refs, reasons}`;
+  class is `hard_must_coedit | candidate_dependency`, with hard edges referencing
+  approved qualified constraints and candidates referencing normalized relations
+  or `{path, sha256, locator}` observation records. `relationship_scope` is
+  `required_file_set | verified_symbol_relation | symbol_to_file_candidate`;
+  retain the origin symbol/query witness in the referenced evidence;
+- `proposed_groups`: `{id, files, constraint_ids, diagnostic_keys,
+  boundary_edge_ids, unresolved_ids, readiness}`;
+  readiness is `review_required | candidate`, never certified independent;
+- `unresolved_observations`, `coverage`, `global_independence`.
+
+Proposed groups are the minimal file components **relative to qualified hard
+constraints**, even when no hard constraints yield singletons. Attach candidate
+edges crossing their boundaries, unresolved localizations/coverage and
+correction-specific review tasks. Those singletons are useful tentative ownership
+units, not approved independent correction lots. Soft-edge connectivity may be
+shown as a review neighborhood, but must not silently merge proposed groups or
+be called must-coedit. Preserve separate package × src/tests scheduling metadata.
+Keep existing conservative blocker/dispatch fields; the graph is an additional
+exploratory partition view, not a way to relabel blocked work safe.
+
+Report actual counts of observed/verified files and symbols, tentative groups,
+hard constraints, candidate cross-file boundaries, unresolved observations and
+scope-limited blockers. Show representative current paths, diagnostics and
+evidence, not only aggregate counts. Absence of observed edges is
+`not_observed`, not `independent`. A useful graph may have zero approved hard
+constraints; it must still expose evidence-backed candidate dependencies and
+where review is needed.
+
+### 8.5 Bounded useful-output acceptance
+
+Use the existing fixture suites plus `test_clippy_source_ranges.py`; no new
+runtime or parser harness. Test positive mixed-file top-level and impl cases,
+comments/literals/raw strings/lifetimes with misleading delimiters, duplicate
+method names in separate impls, nested declarations, unsupported relevant macros/
+cfg, source drift, and query/source witness mismatch. Test file observations
+with unresolved symbol identity, scoped blockers, missing origin identity,
+outside-diagnostic consumers, and candidate edges never causing hard unions.
+
+After the one-case gate, acceptance requires a real source-bound capture and
+offline replay demonstrating at least one actual exact diagnostic mapping in a
+mixed file, preservation of all 131 current diagnostic files, and at least one
+evidence-backed cross-file candidate observation or normalized relation. Existing
+14 HIR usages of `validate_runtime_uid` are a candidate witness set, not presumed
+valid endpoints. The parent's observed eight destination files are the bounded
+initial candidate neighborhood, not coverage of all 131 files. If none can be
+validated, investigate that bounded identity/
+span obstacle rather than fabricate an edge or declare this utility gate met.
+The report must expose tentative groups and concrete boundary-review tasks
+while retaining unknowns and zero hard groups where that is the evidence.
+No percentage-of-repository completeness or automatic corrective dispatch is
+required or implied.

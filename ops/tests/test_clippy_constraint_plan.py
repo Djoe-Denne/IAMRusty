@@ -57,6 +57,7 @@ class Fixture:
             }], "limitations": [],
         }
         self.constraints = []
+        self.observations = None
         self.snapshot = {
             "schema_version": 1, "kind": "clippy-source-snapshot", "workspace": str(self.root),
             "head": "1" * 40, "captured_at": "2026-11-14T00:00:00Z",
@@ -80,8 +81,8 @@ class Fixture:
     def write(self, name, value):
         path = self.root / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(value if isinstance(value, str) else
-                        json.dumps(value, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+        path.write_bytes((value if isinstance(value, str) else
+                          json.dumps(value, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8"))
         return path
 
     def ref(self, name):
@@ -108,8 +109,10 @@ class Fixture:
                                 "no_cross_file_edit")},
         })
         self.captures.add(artifact)
-        next(m for m in self.evidence["mappings"] if m["diagnostic_key"] == "clippy:" + identifier)[
-            "evidence_refs"].append(self.ref(artifact))
+        mapping = next(m for m in self.evidence["mappings"] if m["diagnostic_key"] == "clippy:" + identifier)
+        mapping["evidence_refs"] = [
+            ref for ref in mapping["evidence_refs"] if not (isinstance(ref, dict) and ref["path"] == artifact)]
+        mapping["evidence_refs"].append(self.ref(artifact))
 
     def hard(self, identifier, files, keys):
         constraint = {
@@ -134,6 +137,140 @@ class Fixture:
         constraint["evidence_refs"].append(self.ref(closure))
         self.constraints.append(constraint)
         return constraint
+
+    def raw_query(self, identifier, tool, payload, arguments, pagination=None):
+        name = "raw-" + identifier + ".json"
+        self.write(name, {"isError": False, "content": [{"type": "text", "text": payload if
+                        isinstance(payload, str) else json.dumps(payload, ensure_ascii=False)}],
+                          "structuredContent": None})
+        self.captures.add(name)
+        query = {"id": identifier, "tool": tool, "arguments": arguments,
+                 "artifact": name, "artifact_sha256": planner.digest(self.root / name), "status": "ok",
+                 "pagination": pagination or {"status": "unknown", "pages": 1, "returned": 1,
+                                               "total": None, "reason": "no advertised totals"},
+                 "coverage": {k: "unknown" for k in planner.COVERAGE}}
+        self.evidence["queries"].append(query)
+        return query
+
+    def range_mapping(self, index=3, source=None, native_start=0, native_end=3):
+        mapping = self.evidence["mappings"][index]
+        symbol = mapping["symbols"][0]
+        if source is not None:
+            self.write(symbol["path"], source)
+            symbol["source_sha256"] = planner.digest(self.root / symbol["path"])
+        symbol["range"] = {"start_line": native_start + 1, "start_column": 0,
+                           "end_line": native_end + 2, "end_column": 0, "column_unit": "unicode_scalar"}
+        query = self.raw_query("range-q", "serena_1mcp_find_symbol", [{
+            "name_path": "example", "kind": "Function", "relative_path": symbol["path"],
+            "body_location": {"start_line": native_start, "end_line": native_end},
+        }], {"relative_path": symbol["path"], "name_path_pattern": "example", "include_body": False})
+        mapping["evidence_refs"].append(query["id"])
+        self.proof_changes[mapping["diagnostic_key"]] = lambda p: p["local_discovery"].update(
+            method="source_crosschecked_function_range_v1", query_ids=[query["id"]])
+        return query
+
+    def observation_fixture(self, destinations=("consumer.rs",), omitted_consumer=False):
+        origin = "crates/apparatus-contracts/src/runtime.rs"
+        manifest = "crates/apparatus-contracts/Cargo.toml"
+        module = "crates/apparatus-contracts/src/lib.rs"
+        target = "apparatus_contracts::runtime::validate_runtime_uid"
+        self.write(origin, "pub fn validate_runtime_uid(value: &str) -> Result<(), RuntimeErrorCodeV1> {\n"
+                           "    Ok(())\n}\n")
+        self.write(manifest, '[package]\nname = "apparatus-contracts"\nversion = "0.0.0"\n')
+        self.write(module, "pub mod runtime;\n")
+        self.captures.update((manifest, module))
+        for destination in set(destinations) - {origin}:
+            count = destinations.count(destination)
+            if destination in ("a.rs", "b.rs", "c.rs", "independent.rs"):
+                self.write(destination, self.source.replace(
+                    "    1", "    validate_runtime_uid();\n" * count + "    1"))
+                for mapping in self.evidence["mappings"]:
+                    if mapping["symbols"][0]["path"] == destination:
+                        mapping["symbols"][0]["source_sha256"] = planner.digest(self.root / destination)
+                        mapping["symbols"][0]["range"]["end_line"] = 4 + count
+            else:
+                self.write(destination, "pub fn observed() {\n" + "    validate_runtime_uid();\n" * count + "}\n")
+        root_args = {"directory": str(self.root)}
+        self.raw_query("sig", "function_signature", {
+            "target": target, "signature": {"is_async": False, "self_param": None,
+                                          "params": [{"name": "value", "ty": "&str", "by_ref": True,
+                                                      "mutability": False}],
+                                          "return_type": "Result<(), RuntimeErrorCodeV1>", "generics": []},
+        }, {**root_args, "target": target})
+        self.raw_query("def", "find_definition",
+                       "Found 1 definition(s) for 'validate_runtime_uid':\n"
+                       + str(self.root / origin) + ":1:8 (validate_runtime_uid, exact=true)",
+                       {**root_args, "symbol_name": "validate_runtime_uid", "exact": True})
+        self.raw_query("origin", "serena_1mcp_find_symbol", [{
+            "name_path": "validate_runtime_uid", "kind": "Function", "relative_path": origin,
+            "body_location": {"start_line": 0, "end_line": 2},
+        }], {"relative_path": origin, "name_path_pattern": "validate_runtime_uid"})
+        extent = {"start_line": 1, "start_column": 0, "end_line": 4, "end_column": 0,
+                  "column_unit": "unicode_scalar"}
+        self.write("origin-proof.json", {
+            "schema_version": 1, "kind": "clippy-origin-binding", "target": target,
+            "source_path": origin, "source_sha256": planner.digest(self.root / origin),
+            "declaration_range": extent, "crate_manifest_ref": self.ref(manifest),
+            "module_root_ref": self.ref(module), "query_ids": ["sig", "def", "origin"],
+            "method": "direct_crate_module_function_v1",
+        })
+        self.captures.add("origin-proof.json")
+        usages = []
+        for destination in destinations:
+            start = (self.root / destination).read_bytes().index(b"validate_runtime_uid")
+            # Repeated sites in the same file are distinct witnesses, not copies.
+            while any(row["file"] == destination and row["start"] == start for row in usages):
+                data = (self.root / destination).read_bytes()
+                start = data.index(b"validate_runtime_uid", start + 1)
+            row = {"file": destination, "start": start, "end": start + len("validate_runtime_uid"),
+                   "category": "Other", "consumer_module": "fixture::observed"}
+            if not omitted_consumer:
+                row["consumer_function"] = "fixture::observed"
+            usages.append(row)
+        pagination = {"status": "complete", "pages": 1, "returned": len(usages),
+                      "total": len(usages), "reason": "captured indexed fixture scope"}
+        arguments = {**root_args, "target": target, "offset": 0, "limit": 50, "summary": False}
+        query = self.raw_query("usage", "who_uses", {
+            "target": target, "total_match_count": len(usages), "offset": 0, "limit": 50,
+            "summary": False, "returned_match_count": len(usages), "usages": usages,
+        }, arguments, pagination)
+        raw_artifact, raw_hash = query["artifact"], query["artifact_sha256"]
+        self.write("usage-sequence.json", {
+            "target": target, "pagination": pagination,
+            "pages": [{"id": "usage-page", "tool": "who_uses", "arguments": arguments,
+                       "artifact": raw_artifact, "artifact_sha256": raw_hash, "status": "ok"}],
+        })
+        self.captures.add("usage-sequence.json")
+        query.update(artifact="usage-sequence.json", artifact_sha256=planner.digest(self.root / "usage-sequence.json"))
+        self.observations = {
+            "schema_version": 1, "kind": "clippy-file-observations", "workspace": str(self.root),
+            "snapshot_sha256": "", "evidence_sha256": "", "inventory_sha256": "", "limitations": [],
+            "observations": [{
+                "id": f"observed-{i}", "kind": "reference",
+                "origin": {"path": origin, "source_sha256": planner.digest(self.root / origin),
+                           "symbol_id": None, "range": extent},
+                "destination": {"path": path, "source_sha256": planner.digest(self.root / path),
+                                "symbol_id": None, "range": None},
+                "query_ids": ["usage"], "origin_binding_ref": {**self.ref("origin-proof.json"), "locator": "/"},
+                "identity_status": "file_candidate", "endpoint_status": "source_verified",
+                "relationship_scope": "symbol_to_file_candidate", "reasons": [],
+            } for i, path in enumerate(destinations)],
+        }
+        return self.observations["observations"]
+
+    def refresh_capture(self, name):
+        """Rebind deliberately forged fixture bytes without hiding them as stale."""
+        for query in self.evidence["queries"]:
+            if query["artifact"] == name:
+                query["artifact_sha256"] = planner.digest(self.root / name)
+        if name == "raw-usage.json":
+            sequence = planner.read_json(self.root / "usage-sequence.json")
+            sequence["pages"][0]["artifact_sha256"] = planner.digest(self.root / name)
+            self.write("usage-sequence.json", sequence)
+            self.refresh_capture("usage-sequence.json")
+        if name == "origin-proof.json":
+            for observation in self.observations["observations"]:
+                observation["origin_binding_ref"] = {**self.ref(name), "locator": "/"}
 
     def save(self):
         for mapping in self.evidence.get("mappings", []):
@@ -188,8 +325,8 @@ class Fixture:
             self.inventory[namespace + "_unmatched_ids"] = [
                 r["id"] for r in self.inventory[namespace] if r["id"] not in matched]
         self.write("inventory.json", self.inventory)
-        self.snapshot["files"] = [{"path": p.name, "sha256": planner.digest(p)}
-                                  for p in sorted(self.root.glob("*.rs"))]
+        self.snapshot["files"] = [{"path": p.relative_to(self.root).as_posix(), "sha256": planner.digest(p)}
+                                  for p in sorted(self.root.rglob("*.rs"))]
         self.snapshot["inputs"] = [
             {"role": "inventory" if name == "inventory.json" else "capture", **self.ref(name)}
             for name in sorted(self.captures | {"inventory.json"})]
@@ -202,10 +339,16 @@ class Fixture:
             "snapshot_sha256": planner.digest(self.snapshot_path),
             "inventory_sha256": planner.digest(self.inventory_path), "constraints": self.constraints,
         })
+        if self.observations is not None:
+            self.observations.update(snapshot_sha256=planner.digest(self.snapshot_path),
+                                     evidence_sha256=planner.digest(self.evidence_path),
+                                     inventory_sha256=planner.digest(self.inventory_path))
+            self.write("observations.json", self.observations)
 
     def plan(self):
         return planner.build_plan(self.inventory_path, self.evidence_path,
-                                  self.snapshot_path, self.constraints_path)
+                                  self.snapshot_path, self.constraints_path,
+                                  self.root / "observations.json" if self.observations is not None else None)
 
 
 class PlannerTests(unittest.TestCase):
@@ -765,6 +908,320 @@ class PlannerTests(unittest.TestCase):
             self.skipTest("hard links unavailable")
         with self.assertRaisesRegex(planner.Invalid, "filesystem alias"):
             planner.publish([(alias, "overwrite")], [self.f.inventory_path])
+
+    def test_range_local_mixed_file_replays_hashed_queries_preserving_crlf(self):
+        source = ("use std::fmt;\r\nstruct Other;\r\n/// A literal documentation sentence.\r\n"
+                  "pub fn example() -> usize {\r\n    let value = || 1;\r\n"
+                  "    format!(\"{:?}\", value());\r\n    value()\r\n}\r\n")
+        self.f.range_mapping(source=source, native_start=2, native_end=7)
+        self.f.inventory["clippy"][3]["primary_spans"][0]["range"] = [3, 4, 3, 11]
+        self.f.local("C000004", "independent.rs")
+        self.f.save()
+        with mock.patch.object(planner._RANGES, "verify_function_range",
+                               wraps=planner._RANGES.verify_function_range) as replay:
+            plan = self.f.plan()
+        self.assertIn("\r\n", replay.call_args.args[0])
+        self.assertEqual(plan["diagnostics"][-1]["mapping_status"], "exact")
+        self.assertEqual(plan["diagnostics"][-1]["local_policy"]["classification"], "local_candidate")
+        self.assertEqual(plan["queries"][-1]["pagination"]["status"], "unknown")
+        self.assertEqual(plan["global_independence"], "unproven")
+
+    def test_exact_header_mapping_does_not_authorize_documentation_policy(self):
+        query = self.f.range_mapping()
+        self.f.inventory["clippy"][3]["rule"] = "clippy::missing_panics_doc"
+        self.f.inventory["clippy"][3]["primary_spans"][0]["range"] = [2, 0, 2, 26]
+        self.f.save()
+        plan = self.f.plan()
+        self.assertEqual(query["status"], "ok")
+        self.assertEqual(plan["diagnostics"][-1]["mapping_status"], "exact")
+        self.assertEqual(plan["diagnostics"][-1]["local_policy"]["classification"], "needs_review")
+
+    def test_range_local_forged_dual_payload_and_request_mismatch_fail_closed(self):
+        query = self.f.range_mapping()
+        baseline = planner.read_json(self.f.root / query["artifact"])
+        for raw, args in (
+            ({**baseline, "structuredContent": {"result": "[]"}}, query["arguments"]),
+            (baseline, {"relative_path": "a.rs", "name_path_pattern": "example"}),
+            ({**baseline, "isError": True}, query["arguments"]),
+        ):
+            with self.subTest(raw=raw, args=args):
+                query["arguments"] = args
+                self.f.write(query["artifact"], raw)
+                self.f.refresh_capture(query["artifact"])
+                self.f.save()
+                self.assertEqual(self.f.plan()["diagnostics"][-1]["mapping_status"], "unknown")
+
+    def test_range_local_shared_high_regressions_are_not_overridden_by_proof_flags(self):
+        cases = [
+            ("pub fn example() {\n    unsafe extern \"C\" {\n        fn foreign(x: i32);\n    }\n}\n",
+             4, [3, 8, 3, 25]),
+            ("pub fn example() {\n    #![cfg(feature = \"x\")]\n    1;\n}\n", 3, [1, 0, 1, 18]),
+        ]
+        for source, end, span in cases:
+            with self.subTest(source=source):
+                # Reuse the fixture; remove the previous range query explicitly.
+                self.f.evidence["queries"] = [q for q in self.f.evidence["queries"] if q["id"] != "range-q"]
+                mapping = self.f.evidence["mappings"][0]
+                mapping["evidence_refs"] = [r for r in mapping["evidence_refs"] if r != "range-q"]
+                self.f.range_mapping(index=0, source=source, native_start=0, native_end=end)
+                self.f.inventory["clippy"][0]["primary_spans"][0]["range"] = span
+                self.f.save()
+                self.assertEqual(self.f.plan()["diagnostics"][0]["mapping_status"], "unknown")
+        query = next(q for q in self.f.evidence["queries"] if q["id"] == "range-q")
+        self.f.write("a.rs", self.f.source)
+        self.f.evidence["mappings"][0]["symbols"][0].update(
+            range={"start_line": 1, "start_column": 0, "end_line": 5, "end_column": 0,
+                   "column_unit": "unicode_scalar"}, source_sha256=planner.digest(self.f.root / "a.rs"))
+        self.f.inventory["clippy"][0]["primary_spans"][0]["range"] = [1, 4, 1, 11]
+        raw = planner.read_json(self.f.root / query["artifact"])
+        raw["content"][0]["text"] = json.dumps([{"name_path": "Wrong/example", "kind": "Function",
+                                                "relative_path": "a.rs",
+                                                "body_location": {"start_line": 0, "end_line": 3}}])
+        self.f.write(query["artifact"], raw)
+        self.f.refresh_capture(query["artifact"])
+        self.f.save()
+        self.assertEqual(self.f.plan()["diagnostics"][0]["mapping_status"], "unknown")
+
+    def test_work_graph_exists_without_observations_and_reuses_hard_components(self):
+        self.f.hard("ab", ["a.rs", "b.rs"], ["C000001", "C000002"])
+        self.f.hard("bc", ["b.rs", "c.rs", "consumer.rs"], ["C000002", "C000003"])
+        self.f.save()
+        graph = self.f.plan()["work_graph"]
+        self.assertEqual(len(graph["nodes"]), 5)
+        self.assertEqual(len(graph["proposed_groups"]), 2)
+        self.assertEqual(graph["coverage"]["hard_edges"], 3)
+        self.assertTrue(all(e["class"] == "hard_must_coedit" for e in graph["edges"]))
+        self.assertEqual(graph["coverage"]["edge_absence"], "not_observed")
+        self.assertEqual(graph["proposed_groups"][0]["files"], ["a.rs", "b.rs", "c.rs", "consumer.rs"])
+
+    def test_observation_site_edges_boundaries_and_outside_consumers_never_union(self):
+        origin = "crates/apparatus-contracts/src/runtime.rs"
+        self.f.observation_fixture(("consumer.rs", "consumer.rs", "a.rs", origin), omitted_consumer=True)
+        self.f.save()
+        plan = self.f.plan()
+        graph = plan["work_graph"]
+        self.assertEqual(graph["coverage"]["files"], 6)
+        self.assertEqual(graph["coverage"]["diagnostic_files"], 4)
+        self.assertEqual(graph["coverage"]["candidate_edges"], 4)
+        self.assertEqual(graph["coverage"]["candidate_cross_file_observations"], 3)
+        self.assertEqual(graph["coverage"]["same_file_candidate_observations"], 1)
+        self.assertEqual(graph["coverage"]["unique_cross_file_boundaries"], 2)
+        self.assertEqual(graph["coverage"]["hard_edges"], 0)
+        self.assertEqual(len(graph["proposed_groups"]), 6)
+        self.assertEqual(plan["confirmed_multi_file_components"], 0)
+        self.assertEqual(graph["unresolved_observations"], [])
+        consumer = next(n for n in graph["nodes"] if n["path"] == "consumer.rs")
+        self.assertEqual(consumer["diagnostic_keys"], [])
+        self.assertEqual(consumer["source_status"], "verified_current")
+        group = next(g for g in graph["proposed_groups"] if g["files"] == ["consumer.rs"])
+        self.assertEqual(len(group["boundary_edge_ids"]), 2)
+        self.assertIn("impact direction", graph["coverage"]["edge_orientation"])
+        raw = planner.read_json(self.f.root / "raw-usage.json")
+        self.assertNotIn("consumer_function", json.loads(raw["content"][0]["text"])["usages"][0])
+        self.assertIn("not an execution DAG", planner.markdown(plan))
+        for edge in graph["edges"]:
+            self.assertEqual(edge["origin_path"], origin)
+            self.assertEqual(edge["evidence_refs"][0]["sha256"], planner.digest(self.f.root / "observations.json"))
+
+    def test_missing_origin_and_forged_verified_symbols_are_unresolved_not_edges(self):
+        observation = self.f.observation_fixture()[0]
+        for change in (
+            {"origin_binding_ref": None},
+            {"identity_status": "verified_symbols"},
+            {"endpoint_status": "path_only"},
+        ):
+            with self.subTest(change=change):
+                original = copy.deepcopy(observation)
+                observation.update(change)
+                self.f.save()
+                graph = self.f.plan()["work_graph"]
+                self.assertEqual(graph["edges"], [])
+                self.assertEqual(len(graph["unresolved_observations"]), 1)
+                observation.clear()
+                observation.update(original)
+
+    def test_origin_proof_chain_rejects_forged_target_or_manifest_override(self):
+        self.f.observation_fixture()
+        original = planner.read_json(self.f.root / "origin-proof.json")
+        for change in ({"target": "another::runtime::validate_runtime_uid"},
+                       {"source_path": "consumer.rs"}, {"self_approval": True}):
+            with self.subTest(change=change):
+                self.f.write("origin-proof.json", {**original, **change})
+                self.f.refresh_capture("origin-proof.json")
+                self.f.save()
+                self.assertEqual(self.f.plan()["work_graph"]["edges"], [])
+        self.f.write("origin-proof.json", original)
+        self.f.write("crates/apparatus-contracts/Cargo.toml",
+                     '[package]\nname="apparatus-contracts"\n[lib]\nname="another"\n')
+        original["crate_manifest_ref"] = self.f.ref("crates/apparatus-contracts/Cargo.toml")
+        self.f.write("origin-proof.json", original)
+        self.f.refresh_capture("origin-proof.json")
+        self.f.save()
+        self.assertEqual(self.f.plan()["work_graph"]["edges"], [])
+
+    def test_origin_module_cfg_and_reexport_cannot_replace_default_chain(self):
+        self.f.observation_fixture()
+        for module in ('#[cfg(feature = "x")]\npub mod runtime;\n',
+                       'pub use other::runtime;\n', '/* hidden */\npub mod runtime;\n'):
+            with self.subTest(module=module):
+                self.f.write("crates/apparatus-contracts/src/lib.rs", module)
+                proof = planner.read_json(self.f.root / "origin-proof.json")
+                proof["module_root_ref"] = self.f.ref("crates/apparatus-contracts/src/lib.rs")
+                self.f.write("origin-proof.json", proof)
+                self.f.refresh_capture("origin-proof.json")
+                self.f.save()
+                self.assertEqual(self.f.plan()["work_graph"]["edges"], [])
+
+    def test_definition_coordinates_ambiguity_and_unsafe_paths_do_not_bind_origin(self):
+        self.f.observation_fixture()
+        raw = planner.read_json(self.f.root / "raw-def.json")
+        text = raw["content"][0]["text"]
+        actual_path = str(self.f.root / "crates/apparatus-contracts/src/runtime.rs")
+        for forged in (text.replace(":1:8 ", ":1:7 "), text.replace("Found 1 ", "Found 2 "),
+                       text.replace(actual_path, "\\\\server\\share\\runtime.rs"),
+                       text.replace(actual_path, "\\\\?\\UNC\\server\\share\\runtime.rs"),
+                       text.replace(actual_path, "\\\\.\\C:\\runtime.rs"),
+                       text.replace(actual_path, "crates/../runtime.rs")):
+            with self.subTest(forged=forged):
+                raw["content"][0]["text"] = forged
+                self.f.write("raw-def.json", raw)
+                self.f.refresh_capture("raw-def.json")
+                self.f.save()
+                self.assertEqual(self.f.plan()["work_graph"]["edges"], [])
+        raw["content"][0]["text"] = text.replace(actual_path, "\\\\?\\" + actual_path)
+        self.f.write("raw-def.json", raw)
+        self.f.refresh_capture("raw-def.json")
+        self.f.save()
+        self.assertEqual(self.f.plan()["work_graph"]["coverage"]["candidate_edges"], 1)
+
+    def test_usage_query_target_and_raw_consumer_shape_are_not_repaired(self):
+        self.f.observation_fixture(omitted_consumer=True)
+        raw = planner.read_json(self.f.root / "raw-usage.json")
+        baseline = json.loads(raw["content"][0]["text"])
+        for bad in (None, "", False):
+            with self.subTest(consumer_function=bad):
+                data = copy.deepcopy(baseline)
+                data["usages"][0]["consumer_function"] = bad
+                raw["content"][0]["text"] = json.dumps(data)
+                self.f.write("raw-usage.json", raw)
+                self.f.refresh_capture("raw-usage.json")
+                self.f.save()
+                self.assertEqual(self.f.plan()["work_graph"]["edges"], [])
+        raw["content"][0]["text"] = json.dumps({**baseline, "target": "another::same_spelling"})
+        self.f.write("raw-usage.json", raw)
+        self.f.refresh_capture("raw-usage.json")
+        self.f.save()
+        self.assertEqual(self.f.plan()["work_graph"]["edges"], [])
+
+    def test_one_observation_cannot_reuse_another_rows_good_span(self):
+        self.f.observation_fixture(("consumer.rs", "consumer.rs"))
+        raw = planner.read_json(self.f.root / "raw-usage.json")
+        data = json.loads(raw["content"][0]["text"])
+        data["usages"][0].update(start=0, end=20)
+        raw["content"][0]["text"] = json.dumps(data)
+        self.f.write("raw-usage.json", raw)
+        self.f.refresh_capture("raw-usage.json")
+        self.f.save()
+        graph = self.f.plan()["work_graph"]
+        self.assertEqual(graph["coverage"]["candidate_edges"], 1)
+        self.assertEqual(graph["edges"][0]["id"], "observation:observed-1")
+        self.assertEqual(graph["unresolved_observations"][0]["id"], "observed-0")
+
+    def test_observation_order_cardinality_and_raw_page_mismatch_are_not_false_edges(self):
+        records = self.f.observation_fixture(("a.rs", "consumer.rs"))
+        records.reverse()
+        self.f.save()
+        self.assertEqual(self.f.plan()["work_graph"]["edges"], [])
+        records.reverse()
+        records.pop()
+        self.f.save()
+        self.assertEqual(self.f.plan()["work_graph"]["edges"], [])
+        # A gapped page must not be accepted merely because normalized totals say complete.
+        sequence = planner.read_json(self.f.root / "usage-sequence.json")
+        sequence["pages"][0]["arguments"]["offset"] = 1
+        self.f.write("usage-sequence.json", sequence)
+        self.f.refresh_capture("usage-sequence.json")
+        self.f.save()
+        self.assertEqual(self.f.plan()["work_graph"]["edges"], [])
+
+    def test_endpoint_source_drift_and_forged_hash_remain_unresolved(self):
+        observation = self.f.observation_fixture()[0]
+        original = observation["destination"]["source_sha256"]
+        observation["destination"]["source_sha256"] = "0" * 64
+        self.f.save()
+        self.assertEqual(self.f.plan()["work_graph"]["edges"], [])
+        observation["destination"]["source_sha256"] = original
+        self.f.save()
+        self.f.write("consumer.rs", "// source changed after snapshot\n")
+        graph = self.f.plan()["work_graph"]
+        self.assertEqual(graph["edges"], [])
+        self.assertTrue(graph["unresolved_observations"])
+        self.assertFalse(any(n["path"] == "consumer.rs" for n in graph["nodes"]))
+
+    def test_observation_bindings_missing_queries_paths_and_cycles_reject(self):
+        self.f.observation_fixture()
+        self.f.save()
+        path = self.f.root / "observations.json"
+        original = planner.read_json(path)
+        for mutate in (
+            lambda x: x.update(evidence_sha256="0" * 64),
+            lambda x: x["observations"][0].update(query_ids=["missing"]),
+            lambda x: x["observations"][0]["destination"].update(path="../escape.rs"),
+            lambda x: x["observations"][0]["destination"].update(path="A.rs"),
+        ):
+            with self.subTest(mutate=mutate):
+                data = copy.deepcopy(original)
+                mutate(data)
+                self.f.write("observations.json", data)
+                with self.assertRaises(planner.Invalid):
+                    self.f.plan()
+        self.f.write("observations.json", original)
+        snapshot = planner.read_json(self.f.snapshot_path)
+        snapshot["inputs"].append({"role": "capture", **self.f.ref("observations.json")})
+        self.f.write("snapshot.json", snapshot)
+        self.f.evidence["snapshot_sha256"] = planner.digest(self.f.snapshot_path)
+        self.f.write("evidence.json", self.f.evidence)
+        # Constraints would also need rebinding, so omit that separate optional input.
+        with self.assertRaisesRegex(planner.Invalid, "hash cycle"):
+            planner.build_plan(self.f.inventory_path, self.f.evidence_path, self.f.snapshot_path,
+                               observations_path=path)
+
+    def test_observation_output_collision_and_change_before_publication_preserve_old_output(self):
+        self.f.observation_fixture()
+        self.f.save()
+        observed = self.f.root / "observations.json"
+        output = self.f.root / "plan.json"
+        args = ["--inventory", str(self.f.inventory_path), "--evidence", str(self.f.evidence_path),
+                "--snapshot", str(self.f.snapshot_path), "--observations", str(observed),
+                "--output", str(output)]
+        self.assertEqual(planner.main(args), 0)
+        before = output.read_bytes()
+        original = observed.read_bytes()
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            planner.main(args[:-1] + [str(observed)])
+        self.assertEqual(observed.read_bytes(), original)
+        real_fsync = planner.os.fsync
+
+        def mutate_after_stage(fd):
+            real_fsync(fd)
+            observed.write_bytes(original + b"\n")
+
+        with mock.patch.object(planner.os, "fsync", side_effect=mutate_after_stage):
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                planner.main(args)
+        self.assertEqual(output.read_bytes(), before)
+        self.assertFalse(list(self.f.root.glob(".plan*.tmp")))
+
+    def test_observation_graph_json_markdown_are_deterministic(self):
+        self.f.observation_fixture(("a.rs", "consumer.rs"))
+        self.f.save()
+        first, second = self.f.plan(), self.f.plan()
+        self.assertEqual(json.dumps(first, sort_keys=True), json.dumps(second, sort_keys=True))
+        self.assertEqual(planner.markdown(first), planner.markdown(second))
+        self.assertIn("Boundary review tasks", planner.markdown(first))
+        self.assertIn("Tentative ownership groups", planner.markdown(first))
+        self.assertLess(planner.markdown(first).index("Work partition overview"),
+                        planner.markdown(first).index("## Components"))
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 import argparse
 import asyncio
-from contextlib import asynccontextmanager, redirect_stderr, redirect_stdout
+from contextlib import asynccontextmanager, contextmanager, redirect_stderr, redirect_stdout
 import importlib.util
 import io
 import json
@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "mcp-code-evidence.py"
+sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("mcp_code_evidence", SCRIPT)
 collector = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(collector)
@@ -477,6 +478,118 @@ class OutputTests(unittest.TestCase):
 
 
 class ProducerTests(unittest.TestCase):
+    def test_review_foreign_item_and_selected_inner_cfg_cannot_export_exact_proof(self):
+        cases = (
+            ('fn f() {\n    unsafe extern "C" {\n        fn foreign(x: i32);\n    }\n}\n', [3, 8, 3, 25]),
+            ('fn f() {\n    #![cfg(feature = "x")]\n    1;\n}\n', [1, 0, 1, 8]),
+        )
+        for text, location in cases:
+            with self.subTest(location=location), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "file.rs").write_text(text, encoding="utf-8")
+                sources = collector.capture_sources(root, ["file.rs"], 1)
+                native = {"name_path": "f", "kind": "Function", "relative_path": "file.rs",
+                          "body_location": {"start_line": 0, "end_line": len(text.splitlines()) - 1}}
+                collector.atomic_json(root / "q1.json", result(text=json.dumps([native])).data)
+                sources["file.rs"]["range_witnesses"] = collector.decode_serena_witnesses([native], "q1")
+                symbol = {"id": "s1", "qualified_name": "serena::file.rs::f", "kind": "Function",
+                          "path": "file.rs", "range": collector.native_function_extent(native, text),
+                          "source_sha256": sources["file.rs"]["sha256"]}
+                inventory = {"schema_version": 1, "clippy": [{"id": "C1", "primary_spans": [
+                    {"file": "file.rs", "range": location}]}], "sonar": []}
+                mappings = collector.map_diagnostics(inventory, root, sources, [symbol],
+                                                     {"s1": ["q1"]}, {"file.rs"})
+                queries = [{"id": "q1", "tool": "serena_1mcp_find_symbol", "status": "ok",
+                            "artifact": "q1.json", "artifact_sha256": collector.sha256(root / "q1.json")}]
+                collector.localization_proofs(mappings, queries, root, root, sources, {}, inventory)
+                self.assertNotEqual("exact", mappings[0]["status"])
+                self.assertEqual([], list(root.glob("localization-*.json")))
+
+    def test_c102_mixed_source_produces_range_local_proof_from_hashed_query(self):
+        source_path = collector.ROOT / "services/Manifesto/tests/common/migration_roundtrip.rs"
+        original = source_path.read_bytes()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / ".git").mkdir()
+            (root / ".git" / "HEAD").write_text("a" * 40 + "\n")
+            source = root / "migration.rs"
+            source.write_bytes(original)
+            inventory, plan, binding, proof = [root / name for name in
+                                               ("inventory.json", "seeds.json", "binding.json", "binding-proof.json")]
+            inventory.write_text(json.dumps({"schema_version": 1, "clippy": [
+                {"id": "C000102", "primary_spans": [{"file": "migration.rs", "range": [5, 0, 5, 95]}]}],
+                "sonar": [{"id": "S000316", "file": "migration.rs", "range": [5, 0, 5, 95]}]}))
+            plan.write_text(json.dumps({"schema_version": 1, "source_files": ["migration.rs"],
+                                       "symbols": [{"path": "migration.rs",
+                                                    "name_path": "assert_initial_schema_roundtrip"}]}))
+            proof.write_text('{"fixture":"independent synthetic binding, not a real review"}')
+            binding.write_text(json.dumps({
+                "inventory_sha256": collector.sha256(inventory), "head": "a" * 40,
+                "method": "independent_equivalence",
+                "files": [{"path": "migration.rs", "sha256": collector.sha256(source)}],
+                "evidence_refs": [{"path": "binding-proof.json", "sha256": collector.sha256(proof),
+                                   "locator": "/"}]}))
+            tools = [{"name": "serena_1mcp_" + name, "inputSchema": {
+                "properties": {key: {} for key in properties}, "required": []}}
+                for name, properties in (
+                    ("initial_instructions", []), ("get_current_config", []),
+                    ("get_symbols_overview", ["relative_path", "depth"]),
+                    ("find_symbol", ["name_path_pattern", "relative_path", "include_body", "depth", "max_matches"]))]
+            hir = session()
+            serena = session(tools=tools, results=[
+                result(text="The project with name 'AIForAll' at " + str(root) + " is activated."),
+                result(text="Active project: AIForAll\nLanguage server status: ready"),
+                result(text='{"Function":["assert_initial_schema_roundtrip"]}'),
+                result(text=json.dumps([{"name_path": "assert_initial_schema_roundtrip",
+                    "kind": "Function", "relative_path": "migration.rs",
+                    "body_location": {"start_line": 4, "end_line": 60}}])),
+            ])
+
+            @asynccontextmanager
+            async def fake_connect(url, timeout):
+                yield serena if "serena" in url else hir
+
+            output, snapshot = root / "evidence.json", root / "snapshot.json"
+            with patch.object(collector, "ROOT", root), patch.object(
+                    collector, "CANONICAL_WORKSPACE", root), patch.object(collector, "connect", fake_connect):
+                self.assertEqual(0, collector.main(["produce", "--workspace", str(root),
+                    "--inventory", str(inventory), "--plan", str(plan), "--binding", str(binding),
+                    "--output", str(output), "--snapshot", str(snapshot),
+                    "--artifacts", str(root / "artifacts"), "--serena-url",
+                    "http://127.0.0.1:3062/mcp?tags=serena"]))
+            evidence = json.loads(output.read_text())
+            self.assertEqual(["exact", "unknown"], [m["status"] for m in evidence["mappings"]])
+            refs = evidence["mappings"][0]["evidence_refs"]
+            ref = next(ref for ref in refs if isinstance(ref, dict) and ref["locator"] == "/")
+            local = json.loads((root / ref["path"]).read_text())
+            self.assertEqual("source_crosschecked_function_range_v1", local["local_discovery"]["method"])
+            self.assertTrue(all(local["local_discovery"]["checked_predicates"].values()))
+            self.assertTrue(all(q["coverage"]["freshness"] == "unknown" for q in evidence["queries"]))
+            self.assertEqual([], evidence["relations"])
+            self.assertEqual(original, source.read_bytes())
+            symbol_query = next(q for q in evidence["queries"] if q["tool"] == "serena_1mcp_find_symbol")
+            (root / symbol_query["artifact"]).write_text("{}")
+            with self.assertRaisesRegex(collector.EvidenceError, "witness hash changed"):
+                collector.localization_proofs(
+                    evidence["mappings"], evidence["queries"], root, root / "artifacts",
+                    collector.capture_sources(root, ["migration.rs"], 1), {}, json.loads(inventory.read_text()))
+
+    def test_serena_decoder_retains_only_advertised_children(self):
+        child = {"name_path": "impl A/f", "kind": "Method", "relative_path": "file.rs",
+                 "body_location": {"start_line": 1, "end_line": 3}}
+        parent = {"name_path": "impl A", "kind": "Object", "relative_path": "file.rs",
+                  "body_location": {"start_line": 0, "end_line": 4}, "children": [child]}
+        witnesses = collector.decode_serena_witnesses([parent], "q1")
+        self.assertEqual(2, len(witnesses))
+        self.assertEqual("impl A", witnesses[1]["parent_name_path"])
+        self.assertEqual("q1", witnesses[1]["query_id"])
+        self.assertEqual(child["body_location"], witnesses[1]["body_location"])
+        del parent["children"]
+        self.assertEqual(1, len(collector.decode_serena_witnesses([parent], "q1")))
+        parent["children"] = {"not": "a returned child list"}
+        with self.assertRaises(collector.EvidenceError):
+            collector.decode_serena_witnesses([parent], "q1")
+
     def test_output_descendants_of_artifact_directory_rejected_before_transport(self):
         for destination, aliased in ((d, a) for d in ("output", "snapshot") for a in (False, True)):
             with self.subTest(destination=destination, resolved_alias=aliased), tempfile.TemporaryDirectory() as directory:
@@ -854,7 +967,311 @@ class ProducerTests(unittest.TestCase):
             self.assertEqual("file.rs", snapshot["files"][0]["path"])
 
 
+class ObservationTests(unittest.TestCase):
+    @contextmanager
+    def origin_case(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / ".git").mkdir()
+            (root / ".git" / "HEAD").write_text("a" * 40 + "\n")
+            files = {
+                collector.ORIGIN_MANIFEST: '[package]\nname = "apparatus-contracts"\n',
+                collector.ORIGIN_MODULE: "pub mod runtime;\n",
+                collector.ORIGIN_SOURCE: ("#![allow(missing_docs)]\n/// Validator.\n"
+                    "pub fn validate_runtime_uid(value: &str) -> Result<(), RuntimeErrorCodeV1> {\n"
+                    "    Ok(())\n}\n"),
+                "services/sample/src/consumer.rs": "validate_runtime_uid(value);\nvalidate_runtime_uid(other);\n",
+                "services/sample/src/stale.rs": "not_a_matching_reference\n",
+            }
+            for name, text in files.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text, encoding="utf-8")
+            spec = importlib.util.spec_from_file_location("observation_overlap", SCRIPT.with_name("clippy-sonar-overlap.py"))
+            overlap = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(overlap)
+            cargo, sonar = root / "cargo.jsonl", root / "sonar.json"
+            cargo.write_text(json.dumps({"reason": "compiler-message", "package_id": "fixture",
+                "target": {"kind": ["lib"]}, "message": {"level": "warning",
+                "code": {"code": "clippy::uninlined_format_args"}, "message": "fixture",
+                "spans": [{"is_primary": True, "file_name": "services/sample/src/consumer.rs",
+                           "line_start": 1, "column_start": 1, "line_end": 1, "column_end": 21}]}}) +
+                '\n{"reason":"build-finished","success":true}\n')
+            sonar.write_text('{"paging":{"pageIndex":1,"pageSize":100,"total":0},"issues":[]}')
+            inventory, plan = root / "inventory.json", root / "plan.json"
+            inventory.write_text(json.dumps(overlap.inventory([cargo], sonar)))
+            plan.write_text(json.dumps({"schema_version": 1, "source_files": list(files),
+                "symbols": [{"path": collector.ORIGIN_SOURCE, "name_path": collector.ORIGIN_NAME}],
+                "targets": [collector.ORIGIN_TARGET]}))
+            rows = []
+            second = (root / "services/sample/src/consumer.rs").read_bytes().index(
+                collector.ORIGIN_NAME.encode("ascii"), 1)
+            for index, (file, start) in enumerate((
+                (r"services\\sample\\src\\consumer.rs", 0),
+                (r"services\\sample\\src\\consumer.rs", second),
+                (r"services\\sample\\src\\stale.rs", 0),
+            )):
+                row = {"file": file, "start": start, "end": start + len(collector.ORIGIN_NAME),
+                       "category": "Other", "consumer_module": "sample"}
+                if index == 0:
+                    row["consumer_function"] = "sample::consumer"
+                rows.append(row)
+            case = SimpleNamespace(root=root, inventory=inventory, plan=plan, rows=rows,
+                output=root / "evidence.json", snapshot=root / "snapshot.json",
+                observations=root / "observations.json", artifacts=root / "captures",
+                drift=None, extra=[],
+                signature={"target": collector.ORIGIN_TARGET, "signature": {
+                    "is_async": False, "self_param": None, "params": [
+                        {"name": "value", "ty": "&str", "by_ref": True, "mutability": False}],
+                    "return_type": "Result<(), RuntimeErrorCodeV1>", "generics": []}},
+                definition="Found 1 definition(s) for 'validate_runtime_uid':\n"
+                    + "\\\\?\\" + str(root / collector.ORIGIN_SOURCE)
+                    + ":3:8 (validate_runtime_uid, exact=true)",
+                native={"name_path": collector.ORIGIN_NAME, "kind": "Function",
+                    "relative_path": collector.ORIGIN_SOURCE,
+                    "body_location": {"start_line": 1, "end_line": 4}})
+            yield case
+
+    def run_case(self, case):
+        hir_tools = [tool("who_uses"), tool("function_signature"), {
+            "name": "rust-code-mcp_1mcp_find_definition", "inputSchema": {
+                "properties": {key: {} for key in ("directory", "symbol_name", "exact")},
+                "required": ["directory", "symbol_name"]}}]
+        hir = session(tools=hir_tools, results=[
+            result(text=json.dumps({"target": collector.ORIGIN_TARGET, "offset": 0, "limit": 50,
+                "summary": False, "total_match_count": len(case.rows),
+                "returned_match_count": len(case.rows), "usages": case.rows})),
+            result(text=json.dumps(case.signature)), result(text=case.definition)])
+        serena_tools = [{"name": "serena_1mcp_" + name, "inputSchema": {
+            "properties": {key: {} for key in properties}, "required": []}}
+            for name, properties in (
+                ("initial_instructions", []), ("get_current_config", []),
+                ("get_symbols_overview", ["relative_path", "depth"]),
+                ("find_symbol", ["name_path_pattern", "relative_path", "include_body", "depth", "max_matches"]))]
+        serena = session(tools=serena_tools)
+        responses = [
+            result(text="The project with name 'AIForAll' at " + str(case.root) + " is activated."),
+            result(text="Active project: AIForAll\nLanguage server status: ready"),
+            result(text=json.dumps({"Function": [collector.ORIGIN_NAME]})),
+            result(text=json.dumps([case.native]))]
+        async def serena_call(*args, **kwargs):
+            value = responses.pop(0)
+            if not responses and case.drift:
+                case.drift()
+            return value
+        serena.call_tool.side_effect = serena_call
+
+        @asynccontextmanager
+        async def fake_connect(url, timeout):
+            yield serena if "serena" in url else hir
+
+        connect = Mock(wraps=fake_connect)
+        argv = ["produce", "--workspace", str(case.root), "--inventory", str(case.inventory),
+            "--plan", str(case.plan), "--output", str(case.output), "--snapshot", str(case.snapshot),
+            "--observations", str(case.observations), "--artifacts", str(case.artifacts),
+            "--serena-url", "http://127.0.0.1:3062/mcp?tags=serena", "--allow-partial"] + case.extra
+        stderr = io.StringIO()
+        with patch.object(collector, "ROOT", case.root), patch.object(
+                collector, "CANONICAL_WORKSPACE", case.root), patch.object(
+                collector, "connect", connect), redirect_stderr(stderr):
+            code = collector.main(argv)
+        return code, stderr.getvalue(), connect
+
+    def test_observation_export_hash_direction_positive_and_unresolved_rows(self):
+        with self.origin_case() as case:
+            code, error, _ = self.run_case(case)
+            self.assertEqual(0, code, error)
+            observed = json.loads(case.observations.read_text())
+            snapshot = json.loads(case.snapshot.read_text())
+            evidence = json.loads(case.output.read_text())
+            self.assertEqual(["file_candidate", "file_candidate", "unresolved"],
+                             [o["identity_status"] for o in observed["observations"]])
+            self.assertEqual(["source_verified", "source_verified", "path_only"],
+                             [o["endpoint_status"] for o in observed["observations"]])
+            self.assertEqual(collector.sha256(case.snapshot), observed["snapshot_sha256"])
+            self.assertEqual(collector.sha256(case.output), observed["evidence_sha256"])
+            self.assertNotIn("observations.json", [i["path"] for i in snapshot["inputs"]])
+            origin_ref = observed["observations"][0]["origin_binding_ref"]
+            self.assertIn(origin_ref["path"], [i["path"] for i in snapshot["inputs"]])
+            origin = json.loads((case.root / origin_ref["path"]).read_text())
+            self.assertEqual("direct_crate_module_function_v1", origin["method"])
+            self.assertEqual(collector.ORIGIN_TARGET, origin["target"])
+            self.assertNotIn("snapshot_sha256", origin)
+            self.assertTrue(all(o["destination"]["symbol_id"] is None and o["destination"]["range"] is None
+                                for o in observed["observations"]))
+            self.assertIn("No consumer_function", " ".join(observed["observations"][1]["reasons"]))
+            self.assertIn("no offset repair", " ".join(observed["observations"][2]["reasons"]))
+            self.assertEqual([], evidence["relations"])
+            self.assertTrue(all(q["coverage"]["private"] == "unknown" for q in evidence["queries"]))
+            self.assertFalse(any(m["symbols"] for m in evidence["mappings"]))  # origin has no diagnostic
+
+    def test_partial_b_library_validates_emitted_origin_and_usage_observations(self):
+        planner_path = SCRIPT.with_name("clippy-constraint-plan.py")
+        if not planner_path.is_file():
+            self.skipTest("Offline consumer not integrated")
+        spec = importlib.util.spec_from_file_location("observation_partial_planner", planner_path)
+        planner = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = planner
+        spec.loader.exec_module(planner)
+        with self.origin_case() as case:
+            code, error, _ = self.run_case(case)
+            self.assertEqual(0, code, error)
+            seen = {}
+            # B's current partial reader does not export these collections yet.
+            # Observe only this library return to distinguish real validation
+            # from silently queued invalid proofs; no graph/CLI claim is made.
+            def trace(frame, event, arg):
+                if frame.f_code is planner.build_plan.__code__ and event == "return":
+                    seen["candidate"] = len(frame.f_locals.get("candidate_observations", []))
+                    seen["unresolved"] = len(frame.f_locals.get("unresolved_observations", []))
+                return trace
+            previous = sys.gettrace()
+            try:
+                sys.settrace(trace)
+                planned = planner.build_plan(case.inventory, case.output, case.snapshot, None, case.observations)
+            finally:
+                sys.settrace(previous)
+            self.assertEqual({"candidate": 2, "unresolved": 1}, seen)
+            self.assertEqual(0, planned["confirmed_multi_file_components"])
+
+    def test_ambiguous_definition_or_signature_mismatch_never_produces_origin_edge(self):
+        for variant in ("multiple", "column", "signature", "device"):
+            with self.subTest(variant=variant), self.origin_case() as case:
+                if variant == "multiple":
+                    case.definition = case.definition.replace("Found 1", "Found 2")
+                elif variant == "column":
+                    case.definition = case.definition.replace(":3:8 ", ":3:7 ")
+                elif variant == "device":
+                    case.definition = case.definition.replace("\\\\?\\", "\\\\?\\UNC\\")
+                else:
+                    case.signature["signature"]["params"][0]["ty"] = "&mut str"
+                code, error, _ = self.run_case(case)
+                self.assertEqual(0, code, error)
+                observations = json.loads(case.observations.read_text())["observations"]
+                self.assertTrue(all(o["identity_status"] == "unresolved" and o["origin_binding_ref"] is None
+                                    for o in observations))
+
+    def test_origin_cfg_module_or_library_override_remains_unresolved(self):
+        for variant in ("cfg", "override", "name", "macro_module"):
+            with self.subTest(variant=variant), self.origin_case() as case:
+                if variant == "cfg":
+                    (case.root / collector.ORIGIN_MODULE).write_text('#[cfg(feature = "x")]\npub mod runtime;\n')
+                elif variant == "override":
+                    with (case.root / collector.ORIGIN_MANIFEST).open("a") as stream:
+                        stream.write('[lib]\npath = "custom.rs"\n')
+                elif variant == "name":
+                    (case.root / collector.ORIGIN_MANIFEST).write_text('[package]\nname = "different"\n')
+                else:
+                    (case.root / collector.ORIGIN_MODULE).write_text("make_module! { pub mod runtime; }\n")
+                code, error, _ = self.run_case(case)
+                self.assertEqual(0, code, error)
+                self.assertTrue(all(o["identity_status"] == "unresolved" for o in
+                                    json.loads(case.observations.read_text())["observations"]))
+
+    def test_origin_raw_query_hash_change_is_not_partial_success(self):
+        with self.origin_case() as case:
+            code, error, _ = self.run_case(case)
+            self.assertEqual(0, code, error)
+            evidence = json.loads(case.output.read_text())
+            query = next(q for q in evidence["queries"] if q["tool"].endswith("_function_signature"))
+            (case.root / query["artifact"]).write_text("{}")
+            sources = collector.capture_sources(case.root, json.loads(case.plan.read_text())["source_files"], 10)
+            with self.assertRaises(collector.CaptureIntegrityError):
+                collector.build_origin_proof(case.root, case.artifacts, sources, evidence["queries"])
+
+    def test_late_discovered_endpoint_is_path_only(self):
+        with self.origin_case() as case:
+            plan = json.loads(case.plan.read_text())
+            plan["source_files"].remove("services/sample/src/consumer.rs")
+            case.plan.write_text(json.dumps(plan))
+            code, error, _ = self.run_case(case)
+            self.assertEqual(0, code, error)
+            records = json.loads(case.observations.read_text())["observations"]
+            self.assertTrue(all(o["identity_status"] == "unresolved" for o in records))
+            self.assertIn("subsequent bounded capture", " ".join(records[0]["reasons"]))
+
+    def test_usage_error_prefix_cannot_be_promoted_to_candidate(self):
+        with self.origin_case() as case:
+            code, error, _ = self.run_case(case)
+            self.assertEqual(0, code, error)
+            observed = json.loads(case.observations.read_text())
+            ref = observed["observations"][0]["origin_binding_ref"]
+            origin = json.loads((case.root / ref["path"]).read_text())
+            files = json.loads(case.plan.read_text())["source_files"]
+            sources = collector.capture_sources(case.root, files, 10)
+            state = {"prehashed": set(sources), "origin_reasons": [], "usages": [{
+                "query_id": observed["observations"][0]["query_ids"][0], "rows": case.rows,
+                "status": "error", "pagination": {"status": "unknown"}}]}
+            records = collector.file_observations(case.root, sources, state, origin, ref)
+            self.assertTrue(all(row["identity_status"] == "unresolved" for row in records))
+
+    def test_observation_aliases_rejected_before_transport(self):
+        for variant in ("input", "snapshot", "evidence", "artifact", "hardlink", "source_hardlink"):
+            with self.subTest(variant=variant), self.origin_case() as case:
+                if variant == "input":
+                    case.observations = case.inventory
+                elif variant == "snapshot":
+                    case.observations = case.snapshot
+                elif variant == "evidence":
+                    case.observations = case.output
+                elif variant == "artifact":
+                    case.observations = case.artifacts / "hir-catalog.json"
+                elif variant == "source_hardlink":
+                    os.link(case.root / collector.ORIGIN_SOURCE, case.observations)
+                else:
+                    os.link(case.inventory, case.observations)
+                code, _, connect = self.run_case(case)
+                self.assertEqual(1, code)
+                connect.assert_not_called()
+
+    def test_discovered_source_alias_and_source_drift_preserve_observation_output(self):
+        for variant in ("alias", "drift"):
+            with self.subTest(variant=variant), self.origin_case() as case:
+                case.observations.write_text(collector.ORIGIN_NAME)
+                before = case.observations.read_bytes()
+                if variant == "alias":
+                    case.rows[0]["file"] = "observations.json"
+                else:
+                    case.drift = lambda: (case.root / "services/sample/src/consumer.rs").write_text("changed")
+                code, _, _ = self.run_case(case)
+                self.assertEqual(1, code)
+                self.assertEqual(before, case.observations.read_bytes())
+                self.assertFalse(case.output.exists())
+                self.assertFalse(case.snapshot.exists())
+
+    def test_observation_atomic_failure_preserves_previous_file(self):
+        with self.origin_case() as case:
+            case.observations.write_text("previous accepted observations")
+            replace = collector.os.replace
+            def fail_observation(source, target):
+                if Path(target) == case.observations:
+                    raise OSError("injected final observation replace failure")
+                return replace(source, target)
+            with patch.object(collector.os, "replace", side_effect=fail_observation):
+                code, _, _ = self.run_case(case)
+            self.assertEqual(1, code)
+            self.assertEqual("previous accepted observations", case.observations.read_text())
+            self.assertEqual([], list(case.root.rglob(".mcp-evidence-*.tmp")))
+
+
 class ProducerAsyncTests(unittest.IsolatedAsyncioTestCase):
+    async def test_origin_lookups_cannot_forward_arbitrary_or_fuzzy_requests(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            fake = session()
+            definition = {"name": "rust-code-mcp_1mcp_find_definition", "inputSchema": {
+                "properties": {k: {} for k in ("directory", "symbol_name", "exact")}, "required": []}}
+            capture = collector.ProducerCapture(fake, [definition, tool("function_signature")], root, 10)
+            for suffix, arguments in (
+                ("find_definition", {"directory": str(root), "symbol_name": "validate_*", "exact": True}),
+                ("find_definition", {"directory": str(root), "symbol_name": collector.ORIGIN_NAME, "exact": False}),
+                ("find_definition", {"directory": str(root.parent), "symbol_name": collector.ORIGIN_NAME, "exact": True}),
+                ("function_signature", {"directory": str(root), "target": "other::function"}),
+            ):
+                with patch.object(collector, "CANONICAL_WORKSPACE", root), self.assertRaises(collector.EvidenceError):
+                    await capture.query("rust-code-mcp", suffix, arguments)
+            fake.call_tool.assert_not_awaited()
+
     async def test_full_page_preserves_observed_missing_consumer_function(self):
         page = self.page(0, 14, list(range(14)), limit=50)
         for index in (5, 6):

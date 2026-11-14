@@ -350,3 +350,179 @@ by this result. The parent's durable campaign report is
 [`20261114-clippy-constraint-replay.md`](../missions/20261114-clippy-constraint-replay.md);
 synthetic interoperability tests demonstrate schema transport, not real-code
 coverage or corrective dispatchability.
+
+## Authorized range-local first gate
+
+Contract §8 adds `source_crosschecked_function_range_v1` without relaxing the
+older whole-file method. The producer now shares the stdlib validator
+`ops/scripts/clippy_source_ranges.py` with the offline planner:
+
+```python
+verify_function_range(source, symbol, diagnostic_range, inventory_column_unit, witnesses)
+```
+
+The source must be the exact decoded, hash-bound source. Witnesses contain the
+actual captured query ID, name path, kind, relative path, inclusive zero-based
+body lines and parent name path. The producer decodes only returned nodes and
+actual children, queries encoded parent paths when needed, and reopens/hash-checks
+the raw `find_symbol` artifacts before creating a proof. It never invents a child
+or upgrades a names-only overview into an enclosing range.
+
+The result contains `status` (`verified`, `ambiguous`, `unsupported`),
+`normalized_range`, `candidate_name_paths`, seven `checked_predicates`, and
+`reasons`. The utility always leaves `source_binding_verified` and
+`source_hash_stable_before_after` false. Only the producer's independent binding
+and before/after hash checks can set those two fields in an exported proof.
+The offline consumer must extract its own witnesses from the bound raw queries
+and replay this same utility; sharing code is replay, not independent proof.
+
+The lexical state machine preserves original source offsets and handles nested
+comments, escaped/byte/C strings, hash-delimited raw strings, character literals,
+lifetimes, balanced groups and ordinary generic functions/impl methods.
+Imports and unrelated types/derives elsewhere no longer invalidate a selected
+ordinary function. Identical method names need a positive enclosing-parent
+range/identity witness for every relevant ancestor, all the way to the source
+root. Impl trait/self roles stay ordered: `impl Trait for Foo` is not
+`impl Foo for Trait`. Qualified paths are preserved, erased generic displays
+are bounded to those ordered roles, and explicit generic displays must match
+source tokens. Unsupported spellings are not inferred from identifier bags.
+Captured parent paths cannot invent a namespace above a top-level function.
+Nested source declarations cannot be assigned to the
+outer function, and diagnostics needing closure/async-block attribution remain
+unsupported. Semicolon-terminated foreign functions and extern blocks remain
+exclusion extents, not selectable function bodies; an ordinary outer-header
+diagnostic can still be verified.
+
+Inner attributes are associated with their nearest lexical scope. The selected
+function and its identity-bearing ancestors are checked, without rejecting an
+unrelated module or nested block merely because it has an inner attribute.
+The contract's one non-rewriting subset is a fully parsed inner or outer
+`allow`, `warn`, `deny` or `forbid` attribute with at least one ASCII lint
+identifier, optionally prefixed by `clippy::` or `rustdoc::`, and an optional
+trailing comma. Comments within the attribute, raw identifiers, `reason`,
+`expect`, unknown prefixes, extra arguments and nested lists remain unsupported.
+Accepting one such lint attribute never skips another relevant cfg/rewriting
+attribute. This is physical-attribution syntax, not lint existence validation,
+suppression approval or correction policy; see the
+[Rust lint-attribute reference](https://doc.rust-lang.org/reference/attributes/diagnostics.html#lint-check-attributes).
+Other relevant attributes, cfg/generated contexts and unterminated lexical
+states fail closed. The utility is not a full Rust parser.
+
+Balanced invocation token trees remain opaque: their contents cannot supply
+ordinary function declarations or fake delimiters. A function-header diagnostic
+outside them can be localized; a diagnostic inside a macro tree cannot be
+assigned to the outer function by this method. The bounded lexical rules follow
+the primary [Rust token reference](https://doc.rust-lang.org/reference/tokens.html),
+[comment reference](https://doc.rust-lang.org/reference/comments.html) and
+[macro reference](https://doc.rust-lang.org/reference/macros.html); these references
+do not turn lexical localization into macro-expansion or reference closure.
+
+The first authorized real gate is only `clippy:C000102` in
+`services/Manifesto/tests/common/migration_roundtrip.rs`, inventory range
+`[5, 0, 5, 95]`, with `assert_initial_schema_roundtrip` at lines 5–61.
+Its body strings, closures and macros do not invalidate its ordinary header.
+The existing C102-source fixture exercises the producer through discovery,
+mapping and proof creation with a hashed synthetic MCP witness; that is not a
+replacement for the parent's reserved live capture. Sonar alias `S000316` stays
+unknown unless its coordinate units are independently verified.
+
+The parent owns `.tmp/clippy-campaign-20261114/partition-first-plan.json`,
+`partition-first-binding.json` and the reserved fresh
+`partition-first-captures-001` live run. Do not launch a duplicate run or widen
+the six-seed campaign before that first mapping is accepted by both producer and
+consumer. File observations from §8.3 are not implemented by this first phase.
+
+```powershell
+python -B -m unittest discover -s ops/tests -p test_clippy_source_ranges.py
+python -B -m unittest discover -s ops/tests -p test_mcp_code_evidence.py
+```
+
+## Optional source-bound file observations
+
+`produce --observations <output.json>` implements the subsequent, explicitly
+authorized contract §8.3 phase. Omitting it preserves the original producer
+behavior. This is separate from the offline planner's `--observations` **input**.
+The normalized evidence schemas remain unchanged and no candidate observation
+is promoted into a normalized symbol relation or must-coedit constraint.
+
+Only `apparatus_contracts::runtime::validate_runtime_uid` is supported as an
+observation origin. The plan must select exactly that HIR target, enable Serena,
+and prehash its declaration file, `crates/apparatus-contracts/Cargo.toml` and
+`crates/apparatus-contracts/src/lib.rs`. The producer captures the qualified
+signature and one literal exact definition lookup, reusing the source-bound
+Serena queries. It does not forward arbitrary definition names or fuzzy flags;
+the old `collect` allowlist is not expanded.
+
+The definition tool's verified plain-text envelope has its own decoder; the
+generic HIR JSON decoder is not relaxed. Multiple definitions, unexpected text,
+signature mismatch, unsupported context or missing source-symbol witnesses
+leave the origin unresolved. Only a literal Windows extended local-drive
+wrapper may be removed before normal root/alias validation; UNC/device
+namespaces are not authorized. The definition column is checked against the
+current ASCII `pub fn ` prefix and exact declaration token, not generalized to
+all provider coordinates.
+
+The one supported `direct_crate_module_function_v1` chain checks the package
+name/default library layout, absence of lib name/path overrides, one literal
+unconditional `pub mod runtime;`, the default sibling source file, signature,
+definition and current Serena function extent. The small module-root adapter
+accepts the observed module/reexport form, not arbitrary Rust syntax or a
+general resolver. Unrelated feature-gated modules may remain present; cfg/path
+attribution of `runtime` itself does not pass.
+
+The raw queries, context source hashes and `clippy-origin-binding` proof are
+bound before snapshot finalization. Serialization order is:
+
+```text
+raw captures + contexts + origin proof -> snapshot -> evidence -> observations
+```
+
+The observation artifact hashes the finalized snapshot, evidence and inventory.
+It is **never** hashed into its own snapshot, and the origin proof has no
+snapshot/evidence/self hash or approval flag. Cargo/module files are identity
+contexts, not automatically dependency edges.
+
+Each retained usage row gets its own observation. A stable, prehashed
+destination with a matching raw byte-span/spelling witness and positive origin
+binding becomes `file_candidate` / `source_verified`. The optional omitted
+`consumer_function` stays omitted; no caller identity is invented. Consumer
+symbol IDs and normalized ranges remain null. Signature/source lookup of the
+origin does not require that function to have a diagnostic or symbol ID.
+
+Mismatched spans, including the known maintenance witnesses, remain
+`unresolved` / `path_only` with explicit reasons and no offset repair.
+Late-discovered sources require a subsequent bounded capture before becoming
+source-verified candidates. Out-of-root or unbound endpoint paths cannot be
+given fabricated hashes: observation export fails while raw captures remain.
+Complete pagination is distinct from private/macro/trait/feature/test/index
+coverage, which remains unknown. Candidate file connections are not hard unions
+or proof that every diagnostic in the origin file touches the queried function.
+
+The observation destination is root-scoped and distinct from all inputs,
+accepted outputs and initial/discovered sources, including filesystem aliases.
+It cannot be inside the raw artifact directory. Checks run before transport
+and again before publication, alongside capture/source hash verification.
+Each file replacement is atomic, not the whole three-file transaction: a final
+observation replacement failure preserves the previous observation file, but
+the snapshot/evidence may already be new. Their hash mismatch with the old
+observation is detectable and must be rejected rather than treated as accepted
+evidence.
+
+### Executed bounded replay
+
+The integration run executed the following real capture. This is the recorded
+command, not permission to overwrite its accepted artifacts. A new capture needs
+fresh destinations/artifact directory and independently revalidated binding for
+the current HEAD and source hashes:
+
+```powershell
+python -B ops/scripts/mcp-code-evidence.py --timeout 300 produce --workspace C:/Users/djden/source/repos/AIForAll --inventory .tmp/clippy-campaign-20261114/inventory/overlap-script.json --plan .tmp/clippy-campaign-20261114/partition-bounded-plan-extended.json --binding .tmp/clippy-campaign-20261114/partition-full-binding.json --snapshot .tmp/clippy-campaign-20261114/partition-bounded-snapshot-001.json --output .tmp/clippy-campaign-20261114/partition-bounded-evidence-001.json --observations .tmp/clippy-campaign-20261114/partition-bounded-observations-001.json --artifacts .tmp/clippy-campaign-20261114/partition-bounded-captures-001 --serena-url "http://127.0.0.1:3062/mcp?tags=serena" --max-queries 128 --max-sources 256 --max-pages 8 --page-size 50 --allow-partial
+```
+
+The offline observation fixture invokes the
+`build_plan(inventory, evidence, snapshot, None, observations)` reader on files
+actually emitted by `produce`. Its test-only return-frame trace verifies two
+validated candidates and one unresolved mismatch. This is a decoder/reference
+interoperability witness, not by itself a real campaign acceptance.
+The integrated real capture and complete offline graph CLI were also executed;
+see the [work-graph report](../missions/20261114-clippy-partition-graph.md).

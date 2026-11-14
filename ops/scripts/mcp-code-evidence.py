@@ -17,7 +17,9 @@ import re
 from pathlib import Path
 import sys
 import tempfile
+import tomllib
 from urllib.parse import urlsplit, urlunsplit
+from clippy_source_ranges import verify_function_range
 
 DEFAULT_URL = "http://127.0.0.1:3062/mcp?tags=rust-code-mcp"
 CANONICAL_WORKSPACE = Path("C:/Users/djden/source/repos/AIForAll")
@@ -30,6 +32,11 @@ MAX_RESULT_BYTES = 8 * 1024 * 1024
 MAX_SOURCE_BYTES = 128 * 1024 * 1024
 MAX_LIMIT = 200
 MAX_OFFSET = 100000
+ORIGIN_TARGET = "apparatus_contracts::runtime::validate_runtime_uid"
+ORIGIN_NAME = "validate_runtime_uid"
+ORIGIN_SOURCE = "crates/apparatus-contracts/src/runtime.rs"
+ORIGIN_MANIFEST = "crates/apparatus-contracts/Cargo.toml"
+ORIGIN_MODULE = "crates/apparatus-contracts/src/lib.rs"
 SELECTORS = {
     "who_uses": {"target"},
     "who_uses_summary": {"target"},
@@ -446,6 +453,16 @@ def coverage():
     return {key: "unknown" for key in ("private", "macros", "traits", "features", "tests", "freshness")}
 
 
+def definition_text(raw):
+    """The verified definition tool returns one plain TextContent, not JSON."""
+    if (result_failed(raw) or raw.get("structuredContent") is not None
+            or len(raw.get("content", [])) != 1
+            or raw["content"][0].get("type") != "text"
+            or not isinstance(raw["content"][0].get("text"), str)):
+        raise EvidenceError("Unsupported definition text envelope")
+    return raw["content"][0]["text"]
+
+
 class ProducerCapture:
     """One bounded, sequential capture; raw artifacts survive partial queries."""
 
@@ -464,11 +481,21 @@ class ProducerCapture:
             ("rust-code-mcp", "who_uses"), ("serena", "initial_instructions"),
             ("serena", "get_current_config"), ("serena", "get_symbols_overview"),
             ("serena", "find_symbol"),
+            ("rust-code-mcp", "function_signature"), ("rust-code-mcp", "find_definition"),
         }
         if (namespace, suffix) not in allowed:
             raise EvidenceError("Producer tool is not curated")
         if suffix == "find_symbol" and not arguments.get("name_path_pattern"):
             raise EvidenceError("Empty symbol patterns are forbidden")
+        if suffix in ("find_definition", "function_signature"):
+            fixed = ({"symbol_name": ORIGIN_NAME, "exact": True} if suffix == "find_definition"
+                     else {"target": ORIGIN_TARGET})
+            if (set(arguments) != set(fixed) | {"directory"}
+                    or any(arguments.get(key) != value for key, value in fixed.items())
+                    or (suffix == "find_definition" and arguments.get("exact") is not True)
+                    or not isinstance(arguments.get("directory"), str)
+                    or Path(arguments["directory"]).resolve() != CANONICAL_WORKSPACE.resolve()):
+                raise EvidenceError("Origin lookup requires the fixed literal target/exact canonical root")
         schema = matches[0].get("inputSchema", {})
         if (not set(arguments) <= set(schema.get("properties", {}))
                 or not set(schema.get("required", [])) <= set(arguments)):
@@ -491,7 +518,7 @@ class ProducerCapture:
                 raise EvidenceError("Producer result exceeds evidence budget")
             atomic_json(artifact, raw)
             query["artifact_sha256"] = sha256(artifact)
-            value = decode_wire(raw, serena)
+            value = definition_text(raw) if suffix == "find_definition" else decode_wire(raw, serena)
             query["status"] = "ok"
             return value, query
         except Exception as exc:
@@ -694,6 +721,7 @@ def map_diagnostics(inventory, workspace, sources, symbols, refs, bound, context
             mapping["reasons"].append("Unverified diagnostic coordinates: " + str(exc))
             continue
         candidates = []
+        local_ambiguous = False
         for symbol in symbols:
             if symbol["path"] != path:
                 continue
@@ -701,6 +729,13 @@ def map_diagnostics(inventory, workspace, sources, symbols, refs, bound, context
             a = offset_in_source(text, r["start_line"], r["start_column"], r["column_unit"])
             b = offset_in_source(text, r["end_line"], r["end_column"], r["column_unit"])
             if a <= begin < b and begin <= end <= b:
+                if "range_witnesses" in sources[path]:
+                    checked = verify_function_range(text, symbol, spans[0]["range"], unit,
+                                                    sources[path]["range_witnesses"])
+                    if checked["status"] != "verified":
+                        local_ambiguous |= checked["status"] == "ambiguous"
+                        mapping["reasons"].extend(checked["reasons"])
+                        continue
                 candidates.append(symbol)
         mapping["symbols"] = candidates
         mapping["evidence_refs"] = sorted({ref for s in candidates for ref in refs[s["id"]]}) + mapping["evidence_refs"]
@@ -710,6 +745,8 @@ def map_diagnostics(inventory, workspace, sources, symbols, refs, bound, context
             mapping.update(status="exact", reasons=["Unique source-crosschecked simple function extent"])
         elif candidates:
             mapping.update(status="ambiguous", reasons=["Overlapping enclosing symbols"])
+        elif local_ambiguous:
+            mapping["status"] = "ambiguous"
         else:
             mapping["reasons"].append("No supported verified enclosing symbol")
     return mappings
@@ -795,10 +832,12 @@ def simple_file_functions(text):
     return functions
 
 
-def localization_proofs(mappings, queries, workspace, directory, sources, contexts):
+def localization_proofs(mappings, queries, workspace, directory, sources, contexts, inventory=None):
     """Emit the shared proof only after replaying the bounded local checks."""
     indexed_queries = {query["id"]: query for query in queries}
     inputs = []
+    locations = {key: spans[0]["range"] for key, _, spans in diagnostic_rows(inventory)
+                 if len(spans) == 1 and spans[0].get("range")} if inventory is not None else {}
     for mapping in mappings:
         if mapping["status"] != "exact":
             continue
@@ -806,6 +845,10 @@ def localization_proofs(mappings, queries, workspace, directory, sources, contex
         name = symbol["qualified_name"].split("::")[-1]
         extent = symbol["range"]
         native_end = extent["end_line"] - (2 if extent["end_column"] == 0 else 1)
+        method = "source_crosschecked_simple_function_v1"
+        unit = "unicode_scalar" if mapping["diagnostic_key"].startswith("clippy:") else (
+            contexts[mapping["diagnostic_key"]]["data"]["inventory_column_unit"])
+        predicates = None
         try:
             functions = simple_file_functions(sources[symbol["path"]]["text"])
             if functions.count(name) != 1:
@@ -815,8 +858,35 @@ def localization_proofs(mappings, queries, workspace, directory, sources, contex
                 "body_location": {"start_line": extent["start_line"] - 1, "end_line": native_end},
             }, sources[symbol["path"]]["text"])
         except EvidenceError as exc:
-            mapping.update(status="unknown", reasons=mapping["reasons"] + [str(exc)])
-            continue
+            if mapping["diagnostic_key"] not in locations:
+                mapping.update(status="unknown", reasons=mapping["reasons"] + [str(exc)])
+                continue
+            witnesses = []
+            for ref in mapping["evidence_refs"]:
+                if not isinstance(ref, str):
+                    continue
+                query = indexed_queries[ref]
+                if query["tool"] != "serena_1mcp_find_symbol" or query["status"] != "ok":
+                    continue
+                artifact = workspace / query["artifact"]
+                if sha256(artifact) != query["artifact_sha256"]:
+                    raise EvidenceError("Source-symbol query witness hash changed")
+                witnesses.extend(decode_serena_witnesses(
+                    decode_wire(strict_json(artifact), True), query["id"]))
+            replay = verify_function_range(sources[symbol["path"]]["text"], symbol,
+                                           locations[mapping["diagnostic_key"]], unit, witnesses)
+            if replay["status"] != "verified":
+                mapping.update(status="ambiguous" if replay["status"] == "ambiguous" else "unknown",
+                               reasons=mapping["reasons"] + replay["reasons"])
+                continue
+            checked = replay["normalized_range"]
+            method = "source_crosschecked_function_range_v1"
+            predicates = dict(replay["checked_predicates"])
+            # These two facts belong to the independently bound caller, never
+            # the lexical utility. Exact mappings already passed that binding.
+            predicates["source_binding_verified"] = True
+            verify_sources(sources)
+            predicates["source_hash_stable_before_after"] = True
         if checked != extent:
             raise EvidenceError("Localization proof endpoint replay mismatch")
         query_ids = [ref for ref in mapping["evidence_refs"] if isinstance(ref, str)
@@ -826,18 +896,16 @@ def localization_proofs(mappings, queries, workspace, directory, sources, contex
             mapping.update(status="unknown", reasons=mapping["reasons"] + [
                 "No successful decoded source-symbol query for local proof"])
             continue
-        unit = "unicode_scalar" if mapping["diagnostic_key"].startswith("clippy:") else (
-            contexts[mapping["diagnostic_key"]]["data"]["inventory_column_unit"])
         proof = {
             "schema_version": 1, "kind": "clippy-localization-proof",
             "diagnostic_key": mapping["diagnostic_key"], "source_path": symbol["path"],
             "source_sha256": symbol["source_sha256"], "symbol_id": symbol["id"],
             "inventory_column_unit": unit,
             "local_discovery": {
-                "method": "source_crosschecked_simple_function_v1", "scope_range": extent,
+                "method": method, "scope_range": extent,
                 "candidate_symbol_ids": [candidate["id"] for candidate in mapping["symbols"]],
                 "query_ids": query_ids,
-                "checked_predicates": {key: True for key in (
+                "checked_predicates": predicates or {key: True for key in (
                     "source_binding_verified", "source_hash_stable_before_after",
                     "diagnostic_coordinates_verified", "symbol_endpoints_source_verified",
                     "diagnostic_fully_enclosed", "relevant_local_candidates_exhausted",
@@ -900,7 +968,48 @@ def producer_plan(plan, workspace, budget):
     return sources, normalized_seeds, targets
 
 
-async def discover_serena(capture, workspace, sources, seeds, limitations):
+def decode_serena_witnesses(payload, query_id):
+    """Extract only actual returned nodes; absence never invents children."""
+    if not isinstance(payload, list):
+        raise EvidenceError("Unsupported Serena source-symbol envelope")
+    witnesses = []
+    def visit(node, parent=None):
+        if not isinstance(node, dict):
+            raise EvidenceError("Unsupported Serena symbol node")
+        name, location = node.get("name_path"), node.get("body_location")
+        if not isinstance(name, str) or not name or not isinstance(location, dict):
+            raise EvidenceError("Serena source-symbol identity/range missing")
+        witnesses.append({
+            "query_id": query_id, "name_path": name, "kind": node.get("kind"),
+            "relative_path": node.get("relative_path"),
+            "body_location": dict(location),
+            "parent_name_path": parent if parent is not None else (
+                name.rsplit("/", 1)[0] if "/" in name else None),
+        })
+        if "children" in node:
+            if not isinstance(node["children"], list):
+                raise EvidenceError("Unsupported Serena children envelope")
+            for child in node["children"]:
+                visit(child, name)
+    for node in payload:
+        visit(node)
+    return witnesses
+
+
+def native_function_extent(native, text):
+    """Whole-line native conversion; the shared validator must verify it."""
+    location, lines = native.get("body_location", {}), source_lines(text)
+    a, b = location.get("start_line"), location.get("end_line")
+    if (native.get("kind") not in ("Function", "Method", 6, 12)
+            or type(a) is not int or type(b) is not int or not 0 <= a <= b < len(lines)):
+        raise EvidenceError("Unsupported source function/method body")
+    return {"start_line": a + 1, "start_column": 0,
+            "end_line": b + 2 if lines[b].endswith("\n") else b + 1,
+            "end_column": 0 if lines[b].endswith("\n") else len(lines[b]),
+            "column_unit": "unicode_scalar"}
+
+
+async def discover_serena(capture, workspace, sources, seeds, limitations, inventory=None):
     initial, iq = await capture.query("serena", "initial_instructions", {}, True)
     config, cq = await capture.query("serena", "get_current_config", {}, True)
     # These are the verified 2.1.0 text formats, not instructions to execute.
@@ -924,19 +1033,17 @@ async def discover_serena(capture, workspace, sources, seeds, limitations):
             continue
         names = set(n for group in overview.values() for n in group)
         text = sources[path]["text"]
-        # The lexical check only supplies candidates for MCP verification and
-        # detects omitted/nested functions. It never establishes symbol ranges.
-        lexical = set(re.findall(r"\bfn\s+([A-Za-z_][A-Za-z_0-9]*)", text))
         selected = {seed["name_path"] for seed in seeds
                     if seed["path"].replace("\\", "/") == path}
-        all_functions = set(overview.get("Function", [])) | lexical | selected
+        all_functions = set(overview.get("Function", [])) | selected
         file_symbols = []
         incomplete = False
-        for name in sorted(all_functions):
-            if name not in names and name not in lexical:
-                limitations.append(f"{path}: seed {name} not discovered; no nearest-name mapping")
-                incomplete = True
+        pending, requested, witnesses = list(sorted(all_functions)), set(), []
+        while pending:
+            name = pending.pop(0)
+            if name in requested:
                 continue
+            requested.add(name)
             try:
                 found, query = await capture.query("serena", "find_symbol", {
                     "name_path_pattern": name, "relative_path": path,
@@ -945,34 +1052,64 @@ async def discover_serena(capture, workspace, sources, seeds, limitations):
                 limitations.append(f"{path}: symbol discovery incomplete: {exc}")
                 incomplete = True
                 break
-            if not isinstance(found, list):
+            try:
+                decoded = decode_serena_witnesses(found, query["id"])
+                for native in decoded:
+                    normalized, _ = source_path(workspace, native["relative_path"])
+                    if normalized != path:
+                        raise EvidenceError("Source symbol outside requested file")
+                    native["relative_path"] = normalized
+                    parent = native["parent_name_path"]
+                    if parent and parent not in requested:
+                        pending.append(parent)
+                witnesses.extend(decoded)
+            except EvidenceError:
                 query["status"] = "unsupported"
                 incomplete = True
                 continue
             query["pagination"] = {"status": "unknown", "pages": 1, "returned": len(found),
                                    "total": None, "reason": "No completeness metadata; source crosscheck required"}
-            for native in found:
-                try:
-                    if not isinstance(native, dict):
-                        raise EvidenceError("Unsupported Serena symbol")
-                    normalized, _ = source_path(workspace, native.get("relative_path"))
-                    if normalized != path:
-                        raise EvidenceError("Symbol returned outside requested file")
-                    extent = serena_extent(native, text)
-                except EvidenceError as exc:
-                    limitations.append(f"{path}: {name}: {exc}")
-                    continue
+        sources[path]["range_witnesses"] = witnesses
+        locations = []
+        if inventory is not None:
+            for key, namespace, spans in diagnostic_rows(inventory):
+                if (namespace == "clippy" and len(spans) == 1 and spans[0].get("range")
+                        and re.sub("/+", "/", str(spans[0]["file"]).replace("\\", "/")) == path):
+                    locations.append(spans[0]["range"])
+        seen_symbols = set()
+        for native in witnesses:
+            if native["kind"] not in ("Function", "Method", 6, 12):
+                continue
+            try:
+                extent = native_function_extent(native, text)
                 symbol = {"id": f"s{len(symbols) + len(file_symbols) + 1:06d}",
-                          # Explicit source-scoped Serena identity, NOT a HIR name.
                           "qualified_name": f"serena::{path}::{native['name_path']}",
                           "kind": native["kind"], "path": path, "range": extent,
                           "source_sha256": sources[path]["sha256"]}
+                if inventory is not None:
+                    relevant = [location for location in locations
+                                if (extent["start_line"], 0) <= (location[0], location[1])
+                                and (location[2], location[3]) <= (extent["end_line"], extent["end_column"])]
+                    if not any(verify_function_range(text, symbol, location, "unicode_scalar", witnesses)["status"]
+                               == "verified" for location in relevant):
+                        limitations.append(
+                            f"{path}: {native['name_path']}: no applicable verified diagnostic mapping; raw witness retained")
+                        continue
+                else:
+                    # Historical helper callers without inventory retain the old
+                    # strict discovery contract; production supplies inventory.
+                    serena_extent(native, text)
+                identity = (native["name_path"], tuple(extent.values()))
+                if identity in seen_symbols:
+                    continue
+                seen_symbols.add(identity)
                 file_symbols.append(symbol)
-                refs[symbol["id"]] = [oq["id"], query["id"]]
+                refs[symbol["id"]] = sorted({oq["id"]} | {w["query_id"] for w in witnesses})
+            except EvidenceError as exc:
+                limitations.append(f"{path}: {native['name_path']}: {exc}")
         if incomplete:
-            limitations.append(f"{path}: incomplete function discovery; symbols withheld")
-        else:
-            symbols.extend(file_symbols)
+            limitations.append(f"{path}: some source queries incomplete; verified range-local facts only")
+        symbols.extend(file_symbols)
     return symbols, refs
 
 
@@ -1001,6 +1138,213 @@ def check_usage_sources(rows, target, workspace, sources, budget, limitations):
             limitations.append(f"Unresolved who_uses endpoint {row.get('file')}: {exc}")
             valid = False
     return valid
+
+
+class CaptureIntegrityError(EvidenceError):
+    """A changed bound artifact/source cannot be exported as partial evidence."""
+
+
+def verified_query_payload(workspace, query, plain=False):
+    path = workspace / query["artifact"]
+    if sha256(path) != query["artifact_sha256"]:
+        raise CaptureIntegrityError("Origin query capture hash changed")
+    if query["status"] != "ok":
+        raise EvidenceError("Origin query status is not successful")
+    raw = strict_json(path)
+    return definition_text(raw) if plain else decode_wire(raw, query["tool"].startswith("serena_"))
+
+
+def verify_origin_context(manifest_text, module_text):
+    """The single authorized default crate/module chain, not a Rust resolver."""
+    try:
+        manifest = tomllib.loads(manifest_text)
+    except tomllib.TOMLDecodeError:
+        raise EvidenceError("Unsupported origin manifest") from None
+    package, lib = manifest.get("package", {}), manifest.get("lib", {})
+    if (not isinstance(package, dict) or package.get("name") != "apparatus-contracts"
+            or package.get("autolib", True) is not True or not isinstance(lib, dict)
+            or "name" in lib or "path" in lib):
+        raise EvidenceError("Origin default crate/library identity overridden")
+    pending, item, count = [], "", 0
+    for line in module_text.split("\n"):
+        value = line.strip()
+        if not value or value.startswith("//"):
+            continue
+        if value.startswith("#[") and not item:
+            if not re.fullmatch(r'#\[cfg\(feature\s*=\s*"[\w-]+"\)\]', value):
+                raise EvidenceError("Unsupported origin module-root attribute")
+            pending.append(value)
+            continue
+        item += " " + value
+        if not item.endswith(";"):
+            if not item.lstrip().startswith("pub use "):
+                raise EvidenceError("Unsupported origin module-root syntax")
+            continue
+        item = item.strip()
+        declaration = re.fullmatch(r"pub mod ([A-Za-z_]\w*);", item)
+        if declaration:
+            if declaration[1] == "runtime":
+                if pending:
+                    raise EvidenceError("Origin runtime module is conditional/path-attributed")
+                count += 1
+        elif (not re.fullmatch(r"pub use [A-Za-z_]\w*(?:::[A-Za-z_]\w*)*(?:::\{[\w,\s]+\})?;", item)
+              or re.search(r"\bruntime\b", item)):
+            raise EvidenceError("Unsupported origin reexport/module indirection")
+        pending, item = [], ""
+    if count != 1 or pending or item:
+        raise EvidenceError("Exactly one unconditional literal pub mod runtime required")
+
+
+def parse_origin_definition(text, workspace, source):
+    match = re.fullmatch(
+        r"Found 1 definition\(s\) for 'validate_runtime_uid':\r?\n"
+        r"([^\r\n]+):(\d+):(\d+) \(validate_runtime_uid, exact=true\)\s*", text)
+    if not match:
+        raise EvidenceError("Unsupported or ambiguous origin definition")
+    raw = match[1]
+    if raw.startswith("\\\\?\\"):
+        if not re.match(r"^\\\\\?\\[A-Za-z]:\\", raw):
+            raise EvidenceError("Unsupported definition device/UNC wrapper")
+        raw = raw[4:]
+    path, _ = source_path(workspace, raw)
+    if path != ORIGIN_SOURCE:
+        raise EvidenceError("Definition is not the authorized origin file")
+    line, column = int(match[2]), int(match[3])
+    lines = source_lines(source)
+    if not 1 <= line <= len(lines) or column < 1:
+        raise EvidenceError("Definition coordinates outside current source")
+    header = lines[line - 1].rstrip("\r\n")
+    if (header[:column - 1] != "pub fn " or not header[column - 1:].startswith(ORIGIN_NAME + "(")
+            or re.sub(r"\s+", "", header) !=
+            "pubfnvalidate_runtime_uid(value:&str)->Result<(),RuntimeErrorCodeV1>{"):
+        raise EvidenceError("Definition/signature token mismatch; no coordinate repair")
+    return [line, 0, line, len(header)]
+
+
+def build_origin_proof(workspace, directory, sources, queries):
+    indexed = {query["id"]: query for query in queries}
+    def one(suffix):
+        items = [q for q in queries if q["tool"] == "rust-code-mcp_1mcp_" + suffix]
+        if len(items) != 1 or items[0]["arguments"].get("directory") != str(workspace):
+            raise EvidenceError("Origin lookup witness missing/ambiguous/root mismatch")
+        return items[0]
+    signature_query, definition_query = one("function_signature"), one("find_definition")
+    if (signature_query["arguments"].get("target") != ORIGIN_TARGET
+            or definition_query["arguments"] !=
+            {"directory": str(workspace), "symbol_name": ORIGIN_NAME, "exact": True}):
+        raise EvidenceError("Origin lookup was not the fixed exact target")
+    data = verified_query_payload(workspace, signature_query)
+    expected_params = [{"name": "value", "ty": "&str", "by_ref": True, "mutability": False}]
+    signature = data.get("signature") if isinstance(data, dict) else None
+    if (not isinstance(signature, dict) or data.get("target") != ORIGIN_TARGET
+            or not {"is_async", "self_param", "params", "return_type", "generics"} <= set(signature)
+            or signature.get("is_async") is not False or signature.get("self_param") is not None
+            or signature.get("params") != expected_params or signature.get("generics") != []
+            or signature["params"][0]["by_ref"] is not True
+            or signature["params"][0]["mutability"] is not False
+            or not isinstance(signature.get("return_type"), str)
+            or re.sub(r"\s+", "", signature["return_type"]) != "Result<(),RuntimeErrorCodeV1>"):
+        signature_query["status"] = "unsupported"
+        raise EvidenceError("Origin signature does not match the supported declaration")
+    for path in (ORIGIN_SOURCE, ORIGIN_MANIFEST, ORIGIN_MODULE):
+        if path not in sources:
+            raise EvidenceError("Origin/context source must be explicitly prehashed: " + path)
+    verify_sources(sources)
+    verify_origin_context(sources[ORIGIN_MANIFEST]["text"], sources[ORIGIN_MODULE]["text"])
+    source = sources[ORIGIN_SOURCE]["text"]
+    try:
+        location = parse_origin_definition(
+            verified_query_payload(workspace, definition_query, True), workspace, source)
+    except CaptureIntegrityError:
+        raise
+    except EvidenceError:
+        definition_query["status"] = "unsupported"
+        raise
+    witnesses = []
+    for query in queries:
+        if (query["tool"] == "serena_1mcp_find_symbol" and query["status"] == "ok"
+                and query["arguments"].get("relative_path") == ORIGIN_SOURCE):
+            witnesses.extend(decode_serena_witnesses(verified_query_payload(workspace, query), query["id"]))
+    selected = [w for w in witnesses if w["name_path"] == ORIGIN_NAME
+                and w["parent_name_path"] is None and w["relative_path"] == ORIGIN_SOURCE
+                and w["kind"] in ("Function", 12)]
+    identities = {(w["body_location"].get("start_line"), w["body_location"].get("end_line"))
+                  for w in selected}
+    if len(identities) != 1:
+        raise EvidenceError("Unique top-level Serena origin witness missing")
+    extent = native_function_extent(selected[0], source)
+    symbol = {"path": ORIGIN_SOURCE, "qualified_name": "serena::" + ORIGIN_SOURCE + "::" + ORIGIN_NAME,
+              "kind": "Function", "range": extent}
+    verified = verify_function_range(source, symbol, location, "unicode_scalar", witnesses)
+    if verified["status"] != "verified" or verified["candidate_name_paths"] != [ORIGIN_NAME]:
+        raise EvidenceError("Origin function/source witness replay failed: " + "; ".join(verified["reasons"]))
+    ids = [signature_query["id"], definition_query["id"]] + sorted({w["query_id"] for w in selected})
+    if any(identifier not in indexed for identifier in ids):
+        raise EvidenceError("Origin query reference missing")
+    proof = {"schema_version": 1, "kind": "clippy-origin-binding", "target": ORIGIN_TARGET,
+             "source_path": ORIGIN_SOURCE, "source_sha256": sources[ORIGIN_SOURCE]["sha256"],
+             "declaration_range": verified["normalized_range"],
+             "crate_manifest_ref": {"path": ORIGIN_MANIFEST, "sha256": sources[ORIGIN_MANIFEST]["sha256"],
+                                    "locator": "package.name"},
+             "module_root_ref": {"path": ORIGIN_MODULE, "sha256": sources[ORIGIN_MODULE]["sha256"],
+                                 "locator": "pub mod runtime;"},
+             "query_ids": ids, "method": "direct_crate_module_function_v1"}
+    path = directory / "origin-binding.json"
+    atomic_json(path, proof)
+    return proof, {"path": capture_name(workspace, path), "sha256": sha256(path), "locator": "/"}
+
+
+def file_observations(workspace, sources, state, origin, origin_ref):
+    observations = []
+    for usage in state["usages"]:
+        for row in usage["rows"]:
+            path, absolute = source_path(workspace, row["file"])
+            if path not in sources:
+                raise EvidenceError("Unbound returned endpoint blocks observation export: " + path)
+            current = absolute.read_bytes()
+            if hashlib.sha256(current).hexdigest() != sources[path]["sha256"]:
+                raise CaptureIntegrityError("Observation endpoint source changed")
+            stable = path in state["prehashed"]
+            spelling = current[row["start"]:row["end"]] == ORIGIN_NAME.encode("ascii")
+            supported_query = usage["status"] in ("ok", "partial")
+            positive = origin is not None and stable and spelling and supported_query
+            reasons = []
+            if origin is None:
+                reasons.extend(state["origin_reasons"])
+            if not stable:
+                reasons.append("Endpoint discovered after query; subsequent bounded capture required")
+            if not spelling:
+                reasons.append("Raw span/spelling mismatch; no offset repair; native units retained in raw query")
+            if not supported_query:
+                reasons.append("Usage sequence has an error/unsupported envelope; no candidate promotion")
+            if "consumer_function" not in row:
+                reasons.append("No consumer_function advertised; no caller identity inferred")
+            observations.append({
+                "id": f"observation-{len(observations) + 1:06d}", "kind": "reference",
+                "origin": {"path": ORIGIN_SOURCE, "source_sha256": sources[ORIGIN_SOURCE]["sha256"],
+                           "symbol_id": None, "range": origin["declaration_range"] if origin else None},
+                "destination": {"path": path, "source_sha256": sources[path]["sha256"],
+                                "symbol_id": None, "range": None},
+                "query_ids": [usage["query_id"]], "origin_binding_ref": origin_ref,
+                "identity_status": "file_candidate" if positive else "unresolved",
+                "endpoint_status": "source_verified" if positive else "path_only",
+                "relationship_scope": "symbol_to_file_candidate", "reasons": reasons})
+    return observations
+
+
+def verify_output_input_separation(outputs, inputs):
+    for index, output in enumerate(outputs):
+        for path in list(inputs) + list(outputs[:index]):
+            if output == path or (output.exists() and path.exists() and output.samefile(path)):
+                raise EvidenceError("Observation/accepted outputs alias an input or each other")
+
+
+def verify_capture_hashes(workspace, evidence):
+    refs = [(q["artifact"], q["artifact_sha256"]) for q in evidence["queries"]]
+    refs += [(ref["path"], ref["sha256"]) for ref in evidence["producer"]["captures"]]
+    for path, expected in refs:
+        if sha256(workspace / path) != expected:
+            raise CaptureIntegrityError("Captured query/context hash changed before publication")
 
 
 async def produce(args, inventory, plan, workspace, directory, sources, seeds, targets,
@@ -1036,7 +1380,9 @@ async def produce(args, inventory, plan, workspace, directory, sources, seeds, t
                         "pages": [{"id": q["id"], "tool": q["tool"], "arguments": q["arguments"],
                                    "artifact": capture_name(workspace, q["artifact"]),
                                    "artifact_sha256": q["artifact_sha256"],
-                                   "status": q["status"]} for q in pages]})
+                                   # A valid page can belong to an incomplete
+                                   # sequence. Keep that scope on the group.
+                                   "status": "ok" if q["status"] == "partial" else q["status"]} for q in pages]})
                     group.update(artifact=str(group_path), artifact_sha256=sha256(group_path),
                                  pagination=pagination, coverage=coverage())
                     group["coverage"]["freshness"] = "unknown" if witnessed else "partial"
@@ -1044,12 +1390,29 @@ async def produce(args, inventory, plan, workspace, directory, sources, seeds, t
                                        else "unsupported" if any(q["status"] == "unsupported" for q in pages)
                                        else "ok" if pagination["status"] == "complete" else "partial")
                     evidence["queries"].append(group)
+                    if args.observations is not None:
+                        args.observation_state["usages"].append(
+                            {"query_id": group["id"], "rows": rows, "status": group["status"],
+                             "pagination": dict(pagination)})
                     evidence["producer"]["captures"].extend(
                         {"path": q["artifact"], "sha256": q["artifact_sha256"], "locator": q["id"]}
                         for q in pages)
                 limitations.append(
                     f"{target}: {pagination['status']} indexed-scope pagination; "
                     "HIR endpoint coordinate units/qualified symbol linkage unverified; no normalized relation")
+            if args.observations is not None:
+                first = len(capture.queries)
+                for suffix, arguments in (
+                    ("function_signature", {"directory": str(workspace), "target": ORIGIN_TARGET}),
+                    ("find_definition", {"directory": str(workspace), "symbol_name": ORIGIN_NAME, "exact": True}),
+                ):
+                    try:
+                        _, query = await capture.query("rust-code-mcp", suffix, arguments)
+                        query["pagination"] = {"status": "not_applicable", "pages": 1,
+                                               "returned": 1, "total": None, "reason": "Single origin lookup"}
+                    except EvidenceError as exc:
+                        args.observation_state["origin_reasons"].append(str(exc))
+                evidence["queries"].extend(capture.queries[first:])
             remaining, last_id = capture.remaining, capture.next_id
         if seeds:
             if args.serena_url is None:
@@ -1067,7 +1430,7 @@ async def produce(args, inventory, plan, workspace, directory, sources, seeds, t
                 capture.queries = list(evidence["queries"])
                 capture.next_id = last_id
                 try:
-                    return await discover_serena(capture, workspace, sources, seeds, limitations)
+                    return await discover_serena(capture, workspace, sources, seeds, limitations, inventory)
                 finally:
                     evidence["queries"] = capture.queries
     return [], {}
@@ -1108,12 +1471,15 @@ def producer_main(args):
         protected = set(inputs) | {Path(__file__).resolve()}
         output = output_path(args.output, protected)
         snapshot_path = output_path(args.snapshot, protected | {output})
+        observation_path = output_path(args.observations, protected | {output, snapshot_path})
+        outputs = (output, snapshot_path) + ((observation_path,) if observation_path else ())
+        verify_output_input_separation(outputs, inputs)
         directory = args.artifacts.resolve()
-        if directory.exists() or directory in protected or directory in {output, snapshot_path}:
+        if directory.exists() or directory in protected or directory in outputs:
             raise EvidenceError("Artifacts directory must be new and distinct from inputs/outputs")
-        if any(path.is_relative_to(directory) for path in (output, snapshot_path)):
+        if any(path.is_relative_to(directory) for path in outputs):
             raise EvidenceError("Outputs cannot be descendants of the raw artifacts directory")
-        if not all(path.is_relative_to(workspace) for path in (directory, output, snapshot_path)):
+        if not all(path.is_relative_to(workspace) for path in (directory,) + outputs):
             raise EvidenceError("Producer artifacts and outputs must stay within the explicit workspace")
         input_hashes = {path: sha256(path) for path in inputs}
         inventory_hash = input_hashes[args.inventory.resolve()]
@@ -1121,7 +1487,12 @@ def producer_main(args):
         # Validate the whole inventory, preserving strict namespaces/counts.
         list(diagnostic_rows(inventory))
         sources, seeds, targets = producer_plan(plan, workspace, args.max_sources)
-        verify_output_source_separation((output, snapshot_path), sources)
+        verify_output_source_separation(outputs, sources)
+        if observation_path:
+            if (targets != [ORIGIN_TARGET] or not args.serena_url
+                    or not {ORIGIN_SOURCE, ORIGIN_MANIFEST, ORIGIN_MODULE} <= set(sources)):
+                raise EvidenceError("Observations require the single authorized target, Serena, and prehashed origin contexts")
+            args.observation_state = {"prehashed": set(sources), "usages": [], "origin_reasons": []}
         head = git_head(workspace)
         if workspace != ROOT.resolve():
             if head != git_head(ROOT):
@@ -1173,10 +1544,7 @@ def producer_main(args):
         directory.mkdir(parents=False)
         symbols, refs = asyncio.run(produce(args, inventory, plan, workspace, directory,
                                            sources, seeds, targets, evidence, limitations))
-        verify_output_source_separation((output, snapshot_path), sources)
-        if not args.allow_partial and any(q["status"] != "ok" for q in evidence["queries"]):
-            raise EvidenceError("Partial/error/unsupported queries retained as raw artifacts; "
-                                "use --allow-partial to export explicitly partial normalized evidence")
+        verify_output_source_separation(outputs, sources)
         verify_sources(sources)
         if head != git_head(workspace):
             raise EvidenceError("Workspace HEAD changed during collection")
@@ -1188,7 +1556,30 @@ def producer_main(args):
             ref["path"] = capture_name(workspace, ref["path"])
         evidence["mappings"] = map_diagnostics(inventory, workspace, sources, symbols, refs, bound, contexts)
         proof_inputs = localization_proofs(evidence["mappings"], evidence["queries"], workspace,
-                                          directory, sources, contexts)
+                                          directory, sources, contexts, inventory)
+        observed = None
+        if observation_path:
+            origin, origin_ref = None, None
+            try:
+                origin, origin_ref = build_origin_proof(workspace, directory, sources, evidence["queries"])
+            except CaptureIntegrityError:
+                raise
+            except EvidenceError as exc:
+                args.observation_state["origin_reasons"].append(str(exc))
+            if origin_ref:
+                proof_inputs.append({"role": "origin_binding", "path": origin_ref["path"],
+                                     "sha256": origin_ref["sha256"]})
+            observed = {"schema_version": 1, "kind": "clippy-file-observations", "workspace": str(workspace),
+                        "snapshot_sha256": None, "evidence_sha256": None, "inventory_sha256": inventory_hash,
+                        "observations": file_observations(workspace, sources, args.observation_state, origin, origin_ref),
+                        "limitations": ["Candidate file observations are not hard constraints or reference closure."]
+                                        + args.observation_state["origin_reasons"]
+                                        + [f"{usage['query_id']}: incomplete/unsupported indexed query scope"
+                                           for usage in args.observation_state["usages"]
+                                           if usage["status"] != "ok" or usage["pagination"]["status"] != "complete"]}
+        if not args.allow_partial and any(q["status"] != "ok" for q in evidence["queries"]):
+            raise EvidenceError("Partial/error/unsupported queries retained as raw artifacts; "
+                                "use --allow-partial to export explicitly partial normalized evidence")
         input_records = [{"role": "inventory" if path == args.inventory.resolve() else "source_context",
                           "path": capture_name(workspace, path), "sha256": input_hashes[path]} for path in inputs]
         input_records.extend({"role": "mcp_capture", "path": q["artifact"],
@@ -1205,9 +1596,17 @@ def producer_main(args):
         # Each file is atomic. The pair is hash-bound, not a multi-file transaction:
         # a failed second replace leaves a detectable mismatch, never valid proof.
         verify_sources(sources)
+        verify_output_source_separation(outputs, sources)
+        verify_output_input_separation(outputs, inputs)
+        verify_capture_hashes(workspace, evidence)
+        if any(sha256(path) != digest for path, digest in input_hashes.items()):
+            raise CaptureIntegrityError("Producer input changed before publication")
         atomic_json(snapshot_path, snapshot)
         evidence["snapshot_sha256"] = sha256(snapshot_path)
         atomic_json(output, evidence)
+        if observed is not None:
+            observed.update(snapshot_sha256=sha256(snapshot_path), evidence_sha256=sha256(output))
+            atomic_json(observation_path, observed)
         return 0
     except Exception as exc:
         print("mcp-code-evidence producer: " + (str(exc) if isinstance(exc, EvidenceError)
@@ -1235,6 +1634,7 @@ def main(argv=None):
     producer.add_argument("--workspace", default=str(ROOT))
     producer.add_argument("--snapshot", required=True)
     producer.add_argument("--output", required=True)
+    producer.add_argument("--observations", help="Optional separately hash-bound file observations JSON")
     producer.add_argument("--artifacts", required=True, type=Path)
     producer.add_argument("--binding", type=Path)
     producer.add_argument("--context", type=Path, action="append", default=[],
