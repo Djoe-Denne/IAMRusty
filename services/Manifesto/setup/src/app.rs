@@ -455,7 +455,7 @@ impl Application {
     }
 }
 
-/// A selected `JoinHandle` has already yielded its output and must never be polled again.
+/// A selected task has already returned its output; do not await it again.
 async fn drain_unselected_task<T>(handle: tokio::task::JoinHandle<T>, selected: bool) {
     if !selected {
         handle.abort();

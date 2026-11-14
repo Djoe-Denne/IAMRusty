@@ -68,6 +68,20 @@ Correctif AIForAll initial : **c2ecda96427eac25d07d667c26b9e68f3400a590**, publi
 sur `origin/master`, référence vérifiée. Le suivi final porte sur la révision
 intégrant aussi ce dernier pin SDK ; résultat CI conservé dans le ledger du lot.
 
+### Contrôle du 14 novembre
+
+La CI SDK43486494561est **entièrement verte** sur0158727 (Format, Clippy,
+Unit Tests And Coverage et SonarCloud).
+
+La CI AIForAll43486661323sur28f92db9confirme le succès du T6 initialement en échec.
+Tous les jobs sauf ManifestoIT passent, E2E et Sonar compris. Les deux échecs
+restants sont des scans statiques T7 : le commentaire ajouté au superviseur
+contenait `polled`, donc le token interdit `poll`. Le commentaire est reformulé
+sans changement de logique, de gate ou d'allowlist. Deux tests statiques exacts
+passent localement, sans Docker :1/1P1 (3autres cas filtrés) et1/1P2
+(5autres cas filtrés), aucun échec ni ignoré. La nouvelle CI doit encore être
+contrôlée avant d'annoncer un succès global.
+
 ## Validations
 
 Windows natif,24jobs configurés, un Cargo à la fois, target surE:

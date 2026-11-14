@@ -12,3 +12,7 @@
 - SDK Format initially failed on4preexisting JWKS assertion-format hunks: whitespace-only change, all-format check and nonwhitespace equality verified, no assertion/logic change.
 - SDK unit CI136/137passed; existing process-exit parent spawned an incomplete --exact child name,zero tests then missing ledger. Local targeted RED reproduced, exactchildname corrected, assert stdout reports exactly1test added. Full native SDK --lib full,testing now132/132PASS,0ignored/filtered; Kafka remains disabled on Windows. This hermetic exit test is not real Docker teardown evidence.
 - Reuse Manifesto supervisor/T6 evidence when SDK delta is confined to cfg(test) and formatting; no production dependency code change. Final SDK/root publication and CI controls remain required.
+
+## 2026-11-14 — source-token gates
+- Root CI43486661323: original T6 passes; only two static T7 gates fail on the new supervisor comment containing `polled` (substring `poll`). Reword the comment, never weaken gates or enlarge their allowlist.
+- Run the two exact native source-scan tests (`apparatus_p1_t7_gate::t7_no_p2_runtime_tokens_in_manifesto_prod`, `apparatus_p2_t7_gate::t7_p2_tokens_only_on_allowlist_l`) without Docker. Reuse unchanged behavioral evidence; normal fmt hook and corrective CI remain required.
