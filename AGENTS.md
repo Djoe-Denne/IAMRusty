@@ -1,5 +1,12 @@
 ## Contrat MCP local — AIForAll (2026-10-24)
 
+## Documentation language
+
+- Write all new documentation and all new or revised documentation prose in English (READMEs, guides, architecture notes, runbooks, reports, and agent instructions).
+- When updating non-English documentation, write the affected passages in English; translate unrelated existing content only in an explicitly requested translation task.
+- Preserve code, commands, paths, API identifiers, verbatim quotations, and original source material.
+- This policy governs documentation only; continue communicating with the user in their preferred language.
+
 Ce bloc est le **canon obligatoire** des procédures MCP du dépôt pour OpenCode,
 Cursor et Codex. Il remplace les conventions globales contradictoires sur ces
 procédures ; les autres conventions restent applicables. Il ne peut déroger aux

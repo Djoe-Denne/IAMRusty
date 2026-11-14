@@ -228,8 +228,9 @@
                     },
                     "docs/history/ci-k6-reporting-20261113/coverage.json": {
                         "ingested_at": "2026-11-13",
-                        "content_hash": "sha256:3e85c94ddde130d3f9ef4315f002980960dcdf190a076ab2fb774f8c2844b9fa",
-                        "size_bytes": 4768,
+                        "content_hash": "sha256:4ace74b232f8d85e370d218c9b58a148ac28bba6a0c37e8076dd330c94607928",
+                        "size_bytes": 4630,
+                        "hash_scope": "published Git blob, UTF-8/LF; Windows working-tree CRLF normalization excluded",
                         "source_type": "session-coverage-and-source-hashes",
                         "project": "aiforall"
                     },
