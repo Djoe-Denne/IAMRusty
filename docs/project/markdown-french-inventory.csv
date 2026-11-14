@@ -1,0 +1,1207 @@
+﻿file,translated,detection,french_probability,first_line,last_line
+.agents/skills/aiforall-context-functions/SKILL.md,0,detected,0.99,1,114
+.agents/skills/aiforall-context-functions/VALIDATION.md,0,detected,0.94,1,100
+.agents/skills/aiforall-context-functions/candidates/README.md,0,detected,0.95,1,8
+.agents/skills/aiforall-context-functions/candidates/compare-owned-container-inventories-v1/README.md,0,detected,0.96,1,15
+.agents/skills/aiforall-context-functions/candidates/decode-evidence-text-v1/README.md,0,detected,0.93,1,15
+.agents/skills/aiforall-context-functions/candidates/python-ast-structure-diff-v1/README.md,0,detected,0.76,1,60
+.agents/skills/aiforall-context-functions/examples.md,0,detected,0.96,1,79
+.agents/skills/aiforall-context-ingest/SKILL.md,0,detected,0.94,1,124
+.agents/skills/aiforall-context-ingest/VALIDATION.md,0,detected,0.91,1,41
+.agents/skills/aiforall-context-ingest/inspector.md,0,detected,0.91,1,45
+.agents/skills/aiforall-context-ingest/review-template.md,0,detected,0.75,1,22
+.agents/skills/aiforall-context-ingest/selection.md,0,detected,0.73,1,39
+.agents/skills/aiforall-k6/SKILL.md,0,detected,0.98,1,143
+.agents/skills/aiforall-k6/references/native-campaign.md,0,detected,0.95,1,157
+.agents/skills/aiforall-mcp-workflow/SKILL.md,0,detected,0.93,1,156
+.agents/skills/aiforall-mcp-workflow/fallbacks.md,0,detected,0.96,1,80
+.agents/skills/aiforall-new-service/SKILL.md,0,detected,0.8,1,53
+.agents/skills/aiforall-sonar-policy/SKILL.md,0,detected,0.98,166,188
+.agents/skills/aiforall-sonar-policy/evals/README.md,0,detected,0.98,1,18
+.agents/skills/aiforall-test-evidence/SKILL.md,0,detected,0.98,1,69
+.agents/skills/rustycog/SKILL.md,0,needs_review,0.21,1,78
+.agents/skills/rustycog/references/building-rustycog-services.md,0,needs_review,0.38,1,68
+.cursor/agents/adr-events-authz.md,0,detected,0.99,1,54
+.cursor/agents/adr-hexagonal-rustycog.md,0,detected,0.99,1,70
+.cursor/agents/adr-platform-quality.md,0,detected,0.99,1,54
+.cursor/agents/adr-services-runtime.md,0,detected,0.99,1,72
+.cursor/agents/adr-testing-strategy.md,0,detected,0.99,1,62
+.cursor/agents/architecte.md,0,detected,0.98,1,116
+.cursor/agents/container-runtime-debugger.md,0,detected,0.96,1,38
+.cursor/agents/correctness-reviewer.md,0,detected,0.97,1,140
+.cursor/agents/envoy-network-debugger.md,0,detected,0.97,1,42
+.cursor/agents/hard-implementer.md,0,needs_review,0.47,1,35
+.cursor/agents/implementer.md,0,detected,0.71,1,39
+.cursor/agents/infra-verifier.md,0,detected,0.98,1,38
+.cursor/agents/k8s-operator.md,0,detected,0.99,1,42
+.cursor/agents/mechanical-worker.md,0,needs_review,0.23,1,34
+.cursor/agents/orchestrator.md,0,detected,0.94,1,163
+.cursor/agents/rust-perf-reviewer.md,0,detected,0.97,176,198
+.cursor/agents/security-reviewer.md,0,detected,0.97,1,184
+.cursor/agents/test-reviewer.md,0,detected,0.99,1,142
+.cursor/handoffs/20261029-k6-01-socle.md,0,detected,0.98,937,961
+.cursor/handoffs/20261031-k6-auth-windows-priority.md,0,detected,0.96,1,55
+.cursor/handoffs/20261031-k6-wiki-and-context-ingest.md,0,detected,0.99,1,97
+.cursor/qa-plans/20261017-m6-e2e-chain-kind-ready.md,0,detected,0.98,221,305
+.cursor/qa-plans/20261017-operator-cli-credentials.md,0,detected,0.94,92,148
+.cursor/qa-plans/20261017-operator-cli-real-binary-transport.md,0,detected,0.94,1,84
+.cursor/qa-plans/20261018-m6-proof-hardening.md,0,detected,0.98,1,95
+.cursor/qa-plans/20261019-apparatus-knative-runtime.md,0,detected,0.87,127,132
+.cursor/qa-plans/20261019-it-fixtures-lifecycle.md,0,detected,0.98,47,76
+.cursor/qa-plans/20261019-ops-kind-runtime-validation-qa-plan.md,0,detected,0.98,93,166
+.cursor/qa-plans/20261026-http-ac7-c1-e2.md,0,detected,0.66,1,42
+.cursor/qa-plans/20261026-http-ac7-c1.md,0,detected,0.83,1,27
+.cursor/qa-plans/20261026-http-compatibility-c2-c3.md,0,detected,0.86,1,30
+.cursor/qa-plans/20261027-component-post-expiry122-once.md,0,detected,0.85,1,29
+.cursor/qa-plans/20261027-controlled-claim-cancellation117-once.md,0,detected,0.92,1,29
+.cursor/qa-plans/20261027-recovery-diagnostic110-once.md,0,detected,0.92,1,36
+.cursor/qa-plans/20261027-vertical-diagnostic-once.md,0,detected,0.96,1,20
+.cursor/qa-plans/20261027-vertical-post-expiry134.md,0,detected,0.89,1,42
+.cursor/qa-plans/20261028-auth-security-progress.md,0,detected,0.97,682,860
+.cursor/qa-plans/20261106-oauthconnect-tdd.md,0,detected,0.94,55,104
+.cursor/qa-plans/20261107-oauthconnect-oidc-service.md,0,detected,0.98,166,181
+.cursor/qa-plans/20261107-oauthconnect-transport-secrets.md,0,detected,0.99,49,107
+.cursor/qa-plans/20261108-iam-oauthconnect-v2.md,0,detected,0.97,114,199
+.cursor/qa-plans/20261109-ops-declarative.md,0,detected,0.99,128,171
+.cursor/qa-plans/20261113-coverage90-local.md,0,detected,0.9,1,31
+.cursor/qa-plans/20261113-manifesto-it-ci-repair.md,0,detected,0.84,1,19
+.cursor/qa-plans/20261113-runtime-unit-rules.md,0,detected,0.98,1,19
+.cursor/qa-plans/20261114-telegraph-it-ci-repair.md,0,needs_review,0.58,1,18
+.cursor/review-briefings/20261029-k6-browser-two-attempts.md,0,detected,0.97,1,29
+.cursor/review-briefings/20261029-k6-ci-sandbox-diagnostic.md,0,detected,0.98,1,18
+.cursor/review-briefings/20261029-k6-final-observation-experiment.md,0,detected,0.98,1,35
+.cursor/review-briefings/20261029-k6-final-observation-security.md,0,detected,0.97,1,26
+.cursor/review-briefings/20261029-k6-functional-smoke-security.md,0,detected,0.96,1,37
+.cursor/review-briefings/20261029-k6-linux-first-run-path-invalid.md,0,detected,0.99,1,26
+.cursor/review-briefings/20261029-k6-private-directory-delta-db352be.md,0,detected,0.97,1,22
+.cursor/review-briefings/20261029-k6-s1-fix-5d79557.md,0,detected,0.98,1,22
+.cursor/review-briefings/20261029T2122Z-security-k6-linux-foundation-db16aa7.md,0,detected,0.97,1,42
+.cursor/review-briefings/20261029T2140Z-security-k6-private-directory-db352be.md,0,detected,0.98,1,219
+.cursor/review-briefings/20261029T2206Z-security-k6-s1-fix-5d79557.md,0,detected,0.97,1,23
+.cursor/review-briefings/20261029T2247Z-security-k6-final-observation-1852302.md,0,detected,0.94,1,67
+.cursor/review-briefings/20261029T2321Z-security-k6-direct-chromium-ffe4a27.md,0,detected,0.96,1,22
+.cursor/review-briefings/20261029T2358Z-correctness-k6-ubuntu2204-comparison-12c3f123.md,0,detected,0.96,1,56
+.cursor/review-briefings/20261030-k6-causal-anchor-architecture.md,0,detected,0.97,1,57
+.cursor/review-briefings/20261030-k6-direct-chromium-implementation.md,0,detected,0.96,1,27
+.cursor/review-briefings/20261030-k6-direct-chromium-security.md,0,detected,0.95,1,28
+.cursor/review-briefings/20261030-k6-direct-overflow-cleanup.md,0,detected,0.97,1,18
+.cursor/review-briefings/20261030-k6-direct-stop-facets-implementation.md,0,detected,0.97,1,39
+.cursor/review-briefings/20261030-k6-ldd-loader-parser-fix.md,0,detected,0.93,1,52
+.cursor/review-briefings/20261030-k6-ldd-only-selection-quota.md,0,detected,0.95,1,99
+.cursor/review-briefings/20261030-k6-linux-probes-lead-review.md,0,detected,0.93,1,65
+.cursor/review-briefings/20261030-k6-linux-probes-script.md,0,detected,0.88,1,73
+.cursor/review-briefings/20261030-k6-linux2204-comparison-correctness.md,0,detected,0.88,1,26
+.cursor/review-briefings/20261030-k6-linux2204-comparison-implementation.md,0,detected,0.96,1,24
+.cursor/review-briefings/20261030-k6-linux2204-direct-followup-implementation.md,0,detected,0.92,1,24
+.cursor/review-briefings/20261030-k6-linux2204-direct-followup-security.md,0,detected,0.85,1,28
+.cursor/review-briefings/20261030-k6-one-additional-ldd-arbitration.md,0,detected,0.92,1,63
+.cursor/review-briefings/20261030-k6-preserved-proposals-disposition.md,0,detected,0.93,1,53
+.cursor/review-briefings/20261030-k6-private-channel-readiness-architecture.md,0,detected,0.98,1,88
+.cursor/review-briefings/20261030-k6-private-parent-fixes-closure.md,0,detected,0.93,1,57
+.cursor/review-briefings/20261030-k6-private-parent-operation-architecture.md,0,detected,0.97,1,55
+.cursor/review-briefings/20261030-k6-private-parent-security-fixes.md,0,detected,0.89,1,73
+.cursor/review-briefings/20261030-k6-private-site-implementation.md,0,detected,0.9,1,86
+.cursor/review-briefings/20261030-k6-private-site-incomplete-fatal-fix.md,0,detected,0.85,1,53
+.cursor/review-briefings/20261030-k6-private-site-s1-closure.md,0,detected,0.87,1,45
+.cursor/review-briefings/20261030-k6-private-site-security.md,0,detected,0.7,1,93
+.cursor/review-briefings/20261030-k6-real-parent-author-plan.md,0,detected,0.87,1,72
+.cursor/review-briefings/20261030-k6-real-parent-composition-plan.md,0,detected,0.87,1,69
+.cursor/review-briefings/20261030-k6-real-parent-pipes-architecture.md,0,detected,0.94,1,40
+.cursor/review-briefings/20261030-k6-real-parent-pipes-implementation.md,0,detected,0.99,1,144
+.cursor/review-briefings/20261030-k6-real-parent-security.md,0,detected,0.96,1,74
+.cursor/review-briefings/20261030-k6-signal-expert-result.md,0,detected,0.95,1,54
+.cursor/review-briefings/20261030-k6-signal-startup-expert.md,0,detected,0.96,1,34
+.cursor/review-briefings/20261030-k6-storage-ancestor-disposition-architecture.md,0,detected,0.97,1,81
+.cursor/review-briefings/20261030-k6-userns-dependencies-research-followup.md,0,detected,0.95,1,78
+.cursor/review-briefings/20261030-k6-windows-bundle-lifetime-inquiry.md,0,detected,0.91,1,50
+.cursor/review-briefings/20261030-k6-windows-bundle-lifetime-result.md,0,detected,0.95,1,63
+.cursor/review-briefings/20261030-k6-windows-effective-sandbox-inquiry.md,0,detected,0.91,1,48
+.cursor/review-briefings/20261030-k6-windows-effective-sandbox-result.md,0,detected,0.98,1,88
+.cursor/review-briefings/20261030-k6-windows-ended-handle-observation.md,0,detected,0.97,1,58
+.cursor/review-briefings/20261030-k6-windows-implementation.md,0,detected,0.9,1,116
+.cursor/review-briefings/20261030-k6-windows-persistent-custody-contract.md,0,detected,0.95,1,56
+.cursor/review-briefings/20261030-k6-windows-pivot-preparation.md,0,detected,0.97,1,66
+.cursor/review-briefings/20261030-k6-windows-r1-trust-scope-review.md,0,detected,0.96,1,38
+.cursor/review-briefings/20261030-k6-windows-security-corrections.md,0,detected,0.95,1,76
+.cursor/review-briefings/20261030-k6-windows-security-delta.md,0,detected,0.94,1,51
+.cursor/review-briefings/20261030-k6-windows-security.md,0,detected,0.93,1,61
+.cursor/review-briefings/20261030-k6-windows-version-implementation.md,0,detected,0.96,1,58
+.cursor/review-briefings/20261030-k6-windows-version-strategy.md,0,detected,0.94,1,67
+.cursor/review-briefings/20261030-k6-wsl-dedicated-instance-architecture.md,0,detected,0.99,1,56
+.cursor/review-briefings/20261030-wsl-aiforall-provisioning-infra-result.md,0,detected,0.97,1,53
+.cursor/review-briefings/20261030-wsl-aiforall-provisioning-infra.md,0,detected,0.98,1,57
+.cursor/review-briefings/20261030T0023Z-security-k6-direct22-private-consumer-7015c8c.md,0,detected,0.88,1,59
+.cursor/review-briefings/20261030T1243Z-security-k6-private-site-eb3d355.md,0,detected,0.97,1,135
+.cursor/review-briefings/20261030T1254Z-security-k6-private-site-s1-19b1cfe.md,0,detected,0.95,1,89
+.cursor/review-briefings/20261030T1428Z-security-k6-private-parent-4560b18.md,0,detected,0.97,1,159
+.cursor/review-briefings/20261030T1542Z-security-k6-private-parent-closure-0f32e8d.md,0,detected,0.94,1,91
+.cursor/review-briefings/20261030T1913Z-security-k6-windows-primitives-cbcc1bb.md,0,detected,0.99,1,184
+.cursor/review-briefings/20261030T2005Z-security-k6-windows-delta-bd7a2bf.md,0,detected,0.95,1,167
+.cursor/review-briefings/20261030T2027Z-security-k6-windows-r1-trust-9ef802f.md,0,detected,0.93,1,161
+.cursor/review-briefings/20261031-k6-closeout-owned-artifact-export.md,0,detected,0.92,1,38
+.cursor/review-briefings/20261031-k6-windows-check-group-fix.md,0,detected,0.84,1,50
+.cursor/review-briefings/20261031-k6-windows-parent-result-diagnostic.md,0,detected,0.89,1,52
+.cursor/review-briefings/20261031-k6-windows-simplification.md,0,detected,0.82,1,67
+.cursor/review-briefings/20261031-k6-windows-version-prefix-fix.md,0,detected,0.86,1,41
+.cursor/review-briefings/README.md,0,detected,0.98,1,61
+.cursor/review-briefings/TEMPLATE.md,0,needs_review,0.5,1,60
+.cursor/review-briefings/k6-mission-INDEX.md,0,detected,0.95,1,18
+.cursor/skills/aiforall-new-service/SKILL.md,0,detected,0.89,1,53
+.cursor/skills/aiforall-sonar-policy/SKILL.md,0,detected,0.67,1,170
+.cursor/skills/envoy-runtime-debug/SKILL.md,0,detected,0.99,1,82
+.cursor/skills/rustycog-submodule/SKILL.md,0,needs_review,0.36,1,117
+.cursor/skills/rustycog/SKILL.md,0,needs_review,0.21,1,78
+.cursor/skills/rustycog/references/building-rustycog-services.md,0,needs_review,0.28,1,68
+.opencode/agents/adr-events-authz.md,0,detected,0.99,1,64
+.opencode/agents/adr-hexagonal-rustycog.md,0,detected,0.99,1,80
+.opencode/agents/adr-platform-quality.md,0,detected,0.99,1,67
+.opencode/agents/adr-services-runtime.md,0,detected,0.99,1,85
+.opencode/agents/adr-testing-strategy.md,0,detected,0.99,1,72
+.opencode/agents/architecte.md,0,detected,0.98,1,153
+.opencode/agents/container-runtime-debugger.md,0,detected,0.98,1,45
+.opencode/agents/correctness-reviewer.md,0,detected,0.99,1,146
+.opencode/agents/emergency-engineer.md,0,needs_review,0.48,1,44
+.opencode/agents/emergency-thinker.md,0,detected,0.8,1,44
+.opencode/agents/envoy-network-debugger.md,0,detected,0.97,1,47
+.opencode/agents/expert-engineer.md,0,detected,0.66,1,31
+.opencode/agents/infra-verifier.md,0,detected,0.99,1,56
+.opencode/agents/k8s-operator.md,0,detected,0.98,1,67
+.opencode/agents/mechanical-worker.md,0,needs_review,0.36,1,40
+.opencode/agents/orchestrator.md,0,detected,0.99,1,157
+.opencode/agents/project-manager.md,0,detected,0.98,1,210
+.opencode/agents/qa-planner.md,0,detected,0.91,1,190
+.opencode/agents/rust-perf-reviewer.md,0,detected,0.98,1,194
+.opencode/agents/security-reviewer.md,0,detected,0.97,1,189
+.opencode/agents/test-engineer.md,0,detected,0.98,1,165
+.opencode/agents/test-reviewer.md,0,detected,0.98,1,191
+.opencode/missions/team_mvgfk6d8_0000_dl9355/lab-upgrade-plan.md,0,detected,0.99,1,50
+.opencode/missions/team_mvgfk6d8_0000_dl9355/task-plan.md,0,detected,0.91,1,63
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/01-reprise.md,0,detected,0.98,1,28
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/02-diagnostic-et-correction.md,0,detected,0.97,1,44
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/03-ordre-de-grandeur-tokens.md,0,detected,0.94,1,34
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/04-recommandation-luna-sol.md,0,detected,0.96,1,26
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/05-preparation-background.md,0,detected,0.98,1,34
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/06-background-et-concurrence.md,0,detected,0.94,1,57
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/07-suppression-plafond-local.md,0,detected,0.95,1,34
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/08-application-autorisee.md,0,detected,0.95,1,20
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/09-bilan-sans-plafond.md,0,detected,0.92,1,55
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/10-enrichissement-trois-projets.md,0,detected,0.92,1,45
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/11-trois-enrichissements-demarres.md,0,detected,0.97,1,52
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/12-fenetres-et-focus.md,0,detected,0.95,1,45
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/13-correction-windows-autorisee.md,0,detected,0.97,1,23
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/14-consolefix-verifie.md,0,detected,0.91,1,45
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/15-focus-corrige-et-reprise.md,0,detected,0.96,1,46
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/16-point-avancement-sans-interruption.md,0,detected,0.95,1,45
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/17-aiforall-seul.md,0,detected,0.98,1,28
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/18-estimation-appels-aiforall.md,0,detected,0.89,1,48
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/19-compte-appels-aiforall.md,0,detected,0.89,1,23
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/20-retries-et-rattrapage.md,0,detected,0.95,1,35
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/21-protection-graphe-preparation.md,0,detected,0.92,1,42
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/22-sauvegarde-verifiee.md,0,detected,0.94,1,39
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/23-protection-active-et-limites.md,0,detected,0.99,1,60
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/24-arret-aiforall-demande.md,0,detected,0.97,1,19
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/25-aiforall-arrete.md,0,detected,0.97,1,32
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/26-retour-local-preparation.md,0,detected,0.96,1,29
+.opencode/missions/team_mvl686ak_0000_c0ibrv/reports/27-retour-local-verifie.md,0,detected,0.94,1,38
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/01-linking-native.md,0,detected,0.81,1,45
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/02-native-mcp-valide.md,0,detected,0.8,1,42
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/03-installation-gpu-client.md,0,detected,0.92,1,89
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/04-workspace-preflight.md,0,detected,0.94,1,46
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/05-workspace-lance.md,0,detected,0.92,1,65
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/06-workspace-resultats.md,0,detected,0.94,1,111
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/08-reprise-directe.md,0,detected,0.96,1,28
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/09-corrections-et-routage.md,0,detected,0.97,1,48
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/10-integration-v2.md,0,detected,0.94,1,45
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/11-live-partiel-et-oom.md,0,detected,0.97,1,48
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/12-partage-modele-et-reprise.md,0,detected,0.97,1,38
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/13-cloture-directe.md,0,detected,0.97,1,102
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/14-campagne-valeur-preparation.md,0,detected,0.97,1,21
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/15-campagne-valeur-resultats.md,0,detected,0.95,1,35
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/16-vram-residente-preparation.md,0,detected,0.97,1,30
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/17-vram-residente-resultats.md,0,detected,0.97,1,63
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/18-proposition-guidage-mcp.md,0,detected,0.97,1,207
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/19-guidage-mcp-implementation-preparation.md,0,detected,0.96,1,36
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/20-campagne-session-grille-evaluateur.md,0,detected,0.99,1,99
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/21-guidage-mcp-application-resultats.md,0,detected,0.98,1,70
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/22-audit-session-disponibilite-messageries.md,0,detected,0.98,1,213
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/23-context-mode-attendu-et-cout.md,0,detected,0.96,1,79
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/24-serena-latence-diagnostic.md,0,detected,0.97,1,90
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/25-ajustements-agents-preparation.md,0,detected,0.98,1,29
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/26-ajustements-agents-resultats.md,0,detected,0.98,1,67
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/29-ripgrep-windows-recommandation.md,0,detected,0.98,1,39
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/30-cible-installation-windows.md,0,detected,0.98,1,29
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/31-winget-ripgrep-preparation.md,0,detected,0.95,1,36
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/32-winget-ripgrep-resultats.md,0,detected,0.99,1,86
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/36-recherche-bibliotheques-fonctions.md,0,detected,0.97,1,110
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/37-fonctions-context-mode-preparation.md,0,detected,0.98,1,47
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/38-fonctions-context-mode-implementation.md,0,detected,0.97,1,27
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/39-fonctions-context-mode-validation-cloture.md,0,detected,0.96,1,103
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/43-luna-haiku-sans-audits-preparation.md,0,detected,0.97,1,54
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/44-luna-haiku-cloture-metadonnees.md,0,detected,0.95,1,38
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/45-rejeu-quatre-modeles-preparation.md,0,detected,0.95,1,53
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/46-rejeu-cloture-metadonnees.md,0,detected,0.91,1,36
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/47-ingestion-fonctions-preparation.md,0,detected,0.97,1,36
+.opencode/missions/team_mvm6j7h3_0000_pz1i8v/reports/48-ingestion-fonctions-validation-cloture.md,0,detected,0.97,1,74
+.opencode/missions/team_mvo1md2x_0000_zlfadf/implementation-plan.md,0,detected,0.99,1,208
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/05-continuite-preparation-implementation.md,0,detected,0.97,1,31
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/06-verification-patch-natif.md,0,detected,0.92,1,31
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/07-retrait-amendement-continuite.md,0,detected,0.96,1,14
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/08-demarrage-t1.md,0,detected,0.91,1,26
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/09-blocage-profil-t1.md,0,detected,0.92,1,45
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/10-reparation-affectation-racine-t1.md,0,detected,0.95,1,35
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/100-autorisation-diagnostic-vertical-unique.md,0,detected,0.96,1,25
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/101-reprise-auteur-et-preparation-diagnostic.md,0,detected,0.91,1,20
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/102-session-detachee-substitution-native-explicite.md,0,detected,0.89,1,10
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/103-diagnostic-preparation-native-source-verifiee.md,0,detected,0.84,1,14
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/104-diagnostic-inspecte-avant-execution-unique.md,0,detected,0.99,1,31
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/105-diagnostic-date-correcte-verification-trop-tardive.md,0,detected,0.99,1,41
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/106-autorisation-correction-temporelle-et-validation-unique.md,0,detected,0.99,1,19
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/107-correction-temporelle-integree-revue-en-cours.md,0,detected,0.98,1,26
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/108-revue-favorable-et-validation-unique106.md,0,detected,0.98,1,20
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/109-validation-apres-correctif-bloquee-sur-reprise.md,0,detected,0.98,1,40
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/11-preflight-git-centralise-t1.md,0,detected,0.97,1,31
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/110-autorisation-diagnostic-reprise-et-choix-agent.md,0,detected,0.99,1,31
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/111-photographie-documentaire-integree-sans-quitus-global.md,0,detected,0.98,1,15
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/112-enquete-high-terminee-plan-diagnostic-reprise.md,0,detected,0.96,1,24
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/113-affectation-native-avant-instrumentation.md,0,detected,0.96,1,12
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/114-instrumentation-reprise-inspectee-avant-run-unique.md,0,detected,0.98,1,29
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/115-diagnostic-reprise-vert-course-non-observee.md,0,detected,0.98,1,37
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/116-contraste-explique-partiellement-et-prochaine-preuve-controlee.md,0,detected,0.84,1,44
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/117-autorisation-temoin-controle-sans-correctif-produit.md,0,detected,0.92,1,26
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/118-temoin-controle-integre-et-revue-independante.md,0,detected,0.94,1,25
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/119-revue-favorable-lancement-unique-temoin-controle.md,0,detected,0.83,1,20
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/12-repartition-digest-adr.md,0,detected,0.91,1,31
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/120-verrou-maintenu-prouve-dans-temoin-controle.md,0,detected,0.95,1,44
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/121-contrat-reprise-apres-expiration-et-choix-qa.md,0,detected,0.92,1,50
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/122-autorisation-preuve-composant-apres-expiration.md,0,detected,0.92,1,24
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/123-preuve-post-expiration-integree-revue-avant-run.md,0,detected,0.87,1,27
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/124-gate-temporelle-a-corriger-avant-test.md,0,detected,0.9,1,14
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/125-correctif-attestation-temporelle-integre.md,0,detected,0.9,1,18
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/126-reserve-temporelle-levee-lancement-unique-post-expiration.md,0,detected,0.98,1,20
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/127-precondition-identifiant-campagne-trop-long.md,0,detected,0.99,1,37
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/128-pause-relance-et-recherche-de-patterns-connus.md,0,detected,0.99,1,37
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/129-recherche-web-patterns-outbox-et-arret.md,0,detected,0.98,1,87
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/13-arbitrage-arret-consommateur-sqs.md,0,detected,0.95,1,45
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/130-nettoyage-et-plan-revise-en-preparation.md,0,detected,0.99,1,35
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/131-nettoyage-verifie-et-raccordement-composant.md,0,detected,0.98,1,68
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/132-reprise-apres-expiration-prouvee.md,0,detected,0.98,1,67
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/133-reprise-verticale-arbitrage-du-budget-de-preuve.md,0,detected,0.99,1,55
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/134-validation-complete-autorisee-preparation.md,0,detected,0.98,1,44
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/135-disponibilite-sdk-verifiee-en-lecture-seule.md,0,detected,0.96,1,57
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/136-plan-de-reconstruction-bornee-valide.md,0,detected,0.99,1,28
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/137-test-complet-integre-compile-en-revue.md,0,detected,0.98,1,37
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/138-revue-favorable-validation-verticale-unique.md,0,detected,0.98,1,44
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/139-validation-verticale-reussie.md,0,detected,0.96,1,60
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/14-autorisation-framework-ac7.md,0,detected,0.91,1,30
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/140-sdk-publie-pin-final-en-preparation.md,0,detected,0.94,1,46
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/141-livraison-terminee-avec-reserves-explicites.md,0,detected,0.98,1,85
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/142-commit-et-push-application-gitlink-inclus.md,0,detected,0.95,1,29
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/143-ingestion-session-et-livrables-sous-agents.md,0,detected,0.97,1,73
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/144-capitalisation-context-mode-session-et-sous-agents.md,0,detected,0.93,1,85
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/145-fonctions-context-mode-integrees.md,0,detected,0.97,1,56
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/146-perimetre-commit-push-a-confirmer.md,0,detected,0.97,1,29
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/147-publication-master-perimetre-approuve.md,0,detected,0.99,1,42
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/148-master-publie.md,0,detected,0.95,1,23
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/149-integration-des-deux-branches-principales.md,0,detected,0.98,1,39
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/15-reprise-long-run-revision-2.md,0,detected,0.95,1,25
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/150-mission-et-sdk-integres-aux-branches-principales.md,0,detected,0.96,1,51
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/151-reconciliation-adr-et-limite-architecte.md,0,detected,0.97,1,38
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/152-adr-reconciliees-avec-la-livraison.md,0,detected,0.98,1,55
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/16-commit-documentaire-hook-fmt.md,0,detected,0.97,1,34
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/17-integration-t1-go-t2.md,0,detected,0.96,1,35
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/18-demarrage-t2-source-isolee.md,0,detected,0.97,1,33
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/19-prealable-ac7-tests-revue.md,0,detected,0.91,1,61
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/20-revue-ac7-rp1.md,0,detected,0.8,1,28
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/21-rp1-rouge-fix-vert-relecture.md,0,detected,0.98,1,25
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/22-rp1-clos-go-pin-atomicite.md,0,detected,0.95,1,29
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/23-preflight-it-sql-t2.md,0,detected,0.97,1,35
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/24-it-sql-premier-run-correction-test.md,0,detected,0.97,1,35
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/25-it-sql-couverture-7-plus-1.md,0,detected,0.96,1,37
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/26-integration-t2-hook-normal.md,0,detected,0.94,1,26
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/27-t3-affectation-isolee.md,0,detected,0.96,1,23
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/28-t3-controles-statiques-units.md,0,detected,0.95,1,18
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/29-preflight-smtp-garde-propriete.md,0,detected,0.96,1,18
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/30-smtp-corrige-recuperation-wrapper.md,0,detected,0.95,1,14
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/31-preflight-t3-bail-conditionnel.md,0,detected,0.97,1,16
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/32-wrapper-t2-original-transmis.md,0,detected,0.94,1,16
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/33-wrapper-inspecte-go-it-t3.md,0,detected,0.98,1,20
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/34-it-runtime-verts-collision-smtp.md,0,detected,0.97,1,23
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/35-frontiere-sentinel-ac6-arbitrage.md,0,detected,0.98,1,27
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/36-autorisation-sentinel-ac6.md,0,detected,0.97,1,18
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/37-reprise-contrat-sentinel-integre.md,0,detected,0.97,1,22
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/38-indisponibilite-mcp-repli-borne.md,0,detected,0.97,1,19
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/39-retest-mcp-arret-demande.md,0,detected,0.97,1,20
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/40-retest-context-mode-ok.md,0,detected,0.86,1,8
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/41-go-reprise-sentinel.md,0,detected,0.97,1,10
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/42-sentinel-temoins-verts-runtime-demande.md,0,detected,0.97,1,29
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/43-ac6-nominal-prouve-postpanne-a-diagnostiquer.md,0,detected,0.96,1,22
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/44-escalade-postpanne-diagnostic-borne.md,0,detected,0.95,1,14
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/45-hypothese-visibilite-experience-testonly.md,0,detected,0.98,1,31
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/46-montage-panne-ordre-contractuel.md,0,detected,0.98,1,24
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/47-exp3-calibration-recevable-sous-revue.md,0,detected,0.98,1,28
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/48-integration-t3-snapshot-verifie.md,0,detected,0.97,1,24
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/49-t4-t5-paralleles-entrees-locales.md,0,detected,0.96,1,22
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/50-review-sdk-manifest-et-entrees.md,0,detected,0.96,1,16
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/51-t4-blocage-http-et-docs-preservees.md,0,detected,0.95,1,14
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/52-arbitrage-extension-http-ac7.md,0,detected,0.96,1,27
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/53-autorisation-http-sdk-et-temoin.md,0,detected,0.98,1,20
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/54-http-contrat-et-baseline-paralleles.md,0,detected,0.95,1,23
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/55-http-c1-e1-rouge-recoupe.md,0,detected,0.97,1,22
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/56-e1-commit-normal-snapshot-exact.md,0,detected,0.91,1,10
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/57-e1-integre-rouge-conserve.md,0,detected,0.98,1,10
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/58-reprise-architecte-shell-non-relance.md,0,detected,0.98,1,10
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/59-arret-shell-demande-processus-non-identifie.md,0,detected,0.97,1,8
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/60-shell-architecte-interrompu-verifie.md,0,detected,0.98,1,8
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/61-contrat-http-integre-et-correctif.md,0,detected,0.98,1,22
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/62-correctif-http-affecte-entrees-disponibles.md,0,detected,0.97,1,16
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/63-source-sdk-isolee-validee-go-code.md,0,detected,0.97,1,16
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/64-candidat-http-compile-pas-encore-teste.md,0,detected,0.97,1,23
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/65-candidat-sdk-adoption-figes.md,0,detected,0.96,1,20
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/66-adoption-integree-sdk-local-pour-qa.md,0,detected,0.96,1,10
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/67-e2-et-revue-concurrence-en-parallele.md,0,detected,0.95,1,24
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/68-arbitrage-deblocage-test-jwks.md,0,detected,0.95,1,20
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/69-revue-http-bloque-deux-invariants.md,0,detected,0.99,1,15
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/70-e2-verts-initiaux-et-temoins-rp.md,0,detected,0.94,1,22
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/71-e2-premiere-passe-commitee-temoins-rp-liberes.md,0,detected,0.96,1,22
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/72-http-rp1-rp2-rouges-reproduits.md,0,detected,0.96,1,18
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/73-e2-et-rouges-integres-reprise-auteur.md,0,detected,0.95,1,22
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/74-plan-correctif-http-valide-admission.md,0,detected,0.9,1,18
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/75-continuite-native-refusee-substitution-explicite.md,0,detected,0.95,1,16
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/76-source-correctif-verifiee-go-code.md,0,detected,0.89,1,18
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/77-correctif-tests-verts-et-formatage-c1.md,0,detected,0.95,1,25
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/78-sdk-final-local-integre-revues-ciblees.md,0,detected,0.93,1,16
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/79-trois-callers-ai-verts-sur-sdk-final.md,0,detected,0.93,1,20
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/80-reprise-compatibilite-http-avant-correction.md,0,detected,0.94,1,20
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/81-revues-persistes-compatibilite-tests.md,0,detected,0.93,1,16
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/82-tests-compatibilite-affectes-source-prete.md,0,detected,0.87,1,12
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/83-faisabilite-c2-c3-et-dependance-startup.md,0,detected,0.94,1,14
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/84-c3-extended-connect-rouge-reel.md,0,detected,0.93,1,18
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/85-premiere-remise-c3-figee-avant-integration.md,0,detected,0.94,1,22
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/86-c3-et-fixtures-integres-correctif-pret.md,0,detected,0.92,1,18
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/87-auteur-production-c3-startup-go.md,0,detected,0.92,1,12
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/88-c3-route-retablie-observation-setting-a-diagnostiquer.md,0,detected,0.96,1,18
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/89-diagnostic-observateur-et-experience-bornee.md,0,detected,0.96,1,16
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/90-candidat-startup-integre-reprise-meme-auteur-tests.md,0,detected,0.96,1,20
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/91-c3-causal-vert-c2-rouge-baseline-prete.md,0,detected,0.95,1,23
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/92-contrepreuve-valide-integration-followup-bloquee.md,0,detected,0.92,1,20
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/93-diagnostic-ensemble-repli-patch-autorise.md,0,detected,0.97,1,18
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/94-integration-reprise-c2-vert-final-local.md,0,detected,0.96,1,20
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/95-review-compat-pass-it-restantes.md,0,detected,0.97,1,14
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/96-preflight-deux-it-finales-et-bail.md,0,detected,0.96,1,18
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/97-deux-it-resultats-partiels-et-cleanup-verifie.md,0,detected,0.97,1,25
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/98-arbitrage-diagnostic-temporel-verticale.md,0,detected,0.94,1,38
+.opencode/missions/team_mvo1md2x_0000_zlfadf/reports/99-explication-simple-du-choix-diagnostique.md,0,detected,0.98,1,34
+.opencode/missions/team_mvo1md2x_0000_zlfadf/t1-inputs.md,0,detected,0.97,1,73
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/authority-profile-brief.md,0,detected,0.97,1,26
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/long-run-delegation.md,0,detected,0.97,1,12
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/prepared-plan.md,0,detected,0.98,103,166
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/01-preparation-cloture-authentification.md,0,detected,0.97,1,56
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/02-corrections-openai-long-run-et-perimetre.md,0,detected,0.99,1,32
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/03-reprise-superviseur-et-integration-du-plan.md,0,detected,0.98,1,36
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/04-candidat-pm-et-perimetre-authentification.md,0,detected,0.99,1,65
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/05-preparation-ready-et-import-controle.md,0,detected,0.96,1,44
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/06-preautorisations-long-run.md,0,detected,0.98,1,56
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/07-demarrage-long-run.md,0,detected,0.94,1,39
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/08-contrat-identites-et-deblocages-de-livraison.md,0,detected,0.95,1,48
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/09-contrats-ratifies-et-corrections-en-cours.md,0,detected,0.97,1,34
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/10-revue-sdk-et-publication-bornee.md,0,detected,0.95,1,34
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/11-signataire-integre-et-raccordement-iam.md,0,detected,0.98,1,29
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/12-iam-integre-et-parcours-navigateur-debloque.md,0,detected,0.95,1,26
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/13-fixtures-sdk-verifiees-et-refus-de-projection.md,0,detected,0.92,1,27
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/14-integration-native-bloquee-par-configuration-etrangere.md,0,detected,0.98,1,55
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/15-corrections-integrees-et-revues-finales.md,0,detected,0.91,1,74
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/16-projecteur-configure-et-qualification-ciblee.md,0,detected,0.96,1,37
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/17-synchronisation-bornee-a-l-organisation-autorisee.md,0,detected,0.93,1,42
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/18-isolation-des-tests-et-derniers-oracles.md,0,detected,0.93,1,53
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/19-oracles-integres-et-gel-avant-it.md,0,detected,0.96,1,51
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/20-preparation-des-tests-reels-sans-changer-les-24-jobs.md,0,detected,0.99,1,48
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/21-premiers-tests-reels-et-correction-de-la-fixture-iam.md,0,detected,0.98,1,41
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/22-garde-iam-validee-et-recepteur-de-test-a-configurer.md,0,detected,0.99,1,34
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/23-blocage-du-registre-de-fixtures-sans-fuite.md,0,detected,0.99,1,67
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/24-sdk-publie-et-reprise-iam-integree.md,0,detected,0.94,1,34
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/25-it-finales-validees-et-passage-a-la-livraison-linux.md,0,detected,0.99,1,32
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/26-preflight-du-laboratoire-et-des-builders-linux.md,0,detected,0.98,1,51
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/27-exclusions-recursives-avant-le-build-linux.md,0,detected,0.97,1,30
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/28-compilation-linux-validee-images-de-service-en-preparation.md,0,detected,0.98,1,23
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/29-images-verifiees-creation-du-laboratoire-neuf.md,0,detected,0.98,1,24
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/30-bootstrap-arrete-avant-creation-correction-windows-ciblee.md,0,detected,0.98,1,52
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/31-scellement-sans-privilege-audit-supplementaire.md,0,detected,0.97,1,36
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/32-cluster-cree-ancre-reseau-a-terminer.md,0,detected,0.99,1,35
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/33-reseau-pret-deploiement-oauth.md,0,detected,0.99,1,23
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/34-initialisation-des-files-bloquee-par-la-sonde.md,0,detected,0.99,1,39
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/35-applications-creees-diagnostic-de-demarrage.md,0,detected,0.99,1,45
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/36-demarrages-bloques-causes-localisees.md,0,detected,0.99,1,45
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/37-iam-redemarre-sans-assouplir-la-signature.md,0,detected,0.99,1,40
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/38-verification-du-verificateur-manifesto.md,0,detected,0.98,1,42
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/39-controle-integration-manifesto.md,0,detected,0.98,1,29
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/40-limite-memoire-pendant-la-compilation-it.md,0,detected,0.98,1,31
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/41-verifications-ciblees-vertes-avant-livraison.md,0,detected,0.98,1,29
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/42-envoy-demarre-livraison-manifesto.md,0,detected,0.99,1,26
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/43-demarrages-valides-trajet-http-non-qualifie.md,0,detected,0.99,1,65
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/44-lecture-admin-tests-locaux-reussis.md,0,detected,0.99,1,41
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/45-lecteur-admin-revu-avant-mesure-reelle.md,0,detected,0.99,1,59
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/46-admin-reel-lu-trajet-reseau-a-localiser.md,0,detected,0.99,1,28
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/47-diagnostic-reseau-proportionne-avant-code.md,0,detected,0.99,1,28
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/48-diagnostic-minimal-ratifie-preflight-seul.md,0,detected,0.98,1,27
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/49-preflight-integre-tests-simules-reussis.md,0,detected,0.99,1,27
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/50-outillage-present-capture-ciblee-a-preparer.md,0,detected,0.98,1,22
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/51-observation-correlee-tests-et-revue.md,0,detected,0.98,1,26
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/52-capture-ciblee-revue-avant-execution.md,0,detected,0.98,1,24
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/53-source-traduite-differente-correctif-bloque.md,0,detected,0.98,1,30
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/54-tunnel-identifie-correctif-minimal-en-cours.md,0,detected,0.97,1,29
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/55-correctif-recu-temoin-positif-a-aligner.md,0,detected,0.98,1,26
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/56-correctif-integre-cinq-tests-verts-revue-en-cours.md,0,detected,0.99,1,38
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/57-revue-securite-deux-corrections-bornees-avant-application.md,0,detected,0.99,1,35
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/58-course-corrigee-tests-cibles-verts-relecture-finale.md,0,detected,0.99,1,41
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/59-versions-exactes-qualifiees-controle-litteral-avant-reseau.md,0,detected,0.99,1,28
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/60-refus-preventif-profil-navigateur-non-reconnu.md,0,detected,0.98,1,28
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/61-entree-reseau-retablie-refus-authentification-conserves.md,0,detected,0.99,1,28
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/62-envoy-refuse-le-mauvais-nom-certificat-restaure.md,0,detected,0.98,1,25
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/63-navigateur-parcours-incomplet-ressources-fermees.md,0,detected,0.99,1,31
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/64-cause-du-refus-oauth-autorite-de-jeton-incoherente.md,0,detected,0.99,1,35
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/65-correctif-autorite-ecrit-gates-purs-verts.md,0,detected,0.99,1,31
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/66-correctif-integre-revue-verte-test-integration.md,0,detected,0.98,1,29
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/67-neuf-tests-oauth-valides-nettoyage-confirme.md,0,detected,0.98,1,26
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/68-image-iam-construite-deploiement-cible.md,0,detected,0.98,1,40
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/69-parcours-chrome-reussi-correlation-finale-en-cours.md,0,detected,0.98,1,28
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/70-qualification-navigateur-et-tests-complets-arret-laboratoire.md,0,detected,0.98,1,41
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/71-cloture-authentification-preuves-et-limites.md,0,detected,0.98,1,83
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/72-reprise-administrative-sans-reouverture-des-travaux.md,0,detected,0.98,1,28
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/73-wiki-integre-et-destination-de-publication.md,0,detected,0.98,1,62
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/74-wiki-et-missions-publies-sur-master.md,0,detected,0.97,1,33
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/75-audit-publication-des-livrables-worktrees.md,0,detected,0.94,1,62
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/76-complements-durables-publies-et-limite-administrative.md,0,detected,0.98,1,67
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/77-archivage-natif-tente-membres-arretes.md,0,detected,0.95,1,45
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/78-consolidation-native-des-branches-demarree.md,0,detected,0.95,1,23
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/79-consolidation-bloquee-acces-natif-et-retrait-host.md,0,detected,0.95,1,63
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/80-acces-retabli-et-retrait-natif-repare.md,0,detected,0.99,1,44
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/81-resolution-de-conservation-avant-archivage.md,0,detected,0.97,1,70
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/reports/82-consolidation-publiee-et-mission-archivee.md,0,detected,0.98,1,84
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/task-breakdown.md,0,detected,0.9,1,106
+.opencode/missions/team_mvsc2v49_0000_d9lbvu/task-plan.md,0,detected,0.98,1,88
+.opencode/missions/team_mvtz6p47_000q_4wmht0/prepared-plan.md,0,detected,0.88,1,108
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/01-preparation-socle-k6-linux.md,0,detected,0.96,1,39
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/02-revue-preparation-importee.md,0,detected,0.86,1,27
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/03-demarrage-et-inventaire.md,0,detected,0.9,1,27
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/04-contrat-relu-integration-bloquee-par-hook.md,0,detected,0.86,1,32
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/05-contrat-ratifie-et-integre.md,0,detected,0.85,1,32
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/06-trajet-http-protege-en-source.md,0,detected,0.98,1,29
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/07-socle-integre-revue-avant-linux.md,0,detected,0.98,1,32
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/08-premiers-tests-linux-et-correctif-borne.md,0,detected,0.99,1,24
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/09-tests-linux-corriges-et-revue-delta.md,0,detected,0.98,1,32
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/10-stabilite-des-chemins-a-securiser.md,0,detected,0.99,1,23
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/100-code-publie-nettoyage-des-anciens-dossiers.md,0,detected,0.98,1,81
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/101-sauvegarde-et-retrait-cible-des-copies-de-travail.md,0,detected,0.98,1,34
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/102-sauvegardes-verifiees-et-deux-copies-conservees.md,0,detected,0.98,1,47
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/103-huit-copies-retirees-deux-sauvegardes-restent-bloquees.md,0,detected,0.98,1,81
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/104-copie-native-ciblee-autorisee.md,0,detected,0.98,1,21
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/105-dernieres-sources-sauvegardees-sans-reprise-wsl.md,0,detected,0.98,1,40
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/106-references-de-sauvegarde-a-restaurer-apres-nettoyage-natif.md,0,detected,0.98,1,35
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/107-nettoyage-et-archivage-verifies.md,0,detected,0.98,1,73
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/11-correctif-des-chemins-integre-en-revue.md,0,detected,0.93,1,27
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/12-k6-verifie-navigateur-incomplet-et-preparation-ci.md,0,detected,0.95,1,23
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/13-publication-verifiee-ci-native-bloquee-sur-sandbox.md,0,detected,0.93,1,22
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/14-diagnostic-navigateur-publie-essai-discriminant.md,0,detected,0.92,1,22
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/15-second-essai-sandbox-non-concluant.md,0,detected,0.93,1,19
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/16-derniere-experience-d-observation-bornee.md,0,detected,0.97,1,25
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/17-observation-finale-integree-avant-revue.md,0,detected,0.97,1,20
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/18-constat-natif-et-recherche-avant-nouveaux-essais.md,0,detected,0.93,1,40
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/19-diagnostic-causal-parent-admis.md,0,detected,0.96,1,23
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/20-diagnostic-direct-integre-avant-essai.md,0,detected,0.83,1,23
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/21-revue-favorable-et-exactitude-du-diagnostic.md,0,detected,0.91,1,18
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/22-correctif-integre-et-experience-causale-prete.md,0,detected,0.97,1,21
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/23-erreur-native-de-sandbox-et-solutions-documentees.md,0,detected,0.96,1,46
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/24-comparaison-temporaire-sans-changer-la-securite.md,0,detected,0.97,1,24
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/25-comparaison-integree-et-tests-locaux-verifies.md,0,detected,0.97,1,21
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/26-revue-favorable-et-publication-de-la-comparaison.md,0,detected,0.97,1,21
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/27-comparaison-negative-et-hypothese-a-reviser.md,0,detected,0.98,1,36
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/28-diagnostic-direct22-integre-et-garde-a-verifier.md,0,detected,0.97,1,21
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/29-garde-privee-revue-et-essai-direct22-pret.md,0,detected,0.97,1,20
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/30-direct22-execute-mais-signal-non-attribue.md,0,detected,0.97,1,40
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/31-signal-anterieur-au-cleanup-et-diagnostic-minimal.md,0,detected,0.97,1,21
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/32-facettes-verifiees-avant-observation-native.md,0,detected,0.95,1,26
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/33-sigabrt-confirme-et-cause-encore-a-localiser.md,0,detected,0.94,1,31
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/34-classifier-sans-boucle-et-arbitrer-l-ancre-causale.md,0,detected,0.99,1,23
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/35-ancre-proposee-sans-consommateur-admis.md,0,detected,0.97,1,46
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/36-classification-verifiee-et-essai-unique-retenu.md,0,detected,0.98,1,60
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/37-format-fatal-confirme-et-fin-des-reconnaisseurs.md,0,detected,0.97,1,61
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/38-session-privee-necessaire-pour-l-emplacement-fautif.md,0,detected,0.98,1,67
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/39-wsl-identifie-et-dependances-a-autoriser.md,0,detected,0.98,1,71
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/40-instance-wsl-dediee-demandee-sur-i.md,0,detected,0.97,1,47
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/41-provisionnement-wsl-ratifie-avant-creation.md,0,detected,0.98,1,41
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/42-nom-wsl-refuse-sans-creation-partielle.md,0,detected,0.97,1,49
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/43-instance-creee-et-compte-prive-verifie.md,0,detected,0.96,1,48
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/44-provisionnement-confirme-et-controles-linux-a-poursuivre.md,0,detected,0.94,1,41
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/45-sources-linux-et-outils-verifies-avant-navigateur.md,0,detected,0.96,1,44
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/46-wsl-eprouve-mais-cause-native-encore-inconnue.md,0,detected,0.98,1,52
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/47-canal-local-ratifie-avant-code-et-tests.md,0,detected,0.96,1,52
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/48-consommateur-integre-et-verification-independante-a-faire.md,0,detected,0.85,1,41
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/49-tests-linux-du-canal-prive-reussis-sans-collecte.md,0,detected,0.97,1,39
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/50-capture-ambigue-a-refuser-avant-activation.md,0,detected,0.93,1,38
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/51-refus-prive-corrige-et-controles-de-fermeture.md,0,detected,0.93,1,37
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/52-regression-privee-verifiee-sous-linux.md,0,detected,0.93,1,33
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/53-defaut-de-capture-ferme-conditions-operationnelles-restantes.md,0,detected,0.91,1,33
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/54-procedure-du-parent-ratifiee-preparation-sans-capture.md,0,detected,0.93,1,48
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/55-controleur-windows-retenu-avant-implementation.md,0,detected,0.79,1,45
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/56-composition-privee-ratifiee-code-et-tests-autorises.md,0,detected,0.77,1,41
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/57-auteur-conserve-sans-elargir-les-permissions.md,0,detected,0.93,1,39
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/58-anciens-documents-reconcilies-sans-retrograder-le-canon.md,0,detected,0.99,1,82
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/59-conducteur-integre-tests-windows-et-revue-a-venir.md,0,detected,0.89,1,39
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/60-fixtures-du-conducteur-verifiees-sur-les-deux-systemes.md,0,detected,0.97,1,47
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/61-ancetres-windows-et-alerte-de-retention-a-corriger.md,0,detected,0.98,1,46
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/62-droits-des-parents-du-stockage-observes-sans-modification.md,0,detected,0.95,1,66
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/63-contexte-partageable-du-demarrage-chromium.md,0,detected,0.97,1,161
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/64-pause-demandee-pour-recherches-personnelles.md,0,detected,0.98,1,48
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/65-reprise-bornee-sur-namespaces-et-dependances.md,0,detected,0.96,1,72
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/66-sondes-admises-outils-linux-retrouves.md,0,detected,0.97,1,65
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/67-corrections-du-conducteur-fermees-par-revue.md,0,detected,0.96,1,34
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/68-script-verifie-correction-du-signal-avant-sondes.md,0,detected,0.91,1,36
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/69-script-corrige-admission-de-la-sonde-unique.md,0,detected,0.89,1,57
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/70-controle-windows-refuse-avant-les-sondes.md,0,detected,0.99,1,32
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/71-userns-reussit-dependances-encore-inconnues.md,0,detected,0.98,1,57
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/72-chargeur-direct-et-defaut-du-lecteur-demontre.md,0,detected,0.98,1,34
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/73-lecteur-corrige-et-27-tests-valides.md,0,detected,0.96,1,34
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/74-etat-clair-chrome-non-qualifie.md,0,detected,0.95,1,44
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/75-reprise-derniere-mesure-de-dependances.md,0,detected,0.98,1,43
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/76-arret-wsl-et-preparation-des-tests-windows.md,0,detected,0.98,1,52
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/77-revision-windows-prete-pour-config-et-start.md,0,detected,0.98,1,71
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/78-validation-native-windows-encore-en-attente.md,0,detected,0.97,1,33
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/79-demarrage-approuve-du-raccord-windows.md,0,detected,0.98,1,44
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/80-raccord-windows-en-cours-et-suspension-linux-verifiee.md,0,detected,0.98,1,49
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/81-archives-windows-verifiees-sans-execution.md,0,detected,0.97,1,75
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/82-candidat-windows-partiel-et-version-chrome-a-resoudre.md,0,detected,0.99,1,61
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/83-code-windows-integre-tests-cibles-reussis.md,0,detected,0.98,1,43
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/84-protections-a-corriger-avant-le-premier-navigateur-windows.md,0,detected,0.98,1,41
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/85-isolation-windows-limite-de-preuve-confirmee.md,0,detected,0.98,1,28
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/86-protection-du-code-si-un-processus-survit.md,0,detected,0.96,1,32
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/87-correctifs-integres-et-22-tests-cibles-reussis.md,0,detected,0.96,1,51
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/88-relecture-complete-une-frontiere-restante.md,0,detected,0.98,1,30
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/89-protection-persistante-piste-a-verifier.md,0,detected,0.98,1,30
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/90-bilan-depuis-le-recentrage-windows.md,0,detected,0.98,1,54
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/91-frontiere-confirmee-gardes-finales-a-completer.md,0,detected,0.98,1,29
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/92-explication-blocage-fichiers-et-isolation-chromium.md,0,detected,0.94,1,92
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/93-recentrage-lanceur-et-premier-essai-reel.md,0,detected,0.91,1,81
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/94-revision-simplifiee-approuvee-et-reprise.md,0,detected,0.99,1,86
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/95-reprendre-la-session-sans-activite-observable.md,0,detected,0.97,1,50
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/96-premier-lancement-reel-format-version-k6.md,0,detected,0.96,1,58
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/97-chrome-execute-traitement-parent-a-diagnostiquer.md,0,detected,0.98,1,40
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/98-cause-etablie-assertions-non-reportees.md,0,detected,0.97,1,45
+.opencode/missions/team_mvtz6p47_000q_4wmht0/reports/99-cas-minimal-windows-verifie.md,0,detected,0.96,1,63
+.opencode/missions/team_mvwirmg1_0000_znnodt/prepared-plan.md,0,detected,0.96,1,65
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/01-preparation-campagne-authentification-windows.md,0,detected,0.96,1,51
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/02-demarrage-du-portage-sans-requalification-du-framework.md,0,detected,0.92,1,26
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/03-contrat-windows-corrige-recupere-en-attente-de-parite.md,0,detected,0.98,1,26
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/04-scenarios-en-cours-et-cible-reelle-manquante.md,0,detected,0.91,1,33
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/05-recreation-bornee-du-laboratoire-existant.md,0,detected,0.99,1,28
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/06-revision-approuvee-et-preflight-sans-demarrage.md,0,detected,0.96,1,30
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/07-scenarios-relus-raccord-parent-a-completer.md,0,detected,0.98,1,22
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/08-scenarios-integres-revue-de-parite-en-cours.md,0,detected,0.92,1,24
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/09-revue-independante-scenarios-sans-defaut-bloquant.md,0,detected,0.92,1,22
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/10-parent-integre-revue-des-operations-sensibles.md,0,detected,0.94,1,22
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/11-inspection-refusee-et-restauration-a-corriger.md,0,detected,0.95,1,32
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/12-inspection-validee-et-diagnostic-certificats.md,0,detected,0.96,1,16
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/13-creation-du-laboratoire-en-cours.md,0,detected,0.97,1,20
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/14-laboratoire-cree-deploiement-en-cours.md,0,detected,0.93,1,18
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/15-bilan-du-retard-et-etat-des-taches.md,0,detected,0.96,1,58
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/16-pipeline-existant-et-perimetre-reel-du-test.md,0,detected,0.94,1,31
+.opencode/missions/team_mvwirmg1_0000_znnodt/reports/17-arret-utilisateur-et-handover.md,0,detected,0.98,1,16
+.opencode/missions/team_mvwirmg1_0000_znnodt/runtime-plan.md,0,detected,0.92,1,66
+.serena/memories/architecture/a-dec-0002-0008-implemented-kind.md,0,detected,0.98,1,8
+.serena/memories/architecture/adr-0008-t11-cni-np-required.md,0,detected,0.95,1,6
+.serena/memories/architecture/adr-numbering-vague-2.md,0,detected,0.83,1,16
+.serena/memories/architecture/adr-numbering-vague-3.md,0,detected,0.89,1,10
+.serena/memories/architecture/adr-numbering-vague-4.md,0,detected,0.89,1,9
+.serena/memories/architecture/apparatus-m1-m6-chain.md,0,detected,0.87,1,13
+.serena/memories/architecture/apparatus-next-lot-p4-core.md,0,detected,0.97,1,9
+.serena/memories/architecture/apparatus-p0-adr-0002.md,0,detected,0.85,1,8
+.serena/memories/architecture/apparatus-p0-adr-0003.md,0,detected,0.89,1,8
+.serena/memories/architecture/apparatus-p0-adr-0004.md,0,detected,0.84,1,8
+.serena/memories/architecture/apparatus-p0-adr-0005.md,0,detected,0.98,1,8
+.serena/memories/architecture/apparatus-p1-adr-0001.md,0,detected,0.98,1,12
+.serena/memories/architecture/apparatus-p2-adr-0006.md,0,detected,0.98,1,12
+.serena/memories/architecture/apparatus-p2-t3-persist.md,0,detected,0.94,1,7
+.serena/memories/architecture/apparatus-p2-t4-t7-runtime.md,0,detected,0.76,1,9
+.serena/memories/architecture/apparatus-p3-adr-0007.md,0,detected,0.98,1,10
+.serena/memories/architecture/apparatus-p3-adr-0010.md,0,detected,0.98,1,14
+.serena/memories/architecture/apparatus-p3-review-fixes.md,0,detected,0.98,1,10
+.serena/memories/architecture/apparatus-p3-t10-uncommitted-review.md,0,detected,0.97,1,13
+.serena/memories/architecture/apparatus-p4-adr-0008.md,0,detected,0.93,1,9
+.serena/memories/architecture/apparatus-p4-adr-0009.md,0,detected,0.97,1,10
+.serena/memories/architecture/apparatus-p4-adr-0011.md,0,detected,0.91,1,9
+.serena/memories/architecture/apparatus-p4-adr-0012.md,0,detected,0.98,1,23
+.serena/memories/architecture/apparatus-p4-calico-v3.29.7.md,0,needs_review,0.44,1,1
+.serena/memories/architecture/authz-trust-domain-adr-0314.md,0,detected,0.98,1,10
+.serena/memories/architecture/cloud-portable-adr-0600-0601-proposed.md,0,detected,0.96,1,10
+.serena/memories/architecture/cloud-portable-adr-0600-proposed.md,0,detected,0.94,1,8
+.serena/memories/architecture/cloud-portable-adr-0602-proposed.md,0,detected,0.95,1,10
+.serena/memories/architecture/cloud-portable-adr-0603.md,0,detected,0.97,1,9
+.serena/memories/architecture/cloud-portable-adr-0604.md,0,detected,0.95,1,9
+.serena/memories/architecture/cloud-portable-adr-0605.md,0,detected,0.97,1,9
+.serena/memories/architecture/cloud-portable-images-adr-0607.md,0,detected,0.97,1,9
+.serena/memories/architecture/cluster-topology-adr-0601-proposed.md,0,detected,0.77,1,8
+.serena/memories/architecture/e2e-linux-adr-0504.md,0,detected,0.97,1,11
+.serena/memories/architecture/events-authz-adr-0302.md,0,detected,0.97,1,9
+.serena/memories/architecture/events-authz-adr-0304.md,0,detected,0.9,1,11
+.serena/memories/architecture/events-authz-adr-0305.md,0,detected,0.97,1,14
+.serena/memories/architecture/events-authz-adr-0306.md,0,detected,0.95,1,13
+.serena/memories/architecture/events-authz-adr-0307.md,0,detected,0.7,1,9
+.serena/memories/architecture/events-authz-adr-0308.md,0,detected,0.67,1,9
+.serena/memories/architecture/events-authz-adr-0309.md,0,detected,0.96,1,9
+.serena/memories/architecture/events-outbox-adr-0301.md,0,detected,0.94,1,10
+.serena/memories/architecture/githubconnect-startup-secrets-adr-0505.md,0,detected,0.93,1,8
+.serena/memories/architecture/gold-case-implementation-guide.md,0,detected,0.98,1,12
+.serena/memories/architecture/gold-mimic-l1-l4.md,0,detected,0.76,1,11
+.serena/memories/architecture/hexagon-adr-0104.md,0,detected,0.9,1,13
+.serena/memories/architecture/iam-authn-adr-0310.md,0,detected,0.98,1,10
+.serena/memories/architecture/iam-idp-adr-0407.md,0,detected,0.93,1,10
+.serena/memories/architecture/iam-idp-adr-0408.md,0,detected,0.97,1,10
+.serena/memories/architecture/iam-idp-adr-0409.md,0,detected,0.86,1,7
+.serena/memories/architecture/iam-idp-adr-0410.md,0,detected,0.84,1,8
+.serena/memories/architecture/iam-idp-adr-0411.md,0,detected,0.86,1,9
+.serena/memories/architecture/iam-idp-adr-0412.md,0,detected,0.95,1,10
+.serena/memories/architecture/iam-idp-adr-0413.md,0,detected,0.97,1,13
+.serena/memories/architecture/iam-idp-s3-github-connect.md,0,detected,0.91,1,6
+.serena/memories/architecture/iam-idp-s4-gitlab-connect.md,0,detected,0.92,1,6
+.serena/memories/architecture/iam-signing-adr-0311.md,0,detected,0.81,1,10
+.serena/memories/architecture/iam-signing-adr-0312.md,0,detected,0.92,1,10
+.serena/memories/architecture/iam-signing-adr-0315.md,0,detected,0.98,1,10
+.serena/memories/architecture/it-testcontainers-resource-churn.md,0,detected,0.99,1,44
+.serena/memories/architecture/kind-local-minimal-adr-0610.md,0,detected,0.98,1,9
+.serena/memories/architecture/kind-local-openbao-adr-0611.md,0,detected,0.97,1,8
+.serena/memories/architecture/local-full-adr-0606.md,0,detected,0.94,1,9
+.serena/memories/architecture/local-full-adr-0608.md,0,detected,0.98,1,9
+.serena/memories/architecture/m6-proof-hardening-contrat.md,0,detected,0.97,1,10
+.serena/memories/architecture/mesh-e2e-compose-pitfalls.md,0,detected,0.96,1,14
+.serena/memories/architecture/openbao-reuse-adr-0506.md,0,detected,0.98,1,8
+.serena/memories/architecture/ops-local-full-adr-0609.md,0,detected,0.98,1,7
+.serena/memories/architecture/paravretius-and-manifesto-sqs-flake.md,0,detected,0.82,1,7
+.serena/memories/architecture/review-briefings-local.md,0,detected,0.98,1,21
+.serena/memories/architecture/review-team-correctness-test.md,0,detected,0.99,1,24
+.serena/memories/architecture/telegraph-http-owned-adr-0503.md,0,detected,0.94,1,11
+.serena/memories/architecture/telegraph-outbox-adr-0313.md,0,detected,0.93,1,11
+.serena/memories/constraints/grok-4-6-extra-high-only.md,0,detected,0.95,1,9
+.serena/memories/constraints/no-muse-spark.md,0,detected,0.91,1,4
+.serena/memories/decisions/agents-authorized-model.md,0,detected,0.96,1,36
+.serena/memories/docs/adr-numbering-vague-2.md,0,detected,0.94,1,1
+.serena/memories/handoff/2026-10-06-iam-signing-enterprise-rustsec-pause.md,0,detected,0.96,61,79
+.serena/memories/manifesto-correction-2026-09-09.md,0,needs_review,0.6,1,9
+.serena/memories/sonar-clippy-2026-09-09.md,0,needs_review,0.44,1,7
+AGENTS.md,0,detected,0.99,57,97
+README.md,0,detected,0.95,1,109
+docs/0308-mesh-close-implementation-prompt.md,0,detected,0.98,1,80
+docs/README.md,0,detected,0.99,1,73
+docs/adr/0001-apparatus-binding-owned-by-manifesto.md,0,detected,0.97,1,59
+docs/adr/0002-apparatus-contract-first.md,0,detected,0.85,1,61
+docs/adr/0003-apparatus-untrusted-plugin.md,0,detected,0.83,1,57
+docs/adr/0004-apparatus-capability-gateway.md,0,detected,0.99,1,80
+docs/adr/0005-apparatus-same-protocol-valid-verified.md,0,detected,0.96,1,57
+docs/adr/0006-apparatus-p2-reconciliation-in-process.md,0,detected,0.97,1,168
+docs/adr/0007-apparatus-p3-capability-boundary-after-accept.md,0,detected,0.98,59,201
+docs/adr/0007-closeout.md,0,detected,0.99,207,321
+docs/adr/0008-app01-reconciliation.md,0,detected,0.99,1,72
+docs/adr/0008-apparatus-p4-k8s-isolation-outside-manifesto.md,0,detected,0.98,1,92
+docs/adr/0008-closeout.md,0,detected,0.99,1,106
+docs/adr/0009-gate-preprod-scale-on-demand-isolation-instance.md,0,detected,0.92,1,62
+docs/adr/0010-gate-preprod-workload-certificate-ca.md,0,detected,0.94,1,59
+docs/adr/0011-apparatus-p4-pod-par-binding.md,0,detected,0.93,1,77
+docs/adr/0012-apparatus-http-knative-par-binding.md,0,detected,0.99,1,51
+docs/adr/0100-services-metier-hexagonaux-rustycog.md,0,detected,0.96,1,56
+docs/adr/0101-crates-par-couche-hexagonale.md,0,detected,0.95,1,63
+docs/adr/0102-setup-composition-root.md,0,detected,0.95,1,52
+docs/adr/0103-ports-adapters-command-factory.md,0,detected,0.95,1,54
+docs/adr/0104-outbound-overrides-composition-root.md,0,detected,0.97,1,67
+docs/adr/0200-it-infra-reelle-rustycog-testing.md,0,detected,0.97,1,55
+docs/adr/0201-mocks-http-sortant-seulement.md,0,detected,0.94,1,52
+docs/adr/0202-transport-opt-in-queues-desactivees.md,0,detected,0.96,1,54
+docs/adr/0300-crates-events-contrat-sans-transport.md,0,detected,0.99,1,54
+docs/adr/0301-outbox-transactionnel-rustycog.md,0,detected,0.99,1,74
+docs/adr/0302-authn-jwt-authz-openfga.md,0,detected,0.98,1,58
+docs/adr/0303-sentinel-sync-worker-fga.md,0,detected,0.98,1,54
+docs/adr/0304-jwt-acces-plateforme-rs256-jwks.md,0,detected,0.94,1,85
+docs/adr/0305-account-identity-trust-domain.md,0,detected,0.98,1,80
+docs/adr/0306-hive-iam-configuration-signature.md,0,detected,0.99,1,85
+docs/adr/0307-workload-identity-port.md,0,detected,0.99,1,66
+docs/adr/0308-mesh-authn-jwt.md,0,detected,0.96,1,83
+docs/adr/0309-remote-signer.md,0,detected,0.98,1,68
+docs/adr/0310-admission-epochs-budget-jwks.md,0,detected,0.93,1,67
+docs/adr/0311-crypto-privee-deleguee-aux-providers.md,0,detected,0.91,1,41
+docs/adr/0312-admission-jwks-par-slots-bornes.md,0,detected,0.94,1,44
+docs/adr/0313-telegraph-notification-outbox-atomique.md,0,detected,0.99,1,96
+docs/adr/0314-principal-authority-through-openfga.md,0,detected,0.99,1,58
+docs/adr/0400-iamrusty-identite-hexagonale.md,0,detected,0.94,1,56
+docs/adr/0401-manifesto-projets-composants-acl-cas.md,0,detected,0.96,1,58
+docs/adr/0402-hive-organisations.md,0,detected,0.99,1,59
+docs/adr/0403-telegraph-notifications-event-driven.md,0,detected,0.97,1,58
+docs/adr/0404-runtime-microservices-et-monolithe.md,0,detected,0.94,1,54
+docs/adr/0405-readiness-crate-partagee.md,0,detected,0.95,1,53
+docs/adr/0406-crates-apparatus-p0-pas-le-host.md,0,detected,0.97,1,55
+docs/adr/0407-contrat-authn-federee-vendor-neutral.md,0,detected,0.99,1,94
+docs/adr/0408-connecteurs-idp-services-http.md,0,detected,0.98,1,85
+docs/adr/0409-confiance-callback-oauth-idp-connect.md,0,detected,0.97,1,82
+docs/adr/0410-migration-iam-connecteurs-idp.md,0,detected,0.96,1,123
+docs/adr/0411-idp-provider-slug-registry-fail-closed.md,0,detected,0.97,1,105
+docs/adr/0412-oauth-transaction-persistante-liee-navigateur.md,0,detected,0.99,1,99
+docs/adr/0413-oauthconnect-multi-instances-profils.md,0,detected,0.98,1,59
+docs/adr/0500-config-typee-et-compose-local.md,0,detected,0.9,1,52
+docs/adr/0501-qualite-fmt-clippy-sonar.md,0,detected,0.96,1,54
+docs/adr/0502-rustycog-framework-feature-gated.md,0,detected,0.9,1,52
+docs/adr/0503-http-runtime-owned-shutdown.md,0,detected,0.99,1,83
+docs/adr/0504-validation-fonctionnelle-linux-k6.md,0,detected,0.98,1,174
+docs/adr/0505-startup-secrets-sdk-openbao.md,0,detected,0.98,1,77
+docs/adr/0506-mutualisation-openbao-conditionnee-aux-usages.md,0,detected,0.89,1,90
+docs/adr/0600-cloud-portable-opentofu-k8s-gitops.md,0,detected,0.99,1,127
+docs/adr/0601-cluster-trust-namespaces-standalones.md,0,detected,0.99,1,146
+docs/adr/0602-observabilite-portable-otlp-lgtm.md,0,detected,0.98,1,137
+docs/adr/0603-tranche-locale-deploy-kind-apparatus-lazaret.md,0,detected,0.99,1,100
+docs/adr/0604-j3-overlay-demo-monolith-kind-invoke.md,0,detected,0.98,1,77
+docs/adr/0605-gold-path-kind-j3-dns-attach.md,0,detected,0.97,1,72
+docs/adr/0606-local-full-kind-isole.md,0,detected,0.98,1,62
+docs/adr/0607-images-source-snapshot-registre-zot-hors-kind.md,0,detected,0.99,1,66
+docs/adr/0608-recreer-local-full-pour-oauthconnect.md,0,detected,0.94,1,76
+docs/adr/0609-local-full-declaratif-helm-compose-just.md,0,detected,0.96,1,51
+docs/adr/0610-kind-local-natif-rebuild-donnees-conservees.md,0,detected,0.99,1,49
+docs/adr/0611-openbao-neuf-raft-pvc-sans-conversion-du-coffre-existant.md,0,detected,0.97,1,56
+docs/adr/README.md,0,detected,0.99,1,109
+docs/adr/template.md,0,detected,0.85,1,40
+docs/apparatus-0002-0008-next-milestones.md,0,detected,0.99,1,136
+docs/apparatus-p0-implementation-prompt.md,0,detected,0.93,1,159
+docs/apparatus-p1-implementation-prompt.md,0,detected,0.97,1,125
+docs/apparatus-p2-implementation-prompt.md,0,detected,0.96,113,175
+docs/apparatus-p3-implementation-prompt.md,0,detected,0.76,92,201
+docs/apparatus-p4-core-implementation-prompt.md,0,detected,0.99,126,280
+docs/apparatus-p4-implementation-prompt.md,0,detected,0.99,1,116
+docs/architecture/README.md,0,detected,0.98,1,78
+docs/architecture/apparatus-lazaret.md,0,detected,0.98,1,40
+docs/architecture/authn-authz.md,0,detected,0.98,1,46
+docs/architecture/events.md,0,detected,0.99,1,38
+docs/architecture/permissions.md,0,detected,0.99,1,40
+docs/architecture/runtime.md,0,detected,0.99,1,56
+docs/architecture/topology.md,0,detected,0.99,1,53
+docs/archives/k6-wsl-20261030/README.md,0,detected,0.94,1,79
+docs/capacity-intelligence-decision-ledger-discovery.md,0,detected,0.96,1,645
+docs/contracts/0412-oauth-exact-route-envoy-proof.md,0,detected,0.99,1,219
+docs/contracts/0412-oauth-local-full-alignment.md,0,detected,0.98,1,129
+docs/contracts/0412-oauth-proof-authority-alignment.md,0,detected,0.99,1,147
+docs/contracts/20261018-m6-proof-hardening.md,0,detected,0.95,100,128
+docs/contracts/20261029-auth-security-qualified-state.md,0,detected,0.99,1,101
+docs/contracts/README.md,0,detected,0.97,1,53
+docs/contracts/apparatus-knative-runtime.md,0,detected,0.98,476,563
+docs/contracts/authz-trust-domain-boundary.md,0,detected,0.98,63,121
+docs/contracts/ci-runtime-gates-reconciliation-proposed.md,0,detected,0.97,1,63
+docs/contracts/coverage90-hive-corrections.md,0,detected,0.96,1,77
+docs/contracts/http-runtime-owned-shutdown.md,0,detected,0.99,1,119
+docs/contracts/iam-oauthconnect-v2.md,0,detected,0.99,121,167
+docs/contracts/images-local-release-registry.md,0,detected,0.82,1,43
+docs/contracts/k6-chromium-causal-observation.md,0,detected,0.99,1,174
+docs/contracts/k6-chromium-linux-probes.md,0,detected,0.99,1,161
+docs/contracts/k6-functional-linux.md,0,detected,0.98,512,678
+docs/contracts/k6-github-simulated-functional.md,0,detected,0.94,1,117
+docs/contracts/k6-iam-native-functional.md,0,detected,0.9,60,78
+docs/contracts/k6-ldd-parser-completion.md,0,detected,0.99,1,123
+docs/contracts/k6-native-campaign-preparation.md,0,detected,0.96,1,75
+docs/contracts/k6-three-scenario-native-parity.md,0,detected,0.98,80,91
+docs/contracts/k6-three-scenario-ubuntu-ci.md,0,detected,0.96,1,157
+docs/contracts/k6-windows-auth-functional.md,0,detected,0.98,1,149
+docs/contracts/k6-windows-browser-version.md,0,detected,0.94,1,150
+docs/contracts/k6-windows-code-custody.md,0,detected,0.95,1,28
+docs/contracts/k6-windows-ended-invocation.md,0,detected,0.95,1,123
+docs/contracts/k6-windows-functional.md,0,detected,0.99,1,170
+docs/contracts/kind-local-native-launcher.md,0,detected,0.98,98,135
+docs/contracts/kind-local-openbao-bootstrap.md,0,detected,0.98,39,64
+docs/contracts/local-full-envoy-admin-readonly.md,0,detected,0.96,1,151
+docs/contracts/local-full-envoy-ingress-patch-ack.md,0,detected,0.96,1,179
+docs/contracts/local-full-envoy-iptables-evidence.md,0,detected,0.92,1,183
+docs/contracts/local-full-envoy-nodeport-ingress.md,0,detected,0.98,1,148
+docs/contracts/local-full-existing-e2e-wiring.md,0,detected,0.96,1,170
+docs/contracts/local-full-github-additive-activation.md,0,detected,0.97,172,282
+docs/contracts/local-full-iam-preimage-qualification.md,0,detected,0.98,1,165
+docs/contracts/local-full-oauthconnect-recreation.md,0,detected,0.93,1,38
+docs/contracts/local-full-telegraph-e2e-inverse.md,0,detected,0.97,179,348
+docs/contracts/manifesto-grant-snapshot-service-policy.md,0,detected,0.98,1,100
+docs/contracts/oauth-domain-token-authority.md,0,detected,0.97,1,187
+docs/contracts/oauthconnect-http-secrets-boundary.md,0,detected,0.95,1,64
+docs/contracts/oauthconnect-jsonpath-budget.md,0,detected,0.98,1,70
+docs/contracts/oauthconnect-multi-instances.md,0,detected,0.98,154,198
+docs/contracts/oauthconnect-oidc-service-boundary.md,0,detected,0.98,111,154
+docs/contracts/openbao-local-githubconnect-deployment.md,0,detected,0.98,1,51
+docs/contracts/ops-kind-runtime-validation-manifest.md,0,detected,0.97,312,398
+docs/contracts/ops-kind-runtime-validation-separation.md,0,detected,0.97,1,97
+docs/contracts/ops-local-full-declarative-iac.md,0,detected,0.98,109,144
+docs/contracts/remote-signer-secure-transport.md,0,detected,0.96,78,140
+docs/contracts/startup-secrets-openbao.md,0,detected,0.98,1,138
+docs/contracts/telegraph-notification-outbox.md,0,detected,0.97,146,203
+docs/cursor-infra-agents.md,0,detected,0.99,1,119
+docs/diagrams/README.md,0,detected,0.99,1,101
+docs/diagrams/iam-oauthconnect-current.md,0,detected,0.99,1,218
+docs/diagrams/oauthconnect-architecture.md,0,detected,0.98,1,57
+docs/diagrams/oidc-keys-responsibilities.md,0,detected,0.99,1,187
+docs/discovery/iam-oauth/README.md,0,detected,0.98,1,124
+docs/functional/autorisation.md,0,detected,0.98,1,62
+docs/functional/identite.md,0,detected,0.98,1,67
+docs/functional/notifications.md,0,detected,0.98,1,35
+docs/functional/organisation.md,0,detected,0.97,1,45
+docs/functional/projet.md,0,detected,0.86,1,59
+docs/gold-path-kind-plugin-crashloop.md,0,detected,0.95,1,28
+docs/guides/clippy-campaigns.md,0,detected,0.97,1,127
+docs/guides/clippy-decisions/README.md,0,detected,0.99,1,59
+docs/guides/clippy-decisions/TEMPLATE.md,0,detected,0.95,1,48
+docs/guides/clippy-local.md,0,detected,0.98,1,78
+docs/guides/github-sign-in-and-delegation.md,0,detected,0.99,1,114
+docs/guides/iam-oauthconnect-securite-clefs-jwks-tls.md,0,detected,0.99,419,643
+docs/guides/iam-oauthconnect-securite-sources.md,0,detected,0.99,1,188
+docs/guides/jwt-consommateur.md,0,detected,0.96,1,55
+docs/guides/linux-image-builds.md,0,detected,0.99,1,197
+docs/guides/livrables-durables-et-worktrees.md,0,detected,0.99,1,62
+docs/guides/local-tls-reprise.md,0,detected,0.99,1,48
+docs/guides/nouveau-service.md,0,detected,0.97,1,59
+docs/guides/ops-declarative-boundaries.md,0,detected,0.99,1,52
+docs/guides/permissions.md,0,detected,0.98,1,40
+docs/guides/tests-integration.md,0,detected,0.97,1,58
+docs/history/ci-k6-reporting-20261113/README.md,0,detected,0.98,1,107
+docs/history/ci-k6-reporting-20261113/agents.md,0,detected,0.97,1,67
+docs/history/iac-k6-qa-20261112/README.md,0,detected,0.99,1,101
+docs/history/oauthconnect-iam-20261108/README.md,0,detected,0.95,1,76
+docs/history/oauthconnect-iam-20261108/sessions.md,0,detected,0.99,1,172
+docs/history/ops-oauthconnect-20261108/README.md,0,detected,0.98,1,135
+docs/history/ops-oauthconnect-20261108/infra-review.md,0,detected,0.89,1,80
+docs/history/ops/PACKAGE-D-CHECKPOINT.md,0,detected,0.98,1,140
+docs/history/ops/README.md,0,detected,0.99,1,53
+docs/history/ops/layout-rewrite/README.md,0,detected,0.98,1,70
+docs/history/ops/layout-rewrite/fixtures/mini-repo/services/Lazaret/README.md,0,needs_review,0.41,1,2
+docs/local/20261006-iam-it-runtime-contract.md,0,detected,0.98,116,145
+docs/local/20261006-org-authorization-vs-trust-review.md,0,detected,0.98,1,70
+docs/local/20261006-signing-implementation-contract.md,0,detected,0.97,1,48
+docs/local/20261006-signing-scope-review.md,0,detected,0.98,1,65
+docs/local/20261006-signing-simplification-inventory.md,0,detected,0.93,1,79
+docs/local/20261007-signing-implementation-prompt.md,0,detected,0.79,1,45
+docs/local/audits/ci-cd/2026-11-12-integration-repair.md,0,detected,0.89,1,124
+docs/local/audits/ci-cd/2026-11-13-clippy-local-ci.md,0,detected,0.92,1,41
+docs/local/audits/ci-cd/2026-11-13-k6-auto-reporting.md,0,detected,0.96,1,166
+docs/local/audits/ci-cd/2026-11-13-k6-binary-reuse.md,0,detected,0.96,1,125
+docs/local/audits/ci-cd/2026-11-13-k6-ubuntu-e2e.md,0,detected,0.98,367,552
+docs/local/audits/ci-cd/2026-11-13-sonar-coverage-collection.md,0,detected,0.73,1,14
+docs/local/audits/kubernetes/2026-11-01-local-full-storage-render.md,0,detected,0.76,1,65
+docs/local/ci-20261005/ci-checklist.md,0,needs_review,0.64,1,55
+docs/local/ci-20261005/iam-fixes-results.md,0,detected,0.94,1,25
+docs/local/ci-20261005/manifesto-guard-contract.md,0,detected,0.96,1,23
+docs/local/local-full-storage-cutover.md,0,detected,0.99,1,147
+docs/missions/20261018-apparatus-m6-proof-hardening-results.md,0,detected,0.94,1,90
+docs/missions/20261018-apparatus-m6-proof-hardening.md,0,detected,0.99,1,75
+docs/missions/20261018-ops-kind-runtime-validation-separation.md,0,detected,0.99,1,200
+docs/missions/20261019-apparatus-binding-runtime.md,0,detected,0.98,191,359
+docs/missions/20261019-it-fixtures-lifecycle-results.md,0,detected,0.96,1,98
+docs/missions/20261019-it-fixtures-lifecycle.md,0,detected,0.99,1,118
+docs/missions/20261024-mcp-guidance-user-prompt.md,0,detected,0.98,1,10
+docs/missions/20261024-rust-code-mcp-value-plan.md,0,detected,0.89,1,104
+docs/missions/20261024-rust-code-mcp-value-results.md,0,detected,0.92,1,119
+docs/missions/20261029-auth-security-publication.md,0,detected,0.97,1,124
+docs/missions/20261029-k6-01-socle-smoke.md,0,detected,0.99,1,185
+docs/missions/20261029-k6-02-portage-authentification.md,0,detected,0.97,1,112
+docs/missions/20261029-k6-03-droits-linux.md,0,detected,0.98,1,90
+docs/missions/20261029-k6-recherche-et-enchainement.md,0,detected,0.96,1,78
+docs/missions/20261029-secondary-worktrees-cleanup.md,0,detected,0.98,1,58
+docs/missions/20261031-github-connect-openbao-results.md,0,detected,0.98,1,130
+docs/missions/20261031-github-connect-openbao.md,0,detected,0.99,1,56
+docs/missions/20261031-k6-auth-handover.md,0,detected,0.98,1,31
+docs/missions/20261031-k6-auth-parity.md,0,detected,0.97,1,60
+docs/missions/20261031-openbao-lazaret-iam-reuse-audit.md,0,detected,0.97,1,205
+docs/missions/20261031-openbao-local-github-connect.md,0,detected,0.98,1,47
+docs/missions/20261101-app-registry-pki-preparation.md,0,detected,0.99,1,97
+docs/missions/20261101-ext-authz-initial-oci.md,0,detected,0.96,1,167
+docs/missions/20261101-local-environment-lifecycle.md,0,detected,0.98,1,84
+docs/missions/20261101-local-full-cutover-results.md,0,detected,0.96,1,205
+docs/missions/20261101-local-image-builds.md,0,detected,0.97,1,88
+docs/missions/20261101-local-runtime-continuation.md,0,detected,0.98,1,146
+docs/missions/20261101-openbao-deployment-implementation.md,0,detected,0.82,1,59
+docs/missions/20261102-local-full-validation.md,0,detected,0.94,1,206
+docs/missions/20261102-local-platform-repair.md,0,detected,0.98,1,189
+docs/missions/20261103-github-kv-e2e-attempt.md,0,detected,0.95,1,154
+docs/missions/20261105-github-only-local-preparation.md,0,detected,0.95,1,114
+docs/missions/20261106-e2e-deferred-issues.md,0,detected,0.89,1,93
+docs/missions/20261106-k6-only-cleanup.md,0,detected,0.98,1,196
+docs/missions/20261107-oauthconnect-next.md,0,detected,0.95,1,100
+docs/missions/20261107-oauthconnect-oidc-service.md,0,detected,0.95,1,60
+docs/missions/20261107-oauthconnect-transport-secrets.md,0,detected,0.95,1,64
+docs/missions/20261108-iam-oauthconnect-v2-results.md,0,detected,0.99,1,68
+docs/missions/20261108-iam-oauthconnect-v2.md,0,detected,0.98,1,61
+docs/missions/20261108-k6-simulated-preflight.md,0,detected,0.97,1,60
+docs/missions/20261108-oauth-documentation-wiki.md,0,detected,0.99,1,59
+docs/missions/20261108-oauthconnect-local-activation.md,0,detected,0.96,1,192
+docs/missions/20261108-ops-oauthconnect.md,0,detected,0.97,1,131
+docs/missions/20261108-simulated-provider-secret-tests.md,0,detected,0.97,1,46
+docs/missions/20261109-kind-minimal-cleanup-plan.md,0,detected,0.97,1,94
+docs/missions/20261109-ops-declarative-migration.md,0,detected,0.96,1,94
+docs/missions/20261110-kind-local-operator-cycle.md,0,detected,0.97,1,181
+docs/missions/20261111-k6-native-preparation-inventory.md,0,detected,0.99,1,148
+docs/missions/20261112-k6-three-native-results.md,0,detected,0.96,1,92
+docs/missions/20261112-python-dead-code-cleanup.md,0,detected,0.98,1,66
+docs/missions/20261113-coverage90-local.md,0,detected,0.97,1,197
+docs/missions/20261113-k6-auto-reporting-results.md,0,detected,0.86,1,100
+docs/missions/20261113-k6-ubuntu-e2e-results.md,0,detected,0.96,1,113
+docs/missions/20261113-manifesto-it-ci-repair.md,0,detected,0.99,1,148
+docs/missions/20261113-runtime-unit-rules.md,0,detected,0.96,1,100
+docs/missions/20261113-sonar-coverage.md,0,detected,0.96,1,147
+docs/opencode-agents-installation.md,0,detected,0.85,1,191
+docs/plans/2026-10-01-mesh-authn-reste-a-faire.md,0,detected,0.97,1,78
+docs/platform-cloud-v1-implementation-contract.md,0,detected,0.98,1,119
+docs/platform-local-acceptance.md,0,needs_review,0.3,1,175
+docs/platform-local-gold-case-implementation-guide.md,0,detected,0.99,1,167
+docs/platform-local-monolith-kind-implementation-plan.md,0,detected,0.96,1,143
+docs/platform-local-prod-mimic-implementation-guide.md,0,detected,0.98,1,153
+docs/platform-local-v1-implementation-contract.md,0,detected,0.91,1,89
+docs/platform-otlp-grafana-oss-explained.md,0,detected,0.99,1,70
+docs/platform/authn-jwt.md,0,detected,0.99,1,113
+docs/platform/authz-openfga.md,0,detected,0.98,1,65
+docs/platform/config-cheatsheet.md,0,detected,0.98,1,81
+docs/platform/events-outbox.md,0,detected,0.98,1,68
+docs/platform/overview.md,0,detected,0.92,1,59
+docs/platform/runtime.md,0,detected,0.95,1,71
+docs/plugin-management-infrastructure-discovery.md,0,detected,0.99,594,1275
+docs/recovered-work/README.md,0,detected,0.98,1,35
+docs/reviews/20261029-auth-security-final-evidence.md,0,detected,0.97,1,89
+docs/reviews/20261029-authz-proposals-carried-forward.md,0,detected,0.98,1,78
+docs/reviews/20261029-worktree-consolidation.md,0,detected,0.95,1,122
+docs/reviews/iam-architecture-comparison.md,0,detected,0.99,1,263
+docs/reviews/iam-hive-architecture.md,0,detected,0.96,1,159
+docs/reviews/iam-manifesto-architecture.md,0,detected,0.99,1,201
+docs/reviews/iam-rusty-architecture.md,0,detected,0.84,191,274
+docs/reviews/iam-telegraf-architecture.md,0,detected,0.99,156,329
+docs/rust-code-mcp.md,0,detected,0.98,1,145
+docs/services/github-connect.md,0,detected,0.92,1,132
+docs/services/gitlab-connect.md,0,detected,0.76,1,18
+docs/services/hive.md,0,needs_review,0.62,1,15
+docs/services/iamrusty.md,0,detected,0.67,1,15
+docs/services/lazaret.md,0,detected,0.89,1,15
+docs/services/manifesto.md,0,detected,0.96,1,48
+docs/services/monolith.md,0,detected,0.95,1,12
+docs/services/sentinel-sync.md,0,detected,0.93,1,13
+docs/services/telegraph.md,0,detected,0.68,1,14
+docs/wsl-aiforall.md,0,detected,0.97,1,114
+obsidian/AI FOR ALL/Bienvenue.md,0,detected,0.98,1,4
+obsidian/AI FOR ALL/_raw/opencode-g17-m6-20261018/evidence/.cursor/handoffs/20261017-g17-e2e-chain-mission-prep.md,0,detected,0.99,313,478
+obsidian/AI FOR ALL/_raw/opencode-g17-m6-20261018/evidence/.cursor/qa-plans/20261017-m6-e2e-chain-kind-ready.md,0,detected,0.99,84,161
+obsidian/AI FOR ALL/_raw/opencode-g17-m6-20261018/evidence/.cursor/qa-plans/20261017-operator-cli-credentials.md,0,detected,0.85,1,94
+obsidian/AI FOR ALL/_raw/opencode-g17-m6-20261018/evidence/.cursor/qa-plans/20261017-operator-cli-real-binary-transport.md,0,detected,0.99,160,295
+obsidian/AI FOR ALL/_raw/opencode-g17-m6-20261018/evidence/.cursor/review-briefings/20261017-operator-cli-credentials-correctness.md,0,detected,0.97,1,96
+obsidian/AI FOR ALL/_raw/opencode-g17-m6-20261018/evidence/.cursor/review-briefings/20261017-operator-cli-credentials-rust-perf.md,0,detected,0.85,1,113
+obsidian/AI FOR ALL/_raw/opencode-g17-m6-20261018/evidence/.cursor/review-briefings/20261017-operator-cli-credentials-security.md,0,detected,0.99,1,85
+obsidian/AI FOR ALL/_raw/opencode-g17-m6-20261018/evidence/.cursor/review-briefings/20261017-operator-cli-credentials-tests.md,0,detected,0.98,1,91
+obsidian/AI FOR ALL/_raw/opencode-g17-m6-20261018/evidence/.cursor/review-briefings/20261017-operator-cli-real-binary-transport-correctness.md,0,detected,0.98,1,147
+obsidian/AI FOR ALL/_raw/opencode-g17-m6-20261018/evidence/.cursor/review-briefings/20261017-operator-cli-real-binary-transport-tests.md,0,detected,0.99,1,150
+obsidian/AI FOR ALL/_raw/opencode-g17-m6-20261018/evidence/.cursor/review-briefings/20261018-m6-e2e-chain-correctness.md,0,detected,0.89,100,118
+obsidian/AI FOR ALL/_raw/opencode-g17-m6-20261018/evidence/.cursor/review-briefings/20261018-m6-e2e-chain-infra.md,0,detected,0.97,1,49
+obsidian/AI FOR ALL/_raw/opencode-g17-m6-20261018/evidence/.cursor/review-briefings/20261018-m6-e2e-chain-review-request.md,0,detected,0.98,1,26
+obsidian/AI FOR ALL/_raw/opencode-g17-m6-20261018/evidence/.cursor/review-briefings/20261018-m6-e2e-chain-tests.md,0,detected,0.99,1,93
+obsidian/AI FOR ALL/_raw/opencode-m6-proof-hardening-20261018/evidence/.agents/skills/aiforall-test-evidence/SKILL.md,0,detected,0.99,1,53
+obsidian/AI FOR ALL/_raw/opencode-m6-proof-hardening-20261018/evidence/.cursor/handoffs/20261018-m6-proof-hardening-preparation.md,0,detected,0.99,1,72
+obsidian/AI FOR ALL/_raw/opencode-m6-proof-hardening-20261018/evidence/.cursor/qa-plans/20261018-m6-proof-hardening.md,0,detected,0.99,145,177
+obsidian/AI FOR ALL/_raw/opencode-m6-proof-hardening-20261018/evidence/.cursor/review-briefings/20261018-m6-proof-hardening-correctness.md,0,detected,0.79,1,68
+obsidian/AI FOR ALL/_raw/opencode-m6-proof-hardening-20261018/evidence/.cursor/review-briefings/20261018-m6-proof-hardening-infra.md,0,detected,0.95,1,19
+obsidian/AI FOR ALL/_raw/opencode-m6-proof-hardening-20261018/evidence/.cursor/review-briefings/20261018-m6-proof-hardening-security.md,0,detected,0.99,1,84
+obsidian/AI FOR ALL/_raw/opencode-m6-proof-hardening-20261018/evidence/.cursor/review-briefings/20261018-m6-proof-hardening-tests.md,0,detected,0.95,1,94
+obsidian/AI FOR ALL/_raw/opencode-m6-proof-hardening-20261018/evidence/AGENTS.md,0,detected,0.98,1,63
+obsidian/AI FOR ALL/_raw/opencode-m6-proof-hardening-20261018/evidence/docs/contracts/20261018-m6-proof-hardening.md,0,detected,0.98,1,107
+obsidian/AI FOR ALL/_raw/opencode-m6-proof-hardening-20261018/evidence/docs/missions/20261018-apparatus-m6-proof-hardening-results.md,0,detected,0.91,1,90
+obsidian/AI FOR ALL/_raw/opencode-m6-proof-hardening-20261018/evidence/docs/missions/20261018-apparatus-m6-proof-hardening.md,0,detected,0.96,1,75
+obsidian/AI FOR ALL/concepts/anonymous-public-read-via-wildcard-subject.md,0,needs_review,0.43,1,129
+obsidian/AI FOR ALL/concepts/architecture-coherence-across-services.md,0,detected,0.97,1,51
+obsidian/AI FOR ALL/concepts/integration-testing-with-real-infrastructure.md,0,detected,0.98,1,107
+obsidian/AI FOR ALL/entities/index.md,0,detected,0.96,1,52
+obsidian/AI FOR ALL/entities/membership.md,0,needs_review,0.22,1,42
+obsidian/AI FOR ALL/entities/paravretius.md,0,detected,0.98,1,33
+obsidian/AI FOR ALL/index.md,0,detected,0.99,1,146
+obsidian/AI FOR ALL/journal/2026-08-31.md,0,detected,0.78,1,35
+obsidian/AI FOR ALL/journal/2026-09-01.md,0,detected,0.97,1,24
+obsidian/AI FOR ALL/journal/2026-09-02.md,0,detected,0.97,1,27
+obsidian/AI FOR ALL/journal/2026-09-09.md,0,detected,0.95,1,26
+obsidian/AI FOR ALL/journal/2026-09-11.md,0,detected,0.86,1,32
+obsidian/AI FOR ALL/journal/2026-09-12.md,0,detected,0.97,1,36
+obsidian/AI FOR ALL/journal/2026-09-13.md,0,detected,0.96,1,31
+obsidian/AI FOR ALL/journal/2026-09-17.md,0,detected,0.96,1,34
+obsidian/AI FOR ALL/journal/2026-09-18.md,0,detected,0.88,1,32
+obsidian/AI FOR ALL/journal/2026-09-20.md,0,detected,0.99,1,62
+obsidian/AI FOR ALL/journal/2026-09-22.md,0,detected,0.99,1,64
+obsidian/AI FOR ALL/journal/2026-09-27.md,0,detected,0.96,1,49
+obsidian/AI FOR ALL/journal/2026-09-29.md,0,detected,0.98,1,40
+obsidian/AI FOR ALL/journal/2026-09-30.md,0,detected,0.98,1,41
+obsidian/AI FOR ALL/journal/2026-10-02.md,0,detected,0.98,1,45
+obsidian/AI FOR ALL/journal/2026-10-03.md,0,detected,0.99,1,54
+obsidian/AI FOR ALL/journal/2026-11-08.md,0,detected,0.93,1,56
+obsidian/AI FOR ALL/log.md,0,detected,0.97,250,317
+obsidian/AI FOR ALL/projects/aiforall/aiforall.md,0,detected,0.99,1,140
+obsidian/AI FOR ALL/projects/aiforall/concepts/architecte-agent.md,0,detected,0.98,1,49
+obsidian/AI FOR ALL/projects/aiforall/concepts/e2e-allure-pages-reporting.md,0,detected,0.99,1,76
+obsidian/AI FOR ALL/projects/aiforall/concepts/functional-catalogue-and-test-evidence.md,0,detected,0.99,1,51
+obsidian/AI FOR ALL/projects/aiforall/concepts/https-platform-mesh.md,0,detected,0.98,1,77
+obsidian/AI FOR ALL/projects/aiforall/concepts/index.md,0,detected,0.96,1,35
+obsidian/AI FOR ALL/projects/aiforall/concepts/jwt-issuer-vs-consumer.md,0,detected,0.98,1,64
+obsidian/AI FOR ALL/projects/aiforall/concepts/k6-functional-linux.md,0,detected,0.98,1,205
+obsidian/AI FOR ALL/projects/aiforall/concepts/local-runtime-lifecycle.md,0,detected,0.99,1,51
+obsidian/AI FOR ALL/projects/aiforall/concepts/mesh-ext-authz-opt-in.md,0,detected,0.97,1,76
+obsidian/AI FOR ALL/projects/aiforall/concepts/mesh-gateway-principal-trust.md,0,detected,0.94,1,48
+obsidian/AI FOR ALL/projects/aiforall/concepts/orchestrator-agent-harness.md,0,detected,0.99,1,149
+obsidian/AI FOR ALL/projects/aiforall/concepts/qa-proportionate-proof.md,0,detected,0.99,1,88
+obsidian/AI FOR ALL/projects/aiforall/concepts/queue-readiness-signaling.md,0,needs_review,0.24,1,37
+obsidian/AI FOR ALL/projects/aiforall/concepts/runtime-validation-separation.md,0,detected,0.99,1,137
+obsidian/AI FOR ALL/projects/aiforall/concepts/s2s-internal-token-revoke.md,0,detected,0.96,1,53
+obsidian/AI FOR ALL/projects/aiforall/concepts/testcontainers-resource-churn.md,0,detected,0.99,1,128
+obsidian/AI FOR ALL/projects/aiforall/decisions/0100-hexagone-rustycog.md,0,detected,0.93,1,67
+obsidian/AI FOR ALL/projects/aiforall/decisions/0200-strategie-tests.md,0,detected,0.93,1,55
+obsidian/AI FOR ALL/projects/aiforall/decisions/0300-events-authz.md,0,detected,0.97,1,67
+obsidian/AI FOR ALL/projects/aiforall/decisions/0304-access-jwt-trust.md,0,detected,0.99,1,77
+obsidian/AI FOR ALL/projects/aiforall/decisions/0308-mesh-authn-jwt.md,0,detected,0.98,1,54
+obsidian/AI FOR ALL/projects/aiforall/decisions/0310-admission-epochs-budget-jwks.md,0,detected,0.97,1,24
+obsidian/AI FOR ALL/projects/aiforall/decisions/0311-signing-simplification.md,0,detected,0.95,1,18
+obsidian/AI FOR ALL/projects/aiforall/decisions/0314-principal-authority-openfga.md,0,detected,0.92,1,15
+obsidian/AI FOR ALL/projects/aiforall/decisions/0400-services-runtime.md,0,detected,0.98,1,65
+obsidian/AI FOR ALL/projects/aiforall/decisions/0500-plateforme-qualite.md,0,detected,0.98,1,49
+obsidian/AI FOR ALL/projects/aiforall/decisions/0505-startup-secrets-openbao.md,0,detected,0.96,1,22
+obsidian/AI FOR ALL/projects/aiforall/decisions/0506-mutualisation-openbao-conditionnelle.md,0,detected,0.97,1,21
+obsidian/AI FOR ALL/projects/aiforall/decisions/0600-cloud-portable.md,0,detected,0.96,1,41
+obsidian/AI FOR ALL/projects/aiforall/decisions/0601-cluster-topology.md,0,detected,0.97,1,40
+obsidian/AI FOR ALL/projects/aiforall/decisions/0602-observabilite-portable.md,0,detected,0.96,1,40
+obsidian/AI FOR ALL/projects/aiforall/decisions/0603-tranche-locale.md,0,detected,0.98,1,29
+obsidian/AI FOR ALL/projects/aiforall/decisions/0604-j3-overlay-demo-monolith.md,0,detected,0.98,1,28
+obsidian/AI FOR ALL/projects/aiforall/decisions/0605-gold-path-kind.md,0,detected,0.98,1,44
+obsidian/AI FOR ALL/projects/aiforall/decisions/0606-local-full-kind-isole.md,0,detected,0.97,1,28
+obsidian/AI FOR ALL/projects/aiforall/decisions/0611-openbao-neuf-raft-pvc.md,0,detected,0.95,1,19
+obsidian/AI FOR ALL/projects/aiforall/decisions/index.md,0,detected,0.97,1,112
+obsidian/AI FOR ALL/projects/aiforall/red-team-cross-2026-08-31.md,0,detected,0.98,1,49
+obsidian/AI FOR ALL/projects/aiforall/references/auth-security-closure-20261029.md,0,detected,0.99,1,86
+obsidian/AI FOR ALL/projects/aiforall/references/cursor-chat-mesh-authn-2026-09-30.md,0,detected,0.92,1,49
+obsidian/AI FOR ALL/projects/aiforall/references/cursor-history-2026-04-to-08.md,0,needs_review,0.6,1,48
+obsidian/AI FOR ALL/projects/aiforall/references/cursor-history-2026-09.md,0,detected,0.99,130,182
+obsidian/AI FOR ALL/projects/aiforall/references/mesh-authn-close-2026-10-02.md,0,detected,0.99,1,38
+obsidian/AI FOR ALL/projects/aiforall/references/mission-g17-m6-20261018.md,0,detected,0.97,1,79
+obsidian/AI FOR ALL/projects/aiforall/references/mission-m6-proof-hardening-20261018.md,0,detected,0.98,1,159
+obsidian/AI FOR ALL/projects/aiforall/references/mission-ops-kind-separation-20261019.md,0,detected,0.92,1,92
+obsidian/AI FOR ALL/projects/aiforall/references/mission-telegraph-outbox-20261027.md,0,detected,0.9,1,62
+obsidian/AI FOR ALL/projects/aiforall/references/modular-monolith-runtime.md,0,needs_review,0.38,1,79
+obsidian/AI FOR ALL/projects/aiforall/references/opencode-close-0308-2026-10-03.md,0,detected,0.98,1,58
+obsidian/AI FOR ALL/projects/aiforall/references/session-ci-k6-reporting-20261113.md,0,detected,0.95,1,78
+obsidian/AI FOR ALL/projects/aiforall/references/session-iac-k6-qa-20261112.md,0,detected,0.99,1,94
+obsidian/AI FOR ALL/projects/aiforall/references/session-oauthconnect-iam-20261108.md,0,detected,0.98,1,68
+obsidian/AI FOR ALL/projects/aiforall/references/session-ops-oauthconnect-20261108.md,0,detected,0.97,1,96
+obsidian/AI FOR ALL/projects/aiforall/roadmap.md,0,detected,0.93,1,143
+obsidian/AI FOR ALL/projects/aiforall/skills/deploying-oauthconnect-local.md,0,detected,0.99,1,86
+obsidian/AI FOR ALL/projects/aiforall/skills/fixing-sonar-clippy-in-services.md,0,detected,0.8,1,67
+obsidian/AI FOR ALL/projects/aiforall/skills/index.md,0,detected,0.97,1,38
+obsidian/AI FOR ALL/projects/aiforall/skills/preserving-role-permission-org-scope.md,0,detected,0.98,1,50
+obsidian/AI FOR ALL/projects/aiforall/skills/proving-leased-outbox-recovery.md,0,detected,0.95,1,62
+obsidian/AI FOR ALL/projects/aiforall/skills/running-apparatus-p0-tests.md,0,detected,0.99,1,50
+obsidian/AI FOR ALL/projects/aiforall/skills/running-apparatus-p1-tests.md,0,detected,0.99,1,55
+obsidian/AI FOR ALL/projects/aiforall/skills/running-apparatus-p2-tests.md,0,detected,0.93,1,50
+obsidian/AI FOR ALL/projects/aiforall/skills/running-apparatus-p4-tests.md,0,detected,0.68,1,88
+obsidian/AI FOR ALL/projects/aiforall/skills/running-it-tests-docker.md,0,detected,0.98,1,74
+obsidian/AI FOR ALL/projects/aiforall/skills/running-mesh-authn-e2e.md,0,detected,0.91,1,55
+obsidian/AI FOR ALL/projects/aiforall/skills/testing-k6-fixture-first.md,0,detected,0.98,1,97
+obsidian/AI FOR ALL/projects/hive/hive.md,0,detected,0.97,1,70
+obsidian/AI FOR ALL/projects/hive/red-team-hive-2026-08-31.md,0,detected,0.99,1,131
+obsidian/AI FOR ALL/projects/iamrusty/concepts/hexagonal-architecture.md,0,detected,0.96,1,48
+obsidian/AI FOR ALL/projects/iamrusty/concepts/index.md,0,detected,0.95,1,27
+obsidian/AI FOR ALL/projects/iamrusty/concepts/jwt-secret-storage-abstraction.md,0,detected,0.99,1,55
+obsidian/AI FOR ALL/projects/iamrusty/concepts/oauth-provider-linking.md,0,detected,0.96,1,72
+obsidian/AI FOR ALL/projects/iamrusty/concepts/oauth-state-and-csrf-protection.md,0,detected,0.98,1,63
+obsidian/AI FOR ALL/projects/iamrusty/concepts/oauthconnect-v2-durable-context.md,0,detected,0.98,1,100
+obsidian/AI FOR ALL/projects/iamrusty/decisions/0407-contrat-federe.md,0,detected,0.96,1,37
+obsidian/AI FOR ALL/projects/iamrusty/decisions/0408-connecteurs-http.md,0,detected,0.93,1,37
+obsidian/AI FOR ALL/projects/iamrusty/decisions/0409-confiance-oauth.md,0,detected,0.96,1,36
+obsidian/AI FOR ALL/projects/iamrusty/decisions/0410-migration.md,0,detected,0.91,1,29
+obsidian/AI FOR ALL/projects/iamrusty/decisions/0411-slug-registry.md,0,detected,0.96,1,28
+obsidian/AI FOR ALL/projects/iamrusty/decisions/0412-oauth-transaction-browser-binding.md,0,detected,0.98,1,35
+obsidian/AI FOR ALL/projects/iamrusty/decisions/0413-oauthconnect-multi-instances.md,0,detected,0.98,1,58
+obsidian/AI FOR ALL/projects/iamrusty/decisions/index.md,0,detected,0.97,1,62
+obsidian/AI FOR ALL/projects/iamrusty/iamrusty.md,0,detected,0.87,1,89
+obsidian/AI FOR ALL/projects/iamrusty/red-team-iam-2026-08-31.md,0,detected,0.99,1,99
+obsidian/AI FOR ALL/projects/iamrusty/references/index.md,0,detected,0.98,1,34
+obsidian/AI FOR ALL/projects/iamrusty/skills/extending-iamrusty-with-oauth-providers.md,0,detected,0.99,1,61
+obsidian/AI FOR ALL/projects/index.md,0,needs_review,0.53,1,43
+obsidian/AI FOR ALL/projects/lazaret/concepts/grants-secrets-and-named-proxy.md,0,detected,0.98,1,69
+obsidian/AI FOR ALL/projects/lazaret/concepts/index.md,0,detected,0.94,1,25
+obsidian/AI FOR ALL/projects/lazaret/concepts/workload-identity.md,0,detected,0.97,1,75
+obsidian/AI FOR ALL/projects/lazaret/lazaret.md,0,detected,0.93,1,66
+obsidian/AI FOR ALL/projects/lazaret/skills/index.md,0,detected,0.87,1,22
+obsidian/AI FOR ALL/projects/lazaret/skills/running-apparatus-p3-tests.md,0,detected,0.97,1,64
+obsidian/AI FOR ALL/projects/manifesto/concepts/apparatus-bindings-and-lifecycle.md,0,detected,0.99,1,117
+obsidian/AI FOR ALL/projects/manifesto/concepts/apparatus-capabilities-and-isolation.md,0,detected,0.96,1,114
+obsidian/AI FOR ALL/projects/manifesto/concepts/apparatus-p0-contracts.md,0,detected,0.91,1,66
+obsidian/AI FOR ALL/projects/manifesto/concepts/apparatus-p1-persistence.md,0,detected,0.93,1,63
+obsidian/AI FOR ALL/projects/manifesto/concepts/apparatus-p2-reconciliation.md,0,detected,0.96,1,70
+obsidian/AI FOR ALL/projects/manifesto/concepts/apparatus-p4-operator.md,0,detected,0.79,1,56
+obsidian/AI FOR ALL/projects/manifesto/concepts/apparatus-platform.md,0,detected,0.99,1,130
+obsidian/AI FOR ALL/projects/manifesto/concepts/component-based-project-orchestration.md,0,detected,0.98,1,52
+obsidian/AI FOR ALL/projects/manifesto/concepts/component-catalog-and-fallback-adapter.md,0,detected,0.97,1,51
+obsidian/AI FOR ALL/projects/manifesto/concepts/component-instance-permissions.md,0,detected,0.95,1,63
+obsidian/AI FOR ALL/projects/manifesto/concepts/immediate-membership-acl.md,0,detected,0.8,1,44
+obsidian/AI FOR ALL/projects/manifesto/concepts/index.md,0,detected,0.9,1,37
+obsidian/AI FOR ALL/projects/manifesto/concepts/membership-restore-and-cas.md,0,detected,0.9,1,50
+obsidian/AI FOR ALL/projects/manifesto/concepts/org-owned-visibility-and-participation-limits.md,0,detected,0.9,1,131
+obsidian/AI FOR ALL/projects/manifesto/concepts/project-ownership-and-publication-lifecycle.md,0,needs_review,0.54,1,46
+obsidian/AI FOR ALL/projects/manifesto/decisions/0001-apparatus-binding.md,0,detected,0.98,1,47
+obsidian/AI FOR ALL/projects/manifesto/decisions/0002-apparatus-contracts.md,0,detected,0.95,1,45
+obsidian/AI FOR ALL/projects/manifesto/decisions/0003-apparatus-untrusted.md,0,detected,0.96,1,44
+obsidian/AI FOR ALL/projects/manifesto/decisions/0004-apparatus-gateway.md,0,detected,0.99,1,64
+obsidian/AI FOR ALL/projects/manifesto/decisions/0005-apparatus-protocol.md,0,detected,0.98,1,45
+obsidian/AI FOR ALL/projects/manifesto/decisions/0006-apparatus-p2-reconciliation.md,0,detected,0.99,1,57
+obsidian/AI FOR ALL/projects/manifesto/decisions/0007-apparatus-p3-lazaret.md,0,detected,0.99,1,59
+obsidian/AI FOR ALL/projects/manifesto/decisions/0008-apparatus-p4-k8s.md,0,detected,0.97,1,60
+obsidian/AI FOR ALL/projects/manifesto/decisions/0009-0011-gates-preprod.md,0,detected,0.95,1,51
+obsidian/AI FOR ALL/projects/manifesto/decisions/index.md,0,detected,0.98,1,105
+obsidian/AI FOR ALL/projects/manifesto/manifesto.md,0,detected,0.96,1,101
+obsidian/AI FOR ALL/projects/manifesto/red-team-manifesto-2026-08-31.md,0,detected,0.98,1,139
+obsidian/AI FOR ALL/projects/manifesto/references/0007-closeout.md,0,detected,0.98,1,46
+obsidian/AI FOR ALL/projects/manifesto/references/0008-app01-reconciliation.md,0,detected,0.99,1,44
+obsidian/AI FOR ALL/projects/manifesto/references/apparatus-factory-and-distribution.md,0,detected,0.93,1,164
+obsidian/AI FOR ALL/projects/manifesto/references/apparatus-implementation-plan.md,0,detected,0.99,111,227
+obsidian/AI FOR ALL/projects/manifesto/references/apparatus-p4-implementation-prompt.md,0,detected,0.95,1,47
+obsidian/AI FOR ALL/projects/manifesto/references/apparatus-source-reconciliation.md,0,detected,0.97,1,119
+obsidian/AI FOR ALL/projects/manifesto/references/apparatus-ui-and-protocol.md,0,detected,0.93,1,116
+obsidian/AI FOR ALL/projects/manifesto/references/index.md,0,detected,0.9,1,48
+obsidian/AI FOR ALL/projects/manifesto/references/manifesto-api-and-permission-flows.md,0,detected,0.96,1,71
+obsidian/AI FOR ALL/projects/manifesto/references/manifesto-entity-model.md,0,detected,0.99,1,52
+obsidian/AI FOR ALL/projects/manifesto/references/manifesto-event-model.md,0,detected,0.99,1,70
+obsidian/AI FOR ALL/projects/manifesto/references/manifesto-runtime-and-configuration.md,0,detected,0.97,1,82
+obsidian/AI FOR ALL/projects/manifesto/references/manifesto-testing-and-fixtures.md,0,needs_review,0.4,1,80
+obsidian/AI FOR ALL/projects/oauthconnect/concepts/local-ops-and-secret-distribution.md,0,detected,0.99,1,102
+obsidian/AI FOR ALL/projects/oauthconnect/concepts/oidc-jwks-and-key-rotation.md,0,detected,0.93,1,83
+obsidian/AI FOR ALL/projects/oauthconnect/concepts/tls-hmac-and-signatures.md,0,detected,0.96,1,97
+obsidian/AI FOR ALL/projects/oauthconnect/oauthconnect.md,0,detected,0.95,1,92
+obsidian/AI FOR ALL/projects/rustycog/references/isolated-wiremock-fixture.md,0,needs_review,0.28,1,37
+obsidian/AI FOR ALL/projects/rustycog/references/rustycog-http.md,0,detected,0.94,1,49
+obsidian/AI FOR ALL/projects/rustycog/references/rustycog-outbox.md,0,detected,0.81,1,46
+obsidian/AI FOR ALL/projects/rustycog/rustycog.md,0,detected,0.88,1,55
+obsidian/AI FOR ALL/projects/sentinel-sync/concepts/db-to-openfga-reconcile.md,0,needs_review,0.44,1,42
+obsidian/AI FOR ALL/projects/sentinel-sync/concepts/manifesto-transport-and-ledger.md,0,needs_review,0.58,1,49
+obsidian/AI FOR ALL/projects/sentinel-sync/references/event-to-tuple-mapping.md,0,needs_review,0.29,1,98
+obsidian/AI FOR ALL/projects/sentinel-sync/references/openfga-model.md,0,needs_review,0.32,1,73
+obsidian/AI FOR ALL/projects/sentinel-sync/references/sentinel-sync-worker.md,0,needs_review,0.28,1,90
+obsidian/AI FOR ALL/projects/sentinel-sync/sentinel-sync.md,0,needs_review,0.43,1,36
+obsidian/AI FOR ALL/projects/sentinel-sync/skills/extending-sentinel-sync-with-new-events.md,0,needs_review,0.2,1,73
+obsidian/AI FOR ALL/projects/telegraph/concepts/durable-notification-publication.md,0,detected,0.98,1,46
+obsidian/AI FOR ALL/projects/telegraph/telegraph.md,0,detected,0.93,1,81
+obsidian/AI FOR ALL/skills/using-rustycog-http.md,0,detected,0.94,1,51
+obsidian/AI FOR ALL/skills/using-rustycog-permission.md,0,needs_review,0.29,1,76
+obsidian/AI FOR ALL/skills/using-rustycog-testing.md,0,detected,0.98,1,83
+ops/cloud/opentofu/README.md,0,detected,0.98,1,23
+ops/deploy/README.md,0,detected,0.98,1,41
+ops/deploy/apps/overlays/kind-demo-monolith/README.md,0,detected,0.98,1,37
+ops/deploy/apps/overlays/kind-mesh/README.md,0,detected,0.95,1,30
+ops/deploy/charts/kind-minimal/README.md,0,detected,0.86,1,87
+ops/deploy/kind-minimal.md,0,detected,0.93,1,213
+ops/deploy/p4/knative/README.md,0,needs_review,0.4,1,63
+ops/openfga/README.md,0,needs_review,0.25,1,85
+ops/tests/README.md,0,detected,0.98,1,30
+ops/tests/k6/IMPLEMENTATION.md,0,detected,0.95,343,530
+ops/tests/k6/README.md,0,detected,0.99,1,194
+ops/tests/k6/WINDOWS.md,0,detected,0.88,1,175
+ops/tests/k6/ci/README.md,0,detected,0.99,1,202
+ops/tests/k6/iam/README.md,0,detected,0.94,1,81
+ops/tests/k6/native/README.md,0,detected,0.87,1,106
+runtime/monolith/README.md,0,needs_review,0.2,1,52
+rustycog/.cursor/skills/rustycog-sonar-parallel/SKILL.md,0,needs_review,0.47,1,217
+services/Hive/README.md,0,detected,0.98,1,24
+services/IAMRusty/docs/JWT_CONFIGURATION_GUIDE.md,0,needs_review,0.44,1,415
+services/Lazaret/README.md,0,detected,0.94,1,23
+services/OAuthConnect/README.md,0,detected,0.99,1,37
+services/Telegraph/README.md,0,detected,0.92,1,23
+workers/sentinel-sync/README.md,0,detected,0.93,1,22
