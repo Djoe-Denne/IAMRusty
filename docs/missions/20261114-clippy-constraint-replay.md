@@ -3,6 +3,14 @@
 Status: partial implementation and real replay; correction dispatch is not approved.
 Implementation contract: [standalone planner](../contracts/clippy-constraint-planner.md).
 
+## Hosting decision
+
+The user chose to keep the tooling committed on AIForAll `master` for now and
+continue work there. Extraction into a separate project is intended later,
+not performed or implicitly authorized as part of this replay. Temporary
+author worktrees are not the durable copies; the published scripts, guides,
+fixtures and contract remain in this repository.
+
 ## Result on the actual inventory
 
 - 537 unique Clippy diagnostic records.
