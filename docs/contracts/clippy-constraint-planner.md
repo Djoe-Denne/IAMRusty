@@ -136,6 +136,84 @@ discovery stay explicit. A declaration identifier span alone is not an enclosing
 body span. Do not use nearest-name, similar-message, fuzzy-line or offset mapping.
 Module/crate-level findings without a unique applicable symbol remain unknown.
 
+### Physical localization is not reference closure
+
+An exact mapping proves a physical location in the captured current source,
+not completeness of consumers, reference graphs, features or tests. Do not apply
+the full co-edit closure predicate to mapping acceptance. In particular, Serena
+pagination marked `unknown` because no totals are advertised does not downgrade
+a source-bound mapping when relevant **local** uniqueness is independently
+crosschecked. Do not rewrite that query's pagination as complete.
+
+Local discovery incompleteness is different: checking one selected seed and
+finding one containing symbol does not exclude a missing nested or competing
+symbol. Missing local alternatives, unsupported syntax or unverified coordinate
+semantics keep localization unknown/ambiguous even if the selected symbol exists.
+Unknown external references do not erase a demonstrated physical mapping.
+
+#### Shared local-proof reference convention
+
+Use the existing `mapping.evidence_refs` object form
+`{path, sha256, locator}`; no new top-level evidence fields are required.
+For a dedicated proof JSON file, `locator` is `"/"` (the document root).
+Snapshot-bind that file as an input, verify its hash, and retain the query IDs
+as ordinary string references alongside it. A coordinate/policy context file
+without the following discriminator is not a localization proof.
+
+The proof document has these exact required fields:
+
+- `schema_version`: `1`;
+- `kind`: `"clippy-localization-proof"`;
+- `diagnostic_key`: the mapping's namespaced diagnostic key;
+- `source_path`, `source_sha256`: the same canonical path and hash as the symbol;
+- `symbol_id`: the one normalized symbol selected by this mapping;
+- `inventory_column_unit`: `unicode_scalar | utf8_byte | utf16`, verified for
+  this diagnostic's original inventory coordinates;
+- `local_discovery`: an object with `method`, `scope_range`,
+  `candidate_symbol_ids`, `query_ids`, `checked_predicates`, `limitations`.
+
+`scope_range` uses the normalized range schema and contains the whole diagnostic
+range. `candidate_symbol_ids` lists all remaining most-specific enclosing
+candidates in that scope, not merely the supplied seeds; exact acceptance
+requires exactly `[symbol_id]`. `query_ids` is a nonempty list of successful,
+decoded source-symbol queries, also present in the mapping's evidence references.
+An overview alone is insufficient. `limitations` is a string array; any unresolved
+limitation affecting local uniqueness prevents an exact result.
+
+`method` is `"source_crosschecked_simple_function_v1"` for the initial bounded
+implementation. This means current-source deterministic checks establish the
+relevant declaration/body extent and exclude nested/competing local declarations,
+with the selected extent independently verified by MCP. It does not mean a regex
+search over supplied seeds establishes a complete Rust symbol inventory.
+Unsupported macro/generated expansion, ambiguous attributes, comments/string
+tokens, nesting or syntax that the implementation cannot soundly distinguish
+must fail this method rather than be silently ignored. The implementation may
+support a smaller explicit syntax subset; its fixtures must define that subset.
+Any additional proof method requires an explicit shared contract extension.
+
+`checked_predicates` contains exactly these boolean fields, all true for an
+accepted exact proof:
+
+- `source_binding_verified`;
+- `source_hash_stable_before_after`;
+- `diagnostic_coordinates_verified`;
+- `symbol_endpoints_source_verified`;
+- `diagnostic_fully_enclosed`;
+- `relevant_local_candidates_exhausted`;
+- `nested_or_competing_symbols_excluded`.
+
+These fields are summaries of reproducible checks, not author attestations.
+A must emit them only after executing the bounded checks, preserving source and
+MCP query witnesses. B validates bindings, query references, supported method,
+coordinate conversion/containment and candidate identity, and independently
+replays the bounded source-local checks rather than trusting true booleans.
+Fixtures must reject a proof whose booleans claim completeness but whose source
+contains an unsupported or omitted competing declaration.
+
+This proof confers no semantic approval, local-fix policy classification,
+consumer closure or must-coedit authority. Existing local-policy context
+predicates and reviewed-constraint requirements remain separate and unchanged.
+
 ## 4. Producer requirements
 
 Use the existing pinned direct SDK and loopback, no-proxy/no-redirect protections.
@@ -271,6 +349,18 @@ Maintain candidates and unresolved work separately. Propagate a blocker to every
 component it may affect; a bounded unresolved cross-component relation blocks its
 participants without merging them. If affected scope cannot be bounded, report
 that global independence is unproven. Do not claim all components dispatchable.
+Do not turn every artifact limitation or incomplete query into a blocker on every
+component. Determine relevance from validated mapping/query references, verified
+relation endpoints and explicit constraint participants, not free-form prose or
+an arbitrary tool argument. A file-scoped local-discovery failure affects that
+file's mappings; incomplete reference closure affects the correction/constraints
+that depend on it. A genuinely unbounded uncertainty denies global independence,
+but must not erase known mappings, accepted file-local evidence or otherwise
+demonstrated candidate classifications. Retain unused incomplete queries and
+artifact caveats in report completeness without claiming their irrelevance or
+automatically treating them as a failed proof for each unrelated component.
+Neither scoped blocking nor local mapping proof relaxes approved must-coedit
+scope closure or permits lint-name-only local classification.
 Separate graph components from scheduling: package × src/tests mutex and
 validation/integration dependencies remain scheduling metadata, not hard unions.
 
