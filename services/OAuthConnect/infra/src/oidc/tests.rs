@@ -40,7 +40,7 @@ impl Clocks {
     fn new() -> Self {
         let start = Instant::now();
         let utc = DateTime::from_timestamp(2_000_000_000, 0)
-            .map_or_else(|| panic!("fixed UTC fixture"), std::convert::identity);
+            .unwrap_or_else(|| panic!("fixed UTC fixture"));
         Self {
             monotone: Arc::new(Mutex::new(start)),
             utc: Arc::new(Mutex::new(utc)),
@@ -373,7 +373,7 @@ async fn concurrent_refresh(success: bool) {
             fixture::form(r)
                 .get("code")
                 .cloned()
-                .map_or_else(|| panic!("code form field"), std::convert::identity)
+                .unwrap_or_else(|| panic!("code form field"))
         })
         .collect();
     let unique: std::collections::BTreeSet<_> = codes.iter().collect();
