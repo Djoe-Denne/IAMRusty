@@ -408,3 +408,40 @@ new correction precedent remains Proposed in the normal registry and outside
 this tooling lot's automatic authority. The parent should reference this file
 from the campaign ledger/guide; only this contract is owned by the architecture
 leaf. No commit or publication is performed by this leaf.
+
+### Real-replay stop condition and next-step boundary
+
+The first bounded real replay reported by the parent retained 1,024 unknown and
+22 ambiguous mappings, zero exact mappings, and no confirmed relations or
+approved co-edit constraints. Those mapping-record counts are not a replacement
+for strict-union or semantic-defect counts. Inspection of the producer's
+`simple_file_functions` and guide confirms that its initial method accepts only
+whole files made of simple functions and documentation, rejecting mixed imports,
+types and implementations. All six seeds in
+`.tmp/clippy-campaign-20261114/constraint-producer-plan.json` target real mixed
+Rust files. This is a material utility limitation, not missing permission to
+reclassify unsupported syntax as exact.
+
+Close this replay with an explicit partial report rather than iterate through
+unapproved parser changes or certify singleton independence. Zero confirmed
+multi-file components means no demonstrated hard unions in this capture, not
+proof that all files are independent. Distinguish absent relation observations
+from a demonstrated absence of consumers.
+
+Targeted Serena symbol/child ranges plus source-aware lexical verification could
+support a later **range-local** method without requiring a full Rust parser or a
+new dependency. This would be an explicit extension, not a relaxation of
+`source_crosschecked_simple_function_v1`. Overview/child results alone do not
+prove completeness; lexical masking must account for supported comments, quoted
+and raw strings, character/lifetime distinctions, balanced delimiters and nested
+declarations, and reject unsupported macros/cfg/generated cases. Plain regex
+replacement of strings/comments is not an adequate substitute.
+
+Do not build that scanner or a new harness automatically in this replay. If a
+follow-up is authorized, first select one actual diagnostic and one existing
+seed, demonstrate that a bounded range-local method can cover its syntax, and
+amend the shared method contract before either author implements it. Require
+matching A/B positive and negative fixtures in the existing unittest suites and
+one real source-bound acceptance replay; stop if the chosen case exceeds the
+declared subset. No complete Rust grammar, new dependency, reference-closure
+guarantee or broad rescan is implicitly authorized.

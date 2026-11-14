@@ -6,7 +6,9 @@ from contextlib import asynccontextmanager, redirect_stderr, redirect_stdout
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -472,6 +474,505 @@ class OutputTests(unittest.TestCase):
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 self.assertNotIn(ast.unparse(node.func), {"os.system", "os.popen", "eval", "exec"})
+
+
+class ProducerTests(unittest.TestCase):
+    def test_output_descendants_of_artifact_directory_rejected_before_transport(self):
+        for destination, aliased in ((d, a) for d in ("output", "snapshot") for a in (False, True)):
+            with self.subTest(destination=destination, resolved_alias=aliased), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory).resolve()
+                (root / ".git").mkdir()
+                (root / ".git" / "HEAD").write_text("a" * 40 + "\n")
+                inventory, plan = root / "inventory.json", root / "seeds.json"
+                inventory.write_text('{"schema_version":1,"clippy":[],"sonar":[]}')
+                plan.write_text('{"schema_version":1,"source_files":[]}')
+                artifacts = root / "artifacts"
+                output = artifacts / "hir-catalog.json" if destination == "output" else root / "evidence.json"
+                snapshot = artifacts / "q000001.json" if destination == "snapshot" else root / "snapshot.json"
+                if aliased:
+                    if destination == "output":
+                        output = output.parent / "unused" / ".." / output.name
+                    else:
+                        snapshot = snapshot.parent / "unused" / ".." / snapshot.name
+                with patch.object(collector, "ROOT", root), patch.object(
+                        collector, "CANONICAL_WORKSPACE", root), patch.object(
+                        collector, "connect", side_effect=collector.EvidenceError("reached transport")) as connect:
+                    with redirect_stderr(io.StringIO()):
+                        self.assertEqual(1, collector.main(["produce", "--workspace", str(root),
+                            "--inventory", str(inventory), "--plan", str(plan),
+                            "--snapshot", str(snapshot), "--output", str(output),
+                            "--artifacts", str(artifacts)]))
+                    connect.assert_not_called()
+                self.assertFalse(artifacts.exists())
+
+    def test_discovered_source_collision_preserves_both_accepted_outputs(self):
+        for destination in ("output", "snapshot"):
+            with self.subTest(destination=destination), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory).resolve()
+                (root / ".git").mkdir()
+                (root / ".git" / "HEAD").write_text("a" * 40 + "\n")
+                inventory, plan = root / "inventory.json", root / "seeds.json"
+                inventory.write_text('{"schema_version":1,"clippy":[],"sonar":[]}')
+                plan.write_text('{"schema_version":1,"source_files":[],"targets":["crate::target"]}')
+                consumer = root / "consumer.json"
+                consumer.write_text("target", encoding="utf-8")
+                output = consumer if destination == "output" else root / "accepted-evidence.json"
+                snapshot = consumer if destination == "snapshot" else root / "accepted-snapshot.json"
+                if output != consumer:
+                    output.write_text("previous accepted evidence")
+                if snapshot != consumer:
+                    snapshot.write_text("previous accepted snapshot")
+                before_output, before_snapshot = output.read_bytes(), snapshot.read_bytes()
+                fake = session(tools=[tool("who_uses")], results=[result(text=json.dumps({
+                    "target": "crate::target", "offset": 0, "limit": 50, "summary": False,
+                    "total_match_count": 1, "returned_match_count": 1, "usages": [{
+                        "file": "consumer.json", "start": 0, "end": 6, "category": "Other",
+                        "consumer_module": "crate", "consumer_function": "crate::f"}]}))])
+
+                @asynccontextmanager
+                async def fake_connect(*args):
+                    yield fake
+
+                with patch.object(collector, "ROOT", root), patch.object(
+                        collector, "CANONICAL_WORKSPACE", root), patch.object(collector, "connect", fake_connect):
+                    with redirect_stderr(io.StringIO()):
+                        self.assertEqual(1, collector.main(["produce", "--workspace", str(root),
+                            "--inventory", str(inventory), "--plan", str(plan),
+                            "--snapshot", str(snapshot), "--output", str(output),
+                            "--artifacts", str(root / "artifacts")]))
+                self.assertEqual(before_output, output.read_bytes())
+                self.assertEqual(before_snapshot, snapshot.read_bytes())
+
+    def test_producer_to_offline_planner_smoke(self):
+        planner_path = Path(os.environ.get(
+            "CLIPPY_PLANNER_SCRIPT", str(SCRIPT.with_name("clippy-constraint-plan.py"))))
+        if not planner_path.is_file():
+            self.skipTest("Set CLIPPY_PLANNER_SCRIPT to the read-only B script before integration")
+
+        def load(name, path):
+            spec = importlib.util.spec_from_file_location(name, path)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[name] = module
+            spec.loader.exec_module(module)
+            return module
+
+        planner = load("evidence_smoke_planner", planner_path)
+        overlap = load("evidence_smoke_overlap", SCRIPT.with_name("clippy-sonar-overlap.py"))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / ".git").mkdir()
+            (root / ".git" / "HEAD").write_text("a" * 40 + "\n")
+            source = root / "file.rs"
+            source.write_text("/// Doc.\npub fn f() -> u32 {\n    1\n}\n", encoding="utf-8")
+            for name in ("consumer0.rs", "consumer1.rs"):
+                (root / name).write_text("pub fn use_f() {\n    f();\n}\n", encoding="utf-8")
+            cargo, sonar = root / "cargo.jsonl", root / "sonar.json"
+            cargo.write_text(json.dumps({
+                "reason": "compiler-message", "message": {
+                    "level": "warning", "code": {"code": "clippy::doc_markdown"},
+                    "message": "doc example", "spans": [{
+                        "is_primary": True, "file_name": "file.rs", "line_start": 1,
+                        "column_start": 5, "line_end": 1, "column_end": 8}]},
+                "package_id": "fixture", "target": {"kind": ["lib"]}}) + "\n"
+                + '{"reason":"build-finished","success":true}\n', encoding="utf-8")
+            sonar.write_text(json.dumps({
+                "paging": {"pageIndex": 1, "pageSize": 100, "total": 1},
+                "issues": [{"key": "fixture-issue", "rule": "external_clippy:doc_markdown",
+                            "component": "fixture:file.rs", "project": "fixture",
+                            "message": "doc example", "textRange": {
+                                "startLine": 1, "startOffset": 4, "endLine": 1, "endOffset": 7}}]
+            }), encoding="utf-8")
+            inventory = root / "inventory.json"
+            inventory.write_text(json.dumps(overlap.inventory([cargo], sonar)), encoding="utf-8")
+            context = root / "sonar-context.json"
+            context.write_text(json.dumps({
+                "diagnostic_key": "sonar:S000001", "source_sha256": collector.sha256(source),
+                "inventory_column_unit": "unicode_scalar"}), encoding="utf-8")
+            proof = root / "proof.json"
+            proof.write_text('{"fixture":"synthetic source equivalence, not a real approval"}')
+            binding = root / "binding.json"
+            binding.write_text(json.dumps({
+                "inventory_sha256": collector.sha256(inventory), "head": "a" * 40,
+                "method": "independent_equivalence",
+                "files": [{"path": "file.rs", "sha256": collector.sha256(source)}],
+                "evidence_refs": [{"path": "proof.json", "sha256": collector.sha256(proof),
+                                   "locator": "fixture"}]}), encoding="utf-8")
+            plan = root / "seeds.json"
+            plan.write_text(json.dumps({"schema_version": 1,
+                "source_files": ["file.rs", "consumer0.rs", "consumer1.rs"],
+                "symbols": [{"path": "file.rs", "name_path": "f"}], "targets": ["fixture::f"]}))
+            hir_results = []
+            for offset in range(2):
+                consumer = root / f"consumer{offset}.rs"
+                start = consumer.read_bytes().index(b"f();")
+                hir_results.append(result(text=json.dumps({
+                    "target": "fixture::f", "offset": offset, "limit": 1, "summary": False,
+                    "total_match_count": 2, "returned_match_count": 1, "usages": [{
+                        "file": consumer.name, "start": start, "end": start + 1,
+                        "category": "Other", "consumer_module": "fixture",
+                        "consumer_function": f"fixture::consumer{offset}"}]})))
+            hir = session(tools=[tool("who_uses")], results=hir_results)
+            serena_tools = []
+            for name, properties in (
+                ("initial_instructions", []), ("get_current_config", []),
+                ("get_symbols_overview", ["relative_path", "depth"]),
+                ("find_symbol", ["name_path_pattern", "relative_path", "include_body", "depth", "max_matches"]),
+            ):
+                serena_tools.append({"name": "serena_1mcp_" + name, "inputSchema": {
+                    "properties": {key: {} for key in properties}, "required": []}})
+            serena = session(tools=serena_tools, results=[
+                result(text="The project with name 'AIForAll' at " + str(root) + " is activated."),
+                result(text="Active project: AIForAll\nLanguage server status: ready"),
+                result(text='{"Function":["f"]}'),
+                result(text=json.dumps([{"name_path": "f", "kind": "Function",
+                    "relative_path": "file.rs", "body_location": {"start_line": 0, "end_line": 3}}])),
+            ])
+
+            @asynccontextmanager
+            async def fake_connect(url, timeout):
+                yield serena if "serena" in url else hir
+
+            snapshot, evidence = root / "snapshot.json", root / "evidence.json"
+            with patch.object(collector, "ROOT", root), patch.object(
+                    collector, "CANONICAL_WORKSPACE", root), patch.object(collector, "connect", fake_connect):
+                self.assertEqual(0, collector.main(["produce", "--workspace", str(root),
+                    "--inventory", str(inventory), "--plan", str(plan), "--binding", str(binding),
+                    "--context", str(context), "--snapshot", str(snapshot), "--output", str(evidence),
+                    "--artifacts", str(root / "artifacts"), "--page-size", "1", "--serena-url",
+                    "http://127.0.0.1:3062/mcp?tags=serena"]))
+            emitted = json.loads(evidence.read_text())
+            snap = json.loads(snapshot.read_text())
+            self.assertEqual(["exact", "exact"], [m["status"] for m in emitted["mappings"]])
+            for mapping in emitted["mappings"]:
+                proofs = [ref for ref in mapping["evidence_refs"]
+                          if isinstance(ref, dict) and ref["locator"] == "/"]
+                self.assertEqual(1, len(proofs))
+                proof_data = json.loads((root / proofs[0]["path"]).read_text())
+                self.assertEqual("clippy-localization-proof", proof_data["kind"])
+                self.assertEqual(mapping["diagnostic_key"], proof_data["diagnostic_key"])
+                self.assertEqual([mapping["symbols"][0]["id"]],
+                                 proof_data["local_discovery"]["candidate_symbol_ids"])
+                self.assertTrue(all(proof_data["local_discovery"]["checked_predicates"].values()))
+                self.assertTrue(all(q in mapping["evidence_refs"]
+                                    for q in proof_data["local_discovery"]["query_ids"]))
+                self.assertIn(proofs[0]["path"], [item["path"] for item in snap["inputs"]
+                                                if item["role"] == "localization_proof"])
+            self.assertEqual(2, emitted["queries"][0]["pagination"]["pages"])
+            self.assertEqual(2, emitted["queries"][0]["pagination"]["returned"])
+            for path in [q["artifact"] for q in emitted["queries"]] + [i["path"] for i in snap["inputs"]]:
+                self.assertFalse(Path(path).is_absolute())
+                self.assertTrue((root / path).is_file())
+            report = root / "plan.json"
+            self.assertEqual(0, planner.main(["--inventory", str(inventory), "--snapshot", str(snapshot),
+                                             "--evidence", str(evidence), "--output", str(report)]))
+            planned = json.loads(report.read_text())
+            self.assertEqual(2, len(planned["diagnostics"]))
+            self.assertEqual(0, planned["confirmed_multi_file_components"])
+            self.assertEqual("unproven", planned["global_independence"])
+            # Physical localization is distinct from unknown reference closure.
+            self.assertEqual({"exact": 2}, planned["mapping_status_counts"])
+
+    def test_verified_serena_and_hir_envelopes(self):
+        data = [{"name_path": "f", "body_location": {"start_line": 0, "end_line": 2}}]
+        raw = result(structured={"result": json.dumps(data)}, text=json.dumps(data)).data
+        self.assertEqual(data, collector.decode_wire(raw, True))
+        self.assertEqual({"usages": []}, collector.decode_wire(result(text='{"usages":[]}').data))
+        raw["content"][0]["text"] = "[]"
+        with self.assertRaisesRegex(collector.EvidenceError, "conflicting"):
+            collector.decode_wire(raw, True)
+        for raw in (result(error=True).data, result(text="not JSON").data,
+                    result(structured={"error": "denied"}).data):
+            with self.assertRaises(collector.EvidenceError):
+                collector.decode_wire(raw)
+
+    def test_root_confined_repeated_separators_and_aliases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / "src").mkdir()
+            (root / "src" / "file.rs").write_text("fn f() {}\n", encoding="utf-8")
+            self.assertEqual("src/file.rs", collector.source_path(root, r"src\\file.rs")[0])
+            for path in ("../file.rs", "src/./file.rs", "//device/file.rs",
+                         "src/file.rs.", "SRC/file.rs", "src/missing.rs"):
+                with self.subTest(path=path), self.assertRaises(collector.EvidenceError):
+                    collector.source_path(root, path)
+
+    def test_source_hash_mismatch_and_independent_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "file.rs"
+            path.write_text("fn f() {}\n", encoding="utf-8")
+            sources = collector.capture_sources(root, ["file.rs"], 1)
+            self.assertEqual(set(), collector.bound_sources(None, "inv", "head", sources))
+            proof = root / "proof.json"
+            proof.write_text('{"proof":"synthetic independent context"}', encoding="utf-8")
+            binding = {"inventory_sha256": "inv", "head": "head",
+                       "method": "independent_equivalence", "evidence_refs": [
+                           {"path": str(proof), "sha256": collector.sha256(proof), "locator": "proof"}],
+                       "files": [{"path": "file.rs", "sha256": sources["file.rs"]["sha256"]}]}
+            self.assertEqual({"file.rs"}, collector.bound_sources(binding, "inv", "head", sources))
+            with self.assertRaises(collector.EvidenceError):
+                collector.bound_sources(binding, "different", "head", sources)
+            path.write_text("fn changed() {}\n", encoding="utf-8")
+            with self.assertRaisesRegex(collector.EvidenceError, "changed"):
+                collector.verify_sources(sources)
+
+    def test_unicode_columns_and_character_boundaries(self):
+        text = "aé😀z\r\nnext\n"
+        for unit, col in (("unicode_scalar", 3), ("utf8_byte", 7), ("utf16", 4)):
+            self.assertEqual(3, collector.offset_in_source(text, 1, col, unit))
+        self.assertEqual(7, collector.offset_in_source(text, 2, 1, "unicode_scalar"))
+        for unit, col in (("utf8_byte", 2), ("utf16", 3), ("unicode_scalar", 8)):
+            with self.subTest(unit=unit), self.assertRaises(collector.EvidenceError):
+                collector.offset_in_source(text, 1, col, unit)
+        self.assertEqual(3, collector.offset_in_source("a\u2028b\n", 1, 3, "unicode_scalar"))
+        self.assertEqual(4, collector.offset_in_source("a\u2028b\nx", 2, 0, "unicode_scalar"))
+
+    def test_inclusive_serena_endpoint_crosschecked_against_source(self):
+        text = "/// Documentation.\npub fn f() -> u32 {\n    1\n}\n"
+        native = {"name_path": "f", "kind": "Function",
+                  "body_location": {"start_line": 0, "end_line": 3}}
+        extent = collector.serena_extent(native, text)
+        self.assertEqual((1, 5, 0), (extent["start_line"], extent["end_line"], extent["end_column"]))
+        native["body_location"]["end_line"] = 2
+        with self.assertRaises(collector.EvidenceError):
+            collector.serena_extent(native, text)
+        native["body_location"]["end_line"] = 3
+        for source in (text.replace("    1", "    macro_call!()"),
+                       text.replace("    1", "    fn nested() {}"),
+                       text.replace("    1", "    let closure = || 1;"),
+                       text.replace("    1", "    /* unsupported comment */ 1"),
+                       text.replace("/// Documentation.", "#[external_macro]")):
+            with self.assertRaises(collector.EvidenceError):
+                collector.serena_extent(native, source)
+
+    def test_localization_proof_rejects_forged_nested_completeness(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "file.rs").write_text("pub fn f() {\n    fn nested() {}\n}\n", encoding="utf-8")
+            sources = collector.capture_sources(root, ["file.rs"], 1)
+            mapping = {"diagnostic_key": "clippy:C1", "status": "exact", "evidence_refs": ["q1"], "reasons": [],
+                       "symbols": [{"id": "s1", "path": "file.rs", "kind": "Function",
+                           "qualified_name": "serena::file.rs::f",
+                           "source_sha256": sources["file.rs"]["sha256"], "range": {
+                               "start_line": 1, "start_column": 0, "end_line": 4,
+                               "end_column": 0, "column_unit": "unicode_scalar"}}]}
+            collector.localization_proofs([mapping], [{"id": "q1", "status": "ok",
+                "tool": "serena_1mcp_find_symbol"}], root, root, sources, {})
+            self.assertEqual("unknown", mapping["status"])
+            self.assertEqual([], list(root.glob("localization-*.json")))
+
+    def test_mapping_exact_stale_ambiguous_missing_and_sonar_unknown(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            text = "pub fn f() -> u32 {\n    1\n}\n"
+            (root / "file.rs").write_text(text, encoding="utf-8")
+            sources = collector.capture_sources(root, ["file.rs"], 1)
+            symbol = {"id": "s1", "qualified_name": "serena::file.rs::f", "kind": "Function",
+                      "path": "file.rs", "source_sha256": sources["file.rs"]["sha256"],
+                      "range": collector.serena_extent({"name_path": "f", "kind": "Function",
+                                "body_location": {"start_line": 0, "end_line": 2}}, text)}
+            inv = {"schema_version": 1, "clippy": [{"id": "C1", "primary_spans": [
+                {"file": "file.rs", "range": [2, 4, 2, 5]}]}],
+                "sonar": [{"id": "S1", "file": "file.rs", "range": [2, 4, 2, 5]}]}
+            args = (inv, root, sources, [symbol], {"s1": ["q1"]})
+            mapped = collector.map_diagnostics(*args, {"file.rs"})
+            self.assertEqual(["exact", "unknown"], [m["status"] for m in mapped])
+            self.assertEqual("stale", collector.map_diagnostics(*args, set())[0]["status"])
+            duplicate = dict(symbol, id="s2")
+            mapped = collector.map_diagnostics(inv, root, sources, [symbol, duplicate],
+                                               {"s1": ["q1"], "s2": ["q2"]}, {"file.rs"})
+            self.assertEqual("ambiguous", mapped[0]["status"])
+            inv["clippy"][0]["primary_spans"][0]["file"] = "./file.rs"
+            self.assertEqual("ambiguous", collector.map_diagnostics(*args, {"file.rs"})[0]["status"])
+            inv["clippy"][0]["primary_spans"][0]["file"] = "missing.rs"
+            self.assertEqual("unknown", collector.map_diagnostics(*args, {"file.rs"})[0]["status"])
+
+    def test_native_byte_mismatch_never_repaired(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "file.rs").write_text("x target mismatch", encoding="utf-8")
+            sources = collector.capture_sources(root, ["file.rs"], 1)
+            limitations = []
+            row = {"file": "file.rs", "start": 2, "end": 8}
+            self.assertTrue(collector.check_usage_sources(
+                [row], "crate::target", root, sources, 1, limitations))
+            row["start"], row["end"] = 4, 10
+            self.assertFalse(collector.check_usage_sources(
+                [row], "crate::target", root, sources, 1, limitations))
+            self.assertIn("no offset repair", limitations[0])
+
+    def test_unindexed_worktree_rejected_before_any_connection(self):
+        with patch.object(collector, "connect") as connect, redirect_stderr(io.StringIO()):
+            self.assertEqual(1, collector.main(["produce", "--inventory", "missing.json",
+                "--plan", "missing.json", "--workspace", str(collector.ROOT),
+                "--snapshot", "snapshot.json", "--output", "evidence.json",
+                "--artifacts", "new-artifacts"]))
+            connect.assert_not_called()
+
+    def test_producer_contract_artifacts_with_mock_session(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / ".git").mkdir()
+            (root / ".git" / "HEAD").write_text("a" * 40 + "\n")
+            (root / "file.rs").write_text("target\n", encoding="utf-8")
+            inventory = root / "inventory.json"
+            inventory.write_text(json.dumps({"schema_version": 1, "clippy": [
+                {"id": "C1", "primary_spans": [{"file": "file.rs", "range": [1, 0, 1, 6]}]}],
+                "sonar": []}), encoding="utf-8")
+            plan = root / "plan.json"
+            plan.write_text(json.dumps({"schema_version": 1, "source_files": ["file.rs"],
+                                       "targets": ["crate::target"]}), encoding="utf-8")
+            fake = session(tools=[tool("who_uses")], results=[result(text=json.dumps({
+                "target": "crate::target", "offset": 0, "limit": 50, "summary": False,
+                "returned_match_count": 1, "total_match_count": 1,
+                "usages": [{"file": "file.rs", "start": 0, "end": 6, "category": "Other",
+                            "consumer_module": "crate", "consumer_function": "crate::f"}]}))])
+
+            @asynccontextmanager
+            async def fake_connect(*args):
+                yield fake
+
+            with patch.object(collector, "CANONICAL_WORKSPACE", root), patch.object(
+                    collector, "ROOT", root), patch.object(collector, "connect", fake_connect):
+                self.assertEqual(0, collector.main(["produce", "--workspace", str(root),
+                    "--inventory", str(inventory), "--plan", str(plan),
+                    "--snapshot", str(root / "snapshot.json"), "--output", str(root / "evidence.json"),
+                    "--artifacts", str(root / "artifacts")]))
+            evidence = json.loads((root / "evidence.json").read_text())
+            snapshot = json.loads((root / "snapshot.json").read_text())
+            self.assertEqual("clippy-code-evidence", evidence["kind"])
+            self.assertEqual(collector.sha256(root / "snapshot.json"), evidence["snapshot_sha256"])
+            self.assertEqual("clippy:C1", evidence["mappings"][0]["diagnostic_key"])
+            self.assertEqual("complete", evidence["queries"][0]["pagination"]["status"])
+            sequence = json.loads((root / evidence["queries"][0]["artifact"]).read_text())
+            self.assertEqual(1, len(sequence["pages"]))
+            raw_path = root / sequence["pages"][0]["artifact"]
+            self.assertFalse(json.loads(raw_path.read_text())["isError"])
+            self.assertEqual(collector.sha256(raw_path), sequence["pages"][0]["artifact_sha256"])
+            self.assertEqual([], evidence["relations"])
+            self.assertEqual("unknown", snapshot["source_binding"])
+            self.assertEqual("file.rs", snapshot["files"][0]["path"])
+
+
+class ProducerAsyncTests(unittest.IsolatedAsyncioTestCase):
+    async def test_full_page_preserves_observed_missing_consumer_function(self):
+        page = self.page(0, 14, list(range(14)), limit=50)
+        for index in (5, 6):
+            del page["usages"][index]["consumer_function"]
+        # Sanitized full-page wire shape: TextContent JSON, no structured payload,
+        # fourteen usages, with consumer_function omitted at the observed rows.
+        fake = session(tools=[tool("who_uses")], results=[result(text=json.dumps(page))])
+        with tempfile.TemporaryDirectory() as directory:
+            capture = collector.ProducerCapture(fake, [tool("who_uses")], Path(directory), 1)
+            rows, _, pagination = await collector.paged_who_uses(
+                capture, Path("root"), "crate::target", limit=50)
+            raw = json.loads((Path(directory) / "q000001.json").read_text())
+            self.assertIsNone(raw["structuredContent"])
+            self.assertEqual(page, json.loads(raw["content"][0]["text"]))
+        self.assertEqual(("complete", 14, 14),
+                         (pagination["status"], pagination["returned"], pagination["total"]))
+        self.assertNotIn("consumer_function", rows[5])
+        self.assertNotIn("consumer_function", rows[6])
+        self.assertEqual("crate::f4", rows[4]["consumer_function"])
+        fake.call_tool.assert_awaited_once()
+
+    async def test_usage_missing_required_or_invalid_optional_fields_stays_unsupported(self):
+        for field, value, remove in (("consumer_module", None, True),
+                                     ("file", 42, False), ("start", True, False),
+                                     ("consumer_function", None, False)):
+            page = self.page(0, 1, [0])
+            if remove:
+                del page["usages"][0][field]
+            else:
+                page["usages"][0][field] = value
+            with self.subTest(field=field):
+                (_, _, pagination), _ = await self.capture_pages([page])
+                self.assertNotEqual("complete", pagination["status"])
+                self.assertEqual(0, pagination["returned"])
+
+    async def test_serena_root_verified_on_owned_connection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / "file.rs").write_text("pub fn f() -> u32 {\n    1\n}\n", encoding="utf-8")
+            sources = collector.capture_sources(root, ["file.rs"], 1)
+            queries = [
+                ("The project with name 'AIForAll' at " + str(root) + " is activated.", {"id": "q1"}),
+                ("Active project: AIForAll\nLanguage server status: ready", {"id": "q2"}),
+                ({"Function": ["f"]}, {"id": "q3"}),
+                ([{"name_path": "f", "kind": "Function", "relative_path": "file.rs",
+                   "body_location": {"start_line": 0, "end_line": 2}}], {"id": "q4"}),
+            ]
+            capture = SimpleNamespace(query=AsyncMock(side_effect=queries))
+            symbols, refs = await collector.discover_serena(
+                capture, root, sources, [{"path": "file.rs", "name_path": "f"}], [])
+            self.assertEqual("serena::file.rs::f", symbols[0]["qualified_name"])
+            self.assertEqual(["q3", "q4"], refs[symbols[0]["id"]])
+            self.assertEqual("initial_instructions", capture.query.call_args_list[0].args[1])
+            self.assertEqual("get_current_config", capture.query.call_args_list[1].args[1])
+            bad = SimpleNamespace(query=AsyncMock(side_effect=[
+                ("The project at DIFFERENT is activated.", {"id": "q1"}), queries[1]]))
+            with self.assertRaisesRegex(collector.EvidenceError, "root/readiness"):
+                await collector.discover_serena(bad, root, sources, [], [])
+            self.assertEqual(2, bad.query.await_count)
+
+    async def test_capture_failure_keeps_raw_and_cannot_call_arbitrary_tool(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake = session(results=[result(error=True, text="Error: not ready")])
+            capture = collector.ProducerCapture(fake, [tool("who_uses")], root, 1)
+            with self.assertRaises(collector.EvidenceError):
+                await capture.query("rust-code-mcp", "who_uses", {
+                    "directory": "root", "target": "crate::f", "limit": 2, "offset": 0})
+            self.assertTrue((root / "q000001.json").exists())
+            self.assertEqual("error", capture.queries[0]["status"])
+            with self.assertRaises(collector.EvidenceError):
+                await capture.query("rust-code-mcp", "clear_cache", {})
+            self.assertEqual(1, fake.call_tool.await_count)
+
+    def page(self, offset, total, rows, limit=2):
+        return {"target": "crate::target", "offset": offset, "total_match_count": total,
+                "returned_match_count": len(rows), "limit": limit, "summary": False,
+                "usages": [{"file": f"src/{i}.rs", "start": i, "end": i + 1,
+                            "category": "Other", "consumer_module": "crate",
+                            "consumer_function": f"crate::f{i}"} for i in rows]}
+
+    async def capture_pages(self, pages, max_pages=8):
+        fake = SimpleNamespace(query=AsyncMock(side_effect=[
+            (page, {"id": f"q{i}", "status": "ok"}) for i, page in enumerate(pages)]))
+        result = await collector.paged_who_uses(fake, Path("root"), "crate::target", 2, max_pages)
+        return result, fake
+
+    async def test_verified_multi_page_and_zero_scope(self):
+        (rows, queries, pagination), fake = await self.capture_pages([
+            self.page(0, 3, [0, 1]), self.page(2, 3, [2])])
+        self.assertEqual(3, len(rows))
+        self.assertEqual("complete", pagination["status"])
+        self.assertEqual([0, 2], [c.args[2]["offset"] for c in fake.query.call_args_list])
+        (_, _, pagination), _ = await self.capture_pages([self.page(0, 0, [])])
+        self.assertEqual(("complete", 0), (pagination["status"], pagination["total"]))
+
+    async def test_duplicate_gapped_truncated_inconsistent_pages_partial(self):
+        for second in (self.page(2, 4, [0, 1]), self.page(1, 4, [2, 3]),
+                       self.page(2, 5, [2, 3]), self.page(2, 4, [])):
+            with self.subTest(second=second):
+                (rows, queries, pagination), _ = await self.capture_pages([
+                    self.page(0, 4, [0, 1]), second])
+                self.assertEqual(2, len(rows))
+                self.assertEqual("partial", pagination["status"])
+                self.assertEqual("error", queries[-1]["status"])
+
+    async def test_budget_and_unsupported_never_complete(self):
+        (_, _, pagination), _ = await self.capture_pages([self.page(0, 3, [0, 1])], 1)
+        self.assertEqual("partial", pagination["status"])
+        (_, queries, pagination), _ = await self.capture_pages([{"items": []}])
+        self.assertEqual("unknown", pagination["status"])
+        self.assertEqual("unsupported", queries[0]["status"])
+
+    async def test_empty_target_does_not_execute(self):
+        fake = SimpleNamespace(query=AsyncMock())
+        with self.assertRaises(collector.EvidenceError):
+            await collector.paged_who_uses(fake, Path("root"), "")
+        fake.query.assert_not_awaited()
 
 
 if __name__ == "__main__":
