@@ -29,7 +29,8 @@ foreach ($name in $names) {
         catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Cross-suite Manifesto selection accepted' } }
     }
 }
-foreach ($name in @('coverage90_invitation_transitions', 'coverage90_member_roles')) {
+$hiveBinaries = @('coverage90_invitation_transitions', 'coverage90_member_roles', 'organization_api_tests')
+foreach ($name in $hiveBinaries) {
     if ((Resolve-ItTestBinary -Suites @('hive') -Binary $name) -cne $name) { throw 'Valid exact Hive selection rejected' }
     foreach ($badName in @($name.ToUpperInvariant(), (' ' + $name), ($name + ' '), ('tests/' + $name + '.rs'), ($name + '; anything'))) {
         try { $null = Resolve-ItTestBinary -Suites @('hive') -Binary $badName; throw 'unexpected-accept' }
@@ -127,9 +128,10 @@ $branch = $ast.Find({ param($node)
 }, $true)
 if ($null -eq $branch) { throw 'Missing actual Cargo selection branch' }
 function cargo { $script:seen = @($args) }
-$packages = @{manifesto='manifesto-service'; iam='iam-service'; lazaret='lazaret-service'; telegraph='telegraph-service'}
-foreach ($selected in @('manifesto', 'iam', 'lazaret', 'telegraph')) {
+$packages = @{manifesto='manifesto-service'; iam='iam-service'; hive='hive-service'; lazaret='lazaret-service'; telegraph='telegraph-service'}
+foreach ($selected in @('manifesto', 'iam', 'hive', 'lazaret', 'telegraph')) {
     $selections = if ($selected -eq 'iam') { @('') + $iamBinaries }
+                  elseif ($selected -eq 'hive') { @('') + $hiveBinaries }
                   elseif ($selected -eq 'lazaret') { @('', 'redis_tls') }
                   elseif ($selected -eq 'telegraph') { @('', 'outbox_runtime_tests') }
                   else { @('') + $names }
@@ -141,4 +143,4 @@ foreach ($selected in @('manifesto', 'iam', 'lazaret', 'telegraph')) {
         if (($script:seen -join '|') -cne ($expected -join '|')) { throw 'Actual Cargo arguments do not match the closed selection' }
     }
 }
-Write-Host 'PASS: exact IAM OAuth/Manifesto/Lazaret Redis TLS selections, default compatibility, refusals, placement and actual Cargo branches; no runtime executed'
+Write-Host 'PASS: exact IAM OAuth/Hive/Manifesto/Telegraph/Lazaret Redis TLS selections, default compatibility, refusals, placement and actual Cargo branches; no runtime executed'

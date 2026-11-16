@@ -29,7 +29,7 @@ function Resolve-ItTestBinary {
     param([string[]]$Suites, [string]$Binary)
     if ([string]::IsNullOrEmpty($Binary)) { return '' }
     if ($Suites.Count -eq 1 -and $Suites[0] -ceq 'hive' -and
-        $Binary -cin @('coverage90_invitation_transitions', 'coverage90_member_roles')) {
+        $Binary -cin @('coverage90_invitation_transitions', 'coverage90_member_roles', 'organization_api_tests')) {
         return $Binary
     }
     if ($Suites.Count -eq 1 -and $Suites[0] -ceq 'lazaret' -and $Binary -ceq 'redis_tls') {
