@@ -1,6 +1,7 @@
 //! Redis testcontainer for Lazaret KV adapter tests.
 //!
-//! Container name: `lazaret_test-redis`. Service-local; not `has_redis` on the shared descriptor.
+//! Each plaintext container gets a fresh `lazaret_test-redis-<UUID>` name.
+//! Service-local; not `has_redis` on the shared descriptor.
 
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
@@ -102,15 +103,16 @@ async fn get_or_create_test_redis_container() -> Result<u16, Box<dyn std::error:
         listener.local_addr()?.port()
     };
 
+    let container_name = format!("lazaret_test-redis-{}", uuid::Uuid::new_v4().simple());
     let image = GenericImage::new("redis", "7-alpine")
-        .with_container_name("lazaret_test-redis")
+        .with_container_name(&container_name)
         .with_mapped_port(port, testcontainers::core::ContainerPort::Tcp(6379));
 
     info!("Starting Redis container on port {port}");
     let container = rustycog::testing::common::start_service_testcontainer(
         image.start(),
         "redis",
-        "lazaret_test-redis",
+        &container_name,
         port,
     )
     .await?;

@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-The minimal incarnation fix is published in the SDK, and the targeted Hive binary passes. Reliable repeated execution of all five native integration suites is not established: the full-campaign preflight found a separate unsafe Lazaret fixture cleanup path, so neither complete campaign was started.
+The minimal incarnation fix is published in the SDK, and the targeted Hive binary passes. The user subsequently approved the separate Lazaret safety correction described below. The complete Lazaret suite now passes, including the foreign-name canary regression. Reliable repeated execution of all five suites is not yet established.
 
 The user approved a minimal naming fix and bounded validation. The withdrawn port-allocation rewrite is not restored, and its passing tests are not evidence for this change.
 
@@ -51,24 +51,39 @@ AIForAll adds only the exact Hive `organization_api_tests` selection to the exis
 - Targeted native Hive `organization_api_tests`: 23 passed, zero failed, ignored, or filtered; unchanged two libtest threads. Campaign `it-fdc11a6a3ef1429a8ddeea8f25900f1d`.
 - Targeted cleanup: two proven-owned containers created, both absent afterward; zero owned running, zero unknown creations, zero collision events. The six pre-existing containers retain their IDs, names, states, images, published ports, and mounts in the before/after snapshots.
 - Images: 99 before and after, no removals. Volumes: 418 before, 419 after, no removals. The new volume's creation event was registered as `ask`; no volume removal was attempted.
-- Two consecutive five-suite native campaigns: not started, blocked by the Lazaret safety finding below.
+- Two consecutive five-suite native campaigns: pending after the successful Lazaret safety validation below.
 
 Passing unit or hermetic checks do not establish real dependency startup reliability.
 
 ## Separate full-campaign preflight blocker
 
-`services/Lazaret/tests/fixtures/openbao/mod.rs` calls `cleanup_existing_openbao_container()` before the ownership-aware start wrapper. That helper unconditionally executes `docker stop lazaret_test-openbao` followed by `docker rm -f lazaret_test-openbao`. A matching name does not establish ownership. `apparatus_p3_t12_openbao.rs` invokes this fixture without an opt-in gate.
+At the initial preflight, `services/Lazaret/tests/fixtures/openbao/mod.rs` called `cleanup_existing_openbao_container()` before the ownership-aware start wrapper. That helper unconditionally executed `docker stop lazaret_test-openbao` followed by `docker rm -f lazaret_test-openbao`. A matching name does not establish ownership. `apparatus_p3_t12_openbao.rs` invokes this fixture without an opt-in gate.
 
-`services/Lazaret/tests/fixtures/redis.rs` also uses the fixed name `lazaret_test-redis`. The existing stopped-name protection means that leaving an earlier process's container until parent cleanup can cause another cross-binary preparation refusal. This is a source-level risk, not a newly executed failure.
+The plaintext fixture in `services/Lazaret/tests/fixtures/redis.rs` also used the fixed name `lazaret_test-redis`. The existing stopped-name protection means that leaving an earlier process's container until parent cleanup can cause another cross-binary preparation refusal. This was a source-level risk, not a newly executed failure.
 
-Neither fixture was changed or executed in this mission. Starting the full campaign would knowingly enter a cleanup path inconsistent with the user's ownership constraint.
+The first phase stopped before running these fixtures. Starting the full campaign at that point would have knowingly entered a cleanup path inconsistent with the user's ownership constraint.
 
-Proposed next bounded change, requiring a separate scope decision:
+The user then approved this separate bounded correction:
 
 - Remove the blind OpenBao stop/remove preflight.
 - Give the local OpenBao and non-TLS Redis fixtures fresh names, while retaining the existing ownership-aware creation and exact-ID teardown.
 - Leave ports, assertions, thread settings, and the SDK ownership backend unchanged.
 - Validate that a foreign old-name canary is never stopped/removed and that successive fixture processes cannot reuse a reserved name; then resume the two full native campaigns.
+
+### Lazaret follow-up implementation and validation
+
+The blind OpenBao helper is removed, and the local OpenBao and plaintext Redis fixtures now generate UUID-suffixed names. Their existing port selection, singleton behavior, ownership-aware wrapper, readiness probes, and exact-ID teardown are unchanged. The TLS Redis fixture and original protocol assertions are untouched.
+
+`services/Lazaret/tests/fixture_name_isolation.rs` creates two controlled canaries through the existing supervised harness, reserving the legacy OpenBao and Redis names. These resources belong to the regression test, not to the fixture under test. The new fixtures must remain usable without changing either canary's real ID, running state, or sentinel Redis data. Inspect-by-name is used only as an assertion witness, never as cleanup authority. No existing foreign container is adopted or removed.
+
+- Rustfmt on the affected files: passed.
+- `cargo test --locked -p lazaret-service --tests --no-run`: passed, compiling 16 executables.
+- Full native Lazaret suite: 81 passed, zero failed, ignored, or filtered across 16 result summaries; two unchanged libtest threads. Campaign `it-7d385f2109d444b382f687a078a57dad`.
+- The isolated canary regression passed: old-name canaries retained their real identities, running states, and sentinel data while new OpenBao and Redis fixtures remained usable.
+- Actual process-boundary evidence: two OpenBao containers across two processes and three plaintext Redis containers across three processes, all with distinct names.
+- Fifteen proven-owned containers created, all absent afterward; zero unknown creations or collision events. All six pre-existing containers retained their IDs, names, states, images, ports, and mounts.
+- Images remained 99 -> 99; volumes 419 -> 433, without removals. New volume events remain recorded as `ask`, without inferred cleanup authority.
+- Complete five-suite repetitions: next validation step.
 
 ## Resource boundary
 
@@ -84,4 +99,4 @@ The existing harness records fresh container identities and performs its exact-I
 - Historical evidence: `.tmp/retire-legacy-connect-20261115/integration/` and `.tmp/postgres-daemon-port-20261115/`.
 - Resource registry: `.tmp/docker-resources-20261116.log`, plus all relevant historical daily registries.
 
-No new native preparation failure occurred in the targeted run. The historical port failure remains unresolved; a successful Hive binary does not disprove it. Resume full-campaign validation only after the Lazaret safety blocker has an approved disposition. Do not automatically rerun the campaign or add a speculative port fix.
+No new native preparation failure occurred in the targeted Hive and full Lazaret runs. The historical port failure remains unresolved; these successful runs do not disprove it. The Lazaret safety correction has passed its bounded native validation, permitting the planned complete campaigns. Do not automatically rerun a failed campaign or add a speculative port fix.

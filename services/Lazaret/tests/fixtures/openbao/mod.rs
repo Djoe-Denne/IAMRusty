@@ -1,6 +1,6 @@
 //! `OpenBao` testcontainer for `Lazaret` secret-resolver product proof (T12).
 //!
-//! Container name: `lazaret_test-openbao`. Service-local; not `has_openbao` on
+//! Each container gets a fresh `lazaret_test-openbao-<UUID>` name. Service-local; not `has_openbao` on
 //! the shared descriptor. Same image tag as `docker-compose` (`openbao/openbao:2.6.2`).
 
 use std::sync::{Arc, OnceLock};
@@ -13,7 +13,6 @@ use tracing::{debug, info, warn};
 
 const IMAGE: &str = "openbao/openbao";
 const TAG: &str = "2.6.2";
-const CONTAINER_NAME: &str = "lazaret_test-openbao";
 const ROOT_TOKEN: &str = "lazaret-dev-root";
 const MOUNT: &str = "secret";
 const CONTAINER_PORT: u16 = 8200;
@@ -137,14 +136,13 @@ async fn get_or_create_test_openbao_container() -> Result<u16, Box<dyn std::erro
         return Ok(port);
     }
 
-    cleanup_existing_openbao_container();
-
     let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
     let port = listener.local_addr()?.port();
     drop(listener);
 
+    let container_name = format!("lazaret_test-openbao-{}", uuid::Uuid::new_v4().simple());
     let image = GenericImage::new(IMAGE, TAG)
-        .with_container_name(CONTAINER_NAME)
+        .with_container_name(&container_name)
         .with_mapped_port(
             port,
             testcontainers::core::ContainerPort::Tcp(CONTAINER_PORT),
@@ -165,7 +163,7 @@ async fn get_or_create_test_openbao_container() -> Result<u16, Box<dyn std::erro
     let container = rustycog::testing::common::start_service_testcontainer(
         image.start(),
         "openbao",
-        CONTAINER_NAME,
+        &container_name,
         port,
     )
     .await?;
@@ -184,17 +182,6 @@ async fn get_or_create_test_openbao_container() -> Result<u16, Box<dyn std::erro
         return Ok(existing_port);
     }
     Ok(port)
-}
-
-fn cleanup_existing_openbao_container() {
-    use std::process::Command;
-    debug!("Checking for existing {CONTAINER_NAME}");
-    let _ = Command::new("docker")
-        .args(["stop", CONTAINER_NAME])
-        .output();
-    let _ = Command::new("docker")
-        .args(["rm", "-f", CONTAINER_NAME])
-        .output();
 }
 
 fn encode_vault_path(path: &str) -> String {
