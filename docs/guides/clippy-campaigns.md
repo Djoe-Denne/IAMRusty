@@ -83,33 +83,103 @@ validation attendue et dépendances sur les autres lots. La ligne du run est une
 aide de navigation, **pas l'identité du lot**. Aucun nombre fixe de sous-agents :
 choisir selon les lots indépendants et charger `opencode-ensemble` si délégation.
 
-Dans un worktree divergent, les positions canoniques ne sont qu'une piste :
-vérifier le code local et les différences avant correction. Ne pas faire croire
-que l'index ou le rapport canonique contient les changements non intégrés.
-Un worker ne lance pas Cargo pendant les éditions parallèles ; en cas de
-position obsolète ou de consommateur hors claim, il relit le symbole ou rend
-le blocage au lead, sans étendre son périmètre ni éditer chez un autre auteur.
+In a divergent worktree, canonical locations are hints: inspect the actual local
+code and delta before editing. Canonical indexes do not include unintegrated
+worktree edits. A worker does not run Cargo during the editing phase, even after
+finishing its own lot. An out-of-claim consumer or stale location requires
+relocalization or a blocker report, not an ownership extension.
 
-## 4. Corriger, intégrer, relancer, redistribuer
+## 4. Continuously refill workers; validate at the final barrier
 
-1. Les auteurs corrigent leurs lots en appliquant les décisions et validations
-   pertinentes. Pas de `--fix` global, de nouveau `allow` ou de changement
-   d'exclusions pour faire artificiellement disparaître la dette.
-2. Le lead arrête les éditions, intègre les deltas autorisés et vérifie les
-   consommateurs, tests et décisions nouvelles. Les tests comportementaux
-   nécessaires ne sont pas remplacés par Clippy.
-3. Une fois le slot Cargo disponible, relancer **`just clippy-ci`** sur l'arbre
-   intégré ; reconstruire l'inventaire à partir de ces nouveaux rapports.
-4. Comparer les findings à périmètre constant, examiner les régressions et
-   préparer de nouveaux claims sur les sources actuelles. Ne pas « refill »
-   une vieille liste à partir de ses lignes. Une disparition par feature
-   désactivée, analyse partielle, `allow` ou exclusion n'est pas une correction.
+The default is a bounded continuous queue, not synchronized waves of ten agents.
+Choose concurrency from independent claims and available authorized workers.
+Only the lead assigns lots; using this guide does not launch agents or a campaign.
 
-Cette boucle s'effectue après chaque lot intégré, ou après une vague de lots
-disjoints intégrés ensemble ; pas un Cargo concurrent par auteur. Entre deux
-photographies, les auteurs relisent le code actuel au lieu de recalculer des
-numéros de ligne. Un Clippy ciblé peut aider, mais n'atteste pas le compteur
-global des deux passes.
+1. **Freeze a backlog from the initial valid snapshot.** Give findings run-local
+   IDs, rule/symbol/context and explicit file ownership. Agree the campaign scope
+   and final validation commands before dispatch. This backlog is historical
+   evidence of what to inspect, not a live warning counter.
+2. **Refill without waiting for peers.** When a worker finishes, first secure its
+   report and identifiable delta, release its old claim, then assign another
+   eligible lot from that backlog. A queued finding must still be confirmed in
+   the current code; never recalculate old line offsets. Record already-absent or
+   changed findings as such, not as worker fixes. Do not manufacture new findings
+   from stale positions or start a new scan while edits continue.
+3. **Respect dependencies rather than forcing occupancy.** Keep signatures and
+   consumers together. A lot depending on unintegrated work stays queued until
+   that dependency is available and its scope is rechecked. Use isolated writer
+   worktrees according to project policy; reports do not replace integration.
+   A free worker may stay idle when no independent lot is eligible.
+4. **Do not compile after each return.** During the editing phase, workers use
+   source/reference/diff inspection and record Cargo-dependent checks as not run.
+   No `cargo build`, `check`, `test`, `clippy` or formatter/hook mutating active
+   source files is launched as a background shortcut. Do not bypass normal hooks;
+   defer an operation whose hook requires an unsafe validation/mutation.
+5. **Drain and close the editing phase.** Once the frozen backlog is completed,
+   blocked or explicitly deferred, stop refilling. Obtain explicit no-more-writes
+   acknowledgements from all writers, including pending/background edits. Secure
+   their reports and deltas, integrate the retained changes and record the exact
+   integrated source state. A returned chat message alone is not this barrier.
+6. **Validate the frozen integrated tree.** The lead reserves the single Windows
+   Cargo slot (24 internal jobs) while writers remain paused. Run the agreed
+   build and risk-appropriate tests, then complete `just clippy-ci` to refresh both
+   passes and compare findings at constant scope. Clippy analyzes/compiles code;
+   it is not a substitute for linked-build proof or behavioral tests when those
+   are required. Do not add redundant checks merely because each lot returned.
+7. **Repair from evidence.** Use per-lot reports and the actual integrated diff
+   to attribute compilation errors or incompatible changes, including interacting
+   lots. Open bounded repair lots, then repeat the no-writer barrier before
+   revalidation. Rebuild the next backlog from the fresh complete reports, not
+   from guessed offsets. Failed/partial analysis is not zero warnings.
+
+This intentionally detects some integration mistakes only at the end. An earlier
+coordinated barrier is possible if a dependency or safety issue makes further
+editing unsafe: stop refilling and collect acknowledgements first. It is not the
+default response to each worker completion. No global `--fix`, new `allow`,
+feature reduction or exclusions to manufacture progress.
+
+### Per-lot files are the recovery record
+
+Before dispatch, the lead creates `.tmp/<campaign>/index.md` and assigns each
+worker a unique absolute report path corresponding to
+`.tmp/<campaign>/lots/<lot-id>.md`. The lead alone edits the index (claims,
+dependencies, report/delta locations, integration and final validation states);
+each worker writes only its own report. If tool permissions require a worktree-
+local report, the lead must collect it in the canonical folder before reassignment
+or worktree cleanup. Never depend on a future chat summary to reconstruct it.
+
+Start the report at claim time and checkpoint meaningful progress. Finalize it
+before reporting completion or accepting another lot; one reused worker produces
+one file per lot, not one overwritten worker diary. Secure a per-lot commit or
+patch/reference identifying its actual changes; cumulative worker diffs must not
+erase attribution between successive lots. Preserve reports through final
+validation. A crashed worker or missing final report is incomplete work to inspect,
+not implied completion; keep its claim until disposition is verified.
+
+Copy this textual template; keep it concise and never store secrets:
+
+```markdown
+# Lot <id>
+- Status: in_progress | edited_unvalidated | no_change | blocked
+- Owner/session; repository/worktree/branch; base HEAD and dirty-source identity:
+- Snapshot/run ID; finding IDs; rules; current symbols/context:
+- Authorized files; actual changed/added/deleted files:
+- Changes and rationale; applicable decision IDs/skill precedents:
+- Signatures/consumers affected (or none); invariants preserved:
+- Delta: per-lot commit SHA or secured patch path/base/hash:
+- Checks actually run: commands, results and evidence paths:
+- Checks NOT run: commands and reason (including the shared editing phase):
+- Remaining risks, dependencies, blockers and next diagnostic steps:
+- Final handoff: no pending source writes; report/delta ready for lead collection:
+```
+
+`edited_unvalidated` means code was delivered, not that it compiles or fixes a
+finding. The lead records acceptance against final evidence separately. After
+context compaction or a lead change, read the index, referenced reports, source
+deltas and current ownership before scheduling or validating. Reconcile them
+with the actual tree; text is evidence, not proof that the tree matches it.
+Temporary files support execution/recovery; durable decisions and final outcomes
+still belong in the tracked decision register/mission handoff as appropriate.
 
 ## 5. Garder Sonar comme contrôle complémentaire
 

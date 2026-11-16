@@ -1,17 +1,16 @@
-# Scénarios de contrôle du skill
+# Skill control scenarios
 
-`evals.json` fournit huit exercices sans correction réelle de code :
-précédent applicable, exception de contexte en read-only, proposition non
-approuvée et conflit/dérogation en travail parallèle ; puis fraîcheur des
-positions, dispersion/impact, file Sonar complémentaire et rapport incomplet.
+`evals.json` contains twelve exercises without real source corrections:
+applicable precedents, read-only exceptions, unapproved decisions, conflicts,
+snapshot freshness, dispersion/impact, Sonar-only findings and partial reports;
+then continuous refill, recovery after compaction, a false final barrier and
+post-build integration repairs.
 
-Pour chaque exercice, lire la version du skill à évaluer puis répondre avec :
-action retenue, précédent consulté, statut de la décision, accord nécessaire,
-trace à conserver et écritures autorisées. Comparer avec `expected_output`.
-Les références à des issues ou décisions dans les prompts sont hypothétiques :
-ne pas les enregistrer comme de vrais arbitrages ou comme des faits du dépôt.
+For each exercise, read the skill version under evaluation and state the action,
+applicable precedent, decision status, required approval, persisted evidence and
+permitted writes. Compare with `expected_output`. Issue/decision references in
+the prompts are hypothetical, not real project decisions to record.
 
-À l'introduction de ces scénarios, seules leur cohérence avec les consignes et
-leur structure ont été vérifiées par relecture et contrôles statiques. Aucun
-benchmark inter-modèles, test d'obéissance indépendant ou taux de conformité
-n'est annoncé. La présence du skill reste une instruction, pas un verrou.
+These scenarios have only been reviewed for consistency and static structure.
+No independent obedience evaluation, multi-model benchmark or compliance rate is
+claimed. The skill is guidance, not a technical lock on concurrent writes/Cargo.

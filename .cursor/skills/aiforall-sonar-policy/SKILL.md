@@ -5,8 +5,9 @@ description: >-
   (IAMRusty, Hive, Telegraph, Manifesto, sentinel-sync). Consult precedents before
   fixing diagnostics or GitHub lint issues; record new decisions and obtain
   approval for deviations. Run Clippy-first campaigns from fresh local JSON
-  diagnostics, classify impact and dispatch disjoint agent lots; refresh after
-  integration instead of calculating offsets from stale Sonar lines. Use when fixing
+   diagnostics, continuously refill disjoint agent lots with on-disk reports,
+   then validate at a final no-writer barrier instead of after each return.
+   Never calculate offsets from stale Sonar lines. Use when fixing
   Sonar/Clippy issues on Djoe-Denne_IAMRusty, writing rustdoc # Errors/# Panics,
   replacing unwrap after persist, OAuth URL construction, From vs TryFrom,
   future_not_send, too_many_lines migrations/setup, duplicate_mod in
@@ -27,34 +28,45 @@ anciennes limites liées aux OOM LLVM (os error 1455) sont historiques. Si la
 pression mémoire réapparaît, demander un arbitrage avant de réduire les jobs.
 Pas de cargo pendant que d’autres lots éditent. Pas de compilation dans Docker.
 
-## Campagnes : Clippy d'abord, Sonar en complément
+## Campaigns: continuous dispatch, final validation
 
-Pour inventorier, classer et répartir les corrections, suivre
-[`docs/guides/clippy-campaigns.md`](../../../docs/guides/clippy-campaigns.md).
-Le workflow courant remplace le pilotage par les lignes Sonar des anciennes
-campagnes ; leurs chiffres, claims et plafonds d'agents sont historiques.
+Follow [`docs/guides/clippy-campaigns.md`](../../../docs/guides/clippy-campaigns.md)
+for inventory, ownership, the per-lot report template and recovery. That guide
+replaces historical wave-by-wave scheduling; ten workers is an example, not a
+required count. Use only independently owned lots and load `opencode-ensemble`
+before authorized delegation; editing this skill does not start a mission.
 
-- Le lead lance `just clippy-ci` **avant le dispatch**, puis lit les diagnostics
-  Cargo JSON locaux des deux passes production/tests. Garder les règles propres
-  à Sonar dans une file complémentaire ; absence dans Clippy ≠ résolution Sonar.
-- Distinguer la **dispersion** d'une règle (une ou plusieurs aires) de
-  l'**impact du correctif** (local, structure, comportement, API/appelants).
-  Répartir par fichiers exclusifs ; regrouper signatures et consommateurs dans
-  le même lot. Le nombre d'agents dépend des lots indépendants, pas d'un ancien
-  plafond fixe. Sous OpenCode, charger `opencode-ensemble` avant délégation.
-- Une position `message.spans` n'est valable que pour les sources du run.
-  Après édition, ne pas calculer d'offset Sonar/Clippy : relire le symbole/code
-  actuel. Ne pas attribuer une nouvelle tranche depuis un inventaire périmé.
-- Quand les écrivains sont arrêtés et les lots intégrés, le lead relance
-  `just clippy-ci`, reconstruit l'inventaire et le prochain dispatch. Un Clippy
-  ciblé peut aider au diagnostic, mais ne remplace pas ce passage complet pour
-  comparer les compteurs. Même périmètre, toolchain et features ; consigner
-  toute limite ou analyse partielle, ne pas transformer un échec en zéro.
-- Dédupliquer **dans un run**, avec les appartenances aux passes conservées.
-  Les lignes et offsets ne sont pas des identifiants persistants entre runs.
-  Les workers ne lancent pas Cargo pendant les éditions parallèles et ne
-  réaffectent pas seuls des fichiers. Aucun `--fix` global ni nouveau `allow`
-  pour masquer les diagnostics. Les précédents ci-dessous restent obligatoires.
+- Before dispatch, the lead obtains a fresh, complete two-pass `just clippy-ci`
+  snapshot on stable sources. Retain Sonar-only findings separately.
+- Freeze that snapshot's bounded backlog. Separate rule dispersion from change
+  impact; keep signatures and their consumers with one owner. Preserve file
+  exclusion and the package × src/tests mutex.
+- Refill an available worker immediately from an eligible, unclaimed lot after
+  its previous report/delta is secured. Do not wait for other workers, compile
+  after each return, or impose ten-worker waves. Revalidate each queued finding
+  against its current symbol/context before editing: snapshot lines are only
+  navigation hints, never offsets to recalculate or a claim of current counts.
+- Each worker writes its own `.tmp/<campaign>/lots/<lot-id>.md`, checkpoints
+  meaningful progress and finalizes it before reassignment. Record files,
+  symbols/signatures, changes, invariants, applicable precedents, delta identity,
+  risks and actual/not-run checks. The lead alone updates the campaign index;
+  chat history and a compacted supervisor context are not the recovery record.
+- Workers do not run Cargo during the editing phase, even when their own lot is
+  finished. `edited_unvalidated` is not build success or acceptance. A blocked
+  scope or unavailable report does not authorize extending claims.
+- Once the frozen backlog is drained or explicitly deferred, stop refilling,
+  obtain no-more-writes acknowledgements, secure reports/deltas and integrate
+  the retained changes. Keep all source writers paused throughout validation.
+  The lead then owns the single Cargo slot: agreed build/tests and complete
+  `just clippy-ci`, with unchanged toolchain/features and honest partial failures.
+- Attribute final errors using the persisted reports and actual integrated diff.
+  Reopen bounded correction lots, then cross another no-writer barrier before
+  revalidation. An earlier coordinated barrier is an exception for a dependency
+  or safety issue, not an automatic action on every worker return.
+
+No global `--fix`, new `allow` or exclusion to hide findings. Deduplicate within
+each run while preserving pass memberships; IDs/line numbers are not persistent
+across scans. Existing correction precedents below remain mandatory.
 
 ## Consulter, appliquer et conserver les décisions
 
@@ -176,12 +188,11 @@ changée met à jour tous les appelants avant de rendre le lot.
 `clone_on_copy`, `redundant_clone`, `format_push_string` (`write!`) : correctif
 local, sans changement de signature.
 
-## Après un lot
+## After a lot
 
-En campagne, le lead valide l'arbre intégré et rafraîchit l'inventaire via
-`just clippy-ci` selon la boucle ci-dessus ; pas de Cargo par worker pendant
-les éditions parallèles. `cargo check -p <crate>` (et `--tests` si lane tests)
-ou un Clippy ciblé `-W clippy::future_not_send` / `-W clippy::too_many_lines`
-peuvent aider au diagnostic, mais ne remplacent ni le passage complet à
-périmètre constant ni les tests comportementaux requis.
-Ne pas `change_sonar_issue_status` sauf vrai faux positif.
+Finalize its on-disk report and return ownership to the lead, not a Cargo
+result invented from static inspection. The lead can refill another independent
+lot without compiling. Validation belongs at the no-writer barrier described
+above. Targeted Cargo checks may diagnose a final failure while writers remain
+paused, but do not replace complete comparable Clippy reports or required
+behavioral tests. Do not `change_sonar_issue_status` except for a real false positive.

@@ -28,7 +28,7 @@
     {
       "id": 5,
       "prompt": "Après une vague de corrections, beaucoup de lignes ont bougé. J'ai encore le CSV Sonar et le JSON Clippy d'avant les modifications. Attribue les prochains lots en recalculant les offsets des anciennes lignes. Les agents sont encore en train d'éditer, ils peuvent lancer chacun Clippy pour accélérer ?",
-      "expected_output": "Refuser le recalcul d'offset et le Cargo concurrent des workers. Attendre la fin des éditions et l'intégration, puis le lead relance just clippy-ci, vérifie les deux passes et reconstruit le dispatch depuis les nouveaux diagnostics. Les auteurs relisent les symboles actuels entre runs ; pas de refill depuis l'ancien inventaire.",
+      "expected_output": "Reject offset arithmetic and worker Cargo during editing. Allow continuous refill only from the frozen initial backlog after verifying the finding in current code, ownership/dependencies and the previous lot's on-disk report/delta. Do not treat old lines as current findings or require a scan after each return. At the final no-writer barrier, integrate, validate and run complete just clippy-ci before constructing a new snapshot backlog.",
       "files": []
     },
     {
@@ -47,6 +47,30 @@
       "id": 8,
       "prompt": "La passe production a échoué. J'ai encore un ancien clippy-tests.jsonl et le nouveau rapport production est partiel. Peut-on annoncer zéro warning sur les fichiers absents et comparer le total avec le précédent run qui utilisait moins de features ?",
       "expected_output": "Inventaire partiel, pas zéro ni preuve d'absence. Ne pas réutiliser le rapport tests ancien. Exiger les deux passes réussies et un périmètre constant avant comparaison globale ; conserver la provenance des passes, le code actuel dirty compris et les limites de validation.",
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "Dix agents travaillent sur des lots Clippy indépendants. Un agent a terminé, les neuf autres éditent encore. Dois-je attendre les dix pour compiler avant de lui donner un autre lot ? Réponds sans lancer d'outil.",
+      "expected_output": "Do not impose a ten-agent wave or compile on return. Secure the completed lot's own report and identifiable delta, release its claim and refill an eligible unclaimed lot from the initial bounded backlog after current-source/dependency checks. No Cargo while writers are active. Independent capacity is a maximum, not an obligation to keep every worker busy.",
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "Le superviseur a été compacté trois fois. L'agent A a terminé deux lots dans le même worktree, mais son dernier message résume seulement le second. Comment retrouver les changements et préparer la compilation finale ? N'édite rien.",
+      "expected_output": "Use the lead-owned on-disk campaign index and a separate worker-written file per lot, with files/symbols/signatures, precedents, identifiable deltas, actual/not-run checks and risks. Do not overwrite the first lot report or infer it from chat. Verify the actual tree and recover any missing attribution. Missing evidence is incomplete work, not accepted success. Collect all reports/deltas and no-more-writes acknowledgements, integrate and freeze before lead-owned Cargo.",
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "Tous les agents ont envoyé 'fini'. Un agent a encore un rustfmt en arrière-plan et un autre ne trouve plus son rapport. Puis-je lancer le build final, puis remplir le rapport de mémoire ?",
+      "expected_output": "No. Stop refilling, resolve pending source mutations and explicitly confirm every writer is paused. Recover and inspect the missing report/delta rather than fabricating it from memory. Integrate and identify the frozen retained sources before validation; keep writers paused throughout. Preserve the single Cargo slot and 24 jobs. A notification is not a verified no-writer barrier.",
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "Le build final échoue sur une signature modifiée et un appelant traité dans un autre lot. Les rapports disent tous edited_unvalidated. Les workers peuvent-ils chacun lancer cargo check en corrigeant ? Faut-il traiter leur ancien statut comme un succès de compilation ?",
+      "expected_output": "edited_unvalidated is delivery, never validation. Attribute the mismatch from both lot reports and the integrated source diff; reopen a bounded dependency-aware repair scope without blind assignment. No worker Cargo while edits resume. Cross another no-writer barrier, then the lead validates the frozen integration and records real outcomes. Refresh comparable complete Clippy reports before claiming new counts.",
       "files": []
     }
   ]
