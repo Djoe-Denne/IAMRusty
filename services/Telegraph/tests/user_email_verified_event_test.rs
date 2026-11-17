@@ -36,6 +36,7 @@ async fn test_user_email_verified_event_creates_database_notification() {
     };
 
     let iam_event = IamDomainEvent::UserEmailVerified(user_email_verified_event);
+    let event_id = rustycog::events::DomainEvent::event_id(&iam_event);
 
     // Publish the event using the test event publisher (routes directly to processor)
     let result = test_event_publisher.send_event(&iam_event).await;
@@ -47,6 +48,7 @@ async fn test_user_email_verified_event_creates_database_notification() {
         result.err()
     );
 
+    let phase_started = tokio::time::Instant::now();
     let mut notifications_after = vec![];
     // Wait for the event to be processed and notification to be created
     for i in 0..5 {
@@ -66,6 +68,18 @@ async fn test_user_email_verified_event_creates_database_notification() {
         }
     }
 
+    if notifications_after.is_empty() {
+        let snapshot = common::fixtures::sqs_failure_probe::failure_snapshot(
+            &test_event_publisher.client,
+            &test_event_publisher.queue_url,
+            common::fixtures::sqs_failure_probe::Stage::Notification,
+            event_id,
+            result.as_deref().ok(),
+            phase_started.elapsed(),
+        )
+        .await;
+        eprintln!("TELEGRAPH_SQS_FAILURE {snapshot}");
+    }
     assert!(
         !notifications_after.is_empty(),
         "A new notification should have been created. Before: {}, After: {}",

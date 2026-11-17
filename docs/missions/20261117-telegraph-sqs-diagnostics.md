@@ -65,3 +65,45 @@ workloads. No Kind command or global shutdown was used.
 
 The changes make failures observable and preparation cleanup reliable. They are
 not evidence that the intermittent CI delivery/readiness cause is resolved.
+
+## Linux CI follow-up and passive probe
+
+[CI run 44104763267, Telegraph job 134118451079](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44104763267/job/134118451079)
+still failed handler entry, with the consumer pending and the new configuration
+checks passing. Its outbox runtime target reported 9 passed/1 failed. The
+password-reset target passed without a ListQueues readiness error in this run.
+Another target failed `test_user_email_verified_event_creates_database_notification`
+after five SQL polls; it reported 3 passed/1 failed.
+
+The failed notification case successfully published its message and completed
+ReceiveMessage calls without an observed handler-level error. That does not
+establish where the message went. A successful Windows run does not supersede
+these Linux failures.
+
+The user authorized a failure-only passive probe at these two boundaries:
+
+- Request only GetQueueAttributes, with a separate one-second diagnostic limit.
+  Do not receive, acknowledge, delete or purge messages.
+- Record available, in-flight and delayed counts, visibility timeout and queue
+  delay as nonnegative integers. Missing, malformed or overflowing values remain
+  unknown; an observation failure never becomes a count of zero.
+- Emit a closed `TELEGRAPH_SQS_FAILURE` JSON record with test event/message UUIDs
+  and phase/probe timing. Do not emit URLs, arbitrary provider strings, message
+  bodies, queue policies, credentials or receipt handles.
+- Keep the existing five-second entry wait and notification polling unchanged.
+  On the poller failure, sample before teardown, but write the record only after
+  the existing shutdown/join helper completes. Do not extend a failed phase or
+  turn a later successful diagnostic into a passing test.
+- Successful test paths issue no additional broker requests.
+
+These are queue-wide, approximate observations, not proof about an individual
+message or its consumer. AWS documents eventual consistency for these counters:
+[GetQueueAttributes](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_GetQueueAttributes.html).
+The next failing Linux run is still needed to obtain discriminating broker data.
+
+Native probe validation: four HTTP-boundary tests passed in each of the two
+affected binaries (eight executions, zero failures/ignored). These cover the
+closed numeric projection and identity filtering, missing/invalid counts,
+HTTP rejection, an independently bounded stalled request, and the exact passive
+API/attribute selection. Other tests were filtered for this focused selection;
+no real integration runtime was started or claimed for this follow-up.

@@ -1391,7 +1391,7 @@ async fn real_sqs_long_poll_shutdown_joins_parent_and_destroys_all_poller_resour
         .await
         .unwrap();
     let id = uuid::Uuid::new_v4();
-    fixture
+    let message_id = fixture
         .sqs()
         .send_event(&iam_events::IamDomainEvent::UserEmailVerified(
             iam_events::UserEmailVerifiedEvent {
@@ -1407,16 +1407,36 @@ async fn real_sqs_long_poll_shutdown_joins_parent_and_destroys_all_poller_resour
         let _parent_owner = parent_owner;
         task_consumer.start(owner).await.map_err(Into::into)
     })];
+    let phase_started = tokio::time::Instant::now();
     let startup = observe_sqs_handler_entry(&mut tasks, &entered, Duration::from_secs(5)).await;
     // One poller is inside an async handler, the other is in an empty-queue
     // long-poll. The SDK owner encompasses both, not just the parent handle.
     let destroyed_before_shutdown = destroyed.load(Ordering::SeqCst);
+    let failure_snapshot = if startup.is_err() {
+        Some(
+            common::fixtures::sqs_failure_probe::failure_snapshot(
+                &fixture.sqs().client,
+                &fixture.sqs().queue_url,
+                common::fixtures::sqs_failure_probe::Stage::HandlerEntry,
+                id,
+                Some(&message_id),
+                phase_started.elapsed(),
+            )
+            .await,
+        )
+    } else {
+        None
+    };
     let start = tokio::time::Instant::now();
     let shutdown = shutdown_owned_tasks(&mut tasks, async {
         consumer.stop().await.map_err(Into::into)
     })
     .await;
     let shutdown_elapsed = start.elapsed();
+    // Emit only after teardown, even if writing the diagnostic stream fails.
+    if let Some(snapshot) = failure_snapshot {
+        eprintln!("TELEGRAPH_SQS_FAILURE {snapshot}");
+    }
     // All post-spawn assertions follow cleanup, including failed preparation.
     telegraph_setup::runtime::combine_results(startup, shutdown).unwrap();
     assert_eq!(destroyed_before_shutdown, 0);
