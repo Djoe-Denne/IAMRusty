@@ -195,3 +195,79 @@ removed after the investigation's targeted validation.
 
 No local Docker/Kind/WSL runtime was started for this correction. Historical
 retained resources and the sibling SDK's unrelated untracked `nul` are unchanged.
+
+### First targeted run
+
+[Run 44146991942](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44146991942/job/134264737957)
+executed all 48 selected tests successfully (14 error-scenario tests, 20 HTTP
+endpoint tests and 14 outbox runtime tests; zero failed/ignored/filtered).
+Elapsed job time was approximately six minutes rather than waiting for the full
+pipeline. No terminal fixture or consumer failure record was produced, so this
+run does not explain the historical exit 245 or poller intermittence.
+
+The overall job nevertheless failed at the supplemental Docker verification,
+after tests had passed. The retained ledgers contain 301 events covering 38
+owned container IDs: 26 removed and 12 confirmed stopped by the SDK's process
+exit path. The independent final Docker check was inconclusive; its generic
+inspect error was not retained, and no cause for that CLI failure is asserted.
+
+The workflow-only correction replaces error-string matching with successful
+full-ID inventories, exact owned-ID stops if needed, and a final running-ID
+comparison. Five isolated contract cases pass (removed, already stopped,
+running owned, pre-existing refusal and daemon failure), without real Docker
+commands. Application, SDK and test sources are unchanged for the next targeted
+run; it validates the corrected evidence/cleanup path, not a blind attempt to
+turn an intermittent test green.
+
+### SDK inclusion seam
+
+The SDK's independent CI identified an additional module-resolution boundary:
+`tests/fixture_runtime.rs` includes the runtime source through `#[path]`.
+The new observation submodule needs the same explicit relative path as the
+existing runtime submodules. The full SDK format check passes after that fix.
+
+Executing this previously uncovered test target then exposed an existing
+hard-coded child-test filter: it named the library inclusion only and silently
+selected zero tests in the integration inclusion. The correction derives the
+exact libtest name from the current module path. It preserves the assertion
+that exactly one child fixture runs and all existing exit-code, ledger and
+failure assertions; no lifecycle acceptance oracle is weakened.
+
+SDK `1db6c9de8708f6451d91a56f482b053026487c8f` publishes these two inclusion fixes.
+Native validation passes all 28 fixture-runtime target tests and the same
+process-exit contract in the library inclusion (one selected, 156 filtered);
+the final complete SDK formatting check passes. These follow-up changes are
+module resolution and test selection only, not a new SQS behavior.
+The complete SDK [CI run 44149650275](https://github.com/Djoe-Denne/rustycog/actions/runs/44149650275)
+also succeeds for that exact revision. Final root workspace formatting passes.
+
+### Final targeted result and workflow removal
+
+[Run 44148703762](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44148703762/job/134270769702)
+passes the entire targeted job in 6 minutes 20 seconds. All 48 selected tests
+pass (14 + 20 + 14, zero failed/ignored/filtered), including the real SQS poller.
+The test exit code is zero and the closed diagnostic record list is empty.
+
+The independent full-ID check covers all 38 identities in the fixture ledgers:
+26 are absent after removal, 12 are stopped, none are running, and no additional
+stop was needed. This agrees with the ledgers' 26 removal events and 12 verified
+process-exit stops. Artifact `telegraph-sqs-diagnostic-44148703762` preserves the
+closed diagnostic/ownership snapshots and source metadata. The tested root is
+`41f42076460534beb1e4ff74394af2315457fc7b`, SDK `feaabaf`; the subsequent SDK
+inclusion-only fix is validated separately above, not represented as part of
+that Linux integration run.
+
+The temporary workflow is removed after this validation, as requested. No
+supporting tracked script, mission branch or worktree was created. Local logs
+and downloaded evidence remain ignored under `.tmp/telegraph-sqs-20261117/`.
+No local Docker runtime was started or cleaned, and historical retained
+resources were not adopted.
+The SDK's pre-existing `mission-telegraph-ac7-zlfadf` branch predates this
+follow-up and is already an ancestor of `main`; it is preserved, not treated as
+a newly created mission branch.
+
+The repeated-wait defect now has a fail-fast correction and bounded first-exit
+diagnostics. Neither successful targeted run reproduces the historical exit
+245 or receive/handler failure, so their original causes remain unresolved.
+These results are not a claim that intermittence is eliminated or that the
+full workspace integration pipeline passed.
