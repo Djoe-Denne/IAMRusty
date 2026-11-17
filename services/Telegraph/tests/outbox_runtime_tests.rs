@@ -1365,11 +1365,9 @@ async fn real_sqs_long_poll_shutdown_joins_parent_and_destroys_all_poller_resour
             == normalized_sqs_test_url(&fixture.sqs().queue_url).unwrap(),
         "SQS publication queue does not match the consumer"
     );
-    let consumer = Arc::new(
-        rustycog::events::SqsEventConsumer::new(sqs_config)
-            .await
-            .unwrap(),
-    );
+    let consumer = rustycog::events::SqsEventConsumer::new(sqs_config)
+        .await
+        .unwrap();
     let destroyed = Arc::new(AtomicUsize::new(0));
     let parent_destroyed = Arc::new(AtomicUsize::new(0));
     let entered = Arc::new(tokio::sync::Notify::new());
@@ -1402,6 +1400,10 @@ async fn real_sqs_long_poll_shutdown_joins_parent_and_destroys_all_poller_resour
         ))
         .await
         .unwrap();
+    let poll_probe = Arc::new(rustycog::events::sqs_probe::SqsConsumerProbe::new(
+        message_id.clone(),
+    ));
+    let consumer = Arc::new(consumer.with_poll_probe(poll_probe.clone()));
     let task_consumer = consumer.clone();
     let mut tasks = vec![tokio::spawn(async move {
         let _parent_owner = parent_owner;
@@ -1413,17 +1415,19 @@ async fn real_sqs_long_poll_shutdown_joins_parent_and_destroys_all_poller_resour
     // long-poll. The SDK owner encompasses both, not just the parent handle.
     let destroyed_before_shutdown = destroyed.load(Ordering::SeqCst);
     let failure_snapshot = if startup.is_err() {
-        Some(
-            common::fixtures::sqs_failure_probe::failure_snapshot(
-                &fixture.sqs().client,
-                &fixture.sqs().queue_url,
-                common::fixtures::sqs_failure_probe::Stage::HandlerEntry,
-                id,
-                Some(&message_id),
-                phase_started.elapsed(),
-            )
-            .await,
+        let consumer_at_failure = poll_probe.snapshot();
+        let mut snapshot = common::fixtures::sqs_failure_probe::failure_snapshot(
+            &fixture.sqs().client,
+            &fixture.sqs().queue_url,
+            common::fixtures::sqs_failure_probe::Stage::HandlerEntry,
+            id,
+            Some(&message_id),
+            phase_started.elapsed(),
         )
+        .await;
+        snapshot["consumer_at_failure"] = serde_json::json!(consumer_at_failure);
+        snapshot["consumer_after_broker_probe"] = serde_json::json!(poll_probe.snapshot());
+        Some(snapshot)
     } else {
         None
     };
@@ -1434,7 +1438,8 @@ async fn real_sqs_long_poll_shutdown_joins_parent_and_destroys_all_poller_resour
     .await;
     let shutdown_elapsed = start.elapsed();
     // Emit only after teardown, even if writing the diagnostic stream fails.
-    if let Some(snapshot) = failure_snapshot {
+    if let Some(mut snapshot) = failure_snapshot {
+        snapshot["consumer_after_cleanup"] = serde_json::json!(poll_probe.snapshot());
         eprintln!("TELEGRAPH_SQS_FAILURE {snapshot}");
     }
     // All post-spawn assertions follow cleanup, including failed preparation.

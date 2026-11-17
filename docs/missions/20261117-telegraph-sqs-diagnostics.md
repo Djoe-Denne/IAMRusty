@@ -107,3 +107,44 @@ closed numeric projection and identity filtering, missing/invalid counts,
 HTTP rejection, an independently bounded stalled request, and the exact passive
 API/attribute selection. Other tests were filtered for this focused selection;
 no real integration runtime was started or claimed for this follow-up.
+
+## Consumer-local receive boundary follow-up
+
+The passive-probe [run 44117341324](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44117341324/job/134162500404)
+failed only the real SQS poller test (13 passed/1 failed in that target). Its
+failure record observed zero visible, one in-flight and zero delayed messages,
+with visibility timeout 1 second and no queue delay. The phase elapsed time was
+5,000 ms and the passive query took 5 ms. These approximate queue-wide counts
+do not identify the target message or receiver; they do not establish a parser
+failure, acknowledgement or an exclusive LocalStack cause.
+
+The user then authorized a consumer-local observation, implemented in SDK
+`55fa6dd61dc3d6ccb27ac288ffd540865e7f3ecc`:
+
+- `test-utils` exposes an opt-in `SqsConsumerProbe`, attached only to the test's
+  dedicated consumer and shared with its pollers. It installs no global tracing
+  subscriber and makes no extra broker request.
+- Counters distinguish receive operations started, succeeded, failed or cancelled,
+  returned messages, matches to the expected SQS message ID, absent IDs/bodies,
+  parse failures, unsupported event types and handler invocation boundaries.
+  Operation counters do not count individual internal HTTP retry attempts.
+- A small RAII witness counts cancellation while awaiting the receive operation.
+  Cancelling an already-entered suspended handler does not count as a cancelled
+  receive. None of these observations acknowledge or change a message.
+- Failure JSON samples the counters at the original phase failure, after the
+  existing passive broker probe, and after the existing shutdown/join path.
+  The snapshot contains counters only, not the stored expected message ID,
+  payload, receipt handle, credentials or provider messages.
+- The live samples are cumulative and non-transactional across concurrent pollers.
+  Handler invocation counters are distinct from the test handler's notification;
+  they mark the call boundary, not a separate assertion that its body completed.
+  All acceptance deadlines, construction order, cleanup and no-ack oracles remain.
+
+Validation: six new observer HTTP-boundary/unit cases, including the public
+start/stop wiring, passed within the complete SDK library suite of 151 tests
+(zero failed/ignored/filtered). The SDK also passes a native library check with
+only `events` and without `test-utils`. The consumed pin compiles Telegraph's
+outbox runtime target; its three startup regressions pass (11 other cases
+filtered). These are unit/compile results, not a new real-broker run or a claim
+that the intermittent CI failure is corrected. No new Docker runtime lease or
+resource creation was needed for this instrumentation.
