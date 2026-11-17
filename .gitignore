@@ -5,7 +5,6 @@ target/
 docker-build-stage/
 .tools/
 /.local/oauth-connect/
-.tmp-sonar-it
 nul
 
 # Cargo.lock (comment the next line if you want to commit the lock file)
@@ -27,6 +26,7 @@ lerna-debug.log*
 
 # IDE and Editor Files
 # VSCode
+.vs/
 .vscode/
 .VSCodeCounter/
 *.code-workspace
@@ -136,6 +136,18 @@ coverage/
 # Temporary files
 tmp/
 temp/
+# Root-level scratch directories (integration logs, layout rewrites, Sonar runs).
+/.tmp-*/
+/.worktrees/
+
+# Generated test output; keep test fixtures and durable evidence tracked.
+test-logs/
+test-results/
+playwright-report/
+
+# Local Serena state; preserve shared project configuration and memories.
+/.serena/cache/
+/.serena/project.local.yml
 
 # Docker
 .dockerignore
