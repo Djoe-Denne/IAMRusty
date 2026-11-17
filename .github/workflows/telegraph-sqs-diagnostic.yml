@@ -15,7 +15,6 @@ env:
   RUN_ENV: test
   RUSTYCOG_TEST_RUNNER_MODE: local
   RUSTYCOG_TEST_RUN_ID: sqs-${{ github.run_id }}-${{ github.run_attempt }}
-  RUSTYCOG_TEST_LEDGER_DIR: ${{ runner.temp }}/telegraph-sqs-fixtures
 
 jobs:
   targeted:
@@ -41,6 +40,8 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
+          export RUSTYCOG_TEST_LEDGER_DIR="$RUNNER_TEMP/telegraph-sqs-fixtures"
+          echo "RUSTYCOG_TEST_LEDGER_DIR=$RUSTYCOG_TEST_LEDGER_DIR" >> "$GITHUB_ENV"
           mkdir -p "$RUSTYCOG_TEST_LEDGER_DIR" "$RUNNER_TEMP/sqs-evidence"
           git rev-parse HEAD > "$RUNNER_TEMP/sqs-evidence/source-sha.txt"
           git submodule status > "$RUNNER_TEMP/sqs-evidence/submodule.txt"
