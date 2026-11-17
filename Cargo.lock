@@ -1234,12 +1234,6 @@ checksum = "fd307490d624467aa6f74b0eabb77633d1f758a7b25f12bceb0b22e08d9726f6"
 
 [[package]]
 name = "base64"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
-
-[[package]]
-name = "base64"
 version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
@@ -2870,177 +2864,6 @@ dependencies = [
  "wasip2",
  "wasip3",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "github-connect-configuration"
-version = "0.1.0"
-dependencies = [
- "rustycog-framework",
- "serde",
- "serde_json",
- "serial_test",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "github-connect-domain"
-version = "0.1.0"
-dependencies = [
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "github-connect-http"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum 0.8.9",
- "github-connect-configuration",
- "idp-connect-contract",
- "readiness",
- "rustycog-framework",
-]
-
-[[package]]
-name = "github-connect-infra"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "github-connect-configuration",
- "github-connect-domain",
- "idp-connect-contract",
- "oauth2 4.4.2",
- "reqwest 0.11.27",
- "rustycog-framework",
- "serde",
- "tokio",
- "tracing",
- "wiremock",
-]
-
-[[package]]
-name = "github-connect-service"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum 0.8.9",
- "axum-test 17.3.0",
- "base64 0.22.1",
- "github-connect-configuration",
- "github-connect-http",
- "github-connect-infra",
- "github-connect-setup",
- "idp-connect-contract",
- "reqwest 0.12.28",
- "rustycog-framework",
- "serde",
- "serde_json",
- "serial_test",
- "tempfile",
- "tokio",
- "tracing",
- "uuid",
- "wiremock",
-]
-
-[[package]]
-name = "github-connect-setup"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum 0.8.9",
- "github-connect-configuration",
- "github-connect-http",
- "github-connect-infra",
- "idp-connect-contract",
- "readiness",
- "rustycog-framework",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "gitlab-connect-configuration"
-version = "0.1.0"
-dependencies = [
- "rustycog-framework",
- "serde",
-]
-
-[[package]]
-name = "gitlab-connect-domain"
-version = "0.1.0"
-dependencies = [
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "gitlab-connect-http"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum 0.8.9",
- "gitlab-connect-configuration",
- "idp-connect-contract",
- "readiness",
- "rustycog-framework",
-]
-
-[[package]]
-name = "gitlab-connect-infra"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "gitlab-connect-configuration",
- "gitlab-connect-domain",
- "idp-connect-contract",
- "oauth2 4.4.2",
- "reqwest 0.11.27",
- "serde",
- "tokio",
- "tracing",
- "wiremock",
-]
-
-[[package]]
-name = "gitlab-connect-service"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum 0.8.9",
- "axum-test 17.3.0",
- "gitlab-connect-configuration",
- "gitlab-connect-http",
- "gitlab-connect-infra",
- "gitlab-connect-setup",
- "idp-connect-contract",
- "reqwest 0.12.28",
- "rustycog-framework",
- "serde",
- "serde_json",
- "serial_test",
- "tokio",
- "tracing",
- "uuid",
- "wiremock",
-]
-
-[[package]]
-name = "gitlab-connect-setup"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum 0.8.9",
- "gitlab-connect-configuration",
- "gitlab-connect-http",
- "gitlab-connect-infra",
- "idp-connect-contract",
- "readiness",
- "rustycog-framework",
- "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -5507,26 +5330,6 @@ dependencies = [
 
 [[package]]
 name = "oauth2"
-version = "4.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c38841cdd844847e3e7c8d29cef9dcfed8877f8f56f9071f77843ecf3baf937f"
-dependencies = [
- "base64 0.13.1",
- "chrono",
- "getrandom 0.2.17",
- "http 0.2.12",
- "rand 0.8.6",
- "reqwest 0.11.27",
- "serde",
- "serde_json",
- "serde_path_to_error",
- "sha2 0.10.9",
- "thiserror 1.0.69",
- "url",
-]
-
-[[package]]
-name = "oauth2"
 version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
@@ -5632,7 +5435,7 @@ dependencies = [
  "http 1.4.1",
  "itertools 0.14.0",
  "log",
- "oauth2 5.0.0",
+ "oauth2",
  "p256",
  "p384",
  "rand 0.8.6",
@@ -6604,7 +6407,6 @@ dependencies = [
  "http 0.2.12",
  "http-body 0.4.6",
  "hyper 0.14.32",
- "hyper-rustls 0.24.2",
  "hyper-tls 0.5.0",
  "ipnet",
  "js-sys",
@@ -6614,7 +6416,6 @@ dependencies = [
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
- "rustls 0.21.12",
  "rustls-pemfile 1.0.4",
  "serde",
  "serde_json",
@@ -6623,13 +6424,11 @@ dependencies = [
  "system-configuration 0.5.1",
  "tokio",
  "tokio-native-tls",
- "tokio-rustls 0.24.1",
  "tower-service",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "webpki-roots 0.25.4",
  "winreg",
 ]
 
@@ -9499,12 +9298,6 @@ checksum = "b96554aa2acc8ccdb7e1c9a58a7a68dd5d13bccc69cd124cb09406db612a1c9b"
 dependencies = [
  "rustls-pki-types",
 ]
-
-[[package]]
-name = "webpki-roots"
-version = "0.25.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f20c57d8d7db6d3b86154206ae5d8fba62dd39573114de97c2cb0578251f8e1"
 
 [[package]]
 name = "webpki-roots"

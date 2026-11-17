@@ -153,7 +153,7 @@ services:
     networks:
       - aiforall-network
 
-  # Platform mesh CA + leaves (Hive/IAM/Telegraph/Manifesto/GitHub Connect). Distinct from Lazaret CA.
+  # Platform mesh CA + leaves (Hive/IAM/Telegraph/Manifesto/OAuthConnect). Distinct from Lazaret CA.
   platform-mesh-certs:
     image: alpine:3.20
     volumes:
@@ -164,8 +164,7 @@ services:
       - aiforall-network
 
   # IAMRusty Service
-  # IdP S2S uses HTTP on the compose network (`github-connect-service:8080` /
-  # `gitlab-connect-service:8080`), not the HTTPS mesh host ports 8446/8447.
+  # IdP S2S uses one OAuthConnect listener on oauth-connect-service:8080.
   # HMAC (ADR-0409) authenticates IAM → Connect. Public OAuth callbacks stay on IAM :8080.
   iam-service:
     build:
@@ -201,9 +200,7 @@ services:
         condition: service_healthy
       platform-mesh-certs:
         condition: service_completed_successfully
-      github-connect-service:
-        condition: service_started
-      gitlab-connect-service:
+      oauth-connect-service:
         condition: service_started
     networks:
       - aiforall-network
@@ -336,41 +333,30 @@ services:
     networks:
       - aiforall-network
 
-  # GitHub IdP Connect (HMAC S2S, no Postgres / OpenFGA / LocalStack).
-  # IAM calls this over HTTP :8080 on the compose network; 8446 is the mesh TLS port.
-  github-connect-service:
+  # Generic multi-instance Connect. Operator configuration is required; see
+  # docs/services/oauth-connect.md. Missing bind sources must fail, not be created.
+  oauth-connect-service:
     build:
       context: .
-      dockerfile: services/GitHubConnect/Dockerfile
+      dockerfile: services/OAuthConnect/Dockerfile
     ports:
       - "8085:8080"   # HTTP
       - "8446:8443"   # HTTPS
     environment:
-      - RUST_ENVIRONMENT=development
+      - RUN_ENV=development
     volumes:
-      - ./services/GitHubConnect/config:/app/config
-      - ./ops/certs/platform-mesh:/app/certs
-    depends_on:
-      build-artifacts:
-        condition: service_completed_successfully
-      platform-mesh-certs:
-        condition: service_completed_successfully
-    networks:
-      - aiforall-network
-
-  # GitLab IdP Connect (HMAC S2S, no Postgres / OpenFGA / LocalStack).
-  # IAM calls this over HTTP :8080 on the compose network; 8447 is the mesh TLS port.
-  gitlab-connect-service:
-    build:
-      context: .
-      dockerfile: services/GitLabConnect/Dockerfile
-    ports:
-      - "8086:8080"   # HTTP
-      - "8447:8443"   # HTTPS
-    environment:
-      - RUST_ENVIRONMENT=development
-    volumes:
-      - ./services/GitLabConnect/config:/app/config
+      - type: bind
+        source: ${OAUTH_CONNECT_CONFIG_DIR:-../aiforall-oauth-connect/config}
+        target: /app/config
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${OAUTH_CONNECT_RUNTIME_DIR:-../aiforall-oauth-connect/runtime}
+        target: /run/oauth-connect
+        read_only: true
+        bind:
+          create_host_path: false
       - ./ops/certs/platform-mesh:/app/certs
     depends_on:
       build-artifacts:
@@ -550,4 +536,4 @@ volumes:
 
 networks:
   aiforall-network:
-    driver: bridge 
+    driver: bridge

@@ -22,14 +22,7 @@ pub const PUBLIC_AUTH_ROUTES: &[(&str, &str)] = &[
 ];
 
 /// Distinct probe exemptions: GET/HEAD only, never an auth-route prefix exception.
-pub const PUBLIC_PROBE_PATHS: &[&str] = &[
-    "/iam/health",
-    "/iam/ready",
-    "/github-connect/health",
-    "/github-connect/ready",
-    "/gitlab-connect/health",
-    "/gitlab-connect/ready",
-];
+pub const PUBLIC_PROBE_PATHS: &[&str] = &["/iam/health", "/iam/ready"];
 
 /// Exact additional paths only; never export a provider wildcard for relink.
 /// GET also permits Axum's implicit HEAD. Consumers must enforce both methods exactly.
@@ -60,7 +53,7 @@ mod tests {
     #[test]
     fn public_matrix_has_no_account_mutation_or_internal_exemption() {
         assert_eq!(PUBLIC_AUTH_ROUTES.len(), 13);
-        assert_eq!(PUBLIC_PROBE_PATHS.len(), 6);
+        assert_eq!(PUBLIC_PROBE_PATHS, &["/iam/health", "/iam/ready"]);
         assert!(PUBLIC_PROBE_PATHS
             .iter()
             .all(|path| path.ends_with("/health") || path.ends_with("/ready")));

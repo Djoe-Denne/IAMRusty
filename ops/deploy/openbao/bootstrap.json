@@ -3,7 +3,6 @@
     "local-full-transit-verify": "path \"transit/verify/apparatus-p4-cosign\" { capabilities = [\"update\"] }\npath \"transit/keys/apparatus-p4-cosign\" { capabilities = [\"read\"] }",
     "local-full-transit-sign": "path \"transit/sign/apparatus-p4-cosign\" { capabilities = [\"update\"] }\npath \"transit/verify/apparatus-p4-cosign\" { capabilities = [\"update\"] }\npath \"transit/keys/apparatus-p4-cosign\" { capabilities = [\"read\"] }",
     "local-full-lazaret": "path \"auth/token/lookup-self\" { capabilities = [\"read\"] }\npath \"secret/data/ops/token\" { capabilities = [\"read\"] }",
-    "local-full-github-connect": "path \"auth/token/lookup-self\" { capabilities = [\"read\"] }\npath \"secret/data/github-connect/oauth\" { capabilities = [\"read\"] }\npath \"secret/data/github-connect/iam\" { capabilities = [\"read\"] }",
     "local-full-iam-hmac": "path \"auth/token/lookup-self\" { capabilities = [\"read\"] }\npath \"secret/data/github-connect/iam\" { capabilities = [\"read\"] }",
     "local-full-github-seed": "path \"auth/token/lookup-self\" { capabilities = [\"read\"] }\npath \"secret/data/github-connect/oauth\" { capabilities = [\"read\", \"create\", \"update\"] }\npath \"secret/data/github-connect/iam\" { capabilities = [\"read\", \"create\", \"update\"] }\npath \"secret/metadata/github-connect/oauth\" { capabilities = [\"read\"] }\npath \"secret/metadata/github-connect/iam\" { capabilities = [\"read\"] }",
     "local-full-oauth-connect": "path \"auth/token/lookup-self\" { capabilities = [\"read\"] }\npath \"secret/data/github-connect/oauth\" { capabilities = [\"read\"] }\npath \"secret/data/github-connect/iam\" { capabilities = [\"read\"] }\npath \"secret/data/oauth-connect/simulated/oauth\" { capabilities = [\"read\"] }\npath \"secret/data/oauth-connect/simulated/iam\" { capabilities = [\"read\"] }",
@@ -34,17 +33,6 @@
       "token_ttl": "8h",
       "token_max_ttl": "8h",
       "token_explicit_max_ttl": "8h"
-    },
-    "github-connect": {
-      "bound_service_account_names": "github-connect",
-      "bound_service_account_namespaces": "aiforall-local-full",
-      "audience": "openbao-github-connect",
-      "token_policies": "local-full-github-connect",
-      "token_no_default_policy": true,
-      "token_type": "service",
-      "token_ttl": "15m",
-      "token_max_ttl": "1h",
-      "token_explicit_max_ttl": "1h"
     },
     "iam-hmac": {
       "bound_service_account_names": "iam-openbao",

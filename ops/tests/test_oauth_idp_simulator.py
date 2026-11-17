@@ -58,7 +58,7 @@ class SimulatorTests(unittest.TestCase):
 
     def test_simulator_receives_real_authorize_token_profile_without_secret_output(self):
         # Protocol functions used by the real HTTP handler. This is fixture-only,
-        # not evidence that GitLabConnect or a browser actually called it.
+        # not evidence that OAuthConnect or a browser actually called it.
         code = self.provider.authorize(self.authorization)
         token = self.exchange(code)["access_token"]
         user = self.provider.profile("Bearer " + token)

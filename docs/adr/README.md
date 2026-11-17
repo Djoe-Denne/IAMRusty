@@ -96,7 +96,7 @@ Contrat secondaire test-side : [m6 proof hardening](../contracts/20261018-m6-pro
 
 | ID | Décision | Réalité |
 |---|---|---|
-| [0200](0200-it-infra-reelle-rustycog-testing.md) | IT via serveur réel, DB réelle, harness `rustycog-testing` | Implemented |
+| [0200](0200-it-infra-reelle-rustycog-testing.md) | Real server/database IT through `rustycog-testing` | Implemented |
 | [0201](0201-mocks-http-sortant-seulement.md) | WireMock / mocks = collaborateurs HTTP sortants uniquement | Implemented |
 | [0202](0202-transport-opt-in-queues-desactivees.md) | Files opt-in (producteurs `queue.enabled=false`) ; Telegraph IT encore allumée | Partial |
 
@@ -175,7 +175,7 @@ Wiki (pointeurs, pas canon) : `obsidian/AI FOR ALL/projects/iamrusty/decisions/`
 | [0410](0410-migration-iam-connecteurs-idp.md) | Migration incrémentale ; routes `/api/auth/{provider}` conservées | Accepted | Implemented |
 | [0411](0411-idp-provider-slug-registry-fail-closed.md) | Provider = slug typé ; catalogue = registry au boot ; admission fail-closed ; pas de hot-load ; onboarding partiellement supersédé par 0413 le2026-11-06 | Accepted | Implemented |
 | [0412](0412-oauth-transaction-persistante-liee-navigateur.md) | Transaction writer liée au navigateur ; [preuve locale qualifiée2026-10-29](../contracts/20261029-auth-security-qualified-state.md), Chrome P1–P3/N1–N3 et17IT ; historiques Partial conservés, hors production/HA | Accepted | Implemented |
-| [0413](0413-oauthconnect-multi-instances-profils.md) | Un OAuthConnect RustyCog ; [contrat actif](../contracts/oauthconnect-multi-instances.md), frontière v2 et socle OAuth/configuration/transport/secrets vérifiés (gate courant189tests). OIDC exécuté/service/IAM à réaliser | Accepted | Partial |
+| [0413](0413-oauthconnect-multi-instances-profils.md) | One OAuthConnect service; [multi-instance contract](../contracts/oauthconnect-multi-instances.md). [2026-11-15 repository retirement contract](../contracts/legacy-connect-retirement.md): remove standalone GitHubConnect/GitLabConnect code, tests and bindings; no new live cutover or identity-equivalence evidence. | Accepted | Partial |
 
 **0413 Accepted le2026-11-06** : choix utilisateur explicites « Valider v2 et nonce (Recommandé) » et « Email primaire seul ». Regroupement v2 authorize+complete, nonce IAM durable et delta GitHub sans fallback public ratifiés ; supersession **partielle**, non globale, de 0408/0411 et de l'interface 0407. Réalités historiques Implemented conservées. Réalité nouvelle **Partial** : frontière v2 puis socle OAuth avec configuration, projection bornée, transport et secrets/composition minimale vérifiés ; gate courant189tests, check/fmt/Clippy strict verts sous Windows. Revues sécurité ciblées sans finding ; OIDC exécuté/service opérationnel/nonceIAM/déploiements restent à réaliser. Bascule/retrait legacy toujours gated par E2E/cutover externes. Claims riches/actions différés ; 0505 demeure Proposed / Implemented. Aucun E2E qualifié par ces tranches.
 

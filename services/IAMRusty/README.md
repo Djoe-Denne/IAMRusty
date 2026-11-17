@@ -47,7 +47,7 @@ The IAM service supports a flexible configuration system with multiple sources a
    APP_SERVER_PORT=8080
    APP_DATABASE_URL=postgres://postgres:postgres@localhost:5432/iam
    APP_JWT_SECRET=your-super-secret-jwt-key-at-least-32-characters-long
-   # Vendor OAuth secrets live on GitHubConnect / GitLabConnect, not IAM.
+   # Vendor OAuth/OIDC secrets live in OAuthConnect, not IAM.
    ```
 
 2. **Environment File**: Create a `.env` file in the project root (automatically loaded)
@@ -88,7 +88,7 @@ The IAM service supports a flexible configuration system with multiple sources a
    
    [[idp.connectors]]
    id = "github"
-   base_url = "http://127.0.0.1:8085/github-connect"
+   base_url = "http://127.0.0.1:8085/oauth-connect/github"
    hmac_secret = "change-me-github-connect-hmac"
    redirect_uris = [
      "http://127.0.0.1:8080/iam/api/auth/github/callback",
@@ -97,7 +97,7 @@ The IAM service supports a flexible configuration system with multiple sources a
 
    [[idp.connectors]]
    id = "gitlab"
-   base_url = "http://127.0.0.1:8086/gitlab-connect"
+   base_url = "http://127.0.0.1:8085/oauth-connect/gitlab"
    hmac_secret = "change-me-gitlab-connect-hmac"
    redirect_uris = [
      "http://127.0.0.1:8080/iam/api/auth/gitlab/callback",
@@ -493,4 +493,4 @@ The API follows OpenAPI specification. See `openspecs.yaml` (v1.3.0) for complet
 2. **Run migrations**: `cd migration && cargo run -- up`
 3. **Regenerate entities**: `sea-orm-cli generate entity`
 4. **Update repository code** if needed
-5. **Test changes**: `cargo test` 
+5. **Test changes**: `cargo test`

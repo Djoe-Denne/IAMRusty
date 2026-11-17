@@ -19,10 +19,6 @@ members = [
     "services/Manifesto",
     # Lazaret capability-boundary service
     "services/Lazaret",
-    # GitHub IdP Connect (IAM-IdP S3)
-    "services/GitHubConnect",
-    # GitLab IdP Connect (IAM-IdP S4)
-    "services/GitLabConnect",
     # OAuthConnect declarative configuration and pure mapping (ADR 0413)
     "services/OAuthConnect",
     "services/OAuthConnect/configuration",
@@ -106,7 +102,6 @@ sea-orm-cli = "1.1.11"
 sqlx = { version = "0.8.2", features = ["postgres", "runtime-tokio-rustls", "uuid", "chrono"] }
 
 # Auth
-oauth2 = { version = "4.4.2", features = ["reqwest"] }
 openidconnect = { version = "4.0.0", features = ["reqwest"] }
 jsonwebtoken = "9.0.2"
 

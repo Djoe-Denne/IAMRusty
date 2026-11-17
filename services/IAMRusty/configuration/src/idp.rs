@@ -22,7 +22,7 @@ pub enum IdpRedirectFlow {
 pub struct IdpConnectorConfig {
     /// Provider slug (`github`, `gitlab`, …).
     pub id: String,
-    /// Connector base URL including service prefix (`http://127.0.0.1:3000/github-connect`).
+    /// Instance base URL including its prefix (`http://127.0.0.1:3000/oauth-connect/github`).
     pub base_url: String,
     /// HMAC secret. Never log this field.
     pub hmac_secret: String,

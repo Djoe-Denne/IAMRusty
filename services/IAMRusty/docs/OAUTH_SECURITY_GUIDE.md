@@ -357,7 +357,7 @@ pub fn decode(encoded: &str) -> Result<Self, StateError> {
 ```toml
 [[idp.connectors]]
 id = "github"
-base_url = "https://github-connect.example.com/github-connect"
+base_url = "https://oauth-connect.example.com/oauth-connect/github"
 hmac_secret = "iam-to-github-connect-hmac"  # ≥ 16 chars; IAM S2S only
 redirect_uris = [
   "https://iam.example.com/iam/api/auth/github/callback",
@@ -366,7 +366,7 @@ redirect_uris = [
 
 [[idp.connectors]]
 id = "gitlab"
-base_url = "https://gitlab-connect.example.com/gitlab-connect"
+base_url = "https://oauth-connect.example.com/oauth-connect/gitlab"
 hmac_secret = "iam-to-gitlab-connect-hmac"
 redirect_uris = [
   "https://iam.example.com/iam/api/auth/gitlab/callback",
@@ -390,7 +390,7 @@ redirect_uris = [
 
 **OAuth Provider Setup**:
 ```bash
-# Vendor client_secret lives on GitHubConnect / GitLabConnect, not IAM.
+# Vendor client_secret lives in OAuthConnect, not IAM.
 # IAM HMAC secrets (≥ 16 chars) are [[idp.connectors]] hmac_secret in TOML.
 
 # Use strong JWT signing secret
@@ -642,4 +642,4 @@ groups:
 - [ ] State validation failures trigger alerts
 - [ ] Token abuse patterns are detected
 
-This security guide provides comprehensive protection against OAuth2-related attacks while maintaining usability and performance. Regular security reviews and penetration testing should validate these protections in practice. 
+This security guide provides comprehensive protection against OAuth2-related attacks while maintaining usability and performance. Regular security reviews and penetration testing should validate these protections in practice.

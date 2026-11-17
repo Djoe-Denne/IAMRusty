@@ -2,7 +2,7 @@
 
 Target: [ADR-0413](../../../docs/adr/0413-oauthconnect-multi-instances-profils.md), **Accepted / Partial**, and the [IAM v2 implementation contract](../../../docs/contracts/iam-oauthconnect-v2.md). The [multi-instance contract](../../../docs/contracts/oauthconnect-multi-instances.md) defines the Connect profiles, secrets and cutover conditions.
 
-IAM does **not** host a vendor OAuth/OIDC client. Add an instance to the existing **OAuthConnect** service and register its base URL in IAM. Do not copy GitHubConnect into a new service for each provider. Legacy services remain present until the separately qualified cutover; this guide does not activate a deployment.
+IAM does **not** host a vendor OAuth/OIDC client. Add an instance to the existing **OAuthConnect** service and register its base URL in IAM. The standalone GitHubConnect/GitLabConnect implementations and their dedicated tests were removed on 2026-11-15; see the [retirement contract](../../../docs/contracts/legacy-connect-retirement.md). This guide does not activate a deployment or establish live migration evidence.
 
 `Provider` remains a typed slug: ASCII letters only, case-folded to lowercase, length 1–50. `huggingface` is compatible; `hugging-face` and digits are not. No enum variant or recompilation of `iam-domain` is required for another compatible registered instance. Preserve existing `github`/`gitlab` slugs and their account links.
 

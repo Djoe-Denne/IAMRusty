@@ -66,13 +66,13 @@ $transportPublic = (Invoke-OpenSsl pkey -in (Join-Path $Directory 'mesh/ca.key')
 $workloadPublic = (Invoke-OpenSsl pkey -in (Join-Path $Directory 'workload/ca.key') -pubout) -join "`n"
 if ($transportPublic -ceq $workloadPublic) { throw 'Transport and workload authorities must differ.' }
 foreach ($name in @('iam-service', 'hive-service', 'telegraph-service', 'manifesto-service',
-                    'envoy-mesh', 'ext-authz', 'mesh-client', 'gitlab-connect')) {
+                    'envoy-mesh', 'ext-authz', 'mesh-client')) {
     Prepare-Pair mesh $name "mesh/$name" mesh -Client
 }
 foreach ($name in @('postgres', 'redis', 'openfga', 'localstack', 'zot')) {
     Prepare-Pair mesh $name "mesh/$name" mesh
 }
-foreach ($name in @('openbao', 'github-connect', 'oauth-connect')) {
+foreach ($name in @('openbao', 'oauth-connect')) {
     Prepare-Pair mesh $name $name mesh
 }
 Prepare-Pair workload server workload/server workload

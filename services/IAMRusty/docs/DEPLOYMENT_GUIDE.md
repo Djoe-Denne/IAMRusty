@@ -53,7 +53,7 @@ read_replicas = []
 
 [[idp.connectors]]
 id = "github"
-base_url = "http://127.0.0.1:8085/github-connect"
+base_url = "http://127.0.0.1:8085/oauth-connect/github"
 hmac_secret = "change-me-github-connect-hmac"
 redirect_uris = [
   "http://127.0.0.1:8080/iam/api/auth/github/callback",
@@ -62,7 +62,7 @@ redirect_uris = [
 
 [[idp.connectors]]
 id = "gitlab"
-base_url = "http://127.0.0.1:8086/gitlab-connect"
+base_url = "http://127.0.0.1:8085/oauth-connect/gitlab"
 hmac_secret = "change-me-gitlab-connect-hmac"
 redirect_uris = [
   "http://127.0.0.1:8080/iam/api/auth/gitlab/callback",
@@ -111,7 +111,7 @@ read_replicas = [
 
 [[idp.connectors]]
 id = "github"
-base_url = "http://github-connect-service:8080/github-connect"
+base_url = "http://oauth-connect-service:8080/oauth-connect/github"
 hmac_secret = "change-me-set-via-env-github"
 redirect_uris = [
   "https://your-domain.com/iam/api/auth/github/callback",
@@ -120,7 +120,7 @@ redirect_uris = [
 
 [[idp.connectors]]
 id = "gitlab"
-base_url = "http://gitlab-connect-service:8080/gitlab-connect"
+base_url = "http://oauth-connect-service:8080/oauth-connect/gitlab"
 hmac_secret = "change-me-set-via-env-gitlab"
 redirect_uris = [
   "https://your-domain.com/iam/api/auth/gitlab/callback",

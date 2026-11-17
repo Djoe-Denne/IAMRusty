@@ -3,8 +3,8 @@
   "schema": "aiforall.image-targets/v1",
   "groups": {
     "local-full": ["iam", "hive", "telegraph", "manifesto", "lazaret", "sentinel", "ext-authz", "controller"],
-    "workspace": ["iam", "hive", "telegraph", "manifesto", "lazaret", "sentinel", "ext-authz", "controller", "github", "gitlab", "oauth"],
-    "openbao": ["github", "lazaret"]
+    "workspace": ["iam", "hive", "telegraph", "manifesto", "lazaret", "sentinel", "ext-authz", "controller", "oauth"],
+    "openbao": ["oauth", "lazaret"]
   },
   "extra_outputs": {"workspace": {"oodhive-monolith": "oodhive-monolith"}},
   "targets": {
@@ -32,16 +32,6 @@
       "source": "aiforall-lazaret-service:local-full", "dockerfile": "services/Lazaret/Dockerfile",
       "outputs": {"lazaret-service": "lazaret-service", "lazaret-migration": "migration"},
       "inputs": ["services/Lazaret/"], "features": []
-    },
-    "github": {
-      "source": "aiforall-github-connect-service:latest", "dockerfile": "services/GitHubConnect/Dockerfile",
-      "outputs": {"github-connect-service": "github-connect-service"},
-      "inputs": ["services/GitHubConnect/"], "features": []
-    },
-    "gitlab": {
-      "source": "aiforall-gitlab-connect-service:latest", "dockerfile": "services/GitLabConnect/Dockerfile",
-      "outputs": {"gitlab-connect-service": "gitlab-connect-service"},
-      "inputs": ["services/GitLabConnect/"], "features": []
     },
     "oauth": {
       "source": "aiforall-oauth-connect-service:latest", "dockerfile": "services/OAuthConnect/Dockerfile",

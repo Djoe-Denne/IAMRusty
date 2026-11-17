@@ -1,0 +1,3 @@
+# Runtime artifacts come from BUILD_IMAGE, never from the build context.
+# Exclude every source, operator credential, certificate and token file.
+**

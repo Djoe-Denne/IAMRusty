@@ -10,17 +10,17 @@ ni nouvelle architecture de délégation ni acceptation d'une ADR Proposed.
 Canon applicable : [ADR0407](../adr/0407-contrat-authn-federee-vendor-neutral.md),
 [ADR0409](../adr/0409-confiance-callback-oauth-idp-connect.md) et
 [ADR0412](../adr/0412-oauth-transaction-persistante-liee-navigateur.md), Accepted.
-IAM garde le compte plateforme, callback, liaison navigateur et linking ;
-GitHubConnect effectue les échanges vendor et traduit le profil.
+IAM retains the platform account, callback, browser binding and linking;
+OAuthConnect's `github` profile performs vendor exchanges and maps the profile.
 
 ### Données et scope minimal
 
-`GitHubConnectClient::user_profile` lit `GET /user` puis `GET /user/emails` :
+The declarative GitHub OAuth profile reads `GET /user` and `GET /user/emails`:
 
-- `id` GitHub stable, converti en `ProviderUserProfile.id` ; la clé fédérée reste
-  `(provider_id, provider_user_id)`, jamais le login ou l'email mutable ;
-- login et avatar publics ;
-- email principal et indicateur `verified`, avec le fallback public existant.
+- Stable GitHub `id` becomes the opaque external subject; the identity key is
+  `(instance, external ID)`, never the mutable login or email.
+- Public login and avatar.
+- Primary email and its `verified` flag only; no public-email fallback.
 
 Le scope demandé par l'**OAuth App GitHub** est **`user:email` seulement**.
 GitHub permet la lecture du profil public sans scope additionnel ;

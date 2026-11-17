@@ -31,7 +31,7 @@ read_replicas = []
 [[idp.connectors]]
 pkce_supported = false # Receiver-first rollout; no implicit PKCE capability.
 id = "github"
-base_url = "http://127.0.0.1:8085/github-connect"
+base_url = "http://127.0.0.1:8085/oauth-connect/github"
 hmac_secret = "change-me-github-connect-hmac"
 redirect_uris = [
   "http://127.0.0.1:8080/iam/api/auth/github/callback",
@@ -41,7 +41,7 @@ redirect_uris = [
 [[idp.connectors]]
 pkce_supported = false
 id = "gitlab"
-base_url = "http://127.0.0.1:8086/gitlab-connect"
+base_url = "http://127.0.0.1:8085/oauth-connect/gitlab"
 hmac_secret = "change-me-gitlab-connect-hmac"
 redirect_uris = [
   "http://127.0.0.1:8080/iam/api/auth/gitlab/callback",

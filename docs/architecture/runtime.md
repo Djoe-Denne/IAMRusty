@@ -28,8 +28,7 @@ flowchart TB
     Ctrl["apparatus-controller"]
     Build["apparatus-build"]
     Sentinel["sentinel-sync"]
-    Gh["GitHubConnect"]
-    Gl["GitLabConnect"]
+    Connect["OAuthConnect: GitHub OAuth / GitLab OIDC"]
   end
   subgraph localSeq["J1-J4 plan local, pas une ADR"]
     J1["J1 host invoke reel"] --> J2["J2 operator sur aiforall-local"]
@@ -38,7 +37,7 @@ flowchart TB
   end
 ```
 
-Le monolithe charge les **setup** (`runtime/monolith/src/runtime.rs`) puis `compose_routes` : un `serve_router`, des background tasks agrégées, `/health` + `/ready`. Il n’appelle jamais `run()` d’un service. Les standalones restent le défaut Compose (`iam-service` … `lazaret-service`). Connecteurs IdP : standalones Compose seulement, **pas** de nest monolithe ([0408](../adr/0408-connecteurs-idp-services-http.md)).
+The monolith loads each **setup** (`runtime/monolith/src/runtime.rs`) and then `compose_routes`: one `serve_router`, aggregated background tasks, `/health` and `/ready`. It never calls a service's `run()`. The five platform standalones remain the Compose default. Federated authentication uses the separate [OAuthConnect service](../services/oauth-connect.md), with no monolith nest; the two vendor-specific implementations were [retired](../contracts/legacy-connect-retirement.md).
 
 La séquence J1–J4 est un **ordre de livraison** laptop/kind ([plan](../platform-local-monolith-kind-implementation-plan.md)), pas une ADR : elle ne SuperSède pas 0404 ni 0601.
 

@@ -37,7 +37,7 @@ password = "postgres"
 [[idp.connectors]]
 pkce_supported = false # Receiver-first rollout; explicitly enable S256 after verification.
 id = "github"
-base_url = "http://github-connect-service:8080/github-connect"
+base_url = "http://oauth-connect-service:8080/oauth-connect/github"
 hmac_secret = "change-me-github-connect-hmac"
 redirect_uris = [
   "http://127.0.0.1:8080/iam/api/auth/github/callback",
@@ -47,7 +47,7 @@ redirect_uris = [
 [[idp.connectors]]
 pkce_supported = false
 id = "gitlab"
-base_url = "http://gitlab-connect-service:8080/gitlab-connect"
+base_url = "http://oauth-connect-service:8080/oauth-connect/gitlab"
 hmac_secret = "change-me-gitlab-connect-hmac"
 redirect_uris = [
   "http://127.0.0.1:8080/iam/api/auth/gitlab/callback",

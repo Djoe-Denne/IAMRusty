@@ -36,7 +36,7 @@ password = "postgres"
 [[idp.connectors]]
 pkce_supported = false # PKCE security tests must explicitly enable sender AND receiver.
 id = "github"
-base_url = "http://127.0.0.1:3000/github-connect"
+base_url = "http://127.0.0.1:3000/oauth-connect/github"
 hmac_secret = "iam-idp-connect-test-hmac"
 redirect_uris = [
   "http://127.0.0.1:8081/iam/api/auth/github/callback",
@@ -46,7 +46,7 @@ redirect_uris = [
 [[idp.connectors]]
 pkce_supported = false
 id = "gitlab"
-base_url = "http://127.0.0.1:3000/gitlab-connect"
+base_url = "http://127.0.0.1:3000/oauth-connect/gitlab"
 hmac_secret = "iam-idp-connect-test-hmac"
 redirect_uris = [
   "http://127.0.0.1:8081/iam/api/auth/gitlab/callback",

@@ -19,11 +19,9 @@ mesh/manifesto-service = base
 mesh/envoy-mesh = base
 mesh/ext-authz = base
 mesh/mesh-client = base
-mesh/gitlab-connect = oauth-proof
 workload/server = base
 
 [bundles]
-openbao-github = openbao,github-connect
 openbao-oauthconnect = openbao,oauth-connect
 
 [registry]
@@ -75,12 +73,6 @@ subjectAltName = DNS:mesh-client,DNS:mesh-client.aiforall-local-full.svc.cluster
 keyUsage = digitalSignature,keyEncipherment
 extendedKeyUsage = serverAuth,clientAuth
 
-[mesh/gitlab-connect]
-basicConstraints = critical,CA:FALSE
-subjectAltName = DNS:gitlab-connect,DNS:gitlab-connect.aiforall-local-full.svc.cluster.local
-keyUsage = digitalSignature,keyEncipherment
-extendedKeyUsage = serverAuth,clientAuth
-
 [mesh/postgres]
 basicConstraints = critical,CA:FALSE
 subjectAltName = DNS:postgres,DNS:postgres.aiforall-local-full.svc.cluster.local,DNS:localhost,IP:127.0.0.1
@@ -120,12 +112,6 @@ extendedKeyUsage = serverAuth,clientAuth
 [openbao]
 basicConstraints = critical,CA:FALSE
 subjectAltName = DNS:openbao,DNS:openbao.aiforall-local-full.svc,DNS:openbao.aiforall-local-full.svc.cluster.local
-keyUsage = digitalSignature,keyEncipherment
-extendedKeyUsage = serverAuth
-
-[github-connect]
-basicConstraints = critical,CA:FALSE
-subjectAltName = DNS:github-connect,DNS:github-connect.aiforall-local-full.svc,DNS:github-connect.aiforall-local-full.svc.cluster.local
 keyUsage = digitalSignature,keyEncipherment
 extendedKeyUsage = serverAuth
 

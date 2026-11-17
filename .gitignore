@@ -4,6 +4,7 @@
 target/
 docker-build-stage/
 .tools/
+/.local/oauth-connect/
 .tmp-sonar-it
 nul
 

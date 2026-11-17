@@ -10,8 +10,6 @@ applications:
     lazaret: {target: lazaret, enabled: true, port: 8080, prefix: LAZARET, ready: /lazaret/ready, configPath: /app/config/development.toml, user: 1000, mtls: false}
     sentinel-sync: {target: sentinel, enabled: true, port: 0, prefix: SENTINEL_SYNC, ready: "", configPath: /app/config/sentinel-sync.toml, user: 1000, mtls: false}
     ext-authz: {target: ext-authz, enabled: true, port: 8090, prefix: "", ready: /check, configPath: "", user: 65534, mtls: true, allowHttpErrors: true}
-    github-connect: {target: github, enabled: false, port: 8443, prefix: "", ready: /health, configPath: /app/config/development.toml, user: 1000, mtls: false}
-    gitlab-connect: {target: gitlab, enabled: false, port: 8443, prefix: "", ready: /health, configPath: /app/config/development.toml, user: 1000, mtls: false}
     oauth-connect: {target: oauth, enabled: false, port: 8443, prefix: "", ready: /health, configPath: /app/config/development.toml, user: 1000, mtls: false}
     envoy-mesh: {target: envoy, enabled: true, port: 10000, prefix: "", ready: /iam/health, configPath: /etc/envoy/envoy.yaml, user: 101, mtls: false}
   envoyImage: envoyproxy/envoy:v1.31.2@sha256:c56804e9fc8d5184c45862ad851173a925ff383151cb94156f86bed047da29bc

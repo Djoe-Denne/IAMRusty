@@ -2,6 +2,7 @@
 .git
 **/.git
 .tmp
+.local/oauth-connect
 .worktrees
 .opencode
 .cursor

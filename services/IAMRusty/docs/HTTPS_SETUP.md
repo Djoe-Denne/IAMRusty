@@ -73,7 +73,7 @@ For development and testing, you can use self-signed certificates.
    ```toml
    [[idp.connectors]]
    id = "github"
-   base_url = "http://github-connect-service:8080/github-connect"
+   base_url = "http://oauth-connect-service:8080/oauth-connect/github"
    hmac_secret = "change-me-github-connect-hmac"
    redirect_uris = [
      "https://localhost:8443/iam/api/auth/github/callback",
@@ -82,7 +82,7 @@ For development and testing, you can use self-signed certificates.
 
    [[idp.connectors]]
    id = "gitlab"
-   base_url = "http://gitlab-connect-service:8080/gitlab-connect"
+   base_url = "http://oauth-connect-service:8080/oauth-connect/gitlab"
    hmac_secret = "change-me-gitlab-connect-hmac"
    redirect_uris = [
      "https://localhost:8443/iam/api/auth/gitlab/callback",
@@ -331,4 +331,4 @@ If you encounter issues:
 3. Ensure all configuration parameters are correctly set
 4. Test with a simple curl command first before using a browser
 
-For additional help, please create an issue in the project repository. 
+For additional help, please create an issue in the project repository.

@@ -13,7 +13,7 @@ use url::Url;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 
-/// `WireMock` collaborator for IAM → `IdP` Connect (`/github-connect`, `/gitlab-connect`).
+/// `WireMock` collaborator for IAM → OAuthConnect instance paths.
 pub struct IdpConnectMockService {
     server: Arc<MockServer>,
     fixture: MockServerFixture,
@@ -89,7 +89,7 @@ impl IdpConnectMockService {
         F: Fn(&AuthorizeAuthenticationRequest) + Send + Sync + 'static,
     {
         let slug = slug.to_owned();
-        let full_path = format!("/{slug}-connect{AUTHORIZE_AUTHENTICATION_PATH}");
+        let full_path = format!("/oauth-connect/{slug}{AUTHORIZE_AUTHENTICATION_PATH}");
         Mock::given(method("POST"))
             .and(path(full_path))
             .respond_with(move |request: &Request| {
@@ -145,7 +145,7 @@ impl IdpConnectMockService {
     where
         F: Fn(&CompleteAuthorizationRequest) -> ResponseTemplate + Send + Sync + 'static,
     {
-        let full_path = format!("/{slug}-connect{COMPLETE_AUTHORIZATION_PATH}");
+        let full_path = format!("/oauth-connect/{slug}{COMPLETE_AUTHORIZATION_PATH}");
         Mock::given(method("POST"))
             .and(path(full_path))
             .respond_with(move |request: &Request| {
@@ -193,7 +193,7 @@ impl IdpConnectMockService {
 
     /// Always 401 on the given connector path (IAM error path).
     pub async fn mock_s2s_unauthorized(&self, slug: &str, path_suffix: &str) -> &Self {
-        let full_path = format!("/{slug}-connect{path_suffix}");
+        let full_path = format!("/oauth-connect/{slug}{path_suffix}");
         Mock::given(method("POST"))
             .and(path(full_path))
             .respond_with(ResponseTemplate::new(401))
@@ -203,7 +203,7 @@ impl IdpConnectMockService {
     }
 
     pub async fn mock_profile_status(&self, slug: &str, status: u16) -> &Self {
-        let full_path = format!("/{slug}-connect{PROFILE_PATH}");
+        let full_path = format!("/oauth-connect/{slug}{PROFILE_PATH}");
         Mock::given(method("POST"))
             .and(path(full_path))
             .respond_with(ResponseTemplate::new(status))
@@ -213,7 +213,7 @@ impl IdpConnectMockService {
     }
 
     async fn mount_hmac(&self, slug: &str, suffix: &str, responder: HmacResponder) -> &Self {
-        let full_path = format!("/{slug}-connect{suffix}");
+        let full_path = format!("/oauth-connect/{slug}{suffix}");
         Mock::given(method("POST"))
             .and(path(full_path))
             .respond_with(responder)

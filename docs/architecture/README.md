@@ -63,7 +63,7 @@ flowchart TB
 
 L’humain atteint **soit** le monolithe (`/iam` … `/lazaret`), **soit** les cinq standalones — mêmes contrats de chemins, deux plaques de binaires. Les connecteurs IdP et `sentinel-sync` ne sont pas nestés dans `oodhive-monolith`. L’operator (hors Manifesto / Lazaret) isole le plugin ; le plugin ne parle à la plateforme que via Lazaret. L’attestation `VALID` vit dans un store JSON (`APPARATUS_ADMISSION_STORE_PATH`), pas dans Postgres.
 
-OAuthConnect est livré et qualifié localement avec le raccord IAM v2 ; les sources des services GitHubConnect/GitLabConnect restent pendant la transition. Ce regroupement dans le dessin **ne signifie pas** négociation/fallback v1 automatique ni bascule de leurs URL en déploiement. ADR0413 reste Accepted/Partial ; E2E fournisseur et équivalence réelle `sub` GitLab restent externes.
+OAuthConnect and its IAM v2 integration are locally delivered. Standalone GitHubConnect/GitLabConnect sources, dedicated tests and active repository bindings were retired on 2026-11-15 under the [retirement contract](../contracts/legacy-connect-retirement.md). No automatic v1 fallback or live deployment cutover follows. ADR0413 remains Accepted/Partial; real-provider E2E and deployed GitLab subject equivalence remain external gates.
 
 ## Sources ADR
 
