@@ -83,13 +83,13 @@ class DeclarativeToolsTests(unittest.TestCase):
 
     def test_canonical_overrides_survive_groups_and_overlapping_selections(self):
         combinations = [(name,) for name in ("default", "local-full", "workspace", "openbao")]
-        combinations += [("workspace", "github"), ("local-full", "openbao")]
+        combinations += [("workspace", "oauth"), ("local-full", "openbao")]
         for entries in combinations:
             expected = set()
             for entry in entries:
                 expected.update(INVENTORY["groups"].get(
                     "local-full" if entry == "default" else entry, [entry]))
-            name = "github" if "github" in expected else "iam"
+            name = "oauth" if "oauth" in expected else "iam"
             settings = (name + ".tags=review-" + name + ":custom",
                         name + ".labels.review.fixture=public-label",
                         name + ".args.REVIEW_FIXTURE=public-arg")
@@ -123,11 +123,12 @@ class DeclarativeToolsTests(unittest.TestCase):
     def test_direct_explicit_restriction_is_resolved_by_bake(self):
         with tempfile.TemporaryDirectory() as tmp:
             override = Path(tmp) / "invocation.json"
-            override.write_text(json.dumps({"variable": {"IMAGE_TARGETS": {"default": "github"}}}))
-            value = self.bake_print(extra=override, targets=("github",))
-            self.assertEqual(set(value["target"]), {"github", "artifacts"})
-            self.assertEqual(value["target"]["artifacts"]["args"]["IMAGE_TARGETS"], "github")
-            self.assert_native_selection(["github"], set(TARGETS["github"]["outputs"].values()), set())
+            override.write_text(json.dumps({"variable": {"IMAGE_TARGETS": {"default": "oauth"}}}))
+            value = self.bake_print(extra=override, targets=("oauth",))
+            self.assertEqual(set(value["target"]), {"oauth", "artifacts"})
+            self.assertEqual(value["target"]["artifacts"]["args"]["IMAGE_TARGETS"], "oauth")
+            self.assert_native_selection(
+                ["oauth"], set(TARGETS["oauth"]["outputs"].values()), set(TARGETS["oauth"]["features"]))
 
     def test_new_target_and_invocation_provenance_need_no_python_recipe(self):
         with tempfile.TemporaryDirectory() as tmp:
