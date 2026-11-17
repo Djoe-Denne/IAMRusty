@@ -101,24 +101,32 @@ jobs:
                   cid = record.get("container_id")
                   if cid and re.fullmatch(r"[a-f0-9]{64}", cid):
                       ids.add(cid)
-          after = []
-          for cid in sorted(ids):
-              if cid in before:
-                  raise SystemExit("Pre-existing identity in fixture ledger; no adoption")
-              result = subprocess.run(["docker", "inspect", "--format",
-                  "{{json .State.Running}}", cid], text=True, capture_output=True)
-              if result.returncode and "No such" not in result.stderr:
-                  raise SystemExit("Owned identity inspect inconclusive")
-              running = result.returncode == 0 and json.loads(result.stdout) is True
-              if running:
-                  subprocess.run(["docker", "stop", "--time", "10", cid], check=True)
-                  verify = subprocess.run(["docker", "inspect", "--format",
-                      "{{json .State.Running}}", cid], text=True, capture_output=True, check=True)
-                  if json.loads(verify.stdout) is not False:
-                      raise SystemExit("Owned identity still running")
-              after.append({"id": cid, "running": False, "stopped_by_workflow": running,
-                            "absent": result.returncode != 0})
+          if ids & before:
+              raise SystemExit("Pre-existing identity in fixture ledger; no adoption")
+          def inventory(all_containers=False):
+              command = ["docker", "container", "ls", "-q", "--no-trunc"]
+              if all_containers:
+                  command.append("--all")
+              result = subprocess.run(command, text=True, capture_output=True, check=True)
+              found = set(result.stdout.splitlines())
+              if any(not re.fullmatch(r"[a-f0-9]{64}", cid) for cid in found):
+                  raise SystemExit("Invalid full-ID inventory")
+              return found
+          # Removed identities are verified by a successful full-ID inventory,
+          # never by interpreting a CLI error string as Docker's HTTP404.
+          running = inventory()
+          stopped = set()
+          for cid in sorted(ids & running):
+              subprocess.run(["docker", "container", "stop", "--time", "10", cid], check=True)
+              stopped.add(cid)
+          remaining = inventory()
+          present = inventory(all_containers=True)
+          after = [{"id": cid, "running": cid in remaining,
+                    "stopped_by_workflow": cid in stopped, "absent": cid not in present}
+                   for cid in sorted(ids)]
           (evidence / "owned-after.json").write_text(json.dumps(after, indent=2))
+          if ids & remaining:
+              raise SystemExit("Owned identity still running")
           print(f"Owned IDs checked: {len(after)}")
           PY
       - name: Upload bounded diagnostics and ownership ledgers
