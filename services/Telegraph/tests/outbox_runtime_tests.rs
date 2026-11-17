@@ -1224,6 +1224,119 @@ struct SqsHandler {
     entered: Arc<tokio::sync::Notify>,
 }
 
+fn normalized_sqs_test_url(value: &str) -> anyhow::Result<url::Url> {
+    let mut address = url::Url::parse(value)?;
+    if address.host_str() == Some("localhost") {
+        address
+            .set_host(Some("127.0.0.1"))
+            .map_err(|_| anyhow::anyhow!("invalid local SQS host"))?;
+    }
+    Ok(address)
+}
+
+/// Observe startup without detaching a completed parent or leaking on timeout.
+async fn observe_sqs_handler_entry(
+    tasks: &mut Vec<telegraph_setup::runtime::BackgroundTask>,
+    entered: &tokio::sync::Notify,
+    budget: Duration,
+) -> anyhow::Result<()> {
+    tokio::select! {
+        biased;
+        result = &mut tasks[0] => {
+            // The result was consumed: shutdown must not poll this handle again.
+            tasks.clear();
+            match result {
+                Ok(Ok(())) => anyhow::bail!("SQS consumer exited before handler entry"),
+                Ok(Err(_)) => anyhow::bail!("SQS consumer failed before handler entry"),
+                Err(_) => anyhow::bail!("SQS consumer task failed before handler entry"),
+            }
+        }
+        () = entered.notified() => Ok(()),
+        () = tokio::time::sleep(budget) => {
+            anyhow::bail!("SQS handler entry deadline exceeded; consumer still pending")
+        }
+    }
+}
+
+#[tokio::test]
+async fn sqs_startup_timeout_still_joins_and_destroys_parent() {
+    let destroyed = Arc::new(AtomicUsize::new(0));
+    let owner = PollerOwner(destroyed.clone());
+    let mut tasks = vec![tokio::spawn(async move {
+        let _owner = owner;
+        std::future::pending::<anyhow::Result<()>>().await
+    })];
+    let startup = observe_sqs_handler_entry(
+        &mut tasks,
+        &tokio::sync::Notify::new(),
+        Duration::from_millis(10),
+    )
+    .await;
+    // Exercise the same unconditional shutdown path as the real SQS oracle.
+    let abort = tasks[0].abort_handle();
+    let shutdown = shutdown_owned_tasks(&mut tasks, async move {
+        abort.abort();
+        Ok(())
+    })
+    .await;
+    assert!(startup
+        .unwrap_err()
+        .to_string()
+        .contains("deadline exceeded"));
+    assert!(
+        shutdown.is_err(),
+        "forced parent cancellation is not success"
+    );
+    assert!(tasks.is_empty());
+    assert_eq!(destroyed.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn sqs_startup_observes_early_exit_without_double_join() {
+    for failed in [false, true] {
+        let mut tasks = vec![tokio::spawn(async move {
+            if failed {
+                anyhow::bail!("private transport sentinel");
+            }
+            Ok(())
+        })];
+        let error = observe_sqs_handler_entry(
+            &mut tasks,
+            &tokio::sync::Notify::new(),
+            Duration::from_secs(1),
+        )
+        .await
+        .unwrap_err();
+        let shutdown = shutdown_owned_tasks(&mut tasks, async { Ok(()) }).await;
+        assert!(tasks.is_empty());
+        shutdown.unwrap();
+        assert!(error.to_string().contains("before handler entry"));
+        assert!(!error.to_string().contains("private transport sentinel"));
+    }
+}
+
+#[tokio::test]
+async fn sqs_startup_entry_preserves_parent_for_shutdown() {
+    let entered = Arc::new(tokio::sync::Notify::new());
+    let signal = entered.clone();
+    let (stop, stopped) = tokio::sync::oneshot::channel();
+    let mut tasks = vec![tokio::spawn(async move {
+        signal.notify_one();
+        let _ = stopped.await;
+        Ok(())
+    })];
+    observe_sqs_handler_entry(&mut tasks, &entered, Duration::from_secs(1))
+        .await
+        .unwrap();
+    assert_eq!(tasks.len(), 1);
+    shutdown_owned_tasks(&mut tasks, async {
+        stop.send(()).map_err(|()| anyhow::anyhow!("parent exited"))
+    })
+    .await
+    .unwrap();
+    assert!(tasks.is_empty());
+}
+
 #[tokio::test]
 #[serial]
 async fn real_sqs_long_poll_shutdown_joins_parent_and_destroys_all_poller_resources() {
@@ -1237,6 +1350,21 @@ async fn real_sqs_long_poll_shutdown_joins_parent_and_destroys_all_poller_resour
     // destroyed until every poller and the parent released the encompassing Arc.
     sqs_config.queues.clear();
     sqs_config.default_queues = vec!["telegraph-events".into(), "test-telegraph-outbound".into()];
+    assert_eq!(
+        sqs_config.region,
+        fixture.sqs().region,
+        "SQS region mismatch"
+    );
+    assert!(
+        normalized_sqs_test_url(&sqs_config.endpoint_url().expect("local SQS endpoint")).unwrap()
+            == normalized_sqs_test_url(&fixture.sqs().endpoint_url).unwrap(),
+        "SQS consumer endpoint does not match the fixture"
+    );
+    assert!(
+        normalized_sqs_test_url(&sqs_config.queue_url("telegraph-events")).unwrap()
+            == normalized_sqs_test_url(&fixture.sqs().queue_url).unwrap(),
+        "SQS publication queue does not match the consumer"
+    );
     let consumer = Arc::new(
         rustycog::events::SqsEventConsumer::new(sqs_config)
             .await
@@ -1279,19 +1407,20 @@ async fn real_sqs_long_poll_shutdown_joins_parent_and_destroys_all_poller_resour
         let _parent_owner = parent_owner;
         task_consumer.start(owner).await.map_err(Into::into)
     })];
-    tokio::time::timeout(Duration::from_secs(5), entered.notified())
-        .await
-        .unwrap();
+    let startup = observe_sqs_handler_entry(&mut tasks, &entered, Duration::from_secs(5)).await;
     // One poller is inside an async handler, the other is in an empty-queue
     // long-poll. The SDK owner encompasses both, not just the parent handle.
-    assert_eq!(destroyed.load(Ordering::SeqCst), 0);
+    let destroyed_before_shutdown = destroyed.load(Ordering::SeqCst);
     let start = tokio::time::Instant::now();
-    shutdown_owned_tasks(&mut tasks, async {
+    let shutdown = shutdown_owned_tasks(&mut tasks, async {
         consumer.stop().await.map_err(Into::into)
     })
-    .await
-    .unwrap();
-    assert!(start.elapsed() < Duration::from_secs(6));
+    .await;
+    let shutdown_elapsed = start.elapsed();
+    // All post-spawn assertions follow cleanup, including failed preparation.
+    telegraph_setup::runtime::combine_results(startup, shutdown).unwrap();
+    assert_eq!(destroyed_before_shutdown, 0);
+    assert!(shutdown_elapsed < Duration::from_secs(6));
     assert_eq!(
         destroyed.load(Ordering::SeqCst),
         1,
