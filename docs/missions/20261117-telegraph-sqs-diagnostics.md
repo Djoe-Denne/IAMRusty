@@ -148,3 +148,50 @@ outbox runtime target; its three startup regressions pass (11 other cases
 filtered). These are unit/compile results, not a new real-broker run or a claim
 that the intermittent CI failure is corrected. No new Docker runtime lease or
 resource creation was needed for this instrumentation.
+
+## Terminal cached fixture correction and targeted CI
+
+The next full CI run, [44136915301](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44136915301/job/134233387768),
+passed the poller, password-reset and email-verification scenarios. It emitted no
+consumer failure record. Instead, 24 setups failed across two notification test
+binaries, repeatedly waiting 30 seconds against their respective exited
+LocalStack containers. Both reported exit code 245 and `OOMKilled=false`.
+Neither value establishes the initial cause.
+
+SDK `feaabaf7ddf3b9000b43ec3f5050d27528e71171` corrects the repeated waits:
+
+- Before SQS protocol preparation, inspect the exact owned container ID within
+  one second. Only confirmed exited/dead, non-running states or confirmed absence
+  are terminal. Unknown and transitional states still require protocol readiness.
+- Preserve the first terminal observation in the existing fixture owner.
+  Subsequent setups return that error without another inspect, log request or
+  protocol wait. Do not recreate the container or change ownership/cleanup.
+- On the first terminal observation, sample up to 100 log lines, 16 KiB and 64
+  frames within one second. Emit only fixed marker booleans and numeric sample
+  sizes, alongside the closed container-state projection. Never emit raw logs,
+  provider text, inspect health/error fields or credentials. Markers are hints
+  about sampled text, not proof of a root cause. Cancellation retains the
+  terminal identity even if the log sample cannot finish.
+- Keep all existing readiness budgets and test acceptance assertions unchanged.
+
+The complete SDK library suite passes 157 tests, including six new regressions
+for terminal classification, bounded private-data-free log projection, retained
+first failure, unknown/running states and cancellation. This is unit evidence;
+the production Docker inspect/log wiring still requires the Linux run.
+The consumed SDK pin also compiles Telegraph's outbox runtime binary; its three
+startup regressions pass (11 other tests filtered). Final temporary-workflow
+YAML, Bash and embedded Python syntax checks pass.
+
+The user authorized a temporary manual workflow,
+`.github/workflows/telegraph-sqs-diagnostic.yml`, selecting only
+`notification_error_scenarios_test`, `notification_http_endpoints_test` and
+`outbox_runtime_tests`. It uses the existing pinned setup/cache actions,
+`cargo-llvm-cov 0.9.1` and explicit Ubuntu 26.04 (the failing runner family), with
+no dependency on unrelated build jobs. Artifacts contain closed diagnostic
+records, source/runner metadata and fixture ownership ledgers, not raw test or
+container logs. A separate exact-ID check stops any remaining owned containers
+without deleting or adopting pre-existing resources. The workflow must be
+removed after the investigation's targeted validation.
+
+No local Docker/Kind/WSL runtime was started for this correction. Historical
+retained resources and the sibling SDK's unrelated untracked `nul` are unchanged.

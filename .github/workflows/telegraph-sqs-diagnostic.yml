@@ -1,0 +1,132 @@
+# Temporary investigation workflow: remove after the targeted validation.
+name: Telegraph SQS diagnostic (temporary)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  RUST_BACKTRACE: 1
+  RUN_ENV: test
+  RUSTYCOG_TEST_RUNNER_MODE: local
+  RUSTYCOG_TEST_RUN_ID: sqs-${{ github.run_id }}-${{ github.run_attempt }}
+  RUSTYCOG_TEST_LEDGER_DIR: ${{ runner.temp }}/telegraph-sqs-fixtures
+
+jobs:
+  targeted:
+    # Match the failing runner family without waiting for unrelated build jobs.
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          submodules: true
+      - uses: ./.github/actions/setup-rust
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          shared-key: telegraph
+          cache-on-failure: true
+      - uses: taiki-e/install-action@72f835688cb6c15903b796f704b01e652a2b8835
+        with:
+          tool: cargo-llvm-cov@0.9.1
+      - name: Prepare owned fixture evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUSTYCOG_TEST_LEDGER_DIR" "$RUNNER_TEMP/sqs-evidence"
+          git rev-parse HEAD > "$RUNNER_TEMP/sqs-evidence/source-sha.txt"
+          git submodule status > "$RUNNER_TEMP/sqs-evidence/submodule.txt"
+          docker version --format '{{json .Server}}' > "$RUNNER_TEMP/sqs-evidence/docker-version.json"
+          docker ps -aq --no-trunc > "$RUNNER_TEMP/sqs-before.txt"
+          docker pull localstack/localstack:3.0.2
+      - name: Run only the three relevant Telegraph targets with coverage
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          cargo llvm-cov --package telegraph-service --locked --no-report --no-fail-fast \
+            --test notification_error_scenarios_test \
+            --test notification_http_endpoints_test \
+            --test outbox_runtime_tests 2>&1 | tee "$RUNNER_TEMP/sqs-tests.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "$status" > "$RUNNER_TEMP/sqs-evidence/test-exit-code.txt"
+          exit "$status"
+      - name: Retain closed diagnostic records
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re, subprocess
+          root = pathlib.Path(os.environ["RUNNER_TEMP"])
+          evidence = root / "sqs-evidence"
+          evidence.mkdir(exist_ok=True)
+          markers = []
+          log = root / "sqs-tests.log"
+          for line in log.read_text().splitlines() if log.exists() else []:
+              for marker in ["RUSTYCOG_SQS_TERMINAL ", "TELEGRAPH_SQS_FAILURE "]:
+                  if marker in line:
+                      value, _ = json.JSONDecoder().raw_decode(line.split(marker, 1)[1])
+                      markers.append({"kind": marker.strip(), "record": value})
+          (evidence / "diagnostics.json").write_text(json.dumps(markers, indent=2))
+          (evidence / "runner.json").write_text(json.dumps({
+              name: os.environ.get(name) for name in ["ImageOS", "ImageVersion", "RUNNER_OS"]
+          }, indent=2))
+          print(f"Closed diagnostic records: {len(markers)}")
+          PY
+      - name: Check and stop exact owned fixture IDs
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re, subprocess
+          root = pathlib.Path(os.environ["RUNNER_TEMP"])
+          evidence = root / "sqs-evidence"
+          evidence.mkdir(exist_ok=True)
+          before_path = root / "sqs-before.txt"
+          before = set(before_path.read_text().splitlines()) if before_path.exists() else set()
+          ids = set()
+          for ledger in pathlib.Path(os.environ["RUSTYCOG_TEST_LEDGER_DIR"]).glob("fixture-*.jsonl"):
+              for line in ledger.read_text().splitlines():
+                  record = json.loads(line)
+                  cid = record.get("container_id")
+                  if cid and re.fullmatch(r"[a-f0-9]{64}", cid):
+                      ids.add(cid)
+          after = []
+          for cid in sorted(ids):
+              if cid in before:
+                  raise SystemExit("Pre-existing identity in fixture ledger; no adoption")
+              result = subprocess.run(["docker", "inspect", "--format",
+                  "{{json .State.Running}}", cid], text=True, capture_output=True)
+              if result.returncode and "No such" not in result.stderr:
+                  raise SystemExit("Owned identity inspect inconclusive")
+              running = result.returncode == 0 and json.loads(result.stdout) is True
+              if running:
+                  subprocess.run(["docker", "stop", "--time", "10", cid], check=True)
+                  verify = subprocess.run(["docker", "inspect", "--format",
+                      "{{json .State.Running}}", cid], text=True, capture_output=True, check=True)
+                  if json.loads(verify.stdout) is not False:
+                      raise SystemExit("Owned identity still running")
+              after.append({"id": cid, "running": False, "stopped_by_workflow": running,
+                            "absent": result.returncode != 0})
+          (evidence / "owned-after.json").write_text(json.dumps(after, indent=2))
+          print(f"Owned IDs checked: {len(after)}")
+          PY
+      - name: Upload bounded diagnostics and ownership ledgers
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: telegraph-sqs-diagnostic-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/sqs-evidence/
+            ${{ env.RUSTYCOG_TEST_LEDGER_DIR }}/fixture-*.jsonl
+          retention-days: 7
+          if-no-files-found: warn
