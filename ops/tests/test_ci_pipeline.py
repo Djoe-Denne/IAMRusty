@@ -67,7 +67,7 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(p.coverage_packages(self.data, "lazaret", self.root), [])
         self.assertEqual(set(p.INVENTORY["builds"]), {
             "iam", "telegraph", "hive", "manifesto", "monolith", "sentinel-sync", "ext-authz", "oauth"})
-        self.assertEqual(build.build_arguments("iam")[:3], ["build", "--locked", "--all-targets"])
+        self.assertEqual(build.build_arguments("iam")[:2], ["build", "--locked"])
 
     def test_unknown_workspace_package_is_not_silently_omitted(self):
         self.data["packages"].append({
@@ -379,6 +379,35 @@ class PlannerTests(unittest.TestCase):
                 self.data, directory, self.root / "canonical-result", identity=IDENTITY,
                 root=self.root, run=self.merge_tracefiles), 0)
             self.assertEqual(output_file.read_text(), "authoritative=false\nauthoritative=true\n")
+
+
+class BuildTests(unittest.TestCase):
+    def test_all_builds_keep_their_packages_without_precompiling_test_targets(self):
+        for service, packages in p.INVENTORY["builds"].items():
+            with self.subTest(service=service):
+                self.assertEqual(build.build_arguments(service), [
+                    "build", "--locked",
+                    *[arg for package in packages for arg in ("--package", package)],
+                ])
+
+    def test_only_a_successful_build_exports_the_exact_command_for_native_provenance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            environment = Path(temporary) / "github-env"
+            for status in (101, 0):
+                with self.subTest(status=status), patch.dict(os.environ, {"GITHUB_ENV": str(environment)}), \
+                        patch.object(sys, "argv", ["build.py", "--service", "iam"]), \
+                        patch.object(build.subprocess, "run",
+                                     return_value=Mock(returncode=status)) as runner:
+                    self.assertEqual(build.main(), status)
+                    actual = runner.call_args.args[0]
+                    self.assertEqual(actual, ["cargo", *build.build_arguments("iam")])
+                    if status:
+                        self.assertFalse(environment.exists())
+                    else:
+                        text = environment.read_text()
+                        self.assertTrue(text.startswith("K6_BUILD_ARGS_JSON="))
+                        self.assertEqual(json.loads(text.split("=", 1)[1]), actual[1:])
+                        self.assertNotIn("--all-targets", text)
 
 
 class WorkflowTests(unittest.TestCase):

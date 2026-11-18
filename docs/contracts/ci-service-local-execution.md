@@ -12,6 +12,7 @@ Commit/push, the announced native-v1 retirement and hosted qualification were ex
 ## DAG and inventory
 
 - Eight explicit build jobs retain baseline package selections and display names.
+- Native builds use `cargo build --locked` with those unchanged package selections and default features. Cargo builds production libraries/binaries without redundantly precompiling test, benchmark and example targets. Existing coverage assignments/execution commands and both Clippy policies remain unchanged. This intentionally removes a separate native compile/link-only pass for non-production targets; Clippy is not equivalent link evidence.
 - Each service coverage caller waits only for its build and the plan. Standalone readiness/shared coverage does not wait for an unrelated service.
 - E2E waits only for its three native producers. Clippy waits for formatting, not builds or tests.
 - Complete coverage plus complete Clippy reports qualify Sonar. The final summary distinguishes selected failures, expected skips and unevaluated full coverage.
@@ -47,7 +48,16 @@ Commit/push, the announced native-v1 retirement and hosted qualification were ex
 - Statistics authenticate the resolved executable first. An unapproved executable is never invoked on failure or teardown.
 - Native roles bind exactly: `iam → build-iam`, `oauth → build-oauth`, `ext-authz → build-ext-authz`. Preserve display names and all repository/workflow/source/SDK/attempt/artifact/ELF/package checks.
 - V2 records actual wrapper settings and the version/platform/executable-digest tuple. Reject other wrappers, workspace wrappers, compiler flags, Cargo indirection, wrong role/job or unknown digest/version. Do not clear the wrapper to collect a bundle.
+- New producers export the exact successful build argv as `K6_BUILD_ARGS_JSON`; do not synthesize an `--all-targets` command that did not run. Native-v2 consumers admit two closed forms: `build --locked` or historical `build --locked --all-targets`, followed only by valid package argument pairs containing every required output package. New producers emit only the production form; arbitrary flags, malformed args, missing outputs and foreign provenance remain rejected. No schema fields change and native-v1 remains rejected.
 - Reject native v1 explicitly; do not silently rebuild or select another attempt. Existing saved-image admission remains unchanged.
+
+## Measured warm-build qualification
+
+- The IAM-only qualification workflow runs a seed build followed by a rebuild on a fresh hosted runner, using the same build action as the full CI. Both target directories start empty; transfer only compiler-cache results, never `target/` artifacts.
+- Existing warmed caches may be read. Do not describe the seed job as a forced cold-cache experiment or delete caches to manufacture that envelope.
+- Record source/run/attempt/job, exact Cargo command, outcome and Cargo elapsed time. Preserve failed builds. Flush pending cache writes through the authenticated pinned executable before admitting the second job.
+- Evaluate Cargo time, setup/cache overhead and complete IAM job duration against comparable hosted baselines, including the latest 365-second IAM job from run44322588851. Cache-hit counts alone are not performance acceptance.
+- Change target selection first. If per-object GHA traffic remains a demonstrated wall-time bottleneck, a later batch-cache implementation requires an explicit trusted publisher, validated compatible object deltas, conflict handling and no build/E2E prewarm dependency. It must not archive `target/`, delete warmed caches or claim that concurrent snapshots merge automatically.
 
 ## Clippy and acceptance
 

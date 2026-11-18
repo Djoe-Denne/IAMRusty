@@ -51,7 +51,7 @@ def manifest(data=None):
                 instrumentation="none", flags={
                     "environment": {name: "sccache" if name == "RUSTC_WRAPPER" else "" for name in b.FLAG_NAMES},
                     "cargo_config_sha256": {}, "compiler_cache": b.compiler_cache_module().expected_attestation()},
-                build_args=["build", "--locked", "--all-targets", "--package", "oauth-connect-service"],
+                build_args=["build", "--locked", "--package", "oauth-connect-service"],
                 cargo_lock_sha256="c" * 64, inventory_sha256="d" * 64,
                 files=[dict(package="oauth-connect-service", name="oauth-connect-service", path="bin/oauth-connect-service",
                             size=len(data), sha256=hashlib.sha256(data).hexdigest(), elf=ELF)])
@@ -90,6 +90,55 @@ class BinaryContractTests(unittest.TestCase):
             mutate(value)
             with self.assertRaises(b.Refused):
                 b.validate_manifest(value, EXPECTED, OUTPUTS)
+
+    def test_v2_admits_production_and_historical_commands_but_no_other_target_flags(self):
+        for prefix in (["build", "--locked"], ["build", "--locked", "--all-targets"]):
+            value = manifest()
+            value["build_args"] = [*prefix, "--package", "oauth-connect-service"]
+            with self.subTest(prefix=prefix):
+                b.validate_manifest(value, EXPECTED, OUTPUTS)
+            for suffix in ([], ["--package"], ["--package", "different-service"],
+                           ["--package", "--release"], ["--tests", "oauth-connect-service"],
+                           ["--package", "oauth-connect-service", "--release"]):
+                changed = {**value, "build_args": [*prefix, *suffix]}
+                with self.subTest(prefix=prefix, suffix=suffix), self.assertRaises(b.Refused):
+                    b.validate_manifest(changed, EXPECTED, OUTPUTS)
+        with self.assertRaises(b.Refused):
+            b.build_packages(["build", "--locked", "--all-targets", "--package",
+                              "oauth-connect-service"], allow_all_targets=False)
+
+    def test_producer_records_exact_successful_argv_instead_of_synthesizing_all_targets(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            target = root / "target"
+            (target / "debug").mkdir(parents=True)
+            (target / "debug/oauth-connect-service").write_bytes(executable())
+            (root / "Cargo.lock").write_text("lock")
+            (root / "ops/deploy/build").mkdir(parents=True)
+            (root / "ops/deploy/build/targets.json").write_text("inventory")
+            args = ["build", "--locked", "--package", "oauth-connect-service"]
+            environment = dict(
+                GITHUB_REPOSITORY="owner/repo", GITHUB_REPOSITORY_ID="123", GITHUB_SHA=SHA,
+                GITHUB_RUN_ID="789", GITHUB_RUN_ATTEMPT="1", GITHUB_JOB=b.BUILD_JOBS["oauth"],
+                CARGO_TARGET_DIR=str(target), K6_CI_WORKFLOW_ID="456",
+                K6_BUILD_ARGS_JSON=json.dumps(args))
+            with patch.object(b, "inventory", return_value=OUTPUTS), \
+                    patch.object(b.platform, "system", return_value="Linux"), \
+                    patch.object(b.platform, "machine", return_value="x86_64"), \
+                    patch.object(b.platform, "freedesktop_os_release", return_value={
+                        "ID": "ubuntu", "VERSION_ID": "24.04"}), \
+                    patch.object(b, "command", side_effect=[SHA, SDK, "glibc 2.39", "cargo 1.99.1", "rustc 1.99.1"]), \
+                    patch.object(b, "flags", return_value=manifest()["flags"]), \
+                    patch.object(b, "elf", return_value=ELF):
+                output = root / "bundle"
+                b.publish(root, "oauth", output, environment)
+            with tarfile.open(output / "bundle.tar.gz", "r:gz") as archive:
+                published = json.load(archive.extractfile("manifest.json"))
+            self.assertEqual(published["build_args"], args)
+            self.assertNotIn("--all-targets", published["build_args"])
+            b.validate_manifest(published, {**EXPECTED,
+                "cargo_lock_sha256": b.sha(root / "Cargo.lock"),
+                "inventory_sha256": b.sha(root / "ops/deploy/build/targets.json")}, OUTPUTS)
 
     def test_producer_job_is_bound_to_its_role(self):
         env = dict(GITHUB_REPOSITORY="owner/repo", GITHUB_REPOSITORY_ID="123",
@@ -359,7 +408,7 @@ class PackagingTests(unittest.TestCase):
                              inventory_sha256=b.sha(source / "ops/deploy/build/targets.json"))
                 value["files"] = []
                 outputs = b.inventory(source, role)
-                value["build_args"] = ["build", "--locked", "--all-targets"]
+                value["build_args"] = ["build", "--locked"]
                 with tarfile.open(acquired / (role + ".tar.gz"), "w:gz") as archive:
                     for package, name in outputs.items():
                         raw = executable()

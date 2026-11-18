@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 import platform
 import re
-import shlex
 import shutil
 import struct
 import subprocess
@@ -164,6 +163,17 @@ def identity(environment, role):
     return values
 
 
+def build_packages(args, *, allow_all_targets):
+    """Admit only production commands or the explicitly supported historical v2 form."""
+    require(isinstance(args, list) and args[:2] == ["build", "--locked"], "MANIFEST_BUILD_ARGS")
+    offset = 3 if allow_all_targets and args[2:3] == ["--all-targets"] else 2
+    require(len(args) >= offset + 2 and (len(args) - offset) % 2 == 0, "MANIFEST_BUILD_ARGS")
+    require(all(args[index] == "--package" and isinstance(args[index + 1], str)
+                and re.fullmatch(r"[a-z][a-z0-9_-]+", args[index + 1])
+                for index in range(offset, len(args), 2)), "MANIFEST_BUILD_ARGS")
+    return args[offset + 1::2]
+
+
 def publish(root, role, output, environment=None):
     env = dict(os.environ if environment is None else environment)
     root, output = Path(root).resolve(), Path(output)
@@ -179,9 +189,9 @@ def publish(root, role, output, environment=None):
     build_flags = flags(env, root)
     require(build_flags["compiler_cache"] == compiler_cache_module().expected_attestation(),
             "MISSING_COMPILER_CACHE_ATTESTATION")
-    args = shlex.split(env.get("K6_BUILD_PACKAGE_ARGS", ""))
-    require(len(args) % 2 == 0 and all(args[n] == "--package" for n in range(0, len(args), 2)), "BUILD_PACKAGE_ARGS")
-    require(set(outputs) <= set(args[1::2]), "OUTPUT_PACKAGE_NOT_BUILT")
+    args = strict_json(env.get("K6_BUILD_ARGS_JSON", "null"))
+    packages = build_packages(args, allow_all_targets=False)
+    require(set(outputs) <= set(packages), "OUTPUT_PACKAGE_NOT_BUILT")
     target = Path(env["CARGO_TARGET_DIR"]).resolve()
     require(target == root / "target", "BINARY_TARGET_DIRECTORY")
     files = []
@@ -199,7 +209,7 @@ def publish(root, role, output, environment=None):
         "target": "x86_64-unknown-linux-gnu", "producer_os": "ubuntu-24.04",
         "libc": command(["getconf", "GNU_LIBC_VERSION"]), "cargo": command(["cargo", "--version"]),
         "rustc": command(["rustc", "-vV"]), "instrumentation": "none", "flags": build_flags,
-        "build_args": ["build", "--locked", "--all-targets", *args],
+        "build_args": args,
         "cargo_lock_sha256": sha(root / "Cargo.lock"),
         "inventory_sha256": sha(root / "ops/deploy/build/targets.json"), "files": files,
     }
@@ -243,11 +253,8 @@ def validate_manifest(value, expected, outputs):
             isinstance(value, str) and re.fullmatch(r"[a-f0-9]{64}", value)
             for key, value in configs.items()), "MANIFEST_FLAGS")
     args = value["build_args"]
-    require(isinstance(args, list) and args[:3] == ["build", "--locked", "--all-targets"]
-            and len(args) >= 5 and (len(args) - 3) % 2 == 0, "MANIFEST_BUILD_ARGS")
-    require(all(args[index] == "--package" and isinstance(args[index + 1], str)
-                and re.fullmatch(r"[a-z][a-z0-9_-]+", args[index + 1])
-                for index in range(3, len(args), 2)) and set(outputs) <= set(args[4::2]), "MANIFEST_BUILD_ARGS")
+    packages = build_packages(args, allow_all_targets=True)
+    require(set(outputs) <= set(packages), "MANIFEST_BUILD_ARGS")
     require(isinstance(value["files"], list) and len(value["files"]) == len(outputs), "MANIFEST_FILES")
     names = set()
     for item in value["files"]:

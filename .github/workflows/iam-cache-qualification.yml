@@ -1,0 +1,128 @@
+name: IAM warm-cache qualification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci-iam-cache-qualification]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iam-cache-qualification-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  RUST_BACKTRACE: 1
+  RUN_ENV: test
+
+jobs:
+  seed:
+    name: IAM build and populate cache
+    runs-on: ubuntu-24.04
+    outputs:
+      seconds: ${{ steps.timing.outputs.seconds }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - name: Require a fresh workspace and record Cargo timing
+        run: |
+          test ! -e "$CARGO_TARGET_DIR"
+          echo "CI_BUILD_TIMING_FILE=$RUNNER_TEMP/iam-build-timing.json" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/build-service
+        with:
+          service: iam
+      - name: Authenticate daemon before flushing pending remote writes
+        run: |
+          python3 -B ops/ci/compiler_cache.py
+          sccache --stop-server
+      - name: Export measured Cargo duration
+        id: timing
+        run: |
+          python3 - <<'PY'
+          import json, os
+          with open(os.environ["CI_BUILD_TIMING_FILE"]) as stream:
+              value = json.load(stream)
+          assert value["exit_code"] == 0 and value["target_initially_empty"] is True
+          with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
+              print(f"seconds={value['elapsed_seconds']}", file=stream)
+          PY
+      - name: Retain seed timing without compiler artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: iam-cache-seed-timing
+          path: ${{ runner.temp }}/iam-build-timing.json
+          if-no-files-found: error
+          retention-days: 7
+
+  warm:
+    name: IAM rebuild from cache on a fresh runner
+    needs: seed
+    runs-on: ubuntu-24.04
+    outputs:
+      seconds: ${{ steps.timing.outputs.seconds }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - name: Require a fresh workspace and record Cargo timing
+        run: |
+          test ! -e "$CARGO_TARGET_DIR"
+          echo "CI_BUILD_TIMING_FILE=$RUNNER_TEMP/iam-build-timing.json" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/build-service
+        with:
+          service: iam
+      - name: Authenticate daemon before flushing pending remote writes
+        run: |
+          python3 -B ops/ci/compiler_cache.py
+          sccache --stop-server
+      - name: Export measured Cargo duration
+        id: timing
+        run: |
+          python3 - <<'PY'
+          import json, os
+          with open(os.environ["CI_BUILD_TIMING_FILE"]) as stream:
+              value = json.load(stream)
+          assert value["exit_code"] == 0 and value["target_initially_empty"] is True
+          with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
+              print(f"seconds={value['elapsed_seconds']}", file=stream)
+          PY
+      - name: Retain warm timing without compiler artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: iam-cache-warm-timing
+          path: ${{ runner.temp }}/iam-build-timing.json
+          if-no-files-found: error
+          retention-days: 7
+
+  summary:
+    name: Compare actual IAM Cargo durations
+    needs: [seed, warm]
+    runs-on: ubuntu-24.04
+    env:
+      SEED_SECONDS: ${{ needs.seed.outputs.seconds }}
+      WARM_SECONDS: ${{ needs.warm.outputs.seconds }}
+    steps:
+      - name: Report the measurements without treating existing caches as cold
+        run: |
+          python3 - <<'PY'
+          import math, os
+          seed, warm = (float(os.environ[name]) for name in ("SEED_SECONDS", "WARM_SECONDS"))
+          assert all(math.isfinite(value) and value > 0 for value in (seed, warm))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as stream:
+              print("# IAM cache qualification", file=stream)
+              print(f"- First build: {seed:.1f} seconds of Cargo execution.", file=stream)
+              print(f"- Fresh-runner rebuild: {warm:.1f} seconds of Cargo execution.", file=stream)
+              print(f"- Difference: {seed - warm:.1f} seconds; ratio: {seed / warm:.2f}x.", file=stream)
+              print("- Both target directories started empty; no target artifacts were transferred.", file=stream)
+              print("- The first build may read existing caches; this is not a forced cold-cache benchmark.", file=stream)
+              print("- Job durations also include setup, cache access and publication; inspect both job timelines.", file=stream)
+          PY

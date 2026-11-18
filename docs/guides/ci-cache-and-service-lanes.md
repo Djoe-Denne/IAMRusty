@@ -32,6 +32,10 @@ The workflow neither raises the repository quota nor configures billing. Existin
 
 Eight named native build jobs replace the previous matrix barrier. A service's test caller starts after its own build, independent of unrelated builds. E2E waits only for IAM, OAuthConnect and Ext Authz producers.
 
+Native builds now compile production libraries/binaries using `cargo build --locked` with the unchanged package lists. They no longer compile all test targets before separate coverage jobs compile them again. IAM previously selected53integration-test binaries in that redundant pass; no test execution or coverage assignment is removed. Native-v2 bundles record the actual successful command, while consumers retain explicit historical all-targets compatibility.
+
+The manual `IAM warm-cache qualification` workflow builds IAM, flushes compiler-cache writes, then rebuilds IAM on a fresh runner. It transfers no target artifacts and publishes separate Cargo timings; complete job timelines include setup/cache overhead. The first job may read existing caches and is not a forced cold-cache baseline. Reserved branch `ci-iam-cache-qualification` also triggers this focused workflow without the full master CI. Hosted speedup remains unclaimed until measured.
+
 Whole integration targets are deterministically partitioned: IAM4, Telegraph4, Hive2, Manifesto3. Telegraph preserves its unit and original first integration partition; the former second integration partition becomes routing17, other41 and email-verified8 baseline cases. Each partition keeps normal Cargo/libtest execution; it does not increase test-case concurrency or remove serial fixture protections. Unit lib/bin targets run once in their own lane, while pure integration targets under `tests/` are preserved.
 
 The explicit baseline inventory is `.github/ci/inventory.json`. "Full" means its declared coverage scope, not a claim that every workspace package is covered. The existing coverage gaps and opt-in live-test boundaries are recorded there.

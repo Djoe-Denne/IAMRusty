@@ -38,6 +38,16 @@ Every successful aggregation publishes `coverage-diagnostic` with an explicit ou
 
 Preserve Telegraph's unit partition and exact original `tests/0`. Replace only its former second integration partition with three whole-binary groups: routing (17 baseline cases), HTTP/outbox/common/mTLS/domain/application (41) and email-verified (8). Telegraph now has one unit and four integration partitions. Preserve libtest, features, fixtures and the complete target union; no test-case sharding or application/flakiness fix is implied.
 
+### Forward amendment: remove redundant native test builds
+
+Authored by `architecte`, session `ses_e152b44f9ffeCvHhlurgQWqbkK`, following the user's request for measured build-time improvement rather than diagnostic counters. This amendment leaves ADR-0507 Proposed.
+
+The eight native build jobs use `cargo build --locked` with unchanged explicit packages and default features. Default target selection builds production libraries/binaries instead of precompiling test, benchmark and example targets that separate instrumented coverage jobs compile again. Coverage assignments and execution commands remain unchanged, as do both Clippy policies. This removes redundant compilation, not tests; it intentionally removes a separate native compile/link-only assurance for non-production targets.
+
+Native bundles record the actual successful build command. Native-v2 consumers deliberately admit the new production form and the historical all-targets form through a closed package-only grammar. Producer identities, required executables, dev profile, ABI, instrumentation exclusions, verified wrapper and immutable provenance remain unchanged; native-v1 stays rejected.
+
+Measure comparable warm hosted builds before changing cache transport at the same time. The user authorized an isolated IAM seed/rebuild workflow with two fresh runners and no target transfer. If per-object GHA requests still dominate measured time, batched persistence of the pinned local sccache store requires an explicit trusted-writer/consolidation contract and cost qualification. Do not introduce a prewarm barrier, per-service target archives, a new network service or a quota/billing change.
+
 ## Consequences and limits
 
 - Explicit jobs remove the matrix-wide dependency barrier without delaying producer admission until tests finish.
