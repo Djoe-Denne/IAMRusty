@@ -17,6 +17,20 @@ import runtime
 
 
 class PilotTests(unittest.TestCase):
+    def test_admits_pinned_coverage_wrapper_and_refuses_uninstrumented_modes(self):
+        env = {
+            "RUSTC_WRAPPER": "/home/runner/.cargo/bin/cargo-llvm-cov",
+            "__CARGO_LLVM_COV_RUSTC_WRAPPER": "1",
+            "__CARGO_LLVM_COV_RUSTC_WRAPPER_RUSTFLAGS": "-C\x1finstrument-coverage\x1f--cfg=coverage",
+            "__CARGO_LLVM_COV_RUSTC_WRAPPER_PRE_EXISTING": "sccache",
+        }
+        pilot.verify_coverage_environment(env)
+        for key in env:
+            with self.subTest(missing=key), self.assertRaises(ValueError):
+                pilot.verify_coverage_environment({k: v for k, v in env.items() if k != key})
+        with self.assertRaisesRegex(ValueError, "coverage wrapper"):
+            pilot.verify_coverage_environment({"RUSTC_WRAPPER": "sccache", "RUSTFLAGS": "-C instrument-coverage"})
+
     def test_archive_and_negative_tamper(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

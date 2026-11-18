@@ -54,16 +54,34 @@ def plan(metadata, root=ci.ROOT):
         for row in ci.matrix_for(metadata, "iam", root)["include"]}
 
 
+def verify_coverage_environment(env):
+    # Pinned cargo-llvm-cov 0.9.1 show-env uses a chained wrapper by default,
+    # not RUSTFLAGS. Require that mode to keep instrumentation scoped.
+    flags = env.get("__CARGO_LLVM_COV_RUSTC_WRAPPER_RUSTFLAGS", "").split("\x1f")
+    require(env.get("__CARGO_LLVM_COV_RUSTC_WRAPPER") == "1"
+            and Path(env.get("RUSTC_WRAPPER", "")).name == "cargo-llvm-cov"
+            and ("-C", "instrument-coverage") in zip(flags, flags[1:]),
+            "Pilot requires the cargo-llvm-cov coverage wrapper")
+    require(Path(env.get("__CARGO_LLVM_COV_RUSTC_WRAPPER_PRE_EXISTING", "")).name == "sccache",
+            "Pilot coverage wrapper did not retain sccache")
+
+
 def cargo_artifacts(args, root, log):
+    started = time.monotonic()
     with log.open("x", encoding="utf-8") as out:
         subprocess.run(["cargo", *args, "--message-format=json-render-diagnostics"],
                        cwd=root, stdout=out, check=True)
+    events = []
     with log.open(encoding="utf-8") as out:
         for line in out:
             if line.startswith("{"):
                 event = json.loads(line)
                 if event.get("reason") == "compiler-artifact":
-                    yield event
+                    events.append(event)
+    fresh = sum(item["fresh"] for item in events)
+    print(f"{log.stem}: {time.monotonic() - started:.1f}s, "
+          f"{fresh} fresh and {len(events) - fresh} non-fresh Cargo artifacts", flush=True)
+    return events
 
 
 def select_binaries(events, packages, wanted, target):
@@ -113,9 +131,7 @@ def produce(output, matrix_file, root=ci.ROOT):
     target = Path(os.environ["CARGO_TARGET_DIR"]).resolve()
     require(not target.exists() or (target.is_dir() and not any(target.iterdir())),
             "Pilot requires a fresh instrumented target directory")
-    coverage_flags = os.environ.get("CARGO_ENCODED_RUSTFLAGS", "").split("\x1f")
-    coverage_flags += os.environ.get("RUSTFLAGS", "").split()
-    require(any("instrument-coverage" in flag for flag in coverage_flags), "Coverage flags missing")
+    verify_coverage_environment(os.environ)
     data = ci.metadata(root)
     partitions = plan(data, root)
     wanted = set(key for values in partitions.values() for key in values)
@@ -124,8 +140,8 @@ def produce(output, matrix_file, root=ci.ROOT):
     output.mkdir(mode=0o700)
     args = [a for p in ci.INVENTORY["coverage"]["iam"] for a in ("--package", p)]
     started = time.monotonic()
-    events = list(cargo_artifacts(["test", "--locked", "--no-run", "--lib", "--bins", "--tests", *args],
-                                  root, output / "cargo-tests.jsonl"))
+    events = cargo_artifacts(["test", "--locked", "--no-run", "--lib", "--bins", "--tests", *args],
+                             root, output / "cargo-tests.jsonl")
     tests, services = select_binaries(events, packages, wanted, target)
     require("iam-service" in services, "Cargo test build did not emit the normal IAM server")
     if "iammigration" not in services:
@@ -134,7 +150,10 @@ def produce(output, matrix_file, root=ci.ROOT):
         tests, services = select_binaries(events, packages, wanted, target)
     require(set(tests) == wanted and set(services) == set(SERVICE_OUTPUTS.values()),
             "Incomplete pilot executable set")
-    print(f"Producer Cargo duration: {time.monotonic() - started:.1f}s")
+    units = [(item["package_id"], tuple(item["filenames"])) for item in events if not item["fresh"]]
+    require(len(units) == len(set(units)), "Cargo rebuilt a unit with the same selected outputs")
+    print(f"Producer Cargo duration: {time.monotonic() - started:.1f}s; "
+          "no repeated non-fresh output sets", flush=True)
     for key, keys in partitions.items():
         folder = output / key
         folder.mkdir()
@@ -147,10 +166,6 @@ def produce(output, matrix_file, root=ci.ROOT):
            [(name, ".", name, path) for name, path in sorted(services.items())])
     matrix_file.write_text(json.dumps({"include": [{"part": key, "targets": json.dumps(keys)}
                                                    for key, keys in partitions.items()]}), encoding="utf-8")
-    units = [(item["package_id"], tuple(item["filenames"])) for item in events if not item["fresh"]]
-    require(len(units) == len(set(units)), "Cargo rebuilt a unit with the same selected outputs")
-    print(f"Cargo artifact events: {len(events)}; non-fresh units: {len(units)};"
-          " no repeated non-fresh output sets")
 
 
 def validate_manifest(value, provenance, part, expected):
