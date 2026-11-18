@@ -1,7 +1,7 @@
 # ADR-0507: CI uses service-local build dependencies and a shared compiler cache
 
 - Status: Proposed
-- Reality: Partial; published diagnostic merging verified despite failed tests; authoritative coverage/Sonar qualification pending
+- Reality: Partial; diagnostic and authoritative coverage/Sonar verified; cache throttling and reservation conflicts unresolved
 - Date: 2026-11-17
 - Author: `architecte`, session `ses_e152b44f9ffeCvHhlurgQWqbkK`; persisted by the root agent
 - Decision makers: Pending explicit human acceptance
@@ -71,3 +71,5 @@ Preserve Telegraph's unit partition and exact original `tests/0`. Replace only i
 Hosted persistent cache reuse and two full executions outside Telegraph IT are recorded in [the qualification report](../missions/20261118-ci-cache-hosted-qualification.md). Both workflows remain red because excluded test failures block authoritative coverage and Sonar. Clean cache writes, steady-state performance and backend-unavailable qualification remain unproven.
 
 The subsequent [coverage-outcome amendment](../missions/20261118-ci-coverage-outcomes-and-telegraph-shards.md) has real hosted proof that diagnostic merging succeeds despite failed test commands. Telegraph's finer partitions are deployed; underlying intermittency remains observed.
+
+The [backend-error investigation](../missions/20261118-sccache-backend-errors.md) subsequently verified the positive canonical/Sonar path and reproduced HTTP 429 cache throttling plus HTTP 409 duplicate reservations. Its overall workflow remained unsuccessful because of a separate report deployment failure. No traffic-control or backend remediation is implied, and this evidence does not promote the ADR to Accepted.

@@ -66,4 +66,10 @@ The requested finer partitioning is deployed and preserves the full target set. 
 
 ## Delivery boundaries
 
-The result-report update changes documentation only relative to the hosted implementation. No temporary task branch, additional worktree, team or local Docker/Kind/WSL runtime was created. Compiler caches and SDK pin remain unchanged. Full canonical coverage/Sonar qualification and underlying Telegraph intermittency remain separate open boundaries.
+The result-report update changes documentation only relative to the hosted implementation. No temporary task branch, additional worktree, team or local Docker/Kind/WSL runtime was created. Compiler caches and SDK pin remain unchanged. At that publication, full canonical coverage/Sonar qualification and underlying Telegraph intermittency remained separate open boundaries.
+
+## Subsequent positive-path qualification
+
+The [cache-backend diagnostic run 44318107962](20261118-sccache-backend-errors.md) subsequently passed every Telegraph partition, Merge coverage and SonarCloud. Authenticated canonical `lcov` and diagnostic artifacts both contained 21 partitions and 193 targets, complete reports, no failed partitions and `authoritative=true`. The positive hosted canonical/Sonar path is now verified in addition to the earlier failed-test diagnostic path.
+
+The overall run still failed at the unrelated public E2E report deployment. One passing Telegraph observation does not prove that intermittency is eliminated.

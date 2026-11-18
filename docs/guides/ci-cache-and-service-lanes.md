@@ -1,6 +1,6 @@
 # CI compiler caching and service-local test lanes
 
-Implementation status: published under [ADR-0507](../adr/0507-ci-service-local-dag-shared-compiler-cache.md). Two full hosted executions met the user's criterion excluding Telegraph integration tests, but actual GitHub conclusions remain red and Sonar import is unqualified. See [the exact results and cache-write limitation](../missions/20261118-ci-cache-hosted-qualification.md).
+Implementation status: published under [ADR-0507](../adr/0507-ci-service-local-dag-shared-compiler-cache.md). Two earlier full hosted executions met the user's criterion excluding Telegraph integration tests, but their GitHub conclusions remained red and did not qualify Sonar. See [those historical results](../missions/20261118-ci-cache-hosted-qualification.md). A subsequent [diagnostic run](../missions/20261118-sccache-backend-errors.md) qualified canonical coverage and Sonar with all Telegraph partitions successful; its overall workflow remained red because of an unrelated report deployment failure. Cache throttling and reservation conflicts remain unresolved.
 
 The published [coverage-outcome and Telegraph partition amendment](../missions/20261118-ci-coverage-outcomes-and-telegraph-shards.md) has hosted proof: real diagnostic merging succeeds despite failed Telegraph tests. The earlier two-run results apply to their recorded source/layout. Finer partitioning is deployed but did not eliminate Telegraph intermittency on the observed run.
 
@@ -23,6 +23,8 @@ The IAM build captures daemon diagnostics for sccache 0.19.0 using only server d
 `ops/ci/cache_diagnostics.py` publishes only fixed classification labels and numeric counts in `iam-cache-diagnostics` (three-day retention). It distinguishes remote lookup and asynchronous write failures, OpenDAL error kinds, HTTP status codes and selected transport signals. Unknown failures remain counted; no arbitrary error text is echoed. Tests cover secret non-disclosure and artifact wiring.
 
 In this sccache version, remote lookup failures can increment **Cache errors** even when the separately displayed **Cache read errors** counter is zero. Treat the counters as implementation-specific signals, not disjoint failed-compilation totals. Diagnostic capture changes no cache namespace, quota, build selection or test verdict.
+
+The [hosted backend investigation](../missions/20261118-sccache-backend-errors.md) reproduced HTTP 429 throttling on lookups and writes, plus HTTP 409 duplicate entry reservations. Cache reuse works, but clean backend operation remains unqualified; no traffic-control or retry-policy fix has been applied.
 
 The workflow neither raises the repository quota nor configures billing. Existing `v0-rust-<service>-...` target archives are no longer refreshed by the new workflow. No remote caches were deleted during the initial local implementation. The user subsequently authorized an explicit repository-wide Actions cache reset before hosted qualification on 2026-11-18.
 
