@@ -10,6 +10,8 @@ Keys distinguish sources, dependencies, compiler arguments, toolchain, target an
 
 One registry-only Cargo download archive is shared by all lanes. Only the trusted push/master `build-iam` job saves it. It contains no `target/` or Cargo-bin archive. A cache miss remains a real build; installation/digest and compiler failures remain failures.
 
+The credential bridge also exports `ACTIONS_CACHE_SERVICE_V2=true` for this github.com repository. With the pinned OpenDAL0.58.1 backend, `ACTIONS_RESULTS_URL` and the runtime token alone do not select the v2 protocol: an absent service flag selects retired v1 calls against the results endpoint and produces404/write failures. `SCCACHE_GHA_VERSION` remains the cache namespace, not the service-protocol selector. See [the pinned backend selection](https://github.com/apache/opendal/blob/v0.58.1/core/services/ghac/src/core.rs#L432-L459).
+
 Do not clear caches between runs. Do not expect a cache hit for every invocation or claim less than 10 GB without measuring the hosted working set. Explicit local statistics steps authenticate the executable before invoking it. Missing runner cache capabilities disable remote caching instead of qualifying or failing the compiler result.
 
 The workflow neither raises the repository quota nor configures billing. Existing `v0-rust-<service>-...` target archives are no longer refreshed by the new workflow. No remote caches were deleted during the initial local implementation. The user subsequently authorized an explicit repository-wide Actions cache reset before hosted qualification on 2026-11-18.

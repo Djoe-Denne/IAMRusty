@@ -31,11 +31,31 @@ Full before/after inventories and deletion command logs are retained in ignored 
 
 The wrapper initially reported an incorrect count because PowerShell retained a nested JSON array as one pipeline object. Independent strict JSON parsing confirmed the successful deletion and empty result; the wrapper counting was corrected without repeating deletion. Cache space freed at reset is not a measurement of the replacement's steady-state footprint.
 
-## Hosted evidence
+## Published implementation and first hosted execution
 
-No new implementation run has completed at the initial publication checkpoint. Baseline run `44150614642` at the initial HEAD was successful but does not count toward this campaign.
+Commit `a3c7916b30cf41539e87c447805611f2d42574d6` was published to `origin/master` with its normal formatting hook. Run [44274785092, attempt1](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44274785092/attempts/1) completed `failure`, with41 of45 jobs successful.
 
-Record each attempt, immutable source SHA, workflow conclusion, job-level failures, exact exception disposition, cache observations and final consecutive streak here after observing completion.
+The only failed test was Telegraph integration `test_user_email_verified_event_creates_database_notification`, at `services/Telegraph/tests/user_email_verified_event_test.rs:83` (no notification after its wait). Telegraph build/unit/other shard and all other service coverage, Clippy and E2E jobs passed. The failed coverage receipt correctly blocked merging; Sonar was skipped and the final status reported those facts. The user-excluded test failure is not represented as a green GitHub workflow or an evaluated Sonar pass.
+
+Separately, the cache was not working: IAM recorded993 misses/993 write errors/zero hits; Clippy recorded1207 misses/1207 write errors/zero hits. The after-run inventory contained only the145,140,019-byte Cargo download archive. Correct compilation fallback did not qualify remote caching.
+
+## Cache protocol diagnosis and correction
+
+A temporary branch `ci-cache-probe-20261118`, without another worktree, isolated the diagnosis from the expensive full pipeline.
+
+- Probe [44279607855](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44279607855), commit `82dd2570ba582dab393d1c50899cccae5bb73a97`: two compilations, two misses, two write errors. Credential-redacted daemon errors showed404 on the backend read/write check.
+- Pinned source verification: sccache0.19.0 uses OpenDAL0.58.1. The [service selector](https://github.com/apache/opendal/blob/v0.58.1/core/services/ghac/src/core.rs#L432-L459) chooses V1 unless `ACTIONS_CACHE_SERVICE_V2` is nonempty. The bridge had exported the URL/token but omitted that flag.
+- Correction `dd4574e16a0bc8a7f649cf5c223a7a8f75bd304a`: export `ACTIONS_CACHE_SERVICE_V2=true` for this github.com repository; preserve the missing-capability local fallback, masking and token scope. Added a Node subprocess regression with no inherited service flag.
+- Local correction checks:21 pipeline/cache/report tests passed; actionlint passed; the normal formatting commit hook passed.
+- Corrected probe [44280204339](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44280204339): first daemon had one miss and zero write errors; after stopping it and removing the object, the new daemon had one real remote hit, zero misses and zero write errors. This proves persistent write/read reuse for the probe, not a full-run hit-rate guarantee.
+
+The temporary workflow is removed before master integration. Both probe commits and the correction are retained in the integrated history; no unverified binary or raw daemon log is delivered.
+
+## Final full-run qualification
+
+The corrected full implementation still requires two consecutive completed executions. Baseline run `44150614642` and diagnostic probes do not count. The initial all-write-error execution does not qualify the final corrected cache implementation.
+
+Record immutable source, attempts, actual conclusions and any Telegraph-only exception after observing the final executions. No successful Sonar run or final streak is claimed yet.
 
 ## Resources and closeout
 
