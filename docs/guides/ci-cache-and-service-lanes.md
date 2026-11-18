@@ -16,6 +16,14 @@ The credential bridge also exports `ACTIONS_CACHE_SERVICE_V2=true` for this gith
 
 Do not clear caches between runs. Do not expect a cache hit for every invocation or claim less than 10 GB without measuring the hosted working set. Explicit local statistics steps authenticate the executable before invoking it. Missing runner cache capabilities disable remote caching instead of qualifying or failing the compiler result.
 
+### Backend error diagnostics
+
+The IAM build captures daemon diagnostics for sccache 0.19.0 using only server debug and compiler error logging. The raw log stays in the hosted runner's temporary directory and is never printed or uploaded: backend errors can include scoped credentials or signed URLs.
+
+`ops/ci/cache_diagnostics.py` publishes only fixed classification labels and numeric counts in `iam-cache-diagnostics` (three-day retention). It distinguishes remote lookup and asynchronous write failures, OpenDAL error kinds, HTTP status codes and selected transport signals. Unknown failures remain counted; no arbitrary error text is echoed. Tests cover secret non-disclosure and artifact wiring.
+
+In this sccache version, remote lookup failures can increment **Cache errors** even when the separately displayed **Cache read errors** counter is zero. Treat the counters as implementation-specific signals, not disjoint failed-compilation totals. Diagnostic capture changes no cache namespace, quota, build selection or test verdict.
+
 The workflow neither raises the repository quota nor configures billing. Existing `v0-rust-<service>-...` target archives are no longer refreshed by the new workflow. No remote caches were deleted during the initial local implementation. The user subsequently authorized an explicit repository-wide Actions cache reset before hosted qualification on 2026-11-18.
 
 ## Build and test dependencies

@@ -60,15 +60,34 @@ jobs:
     needs: [fmt, plan]
     if: fromJSON(needs.plan.outputs.selection).iam
     runs-on: ubuntu-24.04
+    env:
+      # Server-side only: raw errors can contain scoped tokens/signed URLs.
+      # Publish exclusively the allowlisted summary below, never this raw log.
+      SCCACHE_LOG: sccache::server=debug,sccache::compiler::compiler=error
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
           persist-credentials: false
+      - name: Configure private daemon log before cache startup
+        run: echo "SCCACHE_ERROR_LOG=$RUNNER_TEMP/iam-sccache-private.log" >> "$GITHUB_ENV"
       - uses: ./.github/actions/build-service
         with:
           service: iam
           role: iam
+      - name: Summarize compiler-cache backend errors without credentials
+        if: always()
+        run: >-
+          python3 -B ops/ci/cache_diagnostics.py --log "$SCCACHE_ERROR_LOG"
+          --output "$RUNNER_TEMP/iam-cache-diagnostics.json"
+      - name: Retain sanitized IAM cache diagnostics only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: iam-cache-diagnostics
+          path: ${{ runner.temp }}/iam-cache-diagnostics.json
+          if-no-files-found: error
+          retention-days: 3
 
   build-telegraph:
     name: Build (Telegraph)
