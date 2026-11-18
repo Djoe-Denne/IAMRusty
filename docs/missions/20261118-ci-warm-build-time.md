@@ -39,4 +39,14 @@ The workflow supports manual dispatch. Reserved branch `ci-iam-cache-qualificati
 - Actionlint passed for the main CI and focused qualification workflow.
 - No local application compilation or Docker/Kind/WSL runtime was started.
 
-Hosted elapsed-time improvement is not claimed before the seed/rebuild measurements. If remaining per-object GHA cache traffic still materially delays the real build, assess a bounded batch-cache correction rather than declaring success from hit counters.
+## Hosted qualification result
+
+[Run 44332684402](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44332684402), attempt 1 at `28e486caf46d20dd3a13c07181738f7484a8fc45`, passed both builds and the comparison job. Both timing archives were checked against their GitHub digests. The records confirm the same production Cargo command, success and initially empty target directories on both runners.
+
+- [First build](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44332684402/job/134900990356): **82.129 s in Cargo**, **125 s total**.
+- [Fresh-runner rebuild](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44332684402/job/134902451659): **47.858 s in Cargo**, **263 s total**. Cargo took **34.271 s less** (about **42%**).
+- System dependency setup took **15 s** in the first job and **159 s** in the rebuild. That swing outweighed the warm compilation gain in the total job times. Both runs recorded zero cache write errors.
+
+These focused jobs omit native bundle packaging. The 262-second historical Cargo observation used the larger all-targets command and ran under full CI concurrency. It is useful context, not a controlled estimate of the effect of target selection alone or of the new total job time on `master`.
+
+No cache transport, storage limit or system dependency installation policy changed. This pair demonstrates warm reuse and a faster Cargo build; it does not demonstrate consistently faster runner setup or resolve throttling under full CI concurrency.
