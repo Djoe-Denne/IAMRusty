@@ -30,6 +30,8 @@ jobs:
           set -euo pipefail
           printf 'int cache_probe(void) { return 18; }\n' > "$RUNNER_TEMP/cache-probe.c"
           sccache cc -c "$RUNNER_TEMP/cache-probe.c" -o "$RUNNER_TEMP/cache-probe.o"
+          sccache --show-stats
+          sccache --stop-server
           rm -- "$RUNNER_TEMP/cache-probe.o"
           sccache cc -c "$RUNNER_TEMP/cache-probe.c" -o "$RUNNER_TEMP/cache-probe.o"
           sccache --show-stats

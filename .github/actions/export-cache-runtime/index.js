@@ -15,6 +15,9 @@ if (!process.env.ACTIONS_RESULTS_URL || !process.env.ACTIONS_RUNTIME_TOKEN) {
   exportVariable("SCCACHE_GHA_ENABLED", "false");
   process.stdout.write("Remote compiler-cache capability unavailable; local compilation remains enabled.\n");
 } else {
+  // This repository runs on github.com. OpenDAL 0.58.1 otherwise defaults to
+  // the retired v1 protocol, even when ACTIONS_RESULTS_URL is available.
+  exportVariable("ACTIONS_CACHE_SERVICE_V2", "true");
   const token = process.env.ACTIONS_RUNTIME_TOKEN;
   const escaped = token.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
   process.stdout.write(`::add-mask::${escaped}\n`);

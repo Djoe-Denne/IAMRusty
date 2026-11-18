@@ -229,6 +229,26 @@ class WorkflowTests(unittest.TestCase):
 
 class ReportTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("node"), "Node is required for the credential bridge boundary")
+    def test_runtime_bridge_selects_v2_with_real_capabilities_even_without_inherited_flag(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            env_file = Path(temporary) / "github-env"
+            token = "fixture-runtime-token-not-a-secret"
+            environment = dict(os.environ, GITHUB_ENV=str(env_file),
+                               ACTIONS_RESULTS_URL="https://results.example.invalid/",
+                               ACTIONS_RUNTIME_TOKEN=token)
+            environment.pop("ACTIONS_CACHE_SERVICE_V2", None)
+            result = subprocess.run(
+                [shutil.which("node"), str(ROOT / ".github/actions/export-cache-runtime/index.js")],
+                env=environment, capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            exported = env_file.read_text()
+            self.assertRegex(exported, r"ACTIONS_CACHE_SERVICE_V2<<[^\n]+\ntrue\n")
+            self.assertIn("ACTIONS_RESULTS_URL", exported)
+            self.assertIn("ACTIONS_RUNTIME_TOKEN", exported)
+            self.assertNotIn("SCCACHE_GHA_ENABLED", exported)
+            self.assertEqual(result.stdout, f"::add-mask::{token}\n")
+
+    @unittest.skipUnless(shutil.which("node"), "Node is required for the credential bridge boundary")
     def test_runtime_bridge_disables_remote_cache_without_credentials(self):
         with tempfile.TemporaryDirectory() as temporary:
             env_file = Path(temporary) / "github-env"
