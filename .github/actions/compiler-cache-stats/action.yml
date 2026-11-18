@@ -1,0 +1,8 @@
+name: Report verified compiler-cache statistics
+description: Authenticate the installed executable before observational statistics.
+runs:
+  using: composite
+  steps:
+    - name: Read statistics only through the verified executable
+      shell: bash
+      run: python3 -B ops/ci/compiler_cache.py stats

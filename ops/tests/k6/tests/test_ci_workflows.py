@@ -15,18 +15,25 @@ def workflow(name):
 
 class WorkflowTests(unittest.TestCase):
     def test_producer_reuses_exactly_one_existing_build_per_role(self):
-        value = workflow("ci.yml")["jobs"]["build"]
-        self.assertEqual(value["runs-on"], "ubuntu-24.04")
-        roles = {item["e2e_role"]: item for item in value["strategy"]["matrix"]["include"] if "e2e_role" in item}
+        jobs = workflow("ci.yml")["jobs"]
+        roles = {}
+        for job in jobs.values():
+            for step in job.get("steps", []):
+                if step.get("uses") == "./.github/actions/build-service" and step.get("with", {}).get("role"):
+                    roles[step["with"]["role"]] = step
+                    self.assertEqual(job["runs-on"], "ubuntu-24.04")
         self.assertEqual(set(roles), {"iam", "oauth", "ext-authz"})
-        self.assertIn("--package iam-migration", roles["iam"]["package_args"])
-        self.assertEqual(roles["oauth"]["package_args"], "--package oauth-connect-service")
-        commands = [step.get("run", "") for step in value["steps"]]
-        self.assertEqual(sum("cargo build " in command for command in commands), 1)
-        collect = next(step for step in value["steps"] if "binaries.py" in step.get("run", ""))
+        inventory = json.loads((ROOT / ".github/ci/inventory.json").read_text())
+        self.assertIn("iam-migration", inventory["builds"]["iam"])
+        self.assertEqual(inventory["builds"]["oauth"], ["oauth-connect-service"])
+        action = yaml.load((ROOT / ".github/actions/build-service/action.yml").read_text(), Loader=yaml.BaseLoader)
+        steps = action["runs"]["steps"]
+        commands = [step.get("run", "") for step in steps]
+        self.assertEqual(sum("ops/ci/build.py" in command for command in commands), 1)
+        collect = next(step for step in steps if "binaries.py" in step.get("run", ""))
         self.assertIn("github.event_name == 'push'", collect["if"])
         self.assertIn("refs/heads/master", collect["if"])
-        artifact = next(step for step in value["steps"] if "upload-artifact@" in step.get("uses", ""))
+        artifact = next(step for step in steps if "upload-artifact@" in step.get("uses", ""))
         self.assertEqual(artifact["with"]["retention-days"], "7")
         self.assertEqual(artifact["with"]["if-no-files-found"], "error")
         self.assertEqual(artifact["with"]["compression-level"], "0")

@@ -30,133 +30,159 @@ jobs:
 
       - run: cargo fmt --all -- --check
 
-  build:
-    name: Build (${{ matrix.service }})
-    # Native bundles are packaged later on the same Ubuntu ABI, without Cargo.
+  plan:
+    name: Select conservative CI scope
     runs-on: ubuntu-24.04
-    needs: [fmt]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - service: IAMRusty
-            cache_key: iam
-            e2e_role: iam
-            package_args: >-
-              --package iam-service
-              --package iam-migration
-              --package iam-domain
-              --package iam-application
-              --package iam-infra
-              --package iam-http_server
-              --package iam-setup
-              --package iam-configuration
-          - service: Telegraph
-            cache_key: telegraph
-            package_args: >-
-              --package telegraph-service
-              --package telegraph-domain
-              --package telegraph-application
-              --package telegraph-infra
-              --package telegraph-http_server
-              --package telegraph-setup
-              --package telegraph-configuration
-          - service: Hive
-            cache_key: hive
-            package_args: >-
-              --package hive-service
-              --package hive-domain
-              --package hive-application
-              --package hive-infra
-              --package hive-http
-              --package hive-setup
-              --package hive-configuration
-          - service: Manifesto
-            cache_key: manifesto
-            package_args: >-
-              --package manifesto-service
-              --package manifesto-domain
-              --package manifesto-application
-              --package manifesto-infra
-              --package manifesto-http_server
-              --package manifesto-setup
-              --package manifesto-configuration
-          - service: Monolith
-            cache_key: monolith
-            package_args: --package oodhive-monolith
-          - service: Sentinel Sync
-            cache_key: sentinel-sync
-            package_args: --package sentinel-sync
-          - service: Ext Authz
-            cache_key: ext-authz
-            e2e_role: ext-authz
-            package_args: --package ext-authz
-          - service: OAuthConnect
-            cache_key: oauth
-            e2e_role: oauth
-            package_args: --package oauth-connect-service
+    outputs:
+      selection: ${{ steps.scope.outputs.selection }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+      - name: Plan full coverage unless selective PR execution was explicitly enabled
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SELECTIVE_PR: ${{ vars.CI_SELECTIVE_PR_TESTS }}
+        run: |
+          args=()
+          if [[ "$SELECTIVE_PR" == 'true' ]]; then args+=(--selective); fi
+          python3 -B ops/ci/pipeline.py select --event "$EVENT_NAME" \
+            --base "$BASE_SHA" --head "$HEAD_SHA" "${args[@]}"
+
+  build-iam:
+    name: Build (IAMRusty)
+    needs: [fmt, plan]
+    if: fromJSON(needs.plan.outputs.selection).iam
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
           persist-credentials: false
-
-      - uses: ./.github/actions/setup-rust
-
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: ./.github/actions/build-service
         with:
-          shared-key: ${{ matrix.cache_key }}-ubuntu24-native-v1
-          cache-on-failure: true
+          service: iam
+          role: iam
 
-      - name: Install native dependencies
-        if: ${{ matrix.service == 'IAMRusty' }}
-        run: |
-          sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
-          sudo apt-get update \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30 \
-            -o Acquire::Retries=3
-          sudo apt-get install -y --no-install-recommends \
-            libcurl4-openssl-dev
-
-      - name: Build service
-        run: cargo build --locked --all-targets ${{ matrix.package_args }}
-
-      - name: Collect existing native binaries (no rebuild or coverage flags)
-        if: ${{ matrix.e2e_role && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        env:
-          K6_BINARY_ROLE: ${{ matrix.e2e_role }}
-          K6_BUILD_PACKAGE_ARGS: ${{ matrix.package_args }}
-          # Repository CI workflow ID; consumer corroborates against the API.
-          K6_CI_WORKFLOW_ID: '267870909'
-        run: >-
-          python3 -B ops/tests/k6/ci/binaries.py --role "$K6_BINARY_ROLE"
-          --output "$RUNNER_TEMP/k6-native-bundle"
-
-      - name: Save immutable native bundle for independent E2E packaging
-        if: ${{ matrix.e2e_role && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+  build-telegraph:
+    name: Build (Telegraph)
+    needs: [fmt, plan]
+    if: fromJSON(needs.plan.outputs.selection).telegraph
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          name: k6-binaries-${{ matrix.e2e_role }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/k6-native-bundle/bundle.tar.gz
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 7
+          submodules: true
+          persist-credentials: false
+      - uses: ./.github/actions/build-service
+        with:
+          service: telegraph
+
+  build-hive:
+    name: Build (Hive)
+    needs: [fmt, plan]
+    if: fromJSON(needs.plan.outputs.selection).hive
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: ./.github/actions/build-service
+        with:
+          service: hive
+
+  build-manifesto:
+    name: Build (Manifesto)
+    needs: [fmt, plan]
+    if: fromJSON(needs.plan.outputs.selection).manifesto
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: ./.github/actions/build-service
+        with:
+          service: manifesto
+
+  build-monolith:
+    name: Build (Monolith)
+    needs: [fmt, plan]
+    if: fromJSON(needs.plan.outputs.selection).monolith
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: ./.github/actions/build-service
+        with:
+          service: monolith
+
+  build-sentinel:
+    name: Build (Sentinel Sync)
+    needs: [fmt, plan]
+    if: fromJSON(needs.plan.outputs.selection)['sentinel-sync']
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: ./.github/actions/build-service
+        with:
+          service: sentinel-sync
+
+  build-ext-authz:
+    name: Build (Ext Authz)
+    needs: [fmt, plan]
+    if: fromJSON(needs.plan.outputs.selection)['ext-authz']
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: ./.github/actions/build-service
+        with:
+          service: ext-authz
+          role: ext-authz
+
+  build-oauth:
+    name: Build (OAuthConnect)
+    needs: [fmt, plan]
+    if: fromJSON(needs.plan.outputs.selection).oauth
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: ./.github/actions/build-service
+        with:
+          service: oauth
+          role: oauth
 
   ext-authz-unit:
     name: Ext Authz (unit + HTTP Check stand-in, not Envoy proof)
     runs-on: ubuntu-latest
-    needs: [fmt]
+    needs: [build-ext-authz]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
       - uses: ./.github/actions/setup-rust
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          shared-key: ext-authz
+      - uses: ./.github/actions/setup-compiler-cache
       # Wiremock HTTP only: no Kind, Docker fixture or cloud credentials.
       - run: cargo test --locked --package ext-authz --lib --test mesh_path_standin --test registry_publication
+      - uses: ./.github/actions/compiler-cache-stats
 
   infra-static:
     name: Infrastructure (offline render + shell syntax)
@@ -227,20 +253,18 @@ jobs:
 
       - uses: ./.github/actions/setup-rust
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          shared-key: apparatus-p0
-          cache-on-failure: true
+      - uses: ./.github/actions/setup-compiler-cache
 
       - name: Test apparatus-contracts (with test-harness)
         run: cargo test -p apparatus-contracts --features test-harness
 
       - name: Test apparatus-reference-kv
         run: cargo test -p apparatus-reference-kv
+      - uses: ./.github/actions/compiler-cache-stats
 
   k6-e2e:
     name: E2E health / OAuth browser / TLS SAN
-    needs: [build]
+    needs: [build-iam, build-oauth, build-ext-authz]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     permissions:
       contents: read
@@ -291,277 +315,80 @@ jobs:
         if: ${{ steps.current.outputs.publish == 'true' }}
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
 
-  coverage-integration:
-    name: Coverage - integration (${{ matrix.service }})
-    runs-on: ubuntu-latest
-    needs: [build]
-    # Native hosted Linux job (no job container): daemon-published ports are
-    # reachable on loopback. Containerized/manual runners require bridge proof.
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - service: IAMRusty
-            cache_key: iam
-            artifact_name: lcov-integration-iam
-            output_path: lcov-integration-iam.info
-            package_args: >-
-              --package iam-service
-              --package iam-domain
-              --package iam-application
-              --package iam-infra
-              --package iam-http_server
-              --package iam-setup
-              --package iam-configuration
-          - service: Telegraph
-            cache_key: telegraph
-            artifact_name: lcov-integration-telegraph
-            output_path: lcov-integration-telegraph.info
-            package_args: >-
-              --package telegraph-service
-              --package telegraph-domain
-              --package telegraph-application
-              --package telegraph-infra
-              --package telegraph-http_server
-              --package telegraph-setup
-              --package telegraph-configuration
-          - service: Hive
-            cache_key: hive
-            artifact_name: lcov-integration-hive
-            output_path: lcov-integration-hive.info
-            package_args: >-
-              --package hive-service
-              --package hive-domain
-              --package hive-application
-              --package hive-infra
-              --package hive-http
-              --package hive-setup
-              --package hive-configuration
-          - service: Manifesto
-            cache_key: manifesto
-            artifact_name: lcov-integration-manifesto
-            output_path: lcov-integration-manifesto.info
-            package_args: >-
-              --package manifesto-service
-              --package manifesto-domain
-              --package manifesto-application
-              --package manifesto-infra
-              --package manifesto-http_server
-              --package manifesto-setup
-              --package manifesto-configuration
-          - service: Apparatus
-            cache_key: apparatus
-            artifact_name: lcov-integration-apparatus
-            output_path: lcov-integration-apparatus.info
-            package_args: >-
-              --package apparatus-contracts
-              --package apparatus-reference-kv
-              --features apparatus-contracts/test-harness
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          submodules: true
+  test-iam:
+    name: Coverage (IAMRusty)
+    needs: [build-iam, plan]
+    uses: ./.github/workflows/ci-coverage.yml
+    with:
+      service: iam
+      scope: ${{ fromJSON(needs.plan.outputs.selection).full && 'full' || 'partial' }}
+    secrets:
+      IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
 
-      - uses: ./.github/actions/setup-rust
-        with:
-          components: llvm-tools-preview
+  test-telegraph:
+    name: Coverage (Telegraph)
+    needs: [build-telegraph, plan]
+    uses: ./.github/workflows/ci-coverage.yml
+    with:
+      service: telegraph
+      scope: ${{ fromJSON(needs.plan.outputs.selection).full && 'full' || 'partial' }}
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          shared-key: ${{ matrix.cache_key }}
-          cache-on-failure: true
+  test-hive:
+    name: Coverage (Hive)
+    needs: [build-hive, plan]
+    uses: ./.github/workflows/ci-coverage.yml
+    with:
+      service: hive
+      scope: ${{ fromJSON(needs.plan.outputs.selection).full && 'full' || 'partial' }}
 
-      - name: Install native dependencies
-        if: ${{ matrix.service == 'IAMRusty' }}
-        run: |
-          sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
-          sudo apt-get update \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30 \
-            -o Acquire::Retries=3
-          sudo apt-get install -y --no-install-recommends \
-            libcurl4-openssl-dev
+  test-manifesto:
+    name: Coverage (Manifesto)
+    needs: [build-manifesto, plan]
+    uses: ./.github/workflows/ci-coverage.yml
+    with:
+      service: manifesto
+      scope: ${{ fromJSON(needs.plan.outputs.selection).full && 'full' || 'partial' }}
 
-      - uses: taiki-e/install-action@72f835688cb6c15903b796f704b01e652a2b8835 # cargo-llvm-cov
+  test-sentinel:
+    name: Coverage (Sentinel Sync)
+    needs: [build-sentinel, plan]
+    uses: ./.github/workflows/ci-coverage.yml
+    with:
+      service: sentinel-sync
+      scope: ${{ fromJSON(needs.plan.outputs.selection).full && 'full' || 'partial' }}
 
-      - name: Prepare explicit fixture runner context
-        shell: bash
-        env:
-          RUSTYCOG_TEST_RUNNER_MODE: local
-          RUSTYCOG_TEST_RUN_ID: fi-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
-          RUSTYCOG_TEST_LEDGER_DIR: ${{ runner.temp }}/rustycog-fixtures-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.cache_key }}
-          IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
-        run: |
-          set -euo pipefail
-          [[ "$RUSTYCOG_TEST_RUN_ID" =~ ^[A-Za-z0-9-]{1,40}$ ]]
-          [[ "$RUNNER_TEMP" == /* && "$RUSTYCOG_TEST_LEDGER_DIR" == "$RUNNER_TEMP"/* ]]
-          [[ ! -L "$RUSTYCOG_TEST_LEDGER_DIR" ]]
-          umask 077
-          mkdir -p -- "$RUSTYCOG_TEST_LEDGER_DIR"
-          # SDK creates exclusive per-process ledgers; never truncate/reuse one.
+  test-readiness:
+    name: Coverage (readiness)
+    needs: [fmt, plan]
+    if: fromJSON(needs.plan.outputs.selection).readiness
+    uses: ./.github/workflows/ci-coverage.yml
+    with:
+      service: readiness
+      scope: ${{ fromJSON(needs.plan.outputs.selection).full && 'full' || 'partial' }}
 
-      - name: Check Docker
-        run: |
-          docker version
-          docker info
-
-      - name: Pull LocalStack
-        run: docker pull localstack/localstack:3.0.2
-
-      - name: Run integration tests (tests/) with coverage
-        env:
-          RUSTYCOG_TEST_RUNNER_MODE: local
-          RUSTYCOG_TEST_RUN_ID: fi-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
-          RUSTYCOG_TEST_LEDGER_DIR: ${{ runner.temp }}/rustycog-fixtures-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.cache_key }}
-          IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
-        run: |
-          set +e
-          if [[ "${{ matrix.service }}" == "IAMRusty" && -z "${IAMRUSTY_TEST_RSA8192_PEM_B64//[[:space:]]/}" ]]; then
-            echo "IAM RSA8192 probe material is required in CI" >&2
-            exit 1
-          fi
-          cargo llvm-cov ${{ matrix.package_args }} --locked --no-report --no-fail-fast --tests
-          test_status=$?
-          set -e
-
-          cargo llvm-cov report --lcov --output-path ${{ matrix.output_path }}
-          exit "$test_status"
-
-      - name: Upload integration coverage artifact
-        if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.output_path }}
-          if-no-files-found: warn
-
-  coverage-unit:
-    name: Coverage - unit (${{ matrix.service }})
-    runs-on: ubuntu-latest
-    needs: [build]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - service: IAMRusty
-            cache_key: iam-unit
-            artifact_name: lcov-unit-iam
-            output_path: lcov-unit-iam.info
-            package_args: >-
-              --package iam-service
-              --package iam-domain
-              --package iam-application
-              --package iam-infra
-              --package iam-http_server
-              --package iam-setup
-              --package iam-configuration
-          - service: Telegraph
-            cache_key: telegraph-unit
-            artifact_name: lcov-unit-telegraph
-            output_path: lcov-unit-telegraph.info
-            package_args: >-
-              --package telegraph-service
-              --package telegraph-domain
-              --package telegraph-application
-              --package telegraph-infra
-              --package telegraph-http_server
-              --package telegraph-setup
-              --package telegraph-configuration
-          - service: Hive
-            cache_key: hive-unit
-            artifact_name: lcov-unit-hive
-            output_path: lcov-unit-hive.info
-            package_args: >-
-              --package hive-service
-              --package hive-domain
-              --package hive-application
-              --package hive-infra
-              --package hive-http
-              --package hive-setup
-              --package hive-configuration
-          - service: Manifesto
-            cache_key: manifesto-unit
-            artifact_name: lcov-unit-manifesto
-            output_path: lcov-unit-manifesto.info
-            package_args: >-
-              --package manifesto-service
-              --package manifesto-domain
-              --package manifesto-application
-              --package manifesto-infra
-              --package manifesto-http_server
-              --package manifesto-setup
-              --package manifesto-configuration
-          - service: readiness
-            cache_key: readiness-unit
-            artifact_name: lcov-unit-readiness
-            output_path: lcov-unit-readiness.info
-            package_args: --package readiness
-          - service: Sentinel Sync
-            cache_key: sentinel-sync-unit
-            artifact_name: lcov-unit-sentinel-sync
-            output_path: lcov-unit-sentinel-sync.info
-            package_args: --package sentinel-sync
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          submodules: true
-
-      - uses: ./.github/actions/setup-rust
-        with:
-          components: llvm-tools-preview
-
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          shared-key: ${{ matrix.cache_key }}
-          cache-on-failure: true
-
-      - name: Install native dependencies
-        if: ${{ matrix.service == 'IAMRusty' }}
-        run: |
-          sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
-          sudo apt-get update \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30 \
-            -o Acquire::Retries=3
-          sudo apt-get install -y --no-install-recommends \
-            libcurl4-openssl-dev
-
-      - uses: taiki-e/install-action@72f835688cb6c15903b796f704b01e652a2b8835 # cargo-llvm-cov
-
-      - name: Run unit tests (lib + bins) with coverage
-        env:
-          IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
-        run: |
-          set +e
-          if [[ "${{ matrix.service }}" == "IAMRusty" && -z "${IAMRUSTY_TEST_RSA8192_PEM_B64//[[:space:]]/}" ]]; then
-            echo "IAM RSA8192 probe material is required in CI" >&2
-            exit 1
-          fi
-          cargo llvm-cov ${{ matrix.package_args }} --locked --no-report --no-fail-fast --lib --bins
-          test_status=$?
-          set -e
-
-          cargo llvm-cov report --lcov --output-path ${{ matrix.output_path }}
-          exit "$test_status"
-
-      - name: Upload unit coverage artifact
-        if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.output_path }}
-          if-no-files-found: warn
+  test-shared:
+    name: Coverage (Apparatus contracts)
+    needs: [fmt, plan]
+    if: fromJSON(needs.plan.outputs.selection).shared
+    uses: ./.github/workflows/ci-coverage.yml
+    with:
+      service: shared
+      scope: ${{ fromJSON(needs.plan.outputs.selection).full && 'full' || 'partial' }}
 
   merge-coverage:
     name: Merge coverage
-    runs-on: ubuntu-latest
-    needs: [coverage-integration, coverage-unit]
-    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-24.04
+    needs: [plan, test-iam, test-telegraph, test-hive, test-manifesto, test-sentinel, test-readiness, test-shared]
+    if: ${{ always() && !cancelled() && needs.plan.result == 'success' && fromJSON(needs.plan.outputs.selection).full }}
     timeout-minutes: 15
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
       - name: Download coverage artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        continue-on-error: true
         with:
           pattern: lcov-*
           path: coverage-artifacts
@@ -580,60 +407,27 @@ jobs:
           sudo apt-get install -y --no-install-recommends lcov
 
       - name: Merge LCOV reports
-        run: |
-          shopt -s nullglob
-          lcov_args=()
-          for report in coverage-artifacts/*.info; do
-            if [ -f "$report" ]; then
-              lcov_args+=(--add-tracefile "$report")
-            fi
-          done
-
-          if [ "${#lcov_args[@]}" -eq 0 ]; then
-            echo "No LCOV reports were downloaded; creating an empty report so Sonar can still run."
-            : > lcov.info
-            exit 0
-          fi
-
-          lcov "${lcov_args[@]}" --output-file lcov.info
+        run: python3 -B ops/ci/pipeline.py aggregate --directory coverage-artifacts --output lcov.info
 
       - name: Upload merged coverage artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: lcov
           path: lcov.info
+          if-no-files-found: error
+          retention-days: 7
 
-  sonar:
-    name: SonarCloud
-    runs-on: ubuntu-latest
-    needs: [merge-coverage]
-    if: ${{ always() && !cancelled() }}
+  clippy:
+    name: Clippy (production and tests)
+    runs-on: ubuntu-24.04
+    needs: [fmt]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 0
           submodules: true
-
-      - name: Download coverage artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        continue-on-error: true
-        with:
-          name: lcov
-          path: .
-
-      - name: Ensure coverage report exists
-        run: |
-          if [ ! -f lcov.info ]; then
-            echo "No merged coverage artifact found; creating an empty report so Sonar can still run."
-            : > lcov.info
-          fi
-
+          persist-credentials: false
       - uses: ./.github/actions/setup-rust
-
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          shared-key: sonar
-          cache-on-failure: true
+      - uses: ./.github/actions/setup-compiler-cache
 
       - name: Install native dependencies
         run: |
@@ -681,6 +475,41 @@ jobs:
           # the tests pass also type-checks the same crate; Sonar usually dedupes by rule + location.
           cat target/sonar/clippy-production.jsonl target/sonar/clippy-tests.jsonl > target/sonar/clippy.json
 
+      - name: Validate fresh complete compiler reports and record provenance
+        run: python3 -B ops/ci/reports.py clippy-create --directory target/sonar
+      - name: Publish complete Clippy import
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: clippy
+          path: target/sonar/
+          if-no-files-found: error
+          retention-days: 7
+      - uses: ./.github/actions/compiler-cache-stats
+
+  sonar:
+    name: SonarCloud
+    runs-on: ubuntu-24.04
+    needs: [merge-coverage, clippy]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          submodules: true
+          persist-credentials: false
+      - name: Download complete coverage
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: lcov
+          path: .
+      - name: Download independently generated Clippy reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: clippy
+          path: target/sonar
+      - name: Admit only complete current-source reports
+        run: |
+          test -s lcov.info
+          python3 -B ops/ci/reports.py clippy-verify --directory target/sonar
       - name: SonarCloud scan
         uses: SonarSource/sonarqube-scan-action@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
         env:
@@ -688,3 +517,19 @@ jobs:
         with:
           args: >
             -Dsonar.rust.lcov.reportPaths=lcov.info
+
+  ci-status:
+    name: CI scope and result
+    if: always()
+    runs-on: ubuntu-24.04
+    needs: [fmt, plan, infra-static, build-iam, build-telegraph, build-hive, build-manifesto, build-monolith, build-sentinel, build-ext-authz, build-oauth, ext-authz-unit, apparatus-p0, test-iam, test-telegraph, test-hive, test-manifesto, test-sentinel, test-readiness, test-shared, clippy, merge-coverage, sonar, k6-e2e, e2e-pages]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Distinguish selected failures from intentional skips
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+          CI_EVENT: ${{ github.event_name }}
+          CI_REF: ${{ github.ref }}
+        run: python3 -B ops/ci/reports.py status

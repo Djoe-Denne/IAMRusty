@@ -1,0 +1,57 @@
+{
+  "schema": "aiforall.ci-inventory/v1",
+  "packages": {
+    "iam": ["iam-service", "iam-migration", "iam-domain", "iam-application", "iam-infra", "iam-http_server", "iam-setup", "iam-configuration"],
+    "telegraph": ["telegraph-service", "telegraph-migration", "telegraph-domain", "telegraph-application", "telegraph-infra", "telegraph-http_server", "telegraph-setup", "telegraph-configuration"],
+    "hive": ["hive-service", "hive-migration", "hive-domain", "hive-application", "hive-infra", "hive-http", "hive-setup", "hive-configuration"],
+    "manifesto": ["manifesto-service", "manifesto-migration", "manifesto-domain", "manifesto-application", "manifesto-infra", "manifesto-http_server", "manifesto-setup", "manifesto-configuration"],
+    "lazaret": ["lazaret-service", "lazaret-migration", "lazaret-domain", "lazaret-application", "lazaret-infra", "lazaret-http", "lazaret-setup", "lazaret-configuration"],
+    "oauth": ["oauth-connect-service", "oauth-connect-domain", "oauth-connect-infra", "oauth-connect-http", "oauth-connect-setup", "oauth-connect-configuration"],
+    "monolith": ["oodhive-monolith"],
+    "sentinel-sync": ["sentinel-sync"],
+    "ext-authz": ["ext-authz"],
+    "operator": ["apparatus-operator"],
+    "readiness": ["readiness"],
+    "shared": ["iam-events", "idp-connect-contract", "hive-events", "manifesto-events", "telegraph-events", "apparatus-events", "apparatus-contracts", "apparatus-reference-kv"]
+  },
+  "builds": {
+    "iam": ["iam-service", "iam-migration", "iam-domain", "iam-application", "iam-infra", "iam-http_server", "iam-setup", "iam-configuration"],
+    "telegraph": ["telegraph-service", "telegraph-domain", "telegraph-application", "telegraph-infra", "telegraph-http_server", "telegraph-setup", "telegraph-configuration"],
+    "hive": ["hive-service", "hive-domain", "hive-application", "hive-infra", "hive-http", "hive-setup", "hive-configuration"],
+    "manifesto": ["manifesto-service", "manifesto-domain", "manifesto-application", "manifesto-infra", "manifesto-http_server", "manifesto-setup", "manifesto-configuration"],
+    "monolith": ["oodhive-monolith"],
+    "sentinel-sync": ["sentinel-sync"],
+    "ext-authz": ["ext-authz"],
+    "oauth": ["oauth-connect-service"]
+  },
+  "coverage": {
+    "iam": ["iam-service", "iam-domain", "iam-application", "iam-infra", "iam-http_server", "iam-setup", "iam-configuration"],
+    "telegraph": ["telegraph-service", "telegraph-domain", "telegraph-application", "telegraph-infra", "telegraph-http_server", "telegraph-setup", "telegraph-configuration"],
+    "hive": ["hive-service", "hive-domain", "hive-application", "hive-infra", "hive-http", "hive-setup", "hive-configuration"],
+    "manifesto": ["manifesto-service", "manifesto-domain", "manifesto-application", "manifesto-infra", "manifesto-http_server", "manifesto-setup", "manifesto-configuration"],
+    "shared": ["apparatus-contracts", "apparatus-reference-kv"],
+    "readiness": ["readiness"],
+    "sentinel-sync": ["sentinel-sync"]
+  },
+  "baseline_gaps": {
+    "lazaret": "No baseline CI build or coverage lane; live fixture expansion is outside this change.",
+    "oauth": "Native build and E2E producer; no baseline coverage lane.",
+    "operator": "No baseline CI coverage lane; admit/controller/live-test features stay opt-in.",
+    "monolith": "Native build; no baseline coverage lane.",
+    "ext-authz": "Native build and existing unit/HTTP stand-in gate; no baseline coverage lane.",
+    "other_shared_crates": "Inventory includes all workspace packages; coverage is not claimed for unselected packages."
+  },
+  "runtime_consumers": {
+    "iam": ["telegraph", "hive", "manifesto", "lazaret", "oauth", "ext-authz", "sentinel-sync", "operator", "monolith"],
+    "telegraph": ["sentinel-sync", "monolith"],
+    "hive": ["sentinel-sync", "monolith"],
+    "manifesto": ["lazaret", "operator", "sentinel-sync", "monolith"],
+    "lazaret": ["manifesto", "operator", "monolith"],
+    "oauth": ["iam", "ext-authz", "monolith"],
+    "ext-authz": ["iam", "telegraph", "hive", "manifesto", "lazaret", "oauth", "operator", "monolith"],
+    "operator": ["manifesto", "lazaret"],
+    "sentinel-sync": ["iam", "hive", "manifesto", "telegraph"],
+    "monolith": [],
+    "readiness": ["iam", "telegraph", "hive", "manifesto", "lazaret", "oauth", "monolith"]
+  }
+}

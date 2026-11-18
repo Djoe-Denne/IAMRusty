@@ -1,0 +1,38 @@
+name: Set up shared Rust compiler cache
+description: Share content-addressed compiler results without per-service target archives.
+
+runs:
+  using: composite
+  steps:
+    # Keep downloads separate from compiler outputs. Only one trusted producer
+    # refreshes this archive; all jobs can restore it, including pull requests.
+    - name: Restore Cargo downloads
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      with:
+        shared-key: cargo-downloads-v1
+        cache-targets: "false"
+        cache-bin: "false"
+        cache-on-failure: "false"
+        save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && github.job == 'build-iam' }}
+
+    - name: Configure content-addressed compilation caching
+      shell: bash
+      run: |
+        {
+          echo 'CARGO_INCREMENTAL=0'
+          echo 'RUSTC_WRAPPER=sccache'
+          echo 'SCCACHE_GHA_ENABLED=true'
+          echo 'SCCACHE_GHA_VERSION=aiforall-rust-v1'
+          echo 'SCCACHE_IGNORE_SERVER_IO_ERROR=1'
+        } >> "$GITHUB_ENV"
+
+    - name: Authenticate release bytes before extraction or PATH publication
+      shell: bash
+      run: python3 -B ops/ci/compiler_cache.py install --directory "$RUNNER_TEMP/aiforall-sccache"
+
+    - name: Export scoped GitHub cache runtime credentials
+      uses: ./.github/actions/export-cache-runtime
+
+    - name: Verify the admitted compiler-cache executable before compilation
+      shell: bash
+      run: python3 -B ops/ci/compiler_cache.py

@@ -14,9 +14,10 @@ import tarfile
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[4]
-SCHEMA = "aiforall.k6-binaries/v1"
+SCHEMA = "aiforall.k6-binaries/v2"
 ROLES = {"iam": "Build (IAMRusty)", "oauth": "Build (OAuthConnect)",
          "ext-authz": "Build (Ext Authz)"}
+BUILD_JOBS = {"iam": "build-iam", "oauth": "build-oauth", "ext-authz": "build-ext-authz"}
 FLAG_NAMES = ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "RUSTC_WRAPPER",
               "RUSTC_WORKSPACE_WRAPPER", "RUSTC", "CARGO_BUILD_RUSTFLAGS",
               "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS")
@@ -76,9 +77,16 @@ def inventory(root, role):
     return outputs
 
 
-def flags(environment, root):
+def flags(environment, root, cache_attest=None):
     values = {name: environment.get(name, "") for name in FLAG_NAMES}
-    require(not any(values.values()), "BUILD_FLAGS_OR_WRAPPER")
+    require(not any(value for name, value in values.items() if name != "RUSTC_WRAPPER"),
+            "BUILD_FLAGS_OR_WRAPPER")
+    require(values["RUSTC_WRAPPER"] in ("", "sccache"), "BUILD_FLAGS_OR_WRAPPER")
+    cache = None
+    if values["RUSTC_WRAPPER"]:
+        if cache_attest is None:
+            cache_attest = compiler_cache_module().attest
+        cache = cache_attest()
     require(not any(name.startswith("CARGO_PROFILE_") and value for name, value in environment.items()),
             "PROFILE_OVERRIDE")
     # Capture/reject Cargo configuration overrides as well as environment flags.
@@ -103,7 +111,17 @@ def flags(environment, root):
                     and all(isinstance(args, list) and bool(args) and args[0] == "clippy"
                             and all(isinstance(arg, str) for arg in args) for args in aliases.values()), "CARGO_CONFIG_OVERRIDE")
         config_hashes[str(index)] = sha(path)
-    return {"environment": values, "cargo_config_sha256": config_hashes}
+    return {"environment": values, "cargo_config_sha256": config_hashes, "compiler_cache": cache}
+
+
+def compiler_cache_module():
+    # Import only repository-owned policy code, never a path supplied by a bundle.
+    import importlib.util
+    path = ROOT / "ops/ci/compiler_cache.py"
+    spec = importlib.util.spec_from_file_location("aiforall_compiler_cache", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def elf(path, inspect=command):
@@ -134,14 +152,15 @@ def elf(path, inspect=command):
             "needed": needed, "required_versions": required}
 
 
-def identity(environment):
+def identity(environment, role):
     values = {name: environment.get(name, "") for name in
               ("GITHUB_REPOSITORY", "GITHUB_REPOSITORY_ID", "GITHUB_SHA", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")}
     require(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", values["GITHUB_REPOSITORY"]), "PRODUCER_REPOSITORY")
     for name in ("GITHUB_REPOSITORY_ID", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"):
         require(re.fullmatch(r"[1-9][0-9]*", values[name]), "PRODUCER_ID")
     require(re.fullmatch(r"[a-f0-9]{40}", values["GITHUB_SHA"]), "PRODUCER_SHA")
-    require(environment.get("GITHUB_JOB") == "build", "PRODUCER_JOB")
+    require(role in BUILD_JOBS and environment.get("GITHUB_JOB") == BUILD_JOBS[role], "PRODUCER_JOB")
+    values["GITHUB_JOB"] = environment["GITHUB_JOB"]
     return values
 
 
@@ -150,7 +169,7 @@ def publish(root, role, output, environment=None):
     root, output = Path(root).resolve(), Path(output)
     require(not output.exists() and output.is_absolute(), "BUNDLE_OUTPUT_EXISTS")
     outputs = inventory(root, role)
-    source = identity(env)
+    source = identity(env, role)
     require(platform.system() == "Linux" and platform.machine() == "x86_64", "PRODUCER_PLATFORM")
     os_release = platform.freedesktop_os_release()
     require(os_release.get("ID") == "ubuntu" and os_release.get("VERSION_ID") == "24.04", "PRODUCER_ABI")
@@ -158,6 +177,8 @@ def publish(root, role, output, environment=None):
     sdk = command(["git", "rev-parse", "HEAD:rustycog"], root)
     require(re.fullmatch(r"[a-f0-9]{40}", sdk), "SDK_GITLINK")
     build_flags = flags(env, root)
+    require(build_flags["compiler_cache"] == compiler_cache_module().expected_attestation(),
+            "MISSING_COMPILER_CACHE_ATTESTATION")
     args = shlex.split(env.get("K6_BUILD_PACKAGE_ARGS", ""))
     require(len(args) % 2 == 0 and all(args[n] == "--package" for n in range(0, len(args), 2)), "BUILD_PACKAGE_ARGS")
     require(set(outputs) <= set(args[1::2]), "OUTPUT_PACKAGE_NOT_BUILT")
@@ -174,7 +195,7 @@ def publish(root, role, output, environment=None):
         "repository_id": int(source["GITHUB_REPOSITORY_ID"]), "workflow_path": ".github/workflows/ci.yml",
         "source_sha": source["GITHUB_SHA"], "sdk_sha": sdk,
         "run_id": int(source["GITHUB_RUN_ID"]), "run_attempt": int(source["GITHUB_RUN_ATTEMPT"]),
-        "job": "build", "job_name": ROLES[role], "cargo_profile": "dev", "output_directory": "debug",
+        "job": source["GITHUB_JOB"], "job_name": ROLES[role], "cargo_profile": "dev", "output_directory": "debug",
         "target": "x86_64-unknown-linux-gnu", "producer_os": "ubuntu-24.04",
         "libc": command(["getconf", "GNU_LIBC_VERSION"]), "cargo": command(["cargo", "--version"]),
         "rustc": command(["rustc", "-vV"]), "instrumentation": "none", "flags": build_flags,
@@ -205,14 +226,18 @@ def validate_manifest(value, expected, outputs):
     require(isinstance(value, dict) and value.keys() == MANIFEST_FIELDS, "MANIFEST_FIELDS")
     for key, item in expected.items():
         require(key in value and type(value[key]) is type(item) and value[key] == item, "MANIFEST_PROVENANCE")
-    for key, item in {"schema": SCHEMA, "workflow_path": ".github/workflows/ci.yml", "job": "build",
+    for key, item in {"schema": SCHEMA, "workflow_path": ".github/workflows/ci.yml",
                       "cargo_profile": "dev", "output_directory": "debug", "producer_os": "ubuntu-24.04",
                       "target": "x86_64-unknown-linux-gnu", "instrumentation": "none"}.items():
         require(value[key] == item, "MANIFEST_BUILD_CONTRACT")
-    require(value["role"] in ROLES and value["job_name"] == ROLES[value["role"]], "MANIFEST_JOB")
+    require(value["role"] in ROLES and value["job_name"] == ROLES[value["role"]]
+            and value["job"] == BUILD_JOBS[value["role"]], "MANIFEST_JOB")
     flag_values = value["flags"]
-    require(isinstance(flag_values, dict) and flag_values.keys() == {"environment", "cargo_config_sha256"}, "MANIFEST_FLAGS")
-    require(flag_values["environment"] == {name: "" for name in FLAG_NAMES}, "MANIFEST_FLAGS")
+    require(isinstance(flag_values, dict) and flag_values.keys() ==
+            {"environment", "cargo_config_sha256", "compiler_cache"}, "MANIFEST_FLAGS")
+    require(flag_values["environment"] ==
+            {name: "sccache" if name == "RUSTC_WRAPPER" else "" for name in FLAG_NAMES}, "MANIFEST_FLAGS")
+    require(flag_values["compiler_cache"] == compiler_cache_module().expected_attestation(), "MANIFEST_COMPILER_CACHE")
     configs = flag_values["cargo_config_sha256"]
     require(isinstance(configs, dict) and all(key in ("0", "1", "2", "3") and
             isinstance(value, str) and re.fullmatch(r"[a-f0-9]{64}", value)

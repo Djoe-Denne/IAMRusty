@@ -45,10 +45,12 @@ def manifest(data=None):
     data = executable() if data is None else data
     return dict(schema=b.SCHEMA, role="oauth", repository="owner/repo", repository_id=123,
                 workflow_path=".github/workflows/ci.yml", workflow_id=456, source_sha=SHA, sdk_sha=SDK,
-                run_id=789, run_attempt=1, job="build", job_name=b.ROLES["oauth"],
+                run_id=789, run_attempt=1, job=b.BUILD_JOBS["oauth"], job_name=b.ROLES["oauth"],
                 cargo_profile="dev", output_directory="debug", target="x86_64-unknown-linux-gnu",
                 producer_os="ubuntu-24.04", libc="glibc 2.39", cargo="cargo 1.99.1", rustc="rustc 1.99.1",
-                instrumentation="none", flags={"environment": {name: "" for name in b.FLAG_NAMES}, "cargo_config_sha256": {}},
+                instrumentation="none", flags={
+                    "environment": {name: "sccache" if name == "RUSTC_WRAPPER" else "" for name in b.FLAG_NAMES},
+                    "cargo_config_sha256": {}, "compiler_cache": b.compiler_cache_module().expected_attestation()},
                 build_args=["build", "--locked", "--all-targets", "--package", "oauth-connect-service"],
                 cargo_lock_sha256="c" * 64, inventory_sha256="d" * 64,
                 files=[dict(package="oauth-connect-service", name="oauth-connect-service", path="bin/oauth-connect-service",
@@ -74,6 +76,36 @@ def bundle(path, value=None, data=None, extra=None):
 
 
 class BinaryContractTests(unittest.TestCase):
+    def test_v2_rejects_legacy_role_swaps_and_unattested_compiler_caches(self):
+        for mutate in (
+            lambda x: x.update(schema="aiforall.k6-binaries/v1"),
+            lambda x: x.update(job="build"),
+            lambda x: x.update(job=b.BUILD_JOBS["iam"]),
+            lambda x: x["flags"]["environment"].update(RUSTC_WRAPPER=""),
+            lambda x: x["flags"]["environment"].update(RUSTC_WRAPPER="/tmp/sccache"),
+            lambda x: x["flags"]["compiler_cache"].update(version="0.0.0"),
+            lambda x: x["flags"]["compiler_cache"].update(executable_sha256="f" * 64),
+        ):
+            value = manifest()
+            mutate(value)
+            with self.assertRaises(b.Refused):
+                b.validate_manifest(value, EXPECTED, OUTPUTS)
+
+    def test_producer_job_is_bound_to_its_role(self):
+        env = dict(GITHUB_REPOSITORY="owner/repo", GITHUB_REPOSITORY_ID="123",
+                   GITHUB_SHA=SHA, GITHUB_RUN_ID="789", GITHUB_RUN_ATTEMPT="1",
+                   GITHUB_JOB=b.BUILD_JOBS["oauth"])
+        self.assertEqual(b.identity(env, "oauth")["GITHUB_JOB"], b.BUILD_JOBS["oauth"])
+        with self.assertRaises(b.Refused):
+            b.identity(env, "iam")
+
+    def test_approved_wrapper_is_attested_without_clearing_its_environment(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            value = b.flags({"RUSTC_WRAPPER": "sccache", "CARGO_HOME": str(Path(temporary) / "home")},
+                            Path(temporary), b.compiler_cache_module().expected_attestation)
+            self.assertEqual(value["environment"]["RUSTC_WRAPPER"], "sccache")
+            self.assertEqual(value["compiler_cache"], b.compiler_cache_module().expected_attestation())
+
     def test_inventory_includes_migration_and_exact_selected_packages(self):
         self.assertEqual(b.inventory(b.ROOT, "iam"), {"iam-service": "iam-service", "iam-migration": "iammigration"})
         self.assertEqual(b.inventory(b.ROOT, "oauth"), OUTPUTS)
@@ -323,7 +355,7 @@ class PackagingTests(unittest.TestCase):
             (acquired / "selection.json").write_text(json.dumps(selected))
             for role in b.ROLES:
                 value = manifest()
-                value.update(role=role, job_name=b.ROLES[role], cargo_lock_sha256=b.sha(source / "Cargo.lock"),
+                value.update(role=role, job=b.BUILD_JOBS[role], job_name=b.ROLES[role], cargo_lock_sha256=b.sha(source / "Cargo.lock"),
                              inventory_sha256=b.sha(source / "ops/deploy/build/targets.json"))
                 value["files"] = []
                 outputs = b.inventory(source, role)

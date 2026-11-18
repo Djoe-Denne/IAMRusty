@@ -201,12 +201,12 @@ class WorkflowTests(unittest.TestCase):
     def test_e2e_runs_after_build_alongside_not_after_coverage_and_pages_is_separate(self):
         value = yaml.load((b.ROOT / ".github/workflows/ci.yml").read_text(), Loader=yaml.BaseLoader)
         job = value["jobs"]["k6-e2e"]
-        self.assertEqual(job["needs"], ["build"])
+        self.assertEqual(job["needs"], ["build-iam", "build-oauth", "build-ext-authz"])
         self.assertEqual(job["uses"], "./.github/workflows/k6-e2e.yml")
         self.assertIn("'push'", job["if"])
         self.assertIn("refs/heads/master", job["if"])
         self.assertEqual(job["permissions"], dict(contents="read", actions="read"))
-        self.assertEqual(value["jobs"]["sonar"]["needs"], ["merge-coverage"])
+        self.assertEqual(value["jobs"]["sonar"]["needs"], ["merge-coverage", "clippy"])
         pages = value["jobs"]["e2e-pages"]
         self.assertEqual(pages["needs"], ["k6-e2e"])
         self.assertEqual(pages["permissions"]["pages"], "write")

@@ -1,0 +1,56 @@
+name: Build one native service
+description: Preserve top-level producer identities while sharing build implementation.
+
+inputs:
+  service:
+    description: Closed service identity from the CI inventory.
+    required: true
+  role:
+    description: Optional native E2E bundle role.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup-rust
+    - uses: ./.github/actions/setup-compiler-cache
+
+    - name: Install IAM native dependencies
+      if: inputs.service == 'iam'
+      shell: bash
+      run: |
+        sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
+        sudo apt-get update \
+          -o Acquire::http::Timeout=30 \
+          -o Acquire::https::Timeout=30 \
+          -o Acquire::Retries=3
+        sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
+
+    - name: Build service
+      shell: bash
+      env:
+        CI_SERVICE: ${{ inputs.service }}
+      run: python3 -B ops/ci/build.py --service "$CI_SERVICE"
+
+    - name: Collect existing native binaries without hiding compiler provenance
+      if: ${{ inputs.role != '' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+      shell: bash
+      env:
+        K6_BINARY_ROLE: ${{ inputs.role }}
+        K6_CI_WORKFLOW_ID: "267870909"
+      run: >-
+        python3 -B ops/tests/k6/ci/binaries.py --role "$K6_BINARY_ROLE"
+        --output "$RUNNER_TEMP/k6-native-bundle"
+
+    - name: Save immutable native bundle for independent E2E packaging
+      if: ${{ inputs.role != '' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: k6-binaries-${{ inputs.role }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/k6-native-bundle/bundle.tar.gz
+        if-no-files-found: error
+        compression-level: 0
+        retention-days: 7
+
+    - uses: ./.github/actions/compiler-cache-stats

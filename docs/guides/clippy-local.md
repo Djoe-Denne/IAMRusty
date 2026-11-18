@@ -13,7 +13,8 @@ d'offset entre scans n'est requis.
 
 ## Périmètre reproduit
 
-Source : `.github/workflows/ci.yml`, étape `Run Clippy report (production vs tests)`.
+Source: `.github/workflows/ci.yml`, job `clippy`, step `Run Clippy report (production vs tests)`.
+Sonar imports the independently generated, validated report; it does not run Cargo.
 Les deux alias dans `.cargo/config.toml` utilisent `--workspace --locked
 --all-features` et le format JSON Cargo.
 

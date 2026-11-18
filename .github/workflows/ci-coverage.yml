@@ -1,0 +1,120 @@
+name: Service-local coverage partitions
+
+on:
+  workflow_call:
+    inputs:
+      service:
+        required: true
+        type: string
+      scope:
+        required: true
+        type: string
+    secrets:
+      IAMRUSTY_TEST_RSA8192_PEM_B64:
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  RUST_BACKTRACE: "1"
+  RUN_ENV: test
+
+jobs:
+  plan:
+    name: Discover complete test-target partitions
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.partitions.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+      - name: Partition whole Cargo targets
+        id: partitions
+        env:
+          CI_SERVICE: ${{ inputs.service }}
+        run: python3 -B ops/ci/pipeline.py matrix --service "$CI_SERVICE"
+
+  coverage:
+    name: ${{ inputs.service }} / ${{ matrix.lane }} / ${{ matrix.shard }}
+    needs: [plan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      RUSTYCOG_TEST_RUNNER_MODE: local
+      RUSTYCOG_TEST_RUN_ID: fi-${{ inputs.service }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
+      CI_COVERAGE_SCOPE: ${{ inputs.scope }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+        with:
+          components: llvm-tools-preview
+      - uses: ./.github/actions/setup-compiler-cache
+      - name: Install IAM native dependencies
+        if: inputs.service == 'iam'
+        run: |
+          sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
+          sudo apt-get update \
+            -o Acquire::http::Timeout=30 \
+            -o Acquire::https::Timeout=30 \
+            -o Acquire::Retries=3
+          sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
+      - uses: taiki-e/install-action@72f835688cb6c15903b796f704b01e652a2b8835 # install-action
+        with:
+          tool: cargo-llvm-cov@0.9.1
+      - name: Prepare fixture ownership context
+        env:
+          CI_SERVICE: ${{ inputs.service }}
+          CI_LANE: ${{ matrix.lane }}
+          CI_SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          [[ "$RUSTYCOG_TEST_RUN_ID" =~ ^[A-Za-z0-9-]{1,40}$ ]]
+          ledger="$RUNNER_TEMP/fixtures-$CI_SERVICE-$CI_LANE-$CI_SHARD"
+          [[ "$ledger" == "$RUNNER_TEMP"/* ]]
+          [[ ! -L "$ledger" ]]
+          umask 077
+          mkdir -p -- "$ledger"
+          printf 'RUSTYCOG_TEST_LEDGER_DIR=%s\n' "$ledger" >> "$GITHUB_ENV"
+      - name: Check fixture daemon
+        if: matrix.lane == 'tests' && inputs.service != 'shared'
+        run: docker version
+      - name: Pull LocalStack only for fixture-bearing service targets
+        if: matrix.lane == 'tests' && inputs.service != 'shared'
+        run: docker pull localstack/localstack:3.0.2
+      - name: Run disjoint whole-target coverage and write outcome receipt
+        env:
+          CI_SERVICE: ${{ inputs.service }}
+          CI_LANE: ${{ matrix.lane }}
+          CI_SHARD: ${{ matrix.shard }}
+          IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
+        run: |
+          set -euo pipefail
+          if [[ "$CI_SERVICE" == 'iam' && -z "${IAMRUSTY_TEST_RSA8192_PEM_B64//[[:space:]]/}" ]]; then
+            echo 'IAM RSA8192 probe material is required in CI' >&2
+            exit 1
+          fi
+          python3 -B ops/ci/pipeline.py coverage \
+            --service "$CI_SERVICE" --lane "$CI_LANE" --shard "$CI_SHARD" \
+            --output "coverage/lcov-$CI_SERVICE-$CI_LANE-$CI_SHARD.info"
+      - name: Retain coverage and its source-bound outcome receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: lcov-${{ inputs.service }}-${{ matrix.lane }}-${{ matrix.shard }}
+          path: coverage/
+          if-no-files-found: warn
+          retention-days: 7
+      - uses: ./.github/actions/compiler-cache-stats

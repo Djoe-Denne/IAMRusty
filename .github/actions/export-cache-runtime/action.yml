@@ -1,0 +1,5 @@
+name: Export scoped compiler-cache runtime
+description: Forward runner-issued cache credentials without any installer or post hook.
+runs:
+  using: node24
+  main: index.js
