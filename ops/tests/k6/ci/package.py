@@ -31,13 +31,27 @@ def prepare(acquired, source, context, harness=ROOT):
     sdk_sha = command(["git", "rev-parse", "HEAD:rustycog"], source)
     harness_sha = command(["git", "rev-parse", "HEAD"], harness)
     require(all(re.fullmatch(r"[a-f0-9]{40}", value) for value in (target_sha, sdk_sha, harness_sha)), "CHECKOUT_SHA")
+    base = {key: selected[key] for key in ("repository", "repository_id", "workflow_id", "run_id", "run_attempt", "source_sha")}
+    base.update(sdk_sha=sdk_sha, cargo_lock_sha256=sha(source / "Cargo.lock"),
+                inventory_sha256=sha(source / "ops/deploy/build/targets.json"))
+
+    def verify(role, directory, outputs):
+        manifest = unpack(acquired / (role + ".tar.gz"), directory, {**base, "role": role}, outputs)
+        return manifest, selected["artifacts"][role]
+
+    records, entrypoint_digest = stage_context(source, context, harness, target_sha, sdk_sha, verify)
+    return {"schema": "aiforall.k6-images/v1", "harness_sha": harness_sha, "target_sha": target_sha,
+            "sdk_sha": sdk_sha, "producer_run_id": selected["run_id"],
+            "producer_attempt": selected["run_attempt"], "cargo_profile": "dev", "instrumentation": "none",
+            "entrypoint_sha256": entrypoint_digest, "roles": records}
+
+
+def stage_context(source, context, harness, target_sha, sdk_sha, verified_role):
+    """Stage the existing recipes; the caller must supply a closed role verifier."""
     context.mkdir(mode=0o700)
     release = context / "release"
     release.mkdir()
     records = {}
-    base = {key: selected[key] for key in ("repository", "repository_id", "workflow_id", "run_id", "run_attempt", "source_sha")}
-    base.update(sdk_sha=sdk_sha, cargo_lock_sha256=sha(source / "Cargo.lock"),
-                inventory_sha256=sha(source / "ops/deploy/build/targets.json"))
     target_inventory = strict_json((source / "ops/deploy/build/targets.json").read_bytes())["variable"]["inventory"]["default"]["targets"]
     harness_inventory = strict_json((harness / "ops/deploy/build/targets.json").read_bytes())["variable"]["inventory"]["default"]["targets"]
     for role in ROLES:
@@ -45,7 +59,7 @@ def prepare(acquired, source, context, harness=ROOT):
         require(outputs == inventory(harness, role) and
                 target_inventory[role]["dockerfile"] == harness_inventory[role]["dockerfile"], "HARNESS_TARGET_SEAM_MISMATCH")
         directory = context / (role + "-verified")
-        manifest = unpack(acquired / (role + ".tar.gz"), directory, {**base, "role": role}, outputs)
+        manifest, artifact = verified_role(role, directory, outputs)
         for name in outputs.values():
             require(not (release / name).exists(), "DUPLICATE_DELIVERY_BINARY")
             shutil.copyfile(directory / name, release / name)
@@ -58,7 +72,7 @@ def prepare(acquired, source, context, harness=ROOT):
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(harness / dockerfile, target)
         records[role] = {"manifest": manifest, "dockerfile": dockerfile,
-                         "dockerfile_sha256": sha(target), "artifact": selected["artifacts"][role]}
+                         "dockerfile_sha256": sha(target), "artifact": artifact}
     entrypoint = "services/IAMRusty/docker-entrypoint.sh"
     shutil.copyfile(source / entrypoint, context / entrypoint)
     shutil.copyfile(harness / "ops/tests/k6/ci/Dockerfile.artifacts", context / "Dockerfile.artifacts")
@@ -66,10 +80,7 @@ def prepare(acquired, source, context, harness=ROOT):
                                           "!services/IAMRusty/docker-entrypoint.sh\n", encoding="utf-8")
     for name, value in (("source-revision", target_sha), ("sdk-revision", sdk_sha), ("delivery-profile", "images")):
         (release / name).write_text(value + "\n", encoding="ascii")
-    return {"schema": "aiforall.k6-images/v1", "harness_sha": harness_sha, "target_sha": target_sha,
-            "sdk_sha": sdk_sha, "producer_run_id": selected["run_id"],
-            "producer_attempt": selected["run_attempt"], "cargo_profile": "dev", "instrumentation": "none",
-            "entrypoint_sha256": sha(context / entrypoint), "roles": records}
+    return records, sha(context / entrypoint)
 
 
 class Packager:
@@ -171,6 +182,10 @@ def package(acquired, source, output):
     output.mkdir(mode=0o700)
     context = output / "context"
     provenance = prepare(acquired, source, context)
+    build_images(output, context, provenance)
+
+
+def build_images(output, context, provenance):
     lock = runtime_lock()
     provenance["runtime"] = lock["runtime"]
     suffix = "k6-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"]

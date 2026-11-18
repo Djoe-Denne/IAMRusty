@@ -492,7 +492,7 @@ class Campaign:
             "iam_delta": 7, "ext_authz_delta": 4, "provider_delta": 3, "pkce_delta": 3, "users_delta": 1, "outbox_delta": 0})
 
 
-def prepare(directory, cli_directory, browser_directory, image_directory):
+def prepare(directory, cli_directory, browser_directory, image_directory, *, admit_images=None):
     hosted()
     os.umask(0o077)
     root = new_output(str(Path(directory).resolve()))
@@ -508,6 +508,11 @@ def prepare(directory, cli_directory, browser_directory, image_directory):
     tools.update(browser_profile.tools(browser_directory))
     images_root = Path(image_directory).resolve()
     images = strict_json((images_root / "verified/provenance.json").read_bytes())
+    if admit_images is None:
+        require(images.get("schema") == "aiforall.k6-images/v1"
+                and images.get("instrumentation") == "none", "E2E_EXPECTS_CANONICAL_IMAGES")
+    else:
+        admit_images(images_root, images)
     require(sha(images_root / "verified/images.tar.gz") == images["archive_sha256"], "E2E_IMAGE_ARCHIVE_CHANGED")
     state = {"version": 1, "run_id": run, "name": "k6-" + run, "job_run_id": os.environ["GITHUB_RUN_ID"],
         "job_attempt": os.environ["GITHUB_RUN_ATTEMPT"], "cluster": "k6-e2e-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"],
@@ -598,11 +603,13 @@ def finish(campaign):
     campaign.publish("provenance.json", {"harness_sha": os.environ["GITHUB_SHA"], "target_sha": state["images"]["target_sha"],
         "sdk_sha": state["images"]["sdk_sha"], "packaging_sha": state["images"]["harness_sha"],
         "images": {role: value["image_id"] for role, value in state["images"]["roles"].items()},
+        **({"experimental_instrumentation": state["images"]["instrumentation"]}
+           if state["images"].get("schema") == "aiforall.iam-compile-once-images/v1" else {}),
         "tools": {name: {key: value for key, value in pin.items() if key != "path"} for name, pin in state["tools"].items()}})
     campaign.r.save()
 
 
-def main():
+def main(*, admit_images=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("run", "clean"))
     parser.add_argument("--directory", type=Path, required=True)
@@ -621,7 +628,8 @@ def main():
             finish(campaign)
             return 0 if campaign.state["cleanup"]["status"] == "PASS" else 1
         require(all(value is not None for value in (args.cli_directory, args.browser_directory, args.image_directory)), "E2E_INPUTS_REQUIRED")
-        campaign = prepare(args.directory, args.cli_directory, args.browser_directory, args.image_directory)
+        campaign = prepare(args.directory, args.cli_directory, args.browser_directory, args.image_directory,
+                           admit_images=admit_images)
 
         def interrupted(_signal, _frame):
             raise Refused("E2E_INTERRUPTED")

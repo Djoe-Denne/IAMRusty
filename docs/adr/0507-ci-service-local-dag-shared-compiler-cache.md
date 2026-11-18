@@ -48,6 +48,10 @@ Native bundles record the actual successful build command. Native-v2 consumers d
 
 Measure comparable warm hosted builds before changing cache transport at the same time. The user authorized an isolated IAM seed/rebuild workflow with two fresh runners and no target transfer. If per-object GHA requests still dominate measured time, batched persistence of the pinned local sccache store requires an explicit trusted-writer/consolidation contract and cost qualification. Do not introduce a prewarm barrier, per-service target archives, a new network service or a quota/billing change.
 
+### Forward amendment: isolated IAM compile-once pilot
+
+An opt-in, reserved-branch pilot builds IAM test executables and instrumented production executables in one producer target directory. Fresh test shards and the existing E2E campaign reuse those binaries without rebuilding. Only compatible Cargo units are eligible to share; E2E companions OAuth and ext-authz remain native. The dedicated artifact and admission boundary is described in the [pilot contract](../contracts/ci-iam-compile-once-pilot.md). Canonical CI and release behavior are unchanged. The pilot does not establish runtime parity or a speedup until measured on hosted runners.
+
 ## Consequences and limits
 
 - Explicit jobs remove the matrix-wide dependency barrier without delaying producer admission until tests finish.

@@ -124,6 +124,15 @@ def compiler_cache_module():
 
 
 def elf(path, inspect=command):
+    return _inspect_elf(path, inspect, coverage=False)
+
+
+def coverage_elf(path, inspect=command):
+    """Pilot-only ELF inspection; canonical bundle admission still uses elf()."""
+    return _inspect_elf(path, inspect, coverage=True)
+
+
+def _inspect_elf(path, inspect, *, coverage):
     path = Path(path)
     require(path.is_file() and not path.is_symlink(), "MISSING_BINARY")
     require(64 <= path.stat().st_size <= MAX_BINARY, "BINARY_SIZE")
@@ -133,11 +142,15 @@ def elf(path, inspect=command):
                 and struct.unpack_from("<H", header, 16)[0] in (2, 3), "NOT_LINUX_AMD64_ELF")
         stream.seek(0)
         tail = b""
+        marked = False
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             data = tail + block
-            require(not any(marker in data for marker in
-                            (b"__llvm_profile_", b"__llvm_prf", b"__llvm_cov")), "INSTRUMENTED_BINARY")
+            if any(marker in data for marker in (b"__llvm_profile_", b"__llvm_prf", b"__llvm_cov")):
+                require(coverage, "INSTRUMENTED_BINARY")
+                marked = True
+                break
             tail = data[-64:]
+        require(not coverage or marked, "MISSING_PILOT_INSTRUMENTATION")
     program = inspect(["readelf", "--program-headers", "--wide", str(path)])
     dynamic = inspect(["readelf", "--dynamic", "--wide", str(path)])
     versions = inspect(["readelf", "--version-info", "--wide", str(path)])

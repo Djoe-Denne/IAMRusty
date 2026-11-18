@@ -55,8 +55,12 @@ def close_probes(owned, present, candidates, inspect, stop, remove, append, run_
 def cleanup(output, environment=None):
     env = dict(os.environ if environment is None else environment)
     require(env.get("GITHUB_ACTIONS") == "true" and (env.get("GITHUB_JOB") == "package-images"
-            or current_ci_source(env, env.get("GITHUB_RUN_ID"), env.get("GITHUB_RUN_ATTEMPT"), env.get("GITHUB_SHA"))),
+             or current_ci_source(env, env.get("GITHUB_RUN_ID"), env.get("GITHUB_RUN_ATTEMPT"), env.get("GITHUB_SHA"))),
             "HOSTED_PACKAGING_CLEANUP_ONLY")
+    clean_owned_probes(output, env)
+
+
+def clean_owned_probes(output, env):
     run_id, attempt = env["GITHUB_RUN_ID"], env["GITHUB_RUN_ATTEMPT"]
     require(re.fullmatch(r"[1-9][0-9]*", run_id) and re.fullmatch(r"[1-9][0-9]*", attempt), "CLEANUP_RUN_ID")
     output = Path(output)

@@ -20,10 +20,20 @@ NS = "aiforall-local-full"
 OWNER = "k6-ci-e2e"
 
 
+def pilot_hosted(env):
+    return (env.get("GITHUB_REPOSITORY") == "Djoe-Denne/IAMRusty"
+            and env.get("GITHUB_EVENT_NAME") == "push"
+            and env.get("GITHUB_JOB") == "pilot-e2e"
+            and env.get("GITHUB_REF") == "refs/heads/ci-iam-compile-once"
+            and env.get("GITHUB_WORKFLOW_REF") ==
+            "Djoe-Denne/IAMRusty/.github/workflows/iam-compile-once.yml@refs/heads/ci-iam-compile-once")
+
+
 def hosted(environment=None):
     env = os.environ if environment is None else environment
     require(sys.platform == "linux" and os.getuid() != 0 and env.get("GITHUB_ACTIONS") == "true"
-            and env.get("GITHUB_JOB") == "e2e" and env.get("GITHUB_REF") == "refs/heads/master", "HOSTED_E2E_ONLY")
+            and ((env.get("GITHUB_JOB") == "e2e" and env.get("GITHUB_REF") == "refs/heads/master")
+                 or pilot_hosted(env)), "HOSTED_E2E_ONLY")
     require(re.fullmatch(r"[1-9][0-9]*", env.get("GITHUB_RUN_ID", ""))
             and re.fullmatch(r"[1-9][0-9]*", env.get("GITHUB_RUN_ATTEMPT", "")), "E2E_RUN_ID")
 
