@@ -68,9 +68,20 @@ def verify_coverage_environment(env):
 
 def cargo_artifacts(args, root, log):
     started = time.monotonic()
+    print(f"{log.stem} argv: {json.dumps(['cargo', *args, '--message-format=json-render-diagnostics'])}", flush=True)
     with log.open("x", encoding="utf-8") as out:
         subprocess.run(["cargo", *args, "--message-format=json-render-diagnostics"],
                        cwd=root, stdout=out, check=True)
+    events = read_cargo_artifacts(log)
+    fresh = sum(item["fresh"] for item in events)
+    debug_levels = sorted({json.dumps(item["profile"]["debuginfo"]) for item in events})
+    print(f"{log.stem}: {time.monotonic() - started:.1f}s, "
+          f"{fresh} fresh and {len(events) - fresh} non-fresh Cargo artifacts; "
+          f"debuginfo: {', '.join(debug_levels)}", flush=True)
+    return events
+
+
+def read_cargo_artifacts(log):
     events = []
     with log.open(encoding="utf-8") as out:
         for line in out:
@@ -78,10 +89,13 @@ def cargo_artifacts(args, root, log):
                 event = json.loads(line)
                 if event.get("reason") == "compiler-artifact":
                     events.append(event)
-    fresh = sum(item["fresh"] for item in events)
-    print(f"{log.stem}: {time.monotonic() - started:.1f}s, "
-          f"{fresh} fresh and {len(events) - fresh} non-fresh Cargo artifacts", flush=True)
     return events
+
+
+def cargo_artifact_key(item):
+    target = item["target"]
+    return (item["package_id"], tuple(target["kind"]), target["name"], tuple(sorted(item["features"])),
+            json.dumps(item["profile"], sort_keys=True), tuple(sorted(item["filenames"])))
 
 
 def select_binaries(events, packages, wanted, target):
@@ -110,6 +124,8 @@ def select_binaries(events, packages, wanted, target):
 
 
 def bundle(output, provenance, partition, files):
+    total = sum(path.stat().st_size for _, _, _, path in files)
+    require(total <= MAX_BUNDLE, f"{partition}: {total} uncompressed bytes exceeds limit {MAX_BUNDLE}")
     rows = [{"key": key, "cwd": cwd, "name": name, "sha256": digest(path),
              "bytes": path.stat().st_size} for key, cwd, name, path in files]
     validate_manifest({"identity": provenance, "partition": partition, "schema": SCHEMA, "files": rows},
@@ -122,48 +138,67 @@ def bundle(output, provenance, partition, files):
         for row, (_, _, _, path) in zip(rows, files):
             archive.add(path, arcname=row["name"], recursive=False)
     require(output.stat().st_size < 4 * 1024**3, "Pilot compressed bundle exceeds download limit")
-    print(f"{partition}: {len(rows)} files, {sum(r['bytes'] for r in rows)} uncompressed bytes,"
-          f" {output.stat().st_size} compressed bytes")
+    print(f"{partition}: {len(rows)} files, {total} uncompressed bytes,"
+          f" {output.stat().st_size} compressed bytes", flush=True)
+
+
+def producer_target():
+    verify_coverage_environment(os.environ)
+    require(all(os.environ.get(f"CARGO_PROFILE_{profile}_DEBUG") == "line-tables-only"
+                for profile in ("DEV", "TEST")), "Pilot requires matching compact dev and test debug settings")
+    return Path(os.environ["CARGO_TARGET_DIR"]).resolve()
+
+
+def iam_packages(data):
+    return {Path(p["manifest_path"]).resolve(): p["name"] for p in data["packages"]
+            if p["name"] in ci.INVENTORY["builds"]["iam"]}
+
+
+def produce_e2e(output, root=ci.ROOT):
+    provenance = identity(root=root)
+    target = producer_target()
+    require(not target.exists() or (target.is_dir() and not any(target.iterdir())),
+            "Pilot requires a fresh instrumented target directory")
+    packages = iam_packages(ci.metadata(root))
+    output.mkdir(mode=0o700)
+    args = [arg for package in SERVICE_OUTPUTS for arg in ("--package", package)]
+    events = cargo_artifacts(["build", "--locked", "--bins", *args], root, output / "cargo-e2e.jsonl")
+    _, services = select_binaries(events, packages, set(), target)
+    require(set(services) == set(SERVICE_OUTPUTS.values()), "Incomplete IAM E2E executable set")
+    folder = output / "e2e"
+    folder.mkdir()
+    bundle(folder / "bundle.tar.gz", provenance, "e2e",
+           [(name, ".", name, path) for name, path in sorted(services.items())])
 
 
 def produce(output, matrix_file, root=ci.ROOT):
     provenance = identity(root=root)
-    target = Path(os.environ["CARGO_TARGET_DIR"]).resolve()
-    require(not target.exists() or (target.is_dir() and not any(target.iterdir())),
-            "Pilot requires a fresh instrumented target directory")
-    verify_coverage_environment(os.environ)
+    target = producer_target()
+    require(target.is_dir() and (output / "e2e/bundle.tar.gz").is_file(),
+            "Test compilation requires the prior E2E build in the same target directory")
+    before = {cargo_artifact_key(item) for item in read_cargo_artifacts(output / "cargo-e2e.jsonl")}
+    require(before, "Missing prior Cargo build evidence")
     data = ci.metadata(root)
     partitions = plan(data, root)
     wanted = set(key for values in partitions.values() for key in values)
-    packages = {Path(p["manifest_path"]).resolve(): p["name"] for p in data["packages"]
-                if p["name"] in ci.INVENTORY["builds"]["iam"]}
-    output.mkdir(mode=0o700)
     args = [a for p in ci.INVENTORY["coverage"]["iam"] for a in ("--package", p)]
-    started = time.monotonic()
     events = cargo_artifacts(["test", "--locked", "--no-run", "--lib", "--bins", "--tests", *args],
                              root, output / "cargo-tests.jsonl")
-    tests, services = select_binaries(events, packages, wanted, target)
-    require("iam-service" in services, "Cargo test build did not emit the normal IAM server")
-    if "iammigration" not in services:
-        events.extend(cargo_artifacts(["build", "--locked", "-p", "iam-migration", "--bin", "iammigration"],
-                                      root, output / "cargo-migration.jsonl"))
-        tests, services = select_binaries(events, packages, wanted, target)
-    require(set(tests) == wanted and set(services) == set(SERVICE_OUTPUTS.values()),
-            "Incomplete pilot executable set")
-    units = [(item["package_id"], tuple(item["filenames"])) for item in events if not item["fresh"]]
-    require(len(units) == len(set(units)), "Cargo rebuilt a unit with the same selected outputs")
-    print(f"Producer Cargo duration: {time.monotonic() - started:.1f}s; "
-          "no repeated non-fresh output sets", flush=True)
+    tests, _ = select_binaries(events, iam_packages(data), wanted, target)
+    require(set(tests) == wanted, "Incomplete pilot test executable set")
+    shared = [item for item in events if cargo_artifact_key(item) in before]
+    fresh = sum(item["fresh"] for item in shared)
+    print(f"Same Cargo artifact keys in E2E and test phases: {fresh} fresh, {len(shared) - fresh} non-fresh;"
+          f" {len(events) - len(shared)} test-phase records with a different key", flush=True)
+    if len(shared) != fresh:
+        print("Visible Cargo keys are not full fingerprints; investigate non-fresh overlaps before qualification.",
+              flush=True)
     for key, keys in partitions.items():
         folder = output / key
         folder.mkdir()
         files = [(name, str(tests[name][1].relative_to(root).as_posix()), f"test-{i:03d}", tests[name][0])
                  for i, name in enumerate(keys)]
         bundle(folder / "bundle.tar.gz", provenance, key, files)
-    folder = output / "e2e"
-    folder.mkdir()
-    bundle(folder / "bundle.tar.gz", provenance, "e2e",
-           [(name, ".", name, path) for name, path in sorted(services.items())])
     matrix_file.write_text(json.dumps({"include": [{"part": key, "targets": json.dumps(keys)}
                                                    for key, keys in partitions.items()]}), encoding="utf-8")
 
@@ -226,6 +261,21 @@ def execution_directory(root, row):
     return cwd
 
 
+def require_iam_coverage(report, root):
+    iam_source = False
+    with report.open(encoding="utf-8") as stream:
+        for line in stream:
+            if line.startswith("SF:"):
+                path = (root / line[3:].rstrip("\n")).resolve()
+                iam_source = path.is_relative_to(root / "services/IAMRusty") and path.is_file()
+            elif line.startswith("DA:") and iam_source:
+                if int(line.split(",")[1]) > 0:
+                    return
+            elif line.strip() == "end_of_record":
+                iam_source = False
+    raise ValueError("Pilot LCOV has no executed IAM source lines")
+
+
 def replay(archive, output, part, expected, root=ci.ROOT):
     provenance = identity(root=root)
     require(re.fullmatch(r"unit-0|tests-[0-3]", part), "Unknown IAM pilot shard")
@@ -262,7 +312,7 @@ def replay(archive, output, part, expected, root=ci.ROOT):
                         "--ignore-filename-regex=/\\.cargo/registry/|/rustc/",
                         binaries[0], *[f"--object={path}" for path in binaries[1:]]],
                        stdout=out, check=True)
-    require((output / "pilot.lcov").stat().st_size > 0, "Empty pilot LCOV")
+    require_iam_coverage(output / "pilot.lcov", root)
     return status
 
 
@@ -314,13 +364,16 @@ def companion(part, output, root=ci.ROOT):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("produce", "replay", "fetch", "companion"))
+    parser.add_argument("operation", choices=("produce-e2e", "produce", "replay", "fetch", "companion"))
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--matrix", type=Path)
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--part")
     parser.add_argument("--targets")
     args = parser.parse_args()
+    if args.operation == "produce-e2e":
+        produce_e2e(args.output)
+        return 0
     if args.operation == "produce":
         produce(args.output, args.matrix)
         return 0

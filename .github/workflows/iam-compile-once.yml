@@ -19,6 +19,10 @@ jobs:
     if: github.repository == 'Djoe-Denne/IAMRusty'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_INCREMENTAL: '0'
     outputs:
       matrix: ${{ steps.compile.outputs.matrix }}
     steps:
@@ -38,13 +42,28 @@ jobs:
           sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
           sudo apt-get update -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3
           sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
-      - name: Compile instrumented IAM tests and service in one fresh target directory
+      - name: Build and bundle instrumented IAM server and migration first
+        shell: bash
+        run: |
+          env_script="$(cargo llvm-cov show-env --sh)"
+          source /dev/stdin <<< "$env_script"
+          python3 -B ops/ci/iam_compile_once.py produce-e2e --output "$RUNNER_TEMP/iam-pilot"
+      # This is a readiness milestone only. The pilot consumers still require
+      # the producer to finish successfully before they may acquire artifacts.
+      - name: Upload the early IAM E2E bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: iam-pilot-e2e-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/iam-pilot/e2e/bundle.tar.gz
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 1
+      - name: Compile instrumented IAM tests in the same target directory
         id: compile
         shell: bash
         run: |
           env_script="$(cargo llvm-cov show-env --sh)"
           source /dev/stdin <<< "$env_script"
-          export CARGO_INCREMENTAL=0
           python3 -B ops/ci/iam_compile_once.py produce --output "$RUNNER_TEMP/iam-pilot" \
             --matrix "$RUNNER_TEMP/iam-matrix.json"
           printf 'matrix=%s\n' "$(cat "$RUNNER_TEMP/iam-matrix.json")" >> "$GITHUB_OUTPUT"
@@ -80,13 +99,6 @@ jobs:
         with:
           name: iam-pilot-tests-3-${{ github.run_attempt }}
           path: ${{ runner.temp }}/iam-pilot/tests-3/bundle.tar.gz
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 1
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: iam-pilot-e2e-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/iam-pilot/e2e/bundle.tar.gz
           compression-level: 0
           if-no-files-found: error
           retention-days: 1

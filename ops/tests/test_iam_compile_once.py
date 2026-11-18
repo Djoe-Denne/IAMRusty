@@ -7,6 +7,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -52,6 +53,33 @@ class PilotTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "digest mismatch"):
                 pilot.unpack(root / "bad.tar.gz", root / "bad", {"run": "sample"}, "tests-0", expected)
 
+    def test_raw_bundle_cap_reports_partition_and_size_before_reading_binaries(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            binary = root / "binary"
+            binary.write_bytes(bytes(65))
+            with mock.patch.object(pilot, "MAX_BUNDLE", 64), mock.patch.object(pilot, "digest") as digest:
+                with self.assertRaisesRegex(ValueError, r"tests-1: 65 uncompressed bytes exceeds limit 64"):
+                    pilot.bundle(root / "bundle.tar.gz", {}, "tests-1", [("test", ".", "test-000", binary)])
+                digest.assert_not_called()
+
+    def test_coverage_requires_a_positive_count_for_a_real_iam_source(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            iam = root / "services/IAMRusty/src/lib.rs"
+            iam.parent.mkdir(parents=True)
+            iam.touch()
+            other = root / "other.rs"
+            other.touch()
+            report = root / "pilot.lcov"
+            report.write_text(f"SF:{other.as_posix()}\nDA:1,7\nend_of_record\n"
+                              "SF:services/IAMRusty/src/lib.rs\nDA:1,0\nend_of_record\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "no executed IAM source lines"):
+                pilot.require_iam_coverage(report, root)
+            with report.open("a", encoding="utf-8") as out:
+                out.write(f"SF:{iam.as_posix()}\nDA:1,1\nend_of_record\n")
+            pilot.require_iam_coverage(report, root)
+
     def test_pilot_never_uses_native_workflow_or_consumer_compilation(self):
         raw = (ROOT / pilot.WORKFLOW).read_text()
         config = yaml.load(raw, Loader=yaml.BaseLoader)
@@ -61,6 +89,17 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(jobs["replay"]["needs"], "producer")
         self.assertCountEqual(jobs["pilot-e2e"]["needs"], ["producer", "native-oauth", "native-ext-authz"])
         self.assertNotIn("secrets.", json.dumps(jobs["producer"]))
+        producer = jobs["producer"]
+        for profile in ("DEV", "TEST"):
+            self.assertEqual(producer["env"][f"CARGO_PROFILE_{profile}_DEBUG"], "line-tables-only")
+        handoff = [(i, step) for i, step in enumerate(producer["steps"])
+                   if step.get("with", {}).get("name", "").startswith("iam-pilot-e2e-")]
+        self.assertEqual(len(handoff), 1)
+        before_upload, _ = handoff[0]
+        e2e_compile = next(i for i, step in enumerate(producer["steps"]) if " produce-e2e " in step.get("run", ""))
+        test_compile = next(i for i, step in enumerate(producer["steps"]) if step.get("id") == "compile")
+        self.assertLess(e2e_compile, before_upload)
+        self.assertLess(before_upload, test_compile)
         for key in ("replay", "pilot-e2e"):
             steps = json.dumps(jobs[key]["steps"])
             self.assertNotIn("cargo test", steps)
