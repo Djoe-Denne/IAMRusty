@@ -1,0 +1,57 @@
+name: Temporary compiler-cache diagnosis
+
+on:
+  push:
+    branches: [ci-cache-probe-20261118]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+      - name: Enable private daemon diagnostics
+        run: |
+          echo "SCCACHE_ERROR_LOG=$RUNNER_TEMP/sccache-probe.log" >> "$GITHUB_ENV"
+          echo 'SCCACHE_LOG=debug' >> "$GITHUB_ENV"
+      - uses: ./.github/actions/setup-compiler-cache
+      - name: Exercise one real cache write and subsequent read
+        run: |
+          set -euo pipefail
+          printf 'int cache_probe(void) { return 18; }\n' > "$RUNNER_TEMP/cache-probe.c"
+          sccache cc -c "$RUNNER_TEMP/cache-probe.c" -o "$RUNNER_TEMP/cache-probe.o"
+          rm -- "$RUNNER_TEMP/cache-probe.o"
+          sccache cc -c "$RUNNER_TEMP/cache-probe.c" -o "$RUNNER_TEMP/cache-probe.o"
+          sccache --show-stats
+      - name: Print bounded credential-redacted cache errors only
+        if: always()
+        run: |
+          sccache --stop-server >/dev/null 2>&1 || true
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+          path = Path(os.environ["RUNNER_TEMP"]) / "sccache-probe.log"
+          if not path.is_file():
+              print("No daemon diagnostic log was produced.")
+          else:
+              text = path.read_text(encoding="utf-8")
+              for key, value in os.environ.items():
+                  if len(value) >= 8 and re.search(r"TOKEN|SECRET|PASSWORD", key):
+                      text = text.replace(value, "[redacted]")
+              text = re.sub(r"https?://[^\s\"<>]+", "[redacted-url]", text)
+              lines = [line for line in text.splitlines()
+                       if re.search(r"error|warn|cache write|failed", line, re.I)
+                       and "authorization" not in line.lower()]
+              print("\n".join(line[:1200] for line in lines[:24]))
+          PY
