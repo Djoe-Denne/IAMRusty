@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 
@@ -16,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # These are workflow identities, not executable input supplied by a PR.
 GROUPS = {
     "iam": ("services/IAMRusty", 4),
-    "telegraph": ("services/Telegraph", 2),
+    "telegraph": ("services/Telegraph", 4),
     "hive": ("services/Hive", 2),
     "manifesto": ("services/Manifesto", 3),
     "lazaret": ("services/Lazaret", 2),
@@ -188,6 +189,22 @@ def partition(targets, count, index):
     ]
 
 
+def test_partition(targets, group, index):
+    """Preserve Telegraph's first shard and split only its former second shard."""
+    if group != "telegraph":
+        return partition(targets, GROUPS[group][1], index)
+    if not 0 <= index < 4:
+        raise ValueError("Invalid test partition")
+    if index == 0:
+        return partition(targets, 2, 0)
+    split = partition(targets, 2, 1)
+    isolated = {
+        ("telegraph-service", "notification_created_routing_test"): 1,
+        ("telegraph-service", "user_email_verified_event_test"): 3,
+    }
+    return [target for target in split if isolated.get(target, 2) == index]
+
+
 def coverage_commands(data, group, lane, shard, root=ROOT):
     packages = coverage_packages(data, group, root)
     extra = []
@@ -208,7 +225,7 @@ def coverage_commands(data, group, lane, shard, root=ROOT):
         return [[*common, *args, *extra, "--lib", "--bins"]]
     if lane != "tests":
         raise ValueError("Unknown coverage lane")
-    selected = partition(test_targets(data, group, root), GROUPS[group][1], shard)
+    selected = test_partition(test_targets(data, group, root), group, shard)
     commands = []
     for package in packages:
         names = [name for pkg, name in selected if pkg == package["name"]]
@@ -224,7 +241,7 @@ def target_assignment(data, group, lane, shard, root=ROOT):
     if lane == "tests":
         return [
             f"{package}|test|{target}"
-            for package, target in partition(test_targets(data, group, root), GROUPS[group][1], shard)
+            for package, target in test_partition(test_targets(data, group, root), group, shard)
         ]
     if lane != "unit" or shard != 0:
         raise ValueError("Invalid coverage assignment")
@@ -291,12 +308,12 @@ def matrix_for(data, group, root=ROOT):
         rows.append({"lane": "unit", "shard": 0})
     targets = test_targets(data, group, root)
     for index in range(GROUPS[group][1]):
-        if partition(targets, GROUPS[group][1], index):
+        if test_partition(targets, group, index):
             rows.append({"lane": "tests", "shard": index})
     return {"include": rows}
 
 
-def validate_reports(data, directory, *, identity, root=ROOT):
+def _validated_reports(data, directory, *, identity, root=ROOT, allow_failed_tests=False):
     directory = Path(directory)
     expected = {
         (group, row["lane"], row["shard"]): target_assignment(
@@ -304,7 +321,7 @@ def validate_reports(data, directory, *, identity, root=ROOT):
         for group in INVENTORY["coverage"]
         for row in matrix_for(data, group, root)["include"]
     }
-    found, reports, targets = set(), [], set()
+    found, reports, targets, receipts = set(), [], set(), []
     inventory_sha = hashlib.sha256(INVENTORY_PATH.read_bytes()).hexdigest()
     toolchain_sha = hashlib.sha256((Path(root) / "rust-toolchain.toml").read_bytes()).hexdigest()
     for path in sorted(directory.glob("*.json")):
@@ -317,9 +334,14 @@ def validate_reports(data, directory, *, identity, root=ROOT):
             "schema": "aiforall.ci-coverage/v1", "scope": "full", "identity": identity,
             "inventory_sha256": inventory_sha, "toolchain_sha256": toolchain_sha,
             "features": FEATURES.get(key[0], []), "targets": expected[key],
-            "test_status": 0, "report_status": 0,
+            "report_status": 0,
         }
+        if not allow_failed_tests:
+            required["test_status"] = 0
         mismatches = [field for field, value in required.items() if receipt.get(field) != value]
+        for field in ("test_status", "report_status"):
+            if type(receipt.get(field)) is not int and field not in mismatches:
+                mismatches.append(field)
         if mismatches:
             outcomes = ""
             if {"test_status", "report_status"}.intersection(mismatches):
@@ -346,9 +368,116 @@ def validate_reports(data, directory, *, identity, root=ROOT):
         targets.update(assigned)
         found.add(key)
         reports.append(report)
+        receipts.append(receipt)
     if found != set(expected) or set(directory.glob("*.info")) != set(reports):
         raise ValueError("Incomplete or unexpected coverage report set")
-    return reports
+    return reports, receipts
+
+
+def validate_reports(data, directory, *, identity, root=ROOT):
+    """Admit authoritative input only; diagnostic aggregation is a separate path."""
+    return _validated_reports(data, directory, identity=identity, root=root)[0]
+
+
+def aggregate_coverage(data, directory, output_directory, *, identity, root=ROOT,
+                       run=subprocess.run):
+    """Merge valid data independently of tests, without qualifying failed execution."""
+    reports, receipts = _validated_reports(
+        data, directory, identity=identity, root=root, allow_failed_tests=True)
+    output_directory = Path(output_directory)
+    output_directory.mkdir(parents=True, exist_ok=False)
+    diagnostic = output_directory / "diagnostic"
+    diagnostic.mkdir()
+    output = diagnostic / "diagnostic-lcov.info"
+    command = ["lcov", *[arg for report in reports for arg in ("--add-tracefile", str(report))],
+               "--output-file", str(output)]
+    result = run(command, cwd=root, check=False)
+    if result.returncode:
+        return result.returncode
+    if not output.is_file() or output.is_symlink() or not output.stat().st_size:
+        raise ValueError("LCOV did not produce a valid nonempty merged report")
+    partitions = sorted(
+        [{field: receipt[field] for field in
+          ("service", "lane", "shard", "features", "targets", "test_status", "report_status")}
+         for receipt in receipts],
+        key=lambda row: (row["service"], row["lane"], row["shard"]),
+    )
+    expected = [{field: row[field] for field in ("service", "lane", "shard")} for row in partitions]
+    failed = [{**key, "test_status": row["test_status"], "report_status": row["report_status"]}
+              for key, row in zip(expected, partitions) if row["test_status"] != 0]
+    authoritative = not failed
+    summary = {
+        "schema": "aiforall.ci-merged-coverage/v1", "identity": identity,
+        "inventory_sha256": hashlib.sha256(INVENTORY_PATH.read_bytes()).hexdigest(),
+        "toolchain_sha256": hashlib.sha256((Path(root) / "rust-toolchain.toml").read_bytes()).hexdigest(),
+        "declared_scope": "full", "reports_complete": True,
+        "expected_partitions": expected, "partitions": partitions,
+        "target_count": sum(len(row["targets"]) for row in partitions),
+        "all_test_commands_succeeded": authoritative,
+        "execution_completeness": "complete" if authoritative else "unproven",
+        "authoritative": authoritative,
+        "reasons": [] if authoritative else ["failed_test_commands"],
+        "failed_partitions": failed, "report": output.name,
+        "report_sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
+    }
+    (diagnostic / "coverage-summary.json").write_text(json.dumps(summary, sort_keys=True), encoding="utf-8")
+    if authoritative:
+        canonical = output_directory / "authoritative"
+        canonical.mkdir()
+        shutil.copyfile(output, canonical / "lcov.info")
+        (canonical / "coverage-summary.json").write_text(
+            json.dumps({**summary, "report": "lcov.info"}, sort_keys=True), encoding="utf-8")
+    print("Coverage merged: " + ("authoritative" if authoritative else
+                                 "diagnostic only; failed test commands, Sonar not qualified"))
+    if os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
+            stream.write("authoritative=" + str(authoritative).lower() + "\n")
+    return 0
+
+
+def verify_merged_coverage(directory, *, identity, root=ROOT):
+    """Verify the trusted aggregation artifact before import, without invoking Cargo."""
+    directory = Path(directory)
+    summary = json.loads((directory / "coverage-summary.json").read_text(encoding="utf-8"))
+    required = {
+        "schema": "aiforall.ci-merged-coverage/v1", "identity": identity,
+        "inventory_sha256": hashlib.sha256(INVENTORY_PATH.read_bytes()).hexdigest(),
+        "toolchain_sha256": hashlib.sha256((Path(root) / "rust-toolchain.toml").read_bytes()).hexdigest(),
+        "declared_scope": "full", "reports_complete": True, "authoritative": True,
+        "all_test_commands_succeeded": True, "execution_completeness": "complete",
+        "reasons": [], "failed_partitions": [], "report": "lcov.info",
+    }
+    if not isinstance(summary, dict) or any(summary.get(key) != value for key, value in required.items()):
+        raise ValueError("Coverage is foreign, diagnostic, incomplete or not authoritative")
+    if any(summary.get(field) is not True for field in
+           ("reports_complete", "authoritative", "all_test_commands_succeeded")):
+        raise ValueError("Coverage qualification flags must be explicit booleans")
+    partitions = summary.get("partitions")
+    if not isinstance(partitions, list) or not partitions:
+        raise ValueError("Coverage partition evidence is missing")
+    keys, targets = [], []
+    for row in partitions:
+        if (not isinstance(row, dict) or row.get("service") not in tuple(INVENTORY["coverage"])
+                or row.get("lane") not in ("unit", "tests") or type(row.get("shard")) is not int
+                or not 0 <= row["shard"] < (1 if row["lane"] == "unit" else GROUPS[row["service"]][1])
+                or row.get("features") != FEATURES.get(row["service"], [])
+                or type(row.get("test_status")) is not int or row["test_status"] != 0
+                or type(row.get("report_status")) is not int or row["report_status"] != 0
+                or not isinstance(row.get("targets"), list) or not row["targets"]
+                or not all(isinstance(target, str) for target in row["targets"])):
+            raise ValueError("Invalid or unsuccessful coverage partition evidence")
+        keys.append((row["service"], row["lane"], row["shard"]))
+        targets.extend(row["targets"])
+    expected = [dict(service=service, lane=lane, shard=shard) for service, lane, shard in keys]
+    if (summary.get("expected_partitions") != expected or len(keys) != len(set(keys))
+            or {key[0] for key in keys} != set(INVENTORY["coverage"])
+            or len(targets) != len(set(targets)) or summary.get("target_count") != len(targets)):
+        raise ValueError("Incomplete or duplicated merged coverage evidence")
+    report = directory / "lcov.info"
+    if (not report.is_file() or report.is_symlink() or not report.stat().st_size
+            or hashlib.sha256(report.read_bytes()).hexdigest() != summary.get("report_sha256")):
+        raise ValueError("Missing or corrupted authoritative coverage report")
+    return summary
 
 
 def main(argv=None):
@@ -368,8 +497,13 @@ def main(argv=None):
     coverage.add_argument("--output", type=Path, required=True)
     aggregate = commands.add_parser("aggregate")
     aggregate.add_argument("--directory", type=Path, required=True)
-    aggregate.add_argument("--output", type=Path, required=True)
+    aggregate.add_argument("--output-directory", type=Path, required=True)
+    verify = commands.add_parser("verify-merged")
+    verify.add_argument("--directory", type=Path, required=True)
     args = parser.parse_args(argv)
+    if args.command == "verify-merged":
+        verify_merged_coverage(args.directory, identity=evidence_identity())
+        return 0
     data = metadata()
     validate_inventory(data)
     if args.command == "select":
@@ -394,10 +528,7 @@ def main(argv=None):
             with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
                 stream.write("matrix=" + text + "\n")
     elif args.command == "aggregate":
-        reports = validate_reports(data, args.directory, identity=evidence_identity())
-        command = ["lcov", *[arg for report in reports for arg in ("--add-tracefile", str(report))],
-                   "--output-file", str(args.output)]
-        return subprocess.run(command, cwd=ROOT, check=False).returncode
+        return aggregate_coverage(data, args.directory, args.output_directory, identity=evidence_identity())
     else:
         return run_coverage(data, args.service, args.lane, args.shard, args.output)
     return 0

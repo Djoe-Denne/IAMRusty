@@ -87,3 +87,7 @@ The user requested verification that the merge error was not independent of Tele
 The observed rejection is therefore the Telegraph test outcome, before invoking the LCOV executable. No independent merger defect was established in this execution. The previous generic message obscured that distinction.
 
 A diagnostic-only correction names the exact receipt/mismatching fields and safe numeric outcomes, without accepting failed/partial evidence. Two discriminating regressions were added; all 23 focused pipeline/cache/report tests passed. Replay of the unchanged real artifacts now gives `Rejected coverage receipt 'lcov-telegraph-tests-1.json': test_status (test_status=101, report_status=0)`. Full merge/Sonar success remains unclaimed until every required shard qualifies.
+
+## Subsequent behavioral request
+
+The user subsequently requested separating coverage merging from test verdicts, not merely clarifying the error, and trying smaller Telegraph partitions. The [coverage-outcome amendment](20261118-ci-coverage-outcomes-and-telegraph-shards.md) tracks that distinct correction. Historical red-merge conclusions above are not the intended behavior of the amendment.

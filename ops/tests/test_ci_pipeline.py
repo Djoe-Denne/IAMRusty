@@ -12,7 +12,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import yaml
 
@@ -43,6 +43,11 @@ def fixture_metadata(root):
                     {"name": "live", "kind": ["test"], "test": True, "required-features": ["live"]},
                 ],
             })
+    telegraph = next(package for package in packages if package["name"] == "telegraph-service")
+    telegraph["targets"].extend(
+        {"name": name, "kind": ["test"], "test": True}
+        for name in ("notification_created_routing_test", "user_email_verified_event_test")
+    )
     return {"packages": packages}
 
 
@@ -53,6 +58,9 @@ class PlannerTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root / "rust-toolchain.toml").write_text('[toolchain]\nchannel="1.99.1"\n')
         self.data = fixture_metadata(self.root)
+        environment = patch.dict(os.environ, {"GITHUB_OUTPUT": ""})
+        environment.start()
+        self.addCleanup(environment.stop)
 
     def test_registered_inventory_preserves_baseline_not_all_workspace_coverage(self):
         p.validate_inventory(self.data, self.root)
@@ -108,7 +116,7 @@ class PlannerTests(unittest.TestCase):
     def test_whole_targets_are_complete_disjoint_stable_and_live_features_stay_off(self):
         for group in p.INVENTORY["coverage"]:
             targets = p.test_targets(self.data, group, self.root)
-            rows = [p.partition(targets, p.GROUPS[group][1], i) for i in range(p.GROUPS[group][1])]
+            rows = [p.test_partition(targets, group, i) for i in range(p.GROUPS[group][1])]
             flattened = [target for row in rows for target in row]
             self.assertCountEqual(flattened, targets)
             self.assertEqual(len(flattened), len(set(flattened)))
@@ -121,8 +129,30 @@ class PlannerTests(unittest.TestCase):
                     self.assertIn("--no-report", command)
                     if row["lane"] == "tests":
                         self.assertNotIn("--lib", command)
+                if row["lane"] == "tests":
+                    executed = [
+                        f"{command[command.index('--package') + 1]}|test|{command[index + 1]}"
+                        for command in commands for index, value in enumerate(command)
+                        if value == "--test"
+                    ]
+                    self.assertCountEqual(
+                        executed, p.target_assignment(self.data, group, "tests", row["shard"], self.root))
         with self.assertRaises(ValueError):
             p.partition([], 2, 2)
+
+    def test_telegraph_preserves_legacy_first_shard_and_splits_only_the_second(self):
+        targets = p.test_targets(self.data, "telegraph", self.root)
+        rows = [p.test_partition(targets, "telegraph", index) for index in range(4)]
+        self.assertEqual(rows[0], p.partition(targets, 2, 0))
+        self.assertEqual(rows[1], [("telegraph-service", "notification_created_routing_test")])
+        self.assertEqual(rows[3], [("telegraph-service", "user_email_verified_event_test")])
+        self.assertCountEqual(rows[1] + rows[2] + rows[3], p.partition(targets, 2, 1))
+        self.assertEqual(p.matrix_for(self.data, "telegraph", self.root)["include"], [
+            {"lane": "unit", "shard": 0},
+            *[{"lane": "tests", "shard": index} for index in range(4)],
+        ])
+        with self.assertRaises(ValueError):
+            p.test_partition(targets, "telegraph", 4)
 
     def test_failed_tests_are_not_masked_by_successful_reporting(self):
         output = self.root / "out/lcov.info"
@@ -212,6 +242,144 @@ class PlannerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, r"lcov-iam-unit-0\.json.*: identity$"):
             p.validate_reports(self.data, directory, identity=IDENTITY, root=self.root)
 
+    def merge_tracefiles(self, command, **kwargs):
+        self.assertEqual(command[0], "lcov")
+        self.assertTrue(all(Path(command[index + 1]).is_file()
+                            for index, value in enumerate(command) if value == "--add-tracefile"))
+        Path(command[command.index("--output-file") + 1]).write_text(
+            "TN:\nSF:source.rs\nDA:1,1\nend_of_record\n")
+        return type("Result", (), {"returncode": 0})()
+
+    def test_failed_test_command_still_merges_diagnostically_without_rewriting_evidence(self):
+        directory = self.complete_receipts()
+        receipt = directory / "lcov-telegraph-tests-3.json"
+        value = json.loads(receipt.read_text())
+        value["test_status"] = 101
+        receipt.write_text(json.dumps(value))
+        original = receipt.read_bytes()
+        runner = Mock(side_effect=self.merge_tracefiles)
+        output = self.root / "merged"
+        self.assertEqual(p.aggregate_coverage(self.data, directory, output, identity=IDENTITY,
+                                             root=self.root, run=runner), 0)
+        runner.assert_called_once()
+        self.assertEqual(receipt.read_bytes(), original)
+        self.assertFalse((output / "authoritative").exists())
+        summary = json.loads((output / "diagnostic/coverage-summary.json").read_text())
+        self.assertFalse(summary["authoritative"])
+        self.assertTrue(summary["reports_complete"])
+        self.assertFalse(summary["all_test_commands_succeeded"])
+        self.assertEqual(summary["execution_completeness"], "unproven")
+        self.assertEqual(summary["failed_partitions"], [
+            dict(service="telegraph", lane="tests", shard=3, test_status=101, report_status=0)])
+        with self.assertRaises(ValueError):
+            p.verify_merged_coverage(output / "diagnostic", identity=IDENTITY, root=self.root)
+        with self.assertRaisesRegex(ValueError, "test_status"):
+            p.validate_reports(self.data, directory, identity=IDENTITY, root=self.root)
+
+    def test_successful_complete_merge_publishes_and_verifies_authoritative_coverage(self):
+        directory = self.complete_receipts()
+        output = self.root / "merged"
+        self.assertEqual(p.aggregate_coverage(self.data, directory, output, identity=IDENTITY,
+                                             root=self.root, run=self.merge_tracefiles), 0)
+        canonical = output / "authoritative"
+        summary = p.verify_merged_coverage(canonical, identity=IDENTITY, root=self.root)
+        self.assertTrue(summary["authoritative"])
+        self.assertEqual(summary["failed_partitions"], [])
+        self.assertEqual((canonical / "lcov.info").read_bytes(),
+                         (output / "diagnostic/diagnostic-lcov.info").read_bytes())
+        manifest = canonical / "coverage-summary.json"
+        original = manifest.read_text()
+        for field, changed in (
+            ("authoritative", False), ("authoritative", 1),
+            ("identity", {**IDENTITY, "GITHUB_RUN_ATTEMPT": "2"}),
+            ("report_sha256", "f" * 64), ("expected_partitions", []),
+            ("failed_partitions", [{"test_status": 101}]),
+        ):
+            bad = json.loads(original)
+            bad[field] = changed
+            manifest.write_text(json.dumps(bad))
+            with self.subTest(field=field, changed=changed), self.assertRaises(ValueError):
+                p.verify_merged_coverage(canonical, identity=IDENTITY, root=self.root)
+        bad = json.loads(original)
+        bad["partitions"][0]["test_status"] = 101
+        manifest.write_text(json.dumps(bad))
+        with self.assertRaisesRegex(ValueError, "unsuccessful"):
+            p.verify_merged_coverage(canonical, identity=IDENTITY, root=self.root)
+
+    def test_diagnostic_merge_still_rejects_invalid_outcomes_and_reports_before_running_lcov(self):
+        directory = self.complete_receipts()
+        receipt = next(directory.glob("*.json"))
+        original = receipt.read_text()
+        for field, changed in (
+            ("report_status", 1), ("report_status", False), ("test_status", False),
+            ("test_status", "101"), ("report_sha256", "f" * 64),
+            ("identity", {**IDENTITY, "GITHUB_RUN_ID": "999"}),
+            ("targets", []),
+        ):
+            bad = json.loads(original)
+            bad[field] = changed
+            receipt.write_text(json.dumps(bad))
+            runner = Mock()
+            with self.subTest(field=field, changed=changed), self.assertRaises(ValueError):
+                p.aggregate_coverage(self.data, directory, self.root / "merged",
+                                     identity=IDENTITY, root=self.root, run=runner)
+            runner.assert_not_called()
+        receipt.write_text(original)
+        duplicate = directory / "duplicate.json"
+        duplicate.write_text(original)
+        with self.assertRaises(ValueError):
+            p.aggregate_coverage(self.data, directory, self.root / "merged",
+                                 identity=IDENTITY, root=self.root, run=Mock())
+        duplicate.unlink()
+        receipt.unlink()
+        with self.assertRaises(ValueError):
+            p.aggregate_coverage(self.data, directory, self.root / "merged",
+                                 identity=IDENTITY, root=self.root, run=Mock())
+
+    def test_merger_failure_or_missing_output_does_not_publish_qualification(self):
+        directory = self.complete_receipts()
+        output = self.root / "failed-merge"
+        runner = Mock(return_value=type("Result", (), {"returncode": 9})())
+        self.assertEqual(p.aggregate_coverage(self.data, directory, output, identity=IDENTITY,
+                                             root=self.root, run=runner), 9)
+        self.assertFalse((output / "diagnostic/coverage-summary.json").exists())
+        self.assertFalse((output / "authoritative").exists())
+        with self.assertRaisesRegex(ValueError, "nonempty"):
+            p.aggregate_coverage(self.data, directory, self.root / "missing-output",
+                                 identity=IDENTITY, root=self.root,
+                                 run=Mock(return_value=type("Result", (), {"returncode": 0})()))
+
+    def test_sonar_verification_cli_never_runs_cargo_metadata(self):
+        with patch.dict(os.environ, IDENTITY), patch.object(p, "metadata") as metadata, patch.object(
+                p, "verify_merged_coverage") as verify:
+            self.assertEqual(p.main(["verify-merged", "--directory", str(self.root)]), 0)
+            verify.assert_called_once()
+            metadata.assert_not_called()
+
+    def test_merge_qualification_output_is_emitted_only_after_successful_aggregation(self):
+        directory = self.complete_receipts()
+        output_file = self.root / "github-output"
+        with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_file)}):
+            failed = Mock(return_value=type("Result", (), {"returncode": 9})())
+            self.assertEqual(p.aggregate_coverage(
+                self.data, directory, self.root / "failed", identity=IDENTITY,
+                root=self.root, run=failed), 9)
+            self.assertFalse(output_file.exists())
+            receipt = directory / "lcov-telegraph-tests-3.json"
+            value = json.loads(receipt.read_text())
+            value["test_status"] = 101
+            receipt.write_text(json.dumps(value))
+            self.assertEqual(p.aggregate_coverage(
+                self.data, directory, self.root / "diagnostic-result", identity=IDENTITY,
+                root=self.root, run=self.merge_tracefiles), 0)
+            self.assertEqual(output_file.read_text(), "authoritative=false\n")
+            value["test_status"] = 0
+            receipt.write_text(json.dumps(value))
+            self.assertEqual(p.aggregate_coverage(
+                self.data, directory, self.root / "canonical-result", identity=IDENTITY,
+                root=self.root, run=self.merge_tracefiles), 0)
+            self.assertEqual(output_file.read_text(), "authoritative=false\nauthoritative=true\n")
+
 
 class WorkflowTests(unittest.TestCase):
     @classmethod
@@ -226,6 +394,21 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.jobs["clippy"]["needs"], ["fmt"])
         self.assertEqual(self.jobs["sonar"]["needs"], ["merge-coverage", "clippy"])
         self.assertNotIn("build", self.jobs)
+
+    def test_diagnostic_merge_and_canonical_sonar_admission_are_separate(self):
+        merge = self.jobs["merge-coverage"]
+        self.assertIn("authoritative", merge["outputs"])
+        uploads = {step["with"]["name"]: step for step in merge["steps"]
+                   if "upload-artifact@" in step.get("uses", "")}
+        self.assertIn("coverage-diagnostic", uploads)
+        self.assertNotIn("if", uploads["coverage-diagnostic"])
+        self.assertIn("authoritative == 'true'", uploads["lcov"]["if"])
+        self.assertIn("authoritative == 'true'", self.jobs["sonar"]["if"])
+        self.assertTrue(any("verify-merged" in step.get("run", "")
+                            for step in self.jobs["sonar"]["steps"]))
+        coverage = yaml.load((ROOT / ".github/workflows/ci-coverage.yml").read_text(),
+                             Loader=yaml.BaseLoader)
+        self.assertNotIn("continue-on-error", str(coverage))
 
     def test_cache_is_shared_without_target_archives_and_installer_is_pinned(self):
         action = yaml.load((ROOT / ".github/actions/setup-compiler-cache/action.yml").read_text(),
@@ -338,6 +521,7 @@ class ReportTests(unittest.TestCase):
         needs = {name: {"result": "success"} for name in workflow["jobs"]["ci-status"]["needs"]}
         needs["plan"]["outputs"] = {"selection": json.dumps(
             {**{name: True for name in p.GROUPS}, "full": True, "any": True})}
+        needs["merge-coverage"]["outputs"] = {"authoritative": "true"}
         return needs
 
     def test_summary_does_not_accept_skipped_selected_jobs_or_an_unevaluated_sonar(self):
@@ -363,6 +547,25 @@ class ReportTests(unittest.TestCase):
         needs["sonar"]["result"] = "success"
         with self.assertRaises(ValueError):
             reports.status(needs, event="pull_request", ref="refs/pull/1/merge")
+
+    def test_diagnostic_merge_does_not_become_a_failed_merge_or_a_passed_sonar(self):
+        needs = self.full_needs()
+        needs["merge-coverage"]["outputs"]["authoritative"] = "false"
+        needs["test-telegraph"]["result"] = "failure"
+        needs["sonar"]["result"] = "skipped"
+        with self.assertRaisesRegex(
+                ValueError, "CI jobs did not succeed: test-telegraph.*merged for diagnosis"):
+            reports.status(needs, event="push", ref="refs/heads/master")
+        needs["test-telegraph"]["result"] = "success"
+        with self.assertRaisesRegex(ValueError, "not authoritative despite successful"):
+            reports.status(needs, event="push", ref="refs/heads/master")
+        needs["sonar"]["result"] = "success"
+        with self.assertRaisesRegex(ValueError, "must not qualify Sonar"):
+            reports.status(needs, event="push", ref="refs/heads/master")
+        needs["sonar"]["result"] = "skipped"
+        needs["merge-coverage"]["outputs"] = {}
+        with self.assertRaisesRegex(ValueError, "no qualification decision"):
+            reports.status(needs, event="push", ref="refs/heads/master")
 
     def test_clippy_requires_both_successful_terminal_records_and_exact_concatenation(self):
         with tempfile.TemporaryDirectory() as temporary:

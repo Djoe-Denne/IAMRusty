@@ -56,8 +56,21 @@ def status(needs, *, event, ref):
     for group, jobs in mappings.items():
         if selection[group]:
             expected.update(jobs)
+    coverage_note = ""
     if selection["full"]:
-        expected.update(("merge-coverage", "sonar"))
+        expected.add("merge-coverage")
+        aggregation = needs.get("merge-coverage", {})
+        if aggregation.get("result") == "success":
+            authoritative = aggregation.get("outputs", {}).get("authoritative")
+            if authoritative not in ("true", "false"):
+                raise ValueError("Successful coverage aggregation has no qualification decision")
+            if authoritative == "true":
+                expected.add("sonar")
+            else:
+                if needs.get("sonar", {}).get("result") != "skipped":
+                    raise ValueError("Diagnostic coverage must not qualify Sonar analysis")
+                coverage_note = (" Coverage was merged for diagnosis only; test execution is "
+                                 "not qualified and Sonar was not evaluated.")
     if event == "push" and ref == "refs/heads/master":
         expected.update(("k6-e2e", "e2e-pages"))
     failed = sorted(
@@ -69,7 +82,9 @@ def status(needs, *, event, ref):
         if name not in expected and job.get("result") in ("failure", "cancelled")
     )
     if failed:
-        raise ValueError("CI jobs did not succeed: " + ", ".join(failed))
+        raise ValueError("CI jobs did not succeed: " + ", ".join(failed) + coverage_note)
+    if coverage_note:
+        raise ValueError("Coverage is not authoritative despite successful selected jobs." + coverage_note)
     if not selection["full"]:
         if any(needs.get(name, {}).get("result") != "skipped" for name in ("merge-coverage", "sonar")):
             raise ValueError("Partial coverage must not qualify authoritative Sonar analysis")

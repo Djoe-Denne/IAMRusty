@@ -28,6 +28,16 @@ E2E admission binds exact successful producer display names, the literal job ID 
 
 The v2 implementation rejects native v1 bundles; saved-image admission is unchanged. On 2026-11-18 the user authorized publication after the native-v1 migration and changed check names were disclosed. This operational authorization does not promote this ADR to Accepted or enable selective PR execution. External required-check configuration is unchanged.
 
+### Forward amendment: diagnostic aggregation and Telegraph isolation
+
+Authored by `architecte`, session `ses_e152b44f9ffeCvHhlurgQWqbkK`, on the user's 2026-11-18 request. This amendment leaves ADR-0507 Proposed.
+
+Coverage aggregation separates report integrity, declared-scope completeness and test verdict. A complete, compatible set of structurally valid LCOV reports may merge successfully despite a nonzero test outcome. Such output is diagnostic, not authoritative: Cargo exit 101 may mean compilation failure or failed assertions, and report generation does not prove every assigned target ran.
+
+Every successful aggregation publishes `coverage-diagnostic` with an explicit outcome manifest. Canonical `lcov` and Sonar admission retain the previous full-scope, complete-report, all-tests-successful conditions. Sonar's skip on diagnostic-only evidence is deliberately reported as coverage not qualified. Test failures remain unsuccessful; the user's Telegraph exclusion is a mission-assessment rule, not a blanket CI exemption.
+
+Preserve Telegraph's unit partition and exact original `tests/0`. Replace only its former second integration partition with three whole-binary groups: routing (17 baseline cases), HTTP/outbox/common/mTLS/domain/application (41) and email-verified (8). Telegraph now has one unit and four integration partitions. Preserve libtest, features, fixtures and the complete target union; no test-case sharding or application/flakiness fix is implied.
+
 ## Consequences and limits
 
 - Explicit jobs remove the matrix-wide dependency barrier without delaying producer admission until tests finish.
@@ -36,7 +46,7 @@ The v2 implementation rejects native v1 bundles; saved-image admission is unchan
 - Neither a cache below 10 GB nor faster hosted execution is claimed without measurement.
 - Runner-issued GHA capabilities are exported by a minimal repository-owned JavaScript action without a post hook. Missing capabilities disable remote caching; statistics authenticate the executable before execution.
 - Shards still compile their selected instrumented targets. Native binaries are not silently reused as coverage binaries.
-- Receipt-checked aggregation must reject missing, failed, duplicated, foreign, partial or corrupted shards.
+- Receipt-checked aggregation rejects missing, duplicated, foreign, partial or corrupted evidence and failed report generation. Failed test commands may yield a diagnostic merge but never canonical coverage or a passing test verdict.
 - No change to Sonar exclusions, thresholds, warnings, billing, quotas, application behavior or SDK is authorized.
 - ADR-0501 remains an unchanged retrospective record; this Proposed ADR is not an implicit acceptance or global quality pass.
 

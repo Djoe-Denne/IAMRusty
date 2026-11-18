@@ -2,6 +2,8 @@
 
 Implementation status: published under [ADR-0507](../adr/0507-ci-service-local-dag-shared-compiler-cache.md). Two full hosted executions met the user's criterion excluding Telegraph integration tests, but actual GitHub conclusions remain red and Sonar import is unqualified. See [the exact results and cache-write limitation](../missions/20261118-ci-cache-hosted-qualification.md).
 
+The forward [coverage-outcome and Telegraph partition amendment](../missions/20261118-ci-coverage-outcomes-and-telegraph-shards.md) changes the behavior described below and is undergoing validation. The earlier two-run results apply to their recorded source/layout, not this amendment.
+
 ## What is shared
 
 Every existing Rust build/test/lint lane installs the same pinned sccache release. The repository installer verifies the archive before parsing/extraction, exposes only the verified executable and registers no upstream executable post hook. Its GHA backend stores independently keyed compilation results, not one mutable archive that concurrent jobs must merge.
@@ -20,17 +22,19 @@ The workflow neither raises the repository quota nor configures billing. Existin
 
 Eight named native build jobs replace the previous matrix barrier. A service's test caller starts after its own build, independent of unrelated builds. E2E waits only for IAM, OAuthConnect and Ext Authz producers.
 
-Whole integration targets are deterministically partitioned: IAM4, Telegraph2, Hive2, Manifesto3. Each partition keeps normal Cargo/libtest execution; it does not increase test-case concurrency or remove serial fixture protections. Unit lib/bin targets run once in their own lane, while pure integration targets under `tests/` are preserved.
+Whole integration targets are deterministically partitioned: IAM4, Telegraph4, Hive2, Manifesto3. Telegraph preserves its unit and original first integration partition; the former second integration partition becomes routing17, other41 and email-verified8 baseline cases. Each partition keeps normal Cargo/libtest execution; it does not increase test-case concurrency or remove serial fixture protections. Unit lib/bin targets run once in their own lane, while pure integration targets under `tests/` are preserved.
 
 The explicit baseline inventory is `.github/ci/inventory.json`. "Full" means its declared coverage scope, not a claim that every workspace package is covered. The existing coverage gaps and opt-in live-test boundaries are recorded there.
 
 ## Evidence, not best-effort coverage
 
-Each shard publishes LCOV and a receipt binding source/run/attempt, policy/toolchain, scope, assigned targets, result and report digest. Aggregation rejects missing, duplicate, partial, failed, foreign or corrupted evidence.
+Each shard publishes LCOV and a receipt binding source/run/attempt, policy/toolchain, scope, assigned targets, result and report digest. Aggregation rejects missing, duplicate, partial, foreign or corrupted evidence and failed report generation. A failed test command alone no longer prevents valid report data from merging.
 
-Only a complete full-scope aggregation emits canonical `lcov`. Empty-report fallbacks were removed. Clippy independently runs the same production/test policies as the local aliases, then publishes complete JSONL plus a verified receipt. Sonar imports these inputs without compiling.
+Every successful merge publishes `coverage-diagnostic`: `diagnostic-lcov.info` plus `coverage-summary.json`, with explicit partition outcomes and qualification reasons. When any test command fails, this artifact remains diagnostic and execution completeness is unproven. Test jobs stay red.
 
-Receipt rejections name the exact file and mismatching fields. For example, `Rejected coverage receipt 'lcov-telegraph-tests-1.json': test_status (test_status=101, report_status=0)` means that tests failed even though LCOV report generation succeeded. This rejection happens before invoking the LCOV merger; it is not an LCOV-parser error. Identity and partition failures receive separate diagnostics.
+Only full-scope, complete valid evidence with all test/report outcomes successful additionally emits canonical `lcov`. Sonar requires the authoritative job decision and verifies that artifact; otherwise it is deliberately skipped, not passed. Empty-report fallbacks remain forbidden. Clippy runs its unchanged independent policies, and Sonar imports without Cargo.
+
+For example, `test_status=101` with `report_status=0` now allows diagnostic merging instead of triggering the old generic rejection. This does not assert that exit101 was an assertion-only failure, nor does it qualify authoritative coverage. Identity, partition, report-generation and digest failures remain blocking and receive explicit diagnostics.
 
 `CI scope and result` fails on selected jobs that fail, are cancelled or are unexpectedly skipped. It distinguishes a deliberately unevaluated full Sonar gate from a passing gate.
 

@@ -22,13 +22,17 @@ Commit/push, the announced native-v1 retirement and hosted qualification were ex
 ## Coverage evidence
 
 - Unit and integration test targets are disjoint, whole-binary assignments; never drop pure tests under `tests/`.
-- Small deterministic shard counts: IAM 4, Telegraph 2, Hive 2, Manifesto 3. These are initial partitions, not duration-optimal claims.
+- Small deterministic integration shard counts: IAM 4, Telegraph 4, Hive 2, Manifesto 3. Telegraph's unit partition and original `tests/0` stay unchanged; its former `tests/1` becomes routing (`tests/1`), HTTP/outbox/common/mTLS/domain/application (`tests/2`) and email-verified (`tests/3`). Their observed baseline sizes are 17, 41 and 8 cases; these are not duration-optimal claims.
 - Each shard has a private hosted runner/target directory, fixture run ID/ledger and profile accumulation. No test-case-level concurrency increase or nextest migration.
 - Pin cargo-llvm-cov0.9.1; preserve its wrapper chaining and `--no-report` accumulation across selected package commands.
 - Preserve every test/compiler failure even when report generation succeeds.
 - A receipt binds source/run/attempt, inventory/toolchain digests, scope, service/lane/shard, features, assigned targets, outcome and LCOV digest.
-- Aggregation admits exactly the expected complete, disjoint, successful, compatible full-scope receipt/report set. Missing/extra/failed/partial/corrupted evidence fails.
-- Only this aggregation emits canonical `lcov.info`/`lcov`. Partial PR outputs are diagnostic, with explicit partial receipts; they do not qualify Sonar.
+- Validate identity, schema, scope, policy/toolchain, features, exact target assignments, unique partitions and report path/digest independently of the test verdict. Require correctly typed outcome fields; record nonzero test outcomes rather than rejecting valid report data.
+- Keep strict report admission: missing/duplicate/foreign receipts, incompatible assignments, missing/empty/corrupt reports, nonzero `report_status`, malformed LCOV and merger failure make aggregation fail. Never silently omit a partition or publish a successful subset merge.
+- A successful merge always publishes `coverage-diagnostic`, containing `diagnostic-lcov.info` and a source-bound `coverage-summary.json`. Record declared scope, expected/validated partitions, report completeness, every test/report outcome, failed partitions and the authoritative decision/reasons.
+- Any nonzero test outcome makes execution completeness unproven and the merged report non-authoritative, even if every report is present. Cargo exit 101 can mean compilation failure or failed assertions; target assignments describe intended execution, not proof every target ran.
+- Only full-scope, complete, successfully merged evidence with every test/report outcome successful additionally publishes canonical `lcov`. Expose this decision as a job output; Sonar requires it and verifies the canonical manifest/report without Cargo. Diagnostic/partial coverage cannot qualify Sonar.
+- Keep test jobs unsuccessful on failure; no blanket `continue-on-error`. A verified diagnostic-only merge makes Sonar's skip deliberate, not a passed quality gate. Final status still fails on actual test failures, invalid aggregation and unexplained selected-job skips, without mislabeling successful diagnostic merging as a failed merge.
 - Preserve Apparatus P0's separate baseline commands, including their doctest semantics.
 
 ## Compiler cache and native bundle v2

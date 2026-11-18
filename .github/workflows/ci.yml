@@ -381,6 +381,8 @@ jobs:
     needs: [plan, test-iam, test-telegraph, test-hive, test-manifesto, test-sentinel, test-readiness, test-shared]
     if: ${{ always() && !cancelled() && needs.plan.result == 'success' && fromJSON(needs.plan.outputs.selection).full }}
     timeout-minutes: 15
+    outputs:
+      authoritative: ${{ steps.merge.outputs.authoritative }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -407,13 +409,23 @@ jobs:
           sudo apt-get install -y --no-install-recommends lcov
 
       - name: Merge LCOV reports
-        run: python3 -B ops/ci/pipeline.py aggregate --directory coverage-artifacts --output lcov.info
+        id: merge
+        run: python3 -B ops/ci/pipeline.py aggregate --directory coverage-artifacts --output-directory coverage-merged
 
-      - name: Upload merged coverage artifact
+      - name: Upload merged coverage and explicit test outcomes for diagnosis
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-diagnostic
+          path: coverage-merged/diagnostic/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload authoritative coverage only after successful full execution
+        if: steps.merge.outputs.authoritative == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: lcov
-          path: lcov.info
+          path: coverage-merged/authoritative/
           if-no-files-found: error
           retention-days: 7
 
@@ -490,6 +502,7 @@ jobs:
     name: SonarCloud
     runs-on: ubuntu-24.04
     needs: [merge-coverage, clippy]
+    if: needs.merge-coverage.outputs.authoritative == 'true'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -508,7 +521,7 @@ jobs:
           path: target/sonar
       - name: Admit only complete current-source reports
         run: |
-          test -s lcov.info
+          python3 -B ops/ci/pipeline.py verify-merged --directory .
           python3 -B ops/ci/reports.py clippy-verify --directory target/sonar
       - name: SonarCloud scan
         uses: SonarSource/sonarqube-scan-action@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
