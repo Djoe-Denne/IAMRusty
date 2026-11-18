@@ -311,16 +311,28 @@ def validate_reports(data, directory, *, identity, root=ROOT):
         receipt = json.loads(path.read_text(encoding="utf-8"))
         key = (receipt.get("service"), receipt.get("lane"), receipt.get("shard"))
         assigned = receipt.get("targets", [])
-        if (key not in expected or key in found
-                or receipt.get("schema") != "aiforall.ci-coverage/v1"
-                or receipt.get("scope") != "full"
-                or receipt.get("identity") != identity
-                or receipt.get("inventory_sha256") != inventory_sha
-                or receipt.get("toolchain_sha256") != toolchain_sha
-                or receipt.get("features") != FEATURES.get(key[0], [])
-                or assigned != expected[key]
-                or receipt.get("test_status") != 0 or receipt.get("report_status") != 0):
-            raise ValueError("Missing, foreign, duplicate or failed coverage evidence")
+        if key not in expected or key in found:
+            raise ValueError(f"Unexpected or duplicate coverage partition in {path.name!r}")
+        required = {
+            "schema": "aiforall.ci-coverage/v1", "scope": "full", "identity": identity,
+            "inventory_sha256": inventory_sha, "toolchain_sha256": toolchain_sha,
+            "features": FEATURES.get(key[0], []), "targets": expected[key],
+            "test_status": 0, "report_status": 0,
+        }
+        mismatches = [field for field, value in required.items() if receipt.get(field) != value]
+        if mismatches:
+            outcomes = ""
+            if {"test_status", "report_status"}.intersection(mismatches):
+                statuses = {
+                    field: value if type(value) is int else "invalid"
+                    for field in ("test_status", "report_status")
+                    for value in (receipt.get(field),)
+                }
+                outcomes = (f" (test_status={statuses['test_status']}, "
+                            f"report_status={statuses['report_status']})")
+            raise ValueError(
+                f"Rejected coverage receipt {path.name!r}: {', '.join(mismatches)}{outcomes}"
+            )
         name = receipt.get("report")
         if not isinstance(name, str) or Path(name).name != name or not name.endswith(".info"):
             raise ValueError("Invalid coverage report path")

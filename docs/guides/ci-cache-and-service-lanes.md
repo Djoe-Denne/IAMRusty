@@ -30,6 +30,8 @@ Each shard publishes LCOV and a receipt binding source/run/attempt, policy/toolc
 
 Only a complete full-scope aggregation emits canonical `lcov`. Empty-report fallbacks were removed. Clippy independently runs the same production/test policies as the local aliases, then publishes complete JSONL plus a verified receipt. Sonar imports these inputs without compiling.
 
+Receipt rejections name the exact file and mismatching fields. For example, `Rejected coverage receipt 'lcov-telegraph-tests-1.json': test_status (test_status=101, report_status=0)` means that tests failed even though LCOV report generation succeeded. This rejection happens before invoking the LCOV merger; it is not an LCOV-parser error. Identity and partition failures receive separate diagnostics.
+
 `CI scope and result` fails on selected jobs that fail, are cancelled or are unexpectedly skipped. It distinguishes a deliberately unevaluated full Sonar gate from a passing gate.
 
 ## Selective PR execution is opt-in

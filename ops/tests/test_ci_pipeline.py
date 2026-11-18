@@ -192,6 +192,26 @@ class PlannerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             p.validate_reports(self.data, directory, identity=IDENTITY, root=self.root)
 
+    def test_failed_telegraph_receipt_names_the_test_failure_not_the_successful_report(self):
+        directory = self.complete_receipts()
+        receipt = directory / "lcov-telegraph-tests-0.json"
+        value = json.loads(receipt.read_text())
+        value["test_status"] = 101
+        receipt.write_text(json.dumps(value))
+        with self.assertRaisesRegex(
+                ValueError,
+                r"lcov-telegraph-tests-0\.json.*test_status \(test_status=101, report_status=0\)"):
+            p.validate_reports(self.data, directory, identity=IDENTITY, root=self.root)
+
+    def test_receipt_identity_failure_is_distinguished_from_test_failure(self):
+        directory = self.complete_receipts()
+        receipt = directory / "lcov-iam-unit-0.json"
+        value = json.loads(receipt.read_text())
+        value["identity"]["GITHUB_RUN_ATTEMPT"] = "2"
+        receipt.write_text(json.dumps(value))
+        with self.assertRaisesRegex(ValueError, r"lcov-iam-unit-0\.json.*: identity$"):
+            p.validate_reports(self.data, directory, identity=IDENTITY, root=self.root)
+
 
 class WorkflowTests(unittest.TestCase):
     @classmethod

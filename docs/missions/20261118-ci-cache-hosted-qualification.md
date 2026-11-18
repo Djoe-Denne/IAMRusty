@@ -78,4 +78,12 @@ The temporary probe branch was fully integrated by fast-forward, its workflow re
 
 Only the canonical `master` worktree remains. The SDK is unchanged. No team, additional worktree or local Docker/Kind/WSL runtime was created. Hosted runner reclamation is GitHub-managed; no claim of independently inventoried remote Docker cleanup is made.
 
-Publication of this result report is documentation-only; production/workflow/test code remains identical to the twice-executed candidate. A push can trigger another ordinary CI, but it does not turn either recorded red workflow into a green result.
+The original report publication at `4bb6c291` was documentation-only relative to the twice-executed candidate. The subsequent diagnostic correction below is separate and does not turn either recorded red workflow into a green result.
+
+## Follow-up: exact merge rejection diagnosis
+
+The user requested verification that the merge error was not independent of Telegraph. For run `44288096995`, attempt 1, all 19 real coverage archives were downloaded and verified against their API SHA256 digests. Production-rule replay and field-by-field comparison found exactly one mismatch: `lcov-telegraph-tests-1.json` has `test_status=101`, while `report_status=0`. All expected partitions, identities, policy/toolchain hashes, features, targets and report hashes match.
+
+The observed rejection is therefore the Telegraph test outcome, before invoking the LCOV executable. No independent merger defect was established in this execution. The previous generic message obscured that distinction.
+
+A diagnostic-only correction names the exact receipt/mismatching fields and safe numeric outcomes, without accepting failed/partial evidence. Two discriminating regressions were added; all 23 focused pipeline/cache/report tests passed. Replay of the unchanged real artifacts now gives `Rejected coverage receipt 'lcov-telegraph-tests-1.json': test_status (test_status=101, report_status=0)`. Full merge/Sonar success remains unclaimed until every required shard qualifies.
