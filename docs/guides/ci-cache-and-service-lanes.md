@@ -1,6 +1,6 @@
 # CI compiler caching and service-local test lanes
 
-Implementation status: local review passed under [ADR-0507](../adr/0507-ci-service-local-dag-shared-compiler-cache.md); publication authorized on 2026-11-18, hosted qualification pending.
+Implementation status: published under [ADR-0507](../adr/0507-ci-service-local-dag-shared-compiler-cache.md). Two full hosted executions met the user's criterion excluding Telegraph integration tests, but actual GitHub conclusions remain red and Sonar import is unqualified. See [the exact results and cache-write limitation](../missions/20261118-ci-cache-hosted-qualification.md).
 
 ## What is shared
 
@@ -54,4 +54,4 @@ The new native reader rejects v1 bundles. Already saved image admission is uncha
 
 Local Python refusal/planner tests and actionlint validate wiring and deterministic contracts. They do not prove hosted cold/warm performance, GHA rate-limit behavior, real Linux fixture health, coverage equivalence or backend-unavailable behavior.
 
-After publication is authorized, compare those cases on identical source/toolchain/feature selections before reporting performance gains. No local Docker, Kind or WSL startup is needed for the static checks.
+Hosted persistent cache write/read and compiler fallback have now been observed, including reuse on a second full execution. Full coverage equivalence, successful Sonar import, unavailable-backend qualification and the cause of remaining write errors are still open. Do not infer steady-state storage/time gains from the current snapshots. No local Docker, Kind or WSL startup is needed for the static checks.

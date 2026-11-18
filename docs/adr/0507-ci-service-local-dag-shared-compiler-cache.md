@@ -1,7 +1,7 @@
 # ADR-0507: CI uses service-local build dependencies and a shared compiler cache
 
 - Status: Proposed
-- Reality: Partial; local review passed, publication authorized on 2026-11-18, hosted qualification pending
+- Reality: Partial; published, two full hosted executions outside Telegraph IT; complete coverage/Sonar qualification pending
 - Date: 2026-11-17
 - Author: `architecte`, session `ses_e152b44f9ffeCvHhlurgQWqbkK`; persisted by the root agent
 - Decision makers: Pending explicit human acceptance
@@ -58,4 +58,4 @@ The v2 implementation rejects native v1 bundles; saved-image admission is unchan
 - [sccache GHA backend](https://github.com/mozilla/sccache/blob/main/docs/GHA.md)
 - [cargo-llvm-cov wrapper chaining](https://github.com/taiki-e/cargo-llvm-cov/blob/v0.9.1/src/wrapper.rs)
 
-Hosted cold/warm/backend-unavailable qualification remains pending publication authorization.
+Hosted persistent cache reuse and two full executions outside Telegraph IT are recorded in [the qualification report](../missions/20261118-ci-cache-hosted-qualification.md). Both workflows remain red because excluded test failures block authoritative coverage and Sonar. Clean cache writes, steady-state performance and backend-unavailable qualification remain unproven.

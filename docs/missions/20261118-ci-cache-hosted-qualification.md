@@ -46,17 +46,36 @@ A temporary branch `ci-cache-probe-20261118`, without another worktree, isolated
 - Probe [44279607855](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44279607855), commit `82dd2570ba582dab393d1c50899cccae5bb73a97`: two compilations, two misses, two write errors. Credential-redacted daemon errors showed404 on the backend read/write check.
 - Pinned source verification: sccache0.19.0 uses OpenDAL0.58.1. The [service selector](https://github.com/apache/opendal/blob/v0.58.1/core/services/ghac/src/core.rs#L432-L459) chooses V1 unless `ACTIONS_CACHE_SERVICE_V2` is nonempty. The bridge had exported the URL/token but omitted that flag.
 - Correction `dd4574e16a0bc8a7f649cf5c223a7a8f75bd304a`: export `ACTIONS_CACHE_SERVICE_V2=true` for this github.com repository; preserve the missing-capability local fallback, masking and token scope. Added a Node subprocess regression with no inherited service flag.
-- Local correction checks:21 pipeline/cache/report tests passed; actionlint passed; the normal formatting commit hook passed.
+- Local correction checks: 21 pipeline/cache/report tests passed; actionlint passed; the normal formatting commit hook passed.
 - Corrected probe [44280204339](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44280204339): first daemon had one miss and zero write errors; after stopping it and removing the object, the new daemon had one real remote hit, zero misses and zero write errors. This proves persistent write/read reuse for the probe, not a full-run hit-rate guarantee.
 
 The temporary workflow is removed before master integration. Both probe commits and the correction are retained in the integrated history; no unverified binary or raw daemon log is delivered.
 
 ## Final full-run qualification
 
-The corrected full implementation still requires two consecutive completed executions. Baseline run `44150614642` and diagnostic probes do not count. The initial all-write-error execution does not qualify the final corrected cache implementation.
+The user's criterion is met by **two consecutive complete executions outside Telegraph integration tests**, both at `4eeadab436aef179c823feb9cef276ba821d9513`:
 
-Record immutable source, attempts, actual conclusions and any Telegraph-only exception after observing the final executions. No successful Sonar run or final streak is claimed yet.
+- [Run 44280690285, attempt 1](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44280690285/attempts/1): 40 of 45 jobs successful. Telegraph integration assertions failed in both test shards. Signup email-content/happy-path and email-verified notification/different-users assertions failed. All builds, unit tests, other service integration tests, standalone gates, Clippy and E2E passed.
+- [Run 44280690285, attempt 2](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44280690285/attempts/2): 40 of 45 jobs successful. The full workflow was rerun, not selected jobs. Telegraph signup event-support/email-content/happy-path and email-verified multiple-events/notification assertions failed. The same non-exempt gates passed.
+
+**Both actual GitHub conclusions are `failure`, not `success`.** The coverage merger correctly rejected failed Telegraph receipts, the final scope/status job reported the dependent failures, and Sonar was skipped in both attempts. Those downstream gates are not represented as evaluated passes. No failed receipt was changed, ignored by aggregation or imported as authoritative coverage.
+
+Baseline run `44150614642`, diagnostic probes and the initial all-write-error run do not count toward this final-source streak. The evidence establishes the explicitly narrowed user criterion, **not two unconditionally green GitHub CIs**, coverage equivalence or successful hosted Sonar import.
+
+## Observed cache behavior and remaining limitation
+
+- After corrected attempt 1: 1,818 entries / 2,341,395,409 bytes across master and the tiny probe ref. IAM recorded 63 hits, 930 misses, 930 write errors and zero read errors; hit rate 6.34%.
+- After complete attempt 2: 2,526 entries / 3,801,614,429 bytes across refs, including only 571 bytes from the temporary probe. IAM recorded 236 hits, 757 misses, 757 write errors and zero read errors; hit rate 23.77%.
+- Clippy attempt 2 recorded 72 hits, 1,135 misses, 1,135 write errors and zero read errors; hit rate 5.97%.
+- The master cache population grew by 708 entries between the corrected runs, and real remote reuse was observed. The missing-v2-selector defect is fixed.
+- Remaining write errors have **not** been causally classified. Do not label them benign collisions, rate limits or quota failures without additional evidence. Builds retained correct compiler fallback; neither clean writes for all jobs nor steady-state storage/time savings are established.
+
+Snapshots and exact job/attempt logs are retained under ignored `.tmp/ci-cache-20261118/`; the protocol regression suite's 21-pass log is under `.tmp/ci-cache-20261117/cache-v2-protocol-tests.stderr.log`.
 
 ## Resources and closeout
 
-No task branch/worktree/team or local Docker/Kind/WSL runtime has been created. Hosted execution is still pending; no speedup, storage reduction or remote green result is claimed.
+The temporary probe branch was fully integrated by fast-forward, its workflow removed, and its local/remote branch refs deleted. Its two cache entries (`10716303268`, `10716302171`, 571 bytes total) were removed by ID after verifying their probe-only ref; the post-cleanup API inventory confirms zero probe-ref entries. New master compiler/download caches are intentionally retained; the initial repository-wide reset is not repeated.
+
+Only the canonical `master` worktree remains. The SDK is unchanged. No team, additional worktree or local Docker/Kind/WSL runtime was created. Hosted runner reclamation is GitHub-managed; no claim of independently inventoried remote Docker cleanup is made.
+
+Publication of this result report is documentation-only; production/workflow/test code remains identical to the twice-executed candidate. A push can trigger another ordinary CI, but it does not turn either recorded red workflow into a green result.
