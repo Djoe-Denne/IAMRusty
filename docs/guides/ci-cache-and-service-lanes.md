@@ -2,7 +2,7 @@
 
 Implementation status: published under [ADR-0507](../adr/0507-ci-service-local-dag-shared-compiler-cache.md). Two full hosted executions met the user's criterion excluding Telegraph integration tests, but actual GitHub conclusions remain red and Sonar import is unqualified. See [the exact results and cache-write limitation](../missions/20261118-ci-cache-hosted-qualification.md).
 
-The forward [coverage-outcome and Telegraph partition amendment](../missions/20261118-ci-coverage-outcomes-and-telegraph-shards.md) changes the behavior described below and is undergoing validation. The earlier two-run results apply to their recorded source/layout, not this amendment.
+The published [coverage-outcome and Telegraph partition amendment](../missions/20261118-ci-coverage-outcomes-and-telegraph-shards.md) has hosted proof: real diagnostic merging succeeds despite failed Telegraph tests. The earlier two-run results apply to their recorded source/layout. Finer partitioning is deployed but did not eliminate Telegraph intermittency on the observed run.
 
 ## What is shared
 

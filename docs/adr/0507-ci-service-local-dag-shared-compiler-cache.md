@@ -1,7 +1,7 @@
 # ADR-0507: CI uses service-local build dependencies and a shared compiler cache
 
 - Status: Proposed
-- Reality: Partial; published, two full hosted executions outside Telegraph IT; complete coverage/Sonar qualification pending
+- Reality: Partial; published diagnostic merging verified despite failed tests; authoritative coverage/Sonar qualification pending
 - Date: 2026-11-17
 - Author: `architecte`, session `ses_e152b44f9ffeCvHhlurgQWqbkK`; persisted by the root agent
 - Decision makers: Pending explicit human acceptance
@@ -69,3 +69,5 @@ Preserve Telegraph's unit partition and exact original `tests/0`. Replace only i
 - [cargo-llvm-cov wrapper chaining](https://github.com/taiki-e/cargo-llvm-cov/blob/v0.9.1/src/wrapper.rs)
 
 Hosted persistent cache reuse and two full executions outside Telegraph IT are recorded in [the qualification report](../missions/20261118-ci-cache-hosted-qualification.md). Both workflows remain red because excluded test failures block authoritative coverage and Sonar. Clean cache writes, steady-state performance and backend-unavailable qualification remain unproven.
+
+The subsequent [coverage-outcome amendment](../missions/20261118-ci-coverage-outcomes-and-telegraph-shards.md) has real hosted proof that diagnostic merging succeeds despite failed test commands. Telegraph's finer partitions are deployed; underlying intermittency remains observed.
