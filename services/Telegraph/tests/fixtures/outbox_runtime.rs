@@ -1,4 +1,6 @@
 //! Bounded ownership fixture using the production setup/runtime surfaces.
+//!
+//! CI scope probe: classify a test-only Telegraph fixture change.
 
 use std::collections::HashMap;
 use std::sync::Arc;
