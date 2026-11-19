@@ -39,7 +39,6 @@ jobs:
         with:
           version: '1.32.0'
           online-audits: false
-          token: ''
           advanced-security: false
           annotations: true
           min-severity: medium
