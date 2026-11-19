@@ -124,11 +124,14 @@ foreach ($probe in @('Get-Command docker', '$observer = Start-Job')) {
     }
 }
 $branch = $ast.Find({ param($node)
-    $node -is [Management.Automation.Language.IfStatementAst] -and $node.Extent.Text.StartsWith('if ($testBinary)')
+    $node -is [Management.Automation.Language.IfStatementAst] -and
+    $node.Extent.Text.StartsWith('if ($IamOpenApi)') -and
+    $node.Extent.Text.Contains('cargo @cargoArgs')
 }, $true)
 if ($null -eq $branch) { throw 'Missing actual Cargo selection branch' }
 function cargo { $script:seen = @($args) }
 $packages = @{manifesto='manifesto-service'; iam='iam-service'; hive='hive-service'; lazaret='lazaret-service'; telegraph='telegraph-service'}
+$IamOpenApi = $false
 foreach ($selected in @('manifesto', 'iam', 'hive', 'lazaret', 'telegraph')) {
     $selections = if ($selected -eq 'iam') { @('') + $iamBinaries }
                   elseif ($selected -eq 'hive') { @('') + $hiveBinaries }
@@ -143,4 +146,29 @@ foreach ($selected in @('manifesto', 'iam', 'hive', 'lazaret', 'telegraph')) {
         if (($script:seen -join '|') -cne ($expected -join '|')) { throw 'Actual Cargo arguments do not match the closed selection' }
     }
 }
-Write-Host 'PASS: exact IAM OAuth/Hive/Manifesto/Telegraph/Lazaret Redis TLS selections, default compatibility, refusals, placement and actual Cargo branches; no runtime executed'
+$IamOpenApi = $true
+$script:seen = @()
+. ([scriptblock]::Create($branch.Extent.Text))
+if (($script:seen -join '|') -cne 'test|--locked|-p|iam-service|--test|auth_password_reset|iam_openapi_contract|--|--ignored|--exact') {
+    throw 'OpenAPI selection must execute exactly the opt-in IAM test'
+}
+
+$oldPython = $env:AIFORALL_SCHEMATHESIS_PYTHON
+try {
+    $env:AIFORALL_SCHEMATHESIS_PYTHON = $null
+    foreach ($case in @(
+        @{suite=@('iam','hive'); binary=''; message='requires -Suite iam without -TestBinary'},
+        @{suite=@('iam'); binary=$oauthBinary; message='requires -Suite iam without -TestBinary'},
+        @{suite=@('iam'); binary=''; message='Set AIFORALL_SCHEMATHESIS_PYTHON'}
+    )) {
+        try {
+            & $path -Suite $case.suite -TestBinary $case.binary -IamOpenApi
+            throw 'Invalid OpenAPI selection accepted'
+        } catch {
+            if (-not $_.Exception.Message.Contains($case.message)) { throw }
+        }
+    }
+} finally {
+    $env:AIFORALL_SCHEMATHESIS_PYTHON = $oldPython
+}
+Write-Host 'PASS: exact named suite selections, default compatibility, IAM OpenAPI opt-in and refusals; no runtime executed'

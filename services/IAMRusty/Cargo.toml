@@ -62,7 +62,7 @@ tower-http = { workspace = true }
 axum-server = { workspace = true }
 rsa = { workspace = true }
 sha2 = { workspace = true, features = ["oid"] }
-tokio = { workspace = true, features = ["net", "sync", "time", "test-util"] }
+tokio = { workspace = true, features = ["net", "process", "sync", "time", "test-util"] }
 axum-test = { workspace = true }
 tokio-test = { workspace = true }
 wiremock = { workspace = true }

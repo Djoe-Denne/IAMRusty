@@ -3,7 +3,8 @@ param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('iam', 'hive', 'manifesto', 'telegraph', 'lazaret')]
     [string[]]$Suite,
-    [string]$TestBinary
+    [string]$TestBinary,
+    [switch]$IamOpenApi
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -60,12 +61,37 @@ function Resolve-ItTestBinary {
 }
 # Validate before any runtime/observer startup or Cargo invocation. Ambient
 # RUST_TEST_THREADS is deliberately not the override for a reproducible default.
+if ($IamOpenApi) {
+    if ($Suite.Count -ne 1 -or $Suite[0] -cne 'iam' -or $TestBinary) {
+        throw '-IamOpenApi requires -Suite iam without -TestBinary; STOP before runtime'
+    }
+    if (-not $env:AIFORALL_SCHEMATHESIS_PYTHON -or
+        $env:AIFORALL_SCHEMATHESIS_PYTHON -cnotmatch '^[A-Za-z]:[\\/]' -or
+        -not (Test-Path -LiteralPath $env:AIFORALL_SCHEMATHESIS_PYTHON -PathType Leaf)) {
+        throw 'Set AIFORALL_SCHEMATHESIS_PYTHON to an absolute interpreter path; STOP before runtime'
+    }
+}
 $testThreads = Resolve-ItTestThreads $env:AIFORALL_IT_TEST_THREADS
 $testBinary = Resolve-ItTestBinary -Suites $Suite -Binary $TestBinary
 # The caller owns the single Cargo slot. This invocation owns ONLY IDs proved by
 # its fresh fixture ledgers, never a name match or a before/after inventory diff.
 Get-Command cargo -ErrorAction Stop | Out-Null
 Get-Command docker -ErrorAction Stop | Out-Null
+if ($IamOpenApi) {
+    # Check Docker CLI metadata without contacting an Engine. The shared
+    # inventory and testcontainers must not follow remote host overrides.
+    if ($env:DOCKER_HOST -or $env:TESTCONTAINERS_HOST_OVERRIDE -or $env:TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE) {
+        throw '-IamOpenApi does not accept Docker host overrides'
+    }
+    $context = [string](& docker context show)
+    if ($LASTEXITCODE -ne 0 -or $context -cne 'desktop-linux') {
+        throw '-IamOpenApi requires the local desktop-linux context'
+    }
+    $endpoint = [string](& docker context inspect $context --format '{{.Endpoints.docker.Host}}')
+    if ($LASTEXITCODE -ne 0 -or $endpoint -cne 'npipe:////./pipe/dockerDesktopLinuxEngine') {
+        throw '-IamOpenApi requires the local Docker Desktop named pipe'
+    }
+}
 $runId = 'it-' + [guid]::NewGuid().ToString('N')
 $tempRoot = Join-Path $root '.tmp'
 if ((Test-Path -LiteralPath $tempRoot) -and ((Get-Item -LiteralPath $tempRoot).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
@@ -304,7 +330,14 @@ try {
         $prevEap = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
         try {
-            if ($testBinary) {
+            if ($IamOpenApi) {
+                $cargoArgs = @(
+                    'test', '--locked', '-p', 'iam-service', '--test', 'auth_password_reset',
+                    'iam_openapi_contract', '--', '--ignored', '--exact'
+                )
+                & cargo @cargoArgs 2>&1
+            }
+            elseif ($testBinary) {
                 & cargo test --locked -p $packages[$selected] --test $testBinary 2>&1
             }
             else {

@@ -1,0 +1,11 @@
+name: AIForAll source analysis
+
+# Include application code and the code that CI and deployment actually run.
+# Release notes, historical example projects, and local agent tools are out of scope.
+paths:
+  - services
+  - crates
+  - workers
+  - runtime
+  - ops
+  - .github/actions
