@@ -206,7 +206,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("'push'", job["if"])
         self.assertIn("refs/heads/master", job["if"])
         self.assertEqual(job["permissions"], dict(contents="read", actions="read"))
-        self.assertEqual(value["jobs"]["sonar"]["needs"], ["merge-coverage", "clippy"])
+        self.assertEqual(value["jobs"]["sonar"]["needs"], ["merge-coverage", "clippy", "plan"])
         pages = value["jobs"]["e2e-pages"]
         self.assertEqual(pages["needs"], ["k6-e2e"])
         self.assertEqual(pages["permissions"]["pages"], "write")

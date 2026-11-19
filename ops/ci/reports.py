@@ -7,7 +7,18 @@ import os
 from pathlib import Path
 import sys
 
-from pipeline import GROUPS, ROOT, evidence_identity
+from pipeline import BUILD_JOBS, INTEGRATION_JOBS, INVENTORY, ROOT, evidence_identity, parse_execution_scope
+
+
+def clippy_packages(scope):
+    if scope["full"]:
+        return ["--workspace"]
+    if scope["mode"] != "services":
+        raise ValueError("Clippy is not part of the documentation-only scope")
+    groups = {group for key in ("build", "integration") for group, enabled in scope[key].items()
+              if enabled}
+    return [arg for package in sorted({p for group in groups for p in INVENTORY["packages"][group]})
+            for arg in ("-p", package)]
 
 
 def clippy_evidence(directory, environment=os.environ):
@@ -25,41 +36,34 @@ def clippy_evidence(directory, environment=os.environ):
     combined = (directory / "clippy.json").read_bytes()
     if combined != b"".join(lanes):
         raise ValueError("Combined Clippy report differs from its complete lanes")
-    return {
+    receipt = {
         "schema": "aiforall.ci-clippy/v1",
         "identity": evidence_identity(environment),
         "report_sha256": hashlib.sha256(combined).hexdigest(),
         "policy_sha256": hashlib.sha256((ROOT / ".cargo/config.toml").read_bytes()).hexdigest(),
         "toolchain_sha256": hashlib.sha256((ROOT / "rust-toolchain.toml").read_bytes()).hexdigest(),
     }
+    if "CI_EXECUTION_SCOPE" in environment:
+        receipt["package_args"] = clippy_packages(parse_execution_scope(environment["CI_EXECUTION_SCOPE"]))
+    return receipt
 
 
 def status(needs, *, event, ref):
     if needs.get("plan", {}).get("result") != "success":
         raise ValueError("CI scope was not established")
-    selection = json.loads(needs["plan"]["outputs"]["selection"])
-    if event == "push" and ref == "refs/heads/master" and not selection["full"]:
-        raise ValueError("Master requires complete declared CI scope")
-    expected = {"fmt", "plan", "infra-static", "clippy", "apparatus-p0"}
-    mappings = {
-        "iam": ("build-iam", "test-iam"),
-        "telegraph": ("build-telegraph", "test-telegraph"),
-        "hive": ("build-hive", "test-hive"),
-        "manifesto": ("build-manifesto", "test-manifesto"),
-        "monolith": ("build-monolith",),
-        "sentinel-sync": ("build-sentinel", "test-sentinel"),
-        "ext-authz": ("build-ext-authz", "ext-authz-unit"),
-        "oauth": ("build-oauth",),
-        "readiness": ("test-readiness",),
-        "shared": ("test-shared",),
-    }
-    if needs["plan"]["outputs"].get("docs_only") == "true":
-        empty_scope = dict.fromkeys((*GROUPS, "full", "any"), False)
-        if event != "pull_request" or selection != empty_scope:
-            raise ValueError("Invalid documentation-only CI selection")
-        expected_skips = (expected - {"plan"}) | {
-            job for jobs in mappings.values() for job in jobs
-        } | {"merge-coverage", "sonar", "k6-e2e", "e2e-pages"}
+    selection = parse_execution_scope(needs["plan"]["outputs"]["selection"])
+    if event != "pull_request" and not selection["full"]:
+        raise ValueError("Only PRs may use a reduced CI scope")
+    expected = {"fmt", "plan", "clippy"}
+    job_groups = {"build": BUILD_JOBS, "integration": INTEGRATION_JOBS}
+    full_only = {"infra-static", "apparatus-p0"}
+    all_lanes = set(BUILD_JOBS.values()) | set(INTEGRATION_JOBS.values()) | full_only
+    if (needs["plan"]["outputs"].get("docs_only") == "true") != (selection["mode"] == "docs"):
+        raise ValueError("Invalid documentation-only CI selection")
+    if selection["mode"] == "docs":
+        expected_skips = (expected - {"plan"}) | all_lanes | {
+            "merge-coverage", "sonar", "k6-e2e", "e2e-pages"
+        }
         unexpected = sorted(
             name for name in (expected_skips | set(needs)) - {"plan"}
             if needs.get(name, {}).get("result") != "skipped"
@@ -67,18 +71,33 @@ def status(needs, *, event, ref):
         if unexpected:
             raise ValueError("Documentation-only jobs not skipped: " + ", ".join(unexpected))
         return "Documentation-only PR. Build, tests, Clippy, coverage and Sonar were NOT run."
-    for group, jobs in mappings.items():
-        if selection[group]:
-            expected.update(jobs)
-    coverage_note = ""
+    selected_lanes = {
+        job for kind, groups in job_groups.items()
+        for group, job in groups.items() if selection[kind][group]
+    }
     if selection["full"]:
+        selected_lanes.update(full_only)
+    expected.update(selected_lanes)
+    unexpected = sorted(
+        name for name in all_lanes - selected_lanes
+        if needs.get(name, {}).get("result") != "skipped"
+    )
+    if unexpected:
+        raise ValueError("Out-of-scope CI jobs not skipped: " + ", ".join(unexpected))
+    coverage_note = ""
+    if selection["has_coverage"]:
         expected.add("merge-coverage")
         aggregation = needs.get("merge-coverage", {})
         if aggregation.get("result") == "success":
-            authoritative = aggregation.get("outputs", {}).get("authoritative")
-            if authoritative not in ("true", "false"):
+            outputs = aggregation.get("outputs", {})
+            mode_output = "authoritative" if selection["full"] else "pr_ready"
+            if (not selection["full"] and outputs.get("authoritative") != "false"
+                    or selection["full"] and outputs.get("pr_ready") not in (None, "", "false")):
+                raise ValueError("Coverage qualified for the wrong CI scope")
+            qualified = outputs.get(mode_output)
+            if qualified not in ("true", "false"):
                 raise ValueError("Successful coverage aggregation has no qualification decision")
-            if authoritative == "true":
+            if qualified == "true":
                 expected.add("sonar")
             else:
                 if needs.get("sonar", {}).get("result") != "skipped":
@@ -99,23 +118,23 @@ def status(needs, *, event, ref):
         raise ValueError("CI jobs did not succeed: " + ", ".join(failed) + coverage_note)
     if coverage_note:
         raise ValueError("Coverage is not authoritative despite successful selected jobs." + coverage_note)
-    if not selection["full"]:
-        if any(needs.get(name, {}).get("result") != "skipped" for name in ("merge-coverage", "sonar")):
-            raise ValueError("Partial coverage must not qualify authoritative Sonar analysis")
-        return "Selected checks passed. Full monorepo coverage and Sonar were NOT evaluated."
     if event == "pull_request":
+        prefix = ("Complete declared CI checks passed." if selection["full"] else
+                  "Selected service checks passed. Full monorepo coverage was NOT evaluated.")
         if needs["sonar"].get("outputs", {}).get("scan_outcome") != "success":
-            return ("Complete declared CI checks passed. Sonar PR analysis was NOT evaluated; "
-                    "see the PR quality job for available evidence.")
-        return "Complete declared CI checks passed. PR quality evidence was submitted to Sonar."
+            return f"{prefix} Sonar PR analysis was NOT evaluated; see the PR quality job."
+        return f"{prefix} PR quality evidence was submitted to Sonar."
     return "Complete declared CI checks passed. Full coverage and Sonar were evaluated."
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("clippy-create", "clippy-verify", "status"))
+    parser.add_argument("command", choices=("clippy-packages", "clippy-create", "clippy-verify", "status"))
     parser.add_argument("--directory", type=Path)
     args = parser.parse_args()
+    if args.command == "clippy-packages":
+        print("\n".join(clippy_packages(parse_execution_scope(os.environ["CI_EXECUTION_SCOPE"]))))
+        return 0
     if args.command == "status":
         message = status(json.loads(os.environ["CI_NEEDS"]),
                          event=os.environ["CI_EVENT"], ref=os.environ["CI_REF"])

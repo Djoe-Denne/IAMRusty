@@ -33,6 +33,56 @@ FEATURES = {"shared": ["apparatus-contracts/test-harness"]}
 SHA = re.compile(r"[a-f0-9]{40}")
 INVENTORY_PATH = ROOT / ".github/ci/inventory.json"
 INVENTORY = json.loads(INVENTORY_PATH.read_text(encoding="utf-8"))
+BUILD_JOBS = {
+    "iam": "build-iam", "telegraph": "build-telegraph", "hive": "build-hive",
+    "manifesto": "build-manifesto", "monolith": "build-monolith", "oauth": "build-oauth",
+    "sentinel-sync": "build-sentinel", "ext-authz": "build-ext-authz",
+}
+INTEGRATION_JOBS = {
+    "iam": "test-iam", "telegraph": "test-telegraph", "hive": "test-hive",
+    "manifesto": "test-manifesto", "sentinel-sync": "test-sentinel",
+    "readiness": "test-readiness", "shared": "test-shared", "ext-authz": "ext-authz-unit",
+}
+
+
+def execution_scope(mode, *, builds=(), integration=()):
+    if mode == "full":
+        builds, integration = BUILD_JOBS, INTEGRATION_JOBS
+    elif mode == "docs":
+        builds, integration = (), ()
+    elif mode != "services":
+        raise ValueError("Unknown CI execution mode")
+    builds, integration = set(builds), set(integration)
+    if not builds <= BUILD_JOBS.keys() or not integration <= INTEGRATION_JOBS.keys():
+        raise ValueError("Unrecognized build or integration group")
+    coverage = sorted(integration & INVENTORY["coverage"].keys())
+    if mode == "services" and (
+            not coverage or not (builds & INTEGRATION_JOBS.keys()) <= integration
+    ):
+        raise ValueError("Service selection must cover selected builds and include coverage")
+    return {
+        "mode": mode, "full": mode == "full",
+        "build": {group: group in builds for group in BUILD_JOBS},
+        "integration": {group: group in integration for group in INTEGRATION_JOBS},
+        "coverage": coverage, "has_coverage": bool(coverage),
+    }
+
+
+def parse_execution_scope(raw):
+    plan = json.loads(raw)
+    if not isinstance(plan, dict) or not all(isinstance(plan.get(k), dict)
+                                             for k in ("build", "integration")):
+        raise ValueError("Invalid CI execution scope")
+    canonical = execution_scope(
+        plan.get("mode"),
+        builds=(k for k, enabled in plan["build"].items() if enabled is True),
+        integration=(k for k, enabled in plan["integration"].items() if enabled is True),
+    )
+    if (plan != canonical or any(type(value) is not bool
+                                 for k in ("build", "integration") for value in plan[k].values())
+            or type(plan.get("full")) is not bool or type(plan.get("has_coverage")) is not bool):
+        raise ValueError("Inconsistent CI execution scope")
+    return canonical
 
 
 def metadata(root=ROOT):
@@ -313,12 +363,13 @@ def matrix_for(data, group, root=ROOT):
     return {"include": rows}
 
 
-def _validated_reports(data, directory, *, identity, root=ROOT, allow_failed_tests=False):
+def _validated_reports(data, directory, *, identity, root=ROOT, allow_failed_tests=False,
+                       pr_groups=None):
     directory = Path(directory)
     expected = {
         (group, row["lane"], row["shard"]): target_assignment(
             data, group, row["lane"], row["shard"], root)
-        for group in INVENTORY["coverage"]
+        for group in coverage_scope(pr_groups)
         for row in matrix_for(data, group, root)["include"]
     }
     found, reports, targets, receipts = set(), [], set(), []
@@ -331,7 +382,8 @@ def _validated_reports(data, directory, *, identity, root=ROOT, allow_failed_tes
         if key not in expected or key in found:
             raise ValueError(f"Unexpected or duplicate coverage partition in {path.name!r}")
         required = {
-            "schema": "aiforall.ci-coverage/v1", "scope": "full", "identity": identity,
+            "schema": "aiforall.ci-coverage/v1",
+            "scope": "full" if pr_groups is None else "partial", "identity": identity,
             "inventory_sha256": inventory_sha, "toolchain_sha256": toolchain_sha,
             "features": FEATURES.get(key[0], []), "targets": expected[key],
             "report_status": 0,
@@ -379,11 +431,21 @@ def validate_reports(data, directory, *, identity, root=ROOT):
     return _validated_reports(data, directory, identity=identity, root=root)[0]
 
 
+def coverage_scope(pr_groups):
+    if pr_groups is None:
+        return INVENTORY["coverage"]
+    if (not pr_groups or len(pr_groups) != len(set(pr_groups))
+            or not set(pr_groups) <= INVENTORY["coverage"].keys()):
+        raise ValueError("Invalid PR coverage groups")
+    return pr_groups
+
+
 def aggregate_coverage(data, directory, output_directory, *, identity, root=ROOT,
-                       run=subprocess.run):
+                       run=subprocess.run, pr_groups=None):
     """Merge valid data independently of tests, without qualifying failed execution."""
     reports, receipts = _validated_reports(
-        data, directory, identity=identity, root=root, allow_failed_tests=True)
+        data, directory, identity=identity, root=root, allow_failed_tests=True,
+        pr_groups=pr_groups)
     output_directory = Path(output_directory)
     output_directory.mkdir(parents=True, exist_ok=False)
     diagnostic = output_directory / "diagnostic"
@@ -405,37 +467,44 @@ def aggregate_coverage(data, directory, output_directory, *, identity, root=ROOT
     expected = [{field: row[field] for field in ("service", "lane", "shard")} for row in partitions]
     failed = [{**key, "test_status": row["test_status"], "report_status": row["report_status"]}
               for key, row in zip(expected, partitions) if row["test_status"] != 0]
-    authoritative = not failed
+    passed = not failed
+    authoritative = passed and pr_groups is None
+    pr_ready = passed and pr_groups is not None
     summary = {
         "schema": "aiforall.ci-merged-coverage/v1", "identity": identity,
         "inventory_sha256": hashlib.sha256(INVENTORY_PATH.read_bytes()).hexdigest(),
         "toolchain_sha256": hashlib.sha256((Path(root) / "rust-toolchain.toml").read_bytes()).hexdigest(),
-        "declared_scope": "full", "reports_complete": True,
+        "declared_scope": "full" if pr_groups is None else "partial", "reports_complete": True,
         "expected_partitions": expected, "partitions": partitions,
         "target_count": sum(len(row["targets"]) for row in partitions),
-        "all_test_commands_succeeded": authoritative,
-        "execution_completeness": "complete" if authoritative else "unproven",
+        "all_test_commands_succeeded": passed,
+        "execution_completeness": "complete" if passed else "unproven",
         "authoritative": authoritative,
-        "reasons": [] if authoritative else ["failed_test_commands"],
+        "reasons": ([] if passed else ["failed_test_commands"]),
         "failed_partitions": failed, "report": output.name,
         "report_sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
     }
+    if pr_groups is not None:
+        summary["pr_groups"] = sorted(pr_groups)
+    # Diagnostic receipts always exist, including when test assertions failed.
     (diagnostic / "coverage-summary.json").write_text(json.dumps(summary, sort_keys=True), encoding="utf-8")
-    if authoritative:
-        canonical = output_directory / "authoritative"
+    if authoritative or pr_ready:
+        canonical = output_directory / ("authoritative" if authoritative else "pr")
         canonical.mkdir()
         shutil.copyfile(output, canonical / "lcov.info")
         (canonical / "coverage-summary.json").write_text(
             json.dumps({**summary, "report": "lcov.info"}, sort_keys=True), encoding="utf-8")
     print("Coverage merged: " + ("authoritative" if authoritative else
-                                 "diagnostic only; failed test commands, Sonar not qualified"))
+          "selected PR suites only" if pr_ready else "diagnostic only; failed test commands, Sonar not qualified"))
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
             stream.write("authoritative=" + str(authoritative).lower() + "\n")
+            if pr_groups is not None:
+                stream.write("pr_ready=" + str(pr_ready).lower() + "\n")
     return 0
 
 
-def verify_merged_coverage(directory, *, identity, root=ROOT):
+def verify_merged_coverage(directory, *, identity, root=ROOT, pr_groups=None):
     """Verify the trusted aggregation artifact before import, without invoking Cargo."""
     directory = Path(directory)
     summary = json.loads((directory / "coverage-summary.json").read_text(encoding="utf-8"))
@@ -443,21 +512,26 @@ def verify_merged_coverage(directory, *, identity, root=ROOT):
         "schema": "aiforall.ci-merged-coverage/v1", "identity": identity,
         "inventory_sha256": hashlib.sha256(INVENTORY_PATH.read_bytes()).hexdigest(),
         "toolchain_sha256": hashlib.sha256((Path(root) / "rust-toolchain.toml").read_bytes()).hexdigest(),
-        "declared_scope": "full", "reports_complete": True, "authoritative": True,
+        "declared_scope": "full" if pr_groups is None else "partial",
+        "reports_complete": True, "authoritative": pr_groups is None,
         "all_test_commands_succeeded": True, "execution_completeness": "complete",
         "reasons": [], "failed_partitions": [], "report": "lcov.info",
     }
+    groups = coverage_scope(pr_groups)
+    if pr_groups is not None:
+        required["pr_groups"] = sorted(groups)
     if not isinstance(summary, dict) or any(summary.get(key) != value for key, value in required.items()):
         raise ValueError("Coverage is foreign, diagnostic, incomplete or not authoritative")
-    if any(summary.get(field) is not True for field in
-           ("reports_complete", "authoritative", "all_test_commands_succeeded")):
+    if (summary.get("authoritative") is not (pr_groups is None)
+            or any(summary.get(field) is not True for field in
+                   ("reports_complete", "all_test_commands_succeeded"))):
         raise ValueError("Coverage qualification flags must be explicit booleans")
     partitions = summary.get("partitions")
     if not isinstance(partitions, list) or not partitions:
         raise ValueError("Coverage partition evidence is missing")
     keys, targets = [], []
     for row in partitions:
-        if (not isinstance(row, dict) or row.get("service") not in tuple(INVENTORY["coverage"])
+        if (not isinstance(row, dict) or row.get("service") not in groups
                 or row.get("lane") not in ("unit", "tests") or type(row.get("shard")) is not int
                 or not 0 <= row["shard"] < (1 if row["lane"] == "unit" else GROUPS[row["service"]][1])
                 or row.get("features") != FEATURES.get(row["service"], [])
@@ -470,7 +544,7 @@ def verify_merged_coverage(directory, *, identity, root=ROOT):
         targets.extend(row["targets"])
     expected = [dict(service=service, lane=lane, shard=shard) for service, lane, shard in keys]
     if (summary.get("expected_partitions") != expected or len(keys) != len(set(keys))
-            or {key[0] for key in keys} != set(INVENTORY["coverage"])
+            or {key[0] for key in keys} != set(groups)
             or len(targets) != len(set(targets)) or summary.get("target_count") != len(targets)):
         raise ValueError("Incomplete or duplicated merged coverage evidence")
     report = directory / "lcov.info"
@@ -501,8 +575,15 @@ def main(argv=None):
     verify = commands.add_parser("verify-merged")
     verify.add_argument("--directory", type=Path, required=True)
     args = parser.parse_args(argv)
+    pr_groups = None
+    if args.command in ("aggregate", "verify-merged") and "CI_EXECUTION_SCOPE" in os.environ:
+        plan = parse_execution_scope(os.environ["CI_EXECUTION_SCOPE"])
+        if plan["mode"] == "services" and os.environ.get("GITHUB_EVENT_NAME") == "pull_request":
+            pr_groups = plan["coverage"]
+        elif plan["mode"] != "full":
+            raise ValueError("Scoped coverage must belong to a service PR")
     if args.command == "verify-merged":
-        verify_merged_coverage(args.directory, identity=evidence_identity())
+        verify_merged_coverage(args.directory, identity=evidence_identity(), pr_groups=pr_groups)
         return 0
     data = metadata()
     validate_inventory(data)
@@ -528,7 +609,8 @@ def main(argv=None):
             with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
                 stream.write("matrix=" + text + "\n")
     elif args.command == "aggregate":
-        return aggregate_coverage(data, args.directory, args.output_directory, identity=evidence_identity())
+        return aggregate_coverage(data, args.directory, args.output_directory,
+                                  identity=evidence_identity(), pr_groups=pr_groups)
     else:
         return run_coverage(data, args.service, args.lane, args.shard, args.output)
     return 0
