@@ -109,6 +109,10 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Prepare private run root outside Git
+        run: |
+          umask 077
+          mkdir -m 700 "$RUNNER_TEMP/iam-pilot-private"
       - name: Acquire exact pilot binaries by API digest
         env:
           GH_TOKEN: ${{ github.token }}
@@ -116,16 +120,18 @@ jobs:
           umask 077
           for role in e2e oauth ext-authz; do
             python3 -B ops/ci/iam_compile_once.py fetch --part "$role" \
-              --output "$RUNNER_TEMP/iam-pilot-acquired/$role"
+              --output "$RUNNER_TEMP/iam-pilot-private/acquired/$role"
           done
       - name: Package and admit only the experimental three-role images
         run: |
-          mkdir -m 700 -p "$RUNNER_TEMP/iam-pilot-images/verified"
-          python3 -B ops/tests/k6/ci/iam_pilot.py pack "$RUNNER_TEMP/iam-pilot-acquired" \
-            "$RUNNER_TEMP/iam-pilot-images/verified/packaged"
-          python3 -B ops/tests/k6/ci/iam_pilot.py close-probes "$RUNNER_TEMP/iam-pilot-images/verified/packaged"
+          umask 077
+          images="$RUNNER_TEMP/iam-pilot-private/images"
+          mkdir -m 700 -p "$images/verified"
+          python3 -B ops/tests/k6/ci/iam_pilot.py pack "$RUNNER_TEMP/iam-pilot-private/acquired" \
+            "$images/verified/packaged"
+          python3 -B ops/tests/k6/ci/iam_pilot.py close-probes "$images/verified/packaged"
           for file in images.tar.gz provenance.json cleanup.json; do
-            mv "$RUNNER_TEMP/iam-pilot-images/verified/packaged/$file" "$RUNNER_TEMP/iam-pilot-images/verified/$file"
+            mv "$images/verified/packaged/$file" "$images/verified/$file"
           done
       - name: Install existing browser dependencies
         run: |
@@ -133,28 +139,29 @@ jobs:
           sudo apt-get install -y --no-install-recommends libnss3-tools libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64
           python3 -m pip install 'PyYAML==6.0.2'
       - name: Acquire and verify the pinned CI CLI tools
-        run: python3 -B ops/tests/k6/ci/provision.py --output "$RUNNER_TEMP/iam-pilot-cli"
+        run: python3 -B ops/tests/k6/ci/provision.py --output "$RUNNER_TEMP/iam-pilot-private/cli"
       - name: Acquire and verify k6 and Chromium
-        run: python3 -B ops/tests/k6/provision-linux.py --output "$RUNNER_TEMP/iam-pilot-browser"
+        run: python3 -B ops/tests/k6/provision-linux.py --output "$RUNNER_TEMP/iam-pilot-private/browser"
       - name: Execute unchanged scenarios and restore fixtures
         run: >-
-          python3 -B ops/tests/k6/ci/iam_pilot.py run --directory "$RUNNER_TEMP/iam-pilot-campaign"
-          --cli-directory "$RUNNER_TEMP/iam-pilot-cli" --browser-directory "$RUNNER_TEMP/iam-pilot-browser"
-          --image-directory "$RUNNER_TEMP/iam-pilot-images"
+          python3 -B ops/tests/k6/ci/iam_pilot.py run --directory "$RUNNER_TEMP/iam-pilot-private/campaign"
+          --cli-directory "$RUNNER_TEMP/iam-pilot-private/cli"
+          --browser-directory "$RUNNER_TEMP/iam-pilot-private/browser"
+          --image-directory "$RUNNER_TEMP/iam-pilot-private/images"
       - name: Verify owned packaging and campaign cleanup
         if: always()
         run: |
           status=0
-          python3 -B ops/tests/k6/ci/iam_pilot.py close-probes "$RUNNER_TEMP/iam-pilot-images/verified/packaged" || status=1
-          python3 -B ops/tests/k6/ci/iam_pilot.py clean --directory "$RUNNER_TEMP/iam-pilot-campaign" || status=1
+          python3 -B ops/tests/k6/ci/iam_pilot.py close-probes "$RUNNER_TEMP/iam-pilot-private/images/verified/packaged" || status=1
+          python3 -B ops/tests/k6/ci/iam_pilot.py clean --directory "$RUNNER_TEMP/iam-pilot-private/campaign" || status=1
           exit "$status"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: iam-pilot-e2e-evidence-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/iam-pilot-campaign/public/report.json
-            ${{ runner.temp }}/iam-pilot-campaign/public/provenance.json
-            ${{ runner.temp }}/iam-pilot-campaign/public/cleanup.json
+            ${{ runner.temp }}/iam-pilot-private/campaign/public/report.json
+            ${{ runner.temp }}/iam-pilot-private/campaign/public/provenance.json
+            ${{ runner.temp }}/iam-pilot-private/campaign/public/cleanup.json
           if-no-files-found: warn
           retention-days: 3

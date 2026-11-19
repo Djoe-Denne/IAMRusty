@@ -106,6 +106,18 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(steps.count("iam_pilot.py run"), 1)
         self.assertNotIn("deploy-pages", raw)
 
+    def test_hosted_pilot_creates_the_private_parent_before_provisioning(self):
+        config = yaml.load((ROOT / pilot.WORKFLOW).read_text(), Loader=yaml.BaseLoader)
+        steps = config["jobs"]["pilot-e2e"]["steps"]
+        commands = "\n".join(step.get("run", "") for step in steps)
+        root = "$RUNNER_TEMP/iam-pilot-private"
+        setup = f'mkdir -m 700 "{root}"'
+        self.assertIn(setup, commands)
+        for path in ("acquired", "images", "cli", "browser", "campaign"):
+            use = commands.index(f'"{root}/{path}')
+            self.assertLess(commands.index(setup), use)
+        self.assertNotRegex(commands, r"\$RUNNER_TEMP/iam-pilot-(cli|browser|campaign|images|acquired)")
+
     def test_runtime_gate_has_no_caller_selectable_bypass(self):
         env = dict(GITHUB_REPOSITORY="Djoe-Denne/IAMRusty", GITHUB_EVENT_NAME="push",
                    GITHUB_REF="refs/heads/" + pilot.BRANCH, GITHUB_JOB="pilot-e2e",
