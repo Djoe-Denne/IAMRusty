@@ -1,5 +1,7 @@
 # CI compiler caching and service-local test lanes
 
+<!-- CI scope probe: classify a documentation-only change. -->
+
 Implementation status: published under [ADR-0507](../adr/0507-ci-service-local-dag-shared-compiler-cache.md). Two earlier full hosted executions met the user's criterion excluding Telegraph integration tests, but their GitHub conclusions remained red and did not qualify Sonar. See [those historical results](../missions/20261118-ci-cache-hosted-qualification.md). A subsequent [diagnostic run](../missions/20261118-sccache-backend-errors.md) qualified canonical coverage and Sonar with all Telegraph partitions successful; its overall workflow remained red because of an unrelated report deployment failure. Cache throttling and reservation conflicts remain unresolved.
 
 The published [coverage-outcome and Telegraph partition amendment](../missions/20261118-ci-coverage-outcomes-and-telegraph-shards.md) has hosted proof: real diagnostic merging succeeds despite failed Telegraph tests. The earlier two-run results apply to their recorded source/layout. Finer partitioning is deployed but did not eliminate Telegraph intermittency on the observed run.
