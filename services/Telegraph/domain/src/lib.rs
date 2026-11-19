@@ -3,6 +3,8 @@
 //! Domain layer for the Telegraph communication service.
 //! This crate contains the core business logic, entities, and domain services
 //! for handling communication events and messaging.
+//!
+//! CI scope probe: classify a change to Telegraph production source.
 
 pub mod entity;
 pub mod error;
