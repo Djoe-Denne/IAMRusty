@@ -175,16 +175,17 @@ class PlannerTests(unittest.TestCase):
             p.run_coverage(self.data, "iam", "unit", 0, output, self.root, run,
                            {**IDENTITY, "CI_COVERAGE_SCOPE": "full"})
 
-    def complete_receipts(self):
+    def complete_receipts(self, groups=None):
         directory = self.root / "coverage"
         directory.mkdir()
-        for group in p.INVENTORY["coverage"]:
+        for group in p.coverage_scope(groups):
             for row in p.matrix_for(self.data, group, self.root)["include"]:
                 name = f"lcov-{group}-{row['lane']}-{row['shard']}.info"
                 report = directory / name
                 report.write_text("TN:\nSF:source.rs\nDA:1,1\nend_of_record\n")
                 value = {
-                    "schema": "aiforall.ci-coverage/v1", "identity": IDENTITY, "scope": "full",
+                    "schema": "aiforall.ci-coverage/v1", "identity": IDENTITY,
+                    "scope": "full" if groups is None else "partial",
                     "inventory_sha256": hashlib.sha256(p.INVENTORY_PATH.read_bytes()).hexdigest(),
                     "toolchain_sha256": hashlib.sha256((self.root / "rust-toolchain.toml").read_bytes()).hexdigest(),
                     "service": group, "lane": row["lane"], "shard": row["shard"],
@@ -249,6 +250,45 @@ class PlannerTests(unittest.TestCase):
         Path(command[command.index("--output-file") + 1]).write_text(
             "TN:\nSF:source.rs\nDA:1,1\nend_of_record\n")
         return type("Result", (), {"returncode": 0})()
+
+    def test_only_complete_selected_receipts_qualify_partial_pr_coverage(self):
+        groups = ["telegraph"]
+        directory = self.complete_receipts(groups)
+        output = self.root / "merged"
+        runner = Mock(side_effect=self.merge_tracefiles)
+        self.assertEqual(p.aggregate_coverage(
+            self.data, directory, output, identity=IDENTITY,
+            root=self.root, run=runner, pr_groups=groups,
+        ), 0)
+        self.assertFalse((output / "authoritative").exists())
+        value = p.verify_merged_coverage(output / "pr", identity=IDENTITY,
+                                         root=self.root, pr_groups=groups)
+        self.assertEqual(value["pr_groups"], groups)
+        self.assertFalse(value["authoritative"])
+        for wrong in (None, ["hive"], ["telegraph", "hive"]):
+            with self.subTest(wrong=wrong), self.assertRaises(ValueError):
+                p.verify_merged_coverage(output / "pr", identity=IDENTITY,
+                                         root=self.root, pr_groups=wrong)
+        next(directory.glob("*.json")).unlink()
+        with self.assertRaisesRegex(ValueError, "Incomplete"):
+            p.aggregate_coverage(self.data, directory, self.root / "missing", identity=IDENTITY,
+                                 root=self.root, run=runner, pr_groups=groups)
+        runner.assert_called_once()
+
+    def test_partial_failed_tests_stay_diagnostic(self):
+        groups = ["telegraph"]
+        directory = self.complete_receipts(groups)
+        receipt = next(directory.glob("*.json"))
+        value = json.loads(receipt.read_text())
+        value["test_status"] = 101
+        receipt.write_text(json.dumps(value))
+        output = self.root / "merged"
+        self.assertEqual(p.aggregate_coverage(
+            self.data, directory, output, identity=IDENTITY,
+            root=self.root, run=self.merge_tracefiles, pr_groups=groups,
+        ), 0)
+        self.assertFalse((output / "pr").exists())
+        self.assertTrue((output / "diagnostic" / "coverage-summary.json").is_file())
 
     def test_failed_test_command_still_merges_diagnostically_without_rewriting_evidence(self):
         directory = self.complete_receipts()
@@ -418,10 +458,15 @@ class WorkflowTests(unittest.TestCase):
 
     def test_each_test_waits_only_for_its_own_build(self):
         for service in ("iam", "telegraph", "hive", "manifesto", "sentinel"):
-            self.assertEqual(self.jobs[f"test-{service}"]["needs"], [f"build-{service}", "plan"])
+            job = self.jobs[f"test-{service}"]
+            self.assertEqual(job["needs"], [f"build-{service}", "plan", "fmt"])
+            self.assertIn(f"needs.build-{service}.result == 'skipped'", job["if"])
+            self.assertIn(f"needs.build-{service}.result == 'success'", job["if"])
+            self.assertIn(".integration", job["if"])
+            self.assertIn("!fromJSON(needs.plan.outputs.selection).build", job["if"])
         self.assertEqual(self.jobs["k6-e2e"]["needs"], ["build-iam", "build-oauth", "build-ext-authz"])
-        self.assertEqual(self.jobs["clippy"]["needs"], ["fmt"])
-        self.assertEqual(self.jobs["sonar"]["needs"], ["merge-coverage", "clippy"])
+        self.assertEqual(self.jobs["clippy"]["needs"], ["fmt", "plan"])
+        self.assertEqual(self.jobs["sonar"]["needs"], ["merge-coverage", "clippy", "plan"])
         self.assertNotIn("build", self.jobs)
 
     def test_diagnostic_merge_and_canonical_sonar_admission_are_separate(self):
@@ -433,6 +478,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("if", uploads["coverage-diagnostic"])
         self.assertIn("authoritative == 'true'", uploads["lcov"]["if"])
         self.assertIn("authoritative == 'true'", self.jobs["sonar"]["if"])
+        self.assertIn("pr_ready == 'true'", uploads["pr-selected-coverage"]["if"])
+        self.assertIn("github.event_name == 'pull_request' &&", self.jobs["sonar"]["if"])
         self.assertTrue(any("verify-merged" in step.get("run", "")
                             for step in self.jobs["sonar"]["steps"]))
         coverage = yaml.load((ROOT / ".github/workflows/ci-coverage.yml").read_text(),
@@ -443,8 +490,8 @@ class WorkflowTests(unittest.TestCase):
         steps = self.jobs["plan"]["steps"]
         self.assertEqual(self.jobs["plan"]["outputs"]["selection"],
                          "${{ steps.docs.outputs.selection || steps.scope.outputs.selection }}")
-        self.assertTrue(any("pr_scope.py plan" in step.get("run", "") and
-                            "github.event_name == 'pull_request'" in step["if"] for step in steps))
+        planner = next(step for step in steps if step.get("id") == "scope")
+        self.assertIn("pr_scope.py plan --event", planner["run"])
         sonar = {step.get("id"): step for step in self.jobs["sonar"]["steps"]}
         self.assertIn("pull_request", sonar["pr-quality"]["if"])
         self.assertIn("head_compatible", sonar["pr-source"]["if"])
@@ -458,11 +505,11 @@ class WorkflowTests(unittest.TestCase):
         steps = {step.get("id"): step for step in self.jobs["plan"]["steps"]}
         self.assertEqual(steps["docs"]["if"], "github.event_name == 'pull_request'")
         self.assertEqual(steps["scope"]["if"], "steps.docs.outputs.docs_only != 'true'")
-        self.assertEqual(steps["preview"]["if"],
-                         "github.event_name == 'pull_request' && steps.docs.outputs.docs_only != 'true'")
-        for name in ("fmt", "infra-static"):
-            self.assertEqual(self.jobs[name]["needs"], ["plan"])
-            self.assertEqual(self.jobs[name]["if"], "needs.plan.outputs.docs_only != 'true'")
+        self.assertEqual(self.jobs["fmt"]["needs"], ["plan"])
+        self.assertEqual(self.jobs["fmt"]["if"], "needs.plan.outputs.docs_only != 'true'")
+        for name in ("infra-static", "apparatus-p0"):
+            self.assertIn("plan", self.jobs[name]["needs"])
+            self.assertEqual(self.jobs[name]["if"], "fromJSON(needs.plan.outputs.selection).full")
         self.assertEqual(self.jobs["ci-status"]["if"], "always()")
 
     def test_cache_is_shared_without_target_archives_and_installer_is_pinned(self):
@@ -574,8 +621,7 @@ class ReportTests(unittest.TestCase):
     def full_needs(self):
         workflow = yaml.load((ROOT / ".github/workflows/ci.yml").read_text(), Loader=yaml.BaseLoader)
         needs = {name: {"result": "success"} for name in workflow["jobs"]["ci-status"]["needs"]}
-        needs["plan"]["outputs"] = {"selection": json.dumps(
-            {**{name: True for name in p.GROUPS}, "full": True, "any": True})}
+        needs["plan"]["outputs"] = {"selection": json.dumps(p.execution_scope("full"))}
         needs["merge-coverage"]["outputs"] = {"authoritative": "true"}
         return needs
 
@@ -588,20 +634,35 @@ class ReportTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 reports.status(changed, event="push", ref="refs/heads/master")
 
-    def test_partial_pr_is_explicit_and_cannot_qualify_master_or_sonar(self):
+    def test_service_pr_executes_whole_suite_without_native_build(self):
         needs = self.full_needs()
-        selection = {name: False for name in p.GROUPS}
-        selection.update(full=False, any=False)
+        selection = p.execution_scope("services", integration=["telegraph"])
         needs["plan"]["outputs"]["selection"] = json.dumps(selection)
-        for name in needs:
-            if name not in ("fmt", "plan", "infra-static", "clippy", "apparatus-p0"):
-                needs[name]["result"] = "skipped"
+        omitted = ((set(p.BUILD_JOBS.values()) | set(p.INTEGRATION_JOBS.values())) - {"test-telegraph"}
+                   | {"k6-e2e", "e2e-pages", "infra-static", "apparatus-p0"})
+        for name in omitted:
+            needs[name]["result"] = "skipped"
+        needs["merge-coverage"]["outputs"] = {"authoritative": "false", "pr_ready": "true"}
         self.assertIn("NOT evaluated", reports.status(needs, event="pull_request", ref="refs/pull/1/merge"))
         with self.assertRaises(ValueError):
             reports.status(needs, event="push", ref="refs/heads/master")
-        needs["sonar"]["result"] = "success"
-        with self.assertRaises(ValueError):
+        early_build = copy.deepcopy(needs)
+        early_build["build-telegraph"]["result"] = "success"
+        with self.assertRaisesRegex(ValueError, "not skipped: build-telegraph"):
+            reports.status(early_build, event="pull_request", ref="refs/pull/1/merge")
+        missing = copy.deepcopy(needs)
+        missing["test-telegraph"]["result"] = "skipped"
+        with self.assertRaisesRegex(ValueError, "did not succeed: test-telegraph"):
+            reports.status(missing, event="pull_request", ref="refs/pull/1/merge")
+        needs["merge-coverage"]["outputs"]["authoritative"] = "true"
+        with self.assertRaisesRegex(ValueError, "wrong CI scope"):
             reports.status(needs, event="pull_request", ref="refs/pull/1/merge")
+
+    def test_scoped_clippy_lints_only_requested_service_packages(self):
+        self.assertEqual(reports.clippy_packages(p.execution_scope("full")), ["--workspace"])
+        self.assertEqual(reports.clippy_packages(p.execution_scope("services", integration=["telegraph"])),
+                         [arg for name in sorted(p.INVENTORY["packages"]["telegraph"])
+                          for arg in ("-p", name)])
 
     def test_full_pr_reports_skipped_scan_without_claiming_sonar_passed(self):
         needs = self.full_needs()
@@ -614,7 +675,7 @@ class ReportTests(unittest.TestCase):
 
     def test_docs_status_requires_every_heavy_job_to_be_explicitly_skipped(self):
         needs = {job: {"result": "skipped"} for job in self.full_needs()}
-        selection = dict.fromkeys((*p.GROUPS, "full", "any"), False)
+        selection = p.execution_scope("docs")
         needs["plan"] = {"result": "success", "outputs": {
             "docs_only": "true", "selection": json.dumps(selection),
         }}

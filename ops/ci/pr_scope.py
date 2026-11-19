@@ -8,7 +8,10 @@ from pathlib import Path
 import re
 import subprocess
 
-from pipeline import GROUPS, INVENTORY, ROOT, SHA, changed_paths, evidence_identity, owner
+from pipeline import (
+    INVENTORY, ROOT, SHA, changed_paths, evidence_identity, execution_scope, owner,
+    parse_execution_scope,
+)
 
 
 def git(root, *args):
@@ -126,6 +129,27 @@ def shadow_plan(paths, data, root=ROOT):
     }
 
 
+def service_scope(paths, base, tested, data, root=ROOT):
+    """Prune known Rust paths only; mixed or unproven inputs run the full baseline."""
+    if not paths or any(not path.endswith(".rs") for path in paths):
+        return execution_scope("full")
+    for path in paths:
+        entries = [git(root, "ls-tree", "-z", revision, "--", path) for revision in (base, tested)]
+        if not any(entries) or any(entry and not entry.startswith(b"100644 blob ") for entry in entries):
+            return execution_scope("full")
+    plan = shadow_plan(paths, data, root)
+    if plan["full"] or not set(plan["integration"]) & INVENTORY["coverage"].keys():
+        return execution_scope("full")
+    return execution_scope("services", builds=plan["build"], integration=plan["integration"])
+
+
+def write_outputs(**values):
+    if filename := os.environ.get("GITHUB_OUTPUT"):
+        with open(filename, "a", encoding="utf-8") as outputs:
+            for name, value in values.items():
+                outputs.write(f"{name}={json.dumps(value, separators=(',', ':'))}\n")
+
+
 HUNK = re.compile(rb"^@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,([0-9]+))? @@")
 
 
@@ -220,6 +244,8 @@ def summary(text):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("docs-only", "plan", "quality"))
+    parser.add_argument("--execute-services", action="store_true")
+    parser.add_argument("--event", default="pull_request")
     parser.add_argument("--base", required=True)
     parser.add_argument("--head", required=True)
     parser.add_argument("--tested", required=True)
@@ -233,16 +259,14 @@ def main():
             selected = False
         if selected:
             summary("Documentation-only PR: no build, tests, Clippy, coverage or Sonar required.")
-        if filename := os.environ.get("GITHUB_OUTPUT"):
-            with open(filename, "a", encoding="utf-8") as outputs:
-                outputs.write(f"docs_only={str(selected).lower()}\n")
-                if selected:
-                    selection = dict.fromkeys((*GROUPS, "full", "any"), False)
-                    outputs.write(f"selection={json.dumps(selection, separators=(',', ':'))}\n")
+        if selected:
+            write_outputs(docs_only=True, selection=execution_scope("docs"))
+        else:
+            write_outputs(docs_only=False)
         return
 
     try:
-        paths = pr_paths(args.base, args.head, args.tested, root)
+        paths = pr_paths(args.base, args.head, args.tested, root) if args.event == "pull_request" else None
     except (ValueError, UnicodeError, subprocess.CalledProcessError):
         if args.mode != "plan":
             summary("PR quality not measured: could not verify the checkout and PR merge parents.")
@@ -253,17 +277,31 @@ def main():
 
         data = metadata(root)
         validate_inventory(data, root)
-        plan = shadow_plan(paths, data, root)
-        summary("### Service pruning preview (does not skip jobs)\n\n"
-                "```json\n" + json.dumps(plan, indent=2) + "\n```")
+        try:
+            selected = service_scope(paths, args.base, args.tested, data, root) \
+                if args.execute_services and args.event == "pull_request" else execution_scope("full")
+        except (UnicodeError, subprocess.CalledProcessError):
+            selected = execution_scope("full")
+        summary("### Service CI execution scope\n\n"
+                "```json\n" + json.dumps(selected, indent=2) + "\n```")
+        write_outputs(selection=selected)
         return
 
     ranges = changed_rust_ranges(args.base, args.tested, paths, root)
     same_tree = git(root, "rev-parse", f"{args.head}^{{tree}}") == git(
         root, "rev-parse", f"{args.tested}^{{tree}}"
     )
+    selected = parse_execution_scope(os.environ["CI_EXECUTION_SCOPE"])
     with (root / "lcov.info").open(encoding="utf-8") as lcov:
         files = patch_coverage(lcov, ranges, root)
+        lcov.seek(0)
+        reported = {
+            path for line in lcov if line.startswith("SF:")
+            for path in project_path(line[3:].rstrip("\r\n"), root)
+        }
+    missing = sorted(path for path in ranges
+                     if "/tests/" not in path and path not in reported)
+    coverage_compatible = selected["full"] or not missing
     directory = root / "target/sonar"
     with (directory / "clippy.json").open(encoding="utf-8") as original:
         diagnostics = list(filter_clippy((line for line in original if line.strip()), ranges, root))
@@ -271,6 +309,7 @@ def main():
         report.writelines(diagnostics)
     value = {
         "identity": evidence_identity(), "base_sha": args.base, "head_sha": args.head,
+        "coverage_scope": selected["coverage"], "changed_source_without_file_records": missing,
         "clippy_warnings": len(diagnostics), "changed_rust_lines": files,
     }
     with (directory / "pr-quality.json").open("x", encoding="utf-8") as report:
@@ -286,11 +325,11 @@ def main():
     if not same_tree:
         summary("Sonar PR import not evaluated: the tested merge tree differs from the PR head. "
                 "The same-run evidence above describes the tested merge.")
-    if filename := os.environ.get("GITHUB_OUTPUT"):
-        with open(filename, "a", encoding="utf-8") as outputs:
-            outputs.write("report_ready=true\n")
-            outputs.write(f"head_compatible={str(same_tree).lower()}\n")
-            outputs.write(f"has_clippy={str(bool(diagnostics)).lower()}\n")
+    if not coverage_compatible:
+        summary("Sonar PR import not evaluated: selected coverage has no file records for "
+                f"{len(missing)} changed Rust source file(s). See the evidence artifact.")
+    write_outputs(report_ready=True, head_compatible=same_tree,
+                  coverage_compatible=coverage_compatible, has_clippy=bool(diagnostics))
 
 
 if __name__ == "__main__":

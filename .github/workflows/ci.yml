@@ -54,32 +54,25 @@ jobs:
         run: python3 -B ops/ci/pr_scope.py docs-only --base "$BASE_SHA" --head "$HEAD_SHA" --tested "$TESTED_SHA"
       - uses: ./.github/actions/setup-rust
         if: steps.docs.outputs.docs_only != 'true'
-      - name: Plan full coverage unless selective PR execution was explicitly enabled
+      - name: Plan the builds and integration suites to execute
         id: scope
         if: steps.docs.outputs.docs_only != 'true'
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TESTED_SHA: ${{ github.sha }}
           SELECTIVE_PR: ${{ vars.CI_SELECTIVE_PR_TESTS }}
         run: |
           args=()
-          if [[ "$SELECTIVE_PR" == 'true' ]]; then args+=(--selective); fi
-          python3 -B ops/ci/pipeline.py select --event "$EVENT_NAME" \
-            --base "$BASE_SHA" --head "$HEAD_SHA" "${args[@]}"
-      - name: Preview build and integration pruning without skipping jobs
-        id: preview
-        if: github.event_name == 'pull_request' && steps.docs.outputs.docs_only != 'true'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          TESTED_SHA: ${{ github.sha }}
-        run: python3 -B ops/ci/pr_scope.py plan --base "$BASE_SHA" --head "$HEAD_SHA" --tested "$TESTED_SHA"
+          if [[ -z "$SELECTIVE_PR" || "$SELECTIVE_PR" == 'true' ]]; then args+=(--execute-services); fi
+          python3 -B ops/ci/pr_scope.py plan --event "$EVENT_NAME" \
+            --base "$BASE_SHA" --head "$HEAD_SHA" --tested "$TESTED_SHA" "${args[@]}"
 
   build-iam:
     name: Build (IAMRusty)
     needs: [fmt, plan]
-    if: fromJSON(needs.plan.outputs.selection).iam
+    if: fromJSON(needs.plan.outputs.selection).build.iam
     runs-on: ubuntu-24.04
     env:
       # Server-side only: raw errors can contain scoped tokens/signed URLs.
@@ -113,7 +106,7 @@ jobs:
   build-telegraph:
     name: Build (Telegraph)
     needs: [fmt, plan]
-    if: fromJSON(needs.plan.outputs.selection).telegraph
+    if: fromJSON(needs.plan.outputs.selection).build.telegraph
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -127,7 +120,7 @@ jobs:
   build-hive:
     name: Build (Hive)
     needs: [fmt, plan]
-    if: fromJSON(needs.plan.outputs.selection).hive
+    if: fromJSON(needs.plan.outputs.selection).build.hive
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -141,7 +134,7 @@ jobs:
   build-manifesto:
     name: Build (Manifesto)
     needs: [fmt, plan]
-    if: fromJSON(needs.plan.outputs.selection).manifesto
+    if: fromJSON(needs.plan.outputs.selection).build.manifesto
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -155,7 +148,7 @@ jobs:
   build-monolith:
     name: Build (Monolith)
     needs: [fmt, plan]
-    if: fromJSON(needs.plan.outputs.selection).monolith
+    if: fromJSON(needs.plan.outputs.selection).build.monolith
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -169,7 +162,7 @@ jobs:
   build-sentinel:
     name: Build (Sentinel Sync)
     needs: [fmt, plan]
-    if: fromJSON(needs.plan.outputs.selection)['sentinel-sync']
+    if: fromJSON(needs.plan.outputs.selection).build['sentinel-sync']
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -183,7 +176,7 @@ jobs:
   build-ext-authz:
     name: Build (Ext Authz)
     needs: [fmt, plan]
-    if: fromJSON(needs.plan.outputs.selection)['ext-authz']
+    if: fromJSON(needs.plan.outputs.selection).build['ext-authz']
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -198,7 +191,7 @@ jobs:
   build-oauth:
     name: Build (OAuthConnect)
     needs: [fmt, plan]
-    if: fromJSON(needs.plan.outputs.selection).oauth
+    if: fromJSON(needs.plan.outputs.selection).build.oauth
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -213,7 +206,12 @@ jobs:
   ext-authz-unit:
     name: Ext Authz (unit + HTTP Check stand-in, not Envoy proof)
     runs-on: ubuntu-latest
-    needs: [build-ext-authz]
+    needs: [fmt, plan, build-ext-authz]
+    if: >-
+      !cancelled() && needs.fmt.result == 'success' && needs.plan.result == 'success' &&
+      fromJSON(needs.plan.outputs.selection).integration['ext-authz'] &&
+      (needs.build-ext-authz.result == 'success' ||
+      (needs.build-ext-authz.result == 'skipped' && !fromJSON(needs.plan.outputs.selection).build['ext-authz']))
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -227,7 +225,7 @@ jobs:
   infra-static:
     name: Infrastructure (offline render + shell syntax)
     needs: [plan]
-    if: needs.plan.outputs.docs_only != 'true'
+    if: fromJSON(needs.plan.outputs.selection).full
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -287,7 +285,8 @@ jobs:
   apparatus-p0:
     name: Apparatus P0 (contracts + reference-kv)
     runs-on: ubuntu-latest
-    needs: [fmt]
+    needs: [fmt, plan]
+    if: fromJSON(needs.plan.outputs.selection).full
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -359,7 +358,12 @@ jobs:
 
   test-iam:
     name: Coverage (IAMRusty)
-    needs: [build-iam, plan]
+    needs: [build-iam, plan, fmt]
+    if: >-
+      !cancelled() && needs.fmt.result == 'success' && needs.plan.result == 'success' &&
+      fromJSON(needs.plan.outputs.selection).integration.iam &&
+      (needs.build-iam.result == 'success' ||
+      (needs.build-iam.result == 'skipped' && !fromJSON(needs.plan.outputs.selection).build.iam))
     uses: ./.github/workflows/ci-coverage.yml
     with:
       service: iam
@@ -369,7 +373,12 @@ jobs:
 
   test-telegraph:
     name: Coverage (Telegraph)
-    needs: [build-telegraph, plan]
+    needs: [build-telegraph, plan, fmt]
+    if: >-
+      !cancelled() && needs.fmt.result == 'success' && needs.plan.result == 'success' &&
+      fromJSON(needs.plan.outputs.selection).integration.telegraph &&
+      (needs.build-telegraph.result == 'success' ||
+      (needs.build-telegraph.result == 'skipped' && !fromJSON(needs.plan.outputs.selection).build.telegraph))
     uses: ./.github/workflows/ci-coverage.yml
     with:
       service: telegraph
@@ -377,7 +386,12 @@ jobs:
 
   test-hive:
     name: Coverage (Hive)
-    needs: [build-hive, plan]
+    needs: [build-hive, plan, fmt]
+    if: >-
+      !cancelled() && needs.fmt.result == 'success' && needs.plan.result == 'success' &&
+      fromJSON(needs.plan.outputs.selection).integration.hive &&
+      (needs.build-hive.result == 'success' ||
+      (needs.build-hive.result == 'skipped' && !fromJSON(needs.plan.outputs.selection).build.hive))
     uses: ./.github/workflows/ci-coverage.yml
     with:
       service: hive
@@ -385,7 +399,12 @@ jobs:
 
   test-manifesto:
     name: Coverage (Manifesto)
-    needs: [build-manifesto, plan]
+    needs: [build-manifesto, plan, fmt]
+    if: >-
+      !cancelled() && needs.fmt.result == 'success' && needs.plan.result == 'success' &&
+      fromJSON(needs.plan.outputs.selection).integration.manifesto &&
+      (needs.build-manifesto.result == 'success' ||
+      (needs.build-manifesto.result == 'skipped' && !fromJSON(needs.plan.outputs.selection).build.manifesto))
     uses: ./.github/workflows/ci-coverage.yml
     with:
       service: manifesto
@@ -393,7 +412,12 @@ jobs:
 
   test-sentinel:
     name: Coverage (Sentinel Sync)
-    needs: [build-sentinel, plan]
+    needs: [build-sentinel, plan, fmt]
+    if: >-
+      !cancelled() && needs.fmt.result == 'success' && needs.plan.result == 'success' &&
+      fromJSON(needs.plan.outputs.selection).integration['sentinel-sync'] &&
+      (needs.build-sentinel.result == 'success' ||
+      (needs.build-sentinel.result == 'skipped' && !fromJSON(needs.plan.outputs.selection).build['sentinel-sync']))
     uses: ./.github/workflows/ci-coverage.yml
     with:
       service: sentinel-sync
@@ -402,7 +426,7 @@ jobs:
   test-readiness:
     name: Coverage (readiness)
     needs: [fmt, plan]
-    if: fromJSON(needs.plan.outputs.selection).readiness
+    if: fromJSON(needs.plan.outputs.selection).integration.readiness
     uses: ./.github/workflows/ci-coverage.yml
     with:
       service: readiness
@@ -411,7 +435,7 @@ jobs:
   test-shared:
     name: Coverage (Apparatus contracts)
     needs: [fmt, plan]
-    if: fromJSON(needs.plan.outputs.selection).shared
+    if: fromJSON(needs.plan.outputs.selection).integration.shared
     uses: ./.github/workflows/ci-coverage.yml
     with:
       service: shared
@@ -421,10 +445,11 @@ jobs:
     name: Merge coverage
     runs-on: ubuntu-24.04
     needs: [plan, test-iam, test-telegraph, test-hive, test-manifesto, test-sentinel, test-readiness, test-shared]
-    if: ${{ always() && !cancelled() && needs.plan.result == 'success' && fromJSON(needs.plan.outputs.selection).full }}
+    if: ${{ always() && !cancelled() && needs.plan.result == 'success' && fromJSON(needs.plan.outputs.selection).has_coverage }}
     timeout-minutes: 15
     outputs:
       authoritative: ${{ steps.merge.outputs.authoritative }}
+      pr_ready: ${{ steps.merge.outputs.pr_ready }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -452,6 +477,8 @@ jobs:
 
       - name: Merge LCOV reports
         id: merge
+        env:
+          CI_EXECUTION_SCOPE: ${{ needs.plan.outputs.selection }}
         run: python3 -B ops/ci/pipeline.py aggregate --directory coverage-artifacts --output-directory coverage-merged
 
       - name: Upload merged coverage and explicit test outcomes for diagnosis
@@ -470,11 +497,21 @@ jobs:
           path: coverage-merged/authoritative/
           if-no-files-found: error
           retention-days: 7
+      - name: Upload same-run coverage for the selected PR suites
+        if: steps.merge.outputs.pr_ready == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pr-selected-coverage
+          path: coverage-merged/pr/
+          if-no-files-found: error
+          retention-days: 7
 
   clippy:
     name: Clippy (production and tests)
     runs-on: ubuntu-24.04
-    needs: [fmt]
+    needs: [fmt, plan]
+    env:
+      CI_EXECUTION_SCOPE: ${{ needs.plan.outputs.selection }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -496,6 +533,8 @@ jobs:
       - name: Run Clippy report (production vs tests)
         run: |
           mkdir -p target/sonar
+          scope_args="$(python3 -B ops/ci/reports.py clippy-packages)"
+          mapfile -t packages <<< "$scope_args"
 
           # Shared Clippy groups (stricter than workspace Cargo.toml defaults).
           common_clippy=(
@@ -510,7 +549,7 @@ jobs:
           )
 
           # Production: lib, binaries, examples (not tests/, not #[cfg(test)] in lib).
-          cargo clippy --workspace --locked --all-features --lib --bins --examples --message-format=json -- \
+          cargo clippy "${packages[@]}" --locked --all-features --lib --bins --examples --message-format=json -- \
             "${common_clippy[@]}" \
             -W clippy::unwrap_used \
             -W clippy::expect_used \
@@ -518,7 +557,7 @@ jobs:
             > target/sonar/clippy-production.jsonl
 
           # Tests and benches: same groups, but allow unwrap/expect/panic where typical for tests.
-          cargo clippy --workspace --locked --all-features --tests --benches --message-format=json -- \
+          cargo clippy "${packages[@]}" --locked --all-features --tests --benches --message-format=json -- \
             "${common_clippy[@]}" \
             -A clippy::unwrap_used \
             -A clippy::expect_used \
@@ -543,8 +582,10 @@ jobs:
   sonar:
     name: SonarCloud
     runs-on: ubuntu-24.04
-    needs: [merge-coverage, clippy]
-    if: needs.merge-coverage.outputs.authoritative == 'true'
+    needs: [merge-coverage, clippy, plan]
+    if: >-
+      needs.merge-coverage.outputs.authoritative == 'true' ||
+      (github.event_name == 'pull_request' && needs.merge-coverage.outputs.pr_ready == 'true')
     outputs:
       scan_outcome: ${{ steps.scan.outcome }}
     steps:
@@ -553,17 +594,19 @@ jobs:
           fetch-depth: 0
           submodules: true
           persist-credentials: false
-      - name: Download complete coverage
+      - name: Download qualified coverage for this scope
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: lcov
+          name: ${{ needs.merge-coverage.outputs.authoritative == 'true' && 'lcov' || 'pr-selected-coverage' }}
           path: .
       - name: Download independently generated Clippy reports
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: clippy
           path: target/sonar
-      - name: Admit only complete current-source reports
+      - name: Admit only complete current-source reports for the selected scope
+        env:
+          CI_EXECUTION_SCOPE: ${{ needs.plan.outputs.selection }}
         run: |
           python3 -B ops/ci/pipeline.py verify-merged --directory .
           python3 -B ops/ci/reports.py clippy-verify --directory target/sonar
@@ -574,6 +617,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           TESTED_SHA: ${{ github.sha }}
+          CI_EXECUTION_SCOPE: ${{ needs.plan.outputs.selection }}
         run: python3 -B ops/ci/pr_scope.py quality --base "$BASE_SHA" --head "$HEAD_SHA" --tested "$TESTED_SHA"
       - name: Publish PR quality evidence
         if: steps.pr-quality.outputs.report_ready == 'true'
@@ -589,6 +633,7 @@ jobs:
         id: pr-source
         if: >-
           steps.pr-quality.outputs.head_compatible == 'true' &&
+          steps.pr-quality.outputs.coverage_compatible == 'true' &&
           github.event.pull_request.head.repo.full_name == github.repository &&
           github.event.pull_request.user.login != 'dependabot[bot]'
         env:

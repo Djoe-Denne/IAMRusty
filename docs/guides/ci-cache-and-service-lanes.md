@@ -52,17 +52,13 @@ For example, `test_status=101` with `report_status=0` now allows diagnostic merg
 
 `CI scope and result` fails on selected jobs that fail, are cancelled or are unexpectedly skipped. It distinguishes a deliberately unevaluated full Sonar gate from a passing gate.
 
-## Selective PR execution is opt-in
+## PR execution scope
 
 `master` and non-documentation PRs run the complete baseline by default. A PR changing only regular Markdown files at `README.md` or directly under `docs/adr/`, `docs/contracts/`, `docs/guides/`, or `docs/missions/` runs only the scope planner and `CI scope and result`. Unproven merge ancestry, mixed changes, and unexpected paths or file modes do not qualify.
 
-`CI_SELECTIVE_PR_TESTS=true` is a repository variable reserved for a separately reviewed opt-in. When enabled, ordinary documentation-only PRs can skip Rust lanes; service source changes select conservative Cargo/runtime consumers. Unknown/global/shared/manifest/lockfile/submodule changes and comparison uncertainty select full execution.
+For PRs limited to recognized regular Rust source and test files, the plan independently selects native builds and integration suites. It compares the exact tested PR merge to its base parent. Cargo build dependencies expand the build list; declared runtime consumers expand the integration list instead. A test fixture can select a whole test suite without a production build. The standalone infrastructure and Apparatus P0 jobs remain part of the full baseline, not the service-only scope. Workflow changes, manifests, lockfiles, shared crates, mixed inputs, and an uncertain diff still select the full baseline. Set the repository variable `CI_SELECTIVE_PR_TESTS=false` for a rollback to full service CI without disabling the documentation-only path.
 
-Partial PR receipts are diagnostic. They cannot qualify canonical monorepo coverage or Sonar. Review required-check expectations before enabling the variable. This implementation changes no repository variables or branch protection.
-
-For other PRs, the advisory scope step previews separate native build and integration lists with reasons; it does not drive job conditions. It compares the exact tested PR merge to its base parent and defaults to complete scope on uncertain input. Cargo build dependencies expand the build list; declared runtime consumers expand the integration list instead. Workflow changes, manifests, lockfiles and unclassified inputs remain full-scope candidates.
-
-Full-execution PRs produce fresh LCOV and Clippy reports for the tested merge. The PR quality summary records changed Rust lines found in LCOV and reports unmapped lines separately; they are not counted as covered or assumed to be executable. The `pr-quality` artifact is evidence for this run, not a cache. Sonar PR analysis uses its new-code metrics and imports only Clippy warnings whose primary location overlaps the PR diff. The scanner runs on the PR head only if its tree is identical to the tested merge and the PR can access scanner credentials. Otherwise, the run reports that Sonar PR analysis was not evaluated. Full `master` analysis keeps the unfiltered reports.
+PRs produce fresh LCOV and Clippy reports for the tested merge. Selected scopes lint the selected service packages with the existing two-pass policy. The PR quality summary records changed Rust lines found in LCOV and reports unmapped lines separately; they are not counted as covered or assumed to be executable. A partial merge requires every selected partition from the same run and attempt; its report may qualify PR new-code analysis, never canonical monorepo coverage. The `pr-quality` artifact is evidence for this run, not a cache. Sonar PR analysis imports only Clippy warnings whose primary location overlaps the diff. The scanner runs on the PR head only if its tree matches the tested merge, the PR can access scanner credentials, and a scoped LCOV report has file records for the changed non-test Rust sources. Otherwise, Sonar PR analysis is explicitly not evaluated. Full `master` analysis keeps the unfiltered reports.
 
 ## Native bundle migration and publication
 

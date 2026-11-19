@@ -59,6 +59,25 @@ class ServiceScopeTests(unittest.TestCase):
         )
         self.assertEqual(set(plan["build"]), {"telegraph", "hive"})
 
+    def test_execution_scope_enables_only_verified_regular_rust_changes(self):
+        source = "services/Telegraph/telegraph-service/src/lib.rs"
+        fixture = "services/Telegraph/telegraph-service/tests/fixtures/data.rs"
+        with patch.object(scope, "git", return_value=b"100644 blob sha\tfile\0"):
+            plan = scope.service_scope([fixture], "base", "merge", self.data, self.root)
+            self.assertEqual(plan["mode"], "services")
+            self.assertFalse(any(plan["build"].values()))
+            self.assertEqual(plan["coverage"], ["telegraph"])
+            plan = scope.service_scope([source], "base", "merge", self.data, self.root)
+            self.assertEqual({k for k, v in plan["build"].items() if v}, {"telegraph"})
+            for paths in (None, [source, "Cargo.lock"], ["crates/readiness/src/lib.rs"],
+                          [source, "docs/guides/notes.md"], ["unclassified.rs"]):
+                with self.subTest(paths=paths):
+                    self.assertTrue(scope.service_scope(
+                        paths, "base", "merge", self.data, self.root
+                    )["full"])
+        with patch.object(scope, "git", side_effect=[b"100644 blob sha\tfile\0", b"120000 blob "]):
+            self.assertTrue(scope.service_scope([source], "base", "merge", self.data, self.root)["full"])
+
 
 class EvidenceTests(unittest.TestCase):
     def setUp(self):

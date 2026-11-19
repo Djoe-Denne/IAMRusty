@@ -6,15 +6,19 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 import tomllib
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "ops/ci"))
+from pipeline import execution_scope
+from reports import clippy_packages
 
 
-def ci_arguments(workflow: str, lane: str) -> list[str]:
+def ci_arguments(workflow: str, lane: str, scope=None) -> list[str]:
     common = re.search(r"common_clippy=\((.*?)\n\s*\)", workflow, re.S)
     if common is None:
         raise ValueError("CI common_clippy definition not found")
@@ -27,6 +31,12 @@ def ci_arguments(workflow: str, lane: str) -> list[str]:
         raise ValueError(f"CI {lane} Clippy command not found")
     expanded = command.group(1).replace("\\\n", " ")
     expanded = expanded.replace('"${common_clippy[@]}"', common.group(1))
+    if '"${packages[@]}"' in expanded:
+        if ('scope_args="$(python3 -B ops/ci/reports.py clippy-packages)"' not in workflow
+                or 'mapfile -t packages <<< "$scope_args"' not in workflow):
+            raise ValueError("CI package selection is not wired to the validated planner")
+        args = clippy_packages(execution_scope("full") if scope is None else scope)
+        expanded = expanded.replace('"${packages[@]}"', shlex.join(args))
     return ["clippy", *shlex.split(expanded)]
 
 
@@ -47,6 +57,16 @@ class ClippyProfileTests(unittest.TestCase):
             self.config["alias"]["clippy-ci-tests"],
             ci_arguments(self.workflow, "tests"),
         )
+
+    def test_service_scope_changes_only_the_package_arguments(self):
+        scope = execution_scope("services", integration=["telegraph"])
+        for lane in ("production", "tests"):
+            with self.subTest(lane=lane):
+                expected = self.config["alias"][f"clippy-ci-{lane}"]
+                scoped_args = clippy_packages(scope)
+                self.assertNotIn("--workspace", scoped_args)
+                self.assertEqual(ci_arguments(self.workflow, lane, scope),
+                                 [expected[0], *scoped_args, *expected[2:]])
 
     def test_production_policy_drift_is_detected(self):
         changed = self.workflow.replace("-W clippy::unwrap_used", "-A clippy::unwrap_used")
