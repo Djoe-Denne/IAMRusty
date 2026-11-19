@@ -1,7 +1,7 @@
-name: IAM CI C/D compiler reuse benchmark
+name: IAM CI cold vs warm compiler cache
 on:
   push:
-    branches: [ci-iam-cd]
+    branches: [ci-iam-warm]
 
 permissions:
   contents: read
@@ -54,11 +54,11 @@ jobs:
           retention-days: 1
 
   build-d-server:
-    name: D instrumented IAM with cache export
+    name: D instrumented IAM with prior compiler cache
     if: github.repository == 'Djoe-Denne/IAMRusty'
     needs: [prepare-cargo]
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -76,6 +76,10 @@ jobs:
           sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
           sudo apt-get update -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3
           sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
+      - name: Restore the pinned prior compiler snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B ops/ci/iam_warm_compiler.py
       - name: Build only the instrumented IAM server and migration
         env:
           CARGO_PROFILE_DEV_DEBUG: line-tables-only
@@ -84,20 +88,11 @@ jobs:
           env_script="$(cargo llvm-cov show-env --sh)"
           source /dev/stdin <<< "$env_script"
           python3 -B ops/ci/iam_compile_once.py produce-e2e --output "$RUNNER_TEMP/iam-cd-d-server"
+      - uses: ./.github/actions/compiler-cache-stats
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: iam-cd-d-e2e-d-${{ github.run_attempt }}
           path: ${{ runner.temp }}/iam-cd-d-server/e2e/bundle.tar.gz
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 1
-      - name: Export and bound the server compiler cache
-        run: python3 -B ops/ci/iam_cd_compiler.py export
-      - name: Upload only the compiler cache
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: iam-cd-d-compiler-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/iam-cd-compiler/bundle.tar.gz
           compression-level: 0
           if-no-files-found: error
           retention-days: 1
@@ -133,6 +128,7 @@ jobs:
           env_script="$(cargo llvm-cov show-env --sh)"
           source /dev/stdin <<< "$env_script"
           python3 -B ops/ci/iam_compile_once.py produce-e2e --output "$RUNNER_TEMP/iam-cd-c-server"
+      - uses: ./.github/actions/compiler-cache-stats
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: iam-cd-c-e2e-${{ github.run_attempt }}
@@ -179,9 +175,9 @@ jobs:
           prefix: iam-cd-c
 
   build-d-tests:
-    name: D instrumented test bundles with restored cache
+    name: D instrumented test bundles with prior compiler cache
     if: github.repository == 'Djoe-Denne/IAMRusty'
-    needs: [prepare-cargo, build-d-server]
+    needs: [prepare-cargo]
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -201,11 +197,11 @@ jobs:
           sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
           sudo apt-get update -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3
           sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
-      - name: Restore the server compiler cache by API digest, without restoring target
+      - name: Restore the pinned prior compiler snapshot
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 -B ops/ci/iam_cd_compiler.py restore
-      - name: Compile and bundle the five partitions with a seeded compiler cache
+        run: python3 -B ops/ci/iam_warm_compiler.py
+      - name: Compile and bundle the five partitions independently of the k6 server
         env:
           CARGO_PROFILE_DEV_DEBUG: line-tables-only
           CARGO_PROFILE_TEST_DEBUG: line-tables-only

@@ -37,7 +37,7 @@ jobs:
           IAM_AC_ARM: ${{ inputs.benchmark-arm }}
           CI_SERVICE: ${{ inputs.service }}
         run: |
-          [[ "$GITHUB_WORKFLOW_REF" == 'Djoe-Denne/IAMRusty/.github/workflows/iam-ac.yml@refs/heads/ci-iam-cd' &&
+          [[ "$GITHUB_WORKFLOW_REF" == 'Djoe-Denne/IAMRusty/.github/workflows/iam-ac.yml@refs/heads/ci-iam-warm' &&
              "$GITHUB_EVENT_NAME" == 'push' && "$CI_SERVICE" == 'iam' && "$IAM_AC_ARM" =~ ^[cd]$ ]]
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:

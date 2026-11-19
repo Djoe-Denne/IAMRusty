@@ -22,20 +22,19 @@ CI_SCHEMA = "aiforall.ci-iam-executables/v1"
 CI_PRODUCER = "Build (IAMRusty)"
 CI_BRANCHES = {"master", "main"}
 AC_WORKFLOW = ".github/workflows/iam-ac.yml"
-AC_BRANCH = "ci-iam-cd"
+AC_BRANCH = "ci-iam-warm"
 AC_SCHEMA = "aiforall.iam-ac-executables/v1"
 AC_E2E_PARTS = {"e2e", "e2e-d", "oauth", "ext-authz"}
 AC_PRODUCERS = {
     "e2e": ("build-c-server", "C independent instrumented IAM"),
-    "e2e-d": ("build-d-server", "D instrumented IAM with cache export"),
-    "compiler": ("build-d-server", "D instrumented IAM with cache export"),
+    "e2e-d": ("build-d-server", "D instrumented IAM with prior compiler cache"),
     "oauth": ("native-oauth", "Common native OAuth"),
     "ext-authz": ("native-ext-authz", "Common native Ext Authz"),
     "cargo": ("prepare-cargo", "Common locked Cargo downloads"),
     "runtime": ("prepare-runtime", "Common prebuilt runtime base"),
 }
 AC_TEST_PRODUCER = ("build-c-tests", "C independent instrumented test bundles")
-D_TEST_PRODUCER = ("build-d-tests", "D instrumented test bundles with restored cache")
+D_TEST_PRODUCER = ("build-d-tests", "D instrumented test bundles with prior compiler cache")
 MAX_BINARY = 2 * 1024**3
 MAX_BUNDLE = 6 * 1024**3
 SERVICE_OUTPUTS = {"iam-service": "iam-service", "iam-migration": "iammigration"}
@@ -439,22 +438,20 @@ def fetch(part, destination, root=ci.ROOT):
     from artifacts import GitHub, positive, unwrap_zip, validate_artifact
     from binaries import ROLES
 
-    require(re.fullmatch(r"unit-0|tests-[0-3]|e2e|e2e-d|oauth|ext-authz|cargo|runtime|compiler", part), "Unknown pilot artifact")
+    require(re.fullmatch(r"unit-0|tests-[0-3]|e2e|e2e-d|oauth|ext-authz|cargo|runtime", part), "Unknown pilot artifact")
     known = identity(root=root)
     workflow_path, branch, lane = run_lane(os.environ)
     event = os.environ["GITHUB_EVENT_NAME"]
     if lane == "ci":
         expected_consumer = "e2e" if part in {"e2e", "oauth", "ext-authz"} else "coverage"
         require(os.environ.get("GITHUB_JOB") == expected_consumer, "Unexpected IAM artifact consumer")
-    require(lane == "ac" or part not in {"e2e-d", "cargo", "runtime", "compiler"}, "Benchmark artifact is not a CI input")
+    require(lane == "ac" or part not in {"e2e-d", "cargo", "runtime"}, "Benchmark artifact is not a CI input")
     if lane == "ac":
         arm = os.environ.get("IAM_AC_ARM")
         job = os.environ.get("GITHUB_JOB")
         if part == "cargo":
             require(job in {"build-c-server", "build-c-tests", "build-d-server", "build-d-tests",
                             "native-oauth", "native-ext-authz"}, "Wrong benchmark Cargo consumer")
-        elif part == "compiler":
-            require(job == D_TEST_PRODUCER[0], "Wrong compiler archive consumer")
         elif part in AC_E2E_PARTS or part == "runtime":
             allowed = {"d": {"e2e-d", "oauth", "ext-authz", "runtime"},
                        "c": {"e2e", "oauth", "ext-authz", "runtime"}}
@@ -501,7 +498,7 @@ def fetch(part, destination, root=ci.ROOT):
         name = f"k6-binaries-{part}-{run_id}-{attempt}"
     elif lane == "ac":
         prefix = "common" if part in {"oauth", "ext-authz", "cargo", "runtime"} else (
-            "d" if part in {"e2e-d", "compiler"} or arm == "d" else "c")
+            "d" if part == "e2e-d" or arm == "d" else "c")
         name = f"iam-cd-{prefix}-{part}-{attempt}"
     items = [a for a in api.pages(f"actions/runs/{run_id}/artifacts", "artifacts") if a["name"] == name]
     require(len(items) == 1, "Missing or duplicate pilot artifact")

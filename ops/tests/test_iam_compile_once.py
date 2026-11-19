@@ -1,5 +1,7 @@
 """Static and data-only checks for the IAM compile-once experiment."""
 
+from copy import deepcopy
+from datetime import datetime
 import io
 import json
 import os
@@ -17,7 +19,7 @@ sys.path[:0] = [str(ROOT / "ops/ci"), str(ROOT / "ops/tests/k6/ci")]
 import iam_compile_once as pilot
 import iam_ac_inputs
 import iam_ac_runtime
-import iam_cd_compiler
+import iam_warm_compiler as warm
 import runtime
 
 
@@ -33,7 +35,7 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(runtime.benchmark_arm(dict(env, IAM_AC_ARM="d")), "d")
         for field, value in (("GITHUB_WORKFLOW_REF", f"{repo}/{pilot.CI_WORKFLOW}@{ref}"),
                              ("GITHUB_EVENT_NAME", "workflow_dispatch"), ("GITHUB_REPOSITORY", "other/IAMRusty"),
-                             ("GITHUB_REF", "refs/heads/master")):
+                             ("GITHUB_REF", "refs/heads/master"), ("GITHUB_REF", "refs/heads/ci-iam-cd")):
             foreign = {**env, field: value}
             self.assertIsNone(runtime.benchmark_arm(foreign))
             with self.assertRaises(ValueError):
@@ -74,31 +76,103 @@ class PilotTests(unittest.TestCase):
             "prepare-cargo", "prepare-runtime", "build-c-server", "build-c-tests", "build-d-server", "build-d-tests",
             "native-oauth", "native-ext-authz", "coverage-c", "coverage-d", "e2e-c", "e2e-d",
         })
-        for job in ("build-c-server", "build-c-tests", "build-d-server", "native-oauth", "native-ext-authz"):
+        for job in ("build-c-server", "build-c-tests", "build-d-server", "build-d-tests", "native-oauth", "native-ext-authz"):
             self.assertEqual(jobs[job]["needs"], ["prepare-cargo"])
-        self.assertEqual(jobs["build-d-tests"]["needs"], ["prepare-cargo", "build-d-server"])
-        self.assertTrue(any("iam_cd_compiler.py restore" in step.get("run", "") for step in jobs["build-d-tests"]["steps"]))
-        self.assertFalse(any("iam_cd_compiler.py" in step.get("run", "") for step in jobs["build-c-tests"]["steps"]))
+            self.assertEqual(jobs[job]["runs-on"], "ubuntu-24.04")
+            steps = jobs[job]["steps"]
+            restores = [i for i, s in enumerate(steps) if "iam_warm_compiler.py" in s.get("run", "")]
+            if job.startswith("build-d-"):
+                self.assertEqual(len(restores), 1)
+                build = next(i for i, s in enumerate(steps) if "iam_compile_once.py produce" in s.get("run", ""))
+                setup = next(i for i, s in enumerate(steps) if s.get("uses") == "./.github/actions/setup-compiler-cache")
+                self.assertLess(setup, restores[0])
+                self.assertLess(restores[0], build)
+            else:
+                self.assertFalse(restores)
+        self.assertNotIn("iam-cd-d-compiler-", (ROOT / pilot.AC_WORKFLOW).read_text())
+        with self.assertRaisesRegex(ValueError, "Unknown pilot artifact"):
+            pilot.fetch("compiler", None)
 
-    def test_compiler_snapshot_excludes_target_and_rejects_invalid_entries(self):
+    def test_prior_seed_is_bound_to_exact_run_producer_and_artifact(self):
+        repo = dict(id=warm.REPO_ID, full_name=warm.REPO)
+        run = dict(id=warm.SEED_RUN, run_attempt=1, path=pilot.AC_WORKFLOW, event="push",
+                   head_branch=warm.SEED_BRANCH, head_sha=warm.SEED_SOURCE, status="completed",
+                   conclusion="failure", repository=repo, head_repository=repo.copy())
+        job = dict(id=warm.SEED_JOB, name="D instrumented IAM with cache export", run_id=warm.SEED_RUN,
+                   run_attempt=1, head_sha=warm.SEED_SOURCE, status="completed", conclusion="success",
+                   steps=[dict(name="Upload only the compiler cache", conclusion="success",
+                               started_at="2026-11-19T11:52:10Z", completed_at="2026-11-19T11:52:13Z")])
+        artifact = dict(warm.SEED_ARTIFACT, expired=False, expires_at="2026-11-20T11:52:10Z",
+                        created_at="2026-11-19T11:52:13Z",
+                        workflow_run=dict(id=warm.SEED_RUN, head_sha=warm.SEED_SOURCE, head_branch=warm.SEED_BRANCH,
+                                          repository_id=warm.REPO_ID, head_repository_id=warm.REPO_ID))
+        expected = {"actions/runs/44518086358/attempts/1": run, "actions/jobs/135539506878": job,
+                    "actions/artifacts/14527570584": artifact}
+        now = datetime.fromisoformat("2026-11-19T12:00:00Z")
+        api = mock.Mock()
+        api.json.side_effect = expected.__getitem__
+        self.assertEqual(warm.select_seed(api, now), warm.SEED_ARTIFACT)
+        refusals = (
+            (run, "run_attempt", 2), (run, "event", "pull_request"), (run, "path", pilot.CI_WORKFLOW),
+            (run, "head_branch", "master"), (run, "head_sha", "0" * 40),
+            (run, "head_repository", {**repo, "id": 5}), (job, "id", 5), (job, "run_attempt", 2),
+            (job, "conclusion", "failure"), (job, "steps", []),
+            (artifact, "workflow_run", dict(artifact["workflow_run"], head_repository_id=5)),
+            (artifact, "workflow_run", dict(artifact["workflow_run"], id=5)),
+            (artifact, "id", 5), (artifact, "name", "other"),
+            (artifact, "digest", "sha256:" + "0" * 64), (artifact, "size_in_bytes", 1),
+            (artifact, "created_at", "2026-11-19T11:52:14Z"), (artifact, "expired", True),
+            (artifact, "expires_at", "2026-11-19T11:52:13Z"),
+        )
+        for obj, field, value in refusals:
+            with self.subTest(field=field, value=value):
+                mutated = deepcopy(expected)
+                mutated[next(k for k, v in expected.items() if v is obj)][field] = value
+                api.json.side_effect = mutated.__getitem__
+                with self.assertRaises(ValueError):
+                    warm.select_seed(api, now)
+
+    def test_only_warm_producers_can_restore_and_seed_rejection_never_downloads(self):
+        known = dict(lane="ac", repository_id=str(warm.REPO_ID), sdk=warm.SEED_SDK)
+        for name in ("build-d-server", "build-d-tests"):
+            warm.require_consumer(known, {"GITHUB_JOB": name})
+        for name in ("build-c-server", "build-c-tests", "coverage", "e2e"):
+            with self.assertRaises(ValueError):
+                warm.require_consumer(known, {"GITHUB_JOB": name})
+        for different in (dict(known, lane="ci"), dict(known, repository_id="1"), dict(known, sdk="foreign")):
+            with self.assertRaises(ValueError):
+                warm.require_consumer(different, {"GITHUB_JOB": "build-d-server"})
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory) / "iam-ac-sccache"
+            cache.mkdir()
+            env = dict(GITHUB_JOB="build-d-server", GH_TOKEN="mock-token", RUNNER_TEMP=directory, SCCACHE_DIR=str(cache))
+            with (mock.patch.object(pilot, "identity", return_value=known),
+                  mock.patch.object(warm, "GitHub") as api,
+                  mock.patch.object(warm, "select_seed", side_effect=ValueError("Expired"))):
+                with self.assertRaisesRegex(ValueError, "Expired"):
+                    warm.restore(env)
+                api.return_value.download.assert_not_called()
+                self.assertFalse(any(cache.iterdir()))
+
+    def test_compiler_snapshot_accepts_only_bounded_local_cache_entries(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            cache, restored = root / "cache", root / "restored"
+            restored = root / "restored"
             key = "ab" + "f" * 62
-            cached = cache / "a/b" / key
-            cached.parent.mkdir(parents=True)
-            cached.write_bytes(b"compiler output entry")
-            (cache / "target").mkdir()
-            (cache / "target/CACHEDIR.TAG").write_text("exclude me", encoding="utf-8")
             archive = root / "bundle.tar.gz"
-            iam_cd_compiler.export_snapshot(cache, archive)
+            data = b"compiler output entry"
+            with tarfile.open(archive, "w:gz") as bundle:
+                entry = tarfile.TarInfo(f"a/b/{key}")
+                entry.size = len(data)
+                bundle.addfile(entry, io.BytesIO(data))
             restored.mkdir()
-            iam_cd_compiler.restore_snapshot(archive, restored)
-            self.assertEqual((restored / "a/b" / key).read_bytes(), b"compiler output entry")
+            warm.restore_snapshot(archive, restored)
+            self.assertEqual((restored / "a/b" / key).read_bytes(), data)
             self.assertFalse((restored / "target").exists())
             with self.assertRaisesRegex(ValueError, "fresh compiler cache"):
-                iam_cd_compiler.restore_snapshot(archive, restored)
+                warm.restore_snapshot(archive, restored)
             for index, (name, mode) in enumerate((("../outside", tarfile.REGTYPE),
+                                                 ("target/CACHEDIR.TAG", tarfile.REGTYPE),
                                                  (f"a/b/{key}", tarfile.SYMTYPE),
                                                  (f"x/b/{key}", tarfile.REGTYPE))):
                 unsafe = root / f"unsafe-{index}.tar.gz"
@@ -111,7 +185,11 @@ class PilotTests(unittest.TestCase):
                 out = root / f"unsafe-{index}"
                 out.mkdir()
                 with self.assertRaisesRegex(ValueError, "Unexpected compiler-cache member"):
-                    iam_cd_compiler.restore_snapshot(unsafe, out)
+                    warm.restore_snapshot(unsafe, out)
+                self.assertFalse(any(out.iterdir()))
+            with mock.patch.object(warm, "MAX_BYTES", len(data) - 1):
+                with self.assertRaisesRegex(ValueError, "Unexpected compiler-cache member"):
+                    warm.restore_snapshot(archive, out)
                 self.assertFalse(any(out.iterdir()))
 
     def test_runtime_staging_keeps_original_dockerfile_entrypoints_without_apt(self):

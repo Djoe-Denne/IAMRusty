@@ -13,7 +13,7 @@ permissions:
 jobs:
   e2e:
     name: Five unchanged functional phases
-    if: github.repository == 'Djoe-Denne/IAMRusty' && github.event_name == 'push' && github.ref == 'refs/heads/ci-iam-cd' && github.workflow_ref == 'Djoe-Denne/IAMRusty/.github/workflows/iam-ac.yml@refs/heads/ci-iam-cd'
+    if: github.repository == 'Djoe-Denne/IAMRusty' && github.event_name == 'push' && github.ref == 'refs/heads/ci-iam-warm' && github.workflow_ref == 'Djoe-Denne/IAMRusty/.github/workflows/iam-ac.yml@refs/heads/ci-iam-warm'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
