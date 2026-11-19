@@ -494,6 +494,48 @@ async fn test_password_reset_validate_missing_token() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+#[tokio::test]
+#[serial]
+#[ignore = "opt-in OpenAPI check; run via it-native.ps1 -Suite iam -IamOpenApi"]
+async fn iam_openapi_contract() {
+    use std::path::Path;
+    use tokio::{process::Command, time::timeout};
+
+    assert!(
+        std::env::var("RUSTYCOG_TEST_RUNNER_MODE").as_deref() == Ok("local")
+            && std::env::var_os("RUSTYCOG_TEST_LEDGER_DIR").is_some(),
+        "run the isolated fixture with it-native.ps1 -Suite iam -IamOpenApi"
+    );
+    let python = std::env::var_os("AIFORALL_SCHEMATHESIS_PYTHON")
+        .expect("set AIFORALL_SCHEMATHESIS_PYTHON to the qualified Python interpreter");
+    assert!(
+        Path::new(&python).is_absolute() && Path::new(&python).is_file(),
+        "use an absolute path to the Schemathesis virtual environment interpreter"
+    );
+    let script =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ops/tests/security/iam_openapi.py");
+    let (fixture, base_url, _) = Box::pin(setup_test_server())
+        .await
+        .expect("start the isolated IAM listener");
+    let mut runner = Command::new(python);
+    runner
+        .args(["-I", "-B"])
+        .arg(script)
+        .arg(base_url)
+        .kill_on_drop(true);
+    let result = timeout(Duration::from_secs(30), runner.status()).await;
+    common::cleanup_test_servers(&fixture)
+        .await
+        .expect("stop the isolated IAM listener");
+    assert!(
+        result
+            .expect("OpenAPI runner exceeded 30 seconds")
+            .expect("start the OpenAPI runner")
+            .success(),
+        "OpenAPI checks failed"
+    );
+}
+
 // ============================================================================
 // ✅ Password Reset Confirm Tests (Unauthenticated) - POST /auth/password/reset-confirm
 // ============================================================================

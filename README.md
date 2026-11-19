@@ -95,6 +95,8 @@ cargo fmt --all -- --check
 
 Hook fmt : [`docs/CARGO_FMT_PRE_COMMIT.md`](docs/CARGO_FMT_PRE_COMMIT.md).
 
+Repository security checks and manual audit: [`docs/guides/repository-security.md`](docs/guides/repository-security.md).
+
 Nouveau service : [`docs/guides/nouveau-service.md`](docs/guides/nouveau-service.md). Submodule rustycog : [`.agents/skills/rustycog-submodule/SKILL.md`](.agents/skills/rustycog-submodule/SKILL.md).
 
 ## Sources du harness agents

@@ -27,6 +27,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
+          persist-credentials: false
 
       - uses: ./.github/actions/setup-rust
 
@@ -216,6 +217,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
+          persist-credentials: false
       - uses: ./.github/actions/setup-rust
       - uses: ./.github/actions/setup-compiler-cache
       # Wiremock HTTP only: no Kind, Docker fixture or cloud credentials.
@@ -229,6 +231,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       # kubectl is used only as an offline kustomize renderer; no cluster access.
       - name: Install YAML parser
         run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.2
@@ -291,6 +295,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
+          persist-credentials: false
 
       - uses: ./.github/actions/setup-rust
 

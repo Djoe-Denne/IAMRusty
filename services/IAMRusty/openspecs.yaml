@@ -290,7 +290,10 @@ paths:
               properties:
                 token:
                   type: string
-                  description: Password reset token from email
+                  minLength: 1
+                  maxLength: 100
+                  pattern: '\S'
+                  description: Nonblank password reset token from email, at most 100 UTF-8 bytes.
               required:
                 - token
       responses:
@@ -309,14 +312,16 @@ paths:
                     description: Email associated with the token (masked for privacy)
                     example: "u***@example.com"
         "400":
-          description: Invalid or expired token
+          description: Invalid, expired or previously used token, or malformed JSON
           content:
             application/json:
               schema:
                 type: object
+                required: [error]
                 properties:
                   error:
                     type: object
+                    required: [message, status]
                     properties:
                       message:
                         type: string
@@ -325,14 +330,16 @@ paths:
                         type: integer
                         example: 400
         "422":
-          description: Validation error (missing token field)
+          description: Body validation error (missing field, wrong type, or invalid token format)
           content:
             application/json:
               schema:
                 type: object
+                required: [error]
                 properties:
                   error:
                     type: object
+                    required: [message, status]
                     properties:
                       message:
                         type: string
@@ -760,6 +767,7 @@ paths:
             type: string
             minLength: 3
             maxLength: 50
+            pattern: '^[A-Za-z0-9_-]*[A-Za-z][A-Za-z0-9_-]*$'
       responses:
         "200":
           description: Username availability status
@@ -767,19 +775,20 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [available, suggestions]
                 properties:
                   available: {type: boolean}
                   suggestions:
                     type: array
                     items: {type: string}
-                    description: Alternative suggestions if username taken
+                    description: Alternative suggestions if the username is taken, otherwise empty.
               example:
                 available: false
                 suggestions: ["johndoe123", "johndoe_", "j_doe"]
         "400":
-          description: Username too short (less than 3 characters)
+          description: Missing or malformed username query parameter
         "422":
-          description: Username validation error (too short, missing parameter)
+          description: Username validation error (length or character rules)
 
   /api/token/refresh:
     post:
@@ -815,13 +824,13 @@ paths:
                     description: New JWT access token
                   expires_in:
                     type: integer
-                    description: Access token expiration in seconds (default: 900 = 15 minutes)
+                    description: "Access token expiration in seconds (default: 900 = 15 minutes)"
                   refresh_token:
                     type: string
                     description: New refresh token (replaces the old one)
                   refresh_expires_in:
                     type: integer
-                    description: Refresh token expiration in seconds (default: 2592000 = 30 days)
+                    description: "Refresh token expiration in seconds (default: 2592000 = 30 days)"
               example:
                 access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 expires_in: 900
