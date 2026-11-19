@@ -1,0 +1,105 @@
+name: IAM native cache lab
+on:
+  push:
+    branches: [ci-iam-cache-comparison-20261119]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: never
+  RUN_ENV: test
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  compare:
+    if: github.repository == 'Djoe-Denne/IAMRusty'
+    name: ${{ matrix.mode }}
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [seed, gha]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+      - uses: ./.github/actions/setup-compiler-cache
+        if: matrix.mode == 'gha'
+        env:
+          SCCACHE_GHA_RW_MODE: READ_ONLY
+      - name: Restore and seed dependency-only archive
+        if: matrix.mode == 'seed'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          prefix-key: iam-cache-lab-${{ github.run_id }}-${{ github.run_attempt }}
+          shared-key: iam-linux-dev-deps
+          cache-bin: "false"
+          cache-targets: "true"
+          cache-workspace-crates: "false"
+      - uses: ./.github/actions/iam-cache-lab-deps
+      - name: Require no pre-existing build outputs
+        run: test ! -d "$CARGO_TARGET_DIR" || test -z "$(ls -A "$CARGO_TARGET_DIR")"
+      - name: Apply the leaf edit for the current-cache comparison
+        if: matrix.mode == 'gha'
+        run: python3 -B ops/ci/iam_cache_lab.py edit
+      - name: Build the full native IAM package selection
+        env:
+          LAB_MODE: ${{ matrix.mode }}
+          SCCACHE_GHA_RW_MODE: READ_ONLY
+        run: python3 -B ops/ci/iam_cache_lab.py "$LAB_MODE"
+      - name: Compare same-workspace rebuilds without changing compiler settings
+        if: matrix.mode == 'seed'
+        run: |
+          python3 -B ops/ci/iam_cache_lab.py retained-identical
+          python3 -B ops/ci/iam_cache_lab.py edit
+          python3 -B ops/ci/iam_cache_lab.py retained-edit
+          du -sh "$CARGO_TARGET_DIR"
+      - name: Compiler-cache diagnostics
+        if: matrix.mode == 'gha'
+        env:
+          SCCACHE_GHA_RW_MODE: READ_ONLY
+        run: |
+          python3 -B ops/ci/compiler_cache.py verify
+          sccache --show-stats
+          sccache --stop-server
+
+  archive:
+    if: github.repository == 'Djoe-Denne/IAMRusty'
+    name: archive
+    needs: compare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+      - name: Restore dependency-only archive without writes
+        id: restore
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          prefix-key: iam-cache-lab-${{ github.run_id }}-${{ github.run_attempt }}
+          shared-key: iam-linux-dev-deps
+          cache-bin: "false"
+          cache-targets: "true"
+          cache-workspace-crates: "false"
+          save-if: "false"
+      - name: Require a real archive restore
+        env:
+          EXACT_HIT: ${{ steps.restore.outputs.cache-hit }}
+        run: |
+          test "$EXACT_HIT" = "true"
+          test -d "$CARGO_TARGET_DIR/debug/.fingerprint"
+          test ! -e "$CARGO_TARGET_DIR/debug/iam-service"
+      - uses: ./.github/actions/iam-cache-lab-deps
+      - name: Build the same leaf edit without sccache
+        run: |
+          python3 -B ops/ci/iam_cache_lab.py edit
+          python3 -B ops/ci/iam_cache_lab.py archive

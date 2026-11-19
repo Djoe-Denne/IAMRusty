@@ -1,0 +1,14 @@
+name: IAM cache lab system dependencies
+description: Same native IAM prerequisites on every comparison runner.
+runs:
+  using: composite
+  steps:
+    - name: Install IAM native dependencies
+      shell: bash
+      run: |
+        sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
+        sudo apt-get update \
+          -o Acquire::http::Timeout=30 \
+          -o Acquire::https::Timeout=30 \
+          -o Acquire::Retries=3
+        sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
