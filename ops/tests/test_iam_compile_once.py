@@ -86,7 +86,7 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(config["on"], {"push": {"branches": [pilot.BRANCH]}})
         self.assertEqual(config["permissions"], {"contents": "read", "actions": "read"})
         jobs = config["jobs"]
-        self.assertEqual(jobs["replay"]["needs"], "producer")
+        self.assertCountEqual(jobs, ["producer", "native-oauth", "native-ext-authz", "pilot-e2e"])
         self.assertCountEqual(jobs["pilot-e2e"]["needs"], ["producer", "native-oauth", "native-ext-authz"])
         self.assertNotIn("secrets.", json.dumps(jobs["producer"]))
         producer = jobs["producer"]
@@ -97,14 +97,13 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(len(handoff), 1)
         before_upload, _ = handoff[0]
         e2e_compile = next(i for i, step in enumerate(producer["steps"]) if " produce-e2e " in step.get("run", ""))
-        test_compile = next(i for i, step in enumerate(producer["steps"]) if step.get("id") == "compile")
         self.assertLess(e2e_compile, before_upload)
-        self.assertLess(before_upload, test_compile)
-        for key in ("replay", "pilot-e2e"):
-            steps = json.dumps(jobs[key]["steps"])
-            self.assertNotIn("cargo test", steps)
-            self.assertNotIn("cargo build", steps)
-            self.assertNotIn("build-service", steps)
+        self.assertNotIn(" --matrix ", json.dumps(producer))
+        steps = json.dumps(jobs["pilot-e2e"]["steps"])
+        self.assertNotIn("cargo test", steps)
+        self.assertNotIn("cargo build", steps)
+        self.assertNotIn("build-service", steps)
+        self.assertEqual(steps.count("iam_pilot.py run"), 1)
         self.assertNotIn("deploy-pages", raw)
 
     def test_runtime_gate_has_no_caller_selectable_bypass(self):

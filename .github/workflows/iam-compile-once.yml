@@ -1,4 +1,4 @@
-name: Experimental IAM compile once
+name: IAM instrumented E2E qualification
 on:
   push:
     branches: [ci-iam-compile-once]
@@ -23,8 +23,6 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_INCREMENTAL: '0'
-    outputs:
-      matrix: ${{ steps.compile.outputs.matrix }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -42,15 +40,13 @@ jobs:
           sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
           sudo apt-get update -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3
           sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
-      - name: Build and bundle instrumented IAM server and migration first
+      - name: Build and bundle the instrumented IAM server and migration
         shell: bash
         run: |
           env_script="$(cargo llvm-cov show-env --sh)"
           source /dev/stdin <<< "$env_script"
           python3 -B ops/ci/iam_compile_once.py produce-e2e --output "$RUNNER_TEMP/iam-pilot"
-      # This is a readiness milestone only. The pilot consumers still require
-      # the producer to finish successfully before they may acquire artifacts.
-      - name: Upload the early IAM E2E bundle
+      - name: Upload the IAM E2E bundle
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: iam-pilot-e2e-${{ github.run_attempt }}
@@ -58,108 +54,6 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 1
-      - name: Compile instrumented IAM tests in the same target directory
-        id: compile
-        shell: bash
-        run: |
-          env_script="$(cargo llvm-cov show-env --sh)"
-          source /dev/stdin <<< "$env_script"
-          python3 -B ops/ci/iam_compile_once.py produce --output "$RUNNER_TEMP/iam-pilot" \
-            --matrix "$RUNNER_TEMP/iam-matrix.json"
-          printf 'matrix=%s\n' "$(cat "$RUNNER_TEMP/iam-matrix.json")" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: iam-pilot-unit-0-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/iam-pilot/unit-0/bundle.tar.gz
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 1
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: iam-pilot-tests-0-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/iam-pilot/tests-0/bundle.tar.gz
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 1
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: iam-pilot-tests-1-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/iam-pilot/tests-1/bundle.tar.gz
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 1
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: iam-pilot-tests-2-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/iam-pilot/tests-2/bundle.tar.gz
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 1
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: iam-pilot-tests-3-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/iam-pilot/tests-3/bundle.tar.gz
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 1
-
-  replay:
-    name: Pilot libtest / ${{ matrix.part }}
-    needs: producer
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.producer.outputs.matrix) }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          submodules: true
-          persist-credentials: false
-      - uses: ./.github/actions/setup-rust
-        with:
-          components: llvm-tools-preview
-      - name: Fetch the exact same-attempt test bundle
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PART: ${{ matrix.part }}
-        run: python3 -B ops/ci/iam_compile_once.py fetch --part "$PART" --output "$RUNNER_TEMP/iam-pilot-bundle"
-      - name: Install IAM system dependency and prepare test fixtures
-        env:
-          PART: ${{ matrix.part }}
-        run: |
-          sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
-          sudo apt-get update -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3
-          sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
-          if [[ "$PART" == tests-* ]]; then
-            docker version
-            docker pull localstack/localstack:3.0.2
-          fi
-      - name: Run the existing target assignment without building
-        env:
-          PART: ${{ matrix.part }}
-          TARGETS: ${{ matrix.targets }}
-          RUSTYCOG_TEST_RUNNER_MODE: local
-          RUSTYCOG_TEST_RUN_ID: pilot-iam-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
-          IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
-        run: |
-          test -n "$IAMRUSTY_TEST_RSA8192_PEM_B64"
-          [[ "$RUSTYCOG_TEST_RUN_ID" =~ ^[A-Za-z0-9-]{1,40}$ ]]
-          export RUSTYCOG_TEST_LEDGER_DIR="$RUNNER_TEMP/iam-pilot-fixtures"
-          mkdir -m 700 "$RUSTYCOG_TEST_LEDGER_DIR"
-          rustc_path="$(rustup which rustc)"
-          export PATH="${rustc_path%/bin/rustc}/lib/rustlib/x86_64-unknown-linux-gnu/bin:$PATH"
-          python3 -B ops/ci/iam_compile_once.py replay --part "$PART" --targets "$TARGETS" \
-            --archive "$RUNNER_TEMP/iam-pilot-bundle/bundle.tar.gz" --output "$RUNNER_TEMP/iam-pilot-results"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: iam-pilot-diagnostic-${{ matrix.part }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/iam-pilot-results/receipt.json
-            ${{ runner.temp }}/iam-pilot-results/pilot.lcov
-          if-no-files-found: warn
-          retention-days: 3
 
   native-oauth:
     name: Pilot OAuth native build
@@ -206,6 +100,7 @@ jobs:
           retention-days: 1
 
   pilot-e2e:
+    if: github.repository == 'Djoe-Denne/IAMRusty'
     name: Pilot existing k6 scenarios (experimental IAM binary)
     needs: [producer, native-oauth, native-ext-authz]
     runs-on: ubuntu-24.04
@@ -232,13 +127,15 @@ jobs:
           for file in images.tar.gz provenance.json cleanup.json; do
             mv "$RUNNER_TEMP/iam-pilot-images/verified/packaged/$file" "$RUNNER_TEMP/iam-pilot-images/verified/$file"
           done
-      - name: Install existing browser dependencies and acquire pinned tools
+      - name: Install existing browser dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends libnss3-tools libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64
           python3 -m pip install 'PyYAML==6.0.2'
-          python3 -B ops/tests/k6/ci/provision.py --output "$RUNNER_TEMP/iam-pilot-cli"
-          python3 -B ops/tests/k6/provision-linux.py --output "$RUNNER_TEMP/iam-pilot-browser"
+      - name: Acquire and verify the pinned CI CLI tools
+        run: python3 -B ops/tests/k6/ci/provision.py --output "$RUNNER_TEMP/iam-pilot-cli"
+      - name: Acquire and verify k6 and Chromium
+        run: python3 -B ops/tests/k6/provision-linux.py --output "$RUNNER_TEMP/iam-pilot-browser"
       - name: Execute unchanged scenarios and restore fixtures
         run: >-
           python3 -B ops/tests/k6/ci/iam_pilot.py run --directory "$RUNNER_TEMP/iam-pilot-campaign"
