@@ -17,7 +17,7 @@ import iam_compile_once as pilot
 
 SCHEMA = "aiforall.iam-compile-once-images/v1"
 CI_SCHEMA = "aiforall.k6-current-ci-iam-images/v1"
-AB_SCHEMA = "aiforall.k6-iam-ab-images/v1"
+AC_SCHEMA = "aiforall.k6-iam-ac-images/v1"
 INSTRUMENTATION = {"iam": "llvm-source-coverage", "oauth": "none", "ext-authz": "none"}
 
 
@@ -26,16 +26,16 @@ def proofs():
     known = pilot.identity()
     current = known["lane"] == "ci" and os.environ.get("GITHUB_JOB") == "e2e" \
         and os.environ.get("GITHUB_EVENT_NAME") == "push" and os.environ.get("GITHUB_REF") == "refs/heads/master"
-    benchmark = known["lane"] == "ab" and runtime.benchmark_arm(os.environ)
+    benchmark = known["lane"] == "ac" and runtime.benchmark_arm(os.environ)
     binaries.require(runtime.pilot_hosted(os.environ) or current or benchmark, "NOT_INSTRUMENTED_E2E_JOB")
     return known
 
 
 def mode(known):
-    if known["lane"] == "ab":
+    if known["lane"] == "ac":
         arm = runtime.benchmark_arm(os.environ)
         binaries.require(arm is not None, "BENCHMARK_ARM")
-        return (AB_SCHEMA, "benchmark-" + arm, {**INSTRUMENTATION, "iam": "none"} if arm == "a" else INSTRUMENTATION,
+        return (AC_SCHEMA, "benchmark-" + arm, {**INSTRUMENTATION, "iam": "none"} if arm == "a" else INSTRUMENTATION,
                 "native-e2e" if arm == "a" else "e2e")
     schema, lane = (CI_SCHEMA, "current-ci") if known["lane"] == "ci" else (SCHEMA, pilot.BRANCH)
     return schema, lane, INSTRUMENTATION, "e2e"
@@ -76,13 +76,19 @@ def pack(acquired, output):
         with (context / roles["iam"]["dockerfile"]).open("a", encoding="utf-8") as dockerfile:
             dockerfile.write("\nENV LLVM_PROFILE_FILE=/tmp/iam-pilot-%m-%p.profraw\n")
         roles["iam"]["dockerfile_sha256"] = binaries.sha(context / roles["iam"]["dockerfile"])
+    prebuilt = None
+    base_receipt = {}
+    if known["lane"] == "ac":
+        import iam_ac_runtime
+        prebuilt, base = iam_ac_runtime.load(acquired, output, context, known, roles)
+        base_receipt["benchmark_base"] = base
     package.build_images(output, context, {
         "schema": schema,
         "harness_sha": source, "target_sha": source, "sdk_sha": known["sdk"],
         "producer_run_id": int(known["GITHUB_RUN_ID"]), "producer_attempt": int(known["GITHUB_RUN_ATTEMPT"]),
         "entrypoint_sha256": entrypoint, "cargo_profile": "dev", "instrumentation": instrumentation,
-        "roles": roles, "lane": lane,
-    })
+        "roles": roles, "lane": lane, **base_receipt,
+    }, prebuilt_base=prebuilt)
 
 
 def admit(root, value):
@@ -96,7 +102,13 @@ def admit(root, value):
             and value.get("producer_attempt") == int(known["GITHUB_RUN_ATTEMPT"])
             and value.get("instrumentation") == instrumentation
             and value.get("qualification") == "PACKAGING_AND_ABI_ONLY_NOT_E2E",
-            "PILOT_IMAGE_PROVENANCE")
+             "PILOT_IMAGE_PROVENANCE")
+    if known["lane"] == "ac":
+        base = value.get("benchmark_base", {})
+        require(set(base) == {"id", "digest", "image_id", "producer_job_id"}
+                and all(type(base[key]) is int and base[key] > 0 for key in ("id", "producer_job_id"))
+                and all(re.fullmatch(r"sha256:[a-f0-9]{64}", base[key]) for key in ("digest", "image_id")),
+                "AC_RUNTIME_BASE_PROVENANCE")
     cleanup = binaries.strict_json((root / "verified/cleanup.json").read_bytes())
     require(cleanup.get("status") == "PASS" and cleanup.get("owned_running") == 0
             and cleanup.get("run_id") == known["GITHUB_RUN_ID"]

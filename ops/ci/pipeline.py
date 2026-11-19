@@ -547,13 +547,13 @@ def main(argv=None):
     else:
         if args.service == "iam" and os.environ.get("GITHUB_EVENT_NAME") in {"push", "pull_request"}:
             from iam_compile_once import canonical_coverage, coverage_replay, run_lane
-            if run_lane(os.environ)[2] == "ab":
-                arm = os.environ.get("IAM_AB_ARM")
-                if os.environ.get("GITHUB_JOB") != "coverage" or arm not in {"a", "b"}:
+            if run_lane(os.environ)[2] == "ac":
+                arm = os.environ.get("IAM_AC_ARM")
+                if os.environ.get("GITHUB_JOB") != "coverage" or arm not in {"a", "c"}:
                     raise ValueError("Wrong IAM benchmark coverage job")
-                if arm == "b":
+                if arm == "c":
                     return coverage_replay(data, args.lane, args.shard, args.output,
-                                           expected_lane="ab", private_name="iam-ab-b-coverage")
+                                           expected_lane="ac", private_name="iam-ac-c-coverage")
             else:
                 return canonical_coverage(data, args.lane, args.shard, args.output)
         return run_coverage(data, args.service, args.lane, args.shard, args.output)

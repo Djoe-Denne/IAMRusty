@@ -1,0 +1,6 @@
+ARG RUNTIME_IMAGE
+FROM ${RUNTIME_IMAGE}
+RUN apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 update \
+    && apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 \
+        install -y --no-install-recommends ca-certificates curl libssl3t64 \
+    && rm -rf /var/lib/apt/lists/*

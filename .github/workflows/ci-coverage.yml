@@ -34,11 +34,11 @@ jobs:
       - name: Reject unrelated coverage callers for the benchmark
         if: inputs.benchmark-arm != ''
         env:
-          IAM_AB_ARM: ${{ inputs.benchmark-arm }}
+          IAM_AC_ARM: ${{ inputs.benchmark-arm }}
           CI_SERVICE: ${{ inputs.service }}
         run: |
-          [[ "$GITHUB_WORKFLOW_REF" == 'Djoe-Denne/IAMRusty/.github/workflows/iam-ab.yml@refs/heads/ci-iam-ab' &&
-             "$GITHUB_EVENT_NAME" == 'push' && "$CI_SERVICE" == 'iam' && "$IAM_AB_ARM" =~ ^[ab]$ ]]
+          [[ "$GITHUB_WORKFLOW_REF" == 'Djoe-Denne/IAMRusty/.github/workflows/iam-ac.yml@refs/heads/ci-iam-ac' &&
+             "$GITHUB_EVENT_NAME" == 'push' && "$CI_SERVICE" == 'iam' && "$IAM_AC_ARM" =~ ^[ac]$ ]]
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
@@ -62,7 +62,7 @@ jobs:
       RUSTYCOG_TEST_RUNNER_MODE: local
       RUSTYCOG_TEST_RUN_ID: fi-${{ inputs.benchmark-arm || inputs.service }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
       CI_COVERAGE_SCOPE: ${{ inputs.scope }}
-      IAM_AB_ARM: ${{ inputs.benchmark-arm }}
+      IAM_AC_ARM: ${{ inputs.benchmark-arm }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -120,9 +120,14 @@ jobs:
             echo 'IAM RSA8192 probe material is required in CI' >&2
             exit 1
           fi
-          if [[ "$CI_SERVICE" == 'iam' && "$GITHUB_EVENT_NAME" != workflow_dispatch && "$IAM_AB_ARM" != a ]]; then
+          if [[ "$CI_SERVICE" == 'iam' && "$GITHUB_EVENT_NAME" != workflow_dispatch && "$IAM_AC_ARM" != a ]]; then
             rustc_path="$(rustup which rustc)"
             export PATH="${rustc_path%/bin/rustc}/lib/rustlib/x86_64-unknown-linux-gnu/bin:$PATH"
+          fi
+          if [[ "$IAM_AC_ARM" == c ]]; then
+            # Match the producer's Cargo source prefix for the LCOV exclusion rule.
+            export CARGO_HOME="$RUNNER_TEMP/iam-ac-cargo-home"
+            export CARGO_NET_OFFLINE=true
           fi
           python3 -B ops/ci/pipeline.py coverage \
             --service "$CI_SERVICE" --lane "$CI_LANE" --shard "$CI_SHARD" \
@@ -131,7 +136,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: ${{ inputs.benchmark-arm != '' && format('iam-ab-{0}-lcov-{1}', inputs.benchmark-arm, github.run_attempt) || format('lcov-{0}', inputs.service) }}-${{ matrix.lane }}-${{ matrix.shard }}
+          name: ${{ inputs.benchmark-arm != '' && format('iam-ac-{0}-lcov-{1}', inputs.benchmark-arm, github.run_attempt) || format('lcov-{0}', inputs.service) }}-${{ matrix.lane }}-${{ matrix.shard }}
           path: coverage/
           if-no-files-found: warn
           retention-days: 7
@@ -143,12 +148,12 @@ jobs:
           path: ${{ runner.temp }}/iam-coverage-private/replay/receipt.json
           if-no-files-found: warn
           retention-days: 3
-      - name: Retain benchmark B replay evidence
-        if: always() && inputs.benchmark-arm == 'b'
+      - name: Retain benchmark C replay evidence
+        if: always() && inputs.benchmark-arm == 'c'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: iam-ab-b-replay-${{ github.run_attempt }}-${{ matrix.lane }}-${{ matrix.shard }}
-          path: ${{ runner.temp }}/iam-ab-b-coverage/replay/receipt.json
+          name: iam-ac-c-replay-${{ github.run_attempt }}-${{ matrix.lane }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/iam-ac-c-coverage/replay/receipt.json
           if-no-files-found: warn
           retention-days: 3
       - uses: ./.github/actions/compiler-cache-stats

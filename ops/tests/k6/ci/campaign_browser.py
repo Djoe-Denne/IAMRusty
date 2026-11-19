@@ -98,7 +98,7 @@ def create_arguments(runtime, output, inputs):
     if pilot_hosted(os.environ) or arm:
         keys += ("GITHUB_REPOSITORY", "GITHUB_EVENT_NAME", "GITHUB_WORKFLOW_REF")
     if arm:
-        keys += ("IAM_AB_ARM",)
+        keys += ("IAM_AC_ARM",)
     for key in keys:
         args += ["--env", key + "=" + os.environ[key]]
     return [*args, state["image_id"], "-B", "/opt/AIForAll/ops/tests/k6/ci/campaign_browser.py", "run",

@@ -7,6 +7,7 @@ runs:
     # Keep downloads separate from compiler outputs. Only one trusted producer
     # refreshes this archive; all jobs can restore it, including pull requests.
     - name: Restore Cargo downloads
+      if: github.workflow_ref != 'Djoe-Denne/IAMRusty/.github/workflows/iam-ac.yml@refs/heads/ci-iam-ac'
       uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       with:
         shared-key: cargo-downloads-v1
@@ -16,7 +17,7 @@ runs:
         save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && github.job == 'build-iam' }}
 
     - name: Configure content-addressed compilation caching
-      if: github.workflow_ref != 'Djoe-Denne/IAMRusty/.github/workflows/iam-ab.yml@refs/heads/ci-iam-ab'
+      if: github.workflow_ref != 'Djoe-Denne/IAMRusty/.github/workflows/iam-ac.yml@refs/heads/ci-iam-ac'
       shell: bash
       run: |
         {
@@ -27,16 +28,23 @@ runs:
           echo 'SCCACHE_IGNORE_SERVER_IO_ERROR=1'
         } >> "$GITHUB_ENV"
 
+    - name: Import the common same-attempt locked Cargo snapshot
+      if: github.workflow_ref == 'Djoe-Denne/IAMRusty/.github/workflows/iam-ac.yml@refs/heads/ci-iam-ac'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: python3 -B ops/ci/iam_ac_inputs.py restore
+
     - name: Start with an empty job-local compiler cache for the paired benchmark
-      if: github.workflow_ref == 'Djoe-Denne/IAMRusty/.github/workflows/iam-ab.yml@refs/heads/ci-iam-ab'
+      if: github.workflow_ref == 'Djoe-Denne/IAMRusty/.github/workflows/iam-ac.yml@refs/heads/ci-iam-ac'
       shell: bash
       run: |
         umask 077
-        mkdir -m 700 "$RUNNER_TEMP/iam-ab-sccache"
+        mkdir -m 700 "$RUNNER_TEMP/iam-ac-sccache"
         {
           echo 'CARGO_INCREMENTAL=0'
           echo 'RUSTC_WRAPPER=sccache'
-          printf 'SCCACHE_DIR=%s\n' "$RUNNER_TEMP/iam-ab-sccache"
+          printf 'SCCACHE_DIR=%s\n' "$RUNNER_TEMP/iam-ac-sccache"
           echo 'SCCACHE_CACHE_SIZE=2G'
         } >> "$GITHUB_ENV"
 
@@ -45,7 +53,7 @@ runs:
       run: python3 -B ops/ci/compiler_cache.py install --directory "$RUNNER_TEMP/aiforall-sccache"
 
     - name: Export scoped GitHub cache runtime credentials
-      if: github.workflow_ref != 'Djoe-Denne/IAMRusty/.github/workflows/iam-ab.yml@refs/heads/ci-iam-ab'
+      if: github.workflow_ref != 'Djoe-Denne/IAMRusty/.github/workflows/iam-ac.yml@refs/heads/ci-iam-ac'
       uses: ./.github/actions/export-cache-runtime
 
     - name: Verify the admitted compiler-cache executable before compilation

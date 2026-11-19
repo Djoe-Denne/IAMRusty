@@ -15,17 +15,19 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT / "ops/ci"), str(ROOT / "ops/tests/k6/ci")]
 import iam_compile_once as pilot
+import iam_ac_inputs
+import iam_ac_runtime
 import runtime
 
 
 class PilotTests(unittest.TestCase):
     def test_iam_benchmark_is_branch_and_workflow_bound(self):
-        ref = f"refs/heads/{pilot.AB_BRANCH}"
+        ref = f"refs/heads/{pilot.AC_BRANCH}"
         repo = "Djoe-Denne/IAMRusty"
         env = dict(GITHUB_ACTIONS="true", GITHUB_REPOSITORY=repo, GITHUB_REF=ref,
-                   GITHUB_WORKFLOW_REF=f"{repo}/{pilot.AB_WORKFLOW}@{ref}", GITHUB_EVENT_NAME="push",
-                   GITHUB_JOB="e2e", IAM_AB_ARM="a")
-        self.assertEqual(pilot.run_lane(env), (pilot.AB_WORKFLOW, pilot.AB_BRANCH, "ab"))
+                   GITHUB_WORKFLOW_REF=f"{repo}/{pilot.AC_WORKFLOW}@{ref}", GITHUB_EVENT_NAME="push",
+                   GITHUB_JOB="e2e", IAM_AC_ARM="a")
+        self.assertEqual(pilot.run_lane(env), (pilot.AC_WORKFLOW, pilot.AC_BRANCH, "ac"))
         self.assertEqual(runtime.benchmark_arm(env), "a")
         for field, value in (("GITHUB_WORKFLOW_REF", f"{repo}/{pilot.CI_WORKFLOW}@{ref}"),
                              ("GITHUB_EVENT_NAME", "workflow_dispatch"), ("GITHUB_REPOSITORY", "other/IAMRusty"),
@@ -35,15 +37,17 @@ class PilotTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 pilot.run_lane(foreign)
         self.assertIsNone(runtime.benchmark_arm(dict(env, GITHUB_JOB="build-a")))
-        self.assertIsNone(runtime.benchmark_arm(dict(env, IAM_AB_ARM="other")))
+        self.assertIsNone(runtime.benchmark_arm(dict(env, IAM_AC_ARM="b")))
 
-    def test_ab_producer_and_partition_are_bound(self):
+    def test_ac_producer_and_partition_are_bound(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             executable = root / "binary"
             executable.write_bytes(b"\x7fELF\x02\x01" + bytes(10) + b"\x03\x00\x3e\x00" + bytes(70))
-            known = {"lane": "ab", "producer_job": "build-b"}
+            known = {"lane": "ac", "producer_job": "build-c-tests"}
             a_source = pilot.part_identity(known, "native-e2e")
+            self.assertEqual(pilot.part_identity(known, "e2e")["producer_job"], "build-c-server")
+            self.assertEqual(pilot.part_identity(known, "tests-0")["producer_job"], "build-c-tests")
             archive = root / "bundle.tar.gz"
             pilot.bundle(archive, a_source, "native-e2e", [("iam-service", ".", "iam-service", executable)])
             for identity, part in ((known, "e2e"), (known, "native-e2e"), (a_source, "e2e"),
@@ -53,18 +57,56 @@ class PilotTests(unittest.TestCase):
             self.assertFalse((root / "refused").exists())
             pilot.unpack(archive, root / "valid", a_source, "native-e2e", {"iam-service"})
 
-    def test_ab_dag_delays_only_b_for_the_shared_test_producer(self):
-        config = yaml.load((ROOT / pilot.AB_WORKFLOW).read_text(), Loader=yaml.BaseLoader)
-        self.assertEqual(config["on"], {"push": {"branches": [pilot.AB_BRANCH]}})
-        for arm in ("a", "b"):
-            jobs = config["jobs"]
-            self.assertEqual(jobs[f"coverage-{arm}"]["needs"], [f"build-{arm}"])
+    def test_ac_dag_cannot_delay_k6_for_test_compilation(self):
+        config = yaml.load((ROOT / pilot.AC_WORKFLOW).read_text(), Loader=yaml.BaseLoader)
+        self.assertEqual(config["on"], {"push": {"branches": [pilot.AC_BRANCH]}})
+        jobs = config["jobs"]
+        for arm, server, tests in (("a", "build-a", "build-a"), ("c", "build-c-server", "build-c-tests")):
+            self.assertEqual(jobs[f"coverage-{arm}"]["needs"], [tests])
             self.assertEqual(jobs[f"coverage-{arm}"]["with"]["benchmark-arm"], arm)
-            self.assertEqual(jobs[f"e2e-{arm}"]["needs"], [f"build-{arm}", "native-oauth", "native-ext-authz"])
+            self.assertEqual(jobs[f"e2e-{arm}"]["needs"], [server, "native-oauth", "native-ext-authz", "prepare-runtime"])
             self.assertEqual(jobs[f"e2e-{arm}"]["with"]["arm"], arm)
         self.assertEqual(set(config["jobs"]), {
-            "build-a", "build-b", "native-oauth", "native-ext-authz", "coverage-a", "coverage-b", "e2e-a", "e2e-b",
+            "prepare-cargo", "prepare-runtime", "build-a", "build-c-server", "build-c-tests",
+            "native-oauth", "native-ext-authz", "coverage-a", "coverage-c", "e2e-a", "e2e-c",
         })
+        for job in ("build-a", "build-c-server", "build-c-tests", "native-oauth", "native-ext-authz"):
+            self.assertEqual(jobs[job]["needs"], ["prepare-cargo"])
+
+    def test_runtime_staging_keeps_original_dockerfile_entrypoints_without_apt(self):
+        for role, path in {"iam": "services/IAMRusty/Dockerfile", "oauth": "services/OAuthConnect/Dockerfile",
+                           "ext-authz": "ops/deploy/build/Dockerfile.ext-authz"}.items():
+            source = (ROOT / path).read_text(encoding="utf-8")
+            staged = iam_ac_runtime.stage_recipe(role, source)
+            for instruction in ("USER ", "ENTRYPOINT ", "HEALTHCHECK ", "COPY "):
+                self.assertEqual([line for line in source.splitlines() if line.startswith(instruction)],
+                                 [line for line in staged.splitlines() if line.startswith(instruction)])
+            self.assertNotIn("apt-get", staged)
+            with self.assertRaisesRegex(ValueError, "RECIPE_DRIFT"):
+                iam_ac_runtime.stage_recipe(role, staged)
+
+    def test_cargo_seed_has_no_toolchain_secrets_or_links(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            original = root / "original"
+            for part in ("cache", "index"):
+                path = original / "registry" / part
+                path.mkdir(parents=True)
+                (path / "locked").write_bytes(b"download")
+            (original / "credentials.toml").write_text("not exported", encoding="utf-8")
+            iam_ac_inputs.registry_archive(original, root / "bundle.tar.gz")
+            result = root / "restored"
+            iam_ac_inputs.restore_registry(root / "bundle.tar.gz", result)
+            self.assertEqual((result / "registry/cache/locked").read_bytes(), b"download")
+            self.assertFalse((result / "credentials.toml").exists())
+            for index, (name, mode) in enumerate((("registry/cache/../../escaped", tarfile.REGTYPE),
+                                                 ("registry/cache/linked", tarfile.SYMTYPE))):
+                with tarfile.open(root / "unsafe.tar.gz", "w:gz") as archive:
+                    member = tarfile.TarInfo(name)
+                    member.type = mode
+                    archive.addfile(member)
+                with self.assertRaisesRegex(ValueError, "Unexpected Cargo seed member"):
+                    iam_ac_inputs.restore_registry(root / "unsafe.tar.gz", root / f"unsafe-{index}")
 
     def test_admits_pinned_coverage_wrapper_and_refuses_uninstrumented_modes(self):
         env = {

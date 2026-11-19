@@ -106,10 +106,12 @@ class Packager:
             self.record("created", "image", identity, "no", reason="active_delivery_or_runtime_base")
         self.known_images = current
 
-    def build(self, context, dockerfile, tag, args):
+    def build(self, context, dockerfile, tag, args, *, networkless=False):
         iid = self.output / (tag.rsplit(":", 1)[-1] + ".iid")
         argv = ["docker", "build", "--platform", "linux/amd64", "--iidfile", str(iid), "--tag", tag,
                 "--file", str(Path(context) / dockerfile)]
+        if networkless:
+            argv += ["--network", "none"]
         for name, value in args.items():
             argv += ["--build-arg", name + "=" + value]
         try:
@@ -185,22 +187,25 @@ def package(acquired, source, output):
     build_images(output, context, provenance)
 
 
-def build_images(output, context, provenance):
+def build_images(output, context, provenance, *, prebuilt_base=None):
     lock = runtime_lock()
     provenance["runtime"] = lock["runtime"]
+    runtime_image = lock["runtime"] if prebuilt_base is None else prebuilt_base
+    options = {} if prebuilt_base is None else {"networkless": True}
     suffix = "k6-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"]
     require(re.fullmatch(r"k6-[1-9][0-9]*-[1-9][0-9]*", suffix), "PACKAGE_RUN_ID")
     packager = Packager(output)
     try:
         artifact_image = "local/k6-artifacts:" + suffix
-        packager.build(context, "Dockerfile.artifacts", artifact_image, {"RUNTIME_IMAGE": lock["runtime"]})
+        packager.build(context, "Dockerfile.artifacts", artifact_image, {"RUNTIME_IMAGE": runtime_image}, **options)
         tags = []
         for role, record in provenance["roles"].items():
             tag = "local/k6-" + role + ":" + suffix
             identity = packager.build(context, record["dockerfile"], tag,
-                                     {"BUILD_IMAGE": artifact_image, "RUNTIME_IMAGE": lock["runtime"],
+                                     {"BUILD_IMAGE": artifact_image, "RUNTIME_IMAGE": runtime_image,
                                       "RUNTIME_OPENSSL_PACKAGE": lock["openssl_package"],
-                                      "SOURCE_REVISION": provenance["target_sha"], "SDK_REVISION": provenance["sdk_sha"]})
+                                      "SOURCE_REVISION": provenance["target_sha"], "SDK_REVISION": provenance["sdk_sha"]},
+                                     **options)
             paths = ["/app/iam-service", "/app/migration"] if role == "iam" else [
                 "/app/oauth-connect-service" if role == "oauth" else "/app/ext-authz"]
             record.update(image_id=identity, tag=tag, abi=packager.abi(tag, paths))

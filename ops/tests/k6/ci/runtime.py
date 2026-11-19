@@ -33,11 +33,11 @@ def benchmark_arm(env):
     if (env.get("GITHUB_REPOSITORY") == "Djoe-Denne/IAMRusty"
             and env.get("GITHUB_EVENT_NAME") == "push"
             and env.get("GITHUB_JOB") == "e2e"
-            and env.get("GITHUB_REF") == "refs/heads/ci-iam-ab"
+            and env.get("GITHUB_REF") == "refs/heads/ci-iam-ac"
             and env.get("GITHUB_WORKFLOW_REF") ==
-            "Djoe-Denne/IAMRusty/.github/workflows/iam-ab.yml@refs/heads/ci-iam-ab"
-            and env.get("IAM_AB_ARM") in {"a", "b"}):
-        return env["IAM_AB_ARM"]
+            "Djoe-Denne/IAMRusty/.github/workflows/iam-ac.yml@refs/heads/ci-iam-ac"
+            and env.get("IAM_AC_ARM") in {"a", "c"}):
+        return env["IAM_AC_ARM"]
     return None
 
 

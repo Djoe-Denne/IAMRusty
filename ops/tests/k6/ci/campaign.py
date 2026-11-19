@@ -607,6 +607,7 @@ def finish(campaign):
     benchmark = {} if not arm else {"benchmark": {
         "arm": arm, "actions_run_id": state["images"]["producer_run_id"], "attempt": state["images"]["producer_attempt"],
         "first_case_at": state.get("benchmark_first_case_at"), "instrumentation": state["images"]["instrumentation"],
+        "runtime_base": state["images"]["benchmark_base"],
         "artifacts": {role: {key: item["artifact"][key] for key in ("id", "digest", "producer_job_id")}
                       for role, item in state["images"]["roles"].items()},
     }}
