@@ -89,6 +89,11 @@ def status(needs, *, event, ref):
         if any(needs.get(name, {}).get("result") != "skipped" for name in ("merge-coverage", "sonar")):
             raise ValueError("Partial coverage must not qualify authoritative Sonar analysis")
         return "Selected checks passed. Full monorepo coverage and Sonar were NOT evaluated."
+    if event == "pull_request":
+        if needs["sonar"].get("outputs", {}).get("scan_outcome") != "success":
+            return ("Complete declared CI checks passed. Sonar PR analysis was NOT evaluated; "
+                    "see the PR quality job for available evidence.")
+        return "Complete declared CI checks passed. PR quality evidence was submitted to Sonar."
     return "Complete declared CI checks passed. Full coverage and Sonar were evaluated."
 
 

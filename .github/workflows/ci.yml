@@ -54,6 +54,13 @@ jobs:
           if [[ "$SELECTIVE_PR" == 'true' ]]; then args+=(--selective); fi
           python3 -B ops/ci/pipeline.py select --event "$EVENT_NAME" \
             --base "$BASE_SHA" --head "$HEAD_SHA" "${args[@]}"
+      - name: Preview build and integration pruning without skipping jobs
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TESTED_SHA: ${{ github.sha }}
+        run: python3 -B ops/ci/pr_scope.py plan --base "$BASE_SHA" --head "$HEAD_SHA" --tested "$TESTED_SHA"
 
   build-iam:
     name: Build (IAMRusty)
@@ -522,6 +529,8 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [merge-coverage, clippy]
     if: needs.merge-coverage.outputs.authoritative == 'true'
+    outputs:
+      scan_outcome: ${{ steps.scan.outcome }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -542,13 +551,43 @@ jobs:
         run: |
           python3 -B ops/ci/pipeline.py verify-merged --directory .
           python3 -B ops/ci/reports.py clippy-verify --directory target/sonar
+      - name: Report same-run coverage and Clippy on changed code
+        id: pr-quality
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TESTED_SHA: ${{ github.sha }}
+        run: python3 -B ops/ci/pr_scope.py quality --base "$BASE_SHA" --head "$HEAD_SHA" --tested "$TESTED_SHA"
+      - name: Publish PR quality evidence
+        if: steps.pr-quality.outputs.report_ready == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pr-quality
+          path: |
+            target/sonar/pr-quality.json
+            target/sonar/clippy-pr.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Check out the identical PR source tree for Sonar
+        id: pr-source
+        if: >-
+          steps.pr-quality.outputs.head_compatible == 'true' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.event.pull_request.user.login != 'dependabot[bot]'
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git checkout --detach "$HEAD_SHA"
       - name: SonarCloud scan
+        id: scan
+        if: github.event_name != 'pull_request' || steps.pr-source.outcome == 'success'
         uses: SonarSource/sonarqube-scan-action@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
             -Dsonar.rust.lcov.reportPaths=lcov.info
+            -Dsonar.rust.clippyReport.reportPaths=${{ github.event_name != 'pull_request' && 'target/sonar/clippy.json' || (steps.pr-quality.outputs.has_clippy == 'true' && 'target/sonar/clippy-pr.json' || '') }}
 
   ci-status:
     name: CI scope and result
