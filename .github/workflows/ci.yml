@@ -647,6 +647,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
+            -Dsonar.qualitygate.wait=${{ github.event_name == 'pull_request' && 'true' || 'false' }}
             -Dsonar.rust.lcov.reportPaths=lcov.info
             -Dsonar.rust.clippyReport.reportPaths=${{ github.event_name != 'pull_request' && 'target/sonar/clippy.json' || (steps.pr-quality.outputs.has_clippy == 'true' && 'target/sonar/clippy-pr.json' || '') }}
 

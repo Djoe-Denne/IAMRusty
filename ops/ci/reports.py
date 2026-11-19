@@ -119,12 +119,12 @@ def status(needs, *, event, ref):
     if coverage_note:
         raise ValueError("Coverage is not authoritative despite successful selected jobs." + coverage_note)
     if event == "pull_request":
+        if needs.get("sonar", {}).get("outputs", {}).get("scan_outcome") != "success":
+            raise ValueError("Sonar PR quality gate was not evaluated successfully; see the SonarCloud job.")
         prefix = ("Complete declared CI checks passed." if selection["full"] else
                   "Selected service checks passed. Full monorepo coverage was NOT evaluated.")
-        if needs["sonar"].get("outputs", {}).get("scan_outcome") != "success":
-            return f"{prefix} Sonar PR analysis was NOT evaluated; see the PR quality job."
-        return f"{prefix} PR quality evidence was submitted to Sonar."
-    return "Complete declared CI checks passed. Full coverage and Sonar were evaluated."
+        return f"{prefix} Sonar PR quality gate passed."
+    return "Complete declared CI checks passed. Full coverage was submitted to Sonar."
 
 
 def main():
