@@ -439,6 +439,20 @@ class WorkflowTests(unittest.TestCase):
                              Loader=yaml.BaseLoader)
         self.assertNotIn("continue-on-error", str(coverage))
 
+    def test_pr_quality_does_not_skip_builds_or_change_the_master_scan(self):
+        steps = self.jobs["plan"]["steps"]
+        self.assertEqual(self.jobs["plan"]["outputs"], {"selection": "${{ steps.scope.outputs.selection }}"})
+        self.assertTrue(any("pr_scope.py plan" in step.get("run", "") and
+                            step["if"] == "github.event_name == 'pull_request'" for step in steps))
+        sonar = {step.get("id"): step for step in self.jobs["sonar"]["steps"]}
+        self.assertIn("pull_request", sonar["pr-quality"]["if"])
+        self.assertIn("head_compatible", sonar["pr-source"]["if"])
+        self.assertIn("head.repo.full_name == github.repository", sonar["pr-source"]["if"])
+        self.assertIn("github.event_name != 'pull_request'", sonar["scan"]["if"])
+        self.assertIn("target/sonar/clippy.json", sonar["scan"]["with"]["args"])
+        self.assertIn("target/sonar/clippy-pr.json", sonar["scan"]["with"]["args"])
+        self.assertEqual(self.jobs["ci-status"]["name"], "CI scope and result")
+
     def test_cache_is_shared_without_target_archives_and_installer_is_pinned(self):
         action = yaml.load((ROOT / ".github/actions/setup-compiler-cache/action.yml").read_text(),
                            Loader=yaml.BaseLoader)
@@ -576,6 +590,15 @@ class ReportTests(unittest.TestCase):
         needs["sonar"]["result"] = "success"
         with self.assertRaises(ValueError):
             reports.status(needs, event="pull_request", ref="refs/pull/1/merge")
+
+    def test_full_pr_reports_skipped_scan_without_claiming_sonar_passed(self):
+        needs = self.full_needs()
+        for job in ("k6-e2e", "e2e-pages"):
+            needs[job]["result"] = "skipped"
+        needs["sonar"]["outputs"] = {"scan_outcome": "skipped"}
+        self.assertIn("NOT evaluated", reports.status(needs, event="pull_request", ref="refs/pull/1/merge"))
+        needs["sonar"]["outputs"]["scan_outcome"] = "success"
+        self.assertIn("submitted", reports.status(needs, event="pull_request", ref="refs/pull/1/merge"))
 
     def test_diagnostic_merge_does_not_become_a_failed_merge_or_a_passed_sonar(self):
         needs = self.full_needs()

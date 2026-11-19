@@ -60,6 +60,10 @@ Default behavior remains full coverage for both master and PRs.
 
 Partial PR receipts are diagnostic. They cannot qualify canonical monorepo coverage or Sonar. Review required-check expectations before enabling the variable. This implementation changes no repository variables or branch protection.
 
+The PR scope step previews separate native build and integration lists with reasons; it does not drive job conditions. It compares the exact tested PR merge to its base parent and defaults to complete scope on uncertain input. Cargo build dependencies expand the build list; declared runtime consumers expand the integration list instead. Workflow changes, manifests, lockfiles and unclassified inputs remain full-scope candidates.
+
+Full-execution PRs produce fresh LCOV and Clippy reports for the tested merge. The PR quality summary records changed Rust lines found in LCOV and reports unmapped lines separately; they are not counted as covered or assumed to be executable. The `pr-quality` artifact is evidence for this run, not a cache. Sonar PR analysis uses its new-code metrics and imports only Clippy warnings whose primary location overlaps the PR diff. The scanner runs on the PR head only if its tree is identical to the tested merge and the PR can access scanner credentials. Otherwise, the run reports that Sonar PR analysis was not evaluated. Full `master` analysis keeps the unfiltered reports.
+
 ## Native bundle migration and publication
 
 Native E2E bundles use `aiforall.k6-binaries/v2`. The actual sccache wrapper, version and executable digest are retained and validated, not cleared during collection. Role/job bindings are closed:
