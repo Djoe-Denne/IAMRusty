@@ -546,8 +546,16 @@ def main(argv=None):
         return aggregate_coverage(data, args.directory, args.output_directory, identity=evidence_identity())
     else:
         if args.service == "iam" and os.environ.get("GITHUB_EVENT_NAME") in {"push", "pull_request"}:
-            from iam_compile_once import canonical_coverage
-            return canonical_coverage(data, args.lane, args.shard, args.output)
+            from iam_compile_once import canonical_coverage, coverage_replay, run_lane
+            if run_lane(os.environ)[2] == "ab":
+                arm = os.environ.get("IAM_AB_ARM")
+                if os.environ.get("GITHUB_JOB") != "coverage" or arm not in {"a", "b"}:
+                    raise ValueError("Wrong IAM benchmark coverage job")
+                if arm == "b":
+                    return coverage_replay(data, args.lane, args.shard, args.output,
+                                           expected_lane="ab", private_name="iam-ab-b-coverage")
+            else:
+                return canonical_coverage(data, args.lane, args.shard, args.output)
         return run_coverage(data, args.service, args.lane, args.shard, args.output)
     return 0
 

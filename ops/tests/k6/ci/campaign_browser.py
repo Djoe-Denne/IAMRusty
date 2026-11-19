@@ -16,7 +16,7 @@ import sys
 from binaries import ROOT, Refused, require, sha, strict_json
 import browser as browser_profile
 import browser_container as trial
-from runtime import hosted, pilot_hosted, write_json
+from runtime import benchmark_arm, hosted, pilot_hosted, write_json
 from safety import Child, Rejected, CODES, BROWSER_DIAGNOSTICS, child_environment, new_output, private_path
 
 HERE = Path(__file__).resolve().parent
@@ -94,8 +94,11 @@ def create_arguments(runtime, output, inputs):
         "--label", "aiforall.dev/oauth-browser-attempt=" + runtime.state["job_attempt"],
         "--entrypoint", "python3"]
     keys = ("GITHUB_ACTIONS", "GITHUB_JOB", "GITHUB_REF", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")
-    if pilot_hosted(os.environ):
+    arm = benchmark_arm(os.environ)
+    if pilot_hosted(os.environ) or arm:
         keys += ("GITHUB_REPOSITORY", "GITHUB_EVENT_NAME", "GITHUB_WORKFLOW_REF")
+    if arm:
+        keys += ("IAM_AB_ARM",)
     for key in keys:
         args += ["--env", key + "=" + os.environ[key]]
     return [*args, state["image_id"], "-B", "/opt/AIForAll/ops/tests/k6/ci/campaign_browser.py", "run",

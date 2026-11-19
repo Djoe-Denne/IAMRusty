@@ -1,40 +1,45 @@
 name: Upload individual IAM test executable bundles
 description: Hand over test partitions to their same-run coverage jobs.
+inputs:
+  prefix:
+    description: Executable artifact namespace and directory.
+    default: iam-ci
+    required: false
 runs:
   using: composite
   steps:
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
-        name: iam-ci-unit-0-${{ github.run_attempt }}
-        path: ${{ runner.temp }}/iam-ci/unit-0/bundle.tar.gz
+        name: ${{ inputs.prefix }}-unit-0-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/${{ inputs.prefix }}/unit-0/bundle.tar.gz
         compression-level: 0
         if-no-files-found: error
         retention-days: 1
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
-        name: iam-ci-tests-0-${{ github.run_attempt }}
-        path: ${{ runner.temp }}/iam-ci/tests-0/bundle.tar.gz
+        name: ${{ inputs.prefix }}-tests-0-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/${{ inputs.prefix }}/tests-0/bundle.tar.gz
         compression-level: 0
         if-no-files-found: error
         retention-days: 1
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
-        name: iam-ci-tests-1-${{ github.run_attempt }}
-        path: ${{ runner.temp }}/iam-ci/tests-1/bundle.tar.gz
+        name: ${{ inputs.prefix }}-tests-1-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/${{ inputs.prefix }}/tests-1/bundle.tar.gz
         compression-level: 0
         if-no-files-found: error
         retention-days: 1
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
-        name: iam-ci-tests-2-${{ github.run_attempt }}
-        path: ${{ runner.temp }}/iam-ci/tests-2/bundle.tar.gz
+        name: ${{ inputs.prefix }}-tests-2-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/${{ inputs.prefix }}/tests-2/bundle.tar.gz
         compression-level: 0
         if-no-files-found: error
         retention-days: 1
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
-        name: iam-ci-tests-3-${{ github.run_attempt }}
-        path: ${{ runner.temp }}/iam-ci/tests-3/bundle.tar.gz
+        name: ${{ inputs.prefix }}-tests-3-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/${{ inputs.prefix }}/tests-3/bundle.tar.gz
         compression-level: 0
         if-no-files-found: error
         retention-days: 1

@@ -19,6 +19,53 @@ import runtime
 
 
 class PilotTests(unittest.TestCase):
+    def test_iam_benchmark_is_branch_and_workflow_bound(self):
+        ref = f"refs/heads/{pilot.AB_BRANCH}"
+        repo = "Djoe-Denne/IAMRusty"
+        env = dict(GITHUB_ACTIONS="true", GITHUB_REPOSITORY=repo, GITHUB_REF=ref,
+                   GITHUB_WORKFLOW_REF=f"{repo}/{pilot.AB_WORKFLOW}@{ref}", GITHUB_EVENT_NAME="push",
+                   GITHUB_JOB="e2e", IAM_AB_ARM="a")
+        self.assertEqual(pilot.run_lane(env), (pilot.AB_WORKFLOW, pilot.AB_BRANCH, "ab"))
+        self.assertEqual(runtime.benchmark_arm(env), "a")
+        for field, value in (("GITHUB_WORKFLOW_REF", f"{repo}/{pilot.CI_WORKFLOW}@{ref}"),
+                             ("GITHUB_EVENT_NAME", "workflow_dispatch"), ("GITHUB_REPOSITORY", "other/IAMRusty"),
+                             ("GITHUB_REF", "refs/heads/master")):
+            foreign = {**env, field: value}
+            self.assertIsNone(runtime.benchmark_arm(foreign))
+            with self.assertRaises(ValueError):
+                pilot.run_lane(foreign)
+        self.assertIsNone(runtime.benchmark_arm(dict(env, GITHUB_JOB="build-a")))
+        self.assertIsNone(runtime.benchmark_arm(dict(env, IAM_AB_ARM="other")))
+
+    def test_ab_producer_and_partition_are_bound(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            executable = root / "binary"
+            executable.write_bytes(b"\x7fELF\x02\x01" + bytes(10) + b"\x03\x00\x3e\x00" + bytes(70))
+            known = {"lane": "ab", "producer_job": "build-b"}
+            a_source = pilot.part_identity(known, "native-e2e")
+            archive = root / "bundle.tar.gz"
+            pilot.bundle(archive, a_source, "native-e2e", [("iam-service", ".", "iam-service", executable)])
+            for identity, part in ((known, "e2e"), (known, "native-e2e"), (a_source, "e2e"),
+                                   ({**a_source, "lane": "ci"}, "native-e2e")):
+                with self.assertRaisesRegex(ValueError, "identity mismatch"):
+                    pilot.unpack(archive, root / "refused", identity, part, {"iam-service"})
+            self.assertFalse((root / "refused").exists())
+            pilot.unpack(archive, root / "valid", a_source, "native-e2e", {"iam-service"})
+
+    def test_ab_dag_delays_only_b_for_the_shared_test_producer(self):
+        config = yaml.load((ROOT / pilot.AB_WORKFLOW).read_text(), Loader=yaml.BaseLoader)
+        self.assertEqual(config["on"], {"push": {"branches": [pilot.AB_BRANCH]}})
+        for arm in ("a", "b"):
+            jobs = config["jobs"]
+            self.assertEqual(jobs[f"coverage-{arm}"]["needs"], [f"build-{arm}"])
+            self.assertEqual(jobs[f"coverage-{arm}"]["with"]["benchmark-arm"], arm)
+            self.assertEqual(jobs[f"e2e-{arm}"]["needs"], [f"build-{arm}", "native-oauth", "native-ext-authz"])
+            self.assertEqual(jobs[f"e2e-{arm}"]["with"]["arm"], arm)
+        self.assertEqual(set(config["jobs"]), {
+            "build-a", "build-b", "native-oauth", "native-ext-authz", "coverage-a", "coverage-b", "e2e-a", "e2e-b",
+        })
+
     def test_admits_pinned_coverage_wrapper_and_refuses_uninstrumented_modes(self):
         env = {
             "RUSTC_WRAPPER": "/home/runner/.cargo/bin/cargo-llvm-cov",

@@ -16,6 +16,7 @@ runs:
         save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && github.job == 'build-iam' }}
 
     - name: Configure content-addressed compilation caching
+      if: github.workflow_ref != 'Djoe-Denne/IAMRusty/.github/workflows/iam-ab.yml@refs/heads/ci-iam-ab'
       shell: bash
       run: |
         {
@@ -26,11 +27,25 @@ runs:
           echo 'SCCACHE_IGNORE_SERVER_IO_ERROR=1'
         } >> "$GITHUB_ENV"
 
+    - name: Start with an empty job-local compiler cache for the paired benchmark
+      if: github.workflow_ref == 'Djoe-Denne/IAMRusty/.github/workflows/iam-ab.yml@refs/heads/ci-iam-ab'
+      shell: bash
+      run: |
+        umask 077
+        mkdir -m 700 "$RUNNER_TEMP/iam-ab-sccache"
+        {
+          echo 'CARGO_INCREMENTAL=0'
+          echo 'RUSTC_WRAPPER=sccache'
+          printf 'SCCACHE_DIR=%s\n' "$RUNNER_TEMP/iam-ab-sccache"
+          echo 'SCCACHE_CACHE_SIZE=2G'
+        } >> "$GITHUB_ENV"
+
     - name: Authenticate release bytes before extraction or PATH publication
       shell: bash
       run: python3 -B ops/ci/compiler_cache.py install --directory "$RUNNER_TEMP/aiforall-sccache"
 
     - name: Export scoped GitHub cache runtime credentials
+      if: github.workflow_ref != 'Djoe-Denne/IAMRusty/.github/workflows/iam-ab.yml@refs/heads/ci-iam-ab'
       uses: ./.github/actions/export-cache-runtime
 
     - name: Verify the admitted compiler-cache executable before compilation

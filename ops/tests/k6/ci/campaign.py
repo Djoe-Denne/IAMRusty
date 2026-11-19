@@ -1,6 +1,7 @@
 """Hosted Ubuntu parent for the unchanged health/OAuth/SAN stimuli, no Cargo."""
 import argparse
 import base64
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -25,7 +26,7 @@ import campaign_browser
 import evidence
 import inputs
 import pki
-from runtime import Runtime, NS, hosted, write_json
+from runtime import Runtime, NS, benchmark_arm, hosted, write_json
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 from safety import Child, Rejected, child_environment, new_output, private_path
@@ -456,6 +457,8 @@ class Campaign:
 
     def run_cases(self):
         self.admit_services()
+        if benchmark_arm(os.environ):
+            self.state["benchmark_first_case_at"] = datetime.now(timezone.utc).isoformat()
         self.scenario("iam-health")
         self.scenario("auth-envoy-san-good")
         good = self.snapshot()
@@ -600,6 +603,13 @@ def finish(campaign):
         "chromium_diagnostic": state.get("chromium_diagnostic"), "browser_preflight": state.get("browser_preflight"),
         "restoration": state["restoration"], "completed_cases": state["completed_cases"], "cleanup": cleanup["status"],
         "stage": state.get("stage"), "resources": state.get("resources", [])})
+    arm = benchmark_arm(os.environ)
+    benchmark = {} if not arm else {"benchmark": {
+        "arm": arm, "actions_run_id": state["images"]["producer_run_id"], "attempt": state["images"]["producer_attempt"],
+        "first_case_at": state.get("benchmark_first_case_at"), "instrumentation": state["images"]["instrumentation"],
+        "artifacts": {role: {key: item["artifact"][key] for key in ("id", "digest", "producer_job_id")}
+                      for role, item in state["images"]["roles"].items()},
+    }}
     campaign.publish("provenance.json", {"harness_sha": os.environ["GITHUB_SHA"], "target_sha": state["images"]["target_sha"],
         "sdk_sha": state["images"]["sdk_sha"], "packaging_sha": state["images"]["harness_sha"],
          "images": {role: value["image_id"] for role, value in state["images"]["roles"].items()},
@@ -607,7 +617,8 @@ def finish(campaign):
             if state["images"].get("schema") == "aiforall.iam-compile-once-images/v1" else {}),
          **({"instrumentation": state["images"]["instrumentation"]}
             if state["images"].get("schema") == "aiforall.k6-current-ci-iam-images/v1" else {}),
-        "tools": {name: {key: value for key, value in pin.items() if key != "path"} for name, pin in state["tools"].items()}})
+         **benchmark,
+         "tools": {name: {key: value for key, value in pin.items() if key != "path"} for name, pin in state["tools"].items()}})
     campaign.r.save()
 
 

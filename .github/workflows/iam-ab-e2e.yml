@@ -1,0 +1,88 @@
+name: IAM benchmark functional E2E
+on:
+  workflow_call:
+    inputs:
+      arm:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  e2e:
+    name: Five unchanged functional phases
+    if: github.repository == 'Djoe-Denne/IAMRusty' && github.event_name == 'push' && github.ref == 'refs/heads/ci-iam-ab' && github.workflow_ref == 'Djoe-Denne/IAMRusty/.github/workflows/iam-ab.yml@refs/heads/ci-iam-ab'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      IAM_AB_ARM: ${{ inputs.arm }}
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Prepare owner-only run root outside Git
+        run: |
+          [[ "$IAM_AB_ARM" =~ ^[ab]$ ]]
+          umask 077
+          private="$RUNNER_TEMP/iam-ab-$IAM_AB_ARM-private"
+          mkdir -m 700 "$private"
+          printf 'IAM_AB_ROOT=%s\n' "$private" >> "$GITHUB_ENV"
+      - name: Acquire exact same-attempt binaries by API digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          umask 077
+          part=e2e
+          if [[ "$IAM_AB_ARM" == a ]]; then part=native-e2e; fi
+          for role in "$part" oauth ext-authz; do
+            python3 -B ops/ci/iam_compile_once.py fetch --part "$role" --output "$IAM_AB_ROOT/acquired/$role"
+          done
+      - name: Verify binaries, package with existing recipes, and close ABI probes
+        run: |
+          umask 077
+          verified="$IAM_AB_ROOT/images/verified"
+          mkdir -m 700 -p "$verified"
+          python3 -B ops/tests/k6/ci/iam_pilot.py pack "$IAM_AB_ROOT/acquired" "$verified/packaged"
+          python3 -B ops/tests/k6/ci/iam_pilot.py close-probes "$verified/packaged"
+          for file in images.tar.gz provenance.json cleanup.json; do
+            mv "$verified/packaged/$file" "$verified/$file"
+          done
+      - name: Install existing browser dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libnss3-tools libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64
+          python3 -m pip install 'PyYAML==6.0.2'
+      - name: Acquire and verify the pinned CI CLI tools
+        run: python3 -B ops/tests/k6/ci/provision.py --output "$IAM_AB_ROOT/cli"
+      - name: Acquire and verify k6 and Chromium
+        run: python3 -B ops/tests/k6/provision-linux.py --output "$IAM_AB_ROOT/browser"
+      - name: Execute unchanged scenarios and restore fixtures
+        run: >-
+          python3 -B ops/tests/k6/ci/iam_pilot.py run
+          --directory "$IAM_AB_ROOT/campaign"
+          --cli-directory "$IAM_AB_ROOT/cli"
+          --browser-directory "$IAM_AB_ROOT/browser"
+          --image-directory "$IAM_AB_ROOT/images"
+      - name: Verify owned packaging and campaign cleanup
+        if: always() && env.IAM_AB_ROOT != ''
+        run: |
+          status=0
+          python3 -B ops/tests/k6/ci/iam_pilot.py close-probes "$IAM_AB_ROOT/images/verified/packaged" || status=1
+          python3 -B ops/tests/k6/ci/iam_pilot.py clean --directory "$IAM_AB_ROOT/campaign" || status=1
+          exit "$status"
+      - name: Retain only sanitized benchmark evidence
+        if: always() && env.IAM_AB_ROOT != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: iam-ab-${{ inputs.arm }}-e2e-evidence-${{ github.run_attempt }}
+          path: |
+            ${{ env.IAM_AB_ROOT }}/campaign/public/report.json
+            ${{ env.IAM_AB_ROOT }}/campaign/public/provenance.json
+            ${{ env.IAM_AB_ROOT }}/campaign/public/cleanup.json
+            ${{ env.IAM_AB_ROOT }}/campaign/public/processes.json
+            ${{ env.IAM_AB_ROOT }}/campaign/public/correlation.json
+          if-no-files-found: error
+          retention-days: 3

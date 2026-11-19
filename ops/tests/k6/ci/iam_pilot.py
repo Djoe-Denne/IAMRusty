@@ -17,6 +17,7 @@ import iam_compile_once as pilot
 
 SCHEMA = "aiforall.iam-compile-once-images/v1"
 CI_SCHEMA = "aiforall.k6-current-ci-iam-images/v1"
+AB_SCHEMA = "aiforall.k6-iam-ab-images/v1"
 INSTRUMENTATION = {"iam": "llvm-source-coverage", "oauth": "none", "ext-authz": "none"}
 
 
@@ -25,19 +26,31 @@ def proofs():
     known = pilot.identity()
     current = known["lane"] == "ci" and os.environ.get("GITHUB_JOB") == "e2e" \
         and os.environ.get("GITHUB_EVENT_NAME") == "push" and os.environ.get("GITHUB_REF") == "refs/heads/master"
-    binaries.require(runtime.pilot_hosted(os.environ) or current, "NOT_INSTRUMENTED_E2E_JOB")
+    benchmark = known["lane"] == "ab" and runtime.benchmark_arm(os.environ)
+    binaries.require(runtime.pilot_hosted(os.environ) or current or benchmark, "NOT_INSTRUMENTED_E2E_JOB")
     return known
+
+
+def mode(known):
+    if known["lane"] == "ab":
+        arm = runtime.benchmark_arm(os.environ)
+        binaries.require(arm is not None, "BENCHMARK_ARM")
+        return (AB_SCHEMA, "benchmark-" + arm, {**INSTRUMENTATION, "iam": "none"} if arm == "a" else INSTRUMENTATION,
+                "native-e2e" if arm == "a" else "e2e")
+    schema, lane = (CI_SCHEMA, "current-ci") if known["lane"] == "ci" else (SCHEMA, pilot.BRANCH)
+    return schema, lane, INSTRUMENTATION, "e2e"
 
 
 def pack(acquired, output):
     known = proofs()
+    schema, lane, instrumentation, iam_part = mode(known)
     source = known["GITHUB_SHA"]
     output.mkdir(mode=0o700)
     context = output / "context"
 
     def verify(role, directory, outputs):
         require = binaries.require
-        part = "e2e" if role == "iam" else role
+        part = iam_part if role == "iam" else role
         path = acquired / part
         artifact = binaries.strict_json((path / "github-artifact.json").read_bytes())
         require(re.fullmatch(r"sha256:[a-f0-9]{64}", artifact["digest"]), "PILOT_ARTIFACT_DIGEST")
@@ -50,36 +63,38 @@ def pack(acquired, output):
                 "inventory_sha256": binaries.sha(ROOT / "ops/deploy/build/targets.json"),
             }
             return binaries.unpack(path / "bundle.tar.gz", directory, provenance, outputs), artifact
-        rows = pilot.unpack(path / "bundle.tar.gz", directory, known, part, set(outputs.values()))
+        rows = pilot.unpack(path / "bundle.tar.gz", directory, pilot.part_identity(known, part), part,
+                            set(outputs.values()))
         for row in rows:
-            inspect = binaries.coverage_elf if role == "iam" else binaries.elf
+            inspect = binaries.coverage_elf if instrumentation[role] != "none" else binaries.elf
             inspect(directory / row["name"])
         return {"role": role, "source_sha": source, "sdk_sha": known["sdk"], "files": rows,
-                "instrumentation": INSTRUMENTATION[role]}, artifact
+                "instrumentation": instrumentation[role]}, artifact
 
     roles, entrypoint = package.stage_context(ROOT, context, ROOT, source, known["sdk"], verify)
-    with (context / roles["iam"]["dockerfile"]).open("a", encoding="utf-8") as dockerfile:
-        dockerfile.write("\nENV LLVM_PROFILE_FILE=/tmp/iam-pilot-%m-%p.profraw\n")
-    roles["iam"]["dockerfile_sha256"] = binaries.sha(context / roles["iam"]["dockerfile"])
+    if instrumentation["iam"] != "none":
+        with (context / roles["iam"]["dockerfile"]).open("a", encoding="utf-8") as dockerfile:
+            dockerfile.write("\nENV LLVM_PROFILE_FILE=/tmp/iam-pilot-%m-%p.profraw\n")
+        roles["iam"]["dockerfile_sha256"] = binaries.sha(context / roles["iam"]["dockerfile"])
     package.build_images(output, context, {
-        "schema": CI_SCHEMA if known["lane"] == "ci" else SCHEMA,
+        "schema": schema,
         "harness_sha": source, "target_sha": source, "sdk_sha": known["sdk"],
         "producer_run_id": int(known["GITHUB_RUN_ID"]), "producer_attempt": int(known["GITHUB_RUN_ATTEMPT"]),
-        "entrypoint_sha256": entrypoint, "cargo_profile": "dev", "instrumentation": INSTRUMENTATION,
-        "roles": roles, "lane": "current-ci" if known["lane"] == "ci" else pilot.BRANCH,
+        "entrypoint_sha256": entrypoint, "cargo_profile": "dev", "instrumentation": instrumentation,
+        "roles": roles, "lane": lane,
     })
 
 
 def admit(root, value):
     known = proofs()
     require = binaries.require
-    schema, lane = (CI_SCHEMA, "current-ci") if known["lane"] == "ci" else (SCHEMA, pilot.BRANCH)
+    schema, lane, instrumentation, _ = mode(known)
     require(value.get("schema") == schema and value.get("lane") == lane
             and value.get("target_sha") == value.get("harness_sha") == known["GITHUB_SHA"]
             and value.get("sdk_sha") == known["sdk"]
             and value.get("producer_run_id") == int(known["GITHUB_RUN_ID"])
             and value.get("producer_attempt") == int(known["GITHUB_RUN_ATTEMPT"])
-            and value.get("instrumentation") == INSTRUMENTATION
+            and value.get("instrumentation") == instrumentation
             and value.get("qualification") == "PACKAGING_AND_ABI_ONLY_NOT_E2E",
             "PILOT_IMAGE_PROVENANCE")
     cleanup = binaries.strict_json((root / "verified/cleanup.json").read_bytes())
@@ -87,10 +102,10 @@ def admit(root, value):
             and cleanup.get("run_id") == known["GITHUB_RUN_ID"]
             and cleanup.get("run_attempt") == known["GITHUB_RUN_ATTEMPT"], "PILOT_IMAGE_CLEANUP")
     roles = value.get("roles", {})
-    require(set(roles) == set(INSTRUMENTATION), "PILOT_IMAGE_ROLES")
+    require(set(roles) == set(instrumentation), "PILOT_IMAGE_ROLES")
     for role, item in roles.items():
         manifest = item["manifest"]
-        require(manifest["instrumentation"] == INSTRUMENTATION[role] and manifest["role"] == role
+        require(manifest["instrumentation"] == instrumentation[role] and manifest["role"] == role
                 and manifest["source_sha"] == known["GITHUB_SHA"] and manifest["sdk_sha"] == known["sdk"]
                 and item["abi"]["resolution"] == "PASS"
                 and re.fullmatch(r"sha256:[a-f0-9]{64}", item["image_id"])
