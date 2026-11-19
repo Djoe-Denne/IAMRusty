@@ -17,6 +17,10 @@ import pipeline as ci
 WORKFLOW = ".github/workflows/iam-compile-once.yml"
 BRANCH = "ci-iam-compile-once"
 SCHEMA = "aiforall.iam-compile-once/v1"
+CI_WORKFLOW = ".github/workflows/ci.yml"
+CI_SCHEMA = "aiforall.ci-iam-executables/v1"
+CI_PRODUCER = "Build (IAMRusty)"
+CI_BRANCHES = {"master", "main"}
 MAX_BINARY = 2 * 1024**3
 MAX_BUNDLE = 6 * 1024**3
 SERVICE_OUTPUTS = {"iam-service": "iam-service", "iam-migration": "iammigration"}
@@ -27,17 +31,32 @@ def require(ok, reason):
         raise ValueError(reason)
 
 
+def run_lane(env):
+    ref = env.get("GITHUB_REF", "")
+    workflow_ref = env.get("GITHUB_WORKFLOW_REF", "")
+    repo = env.get("GITHUB_REPOSITORY")
+    event = env.get("GITHUB_EVENT_NAME")
+    require(env.get("GITHUB_ACTIONS") == "true" and repo == "Djoe-Denne/IAMRusty",
+            "Not the IAM executable CI repository")
+    if event == "push" and ref == f"refs/heads/{BRANCH}" and workflow_ref == f"{repo}/{WORKFLOW}@{ref}":
+        return WORKFLOW, BRANCH, "pilot"
+    if workflow_ref == f"{repo}/{CI_WORKFLOW}@{ref}":
+        if event == "push" and ref.removeprefix("refs/heads/") in CI_BRANCHES and ref.startswith("refs/heads/"):
+            return CI_WORKFLOW, ref.removeprefix("refs/heads/"), "ci"
+        if event == "pull_request" and re.fullmatch(r"refs/pull/[1-9][0-9]*/merge", ref) \
+                and env.get("GITHUB_BASE_REF") in CI_BRANCHES:
+            return CI_WORKFLOW, env.get("GITHUB_HEAD_REF", ""), "ci"
+    raise ValueError("Not an admitted IAM executable workflow")
+
+
 def identity(env=os.environ, root=ci.ROOT):
-    require(env.get("GITHUB_ACTIONS") == "true" and env.get("GITHUB_REPOSITORY") == "Djoe-Denne/IAMRusty"
-            and env.get("GITHUB_EVENT_NAME") == "push" and env.get("GITHUB_REF") == f"refs/heads/{BRANCH}",
-            "Not the reserved IAM pilot push")
-    ref = f"{env.get('GITHUB_REPOSITORY')}/{WORKFLOW}@refs/heads/{BRANCH}"
-    require(env.get("GITHUB_WORKFLOW_REF") == ref, "Not the IAM pilot workflow")
+    workflow, _, lane = run_lane(env)
     value = ci.evidence_identity(env)
     revision = subprocess.check_output(["git", "rev-parse", "HEAD", "HEAD:rustycog"],
                                        cwd=root, text=True).splitlines()
     require(len(revision) == 2 and revision[0] == value["GITHUB_SHA"], "Pilot checkout mismatch")
-    return {**value, "sdk": revision[1], "workflow": WORKFLOW,
+    return {**value, "sdk": revision[1], "workflow": workflow, "lane": lane,
+            "producer_job": "build-iam" if lane == "ci" else "producer",
             "repository": env["GITHUB_REPOSITORY"], "repository_id": env["GITHUB_REPOSITORY_ID"],
             "lock": digest(root / "Cargo.lock"), "toolchain": digest(root / "rust-toolchain.toml"),
             "inventory": digest(root / ".github/ci/inventory.json")}
@@ -128,11 +147,11 @@ def bundle(output, provenance, partition, files):
     require(total <= MAX_BUNDLE, f"{partition}: {total} uncompressed bytes exceeds limit {MAX_BUNDLE}")
     rows = [{"key": key, "cwd": cwd, "name": name, "sha256": digest(path),
              "bytes": path.stat().st_size} for key, cwd, name, path in files]
-    validate_manifest({"identity": provenance, "partition": partition, "schema": SCHEMA, "files": rows},
-                      provenance, partition, set(row["key"] for row in rows))
+    schema = CI_SCHEMA if provenance.get("lane") == "ci" else SCHEMA
+    content = {"identity": provenance, "partition": partition, "schema": schema, "files": rows}
+    validate_manifest(content, provenance, partition, set(row["key"] for row in rows))
     manifest = output.parent / (partition + ".json")
-    manifest.write_text(json.dumps({"identity": provenance, "partition": partition,
-                                    "schema": SCHEMA, "files": rows}, sort_keys=True), encoding="utf-8")
+    manifest.write_text(json.dumps(content, sort_keys=True), encoding="utf-8")
     with tarfile.open(output, "w:gz", compresslevel=1) as archive:
         archive.add(manifest, arcname="manifest.json", recursive=False)
         for row, (_, _, _, path) in zip(rows, files):
@@ -156,6 +175,8 @@ def iam_packages(data):
 
 def produce_e2e(output, root=ci.ROOT):
     provenance = identity(root=root)
+    require(os.environ.get("GITHUB_JOB") == ("build-iam" if provenance["lane"] == "ci" else "producer"),
+            "Unexpected IAM executable producer")
     target = producer_target()
     require(not target.exists() or (target.is_dir() and not any(target.iterdir())),
             "Pilot requires a fresh instrumented target directory")
@@ -173,6 +194,8 @@ def produce_e2e(output, root=ci.ROOT):
 
 def produce(output, matrix_file, root=ci.ROOT):
     provenance = identity(root=root)
+    require(os.environ.get("GITHUB_JOB") == ("build-iam" if provenance["lane"] == "ci" else "producer"),
+            "Unexpected IAM executable producer")
     target = producer_target()
     require(target.is_dir() and (output / "e2e/bundle.tar.gz").is_file(),
             "Test compilation requires the prior E2E build in the same target directory")
@@ -204,8 +227,9 @@ def produce(output, matrix_file, root=ci.ROOT):
 
 
 def validate_manifest(value, provenance, part, expected):
+    schema = CI_SCHEMA if provenance.get("lane") == "ci" else SCHEMA
     require(isinstance(value, dict) and set(value) == {"identity", "schema", "partition", "files"}
-            and value["identity"] == provenance and value["partition"] == part and value["schema"] == SCHEMA,
+            and value["identity"] == provenance and value["partition"] == part and value["schema"] == schema,
             "Pilot manifest identity mismatch")
     rows = value["files"]
     require(isinstance(rows, list) and bool(expected) and len(rows) == len(expected), "Pilot target count mismatch")
@@ -276,9 +300,10 @@ def require_iam_coverage(report, root):
     raise ValueError("Pilot LCOV has no executed IAM source lines")
 
 
-def replay(archive, output, part, expected, root=ci.ROOT):
+def replay(archive, output, part, expected, root=ci.ROOT, report=None):
     provenance = identity(root=root)
     require(re.fullmatch(r"unit-0|tests-[0-3]", part), "Unknown IAM pilot shard")
+    require((report is not None) == (provenance["lane"] == "ci"), "Wrong IAM reporting lane")
     output.mkdir(mode=0o700)
     objects = output / "objects"
     rows = unpack(archive, objects, provenance, part, expected)
@@ -296,54 +321,134 @@ def replay(archive, output, part, expected, root=ci.ROOT):
         require("not found" not in resolution, "Pilot test has an unresolved runtime library")
         env = {**os.environ, "CARGO_MANIFEST_DIR": str(cwd), "CARGO_PKG_NAME": row["key"].split("|")[0],
                "LLVM_PROFILE_FILE": str(profiles / (row["name"] + "-%m-%p.profraw"))}
+        env.pop("GH_TOKEN", None)
         result = subprocess.run([str(objects / row["name"])], cwd=cwd, env=env, check=False)
         results.append({"key": row["key"], "sha256": row["sha256"], "status": result.returncode})
         status = status or result.returncode
     receipt = output / "receipt.json"
-    receipt.write_text(json.dumps({"identity": provenance, "part": part, "results": results,
-                                   "canonical": False}), encoding="utf-8")
-    profdata = output / "merged.profdata"
+    receipt.write_text(json.dumps({
+        "identity": provenance, "part": part, "results": results, "canonical": False,
+        "runner": "direct-libtest", "arguments": [],
+    }), encoding="utf-8")
+    if report is not None:
+        try:
+            export_coverage(objects, rows, profiles, report, common_coverage_exclusions(root), root)
+        except (ValueError, OSError, subprocess.SubprocessError):
+            print("IAM coverage export failed", file=sys.stderr)
+            return status, 1
+        return status, 0
+    export_coverage(objects, rows, profiles, output / "pilot.lcov", r"/\.cargo/registry/|/rustc/", root)
+    return status
+
+
+def export_coverage(objects, rows, profiles, destination, excludes, root):
+    profdata = profiles.parent / "merged.profdata"
     raw = sorted(profiles.glob("*.profraw"))
     require(raw and all(p.stat().st_size for p in raw), "Missing pilot profiles")
     subprocess.run(["llvm-profdata", "merge", "-sparse", *map(str, raw), "-o", str(profdata)], check=True)
     binaries = [str(objects / row["name"]) for row in rows]
-    with (output / "pilot.lcov").open("x", encoding="utf-8") as out:
+    with destination.open("x", encoding="utf-8") as out:
         subprocess.run(["llvm-cov", "export", "--format=lcov", f"--instr-profile={profdata}",
-                        "--ignore-filename-regex=/\\.cargo/registry/|/rustc/",
-                        binaries[0], *[f"--object={path}" for path in binaries[1:]]],
-                       stdout=out, check=True)
-    require_iam_coverage(output / "pilot.lcov", root)
-    return status
+                        f"--ignore-filename-regex={excludes}", binaries[0],
+                        *[f"--object={path}" for path in binaries[1:]]], stdout=out, check=True)
+    require_iam_coverage(destination, root)
+
+
+def common_coverage_exclusions(root):
+    """Retain pinned cargo-llvm-cov Linux default exclusions for this workspace."""
+    workspace = re.escape(root.as_posix())
+    cargo_home = re.escape(Path(os.environ.get("CARGO_HOME", Path.home() / ".cargo")).as_posix())
+    rustup_home = re.escape(Path(os.environ.get("RUSTUP_HOME", Path.home() / ".rustup")).as_posix())
+    return "|".join((
+        r"/rustc/([0-9a-f]+|[0-9]+\.[0-9]+\.[0-9]+)/",
+        rf"^{workspace}(/.*)?/(tests|examples|benches)/",
+        rf"^{workspace}(/.*)?/(tests\.rs|[0-9A-Za-z_-]+[_-]tests\.rs)$",
+        rf"^{workspace}/target($|/)",
+        rf"^{cargo_home}/(registry|git)/",
+        rf"^{rustup_home}/toolchains($|/)",
+    ))
+
+
+def canonical_coverage(data, lane, shard, output, root=ci.ROOT):
+    known = identity(root=root)
+    require(known["lane"] == "ci", "Pilot may not produce canonical coverage")
+    expected = ci.target_assignment(data, "iam", lane, shard, root)
+    require(expected and len(expected) == len(set(expected)), "Invalid IAM coverage assignment")
+    context = ci.coverage_context(os.environ)
+    output = ci.coverage_destination(output)
+    private = Path(os.environ["RUNNER_TEMP"]) / "iam-coverage-private"
+    private.mkdir(mode=0o700)
+    part = f"{lane}-{shard}"
+    acquired = private / "acquired"
+    fetch(part, acquired, root)
+    try:
+        status, report_status = replay(acquired / "bundle.tar.gz", private / "replay", part,
+                                       set(expected), root, report=output)
+    except (ValueError, OSError, subprocess.SubprocessError):
+        status, report_status = 1, 1
+        print("IAM binary replay failed", file=sys.stderr)
+    return ci.write_coverage_receipt(data, "iam", lane, shard, output, context, status, report_status, root)
 
 
 def fetch(part, destination, root=ci.ROOT):
     """Fetch only the trusted producer's exact same-attempt, digest-checked archive."""
     sys.path.insert(0, str(root / "ops/tests/k6/ci"))
     from artifacts import GitHub, positive, unwrap_zip, validate_artifact
+    from binaries import ROLES
 
     require(re.fullmatch(r"unit-0|tests-[0-3]|e2e|oauth|ext-authz", part), "Unknown pilot artifact")
     known = identity(root=root)
+    workflow_path, branch, lane = run_lane(os.environ)
+    event = os.environ["GITHUB_EVENT_NAME"]
+    if lane == "ci":
+        expected_consumer = "e2e" if part in {"e2e", "oauth", "ext-authz"} else "coverage"
+        require(os.environ.get("GITHUB_JOB") == expected_consumer, "Unexpected IAM artifact consumer")
+    require(lane == "pilot" or part not in {"e2e", "oauth", "ext-authz"} or (event == "push" and branch == "master"),
+            "Current-CI IAM E2E requires push/master")
     run_id, attempt = (positive(known[key]) for key in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"))
     api = GitHub(known["repository"], os.environ["GH_TOKEN"])
-    workflow = api.json(f"actions/workflows/{Path(WORKFLOW).name}")
+    workflow = api.json(f"actions/workflows/{Path(workflow_path).name}")
     run = api.json(f"actions/runs/{run_id}/attempts/{attempt}")
-    require(workflow.get("path") == WORKFLOW and workflow.get("id") == run.get("workflow_id")
-            and run.get("path") == WORKFLOW and run.get("head_sha") == known["GITHUB_SHA"]
-            and run.get("event") == "push" and run.get("head_branch") == BRANCH
+    api_sha = run.get("head_sha")
+    require(isinstance(api_sha, str) and re.fullmatch(r"[a-f0-9]{40}", api_sha), "Invalid run head")
+    if event == "pull_request":
+        # The API identifies the PR head; the checkout is GitHub's merge commit.
+        checked_head = subprocess.check_output(["git", "rev-parse", "HEAD^2"], cwd=root, text=True).strip()
+        require(api_sha in {known["GITHUB_SHA"], checked_head}, "Foreign PR head")
+    else:
+        require(api_sha == known["GITHUB_SHA"], "Foreign push head")
+    require(workflow.get("path") == workflow_path and workflow.get("id") == run.get("workflow_id")
+            and run.get("path") == workflow_path
+            and run.get("event") == event and run.get("head_branch") == branch
             and run.get("id") == run_id and run.get("run_attempt") == attempt,
             "Foreign IAM pilot run")
-    for key in ("repository", "head_repository"):
-        require(run.get(key, {}).get("id") == positive(known["repository_id"])
-                and run[key].get("full_name") == known["repository"], "Foreign pilot repository")
+    repo = run.get("repository") or {}
+    require(repo.get("id") == positive(known["repository_id"]) and repo.get("full_name") == known["repository"],
+            "Foreign IAM repository")
+    if event == "push":
+        head = run.get("head_repository") or {}
+        require(head.get("id") == repo["id"] and head.get("full_name") == repo["full_name"], "Foreign push repository")
     job_name = {"oauth": "Pilot OAuth native build", "ext-authz": "Pilot Ext Authz native build"}.get(
         part, "Pilot IAM instrumented compile")
+    if lane == "ci":
+        job_name = ROLES[part] if part in {"oauth", "ext-authz"} else CI_PRODUCER
     jobs = [j for j in api.pages(f"actions/runs/{run_id}/attempts/{attempt}/jobs", "jobs") if j["name"] == job_name]
-    require(len(jobs) == 1 and jobs[0]["status"] == "completed" and jobs[0]["conclusion"] == "success",
+    require(len(jobs) == 1 and jobs[0]["status"] == "completed" and jobs[0]["conclusion"] == "success"
+            and jobs[0].get("run_id") == run_id and jobs[0].get("run_attempt") == attempt,
             "Pilot producer not successful")
-    name = f"iam-pilot-{part}-{attempt}"
+    name = f"{'iam-ci' if lane == 'ci' else 'iam-pilot'}-{part}-{attempt}"
+    if lane == "ci" and part in {"oauth", "ext-authz"}:
+        name = f"k6-binaries-{part}-{run_id}-{attempt}"
     items = [a for a in api.pages(f"actions/runs/{run_id}/artifacts", "artifacts") if a["name"] == name]
     require(len(items) == 1, "Missing or duplicate pilot artifact")
-    record = validate_artifact(items[0], run_id, known["GITHUB_SHA"])
+    # GitHub may expose the merge SHA in the artifact metadata and the head SHA
+    # in the PR run. The embedded manifest always requires the exact merge SHA.
+    origin_sha = items[0].get("workflow_run", {}).get("head_sha")
+    require(origin_sha in {api_sha, known["GITHUB_SHA"]}, "Foreign IAM artifact SHA")
+    record = validate_artifact(items[0], run_id, origin_sha)
+    require(type(jobs[0].get("id")) is int and jobs[0]["id"] > 0, "Invalid producer job ID")
+    record["workflow_id"] = workflow["id"]
+    record["producer_job_id"] = jobs[0]["id"]
     destination.mkdir(mode=0o700, parents=True)
     api.download(record, destination / "archive.zip")
     unwrap_zip(destination / "archive.zip", destination / "bundle.tar.gz")

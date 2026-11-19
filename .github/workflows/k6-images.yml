@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       producer_run_id:
-        description: CI push/master run with the three completed build bundles
+        description: Native CI dispatch on master (or older push) with all three build bundles
         required: true
         type: string
       producer_attempt:

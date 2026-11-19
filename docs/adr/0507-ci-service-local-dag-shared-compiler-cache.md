@@ -1,12 +1,13 @@
 # ADR-0507: CI uses service-local build dependencies and a shared compiler cache
 
 - Status: Proposed
-- Reality: Partial; diagnostic and authoritative coverage/Sonar verified; cache throttling and reservation conflicts unresolved
+- Reality: Partial; diagnostic and authoritative coverage/Sonar verified; IAM pilot E2E/cleanup qualified, complete adopted run pending; cache throttling and reservation conflicts unresolved
 - Date: 2026-11-17
 - Author: `architecte`, session `ses_e152b44f9ffeCvHhlurgQWqbkK`; persisted by the root agent
 - Decision makers: Pending explicit human acceptance
 - Supersedes: None while Proposed. Acceptance would replace only the Clippy job-placement clause of ADR-0501, Decision 2.
 - Implementation contract: [CI service-local execution](../contracts/ci-service-local-execution.md)
+- IAM-only forward specialization: [compile-once adoption](../contracts/ci-iam-compile-once-adoption.md)
 
 ## Context
 
@@ -52,6 +53,16 @@ Measure comparable warm hosted builds before changing cache transport at the sam
 
 An opt-in, reserved-branch pilot builds IAM test executables and instrumented production executables in one producer target directory. Fresh test shards and the existing E2E campaign reuse those binaries without rebuilding. Only compatible Cargo units are eligible to share; E2E companions OAuth and ext-authz remain native. The dedicated artifact and admission boundary is described in the [pilot contract](../contracts/ci-iam-compile-once-pilot.md). Canonical CI and release behavior are unchanged. The pilot does not establish runtime parity or a speedup until measured on hosted runners.
 
+### Forward amendment: adopt compile-once execution for IAM only
+
+The user authorized full-pipeline adoption after a verified instrumented IAM E2E campaign. Hosted run [44493607389, attempt 1](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44493607389), source `aba26931ff01de2149587275b5a928ba74194d73`, passed all five existing scenarios, restoration and cleanup. The five test partitions passed separately in [44351218515](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44351218515). These are separate qualifications, not a successful combined canonical run or a speedup measurement. ADR-0507 remains Proposed / Partial; implementation authorization is not formal acceptance.
+
+Specialize the main CI IAM producer, retaining job ID `build-iam` and display name `Build (IAMRusty)`: build instrumented IAM server/migration and the exact canonical test-target union in one producer target directory. Reuse only compatible Cargo units; preserve distinct profile, feature, host and harness variants. Retain the qualified producer-only `line-tables-only` settings. Fresh IAM coverage runners replay their assigned whole binaries without application compilation, through the existing canonical coverage entry point, fixtures, outcome receipts and aggregation policy. Other services retain their existing behavior.
+
+Use a dedicated, typed instrumented-IAM admission path bound to the existing successful producer identities and exact source/SDK/workflow/run/attempt/artifact provenance. Never relabel instrumented output as native v2 or widen native, release or saved-image admission. OAuth and ext-authz remain native. Preserve the unchanged E2E scenarios, trust restrictions and cleanup; E2E profiles remain private and excluded from canonical coverage.
+
+Freeze the IAM server/migration bundle before test compilation can overwrite outputs. Consumers still require the entire producer job to succeed: early upload does not bypass this condition. IAM coverage and E2E now wait for IAM test-executable compilation and bundling. This new critical path is an explicit IAM-only tradeoff against repeated compatible compilation, not a general prewarm barrier. Measure it, transfers and consumer setup in a complete hosted run before reporting rollout qualification or a performance improvement. The [adoption contract](../contracts/ci-iam-compile-once-adoption.md) narrowly overrides the earlier native-only main-CI and consumer-compilation clauses for IAM; the pilot evidence remains experimental history.
+
 ## Consequences and limits
 
 - Explicit jobs remove the matrix-wide dependency barrier without delaying producer admission until tests finish.
@@ -59,7 +70,7 @@ An opt-in, reserved-branch pilot builds IAM test executables and instrumented pr
 - Linker-producing crates, procedural macros, metadata-only lint work, native build scripts, cold parallel misses and GHA backend request limits constrain reuse.
 - Neither a cache below 10 GB nor faster hosted execution is claimed without measurement.
 - Runner-issued GHA capabilities are exported by a minimal repository-owned JavaScript action without a post hook. Missing capabilities disable remote caching; statistics authenticate the executable before execution.
-- Shards still compile their selected instrumented targets. Native binaries are not silently reused as coverage binaries.
+- Non-IAM shards still compile their selected instrumented targets. The IAM forward specialization replays verified instrumented executables; native binaries are never silently reused as coverage binaries.
 - Receipt-checked aggregation rejects missing, duplicated, foreign, partial or corrupted evidence and failed report generation. Failed test commands may yield a diagnostic merge but never canonical coverage or a passing test verdict.
 - No change to Sonar exclusions, thresholds, warnings, billing, quotas, application behavior or SDK is authorized.
 - ADR-0501 remains an unchanged retrospective record; this Proposed ADR is not an implicit acceptance or global quality pass.
@@ -68,7 +79,7 @@ An opt-in, reserved-branch pilot builds IAM test executables and instrumented pr
 
 - One build matrix: a dependency cannot select one matching child.
 - Reusable producer workflows: unnecessary name/identity complexity at the bundle admission boundary.
-- Combined build/test producers: delay E2E producer success until tests finish.
+- Combined build/test producers as a general policy: delay E2E producer success. The measured IAM-only forward specialization accepts the test-compilation/bundling wait, not test execution in the producer.
 - One shared `target/` archive: first-writer snapshots are not merged and retain duplicated variants.
 - Clearing the wrapper, arbitrary wrapper admission or accepting whichever LCOV files happen to exist: conceal provenance or incomplete evidence.
 - A process-per-test runner migration: changes fixture economics and isolation beyond this task.

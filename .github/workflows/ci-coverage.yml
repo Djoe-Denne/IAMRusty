@@ -13,9 +13,6 @@ on:
       IAMRUSTY_TEST_RSA8192_PEM_B64:
         required: false
 
-permissions:
-  contents: read
-
 env:
   CARGO_TERM_COLOR: always
   CARGO_TARGET_DIR: ${{ github.workspace }}/target
@@ -57,11 +54,13 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
+          fetch-depth: ${{ inputs.service == 'iam' && 2 || 1 }}
           persist-credentials: false
       - uses: ./.github/actions/setup-rust
         with:
           components: llvm-tools-preview
       - uses: ./.github/actions/setup-compiler-cache
+        if: inputs.service != 'iam' || github.event_name == 'workflow_dispatch'
       - name: Install IAM native dependencies
         if: inputs.service == 'iam'
         run: |
@@ -72,6 +71,7 @@ jobs:
             -o Acquire::Retries=3
           sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
       - uses: taiki-e/install-action@72f835688cb6c15903b796f704b01e652a2b8835 # install-action
+        if: inputs.service != 'iam' || github.event_name == 'workflow_dispatch'
         with:
           tool: cargo-llvm-cov@0.9.1
       - name: Prepare fixture ownership context
@@ -99,12 +99,17 @@ jobs:
           CI_SERVICE: ${{ inputs.service }}
           CI_LANE: ${{ matrix.lane }}
           CI_SHARD: ${{ matrix.shard }}
+          GH_TOKEN: ${{ inputs.service == 'iam' && github.token || '' }}
           IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
         run: |
           set -euo pipefail
           if [[ "$CI_SERVICE" == 'iam' && -z "${IAMRUSTY_TEST_RSA8192_PEM_B64//[[:space:]]/}" ]]; then
             echo 'IAM RSA8192 probe material is required in CI' >&2
             exit 1
+          fi
+          if [[ "$CI_SERVICE" == 'iam' && "$GITHUB_EVENT_NAME" != workflow_dispatch ]]; then
+            rustc_path="$(rustup which rustc)"
+            export PATH="${rustc_path%/bin/rustc}/lib/rustlib/x86_64-unknown-linux-gnu/bin:$PATH"
           fi
           python3 -B ops/ci/pipeline.py coverage \
             --service "$CI_SERVICE" --lane "$CI_LANE" --shard "$CI_SHARD" \
@@ -117,4 +122,13 @@ jobs:
           path: coverage/
           if-no-files-found: warn
           retention-days: 7
+      - name: Retain separate IAM executable replay evidence
+        if: always() && inputs.service == 'iam' && github.event_name != 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: iam-replay-${{ matrix.lane }}-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/iam-coverage-private/replay/receipt.json
+          if-no-files-found: warn
+          retention-days: 3
       - uses: ./.github/actions/compiler-cache-stats
+        if: inputs.service != 'iam' || github.event_name == 'workflow_dispatch'

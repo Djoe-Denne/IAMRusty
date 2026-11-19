@@ -16,13 +16,17 @@ sys.path.insert(0, str(ROOT / "ops/ci"))
 import iam_compile_once as pilot
 
 SCHEMA = "aiforall.iam-compile-once-images/v1"
+CI_SCHEMA = "aiforall.k6-current-ci-iam-images/v1"
 INSTRUMENTATION = {"iam": "llvm-source-coverage", "oauth": "none", "ext-authz": "none"}
 
 
 def proofs():
     runtime.hosted()
-    binaries.require(runtime.pilot_hosted(os.environ), "NOT_PILOT_E2E_JOB")
-    return pilot.identity()
+    known = pilot.identity()
+    current = known["lane"] == "ci" and os.environ.get("GITHUB_JOB") == "e2e" \
+        and os.environ.get("GITHUB_EVENT_NAME") == "push" and os.environ.get("GITHUB_REF") == "refs/heads/master"
+    binaries.require(runtime.pilot_hosted(os.environ) or current, "NOT_INSTRUMENTED_E2E_JOB")
+    return known
 
 
 def pack(acquired, output):
@@ -35,12 +39,21 @@ def pack(acquired, output):
         require = binaries.require
         part = "e2e" if role == "iam" else role
         path = acquired / part
+        artifact = binaries.strict_json((path / "github-artifact.json").read_bytes())
+        require(re.fullmatch(r"sha256:[a-f0-9]{64}", artifact["digest"]), "PILOT_ARTIFACT_DIGEST")
+        if known["lane"] == "ci" and role != "iam":
+            provenance = {
+                "repository": known["repository"], "repository_id": int(known["repository_id"]),
+                "workflow_id": artifact["workflow_id"], "run_id": int(known["GITHUB_RUN_ID"]),
+                "run_attempt": int(known["GITHUB_RUN_ATTEMPT"]), "source_sha": source, "sdk_sha": known["sdk"],
+                "role": role, "cargo_lock_sha256": known["lock"],
+                "inventory_sha256": binaries.sha(ROOT / "ops/deploy/build/targets.json"),
+            }
+            return binaries.unpack(path / "bundle.tar.gz", directory, provenance, outputs), artifact
         rows = pilot.unpack(path / "bundle.tar.gz", directory, known, part, set(outputs.values()))
         for row in rows:
             inspect = binaries.coverage_elf if role == "iam" else binaries.elf
             inspect(directory / row["name"])
-        artifact = binaries.strict_json((path / "github-artifact.json").read_bytes())
-        require(re.fullmatch(r"sha256:[a-f0-9]{64}", artifact["digest"]), "PILOT_ARTIFACT_DIGEST")
         return {"role": role, "source_sha": source, "sdk_sha": known["sdk"], "files": rows,
                 "instrumentation": INSTRUMENTATION[role]}, artifact
 
@@ -49,17 +62,19 @@ def pack(acquired, output):
         dockerfile.write("\nENV LLVM_PROFILE_FILE=/tmp/iam-pilot-%m-%p.profraw\n")
     roles["iam"]["dockerfile_sha256"] = binaries.sha(context / roles["iam"]["dockerfile"])
     package.build_images(output, context, {
-        "schema": SCHEMA, "harness_sha": source, "target_sha": source, "sdk_sha": known["sdk"],
+        "schema": CI_SCHEMA if known["lane"] == "ci" else SCHEMA,
+        "harness_sha": source, "target_sha": source, "sdk_sha": known["sdk"],
         "producer_run_id": int(known["GITHUB_RUN_ID"]), "producer_attempt": int(known["GITHUB_RUN_ATTEMPT"]),
         "entrypoint_sha256": entrypoint, "cargo_profile": "dev", "instrumentation": INSTRUMENTATION,
-        "roles": roles, "lane": pilot.BRANCH,
+        "roles": roles, "lane": "current-ci" if known["lane"] == "ci" else pilot.BRANCH,
     })
 
 
 def admit(root, value):
     known = proofs()
     require = binaries.require
-    require(value.get("schema") == SCHEMA and value.get("lane") == pilot.BRANCH
+    schema, lane = (CI_SCHEMA, "current-ci") if known["lane"] == "ci" else (SCHEMA, pilot.BRANCH)
+    require(value.get("schema") == schema and value.get("lane") == lane
             and value.get("target_sha") == value.get("harness_sha") == known["GITHUB_SHA"]
             and value.get("sdk_sha") == known["sdk"]
             and value.get("producer_run_id") == int(known["GITHUB_RUN_ID"])

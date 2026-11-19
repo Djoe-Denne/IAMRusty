@@ -26,7 +26,8 @@ def validate_run(run, repository, repository_id, workflow_id, run_id, attempt, s
     require(isinstance(source_sha, str) and re.fullmatch(r"[a-f0-9]{40}", source_sha), "INVALID_TARGET_SHA")
     require(run.get("id") == run_id and run.get("run_attempt") == attempt, "RUN_ATTEMPT")
     require(run.get("workflow_id") == workflow_id and run.get("path") == ".github/workflows/ci.yml", "RUN_WORKFLOW")
-    require(run.get("event") == "push" and run.get("head_branch") == "master", "RUN_TRUST_BOUNDARY")
+    require(run.get("event") in {"push", "workflow_dispatch"} and run.get("head_branch") == "master",
+            "RUN_TRUST_BOUNDARY")
     require(run.get("head_sha") == source_sha, "RUN_SOURCE_SHA")
     for key in ("repository", "head_repository"):
         value = run.get(key, {})

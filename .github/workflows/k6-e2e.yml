@@ -56,21 +56,24 @@ jobs:
           --run-id "$IMAGE_RUN" --attempt "$IMAGE_ATTEMPT" --target-sha "$TARGET_SHA"
           --output "$RUNNER_TEMP/k6-e2e-private/images"
 
-      - name: Acquire this CI attempt's non-instrumented build bundles
+      - name: Acquire this CI attempt's instrumented IAM and native companion bundles
         if: ${{ github.event_name == 'push' }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          python3 -B ops/tests/k6/ci/artifacts.py
-          --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --source-sha "$GITHUB_SHA"
-          --output "$RUNNER_TEMP/k6-e2e-private/acquired"
+        run: |
+          umask 077
+          for role in e2e oauth ext-authz; do
+            python3 -B ops/ci/iam_compile_once.py fetch --part "$role" \
+              --output "$RUNNER_TEMP/k6-e2e-private/acquired/$role"
+          done
 
       - name: Package current CI binaries without Cargo or another application build
         if: ${{ github.event_name == 'push' }}
-        run: >-
-          python3 -B ops/tests/k6/ci/package.py
-          --acquired "$RUNNER_TEMP/k6-e2e-private/acquired" --source "$GITHUB_WORKSPACE"
-          --output "$RUNNER_TEMP/k6-e2e-private/packaged"
+        run: |
+          umask 077
+          mkdir -m 700 -p "$RUNNER_TEMP/k6-e2e-private/images/verified"
+          python3 -B ops/tests/k6/ci/iam_pilot.py pack "$RUNNER_TEMP/k6-e2e-private/acquired" \
+            "$RUNNER_TEMP/k6-e2e-private/packaged"
 
       - name: Close packaging probes and receive the cleanup proof before image admission
         if: ${{ always() && github.event_name == 'push' }}
@@ -80,11 +83,12 @@ jobs:
 
       - name: Admit only images packaged in this same trusted CI run attempt
         if: ${{ github.event_name == 'push' }}
-        run: >-
-          python3 -B ops/tests/k6/ci/image_input.py
-          --packaged-directory "$RUNNER_TEMP/k6-e2e-private/packaged"
-          --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --target-sha "$GITHUB_SHA"
-          --output "$RUNNER_TEMP/k6-e2e-private/images"
+        run: |
+          umask 077
+          private="$RUNNER_TEMP/k6-e2e-private"
+          for file in images.tar.gz provenance.json cleanup.json; do
+            ln "$private/packaged/$file" "$private/images/verified/$file"
+          done
 
       - name: Install host libraries (no sandbox or TLS policy changes)
         run: |
@@ -98,8 +102,18 @@ jobs:
           python3 -B ops/tests/k6/provision-linux.py --output "$RUNNER_TEMP/k6-e2e-private/browser"
 
       - name: Bootstrap owned stack and run unchanged health OAuth SAN scenarios
+        if: github.event_name == 'workflow_dispatch'
         run: >-
           python3 -B ops/tests/k6/ci/campaign.py run
+          --directory "$RUNNER_TEMP/k6-e2e-private/campaign"
+          --cli-directory "$RUNNER_TEMP/k6-e2e-private/cli"
+          --browser-directory "$RUNNER_TEMP/k6-e2e-private/browser"
+          --image-directory "$RUNNER_TEMP/k6-e2e-private/images"
+
+      - name: Run unchanged functional scenarios on the instrumented IAM image
+        if: github.event_name == 'push'
+        run: >-
+          python3 -B ops/tests/k6/ci/iam_pilot.py run
           --directory "$RUNNER_TEMP/k6-e2e-private/campaign"
           --cli-directory "$RUNNER_TEMP/k6-e2e-private/cli"
           --browser-directory "$RUNNER_TEMP/k6-e2e-private/browser"

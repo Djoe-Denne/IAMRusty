@@ -11,6 +11,12 @@ Commit/push, the announced native-v1 retirement and hosted qualification were ex
 
 ## DAG and inventory
 
+The [IAM-only compile-once adoption contract](ci-iam-compile-once-adoption.md)
+specializes the native IAM producer, IAM consumer compilation and current-CI
+E2E input clauses below after the qualified pilot. Its successful-producer wait
+now includes IAM test compilation/bundling. Other services, canonical coverage
+policy and native/release/saved-image admission remain unchanged.
+
 - Eight explicit build jobs retain baseline package selections and display names.
 - Native builds use `cargo build --locked` with those unchanged package selections and default features. Cargo builds production libraries/binaries without redundantly precompiling test, benchmark and example targets. Existing coverage assignments/execution commands and both Clippy policies remain unchanged. This intentionally removes a separate native compile/link-only pass for non-production targets; Clippy is not equivalent link evidence.
 - Each service coverage caller waits only for its build and the plan. Standalone readiness/shared coverage does not wait for an unrelated service.

@@ -19,3 +19,12 @@ Build, archive and upload the instrumented server and migration before starting 
 ### Dedicated hosted E2E gate
 
 The reserved workflow now qualifies E2E execution only. It compiles and uploads the instrumented IAM server and migration, builds the existing native companions, then runs the unchanged hosted k6 campaign without compiling in the consumer. Test-executable production and replay stay out of this follow-up so they do not delay the gate. The earlier pilot exercised those partitions independently of the E2E outcome. The qualification must show the exact same-attempt binaries, successful health, OAuth browser and TLS/SAN scenarios, and verified cleanup; it does not authorize substituting these binaries in release validation.
+
+### Qualified gate and bounded adoption
+
+Run [44493607389, attempt 1](https://github.com/Djoe-Denne/IAMRusty/actions/runs/44493607389)
+passed the five E2E scenarios, restoration and cleanup. The user's conditional
+main-CI rollout authorization is effective under the separate
+[IAM-only adoption contract](ci-iam-compile-once-adoption.md). This pilot
+envelope and its evidence remain experimental; no canonical or release
+admission is retroactively granted.

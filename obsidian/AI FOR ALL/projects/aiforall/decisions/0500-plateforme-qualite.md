@@ -4,11 +4,13 @@ category: decisions
 tags: [platform, rustycog, ci, visibility/internal]
 summary: "Config rustycog-config + RUN_ENV. Compose sans NATS/Redis/Kafka. fmt/Clippy/Sonar (coverage 80 % non tenu). rustycog = framework submodule, pas un service."
 created: 2026-09-12T10:20:00Z
-updated: 2026-09-12T10:20:00Z
+updated: 2026-11-19
 sources:
   - docs/adr/0500-config-typee-et-compose-local.md
   - docs/adr/0501-qualite-fmt-clippy-sonar.md
   - docs/adr/0502-rustycog-framework-feature-gated.md
+  - docs/adr/0507-ci-service-local-dag-shared-compiler-cache.md
+  - docs/contracts/ci-iam-compile-once-adoption.md
   - docker-compose.yml
   - .github/workflows/ci.yml
 provenance:
@@ -41,6 +43,16 @@ Ne pas présenter le dépôt comme « gate vert ». Skill : [[projects/aiforall/
 Submodule git pin, crates feature-gated (`command`, `db`, `events`, `http`, `outbox`, `permission`, `testing`, `logger`, `config`, `core`, `server`). Un métier **consomme** rustycog, il ne le fork pas dans le service. Voir [[projects/aiforall/concepts/rustycog-git-submodule]] et [[projects/rustycog/rustycog]].
 
 Feature `kafka` hors `full` Windows — opt-in, pas dans Compose (0500).
+
+## 0507 — Service-local CI and IAM compile-once (Proposed / Partial)
+
+Canon: `docs/adr/0507-ci-service-local-dag-shared-compiler-cache.md`.
+Implementation contract: `docs/contracts/ci-iam-compile-once-adoption.md`.
+The qualified IAM pilot passed five E2E scenarios and cleanup in hosted run
+44493607389; the earlier five test replays passed separately. IAM-only main-CI
+adoption is authorized, but a complete adopted canonical run remains required.
+Other services and native/release/saved-image admission remain unchanged.
+This is a pointer, not acceptance or a performance claim.
 
 ## Related
 

@@ -90,6 +90,8 @@ Photographie rétroactive du 12 septembre 2026. Extrait Manifesto ; index platef
 
 ## Related
 
+- Platform CI (not Apparatus): [[projects/aiforall/decisions/0500-plateforme-qualite#0507 — Service-local CI and IAM compile-once (Proposed / Partial)]] — canon `docs/adr/0507-ci-service-local-dag-shared-compiler-cache.md`; IAM-only adoption contract `docs/contracts/ci-iam-compile-once-adoption.md`. Pilot E2E/cleanup qualified; complete adopted canonical run pending, no acceptance or delivery-admission expansion.
+
 - Bootstrap OpenBao local (**pas** Apparatus) : [[projects/aiforall/decisions/0611-openbao-neuf-raft-pvc]] — **Proposed / Unimplemented**, complète 0610 Proposed / Partial ; coffre neuf Raft/PVC, existant intact, **choix humain Shamir 1/1 local en fichier privé protégé**, réserve de garde levée pour le neuf mono-opérateur seulement. Canon et contrat dans `docs/adr/0611-openbao-neuf-raft-pvc-sans-conversion-du-coffre-existant.md` et `docs/contracts/kind-local-openbao-bootstrap.md` ; aucun Accept global ou runtime qualifié par ce pointeur.
 
 - Veille mutualisation OpenBao (**pas** Apparatus) : [[projects/aiforall/decisions/0506-mutualisation-openbao-conditionnelle]] — **Proposed / Unimplemented** pour l’extension éventuelle ; récurrence/sémantique/gain à prouver, aucune extraction Transit ni migration décidée, KV 0505 inchangé.

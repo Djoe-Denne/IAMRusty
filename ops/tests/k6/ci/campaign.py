@@ -602,9 +602,11 @@ def finish(campaign):
         "stage": state.get("stage"), "resources": state.get("resources", [])})
     campaign.publish("provenance.json", {"harness_sha": os.environ["GITHUB_SHA"], "target_sha": state["images"]["target_sha"],
         "sdk_sha": state["images"]["sdk_sha"], "packaging_sha": state["images"]["harness_sha"],
-        "images": {role: value["image_id"] for role, value in state["images"]["roles"].items()},
-        **({"experimental_instrumentation": state["images"]["instrumentation"]}
-           if state["images"].get("schema") == "aiforall.iam-compile-once-images/v1" else {}),
+         "images": {role: value["image_id"] for role, value in state["images"]["roles"].items()},
+         **({"experimental_instrumentation": state["images"]["instrumentation"]}
+            if state["images"].get("schema") == "aiforall.iam-compile-once-images/v1" else {}),
+         **({"instrumentation": state["images"]["instrumentation"]}
+            if state["images"].get("schema") == "aiforall.k6-current-ci-iam-images/v1" else {}),
         "tools": {name: {key: value for key, value in pin.items() if key != "path"} for name, pin in state["tools"].items()}})
     campaign.r.save()
 

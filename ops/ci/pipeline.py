@@ -265,20 +265,47 @@ def evidence_identity(environment=os.environ):
     return values
 
 
+def coverage_context(environment):
+    identity = evidence_identity(environment)
+    scope = environment.get("CI_COVERAGE_SCOPE", "")
+    if scope not in ("full", "partial"):
+        raise ValueError("Coverage scope must be explicit")
+    return identity, scope
+
+
+def coverage_destination(output):
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if output.exists() or output.with_suffix(".json").exists():
+        raise ValueError("Refusing stale coverage output")
+    return output
+
+
+def write_coverage_receipt(data, group, lane, shard, output, context, status, report_status, root=ROOT):
+    identity, scope = context
+    receipt = {
+        "schema": "aiforall.ci-coverage/v1", "identity": identity, "scope": scope,
+        "inventory_sha256": hashlib.sha256(INVENTORY_PATH.read_bytes()).hexdigest(),
+        "toolchain_sha256": hashlib.sha256((Path(root) / "rust-toolchain.toml").read_bytes()).hexdigest(),
+        "service": group, "lane": lane, "shard": shard,
+        "features": FEATURES.get(group, []),
+        "targets": target_assignment(data, group, lane, shard, root),
+        "test_status": status, "report_status": report_status,
+        "report": output.name,
+        "report_sha256": hashlib.sha256(output.read_bytes()).hexdigest() if output.is_file() else None,
+    }
+    output.with_suffix(".json").write_text(json.dumps(receipt, sort_keys=True), encoding="utf-8")
+    return status or report_status
+
+
 def run_coverage(data, group, lane, shard, output, root=ROOT, run=subprocess.run,
                  environment=os.environ):
     """Collect all selected results and preserve any test/report failure."""
     commands = coverage_commands(data, group, lane, shard, root)
     if not commands:
         raise ValueError("Empty coverage partition must not produce a passing report")
-    identity = evidence_identity(environment)
-    scope = environment.get("CI_COVERAGE_SCOPE", "")
-    if scope not in ("full", "partial"):
-        raise ValueError("Coverage scope must be explicit")
-    output = Path(output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    if output.exists() or output.with_suffix(".json").exists():
-        raise ValueError("Refusing stale coverage output")
+    context = coverage_context(environment)
+    output = coverage_destination(output)
     status = 0
     for command in commands:
         result = run(command, cwd=root, check=False)
@@ -287,19 +314,7 @@ def run_coverage(data, group, lane, shard, output, root=ROOT, run=subprocess.run
         ["cargo", "llvm-cov", "report", "--lcov", "--output-path", str(output)],
         cwd=root, check=False,
     )
-    receipt = {
-        "schema": "aiforall.ci-coverage/v1", "identity": identity, "scope": scope,
-        "inventory_sha256": hashlib.sha256(INVENTORY_PATH.read_bytes()).hexdigest(),
-        "toolchain_sha256": hashlib.sha256((Path(root) / "rust-toolchain.toml").read_bytes()).hexdigest(),
-        "service": group, "lane": lane, "shard": shard,
-        "features": FEATURES.get(group, []),
-        "targets": target_assignment(data, group, lane, shard, root),
-        "test_status": status, "report_status": report.returncode,
-        "report": output.name,
-        "report_sha256": hashlib.sha256(output.read_bytes()).hexdigest() if output.is_file() else None,
-    }
-    output.with_suffix(".json").write_text(json.dumps(receipt, sort_keys=True), encoding="utf-8")
-    return status or report.returncode
+    return write_coverage_receipt(data, group, lane, shard, output, context, status, report.returncode, root)
 
 
 def matrix_for(data, group, root=ROOT):
@@ -530,6 +545,9 @@ def main(argv=None):
     elif args.command == "aggregate":
         return aggregate_coverage(data, args.directory, args.output_directory, identity=evidence_identity())
     else:
+        if args.service == "iam" and os.environ.get("GITHUB_EVENT_NAME") in {"push", "pull_request"}:
+            from iam_compile_once import canonical_coverage
+            return canonical_coverage(data, args.lane, args.shard, args.output)
         return run_coverage(data, args.service, args.lane, args.shard, args.output)
     return 0
 

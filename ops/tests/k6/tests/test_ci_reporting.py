@@ -217,15 +217,18 @@ class WorkflowTests(unittest.TestCase):
         value = yaml.load((b.ROOT / ".github/workflows/k6-e2e.yml").read_text(), Loader=yaml.BaseLoader)
         self.assertEqual(set(value["on"]), {"workflow_call", "workflow_dispatch"})
         steps = value["jobs"]["e2e"]["steps"]
-        automatic = [step for step in steps if "artifacts.py" in step.get("run", "")]
+        automatic = [step for step in steps if "iam_compile_once.py fetch" in step.get("run", "")]
         self.assertEqual(len(automatic), 1)
-        self.assertIn('"$GITHUB_RUN_ID"', automatic[0]["run"])
-        self.assertIn('"$GITHUB_SHA"', automatic[0]["run"])
-        packaging = next(i for i, step in enumerate(steps) if "ci/package.py" in step.get("run", ""))
-        admission = next(i for i, step in enumerate(steps) if "--packaged-directory" in step.get("run", ""))
+        self.assertIn("'push'", automatic[0]["if"])
+        self.assertIn("for role in e2e oauth ext-authz", automatic[0]["run"])
+        packaging = next(i for i, step in enumerate(steps) if "iam_pilot.py pack" in step.get("run", ""))
+        admission = next(i for i, step in enumerate(steps) if "iam_pilot.py run" in step.get("run", ""))
         self.assertIn("ci/cleanup.py", steps[packaging + 1]["run"])
         self.assertLess(packaging + 1, admission)
         self.assertIn("always()", steps[packaging + 1]["if"])
+        self.assertIn("'push'", steps[admission]["if"])
+        self.assertEqual([step["if"] for step in steps if "campaign.py run" in step.get("run", "")],
+                         ["github.event_name == 'workflow_dispatch'"])
         for step in steps:
             self.assertNotIn("${{", step.get("run", ""))
         readme = (b.ROOT / "README.md").read_text()
