@@ -17,6 +17,7 @@ sys.path[:0] = [str(ROOT / "ops/ci"), str(ROOT / "ops/tests/k6/ci")]
 import iam_compile_once as pilot
 import iam_ac_inputs
 import iam_ac_runtime
+import iam_cd_compiler
 import runtime
 
 
@@ -26,9 +27,10 @@ class PilotTests(unittest.TestCase):
         repo = "Djoe-Denne/IAMRusty"
         env = dict(GITHUB_ACTIONS="true", GITHUB_REPOSITORY=repo, GITHUB_REF=ref,
                    GITHUB_WORKFLOW_REF=f"{repo}/{pilot.AC_WORKFLOW}@{ref}", GITHUB_EVENT_NAME="push",
-                   GITHUB_JOB="e2e", IAM_AC_ARM="a")
+                    GITHUB_JOB="e2e", IAM_AC_ARM="c")
         self.assertEqual(pilot.run_lane(env), (pilot.AC_WORKFLOW, pilot.AC_BRANCH, "ac"))
-        self.assertEqual(runtime.benchmark_arm(env), "a")
+        self.assertEqual(runtime.benchmark_arm(env), "c")
+        self.assertEqual(runtime.benchmark_arm(dict(env, IAM_AC_ARM="d")), "d")
         for field, value in (("GITHUB_WORKFLOW_REF", f"{repo}/{pilot.CI_WORKFLOW}@{ref}"),
                              ("GITHUB_EVENT_NAME", "workflow_dispatch"), ("GITHUB_REPOSITORY", "other/IAMRusty"),
                              ("GITHUB_REF", "refs/heads/master")):
@@ -45,33 +47,72 @@ class PilotTests(unittest.TestCase):
             executable = root / "binary"
             executable.write_bytes(b"\x7fELF\x02\x01" + bytes(10) + b"\x03\x00\x3e\x00" + bytes(70))
             known = {"lane": "ac", "producer_job": "build-c-tests"}
-            a_source = pilot.part_identity(known, "native-e2e")
+            d_source = pilot.part_identity(known, "e2e-d")
             self.assertEqual(pilot.part_identity(known, "e2e")["producer_job"], "build-c-server")
+            self.assertEqual(d_source["producer_job"], "build-d-server")
             self.assertEqual(pilot.part_identity(known, "tests-0")["producer_job"], "build-c-tests")
             archive = root / "bundle.tar.gz"
-            pilot.bundle(archive, a_source, "native-e2e", [("iam-service", ".", "iam-service", executable)])
-            for identity, part in ((known, "e2e"), (known, "native-e2e"), (a_source, "e2e"),
-                                   ({**a_source, "lane": "ci"}, "native-e2e")):
+            pilot.bundle(archive, d_source, "e2e-d", [("iam-service", ".", "iam-service", executable)])
+            for identity, part in ((known, "e2e"), (known, "e2e-d"), (d_source, "e2e"),
+                                   ({**d_source, "lane": "ci"}, "e2e-d")):
                 with self.assertRaisesRegex(ValueError, "identity mismatch"):
                     pilot.unpack(archive, root / "refused", identity, part, {"iam-service"})
             self.assertFalse((root / "refused").exists())
-            pilot.unpack(archive, root / "valid", a_source, "native-e2e", {"iam-service"})
+            pilot.unpack(archive, root / "valid", d_source, "e2e-d", {"iam-service"})
 
     def test_ac_dag_cannot_delay_k6_for_test_compilation(self):
         config = yaml.load((ROOT / pilot.AC_WORKFLOW).read_text(), Loader=yaml.BaseLoader)
         self.assertEqual(config["on"], {"push": {"branches": [pilot.AC_BRANCH]}})
         jobs = config["jobs"]
-        for arm, server, tests in (("a", "build-a", "build-a"), ("c", "build-c-server", "build-c-tests")):
+        for arm in ("c", "d"):
+            server, tests = f"build-{arm}-server", f"build-{arm}-tests"
             self.assertEqual(jobs[f"coverage-{arm}"]["needs"], [tests])
             self.assertEqual(jobs[f"coverage-{arm}"]["with"]["benchmark-arm"], arm)
             self.assertEqual(jobs[f"e2e-{arm}"]["needs"], [server, "native-oauth", "native-ext-authz", "prepare-runtime"])
             self.assertEqual(jobs[f"e2e-{arm}"]["with"]["arm"], arm)
         self.assertEqual(set(config["jobs"]), {
-            "prepare-cargo", "prepare-runtime", "build-a", "build-c-server", "build-c-tests",
-            "native-oauth", "native-ext-authz", "coverage-a", "coverage-c", "e2e-a", "e2e-c",
+            "prepare-cargo", "prepare-runtime", "build-c-server", "build-c-tests", "build-d-server", "build-d-tests",
+            "native-oauth", "native-ext-authz", "coverage-c", "coverage-d", "e2e-c", "e2e-d",
         })
-        for job in ("build-a", "build-c-server", "build-c-tests", "native-oauth", "native-ext-authz"):
+        for job in ("build-c-server", "build-c-tests", "build-d-server", "native-oauth", "native-ext-authz"):
             self.assertEqual(jobs[job]["needs"], ["prepare-cargo"])
+        self.assertEqual(jobs["build-d-tests"]["needs"], ["prepare-cargo", "build-d-server"])
+        self.assertTrue(any("iam_cd_compiler.py restore" in step.get("run", "") for step in jobs["build-d-tests"]["steps"]))
+        self.assertFalse(any("iam_cd_compiler.py" in step.get("run", "") for step in jobs["build-c-tests"]["steps"]))
+
+    def test_compiler_snapshot_excludes_target_and_rejects_invalid_entries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache, restored = root / "cache", root / "restored"
+            key = "ab" + "f" * 62
+            cached = cache / "a/b" / key
+            cached.parent.mkdir(parents=True)
+            cached.write_bytes(b"compiler output entry")
+            (cache / "target").mkdir()
+            (cache / "target/CACHEDIR.TAG").write_text("exclude me", encoding="utf-8")
+            archive = root / "bundle.tar.gz"
+            iam_cd_compiler.export_snapshot(cache, archive)
+            restored.mkdir()
+            iam_cd_compiler.restore_snapshot(archive, restored)
+            self.assertEqual((restored / "a/b" / key).read_bytes(), b"compiler output entry")
+            self.assertFalse((restored / "target").exists())
+            with self.assertRaisesRegex(ValueError, "fresh compiler cache"):
+                iam_cd_compiler.restore_snapshot(archive, restored)
+            for index, (name, mode) in enumerate((("../outside", tarfile.REGTYPE),
+                                                 (f"a/b/{key}", tarfile.SYMTYPE),
+                                                 (f"x/b/{key}", tarfile.REGTYPE))):
+                unsafe = root / f"unsafe-{index}.tar.gz"
+                with tarfile.open(unsafe, "w:gz") as bundle:
+                    entry = tarfile.TarInfo(name)
+                    entry.type = mode
+                    if mode == tarfile.REGTYPE:
+                        entry.size = 1
+                    bundle.addfile(entry, io.BytesIO(b"x") if entry.size else None)
+                out = root / f"unsafe-{index}"
+                out.mkdir()
+                with self.assertRaisesRegex(ValueError, "Unexpected compiler-cache member"):
+                    iam_cd_compiler.restore_snapshot(unsafe, out)
+                self.assertFalse(any(out.iterdir()))
 
     def test_runtime_staging_keeps_original_dockerfile_entrypoints_without_apt(self):
         for role, path in {"iam": "services/IAMRusty/Dockerfile", "oauth": "services/OAuthConnect/Dockerfile",

@@ -13,7 +13,7 @@ permissions:
 jobs:
   e2e:
     name: Five unchanged functional phases
-    if: github.repository == 'Djoe-Denne/IAMRusty' && github.event_name == 'push' && github.ref == 'refs/heads/ci-iam-ac' && github.workflow_ref == 'Djoe-Denne/IAMRusty/.github/workflows/iam-ac.yml@refs/heads/ci-iam-ac'
+    if: github.repository == 'Djoe-Denne/IAMRusty' && github.event_name == 'push' && github.ref == 'refs/heads/ci-iam-cd' && github.workflow_ref == 'Djoe-Denne/IAMRusty/.github/workflows/iam-ac.yml@refs/heads/ci-iam-cd'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -25,7 +25,7 @@ jobs:
           persist-credentials: false
       - name: Prepare owner-only run root outside Git
         run: |
-          [[ "$IAM_AC_ARM" =~ ^[ac]$ ]]
+          [[ "$IAM_AC_ARM" =~ ^[cd]$ ]]
           umask 077
           private="$RUNNER_TEMP/iam-ac-$IAM_AC_ARM-private"
           mkdir -m 700 "$private"
@@ -36,7 +36,7 @@ jobs:
         run: |
           umask 077
           part=e2e
-          if [[ "$IAM_AC_ARM" == a ]]; then part=native-e2e; fi
+          if [[ "$IAM_AC_ARM" == d ]]; then part=e2e-d; fi
           for role in "$part" oauth ext-authz runtime; do
             python3 -B ops/ci/iam_compile_once.py fetch --part "$role" --output "$IAM_AC_ROOT/acquired/$role"
           done
@@ -77,7 +77,7 @@ jobs:
         if: always() && env.IAM_AC_ROOT != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: iam-ac-${{ inputs.arm }}-e2e-evidence-${{ github.run_attempt }}
+          name: iam-cd-${{ inputs.arm }}-e2e-evidence-${{ github.run_attempt }}
           path: |
             ${{ env.IAM_AC_ROOT }}/campaign/public/report.json
             ${{ env.IAM_AC_ROOT }}/campaign/public/provenance.json

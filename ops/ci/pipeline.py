@@ -549,11 +549,10 @@ def main(argv=None):
             from iam_compile_once import canonical_coverage, coverage_replay, run_lane
             if run_lane(os.environ)[2] == "ac":
                 arm = os.environ.get("IAM_AC_ARM")
-                if os.environ.get("GITHUB_JOB") != "coverage" or arm not in {"a", "c"}:
+                if os.environ.get("GITHUB_JOB") != "coverage" or arm not in {"c", "d"}:
                     raise ValueError("Wrong IAM benchmark coverage job")
-                if arm == "c":
-                    return coverage_replay(data, args.lane, args.shard, args.output,
-                                           expected_lane="ac", private_name="iam-ac-c-coverage")
+                return coverage_replay(data, args.lane, args.shard, args.output,
+                                       expected_lane="ac", private_name=f"iam-cd-{arm}-coverage")
             else:
                 return canonical_coverage(data, args.lane, args.shard, args.output)
         return run_coverage(data, args.service, args.lane, args.shard, args.output)

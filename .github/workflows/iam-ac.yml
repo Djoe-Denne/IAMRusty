@@ -1,7 +1,7 @@
-name: IAM CI A/C benchmark
+name: IAM CI C/D compiler reuse benchmark
 on:
   push:
-    branches: [ci-iam-ac]
+    branches: [ci-iam-cd]
 
 permissions:
   contents: read
@@ -29,7 +29,7 @@ jobs:
       - run: python3 -B ops/ci/iam_ac_inputs.py prepare
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: iam-ac-common-cargo-${{ github.run_attempt }}
+          name: iam-cd-common-cargo-${{ github.run_attempt }}
           path: ${{ runner.temp }}/iam-ac-cargo-seed/bundle.tar.gz
           compression-level: 0
           if-no-files-found: error
@@ -47,14 +47,14 @@ jobs:
       - run: python3 -B ops/tests/k6/ci/iam_ac_runtime.py "$RUNNER_TEMP/iam-ac-runtime"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: iam-ac-common-runtime-${{ github.run_attempt }}
+          name: iam-cd-common-runtime-${{ github.run_attempt }}
           path: ${{ runner.temp }}/iam-ac-runtime/bundle.tar.gz
           compression-level: 0
           if-no-files-found: error
           retention-days: 1
 
-  build-a:
-    name: A native IAM
+  build-d-server:
+    name: D instrumented IAM with cache export
     if: github.repository == 'Djoe-Denne/IAMRusty'
     needs: [prepare-cargo]
     runs-on: ubuntu-24.04
@@ -64,17 +64,40 @@ jobs:
         with:
           submodules: true
           persist-credentials: false
-      - uses: ./.github/actions/build-service
+      - uses: ./.github/actions/setup-rust
         with:
-          service: iam
-      - name: Bundle native IAM and migration for A
-        run: >-
-          python3 -B ops/ci/iam_compile_once.py benchmark-native --part native-e2e
-          --output "$RUNNER_TEMP/iam-ac-a-native"
+          components: llvm-tools-preview
+      - uses: ./.github/actions/setup-compiler-cache
+      - uses: taiki-e/install-action@72f835688cb6c15903b796f704b01e652a2b8835 # cargo-llvm-cov
+        with:
+          tool: cargo-llvm-cov@0.9.1
+      - name: Install IAM native dependencies
+        run: |
+          sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
+          sudo apt-get update -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3
+          sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
+      - name: Build only the instrumented IAM server and migration
+        env:
+          CARGO_PROFILE_DEV_DEBUG: line-tables-only
+          CARGO_PROFILE_TEST_DEBUG: line-tables-only
+        run: |
+          env_script="$(cargo llvm-cov show-env --sh)"
+          source /dev/stdin <<< "$env_script"
+          python3 -B ops/ci/iam_compile_once.py produce-e2e --output "$RUNNER_TEMP/iam-cd-d-server"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: iam-ac-a-native-e2e-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/iam-ac-a-native/bundle.tar.gz
+          name: iam-cd-d-e2e-d-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/iam-cd-d-server/e2e/bundle.tar.gz
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 1
+      - name: Export and bound the server compiler cache
+        run: python3 -B ops/ci/iam_cd_compiler.py export
+      - name: Upload only the compiler cache
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: iam-cd-d-compiler-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/iam-cd-compiler/bundle.tar.gz
           compression-level: 0
           if-no-files-found: error
           retention-days: 1
@@ -109,11 +132,11 @@ jobs:
         run: |
           env_script="$(cargo llvm-cov show-env --sh)"
           source /dev/stdin <<< "$env_script"
-          python3 -B ops/ci/iam_compile_once.py produce-e2e --output "$RUNNER_TEMP/iam-ac-c-server"
+          python3 -B ops/ci/iam_compile_once.py produce-e2e --output "$RUNNER_TEMP/iam-cd-c-server"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: iam-ac-c-e2e-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/iam-ac-c-server/e2e/bundle.tar.gz
+          name: iam-cd-c-e2e-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/iam-cd-c-server/e2e/bundle.tar.gz
           compression-level: 0
           if-no-files-found: error
           retention-days: 1
@@ -148,11 +171,53 @@ jobs:
         run: |
           env_script="$(cargo llvm-cov show-env --sh)"
           source /dev/stdin <<< "$env_script"
-          python3 -B ops/ci/iam_compile_once.py produce --output "$RUNNER_TEMP/iam-ac-c" \
-            --matrix "$RUNNER_TEMP/iam-ac-c-matrix.json"
+          python3 -B ops/ci/iam_compile_once.py produce --output "$RUNNER_TEMP/iam-cd-c" \
+            --matrix "$RUNNER_TEMP/iam-cd-c-matrix.json"
+      - uses: ./.github/actions/compiler-cache-stats
       - uses: ./.github/actions/upload-iam-tests
         with:
-          prefix: iam-ac-c
+          prefix: iam-cd-c
+
+  build-d-tests:
+    name: D instrumented test bundles with restored cache
+    if: github.repository == 'Djoe-Denne/IAMRusty'
+    needs: [prepare-cargo, build-d-server]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+        with:
+          components: llvm-tools-preview
+      - uses: ./.github/actions/setup-compiler-cache
+      - uses: taiki-e/install-action@72f835688cb6c15903b796f704b01e652a2b8835 # cargo-llvm-cov
+        with:
+          tool: cargo-llvm-cov@0.9.1
+      - name: Install IAM native dependencies
+        run: |
+          sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
+          sudo apt-get update -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3
+          sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
+      - name: Restore the server compiler cache by API digest, without restoring target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B ops/ci/iam_cd_compiler.py restore
+      - name: Compile and bundle the five partitions with a seeded compiler cache
+        env:
+          CARGO_PROFILE_DEV_DEBUG: line-tables-only
+          CARGO_PROFILE_TEST_DEBUG: line-tables-only
+        run: |
+          env_script="$(cargo llvm-cov show-env --sh)"
+          source /dev/stdin <<< "$env_script"
+          python3 -B ops/ci/iam_compile_once.py produce --output "$RUNNER_TEMP/iam-cd-d" \
+            --matrix "$RUNNER_TEMP/iam-cd-d-matrix.json"
+      - uses: ./.github/actions/compiler-cache-stats
+      - uses: ./.github/actions/upload-iam-tests
+        with:
+          prefix: iam-cd-d
 
   native-oauth:
     name: Common native OAuth
@@ -173,7 +238,7 @@ jobs:
           --output "$RUNNER_TEMP/iam-ac-oauth"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: iam-ac-common-oauth-${{ github.run_attempt }}
+          name: iam-cd-common-oauth-${{ github.run_attempt }}
           path: ${{ runner.temp }}/iam-ac-oauth/bundle.tar.gz
           compression-level: 0
           if-no-files-found: error
@@ -198,20 +263,20 @@ jobs:
           --output "$RUNNER_TEMP/iam-ac-ext-authz"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: iam-ac-common-ext-authz-${{ github.run_attempt }}
+          name: iam-cd-common-ext-authz-${{ github.run_attempt }}
           path: ${{ runner.temp }}/iam-ac-ext-authz/bundle.tar.gz
           compression-level: 0
           if-no-files-found: error
           retention-days: 1
 
-  coverage-a:
-    name: A coverage
-    needs: [build-a]
+  coverage-d:
+    name: D coverage
+    needs: [build-d-tests]
     uses: ./.github/workflows/ci-coverage.yml
     with:
       service: iam
       scope: full
-      benchmark-arm: a
+      benchmark-arm: d
     secrets:
       IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
 
@@ -226,12 +291,12 @@ jobs:
     secrets:
       IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
 
-  e2e-a:
-    name: A k6
-    needs: [build-a, native-oauth, native-ext-authz, prepare-runtime]
+  e2e-d:
+    name: D k6
+    needs: [build-d-server, native-oauth, native-ext-authz, prepare-runtime]
     uses: ./.github/workflows/iam-ac-e2e.yml
     with:
-      arm: a
+      arm: d
 
   e2e-c:
     name: C k6

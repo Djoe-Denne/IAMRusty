@@ -22,18 +22,20 @@ CI_SCHEMA = "aiforall.ci-iam-executables/v1"
 CI_PRODUCER = "Build (IAMRusty)"
 CI_BRANCHES = {"master", "main"}
 AC_WORKFLOW = ".github/workflows/iam-ac.yml"
-AC_BRANCH = "ci-iam-ac"
+AC_BRANCH = "ci-iam-cd"
 AC_SCHEMA = "aiforall.iam-ac-executables/v1"
-AC_E2E_PARTS = {"native-e2e", "e2e", "oauth", "ext-authz"}
+AC_E2E_PARTS = {"e2e", "e2e-d", "oauth", "ext-authz"}
 AC_PRODUCERS = {
-    "native-e2e": ("build-a", "A native IAM"),
     "e2e": ("build-c-server", "C independent instrumented IAM"),
+    "e2e-d": ("build-d-server", "D instrumented IAM with cache export"),
+    "compiler": ("build-d-server", "D instrumented IAM with cache export"),
     "oauth": ("native-oauth", "Common native OAuth"),
     "ext-authz": ("native-ext-authz", "Common native Ext Authz"),
     "cargo": ("prepare-cargo", "Common locked Cargo downloads"),
     "runtime": ("prepare-runtime", "Common prebuilt runtime base"),
 }
 AC_TEST_PRODUCER = ("build-c-tests", "C independent instrumented test bundles")
+D_TEST_PRODUCER = ("build-d-tests", "D instrumented test bundles with restored cache")
 MAX_BINARY = 2 * 1024**3
 MAX_BUNDLE = 6 * 1024**3
 SERVICE_OUTPUTS = {"iam-service": "iam-service", "iam-migration": "iammigration"}
@@ -70,8 +72,11 @@ def identity(env=os.environ, root=ci.ROOT):
     revision = subprocess.check_output(["git", "rev-parse", "HEAD", "HEAD:rustycog"],
                                        cwd=root, text=True).splitlines()
     require(len(revision) == 2 and revision[0] == value["GITHUB_SHA"], "Pilot checkout mismatch")
-    return {**value, "sdk": revision[1], "workflow": workflow, "lane": lane,
-            "producer_job": {"ci": "build-iam", "ac": AC_TEST_PRODUCER[0], "pilot": "producer"}[lane],
+    producer = {"ci": "build-iam", "ac": AC_TEST_PRODUCER[0], "pilot": "producer"}[lane]
+    if lane == "ac" and (env.get("GITHUB_JOB") == D_TEST_PRODUCER[0]
+                         or (env.get("GITHUB_JOB") == "coverage" and env.get("IAM_AC_ARM") == "d")):
+        producer = D_TEST_PRODUCER[0]
+    return {**value, "sdk": revision[1], "workflow": workflow, "lane": lane, "producer_job": producer,
             "repository": env["GITHUB_REPOSITORY"], "repository_id": env["GITHUB_REPOSITORY_ID"],
             "lock": digest(root / "Cargo.lock"), "toolchain": digest(root / "rust-toolchain.toml"),
             "inventory": digest(root / ".github/ci/inventory.json")}
@@ -199,7 +204,9 @@ def iam_packages(data):
 
 
 def produce_e2e(output, root=ci.ROOT):
-    provenance = part_identity(identity(root=root), "e2e")
+    known = identity(root=root)
+    part = "e2e-d" if known["lane"] == "ac" and os.environ.get("GITHUB_JOB") == "build-d-server" else "e2e"
+    provenance = part_identity(known, part)
     require(os.environ.get("GITHUB_JOB") == provenance["producer_job"],
             "Unexpected IAM executable producer")
     target = producer_target()
@@ -213,7 +220,7 @@ def produce_e2e(output, root=ci.ROOT):
     require(set(services) == set(SERVICE_OUTPUTS.values()), "Incomplete IAM E2E executable set")
     folder = output / "e2e"
     folder.mkdir()
-    bundle(folder / "bundle.tar.gz", provenance, "e2e",
+    bundle(folder / "bundle.tar.gz", provenance, part,
            [(name, ".", name, path) for name, path in sorted(services.items())])
 
 
@@ -432,26 +439,28 @@ def fetch(part, destination, root=ci.ROOT):
     from artifacts import GitHub, positive, unwrap_zip, validate_artifact
     from binaries import ROLES
 
-    require(re.fullmatch(r"unit-0|tests-[0-3]|native-e2e|e2e|oauth|ext-authz|cargo|runtime", part), "Unknown pilot artifact")
+    require(re.fullmatch(r"unit-0|tests-[0-3]|e2e|e2e-d|oauth|ext-authz|cargo|runtime|compiler", part), "Unknown pilot artifact")
     known = identity(root=root)
     workflow_path, branch, lane = run_lane(os.environ)
     event = os.environ["GITHUB_EVENT_NAME"]
     if lane == "ci":
         expected_consumer = "e2e" if part in {"e2e", "oauth", "ext-authz"} else "coverage"
         require(os.environ.get("GITHUB_JOB") == expected_consumer, "Unexpected IAM artifact consumer")
-    require(lane == "ac" or part not in {"native-e2e", "cargo", "runtime"}, "Benchmark artifact is not a CI input")
+    require(lane == "ac" or part not in {"e2e-d", "cargo", "runtime", "compiler"}, "Benchmark artifact is not a CI input")
     if lane == "ac":
         arm = os.environ.get("IAM_AC_ARM")
         job = os.environ.get("GITHUB_JOB")
         if part == "cargo":
-            require(job in {"build-a", "build-c-server", "build-c-tests", "native-oauth", "native-ext-authz"}
-                    or (job == "coverage" and arm == "a"), "Wrong benchmark Cargo consumer")
+            require(job in {"build-c-server", "build-c-tests", "build-d-server", "build-d-tests",
+                            "native-oauth", "native-ext-authz"}, "Wrong benchmark Cargo consumer")
+        elif part == "compiler":
+            require(job == D_TEST_PRODUCER[0], "Wrong compiler archive consumer")
         elif part in AC_E2E_PARTS or part == "runtime":
-            allowed = {"a": {"native-e2e", "oauth", "ext-authz", "runtime"},
+            allowed = {"d": {"e2e-d", "oauth", "ext-authz", "runtime"},
                        "c": {"e2e", "oauth", "ext-authz", "runtime"}}
             require(job == "e2e" and part in allowed.get(arm, set()), "Wrong benchmark E2E input")
         else:
-            require(job == "coverage" and arm == "c", "Wrong benchmark replay input")
+            require(job == "coverage" and arm in {"c", "d"}, "Wrong benchmark replay input")
     if lane == "ci" and part in {"e2e", "oauth", "ext-authz"}:
         require(event == "push" and branch == "master", "Current-CI IAM E2E requires push/master")
     run_id, attempt = (positive(known[key]) for key in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"))
@@ -482,7 +491,7 @@ def fetch(part, destination, root=ci.ROOT):
     if lane == "ci":
         job_name = ROLES[part] if part in {"oauth", "ext-authz"} else CI_PRODUCER
     elif lane == "ac":
-        job_name = AC_PRODUCERS.get(part, AC_TEST_PRODUCER)[1]
+        job_name = AC_PRODUCERS.get(part, D_TEST_PRODUCER if arm == "d" else AC_TEST_PRODUCER)[1]
     jobs = [j for j in api.pages(f"actions/runs/{run_id}/attempts/{attempt}/jobs", "jobs") if j["name"] == job_name]
     require(len(jobs) == 1 and jobs[0]["status"] == "completed" and jobs[0]["conclusion"] == "success"
             and jobs[0].get("run_id") == run_id and jobs[0].get("run_attempt") == attempt,
@@ -491,8 +500,9 @@ def fetch(part, destination, root=ci.ROOT):
     if lane == "ci" and part in {"oauth", "ext-authz"}:
         name = f"k6-binaries-{part}-{run_id}-{attempt}"
     elif lane == "ac":
-        prefix = "common" if part in {"oauth", "ext-authz", "cargo", "runtime"} else "a" if part == "native-e2e" else "c"
-        name = f"iam-ac-{prefix}-{part}-{attempt}"
+        prefix = "common" if part in {"oauth", "ext-authz", "cargo", "runtime"} else (
+            "d" if part in {"e2e-d", "compiler"} or arm == "d" else "c")
+        name = f"iam-cd-{prefix}-{part}-{attempt}"
     items = [a for a in api.pages(f"actions/runs/{run_id}/artifacts", "artifacts") if a["name"] == name]
     require(len(items) == 1, "Missing or duplicate pilot artifact")
     # GitHub may expose the merge SHA in the artifact metadata and the head SHA
@@ -526,12 +536,12 @@ def benchmark_native(part, output, root=ci.ROOT):
     from binaries import elf, inventory
 
     known = identity(root=root)
-    require(known["lane"] == "ac" and part in {"native-e2e", "oauth", "ext-authz"}
+    require(known["lane"] == "ac" and part in {"oauth", "ext-authz"}
             and os.environ.get("GITHUB_JOB") == AC_PRODUCERS[part][0], "Wrong benchmark native producer")
     target = Path(os.environ["CARGO_TARGET_DIR"]).resolve()
     require(target == root / "target", "Wrong benchmark target directory")
     files = []
-    for name in inventory(root, "iam" if part == "native-e2e" else part).values():
+    for name in inventory(root, part).values():
         path = target / "debug" / name
         elf(path)
         files.append((name, ".", name, path))

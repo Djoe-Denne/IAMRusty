@@ -35,8 +35,7 @@ def mode(known):
     if known["lane"] == "ac":
         arm = runtime.benchmark_arm(os.environ)
         binaries.require(arm is not None, "BENCHMARK_ARM")
-        return (AC_SCHEMA, "benchmark-" + arm, {**INSTRUMENTATION, "iam": "none"} if arm == "a" else INSTRUMENTATION,
-                "native-e2e" if arm == "a" else "e2e")
+        return AC_SCHEMA, "benchmark-" + arm, INSTRUMENTATION, "e2e-d" if arm == "d" else "e2e"
     schema, lane = (CI_SCHEMA, "current-ci") if known["lane"] == "ci" else (SCHEMA, pilot.BRANCH)
     return schema, lane, INSTRUMENTATION, "e2e"
 
