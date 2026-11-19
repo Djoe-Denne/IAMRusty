@@ -6,6 +6,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -643,7 +644,11 @@ class ReportTests(unittest.TestCase):
         for name in omitted:
             needs[name]["result"] = "skipped"
         needs["merge-coverage"]["outputs"] = {"authoritative": "false", "pr_ready": "true"}
-        self.assertIn("NOT evaluated", reports.status(needs, event="pull_request", ref="refs/pull/1/merge"))
+        with self.assertRaisesRegex(ValueError, "Sonar PR quality gate was not evaluated"):
+            reports.status(needs, event="pull_request", ref="refs/pull/1/merge")
+        needs["sonar"]["outputs"] = {"scan_outcome": "success"}
+        self.assertIn("Sonar PR quality gate passed",
+                      reports.status(needs, event="pull_request", ref="refs/pull/1/merge"))
         with self.assertRaises(ValueError):
             reports.status(needs, event="push", ref="refs/heads/master")
         early_build = copy.deepcopy(needs)
@@ -664,14 +669,33 @@ class ReportTests(unittest.TestCase):
                          [arg for name in sorted(p.INVENTORY["packages"]["telegraph"])
                           for arg in ("-p", name)])
 
-    def test_full_pr_reports_skipped_scan_without_claiming_sonar_passed(self):
+    def test_full_pr_requires_a_successful_sonar_gate_not_just_a_green_job(self):
         needs = self.full_needs()
         for job in ("k6-e2e", "e2e-pages"):
             needs[job]["result"] = "skipped"
-        needs["sonar"]["outputs"] = {"scan_outcome": "skipped"}
-        self.assertIn("NOT evaluated", reports.status(needs, event="pull_request", ref="refs/pull/1/merge"))
-        needs["sonar"]["outputs"]["scan_outcome"] = "success"
-        self.assertIn("submitted", reports.status(needs, event="pull_request", ref="refs/pull/1/merge"))
+        for outcome in ("", "skipped", "failure", "cancelled"):
+            needs["sonar"]["outputs"] = {"scan_outcome": outcome}
+            with self.subTest(outcome=outcome), self.assertRaisesRegex(ValueError, "not evaluated"):
+                reports.status(needs, event="pull_request", ref="refs/pull/1/merge")
+        needs["sonar"]["outputs"] = {"scan_outcome": "success"}
+        self.assertIn("Sonar PR quality gate passed",
+                      reports.status(needs, event="pull_request", ref="refs/pull/1/merge"))
+        needs["sonar"]["result"] = "failure"
+        with self.assertRaisesRegex(ValueError, "did not succeed: sonar"):
+            reports.status(needs, event="pull_request", ref="refs/pull/1/merge")
+
+    def test_sonar_scanner_waits_for_the_quality_gate_only_on_pull_requests(self):
+        workflow = yaml.load((ROOT / ".github/workflows/ci.yml").read_text(), Loader=yaml.BaseLoader)
+        sonar = workflow["jobs"]["sonar"]
+        scan = next(step for step in sonar["steps"] if step.get("id") == "scan")
+        self.assertNotIn("continue-on-error", scan)
+        self.assertNotIn("continue-on-error", sonar)
+        self.assertEqual(sonar["outputs"]["scan_outcome"], "${{ steps.scan.outcome }}")
+        wait_args = re.findall(r"(?<!\S)-Dsonar\.qualitygate\.wait=(?:\$\{\{[^}]*\}\}|\S*)",
+                               scan["with"]["args"])
+        self.assertEqual(wait_args, [
+            "-Dsonar.qualitygate.wait=${{ github.event_name == 'pull_request' && 'true' || 'false' }}",
+        ])
 
     def test_docs_status_requires_every_heavy_job_to_be_explicitly_skipped(self):
         needs = {job: {"result": "skipped"} for job in self.full_needs()}
