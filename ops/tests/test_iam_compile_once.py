@@ -19,6 +19,7 @@ sys.path[:0] = [str(ROOT / "ops/ci"), str(ROOT / "ops/tests/k6/ci")]
 import iam_compile_once as pilot
 import iam_ac_inputs
 import iam_ac_runtime
+import iam_apt_inputs
 import iam_warm_compiler as warm
 import runtime
 
@@ -73,13 +74,17 @@ class PilotTests(unittest.TestCase):
             self.assertEqual(jobs[f"e2e-{arm}"]["needs"], [server, "native-oauth", "native-ext-authz", "prepare-runtime"])
             self.assertEqual(jobs[f"e2e-{arm}"]["with"]["arm"], arm)
         self.assertEqual(set(config["jobs"]), {
-            "prepare-cargo", "prepare-runtime", "build-c-server", "build-c-tests", "build-d-server", "build-d-tests",
+            "prepare-cargo", "prepare-apt", "prepare-runtime", "build-c-server", "build-c-tests", "build-d-server", "build-d-tests",
             "native-oauth", "native-ext-authz", "coverage-c", "coverage-d", "e2e-c", "e2e-d",
         })
         for job in ("build-c-server", "build-c-tests", "build-d-server", "build-d-tests", "native-oauth", "native-ext-authz"):
-            self.assertEqual(jobs[job]["needs"], ["prepare-cargo"])
+            paired = job.startswith("build-")
+            self.assertEqual(jobs[job]["needs"], ["prepare-cargo", "prepare-apt"] if paired else ["prepare-cargo"])
             self.assertEqual(jobs[job]["runs-on"], "ubuntu-24.04")
             steps = jobs[job]["steps"]
+            offline = [s for s in steps if "iam_apt_inputs.py install" in s.get("run", "")]
+            self.assertEqual(len(offline), int(paired))
+            self.assertFalse(any("apt-get" in s.get("run", "") for s in steps))
             restores = [i for i, s in enumerate(steps) if "iam_warm_compiler.py" in s.get("run", "")]
             if job.startswith("build-d-"):
                 self.assertEqual(len(restores), 1)
@@ -92,6 +97,46 @@ class PilotTests(unittest.TestCase):
         self.assertNotIn("iam-cd-d-compiler-", (ROOT / pilot.AC_WORKFLOW).read_text())
         with self.assertRaisesRegex(ValueError, "Unknown pilot artifact"):
             pilot.fetch("compiler", None)
+
+    def test_package_seed_extracts_only_bounded_debs(self):
+        name = "libcurl4-openssl-dev_8.5.0-2ubuntu10.16_amd64.deb"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = root / "seed.tar.gz"
+            for i, (names, kind, limit, accepted) in enumerate((
+                ((name,), tarfile.REGTYPE, 4, True), ((name,), tarfile.REGTYPE, 2, False),
+                (("../" + name,), tarfile.REGTYPE, 4, False), ((name,), tarfile.SYMTYPE, 4, False),
+                ((name, name), tarfile.REGTYPE, 16, False),
+            )):
+                with self.subTest(names=names, kind=kind, limit=limit):
+                    with tarfile.open(archive, "w:gz") as bundle:
+                        for entry_name in names:
+                            entry = tarfile.TarInfo(entry_name)
+                            entry.type = kind
+                            if kind == tarfile.REGTYPE:
+                                entry.size = 3
+                            bundle.addfile(entry, io.BytesIO(b"deb") if entry.size else None)
+                    with mock.patch.object(iam_apt_inputs, "MAX_BYTES", limit):
+                        if accepted:
+                            files = iam_apt_inputs.restore_packages(archive, root / f"out-{i}")
+                            self.assertEqual([(p.name, p.read_bytes()) for p in files], [(name, b"deb")])
+                        else:
+                            with self.assertRaisesRegex(ValueError, "Unexpected Ubuntu package"):
+                                iam_apt_inputs.restore_packages(archive, root / f"out-{i}")
+            self.assertFalse((root / name).exists())
+
+    def test_package_seed_rejects_mismatched_libcurl_versions_and_wrong_consumers(self):
+        paths = [Path("libcurl4-openssl-dev_1_amd64.deb"), Path("libcurl4t64_1_amd64.deb")]
+        with mock.patch.object(iam_apt_inputs.subprocess, "check_output",
+                               side_effect=["libcurl4-openssl-dev\t1\tamd64\n", "libcurl4t64\t2\tamd64\n"]):
+            with self.assertRaisesRegex(ValueError, "mismatched"):
+                iam_apt_inputs.version_set(paths)
+        for lane, job, arm in (("ci", "coverage", ""), ("ac", "e2e", "c"), ("ac", "coverage", "")):
+            with (mock.patch.object(pilot, "identity", return_value={}),
+                  mock.patch.object(pilot, "run_lane", return_value=(pilot.AC_WORKFLOW, pilot.AC_BRANCH, lane)),
+                  mock.patch.dict(os.environ, GITHUB_EVENT_NAME="push", GITHUB_JOB=job, IAM_AC_ARM=arm)):
+                with self.assertRaisesRegex(ValueError, "Benchmark artifact|Wrong benchmark Ubuntu"):
+                    pilot.fetch("apt", None)
 
     def test_prior_seed_is_bound_to_exact_run_producer_and_artifact(self):
         repo = dict(id=warm.REPO_ID, full_name=warm.REPO)

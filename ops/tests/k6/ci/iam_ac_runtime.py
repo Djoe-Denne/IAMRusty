@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 
@@ -34,8 +35,14 @@ def prepare(output):
                      and sys.platform == "linux" and os.getuid() != 0, "NOT_AC_BASE_PRODUCER")
     os.umask(0o077)
     output.mkdir(mode=0o700)
-    context = output / "empty-context"
+    context = output / "public-apt-context"
     context.mkdir(mode=0o700)
+    context.chmod(0o755)
+    shutil.copyfile(ROOT / "ops/ci/iam_benchmark_apt.sh", context / "iam_benchmark_apt.sh")
+    # The minimal base may not have system CAs yet. Use only the hosted
+    # runner's public trust bundle, mounted during this build step only.
+    shutil.copyfile("/etc/ssl/certs/ca-certificates.crt", context / "ca-certificates.crt")
+    (context / "ca-certificates.crt").chmod(0o644)
     base = base_tag(known)
     ident = package.Packager(output).build(context, ROOT / "ops/tests/k6/ci/Dockerfile.iam-ac-base", base,
                                            {"RUNTIME_IMAGE": package.runtime_lock()["runtime"]})

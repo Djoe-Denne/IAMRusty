@@ -75,7 +75,7 @@ jobs:
       - uses: ./.github/actions/setup-compiler-cache
         if: inputs.service != 'iam' || github.event_name == 'workflow_dispatch'
       - name: Install IAM native dependencies
-        if: inputs.service == 'iam'
+        if: inputs.service == 'iam' && inputs.benchmark-arm == ''
         run: |
           sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
           sudo apt-get update \
@@ -83,6 +83,11 @@ jobs:
             -o Acquire::https::Timeout=30 \
             -o Acquire::Retries=3
           sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
+      - name: Install verified common Ubuntu packages offline
+        if: inputs.service == 'iam' && inputs.benchmark-arm != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B ops/ci/iam_apt_inputs.py install
       - uses: taiki-e/install-action@72f835688cb6c15903b796f704b01e652a2b8835 # install-action
         if: inputs.service != 'iam' || github.event_name == 'workflow_dispatch'
         with:

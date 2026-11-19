@@ -35,6 +35,24 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  prepare-apt:
+    name: Common signed Ubuntu packages
+    if: github.repository == 'Djoe-Denne/IAMRusty'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: python3 -B ops/ci/iam_apt_inputs.py prepare
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: iam-cd-common-apt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/iam-warm-apt/bundle.tar.gz
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 1
+
   prepare-runtime:
     name: Common prebuilt runtime base
     if: github.repository == 'Djoe-Denne/IAMRusty'
@@ -56,7 +74,7 @@ jobs:
   build-d-server:
     name: D instrumented IAM with prior compiler cache
     if: github.repository == 'Djoe-Denne/IAMRusty'
-    needs: [prepare-cargo]
+    needs: [prepare-cargo, prepare-apt]
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -71,11 +89,10 @@ jobs:
       - uses: taiki-e/install-action@72f835688cb6c15903b796f704b01e652a2b8835 # cargo-llvm-cov
         with:
           tool: cargo-llvm-cov@0.9.1
-      - name: Install IAM native dependencies
-        run: |
-          sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
-          sudo apt-get update -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3
-          sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
+      - name: Install verified common Ubuntu packages offline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B ops/ci/iam_apt_inputs.py install
       - name: Restore the pinned prior compiler snapshot
         env:
           GH_TOKEN: ${{ github.token }}
@@ -100,7 +117,7 @@ jobs:
   build-c-server:
     name: C independent instrumented IAM
     if: github.repository == 'Djoe-Denne/IAMRusty'
-    needs: [prepare-cargo]
+    needs: [prepare-cargo, prepare-apt]
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -115,11 +132,10 @@ jobs:
       - uses: taiki-e/install-action@72f835688cb6c15903b796f704b01e652a2b8835 # cargo-llvm-cov
         with:
           tool: cargo-llvm-cov@0.9.1
-      - name: Install IAM native dependencies
-        run: |
-          sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
-          sudo apt-get update -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3
-          sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
+      - name: Install verified common Ubuntu packages offline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B ops/ci/iam_apt_inputs.py install
       - name: Build only the instrumented IAM server and migration
         env:
           CARGO_PROFILE_DEV_DEBUG: line-tables-only
@@ -140,7 +156,7 @@ jobs:
   build-c-tests:
     name: C independent instrumented test bundles
     if: github.repository == 'Djoe-Denne/IAMRusty'
-    needs: [prepare-cargo]
+    needs: [prepare-cargo, prepare-apt]
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -155,11 +171,10 @@ jobs:
       - uses: taiki-e/install-action@72f835688cb6c15903b796f704b01e652a2b8835 # cargo-llvm-cov
         with:
           tool: cargo-llvm-cov@0.9.1
-      - name: Install IAM native dependencies
-        run: |
-          sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
-          sudo apt-get update -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3
-          sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
+      - name: Install verified common Ubuntu packages offline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B ops/ci/iam_apt_inputs.py install
       - name: Compile and bundle the five partitions independently of the k6 server
         env:
           CARGO_PROFILE_DEV_DEBUG: line-tables-only
@@ -177,7 +192,7 @@ jobs:
   build-d-tests:
     name: D instrumented test bundles with prior compiler cache
     if: github.repository == 'Djoe-Denne/IAMRusty'
-    needs: [prepare-cargo]
+    needs: [prepare-cargo, prepare-apt]
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -192,11 +207,10 @@ jobs:
       - uses: taiki-e/install-action@72f835688cb6c15903b796f704b01e652a2b8835 # cargo-llvm-cov
         with:
           tool: cargo-llvm-cov@0.9.1
-      - name: Install IAM native dependencies
-        run: |
-          sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
-          sudo apt-get update -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3
-          sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev
+      - name: Install verified common Ubuntu packages offline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B ops/ci/iam_apt_inputs.py install
       - name: Restore the pinned prior compiler snapshot
         env:
           GH_TOKEN: ${{ github.token }}

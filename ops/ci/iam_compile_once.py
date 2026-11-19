@@ -31,6 +31,7 @@ AC_PRODUCERS = {
     "oauth": ("native-oauth", "Common native OAuth"),
     "ext-authz": ("native-ext-authz", "Common native Ext Authz"),
     "cargo": ("prepare-cargo", "Common locked Cargo downloads"),
+    "apt": ("prepare-apt", "Common signed Ubuntu packages"),
     "runtime": ("prepare-runtime", "Common prebuilt runtime base"),
 }
 AC_TEST_PRODUCER = ("build-c-tests", "C independent instrumented test bundles")
@@ -438,20 +439,23 @@ def fetch(part, destination, root=ci.ROOT):
     from artifacts import GitHub, positive, unwrap_zip, validate_artifact
     from binaries import ROLES
 
-    require(re.fullmatch(r"unit-0|tests-[0-3]|e2e|e2e-d|oauth|ext-authz|cargo|runtime", part), "Unknown pilot artifact")
+    require(re.fullmatch(r"unit-0|tests-[0-3]|e2e|e2e-d|oauth|ext-authz|cargo|apt|runtime", part), "Unknown pilot artifact")
     known = identity(root=root)
     workflow_path, branch, lane = run_lane(os.environ)
     event = os.environ["GITHUB_EVENT_NAME"]
     if lane == "ci":
         expected_consumer = "e2e" if part in {"e2e", "oauth", "ext-authz"} else "coverage"
         require(os.environ.get("GITHUB_JOB") == expected_consumer, "Unexpected IAM artifact consumer")
-    require(lane == "ac" or part not in {"e2e-d", "cargo", "runtime"}, "Benchmark artifact is not a CI input")
+    require(lane == "ac" or part not in {"e2e-d", "cargo", "apt", "runtime"}, "Benchmark artifact is not a CI input")
     if lane == "ac":
         arm = os.environ.get("IAM_AC_ARM")
         job = os.environ.get("GITHUB_JOB")
         if part == "cargo":
             require(job in {"build-c-server", "build-c-tests", "build-d-server", "build-d-tests",
                             "native-oauth", "native-ext-authz"}, "Wrong benchmark Cargo consumer")
+        elif part == "apt":
+            require(job in {AC_TEST_PRODUCER[0], D_TEST_PRODUCER[0], AC_PRODUCERS["e2e"][0], AC_PRODUCERS["e2e-d"][0]}
+                    or (job == "coverage" and arm in {"c", "d"}), "Wrong benchmark Ubuntu package consumer")
         elif part in AC_E2E_PARTS or part == "runtime":
             allowed = {"d": {"e2e-d", "oauth", "ext-authz", "runtime"},
                        "c": {"e2e", "oauth", "ext-authz", "runtime"}}
@@ -497,7 +501,7 @@ def fetch(part, destination, root=ci.ROOT):
     if lane == "ci" and part in {"oauth", "ext-authz"}:
         name = f"k6-binaries-{part}-{run_id}-{attempt}"
     elif lane == "ac":
-        prefix = "common" if part in {"oauth", "ext-authz", "cargo", "runtime"} else (
+        prefix = "common" if part in {"oauth", "ext-authz", "cargo", "apt", "runtime"} else (
             "d" if part == "e2e-d" or arm == "d" else "c")
         name = f"iam-cd-{prefix}-{part}-{attempt}"
     items = [a for a in api.pages(f"actions/runs/{run_id}/artifacts", "artifacts") if a["name"] == name]
