@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import sys
 
-from pipeline import ROOT, evidence_identity
+from pipeline import GROUPS, ROOT, evidence_identity
 
 
 def clippy_evidence(directory, environment=os.environ):
@@ -53,6 +53,20 @@ def status(needs, *, event, ref):
         "readiness": ("test-readiness",),
         "shared": ("test-shared",),
     }
+    if needs["plan"]["outputs"].get("docs_only") == "true":
+        empty_scope = dict.fromkeys((*GROUPS, "full", "any"), False)
+        if event != "pull_request" or selection != empty_scope:
+            raise ValueError("Invalid documentation-only CI selection")
+        expected_skips = (expected - {"plan"}) | {
+            job for jobs in mappings.values() for job in jobs
+        } | {"merge-coverage", "sonar", "k6-e2e", "e2e-pages"}
+        unexpected = sorted(
+            name for name in (expected_skips | set(needs)) - {"plan"}
+            if needs.get(name, {}).get("result") != "skipped"
+        )
+        if unexpected:
+            raise ValueError("Documentation-only jobs not skipped: " + ", ".join(unexpected))
+        return "Documentation-only PR. Build, tests, Clippy, coverage and Sonar were NOT run."
     for group, jobs in mappings.items():
         if selection[group]:
             expected.update(jobs)

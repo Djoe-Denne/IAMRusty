@@ -441,9 +441,10 @@ class WorkflowTests(unittest.TestCase):
 
     def test_pr_quality_does_not_skip_builds_or_change_the_master_scan(self):
         steps = self.jobs["plan"]["steps"]
-        self.assertEqual(self.jobs["plan"]["outputs"], {"selection": "${{ steps.scope.outputs.selection }}"})
+        self.assertEqual(self.jobs["plan"]["outputs"]["selection"],
+                         "${{ steps.docs.outputs.selection || steps.scope.outputs.selection }}")
         self.assertTrue(any("pr_scope.py plan" in step.get("run", "") and
-                            step["if"] == "github.event_name == 'pull_request'" for step in steps))
+                            "github.event_name == 'pull_request'" in step["if"] for step in steps))
         sonar = {step.get("id"): step for step in self.jobs["sonar"]["steps"]}
         self.assertIn("pull_request", sonar["pr-quality"]["if"])
         self.assertIn("head_compatible", sonar["pr-source"]["if"])
@@ -452,6 +453,17 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("target/sonar/clippy.json", sonar["scan"]["with"]["args"])
         self.assertIn("target/sonar/clippy-pr.json", sonar["scan"]["with"]["args"])
         self.assertEqual(self.jobs["ci-status"]["name"], "CI scope and result")
+
+    def test_docs_fast_path_skips_rust_setup_and_heavy_roots_but_not_final_check(self):
+        steps = {step.get("id"): step for step in self.jobs["plan"]["steps"]}
+        self.assertEqual(steps["docs"]["if"], "github.event_name == 'pull_request'")
+        self.assertEqual(steps["scope"]["if"], "steps.docs.outputs.docs_only != 'true'")
+        self.assertEqual(steps["preview"]["if"],
+                         "github.event_name == 'pull_request' && steps.docs.outputs.docs_only != 'true'")
+        for name in ("fmt", "infra-static"):
+            self.assertEqual(self.jobs[name]["needs"], ["plan"])
+            self.assertEqual(self.jobs[name]["if"], "needs.plan.outputs.docs_only != 'true'")
+        self.assertEqual(self.jobs["ci-status"]["if"], "always()")
 
     def test_cache_is_shared_without_target_archives_and_installer_is_pinned(self):
         action = yaml.load((ROOT / ".github/actions/setup-compiler-cache/action.yml").read_text(),
@@ -599,6 +611,23 @@ class ReportTests(unittest.TestCase):
         self.assertIn("NOT evaluated", reports.status(needs, event="pull_request", ref="refs/pull/1/merge"))
         needs["sonar"]["outputs"]["scan_outcome"] = "success"
         self.assertIn("submitted", reports.status(needs, event="pull_request", ref="refs/pull/1/merge"))
+
+    def test_docs_status_requires_every_heavy_job_to_be_explicitly_skipped(self):
+        needs = {job: {"result": "skipped"} for job in self.full_needs()}
+        selection = dict.fromkeys((*p.GROUPS, "full", "any"), False)
+        needs["plan"] = {"result": "success", "outputs": {
+            "docs_only": "true", "selection": json.dumps(selection),
+        }}
+        self.assertIn("Documentation-only", reports.status(needs, event="pull_request", ref="refs/pull/7/merge"))
+        with self.assertRaises(ValueError):
+            reports.status(needs, event="push", ref="refs/heads/master")
+        for result in ("success", "failure", "cancelled"):
+            needs["build-telegraph"]["result"] = result
+            with self.subTest(result=result), self.assertRaisesRegex(ValueError, "build-telegraph"):
+                reports.status(needs, event="pull_request", ref="refs/pull/7/merge")
+        del needs["build-telegraph"]
+        with self.assertRaisesRegex(ValueError, "build-telegraph"):
+            reports.status(needs, event="pull_request", ref="refs/pull/7/merge")
 
     def test_diagnostic_merge_does_not_become_a_failed_merge_or_a_passed_sonar(self):
         needs = self.full_needs()
