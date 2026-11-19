@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from test_ci_pipeline import fixture_metadata
 import pr_scope as scope
@@ -65,6 +66,20 @@ class EvidenceTests(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name).resolve()
         self.ranges = {"src/lib.rs": [(2, 4)]}
+
+    def test_docs_fast_path_requires_allowlisted_regular_markdown(self):
+        guide = "docs/guides/ci-cache-and-service-lanes.md"
+        with patch.object(scope, "git", return_value=b"100644 blob sha\tfile\0"):
+            self.assertTrue(scope.docs_only([guide, "README.md"], "base", "merge", self.root))
+            for paths in ([], [guide, "Cargo.lock"], ["docs/fixtures/README.md"],
+                          ["docs/guides/example.rs"], ["services/Telegraph/README.md"]):
+                with self.subTest(paths=paths):
+                    self.assertFalse(scope.docs_only(paths, "base", "merge", self.root))
+        for mode in (b"120000 blob ", b"100755 blob ", b"160000 commit "):
+            with patch.object(scope, "git", side_effect=[b"100644 blob sha\tfile\0", mode]):
+                self.assertFalse(scope.docs_only([guide], "base", "merge", self.root))
+        with patch.object(scope, "git", side_effect=[b"100644 blob sha\tfile\0", b""]):
+            self.assertTrue(scope.docs_only([guide], "base", "merge", self.root))
 
     def test_lcov_counts_zero_and_unknown_separately(self):
         report = [

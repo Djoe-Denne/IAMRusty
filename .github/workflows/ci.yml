@@ -20,6 +20,8 @@ env:
 jobs:
   fmt:
     name: Format
+    needs: [plan]
+    if: needs.plan.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -34,16 +36,27 @@ jobs:
     name: Select conservative CI scope
     runs-on: ubuntu-24.04
     outputs:
-      selection: ${{ steps.scope.outputs.selection }}
+      docs_only: ${{ steps.docs.outputs.docs_only }}
+      selection: ${{ steps.docs.outputs.selection || steps.scope.outputs.selection }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
           fetch-depth: 0
           persist-credentials: false
+      - name: Admit documentation-only PRs without Rust setup
+        id: docs
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TESTED_SHA: ${{ github.sha }}
+        run: python3 -B ops/ci/pr_scope.py docs-only --base "$BASE_SHA" --head "$HEAD_SHA" --tested "$TESTED_SHA"
       - uses: ./.github/actions/setup-rust
+        if: steps.docs.outputs.docs_only != 'true'
       - name: Plan full coverage unless selective PR execution was explicitly enabled
         id: scope
+        if: steps.docs.outputs.docs_only != 'true'
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -55,7 +68,8 @@ jobs:
           python3 -B ops/ci/pipeline.py select --event "$EVENT_NAME" \
             --base "$BASE_SHA" --head "$HEAD_SHA" "${args[@]}"
       - name: Preview build and integration pruning without skipping jobs
-        if: github.event_name == 'pull_request'
+        id: preview
+        if: github.event_name == 'pull_request' && steps.docs.outputs.docs_only != 'true'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -212,6 +226,8 @@ jobs:
 
   infra-static:
     name: Infrastructure (offline render + shell syntax)
+    needs: [plan]
+    if: needs.plan.outputs.docs_only != 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

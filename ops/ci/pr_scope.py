@@ -28,6 +28,20 @@ def pr_paths(base, head, tested, root=ROOT):
     return changed_paths(base, tested, root)
 
 
+DOC_PATH = re.compile(r"(?:README\.md|docs/(?:adr|contracts|guides|missions)/[^/]+\.md)")
+
+
+def docs_only(paths, base, tested, root=ROOT):
+    """Allow only ordinary Markdown blobs in explicitly known documentation paths."""
+    if not paths or not all(DOC_PATH.fullmatch(path) for path in paths):
+        return False
+    for path in paths:
+        entries = [git(root, "ls-tree", "-z", revision, "--", path) for revision in (base, tested)]
+        if not any(entries) or any(entry and not entry.startswith(b"100644 blob ") for entry in entries):
+            return False
+    return True
+
+
 def dependency_closure(seeds, edges):
     reached = set(seeds)
     pending = list(seeds)
@@ -205,12 +219,28 @@ def summary(text):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("plan", "quality"))
+    parser.add_argument("mode", choices=("docs-only", "plan", "quality"))
     parser.add_argument("--base", required=True)
     parser.add_argument("--head", required=True)
     parser.add_argument("--tested", required=True)
     args = parser.parse_args()
     root = ROOT.resolve()
+    if args.mode == "docs-only":
+        try:
+            paths = pr_paths(args.base, args.head, args.tested, root)
+            selected = docs_only(paths, args.base, args.tested, root)
+        except (ValueError, UnicodeError, subprocess.CalledProcessError):
+            selected = False
+        if selected:
+            summary("Documentation-only PR: no build, tests, Clippy, coverage or Sonar required.")
+        if filename := os.environ.get("GITHUB_OUTPUT"):
+            with open(filename, "a", encoding="utf-8") as outputs:
+                outputs.write(f"docs_only={str(selected).lower()}\n")
+                if selected:
+                    selection = dict.fromkeys((*GROUPS, "full", "any"), False)
+                    outputs.write(f"selection={json.dumps(selection, separators=(',', ':'))}\n")
+        return
+
     try:
         paths = pr_paths(args.base, args.head, args.tested, root)
     except (ValueError, UnicodeError, subprocess.CalledProcessError):

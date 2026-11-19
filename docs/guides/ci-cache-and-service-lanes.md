@@ -54,13 +54,13 @@ For example, `test_status=101` with `report_status=0` now allows diagnostic merg
 
 ## Selective PR execution is opt-in
 
-Default behavior remains full coverage for both master and PRs.
+`master` and non-documentation PRs run the complete baseline by default. A PR changing only regular Markdown files at `README.md` or directly under `docs/adr/`, `docs/contracts/`, `docs/guides/`, or `docs/missions/` runs only the scope planner and `CI scope and result`. Unproven merge ancestry, mixed changes, and unexpected paths or file modes do not qualify.
 
 `CI_SELECTIVE_PR_TESTS=true` is a repository variable reserved for a separately reviewed opt-in. When enabled, ordinary documentation-only PRs can skip Rust lanes; service source changes select conservative Cargo/runtime consumers. Unknown/global/shared/manifest/lockfile/submodule changes and comparison uncertainty select full execution.
 
 Partial PR receipts are diagnostic. They cannot qualify canonical monorepo coverage or Sonar. Review required-check expectations before enabling the variable. This implementation changes no repository variables or branch protection.
 
-The PR scope step previews separate native build and integration lists with reasons; it does not drive job conditions. It compares the exact tested PR merge to its base parent and defaults to complete scope on uncertain input. Cargo build dependencies expand the build list; declared runtime consumers expand the integration list instead. Workflow changes, manifests, lockfiles and unclassified inputs remain full-scope candidates.
+For other PRs, the advisory scope step previews separate native build and integration lists with reasons; it does not drive job conditions. It compares the exact tested PR merge to its base parent and defaults to complete scope on uncertain input. Cargo build dependencies expand the build list; declared runtime consumers expand the integration list instead. Workflow changes, manifests, lockfiles and unclassified inputs remain full-scope candidates.
 
 Full-execution PRs produce fresh LCOV and Clippy reports for the tested merge. The PR quality summary records changed Rust lines found in LCOV and reports unmapped lines separately; they are not counted as covered or assumed to be executable. The `pr-quality` artifact is evidence for this run, not a cache. Sonar PR analysis uses its new-code metrics and imports only Clippy warnings whose primary location overlaps the PR diff. The scanner runs on the PR head only if its tree is identical to the tested merge and the PR can access scanner credentials. Otherwise, the run reports that Sonar PR analysis was not evaluated. Full `master` analysis keeps the unfiltered reports.
 
