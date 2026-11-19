@@ -3,6 +3,8 @@
 //! `RustyCog` queue factories can degrade to a no-op without failing startup.
 //! Composition roots must classify that outcome, log it, and expose it on
 //! `GET /ready` so liveness (`/health`) is not mistaken for a live broker.
+//!
+//! CI scope probe: classify a shared readiness source change.
 
 #![allow(missing_docs)]
 
