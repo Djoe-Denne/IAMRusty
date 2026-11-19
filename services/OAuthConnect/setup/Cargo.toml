@@ -38,4 +38,4 @@ toml = { workspace = true }
 jsonwebtoken = { workspace = true }
 rsa = { workspace = true }
 chrono = { workspace = true }
-flate2 = "=1.1.10"
+flate2 = "=1.1.11"
