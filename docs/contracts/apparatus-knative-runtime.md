@@ -774,7 +774,7 @@ En cas de réponse PUT ambiguë, aucune seconde création, nouveau nom, réécri
 
 **Écart réel à ne pas masquer :** `workers/apparatus-operator/src/admission.rs::AdmissionRecord` porte digest/politique/rapport et références CRI/enveloppe ; `runtime_projection.rs::AdmittedServingImage::verify` consulte ce store et vérifie la signature de l’enveloppe. `admit.rs::EnvelopeDocument` ne contient que descripteur et image CRI : sa signature Cosign actuelle n’est **pas déjà** une attestation portable fraîche de décision Adm-A, de rapport, de profil et d’acte de maintenance. L’export signé décrit ici est un **nouveau format à implémenter sous l’autorité Adm-A**, pas une propriété inventée de l’enveloppe historique. L’option (i) n’est pas ajoutée en parallèle : ni RPC de lecture d’un store operator, ni mount de son JSON mutable dans Manifesto, ni projection autorisante rafraîchie par le contrôleur.
 
-**Formes exactes proposées**, réservées à la maintenance, sans ajout aux huit DTO/routes : mêmes Uuid/Counter/UnixMs/Digest, Options explicites et règles de parsing strict §13.1. Le challenge est émis/persisté par le writer Manifesto, jamais choisi dans une requête caller.
+**Proposed exact wire forms**, reserved for maintenance, without additions to the eight DTOs or routes. They use the same UUID, counter, Unix timestamp and digest types and the strict parsing rules of §13.1, with only the `Prepare` UID-omission exception below. The Manifesto writer issues and persists the challenge; callers do not choose it in a request.
 
 ```rust
 RuntimeAdmissionActionV1 = Prepare | Open; // wire: prepare | open
@@ -795,7 +795,25 @@ RuntimeAdmissionAttestationV1 {
 }
 ```
 
-`authority_id` identifie le store/émetteur Adm-A de confiance ; `installation_id` le writer/déploiement Manifesto consommateur. Ils sont provisionnés par B/setup, jamais découverts depuis la preuve. `service_uid/revision_uid=null` pour Prepare ; ils sont non nuls et égaux à la commande/observation authoritative pour Open. Tous les champs du challenge doivent être **identiques** à l’intention writer enregistrée, y compris action, migration, full CAS, projet/binding, release et hashes ; aucun wildcard « valable pour ce digest partout ». Une seule intention non consommée par migration/action ; nouveau challenge invalide le précédent, sans remise à zéro des compteurs. Son expiration est fixée à **60_000 ms** après l’horloge DB d’émission. Émettre un challenge n’active rien et ne vaut ni Prepare ni Open.
+`authority_id` identifies the trusted Adm-A store and issuer; `installation_id`
+identifies the consuming Manifesto writer and deployment. Setup provisions
+these IDs; the proof never supplies their trusted values.
+
+For `Prepare`, writers still emit both `service_uid` and `revision_uid` as
+explicit `null`. On input, either or both keys may be omitted, with the same
+meaning as `null`; non-null UIDs remain invalid for `Prepare`. For `Open`,
+both UIDs must be valid and match the authoritative command and observation.
+An omitted or null UID cannot authorize `Open`. No other challenge member
+may be omitted.
+
+After decoding, all challenge values must match the stored writer intent,
+including action, migration, full CAS, project and binding, release, and
+hashes. The UID normalization does not alter signature verification or JCS
+checks on the received bytes. There is at most one unconsumed intent per
+migration and action; a new challenge invalidates the previous one without
+resetting counters. A challenge expires **60_000 ms** after issuance by the
+database clock. Issuing it activates nothing and does not perform `Prepare`
+or `Open`.
 
 La preuve n’a pas de champ booléen `valid`/`signature_verified` : son purpose signifie « Adm-A a constaté la décision VALID courante pour ces preuves et ce challenge ». Seul le chemin Adm-A ayant réellement vérifié cette décision peut la signer. `record_id` est l’identifiant **du record Adm-A**, pas un UID de ressource de déploiement ni un UUID inventé par Manifesto. `admission_revision>=1`, monotone et durable par autorité/descripteur, change sur toute modification de décision/politique/rapport/enveloppe/CRI ; tombstone et identité conservés, jamais compteur local de processus, mtime ou reset après restauration. Les métadonnées de record/révision sont un ajout au store Adm-A à réaliser avant émission ; un ancien JSON sans ces garanties n’est pas promu implicitement en preuve v1.
 

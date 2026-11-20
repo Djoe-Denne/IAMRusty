@@ -55,12 +55,16 @@ fn verifier(fixture: &Value) -> PinnedRuntimeAdmissionProofVerifier {
 }
 
 fn prepare_case(fixture: &Value) -> &Value {
+    case_named(fixture, "prepare_independent_rs256")
+}
+
+fn case_named<'a>(fixture: &'a Value, name: &str) -> &'a Value {
     fixture["cases"]
         .as_array()
         .expect("crypto cases")
         .iter()
-        .find(|case| case["name"] == "prepare_independent_rs256")
-        .expect("independently signed Prepare witness")
+        .find(|case| case["name"] == name)
+        .expect("independently signed witness")
 }
 
 fn challenge(case: &Value) -> RuntimeAdmissionChallengeV1 {
@@ -89,6 +93,48 @@ fn verified(
         case["expected_challenge"]
     );
     proof
+}
+
+#[test]
+fn signed_prepare_matches_a_writer_challenge_with_omitted_uids() {
+    let fixture = vectors();
+    let case = prepare_case(&fixture);
+    let verifier = verifier(&fixture);
+    let mut omitted = case["expected_challenge"].clone();
+    let object = omitted.as_object_mut().expect("writer challenge object");
+    for field in ["service_uid", "revision_uid"] {
+        assert_eq!(object.remove(field), Some(Value::Null));
+    }
+    let expected = serde_json::from_value(omitted).expect("Prepare intent with omitted UIDs");
+    let proof = verifier
+        .verify(&expected, compact(case), now(case))
+        .expect("signed Prepare must match the normalized intent");
+    assert_eq!(
+        serde_json::to_value(&proof.claims().challenge).expect("verified challenge wire value"),
+        case["expected_challenge"]
+    );
+}
+
+#[test]
+fn signed_open_still_requires_both_writer_uids() {
+    let fixture = vectors();
+    let case = case_named(&fixture, "open_new_challenge_independent_rs256");
+    let verifier = verifier(&fixture);
+    drop(verified(&verifier, case));
+    for field in ["service_uid", "revision_uid"] {
+        let mut omitted = case["expected_challenge"].clone();
+        omitted
+            .as_object_mut()
+            .expect("writer challenge object")
+            .remove(field)
+            .expect("present Open UID");
+        let expected =
+            serde_json::from_value(omitted).expect("Open intent decodes before validation");
+        assert_eq!(
+            verifier.verify(&expected, compact(case), now(case)).err(),
+            Some(RuntimeErrorCodeV1::RuntimeInvalidProof)
+        );
+    }
 }
 
 fn revoke_uncontended(verifier: &PinnedRuntimeAdmissionProofVerifier, kid: &str) {
