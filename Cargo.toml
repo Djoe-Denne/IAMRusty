@@ -70,7 +70,7 @@ anyhow = "1.0.82"
 thiserror = "2.0.11"
 
 # Configuration
-config = "0.14.1"
+config = "0.15.23"
 dotenvy = "0.15.7"
 toml = "0.8.23"
 
