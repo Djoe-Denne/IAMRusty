@@ -19,7 +19,7 @@ sea-orm = { version = "1.1.11", features = ["sqlx-postgres", "runtime-tokio-rust
 sea-orm-migration = { version = "1.1.11" }
 
 # Auth
-jsonwebtoken = "9.0.2"
+jsonwebtoken = { workspace = true }
 
 # Password hashing
 argon2 = "0.5.3"
