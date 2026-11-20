@@ -7,7 +7,6 @@ mod utils;
 
 use common::setup_test_server;
 use fixtures::db::DbFixtures;
-use iam_configuration::{load_config_part, JwtConfig};
 use sea_orm::ConnectionTrait;
 use serde_json::{json, Value};
 use serial_test::serial;

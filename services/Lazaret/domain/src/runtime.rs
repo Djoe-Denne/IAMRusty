@@ -25,6 +25,8 @@ pub struct RuntimePodProof {
 /// Offline OIDC signature/audience validation; current Pod ownership is checked
 /// separately against the authoritative runtime-control port on every use.
 pub trait RuntimeEnrollmentProofVerifier: Send + Sync {
+    /// # Errors
+    /// Returns [`RuntimeError`] when the projected token cannot be authenticated.
     fn verify(&self, token: &str) -> Result<RuntimePodProof, RuntimeError>;
 }
 
@@ -32,6 +34,8 @@ pub trait RuntimeEnrollmentProofVerifier: Send + Sync {
 #[async_trait]
 pub trait RuntimeTicketSigner: Send + Sync {
     async fn sign(&self, ticket: &RuntimeInvocationTicketV1) -> Result<String, RuntimeError>;
+    /// # Errors
+    /// Returns [`RuntimeError`] when the ticket or its signature is invalid.
     fn verify(&self, token: &str) -> Result<RuntimeInvocationTicketV1, RuntimeError>;
 }
 
@@ -51,12 +55,17 @@ pub struct RuntimeInvokePublicKey {
 }
 
 /// Trusted platform provider seam, separate from IAM/session/enrollment signers.
+///
 /// Implementations enforce the fixed invoke purpose and atomically update the
 /// public last-issuance metadata before returning a signature. The composition
 /// root supplies the provider; requests cannot choose an endpoint or credential.
 #[async_trait]
 pub trait RuntimeRsaSigningProvider: Send + Sync {
+    /// # Errors
+    /// Returns [`RuntimeError`] if no eligible active signing key is available.
     fn active_key(&self) -> Result<RuntimeInvokePublicKey, RuntimeError>;
+    /// # Errors
+    /// Returns [`RuntimeError`] if the requested verification key is unavailable.
     fn verification_key(&self, kid: &str) -> Result<RuntimeInvokePublicKey, RuntimeError>;
     async fn sign_rs256(
         &self,

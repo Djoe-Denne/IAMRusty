@@ -14,7 +14,7 @@ async fn main() -> Result<()> {
     let server_config = config.server.clone();
 
     // Initialize application with all dependencies
-    let app = Application::new(config).await?;
+    let app = Box::pin(Application::new(config)).await?;
 
     // Start HTTP server
     app.run(server_config).await?;

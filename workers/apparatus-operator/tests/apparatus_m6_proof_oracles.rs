@@ -484,7 +484,8 @@ async fn s1_pod_identity_readiness_and_termination_are_verified_before_positive(
             ["ready", "endpoints", "pod"],
             "S-1 no positive forward or wget: {scenario}"
         );
-        assert!(port.wget_urls.is_empty());
+        let no_wget_requests = port.wget_urls.is_empty();
+        assert!(no_wget_requests, "S-1 must not issue a wget request");
     }
 }
 
@@ -608,7 +609,8 @@ async fn t3_foreign_pod_or_namespace_is_rejected_before_pod_api_and_positive_for
             ["ready", "endpoints"],
             "T-3 early rejection before Pod API/forward/wget"
         );
-        assert!(port.wget_urls.is_empty());
+        let no_wget_requests = port.wget_urls.is_empty();
+        assert!(no_wget_requests, "T-3 must not issue a wget request");
     }
 }
 

@@ -37,6 +37,10 @@ const STATE: &str = "SignedProviderLinkStateSentinel";
 const CODE: &str = "ProviderLinkAuthorizationCodeSentinel";
 const AUTHORIZATION_URL: &str = "https://github.example/authorize?scope=read%3Auser";
 
+fn assert_redacted_equality(equal: bool, label: &'static str) {
+    assert!(equal, "{label}");
+}
+
 // Empty mock expectations are deliberate strict guards, not implementations of
 // account/link/email policy. Real business UUID/identity behavior belongs to IT.
 mock! {
@@ -234,6 +238,7 @@ impl Writer {
             "G-5: nonce already purged"
         );
         assert!(row.pkce_verifier.is_none(), "G-5: verifier already purged");
+        drop(row);
     }
 }
 
@@ -270,6 +275,7 @@ impl OAuthTransactionWriteRepository for Writer {
             authentication_nonce: row.authentication_nonce.take(),
         };
         row.consumed_at = Some(now);
+        drop(row);
         Ok(Some(original))
     }
 }
@@ -319,10 +325,16 @@ async fn consumed_context(
     let capability = ConsumedOAuthTransaction::consume(writer.as_ref(), input)
         .await
         .expect("canonical matching fixture must yield real capability");
-    assert!(capability.operation() == &operation(relink));
-    assert!(capability.target_user_id() == Some(target()));
-    assert!(capability.provider().as_str() == "github");
-    assert!(capability.redirect_uri() == REDIRECT);
+    assert_redacted_equality(
+        capability.operation() == &operation(relink),
+        "exact operation",
+    );
+    assert_redacted_equality(
+        capability.target_user_id() == Some(target()),
+        "exact target",
+    );
+    assert_eq!(capability.provider().as_str(), "github");
+    assert_redacted_equality(capability.redirect_uri() == REDIRECT, "exact redirect");
     writer.assert_purged();
     (writer, capability, expected)
 }
@@ -378,8 +390,8 @@ async fn start_forwards_begin_context_once_to_v2_authorize(
     assert_eq!(calls.legacy, [0; 5], "G-8: no legacy authorize");
     assert!(calls.complete.is_empty());
     let request = &calls.authorize[0];
-    assert!(request.redirect_uri == REDIRECT);
-    assert!(request.state == STATE);
+    assert_redacted_equality(request.redirect_uri == REDIRECT, "exact redirect");
+    assert_redacted_equality(request.state == STATE, "exact state");
     assert!(
         request.nonce == begun.authentication_nonce,
         "G-8: exact BEGIN nonce"
@@ -388,7 +400,11 @@ async fn start_forwards_begin_context_once_to_v2_authorize(
         request.code_challenge == begun.code_challenge,
         "G-8: exact BEGIN challenge"
     );
-    assert!(request.code_challenge_method == begun.code_challenge_method);
+    assert_redacted_equality(
+        request.code_challenge_method == begun.code_challenge_method,
+        "exact challenge method",
+    );
+    drop(calls);
     assert!(matches!(result, Ok(ref url) if url == AUTHORIZATION_URL));
 }
 
@@ -423,8 +439,11 @@ async fn complete_refusal_precedes_every_business_lookup_and_write(#[case] relin
     assert_eq!(calls.legacy, [0; 5], "G-5: no fallback or profile call");
     assert!(calls.authorize.is_empty());
     let request = &calls.complete[0];
-    assert!(request.code == expected.code);
-    assert!(request.redirect_uri == expected.redirect_uri);
+    assert_redacted_equality(request.code == expected.code, "exact code");
+    assert_redacted_equality(
+        request.redirect_uri == expected.redirect_uri,
+        "exact redirect",
+    );
     assert!(
         request.expected_nonce == expected.expected_nonce,
         "G-5: original nonce"
@@ -433,9 +452,9 @@ async fn complete_refusal_precedes_every_business_lookup_and_write(#[case] relin
         request.code_verifier == expected.code_verifier,
         "G-5: original verifier"
     );
-    let error = match result {
-        Err(error) => error,
-        Ok(_) => panic!("G-5: refused completion cannot mutate a provider link"),
+    drop(calls);
+    let Err(error) = result else {
+        panic!("G-5: refused completion cannot mutate a provider link");
     };
     assert!(matches!(
         error,

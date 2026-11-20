@@ -246,8 +246,8 @@ fn normalize_manifesto_base(raw: &str) -> String {
 pub struct DesiredStateBridge;
 
 impl DesiredStateBridge {
-    /// 1. `list_ready` 2. `reconcile_digest` 3. apply CR seulement si M3 refuse
-    /// (`MissingAdmissionRecord` / `MissingIsolation`) **et** JSON VALID+pin.
+    /// 1. `list_ready` 2. `reconcile_digest` 3. apply CR only if M3 refuses
+    ///    (`MissingAdmissionRecord` / `MissingIsolation`) and JSON VALID+pin.
     ///
     /// Digest non VALID : `reconcile_digest` seul (refus M3, zéro Pod).
     /// Re-poll : CR déjà présente → pas de delete+create (`apply_valid_record`).

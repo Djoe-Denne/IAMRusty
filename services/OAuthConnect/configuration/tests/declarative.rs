@@ -64,8 +64,14 @@ fn oidc_and_two_oauth_instances_accept_arbitrary_logical_slugs() {
         config.providers[2].profile,
         ProviderProfile::Oidc(_)
     ));
-    assert!(config.providers[0].client_secret != config.providers[1].client_secret);
-    assert!(config.providers[0].hmac_secret != config.providers[1].hmac_secret);
+    assert!(
+        config.providers[0].client_secret != config.providers[1].client_secret,
+        "providers must not share a client secret"
+    );
+    assert!(
+        config.providers[0].hmac_secret != config.providers[1].hmac_secret,
+        "providers must not share an HMAC secret"
+    );
 }
 
 #[test]

@@ -9,7 +9,7 @@ use wiremock::{
 
 pub struct JwksFixtures {
     server: Arc<MockServer>,
-    fixture: MockServerFixture,
+    pub(crate) fixture: MockServerFixture,
 }
 
 impl JwksFixtures {
@@ -20,15 +20,7 @@ impl JwksFixtures {
     }
 
     pub fn base_url(&self) -> String {
-        self.server.uri()
-    }
-
-    pub async fn received_requests(&self) -> Vec<wiremock::Request> {
-        self.server.received_requests().await.unwrap_or_default()
-    }
-
-    pub async fn reset(&self) {
-        self.fixture.reset().await;
+        self.fixture.base_url()
     }
 
     pub async fn mock_jwks_ok(&self, body: &str) -> &Self {

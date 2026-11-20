@@ -10,7 +10,7 @@ use reqwest::Client;
 use rustycog::config::ServerConfig;
 use rustycog::testing::sqs_testcontainer::TestSqs;
 use rustycog::testing::*;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use telegraph_configuration::TelegraphConfig;
 use telegraph_http_server::SERVICE_PREFIX;
 use telegraph_setup::app::{AppBuilder, TelegraphApp};
@@ -33,7 +33,7 @@ pub mod fixtures;
 
 use fixtures::smtp::testcontainer::TestSmtp;
 
-static mut APP: Option<TelegraphApp> = None;
+static APP: Mutex<Option<Arc<TelegraphApp>>> = Mutex::new(None);
 /// Telegraph test descriptor following `rustycog::testing` patterns
 pub struct TelegraphTestDescriptor;
 
@@ -47,9 +47,9 @@ impl ServiceTestDescriptor<TelegraphTestFixture> for TelegraphTestDescriptor {
         _server_config: ServerConfig,
     ) -> anyhow::Result<()> {
         let app = Box::pin(AppBuilder::new(config).build()).await?;
-        unsafe {
-            APP.replace(app);
-        }
+        APP.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .replace(Arc::new(app));
         Ok(())
     }
 
@@ -58,9 +58,14 @@ impl ServiceTestDescriptor<TelegraphTestFixture> for TelegraphTestDescriptor {
         _config: TelegraphConfig,
         server_config: ServerConfig,
     ) -> anyhow::Result<()> {
-        unsafe {
-            APP.as_ref().unwrap().run(server_config).await?;
-        }
+        // Retain this app while it runs, without holding the slot lock across await.
+        // A subsequent build may replace the slot without invalidating this lease.
+        let app = APP
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("Telegraph test app has not been built"))?;
+        app.run(server_config).await?;
         Ok(())
     }
 

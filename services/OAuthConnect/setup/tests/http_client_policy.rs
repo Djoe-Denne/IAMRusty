@@ -31,10 +31,9 @@ fn target(uri: &str, mode: VendorTransportSecurity) -> ProviderConfig {
 }
 
 fn built(value: &ProviderConfig) -> reqwest::Client {
-    build_http_client(value).map_or_else(
-        |_| panic!("B-builder: valid explicit transport must construct the actual client"),
-        std::convert::identity,
-    )
+    build_http_client(value).unwrap_or_else(|_| {
+        panic!("B-builder: valid explicit transport must construct the actual client")
+    })
 }
 
 fn sanitized(text: &str) {

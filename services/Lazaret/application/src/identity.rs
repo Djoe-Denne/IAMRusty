@@ -33,7 +33,7 @@ pub struct IdentityService {
 }
 
 impl IdentityService {
-    /// Sign only after RuntimeSessionService has checked the live registry and
+    /// Sign only after `RuntimeSessionService` has checked the live registry and
     /// cutover guard. Runtime TTL never exceeds five minutes or the certificate.
     pub(crate) fn sign_runtime_session(
         &self,
@@ -83,6 +83,9 @@ impl IdentityService {
 
     /// Install once at composition time, before sharing the service. There is no
     /// disable/replace operation and no request-controlled mode selection.
+    ///
+    /// # Errors
+    /// Returns [`IdentityError::InvalidIdentity`] if a guard is already installed.
     pub fn install_legacy_admission_guard(
         &mut self,
         guard: Arc<dyn lazaret_domain::runtime::RuntimeAdmissionGuard>,

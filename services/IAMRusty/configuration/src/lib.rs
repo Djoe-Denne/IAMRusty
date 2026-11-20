@@ -1018,7 +1018,9 @@ impl AppConfig {
     pub fn http_verifier_auth(&self) -> Result<AuthConfig, SecretError> {
         self.validate_principal_policy()?;
         let mut auth = self.jwt.http_verifier_auth()?;
-        auth.jwt.platform_issuer = self.auth.jwt.platform_issuer.clone();
+        auth.jwt
+            .platform_issuer
+            .clone_from(&self.auth.jwt.platform_issuer);
         auth.jwt.allow_historical_platform_issuer = self.auth.jwt.allow_historical_platform_issuer;
         auth.mesh = self.auth.mesh.clone();
         Ok(auth)
@@ -1217,7 +1219,7 @@ mod tests {
                 "PRINCIPAL_POLICY_UNAVAILABLE",
             ),
             (None, Some(false), "PRINCIPAL_POLICY_UNAVAILABLE"),
-            (Some("".into()), Some(false), "PRINCIPAL_INVALID"),
+            (Some(String::new()), Some(false), "PRINCIPAL_INVALID"),
             (
                 Some(" https://platform.example/iam".into()),
                 Some(false),

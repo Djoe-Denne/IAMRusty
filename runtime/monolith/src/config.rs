@@ -112,44 +112,6 @@ fn validate_principal_policies(
     Ok(())
 }
 
-#[cfg(test)]
-mod principal_policy_tests {
-    use super::*;
-
-    #[test]
-    fn monolith_principal_policy_is_explicit_and_consistent() {
-        let configured = rustycog::config::JwtAuthConfig {
-            platform_issuer: Some("https://platform.example/iam".into()),
-            allow_historical_platform_issuer: Some(false),
-            ..Default::default()
-        };
-        assert!(validate_principal_policies(
-            "https://platform.example/iam",
-            &[&configured, &configured]
-        )
-        .is_ok());
-        let mut foreign = configured.clone();
-        foreign.platform_issuer = Some("https://independent.example/iam".into());
-        assert!(validate_principal_policies(
-            "https://platform.example/iam",
-            &[&configured, &foreign]
-        )
-        .is_err());
-        foreign = configured.clone();
-        foreign.allow_historical_platform_issuer = Some(true);
-        assert!(validate_principal_policies(
-            "https://platform.example/iam",
-            &[&configured, &foreign]
-        )
-        .is_err());
-        assert!(validate_principal_policies(
-            "https://platform.example/iam",
-            &[&Default::default()]
-        )
-        .is_err());
-    }
-}
-
 struct OverlayTls {
     port: u16,
     cert_path: String,
@@ -188,4 +150,42 @@ fn env_truthy(key: &str) -> bool {
         std::env::var(key).ok().as_deref(),
         Some("1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON")
     )
+}
+
+#[cfg(test)]
+mod principal_policy_tests {
+    use super::*;
+
+    #[test]
+    fn monolith_principal_policy_is_explicit_and_consistent() {
+        let configured = rustycog::config::JwtAuthConfig {
+            platform_issuer: Some("https://platform.example/iam".into()),
+            allow_historical_platform_issuer: Some(false),
+            ..Default::default()
+        };
+        assert!(validate_principal_policies(
+            "https://platform.example/iam",
+            &[&configured, &configured]
+        )
+        .is_ok());
+        let mut foreign = configured.clone();
+        foreign.platform_issuer = Some("https://independent.example/iam".into());
+        assert!(validate_principal_policies(
+            "https://platform.example/iam",
+            &[&configured, &foreign]
+        )
+        .is_err());
+        foreign = configured.clone();
+        foreign.allow_historical_platform_issuer = Some(true);
+        assert!(validate_principal_policies(
+            "https://platform.example/iam",
+            &[&configured, &foreign]
+        )
+        .is_err());
+        assert!(validate_principal_policies(
+            "https://platform.example/iam",
+            &[&rustycog::config::JwtAuthConfig::default()]
+        )
+        .is_err());
+    }
 }

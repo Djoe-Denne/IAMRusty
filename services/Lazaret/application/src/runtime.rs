@@ -9,7 +9,14 @@ use std::{
     time::Duration,
 };
 
-use apparatus_contracts::runtime::*;
+use apparatus_contracts::runtime::{
+    parse_runtime_json, RuntimeBindingSnapshotV1, RuntimeBindingStateV1, RuntimeControlCallerV1,
+    RuntimeControlPort, RuntimeInstanceKindV1, RuntimeInstanceSelectorV1,
+    RuntimeInstanceSnapshotV1, RuntimeInstanceStateV1, RuntimeInvocationTicketV1,
+    RuntimeInvokeRequestV1, RuntimeOperationHashInputV1, RuntimeServiceRoleV1, RuntimeSourceV1,
+    RuntimeTargetV1, RuntimeUnixMsV1, INVOKE_AUDIENCE, INVOKE_ISSUER, INVOKE_PURPOSE,
+    MAX_RUNTIME_BODY_BYTES, OBSERVATION_TTL_MS, OPERATION_HASH_DOMAIN,
+};
 use lazaret_domain::{
     runtime::{
         RuntimeAdmissionGuard, RuntimeEnrollment, RuntimeError, RuntimePodProof, RuntimeStore,
@@ -54,6 +61,11 @@ impl RuntimeSessionService {
         }
     }
 
+    /// Issue a session after resolving the certificate's runtime or legacy identity.
+    ///
+    /// # Errors
+    /// Returns [`RuntimeSessionError`] on registry, admission, live authority or
+    /// session-signing failure; ambiguous enrollment is rejected.
     pub async fn issue_session(
         &self,
         cert: &VerifiedClientCertificate,
@@ -127,6 +139,9 @@ pub struct RuntimeInvocationService {
 impl RuntimeInvocationService {
     /// mTLS assets are platform configuration; neither URL nor credentials are
     /// accepted from an invoking workload.
+    ///
+    /// # Errors
+    /// Returns [`RuntimeError::RuntimeInternal`] if the mTLS HTTP client cannot be built.
     pub fn new(
         dependencies: RuntimeInvocationDependencies,
         identity: reqwest::Identity,
@@ -144,6 +159,11 @@ impl RuntimeInvocationService {
         Ok(Self { dependencies, http })
     }
 
+    /// Invoke a runtime target after live identity and grant validation.
+    ///
+    /// # Errors
+    /// Returns [`RuntimeError`] for invalid requests, credentials, admission, grants,
+    /// authority state or transport results. A timeout after sending has an unknown outcome.
     pub async fn invoke(
         &self,
         certificate: &VerifiedClientCertificate,
@@ -382,6 +402,10 @@ fn map_grant_failure(error: lazaret_domain::GrantFetchError) -> RuntimeError {
 
 /// Resolve only a writer-observed, binding/generation-specific HTTPS route. A
 /// missing/stale route is an error, never a request for local/digest fallback.
+///
+/// # Errors
+/// Returns [`RuntimeError`] if the binding, route observation or HTTPS endpoint
+/// is closed, stale, unavailable or inconsistent with the target.
 pub fn runtime_endpoint(
     snapshot: &RuntimeBindingSnapshotV1,
     target: &RuntimeTargetV1,
@@ -471,6 +495,10 @@ impl RuntimeIdentityAuthority {
 
     /// Discovery is Pod-bound; the operator's instance ID is never supplied by
     /// the enrolling caller, and a missing registration never creates one.
+    ///
+    /// # Errors
+    /// Returns [`RuntimeError`] if the authority consult, current-state checks or
+    /// Pod identity/expiry validation fails.
     pub async fn by_pod(
         &self,
         project: Uuid,
@@ -502,6 +530,10 @@ impl RuntimeIdentityAuthority {
 
     /// Re-read by platform-issued instance ID, then compare every binding and
     /// Pod identity component with the local certificate registry.
+    ///
+    /// # Errors
+    /// Returns [`RuntimeError`] if enrollment is closed or expired, the authority
+    /// is unavailable, or the live identity no longer matches.
     pub async fn revalidate(
         &self,
         enrollment: &RuntimeEnrollment,
@@ -625,6 +657,11 @@ fn check_current(
 
 #[cfg(test)]
 mod tests {
+    use apparatus_contracts::runtime::{
+        RuntimeCasV1, RuntimeCounterV1, RuntimeDigestV1, RuntimeInstancePageV1,
+        RuntimeObservationSnapshotV1, RuntimePodIdentityV1,
+    };
+
     use super::*;
 
     fn current() -> (RuntimeBindingSnapshotV1, RuntimeInstanceSnapshotV1) {

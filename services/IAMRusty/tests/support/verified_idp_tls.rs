@@ -113,7 +113,8 @@ async fn protocol(
         return StatusCode::UNAUTHORIZED.into_response();
     }
     state.receipts.lock().expect("receipt lock").hmac += 1;
-    if let Some(location) = state.redirect.lock().expect("redirect lock").clone() {
+    let location = state.redirect.lock().expect("redirect lock").clone();
+    if let Some(location) = location {
         return (
             StatusCode::TEMPORARY_REDIRECT,
             [(axum::http::header::LOCATION, location)],

@@ -55,11 +55,11 @@ impl ServiceTestDescriptor<TestFixture> for ManifestoSqsTestDescriptor {
         let mut config_without_consumer = config;
         config_without_consumer.queue = QueueConfig::Disabled;
 
-        build_and_run(
+        Box::pin(build_and_run(
             config_without_consumer,
             server_config,
             Some(event_publisher),
-        )
+        ))
         .await
     }
 

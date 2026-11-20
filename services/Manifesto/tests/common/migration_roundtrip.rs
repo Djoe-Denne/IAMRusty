@@ -2,6 +2,11 @@
 use manifesto_migration::{Migrator, MigratorTrait, SchemaManager};
 use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement, TransactionTrait};
 
+/// Assert the initial schema can be rolled back in a disposable transaction.
+///
+/// # Panics
+/// Panics if migration setup or execution fails, a required table is missing,
+/// or the roundtrip does not restore the expected schema inventory.
 pub async fn assert_initial_schema_roundtrip(db: &DatabaseConnection, required_tables: &[&str]) {
     let tx = db.begin().await.expect("disposable migration transaction");
     let schema = format!("initial_roundtrip_{}", uuid::Uuid::new_v4().simple());

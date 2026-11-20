@@ -1,6 +1,9 @@
 //! Explicit composition of local maintenance. No generic HTTP/queue endpoint,
 //! no private key, no cluster client, and no fabricated D/provenance adapter.
-use apparatus_contracts::runtime::*;
+use apparatus_contracts::runtime::{
+    RuntimeControlErrorV1, RuntimeDigestV1, RuntimeEffectOutcomeV1, RuntimeErrorCodeV1,
+    RuntimeServiceRoleV1, ADMISSION_AUDIENCE, ADMISSION_ISSUER, ADMISSION_PURPOSE,
+};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use manifesto_configuration::AppConfig;
 use manifesto_infra::apparatus_runtime::{
@@ -40,6 +43,11 @@ impl RuntimeMaintenanceRunner {
         }
     }
 
+    /// Execute one local maintenance command without retrying uncertain outcomes.
+    ///
+    /// # Errors
+    /// Returns maintenance validation or authority errors, or an authority
+    /// unavailable error if command dispatch fails.
     pub async fn execute(
         &self,
         action: manifesto_application::RuntimeMaintenanceAction,
@@ -142,19 +150,8 @@ pub(crate) async fn compose(
                 "admission key scope/purpose is not approved"
             ));
         }
-        let pem = std::fs::read_to_string(&configured.public_key_pem_path)
-            .map_err(|_| anyhow::anyhow!("pinned admission public key unavailable"))?;
-        let public_key = RsaPublicKey::from_public_key_pem(&pem)
-            .map_err(|_| anyhow::anyhow!("pinned admission public key malformed"))?;
-        let n = URL_SAFE_NO_PAD.encode(public_key.n().to_bytes_be());
-        let jwk = format!("{{\"e\":\"AQAB\",\"kty\":\"RSA\",\"n\":\"{n}\"}}");
-        let kid = format!(
-            "ara-v1-{}",
-            URL_SAFE_NO_PAD.encode(Sha256::digest(jwk.as_bytes()))
-        );
-        if configured.kid != kid {
-            return Err(anyhow::anyhow!("pinned admission key thumbprint mismatch"));
-        }
+        let pem = read_admission_public_key(configured.public_key_pem_path.clone()).await?;
+        let public_key = parse_pinned_admission_key(&pem, &configured.kid)?;
         keys.push(PinnedRuntimeAdmissionKey {
             authority_id,
             installation_id,
@@ -170,4 +167,26 @@ pub(crate) async fn compose(
             .with_verified_channel(profile, channel, verifier)
             .map_err(|_| anyhow::anyhow!("maintenance profile invalid"))?,
     ))
+}
+
+async fn read_admission_public_key(path: String) -> anyhow::Result<String> {
+    tokio::task::spawn_blocking(move || std::fs::read_to_string(path))
+        .await
+        .map_err(|_| anyhow::anyhow!("pinned admission public key reader failed"))?
+        .map_err(|_| anyhow::anyhow!("pinned admission public key unavailable"))
+}
+
+fn parse_pinned_admission_key(pem: &str, expected_kid: &str) -> anyhow::Result<RsaPublicKey> {
+    let public_key = RsaPublicKey::from_public_key_pem(pem)
+        .map_err(|_| anyhow::anyhow!("pinned admission public key malformed"))?;
+    let n = URL_SAFE_NO_PAD.encode(public_key.n().to_bytes_be());
+    let jwk = format!("{{\"e\":\"AQAB\",\"kty\":\"RSA\",\"n\":\"{n}\"}}");
+    let kid = format!(
+        "ara-v1-{}",
+        URL_SAFE_NO_PAD.encode(Sha256::digest(jwk.as_bytes()))
+    );
+    if expected_kid != kid {
+        return Err(anyhow::anyhow!("pinned admission key thumbprint mismatch"));
+    }
+    Ok(public_key)
 }

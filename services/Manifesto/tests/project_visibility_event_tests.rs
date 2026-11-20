@@ -492,7 +492,7 @@ async fn update_to_public_without_admin_is_denied() {
         Err(ApplicationError::Domain(DomainError::PermissionDenied { .. })) => {}
         other => panic!("expected permission denied, got {other:?}"),
     }
-    assert!(publisher.event_types().is_empty());
+    assert_eq!(publisher.event_types(), [] as [String; 0]);
 }
 
 #[tokio::test]

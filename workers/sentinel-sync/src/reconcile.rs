@@ -310,7 +310,7 @@ mod tests {
         let tuple = Tuple::wildcard_user("project", project_id, "viewer");
         let (writes, deletes) =
             diff_tuples(std::slice::from_ref(&tuple), std::slice::from_ref(&tuple));
-        assert!(writes.is_empty());
-        assert!(deletes.is_empty());
+        assert_eq!(writes, [] as [Tuple; 0]);
+        assert_eq!(deletes, [] as [Tuple; 0]);
     }
 }

@@ -130,10 +130,11 @@ mod tests {
             ));
         }
         drop(repository);
-        assert!(Arc::try_unwrap(db)
+        let no_transactions = Arc::try_unwrap(db)
             .unwrap()
             .into_transaction_log()
-            .is_empty());
+            .is_empty();
+        assert!(no_transactions, "invalid purge bounds issue no transaction");
     }
 
     #[tokio::test]

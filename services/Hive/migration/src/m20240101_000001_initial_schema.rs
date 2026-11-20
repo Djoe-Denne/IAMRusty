@@ -307,12 +307,6 @@ mod organization_members {
     }
 
     #[derive(DeriveIden)]
-    enum OrganizationRoles {
-        Table,
-        Id,
-    }
-
-    #[derive(DeriveIden)]
     enum OrganizationMembers {
         Table,
         Id,
@@ -492,12 +486,6 @@ mod organization_invitations {
 
     #[derive(DeriveIden)]
     enum Organizations {
-        Table,
-        Id,
-    }
-
-    #[derive(DeriveIden)]
-    enum OrganizationRoles {
         Table,
         Id,
     }

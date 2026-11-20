@@ -54,7 +54,7 @@ mod principal_tests {
             Some("https://platform.example/iam"),
             Some("https://org.example/iam"),
         ] {
-            let (mut parts, _) = Request::new(()).into_parts();
+            let (mut parts, ()) = Request::new(()).into_parts();
             if let Some(issuer) = issuer {
                 parts.extensions.insert(JwtPrincipal {
                     iss: issuer.into(),

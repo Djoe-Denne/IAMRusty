@@ -256,7 +256,7 @@ impl Backend {
                     "preferred_username": {"api": "user", "json_path": "$.login"},
                     "picture": {"api": "user", "json_path": "$.avatar_url"}
                 }}
-        })).map_or_else(|_| panic!("routing fixture must match real configuration"), std::convert::identity);
+        })).unwrap_or_else(|_| panic!("routing fixture must match real configuration"));
         let http = must(
             reqwest::Client::builder()
                 .no_proxy()
@@ -398,7 +398,7 @@ impl Backend {
             value.as_object().expect("authorize response object").len(),
             2
         );
-        assert!(value["scope"].as_str() == Some("read:user user:email"));
+        assert_eq!(value["scope"].as_str(), Some("read:user user:email"));
         let url = must(
             url::Url::parse(
                 value["authorization_url"]
@@ -450,13 +450,16 @@ impl Backend {
             "G-5: exact refresh token"
         );
         assert_eq!(value["tokens"]["expires_in"].as_u64(), Some(3600));
-        assert!(value["profile"]["id"].as_str() == Some(self.number.to_string().as_str()));
-        assert!(value["profile"]["username"].as_str() == Some(self.login));
-        assert!(value["profile"]["email"].as_str() == Some(self.email));
+        assert_eq!(
+            value["profile"]["id"].as_str(),
+            Some(self.number.to_string().as_str())
+        );
+        assert_eq!(value["profile"]["username"].as_str(), Some(self.login));
+        assert_eq!(value["profile"]["email"].as_str(), Some(self.email));
         assert_eq!(value["profile"]["email_verified"].as_bool(), Some(true));
-        assert!(
-            value["profile"]["avatar_url"].as_str()
-                == Some(format!("{}/avatar", self.server.uri()).as_str())
+        assert_eq!(
+            value["profile"]["avatar_url"].as_str(),
+            Some(format!("{}/avatar", self.server.uri()).as_str())
         );
     }
 }

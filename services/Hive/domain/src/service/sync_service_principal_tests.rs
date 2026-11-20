@@ -1,17 +1,26 @@
 //! Native policy/order regressions. These private probes exercise the real sync
 //! service; no database, provider transport, or testcontainer is started.
-use super::*;
-use crate::entity::{OrganizationInvitation, OrganizationMember, RolePermission, SyncJobStatus};
-use crate::port::{
-    ExternalLinkReadRepository, ExternalLinkWriteRepository, OrganizationReadRepository,
-    OrganizationWriteRepository, SyncJobReadRepository, SyncJobWriteRepository,
+use super::{require_auto_invite_owner, SyncService, SyncServiceImpl};
+use crate::entity::{
+    ExternalLink, Organization, OrganizationInvitation, OrganizationMember, RolePermission,
+    SyncJob, SyncJobStatus, SyncJobType,
 };
+use crate::port::{
+    service::{ExternalMember, ExternalOrganizationInfo, ExternalProviderClient},
+    ExternalLinkReadRepository, ExternalLinkRepository, ExternalLinkWriteRepository,
+    OrganizationReadRepository, OrganizationRepository, OrganizationWriteRepository,
+    SyncJobReadRepository, SyncJobRepository, SyncJobWriteRepository,
+};
+use crate::service::{InvitationService, OrganizationService};
 use async_trait::async_trait;
+use rustycog::core::error::DomainError;
+use rustycog::permission::{PrincipalPolicy, PrincipalRef};
 use serde_json::Value;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
-    Mutex,
+    Arc, Mutex,
 };
+use uuid::Uuid;
 
 const PLATFORM: &str = "https://platform.example/iam";
 const FOREIGN: &str = "https://foreign.example/iam";
@@ -105,7 +114,7 @@ async fn historical_auto_invite_job_rechecks_owner_before_provider() {
     let result = service.sync_members(probe.job.id, true).await.unwrap();
     assert_eq!(result.members_found, 1);
     assert_eq!(result.members_invited, 1);
-    assert!(result.errors.is_empty());
+    assert_eq!(result.errors, [] as [String; 0]);
     assert_eq!(probe.provider_calls.load(Ordering::SeqCst), 1);
     assert_eq!(probe.invitation_reads.load(Ordering::SeqCst), 1);
     assert_eq!(probe.invitation_creates.load(Ordering::SeqCst), 1);
@@ -146,7 +155,7 @@ async fn sync_without_auto_invite_accepts_foreign_or_unresolved_owner() {
         let result = service.sync_members(probe.job.id, false).await.unwrap();
         assert_eq!(result.members_found, 1);
         assert_eq!(result.members_invited, 0);
-        assert!(result.errors.is_empty());
+        assert_eq!(result.errors, [] as [String; 0]);
         assert_eq!(probe.provider_calls.load(Ordering::SeqCst), 1);
         assert_eq!(probe.job_writes.load(Ordering::SeqCst), 0);
         assert_eq!(probe.organization_writes.load(Ordering::SeqCst), 0);

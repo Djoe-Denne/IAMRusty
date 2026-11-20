@@ -12,7 +12,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 use telegraph_configuration::SmtpConfig;
 use tokio::sync::Mutex;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Global test SMTP container instance
 static TEST_SMTP_CONTAINER: OnceLock<Arc<Mutex<Option<Arc<TestSmtpContainer>>>>> = OnceLock::new();
@@ -29,42 +29,6 @@ fn take_unshared_smtp<T>(slot: &mut Option<Arc<T>>) -> Result<Option<T>, Arc<T>>
             *slot = Some(shared.clone());
             Err(shared)
         }
-    }
-}
-
-#[cfg(test)]
-mod ownership_tests {
-    use super::take_unshared_smtp;
-    use std::sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    };
-
-    #[derive(Debug)]
-    struct Owner(Arc<AtomicUsize>);
-    impl Drop for Owner {
-        fn drop(&mut self) {
-            self.0.fetch_add(1, Ordering::SeqCst);
-        }
-    }
-
-    #[test]
-    fn smtp_unknown_and_active_consumers_are_preserved_without_cleanup() {
-        let mut unknown: Option<Arc<Owner>> = None;
-        assert!(take_unshared_smtp(&mut unknown).unwrap().is_none());
-        let destroyed = Arc::new(AtomicUsize::new(0));
-        let mut slot = Some(Arc::new(Owner(destroyed.clone())));
-        let consumer = slot.as_ref().unwrap().clone();
-        let active = take_unshared_smtp(&mut slot).unwrap_err();
-        assert!(Arc::ptr_eq(slot.as_ref().unwrap(), &consumer));
-        assert_eq!(destroyed.load(Ordering::SeqCst), 0);
-        drop(active);
-        drop(consumer);
-        let owned = take_unshared_smtp(&mut slot).unwrap().unwrap();
-        assert!(slot.is_none());
-        assert_eq!(destroyed.load(Ordering::SeqCst), 0);
-        drop(owned);
-        assert_eq!(destroyed.load(Ordering::SeqCst), 1);
     }
 }
 
@@ -92,6 +56,10 @@ pub struct TestSmtpContainer {
 
 impl TestSmtpContainer {
     /// Stop and remove the container
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if stopping or removing the owned container fails.
     pub async fn cleanup(self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Stopping the owned SMTP container by its tracked ID");
         self.container.stop().await?;
@@ -103,7 +71,7 @@ impl TestSmtpContainer {
 /// `MailHog` SMTP test container
 pub struct TestSmtp {
     // Keep the existing Arc ownership lease alive for every fixture consumer.
-    _container: Arc<TestSmtpContainer>,
+    container: Arc<TestSmtpContainer>,
     pub smtp_port: u16,
     pub api_port: u16,
     pub host: String,
@@ -131,7 +99,7 @@ impl TestSmtp {
         let client = Client::new();
 
         let container = Arc::new(Self {
-            _container: owned,
+            container: owned,
             smtp_port,
             api_port,
             host,
@@ -140,7 +108,7 @@ impl TestSmtp {
 
         // Wait for MailHog to be ready
         container.wait_for_ready().await?;
-        container._container.container.ready()?;
+        container.container.container.ready()?;
 
         info!(
             "MailHog SMTP test container ready - SMTP: {}:{}, API: {}:{}",
@@ -416,4 +384,40 @@ fn mailhog_part_content_type(part: &serde_json::Value) -> &str {
         .and_then(|arr| arr.first())
         .and_then(|v| v.as_str())
         .unwrap_or("")
+}
+
+#[cfg(test)]
+mod ownership_tests {
+    use super::take_unshared_smtp;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    #[derive(Debug)]
+    struct Owner(Arc<AtomicUsize>);
+    impl Drop for Owner {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn smtp_unknown_and_active_consumers_are_preserved_without_cleanup() {
+        let mut unknown: Option<Arc<Owner>> = None;
+        assert!(take_unshared_smtp(&mut unknown).unwrap().is_none());
+        let destroyed = Arc::new(AtomicUsize::new(0));
+        let mut slot = Some(Arc::new(Owner(destroyed.clone())));
+        let consumer = slot.as_ref().unwrap().clone();
+        let active = take_unshared_smtp(&mut slot).unwrap_err();
+        assert!(Arc::ptr_eq(slot.as_ref().unwrap(), &consumer));
+        assert_eq!(destroyed.load(Ordering::SeqCst), 0);
+        drop(active);
+        drop(consumer);
+        let owned = take_unshared_smtp(&mut slot).unwrap().unwrap();
+        assert!(slot.is_none());
+        assert_eq!(destroyed.load(Ordering::SeqCst), 0);
+        drop(owned);
+        assert_eq!(destroyed.load(Ordering::SeqCst), 1);
+    }
 }

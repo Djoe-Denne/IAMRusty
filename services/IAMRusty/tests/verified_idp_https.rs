@@ -18,6 +18,11 @@ use serial_test::serial;
 use std::panic::AssertUnwindSafe;
 use verified_idp_tls::{VerifiedIdpTls, HMAC_SECRET, NONCE, REDIRECT_URI, STATE, VERIFIER};
 
+fn assert_redacted_eq<T: PartialEq + ?Sized>(actual: &T, expected: &T, label: &'static str) {
+    let matches_expected = actual == expected;
+    assert!(matches_expected, "{label}");
+}
+
 fn authentication_request(fixture: &VerifiedIdpTls) -> AuthorizeAuthenticationRequest {
     AuthorizeAuthenticationRequest {
         redirect_uri: REDIRECT_URI.into(),
@@ -125,7 +130,13 @@ async fn verified_root_and_ip_san_allow_v2_full_path_hmac_nonce_pkce_and_grouped
             .decode(NONCE)
             .expect("canonical fixture nonce");
         assert_eq!(nonce_bytes.len(), 32);
-        assert!(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&nonce_bytes) == NONCE);
+        assert_redacted_eq(
+            base64::engine::general_purpose::URL_SAFE_NO_PAD
+                .encode(&nonce_bytes)
+                .as_str(),
+            NONCE,
+            "canonical fixture nonce must round-trip",
+        );
         assert_eq!(fixture.challenge().len(), 43);
         let client = HttpIdpConnector::with_security_mode_and_roots(
             fixture.uri(),
@@ -144,10 +155,26 @@ async fn verified_root_and_ip_san_allow_v2_full_path_hmac_nonce_pkce_and_grouped
         assert_eq!(url.path(), "/authorize");
         assert_eq!(authorization.scope, "profile");
         let query: std::collections::HashMap<_, _> = url.query_pairs().into_owned().collect();
-        assert!(query.get("nonce").map(String::as_str) == Some(NONCE));
-        assert!(query.get("state").map(String::as_str) == Some(STATE));
-        assert!(query.get("redirect_uri").map(String::as_str) == Some(REDIRECT_URI));
-        assert!(query.get("code_challenge").map(String::as_str) == Some(fixture.challenge()));
+        assert_redacted_eq(
+            &query.get("nonce").map(String::as_str),
+            &Some(NONCE),
+            "authorize nonce must match",
+        );
+        assert_redacted_eq(
+            &query.get("state").map(String::as_str),
+            &Some(STATE),
+            "authorize state must match",
+        );
+        assert_redacted_eq(
+            &query.get("redirect_uri").map(String::as_str),
+            &Some(REDIRECT_URI),
+            "authorize redirect binding must match",
+        );
+        assert_redacted_eq(
+            &query.get("code_challenge").map(String::as_str),
+            &Some(fixture.challenge()),
+            "authorize challenge must match",
+        );
         assert_eq!(
             query.get("code_challenge_method").map(String::as_str),
             Some("S256")
@@ -163,8 +190,16 @@ async fn verified_root_and_ip_san_allow_v2_full_path_hmac_nonce_pkce_and_grouped
             .await
             .expect("real HTTPS v2 complete");
         let expected_tokens = fixtures::idp_connect::resources::success_tokens();
-        assert!(authentication.tokens.access_token == expected_tokens.access_token);
-        assert!(authentication.tokens.refresh_token == expected_tokens.refresh_token);
+        assert_redacted_eq(
+            &authentication.tokens.access_token,
+            &expected_tokens.access_token,
+            "complete access token must match",
+        );
+        assert_redacted_eq(
+            &authentication.tokens.refresh_token,
+            &expected_tokens.refresh_token,
+            "complete refresh token must match",
+        );
         assert_eq!(authentication.tokens.expires_in, expected_tokens.expires_in);
         let expected_profile = fixtures::idp_connect::resources::github_arthur();
         assert_eq!(authentication.profile.id, expected_profile.id);

@@ -15,13 +15,15 @@ mod jwks_fixtures;
 
 #[path = "support/registry.rs"]
 mod registry;
+#[path = "support/registry_serialization.rs"]
+mod registry_serialization;
 
 use axum::http::StatusCode;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use ext_authz::{check_router, AuthzState, ExtAuthzConfig};
 use jwks_fixtures::JwksFixtures;
-use registry::platform_jwks as test_rs256_jwks_json;
+use registry_serialization::serialize;
 use rustycog::testing::http::jwt::{
     create_rs256_jwt_token, create_rs256_jwt_token_with_options, test_rs256_private_pem,
     Rs256TokenOptions, TEST_PLATFORM_ISSUER,
@@ -30,6 +32,12 @@ use serial_test::serial;
 use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
+
+fn test_rs256_jwks_json() -> String {
+    use iam_domain::entity::signing_key::SigningKeyStatus;
+
+    serialize(&[registry::registry_key(SigningKeyStatus::Active, None)])
+}
 
 async fn server_with_jwks(jwks: &str) -> (axum_test::TestServer, JwksFixtures) {
     let fixture = JwksFixtures::service().await;
@@ -268,7 +276,7 @@ async fn real_organization_metadata_accepts_owner_issuer_but_not_platform_substi
     use iam_domain::entity::signing_key::SigningKeyStatus;
     let organization = Uuid::new_v4();
     let key = registry::registry_key(SigningKeyStatus::Active, Some(organization));
-    let (server, _jwks) = server_with_jwks(&registry::serialize(std::slice::from_ref(&key))).await;
+    let (server, _jwks) = server_with_jwks(&serialize(std::slice::from_ref(&key))).await;
     let token = create_rs256_jwt_token(Uuid::new_v4());
     let legitimate = signed_variant(&token, |claims| {
         claims["iss"] = key.issuer.clone().into();
@@ -309,7 +317,7 @@ async fn real_organization_metadata_accepts_owner_issuer_but_not_platform_substi
 async fn real_pending_publisher_key_cannot_authenticate() {
     use iam_domain::entity::signing_key::SigningKeyStatus;
     let key = registry::registry_key(SigningKeyStatus::Pending, None);
-    let published = registry::serialize(&[key]);
+    let published = serialize(&[key]);
     assert_eq!(
         serde_json::from_str::<serde_json::Value>(&published).expect("JWKS")["keys"][0]["status"],
         "pending"
@@ -326,7 +334,7 @@ async fn real_pending_publisher_key_cannot_authenticate() {
 #[tokio::test]
 #[serial]
 async fn real_platform_metadata_cannot_be_promoted_to_organization_by_a_claim() {
-    let (server, _jwks) = server_with_jwks(&registry::platform_jwks()).await;
+    let (server, _jwks) = server_with_jwks(&test_rs256_jwks_json()).await;
     let user = Uuid::new_v4();
     let token = create_rs256_jwt_token(user);
     server
@@ -372,7 +380,7 @@ async fn real_platform_metadata_cannot_be_promoted_to_organization_by_a_claim() 
 async fn real_retiring_metadata_still_verifies_existing_tokens() {
     use iam_domain::entity::signing_key::SigningKeyStatus;
     let key = registry::registry_key(SigningKeyStatus::Retiring, None);
-    let (server, _jwks) = server_with_jwks(&registry::serialize(&[key])).await;
+    let (server, _jwks) = server_with_jwks(&serialize(&[key])).await;
     let token = create_rs256_jwt_token(Uuid::new_v4());
     server
         .post("/")

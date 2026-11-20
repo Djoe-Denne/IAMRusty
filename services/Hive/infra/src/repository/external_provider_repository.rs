@@ -83,7 +83,7 @@ impl ExternalProviderReadRepository for ExternalProviderReadRepositoryImpl {
         debug!("Finding external provider by source: {:?}", provider_source);
 
         let provider = ExternalProviders::find()
-            .filter(external_providers::Column::ProviderType.eq(provider_source.clone()))
+            .filter(external_providers::Column::ProviderType.eq(provider_source))
             .one(self.db.as_ref())
             .await
             .map_err(|e| DomainError::internal_error(&e.to_string()))?;

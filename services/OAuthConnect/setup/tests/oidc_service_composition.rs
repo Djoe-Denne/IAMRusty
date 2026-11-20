@@ -210,7 +210,10 @@ async fn renewed_identity(vendors: &Vendors, clients: &[ConfiguredClient]) {
         renewed.profile.id == "000043",
         "identity must be recomputed from each verified token"
     );
-    assert!(renewed.tokens.access_token == "oidc-access-sentinel");
+    assert!(
+        renewed.tokens.access_token == "oidc-access-sentinel",
+        "renewed identity must carry the OIDC access sentinel"
+    );
     assert_eq!(vendors.count(true, "/token").await, 1);
     assert_eq!(vendors.count(true, "/keys").await, 0);
 }
@@ -537,7 +540,7 @@ async fn d_fixture_tls_oidc_preflight_is_independent_of_the_mixed_builder() {
             client.complete_authorization(&complete()).await,
             "TLS fixture signed complete",
         );
-        assert!(result.profile.id == "000042");
+        assert_eq!(result.profile.id, "000042");
         assert_eq!(view.hits.load(Ordering::SeqCst), 5);
     })
     .await;
@@ -592,8 +595,11 @@ async fn d7_composed_oidc_verifies_ca_and_san_on_initialization_and_token() {
                     "verified TLS OIDC complete",
                 );
                 let value = must(serde_json::to_value(result), "TLS identity DTO");
-                assert!(value["profile"]["id"].as_str() == Some("000042"));
-                assert!(value["tokens"]["access_token"].as_str() == Some("oidc-access-sentinel"));
+                assert_eq!(value["profile"]["id"].as_str(), Some("000042"));
+                assert!(
+                    value["tokens"]["access_token"].as_str() == Some("oidc-access-sentinel"),
+                    "TLS identity must carry the OIDC access sentinel"
+                );
                 assert_eq!(view.hits.load(Ordering::SeqCst), 3);
             } else {
                 rejected(&result);
@@ -621,7 +627,7 @@ async fn platform_ready(origin: &str, http: &reqwest::Client) {
         clean(&String::from_utf8_lossy(&bytes));
         if route == "ready" {
             let report: Value = must(serde_json::from_slice(&bytes), "readiness JSON");
-            assert!(report["status"].as_str() == Some("ready"));
+            assert_eq!(report["status"].as_str(), Some("ready"));
         }
     }
 }
@@ -755,7 +761,10 @@ async fn application_refusals(origin: &str, http: &reqwest::Client, vendors: &Ve
     let before = vendors.count(true, "/token").await;
     let (status, bytes) = signed_call(http, origin, "authority", true, KEY_OAUTH).await;
     assert_eq!(status, reqwest::StatusCode::UNAUTHORIZED);
-    assert!(bytes.is_empty());
+    assert!(
+        bytes.is_empty(),
+        "unauthorized S2S call must return an empty body"
+    );
     assert_eq!(vendors.count(true, "/token").await, before);
     // Valid S2S MAC, canonical nonce shape, but wrong OIDC nonce value.
     let path = "/oauth-connect/authority/v2/complete";

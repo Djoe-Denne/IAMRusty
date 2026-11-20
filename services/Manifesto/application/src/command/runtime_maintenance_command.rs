@@ -1,6 +1,10 @@
 //! Local maintenance commands, intentionally non-Clone/non-Serde. They are
 //! registered only in setup's private maintenance runner, never HTTP/queue.
-use apparatus_contracts::runtime::*;
+use apparatus_contracts::runtime::{
+    FenceRuntimeBindingV1, OpenRuntimeBindingV1, PrepareRuntimeBindingV1, RuntimeAdmissionActionV1,
+    RuntimeAdmissionChallengeV1, RuntimeBindingCutoverPlanV1, RuntimeBindingPreparationPermitV1,
+    RuntimeCasV1, RuntimeControlErrorV1, RuntimeControlFuture, RuntimeCounterV1, RuntimeDigestV1,
+};
 use async_trait::async_trait;
 use rustycog::command::{Command, CommandError, CommandHandler};
 use std::sync::Arc;
@@ -67,10 +71,10 @@ pub struct RuntimeMaintenanceInspection {
 }
 
 pub trait RuntimeMaintenanceExecutor: Send + Sync {
-    fn execute_maintenance<'a>(
-        &'a self,
+    fn execute_maintenance(
+        &self,
         action: RuntimeMaintenanceAction,
-    ) -> RuntimeControlFuture<'a, RuntimeMaintenanceReply>;
+    ) -> RuntimeControlFuture<'_, RuntimeMaintenanceReply>;
 }
 
 pub struct RuntimeMaintenanceCommand {
@@ -78,6 +82,7 @@ pub struct RuntimeMaintenanceCommand {
     action: RuntimeMaintenanceAction,
 }
 impl RuntimeMaintenanceCommand {
+    #[must_use]
     pub fn new(action: RuntimeMaintenanceAction) -> Self {
         Self {
             id: Uuid::new_v4(),

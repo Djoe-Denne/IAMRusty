@@ -33,6 +33,7 @@ pub const MAX_ADMISSION_PROOF_BYTES: usize = 16_384;
 
 /// Deterministic private Serving parent name. This locator is never ownership
 /// evidence: writer-recorded UID checks remain mandatory on every mutation.
+#[must_use]
 pub fn runtime_serving_name(project_id: Uuid, binding_id: Uuid) -> String {
     let mut hash = Sha256::new();
     hash.update(b"urn:aiforall:apparatus:serving-name:v1\0");
@@ -43,6 +44,9 @@ pub fn runtime_serving_name(project_id: Uuid, binding_id: Uuid) -> String {
 
 /// Closed initial-profile OCI pin syntax, independent of any registry client.
 /// A syntactically valid pin is not an approved repository/admission decision.
+///
+/// # Errors
+/// Returns `RuntimeReleaseNotAdmitted` for an oversized, non-ASCII or malformed pin.
 pub fn validate_runtime_oci_pin(value: &str) -> Result<(), RuntimeErrorCodeV1> {
     let invalid = RuntimeErrorCodeV1::RuntimeReleaseNotAdmitted;
     if value.len() > 2048 || !value.is_ascii() {
@@ -83,7 +87,7 @@ pub enum RuntimeAdmissionActionV1 {
 }
 
 /// Writer-issued intent. These bytes confer no maintenance privilege.
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RuntimeAdmissionChallengeV1 {
     #[serde(deserialize_with = "version")]
@@ -111,6 +115,10 @@ pub struct RuntimeAdmissionChallengeV1 {
 impl RuntimeAdmissionChallengeV1 {
     /// Structural intent validation only, never evidence that this nonce was
     /// actually issued by the writer or approved by a maintenance actor.
+    ///
+    /// # Errors
+    /// Returns `RuntimeUnsupportedVersion` for an unsupported schema, or
+    /// `RuntimeInvalidProof` for invalid identifiers, profile, lifetime or action UIDs.
     pub fn validate(&self) -> Result<(), RuntimeErrorCodeV1> {
         if self.schema_version != 1 {
             return Err(RuntimeErrorCodeV1::RuntimeUnsupportedVersion);
@@ -154,14 +162,14 @@ impl RuntimeAdmissionChallengeV1 {
                         .ok_or(RuntimeErrorCodeV1::RuntimeInvalidProof)?,
                 )
             }
-            _ => Err(RuntimeErrorCodeV1::RuntimeInvalidProof),
+            RuntimeAdmissionActionV1::Prepare => Err(RuntimeErrorCodeV1::RuntimeInvalidProof),
         }
     }
 }
 
 /// Untrusted signed payload shape. Only the offline verifier may promote it to
 /// a local verified capability; deserialization is never a VALID decision.
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RuntimeAdmissionAttestationV1 {
     #[serde(deserialize_with = "version")]
@@ -185,7 +193,7 @@ pub struct RuntimeAdmissionAttestationV1 {
 
 /// Internal maintenance data (§13.3-B), NOT an HTTP/queue body or a proof of
 /// operator/D provenance. No serde implementation is provided deliberately.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct RuntimeCutoverFenceV1 {
     pub migration_id: Uuid,
     pub project_id: Uuid,
@@ -197,7 +205,7 @@ pub struct RuntimeCutoverFenceV1 {
 
 /// Internal command data. Only the trusted local maintenance runner may invoke
 /// D; neither control role nor a deserialized caller obtains this privilege.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct InstallRuntimeLegacyFenceV1 {
     pub schema_version: u16,
     pub migration_id: Uuid,
@@ -206,12 +214,13 @@ pub struct InstallRuntimeLegacyFenceV1 {
     pub inventory_sha256: RuntimeDigestV1,
 }
 
-/// Installation receipt DATA, identical to D's committed fence record. It is
-/// NOT a verified maintenance capability: C must separately authenticate the
+/// Installation receipt DATA, identical to D's committed fence record.
+///
+/// It is NOT a verified maintenance capability: C must separately authenticate the
 /// operator, D/deployment/database provenance and durability before using it.
 pub type RuntimeLegacyFenceInstallationAckV1 = RuntimeCutoverFenceV1;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct RuntimeBindingCutoverPlanV1 {
     pub schema_version: u16,
     pub migration_id: Uuid,
@@ -225,12 +234,12 @@ pub struct RuntimeBindingCutoverPlanV1 {
     pub inventory_sha256: RuntimeDigestV1,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct FenceRuntimeBindingV1 {
     pub plan: RuntimeBindingCutoverPlanV1,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct PrepareRuntimeBindingV1 {
     pub schema_version: u16,
     pub migration_id: Uuid,
@@ -240,7 +249,7 @@ pub struct PrepareRuntimeBindingV1 {
     pub drain_evidence_sha256: RuntimeDigestV1,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct OpenRuntimeBindingV1 {
     pub schema_version: u16,
     pub migration_id: Uuid,
@@ -254,7 +263,7 @@ pub struct OpenRuntimeBindingV1 {
 
 /// Local result for an explicitly authorized preparation; not a network bearer
 /// or an exception allowing ordinary closed/tombstoned bindings to be created.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct RuntimeBindingPreparationPermitV1 {
     pub migration_id: Uuid,
     pub project_id: Uuid,
@@ -452,15 +461,20 @@ impl<'de> serde::de::Visitor<'de> for StrictRuntimeVisitor {
 pub struct RuntimeCounterV1(u64);
 
 impl RuntimeCounterV1 {
-    pub fn new(value: u64) -> Result<Self, RuntimeErrorCodeV1> {
+    /// # Errors
+    /// Returns `RuntimeCounterExhausted` when the value exceeds the signed 64-bit range.
+    pub const fn new(value: u64) -> Result<Self, RuntimeErrorCodeV1> {
         if value > i64::MAX as u64 {
             return Err(RuntimeErrorCodeV1::RuntimeCounterExhausted);
         }
         Ok(Self(value))
     }
+    #[must_use]
     pub const fn get(self) -> u64 {
         self.0
     }
+    /// # Errors
+    /// Returns `RuntimeCounterExhausted` when incrementing exceeds the counter range.
     pub fn checked_next(self) -> Result<Self, RuntimeErrorCodeV1> {
         Self::new(
             self.0
@@ -474,12 +488,15 @@ impl RuntimeCounterV1 {
 pub struct RuntimeUnixMsV1(i64);
 
 impl RuntimeUnixMsV1 {
-    pub fn new(value: i64) -> Result<Self, RuntimeErrorCodeV1> {
+    /// # Errors
+    /// Returns `RuntimeInvalidRequest` for a negative timestamp.
+    pub const fn new(value: i64) -> Result<Self, RuntimeErrorCodeV1> {
         if value < 0 {
             return Err(RuntimeErrorCodeV1::RuntimeInvalidRequest);
         }
         Ok(Self(value))
     }
+    #[must_use]
     pub const fn get(self) -> i64 {
         self.0
     }
@@ -503,7 +520,7 @@ impl Serialize for RuntimeCounterV1 {
 }
 impl<'de> Deserialize<'de> for RuntimeCounterV1 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        decimal(deserializer).map(|value| Self(value as u64))
+        decimal(deserializer).map(|value| Self(value.unsigned_abs()))
     }
 }
 impl Serialize for RuntimeUnixMsV1 {
@@ -580,6 +597,8 @@ fn proof_string<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D:
 pub struct RuntimeDigestV1(String);
 
 impl RuntimeDigestV1 {
+    /// # Errors
+    /// Returns `RuntimeInvalidRequest` unless the value is a lowercase SHA-256 pin.
     pub fn new(value: String) -> Result<Self, RuntimeErrorCodeV1> {
         let Some(hex) = value.strip_prefix("sha256:") else {
             return Err(RuntimeErrorCodeV1::RuntimeInvalidRequest);
@@ -593,6 +612,7 @@ impl RuntimeDigestV1 {
         }
         Ok(Self(value))
     }
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -607,7 +627,7 @@ impl<'de> Deserialize<'de> for RuntimeDigestV1 {
 macro_rules! dto {
     ($name:ident { $($(#[$attr:meta])* $field:ident : $ty:ty),* $(,)? }) => {
         // No Debug: some envelopes carry raw enrollment proof or delegation ticket.
-        #[derive(Clone, PartialEq, Serialize, Deserialize)]
+        #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
         #[serde(deny_unknown_fields)]
         pub struct $name { $( $(#[$attr])* pub $field: $ty, )* }
     };
@@ -707,12 +727,15 @@ pub enum RuntimeServiceRoleV1 {
     Lazaret,
 }
 impl RuntimeServiceRoleV1 {
+    #[must_use]
     pub const fn principal(self) -> &'static str {
         match self {
             Self::Projector => "spiffe://cluster.local/ns/aiforall-apparatus/sa/controller",
             Self::Lazaret => "spiffe://cluster.local/ns/aiforall-gateway/sa/gateway",
         }
     }
+    /// # Errors
+    /// Returns `RuntimeServiceForbidden` if the principal is not a supported runtime role.
     pub fn from_verified_principal(principal: &str) -> Result<Self, RuntimeErrorCodeV1> {
         [Self::Projector, Self::Lazaret]
             .into_iter()
@@ -769,6 +792,8 @@ dto!(RuntimeEffectHashInputV1 {
 });
 
 fn canonical_hash<T: Serialize>(input: &T) -> Result<RuntimeDigestV1, RuntimeErrorCodeV1> {
+    use std::fmt::Write;
+
     let value =
         serde_json::to_value(input).map_err(|_| RuntimeErrorCodeV1::RuntimeInvalidRequest)?;
     validate_hash_numbers(&value)?;
@@ -779,7 +804,6 @@ fn canonical_hash<T: Serialize>(input: &T) -> Result<RuntimeDigestV1, RuntimeErr
     let digest = Sha256::digest(bytes);
     let mut text = String::with_capacity(71);
     text.push_str("sha256:");
-    use std::fmt::Write;
     for byte in digest {
         write!(&mut text, "{byte:02x}").map_err(|_| RuntimeErrorCodeV1::RuntimeInternal)?;
     }
@@ -1198,6 +1222,7 @@ impl std::fmt::Debug for RuntimeControlErrorV1 {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("RuntimeControlErrorV1")
+            .field("schema_version", &self.schema_version)
             .field("code", &self.code)
             .field("retry_class", &self.retry_class)
             .field("effect_outcome", &self.effect_outcome)
@@ -1212,8 +1237,20 @@ impl std::fmt::Display for RuntimeControlErrorV1 {
 impl std::error::Error for RuntimeControlErrorV1 {}
 
 impl RuntimeErrorCodeV1 {
+    #[must_use]
     pub const fn http_status(self) -> u16 {
-        use RuntimeErrorCodeV1::*;
+        use RuntimeErrorCodeV1::{
+            RuntimeAuthorityProtocolError, RuntimeAuthorityUnavailable, RuntimeBindingClosed,
+            RuntimeBindingNotFound, RuntimeCallerForbidden, RuntimeCapacityExhausted,
+            RuntimeCounterExhausted, RuntimeCursorExpired, RuntimeCursorInvalid,
+            RuntimeDeadlineExceeded, RuntimeEffectOutcomeUnknown, RuntimeFenceConflict,
+            RuntimeHashMismatch, RuntimeIdReused, RuntimeIdentityRevoked, RuntimeInternal,
+            RuntimeInvalidProof, RuntimeInvalidRequest, RuntimeKeyUnavailable, RuntimeLeaseHeld,
+            RuntimeLeaseLost, RuntimeLegacyDisabled, RuntimePayloadTooLarge,
+            RuntimeProjectionUnavailable, RuntimeReleaseNotAdmitted, RuntimeReplay,
+            RuntimeRouteUnavailable, RuntimeServiceForbidden, RuntimeStaleState,
+            RuntimeUnauthenticated, RuntimeUnsupportedVersion,
+        };
         match self {
             RuntimeInvalidRequest
             | RuntimeUnsupportedVersion
@@ -1241,12 +1278,17 @@ impl RuntimeErrorCodeV1 {
             RuntimeCounterExhausted | RuntimeInternal => 500,
         }
     }
+    #[must_use]
     pub fn error(
         self,
         role: RuntimeServiceRoleV1,
         outcome: RuntimeEffectOutcomeV1,
     ) -> RuntimeControlErrorV1 {
-        use RuntimeErrorCodeV1::*;
+        use RuntimeErrorCodeV1::{
+            RuntimeAuthorityUnavailable, RuntimeCapacityExhausted, RuntimeCursorExpired,
+            RuntimeFenceConflict, RuntimeKeyUnavailable, RuntimeLeaseHeld, RuntimeLeaseLost,
+            RuntimeProjectionUnavailable, RuntimeRouteUnavailable, RuntimeStaleState,
+        };
         let retry_class = match self {
             RuntimeCursorExpired => RuntimeRetryClassV1::ReconcileAfterRead,
             RuntimeStaleState | RuntimeFenceConflict | RuntimeLeaseLost | RuntimeLeaseHeld
@@ -1356,7 +1398,7 @@ mod tests {
             (r#"{"1":{"f":{"f":"hi","F":5},"\n":56.0},"10":{},"":"empty","a":{},"111":[{"e":"yes","E":"no"}],"A":{}}"#, r#"{"":"empty","1":{"\n":56,"f":{"F":5,"f":"hi"}},"10":{},"111":[{"E":"no","e":"yes"}],"A":{},"a":{}}"#),
             (r#"{"Unnormalized Unicode":"A\u030a"}"#, "{\"Unnormalized Unicode\":\"A\u{30a}\"}"),
             (r#"{"numbers":[333333333.33333329,1E30,4.50,2e-3,0.000000000000000000000000001],"string":"\u20ac$\u000F\u000aA'\u0042\u0022\u005c\\\"\/","literals":[null,true,false]}"#, r#"{"literals":[null,true,false],"numbers":[333333333.3333333,1e+30,4.5,0.002,1e-27],"string":"€$\u000f\nA'B\"\\\\\"/"}"#),
-            (r#"{"\u20ac":"Euro Sign","\r":"Carriage Return","\u000a":"Newline","1":"One","\u0080":"Control\u007f","\ud83d\ude02":"Smiley","\u00f6":"Latin Small Letter O With Diaeresis","\ufb33":"Hebrew Letter Dalet With Dagesh","</script>":"Browser Challenge"}"#, "{\"\\n\":\"Newline\",\"\\r\":\"Carriage Return\",\"1\":\"One\",\"</script>\":\"Browser Challenge\",\"\u{80}\":\"Control\u{7f}\",\"ö\":\"Latin Small Letter O With Diaeresis\",\"€\":\"Euro Sign\",\"😂\":\"Smiley\",\"דּ\":\"Hebrew Letter Dalet With Dagesh\"}"),
+            (r#"{"\u20ac":"Euro Sign","\r":"Carriage Return","\u000a":"Newline","1":"One","\u0080":"Control\u007f","\ud83d\ude02":"Smiley","\u00f6":"Latin Small Letter O With Diaeresis","\ufb33":"Hebrew Letter Dalet With Dagesh","</script>":"Browser Challenge"}"#, "{\"\\n\":\"Newline\",\"\\r\":\"Carriage Return\",\"1\":\"One\",\"</script>\":\"Browser Challenge\",\"\u{80}\":\"Control\u{7f}\",\"ö\":\"Latin Small Letter O With Diaeresis\",\"€\":\"Euro Sign\",\"😂\":\"Smiley\",\"\u{fb33}\":\"Hebrew Letter Dalet With Dagesh\"}"),
         ];
         for (index, (input, expected)) in vectors.into_iter().enumerate() {
             let value: Value = serde_json::from_str(input).expect("upstream fixture JSON");
@@ -1373,30 +1415,30 @@ mod tests {
     #[test]
     fn jcs_rfc8785_appendix_b_number_vectors() {
         let vectors: &[(u64, &str)] = &[
-            (0x0000000000000000, "0"),
-            (0x8000000000000000, "0"),
-            (0x0000000000000001, "5e-324"),
-            (0x8000000000000001, "-5e-324"),
-            (0x7fefffffffffffff, "1.7976931348623157e+308"),
-            (0xffefffffffffffff, "-1.7976931348623157e+308"),
-            (0x4340000000000000, "9007199254740992"),
-            (0xc340000000000000, "-9007199254740992"),
-            (0x4430000000000000, "295147905179352830000"),
-            (0x44b52d02c7e14af5, "9.999999999999997e+22"),
-            (0x44b52d02c7e14af6, "1e+23"),
-            (0x44b52d02c7e14af7, "1.0000000000000001e+23"),
-            (0x444b1ae4d6e2ef4e, "999999999999999700000"),
-            (0x444b1ae4d6e2ef4f, "999999999999999900000"),
-            (0x444b1ae4d6e2ef50, "1e+21"),
-            (0x3eb0c6f7a0b5ed8c, "9.999999999999997e-7"),
-            (0x3eb0c6f7a0b5ed8d, "0.000001"),
-            (0x41b3de4355555553, "333333333.3333332"),
-            (0x41b3de4355555554, "333333333.33333325"),
-            (0x41b3de4355555555, "333333333.3333333"),
-            (0x41b3de4355555556, "333333333.3333334"),
-            (0x41b3de4355555557, "333333333.33333343"),
-            (0xbecbf647612f3696, "-0.0000033333333333333333"),
-            (0x43143ff3c1cb0959, "1424953923781206.2"),
+            (0x0000_0000_0000_0000, "0"),
+            (0x8000_0000_0000_0000, "0"),
+            (0x0000_0000_0000_0001, "5e-324"),
+            (0x8000_0000_0000_0001, "-5e-324"),
+            (0x7fef_ffff_ffff_ffff, "1.7976931348623157e+308"),
+            (0xffef_ffff_ffff_ffff, "-1.7976931348623157e+308"),
+            (0x4340_0000_0000_0000, "9007199254740992"),
+            (0xc340_0000_0000_0000, "-9007199254740992"),
+            (0x4430_0000_0000_0000, "295147905179352830000"),
+            (0x44b5_2d02_c7e1_4af5, "9.999999999999997e+22"),
+            (0x44b5_2d02_c7e1_4af6, "1e+23"),
+            (0x44b5_2d02_c7e1_4af7, "1.0000000000000001e+23"),
+            (0x444b_1ae4_d6e2_ef4e, "999999999999999700000"),
+            (0x444b_1ae4_d6e2_ef4f, "999999999999999900000"),
+            (0x444b_1ae4_d6e2_ef50, "1e+21"),
+            (0x3eb0_c6f7_a0b5_ed8c, "9.999999999999997e-7"),
+            (0x3eb0_c6f7_a0b5_ed8d, "0.000001"),
+            (0x41b3_de43_5555_5553, "333333333.3333332"),
+            (0x41b3_de43_5555_5554, "333333333.33333325"),
+            (0x41b3_de43_5555_5555, "333333333.3333333"),
+            (0x41b3_de43_5555_5556, "333333333.3333334"),
+            (0x41b3_de43_5555_5557, "333333333.33333343"),
+            (0xbecb_f647_612f_3696, "-0.0000033333333333333333"),
+            (0x4314_3ff3_c1cb_0959, "1424953923781206.2"),
         ];
         for (bits, expected) in vectors {
             assert_eq!(
@@ -1415,10 +1457,11 @@ mod tests {
 
     #[test]
     fn jcs_utf16_sort_c0_escaping_and_immutable_subtypes() {
-        let value = serde_json::json!({"€":1, "\r":2, "דּ":3, "1":4, "😀":5, "\u{80}":6, "ö":7});
+        let value =
+            serde_json::json!({"€":1, "\r":2, "\u{fb33}":3, "1":4, "😀":5, "\u{80}":6, "ö":7});
         assert_eq!(
             serde_jcs::to_string(&value).expect("JCS"),
-            "{\"\\r\":2,\"1\":4,\"\u{80}\":6,\"ö\":7,\"€\":1,\"😀\":5,\"דּ\":3}"
+            "{\"\\r\":2,\"1\":4,\"\u{80}\":6,\"ö\":7,\"€\":1,\"😀\":5,\"\u{fb33}\":3}"
         );
         let controls: String = (0_u8..32).map(char::from).collect();
         assert_eq!(

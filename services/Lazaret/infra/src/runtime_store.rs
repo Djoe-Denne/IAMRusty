@@ -3,7 +3,10 @@
 
 use std::sync::Arc;
 
-use apparatus_contracts::runtime::*;
+use apparatus_contracts::runtime::{
+    InstallRuntimeLegacyFenceV1, RuntimeCutoverFenceV1, RuntimeDigestV1, RuntimeErrorCodeV1,
+    RuntimeExecutionContextV1, RuntimeInvocationTicketV1, RuntimeUnixMsV1,
+};
 use async_trait::async_trait;
 use lazaret_domain::{
     runtime::{RuntimeEnrollment, RuntimeStore},
@@ -20,7 +23,8 @@ pub struct PostgresRuntimeStore {
 }
 
 impl PostgresRuntimeStore {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    #[must_use]
+    pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 }

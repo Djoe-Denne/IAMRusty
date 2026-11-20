@@ -121,7 +121,7 @@ async fn exercise(origin: &str, vendors: &Vendors) {
         clean(&String::from_utf8_lossy(&response));
         if route == "ready" {
             let report: Value = must(serde_json::from_slice(&response), "binary readiness JSON");
-            assert!(report["status"].as_str() == Some("ready"));
+            assert_eq!(report["status"].as_str(), Some("ready"));
         }
     }
     for (id, key, oidc) in [("forge", KEY_OAUTH, false), ("authority", KEY_OIDC, true)] {

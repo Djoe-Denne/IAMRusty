@@ -1,12 +1,24 @@
-//! Local, explicitly authorized maintenance. No HTTP/queue registration and no
+//! Local, explicitly authorized maintenance.
+//!
+//! No HTTP/queue registration and no
 //! deserialized receipt can obtain a maintenance session. All positive writes,
 //! challenge consumption and journal entries commit together in the writer DB.
 
-use super::*;
+use super::{
+    close_binding_in_transaction, counter, current_lease, db_clock, db_error, error, lock_binding,
+    milliseconds, row_cas, sql_counter, Arc, ConnectionTrait, DatabaseConnection,
+    DatabaseTransaction, DbBackend, QueryResult, RuntimeCasV1, RuntimeControlErrorV1,
+    RuntimeCounterV1, RuntimeErrorCodeV1, Statement, TransactionTrait, Uuid, OBSERVATION_TTL_MS,
+};
 use crate::apparatus_runtime::admission_proof::{
     RejectRuntimeAdmissionProofVerifier, RuntimeAdmissionProofVerifier, VerifiedRuntimeAdmissionV1,
 };
-use apparatus_contracts::runtime::*;
+use apparatus_contracts::runtime::{
+    runtime_serving_name, validate_runtime_uid, FenceRuntimeBindingV1, OpenRuntimeBindingV1,
+    PrepareRuntimeBindingV1, RuntimeAdmissionActionV1, RuntimeAdmissionChallengeV1,
+    RuntimeBindingCutoverPlanV1, RuntimeBindingPreparationPermitV1, RuntimeControlFuture,
+    RuntimeDigestV1, RuntimeLegacyFenceInstallationAckV1, ADMISSION_CHALLENGE_TTL_MS,
+};
 use serde_json::{json, Value};
 use std::{future::Future, pin::Pin};
 
@@ -32,7 +44,9 @@ pub struct RuntimeMaintenanceFacts {
     pub drain_evidence_sha256: Option<RuntimeDigestV1>,
 }
 
-/// Contract: authenticate the human operator and durable D/database/deployment
+/// Authenticate the human operator and durable provenance.
+///
+/// Contract: authenticate durable D/database/deployment
 /// provenance, verify full inventory and (where required) drain/recovery scope.
 /// No implementation is inferred from service mTLS or a caller-provided digest.
 pub trait RuntimeMaintenanceChannel: Send + Sync {
@@ -68,10 +82,10 @@ pub struct SqlRuntimeMaintenance {
 pub use manifesto_application::RuntimeAdmissionClosureAck;
 
 impl manifesto_application::RuntimeMaintenanceExecutor for SqlRuntimeMaintenance {
-    fn execute_maintenance<'a>(
-        &'a self,
+    fn execute_maintenance(
+        &self,
         action: manifesto_application::RuntimeMaintenanceAction,
-    ) -> RuntimeControlFuture<'a, manifesto_application::RuntimeMaintenanceReply> {
+    ) -> RuntimeControlFuture<'_, manifesto_application::RuntimeMaintenanceReply> {
         use manifesto_application::{RuntimeMaintenanceAction as A, RuntimeMaintenanceReply as R};
         Box::pin(async move {
             match action {
@@ -136,6 +150,10 @@ impl manifesto_application::RuntimeMaintenanceExecutor for SqlRuntimeMaintenance
 impl SqlRuntimeMaintenance {
     /// Authenticated local read after an uncertain act. No reapplication, nonce
     /// refresh or reconstruction of trusted provenance from the returned data.
+    ///
+    /// # Errors
+    /// Rejects unavailable authority, invalid provenance, missing bindings,
+    /// mismatched plans, stale acknowledgements, and database failures.
     pub async fn inspect(
         &self,
         plan: &RuntimeBindingCutoverPlanV1,
@@ -178,6 +196,10 @@ impl SqlRuntimeMaintenance {
 
     /// Composition-root injection only. This does not register generic commands
     /// or fabricate a trusted channel when one is not available.
+    ///
+    /// # Errors
+    /// Returns `RuntimeKeyUnavailable` for invalid profile identities, profile
+    /// name, endpoint scheme, or endpoint port.
     pub fn with_verified_channel(
         mut self,
         profile: RuntimeMaintenanceProfile,
@@ -235,6 +257,10 @@ impl SqlRuntimeMaintenance {
 
     /// Materialize exactly one already disabled business binding. Existing
     /// migration/tombstone history is never replaced or reset by a retry.
+    ///
+    /// # Errors
+    /// Rejects unauthorized provenance, invalid plans, non-disabled business
+    /// state, conflicting binding history, stale acknowledgements, and DB errors.
     pub async fn fence(
         &self,
         command: &FenceRuntimeBindingV1,
@@ -294,6 +320,10 @@ impl SqlRuntimeMaintenance {
 
     /// Writer clock/nonce, full CAS, exact binding/action and UID intent. Issuing
     /// an intention enables nothing; every prior pending same-action is fenced.
+    ///
+    /// # Errors
+    /// Rejects unauthorized provenance, stale state or acknowledgements,
+    /// invalid UID intent, unavailable observations, and database failures.
     pub async fn challenge(
         &self,
         plan: &RuntimeBindingCutoverPlanV1,
@@ -333,7 +363,9 @@ impl SqlRuntimeMaintenance {
                     revision_uid.ok_or_else(|| error(RuntimeErrorCodeV1::RuntimeInvalidRequest))?;
                 require_observation(&txn, &row, plan, service, revision, profile).await?;
             }
-            _ => return Err(error(RuntimeErrorCodeV1::RuntimeInvalidRequest)),
+            RuntimeAdmissionActionV1::Prepare => {
+                return Err(error(RuntimeErrorCodeV1::RuntimeInvalidRequest));
+            }
         }
         let now = db_clock(&txn).await?;
         check_ack_time(&facts, now)?;
@@ -371,6 +403,11 @@ impl SqlRuntimeMaintenance {
         Ok(challenge)
     }
 
+    /// Prepare a fenced binding using the verified local channel and proof.
+    ///
+    /// # Errors
+    /// Rejects unauthorized provenance, stale state, invalid or replayed proofs,
+    /// missing consent or drain evidence, release barriers, and database errors.
     pub async fn prepare(
         &self,
         plan: &RuntimeBindingCutoverPlanV1,
@@ -384,6 +421,10 @@ impl SqlRuntimeMaintenance {
 
     /// Explicit privileged resume, not an automatic response to a newer proof.
     /// Channel must verify recovery/provenance and the human-approved unblock.
+    ///
+    /// # Errors
+    /// Rejects unauthorized recovery, stale state, invalid or replayed proofs,
+    /// missing consent or drain evidence, release barriers, and database errors.
     pub async fn resume_and_prepare(
         &self,
         plan: &RuntimeBindingCutoverPlanV1,
@@ -444,7 +485,6 @@ impl SqlRuntimeMaintenance {
                 RuntimeAdmissionActionV1::Prepare,
                 challenge_id,
                 proof,
-                now,
             )
             .await?;
         check_guard(&txn, &guard, &verified, explicit_resume).await?;
@@ -472,6 +512,11 @@ impl SqlRuntimeMaintenance {
         })
     }
 
+    /// Open a prepared binding after rechecking proof and observation freshness.
+    ///
+    /// # Errors
+    /// Rejects unauthorized provenance, stale state, mismatched preparation,
+    /// invalid or replayed proofs, release barriers, stale observations, and DB errors.
     pub async fn open(
         &self,
         plan: &RuntimeBindingCutoverPlanV1,
@@ -508,7 +553,7 @@ impl SqlRuntimeMaintenance {
             != facts
                 .drain_evidence_sha256
                 .as_ref()
-                .map(|digest| digest.as_str())
+                .map(RuntimeDigestV1::as_str)
         {
             return Err(error(RuntimeErrorCodeV1::RuntimeInvalidProof));
         }
@@ -531,7 +576,6 @@ impl SqlRuntimeMaintenance {
                 RuntimeAdmissionActionV1::Open,
                 challenge_id,
                 proof,
-                now,
             )
             .await?;
         let claims = verified.claims();
@@ -598,12 +642,18 @@ impl SqlRuntimeMaintenance {
             "UPDATE apparatus_runtime_bindings SET state='active',cutover_phase='opened',projection_version=$3,cutover_journal=cutover_journal || $4::jsonb,updated_at_ms=$5 WHERE project_id=$1 AND binding_id=$2",
             [plan.project_id.into(),plan.binding_id.into(),sql_counter(cas.projection_version)?.into(),json!([entry]).into(),now.into()])).await.map_err(db_error)?;
         txn.commit().await.map_err(db_error)?;
+        // Keep the pinned-key policy lease until the transaction has committed.
+        drop(verified);
         Ok(cas)
     }
 
     /// Negative barrier FIRST: stop new Prepare/Open and close all writer
     /// consumers before Adm-A may commit withdrawal. The common release guard
     /// prevents a concurrent new consumer escaping this enumeration.
+    ///
+    /// # Errors
+    /// Rejects unauthorized provenance, invalid record/revision, reused records,
+    /// stale acknowledgements, counter exhaustion, and database failures.
     pub async fn block_release(
         &self,
         plan: &RuntimeBindingCutoverPlanV1,
@@ -701,7 +751,6 @@ impl SqlRuntimeMaintenance {
         action: RuntimeAdmissionActionV1,
         challenge_id: Uuid,
         proof: &str,
-        _now: i64,
     ) -> Result<VerifiedRuntimeAdmissionV1, RuntimeControlErrorV1> {
         let stored=txn.query_one(Statement::from_sql_and_values(DbBackend::Postgres,
             "SELECT * FROM apparatus_runtime_admission_challenges WHERE challenge_id=$1 FOR UPDATE",[challenge_id.into()])).await.map_err(db_error)?
@@ -745,7 +794,7 @@ impl SqlRuntimeMaintenance {
     }
 }
 
-fn action_string(action: RuntimeAdmissionActionV1) -> &'static str {
+const fn action_string(action: RuntimeAdmissionActionV1) -> &'static str {
     match action {
         RuntimeAdmissionActionV1::Prepare => "prepare",
         RuntimeAdmissionActionV1::Open => "open",

@@ -711,13 +711,6 @@ async fn test_mark_notification_read_idempotent() {
     );
 }
 
-/// Helper function to create a test JWT token (you'll need to implement this based on your JWT creation logic)
-fn create_test_jwt_token(user_id: Uuid) -> String {
-    // This should match your JWT creation logic from IAMRusty or Telegraph's JWT handling
-    // For testing purposes, you might need a simple JWT that contains the user_id claim
-    format!("test_jwt_token_for_user_{user_id}")
-}
-
 /// Comprehensive test covering the complete notification lifecycle
 #[tokio::test]
 #[serial]

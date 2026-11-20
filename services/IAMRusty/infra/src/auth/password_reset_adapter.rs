@@ -49,7 +49,8 @@ mod tests {
 
         assert!(result.is_ok());
         let hash = result.unwrap();
-        assert!(!hash.is_empty());
+        let has_hash = !hash.is_empty();
+        assert!(has_hash, "password reset hash is present");
         assert_ne!(hash, password); // Should be hashed, not plain text
     }
 

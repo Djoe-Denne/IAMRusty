@@ -1,5 +1,5 @@
 //! Origin verifier configured once alongside the actual standalone TLS listener.
-//! Chain validation/client-key possession belongs to the existing RustyCog
+//! Chain validation/client-key possession belongs to the existing `RustyCog`
 //! acceptor. Parsing a DER or a test extension alone is never transport proof.
 
 use apparatus_contracts::runtime::{
@@ -13,7 +13,7 @@ use rustycog::{config::ServerConfig, http::PeerClientCertificate};
 use std::sync::Arc;
 use x509_parser::extensions::GeneralName;
 
-pub(crate) fn build_runtime_service_origin(
+pub fn build_runtime_service_origin(
     config: &ServerConfig,
 ) -> anyhow::Result<RuntimeServiceOriginAuth> {
     if !config.tls_enabled || config.tls_client_ca_path.trim().is_empty() {

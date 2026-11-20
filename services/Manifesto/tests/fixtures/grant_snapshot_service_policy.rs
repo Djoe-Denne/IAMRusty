@@ -26,10 +26,10 @@ use std::{
 use tower::ServiceExt;
 use uuid::Uuid;
 
-const ACTOR: Uuid = Uuid::from_u128(0x11111111111141118111111111111111);
-const PRINCIPAL: Uuid = Uuid::from_u128(0x22222222222242228222222222222222);
-const PROJECT: Uuid = Uuid::from_u128(0x33333333333343338333333333333333);
-const COMPONENT: Uuid = Uuid::from_u128(0x44444444444444448444444444444444);
+const ACTOR: Uuid = Uuid::from_u128(0x1111_1111_1111_4111_8111_1111_1111_1111);
+const PRINCIPAL: Uuid = Uuid::from_u128(0x2222_2222_2222_4222_8222_2222_2222_2222);
+const PROJECT: Uuid = Uuid::from_u128(0x3333_3333_3333_4333_8333_3333_3333_3333);
+const COMPONENT: Uuid = Uuid::from_u128(0x4444_4444_4444_4444_8444_4444_4444_4444);
 const KEY: &str = "manifesto-service-policy-fixture-only";
 const IAM_ISSUER: &str = "https://platform.example/iam";
 
@@ -47,18 +47,20 @@ const WRONG_KEY: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMTExMT
 const EXPIRED: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMTExMTExMS0xMTExLTQxMTEtODExMS0xMTExMTExMTExMTEiLCJpc3MiOiJhaWZvcmFsbC1wbGF0Zm9ybSIsImF1ZCI6Im1hbmlmZXN0by1iaW5kaW5ncyIsImV4cCI6MSwiaWF0IjoxLCJqdGkiOiJzZXJ2aWNlLXBvbGljeS1maXh0dXJlIn0._gV7SfJAgtAtcTluZnN1-zeWlocqHYjY1bmWIWsB_mI";
 
 fn config() -> AppConfig {
-    let mut config = AppConfig::default();
-    config.auth = AuthConfig {
-        jwt: JwtAuthConfig {
-            hs256_secret: Some(KEY.to_owned()),
-            issuer: Some(IAM_ISSUER.to_owned()),
-            audience: Some("manifesto-bindings".to_owned()),
-            platform_issuer: Some(IAM_ISSUER.to_owned()),
-            allow_historical_platform_issuer: Some(false),
-            allowed_algorithms: vec!["HS256".to_owned()],
-            ..JwtAuthConfig::default()
+    let mut config = AppConfig {
+        auth: AuthConfig {
+            jwt: JwtAuthConfig {
+                hs256_secret: Some(KEY.to_owned()),
+                issuer: Some(IAM_ISSUER.to_owned()),
+                audience: Some("manifesto-bindings".to_owned()),
+                platform_issuer: Some(IAM_ISSUER.to_owned()),
+                allow_historical_platform_issuer: Some(false),
+                allowed_algorithms: vec!["HS256".to_owned()],
+                ..JwtAuthConfig::default()
+            },
+            ..AuthConfig::default()
         },
-        ..AuthConfig::default()
+        ..AppConfig::default()
     };
     config.apparatus.grant_snapshot_auth.hs256_secret = Some(KEY.to_owned());
     config
@@ -102,7 +104,7 @@ struct Harness {
 fn harness() -> Harness {
     let config = config();
     let service = grant_snapshot_user_id_extractor(&config).unwrap();
-    let human = Arc::new(UserIdExtractor::new(config.auth.clone()).unwrap());
+    let human = Arc::new(UserIdExtractor::new(config.auth).unwrap());
     let snapshots = Arc::new(Mutex::new(Vec::new()));
     let accounts = Arc::new(Mutex::new(Vec::new()));
     let mut registry = CommandRegistry::new();
@@ -176,9 +178,10 @@ fn harness() -> Harness {
 
 fn snapshot_path(principal: Option<Uuid>) -> String {
     let path = format!("/api/projects/{PROJECT}/bindings/{COMPONENT}");
-    principal.map_or(path.clone(), |user_id| {
-        format!("{path}?principal={user_id}")
-    })
+    principal.map_or_else(
+        || path.clone(),
+        |user_id| format!("{path}?principal={user_id}"),
+    )
 }
 
 async fn request(

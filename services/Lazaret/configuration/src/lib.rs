@@ -507,12 +507,24 @@ mod tests {
         assert_eq!(identity.session_ttl_minutes, DEFAULT_SESSION_TTL_MINUTES);
         assert_eq!(identity.cert_ttl_hours, DEFAULT_CERT_TTL_HOURS);
         assert!(identity.session_signing_key_pem.is_none());
-        assert!(identity.ca_cert_pem_path.is_empty());
-        assert!(identity.ca_key_pem_path.is_empty());
+        assert!(
+            identity.ca_cert_pem_path.is_empty(),
+            "default identity must not specify a CA certificate path"
+        );
+        assert!(
+            identity.ca_key_pem_path.is_empty(),
+            "default identity must not specify a CA key path"
+        );
         let app = AppConfig::default();
         assert!(app.identity.session_signing_key_pem.is_none());
-        assert!(app.identity.ca_cert_pem_path.is_empty());
-        assert!(app.identity.ca_key_pem_path.is_empty());
+        assert!(
+            app.identity.ca_cert_pem_path.is_empty(),
+            "default application identity must not specify a CA certificate path"
+        );
+        assert!(
+            app.identity.ca_key_pem_path.is_empty(),
+            "default application identity must not specify a CA key path"
+        );
         assert_ne!(
             format!("{:?}", app.identity),
             format!("{:?}", app.auth),

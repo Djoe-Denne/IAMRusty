@@ -1,7 +1,9 @@
 //! Exercise both use-case persistence paths with the real domain service.
 //! All collaborators are private in-memory probes; no runtime fixture is started.
 
-use super::*;
+use super::{SyncJobUseCase, SyncJobUseCaseImpl};
+use crate::{dto::StartSyncJobRequest, ApplicationError, HiveOutboxUnitOfWork};
+use async_trait::async_trait;
 use hive_domain::{
     port::{
         service::{ExternalMember, ExternalOrganizationInfo, ExternalProviderClient},
@@ -13,12 +15,16 @@ use hive_domain::{
     ExternalLink, Organization, OrganizationInvitation, OrganizationMember, RolePermission,
     SyncJob, SyncJobStatus,
 };
+use hive_events::{HiveDomainEvent, SyncJobStartedEvent};
+use rustycog::core::error::DomainError;
+use rustycog::events::{DomainEvent, EventPublisher};
 use rustycog::permission::{PrincipalPolicy, PrincipalRef};
 use serde_json::Value;
 use std::sync::{
     atomic::{AtomicBool, AtomicUsize, Ordering},
-    Mutex,
+    Arc, Mutex,
 };
+use uuid::Uuid;
 
 struct Probe {
     links: [ExternalLink; 2],

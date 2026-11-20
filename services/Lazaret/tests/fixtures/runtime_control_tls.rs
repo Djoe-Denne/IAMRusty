@@ -1,5 +1,5 @@
 //! HTTP forwarding only: TLS is provided by the existing t11b live-server helper.
-//! The authoritative C collaborator is still WireMock, not an in-process port.
+//! The authoritative C collaborator is still `WireMock`, not an in-process port.
 
 use axum::{
     body::{to_bytes, Body},

@@ -104,5 +104,5 @@ async fn missing_component_catalog_endpoint_has_the_same_atomic_http_behavior() 
         .all(&*db)
         .await
         .unwrap();
-    assert!(persisted.is_empty());
+    assert_eq!(persisted, [] as [project_components::Model; 0]);
 }

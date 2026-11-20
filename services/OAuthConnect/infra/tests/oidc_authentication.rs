@@ -118,7 +118,7 @@ async fn preflight_rs256_keys_jwks_metadata_and_hash_fixture_are_independently_v
         ),
         "HS fixture signature must be correct so algorithm policy is the only rejection cause",
     );
-    assert!(verified_hs.claims["sub"] == SUBJECT);
+    assert_eq!(verified_hs.claims["sub"], SUBJECT);
     assert_eq!(keys.keys().len(), 1, "one standard eligible RSA JWK");
     assert!(
         metadata.issuer().as_str() == f.issuer(),
@@ -234,7 +234,7 @@ async fn g1_nominal_startup_authorize_and_complete_use_one_initial_jwks_and_fixe
     }
     let scopes = params
         .get("scope")
-        .map_or_else(|| panic!("scope required"), std::convert::identity);
+        .unwrap_or_else(|| panic!("scope required"));
     let mut scopes: Vec<_> = scopes.split_whitespace().collect();
     scopes.sort_unstable();
     assert_eq!(
@@ -263,7 +263,7 @@ async fn g1_nominal_startup_authorize_and_complete_use_one_initial_jwks_and_fixe
     let post = receipts
         .iter()
         .find(|r| r.url.path() == TOKEN)
-        .map_or_else(|| panic!("token POST required"), std::convert::identity);
+        .unwrap_or_else(|| panic!("token POST required"));
     assert!(
         post.headers.get("authorization").is_none(),
         "client_secret_post must not also send Authorization credentials"
@@ -574,7 +574,7 @@ async fn g1_basic_auth_and_normative_discovery_default_use_only_the_configured_m
     let post = receipts
         .iter()
         .find(|r| r.url.path() == TOKEN)
-        .map_or_else(|| panic!("token POST required"), std::convert::identity);
+        .unwrap_or_else(|| panic!("token POST required"));
     let Some(encoded) = post
         .headers
         .get("authorization")

@@ -13,7 +13,7 @@ use url::Url;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 
-/// `WireMock` collaborator for IAM → OAuthConnect instance paths.
+/// `WireMock` collaborator for IAM → `OAuthConnect` instance paths.
 pub struct IdpConnectMockService {
     server: Arc<MockServer>,
     fixture: MockServerFixture,
@@ -107,7 +107,7 @@ impl IdpConnectMockService {
                 observe(&body);
                 authorize_response(
                     &slug,
-                    AuthorizeRequest {
+                    &AuthorizeRequest {
                         redirect_uri: body.redirect_uri,
                         state: body.state,
                         code_challenge: body.code_challenge,
@@ -292,7 +292,7 @@ fn authorize_ok(slug: &str, request: &Request) -> ResponseTemplate {
     let Ok(body) = serde_json::from_slice::<AuthorizeRequest>(&request.body) else {
         return ResponseTemplate::new(401);
     };
-    authorize_response(slug, body)
+    authorize_response(slug, &body)
 }
 
 fn canonical_nonce(nonce: &str) -> bool {
@@ -301,7 +301,7 @@ fn canonical_nonce(nonce: &str) -> bool {
         .is_ok_and(|bytes| bytes.len() == 32 && URL_SAFE_NO_PAD.encode(bytes) == nonce)
 }
 
-fn authorize_response(slug: &str, body: AuthorizeRequest) -> ResponseTemplate {
+fn authorize_response(slug: &str, body: &AuthorizeRequest) -> ResponseTemplate {
     let Ok(challenge) = body.pkce_challenge() else {
         return ResponseTemplate::new(400);
     };

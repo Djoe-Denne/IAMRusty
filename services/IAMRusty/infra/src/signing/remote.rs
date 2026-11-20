@@ -100,17 +100,17 @@ impl RemoteSigningProvider {
         }
         // A configured prefix is a directory, never replaced by URL joining.
         base.path_segments_mut()
-            .map_err(|_| failure("invalid remote signer endpoint configuration"))?
+            .map_err(|()| failure("invalid remote signer endpoint configuration"))?
             .pop_if_empty();
         let mut sign_url = base.clone();
         sign_url
             .path_segments_mut()
-            .map_err(|_| failure("invalid remote signer endpoint configuration"))?
+            .map_err(|()| failure("invalid remote signer endpoint configuration"))?
             .push("sign");
         let mut public_url = base;
         public_url
             .path_segments_mut()
-            .map_err(|_| failure("invalid remote signer endpoint configuration"))?
+            .map_err(|()| failure("invalid remote signer endpoint configuration"))?
             .push("keys")
             .push(&key_id);
         let client = remote_client_builder()

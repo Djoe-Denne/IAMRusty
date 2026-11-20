@@ -204,6 +204,9 @@ pub trait CertificateAuthority: Send + Sync {
     /// Runtime certificates have a seconds-level bound; legacy CA adapters must
     /// explicitly support it rather than rounding up to a legacy hourly TTL.
     /// ADR-0012 B5 limits runtime certificates to five minutes.
+    ///
+    /// # Errors
+    /// Returns [`IdentityError`] if runtime CSR signing is unsupported or fails.
     fn sign_runtime_csr(
         &self,
         _csr_pem: &str,

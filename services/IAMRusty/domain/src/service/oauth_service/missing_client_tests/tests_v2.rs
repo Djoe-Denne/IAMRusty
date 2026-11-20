@@ -37,6 +37,10 @@ const STATE: &str = "SignedLoginStateSentinel";
 const CODE: &str = "LoginAuthorizationCodeSentinel";
 const AUTHORIZATION_URL: &str = "https://github.example/authorize?scope=read%3Auser";
 
+fn assert_redacted_equality(equal: bool, label: &'static str) {
+    assert!(equal, "{label}");
+}
+
 // No expectations: ANY repository or JWT invocation fails immediately. These
 // are port guards for the pure refusal path, not mocked business use cases.
 mock! {
@@ -236,6 +240,7 @@ impl Writer {
             "G-5: nonce already purged"
         );
         assert!(row.pkce_verifier.is_none(), "G-5: verifier already purged");
+        drop(row);
     }
 }
 
@@ -270,6 +275,7 @@ impl OAuthTransactionWriteRepository for Writer {
             authentication_nonce: row.authentication_nonce.take(),
         };
         row.consumed_at = Some(now);
+        drop(row);
         Ok(Some(original))
     }
 }
@@ -335,8 +341,8 @@ async fn login_start_forwards_begin_context_to_v2_authorize(#[case] pkce: bool) 
     assert_eq!(calls.legacy, [0; 5]);
     assert!(calls.complete.is_empty());
     let request = &calls.authorize[0];
-    assert!(request.redirect_uri == REDIRECT);
-    assert!(request.state == STATE);
+    assert_redacted_equality(request.redirect_uri == REDIRECT, "exact redirect");
+    assert_redacted_equality(request.state == STATE, "exact state");
     assert!(
         request.nonce == begun.authentication_nonce,
         "G-8: exact BEGIN nonce"
@@ -345,7 +351,11 @@ async fn login_start_forwards_begin_context_to_v2_authorize(#[case] pkce: bool) 
         request.code_challenge == begun.code_challenge,
         "G-8: exact BEGIN challenge"
     );
-    assert!(request.code_challenge_method == begun.code_challenge_method);
+    assert_redacted_equality(
+        request.code_challenge_method == begun.code_challenge_method,
+        "exact challenge method",
+    );
+    drop(calls);
     assert!(matches!(result, Ok(ref url) if url == AUTHORIZATION_URL));
 }
 
@@ -387,13 +397,19 @@ async fn login_complete_refusal_or_missing_email_precedes_all_business_io(
     assert_eq!(calls.legacy, [0; 5], "G-5: no fallback or separate profile");
     assert!(calls.authorize.is_empty());
     let request = &calls.complete[0];
-    assert!(request.code == CODE);
-    assert!(request.redirect_uri == REDIRECT);
-    assert!(request.expected_nonce == URL_SAFE_NO_PAD.encode([107; 32]));
-    assert!(request.code_verifier.as_deref() == Some(URL_SAFE_NO_PAD.encode([17; 32]).as_str()));
-    let error = match result {
-        Err(error) => error,
-        Ok(_) => panic!("G-5: refused completion/missing email must not authenticate"),
+    assert_redacted_equality(request.code == CODE, "exact code");
+    assert_redacted_equality(request.redirect_uri == REDIRECT, "exact redirect");
+    assert_redacted_equality(
+        request.expected_nonce == URL_SAFE_NO_PAD.encode([107; 32]),
+        "exact nonce",
+    );
+    assert_redacted_equality(
+        request.code_verifier.as_deref() == Some(URL_SAFE_NO_PAD.encode([17; 32]).as_str()),
+        "exact verifier",
+    );
+    drop(calls);
+    let Err(error) = result else {
+        panic!("G-5: refused completion/missing email must not authenticate");
     };
     if refuse_complete {
         assert!(matches!(error, DomainError::OAuth2Error(_)));

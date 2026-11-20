@@ -1,11 +1,15 @@
 //! Bounded Pod inventory/registration iteration. Cursor/offset are scheduling
 //! hints only: no absence-derived revocation, identity, permission or deletion.
-use super::*;
+use super::ServingRuntimeBridge;
 use crate::runtime_observation::RuntimePodObserver;
-use apparatus_contracts::runtime::{RuntimeServiceRoleV1, RuntimeWriteAckV1};
+use apparatus_contracts::runtime::{
+    RuntimeBindingStateV1, RuntimeControlCallerV1, RuntimeErrorCodeV1, RuntimeInstanceSelectorV1,
+    RuntimeServiceRoleV1, RuntimeWriteAckV1, RuntimeWriterLeaseRequestV1,
+};
 use std::time::Duration;
 use tokio::time::{timeout_at, Instant};
 
+/// Scheduling position within the bounded Pod inventory; never an authority proof.
 #[derive(Default)]
 pub struct RuntimePodObservationCursor {
     continue_token: Option<String>,
@@ -16,6 +20,10 @@ impl ServingRuntimeBridge {
     /// One <=2s read capture followed by <=2s writer consultation/registration.
     /// Each Pod is fully re-proven before registration. Slow work is suspended,
     /// not promoted to a fresh heartbeat or retried with a different instance ID.
+    ///
+    /// # Errors
+    /// Fails closed on expired deadlines, inactive bindings, invalid admission or
+    /// Pod provenance, exhausted pending capacity or writer registration failure.
     pub async fn observe_instances_once(
         &self,
         project_id: uuid::Uuid,
@@ -115,6 +123,7 @@ impl ServingRuntimeBridge {
                 Err(_) => return Err(RuntimeErrorCodeV1::RuntimeAuthorityUnavailable),
             }
         }
+        drop(pending_map);
         progress.continue_token = page.next_continue;
         progress.offset = 0;
         Ok(acks)

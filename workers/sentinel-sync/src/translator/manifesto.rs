@@ -535,7 +535,7 @@ mod tests {
         assert_eq!(delta.deletes.len(), 1);
         assert_eq!(delta.deletes[0].relation, "admin");
         assert_eq!(delta.deletes[0].object_id, project_id.to_string());
-        assert!(delta.writes.is_empty());
+        assert_eq!(delta.writes, [] as [Tuple; 0]);
     }
 
     #[test]
@@ -573,7 +573,7 @@ mod tests {
             .translate(&to_json(evt))
             .unwrap()
             .unwrap();
-        assert!(delta.writes.is_empty());
+        assert_eq!(delta.writes, [] as [Tuple; 0]);
         assert!(delta
             .deletes
             .iter()
@@ -775,7 +775,7 @@ mod tests {
                 Utc::now(),
             ),
         ));
-        assert!(delta.writes.is_empty());
+        assert_eq!(delta.writes, [] as [Tuple; 0]);
         assert_eq!(delta.deletes.len(), 2);
         assert!(delta.deletes.iter().any(|t| t.user_id == "*"));
         assert!(delta
@@ -843,7 +843,7 @@ mod tests {
             private_to_internal.writes[0].user_id,
             format!("{org_id}#member")
         );
-        assert!(private_to_internal.deletes.is_empty());
+        assert_eq!(private_to_internal.deletes, [] as [Tuple; 0]);
 
         let public_to_internal = translate_event(&visibility_event(
             "public",

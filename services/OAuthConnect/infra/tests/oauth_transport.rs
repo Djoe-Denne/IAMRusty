@@ -86,7 +86,10 @@ async fn a1_valid_arbitrary_instance_constructs_redacted_without_vendor_io() {
         client.authorize_authentication(&authorize_request()).await,
         "nominal authorize",
     );
-    assert!(parsed_url(&auth.authorization_url).path() == "/authorize/arbitrary");
+    assert_eq!(
+        parsed_url(&auth.authorization_url).path(),
+        "/authorize/arbitrary"
+    );
     flow.counts(0, 0, 0).await;
 }
 
@@ -215,7 +218,10 @@ async fn a1_pkce_incapable_instance_allows_no_pair_and_refuses_supplied_s256() {
     assert!(
         !params.contains_key("code_challenge") && !params.contains_key("code_challenge_method")
     );
-    assert!(params.get("redirect_uri").map(String::as_str) == Some(CALLBACK));
+    assert_eq!(
+        params.get("redirect_uri").map(String::as_str),
+        Some(CALLBACK)
+    );
     assert!(
         matches!(
             client.authorize_authentication(&authorize_request()).await,
@@ -466,11 +472,20 @@ async fn a3_independent_apis_use_declared_auth_headers_one_get_each_and_no_pictu
         user[0].url.query().is_none() && email[0].url.query().is_none(),
         "no token in GET URL"
     );
-    assert!(header(&user[0], "authorization") == Some(format!("Bearer {ACCESS}").as_str()));
-    assert!(header(&email[0], "authorization") == Some(format!("token {ACCESS}").as_str()));
-    assert!(header(&user[0], "accept") == Some("application/json"));
-    assert!(header(&user[0], "user-agent") == Some("oauth-a-fixture"));
-    assert!(header(&email[0], "x-github-api-version") == Some("2022-11-28"));
+    assert!(
+        header(&user[0], "authorization") == Some(format!("Bearer {ACCESS}").as_str()),
+        "user API must carry the exact Bearer Authorization header"
+    );
+    assert!(
+        header(&email[0], "authorization") == Some(format!("token {ACCESS}").as_str()),
+        "email API must carry the exact token Authorization header"
+    );
+    assert_eq!(header(&user[0], "accept"), Some("application/json"));
+    assert_eq!(header(&user[0], "user-agent"), Some("oauth-a-fixture"));
+    assert_eq!(
+        header(&email[0], "x-github-api-version"),
+        Some("2022-11-28")
+    );
     assert!(
         header(&user[0], "x-github-api-version").is_none(),
         "version header belongs only to the emails API"
@@ -571,7 +586,10 @@ async fn a3_two_instances_route_their_own_credentials_tokens_and_identities() {
     );
     first.assert_profile(&a_auth);
     assert_eq!(b_auth.profile.id, "instance-B");
-    assert!(b_auth.tokens.access_token == "instance-B-token");
+    assert!(
+        b_auth.tokens.access_token == "instance-B-token",
+        "instance B must mint its own access token sentinel"
+    );
     first.counts(1, 1, 1).await;
     second.counts(1, 1, 1).await;
     let a_requests = first.token.requests().await;
@@ -584,7 +602,10 @@ async fn a3_two_instances_route_their_own_credentials_tokens_and_identities() {
         Some(VERIFIER),
     );
     let b_user = second.user.requests().await;
-    assert!(header(&b_user[0], "authorization") == Some("Bearer instance-B-token"));
+    assert!(
+        header(&b_user[0], "authorization") == Some("Bearer instance-B-token"),
+        "instance B user API must carry its own Bearer Authorization header"
+    );
 }
 
 #[tokio::test]

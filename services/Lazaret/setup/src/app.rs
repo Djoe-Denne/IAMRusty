@@ -255,9 +255,15 @@ async fn build_runtime_admission(
             cutover: None,
         });
     }
-    let identity_pem = std::fs::read(&config.runtime.client_identity_pem_path)
+    let identity_path = config.runtime.client_identity_pem_path.clone();
+    let identity_pem = tokio::task::spawn_blocking(move || std::fs::read(identity_path))
+        .await
+        .map_err(|_| anyhow::anyhow!("runtime_client_identity_unavailable"))?
         .map_err(|_| anyhow::anyhow!("runtime_client_identity_unavailable"))?;
-    let server_ca_pem = std::fs::read(&config.runtime.server_ca_pem_path)
+    let server_ca_path = config.runtime.server_ca_pem_path.clone();
+    let server_ca_pem = tokio::task::spawn_blocking(move || std::fs::read(server_ca_path))
+        .await
+        .map_err(|_| anyhow::anyhow!("runtime_server_ca_unavailable"))?
         .map_err(|_| anyhow::anyhow!("runtime_server_ca_unavailable"))?;
     let identity = reqwest::Identity::from_pem(&identity_pem)
         .map_err(|_| anyhow::anyhow!("runtime_client_identity_invalid"))?;

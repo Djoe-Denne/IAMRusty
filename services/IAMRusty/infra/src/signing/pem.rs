@@ -80,7 +80,8 @@ mod tests {
         let provider = PemSigningProvider::new(private, public).expect("pem");
         let digest = Sha256::digest(b"signing-input");
         let sig = provider.sign_digest(&digest).await.expect("sign");
-        assert!(!sig.is_empty());
+        let has_signature = !sig.is_empty();
+        assert!(has_signature, "signature is present");
         assert!(provider.capabilities().sign_digest);
     }
 

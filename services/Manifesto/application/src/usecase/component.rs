@@ -633,7 +633,7 @@ mod attach_from_catalog_tests {
     fn taskboard_without_digest_skips_apparatus_pin() {
         let pin = attach_from_catalog("taskboard", None).expect("legacy type");
         assert!(pin.digest.is_none());
-        assert!(pin.declared_capabilities.is_empty());
+        assert_eq!(pin.declared_capabilities, [] as [String; 0]);
     }
 
     #[test]

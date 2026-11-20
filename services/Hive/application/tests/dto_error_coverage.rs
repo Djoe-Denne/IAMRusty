@@ -98,7 +98,7 @@ fn api_error_response_maps_all_application_errors() {
     ];
     for error in domain_cases {
         let mapped = ApiErrorResponse::from(ApplicationError::Domain(error));
-        assert!(!mapped.error_type.is_empty());
+        assert_ne!(mapped.error_type, "");
     }
 
     let validation = ApiErrorResponse::from(ApplicationError::validation_error(vec![

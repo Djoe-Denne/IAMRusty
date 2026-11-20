@@ -42,10 +42,9 @@ pub const LIMIT: usize = 1_048_576;
 pub const NESTED: &str = "$.items[?($.items[?($.items[?($.items[?(@.ok == true)])])])].id";
 
 pub fn must<T, E>(result: Result<T, E>, obligation: &str) -> T {
-    result.map_or_else(
-        |_| panic!("OAuth A: {obligation} must succeed (diagnostic deliberately redacted)"),
-        std::convert::identity,
-    )
+    result.unwrap_or_else(|_| {
+        panic!("OAuth A: {obligation} must succeed (diagnostic deliberately redacted)")
+    })
 }
 
 pub fn source(api: &str, json_path: &str) -> ClaimSource {
@@ -157,10 +156,10 @@ impl Vendor {
     }
 
     pub async fn requests(&self) -> Vec<Request> {
-        self.server.received_requests().await.map_or_else(
-            || panic!("fixture request recording must be enabled"),
-            std::convert::identity,
-        )
+        self.server
+            .received_requests()
+            .await
+            .unwrap_or_else(|| panic!("fixture request recording must be enabled"))
     }
 }
 

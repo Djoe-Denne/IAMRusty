@@ -1,4 +1,5 @@
 //! Per-process deny-before-migrate bootstrap (§13.3-B). No HTTP/queue entry point.
+//!
 //! Maintenance approval is a mandatory trusted composition-root collaborator,
 //! never a bool, JSON receipt, caller header, or persistent seal used on its own.
 
@@ -10,14 +11,18 @@ use std::{
     },
 };
 
-use apparatus_contracts::runtime::*;
+use apparatus_contracts::runtime::{
+    InstallRuntimeLegacyFenceV1, RuntimeControlCallerV1, RuntimeControlPort, RuntimeServiceRoleV1,
+};
 use async_trait::async_trait;
 use lazaret_domain::runtime::{
     RuntimeAdmissionGuard, RuntimeEnrollment, RuntimeError, RuntimeStore,
 };
 use uuid::Uuid;
 
-/// Authenticated local maintenance seam. A real implementation must check the
+/// Authenticated local maintenance seam.
+///
+/// A real implementation must check the
 /// operator's authority, exact deployment/database identity, exhaustive writer
 /// inventory, suspended migrations/admissions and retirement of old D binaries.
 /// Re-check these conditions before opening readiness. No default allow exists.
@@ -104,11 +109,16 @@ impl RuntimeCutoverGuard {
             return Err(RuntimeError::RuntimeInternal);
         };
         state.generation = next;
+        drop(state);
         Ok(next)
     }
 
     /// Root/maintenance-only operation. Every process repeats this after startup;
     /// installed fences are never removed when a scan fails or returns nothing.
+    ///
+    /// # Errors
+    /// Returns an error if maintenance verification, inventory reconciliation,
+    /// fence installation or readiness generation validation fails.
     pub async fn reconcile(
         &self,
         maintenance: &dyn RuntimeBootstrapMaintenance,
@@ -132,6 +142,41 @@ impl RuntimeCutoverGuard {
                 return Err(RuntimeError::RuntimeInvalidRequest);
             }
         }
+        self.verify_control_inventory(projects, &expected).await?;
+        // The trusted inventory may also include bindings about to be prepared;
+        // deny-before-migrate deliberately permits D's fence to precede C's row.
+        for command in inventory {
+            let fence = self.store.install_legacy_fence(command).await?;
+            if fence.project_id != command.project_id
+                || fence.binding_id != command.binding_id
+                || fence.migration_id != command.migration_id
+                || fence.inventory_sha256 != command.inventory_sha256
+            {
+                return Err(RuntimeError::RuntimeAuthorityProtocolError);
+            }
+        }
+        // Exhaustive local reconciliation too: an unexplained old fence is not
+        // silently dropped or treated as an inventory match after restoration.
+        self.verify_cutover_fences(projects, inventory).await?;
+        maintenance.verify_before_open().await?;
+        let mut state = self
+            .readiness
+            .lock()
+            .map_err(|_| RuntimeError::RuntimeInternal)?;
+        if state.generation != generation || state.exhausted {
+            return Err(RuntimeError::RuntimeProjectionUnavailable);
+        }
+        state.ready = true;
+        self.live.store(true, Ordering::Release);
+        drop(state);
+        Ok(())
+    }
+
+    async fn verify_control_inventory(
+        &self,
+        projects: &[Uuid],
+        expected: &BTreeMap<Uuid, Uuid>,
+    ) -> Result<(), RuntimeError> {
         let caller = RuntimeControlCallerV1 {
             role: RuntimeServiceRoleV1::Lazaret,
         };
@@ -166,20 +211,14 @@ impl RuntimeCutoverGuard {
                 }
             }
         }
-        // The trusted inventory may also include bindings about to be prepared;
-        // deny-before-migrate deliberately permits D's fence to precede C's row.
-        for command in inventory {
-            let fence = self.store.install_legacy_fence(command).await?;
-            if fence.project_id != command.project_id
-                || fence.binding_id != command.binding_id
-                || fence.migration_id != command.migration_id
-                || fence.inventory_sha256 != command.inventory_sha256
-            {
-                return Err(RuntimeError::RuntimeAuthorityProtocolError);
-            }
-        }
-        // Exhaustive local reconciliation too: an unexplained old fence is not
-        // silently dropped or treated as an inventory match after restoration.
+        Ok(())
+    }
+
+    async fn verify_cutover_fences(
+        &self,
+        projects: &[Uuid],
+        inventory: &[InstallRuntimeLegacyFenceV1],
+    ) -> Result<(), RuntimeError> {
         for project in projects {
             let mut after = None;
             loop {
@@ -206,16 +245,6 @@ impl RuntimeCutoverGuard {
                 }
             }
         }
-        maintenance.verify_before_open().await?;
-        let mut state = self
-            .readiness
-            .lock()
-            .map_err(|_| RuntimeError::RuntimeInternal)?;
-        if state.generation != generation || state.exhausted {
-            return Err(RuntimeError::RuntimeProjectionUnavailable);
-        }
-        state.ready = true;
-        self.live.store(true, Ordering::Release);
         Ok(())
     }
 
@@ -228,8 +257,9 @@ impl RuntimeCutoverGuard {
     }
 }
 
-/// Runtime-off profile: preserve ordinary legacy decisions, but always consult
-/// the durable negative directory under the install/admission lock. Missing or
+/// Runtime-off profile preserving ordinary legacy decisions.
+///
+/// Always consult the durable negative directory under the install/admission lock. Missing or
 /// unavailable SQL is an error, never an empty/allow fallback.
 pub struct LegacyDirectoryGuard {
     store: Arc<dyn RuntimeStore>,

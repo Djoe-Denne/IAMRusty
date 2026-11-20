@@ -631,8 +631,11 @@ async fn b5_health_and_ready_follow_only_the_supplied_platform_probe_without_oau
         ready.status(expected);
         ready.redacted();
         let report = ready.json();
-        assert!(report["status"].as_str() == Some(label));
-        assert!(report["service"].as_str() == Some("oauth-connect-routing-test"));
+        assert_eq!(report["status"].as_str(), Some(label));
+        assert_eq!(
+            report["service"].as_str(),
+            Some("oauth-connect-routing-test")
+        );
         let text = String::from_utf8_lossy(&ready.body);
         for field in [
             "forge",

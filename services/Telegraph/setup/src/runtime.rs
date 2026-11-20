@@ -45,6 +45,7 @@ impl Drop for OwnedTaskAbortGuard {
 }
 
 /// Consume results, including tasks which finished before observation.
+///
 /// Intentionally suspended transports must not be spawned. Active Telegraph
 /// tasks turn an unexpected clean exit into an error at their owning boundary.
 ///
@@ -63,7 +64,9 @@ pub async fn wait_for_background_failure(tasks: &mut Vec<BackgroundTask>) -> any
 }
 
 /// Request stop and consume all owned results within one absolute six-second
-/// budget, including time spent in stop. After five seconds abort all remaining
+/// budget, including time spent in stop.
+///
+/// After five seconds abort all remaining
 /// async tasks and allow at most one further second for their joins.
 ///
 /// # Errors

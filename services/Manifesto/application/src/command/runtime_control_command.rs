@@ -1,4 +1,4 @@
-//! Non-Clone runtime command; all handlers execute_once, never business retries.
+//! Non-Clone runtime command; all handlers `execute_once`, never business retries.
 
 use crate::usecase::{RuntimeControlAction, RuntimeControlReply, RuntimeControlUseCase};
 use apparatus_contracts::runtime::{RuntimeControlCallerV1, RuntimeControlErrorV1};
@@ -52,7 +52,7 @@ pub struct RuntimeControlCommandHandler {
 impl RuntimeControlCommandHandler {
     /// Construct at the composition root.
     #[must_use]
-    pub fn new(usecase: Arc<RuntimeControlUseCase>) -> Self {
+    pub const fn new(usecase: Arc<RuntimeControlUseCase>) -> Self {
         Self { usecase }
     }
 }

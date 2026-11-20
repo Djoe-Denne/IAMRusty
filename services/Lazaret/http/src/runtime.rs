@@ -9,7 +9,18 @@ use super::error::InvokeHttpError;
 
 impl From<RuntimeErrorCodeV1> for InvokeHttpError {
     fn from(code: RuntimeErrorCodeV1) -> Self {
-        use RuntimeErrorCodeV1::*;
+        use RuntimeErrorCodeV1::{
+            RuntimeAuthorityProtocolError, RuntimeAuthorityUnavailable, RuntimeBindingClosed,
+            RuntimeBindingNotFound, RuntimeCallerForbidden, RuntimeCapacityExhausted,
+            RuntimeCounterExhausted, RuntimeCursorExpired, RuntimeCursorInvalid,
+            RuntimeDeadlineExceeded, RuntimeEffectOutcomeUnknown, RuntimeFenceConflict,
+            RuntimeHashMismatch, RuntimeIdReused, RuntimeIdentityRevoked, RuntimeInternal,
+            RuntimeInvalidProof, RuntimeInvalidRequest, RuntimeKeyUnavailable, RuntimeLeaseHeld,
+            RuntimeLeaseLost, RuntimeLegacyDisabled, RuntimePayloadTooLarge,
+            RuntimeProjectionUnavailable, RuntimeReleaseNotAdmitted, RuntimeReplay,
+            RuntimeRouteUnavailable, RuntimeServiceForbidden, RuntimeStaleState,
+            RuntimeUnauthenticated, RuntimeUnsupportedVersion,
+        };
         // Serialize the shared wire enum, never Debug or a second code catalog.
         let Ok(serde_json::Value::String(wire)) = serde_json::to_value(code) else {
             return Self::Failed;
