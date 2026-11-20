@@ -168,6 +168,15 @@ prouvés/broken**, pas des passes inventées. Même avec34checks verts, un contr
 parent rouge rend le badge rouge. Les timings et l'historique de tests ne sont
 pas inventés ;aucun historique inter-runs persistant n'est configuré ici.
 
+On a scenario failure, the `Project sanitized public metrics and Allure results`
+step prints the scenario and k6 exit code, including when no summary was written.
+The job summary and Allure show the available allowlisted counters and named
+check results. A failed check is `failed`; an observed pass from a failed phase
+is still `broken` because it does not prove that the phase passed. Partial
+observations are retained in the campaign artifact's `processes.json`, separate
+from passing phase summaries. Raw stdout/stderr, browser logs and OAuth data
+remain private.
+
 Le générateur Allure2.46.2 est acquis en répertoire temporaire, par URL/version,
 taille et SHA256 épinglés dans allure.lock.json, puis extraction sans liens ni
 traversée. Aucun outil global/local Java installé par le parent ;le CLI Java

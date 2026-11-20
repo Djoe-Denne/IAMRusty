@@ -1,4 +1,5 @@
 """Automatic trusted-CI admission and fail-closed public test reporting."""
+from contextlib import redirect_stdout
 import copy
 import hashlib
 import io
@@ -44,6 +45,29 @@ def public_fixture(root):
 
 def project(root, target=None):
     return r.project(root / "source", root / "site", "Djoe-Denne/IAMRusty", "123", "1", H, target or SHA)
+
+
+def failed_oauth_fixture(root, *, invalid=False):
+    public_fixture(root)
+    case = "auth-oauth-browser"
+    accepted = root / (case + ".json")
+    partial = json.loads(accepted.read_text(encoding="utf-8"))
+    accepted.unlink()
+    partial.update(completed=None, checks={"browser-version": dict(passes=1, fails=0),
+                                           "registration-callback": dict(passes=0, fails=1)})
+    if invalid:
+        partial.update(private="SECRET_SENTINEL")
+    processes = json.loads((root / "processes.json").read_text(encoding="utf-8"))
+    processes[case] = dict(exit=99, cleanup=True, sandbox=True, renderer_observed=True,
+                           summary_status="captured", failed_summary=partial)
+    dump(root, "processes.json", processes)
+    report = json.loads((root / "report.json").read_text(encoding="utf-8"))
+    dump(root, "report.json", {**report, "verdict": "FAIL", "completed_cases": list(e.CASES)[:-1]})
+
+
+def results(root):
+    values = (json.loads(path.read_text(encoding="utf-8")) for path in (root / "site/allure-results").glob("*-result.json"))
+    return {value["fullName"]: value for value in values}
 
 
 class ReportingTests(unittest.TestCase):
@@ -108,6 +132,67 @@ class ReportingTests(unittest.TestCase):
             metric = project(root)
             self.assertEqual((metric["status"], metric["passed"], metric["unproven"]), ("incomplete", 0, 34))
             self.assertTrue((root / "site/index.html").is_file())
+
+    def test_threshold_failure_names_observed_checks_without_counting_partial_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            failed_oauth_fixture(root / "source")
+            job_summary = root / "summary.md"
+            with redirect_stdout(io.StringIO()) as log:
+                metric = r.project(root / "source", root / "site", "Djoe-Denne/IAMRusty", "123", "1", H, SHA, job_summary)
+            self.assertEqual((metric["status"], metric["passed"], metric["unproven"]), ("failed", 8, 26))
+            report = results(root)
+            failed = report["auth-oauth-browser.registration-callback"]
+            self.assertEqual(failed["status"], "failed")
+            self.assertIn("0 passed, 1 failed", failed["statusDetails"]["message"])
+            partial_pass = report["auth-oauth-browser.browser-version"]
+            self.assertEqual(partial_pass["status"], "broken")
+            self.assertIn("1 passed, 0 failed", partial_pass["statusDetails"]["message"])
+            not_observed = report["auth-oauth-browser.login-nonce"]
+            self.assertEqual(not_observed["status"], "broken")
+            self.assertIn("no observation", not_observed["statusDetails"]["message"])
+            parent = report["E2E.parent-contract"]
+            message = parent["statusDetails"]["message"]
+            summary = job_summary.read_text(encoding="utf-8")
+            for marker in ("k6 exit 99", "completed=unavailable", "registration-callback", "observed checks: 2/26",
+                           "renderer_observed=yes"):
+                self.assertIn(marker, message)
+                self.assertIn(marker, summary)
+                self.assertIn(marker, log.getvalue())
+            self.assertIn("`browser-version`: 1 passed, 0 failed", summary)
+            self.assertIn("auth-oauth-browser.registration-callback: 0 passed, 1 failed", log.getvalue())
+            self.assertEqual(parent["links"][0]["url"], metric["run_url"])
+
+    def test_invalid_failure_diagnostic_emits_exit_but_never_private_content(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            failed_oauth_fixture(root / "source", invalid=True)
+            with redirect_stdout(io.StringIO()) as log:
+                self.assertEqual(project(root)["passed"], 8)
+            self.assertNotIn("SECRET_SENTINEL", log.getvalue())
+            parent = results(root)["E2E.parent-contract"]
+            self.assertIn("k6 exit 99 (thresholds not met); diagnostic summary invalid", parent["statusDetails"]["message"])
+            for file in (root / "site").rglob("*"):
+                if file.is_file():
+                    self.assertNotIn("SECRET_SENTINEL", file.read_text(encoding="utf-8"))
+
+    def test_failed_stage_remains_visible_without_a_child_summary(self):
+        case = "auth-oauth-browser"
+        for process, expected in (
+            (dict(exit=99, cleanup=True), "k6 exit 99 (thresholds not met); diagnostic summary unavailable"),
+            (None, "scenario did not complete; no process evidence available"),
+        ):
+            with self.subTest(process=process), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                failed_oauth_fixture(root / "source")
+                report = json.loads((root / "source/report.json").read_text(encoding="utf-8"))
+                dump(root / "source", "report.json", {**report, "stage": "scenario:" + case})
+                dump(root / "source", "processes.json", {case: process} if process else {})
+                with redirect_stdout(io.StringIO()) as log:
+                    self.assertEqual(project(root)["passed"], 8)
+                self.assertIn(expected, log.getvalue())
+                parent = results(root)["E2E.parent-contract"]
+                self.assertIn(f"{case}: {expected}", parent["statusDetails"]["message"])
 
 
 def ci_env():

@@ -29,10 +29,11 @@ SUMMARY_FIELDS = frozenset((
     "version", "run_id", "phase", "cases", "expected", "started", "completed",
     "iterations", "requests", "checks",
 ))
+SUMMARY_LIMIT = 65536
 
 
 def strict_json(raw):
-    if not isinstance(raw, bytes) or len(raw) > 65536:
+    if not isinstance(raw, bytes) or len(raw) > SUMMARY_LIMIT:
         raise EvidenceError("SUMMARY_SIZE")
 
     def pairs(items):
@@ -57,19 +58,45 @@ def integer(value):
     return type(value) is int and value >= 0
 
 
+def summary_document(value, run_id, case):
+    if not isinstance(value, dict) or value.keys() != SUMMARY_FIELDS:
+        raise EvidenceError("SUMMARY_SCHEMA")
+    if (type(value["version"]) is not int or value["version"] != 1
+            or value["run_id"] != run_id or value["phase"] != CASES[case][0]
+            or value["cases"] != [case]):
+        raise EvidenceError("SUMMARY_IDENTITY")
+    return value
+
+
+def inspect_failed_summary(value, run_id, case):
+    """Validate partial counts for diagnostics, never for campaign admission."""
+    if not isinstance(run_id, str) or not re.fullmatch(r"[a-f0-9]{32}", run_id) or case not in CASES:
+        raise EvidenceError("SUMMARY_IDENTITY")
+    value = summary_document(value, run_id, case)
+
+    def count(number):
+        return integer(number) and number <= 65535
+
+    if type(value["expected"]) is not int or value["expected"] != 1 or any(
+            value[key] is not None and not count(value[key])
+            for key in ("started", "completed", "iterations", "requests")):
+        raise EvidenceError("SUMMARY_CARDINALITY")
+    if not isinstance(value["checks"], dict) or not value["checks"].keys() <= CASES[case][1]:
+        raise EvidenceError("SUMMARY_CHECKS")
+    for result in value["checks"].values():
+        if (not isinstance(result, dict) or result.keys() != {"passes", "fails"}
+                or not all(count(number) for number in result.values())):
+            raise EvidenceError("SUMMARY_CHECK_FAILED")
+    return value
+
+
 def accept_summary(raw, run_id, case, exit_code):
     if not isinstance(run_id, str) or not re.fullmatch(r"[a-f0-9]{32}", run_id):
         raise EvidenceError("RUN_ID")
     if case not in CASES or type(exit_code) is not int or exit_code != 0:
         raise EvidenceError("CHILD_FAILED")
-    value = strict_json(raw)
-    phase, checks, requests = CASES[case]
-    if not isinstance(value, dict) or value.keys() != SUMMARY_FIELDS:
-        raise EvidenceError("SUMMARY_SCHEMA")
-    if (type(value["version"]) is not int or value["version"] != 1
-            or value["run_id"] != run_id or value["phase"] != phase
-            or value["cases"] != [case]):
-        raise EvidenceError("SUMMARY_IDENTITY")
+    value = summary_document(strict_json(raw), run_id, case)
+    _, checks, requests = CASES[case]
     for field in ("expected", "started", "completed", "iterations", "requests"):
         if not integer(value[field]) or value[field] != (requests if field == "requests" else 1):
             raise EvidenceError("SUMMARY_CARDINALITY")

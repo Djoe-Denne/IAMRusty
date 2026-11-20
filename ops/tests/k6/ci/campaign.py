@@ -70,6 +70,22 @@ def stimulus_environment(output, root, state, is_browser):
     return env
 
 
+def read_failed_summary(path, run_id, case):
+    try:
+        if path.is_symlink() or path.parent.is_symlink():
+            return {"summary_status": "invalid"}
+        if not path.exists():
+            return {"summary_status": "missing"}
+        if not path.is_file():
+            return {"summary_status": "invalid"}
+        with path.open("rb") as stream:
+            value = evidence.strict_json(stream.read(evidence.SUMMARY_LIMIT + 1))
+        value = evidence.inspect_failed_summary(value, run_id, case)
+        return {"summary_status": "captured", "failed_summary": value}
+    except (OSError, evidence.EvidenceError):
+        return {"summary_status": "invalid"}
+
+
 class Campaign:
     def __init__(self, runtime):
         self.r = runtime
@@ -304,6 +320,8 @@ class Campaign:
         attempt = self.root / "private" / (case + ".attempt")
         require(not attempt.exists(), "E2E_CASE_REPLAY_REFUSED")
         attempt.write_text("attempted", encoding="ascii")
+        self.state["stage"] = "scenario:" + case
+        self.r.save()
         output = new_output(str(self.root / "private" / case))
         is_browser = case == "auth-oauth-browser"
         env = stimulus_environment(output, self.root, self.state, is_browser)
@@ -344,8 +362,12 @@ class Campaign:
                     child.sandbox, child.renderer_observed = observed["sandbox"], observed["renderer_observed"]
                     child.sandbox_proof = observed["witnesses"]
                 self.state["chromium_diagnostic"] = browser_profile.private_log_diagnostic(output / "private/chromium.log")
-            self.state["process_evidence"][case] = {"exit": child.code, "cleanup": child.cleanup,
+            process = {"exit": child.code, "cleanup": child.cleanup,
                 "sandbox": child.sandbox if is_browser else None, "renderer_observed": child.renderer_observed if is_browser else None}
+            if case not in self.state["completed_cases"]:
+                process.update(read_failed_summary(output / "private/summary.json", self.state["run_id"], case)
+                               if child.cleanup is True else {"summary_status": "not_collected"})
+            self.state["process_evidence"][case] = process
             self.r.save()
             self.publish("processes.json", self.state["process_evidence"])
 

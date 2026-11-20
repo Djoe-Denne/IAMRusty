@@ -197,6 +197,38 @@ class LaunchTests(unittest.TestCase):
             self.assertEqual(r.state["process_evidence"]["auth-oauth-browser"]["exit"], 108)
             self.assertFalse(r.state["completed_cases"])
             self.assertFalse(r.state["process_evidence"]["auth-oauth-browser"]["sandbox"])
+            self.assertEqual(r.state["process_evidence"]["auth-oauth-browser"]["summary_status"], "missing")
+
+    def test_threshold_exit_keeps_partial_counts_without_publishing_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "private/auth-oauth-browser"
+            (output / "private").mkdir(parents=True)
+            case = "auth-oauth-browser"
+            partial = dict(version=1, run_id=RUN, phase="Chromium", cases=[case], expected=1,
+                           started=1, completed=None, iterations=1, requests=0,
+                           checks={"registration-callback": dict(passes=0, fails=1)})
+            (output / "private/summary.json").write_text(json.dumps(partial), encoding="utf-8")
+            r = runtime(root)
+            r.cli = Mock()
+            r.state.update(tools={role: dict(path="/unexecuted/" + role, sha256="hash", version="pinned") for role in ("k6", "chromium")},
+                           completed_cases=[], process_evidence={})
+
+            def failure(*_):
+                r.state["browser_container"]["result"] = {**result(), "exit": 99, "diagnostic": "BROWSER_EXECUTION_FAILED"}
+                raise b.Refused("E2E_BROWSER_CONTAINER_FAILED")
+
+            parent = campaign.Campaign(r)
+            parent.publish = Mock()
+            with patch.object(campaign, "new_output", return_value=output), patch.object(campaign, "sha", return_value="hash"), \
+                 patch.object(campaign.browser_profile, "trust"), patch.object(c, "execute", side_effect=failure), self.assertRaises(b.Refused):
+                parent.scenario(case)
+            observed = r.state["process_evidence"][case]
+            self.assertEqual((observed["exit"], observed["summary_status"], observed["failed_summary"]),
+                             (99, "captured", partial))
+            self.assertEqual(r.state["stage"], "scenario:" + case)
+            self.assertEqual(r.state["completed_cases"], [])
+            parent.publish.assert_called_once_with("processes.json", {case: observed})
 
     def test_startup_diagnostics_are_closed_and_short_paths_bound_socket_names(self):
         for raw in (b"Socket path too long: /private/SENTINEL", b"File name too long /private/SENTINEL"):

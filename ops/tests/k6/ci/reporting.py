@@ -18,12 +18,13 @@ HERE = Path(__file__).resolve().parent
 CORRELATION = dict(iam_delta=7, ext_authz_delta=4, provider_delta=3, pkce_delta=3,
                    users_delta=1, outbox_delta=0, san_delta=1, restoration="PASS")
 EXPECTED = sum(len(value[1]) for value in evidence.CASES.values())
+K6_THRESHOLDS_FAILED = 99
 
 
 def read(path):
     try:
         path = Path(path)
-        if path.is_symlink() or not path.is_file() or path.stat().st_size > 65536:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > evidence.SUMMARY_LIMIT:
             return None
         value = evidence.strict_json(path.read_bytes())
         return value if isinstance(value, dict) else None
@@ -33,6 +34,47 @@ def read(path):
 
 def write(path, value):
     path.write_text(json.dumps(value, sort_keys=True), encoding="utf-8")
+
+
+def check_counts(counts):
+    return f"{counts['passes']} passed, {counts['fails']} failed"
+
+
+def failure_details(case, process, run_id):
+    if not isinstance(process, dict):
+        return None
+    code = process.get("exit")
+    status = process.get("summary_status")
+    has_exit = type(code) is int and -255 <= code <= 255
+    if not (has_exit and code != 0) and process.get("cleanup") is not False and status not in (
+            "missing", "invalid", "not_collected", "captured"):
+        return None
+    message = f"{case}: k6 exit {code}" if has_exit else f"{case}: k6 exit unavailable"
+    if has_exit and code == K6_THRESHOLDS_FAILED:
+        message += " (thresholds not met)"
+    observed = {}
+    if status == "captured" and process.get("cleanup") is not True:
+        status = "invalid"
+    if status == "captured":
+        try:
+            summary = evidence.inspect_failed_summary(process.get("failed_summary"), run_id, case)
+        except evidence.EvidenceError:
+            status = "invalid"
+        else:
+            observed = summary["checks"]
+            counters = ", ".join(f"{key}={summary[key] if summary[key] is not None else 'unavailable'}"
+                                 for key in ("started", "completed", "iterations", "requests"))
+            failed = ", ".join(name for name in sorted(observed) if observed[name]["fails"])
+            message += f"; {counters}; failed checks: {failed or 'none observed'}"
+            message += f"; observed checks: {len(observed)}/{len(evidence.CASES[case][1])}"
+    if status != "captured":
+        state = {"missing": "missing", "invalid": "invalid", "not_collected": "not collected"}.get(
+            status if isinstance(status, str) else None, "unavailable")
+        message += f"; diagnostic summary {state}"
+    for key, label in (("cleanup", "child_cleanup"), ("sandbox", "sandbox"), ("renderer_observed", "renderer_observed")):
+        if type(process.get(key)) is bool:
+            message += f"; {label}={'yes' if process[key] else 'no'}"
+    return message, observed
 
 
 def project(source, destination, repository, job_run, attempt, harness_sha, target_sha, summary_path=None):
@@ -82,6 +124,17 @@ def project(source, destination, repository, job_run, attempt, harness_sha, targ
     passed = sum(len(value["checks"]) for value in accepted.values())
     status = "passed" if parent_ok else "failed" if source_ok else "incomplete"
     run_url = f"https://github.com/{repository}/actions/runs/{job_run}"
+    failures = {}
+    if source_ok:
+        for case in evidence.CASES:
+            if case in accepted:
+                continue
+            details = failure_details(case, processes.get(case), run_id)
+            if details:
+                failures[case] = details
+            elif report.get("verdict") == "FAIL" and report.get("stage") == "scenario:" + case:
+                failures[case] = (f"{case}: scenario did not complete; no process evidence available", {})
+    run_link = [dict(name="GitHub Actions run", type="link", url=run_url)]
     metric = dict(schema="aiforall.e2e-status/v1", status=status, passed=passed, expected=EXPECTED,
         unproven=EXPECTED - passed, source_sha=target_sha, harness_sha=harness_sha,
         job_run_id=int(job_run), job_attempt=int(attempt), run_url=run_url,
@@ -98,14 +151,30 @@ def project(source, destination, repository, job_run, attempt, harness_sha, targ
                          name=check, status="passed" if case in accepted else "broken", stage="finished",
                          labels=[dict(name="parentSuite", value="E2E"), dict(name="suite", value=case)])
             if case not in accepted:
-                value["statusDetails"] = dict(message="Named check not proven by a valid same-source phase summary")
+                message = "Named check not proven by a valid same-source phase summary"
+                if case in failures:
+                    detail, observed = failures[case]
+                    counts = observed.get(check)
+                    if counts is None:
+                        message = detail + "; no observation for this check"
+                    else:
+                        message = detail + "; check counts: " + check_counts(counts)
+                        if counts["fails"]:
+                            value["status"] = "failed"
+                value["statusDetails"] = dict(message=message)
+                value["links"] = run_link
             write(results / (identity + "-result.json"), value)
     identity = str(uuid.uuid5(uuid.NAMESPACE_URL, job_run + ":" + attempt + ":campaign-contract"))
-    write(results / (identity + "-result.json"), dict(uuid=identity, historyId="aiforall-e2e-parent-contract",
+    parent = dict(uuid=identity, historyId="aiforall-e2e-parent-contract",
         testCaseId=hashlib.sha256(b"aiforall-e2e-parent-contract").hexdigest(),
         fullName="E2E.parent-contract", name="Parent deltas, TLS restoration, sandbox and cleanup",
         status="passed" if parent_ok else "broken", stage="finished",
-        labels=[dict(name="parentSuite", value="E2E"), dict(name="suite", value="Campaign contract")]))
+        labels=[dict(name="parentSuite", value="E2E"), dict(name="suite", value="Campaign contract")])
+    if not parent_ok:
+        parent["statusDetails"] = dict(message="\n".join(detail for detail, _ in failures.values())
+                                       or "Campaign contract not proven; no scenario failure details available")
+        parent["links"] = run_link
+    write(results / (identity + "-result.json"), parent)
     write(results / "executor.json", dict(name="GitHub Actions", type="github", buildName=f"E2E {job_run}/{attempt}",
         buildOrder=int(job_run), buildUrl=run_url))
     (results / "environment.properties").write_text(f"applications={target_sha}\nharness={harness_sha}\n", encoding="ascii")
@@ -119,10 +188,18 @@ def project(source, destination, repository, job_run, attempt, harness_sha, targ
         " Les durées et l'historique de tests ne sont pas inventés.</p></html>")
     (destination / "index.html").write_text(page, encoding="utf-8")
     (destination / ".nojekyll").write_text("", encoding="ascii")
+    for case, (detail, observed) in failures.items():
+        print("E2E failure: " + detail)
+        for check, counts in sorted(observed.items()):
+            print(f"E2E observation: {case}.{check}: {check_counts(counts)}")
     if summary_path:
         with Path(summary_path).open("a", encoding="utf-8") as stream:
             stream.write(f"## E2E : {status} — {passed}/{EXPECTED} checks\n\nApplications `{target_sha}` ; harness `{harness_sha}`.\n\n"
                          f"[Run]({run_url}) · [Rapports publics](https://{repository.split('/')[0].lower()}.github.io/{repository.split('/')[1]}/)\n")
+            for detail, observed in failures.values():
+                stream.write("\n- " + detail + "\n")
+                for check, counts in sorted(observed.items()):
+                    stream.write(f"  - `{check}`: {check_counts(counts)}\n")
     return metric
 
 

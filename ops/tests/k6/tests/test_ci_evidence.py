@@ -77,6 +77,31 @@ class SummaryTests(unittest.TestCase):
         with self.assertRaises(e.EvidenceError):
             receive(summary("iam-health"), case="unknown")
 
+    def test_failed_summary_can_describe_partial_checks_without_proving_a_pass(self):
+        case = "auth-oauth-browser"
+        partial = summary(case)
+        partial.update(completed=None, checks={"browser-version": {"passes": 1, "fails": 0},
+                                               "registration-callback": {"passes": 0, "fails": 1}})
+        self.assertEqual(e.inspect_failed_summary(partial, RUN, case), partial)
+        for code in (0, 99):
+            with self.assertRaises(e.EvidenceError):
+                receive(partial, case, code)
+
+    def test_failed_summary_rejects_stale_or_unbounded_evidence(self):
+        case = "auth-oauth-browser"
+        for label, mutate in (
+            ("wrong run", lambda d: d.update(run_id="b" * 32)),
+            ("wrong phase", lambda d: d.update(phase="HTTP")),
+            ("unknown field", lambda d: d.update(token="PRIVATE_SENTINEL")),
+            ("unknown check", lambda d: d["checks"].update(PRIVATE_SENTINEL={"passes": 0, "fails": 1})),
+            ("wrong check type", lambda d: d["checks"]["browser-version"].update(fails=True)),
+            ("oversized counter", lambda d: d.update(completed=65536)),
+        ):
+            with self.subTest(label=label), self.assertRaises(e.EvidenceError):
+                value = summary(case)
+                mutate(value)
+                e.inspect_failed_summary(value, RUN, case)
+
     def test_closed_checks_and_fields(self):
         for change in (lambda d: d.update(secret="not-for-publication"),
                        lambda d: d["checks"].update(unknown={"passes": 1, "fails": 0}),
@@ -196,19 +221,23 @@ class ProjectorTests(unittest.TestCase):
     def test_real_projector_output_is_consumable_and_failed_check_is_refused(self):
         source = (ROOT / "ops/tests/k6/scenarios/auth/oauth-browser.js").read_text(encoding="utf-8")
         tags = re.search(r"systemTags:\s*(\[[^\]]+\])", source).group(1)
-        for passed in (True, False):
-            with self.subTest(passed=passed), tempfile.TemporaryDirectory(prefix="k6-ci-project-") as directory:
+        for passed, code in ((True, 0), (False, 0), (False, 99)):
+            with self.subTest(passed=passed, code=code), tempfile.TemporaryDirectory(prefix="k6-ci-project-") as directory:
                 path = Path(directory)
                 output = path / "summary.json"
+                thresholds = (",thresholds:{checks:['rate==1'],case_started:['count==1'],case_completed:['count==1']}"
+                              if code else "")
+                checks = sorted(e.OAUTH_CHECKS) if not code else ["registration-callback"]
+                finish = "throw new Error('AUTH_OAUTH_FAILED');" if code else "completed.add(1);"
                 script = (
                     "import { check } from 'k6';\n"
                     "import { started, completed, project } from "
                     + json.dumps((ROOT / "ops/tests/k6/lib/summary.js").as_uri()) + ";\n"
-                    "export const options={vus:1,iterations:1,systemTags:" + tags + "};\n"
+                    "export const options={vus:1,iterations:1,systemTags:" + tags + thresholds + "};\n"
                     "export default function(){started.add(1);"
                     + "".join("check(" + str(passed).lower() + ",{" + json.dumps(name) + ":v=>v});"
-                              for name in sorted(e.OAUTH_CHECKS))
-                    + "completed.add(1);}\n"
+                              for name in checks)
+                    + finish + "}\n"
                     "export function handleSummary(d){return project(d,'Chromium','auth-oauth-browser');}\n")
                 (path / "probe.js").write_text(script, encoding="utf-8")
                 (path / "options.json").write_text("{}", encoding="utf-8")
@@ -218,13 +247,18 @@ class ProjectorTests(unittest.TestCase):
                                          str(path / "options.json"), "-e", "K6_RUN_ID=" + RUN,
                                          "-e", "K6_SUMMARY_PATH=" + str(output), str(path / "probe.js")],
                                         env=env, capture_output=True, timeout=20)
-                self.assertEqual(result.returncode, 0, "projector probe failed (private output omitted)")
+                self.assertEqual(result.returncode, code, "unexpected projector exit (private output omitted)")
                 raw = output.read_bytes()
                 if passed:
                     e.accept_summary(raw, RUN, "auth-oauth-browser", result.returncode)
                 else:
                     with self.assertRaises(e.EvidenceError):
                         e.accept_summary(raw, RUN, "auth-oauth-browser", result.returncode)
+                if code == 99:
+                    diagnostic = e.inspect_failed_summary(e.strict_json(raw), RUN, "auth-oauth-browser")
+                    self.assertEqual(diagnostic["started"], 1)
+                    self.assertIn(diagnostic["completed"], (None, 0))
+                    self.assertEqual(diagnostic["checks"], {"registration-callback": dict(passes=0, fails=1)})
 
 
 if __name__ == "__main__":
