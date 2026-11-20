@@ -1,7 +1,6 @@
 //! Event consumer for processing IAM domain events
 
 use async_trait::async_trait;
-use iam_events::DomainEvent;
 use readiness::{create_signaled_event_consumer, ComponentStatus};
 use rustycog::command::{CommandContext, GenericCommandService};
 use rustycog::config::QueueConfig;

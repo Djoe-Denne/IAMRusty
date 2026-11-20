@@ -74,6 +74,6 @@ mod tests {
         assert_eq!(delta.writes[0].relation, "recipient");
         assert_eq!(delta.writes[0].object_id, notification_id.to_string());
         assert_eq!(delta.writes[0].user_id, user_id.to_string());
-        assert!(delta.deletes.is_empty());
+        assert_eq!(delta.deletes, [] as [Tuple; 0]);
     }
 }

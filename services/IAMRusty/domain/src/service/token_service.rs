@@ -312,7 +312,8 @@ mod tests {
             let result = service.generate_token(user_id, username).await;
 
             assert_ok!(&result);
-            assert!(!description.is_empty());
+            let has_description = !description.is_empty();
+            assert!(has_description, "error description is present");
         }
     }
 
@@ -460,7 +461,8 @@ mod tests {
             let result = service.validate_token(invalid_token);
 
             assert_err!(&result);
-            assert!(!description.is_empty());
+            let has_description = !description.is_empty();
+            assert!(has_description, "error description is present");
         }
     }
 

@@ -13,6 +13,17 @@ pub(crate) struct PreparationChainUids {
     revision: Option<String>,
 }
 
+/// Immutable writer/admission evidence for a single bounded metadata capture.
+#[derive(Clone, Copy)]
+pub(crate) struct PreparationReadContext<'a> {
+    pub snapshot: &'a RuntimeBindingSnapshotV1,
+    pub parent_uid: &'a str,
+    pub revision_name: &'a str,
+    pub image: &'a str,
+    pub guard: &'a apparatus_contracts::runtime::RuntimeWriteGuardV1,
+    pub profile: &'a crate::runtime_projection::ServingPlatformProfile,
+}
+
 fn bind_chain_uid(previous: &mut Option<String>, current: &str) -> Result<(), RuntimeErrorCodeV1> {
     if previous.as_deref().is_some_and(|old| old != current) {
         return Err(RuntimeErrorCodeV1::RuntimeFenceConflict);
@@ -23,7 +34,7 @@ fn bind_chain_uid(previous: &mut Option<String>, current: &str) -> Result<(), Ru
 use k8s_openapi::{
     api::{
         apps::v1::{Deployment, ReplicaSet},
-        core::v1::{Pod, ServiceAccount},
+        core::v1::{EnvVar, Pod, ServiceAccount},
     },
     apimachinery::pkg::apis::meta::v1::{ObjectMeta, OwnerReference},
 };
@@ -42,7 +53,7 @@ pub struct ObservedRuntimePod {
 impl ObservedRuntimePod {
     /// Exact Pod/Revision/ServiceAccount UID mapping from verified API reads.
     #[must_use]
-    pub fn identity(&self) -> &RuntimePodIdentityV1 {
+    pub const fn identity(&self) -> &RuntimePodIdentityV1 {
         &self.identity
     }
     /// Pending/running Pods may be current without readiness/enrollment.
@@ -76,7 +87,7 @@ impl ObservedRuntimePod {
     }
 
     /// Controller-owned uncertain attempt ID survives later scans. Re-reading
-    /// ByPodUid never allocates a second ID after a timed-out/ambiguous write.
+    /// `ByPodUid` never allocates a second ID after a timed-out/ambiguous write.
     pub(crate) async fn register_with_pending(
         &self,
         control: &dyn apparatus_contracts::runtime::RuntimeControlPort,
@@ -206,15 +217,18 @@ impl RuntimePodObserver {
     /// fields/desired Revision are incomplete; identity substitution is an error.
     pub(crate) async fn preparation_metadata(
         &self,
-        snapshot: &RuntimeBindingSnapshotV1,
-        parent_uid: &str,
-        revision_name: &str,
-        image: &str,
-        guard: &apparatus_contracts::runtime::RuntimeWriteGuardV1,
-        profile: &crate::runtime_projection::ServingPlatformProfile,
+        context: PreparationReadContext<'_>,
         chain: &mut PreparationChainUids,
     ) -> Result<Option<apparatus_contracts::runtime::RuntimeObservationV1>, RuntimeErrorCodeV1>
     {
+        let PreparationReadContext {
+            snapshot,
+            parent_uid,
+            revision_name,
+            image,
+            guard,
+            profile,
+        } = context;
         let unavailable = RuntimeErrorCodeV1::RuntimeProjectionUnavailable;
         let name = crate::runtime_ownership::serving_name(snapshot);
         let parent = self
@@ -331,7 +345,7 @@ impl RuntimePodObserver {
         let dynamic = |kind, plural: &str| {
             let mut resource =
                 ApiResource::from_gvk(&GroupVersionKind::gvk("serving.knative.dev", "v1", kind));
-            resource.plural = plural.to_owned();
+            plural.clone_into(&mut resource.plural);
             Api::namespaced_with(client.clone(), "apparatus-plugins", &resource)
         };
         Self {
@@ -346,7 +360,7 @@ impl RuntimePodObserver {
     }
 
     /// Read a page after verifying Service -> Configuration -> Revision and each
-    /// Revision -> Deployment -> ReplicaSet -> Pod chain by exact controller UID.
+    /// Revision -> Deployment -> `ReplicaSet` -> Pod chain by exact controller UID.
     /// `parent_uid` must come from a verified create response or durable writer
     /// ownership, never from the name/labels of an unknown existing object.
     ///
@@ -452,27 +466,7 @@ impl RuntimePodObserver {
                 return Err(unavailable);
             }
             let env = user_containers[0].env.as_deref().unwrap_or_default();
-            for (key, expected) in [
-                ("APPARATUS_RUNTIME_MODE", "knative-v1".to_owned()),
-                (
-                    "APPARATUS_RUNTIME_PROJECT_ID",
-                    snapshot.project_id.to_string(),
-                ),
-                (
-                    "APPARATUS_RUNTIME_BINDING_ID",
-                    snapshot.binding_id.to_string(),
-                ),
-                ("APPARATUS_RUNTIME_GENERATION", generation.clone()),
-                (
-                    "APPARATUS_RUNTIME_RELEASE",
-                    snapshot.release.as_str().to_owned(),
-                ),
-            ] {
-                let values: Vec<_> = env.iter().filter(|variable| variable.name == key).collect();
-                if values.len() != 1 || values[0].value.as_deref() != Some(expected.as_str()) {
-                    return Err(unavailable);
-                }
-            }
+            verify_runtime_environment(env, snapshot, &generation)?;
             let account = self
                 .accounts
                 .get("apparatus-runtime-plugin")
@@ -510,6 +504,35 @@ impl RuntimePodObserver {
             next_continue: page.metadata.continue_.filter(|token| !token.is_empty()),
         })
     }
+}
+
+fn verify_runtime_environment(
+    env: &[EnvVar],
+    snapshot: &RuntimeBindingSnapshotV1,
+    generation: &str,
+) -> Result<(), RuntimeErrorCodeV1> {
+    for (key, expected) in [
+        ("APPARATUS_RUNTIME_MODE", "knative-v1".to_owned()),
+        (
+            "APPARATUS_RUNTIME_PROJECT_ID",
+            snapshot.project_id.to_string(),
+        ),
+        (
+            "APPARATUS_RUNTIME_BINDING_ID",
+            snapshot.binding_id.to_string(),
+        ),
+        ("APPARATUS_RUNTIME_GENERATION", generation.to_owned()),
+        (
+            "APPARATUS_RUNTIME_RELEASE",
+            snapshot.release.as_str().to_owned(),
+        ),
+    ] {
+        let values: Vec<_> = env.iter().filter(|variable| variable.name == key).collect();
+        if values.len() != 1 || values[0].value.as_deref() != Some(expected.as_str()) {
+            return Err(RuntimeErrorCodeV1::RuntimeProjectionUnavailable);
+        }
+    }
+    Ok(())
 }
 
 fn uid(metadata: &ObjectMeta) -> Result<&str, RuntimeErrorCodeV1> {

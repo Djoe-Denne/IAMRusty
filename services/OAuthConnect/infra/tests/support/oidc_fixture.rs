@@ -47,10 +47,7 @@ pub const KID: &str = "shared-kid";
 pub const VERIFIER: &str = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
 
 pub fn must<T, E>(result: Result<T, E>, stage: &str) -> T {
-    result.map_or_else(
-        |_| panic!("OIDC: {stage} must succeed; diagnostic redacted"),
-        std::convert::identity,
-    )
+    result.unwrap_or_else(|_| panic!("OIDC: {stage} must succeed; diagnostic redacted"))
 }
 
 pub fn nonce() -> String {
@@ -339,10 +336,10 @@ impl OidcFixture {
         self.token.json(&Self::token_body(&sign(key, kid, claims)));
     }
     pub async fn receipts(&self) -> Vec<Request> {
-        self.server.received_requests().await.map_or_else(
-            || panic!("fixture journal required"),
-            std::convert::identity,
-        )
+        self.server
+            .received_requests()
+            .await
+            .unwrap_or_else(|| panic!("fixture journal required"))
     }
     pub async fn assert_counts(
         &self,
@@ -411,14 +408,14 @@ pub fn profile(
     let serialized = must(serde_json::to_value(auth), "public DTO serialization");
     let object = serialized
         .as_object()
-        .map_or_else(|| panic!("DTO must be object"), std::convert::identity);
+        .unwrap_or_else(|| panic!("DTO must be object"));
     assert!(
         object.len() == 2 && object.contains_key("tokens") && object.contains_key("profile"),
         "no ID token/raw claims/handle"
     );
     let projected = serialized["profile"]
         .as_object()
-        .map_or_else(|| panic!("profile object required"), std::convert::identity);
+        .unwrap_or_else(|| panic!("profile object required"));
     assert!(
         projected.len() == 5
             && ["id", "username", "email", "email_verified", "avatar_url"]

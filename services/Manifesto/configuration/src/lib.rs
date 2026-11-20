@@ -260,27 +260,6 @@ pub struct BusinessConfig {
 }
 
 // Default value functions
-const fn default_true() -> bool {
-    true
-}
-fn default_email_provider() -> String {
-    "dummy".to_string()
-}
-fn default_from_email() -> String {
-    "noreply@manifesto.com".to_string()
-}
-fn default_from_name() -> String {
-    "Manifesto Service".to_string()
-}
-fn default_notification_provider() -> String {
-    "dummy".to_string()
-}
-fn default_cache_provider() -> String {
-    "memory".to_string()
-}
-const fn default_cache_ttl() -> u32 {
-    3600
-} // 1 hour
 const fn default_max_projects_per_user() -> u32 {
     100
 }

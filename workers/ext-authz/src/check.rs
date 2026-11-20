@@ -417,8 +417,11 @@ mod tests {
             .assert_status(StatusCode::OK);
 
         let gets = jwks
+            .fixture
+            .server()
             .received_requests()
             .await
+            .unwrap_or_default()
             .into_iter()
             .filter(|r| r.url.path().contains("jwks"))
             .count();
@@ -482,7 +485,7 @@ mod tests {
         let mut revoked = serde_json::from_str::<Value>(&test_rs256_jwks_json()).expect("jwks");
         revoked["keys"][0]["status"] = Value::String("revoked".into());
         let revoked_json = serde_json::to_string(&revoked).expect("json");
-        jwks.reset().await;
+        jwks.fixture.reset().await;
         jwks.mock_jwks_ok(&revoked_json).await;
 
         // The bounded retry throttle does not reset snapshot freshness.
@@ -490,8 +493,11 @@ mod tests {
         state.poll_jwks_if_due().await;
 
         let gets_after_poll = jwks
+            .fixture
+            .server()
             .received_requests()
             .await
+            .unwrap_or_default()
             .into_iter()
             .filter(|r| r.url.path().contains("jwks"))
             .count();
@@ -507,8 +513,11 @@ mod tests {
         denied.assert_status(StatusCode::FORBIDDEN);
 
         let gets_after_check = jwks
+            .fixture
+            .server()
             .received_requests()
             .await
+            .unwrap_or_default()
             .into_iter()
             .filter(|r| r.url.path().contains("jwks"))
             .count();

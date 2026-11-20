@@ -22,7 +22,7 @@ use super::super::{TelegraphTestDescriptor, TelegraphTestFixture};
 
 static LOGGING: Once = Once::new();
 
-/// Create a standard queue on the existing disposable LocalStack fixture.
+/// Create a standard queue on the existing disposable `LocalStack` fixture.
 ///
 /// # Errors
 /// Fails if the queue cannot be created or the broker does not return a valid URL.
@@ -45,7 +45,9 @@ fn normalize_localhost(mut url: Url) -> anyhow::Result<Url> {
 }
 
 /// Point both the producer fixture and the app's inbound config at the new
-/// queue. Keep the explicit outbound routing and leave the queue owned by the
+/// queue.
+///
+/// Keep the explicit outbound routing and leave the queue owned by the
 /// disposable broker: an old receive can still complete there after Rust stops.
 ///
 /// # Errors
@@ -91,6 +93,11 @@ pub struct SqsEventScenario {
 }
 
 impl SqsEventScenario {
+    /// Start the real consumer and outbox with an isolated inbound queue.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if fixtures, configuration, the app, or its tasks cannot start.
     pub async fn start() -> Result<Self, Box<dyn Error>> {
         let mut fixture = TelegraphTestFixture::new(Arc::new(TelegraphTestDescriptor)).await?;
         let mut config = load_config_fresh::<TelegraphConfig>()?;
@@ -114,6 +121,11 @@ impl SqsEventScenario {
         })
     }
 
+    /// Stop and join the scenario's owned background tasks.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if bounded shutdown fails or a task fails or panics.
     pub async fn stop(mut self) -> anyhow::Result<()> {
         shutdown_owned_tasks(&mut self.tasks, self.app.stop_background_tasks()).await
     }

@@ -1063,10 +1063,14 @@ pub async fn run_watch() -> Result<(), ControllerError> {
     Box::pin(reconciler.run_watch()).await
 }
 
-/// Explicit runtime observation loop, consumed ONLY by a separately approved
-/// startup composition. The legacy run_watch/run_controller path is not silently
+/// Explicit runtime observation loop for separately approved startup composition.
+///
+/// The legacy `run_watch`/`run_controller` path is not silently
 /// redirected. Listing discovers candidates; every act re-reads the writer.
 /// No preparation permit is synthesized, no Open/warm-up or absence deletion.
+///
+/// # Errors
+/// Rejects oversized writer pages or failures propagated by runtime reconciliation.
 pub async fn run_runtime_controller(
     source: std::sync::Arc<dyn crate::desired_state::RuntimeDesiredStateSource>,
     bridge: std::sync::Arc<crate::runtime_projection::ServingRuntimeBridge>,
@@ -1086,17 +1090,15 @@ pub async fn run_runtime_controller(
             changed=shutdown.changed()=>{if changed.is_err()||*shutdown.borrow(){return Ok(());}continue;},
             _=interval.tick()=>{},
         }
-        let page = match tokio::time::timeout(
+        let Ok(Ok(page)) = tokio::time::timeout(
             std::time::Duration::from_secs(2),
             source.list_runtime_page(cursor.as_ref()),
         )
         .await
-        {
-            Ok(Ok(page)) => page,
-            _ => {
-                cursor = None;
-                continue;
-            } // no inferred deletion after a broken scan
+        else {
+            // No inferred deletion after a broken scan.
+            cursor = None;
+            continue;
         };
         if page.items.len() > 200 {
             return Err(RuntimeErrorCodeV1::RuntimeAuthorityProtocolError);
@@ -1317,11 +1319,6 @@ fn is_already_exists(err: &kube::Error) -> bool {
 fn env_required(name: &str) -> Result<String, ControllerError> {
     std::env::var(name)
         .map_err(|_| ControllerError::new(format!("missing required environment variable {name}")))
-}
-
-#[cfg(feature = "admit")]
-fn env_or(name: &str, fallback: &str) -> String {
-    std::env::var(name).unwrap_or_else(|_| fallback.to_owned())
 }
 
 #[cfg(test)]

@@ -1,12 +1,20 @@
 //! Bounded create -> complete observation attempt (§13.4). No receipt, adoption,
 //! retry POST, child mutation or automatic Open. All transient state dies here.
 
-use super::*;
-use crate::runtime_observation::{PreparationChainUids, RuntimePodObserver};
-use apparatus_contracts::runtime::{
-    RuntimeBindingPreparationPermitV1, RuntimeObservationV1, RuntimeServiceRoleV1,
-    RuntimeWriteAckV1, RuntimeWriteGuardV1,
+use super::{
+    kube_error, render_parent, serving_name, AdmittedServingImage, ServingPlatformProfile,
+    ServingRuntimeBridge,
 };
+use crate::runtime_observation::{
+    PreparationChainUids, PreparationReadContext, RuntimePodObserver,
+};
+use apparatus_contracts::runtime::{
+    RuntimeBindingPreparationPermitV1, RuntimeBindingSnapshotV1, RuntimeBindingStateV1,
+    RuntimeControlCallerV1, RuntimeErrorCodeV1, RuntimeInstanceSelectorV1, RuntimeObservationV1,
+    RuntimeServiceRoleV1, RuntimeWriteAckV1, RuntimeWriteGuardV1, RuntimeWriterLeaseRequestV1,
+    RuntimeWriterLeaseV1,
+};
+use kube::{api::PostParams, core::DynamicObject};
 use std::time::Duration;
 use tokio::time::{sleep_until, timeout_at, Instant};
 
@@ -23,7 +31,7 @@ pub struct PreparationWindow {
 impl PreparationWindow {
     /// Freeze t0 before the single POST; never reset it on a response/retry.
     #[must_use]
-    pub fn at(start: Instant) -> Self {
+    pub const fn at(start: Instant) -> Self {
         Self {
             start,
             rounds: 0,
@@ -72,10 +80,13 @@ pub struct ServingEndpointPolicy {
 }
 
 /// Explicit B-qualified transport, never automatic https -> http fallback.
+///
 /// Mesh HTTP denotes application HTTP carried by the REQUIRED strict mTLS mesh;
 /// it is not an assertion that a plaintext network hop is acceptable.
 pub enum ServingEndpointTransport {
+    /// TLS verified against the configured Serving endpoint.
     Https,
+    /// Application HTTP carried exclusively by the qualified strict mTLS mesh.
     MeshMtlsHttp,
 }
 impl ServingEndpointPolicy {
@@ -214,6 +225,10 @@ impl ServingRuntimeBridge {
     /// Re-observe only a Service UID already committed by the writer. No create,
     /// update, adoption, deletion or Open exists in this path. An incomplete or
     /// failed read simply lets the previous <=5s observation expire.
+    ///
+    /// # Errors
+    /// Rejects missing/stale writer state, invalid admission or ownership,
+    /// incomplete observations, expired deadlines or writer report failure.
     pub async fn refresh_known_parent(
         &self,
         project_id: uuid::Uuid,
@@ -283,24 +298,26 @@ impl ServingRuntimeBridge {
             let observer = RuntimePodObserver::new(self.parents.parents.clone().into_client());
             let mut chain = PreparationChainUids::default();
             self.require_same_admission(&image).await?;
-            let observed = observer
+            let captured = observer
                 .preparation_metadata(
-                    &current,
-                    &parent_uid,
-                    &revision_name,
-                    &image.image,
-                    &guard,
-                    &self.profile,
+                    PreparationReadContext {
+                        snapshot: &current,
+                        parent_uid: &parent_uid,
+                        revision_name: &revision_name,
+                        image: &image.image,
+                        guard: &guard,
+                        profile: &self.profile,
+                    },
                     &mut chain,
                 )
                 .await?
                 .ok_or(RuntimeErrorCodeV1::RuntimeProjectionUnavailable)?;
             // Both durable UIDs remain fixed; a same-name replacement never
             // becomes a fresh report or a reason to delete the foreign object.
-            if observed.revision_uid != stored.revision_uid {
+            if captured.revision_uid != stored.revision_uid {
                 return Err(RuntimeErrorCodeV1::RuntimeFenceConflict);
             }
-            Ok((current, observed))
+            Ok((current, captured))
         })
         .await
         .map_err(|_| RuntimeErrorCodeV1::RuntimeProjectionUnavailable)??;
@@ -421,12 +438,21 @@ impl ServingRuntimeBridge {
         lease: RuntimeWriterLeaseV1,
         acquired_at: Instant,
     ) -> Result<RuntimeWriteAckV1, RuntimeErrorCodeV1> {
+        enum Round {
+            Read(
+                Result<
+                    Result<Option<RuntimeObservationV1>, RuntimeErrorCodeV1>,
+                    tokio::time::error::Elapsed,
+                >,
+            ),
+            Renew,
+        }
         let caller = RuntimeControlCallerV1 {
             role: RuntimeServiceRoleV1::Projector,
         };
         let desired = render_parent(
-            &current,
-            &image,
+            current,
+            image,
             &self.profile,
             lease.proof.writer_fence,
             Some(permit),
@@ -450,8 +476,8 @@ impl ServingRuntimeBridge {
             loop {
                 tokio::select! {
                     biased;
-                    _ = sleep_until(window.total_deadline()) => return Err(RuntimeErrorCodeV1::RuntimeDeadlineExceeded),
-                    _ = sleep_until(coordinator.next_renew) => coordinator.renew(self, &caller, &current, window.total_deadline()).await?,
+                    () = sleep_until(window.total_deadline()) => return Err(RuntimeErrorCodeV1::RuntimeDeadlineExceeded),
+                    () = sleep_until(coordinator.next_renew) => coordinator.renew(self, &caller, current, window.total_deadline()).await?,
                     result = &mut create => break result.map_err(kube_error)?,
                 }
             }
@@ -481,35 +507,28 @@ impl ServingRuntimeBridge {
             }
             tokio::select! {
                 biased;
-                _ = sleep_until(window.discovery_deadline()) => return Err(RuntimeErrorCodeV1::RuntimeDeadlineExceeded),
-                _ = sleep_until(coordinator.next_renew) => { coordinator.renew(self, &caller, &current, window.discovery_deadline()).await?; continue; },
-                _ = sleep_until(window.next_round_at()) => {},
+                () = sleep_until(window.discovery_deadline()) => return Err(RuntimeErrorCodeV1::RuntimeDeadlineExceeded),
+                () = sleep_until(coordinator.next_renew) => { coordinator.renew(self, &caller, current, window.discovery_deadline()).await?; continue; },
+                () = sleep_until(window.next_round_at()) => {},
             }
             let round_deadline = window.begin_round(Instant::now())?;
             let guard = RuntimeWriteGuardV1 {
                 expected: current.cas.clone(),
                 lease: coordinator.lease.proof.clone(),
             };
-            enum Round {
-                Read(
-                    Result<
-                        Result<Option<RuntimeObservationV1>, RuntimeErrorCodeV1>,
-                        tokio::time::error::Elapsed,
-                    >,
-                ),
-                Renew,
-            }
             let result = {
                 let read = async {
-                    self.require_same_admission(&image).await?;
+                    self.require_same_admission(image).await?;
                     observer
                         .preparation_metadata(
-                            &current,
-                            &parent_uid,
-                            &revision_name,
-                            &image.image,
-                            &guard,
-                            &self.profile,
+                            PreparationReadContext {
+                                snapshot: current,
+                                parent_uid: &parent_uid,
+                                revision_name: &revision_name,
+                                image: &image.image,
+                                guard: &guard,
+                                profile: &self.profile,
+                            },
                             &mut chain,
                         )
                         .await
@@ -517,26 +536,21 @@ impl ServingRuntimeBridge {
                 tokio::pin!(read);
                 tokio::select! {
                     biased;
-                    _ = sleep_until(coordinator.next_renew) => Round::Renew,
+                    () = sleep_until(coordinator.next_renew) => Round::Renew,
                     result = timeout_at(round_deadline, &mut read) => Round::Read(result),
                 }
             }; // incomplete read is DROPPED before a renewal, never silently extended.
             match result {
                 Round::Renew => {
                     coordinator
-                        .renew(self, &caller, &current, window.discovery_deadline())
-                        .await?
+                        .renew(self, &caller, current, window.discovery_deadline())
+                        .await?;
                 }
-                Round::Read(Err(_)) | Round::Read(Ok(Ok(None))) => continue,
+                Round::Read(Err(_) | Ok(Ok(None))) => {}
                 Round::Read(Ok(Err(error))) => return Err(error),
                 Round::Read(Ok(Ok(Some(observation)))) => {
                     return self
-                        .report_preparation(
-                            &caller,
-                            &current,
-                            &observation,
-                            window.total_deadline(),
-                        )
+                        .report_preparation(&caller, current, &observation, window.total_deadline())
                         .await;
                 }
             }
@@ -675,7 +689,7 @@ impl ServingRuntimeBridge {
     }
 }
 
-fn require_absent_for_create(
+const fn require_absent_for_create(
     current: &RuntimeBindingSnapshotV1,
     exists: bool,
 ) -> Result<(), RuntimeErrorCodeV1> {

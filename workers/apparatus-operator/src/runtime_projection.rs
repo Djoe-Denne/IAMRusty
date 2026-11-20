@@ -24,7 +24,9 @@ mod preparation;
 pub use observation::RuntimePodObservationCursor;
 pub use preparation::{PreparationWindow, ServingEndpointPolicy, ServingEndpointTransport};
 
-/// Qualified local admission reader. Implementations must re-read current
+/// Qualified local admission reader.
+///
+/// Implementations must re-read current
 /// authoritative decision/key policy, not return a store snapshot loaded at
 /// controller startup. There is deliberately no adapter for a cached store.
 pub trait CurrentServingAdmissionSource: Send + Sync {
@@ -181,7 +183,7 @@ impl ServingParentApi {
             "v1",
             "Service",
         ));
-        resource.plural = "services".to_owned();
+        "services".clone_into(&mut resource.plural);
         Self {
             parents: Api::namespaced_with(client, "apparatus-plugins", &resource),
         }
@@ -386,7 +388,7 @@ impl ServingPlatformProfile {
     ///
     /// # Errors
     /// Rejects missing/noncanonical TLS URLs, userinfo/query/fragment, a wrong
-    /// prefix or invalid CA ConfigMap name. Network/privacy proof remains B/E.
+    /// prefix or invalid CA `ConfigMap` name. Network/privacy proof remains B/E.
     pub fn new(
         profile_id: String,
         lazaret_base_url: String,

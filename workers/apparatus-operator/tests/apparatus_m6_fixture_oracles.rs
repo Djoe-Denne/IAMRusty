@@ -465,7 +465,8 @@ fn ph3_ph8_nominal_default_and_trim_use_dedicated_config_and_client_probes() {
             script.plan.len(),
             "all preconditions and SSA/CRD completed"
         );
-        assert!(script.sleeps.is_empty());
+        let no_sleeps = script.sleeps.is_empty();
+        assert!(no_sleeps, "nominal fixture preparation must not sleep");
         let config = cluster.kubeconfig.path.to_string_lossy().into_owned();
         assert!(cluster
             .kubeconfig

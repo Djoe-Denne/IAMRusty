@@ -12,9 +12,9 @@ use crate::{
     ApplicationError,
 };
 
-fn member_operation_error(error: ApplicationError, fallback: &'static str) -> CommandError {
+fn member_operation_error(error: &ApplicationError, fallback: &'static str) -> CommandError {
     use rustycog::core::error::DomainError;
-    let code = match &error {
+    let code = match error {
         ApplicationError::Domain(DomainError::BusinessRuleViolation { rule })
             if rule == "MEMBER_PRINCIPAL_AMBIGUOUS" =>
         {
@@ -101,7 +101,7 @@ impl CommandHandler<AddMemberCommand> for AddMemberCommandHandler {
                 &command.issuer,
             )
             .await
-            .map_err(|e| member_operation_error(e, "add_member_failed"))
+            .map_err(|e| member_operation_error(&e, "add_member_failed"))
     }
 }
 
@@ -181,7 +181,7 @@ impl CommandHandler<RemoveMemberCommand> for RemoveMemberCommandHandler {
                 &command.issuer,
             )
             .await
-            .map_err(|e| member_operation_error(e, "remove_member_failed"))
+            .map_err(|e| member_operation_error(&e, "remove_member_failed"))
     }
 }
 
@@ -258,7 +258,7 @@ impl CommandHandler<ListMembersCommand> for ListMembersCommandHandler {
                 &command.issuer,
             )
             .await
-            .map_err(|e| member_operation_error(e, "list_members_failed"))
+            .map_err(|e| member_operation_error(&e, "list_members_failed"))
     }
 }
 
@@ -341,7 +341,7 @@ impl CommandHandler<GetMemberCommand> for GetMemberCommandHandler {
                 &command.target_issuer,
             )
             .await
-            .map_err(|e| member_operation_error(e, "get_member_failed"))
+            .map_err(|e| member_operation_error(&e, "get_member_failed"))
     }
 }
 
@@ -415,7 +415,7 @@ impl CommandHandler<UpdateMemberCommand> for UpdateMemberCommandHandler {
                 &command.issuer,
             )
             .await
-            .map_err(|e| member_operation_error(e, "update_member_failed"))
+            .map_err(|e| member_operation_error(&e, "update_member_failed"))
     }
 }
 

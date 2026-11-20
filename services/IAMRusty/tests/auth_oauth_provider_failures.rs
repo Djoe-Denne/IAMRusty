@@ -1,5 +1,5 @@
 //! G5: former standalone profile refusals are atomic v2 complete refusals.
-//! Historical 401/authentication_failed expectations are retained. A change of
+//! Historical `401/authentication_failed` expectations are retained. A change of
 //! error phase/category must be reported, not hidden by returning partial tokens
 //! or by relaxing these existing browser-contract assertions.
 #[path = "support/browser_flow.rs"]

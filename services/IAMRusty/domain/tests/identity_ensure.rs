@@ -88,7 +88,8 @@ impl IdentityRepository for MemoryIdentityRepo {
             issuer.to_string(),
             String::from(&IdentityKind::OrganizationManaged),
         );
-        if let Some(existing) = self.by_user_issuer_kind.lock().unwrap().get(&key).cloned() {
+        let existing = self.by_user_issuer_kind.lock().unwrap().get(&key).cloned();
+        if let Some(existing) = existing {
             return Ok(existing);
         }
         self.create(&Identity::organization_managed(user_id, issuer))

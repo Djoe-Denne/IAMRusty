@@ -113,28 +113,6 @@ impl HttpExternalProviderClient {
         })
     }
 
-    /// Make GET request to external provider service
-    async fn get<T>(&self, endpoint: &str) -> Result<T, DomainError>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        let url = format!("{}/{}", self.base_url, endpoint.trim_start_matches('/'));
-        debug!("Making GET request to: {}", url);
-
-        let response = self
-            .client
-            .get(&url)
-            .headers(self.build_headers())
-            .send()
-            .await
-            .map_err(|e| {
-                error!("Failed to make GET request: {}", e);
-                DomainError::external_service_error("external_provider_service", &e.to_string())
-            })?;
-
-        self.handle_response(response).await
-    }
-
     /// Make POST request to external provider service
     async fn post<T>(&self, endpoint: &str, body: &Value) -> Result<T, DomainError>
     where

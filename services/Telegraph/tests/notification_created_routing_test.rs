@@ -1,5 +1,5 @@
 //! AC2/3/5/6: actual transport bytes -> public Sentinel handler -> real
-//! OpenFGA -> HTTP authorization, nominally and after a real publisher outage.
+//! `OpenFGA` -> HTTP authorization, nominally and after a real publisher outage.
 mod common;
 #[path = "fixtures/outbox_runtime.rs"]
 mod runtime_fixture;
@@ -590,7 +590,10 @@ async fn inbound_queue_snapshot(
             .send(),
     )
     .await
-    .unwrap_or_else(|_| panic!("bounded passive queue snapshot timed out: {stage}"))
+    .map_or_else(
+        |_| panic!("bounded passive queue snapshot timed out: {stage}"),
+        |result| result.map_err(Box::new),
+    )
     .unwrap_or_else(|error| panic!("passive queue snapshot failed ({stage}): {error}"));
     let attributes = response
         .attributes()
@@ -1052,8 +1055,8 @@ async fn user_email_verified_routes_same_event_through_sentinel_and_real_authori
                     let state = rustycog::outbox::entity::OutboxEvents::find_by_id(durable.id)
                         .one(db.as_ref()).await.map_err(|_| anyhow::anyhow!("134 durable SQL unavailable"))?
                         .ok_or_else(|| anyhow::anyhow!("134 durable intention disappeared"))?;
-                    anyhow::ensure!(state.event_id == durable.event_id && state.aggregate_id == created.id
-                        && state.version == durable.version && state.payload_json == durable.payload_json,
+                    anyhow::ensure!((&state.event_id, &state.aggregate_id, &state.version, &state.payload_json)
+                        == (&durable.event_id, &created.id, &durable.version, &durable.payload_json),
                         "134 durable identity/version/payload changed");
                     if state.status == STATUS_PUBLISHED { break state; }
                     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -1103,7 +1106,7 @@ async fn user_email_verified_routes_same_event_through_sentinel_and_real_authori
                     let cleanup = rebuilt.stop().await;
                     cleanup.expect("134 failed observation cleanup");
                     match result {
-                        Err(_) => panic!("134 fixed recovery deadline exceeded"),
+                        Err(elapsed) => panic!("134 fixed recovery deadline exceeded: {elapsed}"),
                         Ok(Err(error)) => panic!("134 recovery observation failed: {error}"),
                         Ok(Ok(_)) => unreachable!("successful observation matched above"),
                     }

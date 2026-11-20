@@ -39,10 +39,6 @@ pub struct SendMessageRecipient {
     pub email: Option<String>,
 }
 
-const fn default_attempt() -> u32 {
-    1
-}
-
 impl ProcessEventCommand {
     /// Create a new process event command from an IAM domain event
     pub fn new(event: Arc<dyn DomainEvent>) -> Self {

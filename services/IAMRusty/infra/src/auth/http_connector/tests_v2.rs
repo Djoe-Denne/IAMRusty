@@ -1,5 +1,5 @@
 //! G-4/G-9: contract oracles, independent of the not-yet-implemented v2 adapter.
-//! Private, ephemeral WireMock listeners reuse the existing v1 unit-test seam;
+//! Private, ephemeral `WireMock` listeners reuse the existing v1 unit-test seam;
 //! no shared fixed-port fixture, Docker, vendor OIDC claims or second harness.
 
 use super::HttpIdpConnector;

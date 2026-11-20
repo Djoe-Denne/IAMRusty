@@ -3,11 +3,14 @@
 mod jwks_fixtures;
 #[path = "support/registry.rs"]
 mod registry;
+#[path = "support/registry_serialization.rs"]
+mod registry_serialization;
 
 use ext_authz::JwksCache;
 use iam_domain::entity::signing_key::SigningKeyStatus;
 use jwks_fixtures::JwksFixtures;
-use registry::{registry_key, serialize};
+use registry::registry_key;
+use registry_serialization::serialize;
 use rustycog::testing::http::jwt::TEST_RS256_KID;
 use serial_test::serial;
 use std::time::Duration;
@@ -34,7 +37,7 @@ async fn actual_publisher_last_key_revoke_is_authoritative_empty() {
         serde_json::from_str::<serde_json::Value>(&empty).expect("JWKS")["keys"],
         serde_json::json!([])
     );
-    fixture.reset().await;
+    fixture.fixture.reset().await;
     fixture.mock_jwks_ok(&empty).await;
     tokio::time::sleep(Duration::from_millis(300)).await;
     cache.poll_if_due().await;
@@ -42,7 +45,7 @@ async fn actual_publisher_last_key_revoke_is_authoritative_empty() {
         cache.document_for_kid(TEST_RS256_KID).await.is_err(),
         "empty must revoke the known kid, not resurrect bootstrap"
     );
-    fixture.reset().await;
+    fixture.fixture.reset().await;
     tokio::time::sleep(Duration::from_millis(300)).await;
     cache.poll_if_due().await;
     assert!(
@@ -72,7 +75,7 @@ async fn outage_bounds_all_known_kids_and_recovery_replaces_snapshot() {
         .document_for_kid(&second.kid)
         .await
         .expect("second key");
-    fixture.reset().await; // Unmatched HTTP request => outage, NOT an empty JSON snapshot.
+    fixture.fixture.reset().await; // Unmatched HTTP request => outage, NOT an empty JSON snapshot.
     cache.poll_if_due().await;
     tokio::time::sleep(Duration::from_secs(59)).await;
     for kid in [&first.kid, &second.kid] {

@@ -10,7 +10,7 @@ mod common;
 use common::fixtures::sqs_scenario::SqsEventScenario;
 use iam_events::{IamDomainEvent, UserEmailVerifiedEvent};
 use rustycog::events::event::BaseEvent;
-use sea_orm::{ConnectionTrait, EntityTrait};
+use sea_orm::ConnectionTrait;
 use serial_test::serial;
 use uuid::Uuid;
 

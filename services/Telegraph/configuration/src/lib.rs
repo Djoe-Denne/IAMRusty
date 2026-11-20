@@ -217,12 +217,6 @@ const fn default_smtp_port() -> u16 {
 fn default_notification_provider() -> String {
     "dummy".to_string()
 }
-fn default_sms_provider() -> String {
-    "dummy".to_string()
-}
-fn default_mailjet_version() -> String {
-    "v3".to_string()
-}
 fn default_template_dir() -> String {
     "templates".to_string()
 }

@@ -36,7 +36,7 @@ const SCRUB_ENV: &[&str] = &[
 static UNIQUE: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone, Debug)]
-pub(crate) struct CliSpec {
+pub struct CliSpec {
     pub program: PathBuf,
     pub args: Vec<String>,
     pub set_env: Vec<(String, String)>,
@@ -47,7 +47,7 @@ pub(crate) struct CliSpec {
     pub output_limit: usize,
 }
 
-pub(crate) struct RunRequest<'a> {
+pub struct RunRequest<'a> {
     pub bin_env: &'a str,
     pub image: &'a str,
     pub network: &'a str,
@@ -58,14 +58,14 @@ pub(crate) struct RunRequest<'a> {
     pub secrets: &'a [&'a str],
 }
 
-pub(crate) fn oras_password_frame(password: &str) -> Vec<u8> {
+pub fn oras_password_frame(password: &str) -> Vec<u8> {
     let mut framed = Vec::with_capacity(password.len() + 2);
     framed.extend_from_slice(password.as_bytes());
     framed.extend_from_slice(b"\r\n");
     framed
 }
 
-pub(crate) fn run_cli(request: RunRequest<'_>) -> Result<Output, AdmitError> {
+pub fn run_cli(request: RunRequest<'_>) -> Result<Output, AdmitError> {
     reject_secret_argv(request.args, request.secrets)?;
     let deadline = cli_deadline();
     let output_limit = output_limit();
@@ -75,7 +75,7 @@ pub(crate) fn run_cli(request: RunRequest<'_>) -> Result<Output, AdmitError> {
             args: request.args.to_vec(),
             set_env: owned_env(request.extra_env),
             remove_env: scrub_keys(),
-            stdin: request.stdin.map(|bytes| bytes.to_vec()),
+            stdin: request.stdin.map(<[u8]>::to_vec),
             workdir: request.workdir.map(Path::to_path_buf),
             deadline,
             output_limit,
@@ -128,7 +128,7 @@ fn run_docker(
         args,
         set_env,
         remove_env: scrub_keys(),
-        stdin: request.stdin.map(|bytes| bytes.to_vec()),
+        stdin: request.stdin.map(<[u8]>::to_vec),
         workdir: None,
         deadline,
         output_limit,
@@ -183,7 +183,7 @@ fn scrub_keys() -> Vec<String> {
     SCRUB_ENV.iter().map(|key| (*key).to_owned()).collect()
 }
 
-pub(crate) fn execute(spec: CliSpec) -> Result<Output, AdmitError> {
+pub fn execute(spec: CliSpec) -> Result<Output, AdmitError> {
     #[cfg(test)]
     if let Some(output) = super::cli_transport_tests::intercept(&spec) {
         return output;
@@ -201,20 +201,14 @@ fn supervise(spec: CliSpec) -> Result<Output, AdmitError> {
     drop(child.stdin.take());
 
     let limit = spec.output_limit;
-    let stdout = match spawn_reader(child.stdout.take(), limit) {
-        Ok(reader) => reader,
-        Err(()) => {
-            reap_direct(&mut child);
-            return Err(AdmitError::new("cannot start helper"));
-        }
+    let Ok(stdout) = spawn_reader(child.stdout.take(), limit) else {
+        reap_direct(&mut child);
+        return Err(AdmitError::new("cannot start helper"));
     };
-    let stderr = match spawn_reader(child.stderr.take(), limit) {
-        Ok(reader) => reader,
-        Err(()) => {
-            reap_direct(&mut child);
-            drop(stdout);
-            return Err(AdmitError::new("cannot start helper"));
-        }
+    let Ok(stderr) = spawn_reader(child.stderr.take(), limit) else {
+        reap_direct(&mut child);
+        drop(stdout);
+        return Err(AdmitError::new("cannot start helper"));
     };
 
     let status = match wait_direct(&mut child, deadline_at) {
@@ -262,10 +256,10 @@ fn write_stdin(child: &mut Child, payload: Option<&[u8]>) -> bool {
     let Some(payload) = payload else {
         return true;
     };
-    match child.stdin.as_mut() {
-        Some(stdin) => stdin.write_all(payload).is_ok(),
-        None => false,
-    }
+    child
+        .stdin
+        .as_mut()
+        .is_some_and(|stdin| stdin.write_all(payload).is_ok())
 }
 
 fn wait_direct(child: &mut Child, deadline_at: Instant) -> Result<Option<ExitStatus>, AdmitError> {
@@ -282,12 +276,9 @@ fn wait_direct(child: &mut Child, deadline_at: Instant) -> Result<Option<ExitSta
 }
 
 fn reap_direct(child: &mut Child) {
-    match child.try_wait() {
-        Ok(Some(_)) => {}
-        _ => {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
+    if !matches!(child.try_wait(), Ok(Some(_))) {
+        let _ = child.kill();
+        let _ = child.wait();
     }
 }
 
@@ -334,14 +325,14 @@ where
     let handle = thread::Builder::new()
         .name("admit-cli-read".to_owned())
         .spawn(move || {
-            let drain = match pipe {
-                Some(pipe) => read_capped(pipe, limit),
-                None => PipeDrain {
+            let drain = pipe.map_or_else(
+                || PipeDrain {
                     bytes: Vec::new(),
                     overflow: false,
                     eof: true,
                 },
-            };
+                |pipe| read_capped(pipe, limit),
+            );
             let _ = tx.send(drain);
         })
         .map_err(|_| ())?;
@@ -422,10 +413,7 @@ impl ContainerRelease {
             return Ok(());
         }
         self.attempted = true;
-        match self.id.as_deref() {
-            Some(id) => release_container(id),
-            None => Ok(()),
-        }
+        self.id.as_deref().map_or(Ok(()), release_container)
     }
 }
 
@@ -497,7 +485,7 @@ fn read_container_id(path: &Path) -> Option<String> {
     }
 }
 
-pub(crate) struct ConfigGuard {
+pub struct ConfigGuard {
     path: PathBuf,
     attempted: bool,
 }
@@ -541,14 +529,14 @@ impl Drop for ConfigGuard {
     }
 }
 
-pub(crate) fn remove_private_dir(path: &Path) -> Result<(), AdmitError> {
+pub fn remove_private_dir(path: &Path) -> Result<(), AdmitError> {
     if !path.exists() {
         return Ok(());
     }
     fs::remove_dir_all(path).map_err(|_| AdmitError::new("private config cleanup failed"))
 }
 
-pub(crate) fn with_registry_config<T>(
+pub fn with_registry_config<T>(
     target: &AdmitTarget,
     body: impl FnOnce(&str) -> Result<T, AdmitError>,
 ) -> Result<T, AdmitError> {
@@ -737,12 +725,18 @@ fn output_limit() -> usize {
 }
 
 #[cfg(test)]
-pub(crate) fn forced_host(bin_env: &str) -> Option<Option<PathBuf>> {
+pub enum OptionalField<T> {
+    Unset,
+    Set(T),
+}
+
+#[cfg(test)]
+pub fn forced_host(bin_env: &str) -> OptionalField<Option<PathBuf>> {
     super::cli_transport_tests::host_override(bin_env)
 }
 
 #[cfg(test)]
-pub(crate) fn drop_container_release(id: &str) {
+pub fn drop_container_release(id: &str) {
     let release = ContainerRelease {
         id: Some(id.to_owned()),
         attempted: false,

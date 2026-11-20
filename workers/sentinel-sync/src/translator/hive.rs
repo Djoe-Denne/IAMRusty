@@ -52,7 +52,7 @@ fn role_tuples_for_member(
     organization_id: uuid::Uuid,
     subject: &Subject,
     roles: &[Role],
-) -> Vec<Tuple> {
+) -> Result<Vec<Tuple>> {
     let mut out = Vec::new();
     for role in roles {
         if let Some(relation) = role_to_org_relation(&role.permission) {
@@ -60,8 +60,8 @@ fn role_tuples_for_member(
                 "organization",
                 organization_id,
                 relation,
-                subject.clone(),
-            ));
+                subject,
+            )?);
         }
     }
     // Every member also gets the bare `member` relation so checks for
@@ -70,9 +70,9 @@ fn role_tuples_for_member(
         "organization",
         organization_id,
         "member",
-        subject.clone(),
-    ));
-    out
+        subject,
+    )?);
+    Ok(out)
 }
 
 /// Delete every known organization relation for one user.
@@ -80,16 +80,16 @@ fn delete_all_org_relations(
     mut delta: TupleDelta,
     organization_id: uuid::Uuid,
     subject: &Subject,
-) -> TupleDelta {
+) -> Result<TupleDelta> {
     for relation in ["owner", "admin", "member", "viewer"] {
         delta = delta.delete(Tuple::for_subject(
             "organization",
             organization_id,
             relation,
-            subject.clone(),
-        ));
+            subject,
+        )?);
     }
-    delta
+    Ok(delta)
 }
 
 impl Translator for HiveTranslator {
@@ -109,14 +109,14 @@ impl Translator for HiveTranslator {
                     "organization",
                     evt.organization_id,
                     "owner",
-                    self.subject(evt.owner_issuer.as_deref(), evt.owner_user_id)?,
-                ))
+                    &self.subject(evt.owner_issuer.as_deref(), evt.owner_user_id)?,
+                )?)
             }
 
             HiveDomainEvent::MemberJoined(evt) => {
                 let subject = self.subject(evt.issuer.as_deref(), evt.user_id)?;
                 let mut d = TupleDelta::default();
-                for t in role_tuples_for_member(evt.organization_id, &subject, &evt.roles) {
+                for t in role_tuples_for_member(evt.organization_id, &subject, &evt.roles)? {
                     d = d.write(t);
                 }
                 d
@@ -127,7 +127,7 @@ impl Translator for HiveTranslator {
                 // cannot know the exact role set at removal time, so we
                 // delete every known organization relation for this user.
                 let subject = self.subject(evt.issuer.as_deref(), evt.user_id)?;
-                delete_all_org_relations(TupleDelta::default(), evt.organization_id, &subject)
+                delete_all_org_relations(TupleDelta::default(), evt.organization_id, &subject)?
             }
 
             HiveDomainEvent::MemberRolesUpdated(evt) => {
@@ -135,8 +135,8 @@ impl Translator for HiveTranslator {
                 // Previous roles are not on the event. Drop every known
                 // organization relation, then write the new role set.
                 let mut d =
-                    delete_all_org_relations(TupleDelta::default(), evt.organization_id, &subject);
-                for t in role_tuples_for_member(evt.organization_id, &subject, &evt.roles) {
+                    delete_all_org_relations(TupleDelta::default(), evt.organization_id, &subject)?;
+                for t in role_tuples_for_member(evt.organization_id, &subject, &evt.roles)? {
                     d = d.write(t);
                 }
                 d
@@ -155,7 +155,7 @@ impl Translator for HiveTranslator {
                 }
                 let mut d = TupleDelta::default();
                 for subject in subjects {
-                    d = delete_all_org_relations(d, evt.organization_id, &subject);
+                    d = delete_all_org_relations(d, evt.organization_id, &subject)?;
                 }
                 d
             }
@@ -257,7 +257,7 @@ mod tests {
         }]);
         let evt = HiveDomainEvent::OrganizationDeleted(event);
         let delta = translator().translate(&to_json(evt)).unwrap().unwrap();
-        assert!(delta.writes.is_empty());
+        assert_eq!(delta.writes, [] as [Tuple; 0]);
         let owner = owner_id.to_string();
         let member = member_id.to_string();
         let deleted_users: Vec<_> = delta.deletes.iter().map(|t| t.user_id.as_str()).collect();
@@ -318,7 +318,7 @@ mod tests {
             .writes
             .iter()
             .all(|t| { format!("{}:{}", t.user_type, t.user_id) == expected }));
-        assert!(!delta.writes.is_empty());
+        assert_ne!(delta.writes, [] as [Tuple; 0]);
         evt.issuer = Some("https://another.example/iam".into());
         let other = translator()
             .translate(&to_json(HiveDomainEvent::MemberJoined(evt.clone())))
@@ -377,7 +377,7 @@ mod tests {
             delta.deletes.iter().map(|tuple| &tuple.user_id).collect();
         assert_eq!(users.len(), 3);
         assert_eq!(delta.deletes.len(), 12);
-        assert!(delta.writes.is_empty());
+        assert_eq!(delta.writes, [] as [Tuple; 0]);
         event
             .member_principals
             .as_mut()

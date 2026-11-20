@@ -12,7 +12,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use super::cli_transport::{
     execute, oras_password_frame, remove_private_dir, run_cli, with_registry_config, CliSpec,
-    ConfigGuard, RunRequest,
+    ConfigGuard, OptionalField, RunRequest,
 };
 use super::{
     cli_failed, oras_push_and_oci_digest, redact, sign_and_verify, signature_tag_exists,
@@ -32,8 +32,8 @@ const PARENT_ENV: &[&str] = &[
 
 thread_local! {
     static HOST: RefCell<HashMap<String, Option<PathBuf>>> = RefCell::new(HashMap::new());
-    static DEADLINE: Cell<Option<Duration>> = Cell::new(None);
-    static LIMIT: Cell<Option<usize>> = Cell::new(None);
+    static DEADLINE: Cell<Option<Duration>> = const { Cell::new(None) };
+    static LIMIT: Cell<Option<usize>> = const { Cell::new(None) };
     static MOCK: RefCell<MockState> = RefCell::new(MockState::inactive());
 }
 
@@ -67,19 +67,24 @@ impl MockState {
     }
 }
 
-pub(crate) fn host_override(bin_env: &str) -> Option<Option<PathBuf>> {
-    HOST.with(|host| host.borrow().get(bin_env).cloned())
+pub fn host_override(bin_env: &str) -> OptionalField<Option<PathBuf>> {
+    HOST.with(|host| {
+        host.borrow()
+            .get(bin_env)
+            .cloned()
+            .map_or(OptionalField::Unset, OptionalField::Set)
+    })
 }
 
-pub(crate) fn deadline_override() -> Option<Duration> {
+pub fn deadline_override() -> Option<Duration> {
     DEADLINE.with(Cell::get)
 }
 
-pub(crate) fn limit_override() -> Option<usize> {
+pub fn limit_override() -> Option<usize> {
     LIMIT.with(Cell::get)
 }
 
-pub(crate) fn intercept(spec: &CliSpec) -> Option<Result<Output, AdmitError>> {
+pub fn intercept(spec: &CliSpec) -> Option<Result<Output, AdmitError>> {
     MOCK.with(|slot| {
         let mut mock = slot.borrow_mut();
         if !mock.active {
@@ -237,7 +242,7 @@ fn target(password: &str) -> AdmitTarget {
 }
 
 fn env_snapshot() -> Vec<Option<std::ffi::OsString>> {
-    PARENT_ENV.iter().map(|key| std::env::var_os(key)).collect()
+    PARENT_ENV.iter().map(std::env::var_os).collect()
 }
 
 fn assert_parent_unchanged(before: &[Option<std::ffi::OsString>]) {
@@ -331,7 +336,7 @@ fn exit_status(code: i32) -> ExitStatus {
     #[cfg(windows)]
     {
         use std::os::windows::process::ExitStatusExt;
-        ExitStatus::from_raw(code as u32)
+        ExitStatus::from_raw(u32::try_from(code).expect("nonnegative test exit status"))
     }
     #[cfg(unix)]
     {
@@ -666,10 +671,10 @@ fn cosign_docker_run_mounts_config_and_keeps_secrets_out_of_argv() {
     let before = env_snapshot();
     let target = target("s3cret");
     let digest_ref = format!(
-        "{}/{}@{}",
+        "{}/{}@sha256:{}",
         target.registry_network,
         target.repository,
-        format!("sha256:{}", sha_hex())
+        sha_hex()
     );
     assert!(sign_and_verify(&target, &digest_ref).expect("docker sign"));
     assert_parent_unchanged(&before);

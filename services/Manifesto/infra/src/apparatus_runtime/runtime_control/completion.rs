@@ -1,6 +1,10 @@
 //! Revocation and completion never acquire a fictitious projector lease.
 
-use super::*;
+use super::{
+    counter, db_clock, db_error, lock_binding, row_cas, sql_counter, ConnectionTrait, DbBackend,
+    RuntimeControlCallerV1, RuntimeControlErrorV1, RuntimeEffectOutcomeV1, RuntimeErrorCodeV1,
+    RuntimeServiceRoleV1, RuntimeWriteAckV1, SqlRuntimeControl, Statement, TransactionTrait, Uuid,
+};
 use apparatus_contracts::runtime::{
     RuntimeCompleteEffectRequestV1, RuntimeEffectCompletionStateV1, RuntimeInstanceRevokeRequestV1,
 };

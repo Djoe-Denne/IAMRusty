@@ -500,6 +500,6 @@ mod tests {
         let registry = builder.build();
         let command_types = registry.list_command_types();
 
-        assert!(command_types.is_empty());
+        assert_eq!(command_types, [] as [String; 0]);
     }
 }

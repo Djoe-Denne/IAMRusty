@@ -347,12 +347,13 @@ impl Vendors {
             "wrong selected refresh token"
         );
         assert_eq!(value["tokens"]["expires_in"].as_u64(), Some(3600));
-        assert!(value["profile"]["id"].as_str() == Some(id));
-        assert!(value["profile"]["username"].as_str() == Some(username));
-        assert!(value["profile"]["email"].as_str() == Some(email));
+        assert_eq!(value["profile"]["id"].as_str(), Some(id));
+        assert_eq!(value["profile"]["username"].as_str(), Some(username));
+        assert_eq!(value["profile"]["email"].as_str(), Some(email));
         assert_eq!(value["profile"]["email_verified"].as_bool(), Some(true));
-        assert!(
-            value["profile"]["avatar_url"].as_str() == Some(format!("{origin}/avatar").as_str())
+        assert_eq!(
+            value["profile"]["avatar_url"].as_str(),
+            Some(format!("{origin}/avatar").as_str())
         );
     }
 }

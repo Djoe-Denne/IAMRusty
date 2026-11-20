@@ -5,7 +5,15 @@
 
 use std::time::Duration;
 
-use apparatus_contracts::runtime::*;
+use apparatus_contracts::runtime::{
+    parse_runtime_json, RuntimeBeginEffectRequestV1, RuntimeBindingPageV1,
+    RuntimeBindingSnapshotV1, RuntimeCompleteEffectRequestV1, RuntimeControlCallerV1,
+    RuntimeControlErrorV1, RuntimeControlFuture, RuntimeControlPort, RuntimeCursorV1,
+    RuntimeEffectOutcomeV1, RuntimeEffectReservationV1, RuntimeErrorCodeV1,
+    RuntimeInstanceRegistrationV1, RuntimeInstanceRevokeRequestV1, RuntimeInstanceSelectorV1,
+    RuntimeObservationV1, RuntimeServiceRoleV1, RuntimeWriteAckV1, RuntimeWriterLeaseRequestV1,
+    RuntimeWriterLeaseV1, MAX_RUNTIME_BODY_BYTES,
+};
 use reqwest::{Method, StatusCode, Url};
 use serde::{de::DeserializeOwned, Serialize};
 use uuid::Uuid;
@@ -107,6 +115,10 @@ impl RuntimeControlPort for DisabledRuntimeControl {
 
 impl HttpRuntimeControl {
     /// Build from platform-controlled configuration, never caller request fields.
+    ///
+    /// # Errors
+    /// Returns [`RuntimeErrorCodeV1::RuntimeInternal`] for an invalid HTTPS base URL
+    /// or a failed TLS client configuration.
     pub fn new(
         base_url: &str,
         identity: reqwest::Identity,
@@ -462,6 +474,8 @@ impl RuntimeControlPort for HttpRuntimeControl {
 
 #[cfg(test)]
 mod tests {
+    use apparatus_contracts::runtime::RuntimeRetryClassV1;
+
     use super::*;
 
     #[test]

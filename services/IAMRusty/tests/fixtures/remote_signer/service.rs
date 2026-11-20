@@ -1,7 +1,7 @@
 //! `wiremock` remote `Sign` / `GetPublicKey` mocks (ADR-0309).
 
 use rustycog::testing::wiremock::MockServerFixture;
-use std::sync::Arc;
+use std::{fmt::Write as _, sync::Arc};
 use wiremock::{
     matchers::{method, path},
     Mock, MockServer, ResponseTemplate,
@@ -9,7 +9,7 @@ use wiremock::{
 
 use super::resources::*;
 
-/// Only for wire-level cases WireMock normalizes (chunking, EOF and slow bodies).
+/// Only for wire-level cases `WireMock` normalizes (chunking, EOF and slow bodies).
 /// One connection, ephemeral loopback bind; no container or process-global state.
 #[derive(Clone, Copy)]
 pub enum Framing {
@@ -29,7 +29,7 @@ pub struct RawResponse {
 }
 
 impl RawResponse {
-    pub fn ok(body: Vec<u8>, framing: Framing) -> Self {
+    pub const fn ok(body: Vec<u8>, framing: Framing) -> Self {
         Self {
             status: 200,
             body,
@@ -116,12 +116,14 @@ pub async fn serve_raw<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
         response.status
     );
     match response.framing {
-        Framing::Length => head.push_str(&format!("Content-Length: {}\r\n", response.body.len())),
+        Framing::Length => {
+            write!(head, "Content-Length: {}\r\n", response.body.len()).expect("write header");
+        }
         Framing::Chunked => head.push_str("Transfer-Encoding: chunked\r\n"),
         Framing::Close => {}
     }
     for (name, value) in response.headers {
-        head.push_str(&format!("{name}: {value}\r\n"));
+        write!(head, "{name}: {value}\r\n").expect("write header");
     }
     head.push_str("\r\n");
     stream.write_all(head.as_bytes()).await?;

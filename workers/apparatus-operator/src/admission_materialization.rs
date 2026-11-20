@@ -10,7 +10,12 @@ use crate::{
     conformance::{evaluate_conformance, POLICY_ID},
     digest::ReleaseDigest,
 };
-use apparatus_contracts::runtime::*;
+use apparatus_contracts::runtime::{
+    parse_runtime_json, validate_runtime_oci_pin, RuntimeAdmissionAttestationV1,
+    RuntimeAdmissionChallengeV1, RuntimeCounterV1, RuntimeDigestV1, RuntimeErrorCodeV1,
+    RuntimeUnixMsV1, ADMISSION_AUDIENCE, ADMISSION_CHALLENGE_TTL_MS, ADMISSION_ISSUER,
+    ADMISSION_PROOF_TTL_MS, ADMISSION_PURPOSE, ADMISSION_TYP, MAX_ADMISSION_PROOF_BYTES,
+};
 use base64::{
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
     Engine as _,
@@ -63,15 +68,23 @@ struct Event {
 /// Independently verified recovery fact supplied by the trusted maintenance
 /// channel, never parsed as a self-authenticating JSON receipt.
 pub struct AdmissionHistoryCheckpoint {
+    /// Stable identity of the independently provisioned authority.
     pub authority_id: Uuid,
+    /// Provisioning epoch that must match the durable history.
     pub epoch: Uuid,
+    /// Last durably committed event sequence.
     pub sequence: u64,
+    /// SHA-256 digest of the last committed event.
     pub tip_sha256: String,
 }
 
 /// Setup injects the actual recovery/provenance channel. An old local file or a
 /// boolean cannot implement its obligation. No permissive default is supplied.
 pub trait AdmissionHistoryAuthority {
+    /// Obtain the checkpoint from the independently trusted recovery channel.
+    ///
+    /// # Errors
+    /// Returns an error when the channel cannot verify current history.
     fn verified_checkpoint(&self) -> Result<AdmissionHistoryCheckpoint, Failure>;
 }
 
@@ -92,6 +105,9 @@ pub struct DurableAdmissionAuthority {
 impl DurableAdmissionAuthority {
     /// Explicit first provisioning only. It never imports legacy JSON as v1.
     /// Created authority stays suspended until a trusted recovery checkpoint.
+    ///
+    /// # Errors
+    /// Rejects nil identities, unavailable exclusive storage or a failed durable append.
     pub fn create(path: &Path, authority_id: Uuid, epoch: Uuid) -> Result<Self, Failure> {
         if authority_id.is_nil() || epoch.is_nil() {
             return Err(Failure::RuntimeInvalidRequest);
@@ -127,6 +143,9 @@ impl DurableAdmissionAuthority {
 
     /// Missing, truncated, reset, duplicated or malformed history never becomes
     /// an empty usable authority. Holding this handle retains the OS lock.
+    ///
+    /// # Errors
+    /// Rejects unavailable storage, invalid history or inconsistent event identities.
     pub fn open(path: &Path, authority_id: Uuid, epoch: Uuid) -> Result<Self, Failure> {
         let mut file = OpenOptions::new()
             .read(true)
@@ -198,6 +217,9 @@ impl DurableAdmissionAuthority {
 
     /// A crash/reopen/restore always requires explicit external reconciliation;
     /// equality with a checkpoint read from this same file is NOT provenance.
+    ///
+    /// # Errors
+    /// Rejects poisoned/changed history, unavailable provenance or a mismatched checkpoint.
     pub fn reconcile(&mut self, authority: &dyn AdmissionHistoryAuthority) -> Result<(), Failure> {
         if self.poisoned {
             return Err(Failure::RuntimeAuthorityUnavailable);
@@ -217,6 +239,7 @@ impl DurableAdmissionAuthority {
 
     /// Exposes a non-secret checkpoint to the separate trusted recovery channel.
     /// This returned DATA cannot, on its own, re-enable this store after restore.
+    #[must_use]
     pub fn checkpoint(&self) -> AdmissionHistoryCheckpoint {
         AdmissionHistoryCheckpoint {
             authority_id: self.authority_id,
@@ -301,9 +324,13 @@ impl DurableAdmissionAuthority {
         Ok(())
     }
 
-    /// Real Adm-A admission, never an import of an AdmissionRecord/VALID flag.
+    /// Real Adm-A admission, never an import of an `AdmissionRecord`/VALID flag.
     /// Re-runs conformance and actual envelope signature/content binding before
     /// committing a new durable revision under this authority's process lock.
+    ///
+    /// # Errors
+    /// Rejects unreconciled/changed history, invalid pins, failed conformance or
+    /// envelope verification, revision overflow or a failed durable append.
     pub async fn admit(
         &mut self,
         candidate_toml: String,
@@ -362,6 +389,9 @@ impl DurableAdmissionAuthority {
 
     /// First withdrawal step. Persist suspension BEFORE asking writer C to fence
     /// every consumer. It cannot be undone by replaying an old JSON record.
+    ///
+    /// # Errors
+    /// Rejects changed history, an unknown release, revision overflow or a failed append.
     pub fn suspend_emission(&mut self, release: &RuntimeDigestV1) -> Result<(), Failure> {
         self.recheck_disk_tip()?;
         let mut record = self
@@ -376,6 +406,10 @@ impl DurableAdmissionAuthority {
 
     /// Final withdrawal requires the trusted channel to prove the durable writer
     /// barrier. No caller-supplied boolean or maintenance receipt is accepted.
+    ///
+    /// # Errors
+    /// Rejects changed history, unknown/unsuspended releases, an unverified writer
+    /// barrier, revision overflow or a failed durable append.
     pub fn commit_withdrawal(
         &mut self,
         release: &RuntimeDigestV1,
@@ -403,7 +437,12 @@ impl DurableAdmissionAuthority {
     }
 }
 
+/// Independently trusted proof that every consumer has durably closed.
 pub trait AdmissionWithdrawalBarrier {
+    /// Verify the writer barrier for the exact authority, release and revision.
+    ///
+    /// # Errors
+    /// Returns an error if any consumer remains open or the proof is unavailable.
     fn verify_all_consumers_closed(
         &self,
         authority_id: Uuid,
@@ -426,6 +465,11 @@ pub struct AdmissionMaterializationExporter {
 }
 
 impl AdmissionMaterializationExporter {
+    /// Configure the dedicated Transit signer and independent admission target.
+    ///
+    /// # Errors
+    /// Rejects invalid origins, missing credentials/identity or an unsuitable
+    /// signing key, including reuse of the envelope verification key.
     pub fn new(
         client: reqwest::Client,
         endpoint: reqwest::Url,
@@ -476,6 +520,10 @@ impl AdmissionMaterializationExporter {
     /// Sign only a freshly rechecked authoritative decision for a writer intent.
     /// The caller supplies no payload/VALID flag. The OS lock remains held across
     /// all slow checks and the final <=2s signing operation.
+    ///
+    /// # Errors
+    /// Rejects invalid challenges, unavailable/stale/withdrawn admission, failed
+    /// envelope or key verification, expired intent or a failed signing operation.
     pub async fn export(
         &self,
         store: &mut DurableAdmissionAuthority,

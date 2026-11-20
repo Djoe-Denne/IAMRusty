@@ -1496,5 +1496,6 @@ async fn test_complete_oauth_first_flow() {
 
     // Public signup must not attach a password to an existing OAuth account.
     assert_eq!(password_signup_response.status(), 409);
-    assert!(!user_email.is_empty());
+    let email_is_nonempty = !user_email.is_empty();
+    assert!(email_is_nonempty, "user email must be nonempty");
 }

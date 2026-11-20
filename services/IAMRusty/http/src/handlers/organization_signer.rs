@@ -242,7 +242,7 @@ pub async fn configure_organization_signer(
     Extension(ctx): Extension<Arc<SignerRouteContext>>,
     Json(body): Json<ConfigureSignerBody>,
 ) -> Result<Json<SignerResponse>, SignerHttpError> {
-    require_internal_service_token(&headers).map_err(SignerHttpError::from)?;
+    require_internal_service_token(&headers)?;
     let result = ctx
         .facade
         .configure(
@@ -301,7 +301,7 @@ pub async fn rotate_organization_signer(
     Path(org_id): Path<Uuid>,
     Extension(ctx): Extension<Arc<SignerRouteContext>>,
 ) -> Result<Json<SignerResponse>, SignerHttpError> {
-    require_internal_service_token(&headers).map_err(SignerHttpError::from)?;
+    require_internal_service_token(&headers)?;
     let result = ctx
         .facade
         .rotate(org_id)
@@ -987,7 +987,8 @@ mod tests {
                 issuer.to_string(),
                 String::from(&IdentityKind::OrganizationManaged),
             );
-            if let Some(existing) = self.rows.lock().unwrap().get(&key).cloned() {
+            let existing = self.rows.lock().unwrap().get(&key).cloned();
+            if let Some(existing) = existing {
                 return Ok(existing);
             }
             self.create(&Identity::organization_managed(user_id, issuer))
@@ -1078,7 +1079,8 @@ mod tests {
             .await
             .expect_err("Transit requires a positive explicit version");
             assert_eq!(err.status(), StatusCode::BAD_REQUEST);
-            assert!(registry.find_by_organization(org).await.unwrap().is_empty());
+            let no_keys = registry.find_by_organization(org).await.unwrap().is_empty();
+            assert!(no_keys, "organization has no signing keys");
         }
     }
 

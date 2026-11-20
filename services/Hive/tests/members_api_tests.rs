@@ -215,7 +215,10 @@ async fn list_members_happy_path_for_owner() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let body: serde_json::Value = res.json().await.unwrap();
-    assert!(!body["members"].as_array().unwrap().is_empty());
+    assert_ne!(
+        body["members"].as_array().unwrap().as_slice(),
+        [] as [serde_json::Value; 0]
+    );
 }
 
 #[tokio::test]

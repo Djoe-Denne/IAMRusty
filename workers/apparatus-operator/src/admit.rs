@@ -191,13 +191,17 @@ fn http_post_json_with_ca(
             .enable_all()
             .build()
             .map_err(|_| AdmitError::new("OpenBao transport unavailable"))?;
+        // Read on this dedicated synchronous transport thread, before entering
+        // its async runtime. No filesystem I/O blocks an async worker.
+        let ca_pem = ca
+            .map(|path| fs::read(path).map_err(|_| AdmitError::new("OpenBao CA unreadable")))
+            .transpose()?;
         runtime.block_on(async move {
             let mut builder = reqwest::Client::builder()
                 .no_proxy()
                 .timeout(Duration::from_secs(10))
                 .redirect(reqwest::redirect::Policy::none());
-            if let Some(path) = ca {
-                let pem = fs::read(path).map_err(|_| AdmitError::new("OpenBao CA unreadable"))?;
+            if let Some(pem) = ca_pem {
                 let certs = reqwest::Certificate::from_pem_bundle(&pem)
                     .map_err(|_| AdmitError::new("OpenBao CA invalid"))?;
                 if certs.is_empty() {
@@ -293,10 +297,15 @@ struct EnvelopeDocument {
     cri_image: String,
 }
 
-/// Re-verify the actual signed OCI manifest and its sole envelope blob, not
-/// merely the existence of a `.sig` tag or an independently supplied CRI pin.
+/// Re-verify the actual signed OCI manifest and its sole envelope blob.
+///
+/// A `.sig` tag or independently supplied CRI pin is insufficient.
 /// This is Adm-A's costly check; callers must re-read their authoritative record
 /// afterwards under the same inter-process mutation lock.
+///
+/// # Errors
+/// Rejects invalid references, unavailable helpers, failed signatures or a
+/// manifest/blob whose content does not bind the requested descriptor and image.
 pub fn verify_materialization_envelope(
     target: &AdmitTarget,
     reference: &str,
@@ -700,7 +709,7 @@ fn invoke_cosign(target: &AdmitTarget, args: &[String]) -> Result<Output, AdmitE
 
 fn host_tool(bin_env: &str) -> Option<PathBuf> {
     #[cfg(test)]
-    if let Some(forced) = cli_transport::forced_host(bin_env) {
+    if let cli_transport::OptionalField::Set(forced) = cli_transport::forced_host(bin_env) {
         return forced;
     }
     std::env::var_os(bin_env).map(PathBuf::from)

@@ -8,7 +8,7 @@ use common::*;
 use fixtures::DbFixtures;
 use reqwest::StatusCode;
 use rustycog::permission::{Permission, ResourceRef, Subject};
-use serde_json::{json, Value};
+use serde_json::Value;
 use serial_test::serial;
 use uuid::Uuid;
 
@@ -27,7 +27,6 @@ async fn org_less_user_joins_public_project_and_can_read_write() {
         setup_test_server().await.expect("setup");
     let creator = Uuid::new_v4();
     let joiner = Uuid::new_v4();
-    let creator_jwt = create_test_jwt_token(creator);
     let joiner_jwt = create_test_jwt_token(joiner);
 
     let db = fixture.db();

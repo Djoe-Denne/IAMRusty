@@ -32,13 +32,7 @@ pub async fn run() -> anyhow::Result<()> {
 
     // IAM first — InProcess signer requires the application façade (ADR-0306).
     let iam_app = Box::pin(iam_setup::app::build_app_state(iam, None)).await?;
-    let iam_signer_facade = iam_app.organization_signer().ok_or_else(|| {
-        anyhow::anyhow!(
-            "IAM organization signer façade unavailable; refusing HTTP fallback in monolith (ADR-0306 fail-closed)"
-        )
-    })?;
-    let in_process_signer: Arc<dyn hive_domain::port::service::IamOrganizationSignerClient> =
-        Arc::new(InProcessIamOrganizationSignerClient::new(iam_signer_facade));
+    let in_process_signer = in_process_iam_signer(&iam_app)?;
 
     let telegraph_app = Box::pin(telegraph_setup::AppBuilder::new(telegraph).build()).await?;
     let hive_app = Box::pin(
@@ -129,6 +123,19 @@ pub async fn run() -> anyhow::Result<()> {
         shutdown_owned_tasks(&mut background_tasks, stop).await
     };
     combine_results(result, cleanup)
+}
+
+fn in_process_iam_signer(
+    iam_app: &iam_setup::app::IAMRustyApp,
+) -> anyhow::Result<Arc<dyn hive_domain::port::service::IamOrganizationSignerClient>> {
+    let iam_signer_facade = iam_app.organization_signer().ok_or_else(|| {
+        anyhow::anyhow!(
+            "IAM organization signer façade unavailable; refusing HTTP fallback in monolith (ADR-0306 fail-closed)"
+        )
+    })?;
+    Ok(Arc::new(InProcessIamOrganizationSignerClient::new(
+        iam_signer_facade,
+    )))
 }
 
 fn setup_logging_once() {

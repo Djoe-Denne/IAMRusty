@@ -138,6 +138,10 @@ impl Application {
 
     /// Explicit setup injection; there is no HTTP/body/queue route to these
     /// overrides and no default authenticated maintenance channel.
+    ///
+    /// # Errors
+    /// Returns an error if database, maintenance trust, authentication,
+    /// permissions, event transport, or application setup fails.
     pub async fn new_with_runtime_maintenance(
         config: AppConfig,
         maybe_event_publisher: Option<Arc<dyn EventPublisher<DomainError>>>,
@@ -189,22 +193,7 @@ impl Application {
             .map_err(|e| anyhow::anyhow!("Invalid auth configuration: {e}"))?;
         let grant_snapshot_extractor = grant_snapshot_user_id_extractor(&config)?;
 
-        let raw_checker: Arc<dyn PermissionChecker> = Arc::new(
-            OpenFgaPermissionChecker::new(config.openfga.clone())
-                .map_err(|e| anyhow::anyhow!("Invalid OpenFGA configuration: {e}"))?,
-        );
-        let cache_ttl_seconds = config.openfga.cache_ttl_seconds.unwrap_or(15);
-        let metered_inner: Arc<dyn PermissionChecker> = if cache_ttl_seconds == 0 {
-            raw_checker
-        } else {
-            Arc::new(CachedPermissionChecker::new(
-                raw_checker,
-                Duration::from_secs(cache_ttl_seconds),
-                10_000,
-            ))
-        };
-        let permission_checker: Arc<dyn PermissionChecker> =
-            Arc::new(MetricsPermissionChecker::new(metered_inner));
+        let permission_checker = setup_permission_checker(&config)?;
 
         // Setup use cases
         let outbox_dispatcher = Arc::new(OutboxDispatcher::new(
@@ -258,7 +247,6 @@ impl Application {
         tracing::info!("Manifesto application initialized successfully");
 
         Ok(Self {
-            runtime_maintenance,
             config,
             state,
             apparatus_event_consumer,
@@ -267,6 +255,7 @@ impl Application {
             readiness,
             grant_snapshot_extractor,
             binding_grant_snapshots,
+            runtime_maintenance,
         })
     }
 
@@ -402,7 +391,10 @@ impl Application {
 
     /// Local setup runner only. This is not exposed by router()/HTTP/queue and
     /// still requires the separately verified maintenance channel for each act.
-    pub fn runtime_maintenance(&self) -> &crate::runtime_maintenance::RuntimeMaintenanceRunner {
+    #[must_use]
+    pub const fn runtime_maintenance(
+        &self,
+    ) -> &crate::runtime_maintenance::RuntimeMaintenanceRunner {
         &self.runtime_maintenance
     }
 
@@ -453,6 +445,24 @@ impl Application {
             }
         }
     }
+}
+
+fn setup_permission_checker(config: &AppConfig) -> Result<Arc<dyn PermissionChecker>, Error> {
+    let raw_checker: Arc<dyn PermissionChecker> = Arc::new(
+        OpenFgaPermissionChecker::new(config.openfga.clone())
+            .map_err(|e| anyhow::anyhow!("Invalid OpenFGA configuration: {e}"))?,
+    );
+    let cache_ttl_seconds = config.openfga.cache_ttl_seconds.unwrap_or(15);
+    let metered_inner: Arc<dyn PermissionChecker> = if cache_ttl_seconds == 0 {
+        raw_checker
+    } else {
+        Arc::new(CachedPermissionChecker::new(
+            raw_checker,
+            Duration::from_secs(cache_ttl_seconds),
+            10_000,
+        ))
+    };
+    Ok(Arc::new(MetricsPermissionChecker::new(metered_inner)))
 }
 
 /// A selected task has already returned its output; do not await it again.

@@ -280,7 +280,7 @@ impl OrganizationUseCase for OrganizationUseCaseImpl {
                 organization.owner_user_id,
                 organization.created_at,
             );
-            event.owner_issuer = organization.owner_issuer.clone();
+            event.owner_issuer.clone_from(&organization.owner_issuer);
             outbox_unit_of_work
                 .create_organization(
                     organization,

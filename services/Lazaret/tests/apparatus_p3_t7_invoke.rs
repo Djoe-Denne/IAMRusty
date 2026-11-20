@@ -19,7 +19,7 @@ use lazaret_domain::{
 use lazaret_infra::NamedConnectorProxy;
 use lazaret_setup::{Application, LazaretOutboundOverrides};
 use rcgen::{CertificateParams, KeyPair};
-use rustycog::testing::{ServiceTestDescriptor, TestFixture};
+use rustycog::testing::TestFixture;
 use serial_test::serial;
 use uuid::Uuid;
 use wiremock::matchers::{method, path};

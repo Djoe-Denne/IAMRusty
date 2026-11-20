@@ -1,4 +1,6 @@
-//! Runtime projected-token verification. Keys come from trusted platform config,
+//! Runtime projected-token verification.
+//!
+//! Keys come from trusted platform config,
 //! never from JWT headers (`jku`/`x5u`) or a caller-selected OIDC endpoint.
 //! Reconciled with contract §13.1-B (HEAD fd94467, 2026-10-20).
 
@@ -23,6 +25,10 @@ pub struct RuntimeOidcVerifier {
 impl RuntimeOidcVerifier {
     /// Load approved public RSA JWKs from platform configuration. Issuer changes
     /// require human configuration ratification, not discovery from a token.
+    ///
+    /// # Errors
+    /// Returns [`RuntimeError::RuntimeInternal`] for an unapproved issuer, an empty
+    /// key catalog, duplicate identifiers or invalid public RSA keys.
     pub fn new(
         issuer: String,
         public_keys: impl IntoIterator<Item = (String, String)>,
@@ -157,7 +163,7 @@ fn valid_enrollment_kid(kid: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 
-/// RSA Base64urlUInt must be minimally encoded and exponent exactly 65537.
+/// RSA `Base64urlUInt` must be minimally encoded and exponent exactly 65537.
 pub(super) fn validate_rsa_public(
     n: &str,
     e: &str,

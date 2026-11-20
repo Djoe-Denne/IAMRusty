@@ -20,6 +20,10 @@ use sha2::{Digest, Sha256};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use uuid::Uuid;
 
+fn assert_redacted_equality(equal: bool, label: &'static str) {
+    assert!(equal, "{label}");
+}
+
 #[derive(Default)]
 struct WriterState {
     row: Option<OAuthTransaction>,
@@ -89,6 +93,7 @@ impl OAuthTransactionWriteRepository for Writer {
             return Err(OAuthTransactionError::Storage);
         }
         state.row = Some(copy_record(transaction));
+        drop(state);
         Ok(())
     }
 
@@ -121,6 +126,7 @@ impl OAuthTransactionWriteRepository for Writer {
         row.authentication_nonce = None;
         original.consumed_at = (!self.omit_returned_consumed_marker).then_some(now);
         state.committed_consumes += 1;
+        drop(state);
         // The guard drops before return; storage retains a consumed, purged row.
         Ok(Some(original))
     }
@@ -204,8 +210,14 @@ async fn writer_fixture_returns_original_secrets_after_purging_its_stored_row() 
         .expect("fixture writer accepts matching input")
         .expect("fixture writer returns original record");
     assert!(returned.consumed_at.is_some());
-    assert!(returned.authentication_nonce == before.authentication_nonce);
-    assert!(returned.pkce_verifier == before.pkce_verifier);
+    assert_redacted_equality(
+        returned.authentication_nonce == before.authentication_nonce,
+        "exact durable nonce",
+    );
+    assert_redacted_equality(
+        returned.pkce_verifier == before.pkce_verifier,
+        "exact verifier",
+    );
     assert_committed_and_purged(&writer);
 }
 
@@ -233,8 +245,11 @@ async fn begin_persists_canonical_nonce_before_returning_public_context(
     let stored = writer.snapshot();
     assert_eq!(writer.state().creates, 1);
     assert!(stored.consumed_at.is_none());
-    assert!(stored.operation == input.operation);
-    assert!(stored.expires_at == input.expires_at);
+    assert_redacted_equality(
+        stored.operation == input.operation,
+        "exact stored operation",
+    );
+    assert_eq!(stored.expires_at, input.expires_at);
     assert_canonical_nonce(&begun.authentication_nonce);
     assert!(
         stored.authentication_nonce.as_deref() == Some(begun.authentication_nonce.as_str()),
@@ -254,8 +269,14 @@ async fn begin_persists_canonical_nonce_before_returning_public_context(
             .as_deref()
             .expect("PKCE verifier stored");
         let expected = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
-        assert!(begun.code_challenge.as_deref() == Some(expected.as_str()));
-        assert!(begun.code_challenge_method.as_deref() == Some("S256"));
+        assert_redacted_equality(
+            begun.code_challenge.as_deref() == Some(expected.as_str()),
+            "exact challenge",
+        );
+        assert_redacted_equality(
+            begun.code_challenge_method.as_deref() == Some("S256"),
+            "exact challenge method",
+        );
         assert!(
             begun.authentication_nonce != verifier,
             "G-1: nonce is not verifier"
@@ -338,13 +359,19 @@ async fn canonical_nonce_allows_one_capability_and_replay_is_a_noop(#[case] oper
         ConsumedOAuthTransaction::consume(&writer, callback.clone()),
         ConsumedOAuthTransaction::consume(&writer, callback.clone())
     );
-    let capability = match (first, second) {
-        (Ok(capability), Err(OAuthTransactionError::InvalidTransaction))
-        | (Err(OAuthTransactionError::InvalidTransaction), Ok(capability)) => capability,
-        _ => panic!("G-2: exactly one capability and one invalid replay required"),
+    let ((Ok(capability), Err(OAuthTransactionError::InvalidTransaction))
+    | (Err(OAuthTransactionError::InvalidTransaction), Ok(capability))) = (first, second)
+    else {
+        panic!("G-2: exactly one capability and one invalid replay required");
     };
-    assert!(capability.operation() == &input.operation);
-    assert!(capability.redirect_uri() == input.redirect_uri);
+    assert_redacted_equality(
+        capability.operation() == &input.operation,
+        "exact operation",
+    );
+    assert_redacted_equality(
+        capability.redirect_uri() == input.redirect_uri,
+        "exact redirect",
+    );
     assert!(
         capability.pkce_verifier() == expected_verifier.as_deref(),
         "G-2: original verifier returned"
@@ -357,7 +384,7 @@ async fn canonical_nonce_allows_one_capability_and_replay_is_a_noop(#[case] oper
         Err(OAuthTransactionError::InvalidTransaction)
     ));
     assert_committed_and_purged(&writer);
-    assert!(writer.snapshot().consumed_at == consumed_at);
+    assert_eq!(writer.snapshot().consumed_at, consumed_at);
     assert_eq!(writer.state().consumes, 3);
 }
 
@@ -644,18 +671,37 @@ fn assert_exact_completion(spy: &CompletionSpy, expected: &CompleteAuthorization
         receipt.request.code_verifier == expected.code_verifier,
         "G-2: original optional verifier, not challenge or replacement"
     );
+    drop(calls);
 }
 
 fn assert_same_authentication(actual: &ProviderAuthentication) {
     let expected = completion_authentication();
-    assert!(actual.tokens.access_token == expected.tokens.access_token);
-    assert!(actual.tokens.refresh_token == expected.tokens.refresh_token);
-    assert!(actual.tokens.expires_in == expected.tokens.expires_in);
-    assert!(actual.profile.id == expected.profile.id);
-    assert!(actual.profile.username == expected.profile.username);
-    assert!(actual.profile.email == expected.profile.email);
-    assert!(actual.profile.avatar_url == expected.profile.avatar_url);
-    assert!(actual.profile.email_verified == expected.profile.email_verified);
+    assert_redacted_equality(
+        actual.tokens.access_token == expected.tokens.access_token,
+        "exact access token",
+    );
+    assert_redacted_equality(
+        actual.tokens.refresh_token == expected.tokens.refresh_token,
+        "exact refresh token",
+    );
+    assert_eq!(actual.tokens.expires_in, expected.tokens.expires_in);
+    assert_redacted_equality(actual.profile.id == expected.profile.id, "exact profile id");
+    assert_redacted_equality(
+        actual.profile.username == expected.profile.username,
+        "exact profile username",
+    );
+    assert_redacted_equality(
+        actual.profile.email == expected.profile.email,
+        "exact profile email",
+    );
+    assert_redacted_equality(
+        actual.profile.avatar_url == expected.profile.avatar_url,
+        "exact avatar URL",
+    );
+    assert_eq!(
+        actual.profile.email_verified,
+        expected.profile.email_verified
+    );
 }
 
 // Obligation G-2 / §2: only committed context supplies the secrets to complete.
@@ -736,9 +782,8 @@ async fn complete_failure_is_generic_without_retry_or_legacy_fallback(
     let result = capability
         .complete_authorization(&spy, &expected.code)
         .await;
-    let error = match result {
-        Err(error) => error,
-        Ok(_) => panic!("G-2: refused completion must not return partial authentication"),
+    let Err(error) = result else {
+        panic!("G-2: refused completion must not return partial authentication");
     };
     assert_completion_error_is_sanitized(&error, &expected);
     assert_exact_completion(&spy, &expected);

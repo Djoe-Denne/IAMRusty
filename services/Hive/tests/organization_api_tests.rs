@@ -1012,7 +1012,8 @@ async fn owner_issuer_down_refuses_without_modifying_data() {
         insert_qualified_oracle_member(fixture.db().as_ref(), organization.id, owner,
             "https://independent-owner.example/iam", "Active").await;
         let before = organization_migration_oracle_snapshot(fixture.db().as_ref()).await;
-        assert!(!before["organizations"].as_array().unwrap().is_empty());
+        assert_ne!(before["organizations"].as_array().unwrap().as_slice(),
+            [] as [serde_json::Value; 0]);
         assert!(!before["outbox_events"].as_array().unwrap().is_empty(), "exercise nonempty transactional outbox");
         assert_eq!(role_permission_scope_indexes(fixture.db().as_ref()).await,
             vec![String::from("idx_role_permissions_org_unique_combo")]);
@@ -1188,7 +1189,10 @@ async fn search_organizations_is_public_and_returns_results() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let body: serde_json::Value = res.json().await.unwrap();
-    assert!(!body["organizations"].as_array().unwrap().is_empty());
+    assert_ne!(
+        body["organizations"].as_array().unwrap().as_slice(),
+        [] as [serde_json::Value; 0]
+    );
 }
 
 #[tokio::test]

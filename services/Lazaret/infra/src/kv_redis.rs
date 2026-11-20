@@ -41,6 +41,8 @@ impl RedisKvStore {
     /// Returns [`ApparatusError::InvalidOperation`] for a non-TLS/insecure URL,
     /// unreadable or invalid CA bundle, or invalid native client parameters.
     pub fn connect_tls(url: &str, ca_cert_path: &Path) -> Result<Self, ApparatusError> {
+        use rustls::pki_types::{pem::PemObject, CertificateDer};
+
         let info = url.into_connection_info().map_err(|_| store_failed())?;
         if !matches!(
             info.addr,
@@ -54,7 +56,6 @@ impl RedisKvStore {
         let ca_pem = std::fs::read(ca_cert_path).map_err(|_| store_failed())?;
         // The driver accepts a PEM stream with zero certificates. Refuse it
         // here instead of deferring an invalid CA input to the first handshake.
-        use rustls::pki_types::{pem::PemObject, CertificateDer};
         let mut roots = rustls::RootCertStore::empty();
         for cert in CertificateDer::pem_slice_iter(&ca_pem) {
             roots

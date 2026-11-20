@@ -14,6 +14,9 @@ pub struct GrantService {
 
 impl GrantService {
     /// Receiving-binding runtime consent, with no fictional target identity.
+    ///
+    /// # Errors
+    /// Returns [`GrantFetchError`] when the live Manifesto snapshot cannot be fetched.
     pub async fn authorize_runtime_target(
         &self,
         project_id: uuid::Uuid,

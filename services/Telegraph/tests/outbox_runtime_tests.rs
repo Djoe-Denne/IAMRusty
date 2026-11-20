@@ -80,7 +80,10 @@ async fn real_sqs_scenario_does_not_publish_to_the_previous_scenarios_queue() {
                 .unwrap();
         }
     );
-    assert!(previous.unwrap().messages().is_empty());
+    assert!(
+        previous.unwrap().messages().is_empty(),
+        "previous inbox must stay empty"
+    );
 }
 
 /// C-1 / E1: joining the HTTP parent must also destroy its in-flight request.
@@ -196,7 +199,7 @@ async fn http_shutdown_destroys_inflight_handler_before_return_without_late_muta
     for task in &tasks {
         task.abort();
     }
-    for task in tasks.drain(..) {
+    for task in tasks {
         let _ = tokio::time::timeout(Duration::from_secs(1), task).await;
     }
     let destroyed_after_cleanup = destroyed.load(Ordering::SeqCst);
@@ -289,12 +292,14 @@ async fn disabled_and_factory_degraded_noop_preserve_intentions_and_http_then_re
         assert_eq!((after.status.as_str(), after.attempts), (STATUS_PENDING, 0));
         assert_eq!(after.payload_json, before.payload_json);
         assert_eq!(after.event_id, before.event_id);
-        assert!(fixture
-            .sqs()
-            .receive_messages_from_queue("test-telegraph-outbound", 10, 0)
-            .await
-            .unwrap()
-            .is_empty());
+        assert_eq!(
+            fixture
+                .sqs()
+                .receive_messages_from_queue("test-telegraph-outbound", 10, 0)
+                .await
+                .unwrap(),
+            [] as [aws_sdk_sqs::types::Message; 0]
+        );
         assert!(reqwest::get(format!("{}/health", app.url))
             .await
             .unwrap()
@@ -456,7 +461,11 @@ async fn shutdown_during_publish_destroys_future_and_preserves_unpublished_same_
         live.transport.as_ref(),
         ConcreteEventPublisher::NoOp(_)
     ));
-    let resumed = rustycog::outbox::OutboxDispatcher::new(pool, live.publisher, Default::default());
+    let resumed = rustycog::outbox::OutboxDispatcher::new(
+        pool,
+        live.publisher,
+        rustycog::outbox::OutboxConfig::default(),
+    );
     assert_eq!(resumed.dispatch_once().await.unwrap(), 1);
     let after = row(db.as_ref(), id).await;
     assert_eq!(after.status, STATUS_PUBLISHED);
@@ -483,7 +492,7 @@ async fn shutdown_during_publish_destroys_future_and_preserves_unpublished_same_
 
 // G-C117: prospective component witness, NOT a replay of SQL cancellation109
 // or a replacement for the vertical recovery oracle. Existing witnesses intact.
-fn claim117_trace(stage: &str, started: tokio::time::Instant, data: serde_json::Value) {
+fn claim117_trace(stage: &str, started: tokio::time::Instant, data: &serde_json::Value) {
     use std::io::Write;
     let mut output = std::io::stdout().lock();
     let value = serde_json::json!({"stage": stage, "utc": chrono::Utc::now(),
@@ -509,7 +518,7 @@ async fn claim117_row(
     claim117_trace(
         stage,
         started,
-        serde_json::json!({
+        &serde_json::json!({
             "read_before_utc": before, "read_after_utc": chrono::Utc::now(),
             "read_before_us": before_us, "read_after_us": started.elapsed().as_micros(),
             "outbox_id": row.id, "event_id": row.event_id, "aggregate_id": row.aggregate_id,
@@ -609,7 +618,7 @@ async fn controlled_committed_claim_cancellation_keeps_default_lock_through_25s_
     claim117_trace(
         "cancel_owner",
         started,
-        serde_json::json!({"worker": old_worker}),
+        &serde_json::json!({"worker": old_worker}),
     );
     let stopped = shutdown_owned_tasks(&mut tasks, async {
         let _ = cancel.send(());
@@ -668,7 +677,7 @@ async fn controlled_committed_claim_cancellation_keeps_default_lock_through_25s_
     claim117_trace(
         "observation_begin",
         started,
-        serde_json::json!({"old_worker": old_worker,
+        &serde_json::json!({"old_worker": old_worker,
         "new_worker": new_worker, "window_utc": window_utc, "deadline_utc": deadline_utc,
         "locked_until": lock_until, "budget_ms": 25_000}),
     );
@@ -691,7 +700,7 @@ async fn controlled_committed_claim_cancellation_keeps_default_lock_through_25s_
         tokio::select! {
             biased;
             _ = cancelled => Ok(()),
-            _ = tokio::time::sleep_until(deadline) => Ok(()),
+            () = tokio::time::sleep_until(deadline) => Ok(()),
             result = async {
                 loop {
                     activity.0.fetch_add(1, Ordering::SeqCst);
@@ -721,7 +730,7 @@ async fn controlled_committed_claim_cancellation_keeps_default_lock_through_25s_
         loop {
             tokio::select! {
                 biased;
-                _ = tokio::time::sleep_until(deadline) => break,
+                () = tokio::time::sleep_until(deadline) => break,
                 messages = &mut broker, if broker_empty.is_none() => {
                     broker_empty = Some(messages.map_err(|_| anyhow::anyhow!("broker observation failed"))?.is_empty());
                 }
@@ -730,7 +739,7 @@ async fn controlled_committed_claim_cancellation_keeps_default_lock_through_25s_
                     cycles += 1;
                     claims += count;
                     claim117_trace("real_selection_completed", started,
-                        serde_json::json!({"worker": new_worker, "cycle": cycles, "claimed": count, "cycle_utc": cycle_utc}));
+                        &serde_json::json!({"worker": new_worker, "cycle": cycles, "claimed": count, "cycle_utc": cycle_utc}));
                     let state = tokio::time::timeout_at(deadline,
                         claim117_row(db.as_ref(), before.id, started, "during_lock_window")).await
                         .map_err(|_| anyhow::anyhow!("INCONCLUSIVE: SQL observation unfinished at deadline"))??;
@@ -762,7 +771,7 @@ async fn controlled_committed_claim_cancellation_keeps_default_lock_through_25s_
     claim117_trace(
         "component_outcome_not_vertical_acceptance",
         started,
-        serde_json::json!({
+        &serde_json::json!({
             "cycles": cycles, "claims": claims, "durable_identity_and_lock_unchanged": unchanged,
             "broker_empty": broker_empty, "window_elapsed_ms": window_started.elapsed().as_millis(),
             "cycles_started": cycles_started.load(Ordering::SeqCst),
@@ -838,7 +847,7 @@ impl EventPublisher<telegraph_domain::DomainError> for Expiry122Publisher {
         claim117_trace(
             "122_real_publish_return",
             self.started,
-            serde_json::json!({"event_id": event.event_id(), "success": result.is_ok()}),
+            &serde_json::json!({"event_id": event.event_id(), "success": result.is_ok()}),
         );
         result
     }
@@ -1037,7 +1046,7 @@ async fn committed_claim_recovers_same_event_after_measured_expiry_with_fixed_re
     claim117_trace(
         "122_fixed_rebuild_budget",
         trace_started,
-        serde_json::json!({
+        &serde_json::json!({
             "t0_utc": utc0, "t0_elapsed_us": t0.duration_since(trace_started).as_micros(),
             "eligibility_utc": eligibility, "residual_us": residual.as_micros(), "deadline_utc": deadline_utc,
             "deadline_elapsed_us": deadline.duration_since(trace_started).as_micros(), "clock_tolerance_ms": 100,
@@ -1102,7 +1111,7 @@ async fn committed_claim_recovers_same_event_after_measured_expiry_with_fixed_re
         tokio::select! {
             biased;
             _ = cancelled => Ok(()),
-            _ = tokio::time::sleep_until(deadline) => Ok(()),
+            () = tokio::time::sleep_until(deadline) => Ok(()),
             result = async {
                 loop {
                     running_activity.0.fetch_add(1, Ordering::SeqCst);
@@ -1130,7 +1139,7 @@ async fn committed_claim_recovers_same_event_after_measured_expiry_with_fixed_re
                 before_cycles += 1;
                 anyhow::ensure!(count == 0, "122 reclaim completed before eligibility");
             } else { after_cycles += 1; }
-            claim117_trace("122_real_cycle", trace_started, serde_json::json!({
+            claim117_trace("122_real_cycle", trace_started, &serde_json::json!({
                 "worker": new_worker, "began_utc": began, "finished_utc": finished, "claimed": count,
                 "before_cycles": before_cycles, "after_cycles": after_cycles, "eligibility_utc": eligibility,
             }));
@@ -1224,6 +1233,7 @@ async fn committed_claim_recovers_same_event_after_measured_expiry_with_fixed_re
         );
         expected_attempt += 1;
     }
+    drop(claims);
     anyhow::ensure!(
         published.attempts == expected_attempt - 1
             && published.locked_by.is_none()
@@ -1233,7 +1243,7 @@ async fn committed_claim_recovers_same_event_after_measured_expiry_with_fixed_re
     claim117_trace(
         "122_component_post_expiry_proved_not_global_acceptance",
         trace_started,
-        serde_json::json!({
+        &serde_json::json!({
             "outbox_id": published.id, "event_id": published.event_id, "aggregate_id": published.aggregate_id,
         "eligibility_utc": eligibility, "deadline_utc": deadline_utc, "phase_elapsed_ms": t0.elapsed().as_millis(),
         "observation_completed_elapsed_us": completed_at.duration_since(t0).as_micros(),

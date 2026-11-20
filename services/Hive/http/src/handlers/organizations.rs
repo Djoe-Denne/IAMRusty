@@ -87,11 +87,10 @@ pub async fn get_organization(
         .as_ref()
         .map(|actor| actor.principal.subject);
     let command = GetOrganizationCommand::new(organization_id.id(), user_id);
-    let mut context = CommandContext::new();
-
-    if let Some(actor) = &auth_user.principal {
-        context = principal_context(actor);
-    }
+    let context = auth_user
+        .principal
+        .as_ref()
+        .map_or_else(CommandContext::new, principal_context);
 
     let result = state
         .command_service

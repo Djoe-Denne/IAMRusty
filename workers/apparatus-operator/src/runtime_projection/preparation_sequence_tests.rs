@@ -1,11 +1,31 @@
 //! Owner-inline sequencing tests compiled as a child of the production module.
 //! Fake HTTP/control I/O is NOT a TLS, SQL, Adm-A or real Serving proof. The
 //! private attempt entry isolates already-qualified inputs from real admission.
-use super::*;
+use super::require_absent_for_create;
 use crate::admission::{AdmissionRecord, AdmissionStatus};
-use apparatus_contracts::runtime::*;
+use crate::conformance::POLICY_ID;
+use crate::runtime_observation::{
+    PreparationChainUids, PreparationReadContext, RuntimePodObserver,
+};
+use crate::runtime_projection::{
+    render_parent, serving_name, AdmittedServingImage, CurrentServingAdmissionSource,
+    ServingEndpointPolicy, ServingEndpointTransport, ServingParentApi, ServingPlatformProfile,
+    ServingRuntimeBridge,
+};
+use apparatus_contracts::runtime::{
+    RuntimeBeginEffectRequestV1, RuntimeBindingPageV1, RuntimeBindingPreparationPermitV1,
+    RuntimeBindingSnapshotV1, RuntimeBindingStateV1, RuntimeCasV1, RuntimeCompleteEffectRequestV1,
+    RuntimeControlCallerV1, RuntimeControlErrorV1, RuntimeControlFuture, RuntimeControlPort,
+    RuntimeCounterV1, RuntimeCursorV1, RuntimeDigestV1, RuntimeEffectOutcomeV1,
+    RuntimeEffectReservationV1, RuntimeErrorCodeV1, RuntimeInstanceRegistrationV1,
+    RuntimeInstanceRevokeRequestV1, RuntimeInstanceSelectorV1, RuntimeLeaseProofV1,
+    RuntimeObservationSnapshotV1, RuntimeObservationV1, RuntimeServiceRoleV1, RuntimeUnixMsV1,
+    RuntimeWriteAckV1, RuntimeWriteGuardV1, RuntimeWriterLeaseRequestV1, RuntimeWriterLeaseV1,
+};
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tokio::time::Instant;
 use uuid::Uuid;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -650,12 +670,14 @@ async fn runtime_preparation_old_capture_is_not_reused_when_fresh_metadata_missi
     let mut chain = PreparationChainUids::default();
     let fresh = observer
         .preparation_metadata(
-            &snapshot,
-            &old.service_uid,
-            &old.revision_name,
-            &h.image.image,
-            &guard,
-            &h.bridge.profile,
+            PreparationReadContext {
+                snapshot: &snapshot,
+                parent_uid: &old.service_uid,
+                revision_name: &old.revision_name,
+                image: &h.image.image,
+                guard: &guard,
+                profile: &h.bridge.profile,
+            },
             &mut chain,
         )
         .await
@@ -704,12 +726,14 @@ async fn runtime_preparation_later_ready_is_new_capture_and_still_not_open() {
     let mut chain = PreparationChainUids::default();
     let fresh = observer
         .preparation_metadata(
-            &snapshot,
-            &old.service_uid,
-            &old.revision_name,
-            &h.image.image,
-            &guard,
-            &h.bridge.profile,
+            PreparationReadContext {
+                snapshot: &snapshot,
+                parent_uid: &old.service_uid,
+                revision_name: &old.revision_name,
+                image: &h.image.image,
+                guard: &guard,
+                profile: &h.bridge.profile,
+            },
             &mut chain,
         )
         .await

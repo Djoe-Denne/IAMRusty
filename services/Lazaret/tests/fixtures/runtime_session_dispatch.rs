@@ -1,6 +1,6 @@
 //! G-1/G-8/G-10: session dispatch using the EXISTING t11b TLS harness.
 //! SQL runtime store and real TLS to a WireMock-backed C collaborator.
-//! ApprovedInventory arranges dispatch readiness ONLY, not maintenance authority
+//! `ApprovedInventory` arranges dispatch readiness ONLY, not maintenance authority
 //! or proof of a distributed cutover. Legacy helpers are the historical t11b seed.
 
 use super::{
@@ -57,7 +57,7 @@ impl RuntimeBootstrapMaintenance for ApprovedInventory {
 }
 
 struct Dispatch {
-    _fixture: TestFixture,
+    fixture: TestFixture,
     _relay: LiveServer,
     app: LiveServer,
     backend: MockServerFixture,
@@ -134,7 +134,7 @@ impl Dispatch {
         let router = lazaret_http::with_runtime_session(router, sessions);
         let app = serve_live_router(router, ca, false).await;
         Self {
-            _fixture: fixture,
+            fixture,
             _relay: relay,
             app,
             backend,
@@ -539,7 +539,7 @@ async fn g1_g8_closed_runtime_enrollment_never_uses_available_legacy_path() {
 async fn g1_g8_runtime_sql_lookup_failure_is_not_absence_and_cannot_issue_legacy_session() {
     let h = Dispatch::start().await;
     let client = h.legacy_client().await;
-    let db = h._fixture.db();
+    let db = h.fixture.db();
     // Owned test database only. Restore the table BEFORE inspecting the HTTP
     // result, including when transport fails, to avoid poisoning later fixtures.
     db.execute(Statement::from_string(DatabaseBackend::Postgres,

@@ -1,6 +1,11 @@
 //! Pod registry writes; immutable Pod-to-instance mapping survives restarts.
 
-use super::*;
+use super::{
+    counter, current_lease, db_clock, db_error, error, lock_binding, require_projector, row_cas,
+    sql_counter, ConnectionTrait, DbBackend, RuntimeControlCallerV1, RuntimeControlErrorV1,
+    RuntimeErrorCodeV1, RuntimeWriteAckV1, SqlRuntimeControl, Statement, TransactionTrait, Uuid,
+    OBSERVATION_TTL_MS,
+};
 use apparatus_contracts::runtime::{RuntimeInstanceRegistrationV1, RuntimeInstanceStateV1};
 
 impl SqlRuntimeControl {
@@ -92,8 +97,7 @@ impl SqlRuntimeControl {
             RuntimeInstanceStateV1::Closed => "closed",
             RuntimeInstanceStateV1::Tombstone => "tombstone",
         };
-        let mut identical = false;
-        if let Some(previous) = previous {
+        let identical = if let Some(previous) = previous {
             let old_state: String = previous.try_get("", "state").map_err(db_error)?;
             if previous
                 .try_get::<Uuid>("", "instance_id")
@@ -142,7 +146,7 @@ impl SqlRuntimeControl {
             {
                 return Err(error(RuntimeErrorCodeV1::RuntimeIdentityRevoked));
             }
-            identical = old_state == wire_state
+            old_state == wire_state
                 && (old_state != "current"
                     || (previous
                         .try_get::<i64>("", "writer_fence")
@@ -151,8 +155,10 @@ impl SqlRuntimeControl {
                         && previous
                             .try_get::<i64>("", "observed_at_ms")
                             .map_err(db_error)?
-                            == observed_at));
-        }
+                            == observed_at))
+        } else {
+            false
+        };
         if identical {
             txn.commit().await.map_err(db_error)?;
             return Ok(RuntimeWriteAckV1 {

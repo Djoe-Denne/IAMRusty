@@ -83,12 +83,6 @@ impl ProviderTokenFixtureBuilder {
         self
     }
 
-    /// Persist a NULL `expires_in`
-    pub const fn clear_expires_in(mut self) -> Self {
-        self.expires_in = OptionalField::Set(None);
-        self
-    }
-
     /// Set the `created_at` timestamp
     pub const fn created_at(mut self, created_at: NaiveDateTime) -> Self {
         self.created_at = Some(created_at);

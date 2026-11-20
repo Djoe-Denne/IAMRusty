@@ -56,7 +56,10 @@ fn real_loader_preserves_three_instances_two_same_profile_and_their_exact_callba
                     "https://iam.example.invalid/iam/api/auth/enterprise/relink-callback"
                 ]
             );
-            assert!(config.providers[0].hmac_secret != config.providers[1].hmac_secret);
+            assert!(
+                config.providers[0].hmac_secret != config.providers[1].hmac_secret,
+                "providers must not share an HMAC secret"
+            );
         },
     );
 }

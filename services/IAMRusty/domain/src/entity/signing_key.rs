@@ -1123,7 +1123,8 @@ mod admission_tests {
         let mut k = key(None);
         k.status = SigningKeyStatus::Retiring;
         k.updated_at = clock() - chrono::Duration::seconds(960);
-        assert!(filter_jwks_publication_keys_at(vec![k.clone()], 900, clock()).is_empty());
+        let no_keys = filter_jwks_publication_keys_at(vec![k.clone()], 900, clock()).is_empty();
+        assert!(no_keys, "expired retiring key is not published");
         assert_eq!(
             filter_jwks_publication_keys_at(
                 vec![k.clone()],
@@ -1134,7 +1135,8 @@ mod admission_tests {
             1
         );
         k.updated_at = clock() + chrono::Duration::seconds(1);
-        assert!(filter_jwks_publication_keys_at(vec![k.clone()], 900, clock()).is_empty());
+        let no_keys = filter_jwks_publication_keys_at(vec![k.clone()], 900, clock()).is_empty();
+        assert!(no_keys, "future-dated retiring key is not published");
         assert_eq!(
             reason(
                 &p.check_admission(&[k], &[], None, 900, clock())
@@ -1213,13 +1215,15 @@ mod tests {
             created_at: now,
             updated_at: now - chrono::Duration::seconds(961),
         };
-        assert!(filter_jwks_publication_keys(vec![key.clone()], 900).is_empty());
+        let no_keys = filter_jwks_publication_keys(vec![key.clone()], 900).is_empty();
+        assert!(no_keys, "unpublishable key is absent");
         key.updated_at = now - chrono::Duration::seconds(10);
         assert_eq!(
             filter_jwks_publication_keys(vec![key.clone()], 900).len(),
             1
         );
         key.status = SigningKeyStatus::Revoked;
-        assert!(filter_jwks_publication_keys(vec![key], 900).is_empty());
+        let no_keys = filter_jwks_publication_keys(vec![key], 900).is_empty();
+        assert!(no_keys, "unpublishable key is absent");
     }
 }

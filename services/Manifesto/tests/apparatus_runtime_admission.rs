@@ -11,6 +11,7 @@ use manifesto_infra::apparatus_runtime::admission_proof::{
 };
 use rsa::{BigUint, RsaPublicKey};
 use serde_json::Value;
+use std::fmt::Write as _;
 
 fn vectors() -> Value {
     serde_json::from_str(include_str!("fixtures/runtime_admission_jws_v1.json"))
@@ -79,7 +80,7 @@ fn assert_negative_cases(select: impl Fn(&str) -> bool) {
                 "{name}: expected {expected:?}, got verified capability"
             )),
             Err(actual) if actual != expected => {
-                mismatches.push(format!("{name}: expected {expected:?}, got {actual:?}"))
+                mismatches.push(format!("{name}: expected {expected:?}, got {actual:?}"));
             }
             Err(_) => {}
         }
@@ -113,11 +114,13 @@ fn g7_independent_prepare_open_signatures_kid_and_fingerprint_verify() {
             proof.kid(),
             fixture["expected_kid"].as_str().expect("RFC7638 kid")
         );
-        let fingerprint: String = proof
+        let fingerprint = proof
             .fingerprint()
             .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
+            .fold(String::new(), |mut hex, byte| {
+                write!(hex, "{byte:02x}").expect("format fingerprint into String");
+                hex
+            });
         assert_eq!(
             fingerprint,
             case["expected_fingerprint_hex"]

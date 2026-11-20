@@ -1,7 +1,7 @@
 //! Project fixtures for testing
 
 use chrono::Utc;
-use rustycog::testing::db::{CommittedFixture, DbFixture};
+use rustycog::testing::db::CommittedFixture;
 use sea_orm::prelude::DateTimeWithTimeZone;
 use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr};
 use std::sync::Arc;

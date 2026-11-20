@@ -24,23 +24,27 @@ pub struct Tuple {
 
 impl Tuple {
     /// Use the SDK's single canonical identity codec for writes and deletes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the SDK subject does not encode a `user:` identity.
     pub fn for_subject(
         object_type: impl Into<String>,
         object_id: Uuid,
         relation: impl Into<String>,
-        subject: rustycog::permission::Subject,
-    ) -> Self {
+        subject: &rustycog::permission::Subject,
+    ) -> Result<Self> {
         let wire = subject.to_string();
-        Self {
+        let user_id = wire
+            .strip_prefix("user:")
+            .ok_or_else(|| anyhow!("SDK Subject does not have user type"))?;
+        Ok(Self {
             object_type: object_type.into(),
             object_id: object_id.to_string(),
             relation: relation.into(),
             user_type: "user".into(),
-            user_id: wire
-                .strip_prefix("user:")
-                .expect("SDK Subject always has user type")
-                .into(),
-        }
+            user_id: user_id.into(),
+        })
     }
 
     /// Tuple with a `user:{uuid}` subject.
@@ -381,29 +385,28 @@ fn is_idempotent_tuple_error(error: &anyhow::Error, writes: &[Tuple], deletes: &
     if failure.status != reqwest::StatusCode::BAD_REQUEST {
         return false;
     }
-    let body = match serde_json::from_str::<OpenFgaErrorBody>(&failure.body) {
-        Ok(body) => body,
-        Err(_) => {
-            // Preserve a historical bare error marker, but never arbitrary
-            // text, malformed JSON, or a composite response containing one.
-            let marker = failure.body.trim();
-            if ![DUPLICATE, MISSING, UNKNOWN].contains(&marker) {
-                return false;
-            }
-            OpenFgaErrorBody {
-                code: marker.into(),
-                message: marker.into(),
-            }
+    let body = if let Ok(body) = serde_json::from_str::<OpenFgaErrorBody>(&failure.body) {
+        body
+    } else {
+        // Preserve a historical bare error marker, but never arbitrary
+        // text, malformed JSON, or a composite response containing one.
+        let marker = failure.body.trim();
+        if ![DUPLICATE, MISSING, UNKNOWN].contains(&marker) {
+            return false;
+        }
+        OpenFgaErrorBody {
+            code: marker.into(),
+            message: marker.into(),
         }
     };
     let write_effect = !writes.is_empty()
         && [INVALID, DUPLICATE].contains(&body.code.as_str())
         && (body.message == DUPLICATE
-            || tuple_error_message_matches(&body.message, writes, TupleEffect::Present));
+            || tuple_error_message_matches(&body.message, writes, &TupleEffect::Present));
     let delete_effect = !deletes.is_empty()
         && [INVALID, MISSING, UNKNOWN].contains(&body.code.as_str())
         && ([MISSING, UNKNOWN].contains(&body.message.as_str())
-            || tuple_error_message_matches(&body.message, deletes, TupleEffect::Absent));
+            || tuple_error_message_matches(&body.message, deletes, &TupleEffect::Absent));
     write_effect || delete_effect
 }
 
@@ -412,7 +415,7 @@ enum TupleEffect {
     Absent,
 }
 
-fn tuple_error_message_matches(message: &str, tuples: &[Tuple], effect: TupleEffect) -> bool {
+fn tuple_error_message_matches(message: &str, tuples: &[Tuple], effect: &TupleEffect) -> bool {
     let (prefix, action) = match effect {
         TupleEffect::Present => ("cannot write a tuple which already exists", "write"),
         TupleEffect::Absent => ("cannot delete a tuple which does not exist", "delete"),
@@ -475,6 +478,35 @@ mod tests {
     use super::*;
 
     #[test]
+    fn subject_tuple_preserves_sdk_identity() -> Result<()> {
+        use rustycog::permission::{PrincipalPolicy, PrincipalRef, Subject};
+
+        let policy = PrincipalPolicy::new("https://platform.example/iam", false)?;
+        let user_id = Uuid::new_v4();
+        let platform = Subject::from_principal(
+            PrincipalRef::new("https://platform.example/iam", user_id)?,
+            &policy,
+        )?;
+        let foreign = Subject::from_principal(
+            PrincipalRef::new("https://independent.example/iam", user_id)?,
+            &policy,
+        )?;
+        for subject in [
+            Subject::new(user_id),
+            Subject::wildcard(),
+            platform,
+            foreign,
+        ] {
+            let tuple = Tuple::for_subject("organization", Uuid::new_v4(), "member", &subject)?;
+            assert_eq!(
+                format!("{}:{}", tuple.user_type, tuple.user_id),
+                subject.to_string()
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
     fn idempotent_classifier_rejects_unattributed_error_text() {
         let tuple = Tuple::user("notification", Uuid::new_v4(), "recipient", Uuid::new_v4());
         for text in [
@@ -516,7 +548,7 @@ mod tests {
         let tuple = Tuple::wildcard_user("project", keep, "viewer");
         let (writes, deletes) =
             normalize_tuple_delta(std::slice::from_ref(&tuple), std::slice::from_ref(&tuple));
-        assert!(writes.is_empty());
-        assert!(deletes.is_empty());
+        assert_eq!(writes, [] as [Tuple; 0]);
+        assert_eq!(deletes, [] as [Tuple; 0]);
     }
 }

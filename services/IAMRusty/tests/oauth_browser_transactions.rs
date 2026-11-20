@@ -56,7 +56,8 @@ async fn start(client: &Client, base: &str, cookie: Option<&str>) -> (String, St
         .expect("opaque state")
         .1
         .into_owned();
-    assert!(!state.is_empty());
+    let state_is_nonempty = !state.is_empty();
+    assert!(state_is_nonempty, "authorize state must be nonempty");
     (
         state,
         cookie.split(';').next().expect("cookie pair").to_owned(),
@@ -528,7 +529,8 @@ async fn mock_writer_observed_flow(
             assert!(row.try_get::<bool>("", "pending").expect("pending"));
             assert!(nonce == request.nonce, "authorize must forward the exact durable nonce");
             assert!(redirect == request.redirect_uri, "authorize redirect binding");
-            assert!(request.code_challenge_method.as_deref() == Some("S256"));
+            let matches_expected = request.code_challenge_method.as_deref() == Some("S256");
+            assert!(matches_expected, "authorize challenge method must match");
             assert!(request.code_challenge.as_deref() == Some(URL_SAFE_NO_PAD.encode(
                 iam_domain::entity::oauth_transaction::hash_oauth_bytes(verifier.as_bytes())
             ).as_str()), "authorize must forward the durable S256 challenge");
@@ -545,9 +547,11 @@ async fn mock_writer_observed_flow(
             assert!(request.expected_nonce == *nonce, "complete must use the original writer nonce");
             assert!(request.code_verifier.as_deref() == Some(verifier.as_str()), "complete must use the original verifier");
             assert!(request.redirect_uri == *redirect && request.code == "test_auth_code", "complete context binding");
+            let id = *id;
+            drop(context);
             let row = std::thread::scope(|scope| scope.spawn(|| runtime.block_on(db.query_one(
                 Statement::from_sql_and_values(DatabaseBackend::Postgres,
-                    "SELECT consumed_at IS NOT NULL AND authentication_nonce IS NULL AND pkce_verifier IS NULL AS purged FROM oauth_transactions WHERE id=$1", [(*id).into()])
+                    "SELECT consumed_at IS NOT NULL AND authentication_nonce IS NULL AND pkce_verifier IS NULL AS purged FROM oauth_transactions WHERE id=$1", [id.into()])
             ))).join().expect("complete observer joined"))
                 .expect("observe committed consumption").expect("consumed row");
             assert!(row.try_get::<bool>("", "purged").expect("double purge"), "commit and double purge must be visible before complete responds");
@@ -1293,7 +1297,7 @@ async fn link_with_new_provider_email_adds_it_unverified_to_the_exact_target() {
     }).await;
 }
 
-/// Q1/G7: characterize the existing unique(provider,provider_user_id) boundary,
+/// Q1/G7: characterize the existing `unique(provider,provider_user_id)` boundary,
 /// not a new RELINK conflict guard. No email keeps LINK/RELINK email policy out.
 #[tokio::test]
 #[serial]

@@ -3,7 +3,13 @@
 #[cfg(test)]
 mod tests;
 
-use apparatus_contracts::runtime::*;
+use apparatus_contracts::runtime::{
+    parse_runtime_json, validate_runtime_oci_pin, validate_runtime_uid, RuntimeAdmissionActionV1,
+    RuntimeAdmissionAttestationV1, RuntimeAdmissionChallengeV1, RuntimeDigestV1,
+    RuntimeErrorCodeV1, RuntimeUnixMsV1, ADMISSION_AUDIENCE, ADMISSION_CHALLENGE_TTL_MS,
+    ADMISSION_ISSUER, ADMISSION_PROOF_TTL_MS, ADMISSION_PURPOSE, ADMISSION_TYP,
+    MAX_ADMISSION_PROOF_BYTES,
+};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use rsa::{
     pkcs1v15::{Signature, VerifyingKey},
@@ -30,18 +36,26 @@ pub struct VerifiedRuntimeAdmissionV1 {
     _key_policy_lease: OwnedRwLockReadGuard<PinnedKeys>,
 }
 impl VerifiedRuntimeAdmissionV1 {
-    pub fn claims(&self) -> &RuntimeAdmissionAttestationV1 {
+    #[must_use]
+    pub const fn claims(&self) -> &RuntimeAdmissionAttestationV1 {
         &self.claims
     }
+    #[must_use]
     pub fn kid(&self) -> &str {
         &self.kid
     }
-    pub fn fingerprint(&self) -> &[u8; 32] {
+    #[must_use]
+    pub const fn fingerprint(&self) -> &[u8; 32] {
         &self.fingerprint
     }
 }
 
 pub trait RuntimeAdmissionProofVerifier: Send + Sync {
+    /// Verify the proof against the expected challenge and current database time.
+    ///
+    /// # Errors
+    /// Rejects unavailable keys, malformed or invalid proofs, mismatched claims,
+    /// and proofs outside the permitted validity window.
     fn verify(
         &self,
         expected: &RuntimeAdmissionChallengeV1,
@@ -86,6 +100,10 @@ struct Header {
 impl PinnedRuntimeAdmissionProofVerifier {
     /// Build once from pinned configuration. Duplicate/ambiguous keys close the
     /// configuration, rather than selecting the first matching candidate.
+    ///
+    /// # Errors
+    /// Returns `RuntimeKeyUnavailable` for empty or invalid repository policy,
+    /// invalid key scope or RSA parameters, or duplicate key identifiers.
     pub fn new(
         keys: Vec<PinnedRuntimeAdmissionKey>,
         allowed_repositories: Vec<String>,
@@ -226,41 +244,7 @@ impl RuntimeAdmissionProofVerifier for PinnedRuntimeAdmissionProofVerifier {
         if serde_jcs::to_vec(&canonical).map_err(|_| invalid)? != payload {
             return Err(invalid);
         }
-        if claims.schema_version != 1
-            || claims.challenge != *expected
-            || expected.schema_version != 1
-            || claims.iss != ADMISSION_ISSUER
-            || claims.aud != ADMISSION_AUDIENCE
-            || claims.purpose != ADMISSION_PURPOSE
-            || claims.jti != expected.challenge_id
-            || claims.record_id.is_nil()
-            || claims.admission_revision.get() == 0
-        {
-            return Err(invalid);
-        }
-        let observed = claims.observed_at_unix_ms.get();
-        let until = claims.valid_until_unix_ms.get();
-        let challenge_expiry = expected.expires_at_unix_ms.get();
-        if expected
-            .issued_at_unix_ms
-            .get()
-            .checked_add(ADMISSION_CHALLENGE_TTL_MS)
-            != Some(challenge_expiry)
-            || expected.issued_at_unix_ms.get() > observed
-            || observed > now.get()
-            || now.get() >= until
-            || now.get() >= challenge_expiry
-            || observed
-                .checked_add(ADMISSION_PROOF_TTL_MS)
-                .map(|v| v.min(challenge_expiry))
-                != Some(until)
-            || claims.iat != observed / 1000
-            || claims.exp != until / 1000
-            || claims.exp <= claims.iat
-            || now.get() / 1000 >= claims.exp
-        {
-            return Err(invalid);
-        }
+        validate_attestation(&claims, expected, now)?;
         match expected.action {
             RuntimeAdmissionActionV1::Prepare
                 if expected.service_uid.is_none() && expected.revision_uid.is_none() => {}
@@ -288,4 +272,48 @@ impl RuntimeAdmissionProofVerifier for PinnedRuntimeAdmissionProofVerifier {
             _key_policy_lease: keys,
         })
     }
+}
+
+fn validate_attestation(
+    claims: &RuntimeAdmissionAttestationV1,
+    expected: &RuntimeAdmissionChallengeV1,
+    now: RuntimeUnixMsV1,
+) -> Result<(), RuntimeErrorCodeV1> {
+    let invalid = RuntimeErrorCodeV1::RuntimeInvalidProof;
+    if claims.schema_version != 1
+        || claims.challenge != *expected
+        || expected.schema_version != 1
+        || claims.iss != ADMISSION_ISSUER
+        || claims.aud != ADMISSION_AUDIENCE
+        || claims.purpose != ADMISSION_PURPOSE
+        || claims.jti != expected.challenge_id
+        || claims.record_id.is_nil()
+        || claims.admission_revision.get() == 0
+    {
+        return Err(invalid);
+    }
+    let observed = claims.observed_at_unix_ms.get();
+    let until = claims.valid_until_unix_ms.get();
+    let challenge_expiry = expected.expires_at_unix_ms.get();
+    if expected
+        .issued_at_unix_ms
+        .get()
+        .checked_add(ADMISSION_CHALLENGE_TTL_MS)
+        != Some(challenge_expiry)
+        || expected.issued_at_unix_ms.get() > observed
+        || observed > now.get()
+        || now.get() >= until
+        || now.get() >= challenge_expiry
+        || observed
+            .checked_add(ADMISSION_PROOF_TTL_MS)
+            .map(|v| v.min(challenge_expiry))
+            != Some(until)
+        || claims.iat != observed / 1000
+        || claims.exp != until / 1000
+        || claims.exp <= claims.iat
+        || now.get() / 1000 >= claims.exp
+    {
+        return Err(invalid);
+    }
+    Ok(())
 }

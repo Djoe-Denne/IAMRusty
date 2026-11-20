@@ -12,7 +12,7 @@ use std::sync::Arc;
 /// Active authority. Only the selected platform provider/credential may be used.
 pub struct ScopedSigningProvider {
     provider_type: SigningProviderType,
-    key_ref: String,
+    provider_key_ref: String,
     credential_ref: Option<String>,
     transit: Option<TransitClientConfig>,
     transit_transport: Option<Arc<reqwest::Client>>,
@@ -35,7 +35,7 @@ impl ScopedSigningProvider {
         }
         Ok(Self {
             provider_type: SigningProviderType::OpenBaoTransit,
-            key_ref,
+            provider_key_ref: key_ref,
             credential_ref: Some(credential_ref),
             transit_transport: Some(TransitSigningProvider::transport()?),
             transit: Some(config),
@@ -64,7 +64,7 @@ impl ScopedSigningProvider {
         }
         Ok(Self {
             provider_type,
-            key_ref,
+            provider_key_ref: key_ref,
             credential_ref,
             transit: None,
             transit_transport: None,
@@ -77,7 +77,7 @@ impl ScopedSigningProvider {
         let same_platform_binding = (key.trust_scope == TrustScope::Platform)
             && key.organization_id.is_none()
             && (key.provider_type == self.provider_type)
-            && (key.provider_key_ref == self.key_ref)
+            && (key.provider_key_ref == self.provider_key_ref)
             && (key.credential_ref == self.credential_ref);
         if !same_platform_binding {
             return Err(DomainError::InvalidSigningKeyMaterial);

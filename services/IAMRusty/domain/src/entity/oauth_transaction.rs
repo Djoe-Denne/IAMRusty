@@ -68,7 +68,7 @@ pub struct BeginOAuthTransaction {
 pub struct BegunOAuthTransaction {
     pub code_challenge: Option<String>,
     pub code_challenge_method: Option<String>,
-    /// Original provider authentication nonce (OAuthConnect v2).
+    /// Original provider authentication nonce (`OAuthConnect` v2).
     pub authentication_nonce: String,
 }
 

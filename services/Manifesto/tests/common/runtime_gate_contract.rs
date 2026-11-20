@@ -32,7 +32,7 @@ fn corpus() -> &'static Corpus {
     })
 }
 
-fn identifier_character(c: char) -> bool {
+const fn identifier_character(c: char) -> bool {
     // Conservative Rust-identifier boundary: never let a Unicode suffix split
     // an unapproved identifier into an approved ASCII name plus a separator.
     c.is_ascii_alphanumeric() || c == '_' || !c.is_ascii()
@@ -83,10 +83,10 @@ pub fn forbidden(path: &Path, line: &str, needle: &str) -> bool {
         if identifier_character(c) {
             word.push(c);
         } else {
-            if !rule.identifiers.contains(&word) {
-                output.push_str(&word);
-            } else {
+            if rule.identifiers.contains(&word) {
                 output.push(' ');
+            } else {
+                output.push_str(&word);
             }
             word.clear();
             output.push(c);

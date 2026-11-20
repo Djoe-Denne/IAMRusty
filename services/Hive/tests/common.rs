@@ -32,7 +32,7 @@ pub use rustycog::permission::{Permission, ResourceRef, Subject};
 #[path = "fixtures/mod.rs"]
 pub mod fixtures;
 
-static mut APP: Option<hive_setup::app::Application> = None;
+static APP: std::sync::Mutex<Option<hive_setup::app::Application>> = std::sync::Mutex::new(None);
 
 /// `Hive` test descriptor following [`rustycog::testing`] patterns
 pub struct HiveTestDescriptor;
@@ -47,15 +47,19 @@ impl ServiceTestDescriptor<HiveTestFixture> for HiveTestDescriptor {
         _server_config: ServerConfig,
     ) -> anyhow::Result<()> {
         let app = AppBuilder::new(config).build().await?;
-        unsafe {
-            APP.replace(app);
-        }
+        APP.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .replace(app);
         Ok(())
     }
 
     async fn run_app(&self, _config: AppConfig, server_config: ServerConfig) -> anyhow::Result<()> {
         // Move application out of the static store to run it (run consumes self)
-        let app = unsafe { APP.take() }.ok_or_else(|| anyhow!("App not built"))?;
+        let app = APP
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+            .ok_or_else(|| anyhow!("App not built"))?;
         app.run(server_config).await?;
         Ok(())
     }
@@ -327,11 +331,16 @@ pub async fn setup_test_server_with_iam_service(
     ),
     Box<dyn std::error::Error>,
 > {
-    setup_test_server_with_auth_and_iam(iam, None).await
+    Box::pin(setup_test_server_with_auth_and_iam(iam, None)).await
 }
 
 /// Same real harness and lifecycle, with an explicit verifier configuration for
 /// recognized-authority regressions. Does not replace the permission checker.
+///
+/// # Errors
+///
+/// Returns an error if another owned listener is live or fixture, configuration,
+/// application, or HTTP server initialization fails.
 pub async fn setup_test_server_with_auth_and_iam(
     iam: hive_configuration::IamServiceConfig,
     auth: Option<rustycog::config::AuthConfig>,

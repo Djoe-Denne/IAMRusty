@@ -19,9 +19,9 @@ impl RuntimeControlPort for SqlRuntimeControl {
         page_size: Option<u16>,
     ) -> RuntimeControlFuture<'a, RuntimeBindingPageV1> {
         Box::pin(async move {
-            SqlRuntimeControl::list_bindings(self, caller, project_id, cursor, page_size)
+            Self::list_bindings(self, caller, project_id, cursor, page_size)
                 .await
-                .map_err(|e| role_error(e, caller))
+                .map_err(|e| role_error(&e, caller))
         })
     }
     fn get_binding<'a>(
@@ -32,9 +32,9 @@ impl RuntimeControlPort for SqlRuntimeControl {
         instances: &'a RuntimeInstanceSelectorV1,
     ) -> RuntimeControlFuture<'a, RuntimeBindingSnapshotV1> {
         Box::pin(async move {
-            SqlRuntimeControl::get_binding(self, caller, project_id, binding_id, instances)
+            Self::get_binding(self, caller, project_id, binding_id, instances)
                 .await
-                .map_err(|e| role_error(e, caller))
+                .map_err(|e| role_error(&e, caller))
         })
     }
     fn writer_lease<'a>(
@@ -45,9 +45,9 @@ impl RuntimeControlPort for SqlRuntimeControl {
         request: &'a RuntimeWriterLeaseRequestV1,
     ) -> RuntimeControlFuture<'a, RuntimeWriterLeaseV1> {
         Box::pin(async move {
-            SqlRuntimeControl::writer_lease(self, caller, project_id, binding_id, request)
+            Self::writer_lease(self, caller, project_id, binding_id, request)
                 .await
-                .map_err(|e| role_error(e, caller))
+                .map_err(|e| role_error(&e, caller))
         })
     }
     fn report_observation<'a>(
@@ -58,9 +58,9 @@ impl RuntimeControlPort for SqlRuntimeControl {
         request: &'a RuntimeObservationV1,
     ) -> RuntimeControlFuture<'a, RuntimeWriteAckV1> {
         Box::pin(async move {
-            SqlRuntimeControl::report_observation(self, caller, project_id, binding_id, request)
+            Self::report_observation(self, caller, project_id, binding_id, request)
                 .await
-                .map_err(|e| role_error(e, caller))
+                .map_err(|e| role_error(&e, caller))
         })
     }
     fn register_instance<'a>(
@@ -72,16 +72,9 @@ impl RuntimeControlPort for SqlRuntimeControl {
         request: &'a RuntimeInstanceRegistrationV1,
     ) -> RuntimeControlFuture<'a, RuntimeWriteAckV1> {
         Box::pin(async move {
-            SqlRuntimeControl::register_instance(
-                self,
-                caller,
-                project_id,
-                binding_id,
-                instance_id,
-                request,
-            )
-            .await
-            .map_err(|e| role_error(e, caller))
+            Self::register_instance(self, caller, project_id, binding_id, instance_id, request)
+                .await
+                .map_err(|e| role_error(&e, caller))
         })
     }
     fn revoke_instance<'a>(
@@ -93,16 +86,9 @@ impl RuntimeControlPort for SqlRuntimeControl {
         request: &'a RuntimeInstanceRevokeRequestV1,
     ) -> RuntimeControlFuture<'a, RuntimeWriteAckV1> {
         Box::pin(async move {
-            SqlRuntimeControl::revoke_instance(
-                self,
-                caller,
-                project_id,
-                binding_id,
-                instance_id,
-                request,
-            )
-            .await
-            .map_err(|e| role_error(e, caller))
+            Self::revoke_instance(self, caller, project_id, binding_id, instance_id, request)
+                .await
+                .map_err(|e| role_error(&e, caller))
         })
     }
     fn begin_effect<'a>(
@@ -113,9 +99,9 @@ impl RuntimeControlPort for SqlRuntimeControl {
         request: &'a RuntimeBeginEffectRequestV1,
     ) -> RuntimeControlFuture<'a, RuntimeEffectReservationV1> {
         Box::pin(async move {
-            SqlRuntimeControl::begin_effect(self, caller, project_id, binding_id, request)
+            Self::begin_effect(self, caller, project_id, binding_id, request)
                 .await
-                .map_err(|e| role_error(e, caller))
+                .map_err(|e| role_error(&e, caller))
         })
     }
     fn complete_effect<'a>(
@@ -127,17 +113,15 @@ impl RuntimeControlPort for SqlRuntimeControl {
         request: &'a RuntimeCompleteEffectRequestV1,
     ) -> RuntimeControlFuture<'a, RuntimeWriteAckV1> {
         Box::pin(async move {
-            SqlRuntimeControl::complete_effect(
-                self, caller, project_id, binding_id, effect_id, request,
-            )
-            .await
-            .map_err(|e| role_error(e, caller))
+            Self::complete_effect(self, caller, project_id, binding_id, effect_id, request)
+                .await
+                .map_err(|e| role_error(&e, caller))
         })
     }
 }
 
 fn role_error(
-    error: RuntimeControlErrorV1,
+    error: &RuntimeControlErrorV1,
     caller: &RuntimeControlCallerV1,
 ) -> RuntimeControlErrorV1 {
     error.code.error(caller.role, error.effect_outcome)

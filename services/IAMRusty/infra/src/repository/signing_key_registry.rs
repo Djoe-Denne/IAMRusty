@@ -622,7 +622,7 @@ async fn durable_pending(
     }))
 }
 
-fn check_issuer_owner(state: &LifecycleState) -> Result<(), DomainError> {
+const fn check_issuer_owner(state: &LifecycleState) -> Result<(), DomainError> {
     if state.issuer_conflict {
         return Err(conflict());
     }

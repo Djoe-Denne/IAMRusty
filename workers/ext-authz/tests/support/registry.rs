@@ -1,7 +1,6 @@
-//! Real IAM publisher serialization, not manually invented trust metadata.
-use iam_domain::entity::{
-    signing_key::{SigningKey, SigningKeyStatus, SigningProviderType, TrustScope},
-    token::JwkSet,
+//! Real IAM signing-key fixtures shared by service and worker test binaries.
+use iam_domain::entity::signing_key::{
+    SigningKey, SigningKeyStatus, SigningProviderType, TrustScope,
 };
 use rustycog::testing::http::jwt::{test_rs256_public_pem, TEST_PLATFORM_ISSUER, TEST_RS256_KID};
 use uuid::Uuid;
@@ -35,12 +34,4 @@ pub fn registry_key(status: SigningKeyStatus, organization: Option<Uuid>) -> Sig
         created_at: "2026-10-03T00:00:00Z".parse().expect("fixture date"),
         updated_at: "2026-10-03T00:00:00Z".parse().expect("fixture date"),
     }
-}
-
-pub fn serialize(keys: &[SigningKey]) -> String {
-    serde_json::to_string(&JwkSet::from_registry_keys(keys)).expect("IAM JWKS serialization")
-}
-
-pub fn platform_jwks() -> String {
-    serialize(&[registry_key(SigningKeyStatus::Active, None)])
 }
