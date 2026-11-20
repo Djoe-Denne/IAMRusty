@@ -103,7 +103,7 @@ sqlx = { version = "0.8.2", features = ["postgres", "runtime-tokio-rustls", "uui
 
 # Auth
 openidconnect = { version = "4.0.0", features = ["reqwest"] }
-jsonwebtoken = "9.0.2"
+jsonwebtoken = { version = "10.3.0", features = ["aws_lc_rs"] }
 
 # Password hashing
 argon2 = "0.5.3"
@@ -116,9 +116,10 @@ argon2 = "0.5.3"
 # AWS Dependencies
 aws-config = { version = "1.5.8", features = ["behavior-version-latest"] }
 aws-credential-types = "1.2.3"
-aws-sdk-sqs = { version = "1.74.0", features = ["behavior-version-latest"] }
-aws-sdk-ses = { version = "1.46.0", features = ["behavior-version-latest"] }
-aws-sdk-sns = { version = "1.46.0", features = ["behavior-version-latest"] }
+# Select the modern HTTPS connector without activating the legacy Rustls 0.21 stack.
+aws-sdk-sqs = { version = "1.98", default-features = false, features = ["behavior-version-latest", "default-https-client", "rt-tokio"] }
+aws-sdk-ses = { version = "1.103", default-features = false, features = ["behavior-version-latest", "default-https-client", "rt-tokio"] }
+aws-sdk-sns = { version = "1.101", default-features = false, features = ["behavior-version-latest", "default-https-client", "rt-tokio"] }
 aws-sdk-sts = "1.76.0"
 aws-sdk-sso = "1.74.0"
 aws-sdk-ssooidc = "1.75.0"
