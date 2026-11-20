@@ -7,8 +7,7 @@
 
 mod common;
 
-use common::*;
-
+use common::fixtures::sqs_scenario::SqsEventScenario;
 use iam_events::{IamDomainEvent, UserSignedUpEvent};
 use rustycog::events::event::BaseEvent;
 use serial_test::serial;
@@ -19,12 +18,13 @@ use uuid::Uuid;
 #[serial]
 async fn test_user_signed_up_event_happy_path() {
     // Setup test infrastructure with real producer/consumer and SMTP testcontainer
-    let (fixture, _, _, _openfga) = setup_test_server()
+    let scenario = SqsEventScenario::start()
         .await
-        .expect("Failed to setup Telegraph test server");
+        .expect("Failed to start Telegraph SQS scenario");
 
-    println!("Test server setup complete");
+    println!("SQS scenario setup complete");
 
+    let fixture = &scenario.fixture;
     let test_event_publisher = fixture.sqs();
     let smtp_container = fixture.smtp();
 
@@ -103,6 +103,7 @@ async fn test_user_signed_up_event_happy_path() {
         email.text.contains(&verification_url),
         "Email should contain validation link"
     );
+    scenario.stop().await.unwrap();
 }
 
 /// Test that Telegraph email processor handles `UserSignedUp` events with proper email content
@@ -110,10 +111,11 @@ async fn test_user_signed_up_event_happy_path() {
 #[serial]
 async fn test_user_signed_up_email_content_verification() {
     // Setup test infrastructure with real producer/consumer and SMTP testcontainer
-    let (fixture, _, _, _openfga) = setup_test_server()
+    let scenario = SqsEventScenario::start()
         .await
-        .expect("Failed to setup Telegraph test server");
+        .expect("Failed to start Telegraph SQS scenario");
 
+    let fixture = &scenario.fixture;
     let test_event_publisher = fixture.sqs();
     let smtp_container = fixture.smtp();
 
@@ -178,6 +180,7 @@ async fn test_user_signed_up_email_content_verification() {
         email.from.address.contains("noreply@telegraph.com"),
         "Email should be sent from correct address"
     );
+    scenario.stop().await.unwrap();
 }
 
 /// Test error handling when processing malformed events
@@ -185,10 +188,11 @@ async fn test_user_signed_up_email_content_verification() {
 #[serial]
 async fn test_event_processing_error_handling() {
     // Setup test infrastructure with real producer/consumer and SMTP testcontainer
-    let (fixture, _, _, _openfga) = setup_test_server()
+    let scenario = SqsEventScenario::start()
         .await
-        .expect("Failed to setup Telegraph test server");
+        .expect("Failed to start Telegraph SQS scenario");
 
+    let fixture = &scenario.fixture;
     let test_event_publisher = fixture.sqs();
     let smtp_container = fixture.smtp();
 
@@ -221,6 +225,7 @@ async fn test_event_processing_error_handling() {
         0,
         "No email should be sent for UserLoggedIn event"
     );
+    scenario.stop().await.unwrap();
 }
 
 /// Test event type support verification using real infrastructure  
@@ -228,10 +233,11 @@ async fn test_event_processing_error_handling() {
 #[serial]
 async fn test_event_type_support_verification() {
     // Setup test infrastructure with real producer/consumer and SMTP testcontainer
-    let (fixture, _, _, _openfga) = setup_test_server()
+    let scenario = SqsEventScenario::start()
         .await
-        .expect("Failed to setup Telegraph test server");
+        .expect("Failed to start Telegraph SQS scenario");
 
+    let fixture = &scenario.fixture;
     let test_event_publisher = fixture.sqs();
     let smtp_container = fixture.smtp();
 
@@ -306,4 +312,5 @@ async fn test_event_type_support_verification() {
         0,
         "No email should be sent for UserLoggedIn event"
     );
+    scenario.stop().await.unwrap();
 }

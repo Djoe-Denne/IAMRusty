@@ -2,9 +2,8 @@
 
 mod common;
 
-use common::*;
-
 use chrono::{Duration, Utc};
+use common::fixtures::sqs_scenario::SqsEventScenario;
 use iam_events::{IamDomainEvent, PasswordResetRequestedEvent};
 use serial_test::serial;
 use uuid::Uuid;
@@ -12,9 +11,10 @@ use uuid::Uuid;
 #[tokio::test]
 #[serial]
 async fn test_password_reset_requested_event_sends_email() {
-    let (fixture, _, _, _openfga) = setup_test_server()
+    let scenario = SqsEventScenario::start()
         .await
-        .expect("Failed to setup Telegraph test server");
+        .expect("Failed to start Telegraph SQS scenario");
+    let fixture = &scenario.fixture;
 
     let test_event_publisher = fixture.sqs();
     let smtp_container = fixture.smtp();
@@ -54,4 +54,5 @@ async fn test_password_reset_requested_event_sends_email() {
         1,
         "exactly one email should have been sent"
     );
+    scenario.stop().await.unwrap();
 }

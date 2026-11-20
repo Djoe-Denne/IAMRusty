@@ -7,7 +7,7 @@
 
 mod common;
 
-use common::*;
+use common::fixtures::sqs_scenario::SqsEventScenario;
 use iam_events::{IamDomainEvent, UserEmailVerifiedEvent};
 use rustycog::events::event::BaseEvent;
 use sea_orm::{ConnectionTrait, EntityTrait};
@@ -19,9 +19,10 @@ use uuid::Uuid;
 #[serial]
 async fn test_user_email_verified_event_creates_database_notification() {
     // Setup test infrastructure with real producer/consumer
-    let (fixture, _, _, _openfga) = setup_test_server()
+    let scenario = SqsEventScenario::start()
         .await
-        .expect("Failed to setup Telegraph test server");
+        .expect("Failed to start Telegraph SQS scenario");
+    let fixture = &scenario.fixture;
     let db = fixture.db();
     let test_event_publisher = fixture.sqs();
 
@@ -164,6 +165,7 @@ async fn test_user_email_verified_event_creates_database_notification() {
         0,
         "No delivery attempts should have been made yet"
     );
+    scenario.stop().await.unwrap();
 }
 
 /// Test that multiple `UserEmailVerified` events create separate notifications
@@ -171,9 +173,10 @@ async fn test_user_email_verified_event_creates_database_notification() {
 #[serial]
 async fn test_multiple_email_verified_events_create_separate_notifications() {
     // Setup test infrastructure
-    let (fixture, _, _, _openfga) = setup_test_server()
+    let scenario = SqsEventScenario::start()
         .await
-        .expect("Failed to setup Telegraph test server");
+        .expect("Failed to start Telegraph SQS scenario");
+    let fixture = &scenario.fixture;
     let db = fixture.db();
     let test_event_publisher = fixture.sqs();
     let user_id = Uuid::new_v4();
@@ -261,6 +264,7 @@ async fn test_multiple_email_verified_events_create_separate_notifications() {
             "Content should contain 'Thank you!'"
         );
     }
+    scenario.stop().await.unwrap();
 }
 
 /// Test that `UserEmailVerified` events for different users create separate notifications
@@ -268,10 +272,11 @@ async fn test_multiple_email_verified_events_create_separate_notifications() {
 #[serial]
 async fn test_different_users_email_verified_events() {
     // Setup test infrastructure
-    let (fixture, _, _, _openfga) = setup_test_server()
+    let scenario = SqsEventScenario::start()
         .await
-        .expect("Failed to setup Telegraph test server");
+        .expect("Failed to start Telegraph SQS scenario");
 
+    let fixture = &scenario.fixture;
     let db = fixture.db();
     let test_event_publisher = fixture.sqs();
     // Create events for different users
@@ -341,4 +346,5 @@ async fn test_different_users_email_verified_events() {
         let content = String::from_utf8(content_bytes).unwrap();
         assert_eq!(content, format!("Email Verified Successfully\n\nYour email address {email} has been successfully verified.\n\nYou can now access all features of your Telegraph account.\n\nThank you!"));
     }
+    scenario.stop().await.unwrap();
 }
