@@ -87,6 +87,9 @@ pub enum RuntimeAdmissionActionV1 {
 }
 
 /// Writer-issued intent. These bytes confer no maintenance privilege.
+///
+/// `Prepare` accepts omitted or explicit `null` UIDs on input and emits
+/// explicit `null`s. `Open` requires both identifiers during validation.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RuntimeAdmissionChallengeV1 {
@@ -104,9 +107,7 @@ pub struct RuntimeAdmissionChallengeV1 {
     pub profile: String,
     pub profile_lock_sha256: RuntimeDigestV1,
     pub inventory_sha256: RuntimeDigestV1,
-    #[serde(deserialize_with = "required_option")]
     pub service_uid: Option<String>,
-    #[serde(deserialize_with = "required_option")]
     pub revision_uid: Option<String>,
     pub issued_at_unix_ms: RuntimeUnixMsV1,
     pub expires_at_unix_ms: RuntimeUnixMsV1,

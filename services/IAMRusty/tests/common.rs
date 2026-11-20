@@ -431,10 +431,10 @@ async fn start_owned_listener_with_keys(
         if !server_finished {
             let drained =
                 tokio::time::timeout(std::time::Duration::from_secs(5), &mut server).await;
-            let server_result = match drained {
-                Ok(result) => result.map_err(anyhow::Error::from),
-                Err(_) => Err(anyhow::anyhow!("IAM fixture HTTP drain timed out")),
-            };
+            let server_result = drained.map_or_else(
+                |_| Err(anyhow::anyhow!("IAM fixture HTTP drain timed out")),
+                |result| result.map_err(anyhow::Error::from),
+            );
             if result.is_ok() {
                 result = server_result;
             }

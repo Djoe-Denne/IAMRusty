@@ -91,10 +91,8 @@ impl HttpIdpConnector {
         additional_roots: Vec<reqwest::Certificate>,
     ) -> Result<Self, DomainError> {
         let secret = hmac_secret.as_ref();
-        let trimmed = match std::str::from_utf8(secret) {
-            Ok(text) => text.trim().as_bytes().to_vec(),
-            Err(_) => secret.to_vec(),
-        };
+        let trimmed = std::str::from_utf8(secret)
+            .map_or_else(|_| secret.to_vec(), |text| text.trim().as_bytes().to_vec());
         if trimmed.is_empty() {
             return Err(DomainError::OAuth2Error(
                 "hmac_secret must not be empty".to_string(),

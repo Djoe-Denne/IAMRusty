@@ -36,9 +36,9 @@ async fn g3_eight_control_routes_reject_http_bearer_and_forged_origin_without_wr
         .await
         .expect("Manifesto HTTP setup");
     let project_id = Uuid::new_v4();
-    let binding_id = Uuid::new_v4();
-    let instance_id = Uuid::new_v4();
-    let effect_id = Uuid::new_v4();
+    let binding_uuid = Uuid::new_v4().to_string();
+    let instance_uuid = Uuid::new_v4().to_string();
+    let effect_uuid = Uuid::new_v4().to_string();
     let db = fixture.db();
     let before = runtime_row_counts(&db, project_id).await;
     let vectors: serde_json::Value =
@@ -51,9 +51,9 @@ async fn g3_eight_control_routes_reject_http_bearer_and_forged_origin_without_wr
         let path = route["path"]
             .as_str()
             .expect("route path")
-            .replace("{binding_id}", &binding_id.to_string())
-            .replace("{instance_id}", &instance_id.to_string())
-            .replace("{effect_id}", &effect_id.to_string());
+            .replace("{binding_id}", &binding_uuid)
+            .replace("{instance_id}", &instance_uuid)
+            .replace("{effect_id}", &effect_uuid);
         for origin in ["none", "bearer_only", "forged_origin_headers"] {
             let mut request = client
                 .request(method.clone(), format!("{base_url}{path}"))

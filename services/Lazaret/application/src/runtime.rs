@@ -11,7 +11,7 @@ use std::{
 
 use apparatus_contracts::runtime::{
     parse_runtime_json, RuntimeBindingSnapshotV1, RuntimeBindingStateV1, RuntimeControlCallerV1,
-    RuntimeControlPort, RuntimeInstanceKindV1, RuntimeInstanceSelectorV1,
+    RuntimeControlPort, RuntimeCounterV1, RuntimeInstanceKindV1, RuntimeInstanceSelectorV1,
     RuntimeInstanceSnapshotV1, RuntimeInstanceStateV1, RuntimeInvocationTicketV1,
     RuntimeInvokeRequestV1, RuntimeOperationHashInputV1, RuntimeServiceRoleV1, RuntimeSourceV1,
     RuntimeTargetV1, RuntimeUnixMsV1, INVOKE_AUDIENCE, INVOKE_ISSUER, INVOKE_PURPOSE,
@@ -217,32 +217,9 @@ impl RuntimeInvocationService {
         sent: &AtomicBool,
     ) -> Result<apparatus_contracts::InvokeResponse, RuntimeError> {
         let d = &self.dependencies;
-        let fingerprint = certificate.fingerprint_sha256();
-        let runtime = d.store.enrollment_by_fingerprint(&fingerprint).await?;
-        let legacy = d
-            .identity
-            .enrollment_store()
-            .get_checked(&fingerprint)
-            .await
-            .map_err(|_| RuntimeError::RuntimeAuthorityUnavailable)?;
-        let enrolled = match (runtime, legacy) {
-            (Some(_), Some(_)) => return Err(RuntimeError::RuntimeInvalidProof),
-            (Some(record), None) => record,
-            (None, Some(_)) => return Err(RuntimeError::RuntimeLegacyDisabled),
-            (None, None) => return Err(RuntimeError::RuntimeUnauthenticated),
-        };
-        // Known runtime credentials never fall back to the legacy registry.
-        if enrolled.identity != proof.identity
-            || enrolled.project_id != request.project_id
-            || proof.expires_at_unix.saturating_mul(1000) > enrolled.expires_at_unix_ms
-        {
-            return Err(RuntimeError::RuntimeInvalidProof);
-        }
-        if enrolled.identity.binding == request.target_binding_id {
-            return Err(RuntimeError::RuntimeCallerForbidden);
-        }
-        d.admission.require_runtime(&enrolled).await?;
-        let source_instance = d.authority.revalidate(&enrolled).await?;
+        let (enrolled, source_instance) = self
+            .validate_runtime_caller(certificate, proof, &request)
+            .await?;
         let source = RuntimeSourceV1 {
             instance: enrolled.identity.instance,
             binding: enrolled.identity.binding,
@@ -315,6 +292,63 @@ impl RuntimeInvocationService {
             .validate()
             .map_err(|_| RuntimeError::RuntimeInvalidRequest)?;
         let endpoint = d.locator.locate_runtime(&snapshot, &target).await?;
+        self.issue_and_forward(
+            &request,
+            source,
+            source_instance.cas.revocation_epoch,
+            target,
+            &endpoint,
+            sent,
+        )
+        .await
+    }
+
+    async fn validate_runtime_caller(
+        &self,
+        certificate: &VerifiedClientCertificate,
+        proof: &SessionProof,
+        request: &RuntimeInvokeRequestV1,
+    ) -> Result<(RuntimeEnrollment, RuntimeInstanceSnapshotV1), RuntimeError> {
+        let d = &self.dependencies;
+        let fingerprint = certificate.fingerprint_sha256();
+        let runtime = d.store.enrollment_by_fingerprint(&fingerprint).await?;
+        let legacy = d
+            .identity
+            .enrollment_store()
+            .get_checked(&fingerprint)
+            .await
+            .map_err(|_| RuntimeError::RuntimeAuthorityUnavailable)?;
+        let enrolled = match (runtime, legacy) {
+            (Some(_), Some(_)) => return Err(RuntimeError::RuntimeInvalidProof),
+            (Some(record), None) => record,
+            (None, Some(_)) => return Err(RuntimeError::RuntimeLegacyDisabled),
+            (None, None) => return Err(RuntimeError::RuntimeUnauthenticated),
+        };
+        // Known runtime credentials never fall back to the legacy registry.
+        if enrolled.identity != proof.identity
+            || enrolled.project_id != request.project_id
+            || proof.expires_at_unix.saturating_mul(1000) > enrolled.expires_at_unix_ms
+        {
+            return Err(RuntimeError::RuntimeInvalidProof);
+        }
+        if enrolled.identity.binding == request.target_binding_id {
+            return Err(RuntimeError::RuntimeCallerForbidden);
+        }
+        d.admission.require_runtime(&enrolled).await?;
+        let source_instance = d.authority.revalidate(&enrolled).await?;
+        Ok((enrolled, source_instance))
+    }
+
+    async fn issue_and_forward(
+        &self,
+        request: &RuntimeInvokeRequestV1,
+        source: RuntimeSourceV1,
+        source_revocation_epoch: RuntimeCounterV1,
+        target: RuntimeTargetV1,
+        endpoint: &str,
+        sent: &AtomicBool,
+    ) -> Result<apparatus_contracts::InvokeResponse, RuntimeError> {
+        let d = &self.dependencies;
         let authorization_id = Uuid::new_v4();
         let hash = RuntimeOperationHashInputV1 {
             schema_version: 1,
@@ -322,7 +356,7 @@ impl RuntimeInvocationService {
             authorization_id,
             project_id: request.project_id,
             source: source.clone(),
-            source_revocation_epoch: source_instance.cas.revocation_epoch,
+            source_revocation_epoch,
             target: target.clone(),
             operation_id: request.operation_id,
             operation: request.operation.clone(),
@@ -345,7 +379,7 @@ impl RuntimeInvocationService {
             exp: expires_at,
             operation_sha256: hash,
             source,
-            source_revocation_epoch: source_instance.cas.revocation_epoch,
+            source_revocation_epoch,
             project_id: request.project_id,
             target,
             operation_id: request.operation_id,
@@ -367,7 +401,7 @@ impl RuntimeInvocationService {
             .http
             .post(format!("{endpoint}/invoke"))
             .header("Apparatus-Invocation", signed)
-            .json(&request)
+            .json(request)
             .timeout(Duration::from_millis(timeout_ms))
             .send()
             .await

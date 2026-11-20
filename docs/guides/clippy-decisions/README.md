@@ -28,8 +28,9 @@ implicitement au nom de ce nouveau registre.
 
 ## Index des nouveaux arbitrages
 
-Aucune nouvelle décision métier/technique enregistrée à l'initialisation du
-registre (2026-11-13). Les tables existantes restent applicables.
+- [CLIPPY-20261120-equivalent-option-result-matches](CLIPPY-20261120-equivalent-option-result-matches.md)
+  — Accepted for this round only — `clippy::option_if_let_else` — five
+  behavior-preserving conversions to `map_or_else`.
 
 Ajouter une puce par entrée, triée par ID, contenant :
 `[ID](ID.md) — statut — règle(s) — contexte court`.

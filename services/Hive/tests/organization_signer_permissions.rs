@@ -36,10 +36,10 @@ impl RecognizedAuthority {
         let private =
             rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048).expect("local test RSA key");
         let public = rsa::RsaPublicKey::from(&private);
-        let canonical = match organization {
-            Some(id) => CanonicalJwk::organization(issuer, id),
-            None => CanonicalJwk::platform(issuer),
-        };
+        let canonical = organization.map_or_else(
+            || CanonicalJwk::platform(issuer),
+            |id| CanonicalJwk::organization(issuer, id),
+        );
         let kid = canonical.kid().to_owned();
         let mut jwk = serde_json::to_value(canonical).unwrap();
         jwk["n"] = URL_SAFE_NO_PAD.encode(public.n().to_bytes_be()).into();

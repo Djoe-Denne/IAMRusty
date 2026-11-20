@@ -20,6 +20,22 @@ fn admission_claims() -> Value {
         .clone()
 }
 
+fn open_admission_claims() -> Value {
+    let mut claims = admission_claims();
+    claims["challenge"]["action"] = serde_json::json!("open");
+    claims["challenge"]["challenge_id"] = serde_json::json!("00000000-0000-4000-8000-000000000035");
+    claims["jti"] = claims["challenge"]["challenge_id"].clone();
+    claims["challenge"]["service_uid"] = serde_json::json!("admitted-service-open-uid");
+    claims["challenge"]["revision_uid"] = serde_json::json!("admitted-revision-open-uid");
+    claims
+}
+
+const CHALLENGE_UID_OMISSIONS: [&[&str]; 3] = [
+    &["service_uid"],
+    &["revision_uid"],
+    &["service_uid", "revision_uid"],
+];
+
 #[test]
 fn g7_admission_prepare_and_open_claim_shapes_preserve_full_challenge_without_granting_valid() {
     use apparatus_contracts::runtime::{
@@ -29,23 +45,21 @@ fn g7_admission_prepare_and_open_claim_shapes_preserve_full_challenge_without_gr
     let prepare = admission_claims();
     assert_exact_wire::<RuntimeAdmissionChallengeV1>(&prepare["challenge"]);
     assert_exact_wire::<RuntimeAdmissionAttestationV1>(&prepare);
-    let mut open = prepare;
-    open["challenge"]["action"] = serde_json::json!("open");
-    open["challenge"]["challenge_id"] = serde_json::json!("00000000-0000-4000-8000-000000000035");
-    open["jti"] = open["challenge"]["challenge_id"].clone();
-    open["challenge"]["service_uid"] = serde_json::json!("admitted-service-open-uid");
-    open["challenge"]["revision_uid"] = serde_json::json!("admitted-revision-open-uid");
+    let open = open_admission_claims();
     assert_exact_wire::<RuntimeAdmissionChallengeV1>(&open["challenge"]);
     assert_exact_wire::<RuntimeAdmissionAttestationV1>(&open);
     // Decoding these unsigned bytes is not a successful Prepare/Open or VALID.
 }
 
 #[test]
-fn g7_admission_challenge_requires_every_field_including_explicit_null_uids() {
+fn g7_admission_challenge_requires_every_non_uid_field() {
     use apparatus_contracts::runtime::RuntimeAdmissionChallengeV1;
 
     let challenge = admission_claims()["challenge"].clone();
     for key in challenge.as_object().expect("challenge object").keys() {
+        if matches!(key.as_str(), "service_uid" | "revision_uid") {
+            continue;
+        }
         let mut missing = challenge.clone();
         missing
             .as_object_mut()
@@ -56,7 +70,75 @@ fn g7_admission_challenge_requires_every_field_including_explicit_null_uids() {
                 &serde_json::to_vec(&missing).expect("missing challenge field JSON")
             )
             .is_err(),
-            "G-7 challenge field omitted instead of explicit value/null: {key}"
+            "G-7 required challenge field omitted: {key}"
+        );
+    }
+}
+
+#[test]
+fn g7_prepare_challenge_normalizes_omitted_uids_to_explicit_null() {
+    use apparatus_contracts::runtime::{
+        RuntimeAdmissionAttestationV1, RuntimeAdmissionChallengeV1,
+    };
+
+    let explicit_nulls = admission_claims();
+    for fields in CHALLENGE_UID_OMISSIONS {
+        let mut omitted = explicit_nulls.clone();
+        let challenge = omitted["challenge"]
+            .as_object_mut()
+            .expect("challenge object");
+        for field in fields {
+            assert_eq!(challenge.remove(*field), Some(Value::Null));
+        }
+        let decoded: RuntimeAdmissionChallengeV1 = parse_runtime_json(
+            &serde_json::to_vec(&omitted["challenge"]).expect("Prepare challenge JSON"),
+        )
+        .expect("Prepare challenge may omit either UID");
+        decoded.validate().expect("valid Prepare challenge");
+        assert_eq!(
+            serde_json::to_value(&decoded).expect("canonical Prepare challenge"),
+            explicit_nulls["challenge"]
+        );
+
+        let claims: RuntimeAdmissionAttestationV1 =
+            parse_runtime_json(&serde_json::to_vec(&omitted).expect("Prepare claims JSON"))
+                .expect("Prepare claims may omit the challenge UIDs");
+        assert_eq!(
+            serde_json::to_value(&claims).expect("canonical Prepare claims"),
+            explicit_nulls
+        );
+    }
+}
+
+#[test]
+fn g7_open_challenge_validation_still_requires_both_uids() {
+    use apparatus_contracts::runtime::RuntimeAdmissionChallengeV1;
+
+    let open = open_admission_claims()["challenge"].clone();
+    let decode = |value: &Value| {
+        parse_runtime_json::<RuntimeAdmissionChallengeV1>(
+            &serde_json::to_vec(value).expect("Open challenge JSON"),
+        )
+        .expect("Open challenge decodes before action validation")
+    };
+    decode(&open).validate().expect("complete Open challenge");
+    for fields in CHALLENGE_UID_OMISSIONS {
+        let mut omitted = open.clone();
+        let object = omitted.as_object_mut().expect("challenge object");
+        for field in fields {
+            object.remove(*field).expect("present Open UID");
+        }
+        assert_eq!(
+            decode(&omitted).validate(),
+            Err(RuntimeErrorCodeV1::RuntimeInvalidProof)
+        );
+    }
+    for field in ["service_uid", "revision_uid"] {
+        let mut null = open.clone();
+        null[field] = Value::Null;
+        assert_eq!(
+            decode(&null).validate(),
+            Err(RuntimeErrorCodeV1::RuntimeInvalidProof)
         );
     }
 }
