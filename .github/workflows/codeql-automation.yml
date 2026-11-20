@@ -71,6 +71,17 @@ jobs:
           tools: linked
           config-file: ./.github/codeql/config.yml
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        id: codeql
         with:
           category: /language:${{ matrix.language }}
+          upload: failure-only
           upload-database: false
+      - name: Filter test paths from CodeQL results
+        env:
+          SARIF_DIR: ${{ steps.codeql.outputs.sarif-output }}
+          CODEQL_LANGUAGE: ${{ matrix.language }}
+        run: python3 -B .github/codeql/filter-test-results.py "$CODEQL_LANGUAGE" "$SARIF_DIR"
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: ${{ steps.codeql.outputs.sarif-output }}
+          category: /language:${{ matrix.language }}

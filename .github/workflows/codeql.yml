@@ -73,35 +73,7 @@ jobs:
       - name: Filter test paths from Rust CodeQL results
         env:
           SARIF_DIR: ${{ steps.codeql.outputs.sarif-output }}
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-          from urllib.parse import unquote, urlsplit
-
-          # Use the primary reported path; do not filter on secondary flow steps.
-          def is_test_result(result):
-              locations = result.get("locations") or [{}]
-              uri = locations[0].get("physicalLocation", {}).get("artifactLocation", {}).get("uri", "")
-              *directories, filename = unquote(urlsplit(uri).path).split("/")
-              return "test" in filename or any(part in {"test", "tests"} for part in directories)
-
-          reports = sorted(Path(os.environ["SARIF_DIR"]).glob("*.sarif"))
-          if not reports:
-              raise SystemExit("No CodeQL SARIF reports found")
-          for report in reports:
-              sarif = json.loads(report.read_text(encoding="utf-8"))
-              removed = 0
-              for run in sarif["runs"]:
-                  if "results" in run:
-                      results = run["results"]
-                      run["results"] = [result for result in results if not is_test_result(result)]
-                      removed += len(results) - len(run["results"])
-              report.write_text(json.dumps(sarif, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-              print(f"{report.name}: removed {removed} results on test paths")
-          PY
+        run: python3 -B .github/codeql/filter-test-results.py rust "$SARIF_DIR"
       - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: ${{ steps.codeql.outputs.sarif-output }}
