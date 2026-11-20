@@ -2,7 +2,7 @@
 
 mod common;
 
-use common::*;
+use common::fixtures::sqs_scenario::SqsEventScenario;
 use iam_events::{IamDomainEvent, UserSignedUpEvent};
 use rustycog::events::event::BaseEvent;
 use serial_test::serial;
@@ -12,7 +12,8 @@ use uuid::Uuid;
 #[tokio::test]
 #[serial]
 async fn malformed_sqs_payload_has_no_email_side_effect_and_does_not_stop_the_consumer() {
-    let (fixture, _, _, _openfga) = setup_test_server().await.unwrap();
+    let scenario = SqsEventScenario::start().await.unwrap();
+    let fixture = &scenario.fixture;
     let sqs = fixture.sqs();
     let smtp = fixture.smtp();
 
@@ -46,6 +47,7 @@ async fn malformed_sqs_payload_has_no_email_side_effect_and_does_not_stop_the_co
             .has_email("Welcome ! Please validate your email", email)
             .await
         {
+            scenario.stop().await.unwrap();
             return;
         }
         sleep(Duration::from_secs(1)).await;

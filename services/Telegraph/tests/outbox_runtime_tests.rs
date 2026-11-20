@@ -10,6 +10,7 @@ use std::sync::{
 use std::time::Duration;
 
 use async_trait::async_trait;
+use common::fixtures::sqs_scenario::{create_queue, isolate_inbound};
 use common::{TelegraphTestDescriptor, TelegraphTestFixture};
 use readiness::{create_signaled_multi_queue_event_publisher, ComponentStatus};
 use runtime_fixture::*;
@@ -34,6 +35,52 @@ impl Drop for HttpRequestOwner {
         self.destroyed.fetch_add(1, Ordering::SeqCst);
         self.dropped.notify_one();
     }
+}
+
+#[tokio::test]
+#[serial]
+async fn real_sqs_scenario_does_not_publish_to_the_previous_scenarios_queue() {
+    let mut fixture = TelegraphTestFixture::new(Arc::new(TelegraphTestDescriptor))
+        .await
+        .unwrap();
+    let QueueConfig::Sqs(mut sqs_config) = config().queue else {
+        panic!("SQS opt-in");
+    };
+    isolate_inbound(&mut fixture, &mut sqs_config)
+        .await
+        .unwrap();
+    let previous_url = fixture.sqs().queue_url.clone();
+    let previous_queue = sqs_config.default_queues.clone();
+    isolate_inbound(&mut fixture, &mut sqs_config)
+        .await
+        .unwrap();
+    let sqs = fixture.sqs();
+
+    assert_ne!(sqs_config.default_queues, previous_queue);
+    assert_ne!(sqs.queue_url, previous_url);
+    assert_eq!(
+        sqs_config.get_queue_names("notification_created"),
+        ["test-telegraph-outbound"]
+    );
+    // Leave the old inbox polled while the next scenario publishes. The
+    // received message ID (not just a nonempty queue) must match its send.
+    let (previous, ()) = tokio::join!(
+        sqs.client
+            .receive_message()
+            .queue_url(previous_url)
+            .wait_time_seconds(2)
+            .send(),
+        async {
+            let id = sqs.send_message("isolated inbox sentinel").await.unwrap();
+            let messages = sqs.receive_messages(10, 2).await.unwrap();
+            assert_eq!(messages.len(), 1);
+            assert_eq!(messages[0].message_id(), Some(id.as_str()));
+            acknowledge_received(&fixture, &sqs.queue_url, &messages)
+                .await
+                .unwrap();
+        }
+    );
+    assert!(previous.unwrap().messages().is_empty());
 }
 
 /// C-1 / E1: joining the HTTP parent must also destroy its in-flight request.
@@ -1224,16 +1271,6 @@ struct SqsHandler {
     entered: Arc<tokio::sync::Notify>,
 }
 
-fn normalized_sqs_test_url(value: &str) -> anyhow::Result<url::Url> {
-    let mut address = url::Url::parse(value)?;
-    if address.host_str() == Some("localhost") {
-        address
-            .set_host(Some("127.0.0.1"))
-            .map_err(|_| anyhow::anyhow!("invalid local SQS host"))?;
-    }
-    Ok(address)
-}
-
 /// Observe startup without detaching a completed parent or leaking on timeout.
 async fn observe_sqs_handler_entry(
     tasks: &mut Vec<telegraph_setup::runtime::BackgroundTask>,
@@ -1340,31 +1377,20 @@ async fn sqs_startup_entry_preserves_parent_for_shutdown() {
 #[tokio::test]
 #[serial]
 async fn real_sqs_long_poll_shutdown_joins_parent_and_destroys_all_poller_resources() {
-    let fixture = TelegraphTestFixture::new(Arc::new(TelegraphTestDescriptor))
+    let mut fixture = TelegraphTestFixture::new(Arc::new(TelegraphTestDescriptor))
         .await
         .unwrap();
     let QueueConfig::Sqs(mut sqs_config) = config().queue else {
         panic!("SQS opt-in");
     };
+    isolate_inbound(&mut fixture, &mut sqs_config)
+        .await
+        .unwrap();
     // Two pollers exercise the same RunResources owner; its handler cannot be
     // destroyed until every poller and the parent released the encompassing Arc.
+    let (empty_queue, _) = create_queue(fixture.sqs()).await.unwrap();
     sqs_config.queues.clear();
-    sqs_config.default_queues = vec!["telegraph-events".into(), "test-telegraph-outbound".into()];
-    assert_eq!(
-        sqs_config.region,
-        fixture.sqs().region,
-        "SQS region mismatch"
-    );
-    assert!(
-        normalized_sqs_test_url(&sqs_config.endpoint_url().expect("local SQS endpoint")).unwrap()
-            == normalized_sqs_test_url(&fixture.sqs().endpoint_url).unwrap(),
-        "SQS consumer endpoint does not match the fixture"
-    );
-    assert!(
-        normalized_sqs_test_url(&sqs_config.queue_url("telegraph-events")).unwrap()
-            == normalized_sqs_test_url(&fixture.sqs().queue_url).unwrap(),
-        "SQS publication queue does not match the consumer"
-    );
+    sqs_config.default_queues.push(empty_queue);
     let consumer = rustycog::events::SqsEventConsumer::new(sqs_config)
         .await
         .unwrap();
@@ -1466,6 +1492,7 @@ async fn real_sqs_long_poll_shutdown_joins_parent_and_destroys_all_poller_resour
         1,
         "cancelled handler must not acknowledge the message"
     );
+    assert_eq!(messages[0].message_id(), Some(message_id.as_str()));
     // Only after the cancellation oracle, release this test's message so a
     // later real consumer cannot turn it into an unrelated notification.
     acknowledge_received(&fixture, &fixture.sqs().queue_url, &messages)
