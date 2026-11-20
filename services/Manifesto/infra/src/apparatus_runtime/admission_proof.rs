@@ -55,7 +55,7 @@ pub trait RuntimeAdmissionProofVerifier: Send + Sync {
     ///
     /// # Errors
     /// Rejects unavailable keys, malformed or invalid proofs, mismatched claims,
-    /// and proofs outside the permitted admission time window.
+    /// and proofs outside the permitted validity window.
     fn verify(
         &self,
         expected: &RuntimeAdmissionChallengeV1,
