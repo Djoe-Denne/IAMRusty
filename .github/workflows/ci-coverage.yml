@@ -102,9 +102,18 @@ jobs:
           IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
         run: |
           set -euo pipefail
-          if [[ "$CI_SERVICE" == 'iam' && -z "${IAMRUSTY_TEST_RSA8192_PEM_B64//[[:space:]]/}" ]]; then
-            echo 'IAM RSA8192 probe material is required in CI' >&2
-            exit 1
+          # Only IAM's unit probe tests consume this fixture. Fork and
+          # Dependabot PRs do not receive the repository's Actions secret.
+          if [[ "$CI_SERVICE" == 'iam' && "$CI_LANE" == 'unit' &&
+                -z "${IAMRUSTY_TEST_RSA8192_PEM_B64//[[:space:]]/}" ]]; then
+            key_dir="$(mktemp -d "$RUNNER_TEMP/iam-probe.XXXXXX")"
+            trap 'rm -f -- "$key_dir/probe/probe-keys.env"; rmdir -- "$key_dir/probe" "$key_dir" 2>/dev/null || true' EXIT
+            bash services/IAMRusty/infra/tests/fixtures/generate-probe-keys.sh "$key_dir/probe"
+            # The generator emits only the test fixture's export. Do not put
+            # the key in GITHUB_ENV, a cache, or an uploaded artifact.
+            # shellcheck disable=SC1091
+            source "$key_dir/probe/probe-keys.env"
+            [[ -n "${IAMRUSTY_TEST_RSA8192_PEM_B64//[[:space:]]/}" ]]
           fi
           python3 -B ops/ci/pipeline.py coverage \
             --service "$CI_SERVICE" --lane "$CI_LANE" --shard "$CI_SHARD" \

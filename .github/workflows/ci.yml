@@ -374,7 +374,8 @@ jobs:
       service: iam
       scope: ${{ fromJSON(needs.plan.outputs.selection).full && 'full' || 'partial' }}
     secrets:
-      IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 }}
+      # Qualify the same disposable fixture path on all PRs, including trusted PRs.
+      IAMRUSTY_TEST_RSA8192_PEM_B64: ${{ github.event_name != 'pull_request' && secrets.IAMRUSTY_TEST_RSA8192_PEM_B64 || '' }}
 
   test-telegraph:
     name: Coverage (Telegraph)

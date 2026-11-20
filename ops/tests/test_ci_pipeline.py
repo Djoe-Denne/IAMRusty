@@ -502,6 +502,26 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("target/sonar/clippy-pr.json", sonar["scan"]["with"]["args"])
         self.assertEqual(self.jobs["ci-status"]["name"], "CI scope and result")
 
+    def test_iam_probe_fixture_does_not_require_a_pr_secret_or_skip_coverage(self):
+        secret = "IAMRUSTY_TEST_RSA8192_PEM_B64"
+        self.assertEqual(
+            self.jobs["test-iam"]["secrets"][secret],
+            "${{ github.event_name != 'pull_request' && secrets." + secret + " || '' }}",
+        )
+        coverage = yaml.load((ROOT / ".github/workflows/ci-coverage.yml").read_text(),
+                             Loader=yaml.BaseLoader)
+        self.assertEqual(coverage["on"]["workflow_call"]["secrets"][secret]["required"], "false")
+        steps = coverage["jobs"]["coverage"]["steps"]
+        step = next(s for s in steps if "ops/ci/pipeline.py coverage" in s.get("run", ""))
+        self.assertNotIn("if", step)
+        self.assertEqual(step["env"][secret], "${{ secrets." + secret + " }}")
+        script = step["run"]
+        self.assertIn("""[[ "$CI_SERVICE" == 'iam' && "$CI_LANE" == 'unit' &&""", script)
+        self.assertIn("generate-probe-keys.sh", script)
+        self.assertLess(script.index("generate-probe-keys.sh"),
+                        script.index("ops/ci/pipeline.py coverage"))
+        self.assertNotRegex(script, r">>?\s+['\"]?\$GITHUB_ENV")
+
     def test_docs_fast_path_skips_rust_setup_and_heavy_roots_but_not_final_check(self):
         steps = {step.get("id"): step for step in self.jobs["plan"]["steps"]}
         self.assertEqual(steps["docs"]["if"], "github.event_name == 'pull_request'")
