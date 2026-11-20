@@ -1,21 +1,7 @@
 name: CodeQL Rust
 
 on:
-  pull_request:
-    branches: [master]
-    paths:
-      - '**/*.rs'
-      - '**/Cargo.toml'
-      - '**/Cargo.lock'
-      - '!.agents/**'
-      - '!docs/**'
-      - '!obsidian/**'
-      - '.cargo/**'
-      - '.gitmodules'
-      - 'rust-toolchain.toml'
-      - 'rustycog'
-      - '.github/codeql/**'
-      - '.github/workflows/codeql.yml'
+  # Run full Rust scans on the default branch, not on each pull request.
   push:
     branches: [master]
     paths:
@@ -39,7 +25,7 @@ permissions: {}
 
 concurrency:
   group: codeql-rust-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 jobs:
   analyze:
