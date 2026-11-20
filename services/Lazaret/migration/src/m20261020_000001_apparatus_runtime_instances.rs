@@ -9,13 +9,7 @@ use sea_orm_migration::prelude::*;
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
-#[async_trait::async_trait]
-impl MigrationTrait for Migration {
-    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .get_connection()
-            .execute_unprepared(
-                r"
+const RUNTIME_SCHEMA_SQL: &str = r"
 CREATE TABLE apparatus_runtime_enrollments (
     instance_id UUID PRIMARY KEY,
     project_id UUID NOT NULL,
@@ -144,10 +138,20 @@ END $$;
 CREATE TRIGGER apparatus_runtime_execution_quota BEFORE INSERT
     ON apparatus_runtime_executions FOR EACH ROW
     EXECUTE FUNCTION apparatus_runtime_execution_quota();
-        ",
-            )
-            .await
-            .map(|_| ())
+        ";
+
+async fn create_runtime_schema(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .get_connection()
+        .execute_unprepared(RUNTIME_SCHEMA_SQL)
+        .await
+        .map(|_| ())
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for Migration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        create_runtime_schema(manager).await
     }
 
     async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {

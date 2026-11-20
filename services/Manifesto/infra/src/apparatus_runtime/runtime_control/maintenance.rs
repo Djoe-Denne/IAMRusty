@@ -671,16 +671,14 @@ impl SqlRuntimeMaintenance {
         let consumers=txn.query_all(Statement::from_sql_and_values(DbBackend::Postgres,
             "SELECT project_id,binding_id FROM apparatus_runtime_bindings WHERE release=$1 ORDER BY project_id,binding_id",[plan.release.as_str().into()])).await.map_err(db_error)?;
         let mut closed = Vec::new();
+        let mut projects = std::collections::BTreeSet::new();
         for consumer in consumers {
             let project: Uuid = consumer.try_get("", "project_id").map_err(db_error)?;
             let binding: Uuid = consumer.try_get("", "binding_id").map_err(db_error)?;
             closed.push((project, binding));
+            projects.insert(project);
         }
-        for project in closed
-            .iter()
-            .map(|(project, _)| *project)
-            .collect::<std::collections::BTreeSet<_>>()
-        {
+        for project in projects {
             crate::transaction::lock_project_row(&txn, project)
                 .await
                 .map_err(|_| error(RuntimeErrorCodeV1::RuntimeAuthorityUnavailable))?;

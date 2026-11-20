@@ -242,83 +242,10 @@ impl ServingRuntimeBridge {
             page_size: Some(1),
         };
         let read_deadline = Instant::now() + WRITER_STEP;
-        let (current, mut observation) = timeout_at(read_deadline, async {
-            let current = self
-                .control
-                .get_binding(&caller, project_id, binding_id, &selector)
-                .await
-                .map_err(|error| error.code)?;
-            if !matches!(
-                current.state,
-                RuntimeBindingStateV1::Active | RuntimeBindingStateV1::Closed
-            ) {
-                return Err(RuntimeErrorCodeV1::RuntimeBindingClosed);
-            }
-            let stored = current
-                .observation
-                .as_ref()
-                .ok_or(RuntimeErrorCodeV1::RuntimeProjectionUnavailable)?;
-            let parent_uid = stored.service_uid.clone();
-            let revision_name = stored.revision_name.clone();
-            let image = self.preparation_image(&current).await?;
-            let lease = self
-                .control
-                .writer_lease(
-                    &caller,
-                    project_id,
-                    binding_id,
-                    &RuntimeWriterLeaseRequestV1 {
-                        schema_version: 1,
-                        holder_id: self.holder_id,
-                        expected: current.cas.clone(),
-                        renew: None,
-                    },
-                )
-                .await
-                .map_err(|error| error.code)?;
-            let lease = self
-                .control
-                .writer_lease(
-                    &caller,
-                    project_id,
-                    binding_id,
-                    &RuntimeWriterLeaseRequestV1 {
-                        schema_version: 1,
-                        holder_id: self.holder_id,
-                        expected: current.cas.clone(),
-                        renew: Some(lease.proof),
-                    },
-                )
-                .await
-                .map_err(|error| error.code)?;
-            let guard = RuntimeWriteGuardV1 {
-                expected: current.cas.clone(),
-                lease: lease.proof,
-            };
-            let observer = RuntimePodObserver::new(self.parents.parents.clone().into_client());
-            let mut chain = PreparationChainUids::default();
-            self.require_same_admission(&image).await?;
-            let captured = observer
-                .preparation_metadata(
-                    PreparationReadContext {
-                        snapshot: &current,
-                        parent_uid: &parent_uid,
-                        revision_name: &revision_name,
-                        image: &image.image,
-                        guard: &guard,
-                        profile: &self.profile,
-                    },
-                    &mut chain,
-                )
-                .await?
-                .ok_or(RuntimeErrorCodeV1::RuntimeProjectionUnavailable)?;
-            // Both durable UIDs remain fixed; a same-name replacement never
-            // becomes a fresh report or a reason to delete the foreign object.
-            if captured.revision_uid != stored.revision_uid {
-                return Err(RuntimeErrorCodeV1::RuntimeFenceConflict);
-            }
-            Ok((current, captured))
-        })
+        let (current, mut observation) = timeout_at(
+            read_deadline,
+            self.capture_known_parent(&caller, project_id, binding_id, &selector),
+        )
         .await
         .map_err(|_| RuntimeErrorCodeV1::RuntimeProjectionUnavailable)??;
         let writer_deadline = Instant::now() + WRITER_STEP;
@@ -368,6 +295,91 @@ impl ServingRuntimeBridge {
         .await
         .map_err(|_| RuntimeErrorCodeV1::RuntimeAuthorityUnavailable)?
     }
+
+    async fn capture_known_parent(
+        &self,
+        caller: &RuntimeControlCallerV1,
+        project_id: uuid::Uuid,
+        binding_id: uuid::Uuid,
+        selector: &RuntimeInstanceSelectorV1,
+    ) -> Result<(RuntimeBindingSnapshotV1, RuntimeObservationV1), RuntimeErrorCodeV1> {
+        let current = self
+            .control
+            .get_binding(caller, project_id, binding_id, selector)
+            .await
+            .map_err(|error| error.code)?;
+        if !matches!(
+            current.state,
+            RuntimeBindingStateV1::Active | RuntimeBindingStateV1::Closed
+        ) {
+            return Err(RuntimeErrorCodeV1::RuntimeBindingClosed);
+        }
+        let stored = current
+            .observation
+            .as_ref()
+            .ok_or(RuntimeErrorCodeV1::RuntimeProjectionUnavailable)?;
+        let parent_uid = stored.service_uid.clone();
+        let revision_name = stored.revision_name.clone();
+        let image = self.preparation_image(&current).await?;
+        let lease = self
+            .control
+            .writer_lease(
+                caller,
+                project_id,
+                binding_id,
+                &RuntimeWriterLeaseRequestV1 {
+                    schema_version: 1,
+                    holder_id: self.holder_id,
+                    expected: current.cas.clone(),
+                    renew: None,
+                },
+            )
+            .await
+            .map_err(|error| error.code)?;
+        let lease = self
+            .control
+            .writer_lease(
+                caller,
+                project_id,
+                binding_id,
+                &RuntimeWriterLeaseRequestV1 {
+                    schema_version: 1,
+                    holder_id: self.holder_id,
+                    expected: current.cas.clone(),
+                    renew: Some(lease.proof),
+                },
+            )
+            .await
+            .map_err(|error| error.code)?;
+        let guard = RuntimeWriteGuardV1 {
+            expected: current.cas.clone(),
+            lease: lease.proof,
+        };
+        let observer = RuntimePodObserver::new(self.parents.parents.clone().into_client());
+        let mut chain = PreparationChainUids::default();
+        self.require_same_admission(&image).await?;
+        let captured = observer
+            .preparation_metadata(
+                PreparationReadContext {
+                    snapshot: &current,
+                    parent_uid: &parent_uid,
+                    revision_name: &revision_name,
+                    image: &image.image,
+                    guard: &guard,
+                    profile: &self.profile,
+                },
+                &mut chain,
+            )
+            .await?
+            .ok_or(RuntimeErrorCodeV1::RuntimeProjectionUnavailable)?;
+        // Both durable UIDs remain fixed; a same-name replacement never
+        // becomes a fresh report or a reason to delete the foreign object.
+        if captured.revision_uid != stored.revision_uid {
+            return Err(RuntimeErrorCodeV1::RuntimeFenceConflict);
+        }
+        Ok((current, captured))
+    }
+
     /// Explicit task invoked ONLY with the trusted local preparation result.
     /// Closed bindings encountered by the normal reconciliation loop never take
     /// this path. No maintenance proof is reconstructed from an HTTP body.
@@ -438,31 +450,11 @@ impl ServingRuntimeBridge {
         lease: RuntimeWriterLeaseV1,
         acquired_at: Instant,
     ) -> Result<RuntimeWriteAckV1, RuntimeErrorCodeV1> {
-        enum Round {
-            Read(
-                Result<
-                    Result<Option<RuntimeObservationV1>, RuntimeErrorCodeV1>,
-                    tokio::time::error::Elapsed,
-                >,
-            ),
-            Renew,
-        }
         let caller = RuntimeControlCallerV1 {
             role: RuntimeServiceRoleV1::Projector,
         };
-        let desired = render_parent(
-            current,
-            image,
-            &self.profile,
-            lease.proof.writer_fence,
-            Some(permit),
-        )?;
-        let revision_name = desired["spec"]["template"]["metadata"]["name"]
-            .as_str()
-            .ok_or(RuntimeErrorCodeV1::RuntimeInternal)?
-            .to_owned();
-        let desired: DynamicObject =
-            serde_json::from_value(desired).map_err(|_| RuntimeErrorCodeV1::RuntimeInternal)?;
+        let (desired, revision_name) =
+            render_preparation_parent(current, image, &self.profile, &lease, permit)?;
         let window_start = Instant::now(); // t0 is frozen BEFORE the single POST.
         let mut window = PreparationWindow::at(window_start);
         let mut coordinator = LeaseCoordinator {
@@ -482,26 +474,12 @@ impl ServingRuntimeBridge {
                 }
             }
         };
-        let parent_uid = parent
-            .metadata
-            .uid
-            .as_deref()
-            .filter(|uid| !uid.is_empty())
-            .ok_or(RuntimeErrorCodeV1::RuntimeAuthorityProtocolError)?
-            .to_owned();
-        if parent
-            .metadata
-            .resource_version
-            .as_deref()
-            .is_none_or(str::is_empty)
-        {
-            return Err(RuntimeErrorCodeV1::RuntimeAuthorityProtocolError);
-        }
+        let parent_uid = created_parent_uid(&parent)?;
         // Nothing serializes/logs this create provenance. A crash here requires
         // explicit maintenance inventory unless a full report already committed.
         let observer = RuntimePodObserver::new(self.parents.parents.clone().into_client());
         let mut chain = PreparationChainUids::default();
-        loop {
+        'discovery: loop {
             if Instant::now() >= window.discovery_deadline() {
                 return Err(RuntimeErrorCodeV1::RuntimeDeadlineExceeded);
             }
@@ -516,39 +494,41 @@ impl ServingRuntimeBridge {
                 expected: current.cas.clone(),
                 lease: coordinator.lease.proof.clone(),
             };
-            let result = {
-                let read = async {
-                    self.require_same_admission(image).await?;
-                    observer
-                        .preparation_metadata(
-                            PreparationReadContext {
-                                snapshot: current,
-                                parent_uid: &parent_uid,
-                                revision_name: &revision_name,
-                                image: &image.image,
-                                guard: &guard,
-                                profile: &self.profile,
-                            },
-                            &mut chain,
-                        )
-                        .await
-                };
-                tokio::pin!(read);
-                tokio::select! {
-                    biased;
-                    () = sleep_until(coordinator.next_renew) => Round::Renew,
-                    result = timeout_at(round_deadline, &mut read) => Round::Read(result),
+            let result = 'read_round: {
+                {
+                    let read = async {
+                        self.require_same_admission(image).await?;
+                        observer
+                            .preparation_metadata(
+                                PreparationReadContext {
+                                    snapshot: current,
+                                    parent_uid: &parent_uid,
+                                    revision_name: &revision_name,
+                                    image: &image.image,
+                                    guard: &guard,
+                                    profile: &self.profile,
+                                },
+                                &mut chain,
+                            )
+                            .await
+                    };
+                    tokio::pin!(read);
+                    tokio::select! {
+                        biased;
+                        () = sleep_until(coordinator.next_renew) => {},
+                        result = timeout_at(round_deadline, &mut read) => break 'read_round result,
+                    }
                 }
-            }; // incomplete read is DROPPED before a renewal, never silently extended.
+                // Drop the incomplete read before renewing; do not extend the round.
+                coordinator
+                    .renew(self, &caller, current, window.discovery_deadline())
+                    .await?;
+                continue 'discovery;
+            };
             match result {
-                Round::Renew => {
-                    coordinator
-                        .renew(self, &caller, current, window.discovery_deadline())
-                        .await?;
-                }
-                Round::Read(Err(_) | Ok(Ok(None))) => {}
-                Round::Read(Ok(Err(error))) => return Err(error),
-                Round::Read(Ok(Ok(Some(observation)))) => {
+                Err(_) | Ok(Ok(None)) => {}
+                Ok(Err(error)) => return Err(error),
+                Ok(Ok(Some(observation))) => {
                     return self
                         .report_preparation(&caller, current, &observation, window.total_deadline())
                         .await;
@@ -687,6 +667,48 @@ impl ServingRuntimeBridge {
             writer_fence: stored.writer_fence,
         })
     }
+}
+
+fn render_preparation_parent(
+    current: &RuntimeBindingSnapshotV1,
+    image: &AdmittedServingImage,
+    profile: &ServingPlatformProfile,
+    lease: &RuntimeWriterLeaseV1,
+    permit: &RuntimeBindingPreparationPermitV1,
+) -> Result<(DynamicObject, String), RuntimeErrorCodeV1> {
+    let desired = render_parent(
+        current,
+        image,
+        profile,
+        lease.proof.writer_fence,
+        Some(permit),
+    )?;
+    let revision_name = desired["spec"]["template"]["metadata"]["name"]
+        .as_str()
+        .ok_or(RuntimeErrorCodeV1::RuntimeInternal)?
+        .to_owned();
+    let desired: DynamicObject =
+        serde_json::from_value(desired).map_err(|_| RuntimeErrorCodeV1::RuntimeInternal)?;
+    Ok((desired, revision_name))
+}
+
+fn created_parent_uid(parent: &DynamicObject) -> Result<String, RuntimeErrorCodeV1> {
+    let parent_uid = parent
+        .metadata
+        .uid
+        .as_deref()
+        .filter(|uid| !uid.is_empty())
+        .ok_or(RuntimeErrorCodeV1::RuntimeAuthorityProtocolError)?
+        .to_owned();
+    if parent
+        .metadata
+        .resource_version
+        .as_deref()
+        .is_none_or(str::is_empty)
+    {
+        return Err(RuntimeErrorCodeV1::RuntimeAuthorityProtocolError);
+    }
+    Ok(parent_uid)
 }
 
 const fn require_absent_for_create(

@@ -368,11 +368,15 @@ fn build_platform_kv(
 ) -> Result<Arc<dyn AsyncKvStore>, Error> {
     if config.kv.backend.eq_ignore_ascii_case("redis") {
         let url = config.redis.url()?;
-        let store = match config.redis.tls_ca_cert_path.as_deref() {
-            Some(ca_path) => RedisKvStore::connect_tls(&url, ca_path),
-            None => RedisKvStore::connect(&url),
-        }
-        .map_err(|e| anyhow::anyhow!("Redis KV: {e}"))?;
+        let store = config
+            .redis
+            .tls_ca_cert_path
+            .as_deref()
+            .map_or_else(
+                || RedisKvStore::connect(&url),
+                |ca_path| RedisKvStore::connect_tls(&url, ca_path),
+            )
+            .map_err(|e| anyhow::anyhow!("Redis KV: {e}"))?;
         Ok(Arc::new(store))
     } else {
         Ok(Arc::new(PostgresKvStore::from_arc(kv_conn)))

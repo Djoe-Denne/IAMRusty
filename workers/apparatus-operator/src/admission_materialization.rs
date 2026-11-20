@@ -95,7 +95,7 @@ pub struct DurableAdmissionAuthority {
     authority_id: Uuid,
     epoch: Uuid,
     sequence: u64,
-    tip: String,
+    tip_sha256: String,
     decisions: BTreeMap<String, Decision>,
     reconciled: bool,
     poisoned: bool,
@@ -131,7 +131,7 @@ impl DurableAdmissionAuthority {
             authority_id,
             epoch,
             sequence: 0,
-            tip: String::new(),
+            tip_sha256: String::new(),
             decisions: BTreeMap::new(),
             reconciled: false,
             poisoned: false,
@@ -167,7 +167,7 @@ impl DurableAdmissionAuthority {
             authority_id,
             epoch,
             sequence: 0,
-            tip: String::new(),
+            tip_sha256: String::new(),
             decisions: BTreeMap::new(),
             reconciled: false,
             poisoned: false,
@@ -187,7 +187,7 @@ impl DurableAdmissionAuthority {
                         .sequence
                         .checked_add(1)
                         .ok_or(Failure::RuntimeAuthorityUnavailable)?
-                || event.previous_sha256 != store.tip
+                || event.previous_sha256 != store.tip_sha256
                 || (store.sequence == 0) != event.decision.is_none()
             {
                 return Err(Failure::RuntimeAuthorityUnavailable);
@@ -209,7 +209,7 @@ impl DurableAdmissionAuthority {
                     .insert(decision.release.as_str().to_owned(), decision);
             }
             store.sequence = event.sequence;
-            store.tip = hex::encode(Sha256::digest(bytes));
+            store.tip_sha256 = hex::encode(Sha256::digest(bytes));
         }
         store.history_hash.update(&raw);
         Ok(store)
@@ -229,7 +229,7 @@ impl DurableAdmissionAuthority {
         if checkpoint.authority_id != self.authority_id
             || checkpoint.epoch != self.epoch
             || checkpoint.sequence != self.sequence
-            || checkpoint.tip_sha256 != self.tip
+            || checkpoint.tip_sha256 != self.tip_sha256
         {
             return Err(Failure::RuntimeAuthorityUnavailable);
         }
@@ -245,7 +245,7 @@ impl DurableAdmissionAuthority {
             authority_id: self.authority_id,
             epoch: self.epoch,
             sequence: self.sequence,
-            tip_sha256: self.tip.clone(),
+            tip_sha256: self.tip_sha256.clone(),
         }
     }
 
@@ -268,7 +268,7 @@ impl DurableAdmissionAuthority {
             .rev()
             .find(|line| !line.is_empty())
             .ok_or(Failure::RuntimeAuthorityUnavailable)?;
-        if hex::encode(Sha256::digest(last)) != self.tip
+        if hex::encode(Sha256::digest(last)) != self.tip_sha256
             || Sha256::digest(&raw) != self.history_hash.clone().finalize()
         {
             self.reconciled = false;
@@ -295,7 +295,7 @@ impl DurableAdmissionAuthority {
             authority_id: self.authority_id,
             epoch: self.epoch,
             sequence,
-            previous_sha256: self.tip.clone(),
+            previous_sha256: self.tip_sha256.clone(),
             decision: decision.clone(),
         };
         let bytes = serde_jcs::to_vec(&event).map_err(|_| Failure::RuntimeAuthorityUnavailable)?;
@@ -312,7 +312,7 @@ impl DurableAdmissionAuthority {
             .and_then(|()| self.file.sync_all())
             .map_err(|_| Failure::RuntimeAuthorityUnavailable)?;
         self.sequence = sequence;
-        self.tip = hex::encode(Sha256::digest(&bytes));
+        self.tip_sha256 = hex::encode(Sha256::digest(&bytes));
         self.history_hash.update(&bytes);
         self.history_hash.update(b"\n");
         if let Some(decision) = decision {
@@ -605,11 +605,27 @@ impl AdmissionMaterializationExporter {
             observed_at_unix_ms: RuntimeUnixMsV1::new(observed)?,
             valid_until_unix_ms: RuntimeUnixMsV1::new(until)?,
         };
+        let compact = self.sign_admission_claims(&claims).await?;
+        let now = clock_ms()?;
+        if now < observed
+            || now >= until
+            || now / 1000 >= claims.exp
+            || compact.len() > MAX_ADMISSION_PROOF_BYTES
+        {
+            return Err(Failure::RuntimeInvalidProof);
+        }
+        Ok(compact)
+    }
+
+    async fn sign_admission_claims(
+        &self,
+        claims: &RuntimeAdmissionAttestationV1,
+    ) -> Result<String, Failure> {
         let header = serde_jcs::to_vec(
             &serde_json::json!({"alg":"RS256","typ":ADMISSION_TYP,"kid":self.kid}),
         )
         .map_err(|_| Failure::RuntimeInvalidProof)?;
-        let payload = serde_jcs::to_vec(&claims).map_err(|_| Failure::RuntimeInvalidProof)?;
+        let payload = serde_jcs::to_vec(claims).map_err(|_| Failure::RuntimeInvalidProof)?;
         let signed = format!(
             "{}.{}",
             URL_SAFE_NO_PAD.encode(header),
@@ -633,14 +649,6 @@ impl AdmissionMaterializationExporter {
             VerifyingKey::<Sha256>::new(self.public_key.clone()).verify(signed.as_bytes(), &signature).map_err(|_| Failure::RuntimeInvalidProof)?;
             Ok(format!("{signed}.{}", URL_SAFE_NO_PAD.encode(bytes)))
         }).await.map_err(|_| Failure::RuntimeAuthorityUnavailable)??;
-        let now = clock_ms()?;
-        if now < observed
-            || now >= until
-            || now / 1000 >= claims.exp
-            || compact.len() > MAX_ADMISSION_PROOF_BYTES
-        {
-            return Err(Failure::RuntimeInvalidProof);
-        }
         Ok(compact)
     }
 }

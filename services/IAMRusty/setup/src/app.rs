@@ -237,11 +237,12 @@ impl IAMRustyApp {
         handles: &mut Vec<JoinHandle<Result<()>>>,
     ) -> Result<()> {
         let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
-        let mut first_error =
-            match tokio::time::timeout_at(deadline, self.stop_background_tasks()).await {
-                Ok(result) => result.err(),
-                Err(_) => Some(anyhow::anyhow!("IAM cooperative background stop timed out")),
-            };
+        let mut first_error = tokio::time::timeout_at(deadline, self.stop_background_tasks())
+            .await
+            .map_or_else(
+                |_| Some(anyhow::anyhow!("IAM cooperative background stop timed out")),
+                Result::err,
+            );
         while !handles.is_empty() {
             let joined = tokio::time::timeout_at(deadline, select_all(handles.iter_mut())).await;
             if let Ok((result, index, remaining)) = joined {

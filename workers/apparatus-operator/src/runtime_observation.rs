@@ -226,8 +226,7 @@ impl RuntimePodObserver {
             parent_uid,
             revision_name,
             image,
-            guard,
-            profile,
+            ..
         } = context;
         let unavailable = RuntimeErrorCodeV1::RuntimeProjectionUnavailable;
         let name = crate::runtime_ownership::serving_name(snapshot);
@@ -289,55 +288,7 @@ impl RuntimePodObserver {
         if users.len() != 1 || users[0]["image"] != image {
             return Err(RuntimeErrorCodeV1::RuntimeReleaseNotAdmitted);
         }
-        let Some(resource_generation) = parent
-            .metadata
-            .generation
-            .and_then(|n| u64::try_from(n).ok())
-        else {
-            return Ok(None);
-        };
-        let Some(observed_generation) = parent.data["status"]["observedGeneration"].as_u64() else {
-            return Ok(None);
-        };
-        let Some(endpoint) = parent.data["status"]["address"]["url"].as_str() else {
-            return Ok(None);
-        };
-        profile.check_endpoint(snapshot, endpoint)?;
-        let ready_conditions: Vec<_> = parent.data["status"]["conditions"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter(|condition| condition["type"] == "Ready")
-            .collect();
-        let route_ready = resource_generation == observed_generation
-            && parent.data["status"]["latestCreatedRevisionName"] == revision_name
-            && parent.data["status"]["latestReadyRevisionName"] == revision_name
-            && ready_conditions.len() == 1
-            && ready_conditions[0]["status"] == "True";
-        let utc_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|_| unavailable)?
-            .as_millis();
-        let observed_at = RuntimeUnixMsV1::new(i64::try_from(utc_ms).map_err(|_| unavailable)?)?;
-        Ok(Some(apparatus_contracts::runtime::RuntimeObservationV1 {
-            schema_version: 1,
-            project_id: snapshot.project_id,
-            binding_id: snapshot.binding_id,
-            guard: guard.clone(),
-            service_uid: parent_uid.to_owned(),
-            resource_generation: apparatus_contracts::runtime::RuntimeCounterV1::new(
-                resource_generation,
-            )?,
-            observed_resource_generation: apparatus_contracts::runtime::RuntimeCounterV1::new(
-                observed_generation,
-            )?,
-            revision_uid: revision_uid.to_owned(),
-            revision_name: revision_name.to_owned(),
-            release: snapshot.release.clone(),
-            endpoint: endpoint.to_owned(),
-            route_ready,
-            observed_at_unix_ms: observed_at,
-        }))
+        preparation_observation(&parent, context, revision_uid)
     }
     /// Reuse the operator's configured client, never pass it into Manifesto.
     #[must_use]
@@ -426,84 +377,172 @@ impl RuntimePodObserver {
         let page = self.pods.list(&params).await.map_err(|_| unavailable)?;
         let mut items = Vec::with_capacity(page.items.len());
         for pod in page.items {
-            let replica_ref = controller_owner(&pod.metadata, "apps/v1", "ReplicaSet")?;
-            let replica = self
-                .replica_sets
-                .get(&replica_ref.name)
-                .await
-                .map_err(|_| unavailable)?;
-            if uid(&replica.metadata)? != replica_ref.uid {
-                return Err(unavailable);
-            }
-            let deployment_ref = controller_owner(&replica.metadata, "apps/v1", "Deployment")?;
-            let deployment = self
-                .deployments
-                .get(&deployment_ref.name)
-                .await
-                .map_err(|_| unavailable)?;
-            if uid(&deployment.metadata)? != deployment_ref.uid {
-                return Err(unavailable);
-            }
-            let revision_ref =
-                controller_owner(&deployment.metadata, "serving.knative.dev/v1", "Revision")?;
-            if revision_ref.uid != revision_uid || revision_ref.name != revision_name {
-                return Err(unavailable);
-            }
-            let spec = pod.spec.as_ref().ok_or(unavailable)?;
-            if pod.metadata.namespace.as_deref() != Some("apparatus-plugins")
-                || spec.service_account_name.as_deref() != Some("apparatus-runtime-plugin")
-                || spec.automount_service_account_token != Some(false)
-                || spec.runtime_class_name.as_deref() != Some("apparatus-gvisor")
-            {
-                return Err(unavailable);
-            }
-            let user_containers: Vec<_> = spec
-                .containers
-                .iter()
-                .filter(|container| container.name == "user-container")
-                .collect();
-            if user_containers.len() != 1 || user_containers[0].image.as_deref() != Some(image) {
-                return Err(unavailable);
-            }
-            let env = user_containers[0].env.as_deref().unwrap_or_default();
-            verify_runtime_environment(env, snapshot, &generation)?;
-            let account = self
-                .accounts
-                .get("apparatus-runtime-plugin")
-                .await
-                .map_err(|_| unavailable)?;
-            let state = if pod.metadata.deletion_timestamp.is_some()
-                || pod
-                    .status
-                    .as_ref()
-                    .and_then(|status| status.phase.as_deref())
-                    .is_some_and(|phase| phase == "Failed" || phase == "Succeeded")
-            {
-                RuntimeInstanceStateV1::Closed
-            } else {
-                RuntimeInstanceStateV1::Current
-            };
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_err(|_| unavailable)?;
-            let milliseconds = i64::try_from(now.as_millis()).map_err(|_| unavailable)?;
-            items.push(ObservedRuntimePod {
-                identity: RuntimePodIdentityV1 {
-                    pod_uid: uid(&pod.metadata)?.to_owned(),
-                    revision_uid: revision_uid.to_owned(),
-                    namespace: "apparatus-plugins".to_owned(),
-                    service_account: "apparatus-runtime-plugin".to_owned(),
-                    service_account_uid: uid(&account.metadata)?.to_owned(),
-                },
-                state,
-                observed_at: RuntimeUnixMsV1::new(milliseconds).map_err(|_| unavailable)?,
-            });
+            items.push(
+                self.observe_pod(
+                    &pod,
+                    revision_uid,
+                    revision_name,
+                    image,
+                    snapshot,
+                    &generation,
+                )
+                .await?,
+            );
         }
         Ok(ObservedRuntimePodPage {
             items,
             next_continue: page.metadata.continue_.filter(|token| !token.is_empty()),
         })
     }
+
+    async fn observe_pod(
+        &self,
+        pod: &Pod,
+        revision_uid: &str,
+        revision_name: &str,
+        image: &str,
+        snapshot: &RuntimeBindingSnapshotV1,
+        generation: &str,
+    ) -> Result<ObservedRuntimePod, RuntimeErrorCodeV1> {
+        let unavailable = RuntimeErrorCodeV1::RuntimeProjectionUnavailable;
+        let replica_ref = controller_owner(&pod.metadata, "apps/v1", "ReplicaSet")?;
+        let replica = self
+            .replica_sets
+            .get(&replica_ref.name)
+            .await
+            .map_err(|_| unavailable)?;
+        if uid(&replica.metadata)? != replica_ref.uid {
+            return Err(unavailable);
+        }
+        let deployment_ref = controller_owner(&replica.metadata, "apps/v1", "Deployment")?;
+        let deployment = self
+            .deployments
+            .get(&deployment_ref.name)
+            .await
+            .map_err(|_| unavailable)?;
+        if uid(&deployment.metadata)? != deployment_ref.uid {
+            return Err(unavailable);
+        }
+        let revision_ref =
+            controller_owner(&deployment.metadata, "serving.knative.dev/v1", "Revision")?;
+        if revision_ref.uid != revision_uid || revision_ref.name != revision_name {
+            return Err(unavailable);
+        }
+        let spec = pod.spec.as_ref().ok_or(unavailable)?;
+        if pod.metadata.namespace.as_deref() != Some("apparatus-plugins")
+            || spec.service_account_name.as_deref() != Some("apparatus-runtime-plugin")
+            || spec.automount_service_account_token != Some(false)
+            || spec.runtime_class_name.as_deref() != Some("apparatus-gvisor")
+        {
+            return Err(unavailable);
+        }
+        let user_containers: Vec<_> = spec
+            .containers
+            .iter()
+            .filter(|container| container.name == "user-container")
+            .collect();
+        if user_containers.len() != 1 || user_containers[0].image.as_deref() != Some(image) {
+            return Err(unavailable);
+        }
+        let env = user_containers[0].env.as_deref().unwrap_or_default();
+        verify_runtime_environment(env, snapshot, generation)?;
+        let account = self
+            .accounts
+            .get("apparatus-runtime-plugin")
+            .await
+            .map_err(|_| unavailable)?;
+        let state = if pod.metadata.deletion_timestamp.is_some()
+            || pod
+                .status
+                .as_ref()
+                .and_then(|status| status.phase.as_deref())
+                .is_some_and(|phase| phase == "Failed" || phase == "Succeeded")
+        {
+            RuntimeInstanceStateV1::Closed
+        } else {
+            RuntimeInstanceStateV1::Current
+        };
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| unavailable)?;
+        let milliseconds = i64::try_from(now.as_millis()).map_err(|_| unavailable)?;
+        Ok(ObservedRuntimePod {
+            identity: RuntimePodIdentityV1 {
+                pod_uid: uid(&pod.metadata)?.to_owned(),
+                revision_uid: revision_uid.to_owned(),
+                namespace: "apparatus-plugins".to_owned(),
+                service_account: "apparatus-runtime-plugin".to_owned(),
+                service_account_uid: uid(&account.metadata)?.to_owned(),
+            },
+            state,
+            observed_at: RuntimeUnixMsV1::new(milliseconds).map_err(|_| unavailable)?,
+        })
+    }
+}
+
+fn preparation_observation(
+    parent: &DynamicObject,
+    context: PreparationReadContext<'_>,
+    revision_uid: &str,
+) -> Result<Option<apparatus_contracts::runtime::RuntimeObservationV1>, RuntimeErrorCodeV1> {
+    let PreparationReadContext {
+        snapshot,
+        parent_uid,
+        revision_name,
+        guard,
+        profile,
+        ..
+    } = context;
+    let unavailable = RuntimeErrorCodeV1::RuntimeProjectionUnavailable;
+    let Some(resource_generation) = parent
+        .metadata
+        .generation
+        .and_then(|n| u64::try_from(n).ok())
+    else {
+        return Ok(None);
+    };
+    let Some(observed_generation) = parent.data["status"]["observedGeneration"].as_u64() else {
+        return Ok(None);
+    };
+    let Some(endpoint) = parent.data["status"]["address"]["url"].as_str() else {
+        return Ok(None);
+    };
+    profile.check_endpoint(snapshot, endpoint)?;
+    let ready_conditions: Vec<_> = parent.data["status"]["conditions"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|condition| condition["type"] == "Ready")
+        .collect();
+    let route_ready = resource_generation == observed_generation
+        && parent.data["status"]["latestCreatedRevisionName"] == revision_name
+        && parent.data["status"]["latestReadyRevisionName"] == revision_name
+        && ready_conditions.len() == 1
+        && ready_conditions[0]["status"] == "True";
+    let utc_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| unavailable)?
+        .as_millis();
+    let observed_at = RuntimeUnixMsV1::new(i64::try_from(utc_ms).map_err(|_| unavailable)?)?;
+    Ok(Some(apparatus_contracts::runtime::RuntimeObservationV1 {
+        schema_version: 1,
+        project_id: snapshot.project_id,
+        binding_id: snapshot.binding_id,
+        guard: guard.clone(),
+        service_uid: parent_uid.to_owned(),
+        resource_generation: apparatus_contracts::runtime::RuntimeCounterV1::new(
+            resource_generation,
+        )?,
+        observed_resource_generation: apparatus_contracts::runtime::RuntimeCounterV1::new(
+            observed_generation,
+        )?,
+        revision_uid: revision_uid.to_owned(),
+        revision_name: revision_name.to_owned(),
+        release: snapshot.release.clone(),
+        endpoint: endpoint.to_owned(),
+        route_ready,
+        observed_at_unix_ms: observed_at,
+    }))
 }
 
 fn verify_runtime_environment(

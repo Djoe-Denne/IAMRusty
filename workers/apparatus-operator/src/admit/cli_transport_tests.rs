@@ -39,8 +39,7 @@ thread_local! {
 
 struct MockState {
     active: bool,
-    fail_stop: bool,
-    fail_tool: bool,
+    failures: MockFailures,
     bad_cid: bool,
     deadline_on_run: bool,
     stdout: Vec<u8>,
@@ -50,12 +49,19 @@ struct MockState {
     configs: Vec<String>,
 }
 
+struct MockFailures {
+    stop: bool,
+    tool: bool,
+}
+
 impl MockState {
     fn inactive() -> Self {
         Self {
             active: false,
-            fail_stop: false,
-            fail_tool: false,
+            failures: MockFailures {
+                stop: false,
+                tool: false,
+            },
             bad_cid: false,
             deadline_on_run: false,
             stdout: Vec::new(),
@@ -125,13 +131,13 @@ fn scripted(spec: &CliSpec, state: &MockState) -> Result<Output, AdmitError> {
             return Err(AdmitError::new("cli deadline exceeded"));
         }
     }
-    if head == Some("stop") && state.fail_stop {
+    if head == Some("stop") && state.failures.stop {
         return Ok(fake_output(1, b"", b""));
     }
     if head == Some("inspect") {
         return Ok(fake_output(0, b"exited\n", b""));
     }
-    if state.fail_tool && !matches!(head, Some("stop" | "inspect" | "rm" | "run")) {
+    if state.failures.tool && !matches!(head, Some("stop" | "inspect" | "rm" | "run")) {
         return Ok(fake_output(9, &state.stdout, &state.stderr));
     }
     Ok(fake_output(0, &state.stdout, &state.stderr))
@@ -646,7 +652,7 @@ fn cosign_failure_omits_output_and_removes_config() {
     stdout.push(0xff);
     install_mock(&stdout);
     update_mock(|mock| {
-        mock.fail_tool = true;
+        mock.failures.tool = true;
         mock.stderr = b"ADVERSARIAL-MARKER".to_vec();
     });
     let target = target("s3cret");
@@ -755,7 +761,7 @@ fn oras_docker_run_uses_stdin_and_exact_container_id() {
 fn docker_stop_failure_skips_rm() {
     let _guard = Guard::install();
     install_mock(&digest_line());
-    update_mock(|mock| mock.fail_stop = true);
+    update_mock(|mock| mock.failures.stop = true);
     let work = TempWork::new("apparatus-m4-stop");
     let target = target("s3cret");
     let err = oras_push_and_oci_digest(
