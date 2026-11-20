@@ -535,7 +535,7 @@ fn password_flags_never_spawn() {
         "--password".to_owned(),
         "s3cret".to_owned(),
     ];
-    let err = run_cli(RunRequest {
+    let err = run_cli(&RunRequest {
         bin_env: ORAS_BIN_ENV,
         image: ORAS_IMAGE,
         network: &target.docker_network,
@@ -550,7 +550,7 @@ fn password_flags_never_spawn() {
     assert!(take_specs().is_empty());
 
     let cosign_args = vec!["sign".to_owned(), "--registry-password".to_owned()];
-    let err = run_cli(RunRequest {
+    let err = run_cli(&RunRequest {
         bin_env: COSIGN_BIN_ENV,
         image: COSIGN_IMAGE,
         network: &target.docker_network,
@@ -1052,7 +1052,7 @@ fn stdin_is_closed_before_wait() {
     spec.stdin = Some(b"hello-frame\r\n".to_vec());
     spec.deadline = Duration::from_secs(8);
     let started = Instant::now();
-    let output = execute(spec).expect("findstr");
+    let output = execute(&spec).expect("findstr");
     assert!(started.elapsed() < Duration::from_secs(8));
     assert!(output.status.success());
     let text = String::from_utf8_lossy(&output.stdout);
@@ -1070,7 +1070,7 @@ fn direct_child_deadline_returns_without_hunting_heirs() {
     );
     spec.deadline = Duration::from_secs(2);
     let started = Instant::now();
-    let err = execute(spec).expect_err("deadline");
+    let err = execute(&spec).expect_err("deadline");
     assert_bounded(started, Duration::from_secs(2));
     assert!(err.to_string().contains("cli deadline exceeded"));
 }
@@ -1094,7 +1094,7 @@ fn pipe_heir_deadline_returns_before_bound() {
     );
     spec.deadline = Duration::from_secs(2);
     let started = Instant::now();
-    let err = execute(spec).expect_err("heir");
+    let err = execute(&spec).expect_err("heir");
     assert_bounded(started, Duration::from_secs(2));
     assert!(err.to_string().contains("cli deadline exceeded"));
 }
@@ -1113,7 +1113,7 @@ fn output_over_limit_is_generic() {
     );
     spec.output_limit = 4;
     spec.deadline = Duration::from_secs(8);
-    let err = execute(spec).expect_err("cap");
+    let err = execute(&spec).expect_err("cap");
     let text = err.to_string();
     assert_eq!(text, "cli output exceeded limit");
     assert!(!text.contains("ADVERSARIAL-MARKER"));
@@ -1125,7 +1125,7 @@ fn missing_helper_error_hides_the_path() {
     let _guard = Guard::install();
     let work = TempWork::new("apparatus-m4-missing");
     let program = work.path().join("missing-s3cret.exe");
-    let err = execute(real_spec(program, vec!["s3cret".to_owned()])).expect_err("spawn");
+    let err = execute(&real_spec(program, vec!["s3cret".to_owned()])).expect_err("spawn");
     assert_eq!(err.to_string(), "cannot start helper");
     assert!(!err.to_string().contains("s3cret"));
 }
@@ -1144,7 +1144,7 @@ fn child_env_scrubs_vault_token_unless_explicit() {
         ],
     );
     spec.remove_env = vec!["VAULT_TOKEN".to_owned()];
-    let output = execute(spec).expect("scrub");
+    let output = execute(&spec).expect("scrub");
     let text = String::from_utf8_lossy(&output.stdout);
     assert_eq!(text.trim(), "%VAULT_TOKEN%");
     assert_eq!(std::env::var_os("VAULT_TOKEN"), parent);
@@ -1159,7 +1159,7 @@ fn child_env_scrubs_vault_token_unless_explicit() {
     );
     spec.remove_env = vec!["VAULT_TOKEN".to_owned()];
     spec.set_env = vec![("VAULT_TOKEN".to_owned(), "vault-token-value".to_owned())];
-    let output = execute(spec).expect("set");
+    let output = execute(&spec).expect("set");
     let text = String::from_utf8_lossy(&output.stdout);
     assert_eq!(text.trim(), "vault-token-value");
     assert_eq!(std::env::var_os("VAULT_TOKEN"), parent);
@@ -1176,7 +1176,7 @@ fn stdin_is_closed_before_wait() {
     spec.stdin = Some(b"hello-frame\n".to_vec());
     spec.deadline = Duration::from_secs(8);
     let started = Instant::now();
-    let output = execute(spec).expect("cat");
+    let output = execute(&spec).expect("cat");
     assert!(started.elapsed() < Duration::from_secs(8));
     assert!(output.status.success());
     assert!(String::from_utf8_lossy(&output.stdout).contains("hello-frame"));
@@ -1192,7 +1192,7 @@ fn direct_child_deadline_returns_without_hunting_heirs() {
     );
     spec.deadline = Duration::from_secs(2);
     let started = Instant::now();
-    let err = execute(spec).expect_err("deadline");
+    let err = execute(&spec).expect_err("deadline");
     assert_bounded(started, Duration::from_secs(2));
     assert!(err.to_string().contains("cli deadline exceeded"));
 }
@@ -1207,7 +1207,7 @@ fn pipe_heir_deadline_returns_before_bound() {
     );
     spec.deadline = Duration::from_secs(2);
     let started = Instant::now();
-    let err = execute(spec).expect_err("heir");
+    let err = execute(&spec).expect_err("heir");
     assert_bounded(started, Duration::from_secs(2));
     assert!(err.to_string().contains("cli deadline exceeded"));
 }
@@ -1224,7 +1224,7 @@ fn output_over_limit_is_generic() {
         ],
     );
     spec.output_limit = 4;
-    let err = execute(spec).expect_err("cap");
+    let err = execute(&spec).expect_err("cap");
     assert_eq!(err.to_string(), "cli output exceeded limit");
 }
 
@@ -1233,7 +1233,7 @@ fn output_over_limit_is_generic() {
 fn missing_helper_error_hides_the_path() {
     let work = TempWork::new("apparatus-m4-missing");
     let program = work.path().join("missing-s3cret");
-    let err = execute(real_spec(program, Vec::new())).expect_err("spawn");
+    let err = execute(&real_spec(program, Vec::new())).expect_err("spawn");
     assert_eq!(err.to_string(), "cannot start helper");
     assert!(!err.to_string().contains("s3cret"));
 }
@@ -1247,7 +1247,7 @@ fn child_env_scrubs_vault_token_unless_explicit() {
         vec!["-c".to_owned(), "printf %s \"$VAULT_TOKEN\"".to_owned()],
     );
     spec.remove_env = vec!["VAULT_TOKEN".to_owned()];
-    let output = execute(spec).expect("scrub");
+    let output = execute(&spec).expect("scrub");
     assert_eq!(String::from_utf8_lossy(&output.stdout), "");
     assert_eq!(std::env::var_os("VAULT_TOKEN"), parent);
 
@@ -1257,7 +1257,7 @@ fn child_env_scrubs_vault_token_unless_explicit() {
     );
     spec.remove_env = vec!["VAULT_TOKEN".to_owned()];
     spec.set_env = vec![("VAULT_TOKEN".to_owned(), "vault-token-value".to_owned())];
-    let output = execute(spec).expect("set");
+    let output = execute(&spec).expect("set");
     assert_eq!(String::from_utf8_lossy(&output.stdout), "vault-token-value");
     assert_eq!(std::env::var_os("VAULT_TOKEN"), parent);
 }

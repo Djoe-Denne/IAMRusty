@@ -472,7 +472,7 @@ impl AdmissionMaterializationExporter {
     /// signing key, including reuse of the envelope verification key.
     pub fn new(
         client: reqwest::Client,
-        endpoint: reqwest::Url,
+        endpoint: &reqwest::Url,
         token: String,
         key_name: &str,
         public_key: RsaPublicKey,

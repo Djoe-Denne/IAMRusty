@@ -656,7 +656,7 @@ fn invoke_oras(
 ) -> Result<Output, AdmitError> {
     let frame = cli_transport::oras_password_frame(&target.auth.password);
     let secrets = [target.auth.password.as_str(), target.vault_token.as_str()];
-    cli_transport::run_cli(cli_transport::RunRequest {
+    cli_transport::run_cli(&cli_transport::RunRequest {
         bin_env: ORAS_BIN_ENV,
         image: ORAS_IMAGE,
         network: &target.docker_network,
@@ -694,7 +694,7 @@ fn invoke_cosign(target: &AdmitTarget, args: &[String]) -> Result<Output, AdmitE
             env_vars.push(("VAULT_SKIP_VERIFY", "false"));
         }
         let secrets = [target.auth.password.as_str(), target.vault_token.as_str()];
-        cli_transport::run_cli(cli_transport::RunRequest {
+        cli_transport::run_cli(&cli_transport::RunRequest {
             bin_env: COSIGN_BIN_ENV,
             image: COSIGN_IMAGE,
             network: &target.docker_network,

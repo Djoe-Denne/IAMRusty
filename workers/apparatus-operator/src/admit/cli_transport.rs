@@ -65,7 +65,7 @@ pub fn oras_password_frame(password: &str) -> Vec<u8> {
     framed
 }
 
-pub fn run_cli(request: RunRequest<'_>) -> Result<Output, AdmitError> {
+pub fn run_cli(request: &RunRequest<'_>) -> Result<Output, AdmitError> {
     reject_secret_argv(request.args, request.secrets)?;
     let deadline = cli_deadline();
     let output_limit = output_limit();
@@ -80,13 +80,13 @@ pub fn run_cli(request: RunRequest<'_>) -> Result<Output, AdmitError> {
             deadline,
             output_limit,
         };
-        return execute(spec);
+        return execute(&spec);
     }
     run_docker(request, deadline, output_limit)
 }
 
 fn run_docker(
-    request: RunRequest<'_>,
+    request: &RunRequest<'_>,
     deadline: Duration,
     output_limit: usize,
 ) -> Result<Output, AdmitError> {
@@ -123,17 +123,20 @@ fn run_docker(
     args.push(request.image.to_owned());
     args.extend(request.args.iter().cloned());
     reject_secret_argv(&args, request.secrets)?;
-    let spec = CliSpec {
-        program: PathBuf::from("docker"),
-        args,
-        set_env,
-        remove_env: scrub_keys(),
-        stdin: request.stdin.map(<[u8]>::to_vec),
-        workdir: None,
-        deadline,
-        output_limit,
+    // Drop the invocation's stdin and environment buffers before container cleanup.
+    let ran = {
+        let spec = CliSpec {
+            program: PathBuf::from("docker"),
+            args,
+            set_env,
+            remove_env: scrub_keys(),
+            stdin: request.stdin.map(<[u8]>::to_vec),
+            workdir: None,
+            deadline,
+            output_limit,
+        };
+        execute(&spec)
     };
-    let ran = execute(spec);
     let id = read_container_id(&cid_path);
     let _ = fs::remove_file(&cid_path);
     let missing_id = matches!(&ran, Ok(output) if output.status.success()) && id.is_none();
@@ -183,17 +186,17 @@ fn scrub_keys() -> Vec<String> {
     SCRUB_ENV.iter().map(|key| (*key).to_owned()).collect()
 }
 
-pub fn execute(spec: CliSpec) -> Result<Output, AdmitError> {
+pub fn execute(spec: &CliSpec) -> Result<Output, AdmitError> {
     #[cfg(test)]
-    if let Some(output) = super::cli_transport_tests::intercept(&spec) {
+    if let Some(output) = super::cli_transport_tests::intercept(spec) {
         return output;
     }
     supervise(spec)
 }
 
-fn supervise(spec: CliSpec) -> Result<Output, AdmitError> {
+fn supervise(spec: &CliSpec) -> Result<Output, AdmitError> {
     let deadline_at = Instant::now() + spec.deadline;
-    let mut child = spawn_child(&spec)?;
+    let mut child = spawn_child(spec)?;
     if !write_stdin(&mut child, spec.stdin.as_deref()) {
         reap_direct(&mut child);
         return Err(AdmitError::new("cannot start helper"));
@@ -433,11 +436,11 @@ fn release_container(id: &str) -> Result<(), AdmitError> {
     if !is_container_id(id) {
         return Err(AdmitError::new("container cleanup failed"));
     }
-    let stop = execute(docker_tool_spec(&["stop".to_owned(), id.to_owned()]))?;
+    let stop = execute(&docker_tool_spec(&["stop".to_owned(), id.to_owned()]))?;
     if !stop.status.success() {
         return Err(AdmitError::new("container cleanup failed"));
     }
-    let inspect = execute(docker_tool_spec(&[
+    let inspect = execute(&docker_tool_spec(&[
         "inspect".to_owned(),
         "--format".to_owned(),
         "{{.State.Status}}".to_owned(),
@@ -451,7 +454,7 @@ fn release_container(id: &str) -> Result<(), AdmitError> {
     if state != "exited" && state != "dead" {
         return Err(AdmitError::new("container cleanup failed"));
     }
-    let removed = execute(docker_tool_spec(&["rm".to_owned(), id.to_owned()]))?;
+    let removed = execute(&docker_tool_spec(&["rm".to_owned(), id.to_owned()]))?;
     if !removed.status.success() {
         return Err(AdmitError::new("container cleanup failed"));
     }
