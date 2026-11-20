@@ -475,7 +475,7 @@ fn oras_push_and_oci_digest(
     ];
     let push = invoke_oras(target, &push_args, Some(workdir))?;
     if !push.status.success() {
-        return Err(cli_failed("oras push", &push.status));
+        return Err(cli_failed("oras push", push.status));
     }
 
     let desc_args = vec![
@@ -490,7 +490,7 @@ fn oras_push_and_oci_digest(
     ];
     let desc = invoke_oras(target, &desc_args, None)?;
     if !desc.status.success() {
-        return Err(cli_failed("oras manifest fetch", &desc.status));
+        return Err(cli_failed("oras manifest fetch", desc.status));
     }
     let combined = format!(
         "{}{}",
@@ -584,7 +584,7 @@ fn sign_and_verify(target: &AdmitTarget, digest_ref: &str) -> Result<bool, Admit
     ];
     let signed = invoke_cosign(target, &sign_args)?;
     if !signed.status.success() {
-        return Err(cli_failed("cosign sign", &signed.status));
+        return Err(cli_failed("cosign sign", signed.status));
     }
 
     verify_cosign_signature(target, digest_ref)?;
@@ -615,7 +615,7 @@ pub fn verify_cosign_signature(target: &AdmitTarget, digest_ref: &str) -> Result
     }
     Err(cli_failed(
         "cosign verify (Vault-compat Transit)",
-        &verified.status,
+        verified.status,
     ))
 }
 
@@ -767,7 +767,7 @@ fn is_sha256_digest(value: &str) -> bool {
         && value.as_bytes()[7..].iter().all(u8::is_ascii_hexdigit)
 }
 
-fn cli_failed(op: &str, status: &ExitStatus) -> AdmitError {
+fn cli_failed(op: &str, status: ExitStatus) -> AdmitError {
     AdmitError::new(format!("{op} failed status={:?}", status.code()))
 }
 

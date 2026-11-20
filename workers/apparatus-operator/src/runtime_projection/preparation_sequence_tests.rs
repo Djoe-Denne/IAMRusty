@@ -89,9 +89,10 @@ impl RuntimeControlPort for Control {
                 trace.gets_after_report += 1;
             }
             let mut snapshot = trace.snapshot.clone();
-            if trace.case == Case::CasLost
-                && Instant::now().duration_since(trace.start) >= Duration::from_secs(3)
-            {
+            let cas_lost = trace.case == Case::CasLost
+                && Instant::now().duration_since(trace.start) >= Duration::from_secs(3);
+            drop(trace);
+            if cas_lost {
                 snapshot.cas.revocation_epoch =
                     snapshot.cas.revocation_epoch.checked_next().expect("epoch");
             }
@@ -245,26 +246,161 @@ struct Harness {
     lease: RuntimeWriterLeaseV1,
     trace: Arc<Mutex<Trace>>,
 }
+
+fn preparation_snapshot(
+    release: &RuntimeDigestV1,
+    count: RuntimeCounterV1,
+) -> RuntimeBindingSnapshotV1 {
+    RuntimeBindingSnapshotV1 {
+        schema_version: 1,
+        project_id: Uuid::new_v4(),
+        binding_id: Uuid::new_v4(),
+        cas: RuntimeCasV1 {
+            generation: count,
+            grant_revision: count,
+            revocation_epoch: count,
+            projection_version: count,
+        },
+        state: RuntimeBindingStateV1::Closed,
+        release: release.clone(),
+        profile: "test-profile".to_owned(),
+        observation: None,
+        instances: None,
+    }
+}
+
+fn preparation_lease(snapshot: &RuntimeBindingSnapshotV1) -> RuntimeWriterLeaseV1 {
+    RuntimeWriterLeaseV1 {
+        schema_version: 1,
+        project_id: snapshot.project_id,
+        binding_id: snapshot.binding_id,
+        proof: RuntimeLeaseProofV1 {
+            lease_id: Uuid::new_v4(),
+            holder_id: Uuid::new_v4(),
+            writer_fence: snapshot.cas.generation,
+        },
+        cas: snapshot.cas.clone(),
+        issued_at_unix_ms: RuntimeUnixMsV1::new(1).expect("at"),
+        expires_at_unix_ms: RuntimeUnixMsV1::new(10001).expect("ttl"),
+    }
+}
+
+fn preparation_target() -> crate::admit::AdmitTarget {
+    // TEST-only target: costly Cosign admission is deliberately outside this
+    // private sequencing oracle. No claim of real admission/TLS is made.
+    crate::admit::AdmitTarget {
+        registry_host: "registry.test".to_owned(),
+        registry_network: "registry.test".to_owned(),
+        docker_network: String::new(),
+        vault_addr_host: String::new(),
+        vault_addr_network: String::new(),
+        vault_token: String::new(),
+        transit_key: String::new(),
+        repository: "envelope".to_owned(),
+        tag: String::new(),
+        auth: crate::admit::RegistryAuth {
+            username: String::new(),
+            password: String::new(),
+        },
+    }
+}
+
+async fn preparation_create_status(case: Case, value: &mut Value) -> u16 {
+    if case == Case::CreateTimeout {
+        tokio::time::sleep(Duration::from_secs(31)).await;
+    }
+    if matches!(case, Case::SlowCreate | Case::SlowCreateNoMetadata) {
+        tokio::time::sleep(Duration::from_millis(2500)).await;
+    }
+    let status = if case == Case::Conflict { 409 } else { 200 };
+    if case == Case::NoUid {
+        value["metadata"]
+            .as_object_mut()
+            .expect("metadata")
+            .remove("uid");
+    }
+    status
+}
+
+fn preparation_client(
+    trace: &Arc<Mutex<Trace>>,
+    parent: Value,
+    revision: Value,
+    config: Value,
+) -> kube::Client {
+    let service = tower::service_fn({
+        let trace = trace.clone();
+        move |request: axum::http::Request<kube::client::Body>| {
+            let trace = trace.clone();
+            let parent = parent.clone();
+            let revision = revision.clone();
+            let config = config.clone();
+            async move {
+                let method = request.method().to_string();
+                let path = request.uri().path().to_owned();
+                let (case, elapsed) = {
+                    let mut t = trace.lock().expect("trace");
+                    let now = Instant::now();
+                    if method == "POST" {
+                        t.creates.push(now);
+                    } else if path.contains("/revisions/") {
+                        t.reads.push(now);
+                    }
+                    if method != "GET" {
+                        t.mutations.push(method.clone());
+                    }
+                    (t.case, now.duration_since(t.start))
+                };
+                let mut status = 200;
+                let mut value: Value = parent;
+                if method == "POST" {
+                    status = preparation_create_status(case, &mut value).await;
+                } else if path.contains("/revisions/") {
+                    if case == Case::SlowMetadata {
+                        tokio::time::sleep(Duration::from_secs(3)).await;
+                    }
+                    if matches!(
+                        case,
+                        Case::NeverMetadata
+                            | Case::LeaseLost
+                            | Case::CasLost
+                            | Case::SlowMetadata
+                            | Case::SlowCreateNoMetadata
+                    ) || case == Case::Delayed && elapsed < Duration::from_secs(5)
+                    {
+                        status = 404;
+                    } else {
+                        value = revision;
+                    }
+                } else if path.contains("/configurations/") {
+                    value = config;
+                } else if case == Case::ForeignParent {
+                    value["metadata"]["uid"] = json!("foreign-parent");
+                }
+                if method == "GET" && path.contains("/services/") && case == Case::Ready {
+                    value["status"]["conditions"][0]["status"] = json!("True");
+                }
+                if status != 200 {
+                    value = json!({"apiVersion":"v1","kind":"Status","status":"Failure","reason":if status==404{"NotFound"}else{"AlreadyExists"},"message":"test","code":status});
+                }
+                Ok::<_, std::io::Error>(
+                    axum::http::Response::builder()
+                        .status(status)
+                        .header("content-type", "application/json")
+                        .body(axum::body::Body::from(value.to_string()))
+                        .expect("response"),
+                )
+            }
+        }
+    });
+    kube::Client::new(service, "apparatus-plugins")
+}
+
 impl Harness {
     fn new(case: Case) -> Self {
         let count = RuntimeCounterV1::new(1).expect("count");
         let release = RuntimeDigestV1::new(format!("sha256:{}", "1".repeat(64))).expect("release");
-        let snapshot = RuntimeBindingSnapshotV1 {
-            schema_version: 1,
-            project_id: Uuid::new_v4(),
-            binding_id: Uuid::new_v4(),
-            cas: RuntimeCasV1 {
-                generation: count,
-                grant_revision: count,
-                revocation_epoch: count,
-                projection_version: count,
-            },
-            state: RuntimeBindingStateV1::Closed,
-            release: release.clone(),
-            profile: "test-profile".to_owned(),
-            observation: None,
-            instances: None,
-        };
+        let snapshot = preparation_snapshot(&release, count);
         let lock = RuntimeDigestV1::new(format!("sha256:{}", "2".repeat(64))).expect("lock");
         let permit = RuntimeBindingPreparationPermitV1 {
             migration_id: Uuid::new_v4(),
@@ -304,19 +440,7 @@ impl Harness {
             )
             .expect("endpoint"),
         );
-        let lease = RuntimeWriterLeaseV1 {
-            schema_version: 1,
-            project_id: snapshot.project_id,
-            binding_id: snapshot.binding_id,
-            proof: RuntimeLeaseProofV1 {
-                lease_id: Uuid::new_v4(),
-                holder_id: Uuid::new_v4(),
-                writer_fence: count,
-            },
-            cas: snapshot.cas.clone(),
-            issued_at_unix_ms: RuntimeUnixMsV1::new(1).expect("at"),
-            expires_at_unix_ms: RuntimeUnixMsV1::new(10001).expect("ttl"),
-        };
+        let lease = preparation_lease(&snapshot);
         let mut parent =
             render_parent(&snapshot, &image, &profile, count, Some(&permit)).expect("parent");
         parent["metadata"]["uid"] = json!("service-uid");
@@ -346,103 +470,8 @@ impl Harness {
             snapshot: snapshot.clone(),
             lease: lease.clone(),
         }));
-        let service = tower::service_fn({
-            let trace = trace.clone();
-            move |request: axum::http::Request<kube::client::Body>| {
-                let trace = trace.clone();
-                let parent = parent.clone();
-                let revision = revision.clone();
-                let config = config.clone();
-                async move {
-                    let method = request.method().to_string();
-                    let path = request.uri().path().to_owned();
-                    let (case, elapsed) = {
-                        let mut t = trace.lock().expect("trace");
-                        let now = Instant::now();
-                        if method == "POST" {
-                            t.creates.push(now);
-                        } else if path.contains("/revisions/") {
-                            t.reads.push(now);
-                        }
-                        if method != "GET" {
-                            t.mutations.push(method.clone());
-                        }
-                        (t.case, now.duration_since(t.start))
-                    };
-                    let mut status = 200;
-                    let mut value: Value = parent;
-                    if method == "POST" {
-                        if case == Case::CreateTimeout {
-                            tokio::time::sleep(Duration::from_secs(31)).await;
-                        }
-                        if matches!(case, Case::SlowCreate | Case::SlowCreateNoMetadata) {
-                            tokio::time::sleep(Duration::from_millis(2500)).await;
-                        }
-                        if case == Case::Conflict {
-                            status = 409;
-                        }
-                        if case == Case::NoUid {
-                            value["metadata"]
-                                .as_object_mut()
-                                .expect("metadata")
-                                .remove("uid");
-                        }
-                    } else if path.contains("/revisions/") {
-                        if case == Case::SlowMetadata {
-                            tokio::time::sleep(Duration::from_secs(3)).await;
-                        }
-                        if matches!(
-                            case,
-                            Case::NeverMetadata
-                                | Case::LeaseLost
-                                | Case::CasLost
-                                | Case::SlowMetadata
-                                | Case::SlowCreateNoMetadata
-                        ) || case == Case::Delayed && elapsed < Duration::from_secs(5)
-                        {
-                            status = 404;
-                        } else {
-                            value = revision;
-                        }
-                    } else if path.contains("/configurations/") {
-                        value = config;
-                    } else if case == Case::ForeignParent {
-                        value["metadata"]["uid"] = json!("foreign-parent");
-                    }
-                    if method == "GET" && path.contains("/services/") && case == Case::Ready {
-                        value["status"]["conditions"][0]["status"] = json!("True");
-                    }
-                    if status != 200 {
-                        value = json!({"apiVersion":"v1","kind":"Status","status":"Failure","reason":if status==404{"NotFound"}else{"AlreadyExists"},"message":"test","code":status});
-                    }
-                    Ok::<_, std::io::Error>(
-                        axum::http::Response::builder()
-                            .status(status)
-                            .header("content-type", "application/json")
-                            .body(axum::body::Body::from(value.to_string()))
-                            .expect("response"),
-                    )
-                }
-            }
-        });
-        let client = kube::Client::new(service, "apparatus-plugins");
-        // TEST-only target: costly Cosign admission is deliberately outside this
-        // private sequencing oracle. No claim of real admission/TLS is made.
-        let target = crate::admit::AdmitTarget {
-            registry_host: "registry.test".to_owned(),
-            registry_network: "registry.test".to_owned(),
-            docker_network: String::new(),
-            vault_addr_host: String::new(),
-            vault_addr_network: String::new(),
-            vault_token: String::new(),
-            transit_key: String::new(),
-            repository: "envelope".to_owned(),
-            tag: String::new(),
-            auth: crate::admit::RegistryAuth {
-                username: String::new(),
-                password: String::new(),
-            },
-        };
+        let client = preparation_client(&trace, parent, revision, config);
+        let target = preparation_target();
         let mut bridge = ServingRuntimeBridge::new(
             Arc::new(Control(trace.clone())),
             ServingParentApi::new(client),
@@ -487,6 +516,7 @@ impl Harness {
             .all(|at| at.duration_since(t.start) < Duration::from_secs(28)));
         assert!(Instant::now().duration_since(t.start) <= Duration::from_secs(30));
         assert!(t.gets_after_report <= 1);
+        drop(t);
     }
 }
 
@@ -502,6 +532,7 @@ async fn runtime_preparation_delayed_revision_and_coordinated_lease_renewal() {
         .iter()
         .any(|at| at.duration_since(t.start) == Duration::from_secs(3)));
     assert!(t.reads.len() > 1);
+    drop(t);
 }
 #[tokio::test(start_paused = true)]
 async fn runtime_preparation_complete_not_ready_reports_without_open() {
@@ -549,6 +580,7 @@ async fn runtime_preparation_discovery_stops_at_28s_without_partial_report() {
         Duration::from_secs(28)
     );
     assert!(t.reports.is_empty());
+    drop(t);
 }
 #[tokio::test(start_paused = true)]
 async fn runtime_preparation_create_deadline_30s_includes_create_and_no_retry() {
@@ -607,6 +639,7 @@ async fn runtime_preparation_uncommitted_put_lost_ack_stays_unknown() {
     let t = h.trace.lock().expect("trace");
     assert_eq!(t.gets_after_report, 1);
     assert!(t.snapshot.observation.is_none());
+    drop(t);
 }
 #[tokio::test(start_paused = true)]
 async fn runtime_preparation_cancel_before_report_keeps_unknown_residual() {
@@ -619,6 +652,7 @@ async fn runtime_preparation_cancel_before_report_keeps_unknown_residual() {
     assert!(t.reports.is_empty());
     assert!(t.snapshot.observation.is_none());
     assert!(require_absent_for_create(&t.snapshot, true).is_err());
+    drop(t);
 }
 #[tokio::test(start_paused = true)]
 async fn runtime_preparation_committed_report_keeps_durable_uid_not_local_receipt() {
@@ -638,6 +672,7 @@ async fn runtime_preparation_committed_report_keeps_durable_uid_not_local_receip
         require_absent_for_create(&t.snapshot, true),
         Err(RuntimeErrorCodeV1::RuntimeStaleState)
     ));
+    drop(t);
 }
 #[tokio::test(start_paused = true)]
 async fn runtime_preparation_put_timeout_never_extends_confirmation_budget() {
@@ -701,6 +736,7 @@ async fn runtime_preparation_each_read_round_is_cancelled_at_2s() {
         .reads
         .windows(2)
         .all(|pair| pair[1].duration_since(pair[0]) <= Duration::from_secs(2)));
+    drop(trace);
 }
 
 #[tokio::test(start_paused = true)]

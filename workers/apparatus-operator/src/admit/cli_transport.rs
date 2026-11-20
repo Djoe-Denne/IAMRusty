@@ -618,7 +618,7 @@ fn lock_down_file(path: &Path) -> Result<(), AdmitError> {
 fn lock_down_dir(dir: &Path) -> Result<(), AdmitError> {
     let sid = current_user_sid()?;
     icacls(dir, "/inheritance:r", None)?;
-    icacls(dir, "/grant:r", Some(format!("*{sid}:(OI)(CI)F")))
+    icacls(dir, "/grant:r", Some(&format!("*{sid}:(OI)(CI)F")))
 }
 
 #[cfg(windows)]
@@ -635,7 +635,7 @@ fn create_private_file(path: &Path) -> Result<(), AdmitError> {
 fn lock_down_file(path: &Path) -> Result<(), AdmitError> {
     let sid = current_user_sid()?;
     icacls(path, "/inheritance:r", None)?;
-    icacls(path, "/grant:r", Some(format!("*{sid}:F")))
+    icacls(path, "/grant:r", Some(&format!("*{sid}:F")))
 }
 
 #[cfg(windows)]
@@ -663,11 +663,11 @@ fn current_user_sid() -> Result<String, AdmitError> {
 }
 
 #[cfg(windows)]
-fn icacls(path: &Path, action: &str, grant: Option<String>) -> Result<(), AdmitError> {
+fn icacls(path: &Path, action: &str, grant: Option<&str>) -> Result<(), AdmitError> {
     let mut command = Command::new("icacls");
     command.arg(path);
     command.arg(action);
-    if let Some(grant) = grant.as_ref() {
+    if let Some(grant) = grant {
         command.arg(grant);
     }
     let output = command
@@ -708,16 +708,26 @@ fn path_string(path: &Path) -> Result<String, AdmitError> {
         .ok_or_else(|| AdmitError::new("private config permissions failed"))
 }
 
+#[cfg(not(test))]
+const fn cli_deadline() -> Duration {
+    CLI_DEADLINE
+}
+
+#[cfg(test)]
 fn cli_deadline() -> Duration {
-    #[cfg(test)]
     if let Some(deadline) = super::cli_transport_tests::deadline_override() {
         return deadline;
     }
     CLI_DEADLINE
 }
 
+#[cfg(not(test))]
+const fn output_limit() -> usize {
+    CLI_OUTPUT_LIMIT
+}
+
+#[cfg(test)]
 fn output_limit() -> usize {
-    #[cfg(test)]
     if let Some(limit) = super::cli_transport_tests::limit_override() {
         return limit;
     }

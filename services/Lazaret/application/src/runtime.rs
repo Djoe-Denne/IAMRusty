@@ -192,9 +192,11 @@ impl RuntimeInvocationService {
             return Err(RuntimeError::RuntimeDeadlineExceeded);
         }
         request.deadline_unix_ms = RuntimeUnixMsV1::new(deadline)?;
+        let timeout_ms =
+            u64::try_from(deadline - now).map_err(|_| RuntimeError::RuntimeDeadlineExceeded)?;
         let sent = AtomicBool::new(false);
         match tokio::time::timeout(
-            Duration::from_millis((deadline - now) as u64),
+            Duration::from_millis(timeout_ms),
             self.invoke_inner(certificate, &proof, request, &sent),
         )
         .await
@@ -263,9 +265,10 @@ impl RuntimeInvocationService {
             )
             .await
             .map_err(|error| error.code)?;
-        if snapshot.project_id != request.project_id
-            || snapshot.binding_id != request.target_binding_id
-        {
+        if snapshot.project_id != request.project_id {
+            return Err(RuntimeError::RuntimeAuthorityProtocolError);
+        }
+        if snapshot.binding_id != request.target_binding_id {
             return Err(RuntimeError::RuntimeAuthorityProtocolError);
         }
         if snapshot.cas.generation != request.expected_generation {
@@ -288,14 +291,14 @@ impl RuntimeInvocationService {
                 project_id: enrolled.project_id,
             })
             .await
-            .map_err(map_grant_failure)?;
+            .map_err(|error| map_grant_failure(&error))?;
         if decision != GrantDecision::Allow {
             return Err(RuntimeError::RuntimeCallerForbidden);
         }
         if d.grants
             .authorize_runtime_target(request.project_id, &target)
             .await
-            .map_err(map_grant_failure)?
+            .map_err(|error| map_grant_failure(&error))?
             != GrantDecision::Allow
         {
             return Err(RuntimeError::RuntimeCallerForbidden);
@@ -357,13 +360,15 @@ impl RuntimeInvocationService {
         if remaining <= 0 {
             return Err(RuntimeError::RuntimeDeadlineExceeded);
         }
+        let timeout_ms = u64::try_from(remaining.min(28_000))
+            .map_err(|_| RuntimeError::RuntimeDeadlineExceeded)?;
         sent.store(true, Ordering::Release);
         let mut response = self
             .http
             .post(format!("{endpoint}/invoke"))
             .header("Apparatus-Invocation", signed)
             .json(&request)
-            .timeout(Duration::from_millis(remaining.min(28_000) as u64))
+            .timeout(Duration::from_millis(timeout_ms))
             .send()
             .await
             .map_err(|_| RuntimeError::RuntimeEffectOutcomeUnknown)?;
@@ -393,7 +398,7 @@ impl RuntimeInvocationService {
     }
 }
 
-fn map_grant_failure(error: lazaret_domain::GrantFetchError) -> RuntimeError {
+const fn map_grant_failure(error: &lazaret_domain::GrantFetchError) -> RuntimeError {
     match error {
         lazaret_domain::GrantFetchError::NotFound => RuntimeError::RuntimeCallerForbidden,
         lazaret_domain::GrantFetchError::Transport(_) => RuntimeError::RuntimeAuthorityUnavailable,

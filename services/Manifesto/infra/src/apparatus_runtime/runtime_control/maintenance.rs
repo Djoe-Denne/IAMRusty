@@ -525,16 +525,7 @@ impl SqlRuntimeMaintenance {
         proof: &str,
     ) -> Result<RuntimeCasV1, RuntimeControlErrorV1> {
         let facts = self.authorize(RuntimeMaintenanceAct::Open, plan).await?;
-        require_command(
-            plan,
-            command.schema_version,
-            command.migration_id,
-            command.project_id,
-            command.binding_id,
-        )?;
-        if command.profile_lock_sha256 != plan.profile_lock_sha256 {
-            return Err(error(RuntimeErrorCodeV1::RuntimeInvalidProof));
-        }
+        require_open_command(plan, command)?;
         let profile = self
             .profile
             .as_ref()
@@ -546,17 +537,7 @@ impl SqlRuntimeMaintenance {
         require_consents(&txn, &domain, plan).await?;
         let row = lock_binding(&txn, plan.project_id, plan.binding_id).await?;
         require_intent(&row, plan, &command.expected, "prepared")?;
-        if row
-            .try_get::<Option<String>>("", "drain_evidence_sha256")
-            .map_err(db_error)?
-            .as_deref()
-            != facts
-                .drain_evidence_sha256
-                .as_ref()
-                .map(RuntimeDigestV1::as_str)
-        {
-            return Err(error(RuntimeErrorCodeV1::RuntimeInvalidProof));
-        }
+        require_open_evidence(&row, &facts)?;
         require_observation(
             &txn,
             &row,
@@ -803,6 +784,41 @@ const fn action_string(action: RuntimeAdmissionActionV1) -> &'static str {
 fn plan_json(p: &RuntimeBindingCutoverPlanV1) -> Value {
     json!({"schema_version":p.schema_version,"migration_id":p.migration_id,"project_id":p.project_id,"binding_id":p.binding_id,"expected_generation":p.expected_generation,"expected_grant_revision":p.expected_grant_revision,"release":p.release,"profile":p.profile,"profile_lock_sha256":p.profile_lock_sha256,"inventory_sha256":p.inventory_sha256})
 }
+fn require_open_command(
+    plan: &RuntimeBindingCutoverPlanV1,
+    command: &OpenRuntimeBindingV1,
+) -> Result<(), RuntimeControlErrorV1> {
+    require_command(
+        plan,
+        command.schema_version,
+        command.migration_id,
+        command.project_id,
+        command.binding_id,
+    )?;
+    if command.profile_lock_sha256 != plan.profile_lock_sha256 {
+        return Err(error(RuntimeErrorCodeV1::RuntimeInvalidProof));
+    }
+    Ok(())
+}
+
+fn require_open_evidence(
+    row: &QueryResult,
+    facts: &RuntimeMaintenanceFacts,
+) -> Result<(), RuntimeControlErrorV1> {
+    if row
+        .try_get::<Option<String>>("", "drain_evidence_sha256")
+        .map_err(db_error)?
+        .as_deref()
+        != facts
+            .drain_evidence_sha256
+            .as_ref()
+            .map(RuntimeDigestV1::as_str)
+    {
+        return Err(error(RuntimeErrorCodeV1::RuntimeInvalidProof));
+    }
+    Ok(())
+}
+
 fn require_command(
     p: &RuntimeBindingCutoverPlanV1,
     version: u16,

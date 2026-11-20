@@ -185,20 +185,9 @@ impl SqlRuntimeControl {
         let limit = continuation
             .as_ref()
             .map_or(1, |scan| usize::from(scan.page_size));
-        let mut items = Vec::new();
-        let mut bytes = 0;
         let total = rows.len();
-        for row in rows.iter().take(limit) {
-            let item = instance_snapshot(row, &cas, &binding_release, lease.as_ref(), now)?;
-            let size = serde_json::to_vec(&item)
-                .map_err(|_| error(RuntimeErrorCodeV1::RuntimeInternal))?
-                .len();
-            if bytes + size > 240_000 {
-                break;
-            }
-            bytes += size;
-            items.push(item);
-        }
+        let items =
+            bounded_instance_items(&rows, limit, &cas, &binding_release, lease.as_ref(), now)?;
         let next_cursor = if items.len() < total {
             let mut scan = continuation
                 .ok_or_else(|| error(RuntimeErrorCodeV1::RuntimeAuthorityProtocolError))?;
@@ -233,16 +222,47 @@ impl SqlRuntimeControl {
                 read_at_unix_ms: milliseconds(now)?,
             }),
         };
-        if serde_json::to_vec(&snapshot)
-            .map_err(|_| error(RuntimeErrorCodeV1::RuntimeInternal))?
-            .len()
-            > 262_144
-        {
-            return Err(error(RuntimeErrorCodeV1::RuntimeCapacityExhausted));
-        }
+        require_bounded_snapshot(&snapshot)?;
         txn.commit().await.map_err(db_error)?;
         Ok(snapshot)
     }
+}
+
+fn require_bounded_snapshot(
+    snapshot: &RuntimeBindingSnapshotV1,
+) -> Result<(), RuntimeControlErrorV1> {
+    if serde_json::to_vec(snapshot)
+        .map_err(|_| error(RuntimeErrorCodeV1::RuntimeInternal))?
+        .len()
+        > 262_144
+    {
+        return Err(error(RuntimeErrorCodeV1::RuntimeCapacityExhausted));
+    }
+    Ok(())
+}
+
+fn bounded_instance_items(
+    rows: &[QueryResult],
+    limit: usize,
+    cas: &RuntimeCasV1,
+    binding_release: &str,
+    lease: Option<&RuntimeWriterLeaseV1>,
+    now: i64,
+) -> Result<Vec<RuntimeInstanceSnapshotV1>, RuntimeControlErrorV1> {
+    let mut items = Vec::new();
+    let mut bytes = 0;
+    for row in rows.iter().take(limit) {
+        let item = instance_snapshot(row, cas, binding_release, lease, now)?;
+        let size = serde_json::to_vec(&item)
+            .map_err(|_| error(RuntimeErrorCodeV1::RuntimeInternal))?
+            .len();
+        if bytes + size > 240_000 {
+            break;
+        }
+        bytes += size;
+        items.push(item);
+    }
+    Ok(items)
 }
 
 fn binding_state(row: &QueryResult) -> Result<RuntimeBindingStateV1, RuntimeControlErrorV1> {

@@ -82,30 +82,7 @@ impl SqlRuntimeControl {
         let txn = self.db.begin().await.map_err(db_error)?;
         let row = lock_binding(&txn, project_id, binding_id).await?;
         let mut cas = row_cas(&row)?;
-        if row.try_get::<String>("", "release").map_err(db_error)? != request.release.as_str() {
-            return Err(error(RuntimeErrorCodeV1::RuntimeStaleState));
-        }
-        let state: String = row.try_get("", "state").map_err(db_error)?;
-        let phase: Option<String> = row.try_get("", "cutover_phase").map_err(db_error)?;
-        if state != "active"
-            && state != "draining"
-            && !(state == "closed" && phase.as_deref() == Some("prepared"))
-        {
-            return Err(error(RuntimeErrorCodeV1::RuntimeBindingClosed));
-        }
-        if row
-            .try_get::<Option<String>>("", "owned_service_uid")
-            .map_err(db_error)?
-            .is_some_and(|uid| uid != request.service_uid)
-        {
-            return Err(error(RuntimeErrorCodeV1::RuntimeFenceConflict));
-        }
-        if cas.generation != request.guard.expected.generation
-            || cas.grant_revision != request.guard.expected.grant_revision
-            || cas.revocation_epoch != request.guard.expected.revocation_epoch
-        {
-            return Err(error(RuntimeErrorCodeV1::RuntimeStaleState));
-        }
+        validate_observation_binding(&row, &cas, request)?;
         let now = db_clock(&txn).await?;
         let lease = current_lease(&row, project_id, binding_id, cas.clone())?
             .ok_or_else(|| error(RuntimeErrorCodeV1::RuntimeLeaseLost))?;
@@ -278,6 +255,38 @@ impl SqlRuntimeControl {
         txn.commit().await.map_err(db_error)?;
         Ok(lease)
     }
+}
+
+fn validate_observation_binding(
+    row: &QueryResult,
+    cas: &RuntimeCasV1,
+    request: &RuntimeObservationV1,
+) -> Result<(), RuntimeControlErrorV1> {
+    if row.try_get::<String>("", "release").map_err(db_error)? != request.release.as_str() {
+        return Err(error(RuntimeErrorCodeV1::RuntimeStaleState));
+    }
+    let state: String = row.try_get("", "state").map_err(db_error)?;
+    let phase: Option<String> = row.try_get("", "cutover_phase").map_err(db_error)?;
+    if state != "active"
+        && state != "draining"
+        && !(state == "closed" && phase.as_deref() == Some("prepared"))
+    {
+        return Err(error(RuntimeErrorCodeV1::RuntimeBindingClosed));
+    }
+    if row
+        .try_get::<Option<String>>("", "owned_service_uid")
+        .map_err(db_error)?
+        .is_some_and(|uid| uid != request.service_uid)
+    {
+        return Err(error(RuntimeErrorCodeV1::RuntimeFenceConflict));
+    }
+    if cas.generation != request.guard.expected.generation
+        || cas.grant_revision != request.guard.expected.grant_revision
+        || cas.revocation_epoch != request.guard.expected.revocation_epoch
+    {
+        return Err(error(RuntimeErrorCodeV1::RuntimeStaleState));
+    }
+    Ok(())
 }
 
 fn same_observation(

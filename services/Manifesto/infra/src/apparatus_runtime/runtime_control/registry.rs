@@ -2,9 +2,9 @@
 
 use super::{
     counter, current_lease, db_clock, db_error, error, lock_binding, require_projector, row_cas,
-    sql_counter, ConnectionTrait, DbBackend, RuntimeControlCallerV1, RuntimeControlErrorV1,
-    RuntimeErrorCodeV1, RuntimeWriteAckV1, SqlRuntimeControl, Statement, TransactionTrait, Uuid,
-    OBSERVATION_TTL_MS,
+    sql_counter, ConnectionTrait, DbBackend, QueryResult, RuntimeCasV1, RuntimeControlCallerV1,
+    RuntimeControlErrorV1, RuntimeErrorCodeV1, RuntimeWriteAckV1, RuntimeWriterLeaseV1,
+    SqlRuntimeControl, Statement, TransactionTrait, Uuid, OBSERVATION_TTL_MS,
 };
 use apparatus_contracts::runtime::{RuntimeInstanceRegistrationV1, RuntimeInstanceStateV1};
 
@@ -23,53 +23,14 @@ impl SqlRuntimeControl {
         request: &RuntimeInstanceRegistrationV1,
     ) -> Result<RuntimeWriteAckV1, RuntimeControlErrorV1> {
         require_projector(caller)?;
-        if request.schema_version != 1 {
-            return Err(error(RuntimeErrorCodeV1::RuntimeUnsupportedVersion));
-        }
-        if request.project_id != project_id
-            || request.binding_id != binding_id
-            || request.instance_id != instance_id
-            || instance_id.get_version_num() != 4
-        {
-            return Err(error(RuntimeErrorCodeV1::RuntimeInvalidRequest));
-        }
-        for uid in [
-            &request.pod_uid,
-            &request.revision_uid,
-            &request.service_account_uid,
-        ] {
-            apparatus_contracts::runtime::validate_runtime_uid(uid).map_err(error)?;
-        }
-        apparatus_contracts::runtime::validate_runtime_dns_name(&request.namespace, false)
-            .map_err(error)?;
-        apparatus_contracts::runtime::validate_runtime_dns_name(&request.service_account, true)
-            .map_err(error)?;
+        validate_registration(project_id, binding_id, instance_id, request)?;
         let txn = self.db.begin().await.map_err(db_error)?;
         let binding = lock_binding(&txn, project_id, binding_id).await?;
         let mut cas = row_cas(&binding)?;
         let now = db_clock(&txn).await?;
         let lease = current_lease(&binding, project_id, binding_id, cas.clone())?
             .ok_or_else(|| error(RuntimeErrorCodeV1::RuntimeLeaseLost))?;
-        if lease.proof.writer_fence != request.guard.lease.writer_fence {
-            return Err(error(RuntimeErrorCodeV1::RuntimeFenceConflict));
-        }
-        if lease.proof != request.guard.lease || now >= lease.expires_at_unix_ms.get() {
-            return Err(error(RuntimeErrorCodeV1::RuntimeLeaseLost));
-        }
-        if cas.generation != request.guard.expected.generation
-            || cas.grant_revision != request.guard.expected.grant_revision
-            || cas.revocation_epoch != request.guard.expected.revocation_epoch
-        {
-            return Err(error(RuntimeErrorCodeV1::RuntimeStaleState));
-        }
-        let state: String = binding.try_get("", "state").map_err(db_error)?;
-        if request.state == RuntimeInstanceStateV1::Current && state != "active" {
-            return Err(error(RuntimeErrorCodeV1::RuntimeBindingClosed));
-        }
-        let release: String = binding.try_get("", "release").map_err(db_error)?;
-        if request.state == RuntimeInstanceStateV1::Current && release != request.release.as_str() {
-            return Err(error(RuntimeErrorCodeV1::RuntimeStaleState));
-        }
+        validate_registration_guard(&binding, &cas, &lease, request, now)?;
         let observed_at = request.observed_at_unix_ms.get();
         if observed_at > now || now - observed_at >= OBSERVATION_TTL_MS {
             return Err(error(RuntimeErrorCodeV1::RuntimeProjectionUnavailable));
@@ -98,64 +59,7 @@ impl SqlRuntimeControl {
             RuntimeInstanceStateV1::Tombstone => "tombstone",
         };
         let identical = if let Some(previous) = previous {
-            let old_state: String = previous.try_get("", "state").map_err(db_error)?;
-            if previous
-                .try_get::<Uuid>("", "instance_id")
-                .map_err(db_error)?
-                != instance_id
-                || previous.try_get::<String>("", "kind").map_err(db_error)? != "pod"
-                || previous
-                    .try_get::<String>("", "pod_uid")
-                    .map_err(db_error)?
-                    != request.pod_uid
-                || previous
-                    .try_get::<String>("", "revision_uid")
-                    .map_err(db_error)?
-                    != request.revision_uid
-                || previous
-                    .try_get::<String>("", "namespace")
-                    .map_err(db_error)?
-                    != request.namespace
-                || previous
-                    .try_get::<String>("", "service_account")
-                    .map_err(db_error)?
-                    != request.service_account
-                || previous
-                    .try_get::<String>("", "service_account_uid")
-                    .map_err(db_error)?
-                    != request.service_account_uid
-                || previous
-                    .try_get::<String>("", "release")
-                    .map_err(db_error)?
-                    != request.release.as_str()
-            {
-                return Err(error(RuntimeErrorCodeV1::RuntimeIdReused));
-            }
-            if (old_state != "current" && request.state == RuntimeInstanceStateV1::Current)
-                || (old_state == "tombstone" && request.state != RuntimeInstanceStateV1::Tombstone)
-            {
-                return Err(error(RuntimeErrorCodeV1::RuntimeIdentityRevoked));
-            }
-            if request.state == RuntimeInstanceStateV1::Current
-                && (counter(previous.try_get("", "generation").map_err(db_error)?)?
-                    != cas.generation
-                    || counter(previous.try_get("", "grant_revision").map_err(db_error)?)?
-                        != cas.grant_revision
-                    || counter(previous.try_get("", "revocation_epoch").map_err(db_error)?)?
-                        != cas.revocation_epoch)
-            {
-                return Err(error(RuntimeErrorCodeV1::RuntimeIdentityRevoked));
-            }
-            old_state == wire_state
-                && (old_state != "current"
-                    || (previous
-                        .try_get::<i64>("", "writer_fence")
-                        .map_err(db_error)?
-                        == sql_counter(lease.proof.writer_fence)?
-                        && previous
-                            .try_get::<i64>("", "observed_at_ms")
-                            .map_err(db_error)?
-                            == observed_at))
+            same_registered_instance(previous, instance_id, request, &cas, &lease, wire_state)?
         } else {
             false
         };
@@ -216,4 +120,131 @@ impl SqlRuntimeControl {
             writer_fence: lease.proof.writer_fence,
         })
     }
+}
+
+fn validate_registration(
+    project_id: Uuid,
+    binding_id: Uuid,
+    instance_id: Uuid,
+    request: &RuntimeInstanceRegistrationV1,
+) -> Result<(), RuntimeControlErrorV1> {
+    if request.schema_version != 1 {
+        return Err(error(RuntimeErrorCodeV1::RuntimeUnsupportedVersion));
+    }
+    if request.project_id != project_id
+        || request.binding_id != binding_id
+        || request.instance_id != instance_id
+        || instance_id.get_version_num() != 4
+    {
+        return Err(error(RuntimeErrorCodeV1::RuntimeInvalidRequest));
+    }
+    for uid in [
+        &request.pod_uid,
+        &request.revision_uid,
+        &request.service_account_uid,
+    ] {
+        apparatus_contracts::runtime::validate_runtime_uid(uid).map_err(error)?;
+    }
+    apparatus_contracts::runtime::validate_runtime_dns_name(&request.namespace, false)
+        .map_err(error)?;
+    apparatus_contracts::runtime::validate_runtime_dns_name(&request.service_account, true)
+        .map_err(error)?;
+    Ok(())
+}
+
+fn validate_registration_guard(
+    binding: &QueryResult,
+    cas: &RuntimeCasV1,
+    lease: &RuntimeWriterLeaseV1,
+    request: &RuntimeInstanceRegistrationV1,
+    now: i64,
+) -> Result<(), RuntimeControlErrorV1> {
+    if lease.proof.writer_fence != request.guard.lease.writer_fence {
+        return Err(error(RuntimeErrorCodeV1::RuntimeFenceConflict));
+    }
+    if lease.proof != request.guard.lease || now >= lease.expires_at_unix_ms.get() {
+        return Err(error(RuntimeErrorCodeV1::RuntimeLeaseLost));
+    }
+    if cas.generation != request.guard.expected.generation
+        || cas.grant_revision != request.guard.expected.grant_revision
+        || cas.revocation_epoch != request.guard.expected.revocation_epoch
+    {
+        return Err(error(RuntimeErrorCodeV1::RuntimeStaleState));
+    }
+    let state: String = binding.try_get("", "state").map_err(db_error)?;
+    if request.state == RuntimeInstanceStateV1::Current && state != "active" {
+        return Err(error(RuntimeErrorCodeV1::RuntimeBindingClosed));
+    }
+    let release: String = binding.try_get("", "release").map_err(db_error)?;
+    if request.state == RuntimeInstanceStateV1::Current && release != request.release.as_str() {
+        return Err(error(RuntimeErrorCodeV1::RuntimeStaleState));
+    }
+    Ok(())
+}
+
+fn same_registered_instance(
+    previous: &QueryResult,
+    instance_id: Uuid,
+    request: &RuntimeInstanceRegistrationV1,
+    cas: &RuntimeCasV1,
+    lease: &RuntimeWriterLeaseV1,
+    wire_state: &str,
+) -> Result<bool, RuntimeControlErrorV1> {
+    let old_state: String = previous.try_get("", "state").map_err(db_error)?;
+    if previous
+        .try_get::<Uuid>("", "instance_id")
+        .map_err(db_error)?
+        != instance_id
+        || previous.try_get::<String>("", "kind").map_err(db_error)? != "pod"
+        || previous
+            .try_get::<String>("", "pod_uid")
+            .map_err(db_error)?
+            != request.pod_uid
+        || previous
+            .try_get::<String>("", "revision_uid")
+            .map_err(db_error)?
+            != request.revision_uid
+        || previous
+            .try_get::<String>("", "namespace")
+            .map_err(db_error)?
+            != request.namespace
+        || previous
+            .try_get::<String>("", "service_account")
+            .map_err(db_error)?
+            != request.service_account
+        || previous
+            .try_get::<String>("", "service_account_uid")
+            .map_err(db_error)?
+            != request.service_account_uid
+        || previous
+            .try_get::<String>("", "release")
+            .map_err(db_error)?
+            != request.release.as_str()
+    {
+        return Err(error(RuntimeErrorCodeV1::RuntimeIdReused));
+    }
+    if (old_state != "current" && request.state == RuntimeInstanceStateV1::Current)
+        || (old_state == "tombstone" && request.state != RuntimeInstanceStateV1::Tombstone)
+    {
+        return Err(error(RuntimeErrorCodeV1::RuntimeIdentityRevoked));
+    }
+    if request.state == RuntimeInstanceStateV1::Current
+        && (counter(previous.try_get("", "generation").map_err(db_error)?)? != cas.generation
+            || counter(previous.try_get("", "grant_revision").map_err(db_error)?)?
+                != cas.grant_revision
+            || counter(previous.try_get("", "revocation_epoch").map_err(db_error)?)?
+                != cas.revocation_epoch)
+    {
+        return Err(error(RuntimeErrorCodeV1::RuntimeIdentityRevoked));
+    }
+    Ok(old_state == wire_state
+        && (old_state != "current"
+            || (previous
+                .try_get::<i64>("", "writer_fence")
+                .map_err(db_error)?
+                == sql_counter(lease.proof.writer_fence)?
+                && previous
+                    .try_get::<i64>("", "observed_at_ms")
+                    .map_err(db_error)?
+                    == request.observed_at_unix_ms.get())))
 }
