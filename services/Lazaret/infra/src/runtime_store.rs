@@ -486,9 +486,15 @@ impl RuntimeStore for PostgresRuntimeStore {
                     ticket.target.binding_id.into(),
                     ticket.source.instance.into(),
                     ticket.source.binding.into(),
-                    (ticket.target.generation.get() as i64).into(),
-                    (ticket.target.grant_revision.get() as i64).into(),
-                    (ticket.target.revocation_epoch.get() as i64).into(),
+                    i64::try_from(ticket.target.generation.get())
+                        .map_err(|_| RuntimeErrorCodeV1::RuntimeCounterExhausted)?
+                        .into(),
+                    i64::try_from(ticket.target.grant_revision.get())
+                        .map_err(|_| RuntimeErrorCodeV1::RuntimeCounterExhausted)?
+                        .into(),
+                    i64::try_from(ticket.target.revocation_epoch.get())
+                        .map_err(|_| RuntimeErrorCodeV1::RuntimeCounterExhausted)?
+                        .into(),
                     ticket.operation_id.into(),
                     ticket
                         .operation_sha256
@@ -578,8 +584,9 @@ impl RuntimeStore for PostgresRuntimeStore {
         if enrolled.project_id != ticket.project_id
             || enrolled.identity.binding != ticket.target.binding_id
             || enrolled.identity.release != ticket.target.release.as_str()
-            || enrolled.identity.generation != ticket.target.generation.get() as i64
-            || enrolled.identity.grant_revision != ticket.target.grant_revision.get() as i64
+            || i64::try_from(ticket.target.generation.get()) != Ok(enrolled.identity.generation)
+            || i64::try_from(ticket.target.grant_revision.get())
+                != Ok(enrolled.identity.grant_revision)
             || enrolled.revocation_epoch != ticket.target.revocation_epoch.get()
         {
             return Err(RuntimeErrorCodeV1::RuntimeStaleState);

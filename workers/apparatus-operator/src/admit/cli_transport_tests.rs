@@ -850,7 +850,7 @@ fn container_drop_cleans_once_and_invalid_id_does_not_spawn() {
 #[test]
 fn cli_failed_and_redact_hide_secrets() {
     let status = exit_status(9);
-    let err = cli_failed("oras push", &status);
+    let err = cli_failed("oras push", status);
     assert_eq!(err.to_string(), "oras push failed status=Some(9)");
     assert_eq!(redact("token-and-more", "token"), "***-and-more");
     assert_eq!(redact("same", ""), "same");

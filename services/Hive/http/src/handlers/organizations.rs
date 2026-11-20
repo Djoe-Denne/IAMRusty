@@ -198,17 +198,16 @@ pub async fn search_organizations(
 ) -> Result<Json<OrganizationListResponse>, HttpError> {
     tracing::info!("Searching organizations with query: {:?}", search.query);
 
-    let user_id = auth_user
-        .principal
-        .as_ref()
-        .map(|actor| actor.principal.subject);
-    let mut command = SearchOrganizationsCommand::new(search, user_id);
-    let mut context = CommandContext::new();
-
-    if let Some(actor) = &auth_user.principal {
-        command = command.with_principal(actor.principal.clone());
-        context = principal_context(actor);
-    }
+    let actor = auth_user.principal.as_ref();
+    let user_id = actor.map(|actor| actor.principal.subject);
+    let command = SearchOrganizationsCommand::new(search, user_id);
+    let (command, context) = match actor {
+        Some(actor) => (
+            command.with_principal(actor.principal.clone()),
+            principal_context(actor),
+        ),
+        None => (command, CommandContext::new()),
+    };
 
     let result = state
         .command_service

@@ -207,14 +207,20 @@ pub fn evaluate_runtime_target(
     target: &apparatus_contracts::runtime::RuntimeTargetV1,
     snapshot: &BindingGrantSnapshot,
 ) -> GrantDecision {
+    let Ok(generation) = i64::try_from(target.generation.get()) else {
+        return deny(GrantDenyReason::GenerationMismatch);
+    };
+    let Ok(grant_revision) = i64::try_from(target.grant_revision.get()) else {
+        return deny(GrantDenyReason::IdentityRevisionMismatch);
+    };
     evaluate_binding(
         &BindingEvaluation {
             capability: Capability::RuntimeInvoke.as_str(),
             project_id,
             binding_id: target.binding_id,
             release: target.release.as_str(),
-            generation: target.generation.get() as i64,
-            grant_revision: target.grant_revision.get() as i64,
+            generation,
+            grant_revision,
             origin: CallOrigin::Background,
         },
         snapshot,
@@ -238,7 +244,10 @@ fn evaluate_binding(req: &BindingEvaluation<'_>, snapshot: &BindingGrantSnapshot
     if !snapshot.declared.iter().any(|name| name == req.capability) {
         return deny(GrantDenyReason::CapabilityNotDeclared);
     }
-    if snapshot.project_id != req.project_id || snapshot.component_id != req.binding_id {
+    if snapshot.project_id != req.project_id {
+        return deny(GrantDenyReason::ProjectMismatch);
+    }
+    if snapshot.component_id != req.binding_id {
         return deny(GrantDenyReason::ProjectMismatch);
     }
     if !project_is_operable(&snapshot.project_status) {
@@ -408,6 +417,54 @@ mod tests {
                 reason: GrantDenyReason::CapabilityNotDeclared
             }
         );
+    }
+
+    #[test]
+    fn receiving_runtime_binding_preserves_signed_counter_boundaries() {
+        use apparatus_contracts::runtime::{RuntimeCounterV1, RuntimeDigestV1, RuntimeTargetV1};
+        for (generation, grant_revision) in [(1, 0), (i64::MAX, i64::MAX)] {
+            let mut request = allow_request(CallOrigin::Background);
+            request.capability = "runtime.invoke".to_owned();
+            request.declared = vec![request.capability.clone()];
+            request.identity.release = format!("sha256:{}", "a".repeat(64));
+            request.identity.generation = generation;
+            request.identity.grant_revision = grant_revision;
+            let mut snapshot = snapshot_for(&request, "active");
+            let target = RuntimeTargetV1 {
+                binding_id: request.identity.binding,
+                generation: RuntimeCounterV1::new(u64::try_from(generation).expect("generation"))
+                    .expect("counter"),
+                release: RuntimeDigestV1::new(request.identity.release.clone()).expect("digest"),
+                grant_revision: RuntimeCounterV1::new(
+                    u64::try_from(grant_revision).expect("revision"),
+                )
+                .expect("counter"),
+                revocation_epoch: RuntimeCounterV1::new(0).expect("counter"),
+            };
+            assert_eq!(
+                evaluate_runtime_target(request.project_id, &target, &snapshot),
+                GrantDecision::Allow
+            );
+            snapshot.desired_generation = generation - 1;
+            assert_eq!(
+                evaluate_runtime_target(request.project_id, &target, &snapshot),
+                GrantDecision::Deny {
+                    reason: GrantDenyReason::GenerationMismatch
+                }
+            );
+            snapshot.desired_generation = generation;
+            snapshot.grant_revision = if grant_revision == 0 {
+                1
+            } else {
+                grant_revision - 1
+            };
+            assert_eq!(
+                evaluate_runtime_target(request.project_id, &target, &snapshot),
+                GrantDecision::Deny {
+                    reason: GrantDenyReason::IdentityRevisionMismatch
+                }
+            );
+        }
     }
 
     #[test]
