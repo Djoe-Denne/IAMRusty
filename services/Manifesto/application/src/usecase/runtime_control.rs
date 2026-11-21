@@ -63,7 +63,7 @@ pub enum RuntimeControlAction {
 #[serde(untagged)]
 pub enum RuntimeControlReply {
     Page(RuntimeBindingPageV1),
-    Snapshot(RuntimeBindingSnapshotV1),
+    Snapshot(Box<RuntimeBindingSnapshotV1>),
     Lease(RuntimeWriterLeaseV1),
     Ack(RuntimeWriteAckV1),
     Reservation(RuntimeEffectReservationV1),
@@ -107,7 +107,7 @@ impl RuntimeControlUseCase {
                 .control
                 .get_binding(caller, project_id, binding_id, &instances)
                 .await
-                .map(RuntimeControlReply::Snapshot),
+                .map(|snapshot| RuntimeControlReply::Snapshot(Box::new(snapshot))),
             RuntimeControlAction::Lease {
                 project_id,
                 binding_id,
@@ -166,5 +166,15 @@ impl RuntimeControlUseCase {
                 .await
                 .map(RuntimeControlReply::Ack),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{RuntimeBindingSnapshotV1, RuntimeControlReply};
+
+    #[test]
+    fn snapshot_payload_does_not_set_the_size_of_every_reply() {
+        assert!(size_of::<RuntimeControlReply>() < size_of::<RuntimeBindingSnapshotV1>());
     }
 }

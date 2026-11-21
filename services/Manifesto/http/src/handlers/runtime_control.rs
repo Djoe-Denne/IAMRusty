@@ -291,3 +291,43 @@ pair_handler!(
     Complete,
     effect_id
 );
+
+#[cfg(test)]
+mod tests {
+    use super::{IntoResponse, Json, RuntimeControlReply, StatusCode};
+    use apparatus_contracts::runtime::RuntimeBindingSnapshotV1;
+    use axum::{body::to_bytes, http::header::CONTENT_TYPE};
+    use serde_json::{json, Value};
+
+    #[tokio::test]
+    async fn snapshot_reply_is_the_untagged_runtime_dto() {
+        let expected = json!({
+            "schema_version": 1,
+            "project_id": "a6af7df8-bb15-422b-8457-6f0a413d278b",
+            "binding_id": "4acdd6bc-301e-45d7-bd15-893f17d43fc4",
+            "cas": {
+                "generation": "2",
+                "revocation_epoch": "0",
+                "projection_version": "3",
+                "grant_revision": "1"
+            },
+            "state": "active",
+            "release": format!("sha256:{}", "a".repeat(64)),
+            "profile": "runtime-profile",
+            "observation": null,
+            "instances": {
+                "schema_version": 1, "items": [], "next_cursor": null, "read_at_unix_ms": "10"
+            }
+        });
+        let snapshot: RuntimeBindingSnapshotV1 =
+            serde_json::from_value(expected.clone()).expect("valid snapshot fixture");
+        let response = Json(RuntimeControlReply::Snapshot(Box::new(snapshot))).into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()[CONTENT_TYPE], "application/json");
+        let body = to_bytes(response.into_body(), 4096)
+            .await
+            .expect("bounded snapshot response body");
+        let actual = serde_json::from_slice::<Value>(&body).expect("snapshot JSON");
+        assert_eq!(actual, expected);
+    }
+}

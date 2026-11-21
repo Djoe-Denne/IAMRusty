@@ -31,6 +31,9 @@ implicitement au nom de ce nouveau registre.
 - [CLIPPY-20261120-equivalent-option-result-matches](CLIPPY-20261120-equivalent-option-result-matches.md)
   — Accepted for this round only — `clippy::option_if_let_else` — five
   behavior-preserving conversions to `map_or_else`.
+- [CLIPPY-20261121-runtime-control-reply-layout](CLIPPY-20261121-runtime-control-reply-layout.md)
+  — Proposed — `clippy::large_enum_variant` — box the Manifesto snapshot
+  reply while preserving its JSON shape.
 
 Ajouter une puce par entrée, triée par ID, contenant :
 `[ID](ID.md) — statut — règle(s) — contexte court`.
