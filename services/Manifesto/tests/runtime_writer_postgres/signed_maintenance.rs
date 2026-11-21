@@ -15,7 +15,8 @@ use apparatus_contracts::{
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use manifesto_application::{
-    RuntimeMaintenanceAction as Action, RuntimeMaintenanceCommandHandler, RuntimeMaintenanceReply,
+    RuntimeAdmissionClosureAck, RuntimeMaintenanceAction as Action,
+    RuntimeMaintenanceCommandHandler, RuntimeMaintenanceReply,
 };
 use manifesto_infra::apparatus_runtime::{
     admission_proof::{PinnedRuntimeAdmissionKey, PinnedRuntimeAdmissionProofVerifier},
@@ -211,6 +212,25 @@ fn block(cutover: &Cutover, record_id: Uuid, revision: u64) -> Action {
     }
 }
 
+async fn commit_block(
+    handler: &RuntimeMaintenanceCommandHandler,
+    cutover: &Cutover,
+    admission: &Admission,
+) -> RuntimeAdmissionClosureAck {
+    let RuntimeMaintenanceReply::Closure(ack) =
+        execute(handler, block(cutover, admission.record, 2))
+            .await
+            .expect("commit release block")
+    else {
+        panic!("expected release closure acknowledgement")
+    };
+    assert_eq!(ack.authority_id, cutover.authority);
+    assert_eq!(ack.release, cutover.plan.release);
+    assert_eq!(ack.record_id, admission.record);
+    assert_eq!(ack.maximum_revision, counter(2));
+    ack
+}
+
 async fn permit(
     handler: &RuntimeMaintenanceCommandHandler,
     action: Action,
@@ -228,7 +248,8 @@ async fn admission_journal(db: &DatabaseConnection, cutover: &Cutover) -> Value 
         DatabaseBackend::Postgres,
         "SELECT COALESCE(jsonb_agg(jsonb_build_object('challenge', j.challenge_id,
              'fingerprint', encode(j.jws_sha256,'hex'), 'record', j.record_id,
-             'revision', j.admission_revision) ORDER BY c.action DESC), '[]') AS history
+             'revision', j.admission_revision)
+             ORDER BY j.admission_revision, c.action DESC), '[]') AS history
          FROM apparatus_runtime_admission_journal j
          JOIN apparatus_runtime_admission_challenges c USING (challenge_id)
          WHERE c.migration_id = $1",
@@ -387,7 +408,7 @@ async fn prepare_with_consent(
 
 #[tokio::test]
 #[serial]
-async fn signed_prepare_commits_once_and_open_rejects_a_different_report() {
+async fn signed_open_activates_the_component_and_release_block_disables_it() {
     let (fixture, _, _, _, _) = crate::common::setup_test_server()
         .await
         .expect("real server");
@@ -415,6 +436,61 @@ async fn signed_prepare_commits_once_and_open_rejects_a_different_report() {
     );
     assert_eq!(cutover.state(&db).await, before);
     assert_eq!(admission_journal(&db, &cutover).await, journal);
+    assert!(before["activated_at"].is_null());
+    assert!(before["disabled_at"].is_null());
+
+    let claims = admission.claims(&db, &challenge, 1).await;
+    let proof = admission.sign(&claims);
+    let expected = journal_entry(&proof, &claims);
+    let RuntimeMaintenanceReply::Cas(opened) =
+        execute(&handler, open(&cutover, &challenge, proof.clone()))
+            .await
+            .expect("commit Open against migrated component schema")
+    else {
+        panic!("Open should return a CAS")
+    };
+    assert_eq!(
+        opened.projection_version,
+        counter(challenge.expected.projection_version.get() + 1)
+    );
+    assert_eq!(opened.revocation_epoch, challenge.expected.revocation_epoch);
+    let state = cutover.state(&db).await;
+    assert_eq!(state["business"], "active");
+    assert!(state["activated_at"].is_string());
+    assert!(state["disabled_at"].is_null());
+    assert_eq!(state["binding"]["state"], "active");
+    assert_eq!(state["binding"]["cutover_phase"], "opened");
+    assert_eq!(
+        state["binding"]["cutover_journal"][2]["challenge_id"],
+        json!(challenge.challenge_id)
+    );
+    let proof_history = json!([journal[0], expected]);
+    assert_eq!(admission_journal(&db, &cutover).await, proof_history);
+    assert_code(
+        execute(&handler, open(&cutover, &challenge, proof)).await,
+        RuntimeErrorCodeV1::RuntimeBindingClosed,
+    );
+    assert_eq!(cutover.state(&db).await, state);
+
+    let ack = commit_block(&handler, &cutover, &admission).await;
+    assert_eq!(
+        ack.closed_bindings,
+        [(cutover.plan.project_id, cutover.plan.binding_id)]
+    );
+    let closed = cutover.state(&db).await;
+    assert_eq!(closed["business"], "disabled");
+    assert_eq!(closed["activated_at"], state["activated_at"]);
+    assert!(closed["disabled_at"].is_string());
+    assert_eq!(closed["binding"]["state"], "closed");
+    assert_eq!(closed["binding"]["cutover_phase"], "fenced");
+    assert!(closed["binding"]["lease_id"].is_null());
+    assert_eq!(
+        closed["binding"]["revocation_epoch"],
+        opened.revocation_epoch.get() + 1
+    );
+    assert_eq!(admission_journal(&db, &cutover).await, proof_history);
+    commit_block(&handler, &cutover, &admission).await;
+    assert_eq!(cutover.state(&db).await, closed);
 }
 
 async fn assert_blocked_admission(
@@ -445,6 +521,11 @@ async fn assert_blocked_admission(
         );
         assert_eq!(cutover.state(db).await, unchanged);
     }
+    let mut history = admission_journal(db, cutover)
+        .await
+        .as_array()
+        .expect("proof history")
+        .clone();
     let claims = admission.claims(db, &challenge, 3).await;
     let proof = admission.sign(&claims);
     let entry = journal_entry(&proof, &claims);
@@ -460,7 +541,8 @@ async fn assert_blocked_admission(
     assert_eq!(state["guard"]["maximum_revision"], 3);
     assert_eq!(state["binding"]["cutover_phase"], "prepared");
     assert_eq!(state["business"], "disabled");
-    assert_eq!(admission_journal(db, cutover).await, json!([entry]));
+    history.push(entry);
+    assert_eq!(admission_journal(db, cutover).await, json!(history));
 }
 
 #[tokio::test]
@@ -474,18 +556,8 @@ async fn release_block_before_fencing_requires_newer_explicit_resume() {
     let admission = Admission::new(&cutover);
     let handler = admission.handler(&cutover, &db);
     consent(&db, &cutover).await;
-    let RuntimeMaintenanceReply::Closure(ack) =
-        execute(&handler, block(&cutover, admission.record, 2))
-            .await
-            .expect("commit release block")
-    else {
-        panic!("expected release closure acknowledgement")
-    };
+    let ack = commit_block(&handler, &cutover, &admission).await;
     assert_eq!(ack.closed_bindings, [] as [(Uuid, Uuid); 0]);
-    assert_eq!(ack.authority_id, cutover.authority);
-    assert_eq!(ack.release, cutover.plan.release);
-    assert_eq!(ack.record_id, admission.record);
-    assert_eq!(ack.maximum_revision, counter(2));
     let state = cutover.state(&db).await;
     assert!(state["binding"].is_null());
     assert_eq!(state["challenges"], json!([]));
@@ -499,4 +571,48 @@ async fn release_block_before_fencing_requires_newer_explicit_resume() {
     let cas = fenced(&handler, &cutover).await;
     assert_eq!(cutover.state(&db).await["guard"], state["guard"]);
     assert_blocked_admission(&db, &cutover, &admission, &handler, &cas).await;
+}
+
+#[tokio::test]
+#[serial]
+async fn release_block_invalidates_pending_open_and_explicit_resume_reprepares() {
+    let (fixture, _, _, _, _) = crate::common::setup_test_server()
+        .await
+        .expect("real server");
+    let db = fixture.db();
+    let cutover = Cutover::arrange_release(&db, "disabled", new_release()).await;
+    let admission = Admission::new(&cutover);
+    let handler = admission.handler(&cutover, &db);
+    let prepared = prepare_with_consent(&db, &cutover, &admission, &handler).await;
+    let pending = project_for_open(&db, &cutover, &handler, prepared.cas).await;
+    let ack = commit_block(&handler, &cutover, &admission).await;
+    assert_eq!(
+        ack.closed_bindings,
+        [(cutover.plan.project_id, cutover.plan.binding_id)]
+    );
+    let state = cutover.state(&db).await;
+    let invalidated = state["challenges"]
+        .as_array()
+        .expect("intent list")
+        .iter()
+        .find(|row| row["challenge_id"] == json!(pending.challenge_id))
+        .expect("pending Open row");
+    assert_eq!(invalidated["invalidated"], true);
+    assert!(invalidated["consumed_at_unix_ms"].is_null());
+    assert!(state["binding"]["lease_id"].is_null());
+    assert_eq!(state["guard"]["blocked"], true);
+    assert_eq!(state["business"], "disabled");
+    assert!(state["disabled_at"].is_null());
+    let RuntimeMaintenanceReply::Inspection(blocked) = execute(&handler, cutover.inspect())
+        .await
+        .expect("inspect blocked binding")
+    else {
+        panic!("expected inspection after block")
+    };
+    assert_eq!(blocked.phase.as_deref(), Some("fenced"));
+    assert_eq!(
+        blocked.cas.revocation_epoch,
+        counter(pending.expected.revocation_epoch.get() + 1)
+    );
+    assert_blocked_admission(&db, &cutover, &admission, &handler, &blocked.cas).await;
 }

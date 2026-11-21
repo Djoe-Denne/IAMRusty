@@ -212,7 +212,9 @@ impl Cutover {
         db.query_one(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
             "SELECT jsonb_build_object(
-                'business', (SELECT status FROM project_components WHERE id = $2),
+                 'business', (SELECT status FROM project_components WHERE id = $2),
+                 'activated_at', (SELECT activated_at FROM project_components WHERE id = $2),
+                 'disabled_at', (SELECT disabled_at FROM project_components WHERE id = $2),
                 'binding', (SELECT to_jsonb(b) FROM apparatus_runtime_bindings b
                             WHERE project_id = $1 AND binding_id = $2),
                 'guard', (SELECT to_jsonb(g) FROM apparatus_runtime_admission_guards g
