@@ -4,6 +4,7 @@ title: Email signup
 status: Accepted intent
 assignee: []
 created_date: '2026-11-21T14:58:04Z'
+updated_date: '2026-11-21T16:07:08Z'
 labels: []
 dependencies: []
 documentation:
@@ -26,6 +27,10 @@ This is approved product intent v2 for the complete journey. Keep the existing b
 General sign-in, account recovery, and adding a sign-in method are separate stories. Verification link lifetime and exact resend feedback are not specified here.
 
 See the [identity handbook](https://github.com/Djoe-Denne/IAMRusty/blob/master/docs/functional/identite.md) and [project visibility guide](https://github.com/Djoe-Denne/IAMRusty/blob/master/docs/functional/projet.md) for the existing behavior.
+
+## Authentication protections
+
+The acceptance examples define the intended signup journey. Any difference in the backend is a gap, not a reason to change the agreed behavior. This story neither adds signup-specific abuse protections nor removes existing safeguards. Shared password policy still applies; changes to it are outside this story's delivery scope.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
