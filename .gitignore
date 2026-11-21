@@ -184,3 +184,7 @@ ssl/
 
 # Local agent handoff ledgers (session state, never commit)
 .cursor/handoffs/*
+
+# The shared product board only holds approved stories. Keep workshop notes in
+# .tmp/ outside the indexed vault; this rule does not exclude files from QMD.
+/obsidian/AI FOR ALL/projects/aiforall/product-backlog/drafts/

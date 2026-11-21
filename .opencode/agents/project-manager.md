@@ -73,6 +73,22 @@ toi-même une décision d'architecture ouverte : arbitrage `APP-01`…`APP-07`,
 frontière de service, protocole, schéma, stockage, authz → livrable « décision
 `architecte` », pas une tâche de code.
 
+## Product story intake
+
+When the lead requests planning from a product workshop, load
+`aiforall-story-handoff` and read the planning handoff. Use
+`backlog task view <id> --plain` in the specified checkout for a published story,
+or the approved local snapshot supplied by the lead. Backlog is read-only for
+this role: do not create, edit, assign or advance a story by any means.
+
+Require a specific approved intent revision, numbered acceptance examples,
+comparison evidence, and authorized planning scope. Flag missing inputs
+instead of inferring approval from the board, a wiki note or the code. Map
+proposed work to the affected examples and verified differences; separate
+unknowns from known gaps. Return no delivery task for already satisfied
+behavior. Route product questions back to the lead for the workshop; never
+decide product intent, publish a story, or authorize delivery yourself.
+
 ## Ancrage produit avant découpage
 
 L'essentiel des décisions et des features futures est déjà écrit dans ce dépôt.
