@@ -6,6 +6,8 @@
 
 mod common;
 mod fixtures;
+#[path = "runtime_writer_postgres/http.rs"]
+mod http;
 #[path = "runtime_writer_postgres/maintenance.rs"]
 mod maintenance;
 
@@ -845,13 +847,9 @@ fn rehash(request: &mut RuntimeBeginEffectRequestV1) {
     .expect("canonical effect hash");
 }
 
-#[tokio::test]
-#[serial]
-async fn effect_reservation_requires_live_grants_and_never_replays_io() {
-    let (fixture, _, _, _, _) = common::setup_test_server().await.expect("real server");
-    let db = fixture.db();
+async fn arrange_effect(db: &Arc<DatabaseConnection>) -> RuntimeBeginEffectRequestV1 {
     let (project_fixture, _, source_component) =
-        fixtures::DbFixtures::create_project_with_component(&db, Uuid::new_v4(), "taskboard")
+        fixtures::DbFixtures::create_project_with_component(db, Uuid::new_v4(), "taskboard")
             .await
             .expect("business project");
     let project = project_fixture.id();
@@ -865,13 +863,12 @@ async fn effect_reservation_requires_live_grants_and_never_replays_io() {
     let target = target_component.id();
     let port: &dyn RuntimeControlPort = &SqlRuntimeControl::new(db.clone());
     let projector = caller(RuntimeServiceRoleV1::Projector);
-    let lazaret = caller(RuntimeServiceRoleV1::Lazaret);
     let mut instance_ids = Vec::new();
     for binding in [source, target] {
-        seed_binding(&db, project, binding, "active").await;
-        seed_grants(&db, binding).await;
+        seed_binding(db, project, binding, "active").await;
+        seed_grants(db, binding).await;
         let acquired = lease(port, project, binding, cas()).await;
-        let registration = registration(&db, &acquired, cas()).await;
+        let registration = registration(db, &acquired, cas()).await;
         port.register_instance(
             &projector,
             project,
@@ -883,7 +880,7 @@ async fn effect_reservation_requires_live_grants_and_never_replays_io() {
         .expect("current identity");
         instance_ids.push(registration.instance_id);
     }
-    let deadline = RuntimeUnixMsV1::new(now(&db).await.get() + 60_000).expect("requested deadline");
+    let deadline = RuntimeUnixMsV1::new(now(db).await.get() + 60_000).expect("requested deadline");
     let mut request = RuntimeBeginEffectRequestV1 {
         schema_version: 1,
         context: RuntimeExecutionContextV1 {
@@ -920,6 +917,21 @@ async fn effect_reservation_requires_live_grants_and_never_replays_io() {
         },
     };
     rehash(&mut request);
+    request
+}
+
+#[tokio::test]
+#[serial]
+async fn effect_reservation_requires_live_grants_and_never_replays_io() {
+    let (fixture, _, _, _, _) = common::setup_test_server().await.expect("real server");
+    let db = fixture.db();
+    let request = arrange_effect(&db).await;
+    let project = request.context.project_id;
+    let target = request.context.target.binding_id;
+    let deadline = request.context.deadline_unix_ms;
+    let port: &dyn RuntimeControlPort = &SqlRuntimeControl::new(db.clone());
+    let projector = caller(RuntimeServiceRoleV1::Projector);
+    let lazaret = caller(RuntimeServiceRoleV1::Lazaret);
     assert_code(
         port.begin_effect(&projector, project, target, &request)
             .await,
@@ -1019,7 +1031,7 @@ async fn effect_reservation_requires_live_grants_and_never_replays_io() {
             project,
             target,
             &RuntimeInstanceSelectorV1::ByInstanceId {
-                instance_id: instance_ids[1],
+                instance_id: request.context.instance_id,
             },
         )
         .await
@@ -1028,11 +1040,11 @@ async fn effect_reservation_requires_live_grants_and_never_replays_io() {
         &lazaret,
         project,
         target,
-        instance_ids[1],
+        request.context.instance_id,
         &RuntimeInstanceRevokeRequestV1 {
             schema_version: 1,
             expected: target_snapshot.cas,
-            instance_id: instance_ids[1],
+            instance_id: request.context.instance_id,
         },
     )
     .await
