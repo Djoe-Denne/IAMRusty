@@ -1,0 +1,18 @@
+project_name: "AIForAll product stories"
+default_status: "Accepted intent"
+statuses: ["Accepted intent", "Ready", "In Progress", "Done"]
+labels: []
+date_format: "yyyy-mm-dd"
+max_column_width: 20
+auto_open_browser: false
+default_port: 6420
+browser_hostname: "127.0.0.1"
+remote_operations: false
+auto_commit: false
+filesystem_only: true
+zero_padded_ids: 3
+bypass_git_hooks: false
+check_active_branches: false
+active_branch_days: 30
+task_prefix: "story"
+backlog_directory: "obsidian/AI FOR ALL/projects/aiforall/product-backlog"
