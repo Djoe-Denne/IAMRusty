@@ -10,6 +10,13 @@
 
 `Accepted` ratifie une cible. Le champ `Réalité` indique séparément ce que le code du dépôt réalise.
 
+> **Implementation note — 2026-11-21.** The four services below describe the
+> original September snapshot. The [current monolith router](../../runtime/monolith/src/routes.rs)
+> also mounts `/lazaret`. [Docker Compose](../../docker-compose.yml) declares
+> `lazaret-service` and a separate `oauth-connect-service`; OAuthConnect is
+> not mounted in the monolith. `sentinel-sync` remains a separate worker.
+> This inventory does not change the dual-runtime decision or select a cluster topology.
+
 ## Contexte
 
 Quatre vertical slices (IAM, Telegraph, Hive, Manifesto) doivent tourner en compose (un process par service) **et** sous un listener unique pour le dev / un déploiement compact. La tentation est de déclarer le monolithe « la » runtime, ou d’y embarquer `sentinel-sync`.
@@ -50,4 +57,6 @@ Hors compose par défaut : monolithe et sentinel-sync (`cargo run -p oodhive-mon
 
 - Handbook : `docs/platform/runtime.md`, `docs/services/monolith.md`, `docs/services/sentinel-sync.md`, `README.md`
 - Code : `runtime/monolith/src/routes.rs`, `*/http/src/lib.rs` (`SERVICE_PREFIX`, `create_prefixed_router`)
-- Preuve : compose démarre les 4 services ; `oodhive-monolith` hors compose ; sentinel-sync hors les deux
+- Historical evidence: the original Compose snapshot contained four application services.
+  For today's source inventory, see the implementation note above. `oodhive-monolith`
+  and `sentinel-sync` are not declared as services in the root Compose file.

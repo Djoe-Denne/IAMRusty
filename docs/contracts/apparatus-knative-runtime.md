@@ -6,6 +6,14 @@
 - Base observée : `2760e02bc43f5149070aac6ace29f7c2d11f9aad`.
 - Portée : contrat de cible et de preuves ; **pas un GO code/runtime**, pas le contrat complet de tous les cycles métier.
 
+> **Implementation snapshot — 2026-11-21.** The repository contains runtime
+> control and projection code and the dated PostgreSQL evidence linked in
+> [ADR-0012](../adr/0012-apparatus-http-knative-par-binding.md). The initial
+> snapshot and proposed file lists below are not a current code inventory.
+> The Knative version lock remains unresolved, and §15's live campaign has
+> not been established by these changes. The status and deployment gates
+> are unchanged.
+
 ## 1. Frontières et invariants
 
 La release OCI immuable est réutilisable ; l’installation est isolée par `(project_id, binding_id)`, jamais par digest seul. Binding = `ProjectComponent.id`. Les digests descripteur, enveloppe et image CRI gardent leurs rôles distincts (0002/0008) ; le kubelet utilise exclusivement l’image pinée issue d’une enveloppe admise. Activer/configurer un binding ne produit ni `VALID` ni `VERIFIED`.

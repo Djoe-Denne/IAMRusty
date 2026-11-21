@@ -2,10 +2,16 @@
 
 > Raccord Ops du 2026-11-09 : la source IAM publique courante est `ops/deploy/charts/local-full/files/config/iam.toml` ; les citations de l'ancien overlay restent des constats historiques à `5199613`. Voir le [guide des déclarations](../guides/ops-declarative-boundaries.md). Aucun changement de frontière AuthZ ou de ratification.
 
-- Version : 1, 2026-10-28 ; **Accepted / Unimplemented**.
+- Version: 1, 2026-10-28; **Accepted / Partial**. See [ADR-0314](../adr/0314-principal-authority-through-openfga.md#références-et-réalité)
+  for the 2026-11-21 implementation snapshot. A coordinated runtime cutover
+  and legacy-grant reconciliation remain unverified.
 - Canon décisionnel : [ADR-0314](../adr/0314-principal-authority-through-openfga.md), complète [0305](../adr/0305-account-identity-trust-domain.md).
 - Base examinée : application c72ae362b950c63d6736a6818c68babc5a8d6f40 ; SDK d60a88b2f2f499768a807941a1b4c80c9a366b3f.
-- Ratification : explicite par le lead le 2026-10-28 sous délégation utilisateur de la politique approuvée révision 1, après examen des alternatives, sources, compatibilité et oracles ; aucune acceptation par l'auteur ni preuve de code livré. Intégration vérifiée des documents requise avant publication de corriger-identites.
+- Ratification: the lead approved the contract on 2026-10-28 under the
+  user's approved delegation revision 1, after reviewing alternatives,
+  sources, compatibility and validation criteria. That approval was
+  independent of implementation evidence, and the original handoff
+  required the documentation to be integrated before code publication.
 - Précision locale ratifiée le 2026-10-29 : [politique de service grant-snapshot Manifesto](manifesto-grant-snapshot-service-policy.md), isolée de la policy HumanAccount et de FGA ; pas de nouvelle équivalence d'autorités.
 
 ## 1. Invariants
@@ -91,7 +97,13 @@ Hors scope : remote signer, Envoy TLS/listeners, OAuth/connecteurs, cloud/HSM, U
 
 ## 8. Validation nommée — à inscrire au plan QA avant exécution
 
-**Lot documentaire actuel : aucun test comportemental ni runtime exécuté.** Le hook pré-commit a involontairement invoqué `cargo fmt --all -- --check` pendant la tentative de livraison : FAIL environnement Windows OS206 (« Nom de fichier ou extension trop long »), sans commit créé ni preuve rouge fonctionnelle. Aucun autre Cargo exécuté et aucun fmt PASS revendiqué. Le lead autorise pour le seul commit des trois documents une omission du hook par configuration Git éphémère, sans modifier sa configuration persistante ; la QA Rust finale n’est pas dispensée. Les noms ci-dessous sont des régressions à implémenter, pas des tests existants déclarés verts.
+**Historical record — 2026-10-28 contract-only lot.** No behavioral or
+runtime test ran for the original ratification. The pre-commit hook invoked
+`cargo fmt --all -- --check` and hit Windows OS206 (path length); it produced
+neither a behavioral failure nor a formatting pass. The lead's one-time
+authorization to omit that hook was limited to the original documentation
+commit. The cases below are validation criteria, not a record of their
+execution; see ADR-0314 for the later implementation snapshot.
 
 - `recognized_same_sub_distinct_issuers_do_not_share_organization_admin` dans organization_signer_permissions : deux vrais JWT RS256, même sub, issuers plateforme et org distincts, kid/clés et métadonnées de confiance reconnus par le vrai vérificateur. Préflight positif de reconnaissance de **chaque** JWT jusqu’au principal/Check ; une 401 du second invalide l’oracle de collision. Réutiliser le vrai harness Hive/Postgres/OpenFGA ; mock du RPC IAM sortant seulement.
 - Grant Admin uniquement au principal plateforme sur A : plateforme configure A = 200 et exactement le RPC attendu ; org au même sub = 403, compteur RPC inchangé, snapshots writer Hive/outbox/IAM mock sans effet. Body contenant B ne change pas la ressource autorisée.
@@ -107,11 +119,19 @@ Suites de référence ciblées après accord du lead et arbre gelé : `organizat
 
 Sources détaillées dans ADR-0314 ; corps with_principal/permission_middleware/optional_permission_middleware/Subject, refs Serena, HIR Subject (6 modules agrégés : SDK checker/permission/http/testing et Manifesto project/world_read), projections/événements et test signer lus. Les refs Serena incluent de nombreux tests absents du résumé HIR ; aucune liste n’est une preuve exhaustive. Index et Serena rattachés à la racine canonique, worktree documentaire non indexé ; sources à la base B vérifiée. QMD/HIR indisponibles en phase planning, disponibles après transition et effectivement utilisés sans réindexation. Pas de conclusion d’absence fondée sur zéro graphe.
 
-Contradictions explicites : 0305 Implemented ne couvre pas son schéma FGA Non décidé ; handbook authz réduit encore l’identité à sub ; alias Hive par forme d’URL et test translator actuel sont incompatibles avec cette cible. Le skill permission décrit encore un mock FGA en IT : 0200/0302 et le harness réel priment. Ne pas modifier les Accepted pour faire passer la proposition pour déjà livrée.
+At the contract's original baseline, 0305 did not decide the OpenFGA subject
+format, and the handbook and Hive projection still relied on the subject UUID
+alone. The [current authorization handbook](../platform/authz-openfga.md)
+describes the issuer-qualified model. ADRs 0200/0302 and the real Hive harness
+still govern integration tests.
 
 ## Annexe — intégration lead
 
-Consommateur documentaire : **corriger-identites**, non publié par cet auteur. Entrées nécessaires : texte ADR/contrat explicitement ratifié, HEAD documentaire intégré, SDK exact et ownership des consommateurs confirmé. Ligne d’index à intégrer par le lead : `0314 | Conserver l’autorité du principal dans les sujets et projections OpenFGA | Accepted / Unimplemented | contrat authz-trust-domain-boundary`.
+**Historical implementation handoff — 2026-10-28.** The named consumer was
+`corriger-identites`. Its inputs were the ratified ADR and contract, the
+integrated documentation, the exact SDK revision and confirmed ownership.
+The index then showed `Accepted / Unimplemented`; the current scope is
+recorded in [ADR-0314](../adr/0314-principal-authority-through-openfga.md).
 
 ### Attributions ciblées du lead après inventaire du consommateur — 2026-10-28
 

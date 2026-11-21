@@ -11,7 +11,17 @@
 - Related : [0003](0003-apparatus-untrusted-plugin.md), [0004](0004-apparatus-capability-gateway.md), [0005](0005-apparatus-same-protocol-valid-verified.md), [0007](0007-apparatus-p3-capability-boundary-after-accept.md), [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md), [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md), [0010](0010-gate-preprod-workload-certificate-ca.md), [0600](0600-cloud-portable-opentofu-k8s-gitops.md)
 - Contrat d’implémentation : [apparatus-knative-runtime](../contracts/apparatus-knative-runtime.md), version 1, Accepted (Réalité Unimplemented)
 
-**Ratifié par l’utilisateur le 2026-10-20** : Accept du paquet B1–B6, inventaire des deltas (§13 du contrat), attribution des fichiers (§14) et valeurs B5 « à ratifier ». Les **pins exacts Serving/ingress/dépendances restent absents** : ils seront obtenus par un **spike séparé** (périmètre et accord distincts ; ne ferme ni choix métier ni gate pré-prod) et conditionnent l’entrée du lot B. Aucune implémentation Knative ni preuve de fermeture de gate n’est apportée ici. 0008 reste **Accepted / Implemented** pour P4-core, sa gestion du runtime partiellement supersédée (note 0008). 0009 et 0010 restent **Proposed / Unimplemented**.
+**Ratified by the user on 2026-10-20:** B1–B6, the interface changes (§13),
+file ownership (§14) and B5 design values. Exact Serving, ingress and dependency
+pins were deferred to a separate spike as a prerequisite for lot B.
+That ratification was not implementation or gate-closure evidence. 0008
+remains **Accepted / Implemented** for P4-core, with only its plugin runtime
+management superseded. 0009 and 0010 remain **Proposed / Unimplemented**.
+
+> **Implementation snapshot — 2026-11-21.** Runtime control and projection
+> code is present. `Unimplemented` remains the status of the complete
+> end-to-end target under the contract's campaign gate, not a claim that
+> no implementation exists. See the evidence and limits below.
 
 ## Contexte
 
@@ -75,4 +85,15 @@ Les annexes fixent les choix B1–B6, **ratifiés le 2026-10-20**. **Pins exacts
 - Pointeur wiki : `obsidian/AI FOR ALL/projects/manifesto/decisions/0009-0011-gates-preprod.md` ; conception, pas ratification : `projects/manifesto/concepts/apparatus-bindings-and-lifecycle`.
 - Sources Knative consultées le 2026-10-19 (site documentaire `release-1.23`, **pas un pin de livraison**) : [request flow](https://knative.dev/docs/serving/request-flow/), [scale-to-zero](https://knative.dev/docs/serving/autoscaling/scale-to-zero/), [scale bounds](https://knative.dev/docs/serving/autoscaling/scale-bounds/), [KPA/HPA](https://knative.dev/docs/serving/autoscaling/autoscaler-types/). Alternative : [KEDA HTTP add-on README](https://raw.githubusercontent.com/kedacore/http-add-on/main/README.md).
 - [0600](0600-cloud-portable-opentofu-k8s-gitops.md) reste **Proposed / Unimplemented**, limites locales/cloud et absence de Flux live inchangées ; ce lien n’en constitue pas la ratification. Même discipline de supersession partielle que [0312](0312-admission-jwks-par-slots-bornes.md), sans rapport fonctionnel avec IAM.
-- Preuve d’implémentation de **0012 : aucune**. Travail de ce lot strictement documentaire, sans runtime ni test exécuté.
+- Implementation at `50c36ade`: [Manifesto control routes](../../services/Manifesto/http/src/lib.rs),
+  [Lazaret runtime](../../services/Lazaret/application/src/runtime.rs) and
+  [operator Serving projection](../../workers/apparatus-operator/src/runtime_projection.rs).
+  This is not a qualified deployment. The [Knative deployment preparation](../../ops/deploy/p4/knative/README.md)
+  is static and excluded from the parent kustomization; its
+  [version lock](../../ops/deploy/p4/knative/versions.lock.yaml) remains unresolved.
+- Recorded evidence: the [2026-11-21 PostgreSQL run](../missions/20261121-coverage-92-signed-maintenance.md)
+  passed 16 cases, including the HTTP tests and signed Prepare/Open and
+  fencing paths. It did not exercise a cluster cutover, a cold start,
+  operator authentication, an external signer or cluster attestation.
+  The [campaign gate](../contracts/apparatus-knative-runtime.md#15-critères-de-passage-des-lots-et-transition-fail-closed)
+  and the separate 0009/0010 gates remain open.

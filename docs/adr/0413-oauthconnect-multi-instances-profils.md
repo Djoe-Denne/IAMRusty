@@ -40,6 +40,19 @@
 - Preuves exécutées du raccord :325unités+80IT sur11binaires, sans échec/ignoré/filtré dans les suites retenues ; PostgreSQL réel (upgrade, verrou/concurrence, purge), navigateur/effets, TLS vérifié et traces. Check IAM/monolithe, fmt et Clippy strict domaine/application/migration passent ; Clippy strict infra reste rouge sur dette préexistante documentée, sans allow.
 - **Réalité globale reste Partial** : pas d'E2E fournisseur, équivalence réelle GitLab `sub`, déploiement/cutover ou retrait legacy ; chaîne intégrée IAM→Connectréel→vendor signé non fermée par les mocks IAM. Limites streaming et nettoyage de ressources opaques consignées au rapport. Cette photographie factuelle ne modifie ni la décision Accepted ni les conditions de bascule.
 
+### Repository and deployment status — 2026-11-21
+
+The [November 12 browser campaign](../missions/20261112-k6-three-native-results.md)
+exercised IAM and OAuthConnect v2 with a simulated provider. On November 15
+the standalone GitHubConnect and GitLabConnect sources, dedicated tests and
+repository build/deployment bindings were removed under the
+[retirement contract](../contracts/legacy-connect-retirement.md). The public
+provider IDs and IAM callback URLs did not change. The earlier notes that
+OIDC, the v2 IAM integration or repository retirement were still pending
+are dated snapshots. The overall status remains **Partial**: the recorded
+local runs and source removal do not prove a live cutover, real provider
+end-to-end coverage or continuity of existing GitLab accounts.
+
 L'utilisateur demande un service RustyCog unique, plusieurs entrées de configuration au boot, deux profils seulement : OAuth adaptable (GitHub) et OIDC standard (GitLab). Chaque claim OAuth normalisé est décrit par un objet API GET JSON + JSONPath, sans scripts, transformations configurables ni chaînage HTTP. Cette orientation contredit le choix de déploiements indépendants de [0408](0408-connecteurs-idp-services-http.md) et son onboarding repris par [0411](0411-idp-provider-slug-registry-fail-closed.md).
 
 Les connecteurs sont **déjà** des services RustyCog minces : configuration typée, setup, AppState/RouteBuilder et handlers S2S communs. Il ne s'agit ni d'introduire RustyCog, ni d'ajouter DB/events/OpenFGA/nest pour suivre un gabarit métier.
@@ -71,7 +84,10 @@ Les pointeurs de supersession **partielle** et le périmètre daté sont portés
 - Évolution explicite de la crate contrat et des deux chemins IAM LOGIN/LINK/RELINK ; petit stockage transactionnel du nonce, non des claims. Déploiement récepteur avant consommateur, drainage des transactions v1 et rollback documenté. Pas de migration des clés `provider_tokens` ni des UUID.
 - La configuration GitHub minimale sélectionne l'email primaire de `/user/emails`. L'ancien fallback vers `/user.email` quand aucune entrée primaire n'existe nécessite une jointure entre réponses, exclue par la borne utilisateur. **Différence explicitement approuvée le 2026-11-06** : zéro email primaire devient email absent ; erreur HTTP n'est plus transformée silencieusement en liste vide. IAM ne change pas sa règle de LOGIN. Pas de script caché pour reproduire ce fallback.
 - La bascule GitLab est bloquée jusqu'à preuve, par l'intervenant E2E, que le `sub` OIDC exact correspond à l'ancien `id.to_string()`, avec scopes/claims effectifs et UUID/liens conservés. La documentation GitLab décrit `sub` comme ID utilisateur ; elle ne prouve pas notre déploiement.
-- Contradiction observée : `docker-compose.yml:167-168,340,362` décrit encore IAM→Connect en HTTP interne, alors que 0409 exige HTTPS hors exception locale. La migration doit rendre le mode explicite et privilégier HTTPS vérifié ; cette ratification ne qualifie pas l'existant comme HTTPS de bout en bout.
+- The [current OAuthConnect deployment guide](../services/oauth-connect.md)
+  documents the development Compose HTTP exception. The requirement for
+  verified HTTPS outside that exception is unchanged; Compose declarations
+  do not prove a deployed end-to-end TLS path.
 - [0505](0505-startup-secrets-sdk-openbao.md) reste **Proposed / Implemented**. Réemployer l'acquis GitHub ne l'accepte pas et n'autorise ni rotation, ni modification des politiques OpenBao par défaut.
 
 ## Alternatives écartées
@@ -85,15 +101,25 @@ Les pointeurs de supersession **partielle** et le périmètre daté sont portés
 
 ## Validation et non décidé ici
 
-Le [contrat actif](../contracts/oauthconnect-multi-instances.md) fixe les entrées RED/GREEN, les modules et les gates de migration ; le plan QA produit indépendamment a été réconcilié avec lui. Après intégration documentaire par le parent, les unités/IT autorisées peuvent commencer en TDD sans attendre les E2E externes. Les preuves E2E/cutover restent requises pour la bascule et le retrait des anciens services. Aucune compilation, IT ou E2E exécutée dans ce cadrage. Pas de garantie HA/production ni d'adoption de 0505. E2E GitHub/GitLab : autre intervenant, obligations de handoff seulement.
+The [active contract](../contracts/oauthconnect-multi-instances.md) defines
+the RED/GREEN validation and migration gates. The original decision lot
+ran no build or tests; later local results are linked above. The November
+15 authorization applied to repository removal only, not to a deployed
+cutover. Real-provider evidence and GitLab subject and account continuity
+remain prerequisites for that cutover. No HA or production qualification
+or adoption of 0505 is implied.
 
 L'accord humain sur cette ADR, le regroupement v2 avec nonce IAM durable et la différence de fallback GitHub est acquis le 2026-11-06. Claims riches, actions déléguées, nouveaux profils, hot-load, nest, gestion de comptes sans email et nouveaux mécanismes d'erreur restent hors scope.
 
 ## Références vérifiées
 
-- Base : `b39c6c4dcc6de9b7f123c00c9bd168aad08eca74` ; brief utilisateur du 2026-11-06 ; aucune preuve d'implémentation de la refonte.
+- Historical decision baseline: `b39c6c4dcc6de9b7f123c00c9bd168aad08eca74`,
+  with the user brief from 2026-11-06. See the dated snapshots above for implementation evidence.
 - Ratification : choix utilisateur explicites « Valider v2 et nonce (Recommandé) » et « Email primaire seul », le 2026-11-06, transmis par le parent ; trace de continuité `.cursor/handoffs/20261106-oauthconnect-tdd.md`. Proposition documentaire intégrée au commit `0a51206b1f9f4a999de7fc4812e947aee0445531` avant cette actualisation de statut.
 - ADR : 0100–0103, 0200–0202, 0400, 0407–0412, 0505. Analogue : résolution typée des secrets au setup de 0505, distincte du loader déclaratif.
-- Code : `crates/idp-connect-contract/src/{client,dto,server}.rs` ; `services/IAMRusty/domain/src/entity/oauth_transaction.rs`, `domain/src/service/oauth_service.rs`, `application/src/usecase/link_provider.rs`, `infra/src/auth/http_connector.rs` ; `services/{GitHubConnect,GitLabConnect}/infra/src/{github,gitlab}.rs` ; configuration/setup/http des deux Connect.
+- Current code: [`idp-connect-contract`](../../crates/idp-connect-contract/src),
+  [`OAuthConnect`](../../services/OAuthConnect), and
+  [the IAM HTTP connector](../../services/IAMRusty/infra/src/auth/http_connector.rs).
+  The former `services/GitHubConnect` and `services/GitLabConnect` paths are historical.
 - Handbook : `docs/services/{github-connect,gitlab-connect}.md` ; conception wiki antérieure : `obsidian/AI FOR ALL/projects/iamrusty/concepts/oauth-provider-linking.md` (QMD `#294f8d`, notamment ancien onboarding §Open Questions). Wiki = conception, pas ratification.
 - Sources primaires consultées le 2026-11-06 : [OIDC Core, ID token validation](https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation), [OAuth Security BCP](https://www.rfc-editor.org/rfc/rfc9700.html#section-4.5.3), [GitLab OIDC](https://docs.gitlab.com/integration/openid_connect_provider/), [jsonpath-rust 1.0.12](https://docs.rs/jsonpath-rust/1.0.12/jsonpath_rust/), [publication registry](https://crates.io/api/v1/crates/jsonpath-rust), [openidconnect 4.0.0](https://docs.rs/openidconnect/4.0.0/openidconnect/).

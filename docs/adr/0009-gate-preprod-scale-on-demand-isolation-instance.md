@@ -9,11 +9,22 @@
 - SuperSédée par : —
 - Related : [0003](0003-apparatus-untrusted-plugin.md), [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md), [0012](0012-apparatus-http-knative-par-binding.md) ; ancienne proposition [0011](0011-apparatus-p4-pod-par-binding.md), Rejected
 
-`Accepted` ratifierait la **gate** ci-dessous. `Réalité : Unimplemented` : la cible (scale on demand + isolation d’instance non silencieuse) **n’est pas** dans le dépôt. Le code P4-core actuel (`apparatus-operator`) reste la **dette acceptée hors prod** — il ne satisfait pas cette ADR. Cette ADR **ne SuperSède pas** [0003](0003-apparatus-untrusted-plugin.md) ni [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) (`Réalité : Implemented` inchangée). Mise à jour du 2026-10-19 : le mécanisme proposé est désormais [0012](0012-apparatus-http-knative-par-binding.md), 0011 étant Rejected. Fermer la Réalité de 0009 exige **0012 Accepted et Implemented ET les critères propres de 0009 prouvés**, avec revue explicite des preuves scale on demand/isolation. Accept de la gate, Accept du mécanisme ou simple cold-start vert ne suffisent pas. Aucune clôture pré-prod globale ni de 0010 n’en découle.
+`Accepted` would ratify this gate. `Réalité : Unimplemented` means the gate
+has not been met: legacy P4-core does not satisfy the on-demand scaling and
+instance isolation requirements. [ADR-0012](0012-apparatus-http-knative-par-binding.md)
+was accepted on 2026-10-20, and portions of its implementation are in the
+repository, but its complete target is not qualified. Closing 0009 still
+requires **0012 Accepted and Implemented, plus an explicit review of
+evidence for 0009's own criteria**. Neither accepting the mechanism nor a
+single successful cold start is sufficient. This ADR does not supersede
+[0003](0003-apparatus-untrusted-plugin.md) or
+[0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) or close 0010.
 
 ## Contexte
 
-[0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) livre le moteur d’isolation P4-core (K8s hors Manifesto). Les humains qui croient « P4 fini » lisent 0008 Implemented. Or le contrôleur actuel :
+[0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) delivered P4-core
+isolation outside Manifesto. The legacy controller used by that path has the
+following limits; it is not the Knative design:
 
 - `pod_name_for(digest)` → `plugin-{32 hex}` ; `cr_name_for` → `sha256-{hex}` ;
 - `reconcile_object` : si `Api<Pod>.get` OK → Scheduled no-op ; sinon create Pod nu + labels du **premier** créateur ;
@@ -21,7 +32,11 @@
 - pas de Deployment plugin, pas de HPA, pas de KEDA, pas de scale-to-zero ;
 - `envelope_to_podspec` : `restartPolicy: Always`.
 
-[0003](0003-apparatus-untrusted-plugin.md) laissait ouvert le mécanisme scale-to-zero ; [0012](0012-apparatus-http-knative-par-binding.md) y apporte désormais une cible forward Proposed, sans modifier 0003. [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) laisse le drain / destruction des bindings `ready` à une décision ultérieure ; le contrat 0012 identifie les précisions encore bloquantes, sans prétendre décider tout le cycle métier. Sans gate écrite, la limite « un pod H24 partagé par digest » pourrait être shippée en prod par omission.
+[0003](0003-apparatus-untrusted-plugin.md) left the scale-to-zero mechanism open;
+[0012](0012-apparatus-http-knative-par-binding.md) now provides the accepted HTTP
+target. [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) deferred
+draining and destroying `ready` bindings; the 0012 contract narrows the
+runtime transition without deciding the full business lifecycle.
 
 ## Décision
 
@@ -29,7 +44,9 @@
 2. **Gate pré-prod bloquante.** Cette limite **doit** être adressée **avant** toute mise en production. Interdit de présenter 0008 Implemented comme « prêt prod » sur ce point.
 3. **Exigence : scale on demand.** Avant prod, les plugins (services qu’ils représentent) doivent pouvoir être **scalés à la demande**. Plus seulement « un pod H24 partagé ».
 4. **Exigence : pas de partage silencieux.** Une instance ne doit plus être **implicitement** partagée entre projets sans **décision explicite**. Le shared n’est **pas** le défaut silencieux.
-5. **Mécanisme proposé = [ADR-0012](0012-apparatus-http-knative-par-binding.md).** Serving/KPA par projet × binding est désigné, pas détaillé ici. 0011 est une proposition Rejected conservée comme historique. Cette référence ne vaut ni Accept du mécanisme ni preuve de ses critères.
+5. **Designated mechanism: [ADR-0012](0012-apparatus-http-knative-par-binding.md).**
+   Serving/KPA per project and binding was accepted in 0012, not by this reference.
+   0011 remains a rejected historical proposal. Ratification of 0012 does not prove this gate.
 
 ## Conséquences
 
@@ -50,7 +67,9 @@
 ## Non décidé ici
 
 - Drain / destruction des bindings déjà `ready` (renvoie [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) Non décidé)
-- Mécanisme scale-to-zero HTTP et replicas internes : cible Serving/KPA proposée par [0012](0012-apparatus-http-knative-par-binding.md), à ratifier ; pas de HPA/KEDA concurrent implicite.
+- The HTTP scale-to-zero mechanism and replica policy are decided in
+  [0012](0012-apparatus-http-knative-par-binding.md), not here. No concurrent
+  HPA/KEDA controller is implied.
 - Valeurs de capacité, profil d’isolation, identité/transport et sémantique de révocation/drain : précisions bloquantes du [contrat 0012](../contracts/apparatus-knative-runtime.md), pas des capacités déjà livrées.
 - Budgets CPU numériques (`APP-06`), `APP-02` / `APP-05`
 
@@ -58,4 +77,6 @@
 
 - Canon voisin : [0003](0003-apparatus-untrusted-plugin.md), [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md), [0012](0012-apparatus-http-knative-par-binding.md) ; [0011](0011-apparatus-p4-pod-par-binding.md) = proposition Rejected historique ; closeout [0008-closeout.md](0008-closeout.md) (**non** modifié par cette ADR)
 - Code (dette hors prod, preuve de la limite) : `workers/apparatus-operator/src/controller.rs` — `pod_name_for`, `cr_name_for`, `reconcile_object`, `envelope_to_podspec`
-- Preuve d’implémentation de **cette** cible : **aucune** (`Réalité : Unimplemented`)
+- Evidence for this gate: **not established** as of 2026-11-21. The
+  [0012 implementation evidence](0012-apparatus-http-knative-par-binding.md)
+  does not establish 0009's real scaling and isolation criteria.

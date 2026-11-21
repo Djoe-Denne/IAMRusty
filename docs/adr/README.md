@@ -33,10 +33,10 @@ Décisions d’architecture **acceptées, proposées ou rejetées**, distinctes 
 | [0006](0006-apparatus-p2-reconciliation-in-process.md) | Réconciliation P2 = contrôleur in-process Manifesto, sans infra réelle | Implemented | bindings, plan — Accepted 2026-09-12 |
 | [0007](0007-apparatus-p3-capability-boundary-after-accept.md) | Frontière P3 = BC Lazaret, distinct de Manifesto ; 0006 G et E restent | Implemented | Accepted 2026-09-13 ; Réalité Implemented (A-DEC 2026-09-20) ; holes hors-jalon, ne bloquent plus Implemented |
 | [0008](0008-apparatus-p4-k8s-isolation-outside-manifesto.md) | Moteur P4 = K8s hors Manifesto ; Cosign + Transit ; admission worker-only ; operator+Jobs ; enveloppe ≠ image CRI ; 4 SA | Implemented | Accepted 2026-09-20 ; Implemented A-DEC 2026-09-22 ; Kind = V1 ; dette D-TRANSIT-TCB / D-ADMB / D-PROD ; [0008-closeout.md](0008-closeout.md) |
-| [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md) | Limite pod-H24 / partage-par-digest OK hors prod ; **bloquante avant prod** (scale on demand + isolation instance explicite) | Unimplemented | Proposed ; mécanisme proposé = [0012](0012-apparatus-http-knative-par-binding.md) ; fermeture exige 0012 Accepted **et** Implemented **et** critères propres 0009 prouvés/revus ; aucune clôture pré-prod globale |
+| [0009](0009-gate-preprod-scale-on-demand-isolation-instance.md) | Legacy always-on pods shared by digest are acceptable outside production; on-demand scaling and explicit instance isolation are required before production | Unimplemented | Proposed. [0012](0012-apparatus-http-knative-par-binding.md) is the accepted mechanism; closing 0009 still requires 0012 Implemented and reviewed evidence for 0009's own criteria. |
 | [0010](0010-gate-preprod-workload-certificate-ca.md) | CA logicielle / CSR vs keypair OK hors prod ; **bloquante avant prod** (modalité d’émission + autorité CA) | Unimplemented | Proposed 2026-09-25 ; complète 0007, ne le SuperSède pas ; mécanisme CSR/keypair/produit CA Non décidé |
 | [0011](0011-apparatus-p4-pod-par-binding.md) | Ancienne proposition : Pod par binding piloté par l’operator | Unimplemented | **Rejected 2026-10-19**, rejet explicitement autorisé ; proposition historique conservée, remplacée par [0012](0012-apparatus-http-knative-par-binding.md), sans supersession d’une Accepted |
-| [0012](0012-apparatus-http-knative-par-binding.md) | Plugins HTTP = Knative Serving/KPA par projet × binding ; activation logique, pré-déclaration à zéro, invoke autorisé via Lazaret | Unimplemented | **Accepted le 2026-10-20** (paquet B1–B6 ratifié ; pins B5 via spike séparé = condition d’entrée du lot B) ; [contrat](../contracts/apparatus-knative-runtime.md) ; supersession partielle de 0008 effective, limitée à la gestion du runtime plugin ; 0009/0010 ouvertes |
+| [0012](0012-apparatus-http-knative-par-binding.md) | HTTP plugins use Knative Serving/KPA per project and binding, with logical activation, declaration at zero replicas and authorized invocation through Lazaret | Unimplemented end to end; control and projection code present | **Accepted 2026-10-20** (B1–B6); B5 pin resolution and the live campaign in the [contract](../contracts/apparatus-knative-runtime.md) remain open. Only 0008's plugin runtime management is superseded; 0009 and 0010 remain open. |
 
 Ratification 0001–0005 : revue orchestrée du 2026-09-10. ADR-0002 / 0003 / 0005 : Réalité **Implemented** (A-DEC 2026-09-22 ; chaîne Kind M1–M6 ; Kind = V1) ; Factory/host = P5/P6 **après** ; dette D-TRANSIT-TCB / D-ADMB / D-PROD. ADR-0006 : Accept explicite utilisateur du 2026-09-12 (checklist A–M figée). `Accepted` fixe la cible ; T1–T7 + writer backoff §D sont livrés (Réalité Implemented). ADR-0007 : Accept explicite utilisateur du 2026-09-13 (« accepté ») ; checklist 1–14 ratifiée ; G et E **non levées**. Réalité **Implemented** (A-DEC 2026-09-20 ; T1–T14b livrés) ; holes (`APP-05`, G/E, pas K8s-as-P3, pas de second protocole) **hors-jalon**, ne bloquent plus Implemented. Inventaire de clôture : [0007-closeout.md](0007-closeout.md). ADR-0008 : ratification chat « Je valide tout. Je ratifie tout. » du 2026-09-20 (même force que 0007 « accepté ») ; README L17 / L158 : `Accepted` typiquement après PR — **écart documenté** comme 0006/0007. Réalité **Implemented** (A-DEC 2026-09-22 ; T2–T12 `apparatus-operator` + Kind `apparatus-p4-it` + M1–M6) ; dette TCB **hors-jalon**, ne bloque plus Implemented. Inventaire de clôture : [0008-closeout.md](0008-closeout.md).
 
@@ -117,7 +117,7 @@ Contrat secondaire test-side : [m6 proof hardening](../contracts/20261018-m6-pro
 | [0310](0310-admission-epochs-budget-jwks.md) | Admission writer atomique des epochs ; budgets/réserve et quotas conservés ; calcul/capacité partiellement supersédés par 0312 le 2026-10-08 | Accepted / Partial |
 | [0311](0311-crypto-privee-deleguee-aux-providers.md) | Crypto privée JWT déléguée ; PEM dev explicite ; version provider épinglée | Accepted / Implemented |
 | [0312](0312-admission-jwks-par-slots-bornes.md) | Slots JWKS bornés ; réserve/atomicité conservées ; constantes ratifiées et prouvées | Accepted / Implemented |
-| [0314](0314-principal-authority-through-openfga.md) | Autorité du principal préservée dans sujets, caches et projections OpenFGA ; compatibilité plateforme avec provenance | Accepted / Unimplemented |
+| [0314](0314-principal-authority-through-openfga.md) | Preserve the principal's issuer in permission subjects, caches and OpenFGA projections; keep legacy platform compatibility only with provenance | Accepted / Partial |
 
 **0310** : `Accepted` / `Partial`, ratification initiale le 2026-10-04 ; supersession **partielle** du calcul/capacité par **0312** effective le 2026-10-08, autres invariants conservés. **0311–0312** : `Accepted` / `Implemented`, Accept explicite de Djoé Denne le 2026-10-08 ; implémentation livrée, units + IT IAM vertes sur master selon son attestation (pas artefact CI archivé). Aucune clôture sécurité globale S-10 ni preuve E2E implicite. Prochain libre events/authz : **0313+**. Contrat historique : `.cursor/review-briefings/20261003-auth-fixes-interface-contract.md` §§14–15 ; calcul/capacité désormais régis par 0312.
 
@@ -125,23 +125,29 @@ Contrat secondaire test-side : [m6 proof hardening](../contracts/20261018-m6-pro
 
 **0313** : [outbox atomique Telegraph](0313-telegraph-notification-outbox-atomique.md), **Proposed / Implemented** ; [contrat](../contracts/telegraph-notification-outbox.md). Notification, livraison éventuelle et intention `NotificationCreated` dans la même transaction writer ; publication suspendue sur disabled/no-op. Code et preuves de reprise/SQS/OpenFGA/replay/403/200 livrés ; application39024b2 et SDKd60a88b intégrés aux branches principales (réconciliation2026-10-28). **0301 reste Accepted / Partial**, écart IAM inchangé ; sa mention Telegraph sans outbox est désormais explicitement historique. Aucun Accept implicite de0313. Prochain libre events/authz : **0314+** (la mention0313+ ci-dessus est historique).
 
-**Actualisation 2026-10-28 — 0314** : [contrat authz](../contracts/authz-trust-domain-boundary.md), ratification explicite du lead sous délégation utilisateur de la mission authentification ; ferme le schéma FGA laissé non décidé par 0305, sans changer sa photographie AuthN ni présenter le code comme livré. Prochain libre events/authz : **0315+** ; les indications antérieures 0313+/0314+ ci-dessus sont historiques.
+**0314:** the lead ratified the [authorization contract](../contracts/authz-trust-domain-boundary.md)
+on 2026-10-28 under user delegation, resolving the OpenFGA subject format
+left open by 0305. **2026-11-21 implementation snapshot:** the selected SDK
+and Hive/sentinel-sync integrate issuer-qualified authorization. A coordinated
+live cutover and legacy-grant reconciliation remain unverified. Next available
+events/authz number: **0315+**; the earlier 0313+/0314+ references are historical.
 
 ### 0400 — Services et runtimes
 
 | ID | Décision | Réalité |
 |---|---|---|
 | [0400](0400-iamrusty-identite-hexagonale.md) | IAMRusty = IdP hexagonal (OAuth, tokens, pas OpenFGA) | Implemented |
-| [0401](0401-manifesto-projets-composants-acl-cas.md) | Manifesto = projets, composants, ACL, CAS, membership DB | Implemented |
-| [0402](0402-hive-organisations.md) | Hive = organisations, invitations, membership | Implemented |
+| [0401](0401-manifesto-projets-composants-acl-cas.md) | Manifesto owns projects, components and SQL membership, with revision checks and transactional ACL/outbox writes. Public self-join grants Read, not Write. | Implemented |
+| [0402](0402-hive-organisations.md) | Hive owns organizations, invitations and membership; invitation email delivery and external sync execution are not established by the API | Implemented |
 | [0403](0403-telegraph-notifications-event-driven.md) | Telegraph = notifications event-driven, HTTP étroit | Implemented |
-| [0404](0404-runtime-microservices-et-monolithe.md) | Dual runtime : standalones + `oodhive-monolith` préfixé | Implemented |
+| [0404](0404-runtime-microservices-et-monolithe.md) | Standalone services and the prefixed `oodhive-monolith`; the current monolith also mounts Lazaret | Implemented |
 | [0405](0405-readiness-crate-partagee.md) | Crate `readiness` partagée pour le health | Implemented |
 | [0406](0406-crates-apparatus-p0-pas-le-host.md) | `apparatus-contracts` + KV réf. = P0 ; host/Factory hors livré — voir 0001–0005 | Partial |
 
 Contrat correctif secondaire Hive : [coverage90-hive-corrections](../contracts/coverage90-hive-corrections.md)
 (GO local du 2026-11-13 : annulation org-scopée, pagination et remplacement transactionnel des rôles).
-Exécute 0402/0103/0301/0314 sans nouvelle ADR ni modification de leurs Statut/Réalité ; correctifs locaux et validations consignés dans le [rapport de campagne](../missions/20261113-coverage90-local.md), sans promotion globale de 0314.
+The November 13 campaign did not change ADR status or qualify 0314 end to
+end. Its scoped results are in the [campaign report](../missions/20261113-coverage90-local.md).
 
 ### 0500 — Plateforme et qualité
 
@@ -164,7 +170,11 @@ Exécute 0402/0103/0301/0314 sans nouvelle ADR ni modification de leurs Statut/R
 
 ## Vague 3 — IAM living / IdP fédérés (0407+, hors Apparatus)
 
-Jalon **IAM-IdP** : le template P0–P6 Apparatus ne s’applique pas. IAM reste l’IdP *plateforme* ([0400](0400-iamrusty-identite-hexagonale.md)) ; les Connect sont des *federated authenticators*. **0009** est Apparatus (gate pré-prod) — **interdit** de le réutiliser pour IAM. **Ne pas** réécrire 0100–0502. Prochains libres services/runtimes : **0414+** (0412 : transaction OAuth navigateur, Accepted / Implemented, qualification locale ratifiée2026-10-29 ; pas production/HA ; 0413 : OAuthConnect multi-instances Accepted / Partial, socle OAuth avec transport/secrets vérifié sous Windows, pas OIDC/service/IAM complets).
+Jalon **IAM-IdP** : le template P0–P6 Apparatus ne s’applique pas. IAM reste l’IdP *plateforme* ([0400](0400-iamrusty-identite-hexagonale.md)) ; les Connect sont des *federated authenticators*. **0009** est Apparatus (gate pré-prod) — **interdit** de le réutiliser pour IAM. **Ne pas** réécrire 0100–0502.
+
+Next available services/runtime number: **0414+**. The 0412 browser transaction
+was qualified locally, not for production or HA. See 0413 below for the
+current OAuthConnect and IAM rollout boundaries.
 
 Wiki (pointeurs, pas canon) : `obsidian/AI FOR ALL/projects/iamrusty/decisions/`. Index Manifesto 0001–0008 : **hors sujet**.
 
@@ -176,9 +186,16 @@ Wiki (pointeurs, pas canon) : `obsidian/AI FOR ALL/projects/iamrusty/decisions/`
 | [0410](0410-migration-iam-connecteurs-idp.md) | Migration incrémentale ; routes `/api/auth/{provider}` conservées | Accepted | Implemented |
 | [0411](0411-idp-provider-slug-registry-fail-closed.md) | Provider = slug typé ; catalogue = registry au boot ; admission fail-closed ; pas de hot-load ; onboarding partiellement supersédé par 0413 le2026-11-06 | Accepted | Implemented |
 | [0412](0412-oauth-transaction-persistante-liee-navigateur.md) | Transaction writer liée au navigateur ; [preuve locale qualifiée2026-10-29](../contracts/20261029-auth-security-qualified-state.md), Chrome P1–P3/N1–N3 et17IT ; historiques Partial conservés, hors production/HA | Accepted | Implemented |
-| [0413](0413-oauthconnect-multi-instances-profils.md) | One OAuthConnect service; [multi-instance contract](../contracts/oauthconnect-multi-instances.md). [2026-11-15 repository retirement contract](../contracts/legacy-connect-retirement.md): remove standalone GitHubConnect/GitLabConnect code, tests and bindings; no new live cutover or identity-equivalence evidence. | Accepted | Partial |
+| [0413](0413-oauthconnect-multi-instances-profils.md) | One OAuthConnect service; [multi-instance contract](../contracts/oauthconnect-multi-instances.md). Standalone GitHubConnect and GitLabConnect were [removed from the repository](../contracts/legacy-connect-retirement.md) on 2026-11-15; live cutover and identity equivalence are not established. | Accepted | Partial |
 
-**0413 Accepted le2026-11-06** : choix utilisateur explicites « Valider v2 et nonce (Recommandé) » et « Email primaire seul ». Regroupement v2 authorize+complete, nonce IAM durable et delta GitHub sans fallback public ratifiés ; supersession **partielle**, non globale, de 0408/0411 et de l'interface 0407. Réalités historiques Implemented conservées. Réalité nouvelle **Partial** : frontière v2 puis socle OAuth avec configuration, projection bornée, transport et secrets/composition minimale vérifiés ; gate courant189tests, check/fmt/Clippy strict verts sous Windows. Revues sécurité ciblées sans finding ; OIDC exécuté/service opérationnel/nonceIAM/déploiements restent à réaliser. Bascule/retrait legacy toujours gated par E2E/cutover externes. Claims riches/actions différés ; 0505 demeure Proposed / Implemented. Aucun E2E qualifié par ces tranches.
+**0413 was accepted on 2026-11-06** after the user chose « Valider v2 et nonce
+(Recommandé) » and « Email primaire seul ». The v2 authorize/complete API,
+durable IAM nonce and GitHub primary-email-only behavior partially supersede
+0408, 0411 and the 0407 interface. As of 2026-11-21, the OAuth/OIDC service
+and IAM v2 integration have scoped local evidence. Repository retirement is
+complete; the live rollout, real-provider evidence and GitLab account
+continuity remain open. Rich claims and delegated actions remain deferred;
+0505 remains Proposed / Implemented.
 
 ## Vague 4 — Cloud portable / cluster (0600+, hors Apparatus)
 

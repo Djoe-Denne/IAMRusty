@@ -48,7 +48,23 @@ Hive expose déjà un hexagone `/hive` : organisations, rôles, membres, invitat
 - Transfert de projet / changement d’organisation (`APP-07`, 0001).
 - Fidélité OpenAPI Hive vs implémentation (écart déjà noté en 0100).
 - Catalogue des providers externes et politique de sync.
-- **Cible** : membership désignera le principal `(iss, sub)` ([0305](0305-account-identity-trust-domain.md)) ; config signer org = commande synchrone Hive→IAM ([0306](0306-hive-iam-configuration-signature.md)). Hive reste SoT org/membership. **Réalité** : `OrganizationMember.user_id` seul.
+- Principal identity and permission projection are covered by [0305](0305-account-identity-trust-domain.md)
+  and [0314](0314-principal-authority-through-openfga.md); [0306](0306-hive-iam-configuration-signature.md)
+  covers the organization signer command from Hive to IAM. Hive remains the source of truth for organization membership.
+
+## Implementation note — 2026-11-21
+
+- [`OrganizationMember`](../../services/Hive/domain/src/entity/organization_member.rs)
+  stores both `issuer` and `user_id`. See [0314](0314-principal-authority-through-openfga.md)
+  for the scope and limits of issuer-qualified authorization.
+- Hive creates and accepts invitations and records the creation event. That
+  does not prove email delivery: the tracked [Telegraph default](../../services/Telegraph/config/default.toml)
+  and [development](../../services/Telegraph/config/development.toml) configurations
+  do not route `invitation_created`.
+- [`start_sync_job`](../../services/Hive/application/src/usecase/sync_job.rs)
+  persists the job and records `SyncJobStarted`. Its [HTTP test](../../services/Hive/tests/organization_api_tests.rs)
+  checks a successful start, not a completed import. No production consumer
+  executing those jobs was identified in this repository.
 
 ## Références
 
