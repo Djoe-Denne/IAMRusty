@@ -10,6 +10,9 @@ import sys
 from pipeline import BUILD_JOBS, INTEGRATION_JOBS, INVENTORY, ROOT, evidence_identity, parse_execution_scope
 
 
+HOSTED_E2E_JOBS = frozenset(("k6-e2e", "e2e-pages-stage", "e2e-pages"))
+
+
 def clippy_packages(scope):
     if scope["full"]:
         return ["--workspace"]
@@ -61,9 +64,7 @@ def status(needs, *, event, ref):
     if (needs["plan"]["outputs"].get("docs_only") == "true") != (selection["mode"] == "docs"):
         raise ValueError("Invalid documentation-only CI selection")
     if selection["mode"] == "docs":
-        expected_skips = (expected - {"plan"}) | all_lanes | {
-            "merge-coverage", "sonar", "k6-e2e", "e2e-pages"
-        }
+        expected_skips = (expected - {"plan"}) | all_lanes | HOSTED_E2E_JOBS | {"merge-coverage", "sonar"}
         unexpected = sorted(
             name for name in (expected_skips | set(needs)) - {"plan"}
             if needs.get(name, {}).get("result") != "skipped"
@@ -105,7 +106,7 @@ def status(needs, *, event, ref):
                 coverage_note = (" Coverage was merged for diagnosis only; test execution is "
                                  "not qualified and Sonar was not evaluated.")
     if event == "push" and ref == "refs/heads/master":
-        expected.update(("k6-e2e", "e2e-pages"))
+        expected.update(HOSTED_E2E_JOBS)
     failed = sorted(
         name for name in expected if needs.get(name, {}).get("result") != "success"
     )

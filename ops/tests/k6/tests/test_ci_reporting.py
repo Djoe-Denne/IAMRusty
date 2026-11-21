@@ -4,7 +4,10 @@ import copy
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -24,6 +27,7 @@ from test_ci_campaign_browser import result as browser_result
 from test_ci_e2e import provenance
 
 SHA, H, RUN = "a" * 40, "c" * 40, "a" * 32
+BASH = os.environ.get("AIFORALL_BASH") or (shutil.which("bash") if os.name != "nt" else None)
 
 
 def dump(root, name, value):
@@ -292,11 +296,31 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("refs/heads/master", job["if"])
         self.assertEqual(job["permissions"], dict(contents="read", actions="read"))
         self.assertEqual(value["jobs"]["sonar"]["needs"], ["merge-coverage", "clippy", "plan"])
-        pages = value["jobs"]["e2e-pages"]
-        self.assertEqual(pages["needs"], ["k6-e2e"])
-        self.assertEqual(pages["permissions"]["pages"], "write")
-        self.assertIn("always()", pages["if"])
-        self.assertIn('"$current" = "$GITHUB_SHA"', pages["steps"][0]["run"])
+        stage, pages = (value["jobs"][name] for name in ("e2e-pages-stage", "e2e-pages"))
+        self.assertEqual(stage["needs"], ["k6-e2e"])
+        self.assertEqual(stage["permissions"], dict(contents="read", actions="read"))
+        self.assertNotIn("environment", stage)
+        self.assertIn("always()", stage["if"])
+        for job in (stage, pages):
+            self.assertIn("'push'", job["if"])
+            self.assertIn("refs/heads/master", job["if"])
+        self.assertEqual(pages["needs"], ["e2e-pages-stage"])
+        self.assertEqual(pages["permissions"], {"contents": "read", "actions": "read", "pages": "write", "id-token": "write"})
+        self.assertEqual(pages["concurrency"], {"group": "e2e-github-pages", "cancel-in-progress": "false"})
+        self.assertEqual(stage["steps"][1]["with"]["name"], "k6-e2e-report-${{ github.run_id }}-${{ github.run_attempt }}")
+        self.assertEqual(stage["outputs"]["artifact_id"], "${{ steps.stage.outputs.artifact_id }}")
+        artifact_name = "github-pages-${{ github.run_id }}-${{ github.run_attempt }}"
+        self.assertEqual(stage["steps"][2]["with"]["name"], artifact_name)
+        self.assertEqual(pages["env"]["PAGES_ARTIFACT_NAME"], artifact_name)
+        visible, current, deploy = pages["steps"]
+        self.assertEqual(visible["env"]["PAGES_ARTIFACT_ID"], "${{ needs.e2e-pages-stage.outputs.artifact_id }}")
+        self.assertEqual(visible["env"]["STAGED_ATTEMPT"], "${{ needs.e2e-pages-stage.outputs.attempt }}")
+        self.assertEqual(current["run"], stage["steps"][0]["run"])
+        self.assertIn("steps.visible.outputs.ready == 'true'", current["if"])
+        self.assertIn("steps.visible.outputs.ready == 'true' && steps.current.outputs.publish == 'true'", deploy["if"])
+        self.assertEqual(deploy["with"]["artifact_name"], "${{ env.PAGES_ARTIFACT_NAME }}")
+        self.assertNotIn("continue-on-error", deploy)
+        self.assertNotIn("continue-on-error", pages)
 
     def test_reusable_manual_split_and_readme_badges_do_not_use_fake_static_results(self):
         value = yaml.load((b.ROOT / ".github/workflows/k6-e2e.yml").read_text(), Loader=yaml.BaseLoader)
@@ -318,6 +342,77 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn("project=Djoe-Denne_IAMRusty&metric=" + metric, readme)
         self.assertIn("img.shields.io/endpoint?url=", readme)
         self.assertNotIn("img.shields.io/badge/E2E-34", readme)
+
+
+@unittest.skipUnless(BASH, "existing Bash required; set AIFORALL_BASH explicitly on Windows")
+class PagesArtifactTests(unittest.TestCase):
+    ARTIFACT = "42\tgithub-pages-123-1\tfalse\n"
+
+    def run_step(self, step, stub, *, listings=(), **overrides):
+        workflow = yaml.load((b.ROOT / ".github/workflows/ci.yml").read_text(), Loader=yaml.BaseLoader)
+        command = next(cmd["run"] for cmd in workflow["jobs"]["e2e-pages"]["steps"] if cmd.get("id") == step)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for i, row in enumerate(listings, 1):
+                (root / str(i)).write_text(row, encoding="utf-8", newline="\n")
+            env = dict(os.environ, GH_TOKEN="", BASH_ENV="", ENV="",
+                       GITHUB_OUTPUT=str(root / "output"), GITHUB_REPOSITORY="fixture/repo", GITHUB_RUN_ID="123",
+                       GITHUB_RUN_ATTEMPT="1", GITHUB_SHA=SHA, PAGES_ARTIFACT_NAME="github-pages-123-1",
+                       PAGES_ARTIFACT_ID="42", STAGED_ATTEMPT="1", FIXTURE=str(root))
+            env.update(overrides)
+            result = subprocess.run([BASH, "--noprofile", "--norc", "-eo", "pipefail", "-c", stub + "\n" + command],
+                                    env=env, capture_output=True, text=True, timeout=12)
+            recorded = [path.read_text(encoding="utf-8") if path.is_file() else ""
+                        for path in (root / "output", root / "calls", root / "delays")]
+            return result, *recorded
+
+    def visibility(self, listings, **env):
+        return self.run_step("visible", r"""
+gh() {
+    [[ "$*" == "api --method GET repos/fixture/repo/actions/runs/123/artifacts -f name=github-pages-123-1 --jq .artifacts[] | [.id, .name, .expired] | @tsv" ]] || return 64
+    printf x >> "$FIXTURE/calls"
+    cat "$FIXTURE/$(wc -c < "$FIXTURE/calls")"
+}
+sleep() { printf '%s\n' "$1" >> "$FIXTURE/delays"; }
+""", listings=listings, **env)
+
+    def test_delayed_visibility_unblocks_only_the_exact_upload(self):
+        result, output, calls, delays = self.visibility(("", "", self.ARTIFACT))
+        self.assertEqual((result.returncode, output, calls, delays), (0, "ready=true\n", "xxx", "2\n4\n"))
+        self.assertIn("Pages artifact 42 is visible.", result.stdout)
+
+    def test_missing_artifact_has_a_five_lookup_budget(self):
+        result, output, calls, delays = self.visibility(("",) * 5)
+        self.assertEqual((result.returncode, output, calls, delays), (1, "", "xxxxx", "2\n4\n8\n16\n"))
+        self.assertIn("still missing after five lookups", result.stdout)
+
+    def test_mismatched_expired_or_ambiguous_upload_is_not_retried(self):
+        for row in (self.ARTIFACT.replace("42", "43"), self.ARTIFACT.replace("false", "true"), self.ARTIFACT * 2):
+            with self.subTest(row=row):
+                result, output, calls, delays = self.visibility((row,))
+                self.assertEqual((result.returncode, output, calls, delays), (1, "", "x", ""))
+                self.assertIn("does not match the staged identity", result.stdout)
+
+    def test_an_old_attempt_or_missing_upload_receipt_never_looks_up_artifacts(self):
+        for env in (dict(STAGED_ATTEMPT="0"), dict(PAGES_ARTIFACT_ID="")):
+            with self.subTest(env=env):
+                result, output, calls, delays = self.visibility((), **env)
+                self.assertEqual((result.returncode, output, calls, delays), (1, "", "", ""))
+
+    def test_visibility_cannot_override_a_stale_commit_or_attempt(self):
+        stub = r"""
+gh() {
+    case "$2" in
+        */git/ref/heads/master) printf '%s\n' "$MASTER_SHA" ;;
+        */actions/runs/123) printf '%s\n' "$LATEST_ATTEMPT" ;;
+        *) return 64 ;;
+    esac
+}
+"""
+        for master, attempt, expected in ((SHA, "1", "publish=true\n"), (H, "1", ""), (SHA, "2", "")):
+            with self.subTest(master=master, attempt=attempt):
+                result, output, _, _ = self.run_step("current", stub, MASTER_SHA=master, LATEST_ATTEMPT=attempt)
+                self.assertEqual((result.returncode, output), (0, expected))
 
 
 if __name__ == "__main__":

@@ -321,25 +321,21 @@ jobs:
       actions: read
     uses: ./.github/workflows/k6-e2e.yml
 
-  e2e-pages:
-    name: Publish sanitized E2E report
+  e2e-pages-stage:
+    name: Stage sanitized E2E report for Pages
     needs: [k6-e2e]
     if: ${{ always() && !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.k6-e2e.result != 'skipped' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    concurrency:
-      group: e2e-github-pages
-      cancel-in-progress: false
+    timeout-minutes: 5
     permissions:
       contents: read
       actions: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      publish: ${{ steps.current.outputs.publish }}
+      artifact_id: ${{ steps.stage.outputs.artifact_id }}
+      attempt: ${{ github.run_attempt }}
     steps:
-      - name: Never replace current reports with a stale commit
+      - name: Skip staging for a stale commit or attempt
         id: current
         env:
           GH_TOKEN: ${{ github.token }}
@@ -356,14 +352,81 @@ jobs:
           name: k6-e2e-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/e2e-site
       - name: Stage Pages report
+        id: stage
         if: ${{ steps.current.outputs.publish == 'true' }}
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
+          name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/e2e-site
+
+  e2e-pages:
+    name: Publish sanitized E2E report
+    needs: [e2e-pages-stage]
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.e2e-pages-stage.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: e2e-github-pages
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      PAGES_ARTIFACT_NAME: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      # A separate staging job avoids the immediate upload/list race in deploy-pages (#451).
+      - name: Wait for the exact Pages artifact to become visible
+        id: visible
+        if: ${{ needs.e2e-pages-stage.outputs.publish == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_ARTIFACT_ID: ${{ needs.e2e-pages-stage.outputs.artifact_id }}
+          STAGED_ATTEMPT: ${{ needs.e2e-pages-stage.outputs.attempt }}
+        run: |
+          if [[ "$STAGED_ATTEMPT" != "$GITHUB_RUN_ATTEMPT" || ! "$PAGES_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo '::error::No verified Pages artifact was staged in this run attempt.'
+            exit 1
+          fi
+          for delay in 0 2 4 8 16; do
+            if (( delay > 0 )); then sleep "$delay"; fi
+            listed="$(gh api --method GET "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
+              -f name="$PAGES_ARTIFACT_NAME" --jq '.artifacts[] | [.id, .name, .expired] | @tsv')"
+            if [[ "$listed" == "$PAGES_ARTIFACT_ID"$'\t'"$PAGES_ARTIFACT_NAME"$'\tfalse' ]]; then
+              echo "Pages artifact $PAGES_ARTIFACT_ID is visible."
+              echo 'ready=true' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [[ -n "$listed" ]]; then
+              echo '::error::The Pages artifact is expired, ambiguous, or does not match the staged identity.'
+              exit 1
+            fi
+            echo "Pages artifact $PAGES_ARTIFACT_ID is not visible yet."
+          done
+          echo '::error::The Pages artifact is still missing after five lookups.'
+          exit 1
+      - name: Verify master and attempt again before deployment
+        id: current
+        if: ${{ steps.visible.outputs.ready == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/master" --jq '.object.sha')"
+          attempt="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq '.run_attempt')"
+          if [ "$current" = "$GITHUB_SHA" ] && [ "$attempt" = "$GITHUB_RUN_ATTEMPT" ]; then
+            echo 'publish=true' >> "$GITHUB_OUTPUT"
+          fi
       - name: Deploy public report and badge
         id: deployment
-        if: ${{ steps.current.outputs.publish == 'true' }}
+        if: ${{ steps.visible.outputs.ready == 'true' && steps.current.outputs.publish == 'true' }}
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        with:
+          artifact_name: ${{ env.PAGES_ARTIFACT_NAME }}
 
   test-iam:
     name: Coverage (IAMRusty)
@@ -665,7 +728,7 @@ jobs:
     name: CI scope and result
     if: always()
     runs-on: ubuntu-24.04
-    needs: [fmt, plan, infra-static, build-iam, build-telegraph, build-hive, build-manifesto, build-monolith, build-sentinel, build-ext-authz, build-oauth, ext-authz-unit, apparatus-p0, test-iam, test-telegraph, test-hive, test-manifesto, test-sentinel, test-readiness, test-shared, clippy, merge-coverage, sonar, k6-e2e, e2e-pages]
+    needs: [fmt, plan, infra-static, build-iam, build-telegraph, build-hive, build-manifesto, build-monolith, build-sentinel, build-ext-authz, build-oauth, ext-authz-unit, apparatus-p0, test-iam, test-telegraph, test-hive, test-manifesto, test-sentinel, test-readiness, test-shared, clippy, merge-coverage, sonar, k6-e2e, e2e-pages-stage, e2e-pages]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
