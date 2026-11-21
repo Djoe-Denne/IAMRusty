@@ -142,27 +142,29 @@ fn new_release() -> RuntimeDigestV1 {
 }
 
 async fn consent(db: &DatabaseConnection, cutover: &Cutover) {
+    let capabilities: Vec<String> = serde_json::from_str(include_str!(
+        "../fixtures/runtime_maintenance_capabilities.json"
+    ))
+    .expect("maintenance capability fixture");
     db.execute(Statement::from_sql_and_values(
         DatabaseBackend::Postgres,
-        "UPDATE apparatus_bindings SET declared_capabilities='[\"runtime.invoke\"]'::jsonb
-         WHERE component_id=$1",
-        [cutover.plan.binding_id.into()],
+        "UPDATE apparatus_bindings SET declared_capabilities=$2 WHERE component_id=$1",
+        [cutover.plan.binding_id.into(), json!(capabilities).into()],
     ))
     .await
     .expect("declare runtime invocation");
-    db.execute(Statement::from_sql_and_values(
-        DatabaseBackend::Postgres,
-        "INSERT INTO apparatus_capability_consents (component_id,capability,status,grant_revision)
-         VALUES ($1,'runtime.invoke','consented',$2)",
-        [
-            cutover.plan.binding_id.into(),
-            i64::try_from(cutover.plan.expected_grant_revision.get())
-                .expect("fixture grant revision")
-                .into(),
-        ],
-    ))
-    .await
-    .expect("grant runtime invocation");
+    let revision =
+        i64::try_from(cutover.plan.expected_grant_revision.get()).expect("fixture grant revision");
+    for capability in capabilities {
+        db.execute(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "INSERT INTO apparatus_capability_consents (component_id,capability,status,grant_revision)
+             VALUES ($1,$2,'consented',$3)",
+            [cutover.plan.binding_id.into(), capability.into(), revision.into()],
+        ))
+        .await
+        .expect("grant runtime invocation");
+    }
 }
 
 fn prepare(
