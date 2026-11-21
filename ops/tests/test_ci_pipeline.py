@@ -649,7 +649,7 @@ class ReportTests(unittest.TestCase):
     def test_summary_does_not_accept_skipped_selected_jobs_or_an_unevaluated_sonar(self):
         needs = self.full_needs()
         self.assertIn("Complete", reports.status(needs, event="push", ref="refs/heads/master"))
-        for name in ("test-iam", "clippy", "sonar", "k6-e2e", "plan"):
+        for name in ("test-iam", "clippy", "sonar", "k6-e2e", "e2e-pages-stage", "e2e-pages", "plan"):
             changed = copy.deepcopy(needs)
             changed[name]["result"] = "skipped"
             with self.subTest(name=name), self.assertRaises(ValueError):
@@ -660,7 +660,7 @@ class ReportTests(unittest.TestCase):
         selection = p.execution_scope("services", integration=["telegraph"])
         needs["plan"]["outputs"]["selection"] = json.dumps(selection)
         omitted = ((set(p.BUILD_JOBS.values()) | set(p.INTEGRATION_JOBS.values())) - {"test-telegraph"}
-                   | {"k6-e2e", "e2e-pages", "infra-static", "apparatus-p0"})
+                   | {"k6-e2e", "e2e-pages-stage", "e2e-pages", "infra-static", "apparatus-p0"})
         for name in omitted:
             needs[name]["result"] = "skipped"
         needs["merge-coverage"]["outputs"] = {"authoritative": "false", "pr_ready": "true"}
@@ -691,7 +691,7 @@ class ReportTests(unittest.TestCase):
 
     def test_full_pr_requires_a_successful_sonar_gate_not_just_a_green_job(self):
         needs = self.full_needs()
-        for job in ("k6-e2e", "e2e-pages"):
+        for job in ("k6-e2e", "e2e-pages-stage", "e2e-pages"):
             needs[job]["result"] = "skipped"
         for outcome in ("", "skipped", "failure", "cancelled"):
             needs["sonar"]["outputs"] = {"scan_outcome": outcome}

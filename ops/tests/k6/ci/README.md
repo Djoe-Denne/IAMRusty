@@ -184,12 +184,15 @@ s'exécute sur le runner Ubuntu. Un échec de génération empêche la publicati
 d'un rapport HTML incomplet. Les preuves brutes autorisées de la campagne sont
 toujours conservées dans l'artefact existant, séparé du site.
 
-La publication Pages est un job distinct aux droits pages/id-token, sans
-secret transmis à la campagne. Elle fonctionne aussi pour un E2E échoué afin
-de montrer son état rouge, mais jamais pour une PR/fork. Un ancien SHA ou
-attempt ne remplace pas le rapport du master courant ;les jobs sont sérialisés.
-Les droits de test restent contents/actions lecture. Les preuves de packaging
-auto (provenance/cleanup/reçus, pas les images) sont conservées séparément dans
+On `push/master`, a separate job stages the sanitized report as
+`github-pages-<run>-<attempt>`. The serialized deployment job grants
+`pages: write` and `id-token: write` only there. Before it deploys, it allows
+up to five lookups for the exact staged artifact ID, then rechecks the
+current master SHA and run attempt. These retries do not rerun k6. It
+publishes reports of failed E2E runs too, but never from a PR, fork, or stale
+attempt. A deployment-only rerun cannot use an artifact from an older attempt.
+The E2E job keeps read-only permissions. Packaging evidence (provenance,
+cleanup, receipts, not images) remains in
 `k6-packaging-evidence-<run>-<attempt>`.
 
 ### Sonar et E2E :deux métriques distinctes
