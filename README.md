@@ -1,110 +1,110 @@
 # AIForAll
 
-[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=alert_status)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=coverage)](https://sonarcloud.io/component_measures?id=Djoe-Denne_IAMRusty&metric=coverage)
-[![Reliability](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=reliability_rating)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
-[![Security](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=security_rating)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
-[![Maintainability](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=sqale_rating)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
-[![Duplicated Lines](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=duplicated_lines_density)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
 [![CI](https://github.com/Djoe-Denne/IAMRusty/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Djoe-Denne/IAMRusty/actions/workflows/ci.yml)
-[![E2E](https://img.shields.io/endpoint?url=https%3A%2F%2Fdjoe-denne.github.io%2FIAMRusty%2Fbadge.json)](https://djoe-denne.github.io/IAMRusty/)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=alert_status)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
 
-[Rapport E2E / Allure](https://djoe-denne.github.io/IAMRusty/) ·
-[Métriques E2E JSON](https://djoe-denne.github.io/IAMRusty/status.json) ·
-[SonarQube Cloud](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
+AIForAll is a platform for finding, sharing, and collaborating on projects.
+The goal is to let people start projects, discover work they can contribute
+to, and collaborate on behalf of organizations. Reading a project, proposing
+a contribution, and changing the project are distinct actions.
 
-Les E2E (34 contrôles health/OAuth navigateur/TLS-SAN et contrat parent) tournent
-automatiquement après les builds sur `push/master`, en parallèle des couvertures
-UT/IT. Le badge E2E correspond au **dernier rapport publié**, dont le SHA est
-affiché sur le site ; il ne représente pas la couverture de code Sonar.
+This repository provides the Rust backend and deployment tooling, not a
+general-purpose web UI. The APIs already support accounts, organizations,
+and public project discovery. A structured contribution proposal and review
+workflow is not implemented.
 
-Plateforme Rust de bounded contexts (identité, organisations, projets, notifications) sur le SDK [rustycog](https://github.com/Djoe-Denne/rustycog) (git submodule).
+## What is available today
 
-**Handbook (implémentation + parcours métier) :** [`docs/README.md`](docs/README.md)
+- [**IAMRusty**](docs/functional/identite.md) (`/iam`): platform accounts,
+  email signup and verification, password recovery, and token issuance.
+- [**Hive**](docs/functional/organisation.md) (`/hive`): organizations,
+  membership, roles, and invitations.
+- [**Manifesto**](docs/functional/projet.md) (`/manifesto`): project creation,
+  visibility, publication and archiving, member permissions, and component
+  attachments. Public projects can be discovered without an account.
+  Self-joining an active public project grants read access, not editing rights.
+- [**Telegraph**](docs/functional/notifications.md) (`/telegraph`): email
+  and in-app notifications, including messages triggered by account events.
+- [**Lazaret**](services/Lazaret/README.md) (`/lazaret`): workload identity and
+  scoped access to platform capabilities such as key-value storage. It is
+  separate from Manifesto's project and component management.
+- [**OAuthConnect**](docs/services/oauth-connect.md): a standalone
+  federated sign-in service with GitHub OAuth and GitLab OIDC profiles.
+  IAMRusty still owns platform accounts and issues platform tokens.
+- [**sentinel-sync**](workers/sentinel-sync/README.md): a separate worker that
+  projects domain events into OpenFGA authorization relationships.
 
-## Services
+The five core APIs can run as standalone services or together behind one
+listener in the [modular monolith](runtime/monolith/README.md), with the same
+route prefixes. OAuthConnect and sentinel-sync run separately. See the
+[architecture guide](docs/architecture/README.md) for service boundaries
+and deployment diagrams.
 
-| Service | Préfixe | Port compose | Rôle |
-|---|---|---|---|
-| [IAMRusty](services/IAMRusty/README.md) | `/iam` | 8080 | Identité, OAuth, JWT |
-| [Telegraph](services/Telegraph/README.md) | `/telegraph` | 8081 | Emails et notifications in-app |
-| [Hive](services/Hive/README.md) | `/hive` | 8082 | Organisations, membres, invitations |
-| [Manifesto](services/Manifesto/README.md) | `/manifesto` | 8083 | Projets, composants, membership |
-| [sentinel-sync](workers/sentinel-sync/README.md) | — | (hors compose) | Events → tuples OpenFGA |
-| [oodhive-monolith](runtime/monolith/README.md) | `/iam`…`/manifesto` | (hors compose) | Un listener, quatre routeurs |
+## Dependencies
 
-Infra compose : PostgreSQL **5432**, LocalStack SQS **4566**, OpenFGA **8090** (HTTP) / **8091** (gRPC) / **3000** (playground).
+- **Build:** Git and Rustup. [`rust-toolchain.toml`](rust-toolchain.toml) pins
+  Rust, `rustfmt`, and `clippy`. The shared
+  [RustyCog SDK](https://github.com/Djoe-Denne/rustycog) is pinned as a Git
+  submodule at `rustycog/`. The repository's Git hooks use Git LFS.
+- **Application runtime:** PostgreSQL for persistent data, OpenFGA for
+  [relationship-based authorization](docs/platform/authz-openfga.md),
+  and SQS-compatible queues for [domain events and outbox delivery](docs/platform/events-outbox.md).
+  LocalStack supplies SQS in the local stack. The local stack also provisions
+  OpenBao for services that need it.
+- **Local environments:** Docker supplies containers for integration tests;
+  Docker Compose starts dependencies for a host run. The Windows host
+  launchers use `just` and PowerShell. The
+  [Kind deployment](ops/deploy/README.md) runs Linux images in Kubernetes
+  and uses Helm and `kubectl`; Envoy handles edge routing and TLS. Federated
+  sign-in requires separately supplied [OAuthConnect configuration](docs/services/oauth-connect.md).
 
-Crates d’événements : `iam-events`, `hive-events`, `manifesto-events`, `telegraph-events`. Readiness : crate `readiness` (`/ready`).
+## Get started
 
-## Démarrage
-
-```bash
-git clone --recurse-submodules <url>
+```sh
+git clone --recurse-submodules https://github.com/Djoe-Denne/IAMRusty.git AIForAll
 cd AIForAll
-docker compose up -d
-```
-
-Logs : `docker compose logs -f`. Stop : `docker compose down`.
-
-Outils (profil `tools`) :
-
-```bash
-docker compose --profile tools run --rm truncate-db
-docker compose --profile tools run --rm verify-emails
-```
-
-JWT local : HMAC partagé, `iss=iamrusty`, `aud=aiforall`. Détail : [`docs/platform/authn-jwt.md`](docs/platform/authn-jwt.md).
-
-## Flux
-
-- IAM publie `user_signed_up` / `password_reset_requested` / `user_email_verified` vers **`telegraph-events`**.
-- Hive, Manifesto, Telegraph publient vers **`sentinel-sync-events`** (AuthZ).
-- `sentinel-sync` n’est **pas** démarré par le compose — le lancer à part après bootstrap du store OpenFGA.
-
-## Monolithe
-
-```bash
-cargo run -p oodhive-monolith
-```
-
-Mêmes préfixes qu’en standalone. Voir [`docs/platform/runtime.md`](docs/platform/runtime.md) et [`runtime/monolith/README.md`](runtime/monolith/README.md).
-
-## Tests et format
-
-La version de Rust et les composants `rustfmt` / `clippy` sont épinglés dans
-[`rust-toolchain.toml`](rust-toolchain.toml). Rustup sélectionne automatiquement
-cette version dans le dépôt ; la CI lit ce même fichier via l'action locale
-`.github/actions/setup-rust`. Pour changer de version, modifier uniquement ce
-fichier, reformater puis vérifier avant de pousser.
-
-Éviter les overrides `cargo +stable`, `RUSTUP_TOOLCHAIN` ou `rustup override` qui
-prennent priorité sur ce fichier. `rustup show active-toolchain` permet de
-vérifier la version effectivement sélectionnée, sans changer le défaut global.
-
-Les artefacts de développement Windows restent sur `E:\cargo-target\AIForAll`.
-La CI définit `CARGO_TARGET_DIR` dans son workspace Linux pour ne pas réutiliser
-ce chemin Windows.
-
-```bash
 rustup show active-toolchain
-cargo test -p hive-service
-cargo fmt --all
+cargo check --locked -p oodhive-monolith
+```
+
+Build and run development tests natively on the host. The checked-in
+[Cargo configuration](.cargo/config.toml) defaults to
+`E:\cargo-target\AIForAll` for Windows; set `CARGO_TARGET_DIR` to a writable
+local path if that drive is unavailable or you are on a different platform.
+
+To run the backend locally on Windows, use the
+[monolith host guide](runtime/monolith/README.md): start the dependencies
+with `just up-infra`, run `just monolith`, then start `just sentinel-sync`
+in another terminal. The monolith serves `/health` and `/ready` on port
+`8080` by default. For a local Kubernetes environment, follow the
+[Kind operator guide](ops/deploy/kind-minimal.md) instead of starting
+the entire Compose stack.
+
+## Test and contribute
+
+```sh
+cargo test --locked -p hive-domain --lib
 cargo fmt --all -- --check
 ```
 
-Hook fmt : [`docs/CARGO_FMT_PRE_COMMIT.md`](docs/CARGO_FMT_PRE_COMMIT.md).
+[Integration tests](docs/guides/tests-integration.md) run the Rust binaries
+on the host and use testcontainers for the dependencies they need. The
+[local k6 campaign](ops/tests/k6/native/README.md) exercises HTTPS readiness,
+browser OAuth, and Envoy certificate identity. The
+[published CI E2E report](https://djoe-denne.github.io/IAMRusty/) identifies
+the commit it tested and is separate from the local campaign and code coverage.
 
-Repository security checks and manual audit: [`docs/guides/repository-security.md`](docs/guides/repository-security.md).
+- [Handbook](docs/README.md) and [architecture decisions](docs/adr/README.md)
+- [Repository security](docs/guides/repository-security.md) and
+  [development conventions](AGENTS.md)
+- [Product story workflow](docs/guides/product-story-workflow.md): work through
+  examples before inspecting implementation, then capture approved stories in
+  Backlog.md. The same story files are readable through Obsidian and QMD.
 
-Nouveau service : [`docs/guides/nouveau-service.md`](docs/guides/nouveau-service.md). Submodule rustycog : [`.agents/skills/rustycog-submodule/SKILL.md`](.agents/skills/rustycog-submodule/SKILL.md).
+## Acknowledgements
 
-## Sources du harness agents
-
-La boucle QA des profils OpenCode (plan, écriture, revue) s’appuie sur ces dépôts. Le pin produit reste celui de ce repository.
-
-- [Petr Kindlmann](https://github.com/petrkindlmann), [qa-skills](https://github.com/petrkindlmann/qa-skills) — risque impact × probabilité, plan et stratégie de test, génération et revue de tests.
-- [Nao](https://github.com/naodeng), [awesome-qa-skills](https://github.com/naodeng/awesome-qa-skills) — analyse de gaps (`test-gap-analysis`).
-- [Dragan Spiridonov](https://github.com/proffesor-for-testing), [agentic-qe](https://github.com/proffesor-for-testing/agentic-qe) — flotte QE (plan, gaps, investigation).
-- [AgenticTesting](https://github.com/AgenticTesting), [OpenTestingAI](https://github.com/AgenticTesting/OpenTestingAI) — séparation faits, inférences et décisions. Le modèle ISO/TMMi de ce dépôt n’est pas repris.
-- [Microsoft](https://github.com/microsoft), [Playwright](https://github.com/microsoft/playwright) — boucle planner, generator, healer ([Test Agents](https://playwright.dev/docs/test-agents)).
+The agent QA workflow draws on [qa-skills](https://github.com/petrkindlmann/qa-skills),
+[awesome-qa-skills](https://github.com/naodeng/awesome-qa-skills),
+[agentic-qe](https://github.com/proffesor-for-testing/agentic-qe),
+[OpenTestingAI](https://github.com/AgenticTesting/OpenTestingAI),
+and [Playwright Test Agents](https://playwright.dev/docs/test-agents).
