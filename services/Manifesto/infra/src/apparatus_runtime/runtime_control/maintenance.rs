@@ -616,7 +616,7 @@ impl SqlRuntimeMaintenance {
         // Explicit runtime-exclusive business activation: no legacy activation
         // command/event is emitted. The irreversible runtime marker stays put.
         txn.execute(Statement::from_sql_and_values(DbBackend::Postgres,
-            "UPDATE project_components SET status='active',updated_at=clock_timestamp() WHERE id=$1 AND project_id=$2 AND status='disabled'",
+            "UPDATE project_components SET status='active',activated_at=COALESCE(activated_at,clock_timestamp()) WHERE id=$1 AND project_id=$2 AND status='disabled'",
             [plan.binding_id.into(),plan.project_id.into()])).await.map_err(db_error)?;
         let entry = json!({"act":"open","operator_id":facts.operator_id,"challenge_id":challenge_id,"service_uid":command.service_uid,"revision_uid":command.revision_uid,"at_unix_ms":now,"cas":cas});
         txn.execute(Statement::from_sql_and_values(DbBackend::Postgres,
@@ -704,7 +704,7 @@ impl SqlRuntimeMaintenance {
             )
             .await?;
             txn.execute(Statement::from_sql_and_values(DbBackend::Postgres,
-                "UPDATE project_components SET status='disabled',updated_at=clock_timestamp() WHERE id=$1 AND project_id=$2 AND status='active'",
+                "UPDATE project_components SET status='disabled',disabled_at=COALESCE(disabled_at,clock_timestamp()) WHERE id=$1 AND project_id=$2 AND status='active'",
                 [binding.into(),project.into()])).await.map_err(db_error)?;
         }
         txn.execute(Statement::from_sql_and_values(DbBackend::Postgres,
