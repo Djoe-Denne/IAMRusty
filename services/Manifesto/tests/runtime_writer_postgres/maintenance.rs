@@ -14,7 +14,7 @@ use manifesto_application::{
     RuntimeMaintenanceInspection, RuntimeMaintenanceReply,
 };
 use manifesto_infra::apparatus_runtime::{
-    admission_proof::RejectRuntimeAdmissionProofVerifier,
+    admission_proof::{RejectRuntimeAdmissionProofVerifier, RuntimeAdmissionProofVerifier},
     runtime_control::maintenance::{
         RuntimeMaintenanceAct, RuntimeMaintenanceChannel, RuntimeMaintenanceFacts,
         RuntimeMaintenanceProfile, SqlRuntimeMaintenance,
@@ -27,9 +27,13 @@ use serial_test::serial;
 use std::{future::Future, pin::Pin, sync::Arc};
 use uuid::Uuid;
 
+#[path = "signed_maintenance.rs"]
+mod signed;
+
 struct FixtureChannel {
     operator: Uuid,
     ack: RuntimeLegacyFenceInstallationAckV1,
+    drain: Option<RuntimeDigestV1>,
 }
 
 impl RuntimeMaintenanceChannel for FixtureChannel {
@@ -43,18 +47,20 @@ impl RuntimeMaintenanceChannel for FixtureChannel {
         >,
     > {
         Box::pin(async move {
-            assert!(matches!(
-                act,
-                RuntimeMaintenanceAct::Inspect
-                    | RuntimeMaintenanceAct::Fence
-                    | RuntimeMaintenanceAct::Challenge(_)
-            ));
+            if self.drain.is_none() {
+                assert!(matches!(
+                    act,
+                    RuntimeMaintenanceAct::Inspect
+                        | RuntimeMaintenanceAct::Fence
+                        | RuntimeMaintenanceAct::Challenge(_)
+                ));
+            }
             assert_eq!(plan.project_id, self.ack.project_id);
             assert_eq!(plan.binding_id, self.ack.binding_id);
             Ok(RuntimeMaintenanceFacts {
                 operator_id: self.operator,
                 installation_ack: self.ack.clone(),
-                drain_evidence_sha256: None,
+                drain_evidence_sha256: self.drain.clone(),
             })
         })
     }
@@ -70,11 +76,18 @@ struct Cutover {
 
 impl Cutover {
     async fn arrange(db: &Arc<DatabaseConnection>, component_state: &str) -> Self {
+        Self::arrange_release(db, component_state, super::digest()).await
+    }
+
+    async fn arrange_release(
+        db: &Arc<DatabaseConnection>,
+        component_state: &str,
+        release: RuntimeDigestV1,
+    ) -> Self {
         let (project, _, component) =
             fixtures::DbFixtures::create_project_with_component(db, Uuid::new_v4(), "taskboard")
                 .await
                 .expect("business project and component");
-        let release = super::digest();
         db.execute(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
             "UPDATE projects SET status = 'active' WHERE id = $1",
@@ -124,8 +137,26 @@ impl Cutover {
         observed_cas: Option<RuntimeCasV1>,
         installed_at: RuntimeUnixMsV1,
     ) -> RuntimeMaintenanceCommandHandler {
+        self.handler_with_proof(
+            db,
+            observed_cas,
+            installed_at,
+            None,
+            Arc::new(RejectRuntimeAdmissionProofVerifier),
+        )
+    }
+
+    fn handler_with_proof(
+        &self,
+        db: &Arc<DatabaseConnection>,
+        observed_cas: Option<RuntimeCasV1>,
+        installed_at: RuntimeUnixMsV1,
+        drain: Option<RuntimeDigestV1>,
+        verifier: Arc<dyn RuntimeAdmissionProofVerifier>,
+    ) -> RuntimeMaintenanceCommandHandler {
         let channel = FixtureChannel {
             operator: self.operator,
+            drain,
             ack: RuntimeLegacyFenceInstallationAckV1 {
                 migration_id: self.plan.migration_id,
                 project_id: self.plan.project_id,
@@ -146,7 +177,7 @@ impl Cutover {
                     endpoint_port: 443,
                 },
                 Arc::new(channel),
-                Arc::new(RejectRuntimeAdmissionProofVerifier),
+                verifier,
             )
             .expect("valid test-owned maintenance composition");
         RuntimeMaintenanceCommandHandler::new(Arc::new(writer))
