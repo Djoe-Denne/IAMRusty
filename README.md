@@ -1,7 +1,13 @@
 # AIForAll
 
-[![CI](https://github.com/Djoe-Denne/IAMRusty/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Djoe-Denne/IAMRusty/actions/workflows/ci.yml)
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=alert_status)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=coverage)](https://sonarcloud.io/component_measures?id=Djoe-Denne_IAMRusty&metric=coverage)
+[![Reliability](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=reliability_rating)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
+[![Security](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=security_rating)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
+[![Maintainability](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=sqale_rating)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
+[![Duplicated Lines](https://sonarcloud.io/api/project_badges/measure?project=Djoe-Denne_IAMRusty&metric=duplicated_lines_density)](https://sonarcloud.io/dashboard?id=Djoe-Denne_IAMRusty)
+[![CI](https://github.com/Djoe-Denne/IAMRusty/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Djoe-Denne/IAMRusty/actions/workflows/ci.yml)
+[![E2E](https://img.shields.io/endpoint?url=https%3A%2F%2Fdjoe-denne.github.io%2FIAMRusty%2Fbadge.json)](https://djoe-denne.github.io/IAMRusty/)
 
 AIForAll is a platform for finding, sharing, and collaborating on projects.
 The goal is to let people start projects, discover work they can contribute
