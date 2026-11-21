@@ -4,6 +4,7 @@ title: Stay signed in while using AIForAll
 status: Accepted intent
 assignee: []
 created_date: '2026-11-21T19:21:41Z'
+updated_date: '2026-11-21T19:32:15Z'
 labels: []
 dependencies: []
 documentation:
@@ -30,4 +31,5 @@ See the [identity handbook](https://github.com/Djoe-Denne/IAMRusty/blob/master/d
 - [ ] #1 E1 - While the person is using AIForAll, if their short-lived access expires but their session can still be renewed, they continue without a new sign-in prompt or an unexpected change of page.
 - [ ] #2 E2 - If the session has ended and cannot be renewed, require normal sign-in before further protected activity. Renewal cannot reopen a session ended by sign-out or password recovery.
 - [ ] #3 E3 - After the person closes the browser without signing out and returns in the same browser, resume their session without a sign-in prompt if it is still valid or renewable. Otherwise require sign-in before protected activity.
+- [ ] #4 E4 - A copy of the cookies or tokens from an AIForAll session is not enough on its own to access the account or renew the session from another browser.
 <!-- AC:END -->
