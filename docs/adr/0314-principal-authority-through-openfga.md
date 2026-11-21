@@ -1,7 +1,7 @@
 # ADR-0314 : Conserver l’autorité du principal dans les sujets et projections OpenFGA
 
 - Statut : Accepted
-- Réalité : Unimplemented
+- Réalité : Partial
 - Date : 2026-10-28
 - Décideurs : proposition architecte ; ratification explicite du lead le 2026-10-28 dans la délégation utilisateur de la mission authentification, politique approuvée révision 1
 - Jalon concerné : AuthN/AuthZ multi-autorité, hors P-Apparatus
@@ -9,7 +9,11 @@
 - SuperSédée par : —
 - Related : [0305](0305-account-identity-trust-domain.md), [0302](0302-authn-jwt-authz-openfga.md), [0303](0303-sentinel-sync-worker-fga.md), [0308](0308-mesh-authn-jwt.md), [0402](0402-hive-organisations.md)
 
-Ratification explicite du lead le 2026-10-28 après examen des alternatives, sources, compatibilité et oracles, sous délégation utilisateur approuvée ; Réalité **Unimplemented**, aucune preuve de correction déduite de l'Accept. Cette décision ferme le « schéma FGA multi-issuer Non décidé » de 0305 sans changer son périmètre AuthN livré ni réécrire une Accepted. Contrat secondaire : [authz-trust-domain-boundary](../contracts/authz-trust-domain-boundary.md). Les consommateurs attendent l'intégration vérifiée des documents et leur publication par le lead.
+The lead explicitly ratified this decision on 2026-10-28 under approved user
+delegation. It resolves the OpenFGA multi-issuer question left open by 0305
+without changing 0305's authentication scope. Ratification was not evidence of
+implementation. The [secondary contract](../contracts/authz-trust-domain-boundary.md)
+remains in force; see the dated implementation snapshot below.
 
 ## Contexte
 
@@ -46,12 +50,33 @@ Mint de JWT organisation, UX de switch/linking, généralisation des persistance
 
 ## Références et réalité
 
+**Implementation snapshot — 2026-11-21 (application `50c36ade`, SDK `40a6a7a5`).**
+Commit `537ee032` integrated issuer-qualified permission subjects. The selected
+SDK retains the issuer in permission checks and cache identity; Hive persists
+the member's issuer and [sentinel-sync](../../workers/sentinel-sync/src/translator/hive.rs)
+uses it when projecting the member's permissions. The [Hive signer test](../../services/Hive/tests/organization_signer_permissions.rs)
+exercises distinct issuers with the same subject, and the [November 13 report](../missions/20261113-coverage90-local.md)
+records targeted Hive results, including preservation of the target issuer.
+
+This is **Partial**: source integration and scoped test evidence do not establish
+that legacy grants were reconciled in a deployed environment, that readers and
+writers were cut over together there, or that every consumer supports organization
+identities. The criteria for coordinated cutover and verified legacy provenance
+are unchanged. No additional runtime tests were run for this update.
+
 - Canon : 0305 §§Décision/État runtime/Non décidé ; 0302 garde OpenFGA PDP ; 0303 writers événementiels ; 0308 §7 confiance du principal mesh.
 - SDK : `rustycog/rustycog-http/src/{middleware_auth,middleware_permission,jwt_handler}.rs`, `rustycog/rustycog-permission/src/{lib,checker}.rs`.
 - Hive : `services/Hive/domain/src/entity/organization_member.rs`, `services/Hive/application/src/usecase/{member,organization}.rs`, `services/Hive/http/src/handlers/{members,organization_signer}.rs` ; `crates/hive-events/src/{member,organization}.rs`.
 - Projections : `workers/sentinel-sync/src/{fga_client,translator/hive}.rs` ; `ops/openfga/model.fga`.
-- Consommateur distinct : `services/Manifesto/application/src/usecase/world_read.rs` reconstruit aussi Subject(UUID) ; pas limité au middleware HTTP.
-- Tests lus, non exécutés : `services/Hive/tests/organization_signer_permissions.rs`, `services/IAMRusty/http/src/platform_user.rs` ; le test sentinel `member_joined_with_issuer_still_emits_user_uuid` encode précisément le comportement à remplacer.
-- Handbook : `docs/platform/{authn-jwt,authz-openfga}.md`. Écart : authz dit encore « qui = sub ». La référence skill using-rustycog-permission conseille un mock FGA en IT ; 0200/0302 et le vrai harness Hive priment.
+- Manifesto's [world-read use case](../../services/Manifesto/application/src/usecase/world_read.rs)
+  still has platform-account-only paths. Its [public-read handlers](../../services/Manifesto/http/src/handlers/mod.rs)
+  retain the authenticated issuer for audit and exclude non-platform principals
+  from UUID-only membership and admin lookups.
+- Handbook: [JWT authentication](../platform/authn-jwt.md) and
+  [OpenFGA authorization](../platform/authz-openfga.md). ADRs 0200/0302 and
+  the real Hive harness remain the references for integration tests.
 - Wiki conception consultée via QMD : `obsidian/AI FOR ALL/projects/aiforall/decisions/0304-access-jwt-trust.md` ; son 0306 Implemented diffère du canon Partial, sans force normative.
-- Preuve de livraison : aucune. Navigation Serena et HIR recoupée avec sources/tests ; six modules consommateurs HIR de Subject, liste non preuve d’exhaustivité. Aucun test comportemental ni runtime exécuté. Lors de la livraison documentaire, le hook pré-commit a invoqué involontairement `cargo fmt --all -- --check` : FAIL environnement Windows OS206 (« Nom de fichier ou extension trop long »), pas un défaut fonctionnel démontré ni un fmt PASS. Aucun autre Cargo exécuté. Le lead a autorisé une omission éphémère de ce seul hook pour le commit des trois documents ; la QA Rust finale reste requise.
+- Historical evidence: the 2026-10-28 contract-only ratification did not run
+  behavioral tests; its formatting attempt hit Windows OS206. See the
+  [original validation record](../contracts/authz-trust-domain-boundary.md#8-validation-nommée--à-inscrire-au-plan-qa-avant-exécution).
+  That record is not a verdict on the subsequent implementation.

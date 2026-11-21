@@ -47,11 +47,26 @@ Collaborateur HTTP : catalogue composants (`ComponentServicePort`). Events méti
 - Binding 1:1, backfill, collisions, alias `?binding` : **0001**.
 - Factory, host, gateway, `VALID`/`VERIFIED` : **0002–0005**, **0406**.
 - Lease / fencing / génération (P2).
-- Partenariat / join public (hors modèle actuel).
+- Organization partnerships, partner groups and contribution permissions beyond the current read-only self-join are not decided here.
+
+## Implementation note — 2026-11-21
+
+Public self-join is implemented. An authenticated platform user does not need a Hive
+membership to join an **active public** project through `POST /api/projects/{project_id}/join`.
+The operation creates or restores a direct membership with `read` on `project`;
+it does not grant Write. Publication changes lifecycle
+status, not visibility. No partnership or partner-derived access follows from
+self-join or from making a project public.
+
+See [`join_project`](../../services/Manifesto/application/src/usecase/member.rs),
+the [HTTP assertions](../../services/Manifesto/tests/project_join_api_tests.rs)
+(which assert Read, not Write), and the [project handbook](../functional/projet.md).
 
 ## Références
 
 - Wiki : `projects/manifesto/manifesto.md`, `projects/manifesto/concepts/component-instance-permissions` (si présent), `docs/functional/projet.md`
 - Handbook : `docs/services/manifesto.md`, `services/Manifesto/IMPLEMENTATION_STATUS.md`, `services/Manifesto/docs/`
-- Code : `services/Manifesto/infra/src/transaction.rs` (`lock_project_revision`, outbox dans la txn), `services/Manifesto/domain/src/entity/project.rs` (`revision`), `services/Manifesto/migration/src/m20260905_000010_add_project_revision.rs`, tables `project_members`
+- Code: `lock_project_revision` and the transactional outbox in [`transaction.rs`](../../services/Manifesto/infra/src/transaction.rs);
+  `revision` in [`Project`](../../services/Manifesto/domain/src/entity/project.rs);
+  `project_members` in the [consolidated schema](../../services/Manifesto/migration/src/m20241015_000001_initial_schema.rs).
 - Preuve : `services/Manifesto/tests/transaction_readiness_tests.rs` (UoW + outbox + conflit de révision)
