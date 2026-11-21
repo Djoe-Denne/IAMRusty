@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "project_id": "a6af7df8-bb15-422b-8457-6f0a413d278b",
+  "binding_id": "4acdd6bc-301e-45d7-bd15-893f17d43fc4",
+  "cas": {
+    "generation": "2",
+    "revocation_epoch": "0",
+    "projection_version": "3",
+    "grant_revision": "1"
+  },
+  "state": "active",
+  "release": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "profile": "runtime-profile",
+  "observation": null,
+  "instances": {
+    "schema_version": 1,
+    "items": [],
+    "next_cursor": null,
+    "read_at_unix_ms": "10"
+  }
+}

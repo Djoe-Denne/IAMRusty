@@ -6,6 +6,8 @@
 
 mod common;
 mod fixtures;
+#[path = "runtime_writer_postgres/maintenance.rs"]
+mod maintenance;
 
 use apparatus_contracts::runtime::{
     RuntimeBeginEffectRequestV1, RuntimeBindingStateV1, RuntimeCapabilityInvokeV1, RuntimeCasV1,
