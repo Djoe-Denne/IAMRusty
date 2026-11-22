@@ -35,26 +35,28 @@ Backlog.md. Read it in Obsidian or QMD, but change it only through the Backlog
 CLI, not wiki ingestion, link normalization, or direct edits. Keep private
 workshop notes outside the vault.
 
-## Handoff et continuité (décision 2026-10-07)
+## Native OpenCode workflow
 
-Le harness est proportionné (`.cursor/rules/00-agent-harness.mdc`). Sous OpenCode, la session racine exécute directement ou pilote Ensemble, sans orchestrateur intermédiaire. Les autres clients conservent leur routage historique. Contrats d'architecture : `docs/contracts/` (canon secondaire, écrits par `architecte`, référencés depuis les ADR).
+The primary session works directly and owns product workshops with the user.
+Use the eight project profiles in `.opencode/agents/` and native subagents
+when authorized; do not use an intermediate orchestrator or Ensemble.
+Follow [Product delivery workflow](docs/guides/product-delivery-workflow.md)
+for story refinement, priority, architecture, red/green testing, and review.
 
-- Chaque agent lit le ledger de handoff du lot : `.cursor/handoffs/` (règle `.cursor/rules/agent-handoff.mdc`). Sous Ensemble, les membres rendent leurs deltas et le lead les persiste sans écritures concurrentes. Rien d'essentiel ne reste chat-only.
-- Suite de travail sur un même lot = reprendre la session subagent existante (sessionID), pas un spawn neuf.
-
-<!-- ensemble-project-setup:policy:v1 -->
-## Coordination OpenCode / Ensemble (décision 2026-10-10)
-
-- Charger `opencode-ensemble` avant de coordonner une équipe. Travailler directement lorsqu'un seul agent suffit ; annoncer direct ou Ensemble. La racine devient le lead, sans coordinateur intermédiaire.
-- Le lead choisit profils, taille et dépendances selon les lots réellement indépendants. Aucun pipeline obligatoire. Chaque lot a un propriétaire, un périmètre, des invariants, un livrable et des critères de validation. Les décisions structurelles restent à `architecte`.
-- Découvrir une fois par périmètre : réutiliser sources et ledgers valides ; justifier toute nouvelle exploration. Lire la référence de continuité du skill avant héritage/handoff. Continuer avec le même membre ; handoff pour changer de spécialité dans la même session, fork pour une branche indépendante, checkpoint pour une frontière exclusive réelle, compact_fork depuis une source distincte et inactive. Ne pas compacter à nouveau pour chaque enfant.
-- Forks limités aux sources de l'équipe ; pas de synchronisation live des contextes. Le lead transmet les changements de contrat aux membres concernés et tient le ledger canonique (chemin absolu, base Git, faits/hypothèses distincts, décisions, tentatives, sources/sessionID). Entre équipes, réutiliser le ledger, sans promettre un héritage natif arbitraire.
-- Reviewers indépendants : contexte fresh, diff, contrats et faits vérifiés, sans conclusions du développeur. Reviews proportionnées à la surface du diff ; briefings persistés avant correction.
-- Seul le lead crée des membres. Un handoff garde rôle, tâches, répertoire et modèle sélectionné : il ne donne ni leadership ni isolation et n'applique pas automatiquement le modèle du profil cible. Respecter les modèles configurés ; expliciter une éventuelle sélection séparée. Les membres restent des feuilles, même avec mode all.
-- Worktrees isolés pour les écrivains indépendants ; héritage avec changement de répertoire uniquement sur arbres propres et HEAD compatibles. Préserver les changements utilisateur : aucun commit/stash/reset automatique ni repli silencieux vers fresh ou un répertoire partagé pour contourner une erreur. Les index canoniques n'incluent pas les modifications non mergées des worktrees temporaires : utiliser leurs fichiers/symboles pour celles-ci.
-- Le lead intègre et vérifie les résultats réels, coordonne l'unique slot Cargo Windows et les baux infra, et contrôle le cleanup avant de rendre. Pas de polling d'attente ni de validation redondante. L'héritage économise la redécouverte, pas nécessairement les tokens d'entrée.
-- Après deux tentatives techniques substantielles infructueuses sans progrès vérifiable sur le même blocage, transférer au `emergency-thinker` ; une troisième n'est permise que pour une hypothèse différente, étayée et bornée (maximum trois). Conserver le registre même après changement de membre. Attentes/autorisations/infra indisponible ne sont pas des tentatives. En équipe, le handoff du lead conserve son leadership ; un membre demande ce transfert au lead, sans s'attribuer la coordination. Le modèle Astra doit être sélectionné séparément si nécessaire.
-<!-- /ensemble-project-setup:policy -->
+- The primary session owns the handoff ledger, integration, the Windows Cargo
+  slot, and runtime leases. Record the absolute ledger path, Git base, and
+  evidence, and pass them to each authorized worker. Use isolated worktrees for
+  independent writers; reviewers receive the exact diff and an independent
+  context. Resume the same worker session for follow-up on the same assignment.
+- Each profile allows all OpenCode tool permissions. Role boundaries still
+  apply: reviewers do not fix the change they review; workers do not launch
+  other workers or overstep the approved scope. Host policies, user approvals,
+  safety rules, and runtime requirements remain in force.
+- After two unsuccessful substantive attempts without verified progress on
+  the same blocker, report the evidence to the primary session. A third
+  attempt requires a distinct, evidence-based, bounded hypothesis; stop after
+  that. Waits, missing authorization, and unavailable infrastructure are not
+  technical attempts.
 
 ## Fin de mission — intégration, publication et nettoyage (2026-10-29)
 
@@ -92,16 +94,22 @@ L’hôte est Windows : **la compilation et les tests développement tournent na
 - Pour libérer la RAM, arrêter Docker Desktop puis `wsl --shutdown` seulement sans autre workload/bail, propriété inconnue ni cluster protégé affecté ; sinon signaler la RAM résiduelle et demander un arbitrage ciblé. Vérifier états + vmmem/RAM disponible sans Docker CLI après shutdown.
 - Persister un petit ledger non secret avant les opérations longues ; signaler tout nettoyage bloqué. Politique de prompts, pas de moniteur d'inactivité installé : déconnexion brutale/kill ne garantit pas le teardown. Ne pas interrompre git ni un publisher hôte en arrière-plan.
 
-## Problèmes infrastructure
+## Infrastructure diagnostics
 
-Routage des diagnostics locaux (Docker Desktop, Compose, Kind `aiforall-local` et `aiforall-local-full` — liste close, Envoy du dépôt). Pas de prod. Jamais `kind-apparatus-p4-it` ni `rancher-desktop` ni tout autre contexte non listé.
+Use `.cursor/rules/infra-safety.mdc` and the relevant skills directly.
+Allowed local targets are Docker Desktop, repository Compose/Envoy, and
+Kind `aiforall-local` and `aiforall-local-full` under their existing rules.
+Never target production, `kind-apparatus-p4-it`, `rancher-desktop`, or an
+unlisted context.
 
-- **Docker / Compose** → `container-runtime-debugger` (skills `.agents/skills/docker-*`) — **uniquement sur autorisation user explicite** (décision 2026-10-07 : Docker n'est plus l'environnement de build/test de dev ; cet agent ne sert plus que les problèmes du runtime lui-même).
-- **Kubernetes / Kind** → `k8s-operator` (read-only par défaut).
-- **Envoy / routing / TLS / networking** → `envoy-network-debugger` (skill `envoy-runtime-debug`).
-- **Diagnostic kernel / TCP / DNS** → Inspektor Gadget MCP **si** déployé in-cluster et Ready ; sinon INCONCLUSIVE.
-- **Après un changement infra significatif** → `infra-verifier` (PASS/FAIL/INCONCLUSIVE, ne modifie rien).
-
-Parallèle autorisé. Exemple HTTP 503 : `envoy-network-debugger` + `k8s-operator`, puis `infra-verifier`.
-
-Règles toujours appliquées : `.cursor/rules/infra-safety.mdc`. Détail d'installation : `docs/cursor-infra-agents.md`.
+- Docker/Compose runtime troubleshooting requires explicit user authorization;
+  load the relevant Docker skills. This does not authorize Docker as a
+  development build or test environment.
+- Kubernetes/Kind: use `kubernetes-health` for read-only diagnosis.
+  Envoy/routing/TLS: use `envoy-runtime-debug` and identify the failing hop
+  before changing configuration.
+- Use Inspektor Gadget only when already deployed and Ready; otherwise report
+  `INCONCLUSIVE` for kernel, TCP, or DNS evidence that requires it.
+- After a significant infrastructure change, verify the affected runtime
+  and network path separately without modifying them, and report
+  `PASS`, `FAIL`, or `INCONCLUSIVE` with evidence.

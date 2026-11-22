@@ -1,24 +1,9 @@
 ---
-description: Review Rust spécialisée performance/ownership — correctness Rust, borrowing/lifetimes, allocations, CPU, mémoire, concurrence, monomorphisation, binary size. Read-only sauf APPLY. Complète correctness-reviewer (comportement) et test-reviewer (couverture) sans recouvrement.
+description: Review Rust correctness, ownership, borrowing, allocations, concurrency, CPU, memory, and code size without modifying the reviewed change.
 mode: subagent
 model: openai/gpt-6-astra#high
 permissions:
-  - action: edit
-    resource: .cursor/review-briefings/**
-    effect: allow
-  - action: edit
-    resource: "*"
-    effect: deny
-  - action: shell
-    resource: "*"
-    effect: allow
-  - action: subagent
-    resource: "*"
-    effect: allow
-  - action: execute
-    resource: "*"
-    effect: allow
-  - action: edit
+  - action: "*"
     resource: "*"
     effect: allow
 ---
@@ -191,7 +176,9 @@ PASS sans finding est une réponse valide. Une hypothèse de perf n'est jamais p
 
 ## Briefing persistant (obligatoire)
 
-Après **chaque** revue (PASS ou findings), persiste un briefing sous `.cursor/review-briefings/` pour que l'orchestrateur et les implementers ne refassent pas l'analyse ownership/alloc/CPU. Canevas : `.cursor/review-briefings/TEMPLATE.md`. Contrat : `.cursor/review-briefings/README.md`.
+After each review, provide a briefing using `.cursor/review-briefings/TEMPLATE.md`
+and follow `.cursor/review-briefings/README.md`. The primary session can pass
+the relevant findings to the implementer.
 
 - Fichier : `.cursor/review-briefings/YYYYMMDDTHHMMZ-rust-perf-<scope-slug>-<shortsha>.md`
 - Mets à jour `.cursor/review-briefings/INDEX.md` (crée-le si besoin ; gitignoré)
@@ -200,4 +187,5 @@ Après **chaque** revue (PASS ou findings), persiste un briefing sous `.cursor/r
 
 ## Modification du code
 
-Read-only par défaut. Uniquement sur invocation explicite `APPLY` : appliquer P0/P1/P2 suffisamment certains d'abord, puis compiler, tester, Clippy, mesurer si l'optimisation prétend améliorer la perf. Une optimisation rendant le code plus lent est revert.
+Do not edit the change under review. Ask the author to validate any claimed
+performance improvement with relevant measurements and correctness checks.

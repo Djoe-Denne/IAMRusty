@@ -1,6 +1,7 @@
 # Review briefings (local)
 
-Fichiers **gitignorés** (sauf ce README et `TEMPLATE.md`) : le raisonnement des reviewers, pour que l’orchestrateur et les implementers **lisent d’abord** au lieu de redécouvrir.
+Review briefings are local and gitignored by default. Read relevant briefings
+before redoing the investigation; do not add new findings to Git by default.
 
 Motif : une revue dans le chat (findings A-1, T-1, T-2, …) disparaît au tour suivant. L’implementer ré-explore invoke, identity, KV purge, enrollment, etc. Le briefing est la mémoire de travail de la revue.
 
@@ -9,9 +10,8 @@ Motif : une revue dans le chat (findings A-1, T-1, T-2, …) disparaît au tour 
 | Rôle | Obligation |
 |---|---|
 | `correctness-reviewer`, `test-reviewer`, `rust-perf-reviewer`, `security-reviewer` | Après **chaque** revue (PASS, commentaires, BLOCK) : remplir le template et viser un fichier ici. Si `readonly` refuse l’écriture, renvoyer `BRIEFING_PATH` + `BRIEFING_MARKDOWN` complets. |
-| `orchestrator` | **Persister** le fichier si le reviewer n’a pas pu écrire. Mettre à jour `INDEX.md`. Avant un fix : lire INDEX + briefings du scope, **les coller dans le work package**. |
-| `implementer`, `hard-implementer`, `emergency-engineer` | **Lire les briefings matching avant d’explorer.** Ne pas refaire le raisonnement. |
-| `mechanical-worker` | Lire seulement les chemins fournis dans le work package. |
+| Primary session | Persist the briefing if the reviewer could not, update `INDEX.md`, and pass the relevant findings and evidence to the author. |
+| `implementer` or `test-engineer` | Read matching briefings before exploring. Authors, not reviewers, implement fixes. |
 
 `INDEX.md` et les briefings `*.md` (hors README/TEMPLATE) ne se commitent pas.
 

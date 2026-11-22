@@ -12,8 +12,8 @@ Conventions :
   ligne d'index de `docs/adr/README.md` si l'ADR n'existe pas encore.
 - Cycle : un contrat ne modifie pas une ADR `Accepted` ; s'il la contredit,
   l'architecte ouvre la mise à jour d'ADR (Proposed) et signale l'écart.
-- Le contrat est le vecteur du travail : `implementer`/`hard-implementer`
-  reçoivent le chemin du fichier, pas un résumé de chat.
+- Give `test-engineer` and `implementer` the contract's file path before work
+  starts. A chat summary is not the contract.
 
 Contrats :
 

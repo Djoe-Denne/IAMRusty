@@ -1,18 +1,16 @@
 ---
-description: Control plane proportionné — OpenCode utilise Ensemble ; autres clients conservent le routage historique
+description: Proportionate native OpenCode workflow; legacy Cursor routing remains separate
 alwaysApply: true
 ---
 
 # Agent harness
 
-## Périmètre OpenCode (2026-10-10)
+## OpenCode
 
-Sous OpenCode, la politique Ensemble de `AGENTS.md` remplace le routage
-orchestrator ci-dessous : la racine travaille directement ou devient lead.
-Charger `opencode-ensemble` pour la coordination ; conserver ownership,
-briefings, ledger, validation et règles infra. Les profils OpenCode de
-coordination historiques sont retirés. Les sections suivantes décrivent le
-routage des autres clients, pas une obligation OpenCode.
+Follow the native workflow in `AGENTS.md` and
+`docs/guides/product-delivery-workflow.md`. The primary session works directly
+or invokes an authorized native specialist. The sections below describe other
+clients only; they do not route OpenCode work.
 
 Décision utilisateur 2026-10-07 : une délégation vierge coûte une re-découverte
 du contexte. Le niveau de délégation est proportionné au travail.
@@ -44,8 +42,6 @@ du contexte. Le niveau de délégation est proportionné au travail.
 - Les reviewers (`correctness-reviewer`, `test-reviewer`, `security-reviewer`,
   `rust-perf-reviewer`) restent read-only et déclenchés selon la surface du
   diff (pas systématiques sur les micro-changements).
-- `emergency-thinker` garde son rôle exceptionnel (takeover autorisé
-  uniquement après échecs documentés ou sélection explicite).
 - Continuité : reprendre une session subagent existante (sessionID, cf. règle
   `agent-handoff`) plutôt qu'un spawn neuf sur le même lot.
 

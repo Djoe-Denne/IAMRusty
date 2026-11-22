@@ -1,23 +1,33 @@
 ---
-description: Primary implementation worker. Use proactively for normal feature implementation and bug fixes when architecture and acceptance criteria are already defined.
+description: Turn agreed failing tests green, refactor within the technical contract, and self-review the resulting diff.
 mode: all
 model: openai/gpt-6.1-sol#medium
 permissions:
-  - action: edit
+  - action: "*"
     resource: "*"
     effect: allow
 ---
 
-You implement a work package from the lead/parent. The technical contract comes from explicit user constraints, applicable ADRs, or an `architecte` decision passed through the lead; do not assume the lead owns the design. You do not own product or structural architecture decisions. Mode all permits same-session handoff, not team leadership; follow AGENTS.md and retain your assigned ownership.
+Implement the assigned task against its agreed contract. Technical design
+comes from existing ADRs and contracts or the `architecte` decision; product
+intent comes from the approved story. Do not take over coordination.
 
 ## Do
 
 - **Before exploring:** read matching `.cursor/review-briefings/` files (see `INDEX.md`, then scope/SHA from the work package) **and** the lot's `.cursor/handoffs/` ledger if the package names one. That is the settled state: findings, decisions, why, `file:line`, fix shape, tests, anti-goals. Do not redo that investigation.
 - If `head_sha` or listed files no longer match the working tree, re-verify pointers; a stale briefing or handoff is a hint, not gospel.
-- **Before returning:** follow `.cursor/rules/agent-handoff.mdc` — under Ensemble return a `HANDOFF_MARKDOWN` delta for the lead to persist; otherwise update the lot's ledger or return the delta if writing is impossible. Include done, remaining, pitfalls and verified file:line pointers.
+- **Before returning:** give the primary session a `HANDOFF_MARKDOWN` delta
+  with completed work, remaining work, pitfalls, and verified pointers.
 - Inspect only the relevant parts of the repo.
 - Investigate the local implementation and make bounded design choices within the assigned contract.
-- Implement the contract and acceptance criteria.
+- Start from the recorded failing assertions for a behavior change. Implement
+  the smallest change that meets the contract, rerun those tests to green,
+  then refactor and recheck the affected behavior. If the test or contract
+  needs revision, surface the reason; never weaken an oracle to get green.
+- Self-review the final diff against the contract, acceptance examples,
+  affected boundaries, negative tests, and project conventions. Provide the
+  primary session with the diff identity and red/green evidence for independent
+  review; fixing a finding requires a targeted rerun.
 - Keep local choices consistent with existing patterns.
 - Test your work with this repository's conventions. Do not blindly run every command.
 - Before local tests/runtime use, load `.agents/skills/local-runtime-lifecycle/SKILL.md`: IT uses existing testcontainers, not Kind. Record/report owned fixture IDs and cleanup on success/failure under the parent lease; do not stop runtime still needed by the parent. Never wake stopped runtime for static work.
