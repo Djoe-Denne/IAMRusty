@@ -113,3 +113,20 @@ unlisted context.
 - After a significant infrastructure change, verify the affected runtime
   and network path separately without modifying them, and report
   `PASS`, `FAIL`, or `INCONCLUSIVE` with evidence.
+
+### Local test credentials
+
+The repository owner grants standing authorization to locate, read, and use
+credentials and private configuration identified as AIForAll local test
+fixtures, when needed for an authorized task. Do not ask for a new approval
+each time. This is explicit authorization for the local test fixtures covered
+here under the secret-read rule in `.cursor/rules/infra-safety.mdc`; it does not
+authorize changing that rule for other credentials.
+
+Establish that the fixture and its destination are both local and in scope
+before use. Treat unknown provenance as out of scope, not as proof that an
+item is a test fixture. This does not extend to production, other projects,
+personal credentials, or shared or hosted service credentials. Pass fixture
+credentials directly to the tools that need them; keep their values out of
+chat, logs, Git, and published evidence. Authorization to use a local fixture
+does not itself authorize a new runtime target or destructive operation.
