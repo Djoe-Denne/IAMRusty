@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 import threading
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 
@@ -87,6 +87,11 @@ class SimulatorTests(unittest.TestCase):
         with self.assertRaises(self.module.Rejected):
             self.provider.profile("Bearer unknown")
 
+    def test_default_does_not_allow_profile_selection_without_opt_in(self):
+        with self.assertRaises(self.module.Rejected):
+            self.provider.authorize({**self.authorization, "fixture_account": "a"})
+        self.assertEqual(self.provider.observations()["authorize"], 0)
+
     def test_native_https_redirects_keep_pkce_client_binding_and_single_use(self):
         provider = self.module.Provider("proofclient", "private-client-secret", "proofrun123456",
                                         edge_origin="https://127.0.0.1:18443")
@@ -145,6 +150,137 @@ class SimulatorTests(unittest.TestCase):
             handler.do_POST()
             self.assertEqual(handler.reply.call_args.args, (400, {"error": "invalid_grant"}))
             self.assertEqual(self.provider.observations()["token"], 0)
+
+
+class ConflictProfileTests(unittest.TestCase):
+    """STORY-005.01 fixture contract only; no sockets or deployed E2E claim."""
+
+    def setUp(self):
+        SimulatorTests.setUp(self)
+        self.provider = self.module.Provider(
+            "proofclient", "private-client-secret", "proofrun123456",
+            clock=lambda: self.now, fixture_profile="link-conflicts")
+
+    exchange = SimulatorTests.exchange
+
+    def authorize(self, identity, **changes):
+        return self.provider.authorize({
+            **self.authorization, "fixture_account": identity, **changes})
+
+    def test_three_identities_bind_to_their_own_codes_and_tokens_not_last_selection(self):
+        # A owns the address; B will attempt LINK; C is distinct but shares A's
+        # address. Interleave all authorizations before completing any of them.
+        codes = {identity: self.authorize(identity) for identity in ("a", "b", "c")}
+        profiles = {}
+        for identity in ("c", "b", "a"):
+            token = self.exchange(codes[identity])["access_token"]
+            profiles[identity] = self.provider.profile("Bearer " + token)
+            self.assertEqual(self.provider.profile("Bearer " + token), profiles[identity])
+            with self.assertRaises(self.module.Rejected):
+                self.exchange(codes[identity])
+        self.assertEqual(len({profile["id"] for profile in profiles.values()}), 3)
+        self.assertEqual(profiles["a"]["email"], "proofrun123456-a@example.invalid")
+        self.assertEqual(profiles["c"]["email"], profiles["a"]["email"])
+        self.assertEqual(profiles["b"]["email"], "proofrun123456-b@example.invalid")
+        for profile in profiles.values():
+            self.assertTrue(profile["email_verified"])
+        self.assertEqual(self.provider.observations(), dict(
+            run_id="proofrun123456", authorize=3, token=3, profile=6, pkce_validated=3))
+        self.assertNotIn("fixture_account", json.dumps(self.provider.observations()))
+
+    def test_profile_selection_is_opt_in_required_and_closed_to_unknown_identities(self):
+        default = self.module.Provider("proofclient", "private-client-secret", "proofrun123456")
+        with self.assertRaises(self.module.Rejected):
+            default.authorize({**self.authorization, "fixture_account": "a"})
+        with self.assertRaises(self.module.Rejected):
+            self.provider.authorize(self.authorization)
+        for identity in ("", "A", "d", "a,b", "real-user@example.com"):
+            with self.subTest(identity=identity), self.assertRaises(self.module.Rejected):
+                self.authorize(identity)
+        for profile in ("", "other-profile", True):
+            with self.assertRaises(self.module.Rejected):
+                self.module.Provider("proofclient", "private-client-secret", "proofrun123456",
+                                     fixture_profile=profile)
+        self.assertEqual(self.provider.observations()["authorize"], 0)
+
+    def test_profile_preserves_client_redirect_pkce_and_single_use_controls(self):
+        for identity in ("a", "b", "c"):
+            for changes in ({"client_id": "foreign"}, {"client_secret": "wrong"},
+                            {"redirect_uri": self.redirect + "/"}, {"code_verifier": "b" * 43},
+                            {"fixture_account": "b"}):
+                with self.subTest(identity=identity, field=tuple(changes)):
+                    code = self.authorize(identity)
+                    with self.assertRaises(self.module.Rejected):
+                        self.exchange(code, **changes)
+                    with self.assertRaises(self.module.Rejected):
+                        self.exchange(code)
+        for changes in ({"code_challenge_method": "plain"}, {"response_type": "token"},
+                        {"redirect_uri": "https://foreign.invalid/callback"}, {"state": ""}):
+            with self.assertRaises(self.module.Rejected):
+                self.authorize("a", **changes)
+        self.assertEqual(self.provider.observations()["token"], 0)
+        self.assertEqual(self.provider.observations()["profile"], 0)
+
+    def test_profile_expiration_and_run_isolation(self):
+        code = self.authorize("a")
+        self.now += 121
+        with self.assertRaises(self.module.Rejected):
+            self.exchange(code)
+        token = self.exchange(self.authorize("a"))["access_token"]
+        profile = self.provider.profile("Bearer " + token)
+        other = self.module.Provider("proofclient", "private-client-secret", "proofrun654321",
+                                     fixture_profile="link-conflicts")
+        other_code = other.authorize({**self.authorization, "fixture_account": "a"})
+        other_token = other.exchange(dict(
+            grant_type="authorization_code", code=other_code, client_id="proofclient",
+            client_secret="private-client-secret", redirect_uri=self.redirect,
+            code_verifier=self.verifier))["access_token"]
+        other_profile = other.profile("Bearer " + other_token)
+        self.assertNotEqual(profile["id"], other_profile["id"])
+        self.assertNotEqual(profile["email"], other_profile["email"])
+        with self.assertRaises(self.module.Rejected):
+            other.profile("Bearer " + token)
+        self.now += 301
+        with self.assertRaises(self.module.Rejected):
+            self.provider.profile("Bearer " + token)
+
+    def test_selector_flows_through_normal_authorization_handler_and_duplicates_refuse(self):
+        handler = self.module.handler(self.provider).__new__(self.module.handler(self.provider))
+        handler.reply = Mock()
+        values = {**self.authorization, "fixture_account": "c"}
+        handler.path = "/oauth/authorize?" + urlencode(values)
+        handler.do_GET()
+        status, _, location = handler.reply.call_args.args
+        self.assertEqual(status, 303)
+        query = parse_qs(urlsplit(location).query)
+        self.assertEqual(query["state"], [self.authorization["state"]])
+        self.assertNotIn("fixture_account", query)
+        token = self.exchange(query["code"][0])["access_token"]
+        self.assertEqual(self.provider.profile("Bearer " + token)["email"],
+                         "proofrun123456-a@example.invalid")
+        handler.headers = Message()
+        handler.headers["Authorization"] = "Bearer " + token
+        handler.path = "/user?fixture_account=b"
+        handler.do_GET()
+        self.assertEqual(handler.reply.call_args.args, (400, {"error": "invalid_request"}))
+        handler.path = "/oauth/authorize?" + urlencode(values)
+        handler.path += "&fixture_account=a"
+        handler.do_GET()
+        self.assertEqual(handler.reply.call_args.args, (400, {"error": "invalid_request"}))
+        self.assertEqual(self.provider.observations()["authorize"], 1)
+
+    def test_mounted_input_enables_profile_without_starting_a_server(self):
+        inputs = dict(client_id="proofclient", client_secret="private-client-secret",
+                      run_id="proofrun123456", fixture_profile="link-conflicts")
+        # Stub both input IO and server construction: no private-input lookup,
+        # socket, TLS context or runtime process is created by this check.
+        with patch.dict(self.module.os.environ, {"OAUTH_PROOF_INPUT_FILE": "synthetic-input.json"}), \
+                patch.object(self.module.Path, "read_text", return_value=json.dumps(inputs)), \
+                patch.object(self.module, "Provider", wraps=self.module.Provider) as provider, \
+                patch.object(self.module, "ThreadingHTTPServer") as server:
+            self.module.main()
+        self.assertEqual(provider.call_args.kwargs["fixture_profile"], "link-conflicts")
+        server.return_value.serve_forever.assert_called_once_with()
 
 
 class SimulatedProviderHttpTests(unittest.TestCase):

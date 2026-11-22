@@ -103,3 +103,68 @@ réellement passé ; voir `docs/missions/20261112-k6-three-native-results.md`.
 La CI et le retrait des consommateurs legacy restent reportés.
 
 Contrat : `docs/contracts/k6-three-scenario-native-parity.md` (**Proposed**).
+
+## Opt-in explicit LINK conflicts (API)
+
+The default remains `iam-native-parity`, including its browser and SAN phases.
+Select the separate profile only at preparation:
+
+```powershell
+./ops/tests/k6/native/campaign.ps1 -Action prepare -Profile iam-link-conflicts `
+  -Config C:/private/native-k6-input.json -Directory C:/private/fresh-link-campaign
+./ops/tests/k6/native/campaign.ps1 -Action run `
+  -Directory C:/private/fresh-link-campaign -ExclusiveDatabaseDdlForThisRun
+```
+
+The stored profile is immutable for that campaign. Existing target admission,
+image/tool provenance, owner-only directory ACL, UID/OID receipts, DDL consent,
+and scoped cleanup still apply. This profile needs no Chromium and never runs
+the SAN mutation. It uses the synthetic IdP's `fixture_profile: link-conflicts`
+and three identities selected with `fixture_account=a|b|c`; it does not seed
+application accounts or credentials directly.
+
+Before business setup, the parent requires the run database's recorded OID,
+empty account/method/outbox/transaction tables, and live IAM readiness reporting
+`queue_publisher.status=disabled`. Only this profile overlays `[queue] enabled=false`.
+Setup then creates two accounts through real OAuth registration.
+
+`provider-link-conflicts.js` runs as three separate invocations with
+`K6_LINK_PHASE=setup|email|identity`. It receives `K6_CAMPAIGN_FILE`, the standard
+summary path, and the absolute owner-ACL-contained `K6_LINK_RECEIPT` leaf
+`link-setup-private.json`. Setup must pass its nine exact named checks and
+produce a fresh `{version:1,run_id,access_token}` receipt. The parent verifies
+its schema, run binding, ACL, freshness and unchanged hash; later invocations
+read it without public output. It is deleted after the phase sequence even
+on failure, and is also covered by receipt-scoped cleanup. No replay/reuse.
+The profile disables k6 runtime logging (`--log-output=none`) to avoid leaking
+OAuth query URLs in networking errors.
+
+Each refusal has six exact named checks. HTTP request counts are 8/3/3;
+IAM upstream deltas are 6/2/2; authorize/token/profile/PKCE deltas are 2/1/1.
+Private parent snapshots record the same Envoy incarnation and transport
+counters. Full-row SHA-256 fingerprints of users, addresses (including flags),
+provider tokens, identities, refresh tokens and outbox rows are compared
+around each refusal; credential rows never leave SQL. Exactly one additional
+consumed transaction with purged nonce/verifier and no pending transaction
+is required per refusal.
+
+A complete classification-only historical red is retained as FAIL, not
+normalized into a PASS. Its state and transport evidence is still collected,
+and the other refusal is attempted only if arrangement, process cleanup,
+state preservation and consumption remain proven. Setup, infrastructure,
+missing-summary or arrangement failures stop the sequence and are not valid
+classification-red evidence. Native/deployed qualification remains required;
+offline checks alone do not qualify this profile.
+
+Historical red recognition is phase-specific: email must pass HTTP-status
+and fail code/envelope, with zero IAM upstream 5xx; identity must fail all
+three classification checks, with exactly one IAM upstream 5xx. Both fixed
+refusals require zero IAM upstream 5xx. Other failure patterns are rejected.
+Both historical reds and fixed greens additionally require
+`conflict-recognized-response` to pass. This scenario-owned check recognizes
+only the exact fixed envelope or the phase's exact historical wire envelope
+(email: 409/`provider_already_linked`; identity: 500/`link_failed`, including
+their exact nested status and message). Failed fixed checks plus counters
+alone cannot distinguish a historical mapper defect from an unrelated
+server/infrastructure error. The parent never normalizes this recognition
+check when examining a clone of a red summary; originals remain unchanged.

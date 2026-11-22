@@ -1218,6 +1218,161 @@ async fn mock_delivered_authentication(
     delivered
 }
 
+fn assert_explicit_link_error(
+    status: reqwest::StatusCode,
+    body: &Value,
+    error_code: &str,
+    message: &str,
+) {
+    assert_eq!(status, 409, "explicit LINK conflict must return HTTP 409");
+    assert_eq!(body["error"]["status"], 409, "nested conflict status");
+    assert_eq!(
+        body["error"]["error_code"], error_code,
+        "specific LINK conflict code"
+    );
+    // Exact envelope forbids extra account/identity/token fields as well as
+    // addresses, raw domain errors or credentials embedded in the message.
+    assert!(
+        body == &json!({"error": {
+            "status": 409,
+            "error_code": error_code,
+            "message": message,
+        }}),
+        "explicit LINK must return only the agreed nested error and fixed safe message"
+    );
+}
+
+// STORY-005.01: compare complete persisted rows without printing credentials or
+// account identities on failure. The existing snapshot includes password hashes,
+// every email flag, provider credentials and refresh sessions for both accounts.
+async fn assert_explicit_link_conflict(
+    profile: idp_connect_contract::dto::ProviderUserProfile,
+    error_code: &str,
+    message: &str,
+) {
+    let (fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
+        let owner = fixtures::DbFixtures::user()
+            .arthur()
+            .commit(db.clone())
+            .await
+            .expect("explicit LINK target");
+        fixtures::DbFixtures::user_email()
+            .arthur_primary(owner.id())
+            .commit(db.clone())
+            .await
+            .expect("target primary email");
+        fixtures::DbFixtures::user_email()
+            .arthur_secondary(owner.id())
+            .commit(db.clone())
+            .await
+            .expect("target unverified secondary email");
+        let other = fixtures::DbFixtures::user()
+            .bob()
+            .commit(db.clone())
+            .await
+            .expect("other account");
+        fixtures::DbFixtures::user_email()
+            .bob_primary(other.id())
+            .commit(db.clone())
+            .await
+            .expect("other primary email");
+        fixtures::DbFixtures::user_email()
+            .secondary_unverified(other.id())
+            .email("bob-secondary@example.com")
+            .commit(db.clone())
+            .await
+            .expect("other unverified secondary email");
+        fixtures::DbFixtures::provider_token()
+            .gitlab(owner.id())
+            .provider_user_id("12345")
+            .access_token("old_gitlab_token_123")
+            .commit(db.clone())
+            .await
+            .expect("target existing sign-in method");
+        fixtures::DbFixtures::provider_token()
+            .arthur_github(other.id())
+            .provider_user_id("67890")
+            .access_token("other_github_token_678")
+            .commit(db.clone())
+            .await
+            .expect("other existing sign-in method");
+        let idp = IdpConnectFixtures::service().await;
+        let delivered = mock_delivered_authentication(
+            &idp,
+            fixtures::idp_connect::resources::success_tokens(),
+            profile,
+        )
+        .await;
+        let client = browser_client();
+        // The target is authenticated at real BEGIN; callback uses its bound cookie.
+        let (state, cookie) =
+            browser_flow::link(&client, &base, "github", owner.id(), &idp).await;
+        let before = business_snapshot(&db).await;
+        let response = callback(&client, &base, "github/callback", &state, Some(&cookie)).await;
+        let status = response.status();
+        let body: Value = response.json().await.expect("explicit LINK refusal JSON");
+        assert!(
+            delivered.load(std::sync::atomic::Ordering::SeqCst),
+            "explicit LINK must reach valid provider complete before business refusal"
+        );
+        assert!(
+            business_snapshot(&db).await == before,
+            "explicit LINK refusal must preserve both accounts, all address fields and persisted sign-in methods"
+        );
+        assert_consumed_and_purged(&db, &state).await;
+        assert_eq!(idp.endpoint_counts().await, [1, 1, 0, 0, 0]);
+        assert_denied_without_exchange(
+            callback(&client, &base, "github/callback", &state, Some(&cookie)).await,
+            &idp,
+            1,
+        )
+        .await;
+        assert!(
+            business_snapshot(&db).await == before,
+            "replayed explicit LINK refusal must preserve all persisted account state"
+        );
+        assert_consumed_and_purged(&db, &state).await;
+        assert_eq!(idp.endpoint_counts().await, [1, 1, 0, 0, 0]);
+        assert_explicit_link_error(status, &body, error_code, message);
+    })
+    .await;
+}
+
+/// STORY-005.01/E4: an unlinked provider identity supplies another account's
+/// address, even marked verified. Refuse as email conflict, never identity conflict.
+#[tokio::test]
+#[serial]
+async fn explicit_link_with_another_accounts_email_returns_safe_email_conflict() {
+    let mut profile = fixtures::idp_connect::resources::github_arthur();
+    profile.id = "unlinked-provider-identity".to_owned();
+    profile.email = Some("bob@example.com".to_owned());
+    profile.email_verified = true;
+    assert_explicit_link_conflict(
+        profile,
+        "provider_email_conflict",
+        "Provider email address cannot be used",
+    )
+    .await;
+}
+
+/// STORY-005.01/E5: the provider identity belongs to the other account. No email
+/// is supplied, isolating identity ownership from the email refusal policy.
+#[tokio::test]
+#[serial]
+async fn explicit_link_with_another_accounts_identity_returns_safe_identity_conflict() {
+    let mut profile = fixtures::idp_connect::resources::github_arthur();
+    profile.id = "67890".to_owned();
+    profile.email = None;
+    assert_explicit_link_conflict(
+        profile,
+        "provider_already_linked",
+        "This github account is already linked to another user",
+    )
+    .await;
+}
+
 /// T-1/G7: RELINK ignores an email already owned elsewhere, without borrowing
 /// LINK's refusal policy or transferring/verifying that email.
 #[tokio::test]

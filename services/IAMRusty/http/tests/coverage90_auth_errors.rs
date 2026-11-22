@@ -283,6 +283,15 @@ async fn oauth_provider_failures_remain_authentication_failures_after_retry_wrap
 
 #[tokio::test]
 async fn oauth_link_conflicts_are_actionable_without_echoing_provider_credentials() {
+    let email_conflict = CommandError::business("provider_email_conflict", PRIVATE_CAUSE);
+    assert_public(
+        AuthError::oauth_link_failed("link", &email_conflict, "github"),
+        StatusCode::CONFLICT,
+        "provider_email_conflict",
+        "Provider email address cannot be used",
+    )
+    .await;
+
     for (code, status, message) in [
         (
             "provider_already_linked_same_user",

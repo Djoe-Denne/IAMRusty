@@ -2,6 +2,9 @@
 
 Parent-run only. Credentials come from a private mounted JSON file, never argv.
 No request/URL/header logging. Observations contain counters and run ID only.
+Optional private input fixture_profile="link-conflicts" requires the test driver
+to select fixture_account=a|b|c on /oauth/authorize. A/C share the run's A email;
+all IDs and addresses remain synthetic, closed and bound to the issued code.
 """
 import base64
 import hashlib
@@ -24,11 +27,13 @@ class Rejected(ValueError):
 
 
 class Provider:
-    def __init__(self, client_id, client_secret, run_id, clock=time.monotonic, *, instance="gitlab", edge_origin=None):
+    def __init__(self, client_id, client_secret, run_id, clock=time.monotonic, *, instance="gitlab",
+                 edge_origin=None, fixture_profile=None):
         if (not re.fullmatch(r"[a-z0-9]{12,32}", run_id)
                 or not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", client_id)
                 or not isinstance(client_secret, str) or not 16 <= len(client_secret) <= 256
-                or instance not in {"gitlab", "simulated"}):
+                or instance not in {"gitlab", "simulated"}
+                or fixture_profile not in (None, "link-conflicts")):
             raise Rejected()
         self.client_id, self.secret, self.run_id = client_id, client_secret, run_id
         scheme = "https" if instance == "simulated" else "http"
@@ -40,6 +45,7 @@ class Provider:
         self.redirects = frozenset(origin + "/iam/api/auth/" + instance + "/" + path
                                   for path in ("callback", "relink-callback"))
         self.user_id = int.from_bytes(hashlib.sha256(run_id.encode()).digest()[:8], "big") & ((1 << 63) - 1)
+        self.fixture_profile = fixture_profile
         self.clock, self.lock = clock, threading.Lock()
         self.codes, self.tokens = {}, {}
         self.counts = dict(authorize=0, token=0, profile=0, pkce_validated=0)
@@ -47,9 +53,15 @@ class Provider:
     def _purge(self):
         now = self.clock()
         self.codes = {key: value for key, value in self.codes.items() if value[0] > now}
-        self.tokens = {key: expiry for key, expiry in self.tokens.items() if expiry > now}
+        self.tokens = {key: value for key, value in self.tokens.items() if value[0] > now}
 
     def authorize(self, values):
+        # Test-driver selection is accepted only on this normal authorization
+        # hop, never as a mutable account switch or an arbitrary identity input.
+        account = values.get("fixture_account")
+        if ((self.fixture_profile is None and "fixture_account" in values)
+                or (self.fixture_profile == "link-conflicts" and account not in ("a", "b", "c"))):
+            raise Rejected()
         if (values.get("response_type") != "code" or values.get("client_id") != self.client_id
                 or values.get("redirect_uri") not in self.redirects
                 or values.get("code_challenge_method") != "S256"
@@ -61,7 +73,7 @@ class Provider:
             if len(self.codes) >= 128:
                 raise Rejected()
             code = secrets.token_urlsafe(32)
-            self.codes[code] = (self.clock() + 120, values["redirect_uri"], values["code_challenge"])
+            self.codes[code] = (self.clock() + 120, values["redirect_uri"], values["code_challenge"], account)
             self.counts["authorize"] += 1
             return code
 
@@ -72,7 +84,7 @@ class Provider:
             record = self.codes.pop(values.get("code", ""), None)
             verifier = values.get("code_verifier", "")
             challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
-            if (not record or values.get("grant_type") != "authorization_code"
+            if (not record or "fixture_account" in values or values.get("grant_type") != "authorization_code"
                     or values.get("client_id") != self.client_id
                     or not hmac.compare_digest(values.get("client_secret", "").encode(), self.secret.encode())
                     or values.get("redirect_uri") != record[1]
@@ -80,7 +92,7 @@ class Provider:
                     or not hmac.compare_digest(challenge, record[2]) or len(self.tokens) >= 128):
                 raise Rejected()
             token = secrets.token_urlsafe(32)
-            self.tokens[token] = self.clock() + 300
+            self.tokens[token] = (self.clock() + 300, record[3])
             self.counts["token"] += 1
             self.counts["pkce_validated"] += 1
             return dict(access_token=token, token_type="Bearer", expires_in=300, scope="read_user")
@@ -91,6 +103,16 @@ class Provider:
             if not authorization.startswith("Bearer ") or authorization[7:] not in self.tokens:
                 raise Rejected()
             self.counts["profile"] += 1
+            account = self.tokens[authorization[7:]][1]
+            if self.fixture_profile == "link-conflicts":
+                # Run-scoped, closed synthetic identities. A and C deliberately
+                # share an email; their distinct IDs isolate email-only refusal.
+                identity = self.run_id + "-" + account
+                user_id = int.from_bytes(hashlib.sha256(identity.encode()).digest()[:8], "big") & ((1 << 63) - 1)
+                email_account = "a" if account == "c" else account
+                return dict(id=user_id, username=identity, name="OAuth proof account",
+                            email=self.run_id + "-" + email_account + "@example.invalid",
+                            email_verified=True, confirmed_at="2026-10-28T00:00:00Z")
             return dict(id=self.user_id, username=self.run_id, name="OAuth proof account",
                         email=self.run_id + "@example.invalid", email_verified=True,
                         confirmed_at="2026-10-28T00:00:00Z")
@@ -190,7 +212,8 @@ def main():
     try:
         inputs = json.loads(Path(os.environ["OAUTH_PROOF_INPUT_FILE"]).read_text(encoding="utf-8"))
         provider = Provider(inputs["client_id"], inputs["client_secret"], inputs["run_id"],
-                            instance=inputs.get("instance", "gitlab"), edge_origin=inputs.get("edge_origin"))
+                            instance=inputs.get("instance", "gitlab"), edge_origin=inputs.get("edge_origin"),
+                            fixture_profile=inputs.get("fixture_profile"))
         native = inputs.get("edge_origin") == "https://127.0.0.1:18443"
         tls = None
         if native:

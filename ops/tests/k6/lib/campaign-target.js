@@ -1,7 +1,8 @@
 // Public, closed campaign metadata only. No credentials or trust overrides.
 // Legacy consumers retain their historical profile until the native parent is qualified.
-export function campaignTarget() {
+export function campaignTarget(expectedProfile = 'iam-native-parity') {
   if (__ENV.K6_CAMPAIGN_FILE === undefined) {
+    if (expectedProfile !== 'iam-native-parity') throw new Error('NATIVE_CAMPAIGN_INVALID');
     return {
       origin: 'http://127.0.0.1:18080',
       provider: 'http://localhost:18081/oauth/authorize',
@@ -15,7 +16,7 @@ export function campaignTarget() {
     const value = JSON.parse(text);
     const fields = ['audience', 'issuer', 'origin', 'profile', 'provider', 'run_id', 'version'];
     if (Object.keys(value).sort().join(',') !== fields.join(',') || value.version !== 1
-        || value.profile !== 'iam-native-parity' || !/^[a-f0-9]{32}$/.test(value.run_id)
+        || value.profile !== expectedProfile || !/^[a-f0-9]{32}$/.test(value.run_id)
         || value.origin !== 'https://127.0.0.1:18443'
         || value.provider !== 'https://localhost:18445/oauth/authorize'
         || typeof value.issuer !== 'string' || !/^https:\/\/[A-Za-z0-9.-]+(?::[0-9]+)?\/iam$/.test(value.issuer)

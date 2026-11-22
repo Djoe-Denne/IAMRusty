@@ -98,6 +98,173 @@ class NativePowerShellTests(unittest.TestCase):
             self.ps("$e=$null;$t=$null;$null=[Management.Automation.Language.Parser]::ParseFile('" +
                     str(file).replace("'", "''") + "',[ref]$t,[ref]$e);if($e.Count){throw 'AST errors'}")
 
+    def test_link_summary_is_closed_and_phase_bound(self):
+        self.ps("""
+$ErrorActionPreference='Stop'
+. 'WINDOWS'
+. 'AUTH'
+foreach($phase in @('setup','email','identity')){
+  $case='auth-link-conflict-'+$phase
+  $e=Get-K6AuthExpectation $case
+  $requests=if($phase -ceq 'setup'){8}else{3}
+  $checkCount=if($phase -ceq 'setup'){9}else{6}
+  if($e.Requests -ne $requests -or $e.Checks.Count -ne $checkCount){throw 'Wrong phase contract'}
+  $checks=@{};foreach($name in $e.Checks){$checks[$name]=@{passes=1;fails=0}}
+  $v=[pscustomobject]@{version=1;run_id=('a'*32);phase='HTTP';cases=@($case);expected=1;started=1;completed=1;iterations=1;requests=$e.Requests;checks=[pscustomobject]$checks}
+  $v=ConvertFrom-Json ($v|ConvertTo-Json -Depth 10)
+  Assert-K6AuthSummary $v ('a'*32) $case 0
+  $v.requests++
+  $caught=$false;try{Assert-K6AuthSummary $v ('a'*32) $case 0}catch{$caught=$true}
+  if(-not $caught){throw 'Extra traffic accepted'}
+  $v.requests=$e.Requests
+  $v.checks.($e.Checks[0]).fails=1
+  $caught=$false;try{Assert-K6AuthSummary $v ('a'*32) $case 0}catch{$caught=$true}
+  if(-not $caught){throw 'Failed named check accepted'}
+}
+""".replace("WINDOWS", str(ROOT / "ops/tests/k6/lib/windows.ps1"))
+           .replace("AUTH", str(ROOT / "ops/tests/k6/lib/windows-auth.ps1")))
+
+    def test_link_state_oracle_catches_changed_flags_methods_and_unconsumed_transaction(self):
+        self.ps("""
+$ErrorActionPreference='Stop'
+. 'HELPERS'
+$before=[pscustomobject]@{database='k6_run';oid=42;tables=[pscustomobject]@{};transactions=[pscustomobject]@{total=2;consumed=2;pending=0;secrets=0}}
+foreach($table in @('users','user_emails','provider_tokens','identities','refresh_tokens','rustycog_outbox_events')){
+  $before.tables | Add-Member NoteProperty $table ([pscustomobject]@{count=2;sha256=('a'*64)})
+}
+$after=ConvertFrom-Json ($before|ConvertTo-Json -Depth 10)
+$after.transactions.total++;$after.transactions.consumed++
+Assert-NativeLinkRefusalState $before $after
+foreach($table in @('users','user_emails','provider_tokens','identities','refresh_tokens','rustycog_outbox_events')){
+  $after.tables.$table.sha256='b'*64
+  $caught=$false;try{Assert-NativeLinkRefusalState $before $after}catch{$caught=$true}
+  if(-not $caught){throw 'Changed complete row fingerprint accepted'}
+  $after.tables.$table.sha256='a'*64
+}
+$after.transactions.secrets=1
+$caught=$false;try{Assert-NativeLinkRefusalState $before $after}catch{$caught=$true}
+if(-not $caught){throw 'Retained transaction secrets accepted'}
+""".replace("HELPERS", str(NATIVE / "link-conflicts.ps1")))
+
+    def test_classification_red_does_not_accept_arrangement_or_process_failure(self):
+        self.ps("""
+$ErrorActionPreference='Stop'
+. 'WINDOWS'
+. 'AUTH'
+. '__LINK_HELPER__'
+$state=[pscustomobject]@{run_id=('a'*32)}
+$case='auth-link-conflict-identity';$e=Get-K6AuthExpectation $case
+$checks=@{};foreach($name in $e.Checks){$checks[$name]=@{passes=1;fails=0}}
+foreach($name in @('conflict-http-status','conflict-error-code','conflict-envelope')){$checks[$name]=@{passes=0;fails=1}}
+$v=ConvertFrom-Json (@{version=1;run_id=$state.run_id;phase='HTTP';cases=@($case);expected=1;started=1;completed=1;iterations=1;requests=3;checks=$checks}|ConvertTo-Json -Depth 10)
+$p=[pscustomobject]@{exit=99;cleanup=$true;identities_complete=$true;reason='NONE';capture_complete=$true;overflow=$false}
+Assert-NativeLinkClassificationRed $v $p $case
+if($v.checks.'conflict-http-status'.fails -ne 1){throw 'Original red summary changed'}
+$v.checks.'conflict-recognized-response'.passes=0;$v.checks.'conflict-recognized-response'.fails=1
+$caught=$false;try{Assert-NativeLinkClassificationRed $v $p $case}catch{$caught=$true}
+if(-not $caught){throw 'Unrecognized legacy wire envelope accepted as historical red'}
+if($v.checks.'conflict-recognized-response'.fails -ne 1 -or $v.checks.'conflict-http-status'.fails -ne 1){throw 'Rejected original red summary changed'}
+$v.checks.'conflict-recognized-response'.passes=1;$v.checks.'conflict-recognized-response'.fails=0
+$v.checks.'link-start'.passes=0;$v.checks.'link-start'.fails=1
+$caught=$false;try{Assert-NativeLinkClassificationRed $v $p $case}catch{$caught=$true}
+if(-not $caught){throw 'Arrangement failure accepted as historical red'}
+$v.checks.'link-start'.passes=1;$v.checks.'link-start'.fails=0
+$p.capture_complete=$false
+$caught=$false;try{Assert-NativeLinkClassificationRed $v $p $case}catch{$caught=$true}
+if(-not $caught){throw 'Incomplete process accepted as historical red'}
+$p.capture_complete=$true
+$v.checks.'conflict-envelope'.passes=1;$v.checks.'conflict-envelope'.fails=0
+$caught=$false;try{Assert-NativeLinkClassificationRed $v $p $case}catch{$caught=$true}
+if(-not $caught){throw 'Partial identity classification red accepted'}
+$v.checks.'conflict-envelope'.passes=0;$v.checks.'conflict-envelope'.fails=1
+$case='auth-link-conflict-email';$v.cases=@($case)
+$v.checks.'conflict-http-status'.passes=1;$v.checks.'conflict-http-status'.fails=0
+Assert-NativeLinkClassificationRed $v $p $case
+$v.checks.'conflict-recognized-response'.passes=0;$v.checks.'conflict-recognized-response'.fails=1
+$caught=$false;try{Assert-NativeLinkClassificationRed $v $p $case}catch{$caught=$true}
+if(-not $caught){throw 'Unrecognized email wire envelope accepted as historical red'}
+$v.checks.'conflict-recognized-response'.passes=1;$v.checks.'conflict-recognized-response'.fails=0
+$v.checks.'conflict-http-status'.passes=0;$v.checks.'conflict-http-status'.fails=1
+$caught=$false;try{Assert-NativeLinkClassificationRed $v $p $case}catch{$caught=$true}
+if(-not $caught){throw 'Wrong email HTTP status accepted as expected red'}
+""".replace("WINDOWS", str(ROOT / "ops/tests/k6/lib/windows.ps1"))
+           .replace("AUTH", str(ROOT / "ops/tests/k6/lib/windows-auth.ps1"))
+           .replace("__LINK_HELPER__", str(NATIVE / "link-conflicts.ps1")))
+
+    def test_both_refusals_are_observed_after_classification_only_red(self):
+        self.ps("""
+$ErrorActionPreference='Stop'
+. 'WINDOWS'
+. 'AUTH'
+. '__LINK_HELPER__'
+$state=[pscustomobject]@{run_id=('a'*32);database_oid=42}
+$Directory=[IO.Path]::GetTempPath()
+$script:cases=@();$script:saved=@();$script:total=0
+function Save-NativeJson($Value,$Name){$script:saved+=,$Name}
+function Get-NativeHttpJson($Url){[pscustomobject]@{checks=[pscustomobject]@{queue_publisher=[pscustomobject]@{status='disabled'}}}}
+function Assert-NativeLinkReceipt {}
+function Snapshot($Phase){[pscustomobject]@{}}
+function Assert-NativeLinkTraffic($Before,$After,$PB,$PA,$Iam,$Provider,[switch]$ClassificationRed,$Phase){}
+function Get-NativeLinkState($Phase){
+  $script:saved+=,('link-state-'+$Phase+'.json')
+  $tables=[pscustomobject]@{}
+  foreach($name in @('users','user_emails','provider_tokens','identities','refresh_tokens','rustycog_outbox_events')){
+    $tables|Add-Member NoteProperty $name ([pscustomobject]@{count=$(if($script:total){2}else{0});sha256=('a'*64)})
+  }
+  [pscustomobject]@{database='k6_run';oid=42;tables=$tables;transactions=[pscustomobject]@{total=$script:total;consumed=$script:total;pending=0;secrets=0}}
+}
+function Invoke-Scenario($Case){
+  $script:cases+=,$Case
+  if($Case -ceq 'auth-link-conflict-setup'){$script:total=2;return}
+  $script:total++;throw 'SUMMARY_INVALID'
+}
+function Read-NativeJson($Name){
+  if($Name.EndsWith('.process.json')){
+    return [pscustomobject]@{exit=99;cleanup=$true;identities_complete=$true;capture_complete=$true;overflow=$false;reason='NONE'}
+  }
+  $case=$Name.Substring(0,$Name.Length-5);$e=Get-K6AuthExpectation $case
+  $checks=@{};foreach($name in $e.Checks){$checks[$name]=@{passes=1;fails=0}}
+  foreach($name in @('conflict-error-code','conflict-envelope')){$checks[$name]=@{passes=0;fails=1}}
+  if($case -ceq 'auth-link-conflict-identity'){$checks['conflict-http-status']=@{passes=0;fails=1}}
+  ConvertFrom-Json (@{version=1;run_id=$state.run_id;phase='HTTP';cases=@($case);expected=1;started=1;completed=1;iterations=1;requests=3;checks=$checks}|ConvertTo-Json -Depth 10)
+}
+$caught=$false;try{Invoke-NativeLinkConflictPhases}catch{
+  if($_.Exception.Message -cne 'LINK_CONFLICT_CLASSIFICATION_FAILED'){throw}
+  $caught=$true
+}
+if(-not $caught -or ($script:cases -join ',') -cne 'auth-link-conflict-setup,auth-link-conflict-email,auth-link-conflict-identity'){throw 'Both classification reds were not collected'}
+foreach($name in @('link-state-email-after.json','link-state-identity-after.json','link-email-evidence.json','link-identity-evidence.json','evidence.json')){
+  if($name -cnotin $script:saved){throw 'Missing post-refusal evidence'}
+}
+""".replace("WINDOWS", str(ROOT / "ops/tests/k6/lib/windows.ps1"))
+           .replace("AUTH", str(ROOT / "ops/tests/k6/lib/windows-auth.ps1"))
+           .replace("__LINK_HELPER__", str(NATIVE / "link-conflicts.ps1")))
+
+    def test_link_red_5xx_is_exactly_phase_bound(self):
+        self.ps("""
+$ErrorActionPreference='Stop'
+. '__LINK_HELPER__'
+$state=[pscustomobject]@{run_id=('a'*32)}
+$provider=[pscustomobject]@{run_id=$state.run_id;authorize=0;token=0;profile=0;pkce_validated=0}
+$script:errors=0
+function Get-K6AuthDelta($Before,$After,$Name){
+  if($Name -ceq 'cluster.iam.upstream_rq_total'){return 2}
+  if($Name -ceq 'cluster.iam.upstream_rq_5xx'){return $script:errors}
+  return 0
+}
+foreach($phase in @('email','identity')){
+  foreach($red in @($false,$true)){
+    foreach($errors in @(0,1,2)){
+      $script:errors=$errors
+      $expected=if($red -and $phase -ceq 'identity'){1}else{0}
+      $caught=$false
+      try{Assert-NativeLinkTraffic $null $null $provider $provider 2 0 -ClassificationRed:$red -Phase $phase}catch{$caught=$true}
+      if($caught -ne ($errors -ne $expected)){throw 'Incorrect phase-bound 5xx acceptance'}
+    }
+  }
+}
+""".replace("__LINK_HELPER__", str(NATIVE / "link-conflicts.ps1")))
+
     def test_delete_has_uid_precondition_and_failure_does_not_retire_receipt(self):
         with tempfile.TemporaryDirectory(prefix="k6-native-delete-") as directory:
             script = """

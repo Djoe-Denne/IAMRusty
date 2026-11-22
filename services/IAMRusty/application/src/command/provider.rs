@@ -16,6 +16,7 @@ pub enum LinkProviderErrorCode {
     UserNotFound,
     ProviderAlreadyLinkedSameUser,
     ProviderAlreadyLinked,
+    ProviderEmailConflict,
     BusinessRuleViolation,
     ProviderNotConfigured,
     RepositoryError,
@@ -30,6 +31,7 @@ impl LinkProviderErrorCode {
             Self::UserNotFound => "user_not_found",
             Self::ProviderAlreadyLinkedSameUser => "provider_already_linked_same_user",
             Self::ProviderAlreadyLinked => "provider_already_linked",
+            Self::ProviderEmailConflict => "provider_email_conflict",
             Self::BusinessRuleViolation => "business_rule_violation",
             Self::ProviderNotConfigured => "provider_not_configured",
             Self::RepositoryError => "repository_error",
@@ -86,7 +88,12 @@ impl CommandErrorMapper for LinkProviderErrorMapper {
                         "Authentication failed",
                     ),
                     DomainError::BusinessRuleViolation(msg) => {
-                        if msg.contains("already associated with another user") {
+                        if msg == "Provider email is already associated with another user" {
+                            CommandError::business(
+                                LinkProviderErrorCode::ProviderEmailConflict.as_str(),
+                                msg.clone(),
+                            )
+                        } else if msg == "Provider account is already linked to another user" {
                             CommandError::business(
                                 LinkProviderErrorCode::ProviderAlreadyLinked.as_str(),
                                 msg.clone(),

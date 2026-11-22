@@ -479,7 +479,7 @@ fn provider_token_mapper_distinguishes_missing_link_unsupported_provider_and_aut
 }
 
 #[test]
-fn linking_distinguishes_same_user_conflict_other_user_conflict_and_configuration_failure() {
+fn linking_distinguishes_email_and_identity_conflicts_from_other_failures() {
     let cases = [
         (
             LinkProviderError::AuthError("provider secret".into()),
@@ -495,11 +495,19 @@ fn linking_distinguishes_same_user_conflict_other_user_conflict_and_configuratio
         ),
         (
             LinkProviderError::DomainError(DomainError::BusinessRuleViolation(
-                "already associated with another user".into(),
+                "Provider email is already associated with another user".into(),
+            )),
+            "business",
+            "provider_email_conflict",
+            "Provider email is already associated with another user",
+        ),
+        (
+            LinkProviderError::DomainError(DomainError::BusinessRuleViolation(
+                "Provider account is already linked to another user".into(),
             )),
             "business",
             "provider_already_linked",
-            "already associated with another user",
+            "Provider account is already linked to another user",
         ),
         (
             LinkProviderError::DomainError(DomainError::BusinessRuleViolation(

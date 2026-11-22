@@ -906,6 +906,14 @@ impl AuthError {
         provider: &str,
     ) -> Self {
         match command_error {
+            CommandError::Business { code, .. } if code == "provider_email_conflict" => {
+                Self::OAuth {
+                    operation: operation.to_string(),
+                    error_code: code.clone(),
+                    message: "Provider email address cannot be used".to_string(),
+                    status: StatusCode::CONFLICT,
+                }
+            }
             CommandError::Business { code, .. } if code == "provider_already_linked_same_user" => {
                 Self::OAuth {
                     operation: operation.to_string(),
