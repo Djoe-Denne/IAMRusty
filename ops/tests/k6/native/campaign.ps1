@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory = $true)][ValidateSet('prepare', 'run', 'clean')][string]$Action,
     [Parameter(Mandatory = $true)][string]$Directory,
     [string]$Config,
+    [ValidateSet('iam-native-parity', 'iam-link-conflicts')][string]$Profile = 'iam-native-parity',
     [switch]$TrustLabCaForThisRun,
     [switch]$ExclusiveDatabaseDdlForThisRun
 )
@@ -16,6 +17,7 @@ if (-not [K6Windows.Native]::NativeX64 -or [K6Windows.Native]::Elevated) { throw
 . (Join-Path $PSScriptRoot '../lib/windows.ps1')
 . (Join-Path $PSScriptRoot '../lib/windows-auth.ps1')
 . (Join-Path $PSScriptRoot 'helpers.ps1')
+. (Join-Path $PSScriptRoot 'link-conflicts.ps1')
 $script:sequence = 0; $script:forwards = @()
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
 if (-not [IO.Path]::IsPathRooted($Directory) -or $Directory.StartsWith('\\')) { throw 'ABSOLUTE_LOCAL_DIRECTORY_REQUIRED' }
@@ -34,7 +36,7 @@ if ($Action -eq 'prepare') {
     Set-Acl -LiteralPath $Directory -AclObject $acl
     $cfg = ConvertFrom-Json ([IO.File]::ReadAllText($Config))
     $run = [Guid]::NewGuid().ToString('N')
-    $script:state = [pscustomobject]@{version = 1; run_id = $run; name = 'k6-' + $run; config = $cfg; prepared = $false; attempted = $false; cleaned = $false
+    $script:state = [pscustomobject]@{version = 1; profile = $Profile; run_id = $run; name = 'k6-' + $run; config = $cfg; prepared = $false; attempted = $false; cleaned = $false
         resources = @(); target = $null; postgres = $null; database = 'k6_' + $run; database_pending = $false; database_oid = $null; database_dropped = $false; process_cleanup_proven = $true
         certificate_phase = 'good'; restoration = 'NOT_REQUIRED'; ca_owned = $false; ca_thumbprint = $null; edge_identity = $null
         source_hashes = @{}; input_hashes = @{}; artifact_hashes = @{}; verdict = 'NOT_RUN'; cleanup = 'NOT_RUN'}
@@ -43,6 +45,10 @@ if ($Action -eq 'prepare') {
     $script:state = Read-NativeJson 'state.json'; $cfg = $state.config
     if ($state.version -ne 1 -or $state.run_id -cnotmatch '^[a-f0-9]{32}$' -or $state.name -cne ('k6-' + $state.run_id) -or $state.database -cne ('k6_' + $state.run_id)) { throw 'CAMPAIGN_INVALID' }
 }
+$campaignProfile = if ($state.PSObject.Properties['profile']) { $state.profile } else { 'iam-native-parity' }
+if ($campaignProfile -cnotin @('iam-native-parity', 'iam-link-conflicts') -or
+    ($Action -cne 'prepare' -and $PSBoundParameters.ContainsKey('Profile') -and $Profile -cne $campaignProfile)) { throw 'CAMPAIGN_PROFILE_INVALID' }
+$linkConflicts = $campaignProfile -ceq 'iam-link-conflicts'
 $acl = Get-Acl -LiteralPath $Directory
 if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -cne $sid.Value) { throw 'FOREIGN_DIRECTORY_OWNER' }
 foreach ($rule in $acl.Access) {
@@ -54,6 +60,7 @@ $prefix = @('--kubeconfig', $cfg.kubeconfig, '--context', 'kind-aiforall-local-f
 $inputs = $cfg.operator_directory
 $mesh = Join-Path $inputs 'pki/mesh'
 $files = @('campaign.ps1', 'helpers.ps1', 'trust-ca.ps1', 'provision-chromium.ps1', 'chart/Chart.yaml', 'chart/templates/fixtures.yaml', '../config/tools.windows.lock.json', '../lib/campaign-target.js', '../lib/summary.js', '../lib/windows.ps1', '../lib/windows-auth.ps1', '../lib/windows-native.cs', '../scenarios/smoke/iam-health.js', '../scenarios/auth/oauth-browser.js', '../scenarios/auth/envoy-san.js', '../../support/oauth-idp-simulator.py')
+if ($linkConflicts) { $files += @('link-conflicts.ps1', '../scenarios/auth/provider-link-conflicts.js') }
 
 function Read-Input([string]$Relative) { [IO.File]::ReadAllText((Join-Path $inputs $Relative)) }
 function Rollout-Iam([string]$Phase) {
@@ -92,7 +99,7 @@ function Set-IamCertificate([string]$Phase) {
 }
 function Invoke-Scenario([string]$Case) {
     Assert-NativeForwards
-    $script = if ($Case -ceq 'iam-health') { 'smoke/iam-health.js' } elseif ($Case -ceq 'auth-oauth-browser') { 'auth/oauth-browser.js' } else { 'auth/envoy-san.js' }
+    $script = if ($Case -ceq 'iam-health') { 'smoke/iam-health.js' } elseif ($Case -ceq 'auth-oauth-browser') { 'auth/oauth-browser.js' } elseif ($Case -cin @('auth-link-conflict-setup', 'auth-link-conflict-email', 'auth-link-conflict-identity')) { 'auth/provider-link-conflicts.js' } else { 'auth/envoy-san.js' }
     $summary = Join-Path $Directory ($Case + '.json')
     if (Test-Path -LiteralPath ($summary + '.attempt')) { throw 'SCENARIO_ALREADY_ATTEMPTED' }
     Save-NativeText 'attempted' ($Case + '.json.attempt')
@@ -103,11 +110,19 @@ function Invoke-Scenario([string]$Case) {
     $envBlock.Add('K6_CAMPAIGN_FILE', (Join-Path $Directory 'target.json'))
     $envBlock['K6_SUMMARY_PATH'] = $summary
     if ($Case.StartsWith('auth-envoy-san-')) { $envBlock.Add('K6_AUTH_SAN_PHASE', $Case.Substring('auth-envoy-san-'.Length)) }
-    $child = [K6Windows.Child]::new((Pin-NativeTool 'k6'), @('run', '--quiet', '--no-usage-report', '--address', '127.0.0.1:0', '--config', (Join-Path $Directory 'k6-options.json'), (Join-Path $PSScriptRoot ('../scenarios/' + $script))), $envBlock, $Directory)
+    if ($Case.StartsWith('auth-link-conflict-')) {
+        if (-not $linkConflicts) { throw 'LINK_PROFILE_REQUIRED' }
+        $envBlock.Add('K6_LINK_PHASE', $Case.Substring('auth-link-conflict-'.Length))
+        $envBlock.Add('K6_LINK_RECEIPT', (Join-Path $Directory 'link-setup-private.json'))
+    }
+    $k6Args = @('run', '--quiet', '--no-usage-report', '--address', '127.0.0.1:0', '--config', (Join-Path $Directory 'k6-options.json'))
+    if ($linkConflicts) { $k6Args += '--log-output=none' }
+    $k6Args += (Join-Path $PSScriptRoot ('../scenarios/' + $script))
+    $child = [K6Windows.Child]::new((Pin-NativeTool 'k6'), $k6Args, $envBlock, $Directory)
     try {
         $r = $child.Finish(150000, 10000, $chrome)
         Save-NativeText $r.Stdout ($Case + '.stdout.log'); Save-NativeText $r.Stderr ($Case + '.stderr.log')
-        Save-NativeJson @{cleanup = $r.Cleanup; identities_complete = $r.IdentityComplete; active = $r.Active; total = $r.Total; exit = $r.ExitCode; reason = $r.Reason} ($Case + '.process.json')
+        Save-NativeJson @{cleanup = $r.Cleanup; identities_complete = $r.IdentityComplete; active = $r.Active; total = $r.Total; exit = $r.ExitCode; reason = $r.Reason; capture_complete = $r.CaptureComplete; overflow = $r.Overflow} ($Case + '.process.json')
         if (-not $r.Cleanup) { $state.process_cleanup_proven = $false; Save-NativeState }
         if (-not $r.Cleanup -or -not $r.CaptureComplete -or $r.Overflow -or $r.Reason -cne 'NONE') { throw 'SCENARIO_PROCESS_UNPROVEN' }
         $value = Read-NativeJson ($Case + '.json')
@@ -198,7 +213,7 @@ function Cleanup-NativeFixtures {
     Save-NativeState
     Save-NativeJson @{run_id = $state.run_id; status = $state.cleanup; failures = $failed; database_dropped = $state.database_dropped; owned_ca_absent = -not $state.ca_owned; restoration = $state.restoration} 'cleanup.json'
     if ($failed.Count) { throw 'CAMPAIGN_CLEANUP_FAILED_SEE_PRIVATE_RECEIPT' }
-    foreach ($name in @('certificate-material.json', 'certificate-patch.json', 'create.json', 'iam-overlay.toml', 'iam-env.json', 'oauth.toml', 'provider.json', 'render-values.json', 'fixtures.json', 'oauth.key', 'idp.key')) {
+    foreach ($name in @('certificate-material.json', 'certificate-patch.json', 'create.json', 'iam-overlay.toml', 'iam-env.json', 'oauth.toml', 'provider.json', 'render-values.json', 'fixtures.json', 'oauth.key', 'idp.key', 'link-setup-private.json')) {
         $p = Join-Path $Directory $name
         if (Test-Path -LiteralPath $p -PathType Leaf) { Remove-Item -LiteralPath $p }
     }
@@ -210,7 +225,9 @@ try {
         Write-Output 'Native k6 cleanup complete; lab kept running.'
         return
     }
-    foreach ($tool in @('k6', 'chromium', 'kubectl', 'docker', 'helm', 'openssl')) { $null = Pin-NativeTool $tool }
+    $tools = @('k6', 'kubectl', 'docker', 'helm', 'openssl')
+    if (-not $linkConflicts) { $tools += 'chromium' }
+    foreach ($tool in $tools) { $null = Pin-NativeTool $tool }
     if ((Invoke-NativeTool 'k6' @('version')) -cnotmatch '^k6(?:\.exe)? v2\.3\.0\b') { throw 'K6_VERSION_INVALID' }
     if (-not [IO.Path]::IsPathRooted($inputs) -or $inputs.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { throw 'EXPLICIT_EXTERNAL_OPERATOR_INPUTS_REQUIRED' }
     if ($Action -eq 'prepare') {
@@ -242,6 +259,7 @@ hmac_secret = "$hmac"
 pkce_supported = true
 redirect_uris = $redirects
 "@
+        if ($linkConflicts) { $overlay += "`n[queue]`nenabled = false`n" }
         Save-NativeText $overlay 'iam-overlay.toml'
         $oauth = @"
 [server]
@@ -279,7 +297,9 @@ email = {api = "user", json_path = "$.email"}
 email_verified = {api = "user", json_path = "$.email_verified"}
 "@
         Save-NativeText $oauth 'oauth.toml'
-        Save-NativeJson @{run_id = $state.run_id; client_id = $client; client_secret = $secret; edge_origin = 'https://127.0.0.1:18443'; tls_cert_file = '/app/certs/idp.crt'; tls_key_file = '/app/certs/idp.key'} 'provider.json'
+        $providerConfig = @{run_id = $state.run_id; client_id = $client; client_secret = $secret; edge_origin = 'https://127.0.0.1:18443'; tls_cert_file = '/app/certs/idp.crt'; tls_key_file = '/app/certs/idp.key'}
+        if ($linkConflicts) { $providerConfig.fixture_profile = 'link-conflicts' }
+        Save-NativeJson $providerConfig 'provider.json'
         foreach ($role in @('oauth', 'idp')) {
             $dns = $state.name + '-' + $role + '.aiforall-local-full.svc.cluster.local'
             $publicSan = if ($role -ceq 'idp') { ',DNS:localhost' } else { '' }
@@ -289,21 +309,24 @@ email_verified = {api = "user", json_path = "$.email_verified"}
             $null = Invoke-NativeTool 'openssl' @('verify', '-CAfile', (Join-Path $mesh 'ca.crt'), '-verify_hostname', $dns, (Join-Path $Directory ($role + '.crt')))
         }
         $material = @{}
-        foreach ($phase in @('good', 'bad')) {
+        $materialPhases = if ($linkConflicts) { @('good') } else { @('good', 'bad') }
+        foreach ($phase in $materialPhases) {
             $leaf = if ($phase -ceq 'good') { 'iam-service' } else { 'hive-service' }
             $material[$phase] = @{crt = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $mesh ($leaf + '.crt')))); key = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $mesh ($leaf + '.key'))))}
         }
         $material.restored = $material.good; Save-NativeJson $material 'certificate-material.json'
         $null = Invoke-NativeTool 'openssl' @('verify', '-CAfile', (Join-Path $mesh 'ca.crt'), '-verify_hostname', 'iam.aiforall-local-full.svc.cluster.local', (Join-Path $mesh 'iam-service.crt'))
-        $null = Invoke-NativeTool 'openssl' @('verify', '-CAfile', (Join-Path $mesh 'ca.crt'), (Join-Path $mesh 'hive-service.crt'))
-        $null = Invoke-NativeTool 'openssl' @('verify', '-CAfile', (Join-Path $mesh 'ca.crt'), '-verify_hostname', 'iam.aiforall-local-full.svc.cluster.local', (Join-Path $mesh 'hive-service.crt')) 60000 2
+        if (-not $linkConflicts) {
+            $null = Invoke-NativeTool 'openssl' @('verify', '-CAfile', (Join-Path $mesh 'ca.crt'), (Join-Path $mesh 'hive-service.crt'))
+            $null = Invoke-NativeTool 'openssl' @('verify', '-CAfile', (Join-Path $mesh 'ca.crt'), '-verify_hostname', 'iam.aiforall-local-full.svc.cluster.local', (Join-Path $mesh 'hive-service.crt')) 60000 2
+        }
         Save-NativeJson @{name = $state.name; runId = $state.run_id; images = $cfg.images; envoySource = Read-Input 'apps/envoy-mesh/envoy.yaml'; simulatorSource = [IO.File]::ReadAllText((Join-Path $PSScriptRoot '../../support/oauth-idp-simulator.py'))} 'render-values.json'
         $rendered = Invoke-NativeTool 'helm' @('template', 'k6-native', (Join-Path $PSScriptRoot 'chart'), '-f', (Join-Path $Directory 'render-values.json'))
         $start = $rendered.IndexOf('{'); if ($start -lt 0) { throw 'HELM_JSON_LIST_MISSING' }
         $render = ConvertFrom-Json $rendered.Substring($start)
         if ($render.kind -cne 'List' -or $render.items.Count -ne 10) { throw 'UNEXPECTED_FIXTURE_INVENTORY' }
         Save-NativeJson $render 'fixtures.json'
-        Save-NativeJson @{version = 1; profile = 'iam-native-parity'; run_id = $state.run_id; origin = 'https://127.0.0.1:18443'; provider = 'https://localhost:18445/oauth/authorize'; issuer = 'https://127.0.0.1:18443/iam'; audience = 'aiforall'} 'target.json'
+        Save-NativeJson @{version = 1; profile = $campaignProfile; run_id = $state.run_id; origin = 'https://127.0.0.1:18443'; provider = 'https://localhost:18445/oauth/authorize'; issuer = 'https://127.0.0.1:18443/iam'; audience = 'aiforall'} 'target.json'
         Save-NativeJson @{} 'k6-options.json'
         foreach ($f in @('iam-env.json', 'iam-overlay.toml', 'oauth.toml', 'provider.json', 'certificate-material.json', 'fixtures.json', 'target.json', 'k6-options.json', 'oauth.crt', 'oauth.key', 'idp.crt', 'idp.key')) {
             $state.artifact_hashes[$f] = (Get-FileHash -LiteralPath (Join-Path $Directory $f) -Algorithm SHA256).Hash
@@ -392,6 +415,9 @@ email_verified = {api = "user", json_path = "$.email_verified"}
         }
         $keys = @($jwks[0].keys | Where-Object { $_.kty -ceq 'RSA' })
         if ($keys.Count -ne 1 -or @($jwks[1].keys | Where-Object { $_.kid -ceq $keys[0].kid -and $_.n -ceq $keys[0].n -and $_.e -ceq $keys[0].e }).Count -ne 1) { throw 'NOMINAL_JWKS_INCOMPATIBLE' }
+        if ($linkConflicts) {
+            Invoke-NativeLinkConflicts
+        } else {
         Invoke-Scenario 'iam-health'
         Invoke-Scenario 'auth-envoy-san-good'
         $good = Snapshot 'good'
@@ -425,11 +451,13 @@ email_verified = {api = "user", json_path = "$.email_verified"}
             }
         }
         Save-NativeJson @{run_id = $state.run_id; san_delta = 1; restoration = 'PASS'; iam_delta = 7; ext_authz_delta = 4; provider_delta = 3; pkce_delta = 3; user_delta = 1; outbox_delta = 0; jwks_compatible = $true} 'evidence.json'
+        }
         $state.verdict = 'PASS'; Save-NativeState
     } catch {
         Save-NativeJson @{message = $_.Exception.Message; stack = $_.ScriptStackTrace} 'failure-private.json'
         $state.verdict = 'FAIL'; Save-NativeState; throw
     }
     finally { Cleanup-NativeFixtures }
-    Write-Output ('Three native k6 scenarios PASS; cleanup PASS; run ' + $state.run_id + '. Lab kept running.')
+    $label = if ($linkConflicts) { 'iam-link-conflicts' } else { 'Three native k6 scenarios' }
+    Write-Output ($label + ' PASS; cleanup PASS; run ' + $state.run_id + '. Lab kept running.')
 } finally { $lock.Dispose(); Remove-Item -LiteralPath $lockPath }

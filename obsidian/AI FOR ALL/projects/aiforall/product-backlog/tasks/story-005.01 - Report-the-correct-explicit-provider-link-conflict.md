@@ -4,7 +4,7 @@ title: Report the correct explicit provider-link conflict
 status: In Progress
 assignee: []
 created_date: '2026-11-22T15:53:41Z'
-updated_date: '2026-11-22T16:48:04Z'
+updated_date: '2026-11-22T17:16:48Z'
 labels:
   - iam
   - backend-alignment
@@ -47,4 +47,6 @@ Delivery also requires a dedicated deployed E2E for both explicit LINK conflicts
 Native Windows HTTP/Postgres red on 6912d989 with the two regression tests: 17 existing tests passed; both new tests passed account-state and transaction checks, then failed on the expected misclassifications (address returned provider_already_linked; identity returned HTTP 500). No ignored or filtered tests.
 
 Backend proof: all 52 Windows HTTP/Postgres integration tests and 23 focused mapper/HTTP tests passed. The independent correctness, test, and security reviews cleared the backend changes; the test follow-up verified both corrected legacy identity fixtures. Dedicated deployed E2E remains required and unverified. Keep this task In Progress until that gate and integration are complete.
+
+The opt-in deployed k6 profile and fixture are implemented. The first baseline campaign stopped before any k6 scenario or account setup because the shared lab IAM Service had no ready endpoint for its verified JWKS check. This is not a behavioral red or an E2E pass. The campaign removed all 18 owned resources and its dedicated database. Keep the PR draft and the task In Progress pending verified deployed E2E.
 <!-- SECTION:NOTES:END -->

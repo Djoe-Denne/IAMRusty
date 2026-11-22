@@ -4,6 +4,19 @@
 Set-StrictMode -Version Latest
 
 function Get-K6AuthExpectation([string] $Case) {
+    if ($Case -cin @('auth-link-conflict-setup', 'auth-link-conflict-email', 'auth-link-conflict-identity')) {
+        $setup = $Case -ceq 'auth-link-conflict-setup'
+        $checks = if ($setup) {
+            @('owner-login-start', 'owner-provider-redirect', 'owner-registration-required', 'owner-registration-completed',
+              'target-login-start', 'target-provider-redirect', 'target-registration-required', 'target-registration-completed', 'distinct-accounts')
+        } else {
+            @('link-start', 'provider-redirect', 'conflict-recognized-response', 'conflict-http-status', 'conflict-error-code', 'conflict-envelope')
+        }
+        return [pscustomobject]@{
+            Case = $Case; Phase = 'HTTP'; MaxDuration = '30s'; GracefulStop = '2s'
+            Requests = $(if ($setup) { 8 } else { 3 }); Checks = $checks; SanPhase = $null
+        }
+    }
     if ($Case -ceq 'auth-oauth-browser') {
         return [pscustomobject]@{
             Case = $Case; Phase = 'Chromium'; MaxDuration = '90s'; GracefulStop = '3s'; Requests = 0
@@ -56,7 +69,7 @@ function Assert-K6AuthInspect($Value, [string] $Case) {
     if ($expected.Phase -ceq 'HTTP') { $thresholds += 'http_reqs' }
     Assert-K6Fields $Value.thresholds $thresholds
     foreach ($name in $thresholds) {
-        $threshold = if ($name -ceq 'checks') { 'rate==1' } else { 'count==1' }
+        $threshold = if ($name -ceq 'checks') { 'rate==1' } elseif ($name -ceq 'http_reqs') { 'count==' + $expected.Requests } else { 'count==1' }
         if ($Value.thresholds.$name -isnot [array] -or @($Value.thresholds.$name).Count -ne 1 -or
             @($Value.thresholds.$name)[0] -isnot [string] -or @($Value.thresholds.$name)[0] -cne $threshold) { throw 'OPTIONS_INVALID' }
     }
