@@ -131,6 +131,9 @@ async fn test_oauth_provider_linked_to_different_user_returns_409() {
 
     let _github_token_first = DbFixtures::provider_token()
         .arthur_github(first_user.id())
+        // STORY-005.01/T-1/T-2: match the mocked identity; retain its conflicting
+        // email to pin the existing identity-first refusal.
+        .provider_user_id("12345")
         .commit(db.clone())
         .await
         .expect("Failed to create GitHub token for first user");

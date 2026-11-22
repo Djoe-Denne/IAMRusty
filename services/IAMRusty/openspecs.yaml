@@ -650,32 +650,42 @@ paths:
         "401":
           description: Authentication rejected by the provider / invalid authorization code
         "409":
-          description: Provider linking conflict
+          description: Explicit provider linking conflict. The response does not identify another account.
           content:
             application/json:
               schema:
                 type: object
+                required: [error]
                 properties:
-                  operation:
-                    type: string
-                    enum: [link]
                   error:
-                    type: string
-                  message:
-                    type: string
+                    type: object
+                    required: [error_code, message, status]
+                    properties:
+                      error_code: {type: string}
+                      message: {type: string}
+                      status: {type: integer, enum: [409]}
               examples:
                 already_linked_same_user:
                   summary: Provider already linked to same user
                   value:
-                    operation: "link"
-                    error: "provider_already_linked_to_same_user"
-                    message: "GitHub is already linked to your account"
+                    error:
+                      error_code: "provider_already_linked_same_user"
+                      message: "github is already linked to your account"
+                      status: 409
                 already_linked_different_user:
                   summary: Provider linked to different user
                   value:
-                    operation: "link"
-                    error: "provider_already_linked"
-                    message: "This GitHub account is already linked to another user"
+                    error:
+                      error_code: "provider_already_linked"
+                      message: "This github account is already linked to another user"
+                      status: 409
+                email_unavailable:
+                  summary: The provider email address cannot be used
+                  value:
+                    error:
+                      error_code: "provider_email_conflict"
+                      message: "Provider email address cannot be used"
+                      status: 409
         "422":
           description: Unsupported provider
           content:

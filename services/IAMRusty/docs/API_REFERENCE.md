@@ -526,10 +526,17 @@ Returns OAuth2 access token for authenticated user and provider. **Internal use 
 | `validation_failed` | Request validation failed | 400 |
 
 #### Provider Linking Errors
+
+The explicit-link callback returns HTTP 409 with `error.error_code`,
+`error.message`, and `error.status` in the JSON body. A refused link does not
+change either account's addresses or sign-in methods. Conflict messages do not
+identify the other account.
+
 | Error Code | Description | HTTP Status |
 |------------|-------------|-------------|
-| `provider_already_linked_to_same_user` | Provider already linked to user | 409 |
-| `provider_already_linked` | Provider linked to different user | 409 |
+| `provider_already_linked_same_user` | Provider identity already linked to your account | 409 |
+| `provider_already_linked` | Provider identity already linked to another account | 409 |
+| `provider_email_conflict` | Provider email address cannot be used | 409 |
 | `user_not_found` | User account not found | 404 |
 | `link_failed` | Provider linking failed | 500 |
 
@@ -818,4 +825,4 @@ func (c *Client) GetUser(accessToken string) (*User, error) {
 }
 ```
 
-This API reference provides comprehensive documentation for integrating with the IAM service, covering all endpoints, data formats, error handling, and practical examples for common use cases. 
+This API reference provides comprehensive documentation for integrating with the IAM service, covering all endpoints, data formats, error handling, and practical examples for common use cases.
