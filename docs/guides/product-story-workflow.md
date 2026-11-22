@@ -67,6 +67,8 @@ In OpenCode, start or resume in the current conversation with
 5. **Hand off if asked.** Planning and implementation require explicit scope
    from the user. The PM reads the approved story, comparison and authorized
    scope, then returns a plan. Already satisfied behavior does not need work.
+   See the [product delivery workflow](product-delivery-workflow.md) for
+   delivery-task refinement, architecture, tests, and independent review.
 
 `Accepted intent` is the initial board column. Move to `Ready` only after
 delivery is requested, `In Progress` for work actually started, and `Done`

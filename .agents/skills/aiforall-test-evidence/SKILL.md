@@ -28,7 +28,7 @@ suppression, nouveau test ou contournement de hook.
 - Enregistrer **à la création**, append-only avec flush, vrais IDs retournés ou observés par Engine, provenance explicite. Si un témoin d'événements est nécessaire, curseur basé sur l'heure **du daemon**, pas l'horloge Windows/WSL ; disponibilité vérifiée avant création et drain vérifié en fin de phase.
 - Distinguer témoin indépendant et ID retourné par la bibliothèque : ne pas inventer ce dernier. Création opaque = UNKNOWN+ask. Prédécesseur remplacé : conserver son ID et état réel, pas un faux « absent ».
 - Stop gracieux par ID des seules ressources possédées sans bail actif ; caches/volumes/objets préexistants non adoptés, pas prune/forçage. Comparer avant/après et rapporter les ressources ask/no conservées.
-- Processus natif de test ≠ worker Ensemble. Après dispatch background, attendre sa notification sans polling. Rejet au préflight = zéro test exécuté, journaliser cause et tentative ; ne pas effacer le dossier vide pour masquer la chronologie.
+- A native test process is not a subagent. After launching it in the background, wait for the completion notification without polling. A rejected preflight means zero tests ran; record the cause and preserve the attempt's evidence directory.
 
 ## 4. Captures discriminantes
 

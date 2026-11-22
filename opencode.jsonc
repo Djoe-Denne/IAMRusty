@@ -1,27 +1,17 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  // Config projet OpenCode (AIForAll) — portage des définitions Cursor
-  // (.cursor/agents/*.md, .cursor/mcp.json) dans les formats OpenCode V2.
-  //
-  // rust-code-mcp + Serena : intelligence Rust / édition symbolique.
-  // GrepAI est désactivé uniquement ici. Context Mode reste le MCP global V2,
-  // pas un plugin TS à réinstaller ; QMD/Obsidian restent les connaissances.
-  //
-  // Politique OpenCode dédiée, évolution utilisateur 2026-10-03 :
-  //   implementer : openai/gpt-6.1-sol#medium ; hard-implementer : #high
-  //   expert-engineer : openai/gpt-6.1-sol#max (read-only)
-  //   emergency-engineer (leaf) / emergency-thinker (takeover) : openai/gpt-6-astra#max
-   //   Ensemble (2026-10-10) : build par défaut ; modèle du lead sélectionné en session.
-  //   Autres modèles inchangés : openai/gpt-6.1-sol#xhigh
-  //        (architecte, security-reviewer, adr-*) ; openai/gpt-6-astra#high
-  //        (correctness-reviewer, rust-perf-reviewer)
-  //   Tier 3 lecture/mécanique    : zai-coding-plan/glm-5.3-flash#max
-  //        (secours : opencode-go/glm-5.3-flash#max)
-  //        (Explore, mechanical-worker, test-reviewer)
+  // AIForAll uses native OpenCode agents. The plugin policy is scoped to
+  // this repository and does not change tool permissions or global settings.
   "default_agent": "build",
   "skills": [
     ".agents/skills",
     ".cursor/skills"
+  ],
+  "policies": [
+    { "action": "plugin.use", "resource": "*/local-plugins/ensemble/*", "effect": "deny" },
+    { "action": "plugin.use", "resource": "*\\local-plugins\\ensemble\\*", "effect": "deny" },
+    { "action": "plugin.use", "resource": "@hueyexe/opencode-ensemble-local", "effect": "deny" },
+    { "action": "plugin.use", "resource": "opencode-ensemble", "effect": "deny" }
   ],
   "mcp": {
     // Serena (proxy 1MCP) met ~90 s à démarrer.

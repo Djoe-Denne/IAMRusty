@@ -54,35 +54,18 @@ Format (sections stables, append-only par section) :
 - Ne jamais reprendre une session au-delà de son bail : session ≠ propriété
   éternelle ; le bail reste celui défini par `local-runtime-lifecycle`.
 
-## Compléments OpenCode / Ensemble (2026-10-10)
+## Native OpenCode
 
-Ces compléments priment sur les obligations d'écriture et de reprise ci-dessus
-pour Ensemble ; les autres clients conservent leurs conventions.
+For OpenCode, the primary session alone updates the shared ledger in the
+canonical checkout. Give each worker the absolute path, Git base, assigned
+paths, verification boundaries, and exact contract. A gitignored ledger
+does not follow a worktree. Workers read it and report a `HANDOFF_MARKDOWN`
+delta before returning. Keep review briefings separate.
 
-- Le lead crée le ledger dans la racine canonique et transmet son **chemin
-  absolu** : un fichier gitignored ne suit pas automatiquement les worktrees.
-  Le lead seul écrit le ledger commun ; chaque membre lit avant exploration et
-  rend un delta `HANDOFF_MARKDOWN` avant de terminer, même s'il peut écrire.
-  Les briefings conservent leur convention existante.
-- Ajouter base Git/HEAD, fichiers concernés, faits observés vs hypothèses,
-  registre des tentatives, et membre/profil/sessionID/source/mode de continuité.
-  Réexaminer seulement les preuves affectées par une dérive ; une hypothèse
-  n'est jamais une décision ni une preuve. Les reviewers vérifient indépendamment.
-- Réactiver le même membre pour la suite. Handoff pour le changement de profil
-  du même propriétaire ; fork pour un lot indépendant. Respecter les sources
-  de la même équipe, les frontières exclusives des checkpoints et les limites
-  de compact_fork décrites dans le skill. Une session arrêtée/archivée n'est pas
-  une garantie de réactivation : signaler le cas et choisir explicitement la suite.
-- Après fork, envoyer les nouvelles décisions seulement aux membres affectés.
-  Aucun partage live automatique du contexte, ni mémoire Context Mode implicite
-  entre sessions. Pour une autre équipe, le ledger fournit le relais durable.
-- Les écritures couplées restent chez un propriétaire ou sont séquencées par
-  dépendances ; le lead contrôle le diff intégré et la validation réelle.
-
-## Reprises natives et résultats retardés (retour m6 du 2026-10-18)
-- Un message envoyé à un membre déjà terminé peut être seulement **stocké** : ce n'est ni une admission ni une exécution. Pour une vraie reprise, utiliser le mécanisme de réveil explicite du harness ; si un doute utilisateur existe, vérifier une fois statut natif/admission et un fait récent (édition/log/commande), sans polling d'attente.
-- Un candidat retardé peut décrire un STOP déjà traité ; comparer session/message/candidat et ledger avant de redonner un GO. Ne pas créer un doublon ni déclarer le dernier bail exécuté sur cette seule notification.
-- Handoff natif confirmé ≠ audit commencé : fournir ensuite un GO borné si le membre attend ; conserver profil, modèle, rôle et périmètre dans le ledger. Pas de modèle implicite ni promotion en lead.
+Record facts, assumptions, attempts, and each native `sessionID`. Resume the
+same worker on the same assignment and give independent review a fresh
+context. A message sent to a worker is not proof that work resumed; rely on
+the native completion notification and verify the resulting diff or evidence.
 
 ## Rôle du handoff vs autres vecteurs
 
