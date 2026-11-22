@@ -4,8 +4,13 @@ title: Resolve my community responsibilities before deleting my account
 status: Accepted intent
 assignee: []
 created_date: '2026-11-22T12:29:25Z'
+updated_date: '2026-11-22T13:58:36Z'
 labels: []
 dependencies: []
+references:
+  - >-
+    obsidian/AI FOR ALL/projects/aiforall/product-backlog/tasks/story-019 -
+    Account-suspension-deletion-and-data-lifecycle.md
 documentation:
   - docs/guides/product-story-workflow.md
 ordinal: 15000

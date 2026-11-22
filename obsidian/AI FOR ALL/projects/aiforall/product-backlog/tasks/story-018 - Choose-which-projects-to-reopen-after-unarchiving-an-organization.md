@@ -4,8 +4,13 @@ title: Choose which projects to reopen after unarchiving an organization
 status: Accepted intent
 assignee: []
 created_date: '2026-11-22T12:55:27Z'
+updated_date: '2026-11-22T13:58:36Z'
 labels: []
 dependencies: []
+references:
+  - >-
+    obsidian/AI FOR ALL/projects/aiforall/product-backlog/tasks/story-019 -
+    Account-suspension-deletion-and-data-lifecycle.md
 documentation:
   - docs/guides/product-story-workflow.md
 ordinal: 18000
