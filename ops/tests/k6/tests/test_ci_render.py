@@ -146,7 +146,7 @@ class CiRenderTests(unittest.TestCase):
         self.assertIn("tls_certificates", tls["common_tls_context"])
         manager = chain["filters"][0]["typed_config"]
         routes = manager["route_config"]["virtual_hosts"][0]["routes"]
-        self.assertEqual(len(routes), 4)
+        self.assertEqual(len(routes), 5)
         self.assertEqual(routes[0]["match"]["path"], "/iam/health")
         self.assertEqual(routes[0]["match"]["headers"][0]["string_match"], {"exact": "GET"})
         regex = routes[1]["match"]["safe_regex"]["regex"]
@@ -155,6 +155,9 @@ class CiRenderTests(unittest.TestCase):
             self.assertIsNotNone(re.fullmatch(regex, "/iam/api/auth/gitlab/" + suffix))
         for suffix in ("link", "relink", "relink-start", "relink-start-alias", "login/extra"):
             self.assertIsNone(re.fullmatch(regex, "/iam/api/auth/gitlab/" + suffix))
+        self.assertEqual(routes[-2]["match"], {"path": "/iam/api/auth/github/callback",
+            "headers": [{"name": ":method", "string_match": {"exact": "GET"}}]})
+        self.assertEqual(routes[-2]["typed_per_filter_config"], routes[0]["typed_per_filter_config"])
         self.assertNotIn("typed_per_filter_config", routes[-1])
         filters = manager["http_filters"]
         self.assertEqual([f["name"] for f in filters], ["envoy.filters.http.lua",
