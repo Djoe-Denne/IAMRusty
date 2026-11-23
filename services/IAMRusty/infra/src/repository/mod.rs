@@ -15,6 +15,7 @@ pub mod email_verification_write;
 pub mod identity_repository;
 pub mod password_reset_token_read;
 pub mod password_reset_token_write;
+pub mod profile_email_verification;
 mod provider_link_map;
 pub mod refresh_token_read;
 pub mod refresh_token_write;

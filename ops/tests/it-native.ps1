@@ -36,16 +36,18 @@ function Resolve-ItTestBinary {
     if ($Suites.Count -eq 1 -and $Suites[0] -ceq 'lazaret' -and $Binary -ceq 'redis_tls') {
         return $Binary
     }
-    if ($Suites.Count -eq 1 -and $Suites[0] -ceq 'telegraph' -and $Binary -ceq 'outbox_runtime_tests') {
+    if ($Suites.Count -eq 1 -and $Suites[0] -ceq 'telegraph' -and
+        $Binary -cin @('outbox_runtime_tests', 'profile_email_verification_event_test')) {
         return $Binary
     }
     if ($Suites.Count -eq 1 -and $Suites[0] -ceq 'iam' -and
         $Binary -cin @(
             'oauth_browser_transactions', 'auth_transactions_postgres', 'oauth_cleanup_lifecycle',
             'auth_oauth_start', 'auth_oauth_callback', 'auth_oauth_provider_failures',
-            'auth_username_flow_part2',
+            'auth_username_flow_part2', 'auth_password_reset',
             'relink_provider', 'verified_idp_https', 'organization_account_guard',
-            'app_cleanup_supervision', 'request_trace_redaction', 'signing_epoch_writer'
+            'app_cleanup_supervision', 'request_trace_redaction', 'signing_epoch_writer',
+            'profile_email_verification'
         )) {
         return $Binary
     }

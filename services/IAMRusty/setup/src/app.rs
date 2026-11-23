@@ -20,7 +20,7 @@ use iam_infra::{
         HttpIdpConnector, PasswordResetServiceAdapter, PasswordService, PasswordServiceAdapter,
     },
     db::DbConnectionPool,
-    event_adapter::IAMErrorMapper,
+    event_adapter::{IAMErrorMapper, IamOutboxPublisher},
     repository::{
         SeaOrmAuthenticationSessionWriter, SeaOrmIdentityRepository,
         SeaOrmOAuthTransactionWriteRepository, SeaOrmSigningKeyRegistry,
@@ -35,6 +35,7 @@ use iam_infra::{
         email_verification_write::SeaOrmEmailVerificationWriteRepository,
         password_reset_token_read::PasswordResetTokenReadRepositoryImpl,
         password_reset_token_write::PasswordResetTokenWriteRepositoryImpl,
+        profile_email_verification::PostgresProfileEmailVerification,
         refresh_token_read::RefreshTokenReadRepositoryImpl,
         refresh_token_write::RefreshTokenWriteRepositoryImpl,
         signup_transaction::SignupTransactionImpl,
@@ -82,6 +83,7 @@ use iam_application::{
         login::{LoginUseCase, LoginUseCaseImpl},
         oauth::{OAuthUseCase, OAuthUseCaseImpl},
         password_reset::{PasswordResetUseCase, PasswordResetUseCaseImpl},
+        profile_email_verification::ProfileEmailVerification,
         provider::{ProviderUseCase, ProviderUseCaseImpl},
         registration::{RegistrationUseCase, RegistrationUseCaseImpl},
         token::{TokenUseCase, TokenUseCaseImpl},
@@ -435,10 +437,9 @@ where
         iam_domain::port::repository::SigningKeyRegistry::insert(signing_registry.as_ref(), key)
             .await?;
     }
-    let dispatcher_publisher: Arc<dyn EventPublisher<DomainError>> = event_publisher;
     let outbox_dispatcher = Arc::new(OutboxDispatcher::new(
         db_pool.clone(),
-        dispatcher_publisher,
+        Arc::new(IamOutboxPublisher::new(event_publisher)),
         OutboxConfig::default(),
     ));
     info!(
@@ -569,10 +570,18 @@ where
         use_case: usecases.oauth.clone(),
         browser: browser_policy,
     });
+    let profile_email_verification = Arc::new(
+        ProfileEmailVerification::new(
+            Arc::new(PostgresProfileEmailVerification::new(db_write.clone())),
+            config.profile_email_verification.landing_url.as_deref(),
+        )
+        .map_err(anyhow::Error::msg)?,
+    );
     let http_security = Arc::new(IamHttpSecurityContext::new(
         platform_issuer,
         rate_limiter,
         oauth,
+        profile_email_verification,
     ));
     // Capture the complete primary publisher snapshot before moving its use cases
     // into the registry. The SDK dates acquisition before this local read; neither

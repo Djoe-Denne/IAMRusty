@@ -59,7 +59,7 @@ notification_created = ["sentinel-sync-events"]
 
 # Telegraph-specific queue → event routing
 [queues.telegraph-events]
-events = ["user_signed_up", "password_reset_requested", "user_email_verified"]
+events = ["user_signed_up", "password_reset_requested", "user_email_verified", "profile_email_verification_requested"]
 
 [queues.telegraph-events.user_signed_up]
 modes = ["email"]
@@ -68,6 +68,10 @@ template = "user_signed_up"
 [queues.telegraph-events.password_reset_requested]
 modes = ["email"]
 template = "password_reset_requested"
+
+[queues.telegraph-events.profile_email_verification_requested]
+modes = ["email"]
+template = "profile_email_verification_requested"
 
 [queues.telegraph-events.user_email_verified]
 modes = ["notification"]

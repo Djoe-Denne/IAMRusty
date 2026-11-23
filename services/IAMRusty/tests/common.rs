@@ -251,7 +251,7 @@ async fn prepare_primary_fixture() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn fixture_config(fixture: &TestFixture) -> anyhow::Result<AppConfig> {
+pub(crate) fn fixture_config(fixture: &TestFixture) -> anyhow::Result<AppConfig> {
     fixture_config_with_security(fixture, None)
 }
 
@@ -311,7 +311,9 @@ fn fixture_config_with_security(
     Ok(config)
 }
 
-fn mock_publisher(mock: Arc<MockEventPublisher>) -> Arc<MultiQueueEventPublisher<DomainError>> {
+pub(crate) fn mock_publisher(
+    mock: Arc<MockEventPublisher>,
+) -> Arc<MultiQueueEventPublisher<DomainError>> {
     Arc::new(MultiQueueEventPublisher::new(
         vec![GenericEventPublisherAdapter::new(
             Arc::new(rustycog::events::ConcreteEventPublisher::NoOp(mock)),
@@ -764,6 +766,27 @@ pub async fn setup_test_server() -> Result<(TestFixture, String, Client), Box<dy
     prepare_primary_fixture().await?;
     let fixture = TestFixture::new(Arc::new(IAMRustyTestDescriptor)).await?;
     let config = fixture_config(&fixture)?;
+    let (base, client) = Box::pin(start_owned_listener(
+        &fixture,
+        config,
+        mock_publisher(Arc::new(MockEventPublisher::new())),
+        None,
+    ))
+    .await?;
+    Ok((fixture, base, client))
+}
+
+/// Start an isolated IAM test listener with profile link issuance disabled.
+///
+/// # Errors
+///
+/// Returns an error if the test fixture or HTTP server fails to start.
+pub async fn setup_test_server_without_profile_landing(
+) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
+    prepare_primary_fixture().await?;
+    let fixture = TestFixture::new(Arc::new(IAMRustyTestDescriptor)).await?;
+    let mut config = fixture_config(&fixture)?;
+    config.profile_email_verification.landing_url = None;
     let (base, client) = Box::pin(start_owned_listener(
         &fixture,
         config,

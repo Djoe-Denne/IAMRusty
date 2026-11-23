@@ -60,12 +60,15 @@ notification_created = ["test-telegraph-outbound"]
 
 # Telegraph-specific queue configurations
 [queues.telegraph-events]
-events = ["user_signed_up", "password_reset_requested", "user_email_verified"]
+events = ["user_signed_up", "password_reset_requested", "user_email_verified", "profile_email_verification_requested"]
 
 # Event-specific configuration for user_signed_up event
 [queues.telegraph-events.user_signed_up]
 modes = ["email"]
 [queues.telegraph-events.password_reset_requested]
+modes = ["email"]
+
+[queues.telegraph-events.profile_email_verification_requested]
 modes = ["email"]
 
 # Event-specific configuration for user_email_verified event - creates database notification

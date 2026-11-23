@@ -2,6 +2,7 @@
 
 use crate::event::json_utils::json_to_string_map;
 use async_trait::async_trait;
+use iam_events::PROFILE_EMAIL_VERIFICATION_REQUESTED;
 use rustycog::events::DomainEvent;
 use serde_json;
 use std::collections::HashMap;
@@ -40,6 +41,11 @@ impl EventExtractor for JsonEventExtractor {
             DomainError::EventProcessingError(format!("Failed to parse event to JSON: {e}"))
         })?;
 
+        if event.event_type() == PROFILE_EMAIL_VERIFICATION_REQUESTED {
+            // The transport has already unwrapped the flat v1 outbox payload.
+            // Do not log it: the verification URL carries the capability.
+            return json_to_string_map(&event_json);
+        }
         debug!("Event JSON: {}", event_json);
         let data = event_json
             .get("data")

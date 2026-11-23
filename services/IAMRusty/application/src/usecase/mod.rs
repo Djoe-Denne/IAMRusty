@@ -4,6 +4,7 @@ pub mod login;
 pub mod oauth;
 pub mod organization_signer;
 pub mod password_reset;
+pub mod profile_email_verification;
 pub mod provider;
 pub mod registration;
 pub mod token;

@@ -98,3 +98,4 @@ timeout_seconds = 30
 user_signed_up = ["telegraph-events"]
 user_email_verified = ["telegraph-events"]
 password_reset_requested = ["telegraph-events"]
+profile_email_verification_requested = ["telegraph-events"]
