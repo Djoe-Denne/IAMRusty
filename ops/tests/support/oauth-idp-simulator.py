@@ -5,6 +5,8 @@ No request/URL/header logging. Observations contain counters and run ID only.
 Optional private input fixture_profile="link-conflicts" requires the test driver
 to select fixture_account=a|b|c on /oauth/authorize. A/C share the run's A email;
 all IDs and addresses remain synthetic, closed and bound to the issued code.
+The mounted hosted-link-email profile also accepts closed owner and LINK
+choices on their respective callbacks; selector-free GitLab is unchanged.
 """
 import base64
 import hashlib
@@ -21,6 +23,12 @@ import time
 from urllib.parse import parse_qs, unquote_plus, urlencode, urlsplit
 
 
+HOSTED_LINK_EMAIL = "hosted-link-email"
+HOSTED_EDGE = "https://127.0.0.1:18443"
+LINK_CHOICES = {"link-attested": True, "link-false": False, "link-omitted": None}
+OWNER_CHOICES = frozenset("owner-" + choice.removeprefix("link-") for choice in LINK_CHOICES)
+
+
 class Rejected(ValueError):
     def __init__(self):
         super().__init__("synthetic provider request rejected")
@@ -33,17 +41,22 @@ class Provider:
                 or not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", client_id)
                 or not isinstance(client_secret, str) or not 16 <= len(client_secret) <= 256
                 or instance not in {"gitlab", "simulated"}
-                or fixture_profile not in (None, "link-conflicts")):
+                or fixture_profile not in (None, "link-conflicts", HOSTED_LINK_EMAIL)):
             raise Rejected()
         self.client_id, self.secret, self.run_id = client_id, client_secret, run_id
         scheme = "https" if instance == "simulated" else "http"
         origin = edge_origin if edge_origin is not None else scheme + "://127.0.0.1:18080"
         allowed = {"https://127.0.0.1:18080"} if instance == "simulated" else {
-            "http://127.0.0.1:18080", "https://127.0.0.1:18443"}
-        if origin not in allowed:
+            "http://127.0.0.1:18080", HOSTED_EDGE}
+        if (origin not in allowed or (fixture_profile == HOSTED_LINK_EMAIL
+                and (instance != "gitlab" or origin != HOSTED_EDGE or not re.fullmatch(r"[a-f0-9]{32}", run_id)))):
             raise Rejected()
         self.redirects = frozenset(origin + "/iam/api/auth/" + instance + "/" + path
-                                  for path in ("callback", "relink-callback"))
+                                   for path in ("callback", "relink-callback"))
+        if fixture_profile == HOSTED_LINK_EMAIL:
+            self.link_redirect = origin + "/iam/api/auth/github/callback"
+            self.owner_redirect = origin + "/iam/api/auth/gitlab/callback"
+            self.redirects = self.redirects | {self.link_redirect}
         self.user_id = int.from_bytes(hashlib.sha256(run_id.encode()).digest()[:8], "big") & ((1 << 63) - 1)
         self.fixture_profile = fixture_profile
         self.clock, self.lock = clock, threading.Lock()
@@ -62,6 +75,13 @@ class Provider:
         if ((self.fixture_profile is None and "fixture_account" in values)
                 or (self.fixture_profile == "link-conflicts" and account not in ("a", "b", "c"))):
             raise Rejected()
+        redirect = values.get("redirect_uri")
+        if self.fixture_profile == HOSTED_LINK_EMAIL:
+            if redirect == self.link_redirect:
+                if account not in LINK_CHOICES:
+                    raise Rejected()
+            elif "fixture_account" in values and (redirect != self.owner_redirect or account not in OWNER_CHOICES):
+                raise Rejected()
         if (values.get("response_type") != "code" or values.get("client_id") != self.client_id
                 or values.get("redirect_uri") not in self.redirects
                 or values.get("code_challenge_method") != "S256"
@@ -113,13 +133,23 @@ class Provider:
                 return dict(id=user_id, username=identity, name="OAuth proof account",
                             email=self.run_id + "-" + email_account + "@example.invalid",
                             email_verified=True, confirmed_at="2026-10-28T00:00:00Z")
+            if self.fixture_profile == HOSTED_LINK_EMAIL and account is not None:
+                identity = self.run_id + "-" + account
+                result = dict(id=identity, username=identity, email=identity + "@example.invalid")
+                verified = LINK_CHOICES.get(account, True)
+                if verified is not None:
+                    result["email_verified"] = verified
+                return result
             return dict(id=self.user_id, username=self.run_id, name="OAuth proof account",
                         email=self.run_id + "@example.invalid", email_verified=True,
                         confirmed_at="2026-10-28T00:00:00Z")
 
     def observations(self):
         with self.lock:
-            return dict(run_id=self.run_id, **self.counts)
+            value = dict(run_id=self.run_id, **self.counts)
+            if self.fixture_profile == HOSTED_LINK_EMAIL:
+                value["fixture_profile"] = HOSTED_LINK_EMAIL
+            return value
 
 
 def fields(raw):

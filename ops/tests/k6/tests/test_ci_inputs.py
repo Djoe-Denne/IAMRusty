@@ -48,11 +48,11 @@ class InputsTests(unittest.TestCase):
         self.assertEqual(iam["jwt"]["oauth_state_secret"], values["oauth_state_secret"])
         self.assertEqual(iam["jwt"]["secret"]["key_id"], RUN)
         connector = iam["idp"]["connectors"][0]
-        self.assertEqual(len(iam["idp"]["connectors"]), 1)
+        self.assertEqual([row["id"] for row in iam["idp"]["connectors"]], ["gitlab", "github"])
         self.assertTrue(connector["pkce_supported"])
         self.assertEqual(connector["hmac_secret"], values["hmac_secret"])
         profile = oauth["providers"][0]
-        self.assertEqual(len(oauth["providers"]), 1)
+        self.assertEqual([row["id"] for row in oauth["providers"]], ["gitlab", "github"])
         self.assertEqual(profile["hmac_secret"], connector["hmac_secret"])
         self.assertEqual(profile["redirect_uris"], connector["redirect_uris"])
         self.assertEqual(profile["client_secret"], provider["client_secret"])

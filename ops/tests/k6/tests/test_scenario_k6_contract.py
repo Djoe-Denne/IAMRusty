@@ -197,10 +197,9 @@ class ShippedScenarioTests(unittest.TestCase):
                                            "-e", f"K6_AUTH_SAN_PHASE={phase}", "-e", f"K6_CASE_ID={case['id']}",
                                            str(HERE / "scenarios" / case["script"])])
 
-    def test_shipped_health_oauth_and_san_are_bounded_and_keep_named_check_tags(self):
+    def test_shipped_cases_are_bounded_and_keep_named_check_tags(self):
         catalogue = json.loads((HERE / "scenarios/catalog.json").read_text(encoding="utf-8"))
-        baseline = {"smoke/iam-health.js", "auth/oauth-browser.js", "auth/envoy-san.js"}
-        for case in (item for item in catalogue["cases"] if item["script"] in baseline):
+        for case in catalogue["cases"]:
             with self.subTest(case=case["id"]):
                 result = self.inspect(case, self.target)
                 self.assertEqual(result.returncode, 0, result.stderr)
@@ -208,7 +207,7 @@ class ShippedScenarioTests(unittest.TestCase):
                 self.assertEqual(list(options["scenarios"]), [case["id"]])
                 self.assertEqual(options["scenarios"][case["id"]]["vus"], 1)
                 self.assertEqual(options["scenarios"][case["id"]]["iterations"], 1)
-        for relative in sorted(baseline):
+        for relative in sorted({case["script"] for case in catalogue["cases"]}):
             source = (HERE / "scenarios" / relative).read_text(encoding="utf-8")
             tags = re.search(r"systemTags:\s*(\[[^\]]+\])", source).group(1)
             with self.subTest(script=relative), tempfile.TemporaryDirectory() as scratch:

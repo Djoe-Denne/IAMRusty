@@ -27,6 +27,14 @@ base_url = "https://$name-oauth.aiforall-local-full.svc.cluster.local:8443/oauth
 hmac_secret = "$hmac_secret"
 pkce_supported = true
 redirect_uris = ["https://127.0.0.1:18443/iam/api/auth/gitlab/callback", "https://127.0.0.1:18443/iam/api/auth/gitlab/relink-callback"]
+# The registry requires both URIs. Only the new LINK case's callback is exposed
+# by the hosted edge and accepted by the synthetic IdP.
+[[idp.connectors]]
+id = "github"
+base_url = "https://$name-oauth.aiforall-local-full.svc.cluster.local:8443/oauth-connect/github"
+hmac_secret = "$hmac_secret"
+pkce_supported = true
+redirect_uris = ["https://127.0.0.1:18443/iam/api/auth/github/callback", "https://127.0.0.1:18443/iam/api/auth/github/relink-callback"]
 [jwt]
 expiration_seconds = 900
 refresh_token_expiration_seconds = 2592000
