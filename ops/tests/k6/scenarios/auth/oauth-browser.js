@@ -1,7 +1,6 @@
 import { browser } from 'k6/browser';
-import { check } from 'k6';
 import encoding from 'k6/encoding';
-import { started, completed, project } from '../../lib/summary.js';
+import { scenarioContract } from '../../lib/case-contract.js';
 import { campaignTarget } from '../../lib/campaign-target.js';
 
 // k6 2.3.0 only: page.on(request/response), allHeaders(), context.cookies(),
@@ -21,6 +20,7 @@ import { campaignTarget } from '../../lib/campaign-target.js';
 // negative-headers.
 // No raw body, URL, header, token, nonce or exception is exported by project().
 const target = campaignTarget();
+const contract = scenarioContract('auth-oauth-browser');
 const ORIGIN = target.origin;
 const PROVIDER = target.provider;
 const LOGIN = '/iam/api/auth/gitlab/login';
@@ -42,12 +42,12 @@ export const options = {
       maxDuration: '90s', gracefulStop: '3s', options: { browser: { type: 'chromium' } },
     },
   },
-  thresholds: { checks: ['rate==1'], case_started: ['count==1'], case_completed: ['count==1'] },
+  thresholds: contract.thresholds,
   systemTags: ['name', 'check', 'scenario', 'group'],
 };
 
 function expect(name, condition) {
-  if (!check(Boolean(condition), { [name]: (value) => value })) throw new Error('AUTH_OAUTH_FAILED');
+  if (!contract.check(Boolean(condition), { [name]: (value) => value })) throw new Error('AUTH_OAUTH_FAILED');
 }
 
 function exactPath(url, path) {
@@ -89,7 +89,7 @@ function authorization(url, redirect) {
 }
 
 export default async function () {
-  started.add(1);
+  contract.start();
   let context, page;
   try {
     if (__ENV.K6_ORIGIN !== ORIGIN || !/^[a-f0-9]{32}$/.test(__ENV.K6_RUN_ID)
@@ -241,7 +241,7 @@ export default async function () {
       try { if (page) await page.close(); } finally { if (context) await context.close(); }
     } catch { throw new Error('AUTH_OAUTH_CLEANUP_FAILED'); }
   }
-  completed.add(1);
+  contract.finish();
 }
 
-export function handleSummary(data) { return project(data, 'Chromium', 'auth-oauth-browser'); }
+export function handleSummary(data) { return contract.summary(data); }

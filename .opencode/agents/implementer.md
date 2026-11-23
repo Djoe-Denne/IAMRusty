@@ -32,6 +32,10 @@ intent comes from the approved story. Do not take over coordination.
 - Test your work with this repository's conventions. Do not blindly run every command.
 - Before local tests/runtime use, load `.agents/skills/local-runtime-lifecycle/SKILL.md`: IT uses existing testcontainers, not Kind. Record/report owned fixture IDs and cleanup on success/failure under the parent lease; do not stop runtime still needed by the parent. Never wake stopped runtime for static work.
 - For Rust, when applicable, choose the minimum fit among `cargo fmt --check`, `cargo check`, `cargo clippy`, and `cargo test`. Compile tests natively on Windows; Docker only builds the Linux images Kind loads (AGENTS.md).
+- For k6, load `aiforall-k6` and follow the scenario registration contract.
+  Put API fixtures and assertions in the script and register it once. Do not
+  add a Windows adapter, duplicate a verdict in the wrapper, or compile
+  applications in the hosted E2E consumer. Leave run dispatch to the lead.
 
 ## Do not
 

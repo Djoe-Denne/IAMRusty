@@ -1,4 +1,4 @@
-# Campagne CI Ubuntu — health, OAuth navigateur et TLS/SAN
+# Hosted Ubuntu k6 — health, browser OAuth, and TLS/SAN
 
 Le workflow `k6-e2e` exécute une pile autonome sur une VM Ubuntu jetable, en
 manuel ou automatiquement depuis la CI de base après les builds. Le
@@ -17,21 +17,64 @@ la CI globale de ce run reste rouge sur une IT Manifesto distincte.
 
 ## Éléments livrés
 
-- `evidence.py` : réception fermée des cinq résumés existants, 34 checks,
-  codes natifs explicites, deltas OAuth et causalité/restauration SAN.
+- `evidence.py` validates the ordered catalogue, fresh named-check summaries,
+  process exit, OAuth correlation, and SAN causality and restoration.
 - `inputs.py`, `config/*.toml.in` : secrets neufs et configurations publiques
   fermées, sans import de configuration opérateur ; chargées par les vrais
   services dans la campagne qualifiée sur les images applicatives indiquées.
 - `config/envoy.yaml` : profil navigateur TLS, upstreams mTLS vérifiés,
   ext-authz fail-closed, stripping principal et exemptions exactes OAuth/health.
-- Extension opt-in `ciEnabled: true` du chart natif, namespace
-  `aiforall-local-full` : alias IAM isolé et vrai workload ext-authz. Sans cette
-  option, l'inventaire natif reste inchangé à dix objets. L'option ne constitue
-  pas une autorisation d'appliquer ces objets au lab existant.
+- `chart/` renders the isolated fixtures in the owned Kind run. The
+  `ciEnabled: true` profile adds the IAM alias and real ext-authz workload.
+  It does not authorize deploying into a pre-existing lab.
 - `pki.py` : PKI neuve du run, clés de signature JWT et neuf identités TLS,
   dont bon/mauvais SAN sous la même CA ; aucun import de confiance système.
 
-## Réutiliser les sorties des builds, sans relancer Cargo
+## Run the complete campaign on a PR
+
+1. Wait for **Build (IAMRusty)**, **Build (OAuthConnect)**, and **Build (Ext Authz)**
+   in the current PR's ordinary `CI` run to finish successfully. They save
+   `k6-binaries-<role>-<run_id>-<attempt>` for seven days. They are the usual
+   debug Linux executables, not LLVM coverage outputs.
+2. On an open, same-repository PR targeting `master`, an authorized repository
+   writer posts exactly:
+
+   ```text
+   /k6-e2e
+   ```
+
+3. Open **PR comment — full k6 E2E from saved binaries** in Actions. The summary
+   identifies the PR merge, producer run and attempt. Check the campaign,
+   independent cleanup, and final revision verification. Allure is downloadable
+   from the run; the PR workflow neither posts a success to the required CI
+   check nor publishes to Pages.
+
+Admission chooses the newest ordinary CI run and attempt for the exact current
+head/base pair. API artifact metadata identifies the PR head; the executable
+manifests, verified merge checkout and published results identify the GitHub
+merge commit. A missing role (including a skipped selective build), failed
+build, expired artifact, mismatched merge or digest, or a PR updated during
+the campaign fails the request. There is no lookup of older attempts, Cargo
+fallback, or substitution from `master`. Run or wait for the ordinary builds
+to produce a coherent current attempt before trying again; a rerun of failed
+jobs alone may not republish all three bundles.
+
+The comment listener must first exist on `master`. For pre-merge validation of
+changes to the listener or harness, a writer can run the existing reusable
+workflow on the PR's **own head branch**, supplying its number:
+
+```bash
+gh workflow run k6-e2e.yml --ref "$PR_HEAD_BRANCH" -f pr_number="$PR_NUMBER"
+```
+
+This uses the same admission, campaign, packaging and freshness checks; it
+does not test delivery of actual comment events. Neither mode accepts forks,
+operator credentials, arbitrary artifact IDs, or an existing cluster. The
+listener only runs PR code after live write-authorization and merge checks,
+with a read-only token, no inherited secrets, no persisted checkout
+credentials and no Actions cache.
+
+## Package saved `master` builds
 
 La matrice `build` de `ci.yml` utilise Ubuntu24.04 et conserve les sorties
 **dev/debug non instrumentées** pour IAM (migration comprise), OAuthConnect et
@@ -51,10 +94,10 @@ gh workflow run k6-images.yml --ref master \
   -f target_sha="$TARGET_SHA"
 ```
 
-Les trois variables désignent le run CI, son attempt exact et son SHA applicatif
-complet. Aucun choix implicite de « latest ». PR/fork, autre workflow, autre
-attempt, build incomplet, expiration, instrumentation LLVM ou corruption donnent
-un refus, jamais une reconstruction automatique.
+These three inputs refer to one explicit `master` CI run, attempt, and
+application SHA. This saved-image packaging route does not accept PR runs.
+Wrong producer or attempt, incomplete builds, expiry, instrumentation, or
+corruption fail without an automatic rebuild.
 
 `artifacts.py` vérifie la provenance API et le digest de l'archive avant extraction.
 `binaries.py` vérifie ensuite le manifeste fermé, chaque hash et les métadonnées
@@ -143,10 +186,9 @@ démarré ou nettoyé par cette campagne hébergée.
 
 ## Déclenchement automatique et rapports
 
-Sur `push/master`, `ci.yml` appelle ce même workflow après `build`, en parallèle
-de `coverage-unit` et `coverage-integration`. Le job E2E ne dépend pas des
-couvertures, et Sonar ne dépend pas de l'E2E. Les PR/forks n'ont pas accès à
-cette pile hébergée :les bundles restent limités aux builds push/master.
+Only `push/master` calls the E2E automatically after the builds. Coverage and
+Sonar remain independent of this campaign. The PR comment is separate and
+opt-in; forks are not admitted.
 
 Le mode automatique acquiert les trois bundles non instrumentés du **même
 run/attempt/SHA**, avec les mêmes contrôles API/digest/ELF que le mode manuel.

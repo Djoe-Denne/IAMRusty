@@ -19,7 +19,8 @@ import uuid
 
 import yaml
 
-from binaries import ROOT, Refused, require, sha, strict_json
+from artifacts import premerge_job
+from binaries import ROOT, Refused, command, require, sha, strict_json
 import browser as browser_profile
 import campaign_browser
 import evidence
@@ -96,6 +97,16 @@ class Campaign:
     def publish(self, name, value):
         require(re.fullmatch(r"[a-z0-9-]+\.json", name), "E2E_PUBLIC_FILE_NAME")
         write_json(self.public / name, value)
+
+    def publish_case(self, case, value):
+        """Only receiver-validated values may enter the upload directory."""
+        value = evidence.accept_summary(json.dumps(value).encode(), self.state["run_id"], case, 0)
+        directory = self.public / "cases"
+        require(not directory.is_symlink(), "E2E_PUBLIC_CASE_DIRECTORY")
+        directory.mkdir(mode=0o700, exist_ok=True)
+        target = directory / (case + ".json")
+        require(not target.exists() and not target.is_symlink(), "E2E_PUBLIC_CASE_COLLISION")
+        write_json(target, value)
 
     def create(self, value):
         require(value["kind"] in {"Namespace", "Secret", "ConfigMap", "Deployment", "Service",
@@ -317,22 +328,30 @@ class Campaign:
         self.r.save()
 
     def scenario(self, case):
-        attempt = self.root / "private" / (case + ".attempt")
+        require(case in evidence.CATALOG and sha(evidence.CATALOG_PATH) == evidence.CATALOG_SHA256,
+                "E2E_CATALOG_CHANGED")
+        cases = self.root / "private" / "cases"
+        require(not cases.is_symlink(), "E2E_CASE_DIRECTORY")
+        cases.mkdir(mode=0o700, exist_ok=True)
+        attempt = cases / (case + ".attempt")
         require(not attempt.exists(), "E2E_CASE_REPLAY_REFUSED")
-        attempt.write_text("attempted", encoding="ascii")
         self.state["stage"] = "scenario:" + case
         self.r.save()
-        output = new_output(str(self.root / "private" / case))
-        is_browser = case == "auth-oauth-browser"
+        output = new_output(str(cases / case))
+        record = evidence.CATALOG[case]
+        is_browser = record["lifecycle"] == "oauth"
         env = stimulus_environment(output, self.root, self.state, is_browser)
         if is_browser:
             browser_profile.trust(output / "home", self.root / "private/pki/ca.crt", "k6-" + self.state["run_id"], self.r.cli)
-        if case.startswith("auth-envoy-san-"):
+        if record["lifecycle"] == "san":
             env["K6_AUTH_SAN_PHASE"] = case.removeprefix("auth-envoy-san-")
-        script = "auth/oauth-browser.js" if is_browser else "smoke/iam-health.js" if case == "iam-health" else "auth/envoy-san.js"
+        script = record["script"]
+        env["K6_CASE_ID"] = case
         for name in ("k6", "chromium") if is_browser else ("k6",):
             require(sha(self.state["tools"][name]["path"]) == self.state["tools"][name]["sha256"], "E2E_STIMULUS_TOOL_CHANGED")
         child = Child()
+        with attempt.open("x", encoding="ascii") as marker:
+            marker.write("attempted")
         try:
             if is_browser:
                 result = campaign_browser.execute(self.r, output)
@@ -344,10 +363,13 @@ class Campaign:
                 code = child.execute([self.state["tools"]["k6"]["path"], "run", "--quiet", "--no-usage-report", "--address",
                                   "127.0.0.1:0", "--config", str(self.root / "private/options.json"),
                                   str(ROOT / "ops/tests/k6/scenarios" / script)], output=output, env=env,
-                                 timeout=140 if is_browser else 30, browser=is_browser)
-            value = evidence.accept_summary((output / "private/summary.json").read_bytes(), self.state["run_id"], case, code)
+                                 timeout=record["timeout_seconds"], browser=is_browser)
+            path = output / "private/summary.json"
+            require(path.is_file() and not path.is_symlink() and not path.parent.is_symlink(), "E2E_CASE_SUMMARY_PATH")
+            with path.open("rb") as stream:
+                value = evidence.accept_summary(stream.read(evidence.SUMMARY_LIMIT + 1), self.state["run_id"], case, code)
             require(child.cleanup is True and (not is_browser or child.sandbox is True), "E2E_CHILD_EVIDENCE")
-            self.publish(case + ".json", value)
+            self.publish_case(case, value)
             self.state["completed_cases"].append(case)
         except Rejected as error:
             self.state["browser_diagnostic"] = getattr(error, "browser_diagnostic", None) if is_browser else None
@@ -434,7 +456,7 @@ class Campaign:
         images = {role: item["tag"] for role, item in self.state["images"]["roles"].items()} | {role: fixtures[role] for role in ("envoy", "idp")}
         for role in ("iam", "oauth", "ext-authz"):
             self.r.cli("kind", ["load", "docker-image", "--name", self.state["cluster"], images[role]], timeout=180)
-        objects = self.render(ROOT / "ops/tests/k6/native/chart", {
+        objects = self.render(HERE / "chart", {
             "name": self.state["name"], "runId": self.state["run_id"], "ciEnabled": True, "images": images,
             "envoySource": (HERE / "config/envoy.yaml").read_text(),
             "simulatorSource": (ROOT / "ops/tests/support/oauth-idp-simulator.py").read_text()})
@@ -478,7 +500,20 @@ class Campaign:
 
     def run_cases(self):
         self.admit_services()
-        self.scenario("iam-health")
+        san_good = san_bad = san_restored = None
+        for case, record in evidence.CATALOG.items():
+            if record["lifecycle"] == "standard":
+                self.scenario(case)
+            elif case == "auth-envoy-san-good":
+                san_good, san_bad, san_restored = self.run_san()
+            elif record["lifecycle"] == "oauth":
+                self.run_oauth()
+        require(self.state["completed_cases"] == list(evidence.CATALOG), "E2E_INCOMPLETE_CASES")
+        require(all(value is not None for value in (san_good, san_bad, san_restored)), "E2E_SAN_MISSING")
+        self.publish("correlation.json", {"san_delta": 1, "restoration": self.state["restoration"],
+            "iam_delta": 7, "ext_authz_delta": 4, "provider_delta": 3, "pkce_delta": 3, "users_delta": 1, "outbox_delta": 0})
+
+    def run_san(self):
         self.scenario("auth-envoy-san-good")
         good = self.snapshot()
         try:
@@ -491,6 +526,9 @@ class Campaign:
             self.restore()
         restored = self.snapshot()
         evidence.accept_san(good, bad, restored, [tuple(self.state["edge_identity"])] * 3)
+        return good, bad, restored
+
+    def run_oauth(self):
         # Warm the real protected route outside the measurement window. A 403
         # alone is not enough: exactly one real ext-authz request must be seen.
         start = self.snapshot()
@@ -509,13 +547,15 @@ class Campaign:
         db_after = strict_json(self.sql(sql, self.state["values"]["database"]))
         after = self.snapshot()
         evidence.accept_oauth(before, after, provider_before, provider_after, db_before, db_after, self.state["run_id"])
-        require(set(self.state["completed_cases"]) == set(evidence.CASES), "E2E_INCOMPLETE_CASES")
-        self.publish("correlation.json", {"san_delta": 1, "restoration": self.state["restoration"],
-            "iam_delta": 7, "ext_authz_delta": 4, "provider_delta": 3, "pkce_delta": 3, "users_delta": 1, "outbox_delta": 0})
 
 
 def prepare(directory, cli_directory, browser_directory, image_directory):
     hosted()
+    harness = os.environ["GITHUB_SHA"]
+    if premerge_job(os.environ):
+        harness = os.environ.get("K6_PR_TARGET_SHA", "")
+        require(re.fullmatch(r"[a-f0-9]{40}", harness)
+                and command(["git", "rev-parse", "HEAD"], cwd=ROOT) == harness, "E2E_PR_HARNESS_SHA")
     os.umask(0o077)
     root = new_output(str(Path(directory).resolve()))
     (root / "public").mkdir(mode=0o700)
@@ -530,15 +570,19 @@ def prepare(directory, cli_directory, browser_directory, image_directory):
     tools.update(browser_profile.tools(browser_directory))
     images_root = Path(image_directory).resolve()
     images = strict_json((images_root / "verified/provenance.json").read_bytes())
+    if premerge_job(os.environ):
+        require(images["target_sha"] == harness, "E2E_PR_IMAGE_SHA")
     require(sha(images_root / "verified/images.tar.gz") == images["archive_sha256"], "E2E_IMAGE_ARCHIVE_CHANGED")
     state = {"version": 1, "run_id": run, "name": "k6-" + run, "job_run_id": os.environ["GITHUB_RUN_ID"],
         "job_attempt": os.environ["GITHUB_RUN_ATTEMPT"], "cluster": "k6-e2e-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"],
-        "kubeconfig": str(root / "private/kubeconfig"), "tools": tools, "values": inputs.fresh(run), "images": images,
+         "kubeconfig": str(root / "private/kubeconfig"), "tools": tools, "values": inputs.fresh(run), "images": images,
+         "harness_sha": harness,
         "host": socket.gethostname(), "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
         "resources": [], "processes": [], "completed_cases": [], "process_evidence": {}, "certificate_phase": "good",
         "restoration": "NOT_REQUIRED", "verdict": "NOT_RUN", "cleanup": {"status": "NOT_RUN"}, "volumes": []}
     runtime = Runtime(root, state)
     runtime.save()
+    Campaign(runtime).publish("selection.json", evidence.selection_receipt(run, harness, images["target_sha"]))
     state["before_containers"] = sorted(runtime.container_ids())
     state["before_volumes"] = runtime.docker(["volume", "ls", "--format", "{{.Name}}"]).decode().splitlines()
     state["known_images"] = sorted(runtime.image_ids())
@@ -593,13 +637,18 @@ def finish(campaign):
         cleanup.update(status="FAIL", owned_running=None)
         cleanup.setdefault("errors", []).append("BROWSER_CONTAINER_CLEANUP_UNPROVEN")
         state["cleanup"] = cleanup
-    attempts = {path.name.removesuffix(".attempt") for path in (campaign.root / "private").glob("*.attempt")}
+    cases = campaign.root / "private" / "cases"
+    attempts = {path.name.removesuffix(".attempt") for path in cases.glob("*.attempt")} if not cases.is_symlink() else set()
+    if cases.is_symlink():
+        cleanup.update(status="FAIL", owned_running=None)
+        cleanup.setdefault("errors", []).append("CHILD_CASE_DIRECTORY_UNPROVEN")
     if any(state.get("process_evidence", {}).get(case, {}).get("cleanup") is not True for case in attempts):
         cleanup.update(status="FAIL", owned_running=None)
         cleanup.setdefault("errors", []).append("CHILD_CLEANUP_UNPROVEN")
         state["cleanup"] = cleanup
     if cleanup["status"] != "PASS":
         state["verdict"] = "FAIL"
+    state["cleanup"] = cleanup
     campaign.publish("cleanup.json", cleanup)
     browser_state = state.get("browser_container", {})
     campaign.publish("browser.json", {"launcher": "docker-host-network-disposable-runner", "image_id": browser_state.get("image_id"),
@@ -617,7 +666,7 @@ def finish(campaign):
         "chromium_diagnostic": state.get("chromium_diagnostic"), "browser_preflight": state.get("browser_preflight"),
         "restoration": state["restoration"], "completed_cases": state["completed_cases"], "cleanup": cleanup["status"],
         "stage": state.get("stage"), "resources": state.get("resources", [])})
-    campaign.publish("provenance.json", {"harness_sha": os.environ["GITHUB_SHA"], "target_sha": state["images"]["target_sha"],
+    campaign.publish("provenance.json", {"harness_sha": state.get("harness_sha") or os.environ["GITHUB_SHA"], "target_sha": state["images"]["target_sha"],
         "sdk_sha": state["images"]["sdk_sha"], "packaging_sha": state["images"]["harness_sha"],
         "images": {role: value["image_id"] for role, value in state["images"]["roles"].items()},
         "tools": {name: {key: value for key, value in pin.items() if key != "path"} for name, pin in state["tools"].items()}})
@@ -667,7 +716,8 @@ def main():
                 campaign.state["verdict"] = "FAIL"
                 campaign.r.save()
     if campaign and campaign.state["verdict"] == "PASS" and campaign.state["cleanup"]["status"] == "PASS":
-        print("Three-scenario Ubuntu E2E PASS; 34 checks and parent deltas; cleanup PASS")
+        checks = sum(len(record["checks"]) for record in evidence.CATALOG.values())
+        print(f"Ubuntu k6 E2E PASS; {len(evidence.CATALOG)} cases, {checks} checks and parent deltas; cleanup PASS")
         return 0
     print("Three-scenario Ubuntu E2E failed or incomplete; no compiler fallback")
     return 1

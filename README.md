@@ -94,11 +94,12 @@ cargo fmt --all -- --check
 ```
 
 [Integration tests](docs/guides/tests-integration.md) run the Rust binaries
-on the host and use testcontainers for the dependencies they need. The
-[local k6 campaign](ops/tests/k6/native/README.md) exercises HTTPS readiness,
-browser OAuth, and Envoy certificate identity. The
-[published CI E2E report](https://djoe-denne.github.io/IAMRusty/) identifies
-the commit it tested and is separate from the local campaign and code coverage.
+on the host and use testcontainers for their dependencies. To exercise HTTPS
+health, browser OAuth, and Envoy certificate identity on a PR, use the
+[hosted `/k6-e2e` campaign](ops/tests/k6/ci/README.md#run-the-complete-campaign-on-a-pr).
+It uses the PR's saved build outputs without recompiling. A [direct k6 scenario](ops/tests/k6/scenarios/README.md)
+requires a prepared test target. The [published E2E report](https://djoe-denne.github.io/IAMRusty/)
+is for the automatic `master` campaign, separate from PR runs and code coverage.
 
 - [Handbook](docs/README.md) and [architecture decisions](docs/adr/README.md)
 - [Repository security](docs/guides/repository-security.md) and

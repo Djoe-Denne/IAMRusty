@@ -1,37 +1,56 @@
-name: k6 health OAuth SAN E2E (saved images)
+name: k6 health OAuth SAN E2E (saved builds)
 
 on:
   workflow_call:
+    inputs:
+      pr_qualification:
+        description: Admit an authorized PR comment for the current merge revision
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       image_run_id:
         description: Exact successful k6-images workflow run
-        required: true
+        required: false
         type: string
       image_attempt:
         description: Exact packaging attempt
-        required: true
+        required: false
         default: '1'
         type: string
       target_sha:
         description: Full application commit attested by the saved images
-        required: true
+        required: false
+        type: string
+      pr_number:
+        description: Preview the saved-binary PR campaign; select the PR's own branch
+        required: false
         type: string
 
 permissions:
   contents: read
   actions: read
+  pull-requests: read
+
+cache-mode: none
 
 jobs:
   e2e:
-    name: Five real phases on disposable Ubuntu Kind; no Cargo
+    name: Complete k6 campaign on disposable Ubuntu Kind; no Cargo
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    concurrency:
+      group: k6-e2e-${{ github.event.issue.number || inputs.pr_number || github.run_id }}
+      cancel-in-progress: false
+    outputs:
+      pr_number: ${{ steps.pr.outputs.pr_number }}
+      target_sha: ${{ steps.pr.outputs.target_sha }}
     env:
       PYTHONDONTWRITEBYTECODE: '1'
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+      K6_PR_MODE: ${{ inputs.pr_qualification || inputs.pr_number != '' }}
     steps:
-      - name: Checkout immutable harness without credentials
+      - name: Checkout the event revision for trusted admission and packaging
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.sha }}
@@ -45,7 +64,7 @@ jobs:
           chmod 700 "$RUNNER_TEMP/k6-e2e-private"
 
       - name: Acquire exact saved images with provenance and digest checks
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && env.K6_PR_MODE != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           IMAGE_RUN: ${{ inputs.image_run_id }}
@@ -65,25 +84,62 @@ jobs:
           --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --source-sha "$GITHUB_SHA"
           --output "$RUNNER_TEMP/k6-e2e-private/acquired"
 
+      - name: Resolve the authorized PR and acquire its exact saved CI binaries
+        id: pr
+        if: ${{ env.K6_PR_MODE == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: >-
+          python3 -B ops/tests/k6/ci/pr_qualification.py acquire
+          --pr-number "$PR_NUMBER" --output "$RUNNER_TEMP/k6-e2e-private/acquired"
+
+      - name: Checkout the admitted PR merge commit without credentials
+        if: ${{ steps.pr.outputs.target_sha != '' }}
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.pr.outputs.target_sha }}
+          path: .k6-pr-source
+          fetch-depth: 2
+          submodules: false
+          persist-credentials: false
+
+      - name: Verify the exact revision and both parents before using PR files
+        if: ${{ steps.pr.outputs.target_sha != '' }}
+        env:
+          MERGE_SHA: ${{ steps.pr.outputs.target_sha }}
+          BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+        run: >-
+          python3 -B ops/tests/k6/ci/pr_qualification.py verify-tree
+          --source "$GITHUB_WORKSPACE/.k6-pr-source" --merge "$MERGE_SHA" --base "$BASE_SHA" --head "$HEAD_SHA"
+
       - name: Package current CI binaries without Cargo or another application build
-        if: ${{ github.event_name == 'push' }}
+        id: package
+        if: ${{ github.event_name == 'push' || steps.pr.outputs.target_sha != '' }}
+        env:
+          APP_SOURCE: ${{ steps.pr.outputs.target_sha != '' && '.k6-pr-source' || '.' }}
         run: >-
           python3 -B ops/tests/k6/ci/package.py
-          --acquired "$RUNNER_TEMP/k6-e2e-private/acquired" --source "$GITHUB_WORKSPACE"
+          --acquired "$RUNNER_TEMP/k6-e2e-private/acquired" --source "$GITHUB_WORKSPACE/$APP_SOURCE"
           --output "$RUNNER_TEMP/k6-e2e-private/packaged"
 
       - name: Close packaging probes and receive the cleanup proof before image admission
-        if: ${{ always() && github.event_name == 'push' }}
+        if: ${{ always() && (steps.package.outcome == 'success' || steps.package.outcome == 'failure' || steps.package.outcome == 'cancelled') }}
         run: >-
           python3 -B ops/tests/k6/ci/cleanup.py
           --output "$RUNNER_TEMP/k6-e2e-private/packaged"
 
-      - name: Admit only images packaged in this same trusted CI run attempt
-        if: ${{ github.event_name == 'push' }}
+      - name: Admit only images packaged in this job and attempt
+        id: admit_images
+        if: ${{ steps.package.outcome == 'success' }}
+        env:
+          K6_PR_TARGET_SHA: ${{ steps.pr.outputs.target_sha }}
+          TARGET_SHA: ${{ steps.pr.outputs.target_sha || github.sha }}
         run: >-
           python3 -B ops/tests/k6/ci/image_input.py
           --packaged-directory "$RUNNER_TEMP/k6-e2e-private/packaged"
-          --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --target-sha "$GITHUB_SHA"
+          --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --target-sha "$TARGET_SHA"
           --output "$RUNNER_TEMP/k6-e2e-private/images"
 
       - name: Install host libraries (no sandbox or TLS policy changes)
@@ -93,11 +149,24 @@ jobs:
           python3 -m pip install 'PyYAML==6.0.2'
 
       - name: Acquire pinned CLI and complete k6 Chromium bundles
+        working-directory: ${{ steps.pr.outputs.target_sha != '' && '.k6-pr-source' || '.' }}
         run: |
           python3 -B ops/tests/k6/ci/provision.py --output "$RUNNER_TEMP/k6-e2e-private/cli"
           python3 -B ops/tests/k6/provision-linux.py --output "$RUNNER_TEMP/k6-e2e-private/browser"
 
-      - name: Bootstrap owned stack and run unchanged health OAuth SAN scenarios
+      - name: Verify registry, k6 fixture lifecycle and PR admission offline
+        working-directory: ${{ steps.pr.outputs.target_sha != '' && '.k6-pr-source' || '.' }}
+        run: |
+          k6_entry="$(python3 -B -c 'import json; print(json.load(open("ops/tests/k6/config/tools.lock.json"))["k6"]["executable"])')"
+          export AIFORALL_K6="$RUNNER_TEMP/k6-e2e-private/browser/$k6_entry"
+          test -x "$AIFORALL_K6"
+          python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_scenario_*.py'
+          python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_pr_qualification.py'
+
+      - name: Bootstrap an owned stack and run the full catalogue
+        working-directory: ${{ steps.pr.outputs.target_sha != '' && '.k6-pr-source' || '.' }}
+        env:
+          K6_PR_TARGET_SHA: ${{ steps.pr.outputs.target_sha }}
         run: >-
           python3 -B ops/tests/k6/ci/campaign.py run
           --directory "$RUNNER_TEMP/k6-e2e-private/campaign"
@@ -106,13 +175,16 @@ jobs:
           --image-directory "$RUNNER_TEMP/k6-e2e-private/images"
 
       - name: Independently close only owned packaging probes
-        if: ${{ always() && github.event_name == 'push' }}
+        if: ${{ always() && (steps.package.outcome == 'success' || steps.package.outcome == 'failure' || steps.package.outcome == 'cancelled') }}
         run: >-
           python3 -B ops/tests/k6/ci/cleanup.py
           --output "$RUNNER_TEMP/k6-e2e-private/packaged"
 
       - name: Independently verify owned cleanup even on cancellation
         if: ${{ always() }}
+        working-directory: ${{ steps.pr.outputs.target_sha != '' && steps.admit_images.outcome == 'success' && '.k6-pr-source' || '.' }}
+        env:
+          K6_PR_TARGET_SHA: ${{ steps.pr.outputs.target_sha }}
         run: >-
           python3 -B ops/tests/k6/ci/campaign.py clean
           --directory "$RUNNER_TEMP/k6-e2e-private/campaign"
@@ -132,17 +204,14 @@ jobs:
             ${{ runner.temp }}/k6-e2e-private/campaign/public/browser.json
             ${{ runner.temp }}/k6-e2e-private/campaign/public/browser-docker-resources.jsonl
             ${{ runner.temp }}/k6-e2e-private/campaign/public/correlation.json
-            ${{ runner.temp }}/k6-e2e-private/campaign/public/iam-health.json
-            ${{ runner.temp }}/k6-e2e-private/campaign/public/auth-envoy-san-good.json
-            ${{ runner.temp }}/k6-e2e-private/campaign/public/auth-envoy-san-bad.json
-            ${{ runner.temp }}/k6-e2e-private/campaign/public/auth-envoy-san-restored.json
-            ${{ runner.temp }}/k6-e2e-private/campaign/public/auth-oauth-browser.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/selection.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/cases/*.json
             ${{ runner.temp }}/k6-e2e-private/campaign/public/docker-resources.jsonl
           if-no-files-found: warn
           retention-days: 7
 
       - name: Retain same-run packaging ownership and ABI evidence only
-        if: ${{ always() && github.event_name == 'push' }}
+        if: ${{ always() && (steps.package.outcome == 'success' || steps.package.outcome == 'failure' || steps.package.outcome == 'cancelled') }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: k6-packaging-evidence-${{ github.run_id }}-${{ github.run_attempt }}
@@ -155,15 +224,17 @@ jobs:
 
       - name: Project sanitized public metrics and Allure results even on campaign failure
         id: report
-        if: ${{ always() }}
+        if: ${{ always() && (env.K6_PR_MODE != 'true' || steps.admit_images.outcome == 'success') }}
+        working-directory: ${{ steps.pr.outputs.target_sha != '' && '.k6-pr-source' || '.' }}
         env:
-          REPORT_TARGET_SHA: ${{ inputs.target_sha || github.sha }}
+          REPORT_HARNESS_SHA: ${{ steps.pr.outputs.target_sha || github.sha }}
+          REPORT_TARGET_SHA: ${{ steps.pr.outputs.target_sha || inputs.target_sha || github.sha }}
         run: >-
           python3 -B ops/tests/k6/ci/reporting.py project
           --source "$RUNNER_TEMP/k6-e2e-private/campaign/public"
           --directory "$RUNNER_TEMP/k6-e2e-site" --repository "$GITHUB_REPOSITORY"
           --job-run "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT"
-          --harness-sha "$GITHUB_SHA" --target-sha "$REPORT_TARGET_SHA" --summary "$GITHUB_STEP_SUMMARY"
+          --harness-sha "$REPORT_HARNESS_SHA" --target-sha "$REPORT_TARGET_SHA" --summary "$GITHUB_STEP_SUMMARY"
 
       - name: Acquire pinned Allure CLI with hash and archive checks
         if: ${{ always() && steps.report.outcome == 'success' }}
@@ -178,7 +249,7 @@ jobs:
           "$RUNNER_TEMP/k6-allure-cli/allure-2.46.2/bin/allure" generate
           "$RUNNER_TEMP/k6-e2e-site/allure-results" --output "$RUNNER_TEMP/k6-e2e-site/allure"
 
-      - name: Retain isolated public report and metrics for Pages publication
+      - name: Retain isolated public report and metrics
         if: ${{ always() && steps.report.outcome == 'success' && steps.allure.outcome == 'success' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -187,3 +258,26 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
+
+  verify-pr-current:
+    name: Verify that the completed PR campaign still matches the current merge revision
+    needs: e2e
+    if: ${{ inputs.pr_qualification || inputs.pr_number != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Recheck PR head and base on a fresh runner
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.e2e.outputs.pr_number }}
+          MERGE_SHA: ${{ needs.e2e.outputs.target_sha }}
+        run: >-
+          python3 -B ops/tests/k6/ci/pr_qualification.py verify-current
+          --pr-number "$PR_NUMBER" --merge "$MERGE_SHA"

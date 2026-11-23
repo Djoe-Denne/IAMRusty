@@ -8,7 +8,7 @@ import shutil
 import stat
 import zipfile
 
-from artifacts import GitHub, MAX_DOWNLOAD, positive, validate_artifact, current_ci_source
+from artifacts import GitHub, MAX_DOWNLOAD, positive, validate_artifact, current_ci_source, premerge_job
 from binaries import ROLES, Refused, require, sha, strict_json
 
 FILES = {"images.tar.gz", "provenance.json", "cleanup.json", "docker-resources.jsonl"}
@@ -64,7 +64,13 @@ def extract(path, output):
 
 def acquire(directory, run_id, attempt, source_sha, environment=None):
     env = dict(os.environ if environment is None else environment)
-    require(env.get("GITHUB_REF") == "refs/heads/master" and env.get("GITHUB_EVENT_NAME") == "workflow_dispatch", "MANUAL_MASTER_E2E_REQUIRED")
+    require(env.get("GITHUB_REF") == "refs/heads/master" and env.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+            and env.get("K6_PR_MODE") != "true", "MANUAL_MASTER_E2E_REQUIRED")
+    return acquire_saved(directory, run_id, attempt, source_sha, env)
+
+
+def acquire_saved(directory, run_id, attempt, source_sha, env):
+    """Common verifier. The caller must have admitted the workflow and target."""
     run_id, attempt = positive(run_id), positive(attempt)
     require(re.fullmatch(r"[a-f0-9]{40}", source_sha), "IMAGE_TARGET_SHA")
     directory = Path(directory)
@@ -98,9 +104,12 @@ def acquire(directory, run_id, attempt, source_sha, environment=None):
 
 
 def from_packaging(source, directory, run_id, attempt, source_sha, environment=None):
-    """Same trusted CI job only; never admit unrelated local/saved images."""
+    """Same hosted job/attempt only; never admit unrelated local/saved images."""
     env = dict(os.environ if environment is None else environment)
-    require(re.fullmatch(r"[a-f0-9]{40}", source_sha) and current_ci_source(env, run_id, attempt, source_sha), "IMAGE_CURRENT_CI_ONLY")
+    pr = (premerge_job(env) and env.get("GITHUB_RUN_ID") == run_id and env.get("GITHUB_RUN_ATTEMPT") == attempt
+          and env.get("K6_PR_TARGET_SHA") == source_sha)
+    require(re.fullmatch(r"[a-f0-9]{40}", source_sha)
+            and (pr or current_ci_source(env, run_id, attempt, source_sha)), "IMAGE_CURRENT_CI_ONLY")
     run_id, attempt = positive(run_id), positive(attempt)
     source, directory = Path(source), Path(directory)
     require(source.is_absolute() and directory.is_absolute() and not directory.exists(), "IMAGE_ACQUISITION_COLLISION")
@@ -119,7 +128,7 @@ def from_packaging(source, directory, run_id, attempt, source_sha, environment=N
     for name in FILES:
         shutil.copyfile(source / name, verified / name)
     require(sha(verified / "images.tar.gz") == value["archive_sha256"], "IMAGE_PAYLOAD_HASH")
-    (directory / "admission.json").write_text(json.dumps(dict(mode="same-ci-job", run_id=run_id,
+    (directory / "admission.json").write_text(json.dumps(dict(mode="pr-ci-binaries" if pr else "same-ci-job", run_id=run_id,
         run_attempt=attempt, target_sha=source_sha, packaging_sha=env["GITHUB_SHA"], sdk_sha=value["sdk_sha"]), sort_keys=True), encoding="utf-8")
     return value
 

@@ -12,6 +12,7 @@ import threading
 import time
 
 from binaries import ROOT, Refused, require, sha, strict_json
+from artifacts import premerge_job
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 from safety import private_path, proc, same
@@ -22,8 +23,11 @@ OWNER = "k6-ci-e2e"
 
 def hosted(environment=None):
     env = os.environ if environment is None else environment
+    master = (env.get("GITHUB_REF") == "refs/heads/master" and env.get("K6_PR_MODE") != "true"
+              and env.get("GITHUB_EVENT_NAME") in ("push", "workflow_dispatch"))
     require(sys.platform == "linux" and os.getuid() != 0 and env.get("GITHUB_ACTIONS") == "true"
-            and env.get("GITHUB_JOB") == "e2e" and env.get("GITHUB_REF") == "refs/heads/master", "HOSTED_E2E_ONLY")
+            and env.get("GITHUB_JOB") == "e2e"
+            and (master or premerge_job(env)), "HOSTED_E2E_ONLY")
     require(re.fullmatch(r"[1-9][0-9]*", env.get("GITHUB_RUN_ID", ""))
             and re.fullmatch(r"[1-9][0-9]*", env.get("GITHUB_RUN_ATTEMPT", "")), "E2E_RUN_ID")
 

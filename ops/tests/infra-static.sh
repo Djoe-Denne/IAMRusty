@@ -112,5 +112,6 @@ for doc in docs:
 printf 'OK native Helm lint and offline render\n'
 # Render/refusal oracles use synthetic public inputs only. This does not run k6,
 # Chromium, the campaign parent or a Kubernetes client against a cluster.
-"$PYTHON" -B -m unittest discover -s ops/tests/k6/tests -p test_native_campaign.py -k FixtureRenderTests -v
+# Invoke the file directly so a missing suite cannot look like empty discovery.
+"$PYTHON" -B ops/tests/k6/tests/test_ci_render.py -v
 printf 'OK shell syntax: %s scripts; offline renders: %s\n' "$scripts" "$renders"

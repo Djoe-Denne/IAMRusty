@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "iam-health",
+      "script": "smoke/iam-health.js",
+      "phase": "HTTP",
+      "lifecycle": "standard",
+      "timeout_seconds": 30,
+      "requests": 1,
+      "checks": {"iam-status": "functional", "iam-body": "functional"}
+    },
+    {
+      "id": "auth-envoy-san-good",
+      "script": "auth/envoy-san.js",
+      "phase": "HTTP",
+      "lifecycle": "san",
+      "timeout_seconds": 30,
+      "requests": 1,
+      "checks": {"san-status": "functional", "san-no-redirect": "functional"}
+    },
+    {
+      "id": "auth-envoy-san-bad",
+      "script": "auth/envoy-san.js",
+      "phase": "HTTP",
+      "lifecycle": "san",
+      "timeout_seconds": 30,
+      "requests": 1,
+      "checks": {"san-status": "functional", "san-no-redirect": "functional"}
+    },
+    {
+      "id": "auth-envoy-san-restored",
+      "script": "auth/envoy-san.js",
+      "phase": "HTTP",
+      "lifecycle": "san",
+      "timeout_seconds": 30,
+      "requests": 1,
+      "checks": {"san-status": "functional", "san-no-redirect": "functional"}
+    },
+    {
+      "id": "auth-oauth-browser",
+      "script": "auth/oauth-browser.js",
+      "phase": "Chromium",
+      "lifecycle": "oauth",
+      "timeout_seconds": 140,
+      "requests": 0,
+      "checks": {
+        "browser-version": "functional",
+        "registration-callback": "functional",
+        "registration-required": "functional",
+        "registration-nonce": "functional",
+        "registration-completed": "functional",
+        "login-callback": "functional",
+        "login-identity": "functional",
+        "login-authority": "functional",
+        "login-nonce": "functional",
+        "relink-start": "functional",
+        "relink-callback": "functional",
+        "relink-identity": "functional",
+        "relink-nonce": "functional",
+        "negative-link": "functional",
+        "negative-relink-start": "functional",
+        "negative-relink-alias": "functional",
+        "oauth-observations": "functional",
+        "oauth-iam-cardinality": "functional",
+        "login-redirects": "functional",
+        "oauth-cookie-attributes": "functional",
+        "oauth-callback-headers": "functional",
+        "registration-request-headers": "functional",
+        "relink-start-authorization": "functional",
+        "provider-authorizations": "functional",
+        "provider-no-credentials": "functional",
+        "negative-headers": "functional"
+      }
+    }
+  ]
+}

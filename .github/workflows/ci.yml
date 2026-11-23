@@ -287,7 +287,6 @@ jobs:
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_campaign_browser.py' -v
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_reporting.py' -v
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_inputs.py' -v
-          python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_render.py' -v
           python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_pki.py' -v
 
   apparatus-p0:
@@ -319,6 +318,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
     uses: ./.github/workflows/k6-e2e.yml
 
   e2e-pages-stage:

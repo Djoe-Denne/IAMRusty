@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -19,6 +20,10 @@ from test_ci_browser_container import configuration, seccomp_baseline
 
 RUN = "a" * 32
 CID = "b" * 64
+
+
+def fixture_sha(path):
+    return b.sha(path) if Path(path) == campaign.evidence.CATALOG_PATH else "hash"
 
 
 def result():
@@ -125,6 +130,41 @@ class LaunchTests(unittest.TestCase):
         self.assertIn("lib/summary.js", c.ADDITIONAL_FILES)
         self.assertIn("lib/campaign-target.js", c.ADDITIONAL_FILES)
 
+    def test_staged_oauth_entrypoint_imports_without_the_checkout(self):
+        with tempfile.TemporaryDirectory(prefix="k6-oauth-image-context-") as directory:
+            root = Path(directory).resolve()
+            package = root / "package"
+            (package / "private").mkdir(parents=True)
+            (package / "private/image.iid").write_text("sha256:" + "c" * 64, encoding="ascii")
+            profile = root / "seccomp.json"
+            profile.write_text("{}", encoding="ascii")
+            tools = root / "tools"
+            tools.mkdir()
+            pins = {}
+            for role, archive in (("k6", "k6.tar.gz"), ("chromium", "chromium.zip")):
+                (tools / archive).touch()
+                executable = tools / (role + "-bundle") / role
+                executable.parent.mkdir()
+                executable.touch()
+                pins[role] = {"path": str(executable)}
+            r = runtime(root)
+            del r.state["browser_container"]
+            r.observe_images = Mock()
+            r.docker.side_effect = [b'["name=apparmor","name=seccomp,profile=builtin"]', b""]
+            with patch.object(c, "hosted"), patch.object(c, "new_output", return_value=package), \
+                 patch.object(c.browser_profile, "tools", return_value=pins), \
+                 patch.object(c.trial, "acquire_seccomp", return_value=(profile, {}, {})), \
+                 patch.object(os, "getuid", return_value=1001, create=True), \
+                 patch.object(os, "getgid", return_value=1001, create=True):
+                c.prepare(r, tools)
+            context = package / "private/context"
+            entrypoint = context / "ops/tests/k6/ci/campaign_browser.py"
+            # Exercise the imports from the emitted build context, not the host checkout or site packages.
+            child = subprocess.run([sys.executable, "-E", "-S", "-B", str(entrypoint), "--help"],
+                                   cwd=context, capture_output=True, text=True, timeout=10)
+            self.assertEqual(child.returncode, 0, child.stderr)
+            self.assertIn("usage:", child.stdout)
+
     def test_container_executes_real_oauth_with_closed_environment_and_same_origins(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
@@ -151,6 +191,7 @@ class LaunchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "private").mkdir()
+            (root / "public").mkdir()
             output = root / "private/auth-oauth-browser"
             (output / "private").mkdir(parents=True)
             summary = dict(version=1, run_id=RUN, phase="Chromium", cases=["auth-oauth-browser"], expected=1,
@@ -163,14 +204,14 @@ class LaunchTests(unittest.TestCase):
                            completed_cases=[], process_evidence={})
             parent = campaign.Campaign(r)
             parent.publish = Mock()
-            with patch.object(campaign, "new_output", return_value=output), patch.object(campaign, "sha", return_value="hash"), \
+            with patch.object(campaign, "new_output", return_value=output), patch.object(campaign, "sha", side_effect=fixture_sha), \
                  patch.object(campaign.browser_profile, "trust"), patch.object(c, "execute", return_value=result()) as launch, \
                  patch.object(campaign.Child, "execute", side_effect=AssertionError("native browser forbidden")):
                 parent.scenario("auth-oauth-browser")
                 launch.assert_called_once_with(r, output)
             self.assertEqual(r.state["completed_cases"], ["auth-oauth-browser"])
             self.assertTrue(r.state["process_evidence"]["auth-oauth-browser"]["sandbox"])
-            parent.publish.assert_any_call("auth-oauth-browser.json", summary)
+            self.assertEqual(json.loads((root / "public/cases/auth-oauth-browser.json").read_text()), summary)
 
     def test_failed_container_preserves_validated_child_cleanup_without_qualifying_oauth(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -190,7 +231,7 @@ class LaunchTests(unittest.TestCase):
 
             parent = campaign.Campaign(r)
             parent.publish = Mock()
-            with patch.object(campaign, "new_output", return_value=output), patch.object(campaign, "sha", return_value="hash"), \
+            with patch.object(campaign, "new_output", return_value=output), patch.object(campaign, "sha", side_effect=fixture_sha), \
                  patch.object(campaign.browser_profile, "trust"), patch.object(c, "execute", side_effect=failure), self.assertRaises(b.Refused):
                 parent.scenario("auth-oauth-browser")
             self.assertTrue(r.state["process_evidence"]["auth-oauth-browser"]["cleanup"])
@@ -220,7 +261,7 @@ class LaunchTests(unittest.TestCase):
 
             parent = campaign.Campaign(r)
             parent.publish = Mock()
-            with patch.object(campaign, "new_output", return_value=output), patch.object(campaign, "sha", return_value="hash"), \
+            with patch.object(campaign, "new_output", return_value=output), patch.object(campaign, "sha", side_effect=fixture_sha), \
                  patch.object(campaign.browser_profile, "trust"), patch.object(c, "execute", side_effect=failure), self.assertRaises(b.Refused):
                 parent.scenario(case)
             observed = r.state["process_evidence"][case]

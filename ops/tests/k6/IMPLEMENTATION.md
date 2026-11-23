@@ -29,7 +29,7 @@ Chromium protections, bounded process ownership/cleanup and privacy remain.
 Browser PASS is functional (current summary, checks/counts, exit0 and final
 cleanup/privacy), without a renderer witness. Bounded failure diagnostics stay
 private; the lead owns the first real about:blank/42 run after integration.
-See [the current Windows guide](WINDOWS.md). No real k6/Chrome/HTTP/runtime run is
+See [the archived Windows guide](https://github.com/Djoe-Denne/IAMRusty/blob/e203daf073c9921398f5ccc499be4e944802fb5a/ops/tests/k6/WINDOWS.md). No real k6/Chrome/HTTP/runtime run is
 claimed here; the older Windows sections below are implementation history only.
 
 ## Windows security corrections — S-1, R-1 and fail-closed R-2

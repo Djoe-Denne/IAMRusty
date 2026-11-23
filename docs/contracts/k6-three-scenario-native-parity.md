@@ -1,5 +1,9 @@
 # Contrat — portage natif des trois scénarios k6 existants
 
+Historical contract: the user retired the Windows k6 adapters. Use the
+[current scenario and hosted PR contract](k6-scenario-registration.md).
+This retirement does not change the original evidence or local trust stores.
+
 - **Proposed**, 2026-11-11 ; GO utilisateur pour porter **health, OAuth navigateur et TLS/SAN**, leur setup natif et cleanup, puis retirer le legacy seulement après vérification. Base fournie : `0cfb6ce`. Le parent implémente directement ; cette rédaction n'atteste aucune livraison/exécution.
 - **Accord utilisateur du 12 novembre :** la CA publique locale peut rester **de manière permanente dans `CurrentUser\Root`**. Son installation explicite et empreintée est séparée des essais ; la campagne ne la possède ni ne la retire. L'ancien mode temporaire reste optionnel sous flag explicite, avec rollback. Aucune attente de confirmation ne doit consommer la durée de vie des forwards. Priorité aux tests locaux ; CI/secret GitHub reportés, sans modification du workflow suspendu.
 - **Correction HTTPS vérifiée le 12 novembre :** `OAuthBrowserPolicy::cookie_name/cookie_headers` émet `__Host-iam-oauth-browser`, **Path=/**, Secure, HttpOnly, SameSite=Lax, Max-Age600, sans Domain. Le couple nom/Path HTTP `/iam` ci-dessous est historique, non applicable au run natif. Pour conserver le refus de transmettre ce cookie à l'IdP, celui-ci utilise désormais **`https://localhost:18445/oauth/authorize`**, distinct du host IAM `127.0.0.1`. Une différence de ports ne suffit pas. Le certificat IdP porte DNS:localhost ; l'adresse du forward reste strictement127.0.0.1. Aucun changement de politique produit, cookie affaibli ni bypass TLS. Cette correction remplace les constantes natives IdP127.0.0.1:18445 mentionnées dans le plan initial.

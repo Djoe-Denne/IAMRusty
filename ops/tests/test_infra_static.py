@@ -45,8 +45,8 @@ class SourceYamlTests(unittest.TestCase):
         result = self.check()
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_native_k6_singular_chart_uses_helm_not_raw_yaml(self):
-        self.assert_helm_inputs("ops/tests/k6/native/chart")
+    def test_k6_chart_uses_helm_not_raw_yaml(self):
+        self.assert_helm_inputs("ops/tests/k6/ci/chart")
 
     def test_deployment_charts_use_helm_not_raw_yaml(self):
         self.assert_helm_inputs("ops/deploy/charts/example")
@@ -55,7 +55,7 @@ class SourceYamlTests(unittest.TestCase):
         self.assert_helm_inputs("ops/another-renderer-location")
 
     def test_chart_metadata_and_values_still_reject_invalid_yaml(self):
-        directory = "ops/tests/k6/native/chart"
+        directory = "ops/tests/k6/ci/chart"
         for filename in ("Chart.yaml", "values.yaml"):
             with self.subTest(filename=filename):
                 self.write(directory + "/Chart.yaml", "apiVersion: v2\n")

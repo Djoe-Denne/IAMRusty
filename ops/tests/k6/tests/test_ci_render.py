@@ -1,6 +1,7 @@
 """Real Helm rendering of the opt-in disposable CI profile, no cluster needed."""
 import json
 import os
+import copy
 from pathlib import Path
 import shutil
 import subprocess
@@ -9,21 +10,21 @@ import unittest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[4]
-HELM = Path(os.environ.get("AIFORALL_HELM") or shutil.which("helm") or
-            ROOT / ".tmp/ops-iac-tools/helm-v4.3.1/windows-amd64/helm.exe")
-CHART = ROOT / "ops/tests/k6/native/chart"
+HELM = shutil.which(os.environ.get("AIFORALL_HELM") or "helm")
+CHART = ROOT / "ops/tests/k6/ci/chart"
 
 
-@unittest.skipUnless(HELM.is_file(), "existing Helm required; skip is not a CI qualification")
+@unittest.skipUnless(HELM, "existing Helm required; skip is not a CI qualification")
 class CiRenderTests(unittest.TestCase):
-    def render(self, enabled=True, namespace="aiforall-local-full", omit_image=False):
+    def render(self, enabled=True, namespace="aiforall-local-full", omit_image=False, envoy=None):
         images = {role: "fixture@sha256:" + "b" * 64
                   for role in ("iam", "oauth", "envoy", "idp", "ext-authz")}
         if omit_image:
             del images["ext-authz"]
+        if envoy is None:
+            envoy = (ROOT / "ops/tests/k6/ci/config/envoy.yaml").read_text(encoding="utf-8")
         values = dict(name="k6-" + "a" * 32, runId="a" * 32, ciEnabled=enabled,
-                      images=images, simulatorSource="# fixture",
-                      envoySource=(ROOT / "ops/tests/k6/ci/config/envoy.yaml").read_text(encoding="utf-8"))
+                      images=images, simulatorSource="# fixture", envoySource=envoy)
         with tempfile.TemporaryDirectory(prefix="k6-ci-render-") as directory:
             path = Path(directory) / "values.json"
             path.write_text(json.dumps(values), encoding="utf-8")
@@ -36,11 +37,11 @@ class CiRenderTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         # Helm adds a known YAML document/source preamble. Strip only that
         # exact envelope, never search for a JSON suffix in diagnostic output.
-        prefix = "---\n# Source: k6-native-fixtures/templates/fixtures.yaml\n"
+        prefix = "---\n# Source: k6-e2e-fixtures/templates/fixtures.yaml\n"
         self.assertTrue(result.stdout.startswith(prefix))
         return json.loads(result.stdout[len(prefix):])["items"]
 
-    def test_default_native_inventory_stays_unchanged(self):
+    def test_base_fixture_inventory_stays_unchanged(self):
         items = self.objects(enabled=False)
         self.assertEqual(len(items), 10)
         self.assertFalse(any(item["metadata"]["name"] in ("iam", "ext-authz") for item in items))
@@ -70,6 +71,35 @@ class CiRenderTests(unittest.TestCase):
         self.assertNotEqual(self.render(namespace="default").returncode, 0)
         self.assertNotEqual(self.render(omit_image=True).returncode, 0)
 
+    def test_envoy_fixture_rewrites_only_the_closed_iam_destination(self):
+        source = yaml.safe_load((ROOT / "ops/tests/k6/ci/config/envoy.yaml").read_text(encoding="utf-8"))
+        config = next(item for item in self.objects() if item["kind"] == "ConfigMap" and "envoy.json" in item["data"])
+        loaded = json.loads(config["data"]["envoy.json"])
+        expected = copy.deepcopy(source)
+
+        def iam(value):
+            return next(item for item in value["static_resources"]["clusters"] if item["name"] == "iam")
+
+        def socket(value):
+            return iam(value)["load_assignment"]["endpoints"][0]["lb_endpoints"][0]["endpoint"]["address"]["socket_address"]
+
+        socket(expected)["address"] = "k6-" + "a" * 32 + "-iam.aiforall-local-full.svc.cluster.local"
+        self.assertEqual(loaded, expected)
+        for variant in ("external-admin", "dynamic", "no-iam", "two-iam", "foreign-iam"):
+            with self.subTest(variant=variant):
+                value = copy.deepcopy(source)
+                if variant == "external-admin":
+                    value["admin"]["address"]["socket_address"]["address"] = "0.0.0.0"
+                elif variant == "dynamic":
+                    value["dynamic_resources"] = {}
+                elif variant == "no-iam":
+                    value["static_resources"]["clusters"].remove(iam(value))
+                elif variant == "two-iam":
+                    value["static_resources"]["clusters"].append(iam(value))
+                else:
+                    socket(value)["address"] = "foreign.invalid"
+                self.assertNotEqual(self.render(envoy=json.dumps(value)).returncode, 0)
+
     def test_ci_backing_stages_are_closed_and_non_overlapping(self):
         values = yaml.safe_load((ROOT / "ops/tests/k6/ci/values.yaml").read_text())
         selections = [
@@ -80,7 +110,6 @@ class CiRenderTests(unittest.TestCase):
         ]
         seen = set()
         for number, overrides in enumerate(selections):
-            import copy
             current = copy.deepcopy(values)
             for group, settings in overrides.items():
                 current[group].update(settings)
@@ -151,4 +180,6 @@ class CiRenderTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    if not HELM:
+        raise SystemExit("Helm is required to run the k6 fixture render gate")
     unittest.main()

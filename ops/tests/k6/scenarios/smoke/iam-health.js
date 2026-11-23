@@ -1,9 +1,11 @@
 import http from 'k6/http';
-import { check, sleep } from 'k6';
-import { started, completed, baseline, project } from '../../lib/summary.js';
+import { sleep } from 'k6';
+import { baseline } from '../../lib/summary.js';
+import { scenarioContract } from '../../lib/case-contract.js';
 import { campaignTarget } from '../../lib/campaign-target.js';
 
 const target = campaignTarget();
+const contract = scenarioContract('iam-health');
 
 export const options = {
   scenarios: {
@@ -12,7 +14,7 @@ export const options = {
       maxDuration: '15s', gracefulStop: '2s',
     },
   },
-  thresholds: { checks: ['rate==1'], case_started: ['count==1'], case_completed: ['count==1'] },
+  thresholds: contract.thresholds,
   systemTags: ['name', 'method', 'status', 'check', 'scenario', 'group'],
   maxRedirects: 0, discardResponseBodies: false,
 };
@@ -23,17 +25,17 @@ export default function () {
   }
   if (__ENV.K6_INTERNAL_NEGATIVE === 'absent-case') return;
   if (__ENV.K6_INTERNAL_NEGATIVE === 'interrupt') { sleep(20); return; }
-  started.add(1);
+  contract.start();
   const response = http.get(`${__ENV.K6_ORIGIN}/iam/health`, {
     redirects: 0, timeout: '5s', tags: { name: 'iam-health' },
     responseType: 'text',
   });
   if (__ENV.K6_INTERNAL_NEGATIVE === 'false-check') baseline.add(response.status === 200 && response.body === 'OK' ? 1 : 0);
-  check(response, {
+  contract.check(response, {
     'iam-status': (r) => r.status === 200,
     'iam-body': (r) => __ENV.K6_INTERNAL_NEGATIVE === 'false-check' ? r.body === 'INTENTIONALLY_FALSE' : r.body === 'OK',
   });
-  completed.add(1);
+  contract.finish();
 }
 
-export function handleSummary(data) { return project(data, 'HTTP', 'iam-health'); }
+export function handleSummary(data) { return contract.summary(data); }

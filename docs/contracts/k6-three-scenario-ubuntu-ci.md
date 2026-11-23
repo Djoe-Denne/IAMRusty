@@ -1,5 +1,10 @@
 # Trois scénarios k6 — runner Ubuntu autonome
 
+For current scenario registration and opt-in PR binary reuse, see the
+[STORY-020 contract](k6-scenario-registration.md). The original manual
+saved-image route below remains `master`-only; the new comment route has
+its own PR provenance checks and does not publish Pages.
+
 - **Proposed**, 2026-11-13. Accord utilisateur pour un job GitHub Ubuntu et une
   pile jetable, sans dépendance au poste local. Aucun statut existant promu.
 - Cadrage architecte lecture seule : `ses_e2bb54211ffetS1Myw6ZEFwhS5`.
@@ -16,10 +21,11 @@ Kind mono-nœud neuf par run/attempt, kubeconfig privé, namespace
 
 Vrais IAM, OAuthConnect v2 `gitlab`, Envoy et ext-authz du checkout ; simulateur
 IdP protocolaire existant ; PostgreSQL, OpenFGA et LocalStack/SQS dédiés.
-Réutiliser l'inventaire Bake avec sélection `iam,oauth,ext-authz`, chart natif et backings
-kind-minimal. Aucun lab local, OpenBao, service métier additionnel ou registry
-publish. Secrets, clés JWT et PKI neufs dans le répertoire privé du runner ;
-aucune clé versionnée/opérateur, aucun secret GitHub requis.
+Reuse the Bake inventory for `iam,oauth,ext-authz`, the hosted fixture chart
+in `ops/tests/k6/ci/chart/`, and the `kind-minimal` backings. Do not use a
+local lab or OpenBao, introduce other services, or publish registry images.
+Generate secrets, JWT keys, and PKI only in the runner's private directory;
+no operator credentials or repository secrets are required.
 
 ## Profil et preuves
 
