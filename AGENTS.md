@@ -60,7 +60,7 @@ for story refinement, priority, architecture, red/green testing, and review.
 
 ## Fin de mission — intégration, publication et nettoyage (2026-10-29)
 
-- Start durable repository changes on a task branch based on a freshly fetched `origin/master`. Reuse the existing task branch and, when using the pull request route, its pull request. If the current checkout contains unrelated changes, use a separate worktree rather than moving or stashing them.
+- Start durable repository changes on a task branch based on a freshly fetched `origin/master`. Reuse the existing task branch and, when using the pull request route, its pull request.
 - By default, commit and push the task branch, then open or update a GitHub pull request targeting `master`. Merge only after the required GitHub Actions check **`CI scope and result`** is green, unless the user explicitly authorizes an override for that specific PR and GitHub permits it.
 - If the user explicitly authorizes a direct push to `master` for the current task, a pull request is not required. Run the applicable validations, fetch `origin/master` again, and push only the authorized task commits as a normal fast-forward update. The authorization applies only to that task and does not permit force-pushing, changing branch protections, or bypassing repository controls. If GitHub rejects the push, report the blocker and ask before switching to a pull request.
 - A mission is complete only after all its durable changes are committed and integrated into `master`, through a pull request or an explicitly authorized direct push, all its branches are resolved, and the remote `origin/master` ref is verified. Here, “main” means `master`; it is not permission to rename it or create a second primary branch.

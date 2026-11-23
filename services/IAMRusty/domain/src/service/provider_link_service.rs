@@ -77,7 +77,7 @@ where
 
         // Step 3: Handle email from provider
         let (new_email_added, new_email) = self
-            .handle_provider_email(user_id, &provider, provider_profile.email)
+            .handle_provider_email(user_id, &provider, provider_profile)
             .await?;
 
         // Step 4: Save provider tokens
@@ -197,12 +197,12 @@ where
         &self,
         user_id: Uuid,
         provider: &Provider,
-        email: Option<String>,
+        profile: ProviderUserProfile,
     ) -> Result<(bool, Option<String>), DomainError>
     where
         <UER as UserEmailRepository>::Error: std::error::Error + Send + Sync + 'static,
     {
-        let Some(email) = email else {
+        let Some(email) = profile.email else {
             return Ok((false, None));
         };
 
@@ -227,8 +227,8 @@ where
             }
             Some(_) => Ok((false, None)), // Email already exists for this user
             None => {
-                // Create new secondary email
-                let user_email = UserEmail::new_secondary(user_id, email.clone(), false);
+                let user_email =
+                    UserEmail::new_secondary(user_id, email.clone(), profile.email_verified);
                 self.user_emails
                     .create(user_email)
                     .await
