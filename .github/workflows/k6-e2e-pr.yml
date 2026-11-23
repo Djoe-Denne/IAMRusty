@@ -1,19 +1,25 @@
-name: Opt-in k6 E2E qualification for harness PRs
+name: PR comment — full k6 E2E from saved binaries
+run-name: Full k6 E2E for PR #${{ github.event.issue.number }}
 
 on:
-  pull_request:
-    types: [labeled]
-    branches: [master]
+  # Required command interface. The called workflow checks live write access
+  # and exact same-repository PR/CI identities before checking out PR code.
+  issue_comment: # zizmor: ignore[dangerous-triggers]
+    types: [created]
 
 permissions:
   contents: read
   actions: read
+  pull-requests: read
+
+cache-mode: none
 
 jobs:
   e2e:
     if: >-
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      startsWith(github.event.label.name, 'k6-e2e:')
+      github.event.issue.pull_request &&
+      github.event.comment.user.type == 'User' &&
+      github.event.comment.body == '/k6-e2e'
     uses: ./.github/workflows/k6-e2e.yml
     with:
       pr_qualification: true

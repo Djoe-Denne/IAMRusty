@@ -27,22 +27,18 @@ uses the same code as CI:
 k6 run --no-usage-report ops/tests/k6/scenarios/smoke/iam-health.js
 ```
 
-The command does not start, prepare, or dispose of the lab. The native Windows
-`prepare` command by itself does not create a live target. A direct scenario
-result is not the full infrastructure and correlation verdict. In particular,
-running the SAN stimulus directly does not rotate or restore a certificate.
+The command does not start, prepare, or dispose of the lab. A direct scenario
+result is not the full infrastructure and correlation verdict. Running a SAN
+stimulus directly does not rotate or restore a certificate.
 
-## Qualify a harness-only PR
+## Run the whole catalogue
 
-The automatic full E2E campaign stays on `master`. For an internal PR that
-only changes the k6 harness, the opt-in workflow runs the exact merge tree
-against verified application images made from its exact `master` base.
-Obtain a successful `k6-images.yml` packaging run on `master` for that base,
-using the matching successful master CI build, then apply the PR label
-`k6-e2e:<packaging-run-id>:<attempt>`. A new merge tree needs a new labelled
-run. No unlabelled branch, fork, changed application/build input, or
-different image source is admitted. The qualification does not publish
-Pages or replace the regular PR checks.
+An authorized repository writer can comment `/k6-e2e` on an internal PR.
+The [hosted campaign](../ci/README.md#run-the-complete-campaign-on-a-pr) uses the
+current PR merge's saved builds or fails before running the suite. It is
+separate from automatic `master` E2E, Pages, and the ordinary PR checks.
 
-See the [scenario registration contract](../../../../docs/contracts/k6-scenario-registration.md)
-and the [native Windows run instructions](../native/README.md).
+The historical IAM stateless and provider-link pilots are not catalogue
+entries. They require their own prepared targets and are not qualified by
+this campaign. Do not discover them by globbing the scenario directory.
+See the [scenario registration contract](../../../../docs/contracts/k6-scenario-registration.md).

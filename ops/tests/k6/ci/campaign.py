@@ -19,7 +19,8 @@ import uuid
 
 import yaml
 
-from binaries import ROOT, Refused, require, sha, strict_json
+from artifacts import premerge_job
+from binaries import ROOT, Refused, command, require, sha, strict_json
 import browser as browser_profile
 import campaign_browser
 import evidence
@@ -455,7 +456,7 @@ class Campaign:
         images = {role: item["tag"] for role, item in self.state["images"]["roles"].items()} | {role: fixtures[role] for role in ("envoy", "idp")}
         for role in ("iam", "oauth", "ext-authz"):
             self.r.cli("kind", ["load", "docker-image", "--name", self.state["cluster"], images[role]], timeout=180)
-        objects = self.render(ROOT / "ops/tests/k6/native/chart", {
+        objects = self.render(HERE / "chart", {
             "name": self.state["name"], "runId": self.state["run_id"], "ciEnabled": True, "images": images,
             "envoySource": (HERE / "config/envoy.yaml").read_text(),
             "simulatorSource": (ROOT / "ops/tests/support/oauth-idp-simulator.py").read_text()})
@@ -550,6 +551,11 @@ class Campaign:
 
 def prepare(directory, cli_directory, browser_directory, image_directory):
     hosted()
+    harness = os.environ["GITHUB_SHA"]
+    if premerge_job(os.environ):
+        harness = os.environ.get("K6_PR_TARGET_SHA", "")
+        require(re.fullmatch(r"[a-f0-9]{40}", harness)
+                and command(["git", "rev-parse", "HEAD"], cwd=ROOT) == harness, "E2E_PR_HARNESS_SHA")
     os.umask(0o077)
     root = new_output(str(Path(directory).resolve()))
     (root / "public").mkdir(mode=0o700)
@@ -564,16 +570,19 @@ def prepare(directory, cli_directory, browser_directory, image_directory):
     tools.update(browser_profile.tools(browser_directory))
     images_root = Path(image_directory).resolve()
     images = strict_json((images_root / "verified/provenance.json").read_bytes())
+    if premerge_job(os.environ):
+        require(images["target_sha"] == harness, "E2E_PR_IMAGE_SHA")
     require(sha(images_root / "verified/images.tar.gz") == images["archive_sha256"], "E2E_IMAGE_ARCHIVE_CHANGED")
     state = {"version": 1, "run_id": run, "name": "k6-" + run, "job_run_id": os.environ["GITHUB_RUN_ID"],
         "job_attempt": os.environ["GITHUB_RUN_ATTEMPT"], "cluster": "k6-e2e-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"],
-        "kubeconfig": str(root / "private/kubeconfig"), "tools": tools, "values": inputs.fresh(run), "images": images,
+         "kubeconfig": str(root / "private/kubeconfig"), "tools": tools, "values": inputs.fresh(run), "images": images,
+         "harness_sha": harness,
         "host": socket.gethostname(), "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
         "resources": [], "processes": [], "completed_cases": [], "process_evidence": {}, "certificate_phase": "good",
         "restoration": "NOT_REQUIRED", "verdict": "NOT_RUN", "cleanup": {"status": "NOT_RUN"}, "volumes": []}
     runtime = Runtime(root, state)
     runtime.save()
-    Campaign(runtime).publish("selection.json", evidence.selection_receipt(run, os.environ["GITHUB_SHA"], images["target_sha"]))
+    Campaign(runtime).publish("selection.json", evidence.selection_receipt(run, harness, images["target_sha"]))
     state["before_containers"] = sorted(runtime.container_ids())
     state["before_volumes"] = runtime.docker(["volume", "ls", "--format", "{{.Name}}"]).decode().splitlines()
     state["known_images"] = sorted(runtime.image_ids())
@@ -657,7 +666,7 @@ def finish(campaign):
         "chromium_diagnostic": state.get("chromium_diagnostic"), "browser_preflight": state.get("browser_preflight"),
         "restoration": state["restoration"], "completed_cases": state["completed_cases"], "cleanup": cleanup["status"],
         "stage": state.get("stage"), "resources": state.get("resources", [])})
-    campaign.publish("provenance.json", {"harness_sha": os.environ["GITHUB_SHA"], "target_sha": state["images"]["target_sha"],
+    campaign.publish("provenance.json", {"harness_sha": state.get("harness_sha") or os.environ["GITHUB_SHA"], "target_sha": state["images"]["target_sha"],
         "sdk_sha": state["images"]["sdk_sha"], "packaging_sha": state["images"]["harness_sha"],
         "images": {role: value["image_id"] for role, value in state["images"]["roles"].items()},
         "tools": {name: {key: value for key, value in pin.items() if key != "path"} for name, pin in state["tools"].items()}})

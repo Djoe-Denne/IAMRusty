@@ -319,6 +319,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
     uses: ./.github/workflows/k6-e2e.yml
 
   e2e-pages-stage:

@@ -95,7 +95,7 @@ def create_arguments(runtime, output, inputs):
         "--entrypoint", "python3"]
     for key in ("GITHUB_ACTIONS", "GITHUB_JOB", "GITHUB_REF", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"):
         args += ["--env", key + "=" + os.environ[key]]
-    for key in ("GITHUB_EVENT_NAME", "GITHUB_REPOSITORY", "GITHUB_WORKFLOW_REF", "RUNNER_ENVIRONMENT"):
+    for key in ("GITHUB_EVENT_NAME", "GITHUB_REPOSITORY", "GITHUB_WORKFLOW_REF", "RUNNER_ENVIRONMENT", "K6_PR_MODE"):
         if key in os.environ:
             args += ["--env", key + "=" + os.environ[key]]
     return [*args, state["image_id"], "-B", "/opt/AIForAll/ops/tests/k6/ci/campaign_browser.py", "run",

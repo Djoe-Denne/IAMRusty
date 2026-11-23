@@ -2,7 +2,7 @@ import http from 'k6/http';
 import { check, fail } from 'k6';
 import { Counter } from 'k6/metrics';
 
-// Windows runner supplies public runtime metadata, never passwords or tokens.
+// A prepared isolated target supplies public runtime metadata, never passwords or tokens.
 const campaign = JSON.parse(open(__ENV.IAM_CAMPAIGN_FILE));
 if (campaign.version !== 1 || !/^[a-f0-9]{32}$/.test(campaign.run_id)
     || !/^https:\/\/127\.0\.0\.1:[0-9]+$/.test(campaign.origin)) {

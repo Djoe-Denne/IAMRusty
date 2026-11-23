@@ -1,0 +1,4 @@
+apiVersion: v2
+name: k6-e2e-fixtures
+version: 0.1.0
+description: Isolated IAM, OAuthConnect, Envoy and protocol IdP for the hosted k6 campaign

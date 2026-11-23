@@ -1,7 +1,7 @@
 # ADR-0508: Register standard k6 scenarios once
 
 - Status: Proposed
-- Reality: Partial; native Windows and WSL offline verification, live qualification pending
+- Reality: Catalogue qualified in the original hosted lane; saved-binary PR qualification and Windows retirement supersede that lane.
 - Date: 2026-11-23
 - Author: `architecte`, with the primary session
 - Decision makers: Pending explicit acceptance
@@ -36,7 +36,7 @@ require a new dependency or a second runner.
 Standard scenarios require a script and one declaration; their normal setup
 and assertions can run directly on an already prepared and isolated target.
 Independent failure and cleanup evidence is still required for campaign
-success. This proposal does not retire native Windows or qualify WSL OAuth.
-An opt-in pre-merge qualification has a separate trust boundary from the
-automatic `master` workflow; neither the default triggers nor the PR gate
-changes.
+success. The user retired the Windows k6 adapters in favor of a hosted
+pre-merge command on the PR's own saved builds. Its trust boundary is
+separate from automatic `master` E2E and the required PR gate. This retirement
+does not qualify application OAuth under WSL.

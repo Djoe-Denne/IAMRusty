@@ -12,6 +12,7 @@ import threading
 import time
 
 from binaries import ROOT, Refused, require, sha, strict_json
+from artifacts import premerge_job
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 from safety import private_path, proc, same
@@ -20,21 +21,13 @@ NS = "aiforall-local-full"
 OWNER = "k6-ci-e2e"
 
 
-def premerge_job(env):
-    ref = env.get("GITHUB_REF", "")
-    repository = env.get("GITHUB_REPOSITORY", "")
-    return (env.get("GITHUB_EVENT_NAME") == "pull_request" and env.get("RUNNER_ENVIRONMENT") == "github-hosted"
-            and env.get("GITHUB_ACTIONS") == "true" and env.get("GITHUB_JOB") == "e2e"
-            and re.fullmatch(r"refs/pull/[1-9][0-9]*/merge", ref) is not None
-            and re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) is not None
-            and env.get("GITHUB_WORKFLOW_REF") == f"{repository}/.github/workflows/k6-e2e-pr.yml@{ref}")
-
-
 def hosted(environment=None):
     env = os.environ if environment is None else environment
+    master = (env.get("GITHUB_REF") == "refs/heads/master" and env.get("K6_PR_MODE") != "true"
+              and env.get("GITHUB_EVENT_NAME") in ("push", "workflow_dispatch"))
     require(sys.platform == "linux" and os.getuid() != 0 and env.get("GITHUB_ACTIONS") == "true"
             and env.get("GITHUB_JOB") == "e2e"
-            and (env.get("GITHUB_REF") == "refs/heads/master" or premerge_job(env)), "HOSTED_E2E_ONLY")
+            and (master or premerge_job(env)), "HOSTED_E2E_ONLY")
     require(re.fullmatch(r"[1-9][0-9]*", env.get("GITHUB_RUN_ID", ""))
             and re.fullmatch(r"[1-9][0-9]*", env.get("GITHUB_RUN_ATTEMPT", "")), "E2E_RUN_ID")
 

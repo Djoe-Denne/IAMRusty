@@ -1,4 +1,4 @@
-"""Acquire only verified native bundles from a trusted CI push/master attempt."""
+"""Verify native bundles and acquire automatic/manual master build inputs."""
 import argparse
 from datetime import datetime, timezone
 import hashlib
@@ -33,11 +33,16 @@ def validate_run(run, repository, repository_id, workflow_id, run_id, attempt, s
         require(value.get("id") == repository_id and value.get("full_name") == repository, "RUN_REPOSITORY")
 
 
-def validate_jobs(jobs):
+def validate_jobs(jobs, *, producer=None):
     for name in ROLES.values():
         matched = [job for job in jobs if job.get("name") == name]
         require(len(matched) == 1 and matched[0].get("status") == "completed"
                 and matched[0].get("conclusion") == "success", "BUILD_JOB_NOT_SUCCESSFUL")
+        if producer is not None:
+            run_id, attempt, head_sha = producer
+            job = matched[0]
+            require(job.get("run_id") == run_id and job.get("run_attempt") == attempt
+                    and job.get("head_sha") == head_sha, "BUILD_JOB_WRONG_ATTEMPT")
 
 
 def validate_artifact(item, run_id, source_sha, now=None):
@@ -88,7 +93,8 @@ class GitHub:
         self.opener = urllib.request.build_opener(SafeRedirect())
 
     def open(self, suffix):
-        require(suffix.startswith("actions/"), "API_SCOPE")
+        require(suffix.startswith("actions/") or re.fullmatch(
+            r"pulls/[1-9][0-9]*|collaborators/[A-Za-z0-9-]{1,39}/permission", suffix), "API_SCOPE")
         request = urllib.request.Request("https://api.github.com/repos/" + self.repository + "/" + suffix,
                                         headers={"Authorization": "Bearer " + self.token,
                                                  "Accept": "application/vnd.github+json",
@@ -102,10 +108,11 @@ class GitHub:
         require(len(raw) <= 4 * 1024 ** 2, "API_OUTPUT_LIMIT")
         return strict_json(raw)
 
-    def pages(self, suffix, key):
+    def pages(self, suffix, key, *, parameters=None):
         values = []
         for page in range(1, 21):
-            result = self.json(suffix + f"?per_page=100&page={page}")
+            query = urllib.parse.urlencode({**(parameters or {}), "per_page": 100, "page": page})
+            result = self.json(suffix + "?" + query)
             require(type(result.get("total_count")) is int and isinstance(result.get(key), list), "API_LIST_SCHEMA")
             require(result["total_count"] <= 2000, "API_PAGINATION_LIMIT")
             values.extend(result[key])
@@ -151,10 +158,24 @@ def current_ci_source(environment, run_id, attempt, source_sha):
             and environment.get("GITHUB_RUN_ATTEMPT") == str(attempt) and environment.get("GITHUB_SHA") == source_sha)
 
 
+def premerge_job(env):
+    ref = env.get("GITHUB_REF", "")
+    repository = env.get("GITHUB_REPOSITORY", "")
+    workflow = env.get("GITHUB_WORKFLOW_REF", "")
+    if not (env.get("GITHUB_ACTIONS") == "true" and env.get("RUNNER_ENVIRONMENT") == "github-hosted"
+            and env.get("GITHUB_JOB") == "e2e" and env.get("K6_PR_MODE") == "true"
+            and re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository)):
+        return False
+    if env.get("GITHUB_EVENT_NAME") == "issue_comment":
+        return ref == "refs/heads/master" and workflow == f"{repository}/.github/workflows/k6-e2e-pr.yml@{ref}"
+    return (env.get("GITHUB_EVENT_NAME") == "workflow_dispatch" and ref.startswith("refs/heads/")
+            and ref != "refs/heads/master" and workflow == f"{repository}/.github/workflows/k6-e2e.yml@{ref}")
+
+
 def acquire(output, run_id, attempt, source_sha, environment=None):
     env = dict(os.environ if environment is None else environment)
     require(env.get("GITHUB_REF") == "refs/heads/master" and (env.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
-            or current_ci_source(env, run_id, attempt, source_sha)),
+             or current_ci_source(env, run_id, attempt, source_sha)),
             "MANUAL_MASTER_HARNESS_REQUIRED")
     repo = env["GITHUB_REPOSITORY"]
     repo_id = positive(env["GITHUB_REPOSITORY_ID"])
@@ -166,7 +187,23 @@ def acquire(output, run_id, attempt, source_sha, environment=None):
     run = api.json(f"actions/runs/{run_id}/attempts/{attempt}")
     validate_run(run, repo, repo_id, workflow["id"], run_id, attempt, source_sha)
     validate_jobs(api.pages(f"actions/runs/{run_id}/attempts/{attempt}/jobs", "jobs"))
-    selected = select_artifacts(api.pages(f"actions/runs/{run_id}/artifacts", "artifacts"), run_id, attempt, source_sha)
+    save_bundles(output, api, repo, repo_id, workflow["id"], run_id, attempt, source_sha)
+    with open(env["GITHUB_OUTPUT"], "a", encoding="utf-8") as target:
+        target.write("target_sha=" + source_sha + "\n")
+
+
+def save_bundles(output, api, repo, repo_id, workflow_id, run_id, attempt, source_sha, *, artifact_sha=None):
+    # For PR CI, GitHub's artifact metadata names the PR head, while the
+    # producer's checked-out source (and binary manifest) names the merge SHA.
+    items = api.pages(f"actions/runs/{run_id}/artifacts", "artifacts")
+    selected = select_artifacts(items, run_id, attempt, source_sha if artifact_sha is None else artifact_sha)
+    if artifact_sha is not None:
+        selected_ids = {item["id"] for item in selected.values()}
+        for item in items:
+            if item.get("id") in selected_ids:
+                origin = item["workflow_run"]
+                require(origin.get("repository_id") == repo_id and origin.get("head_repository_id") == repo_id,
+                        "BINARY_ARTIFACT_REPOSITORY")
     output = Path(output)
     require(output.is_absolute() and not output.exists(), "ACQUISITION_OUTPUT_EXISTS")
     output.mkdir(mode=0o700)
@@ -176,11 +213,9 @@ def acquire(output, run_id, attempt, source_sha, environment=None):
         unwrap_zip(path, output / (role + ".tar.gz"))
         path.unlink()
     selection = dict(schema="aiforall.k6-selection/v1", repository=repo, repository_id=repo_id,
-                     workflow_id=workflow["id"], run_id=run_id, run_attempt=attempt,
+                     workflow_id=workflow_id, run_id=run_id, run_attempt=attempt,
                      source_sha=source_sha, artifacts=selected)
     (output / "selection.json").write_text(json.dumps(selection, sort_keys=True), encoding="utf-8")
-    with open(env["GITHUB_OUTPUT"], "a", encoding="utf-8") as target:
-        target.write("target_sha=" + source_sha + "\n")
 
 
 def main():

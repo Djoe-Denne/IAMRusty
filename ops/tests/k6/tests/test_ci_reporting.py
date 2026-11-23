@@ -421,7 +421,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(job["uses"], "./.github/workflows/k6-e2e.yml")
         self.assertIn("'push'", job["if"])
         self.assertIn("refs/heads/master", job["if"])
-        self.assertEqual(job["permissions"], dict(contents="read", actions="read"))
+        self.assertEqual(job["permissions"], {"contents": "read", "actions": "read", "pull-requests": "read"})
         self.assertEqual(value["jobs"]["sonar"]["needs"], ["merge-coverage", "clippy", "plan"])
         stage, pages = (value["jobs"][name] for name in ("e2e-pages-stage", "e2e-pages"))
         self.assertEqual(stage["needs"], ["k6-e2e"])

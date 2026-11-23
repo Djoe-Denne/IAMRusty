@@ -31,6 +31,10 @@ def prepare(acquired, source, context, harness=ROOT):
     sdk_sha = command(["git", "rev-parse", "HEAD:rustycog"], source)
     harness_sha = command(["git", "rev-parse", "HEAD"], harness)
     require(all(re.fullmatch(r"[a-f0-9]{40}", value) for value in (target_sha, sdk_sha, harness_sha)), "CHECKOUT_SHA")
+    entrypoint = "services/IAMRusty/docker-entrypoint.sh"
+    for name in ("Cargo.lock", "ops/deploy/build/targets.json", entrypoint):
+        path = source / name
+        require(path.is_file() and path.resolve() == path, "PACKAGING_SOURCE_FILE")
     context.mkdir(mode=0o700)
     release = context / "release"
     release.mkdir()
@@ -59,7 +63,6 @@ def prepare(acquired, source, context, harness=ROOT):
         shutil.copyfile(harness / dockerfile, target)
         records[role] = {"manifest": manifest, "dockerfile": dockerfile,
                          "dockerfile_sha256": sha(target), "artifact": selected["artifacts"][role]}
-    entrypoint = "services/IAMRusty/docker-entrypoint.sh"
     shutil.copyfile(source / entrypoint, context / entrypoint)
     shutil.copyfile(harness / "ops/tests/k6/ci/Dockerfile.artifacts", context / "Dockerfile.artifacts")
     (context / ".dockerignore").write_text("**\n!release/\n!release/**\n!services/\n!services/IAMRusty/\n"

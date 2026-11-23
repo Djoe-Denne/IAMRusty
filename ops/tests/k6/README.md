@@ -1,38 +1,22 @@
-# k6 mission1 — Linux functional foundation
+# k6 functional E2E
 
-**Retrait utilisateur, 2026-11-11 :** le scénario autonome `browser-prerequisite`
-(`about:blank`/42) est supprimé, ainsi que les modes `browser` Windows/Linux et
-ses étapes CI/comparaison Ubuntu22. Les trois scénarios historiques conservés
-sont santé IAM, OAuth navigateur et identité TLS/SAN Envoy. Chromium et son
-contrôle de version restent dans le vrai parcours OAuth, pas une campagne de
-prérequis indépendante. Les qualifications navigateur décrites plus bas sont
-des preuves historiques, pas une commande actuelle à relancer.
+- [Author or run a scenario](scenarios/README.md). Use the same k6 script and
+  catalogue for direct Linux/WSL tests and the full campaign.
+- [Run the complete hosted campaign](ci/README.md). On internal PRs use
+  `/k6-e2e` after the ordinary builds have saved executables for the current
+  merge revision. Automatic publication belongs to `master` only.
 
-**IAM natif, 2026-11-11 :** nouvelle [tranche HTTP sans Python](iam/README.md),
-limitée aux lectures et refus sans fixture persistante. Parcours positifs différés,
-qualification live non effectuée. Le reste de ce document décrit le harness
-historique ; il n'est pas une dépendance des nouvelles recettes `k6-prepare/run/clean iam`.
+The Windows adapters and their `just k6-*` commands are retired. This does
+not change Windows Rust development, remove operator trust, or qualify WSL
+OAuth. The [Windows campaign evidence](../../../docs/missions/20261112-k6-three-native-results.md)
+and [its runbook at the historical revision](https://github.com/Djoe-Denne/IAMRusty/blob/e203daf073c9921398f5ccc499be4e944802fb5a/ops/tests/k6/native/README.md)
+remain available for evidence and recovery of previously owned resources.
 
-**Windows revision3, 2026-10-31:** see [the simplified native adapter](WINDOWS.md).
-WSL qualification is suspended/INCONCLUSIVE. The Windows
-adapter does not qualify Linux or reactivate its CI. Its Accepted version
-addendum uses the mandatory API equality check in the same browser case, not
-Chrome `--version` or VersionInfo. Tools alone stays INCONCLUSIVE/exit2; HTTP
-authority remains unqualified. The native Windows minimal browser and cleanup are
-now verified PASS (2026-10-31), with 34 final Windows tests successful and no skips.
-This functional result is not a sandbox attestation or Linux proof. The Accepted
-revision3 amendment removes executable/DLL locks, ACL checks and renderer/token
-attestation. Functional browser PASS does not qualify the sandbox. The lead has
-executed the real about:blank/42 case; no custody proposal or new review pipeline
-blocks it. Unit tests are not substituted for this real-tool evidence.
+## Historical Linux launcher and diagnostic evidence
 
-Contract: [V1 Accepted](../../../docs/contracts/k6-functional-linux.md),
-[ADR0504](../../../docs/adr/0504-validation-fonctionnelle-linux-k6.md).
-Only one public `GET /iam/health`, exact `200` / `OK`, and a **separate** Chromium
-prerequisite. This is not load testing, readiness, OAuth, authz or a deployment.
-No Rust service, SDK gitlink or existing CI workflow is modified.
-
-## Current admission and missing evidence
+The remainder records the earlier Linux tooling mission. It is not the
+current application campaign. The retired standalone browser prerequisite
+and its local Windows controller are not supported run paths.
 
 **Partial evidence, not a qualified mission.** Tooling1c0036f was subsequently
 observed on GitHub with140Linux tests without skips on22/24. On the separately

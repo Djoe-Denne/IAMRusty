@@ -1,6 +1,6 @@
 ---
 name: aiforall-test-evidence
-description: Prépare et archive des campagnes Apparatus, IT Windows, k6 et E2E Kind avec preuves adaptées à leur frontière, registre Docker contemporain et préflight des remplacements. À charger avant un run réel, une capture de preuves ou la revue finale d'une campagne de tests AIForAll ; compléter par aiforall-k6 pour les fixtures et scénarios k6 natifs.
+description: Prepare and archive AIForAll Apparatus, Rust integration, and k6 E2E evidence. Load before real execution, evidence capture, or final review. Use aiforall-k6 for direct scenarios, hosted PR comment runs, and their distinct evidence boundaries.
 ---
 
 # Campagnes de preuves AIForAll — pièges évitables
@@ -43,21 +43,17 @@ suppression, nouveau test ou contournement de hook.
 - Hook Windows `os error 206` sur long worktree : préserver le diff, livrer un patch borné, vérifier les hashes des fichiers puis commit canonique au hook normal si approuvé. **Jamais** rejouer une exception `--no-verify` déjà consommée ni raccourcir globalement config/règles sans GO.
 - Diff identique : réutiliser les preuves valides, pas de rerun redondant. Clippy strict rouge sur dette prod différée reste rouge ; succès des oracles ne la résout pas.
 
-## 6. Raccord k6 — IaC / fixture-first
+## 6. k6 evidence: direct scenario versus full campaign
 
-- Charger [aiforall-k6](../aiforall-k6/SKILL.md) pour choisir le chemin et ses
-  sources : campagne `ops/tests/k6/native/` à trois scénarios distincte de la
-  tranche IAM stateless `just k6-* iam` et du legacy Linux/Windows.
-- Adapter les preuves à cette frontière : résumés liés au run/checks nommés,
-  deltas parent, UID/OID, restauration SAN et fin des processus/fixtures. Les
-  marqueurs H1-H4 Apparatus ne sont pas un format imposé aux scénarios k6.
-- Définir données, effets aval et inverse sûr avant le stimulus ; fixtures
-  publiques dans le chart, inputs privés hors Git, pas un second déployeur.
-- La CA publique opérateur durable CurrentUser\Root n'appartient pas au cleanup
-  de la campagne. Ne pas assimiler `owned_ca_absent` au retrait de cette confiance.
-- La preuve E2E du 12 novembre est liée à54a19ba ; le nettoyage Python fc5e29b
-  n'a rejoué que les régressions, pas la campagne réelle. Ne pas étendre la preuve
-  à un nouveau tree, à tout le lab ou à Linux/CI. CI et retrait legacy reportés.
+- Load [aiforall-k6](../aiforall-k6/SKILL.md) to choose the path. Keep direct
+  Linux/WSL, offline checks, packaging, and hosted live verdicts distinct.
+- For a PR command run, record the PR head/base/merge, exact CI producer run
+  and attempt, artifact identity/digest, E2E run/attempt, named-check results,
+  parent correlation, sandbox, and independent restoration and cleanup.
+  Refusal before admission means no cases ran. Apparatus H1–H4 is not a k6 format.
+- The [November 12 Windows result](../../../docs/missions/20261112-k6-three-native-results.md)
+  is historical. Retiring its adapters changes no local CA trust or fixtures.
+  Do not transfer it to a new tree or infer WSL OAuth from Chromium startup.
 
 ## Sources et limite de réutilisation
 

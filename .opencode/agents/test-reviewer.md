@@ -108,6 +108,15 @@ Si un correctif historique important du périmètre examiné n'a aucun test de n
 
 Convention du dépôt (ADR 0200/0201/0202) : IT = serveur HTTP réel + DB réelle + migrations + JWT de test + `#[serial]`, bootstrap `setup_test_server()` dans `tests/common.rs`, URLs préfixées. Mocks seulement pour HTTP sortant (WireMock). Files désactivées par défaut (`config/test.toml`, `queue.enabled=false`). Fixtures testcontainers réelles pour OpenFGA/Postgres/Redis/Vault. Un test de use-case pur n'est pas un substitut d'IT quand le risque est transactionnel/ACL — et réciproquement.
 
+## k6 evidence — AIForAll
+
+Load `aiforall-k6` and `aiforall-test-evidence` for k6 changes. Check that
+one catalogue declaration works without changing the launcher, missing named
+checks or stale evidence cannot pass, and failure paths still restore SAN and
+verify cleanup. For a hosted PR result, verify the exact merge and producer
+attempt. Keep direct scenario, offline, packaging, and live evidence separate.
+Remain read-only; do not start a lab or dispatch a GitHub run.
+
 ## Qualité des tests eux-mêmes — audit borné au diff
 
 Au-delà du test manquant, évalue la **qualité** des tests touchés par le diff (six dimensions, méthode `ai-qa-review`, jamais un audit de toute la suite) :

@@ -121,6 +121,15 @@ d'écrire une fixture, `local-runtime-lifecycle` avant tout runtime, et applique
 `aiforall-sonar-policy` : les tests passent fmt/clippy/Sonar comme le code de
 prod.
 
+## k6 end-to-end tests — AIForAll
+
+For k6 work, load `aiforall-k6` and `aiforall-test-evidence`. Use the scenario
+registration contract: a standard script plus one catalogue record, with
+API fixtures, named checks and teardown in k6. Prove the intended failure
+with focused tests; use direct `k6 run` only against a prepared isolated target.
+Request the full `/k6-e2e` campaign through the lead when live proof is needed.
+Do not substitute an offline check or a Windows/WSL tool smoke for that proof.
+
 ## Cycle de vie des conteneurs
 
 Toute ressource Docker créée par tes fixtures est enregistrée à la création dans

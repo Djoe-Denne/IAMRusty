@@ -1,8 +1,8 @@
 # k6 E2E scenario registration (Proposed)
 
 STORY-020 extends the existing [Linux k6 contract](k6-three-scenario-ubuntu-ci.md).
-It does not change the post-merge policy, the native Windows qualification, or
-the target and image admission requirements.
+The Windows k6 adapters are retired. Automatic post-merge E2E and the ordinary
+PR gate retain their independent policies.
 
 ## One declaration
 
@@ -35,7 +35,7 @@ in the scenario. Export `handleSummary` using `contract.summary(data)`. Use
 one VU and one iteration, and keep the `group` tag. Repeat or omitted named
 checks fail even when all observed checks pass. This contract records assertion
 execution counts independently of k6's aggregate success rate. The summary
-keeps the existing version-1 shape used by the Windows consumer.
+retains the version-1 shape.
 
 Use the same script with `k6 run` on an already prepared, authorized, isolated
 target. Set `K6_RUN_ID`, `K6_ORIGIN`, `K6_CAMPAIGN_FILE` and `K6_SUMMARY_PATH`
@@ -74,9 +74,16 @@ The public projection distinguishes `functional`, `incomplete`,
 different from one that was not executed. All selected cases remain in the
 denominator even if a failure prevents later execution.
 
-## Non-goals
+## Hosted PR qualification
 
-No new deployment framework, shell hooks or alternate PowerShell runner. Keep
-the current Windows-native path until replacement and failure cleanup are
-qualified. WSL qualification and the opt-in hosted PR qualification are
-separate from launching a direct scenario.
+Use `/k6-e2e` as a repository writer on an internal PR targeting `master`.
+Resolve the current open PR's merge, head and base before checking out its
+harness. The newest ordinary CI run/attempt for that exact PR revision must
+have all three saved non-instrumented build artifacts. Verify their GitHub
+identity and archive digests, and the manifests, ELF metadata and payload
+hashes, before executing the same catalogue. The current PR merge must still
+match when the workflow finishes. See the [hosted runbook](../../ops/tests/k6/ci/README.md#run-the-complete-campaign-on-a-pr).
+
+No fallback to a previous attempt or `master`, no application compilation,
+and no new deployment framework. The hosted result does not attest WSL
+browser or OAuth behavior, replace Rust CI, or publish the `master` badge.

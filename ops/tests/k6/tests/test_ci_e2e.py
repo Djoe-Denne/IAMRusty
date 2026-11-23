@@ -62,6 +62,31 @@ class ImageAdmissionTests(unittest.TestCase):
             with self.assertRaises(b.Refused):
                 i.admit({**run, **changes}, 456, "o/r", 789, 123, 1)
 
+    def test_pr_local_packaging_cannot_admit_a_different_target_or_attempt(self):
+        repo, ref = "o/r", "refs/heads/master"
+        env = dict(GITHUB_ACTIONS="true", GITHUB_JOB="e2e", GITHUB_EVENT_NAME="issue_comment",
+                   GITHUB_REPOSITORY=repo, GITHUB_REF=ref, GITHUB_SHA=H, RUNNER_ENVIRONMENT="github-hosted",
+                   GITHUB_WORKFLOW_REF=f"{repo}/.github/workflows/k6-e2e-pr.yml@{ref}",
+                   K6_PR_MODE="true", K6_PR_TARGET_SHA=SHA, GITHUB_RUN_ID="123", GITHUB_RUN_ATTEMPT="1")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            source = root / "packaged"
+            source.mkdir()
+            archive = source / "images.tar.gz"
+            archive.write_bytes(b"synthetic archive")
+            (source / "provenance.json").write_text(json.dumps({**provenance(), "archive_sha256": b.sha(archive)}))
+            (source / "cleanup.json").write_text(json.dumps(dict(schema="aiforall.k6-packaging-cleanup/v1",
+                status="PASS", owned_running=0, run_id="123", run_attempt="1")))
+            (source / "docker-resources.jsonl").write_text("{}\n")
+            output = root / "images"
+            for run, attempt, target in (("123", "1", H), ("123", "2", SHA), ("456", "1", SHA)):
+                with self.subTest(attempt=attempt, target=target), self.assertRaisesRegex(b.Refused, "IMAGE_CURRENT_CI_ONLY"):
+                    i.from_packaging(source, output, run, attempt, target, env)
+                self.assertFalse(output.exists())
+            i.from_packaging(source, output, "123", "1", SHA, env)
+            receipt = json.loads((output / "admission.json").read_bytes())
+            self.assertEqual((receipt["mode"], receipt["target_sha"], receipt["packaging_sha"]), ("pr-ci-binaries", SHA, H))
+
     def test_closed_zip_refuses_paths_extras_duplicates_and_symlinks(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
@@ -305,7 +330,7 @@ class WorkflowTests(unittest.TestCase):
     def test_manual_and_reusable_workflow_keep_always_cleanup_before_raw_allowlisted_upload(self):
         value = yaml.load((b.ROOT / ".github/workflows/k6-e2e.yml").read_text(), Loader=yaml.BaseLoader)
         self.assertEqual(set(value["on"]), {"workflow_dispatch", "workflow_call"})
-        self.assertEqual(value["permissions"], dict(contents="read", actions="read"))
+        self.assertEqual(value["permissions"], {"contents": "read", "actions": "read", "pull-requests": "read"})
         steps = value["jobs"]["e2e"]["steps"]
         clean = next(n for n, step in enumerate(steps) if "campaign.py clean" in step.get("run", ""))
         self.assertEqual(steps[clean]["if"], "${{ always() }}")
