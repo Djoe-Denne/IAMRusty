@@ -18,11 +18,49 @@ pub struct UserProfile {
     pub email: Option<String>,
 }
 
+/// Only profile fields that the account owner can change.
+#[derive(Clone)]
+pub struct ProfilePatch {
+    pub username: Option<String>,
+    /// Outer `None` leaves the avatar alone; `Some(None)` clears it.
+    pub avatar_url: Option<Option<String>>,
+}
+
+fn valid_avatar_url(value: &str) -> bool {
+    // Bound the stored URL and reject inputs the URL parser might repair.
+    if value.len() > 2048
+        || value.contains('\\')
+        || value.chars().any(char::is_whitespace)
+        || value.chars().any(char::is_control)
+    {
+        return false;
+    }
+    let Some((scheme, rest)) = value.split_once("://") else {
+        return false;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    scheme.eq_ignore_ascii_case("https")
+        && !authority.is_empty()
+        && !authority.contains('@')
+        && url::Url::parse(value).is_ok_and(|url| {
+            url.scheme() == "https"
+                && url.has_host()
+                && url.username().is_empty()
+                && url.password().is_none()
+        })
+}
+
 /// User domain service trait
 #[async_trait]
 pub trait UserService: Send + Sync {
     /// Get a user profile by ID (includes primary email)
     async fn get_user_profile(&self, id: Uuid) -> Result<UserProfile, DomainError>;
+
+    async fn patch_profile(
+        &self,
+        id: Uuid,
+        patch: ProfilePatch,
+    ) -> Result<UserProfile, DomainError>;
 
     /// Validate a user's JWT token and return the user ID
     async fn validate_access_token(&self, token: &str) -> Result<Uuid, DomainError>;
@@ -86,6 +124,22 @@ where
             user,
             email: primary_email.map(|email| email.email),
         })
+    }
+
+    async fn patch_profile(
+        &self,
+        id: Uuid,
+        patch: ProfilePatch,
+    ) -> Result<UserProfile, DomainError> {
+        if let Some(username) = &patch.username {
+            super::UsernameValidator::validate(username)?;
+        }
+        if let Some(Some(url)) = &patch.avatar_url {
+            if !valid_avatar_url(url) {
+                return Err(DomainError::InvalidAvatarUrl);
+            }
+        }
+        self.user_repo.patch_profile(id, patch).await
     }
 
     async fn validate_access_token(&self, token: &str) -> Result<Uuid, DomainError> {

@@ -1,11 +1,32 @@
-use super::entity::users;
+use super::entity::{user_emails, users};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use iam_domain::entity::user::User as DomainUser;
+use iam_domain::error::DomainError;
 use iam_domain::port::repository::UserWriteRepository;
-use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr, Set, TransactionTrait};
+use iam_domain::service::{user_service::ProfilePatch, UserProfile};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
+    QueryFilter, RuntimeErr, Set, TransactionTrait,
+};
 use std::sync::Arc;
 use tracing::debug;
+use uuid::Uuid;
+
+pub(super) fn is_username_conflict(error: &DbErr) -> bool {
+    match error {
+        DbErr::Exec(RuntimeErr::SqlxError(sea_orm::sqlx::Error::Database(error)))
+        | DbErr::Query(RuntimeErr::SqlxError(sea_orm::sqlx::Error::Database(error))) => {
+            error.code().as_deref() == Some("23505")
+                && error.constraint() == Some("users_username_unique")
+        }
+        _ => false,
+    }
+}
+
+fn profile_storage_error(_: DbErr) -> DomainError {
+    DomainError::RepositoryError("profile writer transaction failed".into())
+}
 
 /// `SeaORM` implementation of `UserWriteRepository`
 #[derive(Clone)]
@@ -48,6 +69,51 @@ impl UserWriteRepositoryImpl {
 #[async_trait]
 impl UserWriteRepository for UserWriteRepositoryImpl {
     type Error = DbErr;
+
+    async fn patch_profile(
+        &self,
+        id: Uuid,
+        patch: ProfilePatch,
+    ) -> Result<UserProfile, DomainError> {
+        let tx = self.db.begin().await.map_err(profile_storage_error)?;
+        let existing = super::authentication_session::lock_user(&tx, id)
+            .await
+            .map_err(|error| match error {
+                DbErr::RecordNotFound(_) => DomainError::UserNotFound,
+                other => profile_storage_error(other),
+            })?;
+        let user = if patch.username.is_none() && patch.avatar_url.is_none() {
+            existing
+        } else {
+            let mut model = users::ActiveModel::from(existing);
+            if let Some(username) = patch.username {
+                model.username = Set(Some(username));
+            }
+            if let Some(avatar_url) = patch.avatar_url {
+                model.avatar_url = Set(avatar_url);
+            }
+            model.updated_at = Set(Utc::now().naive_utc());
+            model.update(&tx).await.map_err(|error| {
+                if is_username_conflict(&error) {
+                    DomainError::UsernameTaken
+                } else {
+                    profile_storage_error(error)
+                }
+            })?
+        };
+        let email = user_emails::Entity::find()
+            .filter(user_emails::Column::UserId.eq(id))
+            .filter(user_emails::Column::IsPrimary.eq(true))
+            .one(&tx)
+            .await
+            .map_err(profile_storage_error)?
+            .map(|row| row.email);
+        tx.commit().await.map_err(profile_storage_error)?;
+        Ok(UserProfile {
+            user: Self::to_domain(user),
+            email,
+        })
+    }
 
     async fn create(&self, user: DomainUser) -> Result<DomainUser, Self::Error> {
         debug!("Creating new user with ID: {}", user.id);

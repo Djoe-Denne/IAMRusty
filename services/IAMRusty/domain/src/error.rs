@@ -78,6 +78,10 @@ pub enum DomainError {
     #[error("Invalid username format")]
     InvalidUsername,
 
+    /// Invalid submitted avatar URL.
+    #[error("Invalid avatar URL")]
+    InvalidAvatarUrl,
+
     /// User already has username (registration already complete)
     #[error("Registration already completed")]
     RegistrationAlreadyComplete,

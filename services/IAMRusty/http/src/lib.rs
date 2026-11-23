@@ -41,7 +41,7 @@ pub use handlers::{
         validate_reset_token,
     },
     token::refresh_token,
-    user::get_user,
+    user::{get_user, patch_profile},
 };
 pub use oauth_state::{configure_oauth_state_secret, OAuthState};
 pub use platform_user::{PlatformIssuer, PlatformUser};
@@ -102,7 +102,7 @@ pub fn create_router(
             create_organization_managed_identity,
         )
         // Authenticated routes
-        .get("/api/me", get_user)
+        .route("/api/me", axum::routing::get(get_user).patch(patch_profile))
         .authenticated()
         .get(
             "/api/auth/{provider_name}/relink-start",

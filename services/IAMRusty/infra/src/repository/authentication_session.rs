@@ -57,7 +57,13 @@ impl AuthenticationSessionWriter for SeaOrmAuthenticationSessionWriter {
         let mut updated: users::ActiveModel = user.into();
         updated.username = Set(Some(username));
         updated.updated_at = Set(chrono::Utc::now().naive_utc());
-        let updated = updated.update(&tx).await.map_err(storage_error)?;
+        let updated = updated.update(&tx).await.map_err(|error| {
+            if super::user_write::is_username_conflict(&error) {
+                DomainError::UsernameTaken
+            } else {
+                storage_error(error)
+            }
+        })?;
         if let Some(token) = token {
             if token.user_id != user_id || !token.is_valid || token.expires_at <= chrono::Utc::now()
             {
