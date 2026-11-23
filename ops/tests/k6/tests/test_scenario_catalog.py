@@ -158,7 +158,7 @@ class CatalogTests(unittest.TestCase):
             if transform == "missing-san":
                 del cases[2]
             elif transform == "missing-oauth":
-                cases.pop()
+                cases.remove(next(record for record in cases if record["id"] == "auth-oauth-browser"))
             elif transform == "reordered":
                 cases[1], cases[2] = cases[2], cases[1]
             else:

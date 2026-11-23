@@ -1414,21 +1414,34 @@ async fn relink_with_another_users_primary_email_replaces_tokens_without_reassig
     }).await;
 }
 
-/// T-1/G7: a provider's verification flag does not verify a newly linked IAM
-/// email. The added email belongs to the signed transaction target only.
-#[tokio::test]
-#[serial]
-async fn link_with_new_provider_email_adds_it_unverified_to_the_exact_target() {
+async fn assert_link_imports_secondary_email_with_verification(proof: Option<bool>) {
     let (fixture, base, _) = Box::pin(setup_test_server()).await.expect("IAM harness");
     fixture_cleanup::run(&fixture, async {
         let db = fixture.db();
         let owner = fixtures::DbFixtures::user().arthur().commit(db.clone()).await.expect("link target");
         let primary = fixtures::DbFixtures::user_email().arthur_primary(owner.id()).commit(db.clone()).await.expect("existing primary email");
+        let existing_method = fixtures::DbFixtures::provider_token()
+            .gitlab(owner.id())
+            .commit(db.clone())
+            .await
+            .expect("existing sign-in method");
         let idp = IdpConnectFixtures::service().await;
         let mut profile = fixtures::idp_connect::resources::github_arthur();
         profile.email = Some("provider-new@example.com".to_owned());
-        profile.email_verified = true;
-        let delivered = mock_delivered_authentication(&idp, fixtures::idp_connect::resources::success_tokens(), profile).await;
+        profile.email_verified = proof.unwrap_or(false);
+        let mut authentication = json!({
+            "tokens": fixtures::idp_connect::resources::success_tokens(),
+            "profile": profile,
+        });
+        if proof.is_none() {
+            authentication["profile"]
+                .as_object_mut()
+                .expect("wire profile object")
+                .remove("email_verified");
+        }
+        idp.mock_complete_with("github", move |_| {
+            wiremock::ResponseTemplate::new(200).set_body_json(&authentication)
+        }).await;
         let absent = db.query_one(Statement::from_string(DatabaseBackend::Postgres,
             "SELECT COUNT(*) AS count FROM user_emails WHERE email='provider-new@example.com'".to_owned()))
             .await.expect("new email precondition").expect("count row");
@@ -1436,20 +1449,57 @@ async fn link_with_new_provider_email_adds_it_unverified_to_the_exact_target() {
         let client = browser_client();
         let (state, cookie) = browser_flow::link(&client, &base, "github", owner.id(), &idp).await;
         let response = callback(&client, &base, "github/callback", &state, Some(&cookie)).await;
-        assert!(delivered.load(std::sync::atomic::Ordering::SeqCst), "valid complete must reach LINK");
         assert_eq!(response.status(), 200);
         let response: Value = response.json().await.expect("LINK response");
         assert_eq!(response["user"]["id"], owner.id().to_string());
         assert_eq!(response["new_email_added"], true);
         let row = db.query_one(Statement::from_string(DatabaseBackend::Postgres,
-            "SELECT user_id,is_verified FROM user_emails WHERE email='provider-new@example.com'".to_owned()))
+            "SELECT user_id,is_primary,is_verified FROM user_emails WHERE email='provider-new@example.com'".to_owned()))
             .await.expect("added provider email").expect("new email row");
         assert_eq!(row.try_get::<uuid::Uuid>("", "user_id").expect("email target"), owner.id());
-        assert!(!row.try_get::<bool>("", "is_verified").expect("verification flag"), "LINK must not copy the provider's verified flag into IAM email verification");
+        assert!(!row.try_get::<bool>("", "is_primary").expect("primary flag"), "LINK must import the address as secondary");
         assert!(primary.check(db.clone()).await.expect("primary email unchanged"));
+        assert!(existing_method.check(db.clone()).await.expect("existing sign-in method unchanged"));
         assert_consumed_and_purged(&db, &state).await;
         assert_eq!(idp.endpoint_counts().await, [1, 1, 0, 0, 0]);
+        assert_eq!(
+            row.try_get::<bool>("", "is_verified").expect("verification flag"),
+            proof.unwrap_or(false),
+            "LINK must preserve only an affirmative verification assertion for the imported address"
+        );
+        let imported = response["emails"]
+            .as_array()
+            .expect("LINK email list")
+            .iter()
+            .find(|email| email["email"] == "provider-new@example.com")
+            .expect("imported address in LINK response");
+        assert_eq!(imported["is_primary"], false);
+        assert_eq!(imported["is_verified"], proof.unwrap_or(false));
     }).await;
+}
+
+#[tokio::test]
+#[serial]
+async fn explicit_link_imports_attested_email_as_verified() {
+    Box::pin(assert_link_imports_secondary_email_with_verification(Some(
+        true,
+    )))
+    .await;
+}
+
+#[tokio::test]
+#[serial]
+async fn explicit_link_imports_email_with_false_proof_as_unverified() {
+    Box::pin(assert_link_imports_secondary_email_with_verification(Some(
+        false,
+    )))
+    .await;
+}
+
+#[tokio::test]
+#[serial]
+async fn explicit_link_imports_email_without_proof_as_unverified() {
+    Box::pin(assert_link_imports_secondary_email_with_verification(None)).await;
 }
 
 /// Q1/G7: characterize the existing `unique(provider,provider_user_id)` boundary,

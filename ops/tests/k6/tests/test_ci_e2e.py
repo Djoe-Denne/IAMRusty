@@ -2,6 +2,7 @@
 import copy
 import json
 from pathlib import Path
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -170,6 +171,12 @@ class RestorationTests(unittest.TestCase):
 
         parent.run_san = Mock(side_effect=san)
         parent.run_oauth = Mock(side_effect=lambda: order.append("auth-oauth-browser"))
+
+        def link_email():
+            order.append(c.evidence.LINK_EMAIL_CASE)
+            return c.evidence.LINK_EMAIL_CORRELATION
+
+        parent.run_link_email = Mock(side_effect=link_email)
         catalog = copy.deepcopy(c.evidence.CATALOG)
         extra = {**catalog["iam-health"], "id": "ordinary-added", "script": "smoke/ordinary-added.js"}
         catalog = dict(list(catalog.items())[:1] + [(extra["id"], extra)] + list(catalog.items())[1:])
@@ -180,6 +187,91 @@ class RestorationTests(unittest.TestCase):
         parent.scenario.assert_any_call("ordinary-added")
         parent.run_san.assert_called_once()
         parent.run_oauth.assert_called_once()
+        parent.run_link_email.assert_called_once()
+        parent.publish.assert_called_once()
+        self.assertEqual(parent.publish.call_args.args[1]["link_email"], c.evidence.LINK_EMAIL_CORRELATION)
+
+    def test_link_correlation_brackets_real_case_and_keeps_observations_private(self):
+        state = dict(run_id="a" * 32)
+        parent = c.Campaign(Mock(directory=Path("unused"), state=state))
+        trace = Mock()
+        trace.snapshot.side_effect = [{"edge-before": 0}, {"edge-after": 1}]
+        trace.http.side_effect = [(200, b'{"provider-before":0}'), (200, b'{"provider-after":1}')]
+        trace.database.side_effect = [{"db-before": 0}, {"db-after": 1}]
+        parent.snapshot, parent.http, parent.link_email_state, parent.scenario = (
+            trace.snapshot, trace.http, trace.database, trace.scenario)
+        with patch.object(c.evidence, "accept_link_email", return_value={"public": 1}) as receiver:
+            self.assertEqual(parent.run_link_email(), {"public": 1})
+        self.assertEqual([call[0] for call in trace.mock_calls],
+                         ["snapshot", "http", "database", "scenario", "http", "database", "snapshot"])
+        trace.scenario.assert_called_once_with(c.evidence.LINK_EMAIL_CASE)
+        receiver.assert_called_once_with({"edge-before": 0}, {"edge-after": 1},
+                                         {"provider-before": 0}, {"provider-after": 1},
+                                         {"db-before": 0}, {"db-after": 1}, state["run_id"])
+
+    def test_link_database_projection_is_read_only_and_discriminating(self):
+        # In-memory rows exercise the SELECT and its negative witnesses only.
+        # The hosted case creates its accounts exclusively through IAM's API.
+        run = "a" * 32
+        database = "k6_" + run
+        state = dict(run_id=run, values=dict(database=database))
+        parent = c.Campaign(Mock(directory=Path("unused"), state=state))
+        with sqlite3.connect(":memory:") as db:
+            self.addCleanup(db.close)
+            db.create_function("json_build_object", -1, lambda *parts: json.dumps(dict(zip(parts[::2], parts[1::2]))))
+            db.executescript("""
+                CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT);
+                CREATE TABLE user_emails (user_id INTEGER, email TEXT, is_primary BOOLEAN, is_verified BOOLEAN);
+                CREATE TABLE provider_tokens (user_id INTEGER, provider TEXT, provider_user_id TEXT);
+                CREATE TABLE rustycog_outbox_events (id INTEGER);
+                INSERT INTO users VALUES (99, 'earlier-browser-account');
+            """)
+
+            def read(statement, selected):
+                self.assertEqual(selected, database)
+                self.assertTrue(statement.lstrip().startswith("WITH examples"))
+                db.execute("PRAGMA query_only = ON")
+                try:
+                    return db.execute(statement).fetchone()[0]
+                finally:
+                    db.execute("PRAGMA query_only = OFF")
+
+            parent.sql = read
+            keys = c.evidence.LINK_EMAIL_STATE.keys()
+            self.assertEqual(parent.link_email_state(), dict.fromkeys(keys, 0) | dict(users=1, outbox=0))
+            for index, kind in enumerate(("attested", "false", "omitted"), start=1):
+                owner, link = f"{run}-owner-{kind}", f"{run}-link-{kind}"
+                db.execute("INSERT INTO users VALUES (?, ?)", (index, f"s502-{kind}-{run}"))
+                db.executemany("INSERT INTO user_emails VALUES (?, ?, ?, ?)", (
+                    (index, owner + "@example.invalid", True, True),
+                    (index, link + "@example.invalid", False, kind == "attested"),
+                ))
+                db.executemany("INSERT INTO provider_tokens VALUES (?, ?, ?)", (
+                    (index, "gitlab", owner), (index, "github", link),
+                ))
+            expected = c.evidence.LINK_EMAIL_STATE | dict(users=4, outbox=0)
+            self.assertEqual(parent.link_email_state(), expected)
+            for query, changed in (
+                ("UPDATE user_emails SET is_verified = FALSE WHERE user_id = 1 AND NOT is_primary", "attested_secondary"),
+                ("UPDATE user_emails SET is_verified = TRUE WHERE user_id = 2 AND NOT is_primary", "unproved_secondary"),
+                ("UPDATE user_emails SET is_verified = TRUE WHERE user_id = 3 AND NOT is_primary", "unproved_secondary"),
+                ("UPDATE user_emails SET is_primary = FALSE WHERE user_id = 2 AND is_primary", "primary_preserved"),
+                ("UPDATE user_emails SET user_id = 99 WHERE user_id = 3 AND NOT is_primary", "unproved_secondary"),
+                ("UPDATE provider_tokens SET provider_user_id = 'wrong' WHERE user_id = 1 AND provider = 'gitlab'", "existing_method"),
+                ("DELETE FROM provider_tokens WHERE user_id = 2 AND provider = 'github'", "new_method"),
+                ("INSERT INTO user_emails VALUES (1, 'extra@example.invalid', FALSE, FALSE)", "extra_rows"),
+            ):
+                with self.subTest(changed=changed):
+                    db.execute("SAVEPOINT mutation")
+                    db.execute(query)
+                    self.assertNotEqual(parent.link_email_state()[changed], expected[changed])
+                    db.execute("ROLLBACK TO mutation")
+                    db.execute("RELEASE mutation")
+        for invalid in ({"run_id": "a" * 31 + "'"}, {"values": {"database": "postgres"}}):
+            with patch.object(parent, "sql") as read, patch.dict(state, invalid):
+                with self.assertRaisesRegex(b.Refused, "E2E_LINK_EMAIL_DB_SCOPE"):
+                    parent.link_email_state()
+                read.assert_not_called()
 
     def test_bad_san_failure_always_attempts_patch_and_positive_restored_stimulus(self):
         parent = self.campaign()

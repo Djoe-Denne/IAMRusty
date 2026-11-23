@@ -212,7 +212,9 @@ class ReportingTests(unittest.TestCase):
 
     def test_parent_failure_cannot_leave_green_badge_even_with_all_passed_checks(self):
         for name, change in (("cleanup.json", dict(status="FAIL")), ("cleanup.json", dict(owned_running=False)),
-                             ("correlation.json", dict(iam_delta=8)), ("report.json", dict(verdict="FAIL"))):
+                             ("correlation.json", dict(iam_delta=8)), ("report.json", dict(verdict="FAIL")),
+                             ("correlation.json", dict(link_email={})),
+                             ("correlation.json", dict(link_email={**e.LINK_EMAIL_CORRELATION, "attested_secondary": True}))):
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 public_fixture(root / "source")
@@ -222,6 +224,21 @@ class ReportingTests(unittest.TestCase):
                 self.assertNotEqual(metric["status"], "passed")
                 self.assertEqual(metric["passed"], EXPECTED)
                 self.assertEqual(json.loads((root / "site/badge.json").read_text())["color"], "red")
+
+    def test_link_database_effect_failure_does_not_qualify_the_http_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            public_fixture(source)
+            (source / "correlation.json").unlink()
+            report = json.loads((source / "report.json").read_text(encoding="utf-8"))
+            dump(source, "report.json", {**report, "verdict": "FAIL", "diagnostic": "LINK_EMAIL_DATABASE_EFFECTS"})
+            metric = project(root)
+            self.assertEqual((metric["status"], metric["failure_categories"]), ("failed", ["functional"]))
+            parent = results(root)["E2E.parent-contract"]
+            self.assertEqual(parent["status"], "broken")
+            self.assertIn({"name": "failureCategory", "value": "functional"}, parent["labels"])
+            self.assertIn("persisted state did not match", parent["statusDetails"]["message"])
 
     def test_missing_or_stale_phase_is_unproven_not_a_fake_pass(self):
         with tempfile.TemporaryDirectory() as directory:

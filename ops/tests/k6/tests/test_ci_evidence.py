@@ -41,7 +41,7 @@ class SummaryTests(unittest.TestCase):
             self.assertIn("'group'", source)
         self.assertEqual(sum(len(e.CASES[case][1]) for case in default_ids), 34)
 
-    def test_all_five_phases_are_accepted(self):
+    def test_all_registered_phases_are_accepted(self):
         values = {case: summary(case) for case in e.CASES}
         results = {case: (json.dumps(value).encode(), 0) for case, value in values.items()}
         self.assertEqual(e.accept_campaign(results, RUN), values)
@@ -190,6 +190,40 @@ class ParentTests(unittest.TestCase):
         del self.after["cluster.iam.upstream_cx_connect_fail"]
         with self.assertRaises(e.EvidenceError):
             self.accept()
+
+    def test_explicit_link_correlation_rejects_missing_or_wrong_upstream_and_stored_effects(self):
+        before, after = counters(), counters()
+        after["cluster.iam.upstream_rq_total"] += 15
+        after["cluster.ext_authz.upstream_rq_total"] += 4
+        provider_before = dict(run_id=RUN, fixture_profile="hosted-link-email",
+                               **{key: 3 for key in ("authorize", "token", "profile", "pkce_validated")})
+        provider_after = dict(run_id=RUN, fixture_profile="hosted-link-email",
+                              **{key: 9 for key in ("authorize", "token", "profile", "pkce_validated")})
+        db_before = dict.fromkeys(e.LINK_EMAIL_STATE, 0) | dict(users=1, outbox=0)
+        db_after = e.LINK_EMAIL_STATE | dict(users=4, outbox=0)
+
+        def accept():
+            return e.accept_link_email(before, after, provider_before, provider_after, db_before, db_after, RUN)
+
+        self.assertEqual(accept(), dict(iam_delta=15, ext_authz_delta=4, provider_delta=6, pkce_delta=6,
+                                       users_delta=3, outbox_delta=0, owners=3, primary_preserved=3,
+                                       attested_secondary=1, unproved_secondary=2, existing_method=3,
+                                       new_method=3, extra_rows=0))
+        for key, target, change in (
+            ("cluster.iam.upstream_rq_total", after, 24), ("cluster.ext_authz.upstream_rq_total", after, 13),
+            ("cluster.iam.upstream_rq_5xx", after, 11), ("cluster.iam.ssl.fail_verify_san", after, 11),
+            ("run_id", provider_before, "b" * 32), ("fixture_profile", provider_after, "link-conflicts"),
+            *((key, provider_after, 8) for key in ("authorize", "token", "profile", "pkce_validated")),
+            ("owners", db_before, 1), ("attested_secondary", db_after, True),
+            *((key, db_after, count + 1) for key, count in db_after.items()),
+        ):
+            saved = target[key]
+            try:
+                with self.subTest(key=key, change=change), self.assertRaises(e.EvidenceError):
+                    target[key] = change
+                    accept()
+            finally:
+                target[key] = saved
 
     def test_counter_reset_boolean_and_absence_are_not_zero(self):
         for before, after in (({}, {}), ({"n": 1}, {"n": 0}),
