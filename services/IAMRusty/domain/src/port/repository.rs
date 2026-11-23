@@ -44,6 +44,17 @@ pub trait UserWriteRepository {
 
     /// Update an existing user
     async fn update(&self, user: User) -> Result<User, Self::Error>;
+
+    /// Apply only the submitted fields on the writer and return its profile snapshot.
+    async fn patch_profile(
+        &self,
+        _id: Uuid,
+        _patch: crate::service::user_service::ProfilePatch,
+    ) -> Result<crate::service::UserProfile, crate::error::DomainError> {
+        Err(crate::error::DomainError::RepositoryError(
+            "profile writer not configured".into(),
+        ))
+    }
 }
 
 /// Combined read and write operations for User entity

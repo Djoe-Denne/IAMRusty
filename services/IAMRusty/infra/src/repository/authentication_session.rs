@@ -57,7 +57,13 @@ impl AuthenticationSessionWriter for SeaOrmAuthenticationSessionWriter {
         let mut updated: users::ActiveModel = user.into();
         updated.username = Set(Some(username));
         updated.updated_at = Set(chrono::Utc::now().naive_utc());
-        let updated = updated.update(&tx).await.map_err(storage_error)?;
+        let updated = updated.update(&tx).await.map_err(|error| {
+            if super::user_write::is_username_conflict(&error) {
+                DomainError::UsernameTaken
+            } else {
+                storage_error(error)
+            }
+        })?;
         if let Some(token) = token {
             if token.user_id != user_id || !token.is_valid || token.expires_at <= chrono::Utc::now()
             {
@@ -194,6 +200,35 @@ mod tests {
             created_at: now,
             expires_at: now + chrono::Duration::hours(1),
         }
+    }
+
+    #[tokio::test]
+    async fn registration_username_write_failure_is_not_reported_as_a_collision() {
+        let id = Uuid::new_v4();
+        let mut applicant = owner(id, "current-hash");
+        applicant.username = None;
+        let db = Arc::new(
+            MockDatabase::new(DbBackend::Postgres)
+                .append_query_results([vec![applicant]])
+                .append_query_errors([DbErr::Custom("private username update error".into())])
+                .into_connection(),
+        );
+        let writer = SeaOrmAuthenticationSessionWriter::new(db.clone());
+        let result = writer
+            .complete_registration(
+                id,
+                Some("current-hash".into()),
+                "requested".into(),
+                Some(refresh(id)),
+            )
+            .await;
+        assert!(matches!(result, Err(DomainError::RepositoryError(message))
+            if message == "authentication session transaction failed"));
+        drop(writer);
+        let log = format!("{:?}", Arc::try_unwrap(db).unwrap().into_transaction_log());
+        assert!(log.contains("UPDATE"));
+        assert!(log.contains("ROLLBACK"));
+        assert!(!log.contains("INSERT INTO"));
     }
 
     #[tokio::test]
