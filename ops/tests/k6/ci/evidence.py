@@ -1,5 +1,7 @@
-"""Closed receiver for the existing three-scenario campaign (no deployment)."""
+"""Bounded scenario registration and closed campaign evidence receiver."""
+import hashlib
 import json
+from pathlib import Path
 import re
 
 
@@ -7,24 +9,6 @@ class EvidenceError(ValueError):
     """Public bounded failure category; never retain raw child output."""
 
 
-OAUTH_CHECKS = frozenset((
-    "browser-version", "registration-callback", "registration-required",
-    "registration-nonce", "registration-completed", "login-callback",
-    "login-identity", "login-authority", "login-nonce", "relink-start",
-    "relink-callback", "relink-identity", "relink-nonce", "negative-link",
-    "negative-relink-start", "negative-relink-alias", "oauth-observations",
-    "oauth-iam-cardinality", "login-redirects", "oauth-cookie-attributes",
-    "oauth-callback-headers", "registration-request-headers",
-    "relink-start-authorization", "provider-authorizations",
-    "provider-no-credentials", "negative-headers",
-))
-CASES = {
-    "iam-health": ("HTTP", frozenset(("iam-status", "iam-body")), 1),
-    "auth-envoy-san-good": ("HTTP", frozenset(("san-status", "san-no-redirect")), 1),
-    "auth-envoy-san-bad": ("HTTP", frozenset(("san-status", "san-no-redirect")), 1),
-    "auth-envoy-san-restored": ("HTTP", frozenset(("san-status", "san-no-redirect")), 1),
-    "auth-oauth-browser": ("Chromium", OAUTH_CHECKS, 0),
-}
 SUMMARY_FIELDS = frozenset((
     "version", "run_id", "phase", "cases", "expected", "started", "completed",
     "iterations", "requests", "checks",
@@ -56,6 +40,80 @@ def strict_json(raw):
 
 def integer(value):
     return type(value) is int and value >= 0
+
+
+def load_catalog(path):
+    """Return ordered records; never execute discovery code or follow symlinks."""
+    path = Path(path)
+    try:
+        if path.is_symlink() or any(parent.is_symlink() for parent in path.parents):
+            raise EvidenceError("CATALOG_PATH")
+        with path.open("rb") as stream:
+            document = strict_json(stream.read(SUMMARY_LIMIT + 1))
+        if (not isinstance(document, dict) or document.keys() != {"version", "cases"}
+                or type(document["version"]) is not int or document["version"] != 1
+                or not isinstance(document["cases"], list) or not 1 <= len(document["cases"]) <= 128):
+            raise EvidenceError("CATALOG_SCHEMA")
+        result = {}
+        special = {"auth-envoy-san-" + phase: "san" for phase in ("good", "bad", "restored")}
+        special["auth-oauth-browser"] = "oauth"
+        for record in document["cases"]:
+            if (not isinstance(record, dict) or record.keys() != {
+                    "id", "script", "phase", "lifecycle", "timeout_seconds", "requests", "checks"}):
+                raise EvidenceError("CATALOG_CASE")
+            case = record["id"]
+            if (not isinstance(case, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", case)
+                    or case in result):
+                raise EvidenceError("CATALOG_ID")
+            lifecycle = special.get(case, "standard")
+            if (record["lifecycle"] != lifecycle
+                    or record["phase"] != ("Chromium" if lifecycle == "oauth" else "HTTP")
+                    or not integer(record["timeout_seconds"]) or not 1 <= record["timeout_seconds"] <= 600
+                    or not integer(record["requests"]) or record["requests"] > 65535):
+                raise EvidenceError("CATALOG_EXECUTION")
+            checks = record["checks"]
+            if (not isinstance(checks, dict) or not 1 <= len(checks) <= 128
+                    or any(not isinstance(name, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,79}", name)
+                           or kind not in ("functional", "cleanup") for name, kind in checks.items())):
+                raise EvidenceError("CATALOG_CHECKS")
+            script = record["script"]
+            if (not isinstance(script, str) or len(script) > 200
+                    or not re.fullmatch(r"(?:[a-z0-9][a-z0-9-]*/)*[a-z0-9][a-z0-9-]*\.js", script)):
+                raise EvidenceError("CATALOG_SCRIPT")
+            if ((lifecycle == "san" and script != "auth/envoy-san.js")
+                    or (lifecycle == "oauth" and script != "auth/oauth-browser.js")):
+                raise EvidenceError("CATALOG_SPECIAL_SCRIPT")
+            target = path.parent / script
+            if (not target.is_file() or target.is_symlink()
+                    or any(parent.is_symlink() for parent in target.parents)
+                    or not target.resolve().is_relative_to(path.parent.resolve())):
+                raise EvidenceError("CATALOG_SCRIPT")
+            result[case] = record
+        ids = list(result)
+        san = list(special)[:3]
+        if (not all(case in result for case in special)
+                or ids[ids.index(san[0]):ids.index(san[0]) + 3] != san):
+            raise EvidenceError("CATALOG_SPECIAL_LIFECYCLE")
+        return result
+    except (OSError, ValueError, TypeError, RecursionError):
+        raise EvidenceError("CATALOG_INVALID") from None
+
+
+CATALOG_PATH = Path(__file__).resolve().parents[1] / "scenarios/catalog.json"
+CATALOG = load_catalog(CATALOG_PATH)
+CATALOG_SHA256 = hashlib.sha256(CATALOG_PATH.read_bytes()).hexdigest()
+CASES = {case: (record["phase"], frozenset(record["checks"]), record["requests"])
+         for case, record in CATALOG.items()}
+OAUTH_CHECKS = CASES["auth-oauth-browser"][1]
+
+
+def selection_receipt(run_id, harness_sha, target_sha):
+    if (not isinstance(run_id, str) or not re.fullmatch(r"[a-f0-9]{32}", run_id)
+            or any(not isinstance(value, str) or not re.fullmatch(r"[a-f0-9]{40}", value)
+                   for value in (harness_sha, target_sha))):
+        raise EvidenceError("SELECTION_IDENTITY")
+    return dict(run_id=run_id, catalog_sha256=CATALOG_SHA256, cases=list(CATALOG),
+                harness_sha=harness_sha, target_sha=target_sha)
 
 
 def summary_document(value, run_id, case):
@@ -151,7 +209,7 @@ def accept_oauth(before, after, provider_before, provider_after, db_before, db_a
 
 def accept_campaign(results, run_id):
     """Each phase supplies its own raw summary and actual native exit status."""
-    if not isinstance(results, dict) or results.keys() != CASES.keys():
+    if not isinstance(results, dict) or list(results) != list(CASES):
         raise EvidenceError("CAMPAIGN_PHASES")
     summaries = {}
     for case, result in results.items():

@@ -36,6 +36,8 @@ def dump(root, name, value):
 
 def public_fixture(root):
     root.mkdir()
+    (root / "cases").mkdir()
+    dump(root, "selection.json", e.selection_receipt(RUN, H, SHA))
     dump(root, "report.json", dict(run_id=RUN, verdict="PASS", cleanup="PASS", restoration="PASS", completed_cases=list(e.CASES)))
     dump(root, "provenance.json", dict(target_sha=SHA, harness_sha=H))
     dump(root, "cleanup.json", dict(status="PASS", owned_running=0, errors=[]))
@@ -43,7 +45,7 @@ def public_fixture(root):
     dump(root, "processes.json", {case: dict(exit=0, cleanup=True) for case in e.CASES})
     dump(root, "browser.json", dict(result=browser_result(), container_exit=0, cleanup="PASS"))
     for case, (phase, checks, requests) in e.CASES.items():
-        dump(root, case + ".json", dict(version=1, run_id=RUN, phase=phase, cases=[case], expected=1,
+        dump(root / "cases", case + ".json", dict(version=1, run_id=RUN, phase=phase, cases=[case], expected=1,
             started=1, completed=1, iterations=1, requests=requests, checks={name: dict(passes=1, fails=0) for name in checks}))
 
 
@@ -54,7 +56,7 @@ def project(root, target=None):
 def failed_oauth_fixture(root, *, invalid=False):
     public_fixture(root)
     case = "auth-oauth-browser"
-    accepted = root / (case + ".json")
+    accepted = root / "cases" / (case + ".json")
     partial = json.loads(accepted.read_text(encoding="utf-8"))
     accepted.unlink()
     partial.update(completed=None, checks={"browser-version": dict(passes=1, fails=0),
@@ -75,6 +77,79 @@ def results(root):
 
 
 class ReportingTests(unittest.TestCase):
+    def test_cleanup_infrastructure_and_missing_execution_have_distinct_categories(self):
+        for failure in ("cleanup", "infrastructure", "incomplete"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                public_fixture(root / "source")
+                if failure == "cleanup":
+                    dump(root / "source", "cleanup.json", dict(status="FAIL", owned_running=1, errors=[]))
+                elif failure == "infrastructure":
+                    dump(root / "source", "correlation.json", {**r.CORRELATION, "iam_delta": 8})
+                else:
+                    (root / "source/cases/iam-health.json").unlink()
+                metric = project(root)
+                self.assertEqual(metric["failure_categories"], [failure])
+
+    def test_same_run_summary_never_overrides_actual_nonzero_exit_or_unclean_child(self):
+        for change in (dict(exit=99), dict(cleanup=False), dict(exit=False)):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                public_fixture(root / "source")
+                processes = json.loads((root / "source/processes.json").read_text())
+                processes["iam-health"].update(change)
+                dump(root / "source", "processes.json", processes)
+                metric = project(root)
+                self.assertEqual((metric["status"], metric["passed"]), ("failed", 32))
+                if change.get("cleanup") is False:
+                    self.assertIn("cleanup", metric["failure_categories"])
+
+    def test_selection_receipt_is_required_exact_ordered_run_and_source_bound(self):
+        for change in (None, dict(run_id="b" * 32), dict(catalog_sha256="0" * 64),
+                       dict(cases=list(reversed(e.CASES))), dict(harness_sha=SHA),
+                       dict(target_sha=H), dict(unknown="SECRET_SENTINEL")):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                public_fixture(root / "source")
+                path = root / "source/selection.json"
+                if change is None:
+                    path.unlink()
+                else:
+                    dump(root / "source", "selection.json", {**json.loads(path.read_text()), **change})
+                metric = project(root)
+                self.assertEqual((metric["status"], metric["passed"], metric["expected"]), ("incomplete", 0, 34))
+
+    def test_old_root_case_files_are_not_accepted_and_unknown_files_never_project(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            public_fixture(root / "source")
+            case = root / "source/cases/iam-health.json"
+            case.rename(root / "source/iam-health.json")
+            dump(root / "source/cases", "unknown.json", dict(private="SECRET_SENTINEL"))
+            metric = project(root)
+            self.assertEqual((metric["status"], metric["passed"], metric["expected"]), ("failed", 32, 34))
+            for path in (root / "site").rglob("*"):
+                if path.is_file():
+                    self.assertNotIn("SECRET_SENTINEL", path.read_text(encoding="utf-8"))
+
+    def test_added_declaration_changes_report_denominator_and_missing_case_stays_unproven(self):
+        record = {**e.CATALOG["iam-health"], "id": "ordinary-added"}
+        catalog = {**e.CATALOG, "ordinary-added": record}
+        cases = {**e.CASES, "ordinary-added": ("HTTP", frozenset(record["checks"]), 1)}
+        with patch.object(e, "CATALOG", catalog), patch.object(e, "CASES", cases):
+            for missing in (False, True):
+                with self.subTest(missing=missing), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    public_fixture(root / "source")
+                    if missing:
+                        (root / "source/cases/ordinary-added.json").unlink()
+                    metric = project(root)
+                    self.assertEqual(metric["expected"], 36)
+                    self.assertEqual(metric["passed"], 34 if missing else 36)
+                    self.assertEqual(metric["status"], "failed" if missing else "passed")
+                    self.assertEqual(len(results(root)), 37)
+                    self.assertIn("36 declared checks", (root / "site/index.html").read_text())
+
     def test_34_checks_and_distinct_parent_contract_are_not_code_coverage(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -108,7 +183,7 @@ class ReportingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             public_fixture(root / "source")
-            (root / "source/auth-oauth-browser.json").unlink()
+            (root / "source/cases/auth-oauth-browser.json").unlink()
             metric = project(root)
             self.assertEqual((metric["passed"], metric["unproven"]), (8, 26))
             self.assertNotEqual(metric["status"], "passed")
@@ -145,6 +220,8 @@ class ReportingTests(unittest.TestCase):
             with redirect_stdout(io.StringIO()) as log:
                 metric = r.project(root / "source", root / "site", "Djoe-Denne/IAMRusty", "123", "1", H, SHA, job_summary)
             self.assertEqual((metric["status"], metric["passed"], metric["unproven"]), ("failed", 8, 26))
+            self.assertIn("functional", metric["failure_categories"])
+            self.assertIn("incomplete", metric["failure_categories"])
             report = results(root)
             failed = report["auth-oauth-browser.registration-callback"]
             self.assertEqual(failed["status"], "failed")
@@ -191,7 +268,12 @@ class ReportingTests(unittest.TestCase):
                 failed_oauth_fixture(root / "source")
                 report = json.loads((root / "source/report.json").read_text(encoding="utf-8"))
                 dump(root / "source", "report.json", {**report, "stage": "scenario:" + case})
-                dump(root / "source", "processes.json", {case: process} if process else {})
+                processes = json.loads((root / "source/processes.json").read_text(encoding="utf-8"))
+                if process:
+                    processes[case] = process
+                else:
+                    del processes[case]
+                dump(root / "source", "processes.json", processes)
                 with redirect_stdout(io.StringIO()) as log:
                     self.assertEqual(project(root)["passed"], 8)
                 self.assertIn(expected, log.getvalue())

@@ -97,6 +97,16 @@ class Campaign:
         require(re.fullmatch(r"[a-z0-9-]+\.json", name), "E2E_PUBLIC_FILE_NAME")
         write_json(self.public / name, value)
 
+    def publish_case(self, case, value):
+        """Only receiver-validated values may enter the upload directory."""
+        value = evidence.accept_summary(json.dumps(value).encode(), self.state["run_id"], case, 0)
+        directory = self.public / "cases"
+        require(not directory.is_symlink(), "E2E_PUBLIC_CASE_DIRECTORY")
+        directory.mkdir(mode=0o700, exist_ok=True)
+        target = directory / (case + ".json")
+        require(not target.exists() and not target.is_symlink(), "E2E_PUBLIC_CASE_COLLISION")
+        write_json(target, value)
+
     def create(self, value):
         require(value["kind"] in {"Namespace", "Secret", "ConfigMap", "Deployment", "Service",
                                   "PersistentVolumeClaim", "NetworkPolicy", "Job"}, "E2E_RESOURCE_KIND")
@@ -317,6 +327,8 @@ class Campaign:
         self.r.save()
 
     def scenario(self, case):
+        require(case in evidence.CATALOG and sha(evidence.CATALOG_PATH) == evidence.CATALOG_SHA256,
+                "E2E_CATALOG_CHANGED")
         attempt = self.root / "private" / (case + ".attempt")
         require(not attempt.exists(), "E2E_CASE_REPLAY_REFUSED")
         attempt.write_text("attempted", encoding="ascii")
@@ -329,7 +341,9 @@ class Campaign:
             browser_profile.trust(output / "home", self.root / "private/pki/ca.crt", "k6-" + self.state["run_id"], self.r.cli)
         if case.startswith("auth-envoy-san-"):
             env["K6_AUTH_SAN_PHASE"] = case.removeprefix("auth-envoy-san-")
-        script = "auth/oauth-browser.js" if is_browser else "smoke/iam-health.js" if case == "iam-health" else "auth/envoy-san.js"
+        record = evidence.CATALOG[case]
+        script = record["script"]
+        env["K6_CASE_ID"] = case
         for name in ("k6", "chromium") if is_browser else ("k6",):
             require(sha(self.state["tools"][name]["path"]) == self.state["tools"][name]["sha256"], "E2E_STIMULUS_TOOL_CHANGED")
         child = Child()
@@ -344,10 +358,10 @@ class Campaign:
                 code = child.execute([self.state["tools"]["k6"]["path"], "run", "--quiet", "--no-usage-report", "--address",
                                   "127.0.0.1:0", "--config", str(self.root / "private/options.json"),
                                   str(ROOT / "ops/tests/k6/scenarios" / script)], output=output, env=env,
-                                 timeout=140 if is_browser else 30, browser=is_browser)
+                                 timeout=record["timeout_seconds"], browser=is_browser)
             value = evidence.accept_summary((output / "private/summary.json").read_bytes(), self.state["run_id"], case, code)
             require(child.cleanup is True and (not is_browser or child.sandbox is True), "E2E_CHILD_EVIDENCE")
-            self.publish(case + ".json", value)
+            self.publish_case(case, value)
             self.state["completed_cases"].append(case)
         except Rejected as error:
             self.state["browser_diagnostic"] = getattr(error, "browser_diagnostic", None) if is_browser else None
@@ -478,7 +492,20 @@ class Campaign:
 
     def run_cases(self):
         self.admit_services()
-        self.scenario("iam-health")
+        san_good = san_bad = san_restored = None
+        for case, record in evidence.CATALOG.items():
+            if record["lifecycle"] == "standard":
+                self.scenario(case)
+            elif case == "auth-envoy-san-good":
+                san_good, san_bad, san_restored = self.run_san()
+            elif record["lifecycle"] == "oauth":
+                self.run_oauth()
+        require(self.state["completed_cases"] == list(evidence.CATALOG), "E2E_INCOMPLETE_CASES")
+        require(all(value is not None for value in (san_good, san_bad, san_restored)), "E2E_SAN_MISSING")
+        self.publish("correlation.json", {"san_delta": 1, "restoration": self.state["restoration"],
+            "iam_delta": 7, "ext_authz_delta": 4, "provider_delta": 3, "pkce_delta": 3, "users_delta": 1, "outbox_delta": 0})
+
+    def run_san(self):
         self.scenario("auth-envoy-san-good")
         good = self.snapshot()
         try:
@@ -491,6 +518,9 @@ class Campaign:
             self.restore()
         restored = self.snapshot()
         evidence.accept_san(good, bad, restored, [tuple(self.state["edge_identity"])] * 3)
+        return good, bad, restored
+
+    def run_oauth(self):
         # Warm the real protected route outside the measurement window. A 403
         # alone is not enough: exactly one real ext-authz request must be seen.
         start = self.snapshot()
@@ -509,9 +539,6 @@ class Campaign:
         db_after = strict_json(self.sql(sql, self.state["values"]["database"]))
         after = self.snapshot()
         evidence.accept_oauth(before, after, provider_before, provider_after, db_before, db_after, self.state["run_id"])
-        require(set(self.state["completed_cases"]) == set(evidence.CASES), "E2E_INCOMPLETE_CASES")
-        self.publish("correlation.json", {"san_delta": 1, "restoration": self.state["restoration"],
-            "iam_delta": 7, "ext_authz_delta": 4, "provider_delta": 3, "pkce_delta": 3, "users_delta": 1, "outbox_delta": 0})
 
 
 def prepare(directory, cli_directory, browser_directory, image_directory):
@@ -539,6 +566,7 @@ def prepare(directory, cli_directory, browser_directory, image_directory):
         "restoration": "NOT_REQUIRED", "verdict": "NOT_RUN", "cleanup": {"status": "NOT_RUN"}, "volumes": []}
     runtime = Runtime(root, state)
     runtime.save()
+    Campaign(runtime).publish("selection.json", evidence.selection_receipt(run, os.environ["GITHUB_SHA"], images["target_sha"]))
     state["before_containers"] = sorted(runtime.container_ids())
     state["before_volumes"] = runtime.docker(["volume", "ls", "--format", "{{.Name}}"]).decode().splitlines()
     state["known_images"] = sorted(runtime.image_ids())

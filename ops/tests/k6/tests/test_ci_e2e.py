@@ -81,6 +81,111 @@ class ImageAdmissionTests(unittest.TestCase):
 
 
 class RestorationTests(unittest.TestCase):
+    def test_standard_child_uses_declaration_and_never_publishes_unclean_or_nonzero_child(self):
+        case = "ordinary-added"
+        record = dict(id=case, script="smoke/ordinary-added.js", phase="HTTP", lifecycle="standard",
+                      timeout_seconds=47, requests=3, checks={"probe": "functional", "cleanup": "cleanup"})
+        for code, clean in ((0, True), (99, True), (0, False)):
+            with self.subTest(code=code, clean=clean), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                output = root / "private" / case
+                (output / "private").mkdir(parents=True)
+                state = dict(run_id="a" * 32, tools=dict(k6=dict(path="/unexecuted/k6", sha256="tool")),
+                             completed_cases=[], process_evidence={})
+                parent = c.Campaign(Mock(directory=root, state=state))
+                parent.public.mkdir()
+                value = dict(version=1, run_id=state["run_id"], phase="HTTP", cases=[case], expected=1,
+                             started=1, completed=1, iterations=1, requests=3,
+                             checks={name: dict(passes=1, fails=0) for name in record["checks"]})
+                (output / "private/summary.json").write_text(json.dumps(value))
+                child = Mock(code=code, cleanup=clean)
+                child.execute.return_value = code
+                catalog = {**c.evidence.CATALOG, case: record}
+                cases = {**c.evidence.CASES, case: ("HTTP", frozenset(record["checks"]), 3)}
+                with patch.object(c.evidence, "CATALOG", catalog), patch.object(c.evidence, "CASES", cases), \
+                     patch.object(c, "new_output", return_value=output), patch.object(c, "Child", return_value=child), \
+                     patch.object(c, "sha", side_effect=lambda path: b.sha(path) if Path(path) == c.evidence.CATALOG_PATH else "tool"):
+                    if code == 0 and clean:
+                        parent.scenario(case)
+                        self.assertEqual(json.loads((parent.public / "cases" / (case + ".json")).read_text()), value)
+                    else:
+                        with self.assertRaises((b.Refused, c.evidence.EvidenceError)):
+                            parent.scenario(case)
+                        self.assertFalse((parent.public / "cases").exists())
+                        self.assertEqual(state["completed_cases"], [])
+                args, kwargs = child.execute.call_args
+                self.assertEqual(Path(args[0][-1]), b.ROOT / "ops/tests/k6/scenarios" / record["script"])
+                self.assertEqual(kwargs["timeout"], 47)
+                self.assertEqual(kwargs["env"]["K6_CASE_ID"], case)
+
+    def test_catalogue_drift_refuses_before_any_child_or_attempt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = c.Campaign(Mock(directory=Path(directory), state={}))
+            with patch.object(c, "sha", return_value="0" * 64), patch.object(c, "Child") as child:
+                with self.assertRaises(b.Refused):
+                    parent.scenario("iam-health")
+            child.assert_not_called()
+            self.assertFalse((parent.root / "private").exists())
+
+    def test_catalogue_dispatches_added_ordinary_case_in_order_without_new_branch(self):
+        runtime = Mock(directory=Path("unused"), state=dict(completed_cases=[], restoration="PASS"))
+        parent = c.Campaign(runtime)
+        parent.admit_services = Mock()
+        parent.publish = Mock()
+        order = []
+        parent.scenario = Mock(side_effect=lambda case: order.append(case))
+
+        def san():
+            order.extend(("auth-envoy-san-good", "auth-envoy-san-bad", "auth-envoy-san-restored"))
+            return {}, {}, {}
+
+        parent.run_san = Mock(side_effect=san)
+        parent.run_oauth = Mock(side_effect=lambda: order.append("auth-oauth-browser"))
+        catalog = copy.deepcopy(c.evidence.CATALOG)
+        extra = {**catalog["iam-health"], "id": "ordinary-added", "script": "smoke/ordinary-added.js"}
+        catalog = dict(list(catalog.items())[:1] + [(extra["id"], extra)] + list(catalog.items())[1:])
+        parent.state["completed_cases"] = order
+        with patch.object(c.evidence, "CATALOG", catalog):
+            parent.run_cases()
+        self.assertEqual(order, list(catalog))
+        parent.scenario.assert_any_call("ordinary-added")
+        parent.run_san.assert_called_once()
+        parent.run_oauth.assert_called_once()
+
+    def test_bad_san_failure_always_attempts_patch_and_positive_restored_stimulus(self):
+        parent = self.campaign()
+        parent.state["edge_identity"] = ["edge"]
+        parent.snapshot = Mock(return_value={})
+
+        def scenario(case):
+            if case == "auth-envoy-san-bad":
+                raise b.Refused("INJECTED_BAD_FAILURE")
+
+        parent.scenario.side_effect = scenario
+        with self.assertRaises(b.Refused):
+            parent.run_san()
+        self.assertEqual([call.args[0] for call in parent.scenario.call_args_list],
+                         ["auth-envoy-san-good", "auth-envoy-san-bad", "auth-envoy-san-restored"])
+        self.assertEqual([call.args[0] for call in parent.certificate.call_args_list], ["bad", "restored"])
+        self.assertEqual(parent.state["restoration"], "PASS")
+
+    def test_only_validated_summary_enters_fixed_case_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = Mock(directory=Path(directory), state=dict(run_id="a" * 32))
+            parent = c.Campaign(runtime)
+            parent.public.mkdir()
+            record = c.evidence.CATALOG["iam-health"]
+            value = dict(version=1, run_id="a" * 32, phase="HTTP", cases=["iam-health"],
+                         expected=1, started=1, completed=1, iterations=1, requests=1,
+                         checks={name: dict(passes=1, fails=0) for name in record["checks"]})
+            with self.assertRaises(c.evidence.EvidenceError):
+                parent.publish_case("iam-health", {**value, "checks": {}})
+            self.assertFalse((parent.public / "cases").exists())
+            parent.publish_case("iam-health", value)
+            self.assertEqual(list((parent.public / "cases").iterdir()), [parent.public / "cases/iam-health.json"])
+            with self.assertRaises(b.Refused):
+                parent.publish_case("iam-health", value)
+
     def test_browser_environment_carries_pinned_version_and_keeps_sandbox_tls(self):
         state = dict(run_id="a" * 32, tools=dict(chromium=dict(path="/private/chrome", version="156.0.8078.73")))
         env = c.stimulus_environment(Path("/private/case"), Path("/private/campaign"), state, True)
@@ -209,7 +314,12 @@ class WorkflowTests(unittest.TestCase):
                 self.assertRegex(step["uses"], r"@[a-f0-9]{40}$")
         for path in steps[clean + 1]["with"]["path"].splitlines():
             self.assertTrue(path.startswith("${{ runner.temp }}/k6-e2e-private/campaign/public/"))
-            self.assertNotIn("*", path)
+            if "*" in path:
+                self.assertEqual(path, "${{ runner.temp }}/k6-e2e-private/campaign/public/cases/*.json")
+        self.assertEqual({Path(path).name for path in steps[clean + 1]["with"]["path"].splitlines()},
+                         {"report.json", "provenance.json", "cleanup.json", "admission.json", "startup.json",
+                          "processes.json", "browser.json", "browser-docker-resources.jsonl", "correlation.json",
+                          "selection.json", "*.json", "docker-resources.jsonl"})
         self.assertEqual(steps[-1]["with"]["path"], "${{ runner.temp }}/k6-e2e-site/")
 
     def test_private_hosted_cluster_only(self):

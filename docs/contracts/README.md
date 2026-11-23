@@ -17,6 +17,9 @@ Conventions :
 
 Contrats :
 
+- [`k6-scenario-registration.md`](k6-scenario-registration.md)
+  — Proposed: shared scenario registration and run-bound evidence for STORY-020.
+
 - [`apparatus-knative-runtime.md`](apparatus-knative-runtime.md)
   — cible **Acceptée le 2026-10-20** de l’ADR 0012 : Serving/KPA par binding, activation à zéro, identité et gates bloquantes ; Réalité Unimplemented, pas de GO implémentation tant que les preuves de campagne manquent (pins B5 via spike séparé).
 

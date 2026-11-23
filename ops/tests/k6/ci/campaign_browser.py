@@ -22,7 +22,7 @@ from safety import Child, Rejected, CODES, BROWSER_DIAGNOSTICS, child_environmen
 HERE = Path(__file__).resolve().parent
 OWNER = "k6-ci-oauth-browser"
 ADDITIONAL_FILES = ("ci/campaign_browser.py", "ci/runtime.py", "scenarios/auth/oauth-browser.js",
-                    "lib/summary.js", "lib/campaign-target.js")
+                    "lib/summary.js", "lib/campaign-target.js", "scenarios/catalog.json")
 RESULT_FIELDS = {"qualification", "run_id", "exit", "cleanup", "sandbox", "renderer_observed",
                  "witnesses", "diagnostic", "process_security", "startup"}
 STARTUP_CAUSES = {"NO_USABLE_SANDBOX", "NAMESPACE_DENIED", "SUID_HELPER", "CRASHPAD", "LIBRARY_LOAD",

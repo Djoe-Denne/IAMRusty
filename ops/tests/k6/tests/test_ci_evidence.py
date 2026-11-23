@@ -121,6 +121,9 @@ class SummaryTests(unittest.TestCase):
                 e.accept_summary(raw, RUN, "iam-health", 0)
 
     def test_campaign_rejects_missing_or_extra_phase(self):
+        reversed_results = {case: (json.dumps(summary(case)).encode(), 0) for case in reversed(e.CASES)}
+        with self.assertRaises(e.EvidenceError):
+            e.accept_campaign(reversed_results, RUN)
         for case in e.CASES:
             values = {name: summary(name) for name in e.CASES if name != case}
             with self.assertRaises(e.EvidenceError):

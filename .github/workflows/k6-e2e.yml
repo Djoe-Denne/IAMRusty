@@ -132,11 +132,8 @@ jobs:
             ${{ runner.temp }}/k6-e2e-private/campaign/public/browser.json
             ${{ runner.temp }}/k6-e2e-private/campaign/public/browser-docker-resources.jsonl
             ${{ runner.temp }}/k6-e2e-private/campaign/public/correlation.json
-            ${{ runner.temp }}/k6-e2e-private/campaign/public/iam-health.json
-            ${{ runner.temp }}/k6-e2e-private/campaign/public/auth-envoy-san-good.json
-            ${{ runner.temp }}/k6-e2e-private/campaign/public/auth-envoy-san-bad.json
-            ${{ runner.temp }}/k6-e2e-private/campaign/public/auth-envoy-san-restored.json
-            ${{ runner.temp }}/k6-e2e-private/campaign/public/auth-oauth-browser.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/selection.json
+            ${{ runner.temp }}/k6-e2e-private/campaign/public/cases/*.json
             ${{ runner.temp }}/k6-e2e-private/campaign/public/docker-resources.jsonl
           if-no-files-found: warn
           retention-days: 7

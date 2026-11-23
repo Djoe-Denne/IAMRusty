@@ -21,6 +21,10 @@ RUN = "a" * 32
 CID = "b" * 64
 
 
+def fixture_sha(path):
+    return b.sha(path) if Path(path) == campaign.evidence.CATALOG_PATH else "hash"
+
+
 def result():
     return dict(qualification="OAUTH_BROWSER_EXECUTION", run_id=RUN, exit=0, cleanup=True, sandbox=True,
         renderer_observed=True, diagnostic=None, startup=dict(browser=None, causes=[]),
@@ -151,6 +155,7 @@ class LaunchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "private").mkdir()
+            (root / "public").mkdir()
             output = root / "private/auth-oauth-browser"
             (output / "private").mkdir(parents=True)
             summary = dict(version=1, run_id=RUN, phase="Chromium", cases=["auth-oauth-browser"], expected=1,
@@ -163,14 +168,14 @@ class LaunchTests(unittest.TestCase):
                            completed_cases=[], process_evidence={})
             parent = campaign.Campaign(r)
             parent.publish = Mock()
-            with patch.object(campaign, "new_output", return_value=output), patch.object(campaign, "sha", return_value="hash"), \
+            with patch.object(campaign, "new_output", return_value=output), patch.object(campaign, "sha", side_effect=fixture_sha), \
                  patch.object(campaign.browser_profile, "trust"), patch.object(c, "execute", return_value=result()) as launch, \
                  patch.object(campaign.Child, "execute", side_effect=AssertionError("native browser forbidden")):
                 parent.scenario("auth-oauth-browser")
                 launch.assert_called_once_with(r, output)
             self.assertEqual(r.state["completed_cases"], ["auth-oauth-browser"])
             self.assertTrue(r.state["process_evidence"]["auth-oauth-browser"]["sandbox"])
-            parent.publish.assert_any_call("auth-oauth-browser.json", summary)
+            self.assertEqual(json.loads((root / "public/cases/auth-oauth-browser.json").read_text()), summary)
 
     def test_failed_container_preserves_validated_child_cleanup_without_qualifying_oauth(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -190,7 +195,7 @@ class LaunchTests(unittest.TestCase):
 
             parent = campaign.Campaign(r)
             parent.publish = Mock()
-            with patch.object(campaign, "new_output", return_value=output), patch.object(campaign, "sha", return_value="hash"), \
+            with patch.object(campaign, "new_output", return_value=output), patch.object(campaign, "sha", side_effect=fixture_sha), \
                  patch.object(campaign.browser_profile, "trust"), patch.object(c, "execute", side_effect=failure), self.assertRaises(b.Refused):
                 parent.scenario("auth-oauth-browser")
             self.assertTrue(r.state["process_evidence"]["auth-oauth-browser"]["cleanup"])
@@ -220,7 +225,7 @@ class LaunchTests(unittest.TestCase):
 
             parent = campaign.Campaign(r)
             parent.publish = Mock()
-            with patch.object(campaign, "new_output", return_value=output), patch.object(campaign, "sha", return_value="hash"), \
+            with patch.object(campaign, "new_output", return_value=output), patch.object(campaign, "sha", side_effect=fixture_sha), \
                  patch.object(campaign.browser_profile, "trust"), patch.object(c, "execute", side_effect=failure), self.assertRaises(b.Refused):
                 parent.scenario(case)
             observed = r.state["process_evidence"][case]
