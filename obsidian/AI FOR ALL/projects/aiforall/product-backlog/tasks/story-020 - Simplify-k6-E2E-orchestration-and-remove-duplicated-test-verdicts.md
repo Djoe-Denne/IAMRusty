@@ -4,12 +4,12 @@ title: Simplify k6 E2E orchestration and remove duplicated test verdicts
 status: Accepted intent
 assignee: []
 created_date: '2026-11-22T18:35:45Z'
+updated_date: '2026-11-23T11:26:13Z'
 labels:
   - technical
   - e2e
   - k6
   - ci
-  - to-be-refined
 dependencies: []
 references:
   - ops/tests/k6/ci/campaign.py
@@ -31,9 +31,13 @@ ordinal: 28000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-## To be refined
+An AIForAll contributor can add and run a standard k6 E2E scenario in the post-merge CI campaign and on a prepared local target using the same JavaScript, without maintaining equivalent Python and PowerShell scenario logic.
 
-High-priority standalone engineering task. Reduce the cost of adding or changing a k6 end-to-end scenario without weakening the existing CI or infrastructure guarantees. No implementation or design choice is approved yet.
+Use standard k6 for scenario setup, fixture data and cleanup through existing test APIs, test behavior, and functional verdicts. Prefer a simple, deliberate discovery convention when practical; otherwise, one declarative registration is sufficient. Keep infrastructure definitions declarative and external orchestration thin. A new scenario requires changes to Python only when it needs a new setup capability that k6 and the existing tooling cannot safely provide. No particular adapter design is required.
+
+Preserve the existing guarantees for the correct test target and image, isolation, complete run-bound evidence, cancellation, scoped cleanup, and sanitized reporting. Keep the post-merge policy, PR gates, and Windows-native Rust unit and integration tests unchanged.
+
+Retry WSL as a non-blocking feasibility check with the real OAuth scenario and Chromium under normal TLS verification. A browser-launch smoke test alone does not qualify WSL. Keep the existing Windows path until a replacement proves health, OAuth, and TLS SAN parity and failure-path cleanup.
 
 ## Current wiring and evidence
 
@@ -45,14 +49,16 @@ High-priority standalone engineering task. Reduce the cost of adding or changing
 - Pilot finding: the Windows campaign routed business traffic to a run-owned IAM but reused shared ext-authz, whose JWKS source was nominal IAM. The nominal Service had no ready endpoint, so k6 never started. Attempts with a run-local verifier progressed to fixture deployment but still stopped during IAM startup. Owned resources and dedicated databases were removed. Offline Helm and harness checks passed; deployed E2E was not proved. The extra Windows profile is not a reference implementation.
 - The Python OAuth simulator is a protocol fixture, not an orchestrator. It previously supplied one identity; distinguishing identity conflict from address conflict requires selectable, run-scoped synthetic identities. Keep fixture settings declarative and scenario behavior in JS. Detailed persistence checks already supplied by the affected integration tests need not be duplicated in every E2E harness.
 
-## Refinement questions
-
-1. Can the hosted Linux runner remain the reference, with one checked catalogue for ordinary k6 scenarios and one source of truth for their verdict? Compare reusing the existing scenario registry with a small manifest; do not design a new deployment or test framework.
-2. Which guarantees must remain outside k6: correct image and target, scenario completeness, infrastructure correlations, cancellation and cleanup, and sanitized reporting? Prove that a failed or omitted assertion, missing or stale result, and failed cleanup cannot go green before removing the duplicated oracle.
-3. Is native Windows E2E still required? The current Python harness explicitly admits hosted Linux and depends on the Unix Docker socket, `/proc`, POSIX permissions, and Linux Chromium isolation. Windows handles certificate trust, private ACLs, and process trees differently. Compare Linux-only E2E, an explicitly admitted disposable Linux environment for local use, and a shared Python core with small OS adapters if native Windows is necessary. Do not translate PowerShell into a second Python runner.
-4. What can be migrated or retired after checking all consumers, proving default health/OAuth/SAN parity, and verifying clean failure paths? Keep Windows-native Rust unit/integration tests separate.
-
 ## Non-goals
 
 Do not change the deliberate post-merge E2E policy, PR merge gates, nominal shared lab configuration, test security checks, or deploy another pre-merge runner as part of this task. Do not publish credentials or private run artifacts.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Acceptance Criteria
+<!-- AC:BEGIN -->
+- [ ] #1 E1: Given a standard scenario that creates its data through an existing API, adding its k6 script and at most one declarative registration makes the applicable post-merge campaign execute it and report its result without changes to Python, PowerShell, GitHub Actions, or a second scenario list.
+- [ ] #2 E2: Given a prepared, authorized, isolated local target and the documented inputs, the same script runs its normal setup and assertions with `k6 run`, without a Python or PowerShell launcher.
+- [ ] #3 E3: A failing or unexecuted expected assertion, an absent or stale result, or failed required cleanup cannot produce a green campaign. The report distinguishes functional, incomplete, infrastructure, and cleanup failures without duplicating functional expectations in Python or publishing private inputs or raw evidence.
+- [ ] #4 E4: If `setup()` creates test data and then fails, the run fails and does not rely on `teardown()` to remove the data: setup compensates, or the isolated run environment is safely disposed of.
+- [ ] #5 E5: If a scenario changes a server certificate for the TLS SAN test, restoration remains required even when the scenario fails. The special lifecycle does not become a generic script hook for ordinary scenarios.
+<!-- AC:END -->
