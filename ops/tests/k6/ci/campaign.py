@@ -501,8 +501,13 @@ class Campaign:
     def run_cases(self):
         self.admit_services()
         san_good = san_bad = san_restored = None
+        correlation = {"san_delta": 1, "iam_delta": 7,
+                       "ext_authz_delta": 4, "provider_delta": 3, "pkce_delta": 3,
+                       "users_delta": 1, "outbox_delta": 0}
         for case, record in evidence.CATALOG.items():
-            if record["lifecycle"] == "standard":
+            if case == evidence.LINK_EMAIL_CASE:
+                correlation["link_email"] = self.run_link_email()
+            elif record["lifecycle"] == "standard":
                 self.scenario(case)
             elif case == "auth-envoy-san-good":
                 san_good, san_bad, san_restored = self.run_san()
@@ -510,8 +515,8 @@ class Campaign:
                 self.run_oauth()
         require(self.state["completed_cases"] == list(evidence.CATALOG), "E2E_INCOMPLETE_CASES")
         require(all(value is not None for value in (san_good, san_bad, san_restored)), "E2E_SAN_MISSING")
-        self.publish("correlation.json", {"san_delta": 1, "restoration": self.state["restoration"],
-            "iam_delta": 7, "ext_authz_delta": 4, "provider_delta": 3, "pkce_delta": 3, "users_delta": 1, "outbox_delta": 0})
+        correlation["restoration"] = self.state["restoration"]
+        self.publish("correlation.json", correlation)
 
     def run_san(self):
         self.scenario("auth-envoy-san-good")
@@ -547,6 +552,62 @@ class Campaign:
         db_after = strict_json(self.sql(sql, self.state["values"]["database"]))
         after = self.snapshot()
         evidence.accept_oauth(before, after, provider_before, provider_after, db_before, db_after, self.state["run_id"])
+
+    def link_email_state(self):
+        run = self.state["run_id"]
+        database = self.state["values"]["database"]
+        require(re.fullmatch(r"[a-f0-9]{32}", run) and database == "k6_" + run, "E2E_LINK_EMAIL_DB_SCOPE")
+        # Independent readback through the same owned Postgres socket as the
+        # browser counters. No row values, subjects, or token columns leave SQL.
+        query = f"""
+            WITH examples(kind) AS (VALUES ('attested'), ('false'), ('omitted')),
+            identities AS (
+                SELECT kind, 's502-' || kind || '-{run}' AS username,
+                       '{run}-owner-' || kind AS original_subject,
+                       '{run}-link-' || kind AS linked_subject
+                FROM examples
+            ), observed AS (
+                SELECT kind, u.id,
+                    (SELECT count(*) FROM user_emails e WHERE e.user_id = u.id) AS emails,
+                    (SELECT count(*) FROM user_emails e WHERE e.user_id = u.id
+                        AND e.email = original_subject || '@example.invalid'
+                        AND e.is_primary AND e.is_verified) AS primary_preserved,
+                    (SELECT count(*) FROM user_emails e WHERE e.user_id = u.id
+                        AND e.email = linked_subject || '@example.invalid' AND NOT e.is_primary
+                        AND e.is_verified = (kind = 'attested')) AS secondary,
+                    (SELECT count(*) FROM provider_tokens p WHERE p.user_id = u.id) AS methods,
+                    (SELECT count(*) FROM provider_tokens p WHERE p.user_id = u.id
+                        AND p.provider = 'gitlab' AND p.provider_user_id = original_subject) AS existing_method,
+                    (SELECT count(*) FROM provider_tokens p WHERE p.user_id = u.id
+                        AND p.provider = 'github' AND p.provider_user_id = linked_subject) AS new_method
+                FROM identities LEFT JOIN users u USING (username)
+            )
+            SELECT json_build_object(
+                'users', (SELECT count(*) FROM users),
+                'outbox', (SELECT count(*) FROM rustycog_outbox_events),
+                'owners', count(id),
+                'primary_preserved', count(*) FILTER (WHERE primary_preserved = 1),
+                'attested_secondary', count(*) FILTER (WHERE kind = 'attested' AND secondary = 1),
+                'unproved_secondary', count(*) FILTER (WHERE kind <> 'attested' AND secondary = 1),
+                'existing_method', count(*) FILTER (WHERE existing_method = 1),
+                'new_method', count(*) FILTER (WHERE new_method = 1),
+                'extra_rows', count(*) FILTER (WHERE id IS NOT NULL AND (emails <> 2 OR methods <> 2))
+            ) FROM observed
+        """
+        return strict_json(self.sql(query, database))
+
+    def run_link_email(self):
+        before = self.snapshot()
+        _, raw = self.http("https://localhost:18445/observations")
+        provider_before = strict_json(raw)
+        db_before = self.link_email_state()
+        self.scenario(evidence.LINK_EMAIL_CASE)
+        _, raw = self.http("https://localhost:18445/observations")
+        provider_after = strict_json(raw)
+        db_after = self.link_email_state()
+        after = self.snapshot()
+        return evidence.accept_link_email(before, after, provider_before, provider_after,
+                                          db_before, db_after, self.state["run_id"])
 
 
 def prepare(directory, cli_directory, browser_directory, image_directory):

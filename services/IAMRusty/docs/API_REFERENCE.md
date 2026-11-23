@@ -107,6 +107,13 @@ Handles OAuth2 provider callback and processes authorization code.
 ```
 
 **Link Provider Success (200)**:
+
+An explicit link imports an eligible new provider email as a secondary address.
+Its `is_verified` flag is true only when the connector reports that the provider
+verified that exact address; a false or missing assertion leaves it unverified,
+as in the example below. The import does not change existing addresses or
+sign-in methods.
+
 ```json
 {
   "operation": "link",

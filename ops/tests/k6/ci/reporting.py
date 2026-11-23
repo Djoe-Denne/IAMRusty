@@ -16,7 +16,8 @@ from campaign_browser import accept_result
 
 HERE = Path(__file__).resolve().parent
 CORRELATION = dict(iam_delta=7, ext_authz_delta=4, provider_delta=3, pkce_delta=3,
-                   users_delta=1, outbox_delta=0, san_delta=1, restoration="PASS")
+                    users_delta=1, outbox_delta=0, san_delta=1, restoration="PASS",
+                    link_email=evidence.LINK_EMAIL_CORRELATION)
 K6_THRESHOLDS_FAILED = 99
 
 
@@ -118,12 +119,17 @@ def project(source, destination, repository, job_run, attempt, harness_sha, targ
                       and observed["exit"] == 0 and observed["cleanup"] and observed["sandbox"] and observed["renderer_observed"])
     except (ValueError, KeyError, IndexError, TypeError):
         pass
-    parent_ok = (source_ok and len(accepted) == len(evidence.CASES) and report.get("verdict") == "PASS"
+    correlation = read(source / "correlation.json")
+    correlation_ok = (correlation == CORRELATION
+                      and all(evidence.integer(value) for value in correlation["link_email"].values()))
+    all_cases_accepted = source_ok and len(accepted) == len(evidence.CASES)
+    link_state_failed = all_cases_accepted and report.get("diagnostic") == "LINK_EMAIL_DATABASE_EFFECTS"
+    parent_ok = (all_cases_accepted and report.get("verdict") == "PASS"
         and report.get("cleanup") == "PASS" and report.get("restoration") == "PASS"
         and report.get("completed_cases") == list(evidence.CASES)
         and cleanup.get("status") == "PASS" and type(cleanup.get("owned_running")) is int
         and cleanup["owned_running"] == 0 and cleanup.get("errors") == []
-        and read(source / "correlation.json") == CORRELATION and browser_ok
+        and correlation_ok and browser_ok
         and all(isinstance(processes.get(case), dict) and type(processes[case].get("exit")) is int and processes[case]["exit"] == 0
                 and processes[case].get("cleanup") is True for case in evidence.CASES))
     passed = sum(len(value["checks"]) for value in accepted.values())
@@ -148,8 +154,10 @@ def project(source, destination, repository, job_run, attempt, harness_sha, targ
         if cleanup.get("status") == "FAIL" or report.get("restoration") == "FAIL" or any(
                 isinstance(process, dict) and process.get("cleanup") is False for process in processes.values()):
             categories.add("cleanup")
-        if (source_ok and len(accepted) == len(evidence.CASES)
-                and (read(source / "correlation.json") != CORRELATION or not browser_ok
+        if link_state_failed:
+            categories.add("functional")
+        elif (all_cases_accepted
+                and (not correlation_ok or not browser_ok
                      or report.get("restoration") not in ("PASS", "FAIL")
                       or (report.get("verdict") != "PASS" and cleanup.get("status") == "PASS"
                           and report.get("restoration") == "PASS"))):
@@ -214,10 +222,12 @@ def project(source, destination, repository, job_run, attempt, harness_sha, targ
         status="passed" if parent_ok else "broken", stage="finished",
         labels=[dict(name="parentSuite", value="E2E"), dict(name="suite", value="Campaign contract")])
     if not parent_ok:
-        parent_category = "cleanup" if "cleanup" in categories else "infrastructure" if "infrastructure" in categories else "incomplete"
+        parent_category = next((name for name in ("cleanup", "infrastructure") if name in categories),
+                               "functional" if link_state_failed else "incomplete")
+        fallback = ("LINK response checks completed, but persisted state did not match" if link_state_failed
+                    else "Campaign contract not proven; no scenario failure details available")
         parent["labels"].append(dict(name="failureCategory", value=parent_category))
-        parent["statusDetails"] = dict(message="\n".join(detail for detail, _, _ in failures.values())
-                                       or "Campaign contract not proven; no scenario failure details available")
+        parent["statusDetails"] = dict(message="\n".join(detail for detail, _, _ in failures.values()) or fallback)
         parent["links"] = run_link
     write(results / (identity + "-result.json"), parent)
     write(results / "executor.json", dict(name="GitHub Actions", type="github", buildName=f"E2E {job_run}/{attempt}",
