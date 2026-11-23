@@ -48,6 +48,11 @@ static_resources:
                             headers: [{name: ':method', string_match: {exact: POST}}]
                           route: {cluster: iam}
                           typed_per_filter_config: *public_route
+                        - match:
+                            path: /iam/api/auth/github/callback
+                            headers: [{name: ':method', string_match: {exact: GET}}]
+                          route: {cluster: iam}
+                          typed_per_filter_config: *public_route
                         # link, relink and relink-start deliberately not exempted.
                         - match: {prefix: /iam/}
                           route: {cluster: iam}

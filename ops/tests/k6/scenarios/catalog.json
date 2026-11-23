@@ -72,6 +72,49 @@
         "provider-no-credentials": "functional",
         "negative-headers": "functional"
       }
+    },
+    {
+      "id": "auth-provider-link-email",
+      "script": "auth/provider-link-email.js",
+      "phase": "HTTP",
+      "lifecycle": "standard",
+      "timeout_seconds": 185,
+      "requests": 23,
+      "checks": {
+        "hosted-link-fixture": "functional",
+        "link-start-requires-authentication": "functional",
+        "attested-owner-start": "functional",
+        "attested-owner-redirect": "functional",
+        "attested-registration-required": "functional",
+        "attested-owner-registered": "functional",
+        "false-owner-start": "functional",
+        "false-owner-redirect": "functional",
+        "false-registration-required": "functional",
+        "false-owner-registered": "functional",
+        "omitted-owner-start": "functional",
+        "omitted-owner-redirect": "functional",
+        "omitted-registration-required": "functional",
+        "omitted-owner-registered": "functional",
+        "distinct-link-owners": "functional",
+        "attested-link-start": "functional",
+        "attested-link-redirect": "functional",
+        "attested-explicit-link": "functional",
+        "attested-primary-preserved": "functional",
+        "attested-new-secondary": "functional",
+        "attested-secondary-verification": "functional",
+        "false-link-start": "functional",
+        "false-link-redirect": "functional",
+        "false-explicit-link": "functional",
+        "false-primary-preserved": "functional",
+        "false-new-secondary": "functional",
+        "false-secondary-verification": "functional",
+        "omitted-link-start": "functional",
+        "omitted-link-redirect": "functional",
+        "omitted-explicit-link": "functional",
+        "omitted-primary-preserved": "functional",
+        "omitted-new-secondary": "functional",
+        "omitted-secondary-verification": "functional"
+      }
     }
   ]
 }

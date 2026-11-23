@@ -106,6 +106,11 @@ CATALOG_SHA256 = hashlib.sha256(CATALOG_PATH.read_bytes()).hexdigest()
 CASES = {case: (record["phase"], frozenset(record["checks"]), record["requests"])
          for case, record in CATALOG.items()}
 OAUTH_CHECKS = CASES["auth-oauth-browser"][1]
+LINK_EMAIL_CASE = "auth-provider-link-email"
+LINK_EMAIL_STATE = dict(owners=3, primary_preserved=3, attested_secondary=1, unproved_secondary=2,
+                        existing_method=3, new_method=3, extra_rows=0)
+LINK_EMAIL_CORRELATION = dict(iam_delta=15, ext_authz_delta=4, provider_delta=6, pkce_delta=6,
+                              users_delta=3, outbox_delta=0, **LINK_EMAIL_STATE)
 
 
 def selection_receipt(run_id, harness_sha, target_sha):
@@ -206,6 +211,35 @@ def accept_oauth(before, after, provider_before, provider_after, db_before, db_a
             raise EvidenceError("PROVIDER_CARDINALITY")
     if delta(db_before, db_after, "users") != 1 or delta(db_before, db_after, "outbox") != 0:
         raise EvidenceError("DATABASE_EFFECTS")
+
+
+def accept_link_email(before, after, provider_before, provider_after, db_before, db_after, run_id):
+    if (delta(before, after, "cluster.iam.upstream_rq_total") != LINK_EMAIL_CORRELATION["iam_delta"]
+            or delta(before, after, "cluster.ext_authz.upstream_rq_total") != LINK_EMAIL_CORRELATION["ext_authz_delta"]
+            or delta(before, after, "cluster.iam.upstream_rq_5xx") != 0):
+        raise EvidenceError("LINK_EMAIL_EDGE_CARDINALITY")
+    for cluster in ("iam", "ext_authz"):
+        for counter in ("upstream_cx_connect_fail", "upstream_cx_connect_timeout",
+                        "ssl.fail_verify_san", "ssl.fail_verify_error"):
+            if delta(before, after, f"cluster.{cluster}.{counter}") != 0:
+                raise EvidenceError("LINK_EMAIL_TRANSPORT")
+    for provider in (provider_before, provider_after):
+        if (not isinstance(provider, dict) or provider.get("run_id") != run_id
+                or provider.get("fixture_profile") != "hosted-link-email"):
+            raise EvidenceError("LINK_EMAIL_PROVIDER_IDENTITY")
+    for name in ("authorize", "token", "profile", "pkce_validated"):
+        if delta(provider_before, provider_after, name) != LINK_EMAIL_CORRELATION["provider_delta"]:
+            raise EvidenceError("LINK_EMAIL_PROVIDER_CARDINALITY")
+    expected_fields = LINK_EMAIL_STATE.keys() | {"users", "outbox"}
+    if any(not isinstance(view, dict) or view.keys() != expected_fields
+           or not all(integer(count) for count in view.values())
+           for view in (db_before, db_after)):
+        raise EvidenceError("LINK_EMAIL_DATABASE_OBSERVATION")
+    if (any(db_before[name] != 0 or db_after[name] != count for name, count in LINK_EMAIL_STATE.items())
+            or delta(db_before, db_after, "users") != LINK_EMAIL_CORRELATION["users_delta"]
+            or delta(db_before, db_after, "outbox") != LINK_EMAIL_CORRELATION["outbox_delta"]):
+        raise EvidenceError("LINK_EMAIL_DATABASE_EFFECTS")
+    return LINK_EMAIL_CORRELATION.copy()
 
 
 def accept_campaign(results, run_id):

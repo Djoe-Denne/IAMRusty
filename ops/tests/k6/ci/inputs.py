@@ -35,6 +35,7 @@ def configuration(values):
         configs[role] = text
     provider = dict(run_id=run_id, client_id=values["client_id"],
                     client_secret=values["client_secret"], edge_origin="https://127.0.0.1:18443",
+                    fixture_profile="hosted-link-email",
                     tls_cert_file="/app/certs/idp.crt", tls_key_file="/app/certs/idp.key")
     target = dict(version=1, profile="iam-native-parity", run_id=run_id,
                   origin="https://127.0.0.1:18443", provider="https://localhost:18445/oauth/authorize",
