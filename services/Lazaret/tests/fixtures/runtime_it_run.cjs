@@ -103,7 +103,8 @@ async function main() {
         new Promise(resolve => stdout.once('finish', resolve)),
         new Promise(resolve => stderr.once('finish', resolve)),
     ]);
-    const env = { ...process.env, CARGO_TARGET_DIR: 'E:\\cargo-target\\AIForAll',
+    // Cargo resolves the target from the workspace config or the caller's override.
+    const env = { ...process.env,
         RUSTYCOG_TEST_RUNNER_MODE: 'local', RUSTYCOG_TEST_RUN_ID: run,
         RUSTYCOG_TEST_LEDGER_DIR: evidence, RUST_TEST_THREADS: '1' };
     // Empty is a configured (invalid) hostname, not an unset override.
