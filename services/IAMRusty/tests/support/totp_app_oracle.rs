@@ -36,7 +36,12 @@ fn decode_seed(encoded: &[u8]) -> anyhow::Result<[u8; 20]> {
         "expected a 160-bit unpadded Base32 seed"
     );
     let mut seed = [0; 20];
-    for (symbols, bytes) in encoded.chunks_exact(8).zip(seed.chunks_exact_mut(5)) {
+    for (symbols, bytes) in encoded
+        .as_chunks::<8>()
+        .0
+        .iter()
+        .zip(seed.as_chunks_mut::<5>().0)
+    {
         let mut bits = 0_u64;
         for &symbol in symbols {
             let value = BASE32
@@ -94,36 +99,44 @@ fn sha1(input: &[u8]) -> [u8; 20] {
         0x1032_5476,
         0xc3d2_e1f0,
     ];
-    for block in data.chunks_exact(64) {
-        let mut w = [0_u32; 80];
-        for (dst, src) in w.iter_mut().zip(block.chunks_exact(4)) {
-            *dst = u32::from_be_bytes([src[0], src[1], src[2], src[3]]);
+    for block in data.as_chunks::<64>().0 {
+        let mut schedule = [0_u32; 80];
+        for (dst, src) in schedule.iter_mut().zip(block.as_chunks::<4>().0) {
+            *dst = u32::from_be_bytes(*src);
         }
         for i in 16..80 {
-            w[i] = (w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16]).rotate_left(1);
+            schedule[i] = (schedule[i - 3] ^ schedule[i - 8] ^ schedule[i - 14] ^ schedule[i - 16])
+                .rotate_left(1);
         }
-        let [mut a, mut b, mut c, mut d, mut e] = state;
-        for (i, word) in w.into_iter().enumerate() {
+        let [mut work_a, mut work_b, mut work_c, mut work_d, mut work_e] = state;
+        for (i, word) in schedule.into_iter().enumerate() {
             let (mix, constant) = match i {
-                0..=19 => ((b & c) | (!b & d), 0x5a82_7999),
-                20..=39 => (b ^ c ^ d, 0x6ed9_eba1),
-                40..=59 => ((b & c) | (b & d) | (c & d), 0x8f1b_bcdc),
-                _ => (b ^ c ^ d, 0xca62_c1d6),
+                0..=19 => ((work_b & work_c) | (!work_b & work_d), 0x5a82_7999),
+                20..=39 => (work_b ^ work_c ^ work_d, 0x6ed9_eba1),
+                40..=59 => (
+                    (work_b & work_c) | (work_b & work_d) | (work_c & work_d),
+                    0x8f1b_bcdc,
+                ),
+                _ => (work_b ^ work_c ^ work_d, 0xca62_c1d6),
             };
-            let next = a
+            let next = work_a
                 .rotate_left(5)
                 .wrapping_add(mix)
-                .wrapping_add(e)
+                .wrapping_add(work_e)
                 .wrapping_add(constant)
                 .wrapping_add(word);
-            [a, b, c, d, e] = [next, a, b.rotate_left(30), c, d];
+            [work_a, work_b, work_c, work_d, work_e] =
+                [next, work_a, work_b.rotate_left(30), work_c, work_d];
         }
-        for (acc, value) in state.iter_mut().zip([a, b, c, d, e]) {
+        for (acc, value) in state
+            .iter_mut()
+            .zip([work_a, work_b, work_c, work_d, work_e])
+        {
             *acc = acc.wrapping_add(value);
         }
     }
     let mut digest = [0; 20];
-    for (dst, value) in digest.chunks_exact_mut(4).zip(state) {
+    for (dst, value) in digest.as_chunks_mut::<4>().0.iter_mut().zip(state) {
         dst.copy_from_slice(&value.to_be_bytes());
     }
     digest

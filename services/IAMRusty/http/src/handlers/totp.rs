@@ -13,9 +13,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-pub(crate) const ENROLLMENT: &str = "/api/me/totp/enrollment";
-pub(crate) const CONFIRM: &str = "/api/me/totp/enrollment/confirm";
-pub(crate) const CANCEL: &str = "/api/me/totp/enrollment/{enrollment_id}";
+pub const ENROLLMENT: &str = "/api/me/totp/enrollment";
+pub const CONFIRM: &str = "/api/me/totp/enrollment/confirm";
+pub const CANCEL: &str = "/api/me/totp/enrollment/{enrollment_id}";
 
 #[derive(Serialize)]
 struct EnrollmentResponse {
@@ -25,20 +25,20 @@ struct EnrollmentResponse {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct ConfirmRequest {
+pub struct ConfirmRequest {
     enrollment_id: Uuid,
     current_password: String,
     code: String,
 }
 
-pub(crate) async fn begin(
+pub async fn begin(
     owner: PlatformUser,
     Extension(login): Extension<Arc<dyn LoginUseCase>>,
 ) -> Result<impl IntoResponse, AuthError> {
     let enrollment = login
         .begin_totp(owner.user_id)
         .await
-        .map_err(enrollment_error)?;
+        .map_err(|error| enrollment_error(&error))?;
     Ok((
         StatusCode::CREATED,
         [(CACHE_CONTROL, "no-store")],
@@ -49,7 +49,7 @@ pub(crate) async fn begin(
     ))
 }
 
-pub(crate) async fn confirm(
+pub async fn confirm(
     owner: PlatformUser,
     Extension(login): Extension<Arc<dyn LoginUseCase>>,
     request: Result<Json<ConfirmRequest>, JsonRejection>,
@@ -69,11 +69,11 @@ pub(crate) async fn confirm(
             &request.code,
         )
         .await
-        .map_err(enrollment_error)?;
+        .map_err(|error| enrollment_error(&error))?;
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub(crate) async fn cancel(
+pub async fn cancel(
     owner: PlatformUser,
     Extension(login): Extension<Arc<dyn LoginUseCase>>,
     Path(enrollment_id): Path<Uuid>,
@@ -81,7 +81,7 @@ pub(crate) async fn cancel(
     login
         .cancel_totp(owner.user_id, enrollment_id)
         .await
-        .map_err(enrollment_error)?;
+        .map_err(|error| enrollment_error(&error))?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -94,7 +94,7 @@ fn invalid_confirmation() -> AuthError {
     )
 }
 
-fn enrollment_error(error: TotpError) -> AuthError {
+fn enrollment_error(error: &TotpError) -> AuthError {
     let (status, code, message) = match error {
         TotpError::InvalidProof | TotpError::Required => (
             StatusCode::UNAUTHORIZED,
@@ -125,12 +125,7 @@ fn enrollment_error(error: TotpError) -> AuthError {
     protocol_error("totp_enrollment", status, code, message)
 }
 
-pub(crate) fn protocol_error(
-    operation: &str,
-    status: StatusCode,
-    code: &str,
-    message: &str,
-) -> AuthError {
+pub fn protocol_error(operation: &str, status: StatusCode, code: &str, message: &str) -> AuthError {
     AuthError::OAuth {
         operation: operation.to_owned(),
         error_code: code.to_owned(),

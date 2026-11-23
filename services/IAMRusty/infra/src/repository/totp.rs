@@ -101,7 +101,7 @@ fn active(user_id: Uuid) -> sea_orm::Select<credentials::Entity> {
     credentials::Entity::find_by_id(user_id).filter(credentials::Column::LastUsedStep.is_not_null())
 }
 
-fn step(now: DateTime<Utc>) -> i64 {
+const fn step(now: DateTime<Utc>) -> i64 {
     now.timestamp().div_euclid(STEP_SECONDS)
 }
 

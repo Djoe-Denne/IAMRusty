@@ -13,10 +13,10 @@ use zeroize::Zeroizing;
 const SEED_LEN: usize = 20;
 const KEY_LEN: usize = 32;
 const SEALED_LEN: usize = 12 + SEED_LEN + 16;
-pub(crate) const STEP_SECONDS: i64 = 30;
+pub const STEP_SECONDS: i64 = 30;
 
 /// An instance-only dedicated secret key; never expose it via Debug or config.
-pub(crate) struct TotpCipher(RandomizedNonceKey);
+pub struct TotpCipher(RandomizedNonceKey);
 
 impl TotpCipher {
     pub(crate) fn from_mounted_file(path: &Path) -> Result<Self, TotpError> {

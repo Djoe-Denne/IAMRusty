@@ -211,6 +211,16 @@ async fn exercise_session_gate(
         session_count(&db, owner_id).await? == original_count + 1,
         "E3: racing copies of the same app step must persist exactly one new session"
     );
+    assert_session_matches_winner(&db, client, base, owner_id, &session).await
+}
+
+async fn assert_session_matches_winner(
+    db: &DatabaseConnection,
+    client: &Client,
+    base: &str,
+    owner_id: Uuid,
+    session: &Value,
+) -> anyhow::Result<()> {
     let refresh = session["refresh_token"]
         .as_str()
         .context("login refresh absent")?;

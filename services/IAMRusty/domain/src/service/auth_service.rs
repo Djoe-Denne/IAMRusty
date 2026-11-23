@@ -24,7 +24,7 @@ use uuid::Uuid;
 use super::IamOutboxUnitOfWork;
 use crate::utils;
 
-fn password_factor_error(error: TotpError) -> AuthError {
+const fn password_factor_error(error: TotpError) -> AuthError {
     match error {
         TotpError::InvalidProof => AuthError::InvalidCredentials,
         error => AuthError::Totp(error),
