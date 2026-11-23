@@ -28,6 +28,9 @@ from test_ci_e2e import provenance
 
 SHA, H, RUN = "a" * 40, "c" * 40, "a" * 32
 BASH = os.environ.get("AIFORALL_BASH") or (shutil.which("bash") if os.name != "nt" else None)
+EXPECTED = sum(len(record["checks"]) for record in e.CATALOG.values())
+HEALTH_CHECKS = len(e.CASES["iam-health"][1])
+OAUTH_CHECKS = len(e.OAUTH_CHECKS)
 
 
 def dump(root, name, value):
@@ -68,7 +71,8 @@ def failed_oauth_fixture(root, *, invalid=False):
                            summary_status="captured", failed_summary=partial)
     dump(root, "processes.json", processes)
     report = json.loads((root / "report.json").read_text(encoding="utf-8"))
-    dump(root, "report.json", {**report, "verdict": "FAIL", "completed_cases": list(e.CASES)[:-1]})
+    dump(root, "report.json", {**report, "verdict": "FAIL",
+                              "completed_cases": [value for value in e.CASES if value != case]})
 
 
 def results(root):
@@ -100,7 +104,7 @@ class ReportingTests(unittest.TestCase):
                 processes["iam-health"].update(change)
                 dump(root / "source", "processes.json", processes)
                 metric = project(root)
-                self.assertEqual((metric["status"], metric["passed"]), ("failed", 32))
+                self.assertEqual((metric["status"], metric["passed"]), ("failed", EXPECTED - HEALTH_CHECKS))
                 if change.get("cleanup") is False:
                     self.assertIn("cleanup", metric["failure_categories"])
 
@@ -117,7 +121,7 @@ class ReportingTests(unittest.TestCase):
                 else:
                     dump(root / "source", "selection.json", {**json.loads(path.read_text()), **change})
                 metric = project(root)
-                self.assertEqual((metric["status"], metric["passed"], metric["expected"]), ("incomplete", 0, 34))
+                self.assertEqual((metric["status"], metric["passed"], metric["expected"]), ("incomplete", 0, EXPECTED))
 
     def test_old_root_case_files_are_not_accepted_and_unknown_files_never_project(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -127,7 +131,8 @@ class ReportingTests(unittest.TestCase):
             case.rename(root / "source/iam-health.json")
             dump(root / "source/cases", "unknown.json", dict(private="SECRET_SENTINEL"))
             metric = project(root)
-            self.assertEqual((metric["status"], metric["passed"], metric["expected"]), ("failed", 32, 34))
+            self.assertEqual((metric["status"], metric["passed"], metric["expected"]),
+                             ("failed", EXPECTED - HEALTH_CHECKS, EXPECTED))
             for path in (root / "site").rglob("*"):
                 if path.is_file():
                     self.assertNotIn("SECRET_SENTINEL", path.read_text(encoding="utf-8"))
@@ -136,6 +141,7 @@ class ReportingTests(unittest.TestCase):
         record = {**e.CATALOG["iam-health"], "id": "ordinary-added"}
         catalog = {**e.CATALOG, "ordinary-added": record}
         cases = {**e.CASES, "ordinary-added": ("HTTP", frozenset(record["checks"]), 1)}
+        expanded = EXPECTED + len(record["checks"])
         with patch.object(e, "CATALOG", catalog), patch.object(e, "CASES", cases):
             for missing in (False, True):
                 with self.subTest(missing=missing), tempfile.TemporaryDirectory() as directory:
@@ -144,29 +150,29 @@ class ReportingTests(unittest.TestCase):
                     if missing:
                         (root / "source/cases/ordinary-added.json").unlink()
                     metric = project(root)
-                    self.assertEqual(metric["expected"], 36)
-                    self.assertEqual(metric["passed"], 34 if missing else 36)
+                    self.assertEqual(metric["expected"], expanded)
+                    self.assertEqual(metric["passed"], EXPECTED if missing else expanded)
                     self.assertEqual(metric["status"], "failed" if missing else "passed")
-                    self.assertEqual(len(results(root)), 37)
-                    self.assertIn("36 declared checks", (root / "site/index.html").read_text())
+                    self.assertEqual(len(results(root)), expanded + 1)
+                    self.assertIn(f"{expanded} declared checks", (root / "site/index.html").read_text())
 
-    def test_34_checks_and_distinct_parent_contract_are_not_code_coverage(self):
+    def test_declared_checks_and_distinct_parent_contract_are_not_code_coverage(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             public_fixture(root / "source")
             metric = project(root)
-            self.assertEqual((metric["status"], metric["passed"], metric["expected"]), ("passed", 34, 34))
+            self.assertEqual((metric["status"], metric["passed"], metric["expected"]), ("passed", EXPECTED, EXPECTED))
             files = list((root / "site/allure-results").glob("*-result.json"))
-            self.assertEqual(len(files), 35)
+            self.assertEqual(len(files), EXPECTED + 1)
             for file in files:
                 value = json.loads(file.read_text())
                 self.assertEqual(value["status"], "passed")
                 self.assertNotIn("start", value)
                 self.assertNotIn("stop", value)
                 self.assertNotIn("attachments", value)
-            self.assertEqual(json.loads((root / "site/badge.json").read_text())["message"], "34/34")
+            self.assertEqual(json.loads((root / "site/badge.json").read_text())["message"], f"{EXPECTED}/{EXPECTED}")
 
-    def test_parent_failure_cannot_leave_green_badge_even_with_34_passed_checks(self):
+    def test_parent_failure_cannot_leave_green_badge_even_with_all_passed_checks(self):
         for name, change in (("cleanup.json", dict(status="FAIL")), ("cleanup.json", dict(owned_running=False)),
                              ("correlation.json", dict(iam_delta=8)), ("report.json", dict(verdict="FAIL"))):
             with tempfile.TemporaryDirectory() as directory:
@@ -176,7 +182,7 @@ class ReportingTests(unittest.TestCase):
                 dump(root / "source", name, {**value, **change})
                 metric = project(root)
                 self.assertNotEqual(metric["status"], "passed")
-                self.assertEqual(metric["passed"], 34)
+                self.assertEqual(metric["passed"], EXPECTED)
                 self.assertEqual(json.loads((root / "site/badge.json").read_text())["color"], "red")
 
     def test_missing_or_stale_phase_is_unproven_not_a_fake_pass(self):
@@ -185,7 +191,7 @@ class ReportingTests(unittest.TestCase):
             public_fixture(root / "source")
             (root / "source/cases/auth-oauth-browser.json").unlink()
             metric = project(root)
-            self.assertEqual((metric["passed"], metric["unproven"]), (8, 26))
+            self.assertEqual((metric["passed"], metric["unproven"]), (EXPECTED - OAUTH_CHECKS, OAUTH_CHECKS))
             self.assertNotEqual(metric["status"], "passed")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -209,7 +215,7 @@ class ReportingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             metric = project(root)
-            self.assertEqual((metric["status"], metric["passed"], metric["unproven"]), ("incomplete", 0, 34))
+            self.assertEqual((metric["status"], metric["passed"], metric["unproven"]), ("incomplete", 0, EXPECTED))
             self.assertTrue((root / "site/index.html").is_file())
 
     def test_threshold_failure_names_observed_checks_without_counting_partial_success(self):
@@ -219,7 +225,8 @@ class ReportingTests(unittest.TestCase):
             job_summary = root / "summary.md"
             with redirect_stdout(io.StringIO()) as log:
                 metric = r.project(root / "source", root / "site", "Djoe-Denne/IAMRusty", "123", "1", H, SHA, job_summary)
-            self.assertEqual((metric["status"], metric["passed"], metric["unproven"]), ("failed", 8, 26))
+            self.assertEqual((metric["status"], metric["passed"], metric["unproven"]),
+                             ("failed", EXPECTED - OAUTH_CHECKS, OAUTH_CHECKS))
             self.assertIn("functional", metric["failure_categories"])
             self.assertIn("incomplete", metric["failure_categories"])
             report = results(root)
@@ -235,7 +242,7 @@ class ReportingTests(unittest.TestCase):
             parent = report["E2E.parent-contract"]
             message = parent["statusDetails"]["message"]
             summary = job_summary.read_text(encoding="utf-8")
-            for marker in ("k6 exit 99", "completed=unavailable", "registration-callback", "observed checks: 2/26",
+            for marker in ("k6 exit 99", "completed=unavailable", "registration-callback", f"observed checks: 2/{OAUTH_CHECKS}",
                            "renderer_observed=yes"):
                 self.assertIn(marker, message)
                 self.assertIn(marker, summary)
@@ -249,7 +256,7 @@ class ReportingTests(unittest.TestCase):
             root = Path(directory)
             failed_oauth_fixture(root / "source", invalid=True)
             with redirect_stdout(io.StringIO()) as log:
-                self.assertEqual(project(root)["passed"], 8)
+                self.assertEqual(project(root)["passed"], EXPECTED - OAUTH_CHECKS)
             self.assertNotIn("SECRET_SENTINEL", log.getvalue())
             parent = results(root)["E2E.parent-contract"]
             self.assertIn("k6 exit 99 (thresholds not met); diagnostic summary invalid", parent["statusDetails"]["message"])
@@ -275,7 +282,7 @@ class ReportingTests(unittest.TestCase):
                     del processes[case]
                 dump(root / "source", "processes.json", processes)
                 with redirect_stdout(io.StringIO()) as log:
-                    self.assertEqual(project(root)["passed"], 8)
+                    self.assertEqual(project(root)["passed"], EXPECTED - OAUTH_CHECKS)
                 self.assertIn(expected, log.getvalue())
                 parent = results(root)["E2E.parent-contract"]
                 self.assertIn(f"{case}: {expected}", parent["statusDetails"]["message"])
