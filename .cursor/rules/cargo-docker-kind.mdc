@@ -21,5 +21,5 @@ L’hôte est Windows. **Développer, compiler et tester se font nativement sous
 ## Ne jamais faire
 
 - Builder ou exécuter des tests dans Docker « parce que c’était la règle avant ». Les tests locaux via Docker sont supprimés du canon.
-- Partager ou monter `target\` entre l’hôte et un conteneur : le `target\` Windows (`x86_64-pc-windows-msvc`) vit sur `E:\cargo-target\AIForAll` (`.cargo/config.toml`) et est incompatible avec les artefacts Docker (`x86_64-unknown-linux-gnu`).
+- Do not share or mount the Windows Cargo target configured in `.cargo/config.toml` in a container. Windows artifacts (`x86_64-pc-windows-msvc`) are incompatible with Linux container artifacts (`x86_64-unknown-linux-gnu`).
 - Lancer un second `cargo` en parallèle (un seul slot, coordonné avec le parent/orchestrator).

@@ -11,7 +11,7 @@ suppression, nouveau test ou contournement de hook.
 
 ## 1. Préflight avant tout Cargo ou runtime
 
-- Fixer HEAD, sources exécutées, nombre exact de tests, features, GO et unique bail Cargo Windows ; target E: effectivement vérifié. Ne pas confondre compilation/listing/oracle scripté et preuve live.
+- Record HEAD, executed sources, exact test count, features, approval, and the exclusive Windows Cargo lease. Verify the effective target directory against `.cargo/config.toml` or the approved override. A build, test listing, or scripted oracle is not live evidence.
 - Lire **les effets transitifs** du scénario : `ensure` peut être non destructif alors que le corps E2E ou le reconcile supprime Pod/AdmissionRecord ou un helper remplace son prédécesseur.
 - Capturer les UID/IDs avant. Nom/digest/image n'établissent jamais propriété. Le cycle m6 local est accepté par décision utilisateur du 18 octobre 2026 ; cela ne permet ni de prétendre une préservation intégrale ni de viser production/autre projet/contexte protégé. Pas de durcissement de production glissé dans un lot test/documentation.
 - Si le contexte partagé échoue, ne pas conclure clusterdown : exporter vers **un kubeconfig privé dédié** et vérifier la cible effective. Ne jamais modifier le kubeconfig partagé ni imprimer client-key-data/certificates.
