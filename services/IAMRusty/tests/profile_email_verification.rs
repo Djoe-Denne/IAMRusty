@@ -575,7 +575,11 @@ async fn absent_landing_fails_closed_without_proof_or_outbox_event() {
             outbox_before,
             "a missing landing must not enqueue an outbox event"
         );
-        assert!(intents(db.as_ref(), owner).await.is_empty());
+        let no_private_intents = intents(db.as_ref(), owner).await.is_empty();
+        assert!(
+            no_private_intents,
+            "no verification delivery intent may be stored"
+        );
     }))
     .await;
 }

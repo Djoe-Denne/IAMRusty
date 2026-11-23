@@ -251,7 +251,13 @@ async fn prepare_primary_fixture() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub(crate) fn fixture_config(fixture: &TestFixture) -> anyhow::Result<AppConfig> {
+/// Load IAM configuration for the fixture's isolated writer and loopback listener.
+///
+/// # Errors
+///
+/// Returns an error if configuration loading fails, the fixture lacks valid
+/// writer connection information, or the isolated security policy is invalid.
+pub fn fixture_config(fixture: &TestFixture) -> anyhow::Result<AppConfig> {
     fixture_config_with_security(fixture, None)
 }
 
@@ -311,9 +317,8 @@ fn fixture_config_with_security(
     Ok(config)
 }
 
-pub(crate) fn mock_publisher(
-    mock: Arc<MockEventPublisher>,
-) -> Arc<MultiQueueEventPublisher<DomainError>> {
+#[must_use]
+pub fn mock_publisher(mock: Arc<MockEventPublisher>) -> Arc<MultiQueueEventPublisher<DomainError>> {
     Arc::new(MultiQueueEventPublisher::new(
         vec![GenericEventPublisherAdapter::new(
             Arc::new(rustycog::events::ConcreteEventPublisher::NoOp(mock)),

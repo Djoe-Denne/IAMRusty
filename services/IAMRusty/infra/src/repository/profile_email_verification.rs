@@ -50,7 +50,7 @@ async fn lock_unverified_address(
     writer_failure(row.try_get("", "email"))
 }
 
-fn project(row: QueryResult) -> VerificationResult<SavedAddress> {
+fn project(row: &QueryResult) -> VerificationResult<SavedAddress> {
     Ok(SavedAddress {
         id: writer_failure(row.try_get("", "id"))?,
         email: writer_failure(row.try_get("", "email"))?,
@@ -75,7 +75,7 @@ impl ProfileEmailVerificationRepository for PostgresProfileEmailVerification {
                 ))
                 .await,
         )?
-        .into_iter()
+        .iter()
         .map(project)
         .collect()
     }

@@ -39,6 +39,7 @@ impl Write for PrivateCapture {
         let mut captured = self.0.lock().expect("capture lock");
         let remaining = CAPTURE_LIMIT - captured.len();
         captured.extend_from_slice(&bytes[..remaining.min(bytes.len())]);
+        drop(captured);
         Ok(bytes.len())
     }
 
@@ -122,7 +123,12 @@ fn persisted_profile_link_is_private_at_the_normal_publisher() {
             .unwrap_or_else(|_| panic!("read recorded event"))
             .expect("recorded event exists before the dispatcher starts");
         assert_eq!(row.status, STATUS_PENDING);
-        assert!(row.payload_json["verification_url"].as_str() == Some(link.as_str()));
+        let persisted_link_matches =
+            row.payload_json["verification_url"].as_str() == Some(link.as_str());
+        assert!(
+            persisted_link_matches,
+            "the persisted capability link must match"
+        );
         // The current event supplies empty metadata. Seed a private marker in
         // the persisted row to exercise forwarding and logging of nonempty metadata.
         let changed = db
@@ -186,21 +192,26 @@ fn persisted_profile_link_is_private_at_the_normal_publisher() {
         "transport must receive the original private metadata"
     );
 
-    let bytes = capture.0.lock().expect("capture lock");
-    assert!(
-        bytes.len() < CAPTURE_LIMIT,
-        "trace capture must not truncate"
-    );
-    let logs = std::str::from_utf8(&bytes).expect("trace capture UTF-8");
     let event_id = event_id.to_string();
-    assert!(logs
+    let bytes = capture.0.lock().expect("capture lock");
+    let complete = bytes.len() < CAPTURE_LIMIT;
+    let logs = std::str::from_utf8(&bytes).expect("trace capture UTF-8");
+    let adapter_reached = logs
         .lines()
-        .any(|line| line.contains("INFO") && line.contains("Publishing event:")));
-    assert!(logs.lines().any(|line| line.contains("DEBUG")
-        && line.contains("Outbox event published")
-        && line.contains(&event_id)));
+        .any(|line| line.contains("INFO") && line.contains("Publishing event:"));
+    let dispatcher_reached = logs.lines().any(|line| {
+        line.contains("DEBUG")
+            && line.contains("Outbox event published")
+            && line.contains(&event_id)
+    });
+    let private_data_absent =
+        !logs.contains(&link) && !logs.contains(&fragment) && !logs.contains(&metadata_marker);
+    drop(bytes);
+    assert!(complete, "trace capture must not truncate");
+    assert!(adapter_reached, "normal publisher INFO witness missing");
+    assert!(dispatcher_reached, "dispatcher DEBUG witness missing");
     assert!(
-        !logs.contains(&link) && !logs.contains(&fragment) && !logs.contains(&metadata_marker),
+        private_data_absent,
         "persisted profile capability or private metadata entered publisher traces"
     );
 }

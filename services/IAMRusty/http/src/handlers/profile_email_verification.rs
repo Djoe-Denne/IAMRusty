@@ -16,17 +16,17 @@ use crate::PlatformUser;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct IssueRequest {
+pub struct IssueRequest {
     address_id: Uuid,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct ConfirmRequest {
+pub struct ConfirmRequest {
     token: String,
 }
 
-pub(crate) async fn list(
+pub async fn list(
     user: PlatformUser,
     Extension(verification): Extension<Arc<ProfileEmailVerification>>,
 ) -> Result<Json<Vec<SavedAddress>>, StatusCode> {
@@ -37,7 +37,7 @@ pub(crate) async fn list(
         .map_err(status)
 }
 
-pub(crate) async fn issue(
+pub async fn issue(
     user: PlatformUser,
     Extension(verification): Extension<Arc<ProfileEmailVerification>>,
     request: Result<Json<IssueRequest>, JsonRejection>,
@@ -57,7 +57,7 @@ pub(crate) async fn issue(
     }
 }
 
-pub(crate) async fn confirm(
+pub async fn confirm(
     user: PlatformUser,
     Extension(verification): Extension<Arc<ProfileEmailVerification>>,
     request: Result<Json<ConfirmRequest>, JsonRejection>,
