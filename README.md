@@ -75,8 +75,9 @@ cargo check --locked -p oodhive-monolith
 
 Build and run development tests natively on the host. The checked-in
 [Cargo configuration](.cargo/config.toml) defaults to
-`E:\cargo-target\AIForAll` for Windows; set `CARGO_TARGET_DIR` to a writable
-local path if that drive is unavailable or you are on a different platform.
+`I:\cargo-target\AIForAll` for Windows. Native test launchers use that same
+configuration. Set `CARGO_TARGET_DIR` to a writable local path if that drive
+is unavailable or you are on a different platform.
 
 To run the backend locally on Windows, use the
 [monolith host guide](runtime/monolith/README.md): start the dependencies

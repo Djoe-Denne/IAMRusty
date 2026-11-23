@@ -92,9 +92,10 @@ class ItFakeRuntime
             string run = Environment.GetEnvironmentVariable("RUSTYCOG_TEST_RUN_ID") ?? "";
             string ledgerDir = Environment.GetEnvironmentVariable("RUSTYCOG_TEST_LEDGER_DIR") ?? "";
             string threads = Environment.GetEnvironmentVariable("RUST_TEST_THREADS") ?? "";
+            string target = Environment.GetEnvironmentVariable("CARGO_TARGET_DIR") ?? "<unset>";
             string fail = Environment.GetEnvironmentVariable("ITFAKE_FAIL");
             string opaque = Environment.GetEnvironmentVariable("ITFAKE_OPAQUE");
-            AppendLine(P("calls"), "cargo " + pkg + " threads=" + threads + (fail == "1" ? " fail=1" : "") + (opaque == "1" ? " opaque=1" : ""));
+            AppendLine(P("calls"), "cargo " + pkg + " threads=" + threads + (fail == "1" ? " fail=1" : "") + (opaque == "1" ? " opaque=1" : "") + " target=" + target);
             string ledger = Path.Combine(ledgerDir, "fixture-" + run + "-" + Process.GetCurrentProcess().Id + ".jsonl");
             if (opaque == "1")
             {

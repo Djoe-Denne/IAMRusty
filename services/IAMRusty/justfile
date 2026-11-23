@@ -17,7 +17,7 @@
 # - just dev                  # Setup development environment
 #
 # 🐳 Docker Requirements (mise à jour 2026-10-07):
-# Tests dev natifs Windows (cargo hôte, target sur E:\cargo-target\AIForAll).
+# Native Windows development tests use the Cargo target configured at the workspace root.
 # L'infra tierce des tests d'intégration (Postgres, OpenFGA pendant l'init,
 # LocalStack…) est démarrée automatiquement par les fixtures testcontainers
 # via le daemon Docker ; pas d'image applicative ni de runner Docker.

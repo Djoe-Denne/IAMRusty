@@ -290,7 +290,7 @@ $observerBody = {
 }
 
 $previous = @{}
-foreach ($name in @('CARGO_TARGET_DIR', 'RUST_TEST_THREADS', 'RUSTYCOG_TEST_RUNNER_MODE', 'RUSTYCOG_TEST_RUNNER_HOST', 'RUSTYCOG_TEST_RUN_ID', 'RUSTYCOG_TEST_LEDGER_DIR')) {
+foreach ($name in @('RUST_TEST_THREADS', 'RUSTYCOG_TEST_RUNNER_MODE', 'RUSTYCOG_TEST_RUNNER_HOST', 'RUSTYCOG_TEST_RUN_ID', 'RUSTYCOG_TEST_LEDGER_DIR')) {
     $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
 $beforeIds = @{}
@@ -317,7 +317,7 @@ try {
         }
         Start-Sleep -Milliseconds 100
     }
-    $env:CARGO_TARGET_DIR = 'E:\cargo-target\AIForAll'
+    # Cargo resolves the target from the workspace config or the caller's override.
     $env:RUSTYCOG_TEST_RUNNER_MODE = 'local'
     $env:RUSTYCOG_TEST_RUNNER_HOST = $null
     $env:RUSTYCOG_TEST_RUN_ID = $runId

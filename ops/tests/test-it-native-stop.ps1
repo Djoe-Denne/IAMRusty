@@ -18,9 +18,14 @@ Assert-ItLauncherHasNoDestructiveCall -LauncherPath $launcher
 Write-Host 'PASS static: no prune subcommand anywhere in the launcher command ASTs (T-3d)'
 
 function Assert-ItEnvironmentRestored {
-    # The launcher must restore the caller's process environment (sentinels).
+    param([switch]$WithoutTargetOverride)
+    # The launcher must preserve the caller's process environment.
+    $target = [Environment]::GetEnvironmentVariable('CARGO_TARGET_DIR', 'Process')
+    if ($WithoutTargetOverride) {
+        if ($null -ne $target) { throw 'The launcher set a target override for the caller' }
+    }
+    elseif ($target -ne 'sentinel-target') { throw 'The caller target override was not preserved' }
     foreach ($check in @(
-            @('CARGO_TARGET_DIR', 'sentinel-target'),
             @('RUST_TEST_THREADS', 'sentinel-threads'),
             @('RUSTYCOG_TEST_RUNNER_MODE', 'sentinel-mode'),
             @('RUSTYCOG_TEST_RUNNER_HOST', 'sentinel-host'),
@@ -83,6 +88,9 @@ Invoke-ItFakeScenario 'G-1/G-2/G-4/G-5/T-6: success batch then failing batch, sa
         $cargoCalls = @($calls1 | Where-Object { $_ -like 'cargo *' })
         if ($cargoCalls.Count -ne 2) { throw "Batch did not execute exactly two packages (got $($cargoCalls.Count) cargo lines)" }
         if ($cargoCalls[0] -notmatch 'threads=3') { throw "AIFORALL_IT_TEST_THREADS=3 was not propagated end-to-end into the cargo environment: $($cargoCalls[0])" }
+        if (@($cargoCalls | Where-Object { $_ -notmatch ' target=sentinel-target$' }).Count -ne 0) {
+            throw 'Cargo did not receive the caller target override unchanged'
+        }
         if (Test-Path -LiteralPath (Join-Path $sb.State $ownedA)) { throw "Owned fixture $ownedA leaked" }
         if (Test-Path -LiteralPath (Join-Path $sb.State $ownedB)) { throw "Owned fixture $ownedB leaked" }
         Assert-ItForeignUntouched $sb
@@ -109,6 +117,7 @@ Invoke-ItFakeScenario 'G-1/G-2/G-4/G-5/T-6: success batch then failing batch, sa
         Write-Host 'PASS G-2/G-4/G-5/T-6: success batch - exact full-ID stop+rm, foreign preserved, env restored, override propagated, registry last-event-wins, counters exact'
 
         # --- Invocation 2: cargo fails (exit 7) in the same sandbox ---------
+        $env:CARGO_TARGET_DIR = $null
         $env:AIFORALL_IT_TEST_THREADS = $null
         $env:ITFAKE_FAIL = '1'
         $thrown = $null
@@ -118,7 +127,7 @@ Invoke-ItFakeScenario 'G-1/G-2/G-4/G-5/T-6: success batch then failing batch, sa
         if (Test-Path -LiteralPath (Join-Path $sb.State $ownedA)) { throw "Owned fixture $ownedA leaked after cargo failure" }
         if (Test-Path -LiteralPath (Join-Path $sb.State $ownedB)) { throw "Owned fixture $ownedB leaked after cargo failure" }
         Assert-ItForeignUntouched $sb
-        Assert-ItEnvironmentRestored
+        Assert-ItEnvironmentRestored -WithoutTargetOverride
         Assert-ItNoPrune $sb
         $calls2 = Get-ItFakeCalls $sb
         $cargoCalls2 = @($calls2 | Where-Object { $_ -like 'cargo *' })
@@ -132,6 +141,9 @@ Invoke-ItFakeScenario 'G-1/G-2/G-4/G-5/T-6: success batch then failing batch, sa
 
         if ($cargoCalls2.Count -ne 3) { throw "Expected 3 cargo lines (fail-fast batch ends at the first failing suite), got $($cargoCalls2.Count)" }
         if ($cargoCalls2[2] -notmatch 'threads=2') { throw "Unset AIFORALL_IT_TEST_THREADS must fall back to the default cap 2 end-to-end: $($cargoCalls2[2])" }
+        if ($cargoCalls2[2] -notmatch ' target=<unset>$') {
+            throw 'The launcher injected a target override instead of letting Cargo resolve its config'
+        }
 
         $runs2 = Get-ItFakeRunDirs $sb
         if ($runs2.Count -ne 2) { throw 'Run directories were reused across invocations' }
