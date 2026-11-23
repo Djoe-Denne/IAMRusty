@@ -10,11 +10,11 @@ import unittest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[4]
-HELM = os.environ.get("AIFORALL_HELM") or shutil.which("helm")
+HELM = shutil.which(os.environ.get("AIFORALL_HELM") or "helm")
 CHART = ROOT / "ops/tests/k6/ci/chart"
 
 
-@unittest.skipUnless(HELM and Path(HELM).is_file(), "existing Helm required; skip is not a CI qualification")
+@unittest.skipUnless(HELM, "existing Helm required; skip is not a CI qualification")
 class CiRenderTests(unittest.TestCase):
     def render(self, enabled=True, namespace="aiforall-local-full", omit_image=False, envoy=None):
         images = {role: "fixture@sha256:" + "b" * 64
@@ -180,4 +180,6 @@ class CiRenderTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    if not HELM:
+        raise SystemExit("Helm is required to run the k6 fixture render gate")
     unittest.main()

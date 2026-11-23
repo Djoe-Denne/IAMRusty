@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -128,6 +129,41 @@ class LaunchTests(unittest.TestCase):
         self.assertIn("scenarios/auth/oauth-browser.js", c.ADDITIONAL_FILES)
         self.assertIn("lib/summary.js", c.ADDITIONAL_FILES)
         self.assertIn("lib/campaign-target.js", c.ADDITIONAL_FILES)
+
+    def test_staged_oauth_entrypoint_imports_without_the_checkout(self):
+        with tempfile.TemporaryDirectory(prefix="k6-oauth-image-context-") as directory:
+            root = Path(directory).resolve()
+            package = root / "package"
+            (package / "private").mkdir(parents=True)
+            (package / "private/image.iid").write_text("sha256:" + "c" * 64, encoding="ascii")
+            profile = root / "seccomp.json"
+            profile.write_text("{}", encoding="ascii")
+            tools = root / "tools"
+            tools.mkdir()
+            pins = {}
+            for role, archive in (("k6", "k6.tar.gz"), ("chromium", "chromium.zip")):
+                (tools / archive).touch()
+                executable = tools / (role + "-bundle") / role
+                executable.parent.mkdir()
+                executable.touch()
+                pins[role] = {"path": str(executable)}
+            r = runtime(root)
+            del r.state["browser_container"]
+            r.observe_images = Mock()
+            r.docker.side_effect = [b'["name=apparmor","name=seccomp,profile=builtin"]', b""]
+            with patch.object(c, "hosted"), patch.object(c, "new_output", return_value=package), \
+                 patch.object(c.browser_profile, "tools", return_value=pins), \
+                 patch.object(c.trial, "acquire_seccomp", return_value=(profile, {}, {})), \
+                 patch.object(os, "getuid", return_value=1001, create=True), \
+                 patch.object(os, "getgid", return_value=1001, create=True):
+                c.prepare(r, tools)
+            context = package / "private/context"
+            entrypoint = context / "ops/tests/k6/ci/campaign_browser.py"
+            # Exercise the imports from the emitted build context, not the host checkout or site packages.
+            child = subprocess.run([sys.executable, "-E", "-S", "-B", str(entrypoint), "--help"],
+                                   cwd=context, capture_output=True, text=True, timeout=10)
+            self.assertEqual(child.returncode, 0, child.stderr)
+            self.assertIn("usage:", child.stdout)
 
     def test_container_executes_real_oauth_with_closed_environment_and_same_origins(self):
         with tempfile.TemporaryDirectory() as directory:
