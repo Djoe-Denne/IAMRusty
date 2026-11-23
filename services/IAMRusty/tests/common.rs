@@ -776,6 +776,17 @@ pub async fn setup_test_server() -> Result<(TestFixture, String, Client), Box<dy
     Ok((fixture, base, client))
 }
 
+/// Start an isolated IAM listener with the supplied profile verification landing.
+///
+/// # Errors
+///
+/// Returns an error if the test fixture or HTTP server fails to start.
+pub async fn setup_test_server_with_profile_landing(
+    landing_url: &str,
+) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
+    setup_test_server_with_profile_landing_override(Some(landing_url)).await
+}
+
 /// Start an isolated IAM test listener with profile link issuance disabled.
 ///
 /// # Errors
@@ -783,10 +794,16 @@ pub async fn setup_test_server() -> Result<(TestFixture, String, Client), Box<dy
 /// Returns an error if the test fixture or HTTP server fails to start.
 pub async fn setup_test_server_without_profile_landing(
 ) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
+    setup_test_server_with_profile_landing_override(None).await
+}
+
+async fn setup_test_server_with_profile_landing_override(
+    landing_url: Option<&str>,
+) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
     prepare_primary_fixture().await?;
     let fixture = TestFixture::new(Arc::new(IAMRustyTestDescriptor)).await?;
     let mut config = fixture_config(&fixture)?;
-    config.profile_email_verification.landing_url = None;
+    config.profile_email_verification.landing_url = landing_url.map(str::to_owned);
     let (base, client) = Box::pin(start_owned_listener(
         &fixture,
         config,

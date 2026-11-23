@@ -240,7 +240,7 @@ async fn auth_state(db: &DatabaseConnection, user_id: Uuid) -> Value {
 #[tokio::test]
 #[serial]
 async fn same_account_confirms_exact_saved_address_without_enabling_login() {
-    let (fixture, base, client) = Box::pin(common::setup_test_server())
+    let (fixture, base, client) = Box::pin(common::setup_test_server_with_profile_landing(LANDING))
         .await
         .expect("start IAM fixture");
     Box::pin(fixture_cleanup::run(&fixture, async {
@@ -407,7 +407,7 @@ async fn issued_at(db: &DatabaseConnection, address_id: Uuid) -> chrono::DateTim
 #[tokio::test]
 #[serial]
 async fn resend_is_explicit_throttled_and_scoped_and_stale_links_cannot_verify() {
-    let (fixture, base, client) = Box::pin(common::setup_test_server())
+    let (fixture, base, client) = Box::pin(common::setup_test_server_with_profile_landing(LANDING))
         .await
         .expect("start IAM fixture");
     Box::pin(fixture_cleanup::run(&fixture, async {
