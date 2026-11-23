@@ -251,3 +251,27 @@ impl CommandHandler<PatchProfileCommand> for PatchProfileCommandHandler {
             .map_err(|error| UserErrorMapper.map_error(Box::new(error)))
     }
 }
+
+#[cfg(test)]
+mod patch_profile_tests {
+    use super::{Command, PatchProfileCommand, ProfilePatch};
+    use iam_domain::service::user_service::OptionalField;
+    use uuid::Uuid;
+
+    #[test]
+    fn profile_command_debug_has_correlation_but_no_account_or_submitted_fields() {
+        let user = Uuid::new_v4();
+        let command = PatchProfileCommand::new(
+            user,
+            ProfilePatch {
+                username: Some("private-profile-name".into()),
+                avatar_url: OptionalField::Set(Some("https://example.test/private-path".into())),
+            },
+        );
+        let details = format!("{command:?}");
+        assert!(details.contains(&command.command_id().to_string()));
+        assert!(!details.contains(&user.to_string()));
+        assert!(!details.contains("private-profile-name"));
+        assert!(!details.contains("private-path"));
+    }
+}

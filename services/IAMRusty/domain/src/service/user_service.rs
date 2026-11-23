@@ -22,8 +22,15 @@ pub struct UserProfile {
 #[derive(Clone)]
 pub struct ProfilePatch {
     pub username: Option<String>,
-    /// Outer `None` leaves the avatar alone; `Some(None)` clears it.
-    pub avatar_url: Option<Option<String>>,
+    pub avatar_url: OptionalField<String>,
+}
+
+/// A field that may be omitted, set, or explicitly cleared.
+#[derive(Clone, Default)]
+pub enum OptionalField<T> {
+    #[default]
+    Unset,
+    Set(Option<T>),
 }
 
 fn valid_avatar_url(value: &str) -> bool {
@@ -134,7 +141,7 @@ where
         if let Some(username) = &patch.username {
             super::UsernameValidator::validate(username)?;
         }
-        if let Some(Some(url)) = &patch.avatar_url {
+        if let OptionalField::Set(Some(url)) = &patch.avatar_url {
             if !valid_avatar_url(url) {
                 return Err(DomainError::InvalidAvatarUrl);
             }

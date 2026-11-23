@@ -1602,7 +1602,7 @@ async fn test_update_profile_requires_a_valid_token_and_saves_nothing_without_on
 #[tokio::test]
 #[serial]
 async fn test_update_profile_returns_401_when_user_not_found_in_database() {
-    let (fixture, base_url, client) = Box::pin(setup_test_server())
+    let (_fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
     let token = access_token_for(Uuid::new_v4()).await;

@@ -203,6 +203,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn registration_username_write_failure_is_not_reported_as_a_collision() {
+        let id = Uuid::new_v4();
+        let mut applicant = owner(id, "current-hash");
+        applicant.username = None;
+        let db = Arc::new(
+            MockDatabase::new(DbBackend::Postgres)
+                .append_query_results([vec![applicant]])
+                .append_query_errors([DbErr::Custom("private username update error".into())])
+                .into_connection(),
+        );
+        let writer = SeaOrmAuthenticationSessionWriter::new(db.clone());
+        let result = writer
+            .complete_registration(
+                id,
+                Some("current-hash".into()),
+                "requested".into(),
+                Some(refresh(id)),
+            )
+            .await;
+        assert!(matches!(result, Err(DomainError::RepositoryError(message))
+            if message == "authentication session transaction failed"));
+        drop(writer);
+        let log = format!("{:?}", Arc::try_unwrap(db).unwrap().into_transaction_log());
+        assert!(log.contains("UPDATE"));
+        assert!(log.contains("ROLLBACK"));
+        assert!(!log.contains("INSERT INTO"));
+    }
+
+    #[tokio::test]
     async fn complete_registration_stale_hash_or_existing_username_never_mutates() {
         for existing_username in [false, true] {
             let id = Uuid::new_v4();

@@ -1,6 +1,11 @@
 use crate::error::ApiError;
 use crate::platform_user::PlatformUser;
-use axum::{extract::State, http::StatusCode, response::Response, Json};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use iam_application::{
     command::{
         user::{GetUserCommand, PatchProfileCommand},
@@ -8,7 +13,10 @@ use iam_application::{
     },
     usecase::user::UserProfile,
 };
-use iam_domain::service::user_service::ProfilePatch;
+use iam_domain::{
+    error::DomainError,
+    service::user_service::{OptionalField, ProfilePatch},
+};
 use rustycog::http::ValidatedJson;
 use serde::{Deserialize, Deserializer, Serialize};
 use uuid::Uuid;
@@ -43,8 +51,8 @@ impl From<UserProfile> for UserResponse {
 /// A missing field is distinct from an explicit JSON null.
 #[derive(Validate)]
 pub struct PatchProfileRequest {
-    username: Option<Option<String>>,
-    avatar_url: Option<Option<String>>,
+    username: OptionalField<String>,
+    avatar_url: OptionalField<String>,
 }
 
 impl<'de> Deserialize<'de> for PatchProfileRequest {
@@ -65,9 +73,9 @@ impl<'de> Deserialize<'de> for PatchProfileRequest {
                 #[serde(deny_unknown_fields)]
                 struct Fields {
                     #[serde(default, deserialize_with = "submitted_field")]
-                    username: Option<Option<String>>,
+                    username: OptionalField<String>,
                     #[serde(default, deserialize_with = "submitted_field")]
-                    avatar_url: Option<Option<String>>,
+                    avatar_url: OptionalField<String>,
                 }
 
                 let fields =
@@ -84,8 +92,8 @@ impl<'de> Deserialize<'de> for PatchProfileRequest {
 
 fn submitted_field<'de, D: Deserializer<'de>>(
     deserializer: D,
-) -> Result<Option<Option<String>>, D::Error> {
-    Option::<String>::deserialize(deserializer).map(Some)
+) -> Result<OptionalField<String>, D::Error> {
+    Option::<String>::deserialize(deserializer).map(OptionalField::Set)
 }
 
 /// Get the current user's profile
@@ -110,28 +118,28 @@ pub async fn get_user(
     Ok(Json(user.into()))
 }
 
-fn profile_rejection(error: CommandError) -> Response {
-    use axum::response::IntoResponse;
+/// Compact profile failure, converted to a response at the HTTP boundary.
+pub struct ProfileRejection(CommandError);
 
-    let (status, code, message) = match error {
-        CommandError::Business { ref code, .. } if code == "username_taken" => (
-            StatusCode::CONFLICT,
-            "username_taken",
-            "Username is already taken",
-        ),
-        CommandError::Validation { ref code, .. } if code == "invalid_username" => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "invalid_username",
-            "Invalid username format",
-        ),
-        CommandError::Validation { ref code, .. } if code == "invalid_avatar_url" => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "invalid_avatar_url",
-            "Avatar must be an absolute HTTPS URL without user information",
-        ),
-        other => return ApiError::from(other).into_response(),
-    };
-    crate::error::uniform_error(status, code, message)
+impl IntoResponse for ProfileRejection {
+    fn into_response(self) -> Response {
+        match self.0 {
+            CommandError::Business { ref code, .. } if code == "username_taken" => {
+                crate::error::uniform_error(
+                    StatusCode::CONFLICT,
+                    "username_taken",
+                    "Username is already taken",
+                )
+            }
+            CommandError::Validation { ref code, .. } if code == "invalid_username" => {
+                ApiError::from(DomainError::InvalidUsername).into_response()
+            }
+            CommandError::Validation { ref code, .. } if code == "invalid_avatar_url" => {
+                ApiError::from(DomainError::InvalidAvatarUrl).into_response()
+            }
+            other => ApiError::from(other).into_response(),
+        }
+    }
 }
 
 /// Apply a partial update to the current human account.
@@ -143,15 +151,19 @@ pub async fn patch_profile(
     State(state): State<rustycog::http::AppState>,
     auth_user: PlatformUser,
     ValidatedJson(request): ValidatedJson<PatchProfileRequest>,
-) -> Result<Json<UserResponse>, Response> {
-    if request.username == Some(None) {
-        return Err(profile_rejection(CommandError::validation(
-            "invalid_username",
-            "Invalid username format",
-        )));
-    }
+) -> Result<Json<UserResponse>, ProfileRejection> {
+    let username = match request.username {
+        OptionalField::Unset => None,
+        OptionalField::Set(Some(username)) => Some(username),
+        OptionalField::Set(None) => {
+            return Err(ProfileRejection(CommandError::validation(
+                "invalid_username",
+                "Invalid username format",
+            )));
+        }
+    };
     let patch = ProfilePatch {
-        username: request.username.flatten(),
+        username,
         avatar_url: request.avatar_url,
     };
     let command = PatchProfileCommand::new(auth_user.user_id, patch);
@@ -160,6 +172,48 @@ pub async fn patch_profile(
         .command_service
         .execute_once(command, context)
         .await
-        .map_err(profile_rejection)?;
+        .map_err(ProfileRejection)?;
     Ok(Json(user.into()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{OptionalField, PatchProfileRequest};
+
+    #[test]
+    fn profile_patch_parser_distinguishes_absent_null_and_string() {
+        let empty: PatchProfileRequest = serde_json::from_str("{}").expect("empty patch");
+        assert!(matches!(empty.username, OptionalField::Unset));
+        assert!(matches!(empty.avatar_url, OptionalField::Unset));
+        let explicit: PatchProfileRequest =
+            serde_json::from_str(r#"{"username":null,"avatar_url":null}"#).expect("explicit nulls");
+        assert!(matches!(explicit.username, OptionalField::Set(None)));
+        assert!(matches!(explicit.avatar_url, OptionalField::Set(None)));
+        let named: PatchProfileRequest =
+            serde_json::from_str(r#"{"username":"reader","avatar_url":"https://example.test/a"}"#)
+                .expect("string fields");
+        assert!(matches!(named.username, OptionalField::Set(Some(name)) if name == "reader"));
+        assert!(
+            matches!(named.avatar_url, OptionalField::Set(Some(url)) if url == "https://example.test/a")
+        );
+    }
+
+    #[test]
+    fn profile_patch_parser_rejects_nonobjects_unknown_duplicate_and_wrong_type_fields() {
+        for (input, reason) in [
+            ("[null,null]", "a profile patch object"),
+            ("null", "a profile patch object"),
+            (r#"{"username":"reader","email":null}"#, "unknown field"),
+            (
+                r#"{"avatar_url":null,"avatar_url":null}"#,
+                "duplicate field",
+            ),
+            (r#"{"username":false}"#, "expected a string"),
+        ] {
+            let Err(error) = serde_json::from_str::<PatchProfileRequest>(input) else {
+                panic!("unexpectedly accepted {input}");
+            };
+            assert!(error.to_string().contains(reason), "{error}");
+        }
+    }
 }
