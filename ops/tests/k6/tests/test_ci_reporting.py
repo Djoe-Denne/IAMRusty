@@ -81,6 +81,44 @@ def results(root):
 
 
 class ReportingTests(unittest.TestCase):
+    def test_missing_completion_with_all_assertions_passing_is_incomplete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            public_fixture(source)
+            case = list(e.CASES)[-1]
+            path = source / "cases" / (case + ".json")
+            partial = json.loads(path.read_text(encoding="utf-8"))
+            path.unlink()
+            processes = json.loads((source / "processes.json").read_text(encoding="utf-8"))
+            processes[case] = dict(exit=99, cleanup=True, summary_status="captured",
+                                   failed_summary={**partial, "completed": None})
+            dump(source, "processes.json", processes)
+            report = json.loads((source / "report.json").read_text(encoding="utf-8"))
+            dump(source, "report.json", {**report, "verdict": "FAIL", "stage": "scenario:" + case})
+            metric = project(root)
+            self.assertEqual((metric["status"], metric["failure_categories"]), ("failed", ["incomplete"]))
+
+    def test_restoration_failure_and_readiness_failure_keep_their_categories(self):
+        for stage in ("restoration", "readiness"):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source = root / "source"
+                public_fixture(source)
+                report = json.loads((source / "report.json").read_text(encoding="utf-8"))
+                report.update(verdict="FAIL", stage=stage)
+                if stage == "restoration":
+                    report["restoration"] = "FAIL"
+                    expected = ["cleanup"]
+                else:
+                    for path in (source / "cases").glob("*.json"):
+                        path.unlink()
+                    dump(source, "processes.json", {})
+                    expected = ["incomplete", "infrastructure"]
+                dump(source, "report.json", report)
+                metric = project(root)
+                self.assertEqual((metric["status"], metric["failure_categories"]), ("failed", expected))
+
     def test_cleanup_infrastructure_and_missing_execution_have_distinct_categories(self):
         for failure in ("cleanup", "infrastructure", "incomplete"):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:

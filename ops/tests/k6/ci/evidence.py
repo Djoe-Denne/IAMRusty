@@ -14,6 +14,7 @@ SUMMARY_FIELDS = frozenset((
     "iterations", "requests", "checks",
 ))
 SUMMARY_LIMIT = 65536
+IDENTIFIER = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 
 
 def strict_json(raw):
@@ -62,7 +63,7 @@ def load_catalog(path):
                     "id", "script", "phase", "lifecycle", "timeout_seconds", "requests", "checks"}):
                 raise EvidenceError("CATALOG_CASE")
             case = record["id"]
-            if (not isinstance(case, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", case)
+            if (not isinstance(case, str) or len(case) > 64 or not IDENTIFIER.fullmatch(case)
                     or case in result):
                 raise EvidenceError("CATALOG_ID")
             lifecycle = special.get(case, "standard")
@@ -73,7 +74,7 @@ def load_catalog(path):
                 raise EvidenceError("CATALOG_EXECUTION")
             checks = record["checks"]
             if (not isinstance(checks, dict) or not 1 <= len(checks) <= 128
-                    or any(not isinstance(name, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,79}", name)
+                    or any(not isinstance(name, str) or len(name) > 64 or not IDENTIFIER.fullmatch(name)
                            or kind not in ("functional", "cleanup") for name, kind in checks.items())):
                 raise EvidenceError("CATALOG_CHECKS")
             script = record["script"]

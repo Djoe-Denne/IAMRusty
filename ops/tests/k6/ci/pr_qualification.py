@@ -13,12 +13,15 @@ from runtime import hosted, premerge_job
 SHA = re.compile(r"[a-f0-9]{40}")
 LABEL = re.compile(r"k6-e2e:([1-9][0-9]{0,19}):([1-9][0-9]{0,8})")
 WORKFLOWS = {".github/workflows/k6-e2e.yml", ".github/workflows/k6-e2e-pr.yml"}
+APP_PACKAGING = frozenset("ops/tests/k6/ci/" + name for name in (
+    "artifacts.py", "binaries.py", "cleanup.py", "Dockerfile.artifacts", "images.lock.json", "package.py",
+))
 
 
 def allowed_path(path):
     if not isinstance(path, str) or not re.fullmatch(r"[A-Za-z0-9_./-]+", path):
         return False
-    if any(part in {"", ".", ".."} for part in path.split("/")):
+    if path in APP_PACKAGING or any(part in {"", ".", ".."} for part in path.split("/")):
         return False
     return (path in WORKFLOWS or path == "README.md"
             or path.startswith("ops/tests/k6/")

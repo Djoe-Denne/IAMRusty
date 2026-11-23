@@ -1,7 +1,7 @@
 # ADR-0508: Register standard k6 scenarios once
 
 - Status: Proposed
-- Reality: Unimplemented
+- Reality: Partial; native Windows and WSL offline verification, live qualification pending
 - Date: 2026-11-23
 - Author: `architecte`, with the primary session
 - Decision makers: Pending explicit acceptance

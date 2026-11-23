@@ -53,6 +53,7 @@ def failure_details(case, process, run_id):
     if has_exit and code == K6_THRESHOLDS_FAILED:
         message += " (thresholds not met)"
     observed = {}
+    complete = False
     if status == "captured" and process.get("cleanup") is not True:
         status = "invalid"
     if status == "captured":
@@ -62,6 +63,8 @@ def failure_details(case, process, run_id):
             status = "invalid"
         else:
             observed = summary["checks"]
+            complete = (summary["started"] == summary["completed"] == summary["iterations"] == 1
+                        and summary["requests"] == evidence.CATALOG[case]["requests"])
             counters = ", ".join(f"{key}={summary[key] if summary[key] is not None else 'unavailable'}"
                                  for key in ("started", "completed", "iterations", "requests"))
             failed = ", ".join(name for name in sorted(observed) if observed[name]["fails"])
@@ -74,7 +77,7 @@ def failure_details(case, process, run_id):
     for key, label in (("cleanup", "child_cleanup"), ("sandbox", "sandbox"), ("renderer_observed", "renderer_observed")):
         if type(process.get(key)) is bool:
             message += f"; {label}={'yes' if process[key] else 'no'}"
-    return message, observed
+    return message, observed, complete
 
 
 def project(source, destination, repository, job_run, attempt, harness_sha, target_sha, summary_path=None):
@@ -135,35 +138,42 @@ def project(source, destination, repository, job_run, attempt, harness_sha, targ
             if details:
                 failures[case] = details
             elif report.get("verdict") == "FAIL" and report.get("stage") == "scenario:" + case:
-                failures[case] = (f"{case}: scenario did not complete; no process evidence available", {})
+                failures[case] = (f"{case}: scenario did not complete; no process evidence available", {}, False)
     run_link = [dict(name="GitHub Actions run", type="link", url=run_url)]
     expected = sum(len(record["checks"]) for record in evidence.CATALOG.values())
     categories = set()
     if not parent_ok:
         if not source_ok:
             categories.add("incomplete")
-        if cleanup.get("status") == "FAIL" or any(
+        if cleanup.get("status") == "FAIL" or report.get("restoration") == "FAIL" or any(
                 isinstance(process, dict) and process.get("cleanup") is False for process in processes.values()):
             categories.add("cleanup")
         if (source_ok and len(accepted) == len(evidence.CASES)
                 and (read(source / "correlation.json") != CORRELATION or not browser_ok
-                     or report.get("restoration") != "PASS"
-                     or (report.get("verdict") != "PASS" and cleanup.get("status") == "PASS"))):
+                     or report.get("restoration") not in ("PASS", "FAIL")
+                      or (report.get("verdict") != "PASS" and cleanup.get("status") == "PASS"
+                          and report.get("restoration") == "PASS"))):
             categories.add("infrastructure")
         if cleanup.get("status") not in ("PASS", "FAIL"):
             categories.add("incomplete")
     for case in evidence.CASES:
         if case not in accepted:
-            observed = failures.get(case, ("", {}))[1]
-            if any(name not in observed for name in evidence.CASES[case][1]):
+            _, observed, complete = failures.get(case, ("", {}, False))
+            if not complete or any(observed.get(name) != {"passes": 1, "fails": 0}
+                                   and not observed.get(name, {}).get("fails") for name in evidence.CASES[case][1]):
                 categories.add("incomplete")
             for name, counts in observed.items():
                 if counts["fails"]:
                     categories.add(evidence.CATALOG[case]["checks"][name])
             process = processes.get(case)
-            if (isinstance(process, dict) and type(process.get("exit")) is int and process["exit"] != 0
+            if (isinstance(process, dict) and type(process.get("exit")) is int
+                    and process["exit"] not in (0, K6_THRESHOLDS_FAILED)
                     and not any(counts["fails"] for counts in observed.values())):
                 categories.add("infrastructure")
+    if source_ok and report.get("verdict") == "FAIL" and not categories - {"incomplete"}:
+        stage = report.get("stage")
+        if isinstance(stage, str) and not stage.startswith("scenario:"):
+            categories.add("infrastructure")
     metric = dict(schema="aiforall.e2e-status/v1", status=status, passed=passed, expected=expected,
         unproven=expected - passed, source_sha=target_sha, harness_sha=harness_sha,
         failure_categories=sorted(categories),
@@ -184,7 +194,7 @@ def project(source, destination, repository, job_run, attempt, harness_sha, targ
                 category = "incomplete"
                 message = "Named check not proven by a valid same-source phase summary"
                 if case in failures:
-                    detail, observed = failures[case]
+                    detail, observed, _ = failures[case]
                     counts = observed.get(check)
                     if counts is None:
                         message = detail + "; no observation for this check"
@@ -206,7 +216,7 @@ def project(source, destination, repository, job_run, attempt, harness_sha, targ
     if not parent_ok:
         parent_category = "cleanup" if "cleanup" in categories else "infrastructure" if "infrastructure" in categories else "incomplete"
         parent["labels"].append(dict(name="failureCategory", value=parent_category))
-        parent["statusDetails"] = dict(message="\n".join(detail for detail, _ in failures.values())
+        parent["statusDetails"] = dict(message="\n".join(detail for detail, _, _ in failures.values())
                                        or "Campaign contract not proven; no scenario failure details available")
         parent["links"] = run_link
     write(results / (identity + "-result.json"), parent)
@@ -223,7 +233,7 @@ def project(source, destination, repository, job_run, attempt, harness_sha, targ
         " Timings and test history are not invented.</p></html>")
     (destination / "index.html").write_text(page, encoding="utf-8")
     (destination / ".nojekyll").write_text("", encoding="ascii")
-    for case, (detail, observed) in failures.items():
+    for case, (detail, observed, _) in failures.items():
         print("E2E failure: " + detail)
         for check, counts in sorted(observed.items()):
             print(f"E2E observation: {case}.{check}: {check_counts(counts)}")
@@ -231,7 +241,7 @@ def project(source, destination, repository, job_run, attempt, harness_sha, targ
         with Path(summary_path).open("a", encoding="utf-8") as stream:
             stream.write(f"## E2E : {status} — {passed}/{expected} checks\n\nApplications `{target_sha}` ; harness `{harness_sha}`.\n\n"
                          f"[Run]({run_url}) · [Public reports](https://{repository.split('/')[0].lower()}.github.io/{repository.split('/')[1]}/)\n")
-            for detail, observed in failures.values():
+            for detail, observed, _ in failures.values():
                 stream.write("\n- " + detail + "\n")
                 for check, counts in sorted(observed.items()):
                     stream.write(f"  - `{check}`: {check_counts(counts)}\n")

@@ -81,15 +81,16 @@ class ImageAdmissionTests(unittest.TestCase):
 
 
 class RestorationTests(unittest.TestCase):
-    def test_standard_child_uses_declaration_and_never_publishes_unclean_or_nonzero_child(self):
-        case = "ordinary-added"
-        record = dict(id=case, script="smoke/ordinary-added.js", phase="HTTP", lifecycle="standard",
+    def test_standard_pki_id_cannot_collide_with_harness_pki_or_publish_unclean_child(self):
+        case = "pki"
+        record = dict(id=case, script="smoke/pki.js", phase="HTTP", lifecycle="standard",
                       timeout_seconds=47, requests=3, checks={"probe": "functional", "cleanup": "cleanup"})
         for code, clean in ((0, True), (99, True), (0, False)):
             with self.subTest(code=code, clean=clean), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                output = root / "private" / case
+                output = root / "private" / "cases" / case
                 (output / "private").mkdir(parents=True)
+                (root / "private/pki").mkdir()
                 state = dict(run_id="a" * 32, tools=dict(k6=dict(path="/unexecuted/k6", sha256="tool")),
                              completed_cases=[], process_evidence={})
                 parent = c.Campaign(Mock(directory=root, state=state))
@@ -103,7 +104,7 @@ class RestorationTests(unittest.TestCase):
                 catalog = {**c.evidence.CATALOG, case: record}
                 cases = {**c.evidence.CASES, case: ("HTTP", frozenset(record["checks"]), 3)}
                 with patch.object(c.evidence, "CATALOG", catalog), patch.object(c.evidence, "CASES", cases), \
-                     patch.object(c, "new_output", return_value=output), patch.object(c, "Child", return_value=child), \
+                     patch.object(c, "new_output", return_value=output) as allocate, patch.object(c, "Child", return_value=child), \
                      patch.object(c, "sha", side_effect=lambda path: b.sha(path) if Path(path) == c.evidence.CATALOG_PATH else "tool"):
                     if code == 0 and clean:
                         parent.scenario(case)
@@ -114,6 +115,9 @@ class RestorationTests(unittest.TestCase):
                         self.assertFalse((parent.public / "cases").exists())
                         self.assertEqual(state["completed_cases"], [])
                 args, kwargs = child.execute.call_args
+                allocate.assert_called_once_with(str(output))
+                self.assertTrue((root / "private/cases/pki.attempt").is_file())
+                self.assertTrue((root / "private/pki").is_dir())
                 self.assertEqual(Path(args[0][-1]), b.ROOT / "ops/tests/k6/scenarios" / record["script"])
                 self.assertEqual(kwargs["timeout"], 47)
                 self.assertEqual(kwargs["env"]["K6_CASE_ID"], case)
@@ -287,7 +291,8 @@ class RestorationTests(unittest.TestCase):
             parent.public = parent.root / "public"
             parent.public.mkdir()
             (parent.root / "private").mkdir()
-            (parent.root / "private/auth-oauth-browser.attempt").write_text("attempted")
+            (parent.root / "private/cases").mkdir()
+            (parent.root / "private/cases/auth-oauth-browser.attempt").write_text("attempted")
             with patch.dict(c.os.environ, {"GITHUB_SHA": H}):
                 c.finish(parent)
             cleanup = json.loads((parent.public / "cleanup.json").read_text())

@@ -329,24 +329,28 @@ class Campaign:
     def scenario(self, case):
         require(case in evidence.CATALOG and sha(evidence.CATALOG_PATH) == evidence.CATALOG_SHA256,
                 "E2E_CATALOG_CHANGED")
-        attempt = self.root / "private" / (case + ".attempt")
+        cases = self.root / "private" / "cases"
+        require(not cases.is_symlink(), "E2E_CASE_DIRECTORY")
+        cases.mkdir(mode=0o700, exist_ok=True)
+        attempt = cases / (case + ".attempt")
         require(not attempt.exists(), "E2E_CASE_REPLAY_REFUSED")
-        attempt.write_text("attempted", encoding="ascii")
         self.state["stage"] = "scenario:" + case
         self.r.save()
-        output = new_output(str(self.root / "private" / case))
-        is_browser = case == "auth-oauth-browser"
+        output = new_output(str(cases / case))
+        record = evidence.CATALOG[case]
+        is_browser = record["lifecycle"] == "oauth"
         env = stimulus_environment(output, self.root, self.state, is_browser)
         if is_browser:
             browser_profile.trust(output / "home", self.root / "private/pki/ca.crt", "k6-" + self.state["run_id"], self.r.cli)
-        if case.startswith("auth-envoy-san-"):
+        if record["lifecycle"] == "san":
             env["K6_AUTH_SAN_PHASE"] = case.removeprefix("auth-envoy-san-")
-        record = evidence.CATALOG[case]
         script = record["script"]
         env["K6_CASE_ID"] = case
         for name in ("k6", "chromium") if is_browser else ("k6",):
             require(sha(self.state["tools"][name]["path"]) == self.state["tools"][name]["sha256"], "E2E_STIMULUS_TOOL_CHANGED")
         child = Child()
+        with attempt.open("x", encoding="ascii") as marker:
+            marker.write("attempted")
         try:
             if is_browser:
                 result = campaign_browser.execute(self.r, output)
@@ -359,7 +363,10 @@ class Campaign:
                                   "127.0.0.1:0", "--config", str(self.root / "private/options.json"),
                                   str(ROOT / "ops/tests/k6/scenarios" / script)], output=output, env=env,
                                  timeout=record["timeout_seconds"], browser=is_browser)
-            value = evidence.accept_summary((output / "private/summary.json").read_bytes(), self.state["run_id"], case, code)
+            path = output / "private/summary.json"
+            require(path.is_file() and not path.is_symlink() and not path.parent.is_symlink(), "E2E_CASE_SUMMARY_PATH")
+            with path.open("rb") as stream:
+                value = evidence.accept_summary(stream.read(evidence.SUMMARY_LIMIT + 1), self.state["run_id"], case, code)
             require(child.cleanup is True and (not is_browser or child.sandbox is True), "E2E_CHILD_EVIDENCE")
             self.publish_case(case, value)
             self.state["completed_cases"].append(case)
@@ -621,13 +628,18 @@ def finish(campaign):
         cleanup.update(status="FAIL", owned_running=None)
         cleanup.setdefault("errors", []).append("BROWSER_CONTAINER_CLEANUP_UNPROVEN")
         state["cleanup"] = cleanup
-    attempts = {path.name.removesuffix(".attempt") for path in (campaign.root / "private").glob("*.attempt")}
+    cases = campaign.root / "private" / "cases"
+    attempts = {path.name.removesuffix(".attempt") for path in cases.glob("*.attempt")} if not cases.is_symlink() else set()
+    if cases.is_symlink():
+        cleanup.update(status="FAIL", owned_running=None)
+        cleanup.setdefault("errors", []).append("CHILD_CASE_DIRECTORY_UNPROVEN")
     if any(state.get("process_evidence", {}).get(case, {}).get("cleanup") is not True for case in attempts):
         cleanup.update(status="FAIL", owned_running=None)
         cleanup.setdefault("errors", []).append("CHILD_CLEANUP_UNPROVEN")
         state["cleanup"] = cleanup
     if cleanup["status"] != "PASS":
         state["verdict"] = "FAIL"
+    state["cleanup"] = cleanup
     campaign.publish("cleanup.json", cleanup)
     browser_state = state.get("browser_container", {})
     campaign.publish("browser.json", {"launcher": "docker-host-network-disposable-runner", "image_id": browser_state.get("image_id"),
@@ -695,7 +707,8 @@ def main():
                 campaign.state["verdict"] = "FAIL"
                 campaign.r.save()
     if campaign and campaign.state["verdict"] == "PASS" and campaign.state["cleanup"]["status"] == "PASS":
-        print("Three-scenario Ubuntu E2E PASS; 34 checks and parent deltas; cleanup PASS")
+        checks = sum(len(record["checks"]) for record in evidence.CATALOG.values())
+        print(f"Ubuntu k6 E2E PASS; {len(evidence.CATALOG)} cases, {checks} checks and parent deltas; cleanup PASS")
         return 0
     print("Three-scenario Ubuntu E2E failed or incomplete; no compiler fallback")
     return 1

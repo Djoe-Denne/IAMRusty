@@ -52,6 +52,7 @@ export default function (data) {
     if (mode === 'duplicate') contract.check(read, predicate);
   }
   contract.finish();
+  if (mode === 'undeclared') contract.check(true, { undeclared: (value) => value });
 }
 
 export function teardown(data) {
@@ -91,7 +92,7 @@ class Api(BaseHTTPRequestHandler):
 
 @unittest.skipUnless(K6.is_file(), "preinstalled k6 required for the local browser-free contract test")
 class K6ContractTests(unittest.TestCase):
-    def probe(self, mode):
+    def probe(self, mode, expected_diagnostic=None):
         helper = HERE / "lib/case-contract.js"
         self.assertTrue(helper.is_file(), "STORY-020 requires the reusable k6 scenario contract")
         with tempfile.TemporaryDirectory() as directory, HTTPServer(("127.0.0.1", 0), Api) as server:
@@ -129,7 +130,10 @@ class K6ContractTests(unittest.TestCase):
                 server.shutdown()
                 thread.join(timeout=2)
             self.assertFalse(thread.is_alive(), "owned synthetic API did not stop")
-            self.assertTrue(summary.is_file(), run.stderr.decode("utf-8", errors="backslashreplace"))
+            diagnostic = run.stderr.decode("utf-8", errors="backslashreplace")
+            if expected_diagnostic:
+                self.assertIn(expected_diagnostic, diagnostic)
+            self.assertTrue(summary.is_file(), diagnostic)
             return run.returncode, json.loads(summary.read_text(encoding="utf-8")), server.requests, server.exists
 
     def test_direct_k6_sets_up_checks_and_removes_fixture(self):
@@ -161,3 +165,8 @@ class K6ContractTests(unittest.TestCase):
         self.assertEqual(requests, ["POST", "DELETE"])
         self.assertFalse(exists)
         self.assertNotIn("removed", summary["checks"])
+
+    def test_undeclared_assertion_cannot_pass_after_expected_assertions(self):
+        code, summary, _requests, _exists = self.probe("undeclared", "CASE_CHECK_NOT_DECLARED")
+        self.assertEqual(code, 108)
+        self.assertNotIn("undeclared", summary["checks"])

@@ -31,18 +31,15 @@ def receive(value, case="iam-health", code=0):
 
 class SummaryTests(unittest.TestCase):
     def test_existing_stimuli_have_the_same_closed_checks(self):
-        files = {"iam-health": "smoke/iam-health.js",
-                 "auth-oauth-browser": "auth/oauth-browser.js",
-                 "auth-envoy-san-good": "auth/envoy-san.js"}
-        for case, path in files.items():
+        default_ids = ("iam-health", "auth-oauth-browser",
+                       "auth-envoy-san-good", "auth-envoy-san-bad", "auth-envoy-san-restored")
+        for case in default_ids:
+            path = e.CATALOG[case]["script"]
             source = (ROOT / "ops/tests/k6/scenarios" / path).read_text(encoding="utf-8")
             for name in e.CASES[case][1]:
                 self.assertIn("'" + name + "'", source, (case, name))
             self.assertIn("'group'", source)
-        auth = (ROOT / "ops/tests/k6/lib/windows-auth.ps1").read_text(encoding="utf-8")
-        checks = re.search(r"Checks = @\((.*?)\)", auth, re.S).group(1)
-        self.assertEqual(set(re.findall(r"'([^']+)'", checks)), e.OAUTH_CHECKS)
-        self.assertEqual(sum(len(spec[1]) for spec in e.CASES.values()), 34)
+        self.assertEqual(sum(len(e.CASES[case][1]) for case in default_ids), 34)
 
     def test_all_five_phases_are_accepted(self):
         values = {case: summary(case) for case in e.CASES}

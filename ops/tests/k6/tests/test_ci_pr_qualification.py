@@ -81,6 +81,9 @@ class PullRequestQualificationTests(unittest.TestCase):
             {"paths": []}, {"paths": ["ops/tests/k6/../../Cargo.lock"]},
             {"paths": ["ops/tests/k6/lib/summary.js", "services/IAMRusty/src/main.rs"]},
             {"paths": [".github/actions/build-service/action.yml"]},
+            {"paths": ["ops/tests/k6/ci/Dockerfile.artifacts"]},
+            {"paths": ["ops/tests/k6/ci/images.lock.json"]},
+            {"paths": ["ops/tests/k6/ci/package.py"]},
         ]:
             with self.subTest(kwargs=kwargs), self.assertRaises(Refused):
                 self.admit(event(), **kwargs)

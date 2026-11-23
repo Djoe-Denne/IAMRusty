@@ -111,6 +111,14 @@ jobs:
           python3 -B ops/tests/k6/ci/provision.py --output "$RUNNER_TEMP/k6-e2e-private/cli"
           python3 -B ops/tests/k6/provision-linux.py --output "$RUNNER_TEMP/k6-e2e-private/browser"
 
+      - name: Verify registry, k6 fixture lifecycle and PR admission offline
+        run: |
+          k6_entry="$(python3 -B -c 'import json; print(json.load(open("ops/tests/k6/config/tools.lock.json"))["k6"]["executable"])')"
+          export AIFORALL_K6="$RUNNER_TEMP/k6-e2e-private/browser/$k6_entry"
+          test -x "$AIFORALL_K6"
+          python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_scenario_*.py'
+          python3 -B -m unittest discover -s ops/tests/k6/tests -p 'test_ci_pr_qualification.py'
+
       - name: Bootstrap owned stack and run unchanged health OAuth SAN scenarios
         run: >-
           python3 -B ops/tests/k6/ci/campaign.py run

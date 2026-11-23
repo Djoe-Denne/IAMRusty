@@ -10,7 +10,7 @@ Add a standard k6 script under `ops/tests/k6/scenarios/` and add one object to
 `scenarios/catalog.json`. The version-1 document has `version` and an ordered
 `cases` array. Each case has `id`, `script` (relative to `scenarios/`), `phase`,
 `lifecycle`, `timeout_seconds`, `requests`, and a `checks` object keyed by check
-name (`functional` or `cleanup`). A standard case uses phase `HTTP`, the
+name (`functional` or `cleanup`). A `standard` case uses phase `HTTP`, the
 prepared API target and the existing bounded k6 executor. `requests` is the
 exact total of k6 HTTP requests, including normal setup and teardown.
 
@@ -21,7 +21,7 @@ no path glob, arbitrary command, or hook. Explicit selection avoids running
 helpers, diagnostic stimuli, or private-input pilots merely because they are
 JavaScript files.
 
-The SAN triplet stays contiguous. It and the OAuth browser case retain their
+The `san` triplet stays contiguous. It and the `oauth` browser case retain their
 explicit lifecycles. The SAN case must restore the good certificate and perform
 the positive restored stimulus even when the bad phase fails. The OAuth case
 retains its isolated browser and independent causal correlation. These
@@ -58,7 +58,8 @@ not a second authored list. k6 owns assertion expressions; the receiver
 checks that a fresh, bounded summary is from the selected run and reports the
 declared counts. No nonzero child exit can be admitted. The independent
 image, endpoint, parent correlation, browser and cleanup proofs remain in
-force.
+force. Private scenario attempts and outputs are scoped below `private/cases/`
+so case IDs do not share names with harness resources.
 
 The public campaign `selection.json` is an evidence receipt, not a second
 configuration. Its fields are `run_id`, `catalog_sha256`, `cases` (ordered
