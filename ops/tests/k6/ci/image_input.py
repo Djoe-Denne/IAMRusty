@@ -65,6 +65,11 @@ def extract(path, output):
 def acquire(directory, run_id, attempt, source_sha, environment=None):
     env = dict(os.environ if environment is None else environment)
     require(env.get("GITHUB_REF") == "refs/heads/master" and env.get("GITHUB_EVENT_NAME") == "workflow_dispatch", "MANUAL_MASTER_E2E_REQUIRED")
+    return acquire_saved(directory, run_id, attempt, source_sha, env)
+
+
+def acquire_saved(directory, run_id, attempt, source_sha, env):
+    """Common verifier. The caller must have admitted the workflow and target."""
     run_id, attempt = positive(run_id), positive(attempt)
     require(re.fullmatch(r"[a-f0-9]{40}", source_sha), "IMAGE_TARGET_SHA")
     directory = Path(directory)

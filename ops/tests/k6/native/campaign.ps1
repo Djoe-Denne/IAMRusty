@@ -59,7 +59,7 @@ $lock = [IO.File]::Open($lockPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Wr
 $prefix = @('--kubeconfig', $cfg.kubeconfig, '--context', 'kind-aiforall-local-full', '--namespace', 'aiforall-local-full')
 $inputs = $cfg.operator_directory
 $mesh = Join-Path $inputs 'pki/mesh'
-$files = @('campaign.ps1', 'helpers.ps1', 'trust-ca.ps1', 'provision-chromium.ps1', 'chart/Chart.yaml', 'chart/templates/fixtures.yaml', '../config/tools.windows.lock.json', '../lib/campaign-target.js', '../lib/summary.js', '../lib/windows.ps1', '../lib/windows-auth.ps1', '../lib/windows-native.cs', '../scenarios/smoke/iam-health.js', '../scenarios/auth/oauth-browser.js', '../scenarios/auth/envoy-san.js', '../../support/oauth-idp-simulator.py')
+$files = @('campaign.ps1', 'helpers.ps1', 'trust-ca.ps1', 'provision-chromium.ps1', 'chart/Chart.yaml', 'chart/templates/fixtures.yaml', '../config/tools.windows.lock.json', '../lib/campaign-target.js', '../lib/summary.js', '../lib/case-contract.js', '../lib/windows.ps1', '../lib/windows-auth.ps1', '../lib/windows-native.cs', '../scenarios/catalog.json', '../scenarios/smoke/iam-health.js', '../scenarios/auth/oauth-browser.js', '../scenarios/auth/envoy-san.js', '../../support/oauth-idp-simulator.py')
 if ($linkConflicts) { $files += @('link-conflicts.ps1', '../scenarios/auth/provider-link-conflicts.js') }
 
 function Read-Input([string]$Relative) { [IO.File]::ReadAllText((Join-Path $inputs $Relative)) }

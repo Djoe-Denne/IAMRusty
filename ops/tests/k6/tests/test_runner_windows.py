@@ -39,8 +39,11 @@ def inspect(kind="HTTP"):
                     gracefulStop="2s" if kind == "HTTP" else "3s")
     if kind != "HTTP":
         scenario["options"] = {"browser": {"type": "chromium"}}
-    return dict(scenarios={"iam-health": scenario},
-                thresholds=dict(checks=["rate==1"], case_started=["count==1"], case_completed=["count==1"]),
+    thresholds = dict(checks=["rate==1"], case_started=["count==1"], case_completed=["count==1"],
+                      iterations=["count==1"], http_reqs=["count==1"])
+    for name in ("iam-status", "iam-body"):
+        thresholds[f"case_check_executions{{assertion:{name}}}"] = ["count==1"]
+    return dict(scenarios={"iam-health": scenario}, thresholds=thresholds,
                 maxRedirects=0, discardResponseBodies=False)
 
 

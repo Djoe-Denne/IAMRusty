@@ -2,6 +2,11 @@ name: k6 health OAuth SAN E2E (saved images)
 
 on:
   workflow_call:
+    inputs:
+      pr_qualification:
+        description: Admit only an explicitly labelled harness-only PR
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       image_run_id:
@@ -35,6 +40,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.sha }}
+          fetch-depth: ${{ inputs.pr_qualification && 2 || 1 }}
           submodules: false
           persist-credentials: false
 
@@ -64,6 +70,14 @@ jobs:
           python3 -B ops/tests/k6/ci/artifacts.py
           --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --source-sha "$GITHUB_SHA"
           --output "$RUNNER_TEMP/k6-e2e-private/acquired"
+
+      - name: Check the exact PR merge tree and acquire verified application base images
+        if: ${{ inputs.pr_qualification }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 -B ops/tests/k6/ci/pr_qualification.py
+          --output "$RUNNER_TEMP/k6-e2e-private/images"
 
       - name: Package current CI binaries without Cargo or another application build
         if: ${{ github.event_name == 'push' }}
@@ -154,7 +168,7 @@ jobs:
         id: report
         if: ${{ always() }}
         env:
-          REPORT_TARGET_SHA: ${{ inputs.target_sha || github.sha }}
+          REPORT_TARGET_SHA: ${{ inputs.pr_qualification && github.event.pull_request.base.sha || inputs.target_sha || github.sha }}
         run: >-
           python3 -B ops/tests/k6/ci/reporting.py project
           --source "$RUNNER_TEMP/k6-e2e-private/campaign/public"

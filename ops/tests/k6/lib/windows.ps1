@@ -273,6 +273,31 @@ function Assert-K6Version([string] $Text, [string] $Kind) {
     } else { throw 'VERSION_INVALID' }
 }
 
+function Get-K6RegisteredCase([string] $Case) {
+    $catalogue = ConvertFrom-K6Json ([IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\scenarios\catalog.json')))
+    Assert-K6Fields $catalogue @('version', 'cases')
+    Assert-K6Integer $catalogue.version 1
+    $entries = @($catalogue.cases | Where-Object { $_.id -ceq $Case })
+    if ($entries.Count -ne 1) { throw 'OPTIONS_INVALID' }
+    $entry = $entries[0]
+    Assert-K6Fields $entry @('id', 'script', 'phase', 'lifecycle', 'timeout_seconds', 'requests', 'checks')
+    if (@($entry.checks.PSObject.Properties.Name).Count -lt 1) { throw 'OPTIONS_INVALID' }
+    return $entry
+}
+
+function Assert-K6RegisteredThresholds($Value, $Entry) {
+    $expected = @{ checks = 'rate==1'; case_started = 'count==1'; case_completed = 'count==1'
+        iterations = 'count==1'; http_reqs = 'count==' + $Entry.requests }
+    foreach ($name in $Entry.checks.PSObject.Properties.Name) {
+        $expected["case_check_executions{assertion:$name}"] = 'count==1'
+    }
+    Assert-K6Fields $Value @($expected.Keys)
+    foreach ($name in $expected.Keys) {
+        if ($Value.$name -isnot [array] -or $Value.$name.Count -ne 1 -or
+            $Value.$name[0] -isnot [string] -or $Value.$name[0] -cne $expected[$name]) { throw 'OPTIONS_INVALID' }
+    }
+}
+
 function Assert-K6Inspect($Value, [string] $Kind) {
     # inspect emits resolved options (not just the exported source object).
     if ($Kind -cne 'HTTP' -or $null -eq $Value -or $null -eq $Value.scenarios) { throw 'OPTIONS_INVALID' }
@@ -283,12 +308,7 @@ function Assert-K6Inspect($Value, [string] $Kind) {
     if ($scenario.executor -isnot [string] -or $scenario.maxDuration -isnot [string] -or $scenario.gracefulStop -isnot [string] -or
         $scenario.executor -cne 'per-vu-iterations' -or $scenario.maxDuration -cne '15s' -or
         $scenario.gracefulStop -cne '2s') { throw 'OPTIONS_INVALID' }
-    Assert-K6Fields $Value.thresholds @('checks', 'case_started', 'case_completed')
-    foreach ($name in @('checks', 'case_started', 'case_completed')) {
-        $expected = if ($name -ceq 'checks') { 'rate==1' } else { 'count==1' }
-        if ($Value.thresholds.$name -isnot [array] -or @($Value.thresholds.$name).Count -ne 1 -or
-            @($Value.thresholds.$name)[0] -isnot [string] -or @($Value.thresholds.$name)[0] -cne $expected) { throw 'OPTIONS_INVALID' }
-    }
+    Assert-K6RegisteredThresholds $Value.thresholds (Get-K6RegisteredCase $case)
     Assert-K6Integer $Value.maxRedirects 0; if ($Value.discardResponseBodies -isnot [bool] -or $Value.discardResponseBodies) { throw 'OPTIONS_INVALID' }
 }
 
@@ -300,8 +320,9 @@ function Assert-K6Summary($Value, [string] $RunId, [string] $Kind, [int] $ExitCo
     $case = 'iam-health'
     if ($Value.cases -isnot [array] -or $Value.cases.Count -ne 1 -or $Value.cases[0] -isnot [string] -or $Value.cases[0] -cne $case) { throw 'COMPLETENESS_INVALID' }
     foreach ($n in @('expected', 'started', 'completed', 'iterations')) { Assert-K6Integer $Value.$n 1 }
-    Assert-K6Integer $Value.requests 1
-    $checks = @('iam-status', 'iam-body')
+    $registered = Get-K6RegisteredCase $case
+    Assert-K6Integer $Value.requests $registered.requests
+    $checks = @($registered.checks.PSObject.Properties.Name)
     Assert-K6Fields $Value.checks $checks
     foreach ($name in $checks) { Assert-K6Fields $Value.checks.$name @('passes', 'fails'); Assert-K6Integer $Value.checks.$name.passes 1; Assert-K6Integer $Value.checks.$name.fails 0 }
 }

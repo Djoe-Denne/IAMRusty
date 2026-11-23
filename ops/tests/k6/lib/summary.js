@@ -5,7 +5,7 @@ export const started = new Counter('case_started');
 export const completed = new Counter('case_completed');
 export const baseline = new Counter('selftest_baseline');
 
-export function project(data, phase, caseId) {
+export function project(data, phase, caseId, expectedRequests) {
   const count = (name) => data.metrics[name]?.values?.count ?? null;
   const checks = {};
   function visit(group) {
@@ -23,8 +23,8 @@ export function project(data, phase, caseId) {
     cases: [caseId], expected: 1,
     started: count('case_started'), completed: count('case_completed'),
     iterations: count('iterations'),
-    // A browser-only scenario does not instantiate k6/http.
-    requests: phase === 'HTTP' ? count('http_reqs') : 0,
+    // No HTTP samples are normal for a browser-only or explicitly zero-request case.
+    requests: count('http_reqs') ?? (phase === 'HTTP' && expectedRequests !== 0 ? null : 0),
     checks,
   };
   if (__ENV.K6_INTERNAL_NEGATIVE === 'false-check') value.negative_baseline = count('selftest_baseline');

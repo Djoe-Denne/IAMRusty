@@ -22,7 +22,7 @@ from safety import Child, Rejected, CODES, BROWSER_DIAGNOSTICS, child_environmen
 HERE = Path(__file__).resolve().parent
 OWNER = "k6-ci-oauth-browser"
 ADDITIONAL_FILES = ("ci/campaign_browser.py", "ci/runtime.py", "scenarios/auth/oauth-browser.js",
-                    "lib/summary.js", "lib/campaign-target.js", "scenarios/catalog.json")
+                    "lib/summary.js", "lib/campaign-target.js", "lib/case-contract.js", "scenarios/catalog.json")
 RESULT_FIELDS = {"qualification", "run_id", "exit", "cleanup", "sandbox", "renderer_observed",
                  "witnesses", "diagnostic", "process_security", "startup"}
 STARTUP_CAUSES = {"NO_USABLE_SANDBOX", "NAMESPACE_DENIED", "SUID_HELPER", "CRASHPAD", "LIBRARY_LOAD",
@@ -95,6 +95,9 @@ def create_arguments(runtime, output, inputs):
         "--entrypoint", "python3"]
     for key in ("GITHUB_ACTIONS", "GITHUB_JOB", "GITHUB_REF", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"):
         args += ["--env", key + "=" + os.environ[key]]
+    for key in ("GITHUB_EVENT_NAME", "GITHUB_REPOSITORY", "GITHUB_WORKFLOW_REF", "RUNNER_ENVIRONMENT"):
+        if key in os.environ:
+            args += ["--env", key + "=" + os.environ[key]]
     return [*args, state["image_id"], "-B", "/opt/AIForAll/ops/tests/k6/ci/campaign_browser.py", "run",
             "--output", CONTAINER_OUTPUT, "--run-id", runtime.state["run_id"]]
 

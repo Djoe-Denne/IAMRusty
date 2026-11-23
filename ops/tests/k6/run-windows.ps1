@@ -61,11 +61,12 @@ try {
     $environment = if ($authMode) { New-K6Environment $Output $runId $chrome.Exe $sentinels $chrome.Pin.version } else { New-K6Environment $Output $runId '' $sentinels }
     # Browser startup/version checks belong to the actual OAuth scenario only.
     $sources = if ($authMode) { @('scenarios\auth\envoy-san.js', 'scenarios\auth\oauth-browser.js', 'lib\summary.js', 'lib\campaign-target.js') } else { @('scenarios\smoke\iam-health.js', 'lib\summary.js', 'lib\campaign-target.js') }
+    $sources += @('lib\case-contract.js', 'scenarios\catalog.json')
     foreach ($relative in $sources) {
         $source = Join-Path $PSScriptRoot $relative
         $destination = Join-Path $Output $relative
         if ([IO.FileInfo]::new($source).Length -gt 65536) { throw 'INPUT_INVALID' }
-        $key = if ($relative -cin @('scenarios\smoke\iam-health.js', 'scenarios\auth\envoy-san.js')) { 'http' } elseif ($relative -ceq 'scenarios\auth\oauth-browser.js') { 'chromium' } elseif ($relative -ceq 'lib\campaign-target.js') { 'campaign_target' } else { 'summary' }
+        $key = if ($relative -cin @('scenarios\smoke\iam-health.js', 'scenarios\auth\envoy-san.js')) { 'http' } elseif ($relative -ceq 'scenarios\auth\oauth-browser.js') { 'chromium' } elseif ($relative -ceq 'lib\campaign-target.js') { 'campaign_target' } elseif ($relative -ceq 'lib\case-contract.js') { 'case_contract' } elseif ($relative -ceq 'scenarios\catalog.json') { 'catalog' } else { 'summary' }
         $result.sources_sha256[$key] = [K6Windows.Native]::Hash($source)
         $directory = [IO.Path]::GetDirectoryName($destination)
         if (-not [IO.Directory]::Exists($directory)) { [void][IO.Directory]::CreateDirectory($directory) }

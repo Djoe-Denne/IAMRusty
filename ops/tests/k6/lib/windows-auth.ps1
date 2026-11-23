@@ -17,26 +17,15 @@ function Get-K6AuthExpectation([string] $Case) {
             Requests = $(if ($setup) { 8 } else { 3 }); Checks = $checks; SanPhase = $null
         }
     }
-    if ($Case -ceq 'auth-oauth-browser') {
+    if ($Case -cin @('auth-oauth-browser', 'auth-envoy-san-good', 'auth-envoy-san-bad', 'auth-envoy-san-restored')) {
+        $entry = Get-K6RegisteredCase $Case
+        $browser = $Case -ceq 'auth-oauth-browser'
         return [pscustomobject]@{
-            Case = $Case; Phase = 'Chromium'; MaxDuration = '90s'; GracefulStop = '3s'; Requests = 0
-            Checks = @(
-                'browser-version', 'registration-callback', 'registration-required', 'registration-nonce',
-                'registration-completed', 'login-callback', 'login-identity', 'login-authority', 'login-nonce',
-                'relink-start', 'relink-callback', 'relink-identity', 'relink-nonce',
-                'negative-link', 'negative-relink-start', 'negative-relink-alias',
-                'oauth-observations', 'oauth-iam-cardinality', 'login-redirects', 'oauth-cookie-attributes',
-                'oauth-callback-headers', 'registration-request-headers', 'relink-start-authorization',
-                'provider-authorizations', 'provider-no-credentials', 'negative-headers'
-            )
-            SanPhase = $null
-        }
-    }
-    if ($Case -cin @('auth-envoy-san-good', 'auth-envoy-san-bad', 'auth-envoy-san-restored')) {
-        return [pscustomobject]@{
-            Case = $Case; Phase = 'HTTP'; MaxDuration = '15s'; GracefulStop = '2s'; Requests = 1
-            Checks = @('san-status', 'san-no-redirect')
-            SanPhase = $Case.Substring('auth-envoy-san-'.Length)
+            Case = $Case; Phase = $entry.phase; Requests = $entry.requests
+            MaxDuration = $(if ($browser) { '90s' } else { '15s' })
+            GracefulStop = $(if ($browser) { '3s' } else { '2s' })
+            Checks = @($entry.checks.PSObject.Properties.Name)
+            SanPhase = $(if (-not $browser) { $Case.Substring('auth-envoy-san-'.Length) })
         }
     }
     throw 'OPTIONS_INVALID'
@@ -65,14 +54,7 @@ function Assert-K6AuthInspect($Value, [string] $Case) {
     if ($scenario.executor -isnot [string] -or $scenario.executor -cne 'per-vu-iterations' -or
         $scenario.maxDuration -isnot [string] -or $scenario.maxDuration -cnotin $maxDurations -or
         $scenario.gracefulStop -isnot [string] -or $scenario.gracefulStop -cne $expected.GracefulStop) { throw 'OPTIONS_INVALID' }
-    $thresholds = @('checks', 'case_started', 'case_completed')
-    if ($expected.Phase -ceq 'HTTP') { $thresholds += 'http_reqs' }
-    Assert-K6Fields $Value.thresholds $thresholds
-    foreach ($name in $thresholds) {
-        $threshold = if ($name -ceq 'checks') { 'rate==1' } elseif ($name -ceq 'http_reqs') { 'count==' + $expected.Requests } else { 'count==1' }
-        if ($Value.thresholds.$name -isnot [array] -or @($Value.thresholds.$name).Count -ne 1 -or
-            @($Value.thresholds.$name)[0] -isnot [string] -or @($Value.thresholds.$name)[0] -cne $threshold) { throw 'OPTIONS_INVALID' }
-    }
+    Assert-K6RegisteredThresholds $Value.thresholds (Get-K6RegisteredCase $Case)
     if ($expected.Phase -ceq 'HTTP') {
         Assert-K6Integer $Value.maxRedirects 0
         if ($Value.discardResponseBodies -isnot [bool] -or -not $Value.discardResponseBodies) { throw 'OPTIONS_INVALID' }
