@@ -30,7 +30,7 @@ Si une destruction est demandée : décrire exactement ce qui serait perdu, et *
 
 ## Contraintes hôte
 
-Windows + Docker Desktop. Gate (2026-10-07) : cet agent ne s'active que sur **autorisation user explicite** (voir AGENTS.md), Docker n'est plus l'environnement de build/test de dev. Les `.exe` sous `target\` (E:\cargo-target\AIForAll) ne tournent pas dans Kind. Ne pas lancer `cargo` Windows depuis cet agent (le dev/test est natif Windows, hors périmètre). Ne pas monter `target\` hôte dans un conteneur de build Linux.
+Windows + Docker Desktop. Use this agent only with **explicit user authorization** (see `AGENTS.md`, 2026-10-07). Docker is not the development build or test environment. The Windows `.exe` files in Cargo's configured target directory do not run in Kind. Do not run Windows `cargo` from this agent; native development and testing are outside its scope. Do not mount the host target in a Linux build container.
 
 ## Retour
 
