@@ -115,11 +115,30 @@ async fn schema_integrity_snapshot(db: &impl ConnectionTrait) -> String {
     row.try_get("", "snapshot").expect("schema snapshot text")
 }
 
-// G-3: exercises registration, not a hand-written ALTER or initial-schema copy.
+// G-3: exercises the registered OAuth nonce upgrade, not later schema changes.
 #[tokio::test]
 #[serial]
 async fn registered_upgrade_preserves_legacy_transactions_accounts_and_constraints() {
     use iammigration::{Migrator, MigratorTrait};
+    const INITIAL: &str = "m20220101_000001_initial_schema";
+    const OAUTH_NONCE: &str = "m20261108_000001_oauth_authentication_nonce";
+    let registered = Migrator::migrations();
+    assert_eq!(
+        registered
+            .first()
+            .expect("registered initial migration")
+            .name(),
+        INITIAL,
+        "G-3: pin the registered preimage migration"
+    );
+    assert_eq!(
+        registered
+            .get(1)
+            .expect("registered OAuth nonce migration")
+            .name(),
+        OAUTH_NONCE,
+        "G-3: pin the second migration as the OAuth nonce boundary"
+    );
     let fixture = common::TestFixture::new(Arc::new(UpgradeDatabaseDescriptor))
         .await
         .expect("owned DB fixture without service app or automatic reset");
@@ -156,7 +175,7 @@ async fn registered_upgrade_preserves_legacy_transactions_accounts_and_constrain
             .await.expect("legacy login/link/relink active/expired/consumed rows");
         let before = upgrade_snapshot(&tx, false).await;
         let integrity = schema_integrity_snapshot(&tx).await;
-        Migrator::up(&tx, None).await.expect("apply pending registered additive migration");
+        Migrator::up(&tx, Some(1)).await.expect("apply only the registered OAuth nonce migration");
         assert!(before == upgrade_snapshot(&tx, true).await,
             "G-3: upgrade must preserve UUIDs, links, tokens, emails and all legacy transaction values");
         assert!(integrity == schema_integrity_snapshot(&tx).await,
@@ -172,12 +191,13 @@ async fn registered_upgrade_preserves_legacy_transactions_accounts_and_constrain
             .await.expect("upgrade rows").expect("count row");
         assert_eq!(rows.try_get::<i64>("", "total").expect("rows"), 6);
         assert_eq!(rows.try_get::<i64>("", "legacy_null").expect("NULL rows"), 6);
-        let history = tx.query_one(Statement::from_string(DatabaseBackend::Postgres,
-            "SELECT COUNT(*) AS total FROM seaql_migrations".to_owned()))
-            .await.expect("real migration history").expect("history count");
-        let migration_count = i64::try_from(Migrator::migrations().len()).expect("migration count fits");
-        assert!(migration_count >= 2, "G-3: an additive migration must follow the initial schema");
-        assert_eq!(history.try_get::<i64>("", "total").expect("applied migrations"), migration_count);
+        let history = tx.query_all(Statement::from_string(DatabaseBackend::Postgres,
+            "SELECT version FROM seaql_migrations ORDER BY version".to_owned()))
+            .await.expect("real migration history");
+        let applied: Vec<String> = history.iter()
+            .map(|row| row.try_get("", "version").expect("registered migration name"))
+            .collect();
+        assert_eq!(applied, [INITIAL, OAUTH_NONCE], "G-3: later migrations must not enter the nonce snapshot");
         tx.rollback().await.expect("remove only this fixture-owned transactional schema");
     }).await;
 }

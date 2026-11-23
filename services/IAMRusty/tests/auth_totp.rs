@@ -8,7 +8,7 @@ mod fixtures;
 mod totp_app_oracle;
 
 use anyhow::{ensure, Context as _};
-use common::{setup_test_replica, setup_test_server, TestFixture};
+use common::{setup_test_replica, setup_test_server_with_totp, TestFixture};
 use fixtures::DbFixtures;
 use iam_domain::entity::token::RefreshToken;
 use reqwest::{header, Client, Response, StatusCode};
@@ -27,7 +27,7 @@ const WRONG_PASSWORD: &str = "IsolatedWrongPassword123!";
 #[serial_test::serial]
 async fn totp_enrollment_is_optional_and_rejected_confirmation_stays_inactive() -> anyhow::Result<()>
 {
-    let (fixture, base, client) = Box::pin(setup_test_server())
+    let (fixture, base, client) = Box::pin(setup_test_server_with_totp())
         .await
         .map_err(|_| anyhow::anyhow!("could not start the IAM test fixture"))?;
     fixture_cleanup::run(
@@ -112,7 +112,7 @@ async fn exercise_enrollment(
 #[serial_test::serial]
 async fn totp_activation_gates_password_sessions_and_consumes_each_app_step_once(
 ) -> anyhow::Result<()> {
-    let (fixture, base, client) = Box::pin(setup_test_server())
+    let (fixture, base, client) = Box::pin(setup_test_server_with_totp())
         .await
         .map_err(|_| anyhow::anyhow!("could not start the IAM test fixture"))?;
     fixture_cleanup::run(

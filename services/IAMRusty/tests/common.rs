@@ -327,38 +327,65 @@ async fn start_owned_listener(
     publisher: Arc<MultiQueueEventPublisher<DomainError>>,
     pem_files: Option<Arc<tempfile::TempDir>>,
 ) -> anyhow::Result<(String, Client)> {
-    let pem_files = if let Some(files) = pem_files {
-        Some(files)
-    } else {
-        // Public, deliberately non-secret/nonproduction RSA fixture. The
-        // SDK constants and IAM config/keys/test-platform.* are the SAME
-        // pair; this is not evidence of distinct keys or rotation. Real
-        // provider parsing/probing still runs on each isolated app boot.
-        use rustycog::testing::http::jwt::{test_rs256_private_pem, test_rs256_public_pem};
-        let files = Arc::new(tempfile::TempDir::new()?);
-        let private = files.path().join("private.pem");
-        let public = files.path().join("public.pem");
-        std::fs::write(&private, test_rs256_private_pem())?;
-        std::fs::write(&public, test_rs256_public_pem())?;
-        config.jwt.secret = SecretStorage::PemFile {
-            private_key_path: private.to_string_lossy().into_owned(),
-            public_key_path: public.to_string_lossy().into_owned(),
-            key_id: Some(iam_domain::entity::signing_key::opaque_kid()),
-        };
-        config.jwt.allowed_algorithms = vec!["RS256".into()];
-        config.jwt.backend = None;
-        config.jwt.provider = None;
-        config.jwt.remote = None;
-        Some(files)
+    let files = match pem_files {
+        Some(files) => files,
+        None => create_fixture_pem_files(&mut config)?,
     };
     Box::pin(start_owned_listener_with_keys(
         fixture,
         config,
         publisher,
-        pem_files,
+        Some(files),
         &[],
     ))
     .await
+}
+
+fn create_fixture_pem_files(config: &mut AppConfig) -> anyhow::Result<Arc<tempfile::TempDir>> {
+    // Public, deliberately non-secret/nonproduction RSA fixture. The
+    // SDK constants and IAM config/keys/test-platform.* are the SAME
+    // pair; this is not evidence of distinct keys or rotation. Real
+    // provider parsing/probing still runs on each isolated app boot.
+    use rustycog::testing::http::jwt::{test_rs256_private_pem, test_rs256_public_pem};
+    let files = Arc::new(tempfile::TempDir::new()?);
+    let private = files.path().join("private.pem");
+    let public = files.path().join("public.pem");
+    std::fs::write(&private, test_rs256_private_pem())?;
+    std::fs::write(&public, test_rs256_public_pem())?;
+    config.jwt.secret = SecretStorage::PemFile {
+        private_key_path: private.to_string_lossy().into_owned(),
+        public_key_path: public.to_string_lossy().into_owned(),
+        key_id: Some(iam_domain::entity::signing_key::opaque_kid()),
+    };
+    config.jwt.allowed_algorithms = vec!["RS256".into()];
+    config.jwt.backend = None;
+    config.jwt.provider = None;
+    config.jwt.remote = None;
+    Ok(files)
+}
+
+fn create_fixture_totp_key(directory: &tempfile::TempDir) -> anyhow::Result<std::path::PathBuf> {
+    use rand::{rngs::OsRng, RngCore as _};
+    use std::io::Write as _;
+
+    let mut file = tempfile::NamedTempFile::new_in(directory.path())
+        .map_err(|_| anyhow::anyhow!("could not create disposable TOTP key file"))?;
+    let mut bytes = [0_u8; 32];
+    let written = OsRng
+        .try_fill_bytes(&mut bytes)
+        .map_err(|_| anyhow::anyhow!("could not generate disposable TOTP key"))
+        .and_then(|()| {
+            file.write_all(&bytes)
+                .map_err(|_| anyhow::anyhow!("could not write disposable TOTP key"))
+        });
+    bytes.fill(0);
+    written?;
+    // Transfer cleanup to the listener-owned TempDir. All ordinary replicas
+    // clone the path and its owner; a keyless replica clears only its path.
+    let (_, path) = file
+        .keep()
+        .map_err(|_| anyhow::anyhow!("could not retain disposable TOTP key for the listener"))?;
+    Ok(path)
 }
 
 async fn start_owned_listener_with_keys(
@@ -781,14 +808,37 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptor {
 /// Returns an error if the test fixture or HTTP server fails to start.
 pub async fn setup_test_server() -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>>
 {
+    setup_primary_test_server(false).await
+}
+
+/// Start an isolated IAM listener with a generated per-fixture TOTP key.
+///
+/// # Errors
+///
+/// Returns an error if the fixture, key file, or HTTP server cannot be initialized.
+pub async fn setup_test_server_with_totp(
+) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
+    setup_primary_test_server(true).await
+}
+
+async fn setup_primary_test_server(
+    generate_totp_key: bool,
+) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
     prepare_primary_fixture().await?;
     let fixture = TestFixture::new(Arc::new(IAMRustyTestDescriptor)).await?;
-    let config = fixture_config(&fixture)?;
+    let mut config = fixture_config(&fixture)?;
+    let files = if generate_totp_key {
+        let files = create_fixture_pem_files(&mut config)?;
+        config.totp_key_file = Some(create_fixture_totp_key(&files)?);
+        Some(files)
+    } else {
+        None
+    };
     let (base, client) = Box::pin(start_owned_listener(
         &fixture,
         config,
         mock_publisher(Arc::new(MockEventPublisher::new())),
-        None,
+        files,
     ))
     .await?;
     Ok((fixture, base, client))

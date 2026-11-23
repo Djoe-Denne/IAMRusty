@@ -17,7 +17,7 @@ const ATTEMPT_LIMIT: i32 = 5;
 #[serial_test::serial]
 async fn active_setup_cannot_restart_or_cancel_and_expired_setup_cannot_activate(
 ) -> anyhow::Result<()> {
-    let (fixture, base, client) = Box::pin(common::setup_test_server())
+    let (fixture, base, client) = Box::pin(common::setup_test_server_with_totp())
         .await
         .map_err(|_| anyhow::anyhow!("could not start the IAM test fixture"))?;
     fixture_cleanup::run(&fixture, Box::pin(async {
@@ -86,7 +86,7 @@ async fn active_setup_cannot_restart_or_cancel_and_expired_setup_cannot_activate
 #[serial_test::serial]
 async fn next_totp_submission_at_the_resolved_account_limit_cannot_issue_session(
 ) -> anyhow::Result<()> {
-    let (fixture, base, client) = Box::pin(common::setup_test_server())
+    let (fixture, base, client) = Box::pin(common::setup_test_server_with_totp())
         .await
         .map_err(|_| anyhow::anyhow!("could not start the IAM test fixture"))?;
     fixture_cleanup::run(&fixture, Box::pin(async {
@@ -142,7 +142,7 @@ async fn next_totp_submission_at_the_resolved_account_limit_cannot_issue_session
 #[serial_test::serial]
 async fn listener_without_a_totp_key_cannot_enroll_or_issue_a_protected_password_session(
 ) -> anyhow::Result<()> {
-    let (fixture, base, client) = Box::pin(common::setup_test_server())
+    let (fixture, base, client) = Box::pin(common::setup_test_server_with_totp())
         .await
         .map_err(|_| anyhow::anyhow!("could not start the IAM test fixture"))?;
     fixture_cleanup::run(
