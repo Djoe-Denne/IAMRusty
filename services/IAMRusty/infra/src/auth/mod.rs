@@ -4,6 +4,7 @@ mod http_connector;
 mod password;
 mod password_adapter;
 mod password_reset_adapter;
+pub(crate) mod totp;
 
 pub use http_connector::HttpIdpConnector;
 pub use password::*;

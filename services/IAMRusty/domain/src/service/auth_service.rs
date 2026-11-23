@@ -10,6 +10,7 @@ use crate::error::DomainError;
 use crate::port::{
     repository::{EmailVerificationRepository, UserEmailRepository, UserRepository},
     service::{AuthTokenService, RegistrationTokenService},
+    totp::{PasswordFactorProof, TotpEnrollment, TotpError, TotpStore},
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -23,6 +24,13 @@ use uuid::Uuid;
 use super::IamOutboxUnitOfWork;
 use crate::utils;
 
+fn password_factor_error(error: TotpError) -> AuthError {
+    match error {
+        TotpError::InvalidProof => AuthError::InvalidCredentials,
+        error => AuthError::Totp(error),
+    }
+}
+
 /// Authentication service errors
 #[derive(Debug, Error)]
 pub enum AuthError {
@@ -34,6 +42,9 @@ pub enum AuthError {
 
     #[error("Invalid credentials")]
     InvalidCredentials,
+
+    #[error(transparent)]
+    Totp(TotpError),
 
     #[error("Weak password")]
     WeakPassword,
@@ -107,10 +118,10 @@ pub struct IncompleteUserProfile {
 }
 
 /// Login request for email/password authentication
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
+    pub totp_code: Option<String>,
 }
 
 /// Login response for email/password authentication
@@ -201,7 +212,7 @@ where
     event_publisher: Arc<EP>,
     signup_transaction: Option<Arc<dyn SignupTransaction>>,
     outbox_unit_of_work: Option<Arc<dyn IamOutboxUnitOfWork>>,
-    session_writer: Option<Arc<dyn crate::port::repository::AuthenticationSessionWriter>>,
+    totp_store: Option<Arc<dyn TotpStore>>,
 }
 
 pub struct AuthServiceDependencies<UR, UER, EVR, PS, TS, RTS, EP>
@@ -272,18 +283,19 @@ where
             event_publisher: dependencies.event_publisher,
             signup_transaction,
             outbox_unit_of_work,
-            session_writer: None,
+            totp_store: None,
         }
     }
 
-    /// Bind writer-backed atomic refresh issuance. Missing binding fails closed.
+    /// Bind the writer authority for the factor check and atomic session issuance.
     #[must_use]
-    pub fn with_session_writer(
-        mut self,
-        writer: Arc<dyn crate::port::repository::AuthenticationSessionWriter>,
-    ) -> Self {
-        self.session_writer = Some(writer);
+    pub fn with_totp_store(mut self, store: Arc<dyn TotpStore>) -> Self {
+        self.totp_store = Some(store);
         self
+    }
+
+    fn totp_store(&self) -> Result<&dyn TotpStore, TotpError> {
+        self.totp_store.as_deref().ok_or(TotpError::Unavailable)
     }
 
     /// Generate a verification token using UUID v4
@@ -514,10 +526,20 @@ where
             return Err(AuthError::EmailNotVerified);
         }
 
-        self.complete_login(user, request.email).await
+        let store = self.totp_store().map_err(AuthError::Totp)?;
+        let proof = store
+            .verify_login(user.id, password_hash, request.totp_code.as_deref())
+            .await
+            .map_err(password_factor_error)?;
+        self.complete_login(user, request.email, proof).await
     }
 
-    async fn complete_login(&self, user: User, email: String) -> Result<LoginResponse, AuthError> {
+    async fn complete_login(
+        &self,
+        user: User,
+        email: String,
+        proof: PasswordFactorProof,
+    ) -> Result<LoginResponse, AuthError> {
         let access_token = self
             .token_service
             .generate_access_token(user.id)
@@ -529,19 +551,17 @@ where
             .await
             .map_err(|e| AuthError::TokenServiceError(Box::new(e)))?;
 
-        self.session_writer
-            .as_ref()
-            .ok_or_else(|| {
-                AuthError::RepositoryError(DomainError::RepositoryError(
-                    "session writer not configured".into(),
-                ))
-            })?
-            .issue(refresh_token.clone(), user.password_hash.clone())
+        self.totp_store()
+            .map_err(AuthError::Totp)?
+            .issue_password_session(
+                &refresh_token,
+                user.password_hash
+                    .as_deref()
+                    .ok_or(AuthError::InvalidCredentials)?,
+                proof,
+            )
             .await
-            .map_err(|error| match error {
-                DomainError::InvalidToken => AuthError::InvalidCredentials,
-                error => AuthError::RepositoryError(error),
-            })?;
+            .map_err(password_factor_error)?;
 
         let event: Box<dyn rustycog::events::event::DomainEvent + 'static> =
             DomainEvent::UserLoggedIn(UserLoggedInEvent::new(
@@ -565,6 +585,52 @@ where
             expires_in: Self::expires_in_secs(access_token.expires_at),
             refresh_token: refresh_token.token,
         })
+    }
+
+    /// Start an inactive enrollment for the authenticated platform account.
+    ///
+    /// # Errors
+    /// Rejects ineligible accounts, an existing active factor, or unavailable storage.
+    pub async fn begin_totp(&self, user_id: Uuid) -> Result<TotpEnrollment, TotpError> {
+        self.totp_store()?.begin(user_id).await
+    }
+
+    /// Reauthenticate the account and activate its matching pending enrollment.
+    ///
+    /// # Errors
+    /// Rejects stale enrollment, bad credentials, or unavailable storage.
+    pub async fn confirm_totp(
+        &self,
+        user_id: Uuid,
+        id: Uuid,
+        current_password: &str,
+        code: &str,
+    ) -> Result<(), TotpError> {
+        let store = self.totp_store()?;
+        let user = self
+            .user_repository
+            .find_by_id(user_id)
+            .await
+            .map_err(|_| TotpError::Unavailable)?
+            .ok_or(TotpError::InvalidProof)?;
+        let hash = user.password_hash.ok_or(TotpError::InvalidProof)?;
+        if !self
+            .password_service
+            .verify_password(current_password, &hash)
+            .await
+            .map_err(|_| TotpError::Unavailable)?
+        {
+            return Err(TotpError::InvalidProof);
+        }
+        store.confirm(user_id, id, &hash, code).await
+    }
+
+    /// Discard the matching pending enrollment without changing login policy.
+    ///
+    /// # Errors
+    /// Rejects a missing pending enrollment or unavailable storage.
+    pub async fn cancel_totp(&self, user_id: Uuid, id: Uuid) -> Result<(), TotpError> {
+        self.totp_store()?.cancel(user_id, id).await
     }
 
     /// Confirm an email address with a verification token.

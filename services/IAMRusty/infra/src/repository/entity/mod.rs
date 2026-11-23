@@ -8,6 +8,7 @@ pub mod oauth_transactions;
 pub mod provider_tokens;
 pub mod refresh_tokens;
 pub mod signing_keys;
+pub(crate) mod totp_credentials;
 pub mod user_email_verification;
 pub mod user_emails;
 pub mod users;

@@ -79,7 +79,12 @@ pub(crate) fn is_limited_path(path: &str) -> bool {
             | "/api/auth/complete-registration"
             | "/api/auth/username/check"
             | "/api/token/refresh"
-    ) || path.ends_with("/login") && path.contains("/api/auth/")
+            | crate::handlers::totp::ENROLLMENT
+            | crate::handlers::totp::CONFIRM
+    ) || path
+        .strip_prefix("/api/me/totp/enrollment/")
+        .is_some_and(|suffix| uuid::Uuid::parse_str(suffix).is_ok())
+        || path.ends_with("/login") && path.contains("/api/auth/")
         || path.ends_with("/callback") && path.contains("/api/auth/")
         || path.ends_with("/relink-callback") && path.contains("/api/auth/")
         || path.ends_with("/link") && path.contains("/api/auth/")

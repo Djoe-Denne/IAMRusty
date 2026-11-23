@@ -1,5 +1,6 @@
 //! Instance-local dependencies projected into IAM request extensions.
 
+use iam_application::usecase::login::LoginUseCase;
 use std::sync::Arc;
 
 use crate::{
@@ -11,6 +12,7 @@ pub struct IamHttpSecurityContext {
     platform_issuer: PlatformIssuer,
     rate_limiter: Arc<AuthRateLimiter>,
     oauth: Arc<OAuthRouteContext>,
+    totp: Arc<dyn LoginUseCase>,
 }
 
 impl IamHttpSecurityContext {
@@ -19,11 +21,13 @@ impl IamHttpSecurityContext {
         platform_issuer: PlatformIssuer,
         rate_limiter: Arc<AuthRateLimiter>,
         oauth: Arc<OAuthRouteContext>,
+        totp: Arc<dyn LoginUseCase>,
     ) -> Self {
         Self {
             platform_issuer,
             rate_limiter,
             oauth,
+            totp,
         }
     }
 
@@ -37,5 +41,9 @@ impl IamHttpSecurityContext {
 
     pub(crate) fn oauth(&self) -> Arc<OAuthRouteContext> {
         self.oauth.clone()
+    }
+
+    pub(crate) fn totp(&self) -> Arc<dyn LoginUseCase> {
+        self.totp.clone()
     }
 }

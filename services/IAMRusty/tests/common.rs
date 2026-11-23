@@ -528,8 +528,27 @@ pub async fn cleanup_test_servers(fixture: &TestFixture) -> anyhow::Result<()> {
 pub async fn setup_test_replica(
     fixture: &TestFixture,
 ) -> Result<(String, Client), Box<dyn std::error::Error>> {
+    setup_test_replica_with(fixture, |_| {}).await
+}
+
+/// Start a replica on the same writer with its TOTP key file unset, without
+/// changing the primary or the test process environment.
+///
+/// # Errors
+///
+/// Returns an error if no live primary listener exists or the replica fails to start.
+pub async fn setup_test_replica_without_totp_key(
+    fixture: &TestFixture,
+) -> Result<(String, Client), Box<dyn std::error::Error>> {
+    setup_test_replica_with(fixture, |config| config.totp_key_file = None).await
+}
+
+async fn setup_test_replica_with(
+    fixture: &TestFixture,
+    configure: impl FnOnce(&mut AppConfig),
+) -> Result<(String, Client), Box<dyn std::error::Error>> {
     let db = fixture_writer(fixture)?;
-    let (config, pem_files) = {
+    let (mut config, pem_files) = {
         let leases = listener_leases()
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -545,6 +564,7 @@ pub async fn setup_test_replica(
         drop(leases);
         cloned
     };
+    configure(&mut config);
     Ok(Box::pin(start_owned_listener(
         fixture,
         config,

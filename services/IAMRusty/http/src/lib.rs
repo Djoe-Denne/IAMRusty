@@ -10,6 +10,7 @@ use rustycog::http::{AppState, RouteBuilder};
 use std::sync::Arc;
 
 use crate::handlers::mesh_echo::mesh_echo_headers;
+use crate::handlers::totp;
 use crate::rate_limit::rate_limit_auth;
 
 pub mod error;
@@ -104,6 +105,12 @@ pub fn create_router(
         // Authenticated routes
         .get("/api/me", get_user)
         .authenticated()
+        .post(totp::ENROLLMENT, totp::begin)
+        .authenticated()
+        .post(totp::CONFIRM, totp::confirm)
+        .authenticated()
+        .delete(totp::CANCEL, totp::cancel)
+        .authenticated()
         .get(
             "/api/auth/{provider_name}/relink-start",
             generate_relink_provider_start_url,
@@ -142,6 +149,7 @@ pub fn create_router(
         .layer(Extension(security.platform_issuer()))
         .layer(Extension(security.rate_limiter()))
         .layer(Extension(security.oauth()))
+        .layer(Extension(security.totp()))
 }
 
 /// Create the IAM router under its bounded-context prefix.
