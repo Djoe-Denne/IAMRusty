@@ -115,7 +115,69 @@ async fn schema_integrity_snapshot(db: &impl ConnectionTrait) -> String {
     row.try_get("", "snapshot").expect("schema snapshot text")
 }
 
-// G-3: exercises the registered OAuth nonce upgrade, not later schema changes.
+async fn applied_migrations(db: &impl ConnectionTrait) -> Vec<String> {
+    db.query_all(Statement::from_string(
+        DatabaseBackend::Postgres,
+        "SELECT version FROM seaql_migrations ORDER BY version".to_owned(),
+    ))
+    .await
+    .expect("real migration history")
+    .iter()
+    .map(|row| {
+        row.try_get("", "version")
+            .expect("registered migration name")
+    })
+    .collect()
+}
+
+async fn assert_registered_username_upgrade(
+    tx: &sea_orm::DatabaseTransaction,
+    schema: &str,
+    [initial, oauth_nonce]: [&str; 2],
+) {
+    use iammigration::{Migrator, MigratorTrait};
+    const USERNAME: &str = "m20261123_000001_unique_username";
+
+    let registered = Migrator::migrations();
+    assert_eq!(
+        registered
+            .get(2)
+            .expect("registered username migration")
+            .name(),
+        USERNAME,
+        "pin the third migration as the username uniqueness boundary"
+    );
+    let prior: serde_json::Value = serde_json::from_str(&schema_integrity_snapshot(tx).await)
+        .expect("schema snapshot before username migration");
+    Migrator::up(tx, Some(1))
+        .await
+        .expect("apply only the registered username migration");
+    assert_eq!(
+        applied_migrations(tx).await,
+        [initial, oauth_nonce, USERNAME],
+        "later migrations must not enter the username snapshot"
+    );
+    let mut upgraded: serde_json::Value =
+        serde_json::from_str(&schema_integrity_snapshot(tx).await)
+            .expect("upgraded schema snapshot JSON");
+    let indexes = upgraded["indexes"]
+        .as_array_mut()
+        .expect("upgraded indexes");
+    let expected_index = serde_json::Value::String(format!(
+        "CREATE UNIQUE INDEX users_username_unique ON {schema}.users USING btree (username)"
+    ));
+    let position = indexes
+        .iter()
+        .position(|index| index == &expected_index)
+        .expect("upgrade adds the exact username uniqueness index on this schema's users table");
+    indexes.remove(position);
+    assert_eq!(
+        prior, upgraded,
+        "after accounting for that one index, all existing indexes and constraints must be unchanged"
+    );
+}
+
+// G-3: compare the historical OAuth nonce upgrade before checking username uniqueness separately.
 #[tokio::test]
 #[serial]
 async fn registered_upgrade_preserves_legacy_transactions_accounts_and_constraints() {
@@ -191,13 +253,9 @@ async fn registered_upgrade_preserves_legacy_transactions_accounts_and_constrain
             .await.expect("upgrade rows").expect("count row");
         assert_eq!(rows.try_get::<i64>("", "total").expect("rows"), 6);
         assert_eq!(rows.try_get::<i64>("", "legacy_null").expect("NULL rows"), 6);
-        let history = tx.query_all(Statement::from_string(DatabaseBackend::Postgres,
-            "SELECT version FROM seaql_migrations ORDER BY version".to_owned()))
-            .await.expect("real migration history");
-        let applied: Vec<String> = history.iter()
-            .map(|row| row.try_get("", "version").expect("registered migration name"))
-            .collect();
-        assert_eq!(applied, [INITIAL, OAUTH_NONCE], "G-3: later migrations must not enter the nonce snapshot");
+        assert_eq!(applied_migrations(&tx).await, [INITIAL, OAUTH_NONCE],
+            "G-3: later migrations must not enter the nonce snapshot");
+        assert_registered_username_upgrade(&tx, &schema, [INITIAL, OAUTH_NONCE]).await;
         tx.rollback().await.expect("remove only this fixture-owned transactional schema");
     }).await;
 }
@@ -574,6 +632,79 @@ async fn e5_stale_registration_password_cannot_write_username_or_refresh() {
     assert!(row.try_get::<bool>("", "unchanged").expect("username"));
     assert_eq!(row.try_get::<i64>("", "sessions").expect("sessions"), 0);
     }).await;
+}
+
+#[tokio::test]
+#[serial]
+async fn registration_writer_maps_username_collision_without_changing_account_or_issuing_session() {
+    use iam_domain::error::DomainError;
+    use iam_infra::repository::entity::users::Entity as Users;
+    use sea_orm::EntityTrait;
+
+    let (fixture, _, _) = Box::pin(common::setup_test_server())
+        .await
+        .expect("Postgres harness");
+    fixture_cleanup::run(&fixture, async {
+        let db = fixture.db();
+        let claimed = "claimed-registration-name";
+        let owner = DbFixtures::user()
+            .username(claimed)
+            .commit(db.clone())
+            .await
+            .expect("username owner");
+        let applicant = DbFixtures::user()
+            .password_hash("registration-writer-fixture-hash")
+            .commit(db.clone())
+            .await
+            .expect("incomplete account");
+        let writer = SeaOrmAuthenticationSessionWriter::new(db.clone());
+        let session = refresh(applicant.id());
+
+        // Bypass the availability probe: the same collision can occur after a successful probe.
+        let result = writer
+            .complete_registration(
+                applicant.id(),
+                applicant.model().password_hash.clone(),
+                claimed.into(),
+                Some(session.clone()),
+            )
+            .await;
+        assert!(matches!(result, Err(DomainError::UsernameTaken)));
+        for account in [&owner, &applicant] {
+            let saved = Users::find_by_id(account.id())
+                .one(db.as_ref())
+                .await
+                .expect("read persisted user after refusal")
+                .expect("user still exists");
+            assert!(&saved == account.model(), "refusal changed an account");
+        }
+        let row = db
+            .query_one(Statement::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                "SELECT COUNT(*) AS total FROM refresh_tokens WHERE user_id=$1",
+                [applicant.id().into()],
+            ))
+            .await
+            .expect("read sessions after refusal")
+            .expect("session count row");
+        assert_eq!(row.try_get::<i64>("", "total").expect("session count"), 0);
+
+        // Same writer, account and session succeed when only the requested name changes.
+        let recovered = writer
+            .complete_registration(
+                applicant.id(),
+                applicant.model().password_hash.clone(),
+                "available-registration-name".into(),
+                Some(session),
+            )
+            .await
+            .expect("complete registration with a free username");
+        assert_eq!(
+            recovered.username.as_deref(),
+            Some("available-registration-name")
+        );
+    })
+    .await;
 }
 
 #[tokio::test]

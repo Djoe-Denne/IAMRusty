@@ -83,6 +83,14 @@ where
     async fn update(&self, user: User) -> Result<User, Self::Error> {
         self.write_repo.update(user).await
     }
+
+    async fn patch_profile(
+        &self,
+        id: Uuid,
+        patch: iam_domain::service::user_service::ProfilePatch,
+    ) -> Result<iam_domain::service::UserProfile, iam_domain::error::DomainError> {
+        self.write_repo.patch_profile(id, patch).await
+    }
 }
 
 /// Combined Token Repository that delegates to separate read/write implementations

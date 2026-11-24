@@ -1,5 +1,6 @@
 use crate::usecase::user::{UserError, UserProfile, UserUseCase};
 use async_trait::async_trait;
+use iam_domain::{error::DomainError, service::user_service::ProfilePatch};
 use rustycog::command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -45,35 +46,42 @@ impl CommandErrorMapper for UserErrorMapper {
                 )
             },
             |user_error| match user_error {
-                UserError::DomainError(domain_error) => {
-                    use iam_domain::error::DomainError;
-                    match domain_error {
-                        DomainError::UserNotFound => CommandError::authentication(
-                            UserErrorCode::UserNotFound.as_str(),
-                            "Authentication failed: User not found",
-                        ),
-                        DomainError::TokenValidationFailed(_) => CommandError::authentication(
-                            UserErrorCode::InvalidToken.as_str(),
-                            "Authentication failed: Token validation failed",
-                        ),
-                        DomainError::TokenExpired => CommandError::authentication(
-                            UserErrorCode::TokenExpired.as_str(),
-                            "Authentication failed: Token expired",
-                        ),
-                        DomainError::InvalidToken => CommandError::authentication(
-                            UserErrorCode::InvalidToken.as_str(),
-                            "Authentication failed: Invalid token",
-                        ),
-                        DomainError::RepositoryError(_) => CommandError::infrastructure(
-                            UserErrorCode::RepositoryError.as_str(),
-                            "Repository error during user operation",
-                        ),
-                        _ => CommandError::infrastructure(
-                            UserErrorCode::TokenServiceError.as_str(),
-                            "User service error",
-                        ),
+                UserError::DomainError(domain_error) => match domain_error {
+                    DomainError::UsernameTaken => {
+                        CommandError::business("username_taken", "Username is already taken")
                     }
-                }
+                    DomainError::InvalidUsername => {
+                        CommandError::validation("invalid_username", "Invalid username format")
+                    }
+                    DomainError::InvalidAvatarUrl => CommandError::validation(
+                        "invalid_avatar_url",
+                        "Avatar must be an absolute HTTPS URL without user information",
+                    ),
+                    DomainError::UserNotFound => CommandError::authentication(
+                        UserErrorCode::UserNotFound.as_str(),
+                        "Authentication failed: User not found",
+                    ),
+                    DomainError::TokenValidationFailed(_) => CommandError::authentication(
+                        UserErrorCode::InvalidToken.as_str(),
+                        "Authentication failed: Token validation failed",
+                    ),
+                    DomainError::TokenExpired => CommandError::authentication(
+                        UserErrorCode::TokenExpired.as_str(),
+                        "Authentication failed: Token expired",
+                    ),
+                    DomainError::InvalidToken => CommandError::authentication(
+                        UserErrorCode::InvalidToken.as_str(),
+                        "Authentication failed: Invalid token",
+                    ),
+                    DomainError::RepositoryError(_) => CommandError::infrastructure(
+                        UserErrorCode::RepositoryError.as_str(),
+                        "Repository error during user operation",
+                    ),
+                    _ => CommandError::infrastructure(
+                        UserErrorCode::TokenServiceError.as_str(),
+                        "User service error",
+                    ),
+                },
                 UserError::RepositoryError(_) => CommandError::infrastructure(
                     UserErrorCode::RepositoryError.as_str(),
                     error.to_string(),
@@ -186,5 +194,84 @@ where
             .get_user(command.user_id)
             .await
             .map_err(|e| UserErrorMapper.map_error(Box::new(e)))
+    }
+}
+
+#[derive(Clone)]
+pub struct PatchProfileCommand {
+    command_id: Uuid,
+    user_id: Uuid,
+    patch: ProfilePatch,
+}
+
+impl std::fmt::Debug for PatchProfileCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PatchProfileCommand")
+            .field("command_id", &self.command_id)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PatchProfileCommand {
+    #[must_use]
+    pub fn new(user_id: Uuid, patch: ProfilePatch) -> Self {
+        Self {
+            command_id: Uuid::new_v4(),
+            user_id,
+            patch,
+        }
+    }
+}
+
+impl Command for PatchProfileCommand {
+    type Result = UserProfile;
+
+    fn command_type(&self) -> &'static str {
+        "patch_profile"
+    }
+
+    fn command_id(&self) -> Uuid {
+        self.command_id
+    }
+
+    fn validate(&self) -> Result<(), CommandError> {
+        // The domain service validates both fields before invoking the writer.
+        Ok(())
+    }
+}
+
+pub struct PatchProfileCommandHandler(pub Arc<dyn UserUseCase>);
+
+#[async_trait]
+impl CommandHandler<PatchProfileCommand> for PatchProfileCommandHandler {
+    async fn handle(&self, command: PatchProfileCommand) -> Result<UserProfile, CommandError> {
+        self.0
+            .patch_profile(command.user_id, command.patch)
+            .await
+            .map_err(|error| UserErrorMapper.map_error(Box::new(error)))
+    }
+}
+
+#[cfg(test)]
+mod patch_profile_tests {
+    use super::{Command, PatchProfileCommand, ProfilePatch};
+    use iam_domain::service::user_service::OptionalField;
+    use uuid::Uuid;
+
+    #[test]
+    fn profile_command_debug_has_correlation_but_no_account_or_submitted_fields() {
+        let user = Uuid::new_v4();
+        let command = PatchProfileCommand::new(
+            user,
+            ProfilePatch {
+                username: Some("private-profile-name".into()),
+                avatar_url: OptionalField::Set(Some("https://example.test/private-path".into())),
+            },
+        );
+        let details = format!("{command:?}");
+        assert!(details.contains(&command.command_id().to_string()));
+        assert!(!details.contains(&user.to_string()));
+        assert!(!details.contains("private-profile-name"));
+        assert!(!details.contains("private-path"));
     }
 }

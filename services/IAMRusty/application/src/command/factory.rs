@@ -34,7 +34,10 @@ use super::{
         RevokeAllTokensCommand, RevokeAllTokensCommandHandler, RevokeTokenCommand,
         RevokeTokenCommandHandler, TokenErrorMapper,
     },
-    user::{GetUserCommand, GetUserCommandHandler, UserErrorMapper},
+    user::{
+        GetUserCommand, GetUserCommandHandler, PatchProfileCommand, PatchProfileCommandHandler,
+        UserErrorMapper,
+    },
     verify_email::{
         AuthErrorMapper as VerifyEmailAuthErrorMapper, VerifyEmailCommand,
         VerifyEmailCommandHandler,
@@ -211,12 +214,15 @@ impl CommandRegistryFactory {
         builder: CommandRegistryBuilder,
         user: Arc<dyn UserUseCase>,
     ) -> CommandRegistryBuilder {
-        let get_user_handler = Arc::new(GetUserCommandHandler::new(user));
-        builder.register::<GetUserCommand, _>(
-            "get_user".to_string(),
-            get_user_handler,
-            Arc::new(UserErrorMapper),
-        )
+        let get_user_handler = Arc::new(GetUserCommandHandler::new(user.clone()));
+        let mapper = Arc::new(UserErrorMapper);
+        builder
+            .register::<GetUserCommand, _>("get_user".to_string(), get_user_handler, mapper.clone())
+            .register::<PatchProfileCommand, _>(
+                "patch_profile".to_string(),
+                Arc::new(PatchProfileCommandHandler(user)),
+                mapper,
+            )
     }
 
     fn register_auth_commands(
@@ -405,14 +411,7 @@ impl CommandRegistryFactory {
 
     /// Create a registry builder with only user commands
     pub fn create_builder_with_user(user_usecase: &Arc<dyn UserUseCase>) -> CommandRegistryBuilder {
-        let get_user_handler = Arc::new(GetUserCommandHandler::new(user_usecase.clone()));
-        let user_error_mapper = Arc::new(UserErrorMapper);
-
-        CommandRegistryBuilder::new().register::<GetUserCommand, _>(
-            "get_user".to_string(),
-            get_user_handler,
-            user_error_mapper,
-        )
+        Self::register_user_commands(CommandRegistryBuilder::new(), user_usecase.clone())
     }
 
     /// Create a registry builder with only link provider commands
