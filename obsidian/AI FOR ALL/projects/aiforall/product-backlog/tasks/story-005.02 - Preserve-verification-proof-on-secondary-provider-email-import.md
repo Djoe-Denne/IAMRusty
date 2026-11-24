@@ -1,10 +1,10 @@
 ---
 id: STORY-005.02
 title: Preserve verification proof on secondary provider email import
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-22T15:53:50Z'
-updated_date: '2026-11-23T16:46:47Z'
+updated_date: '2026-11-24T11:22:56Z'
 labels:
   - iam
   - backend-alignment
@@ -40,4 +40,6 @@ Reuse the existing authenticated connector profile in the explicit LINK import o
 
 <!-- SECTION:NOTES:BEGIN -->
 Native Windows HTTP/Postgres, based on acadec83: the test-only run failed only on the attested address (20 passed, 1 expected failure). With the fix, all 21 browser transaction integration tests passed, including true, false, and omitted proof, unchanged primary and existing sign-in method, and unchanged snapshots on both explicit LINK refusals. The callback response and the persisted secondary flag agree. These tests mock the outbound connector. The deployed explicit LINK success journey is not covered by the existing hosted OAuth scenario (registration, login, and relink), so deployed E2E remains unverified.
+
+Hosted E2E resolves the earlier deployed coverage gap. [PR #45](https://github.com/Djoe-Denne/IAMRusty/pull/45) landed at `08daed1d` with the qualified tree. In [hosted k6 run 45241087507, attempt 1](https://github.com/Djoe-Denne/IAMRusty/actions/runs/45241087507/attempts/1), all 67 checks passed, including 33 explicit LINK checks across 23 requests. The LINK case verified the attested, false, and omitted exact-address proof outcomes and preserved the original primary addresses and sign-in methods. The native HTTP/Postgres tests above supply the refused-link no-mutation evidence. This closes the backend-alignment task only; the parent story remains open.
 <!-- SECTION:NOTES:END -->
