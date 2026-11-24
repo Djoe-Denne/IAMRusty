@@ -10,8 +10,9 @@ ask which approved stories or existing wave to use. Plan, launch, or resume
 only within the delivery, agent and infrastructure scope the user authorized.
 
 For an authorized launch, use **one independent OpenCode session with
-`agent: "build"` and no `parentID` per admitted lot**, in that lot's worktree.
-Follow the skill's native session preflight before sending work. This applies
+`agent: "build"` and no `parentID` per admitted lot**, in that lot's worktree,
+with **`openai/gpt-6.2-sol#medium`** explicitly set and verified before
+sending work. Never inherit or fall back to a different model. This applies
 also to design-only lots. Do not use the subagent tool or an `architecte`,
 `implementer`, or other profile as a lot owner. A specialist assignment
 from the primary session is separate from a Build slot. If independent
