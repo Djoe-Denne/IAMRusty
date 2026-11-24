@@ -37,6 +37,35 @@
    checks, and self-reviews the diff. Do not weaken the approved oracle;
    revise a contract or test only for a documented reason and reverify it.
 
+### Architecture exploration handoff
+
+Before implementation, preserve the architect's code exploration as a short,
+private note in the task's `.tmp/` evidence directory, outside disposable
+worktrees. The primary session supplies the absolute destination and records
+it in the ledger. `architecte` writes the note there, or returns its contents
+for the primary session to save if the assignment is read-only. The primary
+session gives `implementer` the absolute path with the contract and failing
+test evidence. Pass the same note on resume; do not rely on chat history.
+
+Record only what helps the next worker start or verify the approach:
+
+- **Scope and revision:** task, inspected Git SHA, and any local diff that
+  affects the findings.
+- **Verified starting points:** repository-relative file paths and symbols
+  (lines if useful), what each owns, relevant callers and tests, and the
+  evidence behind the observations.
+- **Suggested changes:** likely edit points, why they look suitable, a focused
+  test or check, and any known gaps or uncertainties. Separate observations
+  from guesses; link the agreed contract and any governing ADR separately.
+
+Read the note before rediscovering the code. Verify the relevant pointers in
+the implementation checkout and test the suggested approach. The note is a
+starting point, not an exhaustive file list or a prescribed implementation.
+If the checkout or tests contradict it, choose another approach within the
+agreed contract and record what changed and why in the return handoff. Escalate
+only when a change would cross an agreed boundary, alter the contract or
+approved intent, or require more authorization.
+
 ## Review and close
 
 7. For behavior-changing delivery work, request independent reviews from

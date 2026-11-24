@@ -42,6 +42,8 @@ Use the eight project profiles in `.opencode/agents/` and native subagents
 when authorized; do not use an intermediate orchestrator or Ensemble.
 Follow [Product delivery workflow](docs/guides/product-delivery-workflow.md)
 for story refinement, priority, architecture, red/green testing, and review.
+For a requested parallel delivery wave, load `aiforall-parallel-delivery`
+or use `/delivery-wave`; the primary session still owns the wave.
 
 - The primary session owns the handoff ledger, integration, the Windows Cargo
   slot, and runtime leases. Record the absolute ledger path, Git base, and
