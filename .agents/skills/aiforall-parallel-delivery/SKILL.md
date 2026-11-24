@@ -51,12 +51,14 @@ under this workflow.
    No nested delegation.
    Take security decisions first, then UX within the approved contract; ask
    about genuine product uncertainty or changes of mandate.
-4. Check the ledger-listed Build sessions' replies, requests and revision
-   changes on the agreed cadence (three minutes if requested), using native
-   completion notifications where possible. Do not use only the coordinator's
-   child list to monitor independent sessions.
-   Notify the user on decisions, blockers, handoffs, or changed outcomes,
-   not on every unchanged check. A worker going idle is not delivery.
+4. [Arm mandatory wake-ups](runbook.md#mandatory-wake-ups) from the primary
+   session. Verify the notification path before dispatch. After each prompt
+   is accepted, record a background job for its completion or bounded
+   deadline, or consume an already-verified reply in the same turn. No
+   passive waiting, silent fallback, or announcement of a monitored wave
+   without that evidence. Track the root IDs, not the coordinator's child
+   list. On a wake, inspect the current assignment and advance, re-arm, or
+   report a specific blocker; do not simply acknowledge the notification.
 
 ## Qualify without queuing all work behind Windows Cargo
 
@@ -110,4 +112,8 @@ under this workflow.
   Check directory, worktree registration, and branch separately; report
   an empty but locked directory as a cleanup limitation, not a successful
   directory removal. Never touch open lots, the main checkout, or foreign
-  work. Stop monitoring when no authorized deliverable or worker is active.
+  work. For a wave authorized through merge, do not stop at Build handoff:
+  follow local validation, the current GitHub run, integration, and scoped
+  closeout. Stop only after the agreed deliverables are verified or their
+  specific blockers and resume conditions are reported. Do not infer
+  publication authorization from a design-only or validation-only wave.
