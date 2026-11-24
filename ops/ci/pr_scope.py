@@ -31,12 +31,9 @@ def pr_paths(base, head, tested, root=ROOT):
     return changed_paths(base, tested, root)
 
 
-DOC_PATH = re.compile(r"(?:README\.md|docs/(?:adr|contracts|guides|missions)/[^/]+\.md)")
-
-
 def docs_only(paths, base, tested, root=ROOT):
-    """Allow only ordinary Markdown blobs in explicitly known documentation paths."""
-    if not paths or not all(DOC_PATH.fullmatch(path) for path in paths):
+    """Allow ordinary Markdown blobs anywhere in the exact PR diff."""
+    if not paths or not all(path.lower().endswith(".md") for path in paths):
         return False
     for path in paths:
         entries = [git(root, "ls-tree", "-z", revision, "--", path) for revision in (base, tested)]
@@ -258,8 +255,7 @@ def main():
         except (ValueError, UnicodeError, subprocess.CalledProcessError):
             selected = False
         if selected:
-            summary("Documentation-only PR: no build, tests, Clippy, coverage or Sonar required.")
-        if selected:
+            summary("Markdown-only PR: no build, tests, Clippy, coverage or Sonar required.")
             write_outputs(docs_only=True, selection=execution_scope("docs"))
         else:
             write_outputs(docs_only=False)

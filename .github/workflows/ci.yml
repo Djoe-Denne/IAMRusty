@@ -49,7 +49,7 @@ jobs:
           submodules: true
           fetch-depth: 0
           persist-credentials: false
-      - name: Admit documentation-only PRs without Rust setup
+      - name: Admit Markdown-only PRs without Rust setup
         id: docs
         if: github.event_name == 'pull_request'
         env:
