@@ -4,13 +4,91 @@
 //! traits from rustycog-events, allowing seamless integration while maintaining architectural
 //! separation.
 
-use iam_domain::error::DomainError;
+use std::{collections::HashMap, fmt, sync::Arc};
+
+use async_trait::async_trait;
+use iam_domain::{entity::events::PROFILE_EMAIL_VERIFICATION_REQUESTED, error::DomainError};
 use rustycog::config::QueueConfig;
 use rustycog::core::error::ServiceError;
 use rustycog::events::{
-    adapter::ErrorMapper, create_event_publisher_from_queue_config, ConcreteEventPublisher,
+    adapter::ErrorMapper,
+    create_event_publisher_from_queue_config,
+    event::{DomainEvent, EventPublisher},
+    ConcreteEventPublisher,
 };
-use std::sync::Arc;
+use uuid::Uuid;
+
+/// Single-event publisher for the IAM outbox dispatcher. Reconstructed profile
+/// intents may carry a private capability in both payload and metadata.
+pub struct IamOutboxPublisher(Arc<dyn EventPublisher<DomainError>>);
+
+impl IamOutboxPublisher {
+    #[must_use]
+    pub const fn new(inner: Arc<dyn EventPublisher<DomainError>>) -> Self {
+        Self(inner)
+    }
+}
+
+#[async_trait]
+impl EventPublisher<DomainError> for IamOutboxPublisher {
+    async fn publish(&self, event: &dyn DomainEvent) -> Result<(), DomainError> {
+        if event.event_type() == PROFILE_EMAIL_VERIFICATION_REQUESTED {
+            self.0.publish(&PrivateProfileEvent(event)).await
+        } else {
+            self.0.publish(event).await
+        }
+    }
+
+    async fn publish_batch(&self, events: &[Box<dyn DomainEvent>]) -> Result<(), DomainError> {
+        self.0.publish_batch(events).await
+    }
+
+    async fn health_check(&self) -> Result<(), DomainError> {
+        self.0.health_check().await
+    }
+}
+
+/// A borrowed view that changes only diagnostic formatting, never transport.
+struct PrivateProfileEvent<'a>(&'a dyn DomainEvent);
+
+impl fmt::Debug for PrivateProfileEvent<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PrivateProfileEvent")
+            .field("event_type", &PROFILE_EMAIL_VERIFICATION_REQUESTED)
+            .field("event_id", &self.0.event_id())
+            .finish_non_exhaustive()
+    }
+}
+
+impl DomainEvent for PrivateProfileEvent<'_> {
+    fn event_type(&self) -> &str {
+        self.0.event_type()
+    }
+
+    fn event_id(&self) -> Uuid {
+        self.0.event_id()
+    }
+
+    fn aggregate_id(&self) -> Uuid {
+        self.0.aggregate_id()
+    }
+
+    fn occurred_at(&self) -> chrono::DateTime<chrono::Utc> {
+        self.0.occurred_at()
+    }
+
+    fn version(&self) -> u32 {
+        self.0.version()
+    }
+
+    fn to_json(&self) -> Result<String, ServiceError> {
+        self.0.to_json()
+    }
+
+    fn metadata(&self) -> HashMap<String, String> {
+        self.0.metadata()
+    }
+}
 
 /// IAMRusty-specific error mapper implementation
 pub struct IAMErrorMapper;

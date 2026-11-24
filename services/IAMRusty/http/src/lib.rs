@@ -3,13 +3,14 @@
 //! This crate provides the HTTP interface for the application,
 //! implementing the `OpenAPI` specification.
 
-use axum::{middleware, Extension, Router};
+use axum::{extract::DefaultBodyLimit, middleware, routing::post, Extension, Router};
 use iam_configuration::{IdpConfig, ServerConfig};
 use readiness::{attach_ready, ReadinessProbe};
 use rustycog::http::{AppState, RouteBuilder};
 use std::sync::Arc;
 
 use crate::handlers::mesh_echo::mesh_echo_headers;
+use crate::handlers::profile_email_verification;
 use crate::handlers::totp;
 use crate::rate_limit::rate_limit_auth;
 
@@ -111,6 +112,18 @@ pub fn create_router(
         .authenticated()
         .delete(totp::CANCEL, totp::cancel)
         .authenticated()
+        .get("/api/me/email-addresses", profile_email_verification::list)
+        .authenticated()
+        .route(
+            "/api/me/email-verification/request",
+            post(profile_email_verification::issue).layer(DefaultBodyLimit::max(1024)),
+        )
+        .authenticated()
+        .route(
+            "/api/me/email-verification/confirm",
+            post(profile_email_verification::confirm).layer(DefaultBodyLimit::max(1024)),
+        )
+        .authenticated()
         .get(
             "/api/auth/{provider_name}/relink-start",
             generate_relink_provider_start_url,
@@ -149,6 +162,7 @@ pub fn create_router(
         .layer(Extension(security.platform_issuer()))
         .layer(Extension(security.rate_limiter()))
         .layer(Extension(security.oauth()))
+        .layer(Extension(security.profile_email_verification()))
         .layer(Extension(security.totp()))
 }
 

@@ -53,25 +53,29 @@ foreach ($binary in @('REDIS_TLS', ' redis_tls', 'redis_tls ', 'redis_tls.exe', 
     catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Non-exact Redis TLS selection accepted' } }
 }
 $oauthBinary = 'oauth_browser_transactions'
-if ((Resolve-ItTestBinary -Suites @('telegraph') -Binary 'outbox_runtime_tests') -cne 'outbox_runtime_tests') {
-    throw 'Valid exact Telegraph outbox selection rejected'
-}
-foreach ($badSuites in @(@('iam'), @('manifesto'), @('Telegraph'), @('telegraph','telegraph'), @('telegraph','hive'))) {
-    try { $null = Resolve-ItTestBinary -Suites $badSuites -Binary 'outbox_runtime_tests'; throw 'unexpected-accept' }
-    catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Cross-suite Telegraph selection accepted' } }
-}
-foreach ($badName in @('OUTBOX_RUNTIME_TESTS', ' outbox_runtime_tests', 'outbox_runtime_tests ', 'tests/outbox_runtime_tests.rs', 'outbox_runtime_tests; anything')) {
-    try { $null = Resolve-ItTestBinary -Suites @('telegraph') -Binary $badName; throw 'unexpected-accept' }
-    catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Non-exact Telegraph binary accepted' } }
+$telegraphBinaries = @('outbox_runtime_tests', 'profile_email_verification_event_test')
+foreach ($name in $telegraphBinaries) {
+    if ((Resolve-ItTestBinary -Suites @('telegraph') -Binary $name) -cne $name) {
+        throw 'Valid exact Telegraph selection rejected'
+    }
+    foreach ($badSuites in @(@('iam'), @('manifesto'), @('Telegraph'), @('telegraph','telegraph'), @('telegraph','hive'))) {
+        try { $null = Resolve-ItTestBinary -Suites $badSuites -Binary $name; throw 'unexpected-accept' }
+        catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Cross-suite Telegraph selection accepted' } }
+    }
+    foreach ($badName in @($name.ToUpperInvariant(), (' ' + $name), ($name + ' '), ('tests/' + $name + '.rs'), ($name + '; anything'))) {
+        try { $null = Resolve-ItTestBinary -Suites @('telegraph') -Binary $badName; throw 'unexpected-accept' }
+        catch { if ($_.Exception.Message -eq 'unexpected-accept') { throw 'Non-exact Telegraph binary accepted' } }
+    }
 }
 if ((Resolve-ItTestBinary -Suites @('iam') -Binary $oauthBinary) -cne $oauthBinary) { throw 'Valid IAM OAuth selection rejected' }
 $iamBinaries = @(
     $oauthBinary, 'auth_transactions_postgres', 'oauth_cleanup_lifecycle',
     'auth_oauth_start', 'auth_oauth_callback', 'auth_oauth_provider_failures',
     'auth_totp',
-    'auth_username_flow_part2', 'user',
+    'auth_username_flow_part2', 'auth_password_reset', 'user',
     'relink_provider', 'verified_idp_https', 'organization_account_guard',
-    'app_cleanup_supervision', 'request_trace_redaction', 'signing_epoch_writer'
+    'app_cleanup_supervision', 'request_trace_redaction', 'signing_epoch_writer',
+    'profile_email_verification'
 )
 foreach ($name in $iamBinaries) {
     if ((Resolve-ItTestBinary -Suites @('iam') -Binary $name) -cne $name) { throw 'Valid exact IAM selection rejected' }
@@ -138,7 +142,7 @@ foreach ($selected in @('manifesto', 'iam', 'hive', 'lazaret', 'telegraph')) {
     $selections = if ($selected -eq 'iam') { @('') + $iamBinaries }
                   elseif ($selected -eq 'hive') { @('') + $hiveBinaries }
                   elseif ($selected -eq 'lazaret') { @('', 'redis_tls') }
-                  elseif ($selected -eq 'telegraph') { @('', 'outbox_runtime_tests') }
+                  elseif ($selected -eq 'telegraph') { @('') + $telegraphBinaries }
                   else { @('') + $names }
     foreach ($testBinary in $selections) {
         $script:seen = @()

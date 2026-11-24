@@ -946,6 +946,13 @@ pub struct JwtKeyPair {
     pub kid: String,
 }
 
+/// Deployment opt-in for delivery of profile address verification links.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ProfileEmailVerificationConfig {
+    /// Trusted public HTTPS landing URL; no URL is assumed when unset.
+    pub landing_url: Option<String>,
+}
+
 /// Main application configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -975,6 +982,9 @@ pub struct AppConfig {
     /// Command configuration
     #[serde(default)]
     pub command: CommandConfig,
+    /// Saved address ownership proof, independent of signup and login.
+    #[serde(default)]
+    pub profile_email_verification: ProfileEmailVerificationConfig,
     /// Queue configuration (Kafka, SQS, or Disabled)
     pub queue: QueueConfig,
     /// Legacy Kafka configuration (for backward compatibility)
@@ -1114,6 +1124,7 @@ impl ConfigLoader<Self> for AppConfig {
             queue: QueueConfig::default(),
             kafka: KafkaConfig::default(),
             internal_service_token: String::new(),
+            profile_email_verification: ProfileEmailVerificationConfig::default(),
         }
     }
 

@@ -1,7 +1,10 @@
 //! Instance-local dependencies projected into IAM request extensions.
 
-use iam_application::usecase::login::LoginUseCase;
 use std::sync::Arc;
+
+use iam_application::usecase::{
+    login::LoginUseCase, profile_email_verification::ProfileEmailVerification,
+};
 
 use crate::{
     oauth_browser::OAuthRouteContext, platform_user::PlatformIssuer, rate_limit::AuthRateLimiter,
@@ -12,6 +15,7 @@ pub struct IamHttpSecurityContext {
     platform_issuer: PlatformIssuer,
     rate_limiter: Arc<AuthRateLimiter>,
     oauth: Arc<OAuthRouteContext>,
+    profile_email_verification: Arc<ProfileEmailVerification>,
     totp: Arc<dyn LoginUseCase>,
 }
 
@@ -21,12 +25,14 @@ impl IamHttpSecurityContext {
         platform_issuer: PlatformIssuer,
         rate_limiter: Arc<AuthRateLimiter>,
         oauth: Arc<OAuthRouteContext>,
+        profile_email_verification: Arc<ProfileEmailVerification>,
         totp: Arc<dyn LoginUseCase>,
     ) -> Self {
         Self {
             platform_issuer,
             rate_limiter,
             oauth,
+            profile_email_verification,
             totp,
         }
     }
@@ -41,6 +47,10 @@ impl IamHttpSecurityContext {
 
     pub(crate) fn oauth(&self) -> Arc<OAuthRouteContext> {
         self.oauth.clone()
+    }
+
+    pub(crate) fn profile_email_verification(&self) -> Arc<ProfileEmailVerification> {
+        self.profile_email_verification.clone()
     }
 
     pub(crate) fn totp(&self) -> Arc<dyn LoginUseCase> {

@@ -226,10 +226,13 @@ impl TemplateService for TeraTemplateService {
             merged_variables.insert(key.clone(), value.clone());
         }
 
-        debug!(
-            "rendering template: {} with variables: {:?}",
-            template_name, merged_variables
-        );
+        let private_link = template_name == iam_events::PROFILE_EMAIL_VERIFICATION_REQUESTED;
+        if !private_link {
+            debug!(
+                "rendering template: {} with variables: {:?}",
+                template_name, merged_variables
+            );
+        }
 
         let (text_template, html_template) = self.get_template_paths(template_name, mode);
 
@@ -240,7 +243,9 @@ impl TemplateService for TeraTemplateService {
                 let text_body = self
                     .render_tera_template(&text_template, &merged_variables)
                     .await?;
-                info!("rendered text template: {}", text_body);
+                if !private_link {
+                    info!("rendered text template: {}", text_body);
+                }
                 // Render HTML template (optional)
                 let html_body = if let Some(html_template_name) = html_template {
                     match self

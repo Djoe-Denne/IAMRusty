@@ -251,7 +251,13 @@ async fn prepare_primary_fixture() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn fixture_config(fixture: &TestFixture) -> anyhow::Result<AppConfig> {
+/// Load IAM configuration for the fixture's isolated writer and loopback listener.
+///
+/// # Errors
+///
+/// Returns an error if configuration loading fails, the fixture lacks valid
+/// writer connection information, or the isolated security policy is invalid.
+pub fn fixture_config(fixture: &TestFixture) -> anyhow::Result<AppConfig> {
     fixture_config_with_security(fixture, None)
 }
 
@@ -311,7 +317,8 @@ fn fixture_config_with_security(
     Ok(config)
 }
 
-fn mock_publisher(mock: Arc<MockEventPublisher>) -> Arc<MultiQueueEventPublisher<DomainError>> {
+#[must_use]
+pub fn mock_publisher(mock: Arc<MockEventPublisher>) -> Arc<MultiQueueEventPublisher<DomainError>> {
     Arc::new(MultiQueueEventPublisher::new(
         vec![GenericEventPublisherAdapter::new(
             Arc::new(rustycog::events::ConcreteEventPublisher::NoOp(mock)),
@@ -839,6 +846,44 @@ async fn setup_primary_test_server(
         config,
         mock_publisher(Arc::new(MockEventPublisher::new())),
         files,
+    ))
+    .await?;
+    Ok((fixture, base, client))
+}
+
+/// Start an isolated IAM listener with the supplied profile verification landing.
+///
+/// # Errors
+///
+/// Returns an error if the test fixture or HTTP server fails to start.
+pub async fn setup_test_server_with_profile_landing(
+    landing_url: &str,
+) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
+    setup_test_server_with_profile_landing_override(Some(landing_url)).await
+}
+
+/// Start an isolated IAM test listener with profile link issuance disabled.
+///
+/// # Errors
+///
+/// Returns an error if the test fixture or HTTP server fails to start.
+pub async fn setup_test_server_without_profile_landing(
+) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
+    setup_test_server_with_profile_landing_override(None).await
+}
+
+async fn setup_test_server_with_profile_landing_override(
+    landing_url: Option<&str>,
+) -> Result<(TestFixture, String, Client), Box<dyn std::error::Error>> {
+    prepare_primary_fixture().await?;
+    let fixture = TestFixture::new(Arc::new(IAMRustyTestDescriptor)).await?;
+    let mut config = fixture_config(&fixture)?;
+    config.profile_email_verification.landing_url = landing_url.map(str::to_owned);
+    let (base, client) = Box::pin(start_owned_listener(
+        &fixture,
+        config,
+        mock_publisher(Arc::new(MockEventPublisher::new())),
+        None,
     ))
     .await?;
     Ok((fixture, base, client))

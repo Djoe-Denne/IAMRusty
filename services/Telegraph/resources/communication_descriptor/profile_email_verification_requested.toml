@@ -1,0 +1,4 @@
+[email]
+subject = "Verify a saved AIForAll email address"
+template = "profile_email_verification_requested"
+mode = "html"
