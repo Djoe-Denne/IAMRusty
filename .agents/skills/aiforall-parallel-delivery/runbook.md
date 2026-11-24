@@ -11,6 +11,7 @@ CI outcome so wait time does not look like agent time.
 Wave: <identity>; approved scope: <story revisions / examples>; base: <SHA>
 Ownership: <lot, root session ID, verified agent=build, absolute worktree, branch, shared surfaces>
 Admission: <independent | sequenced after ... | blocked because ...>
+Wake-up: <lot/phase, prompt ID and cutoff or exact revision/run, background job ID, log, deadline, next action>
 Contract: <observable evidence, exclusions, migrations and integration order>
 Exploration: <story, inspected SHA, absolute note path, passed to session>
 Validation: <candidate SHA/tree, lane, exact command, result, receipt>
@@ -54,22 +55,80 @@ structurally. Perform these steps only for work packages authorized to start.
    worktree after path normalization. If any field differs, send no prompt.
    If creation returns an uncertain result, reconcile the session inventory
    before retrying so a lot does not acquire a second owner.
-4. Send the authorized work package using `POST /api/session/{sessionID}/prompt`
-   with a JSON `text` field. A design-only lot receives design outputs and
-   exclusions, not permission to change application behavior. A queued
-   response or an idle session is not a work result.
-5. Track each recorded ID using native session status and replies. For API
-   monitoring, use `GET /api/session/active` for running status and
-   `GET /api/session/{sessionID}/message` for the reply to the current
-   assignment. Native execution-finished notifications may replace scheduled
-   checks; do not assume a root session will send a child-completion event
-   to the coordinator. Keep the agreed cadence and stop when no lot is active.
+4. Confirm that the coordinator has the background completion mechanism
+   described below. Record local UTC epoch milliseconds immediately before
+   submitting each prompt; send it using `POST /api/session/{sessionID}/prompt`
+   with a JSON `text` field and record the acknowledged prompt ID. A
+   design-only lot receives design outputs and exclusions, not permission
+   to change application behavior.
+5. Verify that the current assignment has either returned and been handled,
+   or has a live completion/deadline trigger owned by the coordinator before
+   handing control back. An independent root session does not emit a
+   child-completion notification to the coordinator.
 
 If the installed client cannot create and verify root Build sessions, report
 the missing capability and ask for supported access or user-created Build
 sessions. Do not silently fall back to child profiles. If a prior wave
 created specialists by mistake, preserve their work and any useful notes;
 do not relabel, cancel, or remove those sessions without authorization.
+
+## Mandatory wake-ups
+
+Use OpenCode's background shell with completion delivery to the current
+coordinator, not a detached shell process, a loop in an unrelated session,
+or a note in the ledger alone. If completion delivery is not already known
+to work in this coordinator, register a short no-op background job and
+verify its notification first. If the client cannot deliver it, report
+the blocker before dispatch.
+
+After each accepted dispatch, launch this command with `background: true`
+through the shell tool. Set a tool timeout longer than the wake interval.
+Use the exact verified CLI path when it is not on `PATH`. Capture one
+private log/receipt per wait and record the returned background job ID
+against the current assignment. The default wake interval is three minutes;
+use the user's agreed cadence when different. Track an escalation deadline
+or no-progress threshold for each outstanding phase. No permanent timer is
+installed.
+
+```powershell
+python .agents/skills/aiforall-parallel-delivery/scripts/wait_build.py --cli $cli --session $sessionId --since-ms $dispatchUtcMs --seconds 180
+```
+
+The helper listens to the native session wait endpoint or ends at the
+deadline. Its `build-ended` result only reports the end of an execution
+after the cutoff, not success. A queued prompt can briefly look idle; the
+helper does not treat an older idle stamp as completion. A `deadline`
+does not cancel the Build. `monitor-error` means the monitor could not
+verify its target, not that the task or its tests failed.
+
+**On each notification:**
+
+- Match the recorded job, session, dispatch cutoff and current phase.
+  Ignore superseded wakes. Read native state and the reply to the current
+  assignment; `/api/session/active` alone does not prove a usable result.
+  Record the exact handoff or why the assignment is still pending.
+- For an ongoing task with no new reply, check its scope and agreed deadline.
+  Re-arm one bounded wake if appropriate and record it; do not duplicate the
+  prompt, waiter, or owner. At the escalation threshold, diagnose and report
+  the concrete impediment rather than re-arming blindly. If tracking is
+  lost, repair the watcher only after checking existing jobs. If delivery
+  is blocked, record evidence, owner, and next permitted mitigation. Do not
+  call a missing prerequisite or quota a passed check or a code defect.
+- Re-enter the delivery plan once a worker returns. Start the next permitted
+  validation in the background, recording its own job and receipt. For
+  authorized publication, attach a completion notification to the exact
+  expected GitHub run/attempt (for example, a background `gh run watch
+  --exit-status`); then verify head/base/tree and the required check before
+  merging. On failure, distinguish a product/test failure, an infrastructure
+  incident, and incompatible evidence. Follow the existing retry and approval
+  limits; do not retry an incomplete aggregation as if it were a code fix.
+- Preserve wake coverage while work or checks are outstanding. Stop only
+  after verification of the agreed deliverables (including merge and
+  closeout when authorized), or with a reported blocker and a concrete
+  resume condition. A design-only mandate ends at the agreed draft evidence,
+  not at a silently broadened PR. Before exiting or resuming an interrupted
+  wave, reconcile live jobs and receipts so an idle worker, finished timer,
+  or stale hosted result cannot close or restart a lot.
 
 ## Shared Cargo slot on Windows
 
@@ -107,6 +166,15 @@ qualification while the local slot is unavailable.
 - **Wrong session shape:** The returned session has `agent: "architecte"`, a
   `parentID`, or a different worktree. Reject it before sending a prompt, keep
   any existing work, and report the mismatch rather than starting a substitute.
+- **No notification path:** The client cannot deliver shell completion to the
+  coordinator. Do not send a worker prompt or claim a monitored launch.
+- **Fast, slow, and failed:** One Build finishes before its waiter starts,
+  another is still busy at the deadline, and a third has a monitor error.
+  Verify the first reply, re-arm only the ongoing assignment, and investigate
+  the third without relaunching its worker.
+- **Builds finished, PR pending:** All workers are idle after their handoffs,
+  but the published PR still lacks its exact-revision gate. Follow the CI
+  completion, classify failures, and do not close the wave on worker idle.
 - **Shared seam:** Two approved stories touch one registry and one is blocked
   on an absent transition. Plan the integration owner and order. Do not
   start the blocked implementation or treat different worktrees as proof of
