@@ -29,7 +29,9 @@ implementation, agent dispatch, infrastructure actions, or destructive cleanup.
 3. Assign authorized Build sessions one worktree each; record the exact
    session, branch, base, and absolute ledger path. Resume the same session
    for the same assignment. Pass the approved contract, scope, source
-   identity, test expectations, and permitted actions. No nested delegation.
+   identity, test expectations, permitted actions, and the absolute path to
+   the saved [architecture exploration handoff](../../../docs/guides/product-delivery-workflow.md#architecture-exploration-handoff).
+   No nested delegation.
    Take security decisions first, then UX within the approved contract; ask
    about genuine product uncertainty or changes of mandate.
 4. Check worker requests and revision changes on the agreed cadence (three

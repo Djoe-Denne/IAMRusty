@@ -12,6 +12,7 @@ Wave: <identity>; approved scope: <story revisions / examples>; base: <SHA>
 Ownership: <story, session, absolute worktree, branch, shared surfaces>
 Admission: <independent | sequenced after ... | blocked because ...>
 Contract: <observable evidence, exclusions, migrations and integration order>
+Exploration: <story, inspected SHA, absolute note path, passed to session>
 Validation: <candidate SHA/tree, lane, exact command, result, receipt>
 Runtime: <authorization, lease, fixture IDs, cleanup evidence>
 Publication: <PR, head, base, tested tree, run, attempt, builds, required gate>
@@ -57,6 +58,10 @@ qualification while the local slot is unavailable.
   on an absent transition. Plan the integration owner and order. Do not
   start the blocked implementation or treat different worktrees as proof of
   independence.
+- **Stale exploration note:** After a base update, a suggested edit point
+  moved. Keep the verified observations, check the new location and the
+  failing test, then record the revised approach. Do not change the contract
+  or repeat the whole investigation.
 - **Busy Cargo:** Hold the slot in one worktree and propose verification from
   another. Require the second to fail admission and use existing authorized
   CI for a publishable candidate. Do not call local checks passed.

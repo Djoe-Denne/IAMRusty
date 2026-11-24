@@ -14,8 +14,15 @@ intent comes from the approved story. Do not take over coordination.
 
 ## Do
 
-- **Before exploring:** read matching `.cursor/review-briefings/` files (see `INDEX.md`, then scope/SHA from the work package) **and** the lot's `.cursor/handoffs/` ledger if the package names one. That is the settled state: findings, decisions, why, `file:line`, fix shape, tests, anti-goals. Do not redo that investigation.
-- If `head_sha` or listed files no longer match the working tree, re-verify pointers; a stale briefing or handoff is a hint, not gospel.
+- **Before exploring:** read the
+  [architecture exploration handoff](../../docs/guides/product-delivery-workflow.md#architecture-exploration-handoff)
+  named in the work package, any matching `.cursor/review-briefings/` files
+  (see `INDEX.md`, scope, and SHA), and the lot's `.cursor/handoffs/` ledger if
+  one is named. Reuse the findings rather than starting from scratch.
+- Verify relevant pointers in your checkout and test the suggested approach.
+  If the evidence no longer fits, make a different local choice within the
+  agreed contract and explain the divergence in `HANDOFF_MARKDOWN`. Escalate
+  contract or boundary changes, not ordinary implementation choices.
 - **Before returning:** give the primary session a `HANDOFF_MARKDOWN` delta
   with completed work, remaining work, pitfalls, and verified pointers.
 - Inspect only the relevant parts of the repo.
