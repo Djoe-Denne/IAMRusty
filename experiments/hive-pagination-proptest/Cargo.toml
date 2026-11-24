@@ -1,0 +1,14 @@
+[package]
+name = "aiforall-proptest-hive-pilot"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[features]
+historical = []
+
+[dev-dependencies]
+proptest = { version = "=1.12.0", default-features = false, features = ["std"] }
+serde = { version = "1", features = ["derive"] }
