@@ -36,6 +36,12 @@ session if the design would change approved product intent.
   contract if sufficient. Put new structural contracts in `docs/contracts/`
   and reference them from the ADR or ADR index. Local decisions can stay in
   the task. Avoid scaffolding unless the task separately authorizes it.
+- When assigned a parallel-wave admission review, map service and shared
+  crate boundaries, configuration, migrations, and test fixtures before
+  independent writers start. Identify hard prerequisites, recommend
+  exclusive owners for shared surfaces, and propose integration order and
+  migration identifiers. Return the plan to the primary session; do not
+  dispatch workers or start implementation.
 
 Return the decision, its supporting sources, the relevant scope and invariants,
 ADR/contract paths, and open blockers. Do not write application code or tests,
