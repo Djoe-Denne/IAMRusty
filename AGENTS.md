@@ -43,7 +43,8 @@ when authorized; do not use an intermediate orchestrator or Ensemble.
 Follow [Product delivery workflow](docs/guides/product-delivery-workflow.md)
 for story refinement, priority, architecture, red/green testing, and review.
 For a requested parallel delivery wave, load `aiforall-parallel-delivery`
-or use `/delivery-wave`; the primary session still owns the wave.
+or use `/delivery-wave`; the primary session still owns the wave. A lot owner
+is an independent root Build session, not a specialist subagent.
 
 - The primary session owns the handoff ledger, integration, the Windows Cargo
   slot, and runtime leases. Record the absolute ledger path, Git base, and

@@ -11,6 +11,21 @@ authoritative. Use the [ledger template and branch cases](runbook.md) to make
 the wave resumable after an interruption. Loading the skill does not authorize
 implementation, agent dispatch, infrastructure actions, or destructive cleanup.
 
+## Session topology
+
+The primary session coordinates the wave and its monitoring. Every authorized
+lot, including an architecture spike, has one **independent OpenCode Build
+session** (`agent: "build"`, no `parentID`) at its own worktree. A lot's goal
+does not select its agent profile. The [native session procedure](runbook.md#independent-build-sessions)
+shows how to create and verify that identity before sending a work package.
+If native root sessions cannot be created or verified, stop dispatch and
+report the limitation; never substitute children or specialist profiles.
+
+`architecte`, test-engineer, and reviewers may support a lot as separate,
+explicitly authorized assignments from the primary session. They do not own
+a lot or count as its Build session. Build owners do not delegate further
+under this workflow.
+
 ## Admit and schedule the wave
 
 1. Record the approved story revisions, acceptance examples, exclusions,
@@ -20,22 +35,26 @@ implementation, agent dispatch, infrastructure actions, or destructive cleanup.
    prerequisite. Keep its owner, missing prerequisite, and resume condition.
 2. Before splitting writers, map changed services plus shared crates, routes,
    migrations, events, configuration, and test fixtures/launchers. When
-   delegation is authorized, request this cross-lot check from `architecte`
-   before dependent tests or edits. Otherwise the primary session does it.
+   specialist delegation is authorized, the primary session can request a
+   bounded cross-lot review from `architecte` before dependent tests or edits.
+   Otherwise the primary session does the check. Neither case assigns a lot.
    Prefer stories on different services. Give shared surfaces one writer,
    reserve migration identifiers and registration order, and choose an
    integration sequence. Separate worktrees do not make overlapping contracts
    independent. Never rename an already integrated migration.
-3. Assign authorized Build sessions one worktree each; record the exact
-   session, branch, base, and absolute ledger path. Resume the same session
-   for the same assignment. Pass the approved contract, scope, source
+3. Provision and verify each independent Build session; record its ID, agent,
+   root status, absolute worktree, branch, base, and absolute ledger path.
+   On resume, use the same verified session for the same assignment. Pass the
+   approved contract, scope, source
    identity, test expectations, permitted actions, and the absolute path to
    the saved [architecture exploration handoff](../../../docs/guides/product-delivery-workflow.md#architecture-exploration-handoff).
    No nested delegation.
    Take security decisions first, then UX within the approved contract; ask
    about genuine product uncertainty or changes of mandate.
-4. Check worker requests and revision changes on the agreed cadence (three
-   minutes if requested), using completion notifications where possible.
+4. Check the ledger-listed Build sessions' replies, requests and revision
+   changes on the agreed cadence (three minutes if requested), using native
+   completion notifications where possible. Do not use only the coordinator's
+   child list to monitor independent sessions.
    Notify the user on decisions, blockers, handoffs, or changed outcomes,
    not on every unchanged check. A worker going idle is not delivery.
 

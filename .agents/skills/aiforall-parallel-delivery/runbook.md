@@ -9,7 +9,7 @@ CI outcome so wait time does not look like agent time.
 
 ```text
 Wave: <identity>; approved scope: <story revisions / examples>; base: <SHA>
-Ownership: <story, session, absolute worktree, branch, shared surfaces>
+Ownership: <lot, root session ID, verified agent=build, absolute worktree, branch, shared surfaces>
 Admission: <independent | sequenced after ... | blocked because ...>
 Contract: <observable evidence, exclusions, migrations and integration order>
 Exploration: <story, inspected SHA, absolute note path, passed to session>
@@ -24,6 +24,52 @@ For an interrupted wave, verify live worktree, session and GitHub state before
 acting. A terminal return, old check, or cached status does not prove a current
 result. Pass opaque worker arguments structurally, not through shell-escaped
 interpolated prose.
+
+## Independent Build sessions
+
+Use the running OpenCode V2 instance, not the `subagent` tool. The documented
+[OpenCode API](https://opencode.ai/docs/api#tag-session) is one supported
+route: use the authenticated `opencode api` client and pass JSON
+structurally. Perform these steps only for work packages authorized to start.
+
+1. Prepare the lot's worktree and record its exact branch and base. Prefer the
+   existing verified Build session when resuming. Before any new dispatch,
+   confirm that `build` is a primary profile (`GET /api/agent/build`).
+2. Create a top-level session with `POST /api/session`. Supply the explicit
+   Build agent and absolute worktree directory. **Omit `parentID`.** OpenCode
+   uses the parent's location for child creation and the topology is wrong
+   even if a child is subsequently moved to the right worktree.
+
+   ```json
+   {
+     "title": "Build | STORY-021 | Sentinel Sync test pilot",
+     "agent": "build",
+     "location": {"directory": "C:/absolute/repository/.worktrees/s021"}
+   }
+   ```
+
+3. Persist the returned session ID and read it back with
+   `GET /api/session/{sessionID}`. Require the same ID, `agent == "build"`,
+   absent or null `parentID`, and `location.directory` equal to the intended
+   worktree after path normalization. If any field differs, send no prompt.
+   If creation returns an uncertain result, reconcile the session inventory
+   before retrying so a lot does not acquire a second owner.
+4. Send the authorized work package using `POST /api/session/{sessionID}/prompt`
+   with a JSON `text` field. A design-only lot receives design outputs and
+   exclusions, not permission to change application behavior. A queued
+   response or an idle session is not a work result.
+5. Track each recorded ID using native session status and replies. For API
+   monitoring, use `GET /api/session/active` for running status and
+   `GET /api/session/{sessionID}/message` for the reply to the current
+   assignment. Native execution-finished notifications may replace scheduled
+   checks; do not assume a root session will send a child-completion event
+   to the coordinator. Keep the agreed cadence and stop when no lot is active.
+
+If the installed client cannot create and verify root Build sessions, report
+the missing capability and ask for supported access or user-created Build
+sessions. Do not silently fall back to child profiles. If a prior wave
+created specialists by mistake, preserve their work and any useful notes;
+do not relabel, cancel, or remove those sessions without authorization.
 
 ## Shared Cargo slot on Windows
 
@@ -54,6 +100,13 @@ qualification while the local slot is unavailable.
 
 ## Cases to rehearse without touching GitHub or running services
 
+- **Design lot, correct owner:** The initial set includes an OAuth architecture
+  spike and a test pilot. Expect two root Build sessions with distinct worktrees;
+  neither lot is assigned to a child `architecte` or test-engineer. A separately
+  authorized specialist review does not count toward those two owners.
+- **Wrong session shape:** The returned session has `agent: "architecte"`, a
+  `parentID`, or a different worktree. Reject it before sending a prompt, keep
+  any existing work, and report the mismatch rather than starting a substitute.
 - **Shared seam:** Two approved stories touch one registry and one is blocked
   on an absent transition. Plan the integration owner and order. Do not
   start the blocked implementation or treat different worktrees as proof of
