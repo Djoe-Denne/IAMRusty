@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use crate::handlers::mesh_echo::mesh_echo_headers;
 use crate::handlers::profile_email_verification;
+use crate::handlers::totp;
 use crate::rate_limit::rate_limit_auth;
 
 pub mod error;
@@ -42,7 +43,7 @@ pub use handlers::{
         validate_reset_token,
     },
     token::refresh_token,
-    user::get_user,
+    user::{get_user, patch_profile},
 };
 pub use oauth_state::{configure_oauth_state_secret, OAuthState};
 pub use platform_user::{PlatformIssuer, PlatformUser};
@@ -103,7 +104,13 @@ pub fn create_router(
             create_organization_managed_identity,
         )
         // Authenticated routes
-        .get("/api/me", get_user)
+        .route("/api/me", axum::routing::get(get_user).patch(patch_profile))
+        .authenticated()
+        .post(totp::ENROLLMENT, totp::begin)
+        .authenticated()
+        .post(totp::CONFIRM, totp::confirm)
+        .authenticated()
+        .delete(totp::CANCEL, totp::cancel)
         .authenticated()
         .get("/api/me/email-addresses", profile_email_verification::list)
         .authenticated()
@@ -156,6 +163,7 @@ pub fn create_router(
         .layer(Extension(security.rate_limiter()))
         .layer(Extension(security.oauth()))
         .layer(Extension(security.profile_email_verification()))
+        .layer(Extension(security.totp()))
 }
 
 /// Create the IAM router under its bounded-context prefix.

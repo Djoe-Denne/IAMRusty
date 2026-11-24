@@ -551,10 +551,15 @@ where
         OutboxRecorder,
     ));
     let (oauth_transaction_writer, oauth_cleanup) = setup_oauth_cleanup(&db_pool)?;
+    let totp_store = Arc::new(iam_infra::repository::totp::SeaOrmTotpStore::new(
+        db_write.clone(),
+        config.totp_key_file.as_deref(),
+    )?);
     let usecases = setup_iam_usecases(
         &db_pool,
         IamUsecasesDeps {
             oauth_transaction_writer,
+            totp_store,
             repos,
             event_publisher: event_publisher.clone(),
             clients: oauth_clients,
@@ -582,6 +587,7 @@ where
         rate_limiter,
         oauth,
         profile_email_verification,
+        usecases.login_auth.clone(),
     ));
     // Capture the complete primary publisher snapshot before moving its use cases
     // into the registry. The SDK dates acquisition before this local read; neither
@@ -679,6 +685,7 @@ struct OauthLinkDeps {
 
 struct AuthRegistrationDeps<EP> {
     session_writer: Arc<dyn AuthenticationSessionWriter>,
+    totp_store: Arc<dyn iam_domain::port::totp::TotpStore>,
     user_repo: UserRepo,
     user_email_repo: UserEmailRepo,
     email_verification_repo: CombinedEmailVerificationRepository,
@@ -695,6 +702,7 @@ struct AuthRegistrationDeps<EP> {
 
 struct IamUsecasesDeps<EP> {
     oauth_transaction_writer: Arc<dyn OAuthTransactionWriteRepository>,
+    totp_store: Arc<dyn iam_domain::port::totp::TotpStore>,
     repos: IamRepos,
     event_publisher: Arc<EP>,
     clients: OauthClients,
@@ -769,6 +777,7 @@ where
 {
     let AuthRegistrationDeps {
         session_writer,
+        totp_store,
         user_repo,
         user_email_repo,
         email_verification_repo,
@@ -797,7 +806,7 @@ where
             signup_transaction,
             outbox_unit_of_work.clone(),
         )
-        .with_session_writer(session_writer.clone()),
+        .with_totp_store(totp_store),
     );
     let login_auth = Arc::new(LoginUseCaseImpl::new(
         auth_service,
@@ -919,6 +928,7 @@ where
 {
     let IamUsecasesDeps {
         oauth_transaction_writer,
+        totp_store,
         repos,
         event_publisher,
         clients,
@@ -962,6 +972,7 @@ where
         db_pool,
         AuthRegistrationDeps {
             session_writer,
+            totp_store,
             user_repo: user_repo.clone(),
             user_email_repo: user_email_repo.clone(),
             email_verification_repo,

@@ -44,7 +44,8 @@ function Resolve-ItTestBinary {
         $Binary -cin @(
             'oauth_browser_transactions', 'auth_transactions_postgres', 'oauth_cleanup_lifecycle',
             'auth_oauth_start', 'auth_oauth_callback', 'auth_oauth_provider_failures',
-            'auth_username_flow_part2', 'auth_password_reset',
+            'auth_totp',
+            'auth_username_flow_part2', 'auth_password_reset', 'user',
             'relink_provider', 'verified_idp_https', 'organization_account_guard',
             'app_cleanup_supervision', 'request_trace_redaction', 'signing_epoch_writer',
             'profile_email_verification'

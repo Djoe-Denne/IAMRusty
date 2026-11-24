@@ -3715,9 +3715,11 @@ dependencies = [
  "anyhow",
  "argon2",
  "async-trait",
+ "aws-lc-rs",
  "base64 0.22.1",
  "chrono",
  "config 0.14.1",
+ "data-encoding",
  "dotenvy",
  "futures",
  "iam-application",
@@ -3747,6 +3749,7 @@ dependencies = [
  "tracing",
  "uuid",
  "wiremock",
+ "zeroize",
 ]
 
 [[package]]

@@ -49,6 +49,9 @@ tokio = { version = "1.44", features = ["rt-multi-thread", "macros"] }
 futures = "0.3"
 
 # JWT and crypto
+aws-lc-rs = { version = "=1.19.0", default-features = false }
+data-encoding = "=2.10.0"
+zeroize = "=1.8.2"
 rsa = { version = "0.9", features = ["pem", "sha2"] }
 pem = "3.0"
 sha2 = { version = "0.10", features = ["oid"] }

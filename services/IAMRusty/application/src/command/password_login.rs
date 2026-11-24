@@ -1,5 +1,6 @@
 use crate::usecase::login::{LoginError, LoginRequest, LoginResponse, LoginUseCase};
 use async_trait::async_trait;
+use iam_domain::port::totp::TotpError;
 use rustycog::command::{Command, CommandError, CommandErrorMapper, CommandHandler};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -80,6 +81,15 @@ impl CommandErrorMapper for AuthErrorMapper {
                     AuthErrorCode::InvalidCredentials.as_str(),
                     "Invalid credentials",
                 ),
+                LoginError::Totp(TotpError::Required) => {
+                    CommandError::business("totp_required", "An authenticator code is required")
+                }
+                LoginError::Totp(TotpError::Throttled) => {
+                    CommandError::business("totp_throttled", "Too many authenticator attempts")
+                }
+                LoginError::Totp(_) => {
+                    CommandError::business("totp_unavailable", "Authenticator service unavailable")
+                }
                 LoginError::EmailNotVerified => CommandError::business(
                     AuthErrorCode::EmailNotVerified.as_str(),
                     "Email not verified",
@@ -151,6 +161,9 @@ pub struct PasswordLoginCommand {
     pub email: String,
     /// Password
     pub password: String,
+    /// Optional authenticator code; never emitted by a serialized command.
+    #[serde(default, skip_serializing)]
+    pub totp_code: Option<String>,
 }
 
 impl std::fmt::Debug for PasswordLoginCommand {
@@ -169,6 +182,7 @@ impl PasswordLoginCommand {
             command_id: Uuid::new_v4(),
             email,
             password,
+            totp_code: None,
         }
     }
 }
@@ -239,6 +253,7 @@ where
         let request = LoginRequest {
             email: command.email,
             password: command.password,
+            totp_code: command.totp_code,
         };
 
         self.login_use_case

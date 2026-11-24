@@ -7,11 +7,13 @@ use iam_domain::port::{
         EmailVerificationRepository, IdentityRepository, UserEmailRepository, UserRepository,
     },
     service::{AuthTokenService, RegistrationTokenService},
+    totp::{TotpEnrollment, TotpError},
 };
 use iam_domain::service::auth_service::{AuthError, AuthService};
 use rustycog::events::event::EventPublisher;
 use std::sync::Arc;
 use thiserror::Error;
+use uuid::Uuid;
 
 // Re-export types for command handlers
 pub use iam_domain::service::auth_service::{
@@ -31,6 +33,9 @@ pub enum LoginError {
 
     #[error("Invalid credentials")]
     InvalidCredentials,
+
+    #[error(transparent)]
+    Totp(TotpError),
 
     #[error("Weak password")]
     WeakPassword,
@@ -63,6 +68,7 @@ impl From<AuthError> for LoginError {
             AuthError::UserAlreadyExists => Self::UserAlreadyExists,
             AuthError::UserNotFound => Self::UserNotFound,
             AuthError::InvalidCredentials => Self::InvalidCredentials,
+            AuthError::Totp(error) => Self::Totp(error),
             AuthError::WeakPassword => Self::WeakPassword,
             AuthError::InvalidEmail => Self::InvalidEmail,
             AuthError::EmailNotVerified => Self::EmailNotVerified,
@@ -80,6 +86,15 @@ impl From<AuthError> for LoginError {
 pub trait LoginUseCase: Send + Sync {
     async fn signup(&self, request: SignupRequest) -> Result<SignupResponse, LoginError>;
     async fn login(&self, request: LoginRequest) -> Result<LoginResponse, LoginError>;
+    async fn begin_totp(&self, user_id: Uuid) -> Result<TotpEnrollment, TotpError>;
+    async fn confirm_totp(
+        &self,
+        user_id: Uuid,
+        id: Uuid,
+        current_password: &str,
+        code: &str,
+    ) -> Result<(), TotpError>;
+    async fn cancel_totp(&self, user_id: Uuid, id: Uuid) -> Result<(), TotpError>;
     async fn verify_email(
         &self,
         request: VerifyEmailRequest,
@@ -154,6 +169,26 @@ where
                 .map_err(|e| LoginError::AuthServiceError(e.to_string()))?;
         }
         Ok(response)
+    }
+
+    async fn begin_totp(&self, user_id: Uuid) -> Result<TotpEnrollment, TotpError> {
+        self.auth_service.begin_totp(user_id).await
+    }
+
+    async fn confirm_totp(
+        &self,
+        user_id: Uuid,
+        id: Uuid,
+        current_password: &str,
+        code: &str,
+    ) -> Result<(), TotpError> {
+        self.auth_service
+            .confirm_totp(user_id, id, current_password, code)
+            .await
+    }
+
+    async fn cancel_totp(&self, user_id: Uuid, id: Uuid) -> Result<(), TotpError> {
+        self.auth_service.cancel_totp(user_id, id).await
     }
 
     async fn verify_email(

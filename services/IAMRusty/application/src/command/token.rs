@@ -456,8 +456,10 @@ mod redaction_tests {
             command_id: Uuid::new_v4(),
             email: "unit@example.test".into(),
             password: "unit-password-secret".into(),
+            totp_code: Some("unit-totp-sentinel".into()),
         };
         assert!(!format!("{login:?}").contains("unit-password-secret"));
+        assert!(!format!("{login:?}").contains("unit-totp-sentinel"));
         assert!(format!("{login:?}").contains(&login.command_id.to_string()));
     }
 }

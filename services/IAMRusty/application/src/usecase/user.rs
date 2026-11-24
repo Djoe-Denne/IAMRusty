@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use iam_domain::error::DomainError;
+use iam_domain::service::user_service::ProfilePatch;
 use iam_domain::service::{UserProfile as DomainUserProfile, UserService};
 use std::sync::Arc;
 use thiserror::Error;
@@ -57,6 +58,8 @@ pub trait UserUseCase: Send + Sync {
     /// Get a user profile by ID (includes primary email)
     async fn get_user(&self, id: Uuid) -> Result<UserProfile, UserError>;
 
+    async fn patch_profile(&self, id: Uuid, patch: ProfilePatch) -> Result<UserProfile, UserError>;
+
     /// Validate a user's JWT token and return the user ID
     async fn validate_access_token(&self, token: &str) -> Result<Uuid, UserError>;
 }
@@ -90,6 +93,10 @@ where
 
         // Convert domain result to use case DTO
         Ok(UserProfile::from(domain_profile))
+    }
+
+    async fn patch_profile(&self, id: Uuid, patch: ProfilePatch) -> Result<UserProfile, UserError> {
+        Ok(self.user_service.patch_profile(id, patch).await?.into())
     }
 
     async fn validate_access_token(&self, token: &str) -> Result<Uuid, UserError> {

@@ -5,6 +5,7 @@ pub mod authentication_session;
 pub mod entity;
 pub mod oauth_transaction_write;
 pub mod token;
+pub mod totp;
 
 pub mod combined_email_verification_repository;
 pub mod combined_password_reset_token_repository;

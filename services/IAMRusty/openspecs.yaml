@@ -970,6 +970,39 @@ paths:
               # Note: The `email` field is always the user's primary email (if available). Users may have multiple emails.
         "401":
           description: Invalid or expired JWT token / missing Authorization header / malformed token
+    patch:
+      summary: Update the authenticated human account's profile
+      description: |
+        Only the submitted fields are changed. An empty object is a no-op.
+        Use null to clear the avatar. Username cannot be null. Email and account
+        identifiers are read-only and are rejected in the request.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                username: {type: string}
+                avatar_url:
+                  type: [string, "null"]
+                  description: Absolute HTTPS URL without user information, up to 2048 UTF-8 bytes. IAM does not fetch it.
+      responses:
+        "200":
+          description: The saved profile, with the same response shape as GET.
+        "400":
+          description: Invalid JSON syntax.
+        "401":
+          description: Missing or invalid authentication, or the account no longer exists.
+        "403":
+          description: The verified identity is not a platform human account.
+        "409":
+          description: Another account uses the submitted username (`username_taken`).
+        "422":
+          description: Invalid fields, values, or request body. No profile data is saved.
 
   /.well-known/jwks.json:
     get:

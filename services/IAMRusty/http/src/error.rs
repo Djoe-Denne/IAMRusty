@@ -301,7 +301,7 @@ impl std::fmt::Debug for AuthError {
     }
 }
 
-fn uniform_error(
+pub(crate) fn uniform_error(
     status: StatusCode,
     error_code: impl Into<String>,
     message: impl Into<String>,
@@ -534,6 +534,11 @@ fn map_domain_error_rest(domain_error: &DomainError) -> (StatusCode, String, Str
             StatusCode::UNPROCESSABLE_ENTITY,
             "invalid_username",
             "Invalid username format",
+        ),
+        DomainError::InvalidAvatarUrl => domain_http(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "invalid_avatar_url",
+            "Avatar must be an absolute HTTPS URL without user information",
         ),
         DomainError::RegistrationAlreadyComplete => domain_http(
             StatusCode::BAD_REQUEST,

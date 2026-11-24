@@ -132,6 +132,7 @@ impl ErrorMapper<DomainError> for IAMErrorMapper {
             DomainError::InvalidUsername => {
                 ServiceError::validation("Invalid username format".to_string())
             }
+            DomainError::InvalidAvatarUrl => ServiceError::validation("Invalid avatar URL"),
             DomainError::RegistrationAlreadyComplete => {
                 ServiceError::business("Registration already completed".to_string())
             }

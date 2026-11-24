@@ -3,6 +3,7 @@
 pub mod repository;
 pub mod service;
 pub mod signing;
+pub mod totp;
 
 pub use signing::{
     OrganizationSignerProbe, OrganizationSignerRotator, SigningCapabilities, SigningProvider,
