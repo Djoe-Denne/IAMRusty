@@ -1,9 +1,10 @@
 ---
 id: STORY-021
 title: Evaluate property-based tests for sentinel-sync reconciliation
-status: Accepted intent
+status: Done
 assignee: []
 created_date: '2026-11-24T09:51:53Z'
+updated_date: '2026-11-24T15:14:03Z'
 labels: []
 dependencies: []
 references:
@@ -23,7 +24,13 @@ As an AIForAll maintainer, I want to evaluate a bounded Proptest pilot for the p
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 E1: Given generated desired and existing tuple collections, including empty, overlapping, duplicated, and reordered inputs, applying the planned deletes and writes to the existing set yields exactly the desired set.
-- [ ] #2 E2: Given the reconciled set, computing the diff again yields no writes and no deletes; permuting the inputs or adding duplicate tuples does not change the sets of planned writes or deletes.
-- [ ] #3 E3: A bounded, reproducible native unit run passes against the current implementation. A local deliberate fault fails with a reduced counterexample. Record what this adds over the existing examples and recommend keeping or dropping the test-only dependency; no OpenFGA instance or Docker is required.
+- [x] #1 E1: Given generated desired and existing tuple collections, including empty, overlapping, duplicated, and reordered inputs, applying the planned deletes and writes to the existing set yields exactly the desired set.
+- [x] #2 E2: Given the reconciled set, computing the diff again yields no writes and no deletes; permuting the inputs or adding duplicate tuples does not change the sets of planned writes or deletes.
+- [x] #3 E3: A bounded, reproducible native unit run passes against the current implementation. A local deliberate fault fails with a reduced counterexample. Record what this adds over the existing examples and recommend keeping or dropping the test-only dependency; no OpenFGA instance or Docker is required.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+The retained [pilot report](https://github.com/Djoe-Denne/IAMRusty/blob/5750672d/docs/missions/20261124-sentinel-sync-proptest-pilot.md) and [PR #51](https://github.com/Djoe-Denne/IAMRusty/pull/51) record six passing locked native tests, including 512 generated cases with seed 20261124. A test-only omitted-delete fault failed and shrank to one existing tuple; the final replay passed after removing the fault. Retain Proptest only as a Sentinel Sync dev-dependency; no production logic or OpenFGA runtime was involved.
+<!-- SECTION:NOTES:END -->
