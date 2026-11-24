@@ -9,7 +9,7 @@ CI outcome so wait time does not look like agent time.
 
 ```text
 Wave: <identity>; approved scope: <story revisions / examples>; base: <SHA>
-Ownership: <lot, root session ID, verified agent=build, absolute worktree, branch, shared surfaces>
+Ownership: <lot, root session ID, verified agent=build and openai/gpt-6.2-sol#medium, absolute worktree, branch, shared surfaces>
 Admission: <independent | sequenced after ... | blocked because ...>
 Wake-up: <lot/phase, prompt ID and cutoff or exact revision/run, background job ID, log, deadline, next action>
 Contract: <observable evidence, exclusions, migrations and integration order>
@@ -35,26 +35,37 @@ structurally. Perform these steps only for work packages authorized to start.
 
 1. Prepare the lot's worktree and record its exact branch and base. Prefer the
    existing verified Build session when resuming. Before any new dispatch,
-   confirm that `build` is a primary profile (`GET /api/agent/build`).
+   confirm that `build` is a primary profile (`GET /api/agent/build`) and
+   that the OpenAI `gpt-6.2-sol` model and its `medium` variant are enabled
+   in the native model catalogue (`GET /api/model`). If unavailable or
+   quota-limited, report the blocker; never select a fallback on your own.
 2. Create a top-level session with `POST /api/session`. Supply the explicit
-   Build agent and absolute worktree directory. **Omit `parentID`.** OpenCode
-   uses the parent's location for child creation and the topology is wrong
-   even if a child is subsequently moved to the right worktree.
+   Build agent, OpenAI model with effort, and absolute worktree directory.
+   **Do not omit `model`; omit `parentID`.** The native API uses a separate
+   provider ID and unqualified model ID. OpenCode uses the parent's location
+   for child creation, and that topology is wrong even if a child is
+   subsequently moved to the right worktree.
 
    ```json
    {
      "title": "Build | STORY-021 | Sentinel Sync test pilot",
      "agent": "build",
+     "model": {"providerID": "openai", "id": "gpt-6.2-sol", "variant": "medium"},
      "location": {"directory": "C:/absolute/repository/.worktrees/s021"}
    }
    ```
 
 3. Persist the returned session ID and read it back with
    `GET /api/session/{sessionID}`. Require the same ID, `agent == "build"`,
-   absent or null `parentID`, and `location.directory` equal to the intended
-   worktree after path normalization. If any field differs, send no prompt.
-   If creation returns an uncertain result, reconcile the session inventory
-   before retrying so a lot does not acquire a second owner.
+   absent or null `parentID`, `location.directory` equal to the intended
+   worktree after path normalization, and all three explicit `model` fields
+   as above. A missing top-level `model` means the session can inherit a
+   default; it does not pass. On resume, keep the existing owner. If its
+   selection is missing or different, change the verified idle session
+   using `POST /api/session/{sessionID}/model` with the same `model` object,
+   then read it back. Never change an active run or send a prompt with
+   an unverified model. If creation returns an uncertain result, reconcile
+   the inventory so a lot does not acquire a second owner.
 4. Confirm that the coordinator has the background completion mechanism
    described below. Record local UTC epoch milliseconds immediately before
    submitting each prompt; send it using `POST /api/session/{sessionID}/prompt`
@@ -166,6 +177,10 @@ qualification while the local slot is unavailable.
 - **Wrong session shape:** The returned session has `agent: "architecte"`, a
   `parentID`, or a different worktree. Reject it before sending a prompt, keep
   any existing work, and report the mismatch rather than starting a substitute.
+- **Missing or wrong model:** A new Build inherits `opencode-go`, or
+  reports OpenAI Sol at `high` or without a variant. Do not dispatch.
+  Restore the exact selection on a verified idle owner and read it back.
+  If the OpenAI connection cannot serve it, stop and report the blocker.
 - **No notification path:** The client cannot deliver shell completion to the
   coordinator. Do not send a worker prompt or claim a monitored launch.
 - **Fast, slow, and failed:** One Build finishes before its waiter starts,

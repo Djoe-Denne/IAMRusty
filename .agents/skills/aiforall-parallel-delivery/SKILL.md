@@ -15,11 +15,14 @@ implementation, agent dispatch, infrastructure actions, or destructive cleanup.
 
 The primary session coordinates the wave and its monitoring. Every authorized
 lot, including an architecture spike, has one **independent OpenCode Build
-session** (`agent: "build"`, no `parentID`) at its own worktree. A lot's goal
-does not select its agent profile. The [native session procedure](runbook.md#independent-build-sessions)
-shows how to create and verify that identity before sending a work package.
-If native root sessions cannot be created or verified, stop dispatch and
-report the limitation; never substitute children or specialist profiles.
+session** (`agent: "build"`, no `parentID`) at its own worktree. Use the
+OpenAI connection with `gpt-6.2-sol`, variant `medium`, explicitly for
+every new Build and verify it before dispatch or resume. A lot's goal does
+not select its agent profile or model. The
+[native session procedure](runbook.md#independent-build-sessions) shows
+how to create and verify that identity. If native root sessions or that
+exact model selection are unavailable, stop dispatch and report the
+limitation; do not substitute another profile, provider, model or effort.
 
 `architecte`, test-engineer, and reviewers may support a lot as separate,
 explicitly authorized assignments from the primary session. They do not own
@@ -42,8 +45,9 @@ under this workflow.
    reserve migration identifiers and registration order, and choose an
    integration sequence. Separate worktrees do not make overlapping contracts
    independent. Never rename an already integrated migration.
-3. Provision and verify each independent Build session; record its ID, agent,
-   root status, absolute worktree, branch, base, and absolute ledger path.
+3. Provision and verify each independent Build session; record its ID,
+   agent, provider/model/variant, root status, worktree, branch, base and
+   absolute ledger path.
    On resume, use the same verified session for the same assignment. Pass the
    approved contract, scope, source
    identity, test expectations, permitted actions, and the absolute path to
