@@ -118,6 +118,8 @@ Contrat secondaire test-side : [m6 proof hardening](../contracts/20261018-m6-pro
 | [0311](0311-crypto-privee-deleguee-aux-providers.md) | Crypto privée JWT déléguée ; PEM dev explicite ; version provider épinglée | Accepted / Implemented |
 | [0312](0312-admission-jwks-par-slots-bornes.md) | Slots JWKS bornés ; réserve/atomicité conservées ; constantes ratifiées et prouvées | Accepted / Implemented |
 | [0314](0314-principal-authority-through-openfga.md) | Preserve the principal's issuer in permission subjects, caches and OpenFGA projections; keep legacy platform compatibility only with provenance | Accepted / Partial |
+| [0315](0315-password-totp-writer-authority.md) | Bind password and TOTP decisions to writer authority | Proposed |
+| [0316](0316-password-recovery-session-liveness.md) | Revoke earlier platform access and renewal at password-recovery commit using authoritative account epochs | Proposed / Unimplemented |
 
 **0310** : `Accepted` / `Partial`, ratification initiale le 2026-10-04 ; supersession **partielle** du calcul/capacité par **0312** effective le 2026-10-08, autres invariants conservés. **0311–0312** : `Accepted` / `Implemented`, Accept explicite de Djoé Denne le 2026-10-08 ; implémentation livrée, units + IT IAM vertes sur master selon son attestation (pas artefact CI archivé). Aucune clôture sécurité globale S-10 ni preuve E2E implicite. Prochain libre events/authz : **0313+**. Contrat historique : `.cursor/review-briefings/20261003-auth-fixes-interface-contract.md` §§14–15 ; calcul/capacité désormais régis par 0312.
 
@@ -130,7 +132,7 @@ on 2026-10-28 under user delegation, resolving the OpenFGA subject format
 left open by 0305. **2026-11-21 implementation snapshot:** the selected SDK
 and Hive/sentinel-sync integrate issuer-qualified authorization. A coordinated
 live cutover and legacy-grant reconciliation remain unverified. Next available
-events/authz number: **0315+**; the earlier 0313+/0314+ references are historical.
+events/authz number: **0317+**; the earlier numbering references are historical.
 
 ### 0400 — Services et runtimes
 
@@ -173,7 +175,7 @@ end. Its scoped results are in the [campaign report](../missions/20261113-covera
 
 Jalon **IAM-IdP** : le template P0–P6 Apparatus ne s’applique pas. IAM reste l’IdP *plateforme* ([0400](0400-iamrusty-identite-hexagonale.md)) ; les Connect sont des *federated authenticators*. **0009** est Apparatus (gate pré-prod) — **interdit** de le réutiliser pour IAM. **Ne pas** réécrire 0100–0502.
 
-Next available services/runtime number: **0414+**. The 0412 browser transaction
+Next available services/runtime number: **0415+**. The 0412 browser transaction
 was qualified locally, not for production or HA. See 0413 below for the
 current OAuthConnect and IAM rollout boundaries.
 
@@ -188,6 +190,7 @@ Wiki (pointeurs, pas canon) : `obsidian/AI FOR ALL/projects/iamrusty/decisions/`
 | [0411](0411-idp-provider-slug-registry-fail-closed.md) | Provider = slug typé ; catalogue = registry au boot ; admission fail-closed ; pas de hot-load ; onboarding partiellement supersédé par 0413 le2026-11-06 | Accepted | Implemented |
 | [0412](0412-oauth-transaction-persistante-liee-navigateur.md) | Transaction writer liée au navigateur ; [preuve locale qualifiée2026-10-29](../contracts/20261029-auth-security-qualified-state.md), Chrome P1–P3/N1–N3 et17IT ; historiques Partial conservés, hors production/HA | Accepted | Implemented |
 | [0413](0413-oauthconnect-multi-instances-profils.md) | One OAuthConnect service; [multi-instance contract](../contracts/oauthconnect-multi-instances.md). Standalone GitHubConnect and GitLabConnect were [removed from the repository](../contracts/legacy-connect-retirement.md) on 2026-11-15; live cutover and identity equivalence are not established. | Accepted | Partial |
+| [0414](0414-oauth-provider-intents.md) | Separate provider Login, Signup, and Link without replacing OAuthConnect or browser-bound transactions | Proposed | Unimplemented |
 
 **0413 was accepted on 2026-11-06** after the user chose « Valider v2 et nonce
 (Recommandé) » and « Email primaire seul ». The v2 authorize/complete API,

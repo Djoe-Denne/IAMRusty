@@ -17,6 +17,12 @@ Conventions :
 
 Contrats :
 
+- [`password-recovery-session-liveness.md`](password-recovery-session-liveness.md)
+  — Proposed: immediate revocation of prior platform access and renewal after successful password recovery.
+
+- [`oauth-provider-intents.md`](oauth-provider-intents.md)
+  — Proposed: separate provider Login, Signup and Link with browser-bound intent and explicit mutation boundaries.
+
 - [`k6-scenario-registration.md`](k6-scenario-registration.md)
   — Proposed: shared scenario registration and run-bound evidence for STORY-020.
 
