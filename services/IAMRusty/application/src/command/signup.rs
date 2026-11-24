@@ -68,6 +68,10 @@ impl CommandErrorMapper for AuthErrorMapper {
                     AuthErrorCode::VerificationTokenExpired.as_str(),
                     "Verification token has expired",
                 ),
+                LoginError::Totp(_) => CommandError::infrastructure(
+                    AuthErrorCode::RepositoryError.as_str(),
+                    "Unexpected authenticator outcome",
+                ),
                 LoginError::AuthServiceError(msg) => {
                     if Self::is_authentication_related_error(msg) {
                         CommandError::validation(

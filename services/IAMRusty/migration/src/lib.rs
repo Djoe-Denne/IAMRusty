@@ -3,6 +3,7 @@ pub use sea_orm_migration::prelude::*;
 mod m20220101_000001_initial_schema;
 mod m20261108_000001_oauth_authentication_nonce;
 mod m20261123_000001_unique_username;
+mod m20261123_000002_totp_credentials;
 
 pub struct Migrator;
 
@@ -13,6 +14,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20220101_000001_initial_schema::Migration),
             Box::new(m20261108_000001_oauth_authentication_nonce::Migration),
             Box::new(m20261123_000001_unique_username::Migration),
+            Box::new(m20261123_000002_totp_credentials::Migration),
         ]
     }
 }

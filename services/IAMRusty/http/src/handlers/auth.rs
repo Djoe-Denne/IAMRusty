@@ -208,6 +208,8 @@ pub struct LoginRequest {
         message = "Password is required"
     ))]
     pub password: String,
+    #[serde(default)]
+    pub totp_code: Option<String>,
 }
 
 /// Email verification request (query parameters)
@@ -796,14 +798,15 @@ pub async fn login(
         .with_metadata("operation".to_string(), "login".to_string())
         .with_metadata("email".to_string(), request.email.clone());
 
-    let command = PasswordLoginCommand::new(request.email, request.password);
+    let mut command = PasswordLoginCommand::new(request.email, request.password);
+    command.totp_code = request.totp_code;
     let response = state
         .command_service
-        .execute(command, context)
+        .execute_once(command, context)
         .await
         .map_err(|e| {
             error!("Login failed");
-            AuthError::login_failed(&e)
+            password_login_error(&e)
         })?;
 
     match response {
@@ -831,6 +834,42 @@ pub async fn login(
             message,
         }),
     }
+}
+
+fn password_login_error(error: &rustycog::command::CommandError) -> AuthError {
+    use super::totp::protocol_error;
+    use rustycog::command::CommandError;
+
+    if let CommandError::Business { code, .. } = error {
+        match code.as_str() {
+            "totp_required" => {
+                return protocol_error(
+                    "login",
+                    StatusCode::UNAUTHORIZED,
+                    code,
+                    "An authenticator code is required",
+                )
+            }
+            "totp_throttled" => {
+                return protocol_error(
+                    "login",
+                    StatusCode::TOO_MANY_REQUESTS,
+                    code,
+                    "Too many authenticator attempts",
+                )
+            }
+            "totp_unavailable" => {
+                return protocol_error(
+                    "login",
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    code,
+                    "Authenticator service unavailable",
+                )
+            }
+            _ => {}
+        }
+    }
+    AuthError::login_failed(error)
 }
 
 /// Handle email verification

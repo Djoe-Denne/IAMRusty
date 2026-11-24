@@ -952,6 +952,9 @@ pub struct AppConfig {
     /// Explicit boot-time security and authentication abuse policy.
     #[serde(default)]
     pub security: SecurityConfig,
+    /// Mounted file containing exactly 32 raw bytes dedicated to TOTP encryption.
+    #[serde(default)]
+    pub totp_key_file: Option<std::path::PathBuf>,
     /// Server configuration
     pub server: ServerConfig,
     /// Shared authentication verifier configuration
@@ -1082,6 +1085,7 @@ impl ConfigLoader<Self> for AppConfig {
             server: ServerConfig::default(),
             auth: AuthConfig::default(),
             security: SecurityConfig::default(),
+            totp_key_file: None,
             database: DatabaseConfig::default(),
             idp: IdpConfig::default(),
             jwt: JwtConfig {
