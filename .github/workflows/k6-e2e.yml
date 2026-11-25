@@ -51,7 +51,7 @@ jobs:
       K6_PR_MODE: ${{ inputs.pr_qualification || inputs.pr_number != '' }}
     steps:
       - name: Checkout the event revision for trusted admission and packaging
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           submodules: false
@@ -96,7 +96,7 @@ jobs:
 
       - name: Checkout the admitted PR merge commit without credentials
         if: ${{ steps.pr.outputs.target_sha != '' }}
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.pr.outputs.target_sha }}
           path: .k6-pr-source
@@ -269,7 +269,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
