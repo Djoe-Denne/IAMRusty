@@ -1,7 +1,7 @@
 # ADR-0316 — Durable authentication epochs make password recovery revoke prior platform access at every admission boundary
 
 - Status: **Accepted**
-- Reality: **Partial — IAM durable epoch, recovery/session writer, issuance and refresh slice qualified; shared direct/mesh admission enforcement pending**
+- Reality: **Partial — IAM durable epoch, recovery/session writer, issuance and refresh slice qualified; shared SDK published and IAM/direct/mesh wiring implemented; integrated admission qualification and rollout gates remain**
 - Date: 2026-11-24
 - Deciders: product owner/user, 2026-11-24
 - Scope: STORY-003.02; STORY-003 v3 E3 and STORY-010 v1 E2, limited to password recovery
@@ -203,9 +203,15 @@ The product owner approved the selected account-wide epoch design for STORY-003.
 5. signed-in current-password change keeps its existing behavior;
 6. legacy access without an epoch remains admissible only at account epoch zero.
 
-This approval does not select a production topology, authorize production access, approve indefinite SMTP suppression, or authorize RustyCog edits, publication, or a gitlink bump.
+This approval did not select a production topology, authorize production access,
+or approve indefinite SMTP suppression. A later task-specific authorization
+permitted the RustyCog SDK implementation, publication and AIForAll gitlink bump;
+it did not expand the production or SMTP boundary.
 
-Before enforcement, the authoritative-store topology, bounded timeout/capacity budget, complete route inventory, trusted workload path and concrete shared SDK/public seam still require operational and implementation qualification.
+Before enforcement, the authoritative-store topology, bounded timeout/capacity
+budget, complete route inventory and trusted workload path still require
+operational qualification. The concrete shared SDK/public seam is implemented
+and published; its integrated direct/mesh behavior remains a validation gate.
 
 ## Validation status
 
@@ -226,4 +232,27 @@ The IAM slice was qualified on base `f7b7489bc45cee7be2249652065dcad682d48a2d`:
 
 The later test-only Clippy correction left every runtime-relevant blob unchanged relative to the qualified HTTP/PostgreSQL envelope; the production prefix of the refresh service is byte-identical and the added TLS target is outside that campaign.
 
-The direct stale-access test remains intentionally red until a published RustyCog liveness hook and IAM reader wiring exist. Authority-outage `503`, optional-auth no-downgrade, legacy no-claim admission before/after the first reset, real mesh Check behavior, exact outage mapping, trusted workload path, boundary inventory and deterministic late-response rotation ordering remain unverified. STORY-003.03 therefore remains open.
+The admission implementation uses RustyCog PR #5, merged at
+`42084b803b6a926f482a4030a0ed127447b21072`. SDK qualification passed 171/171
+unit tests, direct HTTP 6/6, mesh 4/4, HTTP client 4/4, both Clippy lanes, and
+Linux Actions/Sonar with 99.7% new coverage. At the AIForAll integration layer,
+the IAM liveness endpoint passed 6/6, `ext-authz` passed 14/14 lib tests plus
+11/11 Mesh standin and 2/2 publisher/outage tests, and `iam-domain` 89/89 and
+`iam-infra` 155/155 passed again. The filtered Mesh liveness oracle was rerun
+after the final test cleanup and passed 1/1. Native HTTP/PostgreSQL
+`auth_password_reset` passed 28/28 with one opt-in ignore, including the
+formerly red direct stale-access `401` oracle; its one owned fixture was
+removed and the before/after inventory remained 15 with zero owned running.
+Native `token` passed 22/22, including same-refresh concurrency with one winner
+and two unauthorized losers; its one owned fixture was also removed with the
+same 15-container before/after inventory. Native `session_writer_concurrency`
+passed 2/2 at the integrated revision, covering one reset winner with no
+surviving old session and purge-failure rollback; its one owned fixture was
+removed with zero owned running. Final direct Clippy production/tests lanes
+passed with valid JSONL reports and zero findings attributable to added lines.
+
+The direct stale-access oracle passed at the integrated revision. Authority-outage
+`503`, optional-auth no-downgrade, legacy no-claim admission before/after the
+first reset, real deployed mesh Check behavior, exact outage mapping, trusted
+workload path, boundary inventory and deterministic late-response rotation
+ordering remain unverified. STORY-003.03 therefore remains open.

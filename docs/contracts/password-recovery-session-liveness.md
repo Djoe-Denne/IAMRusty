@@ -61,7 +61,9 @@ The historical `iamrusty` issuer is not inferred from string shape. It is eligib
 
 ## 3. Authoritative liveness interface
 
-The following logical interface is accepted. Its concrete shared SDK/public wiring and IAM workload route are not implemented:
+The following logical interface is accepted. The shared SDK/public wiring and
+IAM workload route are implemented; integrated qualification and rollout gates
+remain.
 
 ```text
 POST /iam/internal/auth/session-liveness
@@ -98,7 +100,7 @@ Successful response decisions:
 Rules:
 
 - `live`: exact platform issuer, account exists, and token epoch equals the current epoch.
-- `revoked`: exact platform issuer and the token epoch is absent after the first reset, differs from the current epoch, or the platform account no longer exists.
+- `revoked`: exact platform issuer and the token epoch is absent after the first reset, differs from the current epoch, or the platform account no longer exists; `current_epoch` is omitted when no account exists;
 - `not_applicable`: the issuer is a recognized non-platform authority. No platform account epoch is consulted and no organization identity is banned.
 - A missing epoch is `live` only at current epoch zero.
 - A malformed request is `400`; an unauthorized service caller is `403`; an unavailable or inconsistent authoritative store is `503`.
@@ -371,13 +373,19 @@ Prove that linked Login and provider Signup confirmation use the epoch-aware iss
 6. Enable enforcement only when the boundary inventory is complete. Until then, report the E3 guarantee as not delivered.
 7. Rollback MUST NOT decrement epochs or reissue pre-reset tokens. Disabling enforcement after a reset is a security regression requiring explicit approval.
 
-The implemented migration identifier is `m20261124_000001_auth_epoch`. No SDK dependency, public endpoint name, feature flag name or deployment topology is reserved by this contract.
+The implemented migration identifier is `m20261124_000001_auth_epoch`. The
+shared SDK revision, public endpoint and feature configuration are recorded in
+the evidence status; no deployment topology is reserved by this contract.
 
 ## 10. Approvals and unresolved choices
 
 The product owner accepted the synchronous fail-closed availability cost, epoch-zero legacy rule, admission-time revocation without in-flight cancellation, recovery revocation of OAuth-issued platform sessions, and unchanged signed-in password-change behavior.
 
-Before enforcement, the authoritative-store topology, timeout/capacity budget, complete route inventory, trusted workload path and concrete shared SDK/public seam remain unresolved. ADR acceptance does not authorize production access, RustyCog edits/publication or an AIForAll gitlink bump.
+Before enforcement, the authoritative-store topology, timeout/capacity budget,
+complete route inventory and trusted workload path remain unresolved. The
+shared SDK/public seam is implemented and published. ADR acceptance does not
+authorize production access; the later SDK/gitlink authorization remains
+limited to implementation and publication.
 
 ## 11. Evidence status
 
@@ -394,4 +402,22 @@ The contract is grounded in the published ADR and static inspection of the pinne
   and no finding attributable to an added line after the test-only correction;
 - zero campaign-owned running fixtures after cleanup.
 
-The runtime-relevant sources exercised by the HTTP/PostgreSQL and migration campaigns are byte-identical to the later corrected envelope. The direct admission hook, authority failure, optional-auth, legacy admission, real mesh, trusted workload path, boundary inventory and deterministic late-response rotation oracles remain pending. This contract is accepted as the target behavior, not as evidence that STORY-003.03 is complete.
+The published SDK revision is `42084b803b6a926f482a4030a0ed127447b21072`.
+Its local qualification passed 171/171 unit tests, direct HTTP 6/6, mesh 4/4,
+HTTP client 4/4, both Clippy lanes and 459/459 new executable lines; Linux
+Actions and Sonar passed with 99.7% new coverage. The IAM endpoint passed 6/6,
+`ext-authz` passed 14/14 lib tests plus 11/11 Mesh standin and 2/2
+publisher/outage tests, and `iam-domain` 89/89 and `iam-infra` 155/155 passed
+again. The filtered Mesh liveness oracle passed after final test cleanup.
+Native HTTP/PostgreSQL `auth_password_reset` passed 28/28 with one opt-in
+ignore, including the direct stale-access `401` oracle; one owned fixture was
+created/removed, with 15 containers before/after and zero owned running.
+Native `token` passed 22/22, including same-refresh concurrency with one winner
+and two unauthorized losers; one owned fixture was created/removed with the
+same 15-container before/after inventory. Native `session_writer_concurrency`
+passed 2/2 at the integrated revision, covering one reset winner with no
+surviving old session and purge-failure rollback; its one owned fixture was
+removed with zero owned running. Final direct Clippy production/tests lanes
+passed with valid JSONL reports and zero findings attributable to added lines.
+
+The runtime-relevant sources exercised by the HTTP/PostgreSQL and migration campaigns are byte-identical to the later corrected envelope. The shared SDK and IAM/`ext-authz` wiring are implemented; direct authority failure, optional-auth, legacy admission, real deployed mesh, trusted workload path, boundary inventory and deterministic late-response rotation oracles remain pending. This contract is accepted as the target behavior, not as evidence that STORY-003.03 is complete.

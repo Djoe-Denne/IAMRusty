@@ -23,8 +23,8 @@ use iam_infra::{
     event_adapter::{IAMErrorMapper, IamOutboxPublisher},
     repository::{
         SeaOrmAuthenticationSessionWriter, SeaOrmIdentityRepository,
-        SeaOrmOAuthTransactionWriteRepository, SeaOrmSigningKeyRegistry,
-        bootstrap_platform_signing_key,
+        SeaOrmOAuthTransactionWriteRepository, SeaOrmSessionLivenessChecker,
+        SeaOrmSigningKeyRegistry, bootstrap_platform_signing_key,
         combined_email_verification_repository::CombinedEmailVerificationRepository,
         combined_password_reset_token_repository::CombinedPasswordResetTokenRepository,
         combined_repository::{
@@ -582,12 +582,16 @@ where
         )
         .map_err(anyhow::Error::msg)?,
     );
+    let session_liveness: Arc<dyn rustycog::http::SessionLivenessChecker> = Arc::new(
+        SeaOrmSessionLivenessChecker::new(db_write.clone(), platform_issuer.as_str().to_owned()),
+    );
     let http_security = Arc::new(IamHttpSecurityContext::new(
         platform_issuer,
         rate_limiter,
         oauth,
         profile_email_verification,
         usecases.login_auth.clone(),
+        session_liveness.clone(),
     ));
     // Capture the complete primary publisher snapshot before moving its use cases
     // into the registry. The SDK dates acquisition before this local read; neither
@@ -600,7 +604,9 @@ where
     // The configured live publisher is authoritative, including organization
     // epochs and revocations. Its fresh local seed covers the first bearer burst;
     // subsequent refresh replaces it, with no inline/bootstrap fallback.
-    let user_id_extractor = configured_http_verifier(http_verifier_auth, jwks_seed)?;
+    let user_id_extractor = configured_http_verifier(http_verifier_auth, jwks_seed)?
+        .with_session_liveness_checker(session_liveness)
+        .require_session_liveness_checker()?;
 
     // IAM routes are never guarded by `with_permission_on` — IAM is the
     // identity provider, not a resource service — so we plug in an empty

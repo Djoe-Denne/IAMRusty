@@ -102,6 +102,38 @@ En test HS256 fenêtre : `create_jwt_token(user_id)` pose encore `iss=iamrusty` 
 
 Ratifiée : [ADR-0304](../adr/0304-jwt-acces-plateforme-rs256-jwks.md). Identity : [0305](../adr/0305-account-identity-trust-domain.md). Config signer Hive→IAM : [0306](../adr/0306-hive-iam-configuration-signature.md) (transport au composition root : InProcess monolithe / HTTP micro). WorkloadIdentity : [0307](../adr/0307-workload-identity-port.md) (Accepted / Implemented) — adapters OIDC WIF AWS/GCP/Azure sur le chemin HTTP (preuve wiremock `wif_exchanges`) avec fallback `StaticCredential` si provider absent. Mesh AuthN [0308](../adr/0308-mesh-authn-jwt.md) (`workers/ext-authz/` Check HTTP) : profil opt-in (`docker compose --profile mesh`, overlay `kind-mesh/`) ; JWT rustycog in-process reste le défaut ; Accepted / Partial (pas Implemented). Remote signer HTTP [0309](../adr/0309-remote-signer.md) : Accepted / Partial (pas Implemented).
 
+## Session liveness (ADR-0316)
+
+New platform access tokens carry a canonical `auth_epoch` claim. A token
+without the claim is the legacy epoch-zero case; a present malformed claim is
+an invalid token. IAM's own direct routes use an in-process checker bound to the
+primary writer connection.
+
+Other direct RustyCog consumers can enable the shared HTTP checker without
+duplicating middleware logic:
+
+```toml
+[auth.session_liveness]
+endpoint = "http://iam:8080/iam/internal/auth/session-liveness"
+token_env = "IAM_INTERNAL_SERVICE_TOKEN"
+timeout_ms = 2000
+```
+
+The token value is read from the named environment variable at composition
+time; it is not serialized in this section. Partial configuration fails
+startup, while an entirely absent section leaves enforcement disabled.
+Required and presented-token optional authentication return 401
+for a revoked session and 503 when the authoritative decision is unavailable.
+A missing optional token remains anonymous. Mesh services continue to trust the
+gateway decision and do not call IAM directly; `ext-authz` owns the equivalent
+Check-time decision. Its opt-in settings are `EXT_AUTHZ_LIVENESS_URL`,
+`EXT_AUTHZ_PLATFORM_ISSUER`, `EXT_AUTHZ_LIVENESS_TOKEN_ENV`, and
+`EXT_AUTHZ_LIVENESS_TIMEOUT_MS`.
+
+This section documents the code path, not production activation. The route
+inventory, authoritative topology, deadline/capacity budget and real mesh
+qualification remain rollout gates under ADR-0316.
+
 ## Suite
 
 Qualification2026-10-29 : voir [état qualifié](../contracts/20261029-auth-security-qualified-state.md).

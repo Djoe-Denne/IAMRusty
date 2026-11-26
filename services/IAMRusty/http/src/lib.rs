@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use crate::handlers::mesh_echo::mesh_echo_headers;
 use crate::handlers::profile_email_verification;
+use crate::handlers::session_liveness::session_liveness;
 use crate::handlers::totp;
 use crate::rate_limit::rate_limit_auth;
 
@@ -103,6 +104,10 @@ pub fn create_router(
             "/internal/organizations/{org_id}/identities",
             create_organization_managed_identity,
         )
+        .route(
+            "/internal/auth/session-liveness",
+            post(session_liveness).layer(DefaultBodyLimit::max(1024)),
+        )
         // Authenticated routes
         .route("/api/me", axum::routing::get(get_user).patch(patch_profile))
         .authenticated()
@@ -164,6 +169,7 @@ pub fn create_router(
         .layer(Extension(security.oauth()))
         .layer(Extension(security.profile_email_verification()))
         .layer(Extension(security.totp()))
+        .layer(Extension(security.session_liveness()))
 }
 
 /// Create the IAM router under its bounded-context prefix.

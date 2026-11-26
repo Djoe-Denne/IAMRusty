@@ -6,6 +6,8 @@ use iam_application::usecase::{
     login::LoginUseCase, profile_email_verification::ProfileEmailVerification,
 };
 
+use rustycog::http::SessionLivenessChecker;
+
 use crate::{
     oauth_browser::OAuthRouteContext, platform_user::PlatformIssuer, rate_limit::AuthRateLimiter,
 };
@@ -17,16 +19,18 @@ pub struct IamHttpSecurityContext {
     oauth: Arc<OAuthRouteContext>,
     profile_email_verification: Arc<ProfileEmailVerification>,
     totp: Arc<dyn LoginUseCase>,
+    session_liveness: Arc<dyn SessionLivenessChecker>,
 }
 
 impl IamHttpSecurityContext {
     #[must_use]
-    pub const fn new(
+    pub fn new(
         platform_issuer: PlatformIssuer,
         rate_limiter: Arc<AuthRateLimiter>,
         oauth: Arc<OAuthRouteContext>,
         profile_email_verification: Arc<ProfileEmailVerification>,
         totp: Arc<dyn LoginUseCase>,
+        session_liveness: Arc<dyn SessionLivenessChecker>,
     ) -> Self {
         Self {
             platform_issuer,
@@ -34,6 +38,7 @@ impl IamHttpSecurityContext {
             oauth,
             profile_email_verification,
             totp,
+            session_liveness,
         }
     }
 
@@ -55,5 +60,9 @@ impl IamHttpSecurityContext {
 
     pub(crate) fn totp(&self) -> Arc<dyn LoginUseCase> {
         self.totp.clone()
+    }
+
+    pub(crate) fn session_liveness(&self) -> Arc<dyn SessionLivenessChecker> {
+        self.session_liveness.clone()
     }
 }
