@@ -12,6 +12,7 @@ pub struct Model {
     pub created_at: DateTime,
     pub updated_at: DateTime,
     pub password_hash: Option<String>,
+    pub auth_epoch: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

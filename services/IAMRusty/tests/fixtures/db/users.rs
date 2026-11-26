@@ -150,6 +150,7 @@ impl DbFixture<UsersEntity, UserModel, UserActiveModel> for UserFixtureBuilder {
             id: ActiveValue::Set(self.id.unwrap_or_else(TestData::uuid)),
             username: ActiveValue::Set(self.username.clone()),
             password_hash: ActiveValue::Set(self.password_hash.clone()),
+            auth_epoch: ActiveValue::NotSet,
             avatar_url: ActiveValue::Set(self.avatar_url.clone()),
             created_at: ActiveValue::Set(self.created_at.unwrap_or(now)),
             updated_at: ActiveValue::Set(self.updated_at.unwrap_or(now)),

@@ -422,14 +422,21 @@ pub trait AuthenticationSessionWriter: Send + Sync {
         token: Option<RefreshToken>,
     ) -> Result<crate::entity::user::User, crate::error::DomainError>;
 
-    /// Change password, invalidate reset capabilities and purge sessions in one
-    /// transaction. A supplied reset token must be revalidated on the writer.
-    async fn reset_password(
+    /// Change a signed-in user's password without advancing the account epoch.
+    async fn change_password(
         &self,
         user_id: Uuid,
         expected_password_hash: Option<String>,
         new_password_hash: String,
-        reset_token_hash: Option<String>,
+    ) -> Result<(), crate::error::DomainError>;
+
+    /// Revalidate the recovery proof on the writer and atomically advance the epoch.
+    async fn recover_password(
+        &self,
+        user_id: Uuid,
+        expected_password_hash: Option<String>,
+        new_password_hash: String,
+        reset_token_hash: String,
     ) -> Result<(), crate::error::DomainError>;
 }
 

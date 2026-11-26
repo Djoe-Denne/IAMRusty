@@ -82,10 +82,18 @@ pub trait AuthTokenService: Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// Generate an access token for a user
-    async fn generate_access_token(&self, user_id: Uuid) -> Result<JwtToken, Self::Error>;
+    async fn generate_access_token(
+        &self,
+        user_id: Uuid,
+        auth_epoch: u64,
+    ) -> Result<JwtToken, Self::Error>;
 
     /// Generate a refresh token for a user
-    async fn generate_refresh_token(&self, user_id: Uuid) -> Result<RefreshToken, Self::Error>;
+    async fn generate_refresh_token(
+        &self,
+        user_id: Uuid,
+        auth_epoch: u64,
+    ) -> Result<RefreshToken, Self::Error>;
 
     /// Validate an access token and extract the user ID
     async fn validate_access_token(&self, token: &str) -> Result<Uuid, Self::Error>;

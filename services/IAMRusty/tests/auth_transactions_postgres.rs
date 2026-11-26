@@ -262,6 +262,7 @@ async fn registered_upgrade_preserves_legacy_transactions_accounts_and_constrain
 
 fn refresh(user: Uuid) -> RefreshToken {
     RefreshToken {
+        auth_epoch: 0,
         id: Uuid::new_v4(),
         user_id: user,
         token: Uuid::new_v4().to_string(),

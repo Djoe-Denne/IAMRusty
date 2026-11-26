@@ -600,7 +600,11 @@ impl JwtTokenEncoder for JwtTokenService {
 impl AuthTokenService for JwtTokenService {
     type Error = TokenError;
 
-    async fn generate_access_token(&self, user_id: Uuid) -> Result<JwtToken, Self::Error> {
+    async fn generate_access_token(
+        &self,
+        user_id: Uuid,
+        auth_epoch: u64,
+    ) -> Result<JwtToken, Self::Error> {
         let now = Utc::now();
         let expires_at = now
             + Duration::seconds(i64::try_from(self.access_token_expiration).unwrap_or(i64::MAX));
@@ -611,6 +615,7 @@ impl AuthTokenService for JwtTokenService {
             iss: self.issuer().to_string(),
             aud: self.audience().to_string(),
             org: None,
+            auth_epoch: Some(auth_epoch.to_string()),
             exp: expires_at.timestamp(),
             iat: now.timestamp(),
             jti: Uuid::new_v4().to_string(),
@@ -630,13 +635,18 @@ impl AuthTokenService for JwtTokenService {
         })
     }
 
-    async fn generate_refresh_token(&self, user_id: Uuid) -> Result<RefreshToken, Self::Error> {
+    async fn generate_refresh_token(
+        &self,
+        user_id: Uuid,
+        auth_epoch: u64,
+    ) -> Result<RefreshToken, Self::Error> {
         let now = Utc::now();
         let expires_at = now
             + Duration::seconds(i64::try_from(self.refresh_token_expiration).unwrap_or(i64::MAX));
         let token = Self::generate_random_token();
 
         Ok(RefreshToken {
+            auth_epoch,
             id: Uuid::new_v4(),
             user_id,
             token,
@@ -676,6 +686,7 @@ mod platform_hs256 {
             iss: DEFAULT_JWT_ISSUER.into(),
             aud: DEFAULT_JWT_AUDIENCE.into(),
             org: None,
+            auth_epoch: None,
             exp: Utc::now().timestamp() + 60,
             iat: Utc::now().timestamp(),
             jti: Uuid::new_v4().to_string(),
@@ -684,10 +695,30 @@ mod platform_hs256 {
         let token = service.encode(&claims).await.expect("HS256 encode");
         let decoded = service.decode(&token).expect("HS256 decode");
         assert_eq!(decoded.sub, claims.sub);
+        assert_eq!(decoded.auth_epoch, None);
         assert!(
             service.jwks().keys.is_empty(),
             "HMAC secrets must not be published in JWKS"
         );
+    }
+
+    #[tokio::test]
+    async fn signed_platform_access_carries_epoch_and_rejects_a_malformed_present_claim() {
+        let service = JwtTokenService::with_hmac("rustycog-test-hs256-secret".into(), 900);
+        let access = service
+            .generate_access_token(Uuid::new_v4(), u64::MAX)
+            .await
+            .expect("issue platform access");
+        let mut claims = service
+            .decode(&access.token)
+            .expect("verify platform access");
+        assert_eq!(claims.auth_epoch.as_deref(), Some("18446744073709551615"));
+        claims.auth_epoch = Some("01".into());
+        let malformed = service
+            .encode(&claims)
+            .await
+            .expect("sign malformed fixture");
+        assert!(service.decode(&malformed).is_err());
     }
 
     #[test]
@@ -769,7 +800,10 @@ mod platform_hs256 {
                     .unwrap(),
                 ));
             }
-            assert!(service.generate_access_token(Uuid::new_v4()).await.is_err());
+            assert!(service
+                .generate_access_token(Uuid::new_v4(), 0)
+                .await
+                .is_err());
         }
     }
 }
@@ -1738,7 +1772,10 @@ mod emission_fence_tests {
                 }
             }
             *registry.selected.as_ref().unwrap().lock().unwrap() = invalid;
-            assert!(codec.generate_access_token(Uuid::new_v4()).await.is_err());
+            assert!(codec
+                .generate_access_token(Uuid::new_v4(), 0)
+                .await
+                .is_err());
             for oauth in [false, true] {
                 assert!(registration_call(registration, oauth, Uuid::new_v4())
                     .await
@@ -1788,7 +1825,7 @@ mod emission_fence_tests {
             *registry.selected.as_ref().unwrap().lock().unwrap() = current.clone();
             *registry.final_snapshot.lock().unwrap() = snapshot_row(current.clone());
             let user = Uuid::new_v4();
-            let access = codec.generate_access_token(user).await.unwrap().token;
+            let access = codec.generate_access_token(user, 0).await.unwrap().token;
             assert_eq!(
                 jsonwebtoken::decode_header(&access).unwrap().kid.as_deref(),
                 Some(current.kid.as_str())

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use iam_domain::entity::token::JwkSet;
 use iam_domain::error::DomainError;
-use iam_domain::port::repository::{IdentityRepository, SigningKeyRegistry};
+use iam_domain::port::repository::SigningKeyRegistry;
 use iam_domain::service::{
     RefreshTokenResponse as DomainRefreshTokenResponse, RefreshTokenService,
 };
@@ -90,8 +90,6 @@ where
 {
     refresh_token_service: Arc<RTS>,
     signing_key_registry: Arc<dyn SigningKeyRegistry<Error = DomainError>>,
-    identity_repo: Arc<dyn IdentityRepository<Error = DomainError>>,
-    platform_issuer: String,
     access_token_expiration_seconds: u64,
 }
 
@@ -103,31 +101,19 @@ where
     pub fn new(
         refresh_token_service: Arc<RTS>,
         signing_key_registry: Arc<dyn SigningKeyRegistry<Error = DomainError>>,
-        identity_repo: Arc<dyn IdentityRepository<Error = DomainError>>,
-        platform_issuer: impl Into<String>,
     ) -> Self {
-        Self::with_expiration(
-            refresh_token_service,
-            signing_key_registry,
-            identity_repo,
-            platform_issuer,
-            900,
-        )
+        Self::with_expiration(refresh_token_service, signing_key_registry, 900)
     }
 
     /// Create with explicit access-token TTL (retiring JWKS window).
     pub fn with_expiration(
         refresh_token_service: Arc<RTS>,
         signing_key_registry: Arc<dyn SigningKeyRegistry<Error = DomainError>>,
-        identity_repo: Arc<dyn IdentityRepository<Error = DomainError>>,
-        platform_issuer: impl Into<String>,
         access_token_expiration_seconds: u64,
     ) -> Self {
         Self {
             refresh_token_service,
             signing_key_registry,
-            identity_repo,
-            platform_issuer: platform_issuer.into(),
             access_token_expiration_seconds,
         }
     }
@@ -146,11 +132,6 @@ where
             .refresh_token_service
             .refresh_token(refresh_token)
             .await?;
-
-        self.identity_repo
-            .ensure_platform_identity(domain_response.user_id, &self.platform_issuer)
-            .await
-            .map_err(TokenError::DomainError)?;
 
         Ok(RefreshTokenResponse::from(domain_response))
     }
@@ -345,44 +326,6 @@ mod tests {
             panic!("publisher must never resurrect bootstrap")
         }
     }
-    struct Identities;
-    #[async_trait::async_trait]
-    impl iam_domain::port::repository::IdentityRepository for Identities {
-        type Error = iam_domain::error::DomainError;
-        async fn find_by_issuer_subject(
-            &self,
-            _: &str,
-            _: &str,
-        ) -> Result<Option<iam_domain::entity::identity::Identity>, Self::Error> {
-            unreachable!()
-        }
-        async fn find_by_user_id(
-            &self,
-            _: Uuid,
-        ) -> Result<Vec<iam_domain::entity::identity::Identity>, Self::Error> {
-            unreachable!()
-        }
-        async fn create(
-            &self,
-            _: &iam_domain::entity::identity::Identity,
-        ) -> Result<iam_domain::entity::identity::Identity, Self::Error> {
-            unreachable!()
-        }
-        async fn ensure_platform_identity(
-            &self,
-            _: Uuid,
-            _: &str,
-        ) -> Result<iam_domain::entity::identity::Identity, Self::Error> {
-            unreachable!()
-        }
-        async fn ensure_organization_managed_identity(
-            &self,
-            _: Uuid,
-            _: &str,
-        ) -> Result<iam_domain::entity::identity::Identity, Self::Error> {
-            unreachable!()
-        }
-    }
 
     #[tokio::test]
     async fn empty_writer_snapshot_is_success_but_writer_failure_is_not_empty_or_bootstrap() {
@@ -391,8 +334,6 @@ mod tests {
             let publisher = TokenUseCaseImpl::new(
                 Arc::new(Bootstrap),
                 Arc::new(Registry { fail, keys: vec![] }),
-                Arc::new(Identities),
-                "https://iam.example",
             );
             let result = publisher.get_jwks().await;
             if fail {
@@ -415,8 +356,6 @@ mod tests {
                 fail: false,
                 keys: vec![revoked],
             }),
-            Arc::new(Identities),
-            "https://iam.example",
         );
         assert!(publisher.get_jwks().await.unwrap().keys.is_empty());
         let mut good = signing_key("epoch", pem);
@@ -427,8 +366,6 @@ mod tests {
                 fail: false,
                 keys: vec![good.clone()],
             }),
-            Arc::new(Identities),
-            "https://iam.example",
         );
         assert_eq!(positive.get_jwks().await.unwrap().keys[0].kid, good.kid);
         let mut corrupt = good.clone();
@@ -439,8 +376,6 @@ mod tests {
             let publisher = TokenUseCaseImpl::new(
                 Arc::new(Bootstrap),
                 Arc::new(Registry { fail: false, keys }),
-                Arc::new(Identities),
-                "https://iam.example",
             );
             assert!(publisher.get_jwks().await.is_err());
         }
@@ -455,8 +390,6 @@ mod tests {
                 fail: false,
                 keys: vec![],
             }),
-            Arc::new(Identities),
-            "https://iam.example",
             173,
         );
         assert!(publisher.get_jwks().await.is_err());

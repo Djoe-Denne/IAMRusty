@@ -241,7 +241,7 @@ async fn oauth_domain_mint_and_configured_access_mint_with_url_issuer() {
     );
     let configured = make_codec();
     let access =
-        iam_domain::port::service::AuthTokenService::generate_access_token(&configured, user_id)
+        iam_domain::port::service::AuthTokenService::generate_access_token(&configured, user_id, 0)
             .await;
     assert!(access.is_ok(), "CONFIGURED_ACCESS_MINT_NOT_ACCEPTED");
 }

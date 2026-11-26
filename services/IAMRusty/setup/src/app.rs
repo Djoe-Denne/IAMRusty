@@ -910,10 +910,10 @@ fn setup_provider_user_token(
         Arc::new(iam_domain::service::RefreshTokenServiceImpl::new(
             Arc::new(refresh_token_repo),
             token_service,
+            identity_repo,
+            platform_issuer,
         )),
         signing_key_registry,
-        identity_repo,
-        platform_issuer,
         access_token_expiration_seconds,
     ));
     (provider, user, token)

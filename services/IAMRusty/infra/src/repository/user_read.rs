@@ -26,15 +26,16 @@ impl UserReadRepositoryImpl {
     }
 
     /// Convert a database model to a domain user
-    fn to_domain(model: users::Model) -> DomainUser {
-        DomainUser {
+    pub(super) fn to_domain(model: users::Model) -> Result<DomainUser, DbErr> {
+        Ok(DomainUser {
             id: model.id,
             username: model.username,
             password_hash: model.password_hash,
+            auth_epoch: super::authentication_session::read_epoch(&model.auth_epoch)?,
             avatar_url: model.avatar_url,
             created_at: DateTime::<Utc>::from_naive_utc_and_offset(model.created_at, Utc),
             updated_at: DateTime::<Utc>::from_naive_utc_and_offset(model.updated_at, Utc),
-        }
+        })
     }
 }
 
@@ -46,7 +47,7 @@ impl UserReadRepository for UserReadRepositoryImpl {
         debug!("Reading user by ID: {}", id);
         let user = Users::find_by_id(id).one(self.db.as_ref()).await?;
 
-        Ok(user.map(Self::to_domain))
+        user.map(Self::to_domain).transpose()
     }
 
     async fn find_by_email(&self, email: &str) -> Result<Option<DomainUser>, Self::Error> {
@@ -70,7 +71,7 @@ impl UserReadRepository for UserReadRepositoryImpl {
             .one(self.db.as_ref())
             .await?;
 
-        Ok(user.map(Self::to_domain))
+        user.map(Self::to_domain).transpose()
     }
 
     async fn find_by_provider_user_id(

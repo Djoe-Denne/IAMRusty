@@ -274,12 +274,12 @@ where
         let (access_token, refresh_token, session) = if user_email.is_verified {
             let access_token = self
                 .token_service
-                .generate_access_token(user_id)
+                .generate_access_token(user_id, user.auth_epoch)
                 .await
                 .map_err(|e| DomainError::TokenServiceError(e.to_string()))?;
             let refresh_token = self
                 .token_service
-                .generate_refresh_token(user_id)
+                .generate_refresh_token(user_id, user.auth_epoch)
                 .await
                 .map_err(|e| DomainError::TokenServiceError(e.to_string()))?;
             (

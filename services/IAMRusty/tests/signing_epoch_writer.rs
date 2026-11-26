@@ -136,6 +136,113 @@ async fn initial_migration_up_down_up_removes_scope_objects_in_a_disposable_sche
     }).await;
 }
 
+#[tokio::test]
+#[serial]
+async fn authentication_epoch_constraint_and_downgrade_guard_in_disposable_schema() {
+    use iammigration::{Migrator, MigratorTrait, SchemaManager};
+
+    let (fixture, _, _) = common::setup_test_server().await.expect("IAM fixture");
+    fixture_cleanup::run(&fixture, async {
+        let tx = fixture.db().begin().await.expect("disposable transaction");
+        let schema = format!("iam_auth_epoch_{}", uuid::Uuid::new_v4().simple());
+        tx.execute_unprepared(&format!(
+            "CREATE SCHEMA {schema};
+             SET LOCAL search_path TO {schema};
+             CREATE TABLE users (id INTEGER PRIMARY KEY);
+             CREATE TABLE refresh_tokens (id INTEGER PRIMARY KEY);
+             INSERT INTO users VALUES (1);
+             INSERT INTO refresh_tokens VALUES (1);"
+        ))
+        .await
+        .expect("create only the migration's prerequisite tables");
+
+        let migration = Migrator::migrations()
+            .into_iter()
+            .find(|migration| migration.name() == "m20261124_000001_auth_epoch")
+            .expect("registered authentication epoch migration");
+        migration
+            .up(&SchemaManager::new(&tx))
+            .await
+            .expect("add epochs to the disposable schema");
+
+        for table in ["users", "refresh_tokens"] {
+            let read = || {
+                Statement::from_string(
+                    DatabaseBackend::Postgres,
+                    format!("SELECT auth_epoch FROM {table} WHERE id = 1"),
+                )
+            };
+            let default: String = tx
+                .query_one(read())
+                .await
+                .expect("read backfilled value")
+                .expect("existing row")
+                .try_get("", "auth_epoch")
+                .expect("defaulted epoch");
+            assert_eq!(default, "0");
+            let update = |value: &str| {
+                Statement::from_sql_and_values(
+                    DatabaseBackend::Postgres,
+                    format!("UPDATE {table} SET auth_epoch = $1 WHERE id = 1"),
+                    [value.into()],
+                )
+            };
+            for malformed in ["", "01", "-1", " 1", "1e0", "18446744073709551616"] {
+                let savepoint = tx.begin().await.expect("isolate CHECK rejection");
+                let error = savepoint
+                    .execute(update(malformed))
+                    .await
+                    .expect_err("malformed epoch must violate the CHECK");
+                assert!(error.to_string().contains("check constraint"));
+                savepoint
+                    .rollback()
+                    .await
+                    .expect("clear expected CHECK failure");
+            }
+            for canonical in ["1", "18446744073709551615"] {
+                assert_eq!(
+                    tx.execute(update(canonical))
+                        .await
+                        .expect("accept canonical unsigned epoch")
+                        .rows_affected(),
+                    1
+                );
+            }
+            let savepoint = tx.begin().await.expect("isolate downgrade rejection");
+            let error = migration
+                .down(&SchemaManager::new(&savepoint))
+                .await
+                .expect_err("advanced epoch must prevent downgrade");
+            assert!(error
+                .to_string()
+                .contains("cannot drop an advanced authentication epoch"));
+            savepoint
+                .rollback()
+                .await
+                .expect("clear expected downgrade failure");
+            let retained: String = tx
+                .query_one(read())
+                .await
+                .expect("epoch column must remain")
+                .expect("advanced row must remain")
+                .try_get("", "auth_epoch")
+                .expect("retained epoch");
+            assert_eq!(retained, "18446744073709551615");
+            tx.execute(update("0"))
+                .await
+                .expect("restore disposable zero");
+        }
+        migration
+            .down(&SchemaManager::new(&tx))
+            .await
+            .expect("zero-only disposable schema can downgrade");
+        tx.rollback()
+            .await
+            .expect("discard entire disposable schema");
+    })
+    .await;
+}
+
 fn pending_candidate(org: uuid::Uuid, label: &str) -> iam_domain::entity::signing_key::SigningKey {
     let mut key = registry::registry_key(SigningKeyStatus::Pending, Some(org));
     key.kid = iam_domain::entity::signing_key::opaque_kid();
@@ -480,7 +587,7 @@ async fn access_and_registration_fences_reject_primary_disable_during_public_or_
                 let issuance = async {
                     let user = uuid::Uuid::new_v4();
                     match registration_flow {
-                        0 => codec.generate_access_token(user).await.map(|token| token.token).map_err(|error| error.to_string()),
+                        0 => codec.generate_access_token(user, 0).await.map(|token| token.token).map_err(|error| error.to_string()),
                         1 => registration.generate_registration_token(user, "fixture@example.test".into()).await.map_err(|error| error.to_string()),
                         _ => registration.generate_oauth_registration_token(user, "fixture@example.test".into(), iam_domain::entity::registration_token::ProviderInfo {
                             email: "fixture@example.test".into(), avatar: None, suggested_username: "fixture".into() }).await.map_err(|error| error.to_string()),

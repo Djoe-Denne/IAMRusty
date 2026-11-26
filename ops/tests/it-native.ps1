@@ -48,7 +48,7 @@ function Resolve-ItTestBinary {
             'auth_username_flow_part2', 'auth_password_reset', 'user',
             'relink_provider', 'verified_idp_https', 'organization_account_guard',
             'app_cleanup_supervision', 'request_trace_redaction', 'signing_epoch_writer',
-            'profile_email_verification'
+            'session_writer_concurrency', 'profile_email_verification'
         )) {
         return $Binary
     }

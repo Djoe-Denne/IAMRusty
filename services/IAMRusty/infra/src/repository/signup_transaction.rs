@@ -35,6 +35,7 @@ impl SignupTransaction for SignupTransactionImpl {
                 id: Set(user.id),
                 username: Set(user.username.clone()),
                 password_hash: Set(user.password_hash.clone()),
+                auth_epoch: sea_orm::ActiveValue::NotSet,
                 avatar_url: Set(user.avatar_url.clone()),
                 created_at: Set(user.created_at.naive_utc()),
                 updated_at: Set(user.updated_at.naive_utc()),

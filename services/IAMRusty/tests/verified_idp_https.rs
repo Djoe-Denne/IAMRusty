@@ -1,10 +1,8 @@
 //! S3 real outbound TLS/HMAC/PKCE protocol IT, final execution only.
-mod common;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 #[path = "support/owned_task.rs"]
 mod owned_task;
-mod utils;
 #[path = "support/verified_idp_tls.rs"]
 mod verified_idp_tls;
 

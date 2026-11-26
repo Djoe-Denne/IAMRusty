@@ -27,6 +27,14 @@ pub struct TokenClaims {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub org: Option<String>,
 
+    /// Absent only for legacy credentials; a present claim must be canonical.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_auth_epoch"
+    )]
+    pub auth_epoch: Option<String>,
+
     /// JWT expiration timestamp
     pub exp: i64,
 
@@ -66,9 +74,76 @@ impl TokenClaims {
             iss: issuer.to_string(),
             aud: audience.to_string(),
             org: None,
+            auth_epoch: None,
             exp: (now + expires_in).timestamp(),
             iat: now.timestamp(),
             jti: Uuid::new_v4().to_string(),
+        }
+    }
+}
+
+/// Parse the canonical decimal representation shared by the database and JWTs.
+#[must_use]
+pub fn parse_auth_epoch(value: &str) -> Option<u64> {
+    if value.is_empty()
+        || (value.starts_with('0') && value.len() != 1)
+        || !value.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
+    value.parse().ok()
+}
+
+fn deserialize_auth_epoch<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<String>, D::Error> {
+    let value = String::deserialize(deserializer)?;
+    parse_auth_epoch(&value)
+        .map(|_| Some(value))
+        .ok_or_else(|| serde::de::Error::custom("invalid authentication epoch"))
+}
+
+#[cfg(test)]
+mod auth_epoch_tests {
+    use super::*;
+    use serde_json::{json, Value};
+
+    #[test]
+    fn missing_epoch_is_legacy_but_present_claims_must_be_canonical_strings() {
+        let claims = TokenClaims::new("subject", "username", Duration::minutes(1));
+        let legacy = serde_json::to_value(claims).expect("serialize legacy claims");
+        assert!(legacy.get("auth_epoch").is_none());
+        assert!(serde_json::from_value::<TokenClaims>(legacy.clone())
+            .expect("read legacy claims")
+            .auth_epoch
+            .is_none());
+        for value in ["0", "1", "18446744073709551615"] {
+            let mut present = legacy.clone();
+            present["auth_epoch"] = json!(value);
+            assert_eq!(
+                serde_json::from_value::<TokenClaims>(present)
+                    .expect("canonical epoch")
+                    .auth_epoch
+                    .as_deref(),
+                Some(value)
+            );
+        }
+        for value in [
+            Value::Null,
+            json!(0),
+            json!(""),
+            json!("01"),
+            json!("+1"),
+            json!("-1"),
+            json!(" 1"),
+            json!("1.0"),
+            json!("1e0"),
+            json!("١"),
+            json!("18446744073709551616"),
+        ] {
+            let mut malformed = legacy.clone();
+            malformed["auth_epoch"] = value;
+            assert!(serde_json::from_value::<TokenClaims>(malformed).is_err());
         }
     }
 }
@@ -249,6 +324,8 @@ pub struct JwtToken {
 /// Refresh token entity
 #[derive(Clone)]
 pub struct RefreshToken {
+    /// Account epoch presented to the final persistence fence.
+    pub auth_epoch: u64,
     /// Unique identifier for the refresh token
     pub id: Uuid,
     /// User ID that the token belongs to

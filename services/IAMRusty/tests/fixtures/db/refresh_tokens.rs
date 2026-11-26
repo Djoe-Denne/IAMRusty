@@ -165,6 +165,7 @@ impl DbFixture<RefreshTokensEntity, RefreshTokenModel, RefreshTokenActiveModel>
             is_valid: ActiveValue::Set(self.is_valid.unwrap_or(true)),
             created_at: ActiveValue::Set(self.created_at.unwrap_or(now)),
             expires_at: ActiveValue::Set(self.expires_at.unwrap_or_else(TestData::future)),
+            auth_epoch: ActiveValue::NotSet,
         }
     }
 }

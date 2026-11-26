@@ -5,6 +5,7 @@ mod m20261108_000001_oauth_authentication_nonce;
 mod m20261123_000001_unique_username;
 mod m20261123_000002_totp_credentials;
 mod m20261123_000008_profile_email_verifications;
+mod m20261124_000001_auth_epoch;
 
 pub struct Migrator;
 
@@ -17,6 +18,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261123_000001_unique_username::Migration),
             Box::new(m20261123_000002_totp_credentials::Migration),
             Box::new(m20261123_000008_profile_email_verifications::Migration),
+            Box::new(m20261124_000001_auth_epoch::Migration),
         ]
     }
 }

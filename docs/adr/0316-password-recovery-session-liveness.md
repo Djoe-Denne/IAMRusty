@@ -1,14 +1,15 @@
 # ADR-0316 — Durable authentication epochs make password recovery revoke prior platform access at every admission boundary
 
-- Status: **Proposed**
-- Reality: **Unimplemented**
+- Status: **Accepted**
+- Reality: **Partial — IAM durable epoch, recovery/session writer, issuance and refresh slice qualified; shared direct/mesh admission enforcement pending**
 - Date: 2026-11-24
-- Deciders: pending product and architecture ratification; this draft does not ratify itself
+- Deciders: product owner/user, 2026-11-24
 - Scope: STORY-003.02; STORY-003 v3 E3 and STORY-010 v1 E2, limited to password recovery
 - Supersedes: none
 - Resolves: the `auth_version` / `session_version` / access deny-list question explicitly left open by ADR-0304 and ADR-0305
 - Related: ADR-0302, ADR-0304, ADR-0305, ADR-0308, ADR-0310, ADR-0312, ADR-0314, ADR-0200–0202
 - Evidence baseline: `b2362c6b40cd562b36c4b9800ac4fa4d53d1ac3f`; task revision `6912d9892b0845f2527c0ac9de088a7d82cfc11c`
+- Implementation base: `f7b7489bc45cee7be2249652065dcad682d48a2d`
 - Secondary contract: [Password recovery session liveness](../contracts/password-recovery-session-liveness.md)
 - Shared issuance boundary: [ADR 0414](0414-oauth-provider-intents.md)
 
@@ -164,7 +165,7 @@ A reset leaves other accounts, signing keys, organization identities, membership
 
 ## Compatibility and migration
 
-1. Add the durable epoch and refresh-row epoch additively, defaulting existing accounts and rows to zero. No migration identifier is reserved by this draft.
+1. Add the durable epoch and refresh-row epoch additively, defaulting existing accounts and rows to zero. The implemented migration is `m20261124_000001_auth_epoch`; its downgrade refuses to drop an advanced epoch.
 2. Deploy IAM issuance and the authoritative liveness endpoint. New platform tokens and refresh rows carry the epoch.
 3. Deploy the shared direct admission hook to IAM, Hive, Manifesto, Telegraph, and the monolith. OAuthConnect has no Bearer routes; Lazaret currently exposes workload/session routes rather than IAM HumanAccount Bearer routes. Re-inventory before cutover rather than assuming this remains true.
 4. Add the same liveness decision to `ext-authz` for opt-in mesh deployments. Missing liveness configuration while enforcement is enabled is a boot failure.
@@ -191,18 +192,38 @@ The historical statement that there was no production data does not establish th
 - Reset and authenticated password change can no longer be treated as semantically identical writer calls.
 - The design does not add logout, browser binding, factor flows, per-session revocation, or an OAuth redesign.
 
-## Product and architecture approvals required
+## Product approval record
 
-1. **Availability tradeoff:** accept synchronous, fail-closed liveness on every protected platform request, including IAM/primary-database outage behavior.
-2. **Legacy policy:** accept epoch-zero compatibility until the account's first post-cutover recovery reset, rather than forcing all users to sign in at deployment.
-3. **In-flight boundary:** accept revocation at the admission/liveness-read linearization point, without cancellation of requests already admitted.
-4. **Linked sign-in methods:** confirm that recovery invalidates earlier OAuth-issued platform sessions for the same account, while leaving external organization-managed identity sessions untouched.
-5. **Authority topology:** confirm that the deployment has one authoritative epoch store per platform account. A multi-region asynchronous read topology would require a different design.
-6. **Authenticated-change exclusion:** confirm that signed-in current-password change remains unchanged, including its existing access-token-until-expiry behavior.
+The product owner approved the selected account-wide epoch design for STORY-003.03 backend work:
+
+1. a successful recovery reset advances the epoch at primary commit;
+2. every later protected admission or renewal using an earlier platform epoch is denied, including OAuth-issued platform sessions;
+3. requests admitted before commit may finish; in-flight cancellation is not required;
+4. authority unavailability fails closed; a verified JWT alone is insufficient;
+5. signed-in current-password change keeps its existing behavior;
+6. legacy access without an epoch remains admissible only at account epoch zero.
+
+This approval does not select a production topology, authorize production access, approve indefinite SMTP suppression, or authorize RustyCog edits, publication, or a gitlink bump.
+
+Before enforcement, the authoritative-store topology, bounded timeout/capacity budget, complete route inventory, trusted workload path and concrete shared SDK/public seam still require operational and implementation qualification.
 
 ## Validation status
 
-This proposal is grounded in static inspection of the pinned baseline.
-The [password reset suite](../../services/IAMRusty/tests/auth_password_reset.rs)
-is an evidence candidate. The proposed direct, mesh, and concurrency oracles
-remain unverified and require qualification after ratification.
+The design baseline remains `b2362c6b40cd562b36c4b9800ac4fa4d53d1ac3f`. A native red before implementation recorded an unexpired stale access JWT receiving `200` instead of `401` on a protected direct IAM route.
+
+The IAM slice was qualified on base `f7b7489bc45cee7be2249652065dcad682d48a2d`:
+
+- formatting, integration-target type-check and final unit-test compilation passed;
+- `iam-domain` passed 89/89 and `iam-infra` passed 155/155;
+- the HTTP/PostgreSQL reset binary passed 27 tests, retained exactly the known stale-access `200`-vs-`401` red, and ignored one opt-in test;
+- the migration binary passed 8/8;
+- `session_writer_concurrency` passed 2/2 in campaign
+  `it-e3f21472774445408e02e027f22a33cd`; one fixture was created and removed,
+  with zero campaign-owned running and the three pre-existing Kind nodes unchanged;
+- complete direct Clippy production/tests lanes passed with valid JSONL reports
+  and no finding attributable to an added line after the test-only correction;
+- all campaign-owned fixtures were removed, with pre-existing registered resources left untouched.
+
+The later test-only Clippy correction left every runtime-relevant blob unchanged relative to the qualified HTTP/PostgreSQL envelope; the production prefix of the refresh service is byte-identical and the added TLS target is outside that campaign.
+
+The direct stale-access test remains intentionally red until a published RustyCog liveness hook and IAM reader wiring exist. Authority-outage `503`, optional-auth no-downgrade, legacy no-claim admission before/after the first reset, real mesh Check behavior, exact outage mapping, trusted workload path, boundary inventory and deterministic late-response rotation ordering remain unverified. STORY-003.03 therefore remains open.

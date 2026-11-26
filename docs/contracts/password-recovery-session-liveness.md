@@ -1,6 +1,6 @@
 # Password recovery session-liveness contract
 
-- Status: **Proposed / Unimplemented**
+- Status: **Accepted / Partially implemented**
 - Date: 2026-11-24
 - Decision authority: [ADR 0316](../adr/0316-password-recovery-session-liveness.md)
 - Scope: STORY-003 E3 and STORY-010 E2, password-recovery branch only
@@ -59,9 +59,9 @@ A legacy refresh row at epoch zero MAY rotate before the first reset, producing 
 
 The historical `iamrusty` issuer is not inferred from string shape. It is eligible only where the existing principal policy explicitly admits it in a bounded compatibility or isolated-test window.
 
-## 3. Proposed authoritative liveness interface
+## 3. Authoritative liveness interface
 
-The path below is proposed, not implemented or reserved:
+The following logical interface is accepted. Its concrete shared SDK/public wiring and IAM workload route are not implemented:
 
 ```text
 POST /iam/internal/auth/session-liveness
@@ -270,7 +270,7 @@ No error response or log may contain the raw access token, refresh token, reset 
 
 ## 8. Integration oracles
 
-These are required future tests, not executed evidence.
+These are the required integration oracles. Section 11 records which have been executed; every unexecuted or partial oracle remains a delivery gate.
 
 ### OR-01 — Reset request has no session effect
 
@@ -363,7 +363,7 @@ Prove that linked Login and provider Signup confirmation use the epoch-aware iss
 
 ## 9. Rollout and rollback gates
 
-1. Add the epoch fields additively with epoch-zero defaults; inspect real persisted state before applying.
+1. Add the epoch fields additively with epoch-zero defaults; inspect real persisted state before applying. The IAM migration `m20261124_000001_auth_epoch` implements the additive columns and canonical-value constraint, and refuses to drop an advanced epoch.
 2. Deploy epoch-aware issuance and the liveness endpoint.
 3. Deploy direct admission to all known consumers and the monolith.
 4. Deploy `ext-authz` liveness for opt-in mesh.
@@ -371,17 +371,27 @@ Prove that linked Login and provider Signup confirmation use the epoch-aware iss
 6. Enable enforcement only when the boundary inventory is complete. Until then, report the E3 guarantee as not delivered.
 7. Rollback MUST NOT decrement epochs or reissue pre-reset tokens. Disabling enforcement after a reset is a security regression requiring explicit approval.
 
-No migration identifier, dependency, feature flag name, or implementation file assignment is reserved by this draft.
+The implemented migration identifier is `m20261124_000001_auth_epoch`. No SDK dependency, public endpoint name, feature flag name or deployment topology is reserved by this contract.
 
 ## 10. Approvals and unresolved choices
 
-- Approve the synchronous fail-closed availability cost and operational timeout/capacity budget.
-- Approve the epoch-zero legacy rule instead of forced reauthentication at deployment.
-- Approve admission-time revocation without cancellation of in-flight work.
-- Confirm recovery revokes OAuth-issued platform sessions for the same account but not external organization-managed sessions.
-- Confirm the authoritative-store topology satisfies read-after-commit for every admission replica.
-- Confirm signed-in password change remains outside the new revocation behavior.
+The product owner accepted the synchronous fail-closed availability cost, epoch-zero legacy rule, admission-time revocation without in-flight cancellation, recovery revocation of OAuth-issued platform sessions, and unchanged signed-in password-change behavior.
+
+Before enforcement, the authoritative-store topology, timeout/capacity budget, complete route inventory, trusted workload path and concrete shared SDK/public seam remain unresolved. ADR acceptance does not authorize production access, RustyCog edits/publication or an AIForAll gitlink bump.
 
 ## 11. Evidence status
 
-This proposal is grounded in static inspection of the pinned baseline. Its behavioral oracles have not been executed against an implementation.
+The contract is grounded in the published ADR and static inspection of the pinned baseline. Native evidence on the IAM implementation base includes:
+
+- a pre-implementation direct stale-access red (`200` instead of `401`);
+- 89/89 `iam-domain` and 155/155 `iam-infra` unit tests;
+- 27 passing HTTP/PostgreSQL reset tests, exactly the known stale-access red and one opt-in ignore;
+- 8/8 migration tests;
+- `session_writer_concurrency` passed 2/2 in campaign
+  `it-e3f21472774445408e02e027f22a33cd`, with one fixture created/removed and
+  zero campaign-owned running;
+- complete direct Clippy production/tests lanes passed with valid JSONL reports
+  and no finding attributable to an added line after the test-only correction;
+- zero campaign-owned running fixtures after cleanup.
+
+The runtime-relevant sources exercised by the HTTP/PostgreSQL and migration campaigns are byte-identical to the later corrected envelope. The direct admission hook, authority failure, optional-auth, legacy admission, real mesh, trusted workload path, boundary inventory and deterministic late-response rotation oracles remain pending. This contract is accepted as the target behavior, not as evidence that STORY-003.03 is complete.

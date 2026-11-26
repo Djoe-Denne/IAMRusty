@@ -9,8 +9,9 @@ use std::sync::Arc;
 use tracing::debug;
 use uuid::Uuid;
 
-use super::authentication_session::lock_user;
+use super::authentication_session::{lock_user, read_epoch};
 use super::entity::{prelude::RefreshTokens, refresh_tokens};
+use super::refresh_token_read::RefreshTokenReadRepositoryImpl;
 
 /// `SeaORM` implementation of `RefreshTokenWriteRepository`
 #[derive(Clone)]
@@ -34,18 +35,7 @@ impl RefreshTokenWriteRepositoryImpl {
             is_valid: Set(token.is_valid),
             created_at: Set(token.created_at.into()),
             expires_at: Set(token.expires_at.into()),
-        }
-    }
-
-    /// Convert a database model to a domain refresh token
-    fn to_domain(model: refresh_tokens::Model) -> DomainRefreshToken {
-        DomainRefreshToken {
-            id: model.id,
-            user_id: model.user_id,
-            token: model.token,
-            is_valid: model.is_valid,
-            created_at: model.created_at.into(),
-            expires_at: model.expires_at.into(),
+            auth_epoch: Set(token.auth_epoch.to_string()),
         }
     }
 }
@@ -59,11 +49,14 @@ impl RefreshTokenWriteRepository for RefreshTokenWriteRepositoryImpl {
 
         let model = Self::to_model(&token);
         let txn = self.db.begin().await?;
-        lock_user(&txn, token.user_id).await?;
-        let res = model.insert(&txn).await?;
+        let owner = lock_user(&txn, token.user_id).await?;
+        if read_epoch(&owner.auth_epoch)? != token.auth_epoch {
+            return Err(DbErr::RecordNotFound("Refresh token not found".into()));
+        }
+        let res = RefreshTokenReadRepositoryImpl::to_domain(model.insert(&txn).await?)?;
         txn.commit().await?;
 
-        Ok(Self::to_domain(res))
+        Ok(res)
     }
 
     async fn update_validity(&self, token_id: Uuid, is_valid: bool) -> Result<(), Self::Error> {
@@ -126,7 +119,8 @@ impl RefreshTokenWriteRepository for RefreshTokenWriteRepositoryImpl {
         );
 
         let txn = self.db.begin().await?;
-        lock_user(&txn, new_token.user_id).await?;
+        let owner = lock_user(&txn, new_token.user_id).await?;
+        let auth_epoch = read_epoch(&owner.auth_epoch)?;
         let old = RefreshTokens::find_by_id(old_token_id)
             .one(&txn)
             .await?
@@ -136,11 +130,15 @@ impl RefreshTokenWriteRepository for RefreshTokenWriteRepositoryImpl {
                     && old.expires_at > chrono::Utc::now()
             })
             .ok_or_else(|| DbErr::RecordNotFound("Refresh token not found".into()))?;
-        if !new_token.is_valid || new_token.expires_at <= chrono::Utc::now() {
+        if read_epoch(&old.auth_epoch)? != auth_epoch
+            || new_token.auth_epoch != auth_epoch
+            || !new_token.is_valid
+            || new_token.expires_at <= chrono::Utc::now()
+        {
             return Err(DbErr::RecordNotFound("Refresh token not found".into()));
         }
         let model = Self::to_model(&new_token);
-        let inserted = model.insert(&txn).await?;
+        let inserted = RefreshTokenReadRepositoryImpl::to_domain(model.insert(&txn).await?)?;
 
         let delete_result = RefreshTokens::delete_by_id(old.id).exec(&txn).await?;
 
@@ -152,7 +150,7 @@ impl RefreshTokenWriteRepository for RefreshTokenWriteRepositoryImpl {
         }
 
         txn.commit().await?;
-        Ok(Self::to_domain(inserted))
+        Ok(inserted)
     }
 
     async fn delete_by_user_id(&self, user_id: Uuid) -> Result<u64, Self::Error> {
@@ -185,6 +183,7 @@ mod atomic_writer_tests {
             id,
             username: Some("registered".into()),
             password_hash: Some("hash".into()),
+            auth_epoch: "0".into(),
             avatar_url: None,
             created_at: now,
             updated_at: now,
@@ -193,6 +192,7 @@ mod atomic_writer_tests {
     fn token(user_id: Uuid) -> DomainRefreshToken {
         let now = Utc::now();
         DomainRefreshToken {
+            auth_epoch: 0,
             id: Uuid::new_v4(),
             user_id,
             token: "rotation-secret".into(),
@@ -203,6 +203,7 @@ mod atomic_writer_tests {
     }
     fn stored(token: &DomainRefreshToken) -> refresh_tokens::Model {
         refresh_tokens::Model {
+            auth_epoch: token.auth_epoch.to_string(),
             id: token.id,
             user_id: token.user_id,
             token: DomainRefreshToken::hash_token(&token.token),
@@ -255,9 +256,10 @@ mod atomic_writer_tests {
     }
 
     #[tokio::test]
-    async fn rotate_missing_wrong_owner_invalid_or_expired_never_inserts() {
-        for case in 0..=5 {
+    async fn rotate_rejects_missing_invalid_or_epoch_mismatched_sessions() {
+        for case in 0..=8 {
             let user_id = Uuid::new_v4();
+            let mut user = owner(user_id);
             let mut old = token(user_id);
             let mut new = token(user_id);
             match case {
@@ -266,6 +268,9 @@ mod atomic_writer_tests {
                 3 => old.expires_at = Utc::now() - Duration::seconds(1),
                 4 => new.is_valid = false,
                 5 => new.expires_at = Utc::now() - Duration::seconds(1),
+                6 => user.auth_epoch = "1".into(), // Legacy row after an epoch advance.
+                7 => old.auth_epoch = 1,
+                8 => new.auth_epoch = 1,
                 _ => {}
             }
             let rows = if case == 0 {
@@ -275,7 +280,7 @@ mod atomic_writer_tests {
             };
             let db = Arc::new(
                 MockDatabase::new(DbBackend::Postgres)
-                    .append_query_results([vec![owner(user_id)]])
+                    .append_query_results([vec![user]])
                     .append_query_results([rows])
                     .into_connection(),
             );
