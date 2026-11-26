@@ -103,51 +103,6 @@ fn deserialize_auth_epoch<'de, D: serde::Deserializer<'de>>(
         .ok_or_else(|| serde::de::Error::custom("invalid authentication epoch"))
 }
 
-#[cfg(test)]
-mod auth_epoch_tests {
-    use super::*;
-    use serde_json::{json, Value};
-
-    #[test]
-    fn missing_epoch_is_legacy_but_present_claims_must_be_canonical_strings() {
-        let claims = TokenClaims::new("subject", "username", Duration::minutes(1));
-        let legacy = serde_json::to_value(claims).expect("serialize legacy claims");
-        assert!(legacy.get("auth_epoch").is_none());
-        assert!(serde_json::from_value::<TokenClaims>(legacy.clone())
-            .expect("read legacy claims")
-            .auth_epoch
-            .is_none());
-        for value in ["0", "1", "18446744073709551615"] {
-            let mut present = legacy.clone();
-            present["auth_epoch"] = json!(value);
-            assert_eq!(
-                serde_json::from_value::<TokenClaims>(present)
-                    .expect("canonical epoch")
-                    .auth_epoch
-                    .as_deref(),
-                Some(value)
-            );
-        }
-        for value in [
-            Value::Null,
-            json!(0),
-            json!(""),
-            json!("01"),
-            json!("+1"),
-            json!("-1"),
-            json!(" 1"),
-            json!("1.0"),
-            json!("1e0"),
-            json!("١"),
-            json!("18446744073709551616"),
-        ] {
-            let mut malformed = legacy.clone();
-            malformed["auth_epoch"] = value;
-            assert!(serde_json::from_value::<TokenClaims>(malformed).is_err());
-        }
-    }
-}
-
 /// JWT key pair for token signing and verification
 #[derive(Clone)]
 pub struct JwtKeyPair {
@@ -347,5 +302,50 @@ impl RefreshToken {
         let mut hasher = Sha256::new();
         hasher.update(raw_token.as_bytes());
         format!("{:x}", hasher.finalize())
+    }
+}
+
+#[cfg(test)]
+mod auth_epoch_tests {
+    use super::*;
+    use serde_json::{json, Value};
+
+    #[test]
+    fn missing_epoch_is_legacy_but_present_claims_must_be_canonical_strings() {
+        let claims = TokenClaims::new("subject", "username", Duration::minutes(1));
+        let legacy = serde_json::to_value(claims).expect("serialize legacy claims");
+        assert!(legacy.get("auth_epoch").is_none());
+        assert!(serde_json::from_value::<TokenClaims>(legacy.clone())
+            .expect("read legacy claims")
+            .auth_epoch
+            .is_none());
+        for value in ["0", "1", "18446744073709551615"] {
+            let mut present = legacy.clone();
+            present["auth_epoch"] = json!(value);
+            assert_eq!(
+                serde_json::from_value::<TokenClaims>(present)
+                    .expect("canonical epoch")
+                    .auth_epoch
+                    .as_deref(),
+                Some(value)
+            );
+        }
+        for value in [
+            Value::Null,
+            json!(0),
+            json!(""),
+            json!("01"),
+            json!("+1"),
+            json!("-1"),
+            json!(" 1"),
+            json!("1.0"),
+            json!("1e0"),
+            json!("١"),
+            json!("18446744073709551616"),
+        ] {
+            let mut malformed = legacy.clone();
+            malformed["auth_epoch"] = value;
+            assert!(serde_json::from_value::<TokenClaims>(malformed).is_err());
+        }
     }
 }
