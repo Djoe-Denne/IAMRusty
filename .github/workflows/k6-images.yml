@@ -31,7 +31,7 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
     steps:
       - name: Checkout immutable harness without persisted credentials
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           submodules: false
@@ -50,7 +50,7 @@ jobs:
           --source-sha "$TARGET_SHA" --output "$RUNNER_TEMP/k6-acquired"
 
       - name: Checkout target metadata and IAM entrypoint only (no build scripts executed)
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.acquire.outputs.target_sha }}
           path: target-source

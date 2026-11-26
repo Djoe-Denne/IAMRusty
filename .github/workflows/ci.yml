@@ -28,7 +28,7 @@ jobs:
     if: needs.plan.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
@@ -44,7 +44,7 @@ jobs:
       docs_only: ${{ steps.docs.outputs.docs_only }}
       selection: ${{ steps.docs.outputs.selection || steps.scope.outputs.selection }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           fetch-depth: 0
@@ -84,7 +84,7 @@ jobs:
       # Publish exclusively the allowlisted summary below, never this raw log.
       SCCACHE_LOG: sccache::server=debug,sccache::compiler::compiler=error
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
@@ -114,7 +114,7 @@ jobs:
     if: fromJSON(needs.plan.outputs.selection).build.telegraph
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
@@ -128,7 +128,7 @@ jobs:
     if: fromJSON(needs.plan.outputs.selection).build.hive
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
@@ -142,7 +142,7 @@ jobs:
     if: fromJSON(needs.plan.outputs.selection).build.manifesto
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
@@ -156,7 +156,7 @@ jobs:
     if: fromJSON(needs.plan.outputs.selection).build.monolith
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
@@ -170,7 +170,7 @@ jobs:
     if: fromJSON(needs.plan.outputs.selection).build['sentinel-sync']
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
@@ -184,7 +184,7 @@ jobs:
     if: fromJSON(needs.plan.outputs.selection).build['ext-authz']
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
@@ -199,7 +199,7 @@ jobs:
     if: fromJSON(needs.plan.outputs.selection).build.oauth
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
@@ -218,7 +218,7 @@ jobs:
       (needs.build-ext-authz.result == 'success' ||
       (needs.build-ext-authz.result == 'skipped' && !fromJSON(needs.plan.outputs.selection).build['ext-authz']))
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
@@ -234,7 +234,7 @@ jobs:
     if: fromJSON(needs.plan.outputs.selection).full
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       # kubectl is used only as an offline kustomize renderer; no cluster access.
@@ -295,7 +295,7 @@ jobs:
     needs: [fmt, plan]
     if: fromJSON(needs.plan.outputs.selection).full
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
@@ -524,7 +524,7 @@ jobs:
       authoritative: ${{ steps.merge.outputs.authoritative }}
       pr_ready: ${{ steps.merge.outputs.pr_ready }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
@@ -586,7 +586,7 @@ jobs:
     env:
       CI_EXECUTION_SCOPE: ${{ needs.plan.outputs.selection }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           persist-credentials: false
@@ -662,7 +662,7 @@ jobs:
     outputs:
       scan_outcome: ${{ steps.scan.outcome }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           submodules: true
@@ -730,7 +730,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [fmt, plan, infra-static, build-iam, build-telegraph, build-hive, build-manifesto, build-monolith, build-sentinel, build-ext-authz, build-oauth, ext-authz-unit, apparatus-p0, test-iam, test-telegraph, test-hive, test-manifesto, test-sentinel, test-readiness, test-shared, clippy, merge-coverage, sonar, k6-e2e, e2e-pages-stage, e2e-pages]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Distinguish selected failures from intentional skips
