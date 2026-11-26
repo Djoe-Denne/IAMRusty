@@ -417,7 +417,11 @@ and two unauthorized losers; one owned fixture was created/removed with the
 same 15-container before/after inventory. Native `session_writer_concurrency`
 passed 2/2 at the integrated revision, covering one reset winner with no
 surviving old session and purge-failure rollback; its one owned fixture was
-removed with zero owned running. Final direct Clippy production/tests lanes
-passed with valid JSONL reports and zero findings attributable to added lines.
+removed with zero owned running. Native `internal_provider_token` passed 13/13,
+`revoke_provider_token` 10/10 and `user` 26/26 after aligning absent-account
+oracles with admission-time denial; each campaign removed its one owned
+fixture with 15 containers before/after and zero owned running. Final direct
+Clippy production/tests lanes passed with valid JSONL reports and zero findings
+attributable to added lines.
 
 The runtime-relevant sources exercised by the HTTP/PostgreSQL and migration campaigns are byte-identical to the later corrected envelope. The shared SDK and IAM/`ext-authz` wiring are implemented; direct authority failure, optional-auth, legacy admission, real deployed mesh, trusted workload path, boundary inventory and deterministic late-response rotation oracles remain pending. This contract is accepted as the target behavior, not as evidence that STORY-003.03 is complete.

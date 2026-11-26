@@ -462,14 +462,6 @@ async fn test_get_user_returns_401_when_user_not_found_in_database() {
     .await;
 
     // Make request with token for non-existent user
-    let _response = client
-        .get(format!("{base_url}/api/me"))
-        .header("Authorization", format!("Bearer {jwt_token}"))
-        .send()
-        .await
-        .expect("Failed to send request");
-
-    // Re-make the request to get the JSON response
     let response = client
         .get(format!("{base_url}/api/me"))
         .header("Authorization", format!("Bearer {jwt_token}"))
@@ -483,23 +475,13 @@ async fn test_get_user_returns_401_when_user_not_found_in_database() {
         "Should return 401 when user not found"
     );
 
-    let response_json: Value = response
-        .json()
+    let response_body = response
+        .text()
         .await
-        .expect("Should return JSON error response");
-
+        .expect("Should read the liveness denial body");
     assert!(
-        response_json["error"].is_object(),
-        "Should return error object"
-    );
-    assert_eq!(
-        response_json["error"]["error_code"],
-        "user_not_found".to_string(),
-        "Error code should be user_not_found"
-    );
-    assert_eq!(
-        response_json["error"]["status"], 401,
-        "Error status should be 401"
+        response_body.is_empty(),
+        "Admission denial must not reach the profile handler or disclose JSON"
     );
 }
 
@@ -1616,12 +1598,12 @@ async fn test_update_profile_returns_401_when_user_not_found_in_database() {
         401,
         "Should return 401 when user not found"
     );
-    let response_json: Value = response
-        .json()
+    let response_body = response
+        .text()
         .await
-        .expect("Should return JSON error response");
-    assert_eq!(
-        response_json["error"]["error_code"], "user_not_found",
-        "Error code should be user_not_found"
+        .expect("Should read the liveness denial body");
+    assert!(
+        response_body.is_empty(),
+        "Admission denial must not reach the profile handler or disclose JSON"
     );
 }
