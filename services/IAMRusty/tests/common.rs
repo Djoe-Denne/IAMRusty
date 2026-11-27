@@ -265,16 +265,23 @@ fn fixture_config_with_security(
     fixture: &TestFixture,
     security: Option<iam_configuration::security::SecurityConfig>,
 ) -> anyhow::Result<AppConfig> {
+    let database = fixture
+        .database
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("IAM fixture requires writer DB"))?;
+    writer_config(&database.database_url, security)
+}
+
+fn writer_config(
+    database_url: &str,
+    security: Option<iam_configuration::security::SecurityConfig>,
+) -> anyhow::Result<AppConfig> {
     let mut config = load_config_fresh::<AppConfig>()?;
     let explicit_security = security.is_some();
     if let Some(security) = security {
         config.security = security;
     }
-    let database = fixture
-        .database
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("IAM fixture requires writer DB"))?;
-    let database_url = url::Url::parse(&database.database_url)?;
+    let database_url = url::Url::parse(database_url)?;
     let host = database_url
         .host_str()
         .ok_or_else(|| anyhow::anyhow!("missing fixture DB host"))?;
@@ -397,12 +404,50 @@ fn create_fixture_totp_key(directory: &tempfile::TempDir) -> anyhow::Result<std:
 
 async fn start_owned_listener_with_keys(
     fixture: &TestFixture,
-    mut config: AppConfig,
+    config: AppConfig,
     publisher: Arc<MultiQueueEventPublisher<DomainError>>,
     pem_files: Option<Arc<tempfile::TempDir>>,
     signing_keys: &[SigningKey],
 ) -> anyhow::Result<(String, Client)> {
     let fixture_db = fixture_writer(fixture)?;
+    Box::pin(start_writer_listener(
+        fixture_db,
+        config,
+        publisher,
+        pem_files,
+        signing_keys,
+    ))
+    .await
+}
+
+/// Start the existing real IAM listener on a caller-owned, migrated writer.
+///
+/// # Errors
+/// Returns configuration, key-fixture or listener startup errors.
+pub async fn setup_test_server_on_writer(
+    db: Arc<sea_orm::DatabaseConnection>,
+    database_url: &str,
+) -> anyhow::Result<(String, Client)> {
+    let mut config = writer_config(database_url, None)?;
+    let files = create_fixture_pem_files(&mut config)?;
+    Box::pin(start_writer_listener(
+        db,
+        config,
+        mock_publisher(Arc::new(MockEventPublisher::new())),
+        Some(files),
+        &[],
+    ))
+    .await
+}
+
+async fn start_writer_listener(
+    fixture_db: Arc<sea_orm::DatabaseConnection>,
+    mut config: AppConfig,
+    publisher: Arc<MultiQueueEventPublisher<DomainError>>,
+    pem_files: Option<Arc<tempfile::TempDir>>,
+    signing_keys: &[SigningKey],
+) -> anyhow::Result<(String, Client)> {
+    let cleanup_db = fixture_db.clone();
     let client = Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .build()?;
@@ -491,7 +536,7 @@ async fn start_owned_listener_with_keys(
     if iam_listener_ready(&client, &base).await {
         return Ok((base, client));
     }
-    cleanup_test_servers(fixture).await?;
+    cleanup_writer_test_servers(&cleanup_db).await?;
     Err(anyhow::anyhow!(
         "IAM fixture listener failed to become available"
     ))
@@ -520,13 +565,23 @@ async fn iam_listener_ready(client: &Client, base: &str) -> bool {
 /// Returns the first listener shutdown or join error, if any.
 pub async fn cleanup_test_servers(fixture: &TestFixture) -> anyhow::Result<()> {
     let db = fixture_writer(fixture)?;
+    cleanup_writer_test_servers(&db).await
+}
+
+/// Join only listeners registered to the caller-owned writer identity.
+///
+/// # Errors
+/// Returns the first listener shutdown or join error.
+pub async fn cleanup_writer_test_servers(
+    db: &Arc<sea_orm::DatabaseConnection>,
+) -> anyhow::Result<()> {
     let leases = {
         let mut all = listener_leases()
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let (owned, other): (Vec<_>, Vec<_>) = all
             .drain(..)
-            .partition(|lease| Arc::ptr_eq(&db, &lease.fixture_db));
+            .partition(|lease| Arc::ptr_eq(db, &lease.fixture_db));
         *all = other;
         owned
     };

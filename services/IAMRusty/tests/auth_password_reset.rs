@@ -5,6 +5,8 @@ mod common;
 mod fixture_cleanup;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
+#[path = "support/password_recovery_replica.rs"]
+mod password_recovery_replica;
 mod utils;
 
 use base64::Engine as _;
@@ -12,6 +14,7 @@ use common::{setup_test_server, setup_test_server_with_mock_events};
 use fixtures::DbFixtures;
 use iam_domain::entity::events::IamDomainEvent;
 use reqwest::StatusCode;
+use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use serde_json::{json, Value};
 use serial_test::serial;
 use tokio::time::Duration;
@@ -542,6 +545,98 @@ async fn iam_openapi_contract() {
 // ============================================================================
 // ✅ Password Reset Confirm Tests (Unauthenticated) - POST /auth/password/reset-confirm
 // ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn recovery_commit_advances_primary_replication_projection() {
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
+        .await
+        .expect("start IAM HTTP/PostgreSQL fixture");
+
+    fixture_cleanup::run(&fixture, async {
+        // STORY-003.03.02 / ADR 0317 contract §3: this checks the production
+        // source projection only; it does not qualify a logical subscriber.
+        let db = fixture.db();
+        let user = DbFixtures::create_user_with_email_password(
+            &db,
+            "recovery-projection@example.com",
+            "OldProjection1!",
+            Some("recovery_projection"),
+        )
+        .await
+        .expect("seed password account");
+        assert_eq!(user.model().auth_epoch, "0");
+        let proof = DbFixtures::password_reset_token()
+            .valid(user.id())
+            .commit(db.clone())
+            .await
+            .expect("seed valid recovery proof");
+
+        let confirmation = client
+            .post(format!("{base_url}/api/auth/password/reset-confirm"))
+            .json(&json!({"token": proof.token(), "new_password": "NewProjection2!"}))
+            .send()
+            .await
+            .expect("confirm recovery through real IAM HTTP");
+        assert_eq!(confirmation.status(), StatusCode::OK);
+        let confirmation: Value = confirmation.json().await.expect("read confirmation");
+        assert_eq!(
+            confirmation,
+            json!({"message": "Password has been successfully reset"}),
+            "successful recovery must not issue a session"
+        );
+
+        let account = db
+            .query_one(Statement::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                "SELECT auth_epoch FROM public.users WHERE id = $1",
+                [user.id().into()],
+            ))
+            .await
+            .expect("read committed primary account")
+            .expect("recovered account must still exist");
+        let account_epoch: String = account
+            .try_get("", "auth_epoch")
+            .expect("read primary account epoch");
+        assert_eq!(
+            account_epoch, "1",
+            "the HTTP reset must have committed the account epoch before checking its projection"
+        );
+
+        // Catalog lookup keeps an absent production relation an observable
+        // assertion failure, rather than an undefined-table SQL setup error.
+        let catalog = db
+            .query_one(Statement::from_string(
+                DatabaseBackend::Postgres,
+                "SELECT to_regclass('public.iam_session_liveness_epochs')::text AS relation",
+            ))
+            .await
+            .expect("inspect production projection relation")
+            .expect("catalog lookup must return one row");
+        let relation: Option<String> = catalog
+            .try_get("", "relation")
+            .expect("read production projection relation identity");
+        let projected_epoch: Option<String> = if relation.is_some() {
+            db.query_one(Statement::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                "SELECT auth_epoch FROM public.iam_session_liveness_epochs WHERE subject = $1",
+                [user.id().into()],
+            ))
+            .await
+            .expect("read production replication projection")
+            .map(|row| row.try_get("", "auth_epoch").expect("read projected epoch"))
+        } else {
+            None
+        };
+        assert_eq!(
+            projected_epoch.as_deref(),
+            Some("1"),
+            "ADR 0317: successful recovery committed users.auth_epoch=1, but the production \
+             replication projection is absent or not advanced (None means missing relation/account)"
+        );
+    })
+    .await;
+}
 
 #[tokio::test]
 #[serial]

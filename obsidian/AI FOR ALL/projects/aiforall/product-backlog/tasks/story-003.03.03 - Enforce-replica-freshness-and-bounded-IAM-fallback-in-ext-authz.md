@@ -1,9 +1,10 @@
 ---
 id: STORY-003.03.03
 title: Enforce replica freshness and bounded IAM fallback in ext-authz
-status: Accepted intent
+status: Ready
 assignee: []
 created_date: '2026-11-27T15:54:22Z'
+updated_date: '2026-11-27T17:58:24Z'
 labels:
   - iam
   - session-liveness
