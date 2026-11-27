@@ -5,6 +5,8 @@ mod common;
 mod fixture_cleanup;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
+#[path = "support/password_recovery_replica.rs"]
+mod password_recovery_replica;
 mod utils;
 
 use base64::Engine as _;
