@@ -17,7 +17,11 @@ use rustycog::permission::PrincipalPolicy;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::{timeout_at, Instant};
 use tracing::debug;
+
+const CHECK_BUDGET: Duration = Duration::from_secs(1);
 
 /// Check service state: local JWKS cache + optional test kid registry.
 #[derive(Clone)]
@@ -103,8 +107,16 @@ async fn check(
     incoming: HeaderMap,
     body: Bytes,
 ) -> impl IntoResponse {
+    let deadline = Instant::now() + CHECK_BUDGET;
+    match timeout_at(deadline, decide(&state, incoming, &body)).await {
+        Ok(response) if response.0 != StatusCode::OK || Instant::now() < deadline => response,
+        Ok(_) | Err(_) => unavailable("Check deadline elapsed"),
+    }
+}
+
+async fn decide(state: &AuthzState, incoming: HeaderMap, body: &Bytes) -> (StatusCode, HeaderMap) {
     let mut headers = incoming;
-    merge_check_body_headers(&mut headers, &body);
+    merge_check_body_headers(&mut headers, body);
     strip_all_x_principal(&mut headers);
 
     let Some(token) = bearer_token(&headers) else {
@@ -181,8 +193,7 @@ async fn check(
                 }
                 Err(SessionLivenessError::Revoked) => deny("session is revoked"),
                 Err(SessionLivenessError::Unavailable { .. }) => {
-                    debug!("session liveness unavailable");
-                    (StatusCode::SERVICE_UNAVAILABLE, HeaderMap::new())
+                    unavailable("session liveness unavailable")
                 }
             }
         }
@@ -194,6 +205,11 @@ async fn check(
 fn deny(reason: &str) -> (StatusCode, HeaderMap) {
     debug!(reason, "check denied");
     (StatusCode::FORBIDDEN, HeaderMap::new())
+}
+
+fn unavailable(reason: &str) -> (StatusCode, HeaderMap) {
+    debug!(reason, "check unavailable");
+    (StatusCode::SERVICE_UNAVAILABLE, HeaderMap::new())
 }
 
 fn allow(iss: &str, sub: &str) -> (StatusCode, HeaderMap) {
