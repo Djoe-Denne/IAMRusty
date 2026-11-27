@@ -13,6 +13,11 @@
 - Secondary contract: [Password recovery session liveness](../contracts/password-recovery-session-liveness.md)
 - Shared issuance boundary: [ADR 0414](0414-oauth-provider-intents.md)
 
+[ADR 0317](0317-bounded-replica-session-admission.md) amends the mesh
+admission path and access cutoff for STORY-003 v4. This record preserves the
+original strict admission design, the authoritative epoch and reset/renewal
+invariants, and the evidence for the synchronous checker.
+
 ## Context
 
 STORY-003 v3 E3 requires that, as soon as a reset from a recovery link succeeds, all earlier sessions lose authenticated access and cannot renew. STORY-010 v1 E2 adds that renewal cannot reopen a session ended by password recovery. STORY-003 E1 requires a reset request to leave sessions and the account usable; STORY-003 E2 requires confirmation without creating a session.

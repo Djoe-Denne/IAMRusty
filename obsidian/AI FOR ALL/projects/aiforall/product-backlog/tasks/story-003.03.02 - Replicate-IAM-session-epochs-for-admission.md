@@ -1,9 +1,10 @@
 ---
 id: STORY-003.03.02
 title: Replicate IAM session epochs for admission
-status: Accepted intent
+status: Ready
 assignee: []
 created_date: '2026-11-27T15:54:15Z'
+updated_date: '2026-11-27T16:14:05Z'
 labels:
   - iam
   - session-liveness
@@ -11,6 +12,7 @@ dependencies:
   - STORY-003.03.01
 documentation:
   - docs/contracts/password-recovery-session-liveness.md
+  - docs/contracts/password-recovery-replica-admission.md
 parent_task_id: STORY-003.03
 priority: high
 type: task

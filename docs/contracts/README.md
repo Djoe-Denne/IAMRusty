@@ -21,7 +21,7 @@ Contrats :
   — Accepted / Partial: immediate revocation of prior platform access and renewal after successful password recovery.
 
 - [`password-recovery-replica-admission.md`](password-recovery-replica-admission.md)
-  — Proposed: replica freshness, bounded fallback and deployed qualification for STORY-003 v4 E3.
+  — Accepted / Unimplemented: replica freshness, bounded fallback and deployed qualification for STORY-003 v4 E3.
 
 - [`oauth-provider-intents.md`](oauth-provider-intents.md)
   — Proposed: separate provider Login, Signup and Link with browser-bound intent and explicit mutation boundaries.

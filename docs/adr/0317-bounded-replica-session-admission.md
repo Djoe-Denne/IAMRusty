@@ -1,10 +1,11 @@
 # ADR-0317 — Use verified PostgreSQL replicas for bounded recovery revocation
 
-- Status: **Proposed**
+- Status: **Accepted**
 - Reality: **Unimplemented**
 - Date: 2026-11-27
+- Decider: product owner, 2026-11-27
 - Scope: STORY-003 v4 E3 and STORY-003.03.01
-- Proposed amendment: the mesh admission path and strict zero-delay access
+- Amends: the mesh admission path and strict zero-delay access
   cutoff in [ADR 0316](0316-password-recovery-session-liveness.md).
 - Contract: [Bounded replica admission](../contracts/password-recovery-replica-admission.md)
 
@@ -17,7 +18,7 @@ and its primary to handle every authenticated platform admission at the gateway
 when enabled. STORY-003 v4 instead requires immediate renewal revocation and
 bounds prior access to five seconds from the reset commit, including failures.
 
-## Proposed decision
+## Decision
 
 IAM remains the authority for session state and reset ordering. Replicate a
 minimal session-state projection and a freshness marker through one ordered
@@ -28,7 +29,7 @@ before allowing from the replica. The checkpoint expires, including when the
 subscriber still answers queries. A bounded IAM fallback is permitted; lacking
 a trustworthy decision, refuse admission temporarily.
 
-The proposed initial budget is three seconds of proof age, one second for
+The initial qualification budget is three seconds of proof age, one second for
 end-to-end Check delivery and one second of safety headroom. The five-second
 guarantee includes Envoy consuming the verdict; it does not end when
 `ext-authz` emits it. Qualify elapsed-time behavior and late-response refusal
@@ -73,6 +74,5 @@ out-of-band change or skipped transaction in the projection. Workload access,
 configuration and deployment qualification are explicit rollout gates. Leaving
 the former live-check configuration absent is not a valid rollout.
 
-Deployment work targets the existing opt-in mesh test environment. No cloud
-provisioning, production activation or modification to published ADR status is
-implied by this proposal.
+Deployment work targets the existing opt-in mesh test environment.
+Acceptance does not authorize cloud provisioning or production activation.

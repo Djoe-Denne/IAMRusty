@@ -120,7 +120,7 @@ Contrat secondaire test-side : [m6 proof hardening](../contracts/20261018-m6-pro
 | [0314](0314-principal-authority-through-openfga.md) | Preserve the principal's issuer in permission subjects, caches and OpenFGA projections; keep legacy platform compatibility only with provenance | Accepted / Partial |
 | [0315](0315-password-totp-writer-authority.md) | Bind password and TOTP decisions to writer authority | Proposed |
 | [0316](0316-password-recovery-session-liveness.md) | Revoke earlier platform access and renewal at password-recovery commit using authoritative account epochs | Accepted / Partial |
-| [0317](0317-bounded-replica-session-admission.md) | Use verified PostgreSQL replicas for bounded recovery revocation | Proposed / Unimplemented |
+| [0317](0317-bounded-replica-session-admission.md) | Use verified PostgreSQL replicas for bounded recovery revocation | Accepted / Unimplemented |
 
 **0310** : `Accepted` / `Partial`, ratification initiale le 2026-10-04 ; supersession **partielle** du calcul/capacité par **0312** effective le 2026-10-08, autres invariants conservés. **0311–0312** : `Accepted` / `Implemented`, Accept explicite de Djoé Denne le 2026-10-08 ; implémentation livrée, units + IT IAM vertes sur master selon son attestation (pas artefact CI archivé). Aucune clôture sécurité globale S-10 ni preuve E2E implicite. Prochain libre events/authz : **0313+**. Contrat historique : `.cursor/review-briefings/20261003-auth-fixes-interface-contract.md` §§14–15 ; calcul/capacité désormais régis par 0312.
 

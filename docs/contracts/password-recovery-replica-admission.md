@@ -1,7 +1,8 @@
 # Password recovery: bounded admission from a PostgreSQL replica
 
-- Status: **Proposed / Unimplemented**
+- Status: **Accepted / Unimplemented**
 - Product: STORY-003 v4 E3, STORY-003.03.01, and STORY-010 E2
+- Decision authority: [ADR 0317](../adr/0317-bounded-replica-session-admission.md)
 - Evidence baseline: `51e789ac4a77e188e922271fc7ec6076ebd66628`
 - Existing invariants and evidence: [ADR 0316](../adr/0316-password-recovery-session-liveness.md) and [its implementation contract](password-recovery-session-liveness.md)
 
@@ -75,8 +76,11 @@ Source inventory at the baseline (builder registrations, not method counts):
 ## 3. Replica admission proof
 
 Use a PostgreSQL 15 logical subscription for the platform account projection
-and its freshness marker, with ordinary ordered apply. The projection carries
-only the platform subject and the current canonical unsigned `auth_epoch`.
+and its freshness marker, with ordinary ordered apply.
+`public.iam_session_liveness_epochs` identifies a platform account by
+`subject UUID PRIMARY KEY` and stores its canonical unsigned
+`auth_epoch TEXT NOT NULL`; the subscriber uses the same relation and shape.
+`public.iam_session_liveness_checkpoints` uses `challenge UUID PRIMARY KEY`.
 Use a dedicated source relation maintained by PostgreSQL from changes to the
 existing IAM account row in the same transaction, including create, epoch
 advance and delete. The migration initializes epoch-zero as well as advanced
