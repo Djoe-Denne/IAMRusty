@@ -164,7 +164,21 @@ async fn check(
                 .check_session_liveness(&verified.principal, verified.auth_epoch)
                 .await
             {
-                Ok(()) => allow(&verified.principal.iss, &verified.principal.sub.to_string()),
+                Ok(()) => {
+                    // A platform check can await the authority. Recheck token
+                    // validity using the same inline keys, then check that the
+                    // cache still authorizes those keys before emitting allow.
+                    if state.session_liveness.is_some()
+                        && verified.principal.iss == state.platform_issuer
+                        && extractor.extract_verified_principal(&token).await.is_err()
+                    {
+                        return deny("JWT is no longer valid after session liveness");
+                    }
+                    if !state.cache.still_authorizes(&kid, &doc) {
+                        return deny("JWKS authorization snapshot expired or replaced");
+                    }
+                    allow(&verified.principal.iss, &verified.principal.sub.to_string())
+                }
                 Err(SessionLivenessError::Revoked) => deny("session is revoked"),
                 Err(SessionLivenessError::Unavailable { .. }) => {
                     debug!("session liveness unavailable");
