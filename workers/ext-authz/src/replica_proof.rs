@@ -1,5 +1,7 @@
-use std::time::Duration;
+use std::{cmp::Ordering, time::Duration};
 use uuid::Uuid;
+
+const MAX_PROOF_AGE: Duration = Duration::from_secs(3);
 
 #[derive(Clone, Copy)]
 struct Proof {
@@ -22,9 +24,23 @@ enum Decision {
 }
 
 impl Proof {
-    fn decide(&self, _now: Duration, _snapshot: &Snapshot, _claim: Option<u64>) -> Decision {
-        // Safe baseline until replica admission is implemented.
-        Decision::NeedAuthority
+    fn decide(&self, now: Duration, snapshot: &Snapshot, claim: Option<u64>) -> Decision {
+        if !now
+            .checked_sub(self.started)
+            .is_some_and(|age| age < MAX_PROOF_AGE)
+            || snapshot.ready_generation != Some(self.generation)
+            || snapshot.applied_challenge != Some(self.challenge)
+        {
+            return Decision::NeedAuthority;
+        }
+        let Some(epoch) = snapshot.epoch else {
+            return Decision::NeedAuthority;
+        };
+        match claim.unwrap_or(0).cmp(&epoch) {
+            Ordering::Less => Decision::Revoked,
+            Ordering::Equal => Decision::Live,
+            Ordering::Greater => Decision::NeedAuthority,
+        }
     }
 }
 
