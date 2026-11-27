@@ -11,7 +11,10 @@ mod utils;
 mod writer_barrier;
 
 use fixtures::DbFixtures;
-use iam_domain::{entity::token::RefreshToken, port::repository::AuthenticationSessionWriter};
+use iam_domain::{
+    entity::{password_reset_token::PasswordResetToken, token::RefreshToken},
+    port::repository::AuthenticationSessionWriter,
+};
 use iam_infra::repository::authentication_session::SeaOrmAuthenticationSessionWriter;
 use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use serial_test::serial;
@@ -20,6 +23,7 @@ use uuid::Uuid;
 
 fn refresh(user: Uuid) -> RefreshToken {
     RefreshToken {
+        auth_epoch: 0,
         id: Uuid::new_v4(),
         user_id: user,
         token: Uuid::new_v4().to_string(),
@@ -63,18 +67,20 @@ async fn concurrent_resets_and_old_credential_issue_have_one_reset_and_no_surviv
         .issue(refresh(user.id()), old.clone())
         .await
         .expect("old session through real writer");
-    DbFixtures::password_reset_token()
-        .user_id(user.id())
-        .raw_token("fixed-old-reset-token")
-        .expires_at(chrono::Utc::now() + chrono::Duration::hours(1))
-        .commit(db.clone())
-        .await
-        .expect("reset token fixture");
+    let mut attempts = Vec::new();
+    for replacement in ["reset-winner-one", "reset-winner-two"] {
+        let proof = DbFixtures::password_reset_token()
+            .valid(user.id())
+            .commit(db.clone())
+            .await
+            .expect("distinct valid recovery proof");
+        attempts.push((replacement, PasswordResetToken::hash_token(proof.token())));
+    }
     let separate_pool = writer_barrier::independent_writer(db.as_ref()).await;
     let (held, holder) = writer_barrier::hold(&separate_pool, "users", user.id()).await;
     let barrier = Arc::new(tokio::sync::Barrier::new(3));
     let mut resets = Vec::new();
-    for replacement in ["reset-winner-one", "reset-winner-two"] {
+    for (replacement, proof_hash) in attempts {
         let writer = writer.clone();
         let barrier = barrier.clone();
         let old = old.clone();
@@ -84,7 +90,7 @@ async fn concurrent_resets_and_old_credential_issue_have_one_reset_and_no_surviv
             (
                 replacement,
                 writer
-                    .reset_password(id, old, replacement.into(), None)
+                    .recover_password(id, old, replacement.into(), proof_hash)
                     .await,
             )
         }));
@@ -117,7 +123,7 @@ async fn concurrent_resets_and_old_credential_issue_have_one_reset_and_no_surviv
     assert_eq!(count(db.as_ref(), user.id()).await, 0);
     let winner = if one.1.is_ok() { one.0 } else { two.0 };
     let row = db.query_one(Statement::from_sql_and_values(DatabaseBackend::Postgres,
-        "SELECT password_hash, (SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = $1) AS resets FROM users WHERE id = $1", [user.id().into()]))
+        "SELECT password_hash, auth_epoch, (SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = $1) AS resets FROM users WHERE id = $1", [user.id().into()]))
         .await.expect("committed reset state").expect("user row");
     assert!(
         row.try_get::<String>("", "password_hash")
@@ -129,12 +135,16 @@ async fn concurrent_resets_and_old_credential_issue_have_one_reset_and_no_surviv
         row.try_get::<i64>("", "resets").expect("reset token count"),
         0
     );
+    assert_eq!(row.try_get::<String>("", "auth_epoch").expect("epoch"), "1");
     assert!(
         writer.issue(refresh(user.id()), old).await.is_err(),
         "stale verified password cannot issue after reset"
     );
+    assert!(writer.issue(refresh(user.id()), Some(winner.into())).await.is_err(),
+        "even a current credential snapshot cannot issue a stale epoch");
+    let next = RefreshToken { auth_epoch: 1, ..refresh(user.id()) };
     writer
-        .issue(refresh(user.id()), Some(winner.into()))
+        .issue(next, Some(winner.into()))
         .await
         .expect("genuine post-reset issuance");
     assert_eq!(count(db.as_ref(), user.id()).await, 1);
@@ -165,6 +175,12 @@ async fn reset_purge_failure_rolls_back_password_and_all_existing_sessions() {
         .issue(refresh(user.id()), old.clone())
         .await
         .expect("second session");
+    let proof = DbFixtures::password_reset_token()
+        .valid(user.id())
+        .commit(db.clone())
+        .await
+        .expect("valid recovery proof");
+    let proof_hash = PasswordResetToken::hash_token(proof.token());
     let name = format!("test_purge_{}", Uuid::new_v4().simple());
     db.execute(Statement::from_string(DatabaseBackend::Postgres, format!(
         "CREATE FUNCTION {name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF OLD.user_id = '{}' THEN RAISE EXCEPTION 'test session purge failure'; END IF; RETURN OLD; END $$", user.id())))
@@ -181,7 +197,7 @@ async fn reset_purge_failure_rolls_back_password_and_all_existing_sessions() {
         panic!("unable to install fixture-owned purge failure seam");
     }
     let reset = writer
-        .reset_password(user.id(), old.clone(), "must-not-persist".into(), None)
+        .recover_password(user.id(), old.clone(), "must-not-persist".into(), proof_hash.clone())
         .await;
     // Remove test-owned objects before assertions, including the unexpected-success case.
     db.execute(Statement::from_string(
@@ -200,9 +216,14 @@ async fn reset_purge_failure_rolls_back_password_and_all_existing_sessions() {
     assert_eq!(count(db.as_ref(), user.id()).await, 2);
     // Successful issue with old proof confirms the credential update also rolled back.
     writer
-        .issue(refresh(user.id()), old)
+        .issue(refresh(user.id()), old.clone())
         .await
-        .expect("old credential remains current after rollback");
+        .expect("old credential and epoch remain current after rollback");
     assert_eq!(count(db.as_ref(), user.id()).await, 3);
+    writer
+        .recover_password(user.id(), old, "retry-wins".into(), proof_hash)
+        .await
+        .expect("the same recovery proof remains usable after rollback");
+    assert_eq!(count(db.as_ref(), user.id()).await, 0);
     }).await;
 }

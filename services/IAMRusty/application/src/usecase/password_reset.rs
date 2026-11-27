@@ -370,7 +370,7 @@ where
             .ok_or_else(|| {
                 PasswordResetError::ServiceError("session writer not configured".into())
             })?
-            .reset_password(user_id, user.password_hash, password_hash, None)
+            .change_password(user_id, user.password_hash, password_hash)
             .await
             .map_err(|error| match error {
                 DomainError::InvalidToken => PasswordResetError::IncorrectCurrentPassword,
@@ -431,12 +431,7 @@ where
             .ok_or_else(|| {
                 PasswordResetError::ServiceError("session writer not configured".into())
             })?
-            .reset_password(
-                token.user_id,
-                user.password_hash,
-                password_hash,
-                Some(token_hash),
-            )
+            .recover_password(token.user_id, user.password_hash, password_hash, token_hash)
             .await
             .map_err(|error| match error {
                 DomainError::InvalidToken => PasswordResetError::InvalidResetToken,

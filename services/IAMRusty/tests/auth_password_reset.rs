@@ -1,10 +1,13 @@
 // Include common test utilities and fixtures
 
 mod common;
+#[path = "support/fixture_cleanup.rs"]
+mod fixture_cleanup;
 #[path = "fixtures/mod.rs"]
 mod fixtures;
 mod utils;
 
+use base64::Engine as _;
 use common::{setup_test_server, setup_test_server_with_mock_events};
 use fixtures::DbFixtures;
 use iam_domain::entity::events::IamDomainEvent;
@@ -539,6 +542,302 @@ async fn iam_openapi_contract() {
 // ============================================================================
 // ✅ Password Reset Confirm Tests (Unauthenticated) - POST /auth/password/reset-confirm
 // ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn recovery_commit_denies_unexpired_access_on_direct_iam() {
+    let (fixture, base_url, client) = Box::pin(setup_test_server())
+        .await
+        .expect("start direct IAM HTTP/PostgreSQL fixture");
+
+    fixture_cleanup::run(&fixture, async {
+        let email = "direct-recovery-cutoff@example.com";
+        let old_password = "OldDirect1!";
+        let new_password = "NewDirect2!";
+        let user = DbFixtures::create_user_with_email_password(
+            &fixture.db(),
+            email,
+            old_password,
+            Some("direct_recovery"),
+        )
+        .await
+        .expect("seed password account");
+        let proof = DbFixtures::password_reset_token()
+            .valid(user.id())
+            .commit(fixture.db())
+            .await
+            .expect("seed valid recovery proof");
+
+        let login_url = format!("{base_url}/api/auth/login");
+        let profile_url = format!("{base_url}/api/me");
+        let login = client
+            .post(&login_url)
+            .json(&json!({"email": email, "password": old_password}))
+            .send()
+            .await
+            .expect("sign in before recovery");
+        assert_eq!(login.status(), StatusCode::OK);
+        let login: Value = login.json().await.expect("read initial session");
+        let old_access = login["access_token"].as_str().expect("initial access JWT");
+        let old_refresh = login["refresh_token"]
+            .as_str()
+            .expect("initial refresh token");
+
+        // Use the verified token's signed expiry only as a timing guard, not for admission.
+        let encoded_claims = old_access.split('.').nth(1).expect("JWT claims segment");
+        let claims = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(encoded_claims)
+            .expect("decode JWT claims segment");
+        let claims: Value = serde_json::from_slice(&claims).expect("read JWT claims");
+        let expires_at = claims["exp"].as_i64().expect("JWT expiry");
+
+        let baseline = client
+            .patch(&profile_url)
+            .bearer_auth(old_access)
+            .json(&json!({"username": "before_recovery"}))
+            .send()
+            .await
+            .expect("write protected profile with the initial JWT");
+        assert_eq!(baseline.status(), StatusCode::OK);
+        let baseline: Value = baseline.json().await.expect("read baseline profile");
+        assert_eq!(baseline["id"], user.id().to_string());
+        assert_eq!(baseline["username"], "before_recovery");
+
+        let confirmation = client
+            .post(format!("{base_url}/api/auth/password/reset-confirm"))
+            .json(&json!({"token": proof.token(), "new_password": new_password}))
+            .send()
+            .await
+            .expect("confirm recovery through the real link endpoint");
+        assert_eq!(confirmation.status(), StatusCode::OK);
+        let confirmation: Value = confirmation.json().await.expect("read confirmation");
+        let fields = confirmation.as_object().expect("confirmation object");
+        assert_eq!(fields.len(), 1, "confirmation must contain only a message");
+        assert!(
+            confirmation["message"].as_str() == Some("Password has been successfully reset"),
+            "preserve the existing recovery confirmation"
+        );
+
+        let stale = client
+            .patch(&profile_url)
+            .bearer_auth(old_access)
+            .json(&json!({"username": "after_recovery"}))
+            .send()
+            .await
+            .expect("attempt a fresh protected write after reset commit");
+        let stale_status = stale.status();
+        assert!(
+            expires_at > chrono::Utc::now().timestamp(),
+            "the old JWT must still be unexpired after the protected response"
+        );
+
+        let renewal = client
+            .post(format!("{base_url}/api/token/refresh"))
+            .json(&json!({"refresh_token": old_refresh}))
+            .send()
+            .await
+            .expect("try to renew the prior session");
+        assert_eq!(renewal.status(), StatusCode::UNAUTHORIZED);
+        let denial: Value = renewal.json().await.expect("read renewal denial");
+        assert!(
+            denial.get("access_token").is_none() && denial.get("refresh_token").is_none(),
+            "denied renewal must not return a token pair"
+        );
+
+        let fresh = client
+            .post(&login_url)
+            .json(&json!({"email": email, "password": new_password}))
+            .send()
+            .await
+            .expect("explicitly sign in with the new password");
+        assert_eq!(fresh.status(), StatusCode::OK);
+        let fresh: Value = fresh.json().await.expect("read new session");
+        let fresh_access = fresh["access_token"].as_str().expect("new access JWT");
+        let current = client
+            .get(&profile_url)
+            .bearer_auth(fresh_access)
+            .send()
+            .await
+            .expect("read the profile through the fresh session");
+        assert_eq!(current.status(), StatusCode::OK);
+        let current: Value = current.json().await.expect("read current profile");
+        assert_eq!(current["id"], user.id().to_string());
+        assert_eq!(
+            stale_status,
+            StatusCode::UNAUTHORIZED,
+            "recovery commit must deny a prior unexpired JWT on direct IAM"
+        );
+        assert_eq!(
+            current["username"], "before_recovery",
+            "the denied protected write must not change the profile"
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+#[serial]
+async fn recovery_advances_issuance_epoch_but_request_and_signed_in_change_do_not() {
+    let email = "recovery-epoch@example.com";
+    let username = "recovery_epoch";
+    let (fixture, base, client) = Box::pin(setup_test_server())
+        .await
+        .expect("start IAM HTTP/PostgreSQL fixture");
+    fixture_cleanup::run(&fixture, async {
+        let old = "OldEpoch1!";
+        let changed = "ChangedEpoch2!";
+        let recovered = "RecoveredEpoch3!";
+        let user =
+            DbFixtures::create_user_with_email_password(&fixture.db(), email, old, Some(username))
+                .await
+                .expect("seed password account");
+        let login = |password: &str| {
+            client
+                .post(format!("{base}/api/auth/login"))
+                .json(&json!({"email": email, "password": password}))
+                .send()
+        };
+        let epoch = |session: &Value| {
+            let segment = session["access_token"]
+                .as_str()
+                .and_then(|jwt| jwt.split('.').nth(1))
+                .expect("access JWT claims segment");
+            let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+                .decode(segment)
+                .expect("decode claims segment");
+            let claims: Value = serde_json::from_slice(&bytes).expect("read claims");
+            claims["auth_epoch"].clone()
+        };
+        let first = login(old).await.expect("login");
+        assert_eq!(first.status(), StatusCode::OK);
+        let first: Value = first.json().await.expect("read login");
+        assert_eq!(epoch(&first), "0");
+        let initial_access = first["access_token"].as_str().expect("initial access");
+        let legacy_refresh = uuid::Uuid::new_v4().to_string();
+        let legacy = DbFixtures::refresh_token()
+            .valid(user.id())
+            .token(&legacy_refresh[..])
+            .commit(fixture.db())
+            .await
+            .expect("persist refresh row without an explicit epoch");
+        assert_eq!(legacy.model().auth_epoch, "0");
+        let request = client
+            .post(format!("{base}/api/auth/password/reset-request"))
+            .json(&json!({"email": email}))
+            .send()
+            .await
+            .expect("request reset");
+        assert_eq!(request.status(), StatusCode::OK);
+        let renewed = client
+            .post(format!("{base}/api/token/refresh"))
+            .json(&json!({"refresh_token": legacy_refresh}))
+            .send()
+            .await
+            .expect("renew after request");
+        assert_eq!(renewed.status(), StatusCode::OK);
+        let renewed: Value = renewed.json().await.expect("read renewal");
+        assert_eq!(epoch(&renewed), "0");
+
+        let change = client
+            .post(format!("{base}/api/auth/password/reset-authenticated"))
+            .bearer_auth(initial_access)
+            .json(&json!({"current_password": old, "new_password": changed}))
+            .send()
+            .await
+            .expect("change password while signed in");
+        assert_eq!(change.status(), StatusCode::OK);
+        let purged = client
+            .post(format!("{base}/api/token/refresh"))
+            .json(&json!({"refresh_token": renewed["refresh_token"]}))
+            .send()
+            .await
+            .expect("try refresh purged by signed-in change");
+        assert_eq!(purged.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            client
+                .get(format!("{base}/api/me"))
+                .bearer_auth(initial_access)
+                .send()
+                .await
+                .expect("use initial access after signed-in change")
+                .status(),
+            StatusCode::OK
+        );
+        let changed_login = login(changed).await.expect("login with changed password");
+        assert_eq!(changed_login.status(), StatusCode::OK);
+        let changed_login: Value = changed_login.json().await.expect("read login");
+        assert_eq!(epoch(&changed_login), "0");
+        let before_recovery = client
+            .post(format!("{base}/api/token/refresh"))
+            .json(&json!({"refresh_token": changed_login["refresh_token"]}))
+            .send()
+            .await
+            .expect("rotate before committing recovery");
+        assert_eq!(before_recovery.status(), StatusCode::OK);
+        let before_recovery: Value = before_recovery.json().await.expect("read rotation");
+        assert_eq!(epoch(&before_recovery), "0");
+
+        let proof = DbFixtures::password_reset_token()
+            .valid(user.id())
+            .commit(fixture.db())
+            .await
+            .expect("seed valid recovery proof");
+        let confirm = || {
+            client
+                .post(format!("{base}/api/auth/password/reset-confirm"))
+                .json(&json!({"token": proof.token(), "new_password": recovered}))
+                .send()
+        };
+        assert_eq!(
+            confirm().await.expect("confirm recovery").status(),
+            StatusCode::OK
+        );
+        assert!(!confirm()
+            .await
+            .expect("replay recovery")
+            .status()
+            .is_success());
+        let denied = client
+            .post(format!("{base}/api/token/refresh"))
+            .json(&json!({"refresh_token": before_recovery["refresh_token"]}))
+            .send()
+            .await
+            .expect("try replacement refresh after committing recovery");
+        assert_eq!(denied.status(), StatusCode::UNAUTHORIZED);
+        let fresh = login(recovered).await.expect("login after recovery");
+        assert_eq!(fresh.status(), StatusCode::OK);
+        let fresh: Value = fresh.json().await.expect("read fresh session");
+        assert_eq!(epoch(&fresh), "1");
+        let rotated = client
+            .post(format!("{base}/api/token/refresh"))
+            .json(&json!({"refresh_token": fresh["refresh_token"]}))
+            .send()
+            .await
+            .expect("rotate post-recovery refresh");
+        assert_eq!(rotated.status(), StatusCode::OK);
+        assert_eq!(epoch(&rotated.json().await.expect("read rotation")), "1");
+    })
+    .await;
+    drop(fixture);
+
+    // The previous fixture left advanced user and refresh epochs in the shared
+    // test database. A fresh descriptor must not inherit either account name.
+    let (fresh_fixture, _, _, _) = Box::pin(setup_test_server_with_mock_events())
+        .await
+        .expect("start a fresh fixture after recovery");
+    fixture_cleanup::run(&fresh_fixture, async {
+        let user = DbFixtures::create_user_with_email_password(
+            &fresh_fixture.db(),
+            email,
+            "NewFixture1!",
+            Some(username),
+        )
+        .await
+        .expect("prior fixture must not retain the username or email");
+        assert_eq!(user.model().auth_epoch, "0");
+    })
+    .await;
+}
 
 /// Tests successful password reset using a valid token (unauthenticated flow).
 /// Verifies that password is actually changed and no auth tokens are returned.

@@ -19,6 +19,18 @@ impl JwksFixtures {
         Self { server, fixture }
     }
 
+    /// Start a dedicated mock server for tests that create multiple fixtures
+    /// in one runtime, avoiding shared-listener reset races.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an ephemeral localhost port cannot be bound.
+    pub async fn isolated_service() -> Self {
+        let fixture = MockServerFixture::isolated().await;
+        let server = fixture.server();
+        Self { server, fixture }
+    }
+
     pub fn base_url(&self) -> String {
         self.fixture.base_url()
     }

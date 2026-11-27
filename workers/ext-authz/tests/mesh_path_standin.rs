@@ -45,8 +45,10 @@ async fn server_with_jwks(jwks: &str) -> (axum_test::TestServer, JwksFixtures) {
     let config = ExtAuthzConfig {
         jwks_url: format!("{}/.well-known/jwks.json", fixture.base_url()),
         audience: rustycog::testing::http::jwt::TEST_JWT_AUDIENCE.to_string(),
+        platform_issuer: rustycog::testing::http::jwt::TEST_PLATFORM_ISSUER.to_string(),
         poll_interval: Duration::from_secs(3600),
         negative_cache_ttl: Duration::from_secs(30),
+        ..ExtAuthzConfig::default()
     };
     let state = Arc::new(AuthzState::new(config).expect("state"));
     let server = axum_test::TestServer::new(check_router(state)).expect("server");

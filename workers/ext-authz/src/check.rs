@@ -9,23 +9,29 @@ use axum::response::IntoResponse;
 use axum::routing::post;
 use axum::Router;
 use jsonwebtoken::decode_header;
-use rustycog::http::UserIdExtractor;
+use rustycog::http::{HttpSessionLivenessChecker, SessionLivenessChecker, UserIdExtractor};
+use rustycog::permission::PrincipalPolicy;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
 
 /// Check service state: local JWKS cache + optional test kid registry.
+#[derive(Clone)]
 pub struct AuthzState {
     cache: Arc<JwksCache>,
     audience: String,
     registry: HashMap<String, KeyStatus>,
+    platform_issuer: String,
+    session_liveness: Option<Arc<dyn SessionLivenessChecker>>,
 }
 
 impl AuthzState {
     /// # Errors
     ///
-    /// Returns an error if the JWKS cache cannot be constructed.
+    /// Returns an error if the audience, JWKS cache or session-liveness
+    /// configuration is invalid, or if liveness is enabled without an exact
+    /// platform issuer.
     pub fn new(config: ExtAuthzConfig) -> Result<Self, String> {
         if config.audience.trim().is_empty() {
             return Err("EXT_AUTHZ_AUDIENCE is required (fail-closed)".into());
@@ -35,9 +41,18 @@ impl AuthzState {
             config.poll_interval,
             config.negative_cache_ttl,
         )?;
+        let session_liveness: Option<Arc<dyn SessionLivenessChecker>> =
+            HttpSessionLivenessChecker::from_config(&config.session_liveness)
+                .map_err(|error| error.to_string())?
+                .map(|checker| Arc::new(checker) as Arc<dyn SessionLivenessChecker>);
+        if session_liveness.is_some() && config.platform_issuer.trim().is_empty() {
+            return Err("EXT_AUTHZ_PLATFORM_ISSUER is required with session liveness".into());
+        }
         Ok(Self {
             cache,
             audience: config.audience,
+            platform_issuer: config.platform_issuer,
+            session_liveness,
             registry: HashMap::new(),
         })
     }
@@ -45,6 +60,16 @@ impl AuthzState {
     #[must_use]
     pub fn with_kid_status(mut self, kid: impl Into<String>, status: KeyStatus) -> Self {
         self.registry.insert(kid.into(), status);
+        self
+    }
+
+    /// Attach an authoritative liveness reader for mesh Check.
+    #[must_use]
+    pub fn with_session_liveness_checker(
+        mut self,
+        checker: Arc<dyn SessionLivenessChecker>,
+    ) -> Self {
+        self.session_liveness = Some(checker);
         self
     }
 
@@ -111,14 +136,34 @@ async fn check(
         return deny(&format!("kid {kid} is pending or revoked in JWKS"));
     }
 
-    let extractor = match UserIdExtractor::from_inline_jwks(&doc, Some(state.audience.as_str())) {
+    let mut extractor = match UserIdExtractor::from_inline_jwks(&doc, Some(state.audience.as_str()))
+    {
         Ok(e) => e,
         Err(err) => return deny(&format!("JWKS rejected: {err}")),
     };
+    if !state.platform_issuer.is_empty() {
+        let policy = match PrincipalPolicy::new(state.platform_issuer.clone(), false) {
+            Ok(policy) => policy,
+            Err(err) => return deny(&format!("platform policy rejected: {err}")),
+        };
+        extractor = match extractor.with_principal_policy(policy) {
+            Ok(extractor) => extractor,
+            Err(err) => return deny(&format!("platform policy rejected: {err}")),
+        };
+    }
+    if let Some(checker) = state.session_liveness.clone() {
+        extractor = extractor.with_session_liveness_checker(checker);
+    }
 
-    match extractor.extract_principal(&token).await {
-        Ok(principal) if state.cache.still_authorizes(&kid, &doc) => {
-            allow(&principal.iss, &principal.sub.to_string())
+    match extractor.extract_verified_principal(&token).await {
+        Ok(verified) if state.cache.still_authorizes(&kid, &doc) => {
+            if let Err(err) = extractor
+                .check_session_liveness(&verified.principal, verified.auth_epoch)
+                .await
+            {
+                return deny(&format!("session liveness denied: {err}"));
+            }
+            allow(&verified.principal.iss, &verified.principal.sub.to_string())
         }
         Ok(_) => deny("JWKS authorization snapshot expired or replaced"),
         Err(err) => deny(&format!("JWT rejected: {err}")),
@@ -205,14 +250,100 @@ fn merge_check_body_headers(headers: &mut HeaderMap, body: &Bytes) {
 mod tests {
     use super::*;
     use crate::jwks_fixtures::JwksFixtures;
+    use axum::Json;
+    use rustycog::http::SessionLivenessQuery;
     use rustycog::testing::http::jwt::{
         create_rs256_jwt_token, create_rs256_jwt_token_with_options,
         test_rs256_jwks_json as legacy_test_jwks, Rs256TokenOptions, TEST_JWT_AUDIENCE,
         TEST_PLATFORM_ISSUER, TEST_RS256_KID,
     };
+    use serde::Deserialize;
     use serial_test::serial;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Mutex;
     use std::time::Duration;
     use uuid::Uuid;
+
+    #[derive(Debug, Clone, Copy)]
+    enum LivenessBehavior {
+        Live,
+        Revoked,
+        Unavailable,
+    }
+
+    #[derive(Clone)]
+    struct LivenessHttpFixture {
+        behavior: LivenessBehavior,
+        calls: Arc<AtomicUsize>,
+        queries: Arc<Mutex<Vec<SessionLivenessQuery>>>,
+    }
+
+    #[derive(Deserialize)]
+    struct LivenessHttpRequest {
+        issuer: String,
+        subject: Uuid,
+        auth_epoch: Option<String>,
+    }
+
+    async fn liveness_handler(
+        State(fixture): State<LivenessHttpFixture>,
+        Json(request): Json<LivenessHttpRequest>,
+    ) -> (StatusCode, Json<Value>) {
+        fixture.calls.fetch_add(1, Ordering::SeqCst);
+        fixture
+            .queries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(SessionLivenessQuery {
+                issuer: request.issuer,
+                subject: request.subject,
+                auth_epoch: request
+                    .auth_epoch
+                    .map(|value| value.parse().expect("canonical fixture epoch")),
+            });
+        match fixture.behavior {
+            LivenessBehavior::Live => (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "decision": "live",
+                    "current_epoch": "0",
+                })),
+            ),
+            LivenessBehavior::Revoked => (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "decision": "revoked",
+                    "current_epoch": "1",
+                })),
+            ),
+            LivenessBehavior::Unavailable => (StatusCode::SERVICE_UNAVAILABLE, Json(Value::Null)),
+        }
+    }
+
+    fn liveness_server(
+        behavior: LivenessBehavior,
+    ) -> (
+        axum_test::TestServer,
+        String,
+        Arc<AtomicUsize>,
+        Arc<Mutex<Vec<SessionLivenessQuery>>>,
+    ) {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let queries = Arc::new(Mutex::new(Vec::new()));
+        let app = Router::new()
+            .route("/liveness", post(liveness_handler))
+            .with_state(LivenessHttpFixture {
+                behavior,
+                calls: calls.clone(),
+                queries: queries.clone(),
+            });
+        let server = axum_test::TestServer::builder()
+            .http_transport()
+            .build(app)
+            .unwrap();
+        let endpoint = server.server_url("/liveness").unwrap().to_string();
+        (server, endpoint, calls, queries)
+    }
 
     fn test_rs256_jwks_json() -> String {
         let mut doc: Value = serde_json::from_str(&legacy_test_jwks()).expect("test JWKS");
@@ -271,8 +402,10 @@ mod tests {
         let config = ExtAuthzConfig {
             jwks_url: format!("{}/.well-known/jwks.json", fixture.base_url()),
             audience: TEST_JWT_AUDIENCE.to_string(),
+            platform_issuer: TEST_PLATFORM_ISSUER.to_string(),
             poll_interval: Duration::from_secs(3600),
             negative_cache_ttl: Duration::from_secs(30),
+            ..ExtAuthzConfig::default()
         };
         let state = Arc::new(AuthzState::new(config).expect("state"));
         let server = axum_test::TestServer::new(check_router(state)).expect("server");
@@ -283,13 +416,15 @@ mod tests {
         jwks: &str,
         poll_interval: Duration,
     ) -> (Arc<AuthzState>, JwksFixtures) {
-        let fixture = JwksFixtures::service().await;
+        let fixture = JwksFixtures::isolated_service().await;
         fixture.mock_jwks_ok(jwks).await;
         let config = ExtAuthzConfig {
             jwks_url: format!("{}/.well-known/jwks.json", fixture.base_url()),
             audience: TEST_JWT_AUDIENCE.to_string(),
+            platform_issuer: TEST_PLATFORM_ISSUER.to_string(),
             poll_interval,
             negative_cache_ttl: Duration::from_secs(30),
+            ..ExtAuthzConfig::default()
         };
         let state = Arc::new(AuthzState::new(config).expect("state"));
         (state, fixture)
@@ -527,9 +662,85 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    #[serial]
+    async fn check_enforces_authoritative_liveness_before_recreating_principal() {
+        for (behavior, expected) in [
+            (LivenessBehavior::Live, StatusCode::OK),
+            (LivenessBehavior::Revoked, StatusCode::FORBIDDEN),
+            (LivenessBehavior::Unavailable, StatusCode::FORBIDDEN),
+        ] {
+            let (_liveness, endpoint, calls, queries) = liveness_server(behavior);
+            let checker = HttpSessionLivenessChecker::new(
+                &endpoint,
+                "x-workload-token",
+                "fixture-secret",
+                Duration::from_secs(2),
+            )
+            .unwrap();
+            let (state, _jwks) =
+                state_with_jwks(&test_rs256_jwks_json(), Duration::from_secs(3600)).await;
+            state
+                .cache
+                .document_for_kid(TEST_RS256_KID)
+                .await
+                .expect("prime the fixture JWKS before Check");
+            let state = state
+                .as_ref()
+                .clone()
+                .with_session_liveness_checker(Arc::new(checker));
+            assert!(state.session_liveness.is_some(), "checker must be attached");
+            assert_eq!(state.platform_issuer, TEST_PLATFORM_ISSUER);
+            let server = axum_test::TestServer::new(check_router(Arc::new(state))).unwrap();
+            let user = Uuid::new_v4();
+            let token = create_rs256_jwt_token(user);
+            let response = server
+                .post("/")
+                .add_header("authorization", format!("Bearer {token}"))
+                .await;
+            response.assert_status(expected);
+            if expected == StatusCode::OK {
+                assert_eq!(
+                    response.header("x-principal-iss").to_str().unwrap(),
+                    TEST_PLATFORM_ISSUER
+                );
+                assert_eq!(
+                    response.header("x-principal-sub").to_str().unwrap(),
+                    user.to_string()
+                );
+            } else {
+                assert!(response.maybe_header("x-principal-iss").is_none());
+                assert!(response.maybe_header("x-principal-sub").is_none());
+            }
+            assert_eq!(
+                calls.load(Ordering::SeqCst),
+                1,
+                "one authoritative read for {behavior:?}"
+            );
+            let queries = queries
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            assert_eq!(
+                queries.as_slice(),
+                &[SessionLivenessQuery {
+                    issuer: TEST_PLATFORM_ISSUER.into(),
+                    subject: user,
+                    auth_epoch: None,
+                }]
+            );
+            drop(queries);
+        }
+    }
+
     #[test]
+    #[serial]
     fn from_env_requires_audience_and_configures_jwks_polling() {
         std::env::remove_var("EXT_AUTHZ_AUDIENCE");
+        std::env::remove_var("EXT_AUTHZ_PLATFORM_ISSUER");
+        std::env::remove_var("EXT_AUTHZ_LIVENESS_URL");
+        std::env::remove_var("EXT_AUTHZ_LIVENESS_TOKEN_ENV");
+        std::env::remove_var("EXT_AUTHZ_LIVENESS_TOKEN_HEADER");
+        std::env::remove_var("EXT_AUTHZ_LIVENESS_TIMEOUT_MS");
         std::env::set_var("EXT_AUTHZ_JWKS_URL", "http://example/.well-known/jwks.json");
         let err = ExtAuthzConfig::from_env().expect_err("empty audience must fail-closed");
         assert!(

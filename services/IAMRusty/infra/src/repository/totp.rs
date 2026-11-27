@@ -243,6 +243,8 @@ impl TotpStore for SeaOrmTotpStore {
         let now = Utc::now();
         if user.password_hash.as_deref() != Some(expected_password_hash)
             || user.username.is_none()
+            || super::authentication_session::read_epoch(&user.auth_epoch).map_err(storage_error)?
+                != token.auth_epoch
             || !token.is_valid
             || token.expires_at <= now
         {
@@ -288,10 +290,72 @@ impl TotpStore for SeaOrmTotpStore {
             is_valid: Set(true),
             created_at: Set(token.created_at.into()),
             expires_at: Set(token.expires_at.into()),
+            auth_epoch: Set(token.auth_epoch.to_string()),
         }
         .insert(&tx)
         .await
         .map_err(storage_error)?;
         tx.commit().await.map_err(storage_error)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::repository::entity::users;
+    use sea_orm::{DbBackend, MockDatabase};
+
+    #[tokio::test]
+    async fn password_session_rejects_stale_epoch_under_user_lock() {
+        let user_id = Uuid::new_v4();
+        let now = Utc::now();
+        let user = users::Model {
+            id: user_id,
+            username: Some("registered".into()),
+            avatar_url: None,
+            password_hash: Some("current-password-proof".into()),
+            auth_epoch: "1".into(),
+            created_at: now.naive_utc(),
+            updated_at: now.naive_utc(),
+        };
+        let token = RefreshToken {
+            id: Uuid::new_v4(),
+            user_id,
+            token: "unit-refresh".into(),
+            is_valid: true,
+            created_at: now,
+            expires_at: now + Duration::minutes(15),
+            auth_epoch: 0,
+        };
+        let db = Arc::new(
+            MockDatabase::new(DbBackend::Postgres)
+                .append_query_results([vec![user]])
+                .append_query_results([Vec::<credentials::Model>::new()])
+                .append_query_results([vec![refresh_tokens::Model {
+                    id: token.id,
+                    user_id,
+                    token: RefreshToken::hash_token(&token.token),
+                    is_valid: true,
+                    created_at: token.created_at.into(),
+                    expires_at: token.expires_at.into(),
+                    auth_epoch: "0".into(),
+                }]])
+                .into_connection(),
+        );
+        let store = SeaOrmTotpStore::new(db.clone(), None).expect("unenrolled fixture");
+        let result = store
+            .issue_password_session(
+                &token,
+                "current-password-proof",
+                PasswordFactorProof::NotEnrolled,
+            )
+            .await;
+        assert!(matches!(result, Err(TotpError::InvalidProof)));
+        drop(store);
+        let log = format!("{:?}", Arc::try_unwrap(db).unwrap().into_transaction_log());
+        assert!(log.contains("FOR UPDATE"));
+        assert!(!log.contains("INSERT INTO"));
+        assert!(log.contains("ROLLBACK"));
+        assert!(!log.contains("COMMIT"));
     }
 }

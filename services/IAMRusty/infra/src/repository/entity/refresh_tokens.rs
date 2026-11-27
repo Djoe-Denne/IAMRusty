@@ -13,6 +13,7 @@ pub struct Model {
     pub is_valid: bool,
     pub created_at: DateTimeWithTimeZone,
     pub expires_at: DateTimeWithTimeZone,
+    pub auth_epoch: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

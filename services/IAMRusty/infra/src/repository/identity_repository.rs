@@ -6,7 +6,8 @@ use iam_domain::entity::identity::{Identity, IdentityKind};
 use iam_domain::error::DomainError;
 use iam_domain::port::repository::IdentityRepository;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
+    QueryFilter, RuntimeErr,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -24,6 +25,34 @@ impl SeaOrmIdentityRepository {
     #[must_use]
     pub const fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
+    }
+
+    async fn insert_identity(&self, identity: &Identity) -> Result<Identity, DbErr> {
+        let active = identities::ActiveModel {
+            id: ActiveValue::Set(identity.id),
+            user_id: ActiveValue::Set(identity.user_id),
+            issuer: ActiveValue::Set(identity.issuer.clone()),
+            subject: ActiveValue::Set(identity.subject.clone()),
+            kind: ActiveValue::Set(String::from(&identity.kind)),
+            created_at: ActiveValue::Set(identity.created_at.naive_utc()),
+            updated_at: ActiveValue::Set(identity.updated_at.naive_utc()),
+        };
+        let model = active.insert(self.db.as_ref()).await?;
+        to_domain(model).map_err(|error| DbErr::Custom(error.to_string()))
+    }
+}
+
+fn is_identity_conflict(error: &DbErr) -> bool {
+    match error {
+        DbErr::Exec(RuntimeErr::SqlxError(sea_orm::sqlx::Error::Database(error)))
+        | DbErr::Query(RuntimeErr::SqlxError(sea_orm::sqlx::Error::Database(error))) => {
+            error.code().as_deref() == Some("23505")
+                && matches!(
+                    error.constraint(),
+                    Some("idx_identities_issuer_subject" | "idx_identities_user_issuer_kind")
+                )
+        }
+        _ => false,
     }
 }
 
@@ -67,20 +96,9 @@ impl IdentityRepository for SeaOrmIdentityRepository {
     }
 
     async fn create(&self, identity: &Identity) -> Result<Identity, Self::Error> {
-        let active = identities::ActiveModel {
-            id: ActiveValue::Set(identity.id),
-            user_id: ActiveValue::Set(identity.user_id),
-            issuer: ActiveValue::Set(identity.issuer.clone()),
-            subject: ActiveValue::Set(identity.subject.clone()),
-            kind: ActiveValue::Set(String::from(&identity.kind)),
-            created_at: ActiveValue::Set(identity.created_at.naive_utc()),
-            updated_at: ActiveValue::Set(identity.updated_at.naive_utc()),
-        };
-        let model = active
-            .insert(self.db.as_ref())
+        self.insert_identity(identity)
             .await
-            .map_err(|e| DomainError::RepositoryError(e.to_string()))?;
-        to_domain(model)
+            .map_err(|error| DomainError::RepositoryError(error.to_string()))
     }
 
     async fn ensure_platform_identity(
@@ -93,7 +111,25 @@ impl IdentityRepository for SeaOrmIdentityRepository {
             return Ok(existing);
         }
         // Never return another issuer's Platform row (historical `iamrusty` vs URL).
-        self.create(&Identity::platform(user_id, issuer)).await
+        let candidate = Identity::platform(user_id, issuer);
+        match self.insert_identity(&candidate).await {
+            Ok(identity) => Ok(identity),
+            Err(error) if is_identity_conflict(&error) => {
+                let existing = self
+                    .find_by_issuer_subject(issuer, &subject)
+                    .await?
+                    .ok_or_else(|| {
+                        DomainError::RepositoryError("platform identity conflict".into())
+                    })?;
+                if existing.user_id != user_id || existing.kind != IdentityKind::Platform {
+                    return Err(DomainError::RepositoryError(
+                        "platform identity conflict".into(),
+                    ));
+                }
+                Ok(existing)
+            }
+            Err(error) => Err(DomainError::RepositoryError(error.to_string())),
+        }
     }
 
     async fn ensure_organization_managed_identity(

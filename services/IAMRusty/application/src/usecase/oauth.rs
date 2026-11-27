@@ -266,13 +266,13 @@ where
         // User is complete - generate proper access and refresh tokens
         let access_token = self
             .token
-            .generate_access_token(user.id)
+            .generate_access_token(user.id, user.auth_epoch)
             .await
             .map_err(|e| OAuthError::DomainError(DomainError::TokenServiceError(e.to_string())))?;
 
         let refresh_token = self
             .token
-            .generate_refresh_token(user.id)
+            .generate_refresh_token(user.id, user.auth_epoch)
             .await
             .map_err(|e| OAuthError::DomainError(DomainError::TokenServiceError(e.to_string())))?;
 

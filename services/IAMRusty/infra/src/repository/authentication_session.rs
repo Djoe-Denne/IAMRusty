@@ -2,7 +2,9 @@
 
 use async_trait::async_trait;
 use iam_domain::{
-    entity::token::RefreshToken, error::DomainError, port::repository::AuthenticationSessionWriter,
+    entity::token::{parse_auth_epoch, RefreshToken},
+    error::DomainError,
+    port::repository::AuthenticationSessionWriter,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, DbErr, EntityTrait,
@@ -40,6 +42,11 @@ fn storage_error(_: DbErr) -> DomainError {
     DomainError::RepositoryError("authentication session transaction failed".into())
 }
 
+pub(crate) fn read_epoch(value: &str) -> Result<u64, DbErr> {
+    parse_auth_epoch(value)
+        .ok_or_else(|| DbErr::Custom("invalid stored authentication epoch".into()))
+}
+
 #[async_trait]
 impl AuthenticationSessionWriter for SeaOrmAuthenticationSessionWriter {
     async fn complete_registration(
@@ -52,6 +59,13 @@ impl AuthenticationSessionWriter for SeaOrmAuthenticationSessionWriter {
         let tx = self.writer.begin().await.map_err(storage_error)?;
         let user = lock_user(&tx, user_id).await.map_err(storage_error)?;
         if user.password_hash != expected_password_hash || user.username.is_some() {
+            return Err(DomainError::InvalidToken);
+        }
+        let auth_epoch = read_epoch(&user.auth_epoch).map_err(storage_error)?;
+        if token
+            .as_ref()
+            .is_some_and(|token| token.auth_epoch != auth_epoch)
+        {
             return Err(DomainError::InvalidToken);
         }
         let mut updated: users::ActiveModel = user.into();
@@ -76,6 +90,7 @@ impl AuthenticationSessionWriter for SeaOrmAuthenticationSessionWriter {
                 is_valid: Set(true),
                 created_at: Set(token.created_at.into()),
                 expires_at: Set(token.expires_at.into()),
+                auth_epoch: Set(auth_epoch.to_string()),
             }
             .insert(&tx)
             .await
@@ -86,6 +101,7 @@ impl AuthenticationSessionWriter for SeaOrmAuthenticationSessionWriter {
             id: updated.id,
             username: updated.username,
             password_hash: updated.password_hash,
+            auth_epoch,
             avatar_url: updated.avatar_url,
             created_at: chrono::DateTime::from_naive_utc_and_offset(
                 updated.created_at,
@@ -108,6 +124,7 @@ impl AuthenticationSessionWriter for SeaOrmAuthenticationSessionWriter {
         // The Argon2 proof was obtained before entering this transaction. A reset
         // winning the lock changes the hash and invalidates that proof.
         if user.password_hash != expected_password_hash
+            || read_epoch(&user.auth_epoch).map_err(storage_error)? != token.auth_epoch
             || !token.is_valid
             || token.expires_at <= chrono::Utc::now()
         {
@@ -120,6 +137,7 @@ impl AuthenticationSessionWriter for SeaOrmAuthenticationSessionWriter {
             is_valid: Set(true),
             created_at: Set(token.created_at.into()),
             expires_at: Set(token.expires_at.into()),
+            auth_epoch: Set(token.auth_epoch.to_string()),
         }
         .insert(&tx)
         .await
@@ -127,7 +145,35 @@ impl AuthenticationSessionWriter for SeaOrmAuthenticationSessionWriter {
         tx.commit().await.map_err(storage_error)
     }
 
-    async fn reset_password(
+    async fn change_password(
+        &self,
+        user_id: Uuid,
+        expected_password_hash: Option<String>,
+        new_password_hash: String,
+    ) -> Result<(), DomainError> {
+        self.write_password(user_id, expected_password_hash, new_password_hash, None)
+            .await
+    }
+
+    async fn recover_password(
+        &self,
+        user_id: Uuid,
+        expected_password_hash: Option<String>,
+        new_password_hash: String,
+        reset_token_hash: String,
+    ) -> Result<(), DomainError> {
+        self.write_password(
+            user_id,
+            expected_password_hash,
+            new_password_hash,
+            Some(reset_token_hash),
+        )
+        .await
+    }
+}
+
+impl SeaOrmAuthenticationSessionWriter {
+    async fn write_password(
         &self,
         user_id: Uuid,
         expected_password_hash: Option<String>,
@@ -139,7 +185,7 @@ impl AuthenticationSessionWriter for SeaOrmAuthenticationSessionWriter {
         if user.password_hash != expected_password_hash {
             return Err(DomainError::InvalidToken);
         }
-        if let Some(hash) = reset_token_hash {
+        let next_epoch = if let Some(hash) = reset_token_hash {
             // Revalidate on the writer inside the same critical section. A stale
             // read-replica token or simultaneous callback cannot win twice.
             let valid = password_reset_tokens::Entity::find()
@@ -153,10 +199,23 @@ impl AuthenticationSessionWriter for SeaOrmAuthenticationSessionWriter {
             if valid.is_none() {
                 return Err(DomainError::InvalidToken);
             }
+            Some(
+                read_epoch(&user.auth_epoch)
+                    .map_err(storage_error)?
+                    .checked_add(1)
+                    .ok_or_else(|| {
+                        DomainError::RepositoryError("authentication epoch exhausted".into())
+                    })?,
+            )
         } else if expected_password_hash.is_none() {
             return Err(DomainError::InvalidToken);
-        }
+        } else {
+            None
+        };
         let mut updated: users::ActiveModel = user.into();
+        if let Some(epoch) = next_epoch {
+            updated.auth_epoch = Set(epoch.to_string());
+        }
         updated.password_hash = Set(Some(new_password_hash));
         updated.updated_at = Set(chrono::Utc::now().naive_utc());
         updated.update(&tx).await.map_err(storage_error)?;
@@ -188,11 +247,78 @@ mod tests {
             created_at: now,
             updated_at: now,
             password_hash: Some(hash.into()),
+            auth_epoch: "0".into(),
         }
     }
+
+    #[tokio::test]
+    async fn complete_registration_rejects_stale_epoch_before_any_mutation() {
+        let user_id = Uuid::new_v4();
+        let mut user = owner(user_id, "current-password-proof");
+        user.username = None;
+        user.auth_epoch = "1".into();
+        let db = Arc::new(
+            MockDatabase::new(DbBackend::Postgres)
+                .append_query_results([vec![user.clone()], vec![user]])
+                .into_connection(),
+        );
+        let writer = SeaOrmAuthenticationSessionWriter::new(db.clone());
+        let result = writer
+            .complete_registration(
+                user_id,
+                Some("current-password-proof".into()),
+                "registered".into(),
+                Some(refresh(user_id)),
+            )
+            .await;
+        assert!(matches!(result, Err(DomainError::InvalidToken)));
+        drop(writer);
+        let log = format!("{:?}", Arc::try_unwrap(db).unwrap().into_transaction_log());
+        assert!(log.contains("FOR UPDATE"));
+        assert!(!log.contains("UPDATE "));
+        assert!(!log.contains("INSERT INTO"));
+        assert!(log.contains("ROLLBACK"));
+        assert!(!log.contains("COMMIT"));
+    }
+
+    #[tokio::test]
+    async fn exhausted_recovery_epoch_never_updates_password_or_purges_sessions() {
+        let user_id = Uuid::new_v4();
+        let mut user = owner(user_id, "old");
+        user.auth_epoch = u64::MAX.to_string();
+        let now = chrono::Utc::now();
+        let proof = password_reset_tokens::Model {
+            id: Uuid::new_v4(),
+            user_id,
+            token_hash: "valid-proof".into(),
+            created_at: now,
+            expires_at: now + chrono::Duration::minutes(10),
+            used_at: None,
+        };
+        let db = Arc::new(
+            MockDatabase::new(DbBackend::Postgres)
+                .append_query_results([vec![user]])
+                .append_query_results([vec![proof]])
+                .into_connection(),
+        );
+        let writer = SeaOrmAuthenticationSessionWriter::new(db.clone());
+        assert!(matches!(
+            writer
+                .recover_password(user_id, Some("old".into()), "new".into(), "valid-proof".into())
+                .await,
+            Err(DomainError::RepositoryError(message)) if message == "authentication epoch exhausted"
+        ));
+        drop(writer);
+        let log = format!("{:?}", Arc::try_unwrap(db).unwrap().into_transaction_log());
+        assert!(!log.contains("UPDATE "));
+        assert!(!log.contains("DELETE FROM"));
+        assert!(!log.contains("COMMIT"));
+    }
+
     fn refresh(user_id: Uuid) -> RefreshToken {
         let now = chrono::Utc::now();
         RefreshToken {
+            auth_epoch: 0,
             id: Uuid::new_v4(),
             user_id,
             token: "unit-refresh-secret".into(),
@@ -405,7 +531,7 @@ mod tests {
         );
         let writer = SeaOrmAuthenticationSessionWriter::new(db.clone());
         assert!(writer
-            .reset_password(id, Some("old-proof".into()), "proposed".into(), None)
+            .change_password(id, Some("old-proof".into()), "proposed".into())
             .await
             .is_err());
         drop(writer);
@@ -438,7 +564,7 @@ mod tests {
         );
         let writer = SeaOrmAuthenticationSessionWriter::new(db.clone());
         writer
-            .reset_password(id, Some("old-hash".into()), "new-hash".into(), None)
+            .change_password(id, Some("old-hash".into()), "new-hash".into())
             .await
             .unwrap();
         drop(writer);

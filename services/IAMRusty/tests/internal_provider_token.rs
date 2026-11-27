@@ -343,12 +343,18 @@ async fn test_internal_provider_token_returns_422_when_provider_is_unsupported()
     let (fixture, base_url, client) = Box::pin(setup_test_server())
         .await
         .expect("Failed to setup test server");
-    let _db = fixture.db();
+    let db = fixture.db();
+
+    // Provider validation runs only after a live platform account is admitted.
+    let user = DbFixtures::user()
+        .arthur()
+        .commit(db)
+        .await
+        .expect("Failed to create user");
 
     // Create valid JWT token using the new encoder-based method
-    let user_id = Uuid::new_v4();
     let jwt_token = create_valid_jwt_token_with_encoder(
-        user_id,
+        user.id(),
         &load_config_part::<JwtConfig>("jwt").expect("Failed to load JWT config"),
     )
     .await

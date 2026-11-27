@@ -45,10 +45,11 @@ function Resolve-ItTestBinary {
             'oauth_browser_transactions', 'auth_transactions_postgres', 'oauth_cleanup_lifecycle',
             'auth_oauth_start', 'auth_oauth_callback', 'auth_oauth_provider_failures',
             'auth_totp',
-            'auth_username_flow_part2', 'auth_password_reset', 'user',
+            'auth_username_flow_part2', 'auth_password_reset', 'token', 'user',
+            'internal_provider_token', 'revoke_provider_token',
             'relink_provider', 'verified_idp_https', 'organization_account_guard',
             'app_cleanup_supervision', 'request_trace_redaction', 'signing_epoch_writer',
-            'profile_email_verification'
+            'session_writer_concurrency', 'profile_email_verification'
         )) {
         return $Binary
     }

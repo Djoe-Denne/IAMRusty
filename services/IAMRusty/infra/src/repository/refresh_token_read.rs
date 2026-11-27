@@ -22,15 +22,16 @@ impl RefreshTokenReadRepositoryImpl {
     }
 
     /// Convert a database model to a domain refresh token
-    fn to_domain(model: refresh_tokens::Model) -> DomainRefreshToken {
-        DomainRefreshToken {
+    pub(super) fn to_domain(model: refresh_tokens::Model) -> Result<DomainRefreshToken, DbErr> {
+        Ok(DomainRefreshToken {
+            auth_epoch: super::authentication_session::read_epoch(&model.auth_epoch)?,
             id: model.id,
             user_id: model.user_id,
             token: model.token,
             is_valid: model.is_valid,
             created_at: model.created_at.into(),
             expires_at: model.expires_at.into(),
-        }
+        })
     }
 }
 
@@ -46,7 +47,7 @@ impl RefreshTokenReadRepository for RefreshTokenReadRepositoryImpl {
             .one(self.db.as_ref())
             .await?;
 
-        Ok(refresh_token.map(Self::to_domain))
+        refresh_token.map(Self::to_domain).transpose()
     }
 
     async fn find_by_user_id(&self, user_id: Uuid) -> Result<Vec<DomainRefreshToken>, Self::Error> {
@@ -57,6 +58,6 @@ impl RefreshTokenReadRepository for RefreshTokenReadRepositoryImpl {
             .all(self.db.as_ref())
             .await?;
 
-        Ok(tokens.into_iter().map(Self::to_domain).collect())
+        tokens.into_iter().map(Self::to_domain).collect()
     }
 }

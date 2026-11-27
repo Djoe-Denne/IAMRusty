@@ -1,6 +1,6 @@
 use super::entity::{user_emails, users};
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use iam_domain::entity::user::User as DomainUser;
 use iam_domain::error::DomainError;
 use iam_domain::port::repository::UserWriteRepository;
@@ -50,21 +50,10 @@ impl UserWriteRepositoryImpl {
             id: ActiveValue::Set(user.id),
             username: ActiveValue::Set(user.username.clone()),
             password_hash: ActiveValue::Set(user.password_hash.clone()),
+            auth_epoch: ActiveValue::NotSet,
             avatar_url: ActiveValue::Set(user.avatar_url.clone()),
             created_at: ActiveValue::Set(user.created_at.naive_utc()),
             updated_at: ActiveValue::Set(user.updated_at.naive_utc()),
-        }
-    }
-
-    /// Convert a database model to a domain user
-    fn to_domain(model: users::Model) -> DomainUser {
-        DomainUser {
-            id: model.id,
-            username: model.username,
-            password_hash: model.password_hash,
-            avatar_url: model.avatar_url,
-            created_at: DateTime::<Utc>::from_naive_utc_and_offset(model.created_at, Utc),
-            updated_at: DateTime::<Utc>::from_naive_utc_and_offset(model.updated_at, Utc),
         }
     }
 }
@@ -111,11 +100,10 @@ impl UserWriteRepository for UserWriteRepositoryImpl {
             .await
             .map_err(profile_storage_error)?
             .map(|row| row.email);
+        let user = super::user_read::UserReadRepositoryImpl::to_domain(user)
+            .map_err(profile_storage_error)?;
         tx.commit().await.map_err(profile_storage_error)?;
-        Ok(UserProfile {
-            user: Self::to_domain(user),
-            email,
-        })
+        Ok(UserProfile { user, email })
     }
 
     async fn create(&self, user: DomainUser) -> Result<DomainUser, Self::Error> {
@@ -124,7 +112,7 @@ impl UserWriteRepository for UserWriteRepositoryImpl {
 
         let res = model.insert(self.db.as_ref()).await?;
 
-        Ok(Self::to_domain(res))
+        super::user_read::UserReadRepositoryImpl::to_domain(res)
     }
 
     async fn update(&self, user: DomainUser) -> Result<DomainUser, Self::Error> {
@@ -148,10 +136,11 @@ impl UserWriteRepository for UserWriteRepositoryImpl {
         // Generic profile updates never mutate credentials or restore a replica snapshot.
         model.updated_at = Set(user.updated_at.naive_utc());
 
-        let updated = model.update(&tx).await?;
+        let updated =
+            super::user_read::UserReadRepositoryImpl::to_domain(model.update(&tx).await?)?;
         tx.commit().await?;
 
-        Ok(Self::to_domain(updated))
+        Ok(updated)
     }
 }
 
@@ -172,6 +161,7 @@ mod profile_tests {
             username: Some("reader".into()),
             avatar_url: None,
             password_hash: None,
+            auth_epoch: "0".into(),
             created_at: now,
             updated_at: now,
         };

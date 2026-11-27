@@ -151,6 +151,7 @@ async fn iam_http_verifier_rejects_foreign_hmac_issuer_at_uuid_only_boundary() {
                 iss: issuer.into(),
                 aud: config.jwt.audience.clone(),
                 org: None,
+                auth_epoch: None,
                 exp: now + 900,
                 iat: now,
                 jti: uuid::Uuid::new_v4().to_string(),

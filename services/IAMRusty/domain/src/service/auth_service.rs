@@ -542,12 +542,12 @@ where
     ) -> Result<LoginResponse, AuthError> {
         let access_token = self
             .token_service
-            .generate_access_token(user.id)
+            .generate_access_token(user.id, user.auth_epoch)
             .await
             .map_err(|e| AuthError::TokenServiceError(Box::new(e)))?;
         let refresh_token = self
             .token_service
-            .generate_refresh_token(user.id)
+            .generate_refresh_token(user.id, user.auth_epoch)
             .await
             .map_err(|e| AuthError::TokenServiceError(Box::new(e)))?;
 

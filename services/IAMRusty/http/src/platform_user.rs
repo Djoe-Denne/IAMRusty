@@ -22,6 +22,12 @@ impl PlatformIssuer {
         }
         Ok(Self(issuer))
     }
+
+    /// Exact configured platform issuer.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 /// Extract only platform human accounts, never organization or mesh identities.

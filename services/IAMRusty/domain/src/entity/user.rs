@@ -19,6 +19,9 @@ pub struct User {
 
     /// Password hash (for email/password authentication)
     pub password_hash: Option<String>,
+    /// Account generation advanced only by recovery.
+    #[serde(skip)]
+    pub auth_epoch: u64,
 
     /// When the user was created
     pub created_at: DateTime<Utc>,
@@ -37,6 +40,7 @@ impl User {
             username: None,
             avatar_url,
             password_hash: None,
+            auth_epoch: 0,
             created_at: now,
             updated_at: now,
         }
@@ -51,6 +55,7 @@ impl User {
             username: Some(username),
             avatar_url,
             password_hash: None,
+            auth_epoch: 0,
             created_at: now,
             updated_at: now,
         }
@@ -65,6 +70,7 @@ impl User {
             username: None,
             avatar_url,
             password_hash: Some(password_hash),
+            auth_epoch: 0,
             created_at: now,
             updated_at: now,
         }
@@ -83,6 +89,7 @@ impl User {
             username: Some(username),
             avatar_url,
             password_hash: Some(password_hash),
+            auth_epoch: 0,
             created_at: now,
             updated_at: now,
         }

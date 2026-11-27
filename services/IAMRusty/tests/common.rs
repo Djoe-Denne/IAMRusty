@@ -763,6 +763,36 @@ pub struct IAMRustyTestDescriptorWithMockEvents {
     mock_event_publisher: Arc<MockEventPublisher>,
 }
 
+// Only the IAM test descriptors call this, with their TestDatabase container
+// connection. Keep the fixture reset and rollback atomic, even if down fails.
+async fn roll_back_fixture_migrations(
+    connection: &sea_orm::DatabaseConnection,
+) -> anyhow::Result<()> {
+    use sea_orm::{ConnectionTrait, TransactionTrait};
+    let tx = connection.begin().await?;
+    tx.execute_unprepared(
+        "DO $$ BEGIN
+            IF current_schema() IS DISTINCT FROM 'public' THEN
+                RAISE EXCEPTION 'expected the IAM fixture public schema';
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'auth_epoch')
+            THEN
+                UPDATE public.users SET auth_epoch = '0' WHERE auth_epoch <> '0';
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'refresh_tokens' AND column_name = 'auth_epoch')
+            THEN
+                UPDATE public.refresh_tokens SET auth_epoch = '0' WHERE auth_epoch <> '0';
+            END IF;
+        END; $$",
+    )
+    .await?;
+    Migrator::down(&tx, None).await?;
+    tx.commit().await?;
+    Ok(())
+}
+
 #[async_trait]
 impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptor {
     type Config = AppConfig;
@@ -791,8 +821,7 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptor {
         &self,
         connection: &sea_orm::DatabaseConnection,
     ) -> anyhow::Result<()> {
-        Migrator::down(connection, None).await?;
-        Ok(())
+        roll_back_fixture_migrations(connection).await
     }
 
     fn has_db(&self) -> bool {
@@ -949,8 +978,7 @@ impl ServiceTestDescriptor<TestFixture> for IAMRustyTestDescriptorWithMockEvents
         &self,
         connection: &sea_orm::DatabaseConnection,
     ) -> anyhow::Result<()> {
-        Migrator::down(connection, None).await?;
-        Ok(())
+        roll_back_fixture_migrations(connection).await
     }
 
     fn has_db(&self) -> bool {
