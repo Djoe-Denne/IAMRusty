@@ -33,7 +33,7 @@ async fn recovery_commit_reaches_real_pg15_subscriber() {
     match outcome {
         Err(panic) => std::panic::resume_unwind(panic),
         Ok(result) => {
-            result.expect("logical-replication scenario exceeded its 180-second deadline")
+            result.expect("logical-replication scenario exceeded its 180-second deadline");
         }
     }
     cleanup.expect("join owned IAM listeners and stop/remove tracked PG15");

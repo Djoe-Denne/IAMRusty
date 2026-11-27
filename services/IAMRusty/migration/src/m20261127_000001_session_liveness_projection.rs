@@ -106,7 +106,7 @@ impl MigrationTrait for Migration {
         manager
             .get_connection()
             .execute_unprepared(
-                r#"
+                r"
                 -- DROP TRIGGER requires ACCESS EXCLUSIVE. Acquire it directly
                 -- rather than upgrading while an existing IAM writer finishes.
                 LOCK TABLE public.users IN ACCESS EXCLUSIVE MODE;
@@ -116,7 +116,7 @@ impl MigrationTrait for Migration {
                 DROP FUNCTION public.iam_sync_session_liveness_epoch();
                 DROP TABLE public.iam_session_liveness_checkpoints;
                 DROP TABLE public.iam_session_liveness_epochs;
-                "#,
+                ",
             )
             .await?;
         Ok(())
