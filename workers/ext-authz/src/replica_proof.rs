@@ -4,16 +4,16 @@ use uuid::Uuid;
 const MAX_PROOF_AGE: Duration = Duration::from_secs(3);
 
 #[derive(Clone, Copy)]
-struct Proof {
-    challenge: Uuid,
-    generation: Uuid,
-    started: Duration,
+pub(super) struct Proof {
+    pub(super) challenge: Uuid,
+    pub(super) generation: Uuid,
+    pub(super) started: Duration,
 }
 
-struct Snapshot {
-    ready_generation: Option<Uuid>,
-    applied_challenge: Option<Uuid>,
-    epoch: Option<u64>,
+pub(super) struct Snapshot {
+    pub(super) ready_generation: Option<Uuid>,
+    pub(super) applied_challenge: Option<Uuid>,
+    pub(super) epoch: Option<u64>,
 }
 
 #[derive(Debug, PartialEq, Eq)]

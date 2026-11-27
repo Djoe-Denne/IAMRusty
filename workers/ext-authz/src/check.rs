@@ -31,6 +31,8 @@ pub struct AuthzState {
     registry: HashMap<String, KeyStatus>,
     platform_issuer: String,
     session_liveness: Option<Arc<dyn SessionLivenessChecker>>,
+    #[cfg(test)]
+    replica: Option<Arc<replica_admission_tests::ReplicaAdmission>>,
 }
 
 impl AuthzState {
@@ -60,6 +62,8 @@ impl AuthzState {
             audience: config.audience,
             platform_issuer: config.platform_issuer,
             session_liveness,
+            #[cfg(test)]
+            replica: None,
             registry: HashMap::new(),
         })
     }
@@ -282,6 +286,10 @@ fn merge_check_body_headers(headers: &mut HeaderMap, body: &Bytes) {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "replica_admission_tests.rs"]
+mod replica_admission_tests;
 
 #[cfg(test)]
 mod tests {
@@ -890,6 +898,91 @@ mod tests {
         response.assert_status(StatusCode::SERVICE_UNAVAILABLE);
         assert!(response.maybe_header("x-principal-iss").is_none());
         assert!(response.maybe_header("x-principal-sub").is_none());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn check_uses_replica_until_the_proof_horizon_then_falls_back() {
+        use self::replica_admission_tests::ReplicaAdmission;
+        use crate::replica_proof::{Proof, Snapshot};
+        use std::sync::atomic::AtomicU64;
+
+        let (_authority, endpoint, authority_calls, _) =
+            liveness_server(LivenessBehavior::Unavailable);
+        let authority = HttpSessionLivenessChecker::new(
+            &endpoint,
+            "x-workload-token",
+            "fixture-secret",
+            Duration::from_secs(2),
+        )
+        .expect("authority client");
+        let (state, _jwks) =
+            state_with_jwks(&test_rs256_jwks_json(), Duration::from_secs(3600)).await;
+        state
+            .cache
+            .document_for_kid(TEST_RS256_KID)
+            .await
+            .expect("prime active key");
+        let mut state = state
+            .as_ref()
+            .clone()
+            .with_session_liveness_checker(Arc::new(authority));
+        let proof = Proof {
+            challenge: Uuid::new_v4(),
+            generation: Uuid::new_v4(),
+            started: Duration::ZERO,
+        };
+        let clock = Arc::new(AtomicU64::new(2_999));
+        let user = Uuid::new_v4();
+        let replica = Arc::new(ReplicaAdmission {
+            clock: clock.clone(),
+            reads: AtomicUsize::new(0),
+            expected_subject: user,
+            proof,
+            snapshot: Snapshot {
+                ready_generation: Some(proof.generation),
+                applied_challenge: Some(proof.challenge),
+                epoch: Some(0),
+            },
+        });
+        state.replica = Some(replica.clone());
+        let server =
+            axum_test::TestServer::new(check_router(Arc::new(state))).expect("Check server");
+        let token = create_rs256_jwt_token(user);
+        let fresh = server
+            .post("/check")
+            .add_header("authorization", format!("Bearer {token}"))
+            .await;
+        fresh.assert_status(StatusCode::OK);
+        assert_eq!(
+            fresh.header("x-principal-sub").to_str().unwrap(),
+            user.to_string()
+        );
+        assert_eq!(replica.reads.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            authority_calls.load(Ordering::SeqCst),
+            0,
+            "healthy replica avoids IAM"
+        );
+
+        clock.store(3_000, Ordering::SeqCst);
+        let stale = server
+            .post("/check")
+            .add_header("authorization", format!("Bearer {token}"))
+            .await;
+        stale.assert_status(StatusCode::SERVICE_UNAVAILABLE);
+        assert!(stale.maybe_header("x-principal-iss").is_none());
+        assert!(stale.maybe_header("x-principal-sub").is_none());
+        assert_eq!(
+            replica.reads.load(Ordering::SeqCst),
+            1,
+            "expired proof needs no replica read"
+        );
+        assert_eq!(
+            authority_calls.load(Ordering::SeqCst),
+            1,
+            "expired proof falls back"
+        );
     }
 
     #[test]
