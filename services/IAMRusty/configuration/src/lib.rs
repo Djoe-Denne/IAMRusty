@@ -993,6 +993,9 @@ pub struct AppConfig {
     /// Shared secret for internal `IdP` token routes
     #[serde(default)]
     pub internal_service_token: String,
+    /// Environment variable holding the dedicated admission checkpoint capability.
+    #[serde(default)]
+    pub session_checkpoint_token_env: Option<String>,
 }
 
 // Default value functions
@@ -1124,6 +1127,7 @@ impl ConfigLoader<Self> for AppConfig {
             queue: QueueConfig::default(),
             kafka: KafkaConfig::default(),
             internal_service_token: String::new(),
+            session_checkpoint_token_env: None,
             profile_email_verification: ProfileEmailVerificationConfig::default(),
         }
     }

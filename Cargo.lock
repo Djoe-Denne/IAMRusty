@@ -2524,6 +2524,7 @@ dependencies = [
 name = "ext-authz"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "axum 0.8.9",
  "axum-server",
  "axum-test 17.3.0",
@@ -2531,11 +2532,13 @@ dependencies = [
  "iam-domain",
  "jsonwebtoken",
  "reqwest 0.12.28",
+ "rustix 1.1.4",
  "rustls",
  "rustycog-framework",
  "serde",
  "serde_json",
  "serial_test",
+ "sqlx",
  "tokio",
  "tracing",
  "tracing-subscriber",

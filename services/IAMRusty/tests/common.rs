@@ -427,8 +427,10 @@ async fn start_owned_listener_with_keys(
 pub async fn setup_test_server_on_writer(
     db: Arc<sea_orm::DatabaseConnection>,
     database_url: &str,
+    checkpoint_token_env: &str,
 ) -> anyhow::Result<(String, Client)> {
     let mut config = writer_config(database_url, None)?;
+    config.session_checkpoint_token_env = Some(checkpoint_token_env.to_owned());
     let files = create_fixture_pem_files(&mut config)?;
     Box::pin(start_writer_listener(
         db,

@@ -40,6 +40,7 @@ async fn recovery_commit_reaches_real_pg15_subscriber() {
 }
 
 async fn exercise_contract(pg: &mut LogicalPostgres) {
+    const CHECKPOINT_TOKEN_ENV: &str = "IAM_LOGICAL_REPLICA_FIXTURE_CHECKPOINT_TOKEN";
     pg.initialize()
         .await
         .expect("initialize isolated PG15 databases");
@@ -48,12 +49,16 @@ async fn exercise_contract(pg: &mut LogicalPostgres) {
         .expect("prove control replication before product assertions");
     let writer = pg.writer.as_ref().expect("initialized writer");
     let advanced = upgrade::verify_upgrade_and_downgrade(writer).await;
-    let (base, _) = Box::pin(common::setup_test_server_on_writer(
+    let checkpoint_token = uuid::Uuid::new_v4().simple().to_string();
+    std::env::set_var(CHECKPOINT_TOKEN_ENV, &checkpoint_token);
+    let result = Box::pin(common::setup_test_server_on_writer(
         writer.clone(),
         &pg.writer_url(),
+        CHECKPOINT_TOKEN_ENV,
     ))
-    .await
-    .expect("start real IAM on owned logical writer");
+    .await;
+    std::env::remove_var(CHECKPOINT_TOKEN_ENV);
+    let (base, _) = result.expect("start real IAM on owned logical writer");
     let user = DbFixtures::create_user_with_email_password(
         writer,
         "logical-recovery@example.com",
@@ -138,7 +143,7 @@ async fn exercise_contract(pg: &mut LogicalPostgres) {
         Some("1"),
         "the production epoch must reach the real PG15 subscriber"
     );
-    qualification::rollback_pause_resume(pg, &base, user.id()).await;
+    qualification::rollback_pause_resume(pg, &base, user.id(), &checkpoint_token).await;
     upgrade::verify_deleted_account(pg, advanced.expect("backfilled advanced account")).await;
 }
 

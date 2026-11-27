@@ -7,6 +7,7 @@ mod m20261123_000002_totp_credentials;
 mod m20261123_000008_profile_email_verifications;
 mod m20261124_000001_auth_epoch;
 mod m20261127_000001_session_liveness_projection;
+mod m20261127_000002_session_checkpoint_retention;
 
 pub struct Migrator;
 
@@ -21,6 +22,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261123_000008_profile_email_verifications::Migration),
             Box::new(m20261124_000001_auth_epoch::Migration),
             Box::new(m20261127_000001_session_liveness_projection::Migration),
+            Box::new(m20261127_000002_session_checkpoint_retention::Migration),
         ]
     }
 }

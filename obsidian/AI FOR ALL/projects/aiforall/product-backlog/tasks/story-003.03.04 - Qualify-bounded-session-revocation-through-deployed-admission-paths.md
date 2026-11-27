@@ -1,9 +1,10 @@
 ---
 id: STORY-003.03.04
 title: Qualify bounded session revocation through deployed admission paths
-status: Accepted intent
+status: Ready
 assignee: []
 created_date: '2026-11-27T15:54:29Z'
+updated_date: '2026-11-27T19:49:40Z'
 labels:
   - iam
   - session-liveness

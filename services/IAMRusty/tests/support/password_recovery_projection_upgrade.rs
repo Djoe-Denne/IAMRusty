@@ -1,6 +1,8 @@
 use super::logical_postgres::{epoch, execute, scalar_bool, wait_bool, LogicalPostgres};
+use iam_infra::repository::SeaOrmSessionLivenessChecker;
 use iammigration::{Migrator, MigratorTrait as _};
 use sea_orm::{ConnectionTrait as _, DatabaseConnection, TransactionTrait as _};
+use std::sync::Arc;
 use uuid::Uuid;
 
 #[path = "writer_barrier.rs"]
@@ -71,10 +73,82 @@ pub(super) async fn verify_upgrade_and_downgrade(writer: &DatabaseConnection) ->
     )
     .await
     .expect("check downgrade removed only derived data"));
-    Migrator::up(writer, None)
+    Migrator::up(writer, Some(1))
         .await
         .expect("rebuild the projection from retained epochs");
+    verify_checkpoint_retention(writer).await;
     Some(advanced)
+}
+
+async fn verify_checkpoint_retention(writer: &DatabaseConnection) {
+    execute(
+        writer,
+        "INSERT INTO public.iam_session_liveness_checkpoints(challenge)
+         SELECT gen_random_uuid() FROM generate_series(1, 129)",
+    )
+    .await
+    .expect("seed pre-existing markers without an ordering queue");
+    Migrator::up(writer, None)
+        .await
+        .expect("add bounded checkpoint retention");
+    assert!(scalar_bool(
+        writer,
+        "SELECT count(*) = 128 AS ok FROM public.iam_session_liveness_checkpoints"
+    )
+    .await
+    .expect("enroll and trim markers that preceded the migration"));
+    Migrator::down(writer, Some(1))
+        .await
+        .expect("remove only the retention queue");
+    Migrator::up(writer, None)
+        .await
+        .expect("re-enroll retained markers");
+
+    execute(writer, "CREATE ROLE iam_fixture_checkpoint_writer NOLOGIN")
+        .await
+        .expect("create restricted IAM writer role in the owned cluster");
+    let grants = include_str!("../../../../ops/deploy/iam-session-replica/iam-writer.sql")
+        .replace(":\"iam_writer\"", "\"iam_fixture_checkpoint_writer\"");
+    writer
+        .execute_unprepared(&grants)
+        .await
+        .expect("apply runtime grants");
+    let options = writer
+        .get_postgres_connection_pool()
+        .connect_options()
+        .as_ref()
+        .clone();
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .after_connect(|connection, _| {
+            Box::pin(async move {
+                sqlx::query("SET ROLE iam_fixture_checkpoint_writer")
+                    .execute(connection)
+                    .await?;
+                Ok(())
+            })
+        })
+        .connect_with(options)
+        .await
+        .unwrap_or_else(|_| panic!("restricted writer connection failed (details redacted)"));
+    let restricted = Arc::new(sea_orm::SqlxPostgresConnector::from_sqlx_postgres_pool(
+        pool,
+    ));
+    let checkpoint_writer = SeaOrmSessionLivenessChecker::new(restricted, "fixture".into());
+    let challenge = Uuid::new_v4();
+    assert!(checkpoint_writer
+        .write_checkpoint(challenge)
+        .await
+        .expect("restricted writer can commit"));
+    assert!(scalar_bool(
+        writer,
+        &format!(
+            "SELECT count(*) = 128 AND bool_or(challenge = '{challenge}') AS ok
+             FROM public.iam_session_liveness_checkpoints"
+        ),
+    )
+    .await
+    .expect("old marker retires after a restricted writer adds a new one"));
 }
 
 pub(super) async fn verify_admission_grants(pg: &LogicalPostgres, advanced: Uuid) {
@@ -98,7 +172,8 @@ pub(super) async fn verify_admission_grants(pg: &LogicalPostgres, advanced: Uuid
         .expect("switch to restricted subscriber role");
     tx.execute_unprepared(&format!(
         "SELECT auth_epoch FROM public.iam_session_liveness_epochs WHERE subject = '{advanced}'; \
-         SELECT challenge FROM public.iam_session_liveness_checkpoints"
+         SELECT challenge FROM public.iam_session_liveness_checkpoints; \
+         SELECT configured_generation, generation FROM public.iam_session_liveness_ready"
     ))
     .await
     .expect("admission role reads exactly the required relations");

@@ -3,6 +3,7 @@ pub mod mesh_echo;
 pub mod organization_signer;
 pub mod password_reset;
 pub(crate) mod profile_email_verification;
+pub(crate) mod session_checkpoint;
 pub mod session_liveness;
 pub mod token;
 pub(crate) mod totp;

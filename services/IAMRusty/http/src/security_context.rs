@@ -9,7 +9,8 @@ use iam_application::usecase::{
 use rustycog::http::SessionLivenessChecker;
 
 use crate::{
-    oauth_browser::OAuthRouteContext, platform_user::PlatformIssuer, rate_limit::AuthRateLimiter,
+    handlers::session_checkpoint::SessionCheckpoint, oauth_browser::OAuthRouteContext,
+    platform_user::PlatformIssuer, rate_limit::AuthRateLimiter,
 };
 
 /// Validated dependencies shared by every router of one IAM application.
@@ -20,6 +21,7 @@ pub struct IamHttpSecurityContext {
     profile_email_verification: Arc<ProfileEmailVerification>,
     totp: Arc<dyn LoginUseCase>,
     session_liveness: Arc<dyn SessionLivenessChecker>,
+    session_checkpoint: Option<Arc<SessionCheckpoint>>,
 }
 
 impl IamHttpSecurityContext {
@@ -39,7 +41,18 @@ impl IamHttpSecurityContext {
             profile_email_verification,
             totp,
             session_liveness,
+            session_checkpoint: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_session_checkpoint(mut self, checkpoint: SessionCheckpoint) -> Self {
+        self.session_checkpoint = Some(Arc::new(checkpoint));
+        self
+    }
+
+    pub(crate) fn session_checkpoint(&self) -> Option<Arc<SessionCheckpoint>> {
+        self.session_checkpoint.clone()
     }
 
     pub(crate) fn platform_issuer(&self) -> PlatformIssuer {
