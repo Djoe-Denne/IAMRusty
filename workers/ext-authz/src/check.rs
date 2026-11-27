@@ -668,7 +668,10 @@ mod tests {
         for (behavior, expected) in [
             (LivenessBehavior::Live, StatusCode::OK),
             (LivenessBehavior::Revoked, StatusCode::FORBIDDEN),
-            (LivenessBehavior::Unavailable, StatusCode::FORBIDDEN),
+            (
+                LivenessBehavior::Unavailable,
+                StatusCode::SERVICE_UNAVAILABLE,
+            ),
         ] {
             let (_liveness, endpoint, calls, queries) = liveness_server(behavior);
             let checker = HttpSessionLivenessChecker::new(
@@ -698,7 +701,6 @@ mod tests {
                 .post("/")
                 .add_header("authorization", format!("Bearer {token}"))
                 .await;
-            response.assert_status(expected);
             if expected == StatusCode::OK {
                 assert_eq!(
                     response.header("x-principal-iss").to_str().unwrap(),
@@ -729,6 +731,7 @@ mod tests {
                 }]
             );
             drop(queries);
+            response.assert_status(expected);
         }
     }
 
