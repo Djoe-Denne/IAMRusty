@@ -1,0 +1,127 @@
+use std::time::Duration;
+use uuid::Uuid;
+
+#[derive(Clone, Copy)]
+struct Proof {
+    challenge: Uuid,
+    generation: Uuid,
+    started: Duration,
+}
+
+struct Snapshot {
+    ready_generation: Option<Uuid>,
+    applied_challenge: Option<Uuid>,
+    epoch: Option<u64>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum Decision {
+    Live,
+    Revoked,
+    NeedAuthority,
+}
+
+impl Proof {
+    fn decide(&self, _now: Duration, _snapshot: &Snapshot, _claim: Option<u64>) -> Decision {
+        // Safe baseline until replica admission is implemented.
+        Decision::NeedAuthority
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Decision, Proof, Snapshot};
+    use std::time::Duration;
+    use uuid::Uuid;
+
+    fn fixture(epoch: Option<u64>) -> (Proof, Snapshot) {
+        let proof = Proof {
+            challenge: Uuid::new_v4(),
+            generation: Uuid::new_v4(),
+            started: Duration::from_secs(10),
+        };
+        let snapshot = Snapshot {
+            ready_generation: Some(proof.generation),
+            applied_challenge: Some(proof.challenge),
+            epoch,
+        };
+        (proof, snapshot)
+    }
+
+    #[test]
+    fn replica_decides_only_inside_the_strict_proof_age() {
+        let (proof, snapshot) = fixture(Some(4));
+        assert_eq!(
+            proof.decide(proof.started + Duration::from_secs(3), &snapshot, Some(4)),
+            Decision::NeedAuthority
+        );
+        assert_eq!(
+            proof.decide(proof.started - Duration::from_millis(1), &snapshot, Some(4)),
+            Decision::NeedAuthority,
+            "a regressed clock cannot renew proof"
+        );
+        assert_eq!(
+            proof.decide(
+                proof.started + Duration::from_millis(2_999),
+                &snapshot,
+                Some(4),
+            ),
+            Decision::Live,
+            "a verified replica inside the proof window decides without IAM"
+        );
+    }
+
+    #[test]
+    fn replica_requires_the_same_ready_generation_and_applied_challenge() {
+        let (proof, snapshot) = fixture(Some(4));
+        for untrusted in [
+            Snapshot {
+                ready_generation: None,
+                ..snapshot
+            },
+            Snapshot {
+                ready_generation: Some(Uuid::new_v4()),
+                ..snapshot
+            },
+            Snapshot {
+                applied_challenge: None,
+                ..snapshot
+            },
+            Snapshot {
+                applied_challenge: Some(Uuid::new_v4()),
+                ..snapshot
+            },
+        ] {
+            assert_eq!(
+                proof.decide(proof.started, &untrusted, Some(4)),
+                Decision::NeedAuthority
+            );
+        }
+    }
+
+    #[test]
+    fn replica_compares_each_claim_to_an_existing_account_epoch() {
+        let (proof, snapshot) = fixture(Some(4));
+        assert_eq!(
+            proof.decide(proof.started, &snapshot, Some(5)),
+            Decision::NeedAuthority
+        );
+        assert_eq!(
+            proof.decide(proof.started, &snapshot, Some(3)),
+            Decision::Revoked
+        );
+        assert_eq!(
+            proof.decide(proof.started, &snapshot, None),
+            Decision::Revoked
+        );
+        for epoch in [None, Some(0)] {
+            let snapshot = Snapshot { epoch, ..snapshot };
+            let expected = if epoch.is_some() {
+                Decision::Live
+            } else {
+                Decision::NeedAuthority
+            };
+            assert_eq!(proof.decide(proof.started, &snapshot, None), expected);
+        }
+    }
+}
