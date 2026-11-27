@@ -742,6 +742,86 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    #[serial]
+    async fn check_rejects_key_revoked_while_authority_is_pending() {
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let release = Arc::new(tokio::sync::Notify::new());
+        let handler = {
+            let entered = entered.clone();
+            let release = release.clone();
+            move || {
+                let entered = entered.clone();
+                let release = release.clone();
+                async move {
+                    entered.notify_one();
+                    release.notified().await;
+                    Json(serde_json::json!({"decision": "live", "current_epoch": "0"}))
+                }
+            }
+        };
+        let authority = axum_test::TestServer::builder()
+            .http_transport()
+            .build(Router::new().route("/liveness", post(handler)))
+            .expect("local authority");
+        let endpoint = authority.server_url("/liveness").expect("authority URL");
+        let checker = HttpSessionLivenessChecker::new(
+            endpoint.as_str(),
+            "x-workload-token",
+            "fixture-secret",
+            Duration::from_secs(6),
+        )
+        .expect("authority client");
+
+        let jwks = test_rs256_jwks_json();
+        let (state, fixture) = state_with_jwks(&jwks, Duration::ZERO).await;
+        state
+            .cache
+            .document_for_kid(TEST_RS256_KID)
+            .await
+            .expect("prime active key");
+        let state = Arc::new(
+            state
+                .as_ref()
+                .clone()
+                .with_session_liveness_checker(Arc::new(checker)),
+        );
+        let server = axum_test::TestServer::new(check_router(state.clone())).expect("Check server");
+        let token = create_rs256_jwt_token(Uuid::new_v4());
+        let request = async {
+            server
+                .post("/check")
+                .add_header("authorization", format!("Bearer {token}"))
+                .await
+        };
+        let revoke = async {
+            tokio::time::timeout(Duration::from_secs(2), entered.notified())
+                .await
+                .expect("verified Check reaches authority");
+            let mut revoked: Value = serde_json::from_str(&jwks).expect("fixture JWKS");
+            revoked["keys"][0]["status"] = Value::String("revoked".into());
+            fixture.fixture.reset().await;
+            fixture.mock_jwks_ok(&revoked.to_string()).await;
+            tokio::time::timeout(Duration::from_secs(2), async {
+                let mut ticks = tokio::time::interval(Duration::from_millis(50));
+                loop {
+                    ticks.tick().await;
+                    state.poll_jwks_if_due().await;
+                    if state.cache.status_for_kid(TEST_RS256_KID) == Some(KeyStatus::Revoked) {
+                        break;
+                    }
+                }
+            })
+            .await
+            .expect("revoked key applied before authoritative result");
+            release.notify_one();
+        };
+        let (response, ()) = tokio::join!(request, revoke);
+        response.assert_status(StatusCode::FORBIDDEN);
+        assert!(response.maybe_header("x-principal-iss").is_none());
+        assert!(response.maybe_header("x-principal-sub").is_none());
+    }
+
     #[test]
     #[serial]
     fn from_env_requires_audience_and_configures_jwks_polling() {
