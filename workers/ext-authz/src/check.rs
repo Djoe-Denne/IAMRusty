@@ -234,72 +234,69 @@ async fn decide(
         Err(err) => return deny(&err),
     };
 
-    match extractor.extract_verified_principal(&token).await {
-        Ok(verified) if state.cache.still_authorizes(&kid, &doc) => {
-            let platform = verified.principal.iss == state.platform_issuer;
-            let mut replica_permit = None;
-            if let Some(replica) = state.replica.as_ref().filter(|_| platform) {
-                match replica
-                    .decide(verified.principal.sub, verified.auth_epoch)
-                    .await
-                {
-                    (Decision::Revoked, _) => {
-                        *source = LivenessSource::Replica;
-                        return deny("session revoked by replica");
-                    }
-                    (Decision::Live, Some(proof)) => replica_permit = Some((replica, proof)),
-                    _ => {}
-                }
+    let verified = match extractor.extract_verified_principal(&token).await {
+        Ok(verified) if state.cache.still_authorizes(&kid, &doc) => verified,
+        Ok(_) => return deny("JWKS authorization snapshot expired or replaced"),
+        Err(err) => return deny(&format!("JWT rejected: {err}")),
+    };
+
+    let platform = verified.principal.iss == state.platform_issuer;
+    let mut replica_permit = None;
+    if let Some(replica) = state.replica.as_ref().filter(|_| platform) {
+        match replica
+            .decide(verified.principal.sub, verified.auth_epoch)
+            .await
+        {
+            (Decision::Revoked, _) => {
+                *source = LivenessSource::Replica;
+                return deny("session revoked by replica");
             }
-            let liveness = if replica_permit.is_some() {
-                Ok(())
-            } else if platform && state.replica.is_some() && state.session_liveness.is_none() {
-                Err(SessionLivenessError::unavailable(
-                    "no authoritative fallback",
-                ))
-            } else {
-                extractor
-                    .check_session_liveness(&verified.principal, verified.auth_epoch)
-                    .await
-            };
-            match liveness {
-                Ok(()) => {
-                    // A platform check can await the authority. Recheck token
-                    // validity using the same inline keys, then check that the
-                    // cache still authorizes those keys before emitting allow.
-                    if platform
-                        && (state.session_liveness.is_some() || state.replica.is_some())
-                        && extractor.extract_verified_principal(&token).await.is_err()
-                    {
-                        return deny("JWT is no longer valid after session liveness");
-                    }
-                    if !state.cache.still_authorizes(&kid, &doc) {
-                        return deny("JWKS authorization snapshot expired or replaced");
-                    }
-                    if replica_permit
-                        .is_some_and(|(replica, proof)| !replica.proof_still_valid(proof))
-                    {
-                        return unavailable("replica proof expired during final validation");
-                    }
-                    if replica_permit.is_some() {
-                        *source = LivenessSource::Replica;
-                    } else if platform && state.session_liveness.is_some() {
-                        *source = LivenessSource::Authority;
-                    }
-                    allow(&verified.principal.iss, &verified.principal.sub.to_string())
-                }
-                Err(SessionLivenessError::Revoked) => {
-                    *source = LivenessSource::Authority;
-                    deny("session is revoked")
-                }
-                Err(SessionLivenessError::Unavailable { .. }) => {
-                    unavailable("session liveness unavailable")
-                }
-            }
+            (Decision::Live, Some(proof)) => replica_permit = Some((replica, proof)),
+            _ => {}
         }
-        Ok(_) => deny("JWKS authorization snapshot expired or replaced"),
-        Err(err) => deny(&format!("JWT rejected: {err}")),
     }
+
+    let liveness = if replica_permit.is_some() {
+        Ok(())
+    } else if platform && state.replica.is_some() && state.session_liveness.is_none() {
+        Err(SessionLivenessError::unavailable(
+            "no authoritative fallback",
+        ))
+    } else {
+        extractor
+            .check_session_liveness(&verified.principal, verified.auth_epoch)
+            .await
+    };
+    match liveness {
+        Ok(()) => {}
+        Err(SessionLivenessError::Revoked) => {
+            *source = LivenessSource::Authority;
+            return deny("session is revoked");
+        }
+        Err(SessionLivenessError::Unavailable { .. }) => {
+            return unavailable("session liveness unavailable");
+        }
+    }
+
+    // Recheck token and key validity after the awaited liveness decision.
+    if platform
+        && (state.session_liveness.is_some() || state.replica.is_some())
+        && extractor.extract_verified_principal(&token).await.is_err()
+    {
+        return deny("JWT is no longer valid after session liveness");
+    }
+    if !state.cache.still_authorizes(&kid, &doc) {
+        return deny("JWKS authorization snapshot expired or replaced");
+    }
+    if replica_permit.is_some_and(|(replica, proof)| !replica.proof_still_valid(proof)) {
+        return unavailable("replica proof expired during final validation");
+    }
+    if replica_permit.is_some() {
+        *source = LivenessSource::Replica;
+    } else if platform && state.session_liveness.is_some() {
+        *source = LivenessSource::Authority;
+    }
+    allow(&verified.principal.iss, &verified.principal.sub.to_string())
 }
 
 async fn authorized_key_document(state: &AuthzState, kid: &str) -> Result<String, String> {
