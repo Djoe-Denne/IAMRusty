@@ -1,9 +1,10 @@
 ---
 id: STORY-003.03.01
 title: Define bounded session revocation admission contract
-status: Ready
+status: In Progress
 assignee: []
 created_date: '2026-11-27T15:54:08Z'
+updated_date: '2026-11-27T16:06:11Z'
 labels:
   - iam
   - session-liveness
@@ -12,6 +13,8 @@ dependencies:
 documentation:
   - docs/adr/0316-password-recovery-session-liveness.md
   - docs/contracts/password-recovery-session-liveness.md
+  - docs/adr/0317-bounded-replica-session-admission.md
+  - docs/contracts/password-recovery-replica-admission.md
 parent_task_id: STORY-003.03
 priority: high
 type: spike
