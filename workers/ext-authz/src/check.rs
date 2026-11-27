@@ -1,4 +1,5 @@
-//! Envoy HTTP Check: POST original headers → 200 + recreated principal, or 403.
+//! Envoy HTTP Check: 200 with recreated principal, 403 for rejection, or 503
+//! when session liveness cannot be established.
 
 use crate::config::ExtAuthzConfig;
 use crate::jwks_cache::{JwksCache, KeyStatus};
@@ -9,7 +10,9 @@ use axum::response::IntoResponse;
 use axum::routing::post;
 use axum::Router;
 use jsonwebtoken::decode_header;
-use rustycog::http::{HttpSessionLivenessChecker, SessionLivenessChecker, UserIdExtractor};
+use rustycog::http::{
+    HttpSessionLivenessChecker, SessionLivenessChecker, SessionLivenessError, UserIdExtractor,
+};
 use rustycog::permission::PrincipalPolicy;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -157,13 +160,17 @@ async fn check(
 
     match extractor.extract_verified_principal(&token).await {
         Ok(verified) if state.cache.still_authorizes(&kid, &doc) => {
-            if let Err(err) = extractor
+            match extractor
                 .check_session_liveness(&verified.principal, verified.auth_epoch)
                 .await
             {
-                return deny(&format!("session liveness denied: {err}"));
+                Ok(()) => allow(&verified.principal.iss, &verified.principal.sub.to_string()),
+                Err(SessionLivenessError::Revoked) => deny("session is revoked"),
+                Err(SessionLivenessError::Unavailable { .. }) => {
+                    debug!("session liveness unavailable");
+                    (StatusCode::SERVICE_UNAVAILABLE, HeaderMap::new())
+                }
             }
-            allow(&verified.principal.iss, &verified.principal.sub.to_string())
         }
         Ok(_) => deny("JWKS authorization snapshot expired or replaced"),
         Err(err) => deny(&format!("JWT rejected: {err}")),
