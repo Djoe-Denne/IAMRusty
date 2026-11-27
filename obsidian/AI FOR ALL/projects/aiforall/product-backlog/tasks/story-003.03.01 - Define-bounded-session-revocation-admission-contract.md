@@ -1,9 +1,10 @@
 ---
 id: STORY-003.03.01
 title: Define bounded session revocation admission contract
-status: Ready
+status: Done
 assignee: []
 created_date: '2026-11-27T15:54:08Z'
+updated_date: '2026-11-27T16:14:04Z'
 labels:
   - iam
   - session-liveness
@@ -12,6 +13,8 @@ dependencies:
 documentation:
   - docs/adr/0316-password-recovery-session-liveness.md
   - docs/contracts/password-recovery-session-liveness.md
+  - docs/adr/0317-bounded-replica-session-admission.md
+  - docs/contracts/password-recovery-replica-admission.md
 parent_task_id: STORY-003.03
 priority: high
 type: spike
@@ -26,7 +29,13 @@ Translate approved STORY-003 E3 v4 into an ADR and a testable contract. Evaluate
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A reviewed ADR and contract specify the five-second maximum from reset commit, steady-state reads, proof expiry during failures and the behavior of budgeted IAM fallback.
-- [ ] #2 The contract inventories supported direct, monolith and mesh admission and defines the checks required for sensitive routes, stale or restored data, JWT compatibility and both renew/reset orderings.
-- [ ] #3 The contract identifies reusable PR #57 evidence and defines the failing integration and gateway assertions that must precede implementation.
+- [x] #1 A reviewed ADR and contract specify the five-second maximum from reset commit, steady-state reads, proof expiry during failures and the behavior of budgeted IAM fallback.
+- [x] #2 The contract inventories supported direct, monolith and mesh admission and defines the checks required for sensitive routes, stale or restored data, JWT compatibility and both renew/reset orderings.
+- [x] #3 The contract identifies reusable PR #57 evidence and defines the failing integration and gateway assertions that must precede implementation.
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+ADR 0317 and its admission contract were reviewed and ratified with the initial 3 s proof age, 1 s Envoy Check, and 1 s safety headroom. The contract includes source inventory, fallback limits and failure behavior, and the first TDD oracles. Runtime qualification is tracked separately.
+<!-- SECTION:FINAL_SUMMARY:END -->
