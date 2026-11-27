@@ -203,11 +203,13 @@ data:
                           "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
                           transport_api_version: V3
                           failure_mode_allow: false
+                          status_on_error:
+                            code: ServiceUnavailable
                           http_service:
                             server_uri:
                               uri: https://ext-authz.aiforall-gateway.svc.cluster.local:8090/
                               cluster: ext_authz
-                              timeout: 5s
+                              timeout: 1s
                             authorization_request:
                               allowed_headers:
                                 patterns:

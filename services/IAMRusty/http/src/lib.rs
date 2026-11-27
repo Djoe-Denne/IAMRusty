@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use crate::handlers::mesh_echo::mesh_echo_headers;
 use crate::handlers::profile_email_verification;
+use crate::handlers::session_checkpoint::session_checkpoint;
 use crate::handlers::session_liveness::session_liveness;
 use crate::handlers::totp;
 use crate::rate_limit::rate_limit_auth;
@@ -27,6 +28,7 @@ pub mod security_context;
 pub mod validation;
 
 pub use error::{ApiError, AuthError};
+pub use handlers::session_checkpoint::SessionCheckpoint;
 pub use handlers::{
     auth::{
         check_username, complete_registration, generate_relink_provider_start_url,
@@ -103,11 +105,8 @@ pub fn create_router(
         .post(
             "/internal/organizations/{org_id}/identities",
             create_organization_managed_identity,
-        )
-        .route(
-            "/internal/auth/session-liveness",
-            post(session_liveness).layer(DefaultBodyLimit::max(1024)),
-        )
+        );
+    let builder = session_liveness_routes(builder)
         // Authenticated routes
         .route("/api/me", axum::routing::get(get_user).patch(patch_profile))
         .authenticated()
@@ -170,6 +169,19 @@ pub fn create_router(
         .layer(Extension(security.profile_email_verification()))
         .layer(Extension(security.totp()))
         .layer(Extension(security.session_liveness()))
+        .layer(Extension(security.session_checkpoint()))
+}
+
+fn session_liveness_routes(builder: RouteBuilder) -> RouteBuilder {
+    builder
+        .route(
+            "/internal/auth/session-liveness",
+            post(session_liveness).layer(DefaultBodyLimit::max(1024)),
+        )
+        .route(
+            "/internal/auth/session-liveness/checkpoint",
+            post(session_checkpoint).layer(DefaultBodyLimit::max(256)),
+        )
 }
 
 /// Create the IAM router under its bounded-context prefix.

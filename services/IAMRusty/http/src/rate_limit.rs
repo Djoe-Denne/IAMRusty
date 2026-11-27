@@ -53,7 +53,7 @@ pub fn require_internal_service_token(headers: &HeaderMap) -> Result<(), StatusC
 
 /// Compare two buffers without exiting on the first differing byte.
 /// Length mismatch is folded into the accumulator; both sides are always scanned.
-fn constant_time_token_eq(left: &[u8], right: &[u8]) -> bool {
+pub(crate) fn constant_time_token_eq(left: &[u8], right: &[u8]) -> bool {
     let max_len = left.len().max(right.len());
     let mut acc = left.len() ^ right.len();
     for i in 0..max_len {

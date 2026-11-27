@@ -16,8 +16,9 @@ clusters; the integration fixture uses separate databases in one cluster.
    and keep its credential in trusted replication infrastructure. Run
    `psql -X -v ON_ERROR_STOP=1 -1 -f publisher.sql` on the writer as the
    projection table owner. If migrations and IAM runtime use different
-   principals, grant the IAM writer `SELECT`, `INSERT`, `UPDATE`, and `DELETE`
-   on the epoch projection so its invoker-rights trigger can maintain it.
+   principals, run `psql -X -v ON_ERROR_STOP=1 -v iam_writer=<role> -1 -f iam-writer.sql`
+   as the projection owner. These are the additional privileges for the
+   invoker-rights projection trigger and checkpoint writer.
 3. Provision `iam_session_admission` on the isolated subscriber as a dedicated
    `LOGIN` without replication, privileged memberships, ownership, or object
    creation privileges. Permit it to connect only to the subscriber database,
@@ -38,7 +39,11 @@ clusters; the integration fixture uses separate databases in one cluster.
    ```
 
 5. Verify that the publication lists exactly the two projection relations and
-   that both are `ready` in `pg_subscription_rel` for `iam_projection`. Confirm
+   that both are `ready` in `pg_subscription_rel` for `iam_projection`. Install
+   `readiness.sql` as the trusted subscription operator with a fresh operator
+   UUID (`psql -X -v ON_ERROR_STOP=1 -v generation=<uuid> -1 -f readiness.sql`).
+   This exposes readiness and generation without granting access to
+   subscription connection information. Confirm
    that the gateway role can read the two relations but cannot mutate them,
    read unrelated application tables or connect to the writer. A completed
    copy only establishes bootstrap; admission also requires a fresh challenge
@@ -55,3 +60,42 @@ create a `pgoutput` slot first, then specify `create_slot = false`.
 Retire the subscription and its slot before dropping the publisher projection.
 Reseed after an unverifiable restore; do not skip transactions, reuse a stale
 slot or keep pre-restore proof state.
+
+## Configure a qualification environment
+
+- Configure IAM's `session_checkpoint_token_env` to the name of a secret
+  environment variable containing a dedicated checkpoint capability. It must
+  differ from the IAM internal RPC token. Give only the admission worker this
+  capability, pass it as `EXT_AUTHZ_CHECKPOINT_TOKEN`, and use the private,
+  TLS-verified IAM writer URL in `EXT_AUTHZ_CHECKPOINT_URL` (path
+  `/iam/internal/auth/session-liveness/checkpoint`). The marker route writes
+  to the IAM primary used by recovery and returns `204` only after commit.
+  For deployments with a private CA or client authentication, mount the
+  corresponding PEM files and set `EXT_AUTHZ_CHECKPOINT_CA_FILE` and
+  `EXT_AUTHZ_CHECKPOINT_IDENTITY_FILE` as applicable.
+- Set `EXT_AUTHZ_REPLICA_DSN` to the subscriber-only SQL connection with
+  `sslmode=verify-full`, using its CA and the `iam_session_admission` login.
+  `EXT_AUTHZ_REPLICA_GENERATION` must match the UUID installed by the
+  subscriber operator. Use a single trusted subscriber endpoint; never leave
+  the generation unchanged while retargeting an endpoint to a restored copy.
+- Configure the existing IAM liveness fallback and exact platform issuer.
+  Use the private HTTPS URL for `/iam/internal/auth/session-liveness`, directly
+  on the same fenced IAM authority. The fallback client accepts
+  `EXT_AUTHZ_LIVENESS_CA_FILE` and `EXT_AUTHZ_LIVENESS_IDENTITY_FILE` for its
+  private CA and client identity. Reserve up to
+  40 fallback starts per second and eight outstanding calls per running
+  gateway, plus one checkpoint per second per gateway. The worker rejects
+  excess rather than queueing it. Checkpoint creation is separately bounded
+  by IAM and retires markers beyond the last 128 in writer order. Validate
+  that the configured gateway count and marker traffic preserve at least
+  the proof window and the aggregate IAM capacity reservation.
+  `EXT_AUTHZ_LIVENESS_TIMEOUT_MS` can further limit each fallback request
+  below the 600 ms internal ceiling.
+- Use the gateway's periodic `session admission totals` log to measure
+  replica, authority and unavailable decision count deltas. It includes
+  current proof age when known and no token or account labels.
+
+Replica mode requires the Linux suspend-inclusive clock and a verified
+bootstrap. Before enabling it, qualify the Envoy timeout and error mapping,
+delayed-positive disposal, and the five-second cutoff using the deployed
+admission paths.

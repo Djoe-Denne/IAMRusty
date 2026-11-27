@@ -7,7 +7,12 @@ use serde_json::{json, Value};
 use std::time::Duration;
 use uuid::Uuid;
 
-pub(super) async fn rollback_pause_resume(pg: &LogicalPostgres, base: &str, subject: Uuid) {
+pub(super) async fn rollback_pause_resume(
+    pg: &LogicalPostgres,
+    base: &str,
+    subject: Uuid,
+    checkpoint_token: &str,
+) {
     let writer = pg.writer.as_ref().expect("initialized writer");
     let client = Client::builder()
         .timeout(Duration::from_secs(10))
@@ -53,17 +58,52 @@ pub(super) async fn rollback_pause_resume(pg: &LogicalPostgres, base: &str, subj
         Some("1"),
         "the production source projection must roll back with the account"
     );
-    let after_rollback = pg
-        .publish_checkpoint()
-        .await
-        .expect("commit rollback ordering control");
+    let after_rollback = commit_checkpoint(pg, &client, base, checkpoint_token).await;
     assert!(
         pg.wait_checkpoint_epoch(after_rollback, subject, 1)
             .await
             .expect("read ordered rollback snapshot"),
         "a later checkpoint must apply without the rolled-back epoch reaching the subscriber"
     );
-    paused_retry(pg, &client, base, proof.token(), subject).await;
+    paused_retry(pg, &client, base, proof.token(), subject, checkpoint_token).await;
+}
+
+async fn commit_checkpoint(pg: &LogicalPostgres, client: &Client, base: &str, token: &str) -> Uuid {
+    let challenge = Uuid::new_v4();
+    let url = format!("{base}/internal/auth/session-liveness/checkpoint");
+    let body = json!({"challenge": challenge});
+    for (credential, payload, status) in [
+        (None, body.clone(), StatusCode::FORBIDDEN),
+        (
+            Some(token),
+            json!({"challenge":"invalid"}),
+            StatusCode::BAD_REQUEST,
+        ),
+        (Some(token), body, StatusCode::NO_CONTENT),
+    ] {
+        let mut request = client.post(&url).json(&payload);
+        if let Some(credential) = credential {
+            request = request.header("x-iam-checkpoint-token", credential);
+        }
+        assert_eq!(
+            request
+                .send()
+                .await
+                .expect("local checkpoint request")
+                .status(),
+            status
+        );
+    }
+    assert!(scalar_bool(
+        pg.writer.as_ref().expect("initialized writer"),
+        &format!(
+            "SELECT EXISTS (SELECT 1 FROM public.iam_session_liveness_checkpoints \
+                  WHERE challenge = '{challenge}') AS ok"
+        )
+    )
+    .await
+    .expect("204 witnesses a committed source marker"));
+    challenge
 }
 
 async fn paused_retry(
@@ -72,11 +112,20 @@ async fn paused_retry(
     base: &str,
     token: &str,
     subject: Uuid,
+    checkpoint_token: &str,
 ) {
     let writer = pg.writer.as_ref().expect("initialized writer");
     pg.pause_projection()
         .await
         .expect("disable and join projection apply workers");
+    assert!(scalar_bool(
+        pg.subscriber
+            .as_ref()
+            .expect("subscriber remains reachable"),
+        "SELECT count(*) = 0 AS ok FROM public.iam_session_liveness_ready"
+    )
+    .await
+    .expect("paused subscription cannot advertise ready"));
     let confirmation = client
         .post(format!("{base}/api/auth/password/reset-confirm"))
         .json(&json!({"token": token, "new_password": "ResumedLogical4!"}))
@@ -117,10 +166,7 @@ async fn paused_retry(
         Some("2"),
         "the committed source must advance while its subscriber is paused"
     );
-    let after_reset = pg
-        .publish_checkpoint()
-        .await
-        .expect("commit post-reset ordering control");
+    let after_reset = commit_checkpoint(pg, client, base, checkpoint_token).await;
     assert!(
         pg.checkpoint_snapshot(after_reset, subject, 1, false)
             .await

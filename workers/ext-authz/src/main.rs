@@ -22,13 +22,15 @@ async fn main() {
         }
     };
     let poll_interval = config.poll_interval;
-    let state = match AuthzState::new(config) {
-        Ok(state) => std::sync::Arc::new(state),
-        Err(err) => {
-            eprintln!("ext-authz: {err}");
-            std::process::exit(1);
-        }
-    };
+    let fallback = config.session_liveness.clone();
+    let state =
+        match AuthzState::new(config).and_then(|state| state.with_replica_from_env(&fallback)) {
+            Ok(state) => std::sync::Arc::new(state),
+            Err(err) => {
+                eprintln!("ext-authz: {err}");
+                std::process::exit(1);
+            }
+        };
     let poller = state.clone();
     tokio::spawn(async move {
         let tick = if poll_interval.is_zero() {
@@ -39,6 +41,13 @@ async fn main() {
         loop {
             poller.poll_jwks_if_due().await;
             tokio::time::sleep(tick).await;
+        }
+    });
+    let reporter = state.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(15)).await;
+            reporter.log_session_decisions();
         }
     });
     let app = check_router(state);

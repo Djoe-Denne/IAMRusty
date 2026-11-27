@@ -7,22 +7,27 @@ use uuid::Uuid;
 
 const MAX_PROOF_AGE: Duration = Duration::from_secs(3);
 
+pub fn canonical_epoch(text: &str) -> Option<u64> {
+    let value = text.parse::<u64>().ok()?;
+    (value.to_string() == text).then_some(value)
+}
+
 #[derive(Clone, Copy)]
-pub(super) struct Proof {
+pub struct Proof {
     pub(super) challenge: Uuid,
     pub(super) generation: Uuid,
     pub(super) started: Duration,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct Snapshot {
+pub struct Snapshot {
     pub(super) ready_generation: Option<Uuid>,
     pub(super) applied_challenge: Option<Uuid>,
     pub(super) epoch: Option<u64>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum Decision {
+pub enum Decision {
     Live,
     Revoked,
     NeedAuthority,
@@ -53,11 +58,11 @@ impl Proof {
 }
 
 #[async_trait::async_trait]
-pub(super) trait ReplicaSource: Send + Sync {
+pub trait ReplicaSource: Send + Sync {
     async fn snapshot(&self, challenge: Uuid, subject: Uuid) -> Option<Snapshot>;
 }
 
-pub(super) struct ReplicaAdmission {
+pub struct ReplicaAdmission {
     pub(super) clock: Arc<dyn Fn() -> Option<Duration> + Send + Sync>,
     pub(super) proof: RwLock<Option<Proof>>,
     pub(super) source: Arc<dyn ReplicaSource>,
@@ -97,15 +102,23 @@ impl ReplicaAdmission {
 
     pub(super) fn proof_still_valid(&self, proof: Proof) -> bool {
         (self.clock)().is_some_and(|now| proof.is_fresh(now))
-            && self.current_proof().is_some_and(|current| {
-                current.generation == proof.generation && current.challenge == proof.challenge
-            })
+            && self
+                .current_proof()
+                .is_some_and(|current| current.generation == proof.generation)
+    }
+
+    pub(super) fn proof_age(&self) -> Option<Duration> {
+        (self.clock)()?.checked_sub(self.current_proof()?.started)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Decision, Proof, Snapshot};
+    use super::{Decision, Proof, ReplicaAdmission, ReplicaSource, Snapshot};
+    use std::sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, RwLock,
+    };
     use std::time::Duration;
     use uuid::Uuid;
 
@@ -123,6 +136,46 @@ mod tests {
         (proof, snapshot)
     }
 
+    struct SnapshotSource(Snapshot);
+
+    #[async_trait::async_trait]
+    impl ReplicaSource for SnapshotSource {
+        async fn snapshot(&self, _challenge: Uuid, _subject: Uuid) -> Option<Snapshot> {
+            Some(self.0)
+        }
+    }
+
+    #[tokio::test]
+    async fn final_proof_check_accepts_renewal_but_rejects_expiry_and_changed_generation() {
+        let (proof, snapshot) = fixture(Some(0));
+        let clock = Arc::new(AtomicU64::new(12_999));
+        let admission = ReplicaAdmission {
+            clock: Arc::new({
+                let clock = clock.clone();
+                move || Some(Duration::from_millis(clock.load(Ordering::SeqCst)))
+            }),
+            proof: RwLock::new(Some(proof)),
+            source: Arc::new(SnapshotSource(snapshot)),
+        };
+        let (decision, consumed) = admission.decide(Uuid::new_v4(), None).await;
+        assert_eq!(decision, Decision::Live);
+        let consumed = consumed.expect("matching snapshot returns a proof");
+        let renewed = Proof {
+            challenge: Uuid::new_v4(),
+            ..proof
+        };
+        *admission.proof.write().expect("update proof") = Some(renewed);
+        assert!(admission.proof_still_valid(consumed));
+        clock.store(13_000, Ordering::SeqCst);
+        assert!(!admission.proof_still_valid(consumed));
+        clock.store(12_999, Ordering::SeqCst);
+        *admission.proof.write().expect("replace generation") = Some(Proof {
+            generation: Uuid::new_v4(),
+            ..renewed
+        });
+        assert!(!admission.proof_still_valid(consumed));
+    }
+
     #[test]
     fn replica_decides_only_inside_the_strict_proof_age() {
         let (proof, snapshot) = fixture(Some(4));
@@ -131,7 +184,7 @@ mod tests {
             Decision::NeedAuthority
         );
         assert_eq!(
-            proof.decide(proof.started - Duration::from_millis(1), &snapshot, Some(4)),
+            proof.decide(Duration::from_millis(9_999), &snapshot, Some(4)),
             Decision::NeedAuthority,
             "a regressed clock cannot renew proof"
         );

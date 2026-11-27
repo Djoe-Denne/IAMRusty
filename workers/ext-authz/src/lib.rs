@@ -4,9 +4,13 @@
 
 #![allow(missing_docs)]
 
+mod authority;
 pub mod check;
+mod clock;
 pub mod config;
+mod iam_fallback;
 pub mod jwks_cache;
+mod postgres_replica;
 
 #[cfg(test)]
 mod jwks_fixtures;

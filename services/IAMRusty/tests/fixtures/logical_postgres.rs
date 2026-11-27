@@ -199,9 +199,20 @@ impl LogicalPostgres {
             "iam_session_replication",
         )
         .await?;
+        let sql = include_str!("../../../../ops/deploy/iam-session-replica/readiness.sql")
+            .replace(":'generation'", "'aaac2dd2-43f4-4000-95c8-943990c12254'");
+        execute_script(subscriber, &sql).await?;
         anyhow::ensure!(
             ready(subscriber, "iam_projection", 2).await?,
             "both production relations must complete initial synchronization"
+        );
+        anyhow::ensure!(
+            scalar_bool(
+                subscriber,
+                "SELECT count(*) = 1 AS ok FROM public.iam_session_liveness_ready"
+            )
+            .await?,
+            "the installed readiness view must bind the synchronized subscription"
         );
         Ok(())
     }

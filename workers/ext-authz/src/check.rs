@@ -1,8 +1,12 @@
 //! Envoy HTTP Check: 200 with recreated principal, 403 for rejection, or 503
 //! when session liveness cannot be established.
 
+use crate::authority::Authority;
+use crate::clock::{boot_time, within_boot_budget};
 use crate::config::ExtAuthzConfig;
+use crate::iam_fallback::IamFallback;
 use crate::jwks_cache::{JwksCache, KeyStatus};
+use crate::postgres_replica::ReplicaRuntime;
 use crate::replica_proof::{Decision, ReplicaAdmission};
 use axum::body::Bytes;
 use axum::extract::State;
@@ -17,12 +21,42 @@ use rustycog::http::{
 use rustycog::permission::PrincipalPolicy;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::{timeout_at, Instant};
 use tracing::debug;
 
 const CHECK_BUDGET: Duration = Duration::from_secs(1);
+
+#[derive(Clone, Copy)]
+enum LivenessSource {
+    None,
+    Replica,
+    Authority,
+}
+
+#[derive(Default)]
+struct DecisionCounts {
+    replica: AtomicU64,
+    authority: AtomicU64,
+    unavailable: AtomicU64,
+}
+
+impl DecisionCounts {
+    fn record(&self, status: StatusCode, source: LivenessSource) {
+        let counter = if status == StatusCode::SERVICE_UNAVAILABLE {
+            &self.unavailable
+        } else {
+            match source {
+                LivenessSource::Replica => &self.replica,
+                LivenessSource::Authority => &self.authority,
+                LivenessSource::None => return,
+            }
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
+    }
+}
 
 /// Check service state: local JWKS cache + optional test kid registry.
 #[derive(Clone)]
@@ -33,9 +67,34 @@ pub struct AuthzState {
     platform_issuer: String,
     session_liveness: Option<Arc<dyn SessionLivenessChecker>>,
     replica: Option<Arc<ReplicaAdmission>>,
+    decisions: Arc<DecisionCounts>,
 }
 
 impl AuthzState {
+    /// Start the optional replica reader and its single background probe.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for unsafe replica or missing authoritative fallback configuration.
+    pub fn with_replica_from_env(
+        mut self,
+        fallback: &rustycog::config::SessionLivenessConfig,
+    ) -> Result<Self, String> {
+        if let Some(runtime) = ReplicaRuntime::from_env()? {
+            if self.session_liveness.is_none() || self.platform_issuer.is_empty() {
+                return Err(
+                    "replica admission requires a configured IAM fallback and platform issuer"
+                        .into(),
+                );
+            }
+            self.session_liveness = Some(Arc::new(Authority::new(Arc::new(IamFallback::new(
+                fallback,
+            )?))));
+            self.replica = Some(runtime.start());
+        }
+        Ok(self)
+    }
+
     /// # Errors
     ///
     /// Returns an error if the audience, JWKS cache or session-liveness
@@ -53,7 +112,9 @@ impl AuthzState {
         let session_liveness: Option<Arc<dyn SessionLivenessChecker>> =
             HttpSessionLivenessChecker::from_config(&config.session_liveness)
                 .map_err(|error| error.to_string())?
-                .map(|checker| Arc::new(checker) as Arc<dyn SessionLivenessChecker>);
+                .map(|checker| {
+                    Arc::new(Authority::new(Arc::new(checker))) as Arc<dyn SessionLivenessChecker>
+                });
         if session_liveness.is_some() && config.platform_issuer.trim().is_empty() {
             return Err("EXT_AUTHZ_PLATFORM_ISSUER is required with session liveness".into());
         }
@@ -63,6 +124,7 @@ impl AuthzState {
             platform_issuer: config.platform_issuer,
             session_liveness,
             replica: None,
+            decisions: Arc::new(DecisionCounts::default()),
             registry: HashMap::new(),
         })
     }
@@ -88,6 +150,21 @@ impl AuthzState {
         self.cache.poll_if_due().await;
     }
 
+    /// Emit process-lifetime counts without account, token, or credential fields.
+    pub fn log_session_decisions(&self) {
+        let proof_age = self
+            .replica
+            .as_ref()
+            .and_then(|replica| replica.proof_age());
+        tracing::info!(
+            replica_decisions = self.decisions.replica.load(Ordering::Relaxed),
+            authority_decisions = self.decisions.authority.load(Ordering::Relaxed),
+            unavailable = self.decisions.unavailable.load(Ordering::Relaxed),
+            proof_age_ms = ?proof_age.map(|age| age.as_millis()),
+            "session admission totals"
+        );
+    }
+
     fn status_override(&self, kid: &str) -> Option<KeyStatus> {
         self.registry.get(kid).copied()
     }
@@ -110,14 +187,28 @@ async fn check(
     incoming: HeaderMap,
     body: Bytes,
 ) -> impl IntoResponse {
+    let boot_started = boot_time();
     let deadline = Instant::now() + CHECK_BUDGET;
-    match timeout_at(deadline, decide(&state, incoming, &body)).await {
-        Ok(response) if response.0 != StatusCode::OK || Instant::now() < deadline => response,
+    let mut source = LivenessSource::None;
+    let response = match timeout_at(deadline, decide(&state, incoming, &body, &mut source)).await {
+        Ok(response) if response.0 != StatusCode::OK => response,
+        Ok(response)
+            if Instant::now() < deadline && within_boot_budget(boot_started, CHECK_BUDGET) =>
+        {
+            response
+        }
         Ok(_) | Err(_) => unavailable("Check deadline elapsed"),
-    }
+    };
+    state.decisions.record(response.0, source);
+    response
 }
 
-async fn decide(state: &AuthzState, incoming: HeaderMap, body: &Bytes) -> (StatusCode, HeaderMap) {
+async fn decide(
+    state: &AuthzState,
+    incoming: HeaderMap,
+    body: &Bytes,
+    source: &mut LivenessSource,
+) -> (StatusCode, HeaderMap) {
     let mut headers = incoming;
     merge_check_body_headers(&mut headers, body);
     strip_all_x_principal(&mut headers);
@@ -134,44 +225,14 @@ async fn decide(state: &AuthzState, incoming: HeaderMap, body: &Bytes) -> (Statu
         return deny("JWT header without kid");
     };
 
-    if state
-        .status_override(&kid)
-        .is_some_and(KeyStatus::is_denied)
-    {
-        return deny(&format!("kid {kid} denied by registry"));
-    }
-
-    let doc = match state.cache.document_for_kid(&kid).await {
+    let doc = match authorized_key_document(state, &kid).await {
         Ok(d) => d,
         Err(err) => return deny(&err),
     };
-
-    if state
-        .cache
-        .status_for_kid(&kid)
-        .is_some_and(KeyStatus::is_denied)
-    {
-        return deny(&format!("kid {kid} is pending or revoked in JWKS"));
-    }
-
-    let mut extractor = match UserIdExtractor::from_inline_jwks(&doc, Some(state.audience.as_str()))
-    {
-        Ok(e) => e,
-        Err(err) => return deny(&format!("JWKS rejected: {err}")),
+    let extractor = match verifier(state, &doc) {
+        Ok(extractor) => extractor,
+        Err(err) => return deny(&err),
     };
-    if !state.platform_issuer.is_empty() {
-        let policy = match PrincipalPolicy::new(state.platform_issuer.clone(), false) {
-            Ok(policy) => policy,
-            Err(err) => return deny(&format!("platform policy rejected: {err}")),
-        };
-        extractor = match extractor.with_principal_policy(policy) {
-            Ok(extractor) => extractor,
-            Err(err) => return deny(&format!("platform policy rejected: {err}")),
-        };
-    }
-    if let Some(checker) = state.session_liveness.clone() {
-        extractor = extractor.with_session_liveness_checker(checker);
-    }
 
     match extractor.extract_verified_principal(&token).await {
         Ok(verified) if state.cache.still_authorizes(&kid, &doc) => {
@@ -182,7 +243,10 @@ async fn decide(state: &AuthzState, incoming: HeaderMap, body: &Bytes) -> (Statu
                     .decide(verified.principal.sub, verified.auth_epoch)
                     .await
                 {
-                    (Decision::Revoked, _) => return deny("session revoked by replica"),
+                    (Decision::Revoked, _) => {
+                        *source = LivenessSource::Replica;
+                        return deny("session revoked by replica");
+                    }
                     (Decision::Live, Some(proof)) => replica_permit = Some((replica, proof)),
                     _ => {}
                 }
@@ -217,19 +281,17 @@ async fn decide(state: &AuthzState, incoming: HeaderMap, body: &Bytes) -> (Statu
                     {
                         return unavailable("replica proof expired during final validation");
                     }
-                    debug!(
-                        source = if replica_permit.is_some() {
-                            "replica"
-                        } else if platform && state.session_liveness.is_some() {
-                            "authority"
-                        } else {
-                            "jwt"
-                        },
-                        "check admitted"
-                    );
+                    if replica_permit.is_some() {
+                        *source = LivenessSource::Replica;
+                    } else if platform && state.session_liveness.is_some() {
+                        *source = LivenessSource::Authority;
+                    }
                     allow(&verified.principal.iss, &verified.principal.sub.to_string())
                 }
-                Err(SessionLivenessError::Revoked) => deny("session is revoked"),
+                Err(SessionLivenessError::Revoked) => {
+                    *source = LivenessSource::Authority;
+                    deny("session is revoked")
+                }
                 Err(SessionLivenessError::Unavailable { .. }) => {
                     unavailable("session liveness unavailable")
                 }
@@ -238,6 +300,37 @@ async fn decide(state: &AuthzState, incoming: HeaderMap, body: &Bytes) -> (Statu
         Ok(_) => deny("JWKS authorization snapshot expired or replaced"),
         Err(err) => deny(&format!("JWT rejected: {err}")),
     }
+}
+
+async fn authorized_key_document(state: &AuthzState, kid: &str) -> Result<String, String> {
+    if state.status_override(kid).is_some_and(KeyStatus::is_denied) {
+        return Err(format!("kid {kid} denied by registry"));
+    }
+    let doc = state.cache.document_for_kid(kid).await?;
+    if state
+        .cache
+        .status_for_kid(kid)
+        .is_some_and(KeyStatus::is_denied)
+    {
+        return Err(format!("kid {kid} is pending or revoked in JWKS"));
+    }
+    Ok(doc)
+}
+
+fn verifier(state: &AuthzState, doc: &str) -> Result<UserIdExtractor, String> {
+    let mut extractor = UserIdExtractor::from_inline_jwks(doc, Some(state.audience.as_str()))
+        .map_err(|error| format!("JWKS rejected: {error}"))?;
+    if !state.platform_issuer.is_empty() {
+        let policy = PrincipalPolicy::new(state.platform_issuer.clone(), false)
+            .map_err(|error| format!("platform policy rejected: {error}"))?;
+        extractor = extractor
+            .with_principal_policy(policy)
+            .map_err(|error| format!("platform policy rejected: {error}"))?;
+    }
+    if let Some(checker) = state.session_liveness.clone() {
+        extractor = extractor.with_session_liveness_checker(checker);
+    }
+    Ok(extractor)
 }
 
 fn deny(reason: &str) -> (StatusCode, HeaderMap) {

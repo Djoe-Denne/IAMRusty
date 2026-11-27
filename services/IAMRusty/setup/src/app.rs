@@ -582,17 +582,23 @@ where
         )
         .map_err(anyhow::Error::msg)?,
     );
-    let session_liveness: Arc<dyn rustycog::http::SessionLivenessChecker> = Arc::new(
-        SeaOrmSessionLivenessChecker::new(db_write.clone(), platform_issuer.as_str().to_owned()),
-    );
-    let http_security = Arc::new(IamHttpSecurityContext::new(
+    let session_liveness = Arc::new(SeaOrmSessionLivenessChecker::new(
+        db_write.clone(),
+        platform_issuer.as_str().to_owned(),
+    ));
+    let http_security = IamHttpSecurityContext::new(
         platform_issuer,
         rate_limiter,
         oauth,
         profile_email_verification,
         usecases.login_auth.clone(),
         session_liveness.clone(),
-    ));
+    );
+    let http_security = Arc::new(attach_session_checkpoint(
+        http_security,
+        &config,
+        &session_liveness,
+    )?);
     // Capture the complete primary publisher snapshot before moving its use cases
     // into the registry. The SDK dates acquisition before this local read; neither
     // capture nor extractor construction performs HTTP or renews the seed's TTL.
@@ -634,6 +640,29 @@ where
         security: http_security,
         oauth_cleanup,
     }))
+}
+
+fn attach_session_checkpoint(
+    security: IamHttpSecurityContext,
+    config: &AppConfig,
+    writer: &Arc<SeaOrmSessionLivenessChecker>,
+) -> Result<IamHttpSecurityContext> {
+    let Some(name) = &config.session_checkpoint_token_env else {
+        return Ok(security);
+    };
+    let token = std::env::var(name)
+        .map_err(|_| anyhow::anyhow!("checkpoint capability is not configured"))?;
+    let writer = writer.clone();
+    let checkpoint = iam_http_server::SessionCheckpoint::new(
+        token,
+        &config.internal_service_token,
+        move |challenge| {
+            let writer = writer.clone();
+            async move { writer.write_checkpoint(challenge).await.unwrap_or(false) }
+        },
+    )
+    .map_err(anyhow::Error::msg)?;
+    Ok(security.with_session_checkpoint(checkpoint))
 }
 
 type UserRepo = CombinedUserRepository<UserReadRepositoryImpl, UserWriteRepositoryImpl>;
