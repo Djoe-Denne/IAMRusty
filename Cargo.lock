@@ -2524,6 +2524,7 @@ dependencies = [
 name = "ext-authz"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "axum 0.8.9",
  "axum-server",
  "axum-test 17.3.0",

@@ -3,6 +3,7 @@
 
 use crate::config::ExtAuthzConfig;
 use crate::jwks_cache::{JwksCache, KeyStatus};
+use crate::replica_proof::{Decision, ReplicaAdmission};
 use axum::body::Bytes;
 use axum::extract::State;
 use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
@@ -31,8 +32,7 @@ pub struct AuthzState {
     registry: HashMap<String, KeyStatus>,
     platform_issuer: String,
     session_liveness: Option<Arc<dyn SessionLivenessChecker>>,
-    #[cfg(test)]
-    replica: Option<Arc<replica_admission_tests::ReplicaAdmission>>,
+    replica: Option<Arc<ReplicaAdmission>>,
 }
 
 impl AuthzState {
@@ -62,7 +62,6 @@ impl AuthzState {
             audience: config.audience,
             platform_issuer: config.platform_issuer,
             session_liveness,
-            #[cfg(test)]
             replica: None,
             registry: HashMap::new(),
         })
@@ -176,16 +175,36 @@ async fn decide(state: &AuthzState, incoming: HeaderMap, body: &Bytes) -> (Statu
 
     match extractor.extract_verified_principal(&token).await {
         Ok(verified) if state.cache.still_authorizes(&kid, &doc) => {
-            match extractor
-                .check_session_liveness(&verified.principal, verified.auth_epoch)
-                .await
-            {
+            let platform = verified.principal.iss == state.platform_issuer;
+            let mut replica_permit = None;
+            if let Some(replica) = state.replica.as_ref().filter(|_| platform) {
+                match replica
+                    .decide(verified.principal.sub, verified.auth_epoch)
+                    .await
+                {
+                    (Decision::Revoked, _) => return deny("session revoked by replica"),
+                    (Decision::Live, Some(proof)) => replica_permit = Some((replica, proof)),
+                    _ => {}
+                }
+            }
+            let liveness = if replica_permit.is_some() {
+                Ok(())
+            } else if platform && state.replica.is_some() && state.session_liveness.is_none() {
+                Err(SessionLivenessError::unavailable(
+                    "no authoritative fallback",
+                ))
+            } else {
+                extractor
+                    .check_session_liveness(&verified.principal, verified.auth_epoch)
+                    .await
+            };
+            match liveness {
                 Ok(()) => {
                     // A platform check can await the authority. Recheck token
                     // validity using the same inline keys, then check that the
                     // cache still authorizes those keys before emitting allow.
-                    if state.session_liveness.is_some()
-                        && verified.principal.iss == state.platform_issuer
+                    if platform
+                        && (state.session_liveness.is_some() || state.replica.is_some())
                         && extractor.extract_verified_principal(&token).await.is_err()
                     {
                         return deny("JWT is no longer valid after session liveness");
@@ -193,6 +212,21 @@ async fn decide(state: &AuthzState, incoming: HeaderMap, body: &Bytes) -> (Statu
                     if !state.cache.still_authorizes(&kid, &doc) {
                         return deny("JWKS authorization snapshot expired or replaced");
                     }
+                    if replica_permit
+                        .is_some_and(|(replica, proof)| !replica.proof_still_valid(proof))
+                    {
+                        return unavailable("replica proof expired during final validation");
+                    }
+                    debug!(
+                        source = if replica_permit.is_some() {
+                            "replica"
+                        } else if platform && state.session_liveness.is_some() {
+                            "authority"
+                        } else {
+                            "jwt"
+                        },
+                        "check admitted"
+                    );
                     allow(&verified.principal.iss, &verified.principal.sub.to_string())
                 }
                 Err(SessionLivenessError::Revoked) => deny("session is revoked"),
@@ -903,7 +937,7 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn check_uses_replica_until_the_proof_horizon_then_falls_back() {
-        use self::replica_admission_tests::ReplicaAdmission;
+        use self::replica_admission_tests::FixtureReplica;
         use crate::replica_proof::{Proof, Snapshot};
         use std::sync::atomic::AtomicU64;
 
@@ -934,18 +968,24 @@ mod tests {
         };
         let clock = Arc::new(AtomicU64::new(2_999));
         let user = Uuid::new_v4();
-        let replica = Arc::new(ReplicaAdmission {
-            clock: clock.clone(),
+        let source = Arc::new(FixtureReplica {
             reads: AtomicUsize::new(0),
             expected_subject: user,
-            proof,
+            expected_challenge: proof.challenge,
             snapshot: Snapshot {
                 ready_generation: Some(proof.generation),
                 applied_challenge: Some(proof.challenge),
                 epoch: Some(0),
             },
         });
-        state.replica = Some(replica.clone());
+        state.replica = Some(Arc::new(ReplicaAdmission {
+            clock: Arc::new({
+                let clock = clock.clone();
+                move || Some(Duration::from_millis(clock.load(Ordering::SeqCst)))
+            }),
+            proof: std::sync::RwLock::new(Some(proof)),
+            source: source.clone(),
+        }));
         let server =
             axum_test::TestServer::new(check_router(Arc::new(state))).expect("Check server");
         let token = create_rs256_jwt_token(user);
@@ -958,7 +998,7 @@ mod tests {
             fresh.header("x-principal-sub").to_str().unwrap(),
             user.to_string()
         );
-        assert_eq!(replica.reads.load(Ordering::SeqCst), 1);
+        assert_eq!(source.reads.load(Ordering::SeqCst), 1);
         assert_eq!(
             authority_calls.load(Ordering::SeqCst),
             0,
@@ -974,7 +1014,7 @@ mod tests {
         assert!(stale.maybe_header("x-principal-iss").is_none());
         assert!(stale.maybe_header("x-principal-sub").is_none());
         assert_eq!(
-            replica.reads.load(Ordering::SeqCst),
+            source.reads.load(Ordering::SeqCst),
             1,
             "expired proof needs no replica read"
         );

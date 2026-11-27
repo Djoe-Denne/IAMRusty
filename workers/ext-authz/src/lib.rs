@@ -10,7 +10,6 @@ pub mod jwks_cache;
 
 #[cfg(test)]
 mod jwks_fixtures;
-#[cfg(test)]
 mod replica_proof;
 
 pub use check::{check_router, AuthzState};

@@ -1,14 +1,20 @@
-use crate::replica_proof::{Proof, Snapshot};
-use std::sync::{
-    atomic::{AtomicU64, AtomicUsize},
-    Arc,
-};
+use crate::replica_proof::{ReplicaSource, Snapshot};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use uuid::Uuid;
 
-pub(super) struct ReplicaAdmission {
-    pub(super) clock: Arc<AtomicU64>,
+pub(super) struct FixtureReplica {
     pub(super) reads: AtomicUsize,
     pub(super) expected_subject: Uuid,
-    pub(super) proof: Proof,
+    pub(super) expected_challenge: Uuid,
     pub(super) snapshot: Snapshot,
+}
+
+#[async_trait::async_trait]
+impl ReplicaSource for FixtureReplica {
+    async fn snapshot(&self, challenge: Uuid, subject: Uuid) -> Option<Snapshot> {
+        self.reads.fetch_add(1, Ordering::SeqCst);
+        assert_eq!(self.expected_challenge, challenge);
+        assert_eq!(self.expected_subject, subject);
+        Some(self.snapshot)
+    }
 }

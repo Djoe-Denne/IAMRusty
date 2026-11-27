@@ -18,6 +18,7 @@ name = "ext_authz"
 path = "src/lib.rs"
 
 [dependencies]
+async-trait = { workspace = true }
 axum = { workspace = true }
 axum-server = { workspace = true }
 base64 = { workspace = true }
