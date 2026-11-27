@@ -4,7 +4,7 @@ title: Recover account access by resetting the password
 status: Accepted intent
 assignee: []
 created_date: '2026-11-21T16:33:04Z'
-updated_date: '2026-11-21T19:15:06Z'
+updated_date: '2026-11-27T15:53:52Z'
 labels: []
 dependencies: []
 documentation:
@@ -22,9 +22,9 @@ A person who has forgotten the password for an existing email/password account a
 
 ## Delivery scope
 
-This is approved product intent v3. After a successful reset from a link, keep the existing confirmation response and separate sign-in. All earlier sessions must immediately lose authenticated access and the ability to renew. Preventing renewal alone is not sufficient. The signed-in change follows the existing current-password flow instead of requesting a recovery link. This revision does not set a new policy for when the signed-in change requires reauthentication.
+This is approved product intent v4. After a successful reset from a link, keep the existing confirmation response and separate sign-in. Earlier sessions cannot renew from the reset commit, and their platform access tokens stop granting new protected access on all supported paths within five seconds of that commit, including during replication failure. If admission cannot verify a sufficiently fresh decision, it fails temporarily. This revision changes E3 only; the signed-in current-password flow and its existing reauthentication policy are unchanged.
 
-The interface is part of the story but deferred from delivery. If delivery is later authorized, scope backend and interface work separately. No delivery tasks are scheduled here.
+The interface is part of the story but deferred from delivery. The backend work for E3 is tracked under STORY-003.03; the one-minute reset email limit remains separate under STORY-003.01.
 
 See the [identity handbook](https://github.com/Djoe-Denne/IAMRusty/blob/master/docs/functional/identite.md) for the existing API behavior. The referenced QA scenario is an evidence candidate, not an additional product rule.
 <!-- SECTION:DESCRIPTION:END -->
@@ -33,7 +33,7 @@ See the [identity handbook](https://github.com/Djoe-Denne/IAMRusty/blob/master/d
 <!-- AC:BEGIN -->
 - [ ] #1 E1 - Anonymous requests for known and unknown addresses receive the same acknowledgement without disclosing account existence. An anonymous request does not end sessions or lock the account. A repeat request for the same address within one minute does not send another reset email, even from a different source.
 - [ ] #2 E2 - Given a valid reset link, successfully saving a new password confirms the reset without creating a session. The interface invites the person to sign in separately with the new password.
-- [ ] #3 E3 - As soon as the reset succeeds, all earlier sessions, including on other devices, lose authenticated access and cannot renew. This does not wait for the old access tokens to expire or for another sign-in.
+- [ ] #3 E3 - From the reset commit, earlier sessions, including on other devices, cannot renew. Within five seconds of that commit, their platform access tokens no longer grant new protected access on any supported path, even during replication failure. If admission cannot verify a sufficiently fresh decision, it fails temporarily. This does not wait for token expiry or another sign-in.
 - [ ] #4 E4 - An expired or already used link cannot reset the password. The interface offers a new reset request on that page without requiring sign-in.
 - [ ] #5 E5 - A signed-in person who knows their current password can enter it with a valid new password and change it directly. AIForAll confirms the change without sending a reset email or opening a new session. An incorrect current password leaves the password unchanged.
 - [ ] #6 E6 - If consecutive failures disabled password sign-in, verified recovery binds a new password and restores that method without signing the person in. Waiting alone does not restore password sign-in.
