@@ -288,6 +288,7 @@ mod tests {
     #[derive(Debug, Clone, Copy)]
     enum LivenessBehavior {
         Live,
+        LiveAfter(Duration),
         Revoked,
         Unavailable,
     }
@@ -322,8 +323,11 @@ mod tests {
                     .auth_epoch
                     .map(|value| value.parse().expect("canonical fixture epoch")),
             });
+        if let LivenessBehavior::LiveAfter(delay) = fixture.behavior {
+            tokio::time::sleep(delay).await;
+        }
         match fixture.behavior {
-            LivenessBehavior::Live => (
+            LivenessBehavior::Live | LivenessBehavior::LiveAfter(_) => (
                 StatusCode::OK,
                 Json(serde_json::json!({
                     "decision": "live",
@@ -832,6 +836,42 @@ mod tests {
         };
         let (response, ()) = tokio::join!(request, revoke);
         response.assert_status(StatusCode::FORBIDDEN);
+        assert!(response.maybe_header("x-principal-iss").is_none());
+        assert!(response.maybe_header("x-principal-sub").is_none());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn check_refuses_an_authority_allow_after_the_delivery_budget() {
+        let (_authority, endpoint, calls, _) =
+            liveness_server(LivenessBehavior::LiveAfter(Duration::from_millis(1_250)));
+        let checker = HttpSessionLivenessChecker::new(
+            &endpoint,
+            "x-workload-token",
+            "fixture-secret",
+            Duration::from_secs(4),
+        )
+        .expect("authority client");
+        let (state, _jwks) =
+            state_with_jwks(&test_rs256_jwks_json(), Duration::from_secs(3600)).await;
+        state
+            .cache
+            .document_for_kid(TEST_RS256_KID)
+            .await
+            .expect("prime active key");
+        let state = state
+            .as_ref()
+            .clone()
+            .with_session_liveness_checker(Arc::new(checker));
+        let server =
+            axum_test::TestServer::new(check_router(Arc::new(state))).expect("Check server");
+        let token = create_rs256_jwt_token(Uuid::new_v4());
+        let response = server
+            .post("/check")
+            .add_header("authorization", format!("Bearer {token}"))
+            .await;
+        assert_eq!(calls.load(Ordering::SeqCst), 1, "authority was queried");
+        response.assert_status(StatusCode::SERVICE_UNAVAILABLE);
         assert!(response.maybe_header("x-principal-iss").is_none());
         assert!(response.maybe_header("x-principal-sub").is_none());
     }
