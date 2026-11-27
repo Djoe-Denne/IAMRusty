@@ -28,6 +28,12 @@ before allowing from the replica. The checkpoint expires, including when the
 subscriber still answers queries. A bounded IAM fallback is permitted; lacking
 a trustworthy decision, refuse admission temporarily.
 
+The proposed initial budget is three seconds of proof age, one second for
+end-to-end Check delivery and one second of safety headroom. The five-second
+guarantee includes Envoy consuming the verdict; it does not end when
+`ext-authz` emits it. Qualify elapsed-time behavior and late-response refusal
+before enabling the replica path.
+
 Preserve the epoch and legacy claim format, issuer boundary, atomic writer,
 refresh rotation fence, direct authoritative paths, and the gateway-to-service
 trust boundary of ADR 0316. This proposal creates no per-token deny list,
@@ -41,7 +47,11 @@ new signing-key revocation mode, or new authorization policy.
 - **Read the IAM primary through a restricted SQL interface:** removes the
   application hop and preserves the strict cutoff; the primary still handles
   every admission. A physical read replica can isolate reads but would copy
-  unrelated IAM data and would still require proof of replay freshness.
+unrelated IAM data and would still require proof of replay freshness.
+- **Publish only selected columns of `users`:** avoids a dedicated relation,
+  but PostgreSQL 15 column filters minimize normal replication output and do
+  not by themselves restrict a subscriber's access to other columns.
+  Publish a separate, transactionally maintained relation with no secrets.
 - **SQS plus Redis:** viable as a projection mechanism, but an outbox and
   idempotent consumer do not alone prove contiguous application, bootstrap, or
   recovery after missed data. PostgreSQL already provides ordered transactional
