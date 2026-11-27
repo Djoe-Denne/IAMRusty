@@ -1,6 +1,5 @@
 use crate::{common, fixtures::DbFixtures};
 use futures::FutureExt as _;
-use iammigration::{Migrator, MigratorTrait as _};
 use reqwest::StatusCode;
 use sea_orm::{ConnectionTrait as _, DatabaseBackend, Statement};
 use serde_json::{json, Value};
@@ -10,6 +9,10 @@ use std::{panic::AssertUnwindSafe, time::Duration};
 #[path = "../fixtures/logical_postgres.rs"]
 mod logical_postgres;
 use logical_postgres::{epoch, scalar_bool, wait_epoch, LogicalPostgres};
+#[path = "password_recovery_replica_qualification.rs"]
+mod qualification;
+#[path = "password_recovery_projection_upgrade.rs"]
+mod upgrade;
 
 #[tokio::test]
 #[serial]
@@ -44,10 +47,7 @@ async fn exercise_contract(pg: &mut LogicalPostgres) {
         .await
         .expect("prove control replication before product assertions");
     let writer = pg.writer.as_ref().expect("initialized writer");
-    tokio::time::timeout(Duration::from_secs(60), Migrator::up(writer.as_ref(), None))
-        .await
-        .expect("IAM migration deadline")
-        .expect("run real IAM migrations");
+    let advanced = upgrade::verify_upgrade_and_downgrade(writer).await;
     let (base, _) = Box::pin(common::setup_test_server_on_writer(
         writer.clone(),
         &pg.writer_url(),
@@ -75,6 +75,7 @@ async fn exercise_contract(pg: &mut LogicalPostgres) {
     .await
     .expect("inspect production source without undefined-table failure");
     if source_exists {
+        let advanced = advanced.expect("registered upgrade seeded an advanced account");
         assert!(
             scalar_bool(
                 writer,
@@ -87,6 +88,15 @@ async fn exercise_contract(pg: &mut LogicalPostgres) {
         pg.subscribe_projection()
             .await
             .expect("initialize trusted production subscription");
+        let subscriber = pg.subscriber.as_ref().expect("subscriber");
+        assert_eq!(
+            epoch(subscriber, advanced)
+                .await
+                .expect("read migrated subscriber account")
+                .as_deref(),
+            Some("43")
+        );
+        upgrade::verify_admission_grants(pg, advanced).await;
         assert_eq!(
             epoch(pg.subscriber.as_ref().expect("subscriber"), user.id())
                 .await
@@ -128,6 +138,8 @@ async fn exercise_contract(pg: &mut LogicalPostgres) {
         Some("1"),
         "the production epoch must reach the real PG15 subscriber"
     );
+    qualification::rollback_pause_resume(pg, &base, user.id()).await;
+    upgrade::verify_deleted_account(pg, advanced.expect("backfilled advanced account")).await;
 }
 
 async fn confirm_and_check_writer(

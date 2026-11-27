@@ -142,7 +142,7 @@ impl LogicalPostgres {
             "CREATE PUBLICATION iam_control_publication FOR TABLE public.replica_transport_control",
         )
         .await?;
-        self.subscribe("iam_control", "iam_control_publication")
+        self.subscribe("iam_control", "iam_control_publication", "replica_fixture")
             .await?;
         anyhow::ensure!(
             ready(subscriber, "iam_control", 1).await?,
@@ -172,27 +172,33 @@ impl LogicalPostgres {
     pub async fn subscribe_projection(&self) -> anyhow::Result<()> {
         let writer = self.writer.as_ref().expect("initialized writer");
         let subscriber = self.subscriber.as_ref().expect("initialized subscriber");
-        // Only subscriber DDL and test-owned publication/slots are fixture writes.
-        // Source relations and every source epoch must come from production.
-        execute(
-            subscriber,
-            "CREATE TABLE public.iam_session_liveness_epochs \
-             (subject UUID PRIMARY KEY, auth_epoch TEXT NOT NULL)",
-        )
-        .await?;
-        execute(
-            subscriber,
-            "CREATE TABLE public.iam_session_liveness_checkpoints (challenge UUID PRIMARY KEY)",
-        )
-        .await?;
+        // Use the same role grants and DDL as deployment. Only the owned PG15
+        // fixture shares a disposable password across these two roles.
         execute(
             writer,
-            "CREATE PUBLICATION iam_projection_publication FOR TABLE \
-             public.iam_session_liveness_epochs, public.iam_session_liveness_checkpoints",
+            &format!(
+                "CREATE ROLE iam_session_replication LOGIN REPLICATION PASSWORD '{}'",
+                self.password
+            ),
         )
         .await?;
-        self.subscribe("iam_projection", "iam_projection_publication")
-            .await?;
+        execute(subscriber, "CREATE ROLE iam_session_admission LOGIN").await?;
+        execute_script(
+            writer,
+            include_str!("../../../../ops/deploy/iam-session-replica/publisher.sql"),
+        )
+        .await?;
+        execute_script(
+            subscriber,
+            include_str!("../../../../ops/deploy/iam-session-replica/subscriber.sql"),
+        )
+        .await?;
+        self.subscribe(
+            "iam_projection",
+            "iam_projection_publication",
+            "iam_session_replication",
+        )
+        .await?;
         anyhow::ensure!(
             ready(subscriber, "iam_projection", 2).await?,
             "both production relations must complete initial synchronization"
@@ -200,7 +206,82 @@ impl LogicalPostgres {
         Ok(())
     }
 
-    async fn subscribe(&self, name: &str, publication: &str) -> anyhow::Result<()> {
+    /// Test-only ordering control, not the future IAM checkpoint endpoint.
+    pub async fn publish_checkpoint(&self) -> anyhow::Result<uuid::Uuid> {
+        let challenge = uuid::Uuid::new_v4();
+        let writer = self.writer.as_ref().expect("initialized writer");
+        execute(
+            writer,
+            &format!("INSERT INTO public.iam_session_liveness_checkpoints VALUES ('{challenge}')"),
+        )
+        .await?;
+        anyhow::ensure!(
+            scalar_bool(
+                writer,
+                &format!(
+                    "SELECT EXISTS (SELECT 1 FROM public.iam_session_liveness_checkpoints \
+                 WHERE challenge = '{challenge}') AS ok"
+                )
+            )
+            .await?,
+            "test checkpoint must be committed on the writer before observing apply"
+        );
+        Ok(challenge)
+    }
+
+    pub async fn pause_projection(&self) -> anyhow::Result<()> {
+        let subscriber = self.subscriber.as_ref().expect("initialized subscriber");
+        execute(subscriber, "ALTER SUBSCRIPTION iam_projection DISABLE").await?;
+        anyhow::ensure!(
+            wait_bool(
+                subscriber,
+                "SELECT EXISTS (SELECT 1 FROM pg_subscription \
+                 WHERE subname = 'iam_projection' AND NOT subenabled) \
+                 AND NOT EXISTS (SELECT 1 FROM pg_stat_subscription \
+                 WHERE subname = 'iam_projection' AND pid IS NOT NULL) AS ok",
+            )
+            .await?,
+            "projection apply workers did not stop within the deadline"
+        );
+        Ok(())
+    }
+
+    pub async fn resume_projection(&self) -> anyhow::Result<()> {
+        execute(
+            self.subscriber.as_ref().expect("initialized subscriber"),
+            "ALTER SUBSCRIPTION iam_projection ENABLE",
+        )
+        .await
+    }
+
+    pub async fn checkpoint_snapshot(
+        &self,
+        challenge: uuid::Uuid,
+        subject: uuid::Uuid,
+        expected_epoch: u64,
+        marker_present: bool,
+    ) -> anyhow::Result<bool> {
+        scalar_bool(
+            self.subscriber.as_ref().expect("initialized subscriber"),
+            &checkpoint_snapshot_sql(challenge, subject, expected_epoch, marker_present),
+        )
+        .await
+    }
+
+    pub async fn wait_checkpoint_epoch(
+        &self,
+        challenge: uuid::Uuid,
+        subject: uuid::Uuid,
+        expected_epoch: u64,
+    ) -> anyhow::Result<bool> {
+        wait_bool(
+            self.subscriber.as_ref().expect("initialized subscriber"),
+            &checkpoint_snapshot_sql(challenge, subject, expected_epoch, true),
+        )
+        .await
+    }
+
+    async fn subscribe(&self, name: &str, publication: &str, role: &str) -> anyhow::Result<()> {
         let writer = self.writer.as_ref().expect("initialized writer");
         let subscriber = self.subscriber.as_ref().expect("initialized subscriber");
         // PG15 same-cluster restriction: create the pgoutput slot separately.
@@ -216,7 +297,7 @@ impl LogicalPostgres {
             subscriber,
             &format!(
                 "CREATE SUBSCRIPTION {name} CONNECTION \
-                 'host=127.0.0.1 port=5432 user=replica_fixture password={} \
+                 'host=127.0.0.1 port=5432 user={role} password={} \
                  dbname=iam_writer connect_timeout=5' PUBLICATION {publication} \
                  WITH (create_slot=false, slot_name='{name}', copy_data=true)",
                 self.password
@@ -243,6 +324,22 @@ impl LogicalPostgres {
     }
 }
 
+fn checkpoint_snapshot_sql(
+    challenge: uuid::Uuid,
+    subject: uuid::Uuid,
+    expected_epoch: u64,
+    marker_present: bool,
+) -> String {
+    // Both observables come from one subscriber statement/snapshot. Publication
+    // and subscription are the same ones carrying the production epoch updates.
+    format!(
+        "SELECT EXISTS (SELECT 1 FROM public.iam_session_liveness_epochs \
+         WHERE subject = '{subject}' AND auth_epoch = '{expected_epoch}') \
+         AND (EXISTS (SELECT 1 FROM public.iam_session_liveness_checkpoints \
+         WHERE challenge = '{challenge}')) = {marker_present} AS ok"
+    )
+}
+
 pub async fn execute(db: &DatabaseConnection, sql: &str) -> anyhow::Result<()> {
     tokio::time::timeout(
         SQL_LIMIT,
@@ -251,6 +348,14 @@ pub async fn execute(db: &DatabaseConnection, sql: &str) -> anyhow::Result<()> {
     .await
     .map_err(|_| anyhow::anyhow!("fixture SQL execution deadline"))?
     .map_err(|_| anyhow::anyhow!("fixture SQL execution failed (details redacted)"))?;
+    Ok(())
+}
+
+async fn execute_script(db: &DatabaseConnection, sql: &str) -> anyhow::Result<()> {
+    tokio::time::timeout(SQL_LIMIT, db.execute_unprepared(sql))
+        .await
+        .map_err(|_| anyhow::anyhow!("fixture SQL script deadline"))?
+        .map_err(|_| anyhow::anyhow!("fixture SQL script failed (details redacted)"))?;
     Ok(())
 }
 
@@ -272,7 +377,7 @@ pub async fn scalar_bool(db: &DatabaseConnection, sql: &str) -> anyhow::Result<b
         .map_err(|_| anyhow::anyhow!("fixture boolean result missing"))
 }
 
-async fn wait_bool(db: &DatabaseConnection, sql: &str) -> anyhow::Result<bool> {
+pub async fn wait_bool(db: &DatabaseConnection, sql: &str) -> anyhow::Result<bool> {
     let wait = async {
         let mut ticks = tokio::time::interval(Duration::from_millis(50));
         loop {
