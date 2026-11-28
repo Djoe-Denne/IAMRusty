@@ -190,6 +190,47 @@ green.
 - Cleanup passed with zero owned resources running, and 17 public
   files were archived and hashed.
 
+## Full single-worker hosted preview
+
+[Run 46144607978](https://github.com/Djoe-Denne/IAMRusty/actions/runs/46144607978),
+attempt 1, passed on merge `52aaf2abfaa43154a6b0e7f915244be9b4dd3764`
+(PR head `c46b22100fb90c0c0596ddc5600ed9f85d1e94db`, RustyCog
+`42084b803b6a926f482a4030a0ed127447b21072`). The four bundles came from
+producer `46143419138`, attempt 1. The
+[required CI check](https://github.com/Djoe-Denne/IAMRusty/actions/runs/46143419138/job/140977583872)
+and the preview's final revision check passed.
+
+- **Direct and nested:** the six nested routes refused the stale token
+  within 377–381 ms from before the monolith confirmation request.
+  Standalone Hive, Manifesto and Telegraph refused it within 390–436 ms
+  from before the standalone confirmation request. Both configurations
+  preserved guest reads, returned `503` on the tested companion routes
+  with credentials during the witnessed writer outage, and admitted an
+  explicit fresh login. Only the two expected Manifesto writes committed
+  in each configuration. The separate workload snapshot passed before
+  and after reset and rejected a valid platform token.
+- **Mesh:** healthy IAM first denied by 442 ms, with 28 replica decisions
+  and no fallback calls. With apply stalled, first denial was by 2,707 ms;
+  the fresh post-boundary request received `403`, writer outage produced
+  `503` without forwarding, and the replica resumed after catch-up. The
+  late-positive case returned `503` in 1,005 ms with zero downstream calls.
+  Companion reads first denied by 449–530 ms. The recovery window had
+  94 replica-attributed decisions and no fallback calls; upstream counts
+  matched the admitted reads. Anonymous reads skipped Check; malformed
+  bearers went to Check and were not forwarded. The Manifesto write
+  refused the stale bearer after the boundary and accepted the fresh one.
+- **Issuer isolation:** a published organization JWT sharing the reset
+  account's UUID continued to reach Hive after reset. The lookalike issuer
+  and organization access to the IAM platform account were refused.
+  A separate platform account remained admitted.
+- All six catalogue cases passed. Cleanup reported zero owned running
+  resources and no errors. Sixteen public files were archived and hashed.
+
+The companion mesh run exercised the Kind route matches in the hosted
+fixture, with per-service TLS validation and gateway principal admission.
+It did not deploy the Compose overlay or test a saturated or multi-worker
+fallback budget.
+
 ## Capacity qualification boundary
 
 The [fallback implementation](../../workers/ext-authz/src/authority.rs)
@@ -200,3 +241,28 @@ calls per second before any shared IAM limit. These are code-derived
 bounds. The measured one-worker run made sequential fallback calls;
 it did not saturate those limits or establish a separately reserved IAM
 budget under concurrent IAM traffic.
+
+## Validation tools to maintain
+
+- **Required PR CI:** keep the deterministic Rust checks for transaction
+  ordering and rollback, replica proof age and invalidation, and fallback
+  contention and limits. Keep the offline tests for the hosted harness's
+  artifact boundary, Envoy route guards, timing and receipt validation.
+- **Hosted, on demand:** keep `recovery_workloads` on the existing
+  [k6 workflow](../../ops/tests/k6/ci/README.md#monolith-admission-preview).
+  Keep the real PostgreSQL apply barrier, the late-positive Envoy witness,
+  companion and issuer cases, independent counters, and owned cleanup.
+  Those expose failures that a status assertion or a mock cannot detect.
+  Earlier passing jobs took 9 min 45 s with IAM/Envoy and 12 min 55 s with
+  the monolith. The full preview took 17 min 22 s, excluding producer CI.
+- **Possible weekly run:** first establish repeatability on later revisions.
+  A schedule would need a trusted path that produces or acquires all four
+  bundles from one exact `master` build attempt. The existing four-bundle
+  dispatch is restricted to internal PR branches. Keep the scheduled
+  check separate from required PR CI; the capacity campaign should use its
+  own declared load envelope. No schedule is configured.
+- **Temporary:** retire one-off PowerShell launch and receipt-download
+  commands and individual startup investigations once the evidence is
+  archived. Keep the built-in startup categories that help distinguish
+  fixture failures from admission regressions, and preserve the
+  revision-bound reports, manifests and hashes.

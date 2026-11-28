@@ -86,6 +86,13 @@ with the existing mechanism; the hosted campaign does not invoke Cargo.
 The `/k6-e2e` comment and automatic post-merge catalogue continue to use the
 three standard bundles.
 
+After all four producer builds succeed, run:
+
+```bash
+gh workflow run k6-e2e.yml --ref "$PR_HEAD_BRANCH" \
+  -f pr_number="$PR_NUMBER" -f recovery_workloads=true
+```
+
 The preview runs the real monolith in a separate owned pod with private
 backing databases for the other services. Its IAM router shares the
 authoritative writer with standalone IAM. Nested service verifiers call
