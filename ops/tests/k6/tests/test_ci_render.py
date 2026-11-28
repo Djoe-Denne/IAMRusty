@@ -58,10 +58,13 @@ class CiRenderTests(unittest.TestCase):
         self.assertFalse(pod["automountServiceAccountToken"])
         self.assertTrue(pod["securityContext"]["runAsNonRoot"])
         container = pod["containers"][0]
-        env = {entry["name"]: entry["value"] for entry in container["env"]}
-        self.assertEqual(env["EXT_AUTHZ_JWKS_URL"],
+        env = {entry["name"]: entry for entry in container["env"]}
+        self.assertEqual(env["EXT_AUTHZ_JWKS_URL"]["value"],
                          "https://iam.aiforall-local-full.svc.cluster.local:8443/iam/.well-known/jwks.json")
-        self.assertEqual(env["EXT_AUTHZ_AUDIENCE"], "aiforall")
+        self.assertEqual(env["EXT_AUTHZ_AUDIENCE"]["value"], "aiforall")
+        for key in ("EXT_AUTHZ_REPLICA_DSN", "EXT_AUTHZ_CHECKPOINT_TOKEN", "K6_EXT_AUTHZ_LIVENESS_TOKEN"):
+            self.assertEqual(env[key]["valueFrom"]["secretKeyRef"],
+                             {"name": "k6-" + "a" * 32 + "-replica-env", "key": key})
         self.assertEqual(container["imagePullPolicy"], "Never")
         self.assertIn("tcpSocket", container["readinessProbe"])
         self.assertFalse(container["securityContext"]["allowPrivilegeEscalation"])
@@ -164,6 +167,8 @@ class CiRenderTests(unittest.TestCase):
                          "envoy.filters.http.ext_authz", "envoy.filters.http.router"])
         self.assertIn('"x-principal-"', filters[0]["typed_config"]["default_source_code"]["inline_string"])
         self.assertFalse(filters[1]["typed_config"]["failure_mode_allow"])
+        self.assertEqual(filters[1]["typed_config"]["status_on_error"], {"code": "ServiceUnavailable"})
+        self.assertEqual(filters[1]["typed_config"]["http_service"]["server_uri"]["timeout"], "1s")
 
     def test_upstreams_keep_verified_mtls_and_fixture_iam_remap(self):
         config = self.config()

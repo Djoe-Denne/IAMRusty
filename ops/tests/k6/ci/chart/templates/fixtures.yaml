@@ -74,6 +74,10 @@ spec:
             {{- if eq $role "iam" }}
             - name: DATABASE_URL
               valueFrom: {secretKeyRef: {name: "{{ $v.name }}-iam-env", key: DATABASE_URL}}
+            {{- if $v.ciEnabled }}
+            - name: K6_IAM_CHECKPOINT_TOKEN
+              valueFrom: {secretKeyRef: {name: "{{ $v.name }}-iam-env", key: K6_IAM_CHECKPOINT_TOKEN}}
+            {{- end }}
             - {name: PGSSLMODE, value: verify-full}
             - {name: PGSSLROOTCERT, value: /app/certs/ca.crt}
             - name: IAM_OPENFGA__STORE_ID

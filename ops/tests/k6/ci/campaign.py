@@ -27,6 +27,7 @@ import evidence
 import inputs
 import pki
 from runtime import Runtime, NS, hosted, write_json
+from session_replica import SessionReplica
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 from safety import Child, Rejected, child_environment, new_output, private_path
@@ -149,13 +150,15 @@ class Campaign:
         require(bool(result), "E2E_EMPTY_RENDER")
         return result
 
-    def backings(self, **selection):
+    def backings(self, session_replica=None, **selection):
         values = yaml.safe_load((HERE / "values.yaml").read_text(encoding="utf-8"))
         for name, enabled in selection.items():
             group, key = name.split("_")
             require(group in {"postgres", "openfga", "localstack", "network"} and key in {"create", "initialize"}, "E2E_BACKING_SELECTION")
             values.setdefault(group, {})[key] = enabled
         for item in self.render(ROOT / "ops/deploy/charts/kind-minimal", values):
+            if session_replica is not None:
+                session_replica.postgres_options(item)
             self.create(item)
 
     def rollout(self, name):
@@ -213,16 +216,21 @@ class Campaign:
         return value["items"][0]["metadata"]["name"]
 
     def sql(self, query, database="postgres"):
-        require(database in ("postgres", "openfga_dev", self.state["values"]["database"]), "E2E_SQL_DATABASE")
+        writer = self.state["values"]["database"]
+        require(database in ("postgres", "openfga_dev", writer, writer + "_admission"), "E2E_SQL_DATABASE")
         self.state["stage"] = "sql:" + database
         self.r.save()
         # The shared readiness profile sets PGHOSTADDR=127.0.0.1. Like the
         # native helper, remove inherited TCP selectors for this socket-only
         # administrative invocation; never relax network TLS or pg_hba.
-        return self.r.k(["exec", self.postgres_pod(), "-c", "postgres", "--", "env", "-u", "PGHOSTADDR", "-u", "PGHOST",
+        script = query.rstrip()
+        if not script.endswith(";"):
+            script += ";"
+        return self.r.k(["exec", "-i", self.postgres_pod(), "-c", "postgres", "--", "env", "-u", "PGHOSTADDR", "-u", "PGHOST",
                          "psql", "--host", "/var/run/postgresql",
                          "--username", "postgres", "--dbname", database, "--no-password", "--no-psqlrc",
-                         "--tuples-only", "--no-align", "--set", "ON_ERROR_STOP=1", "--command", query]).decode().strip()
+                         "--quiet", "--tuples-only", "--no-align", "--set", "ON_ERROR_STOP=1",
+                         "--file", "-"], stdin=(script + "\n").encode("utf-8")).decode().strip()
 
     def forward(self, role, local, remote):
         pod = self.pod(role)
@@ -405,6 +413,7 @@ class Campaign:
 
     def bootstrap(self):
         values = self.state["values"]
+        replica = SessionReplica(self.state["run_id"], values["database"])
         root = self.root / "private/pki"
         root.mkdir(mode=0o700)
         pki.generate(root, self.state["run_id"], lambda args: self.r.cli("openssl", args))
@@ -422,10 +431,11 @@ class Campaign:
                                                "tls.key": (root / (role + ".key")).read_bytes()})
         uri = "postgres://postgres:" + values["database_password"] + "@postgres." + NS + ".svc.cluster.local:5432/openfga_dev?sslmode=verify-full&sslrootcert=/tls/ca.crt"
         self.secret("openfga-datastore", {"uri": uri})
-        self.backings(postgres_create=True, openfga_create=False, localstack_create=False)
+        self.backings(session_replica=replica, postgres_create=True, openfga_create=False, localstack_create=False)
         self.rollout("postgres")
-        self.sql("CREATE DATABASE " + values["database"])
-        self.sql("CREATE DATABASE openfga_dev")
+        self.sql("CREATE DATABASE " + values["database"] + ";")
+        self.sql("CREATE DATABASE openfga_dev;")
+        replica.create_database(self.sql)
         self.state["database_oid"] = int(self.sql("SELECT oid FROM pg_database WHERE datname='" + values["database"] + "'"))
         self.r.save()
         self.backings(postgres_create=False, openfga_create=True, localstack_create=True, network_create=False)
@@ -446,10 +456,14 @@ class Campaign:
             self.secret(self.state["name"] + "-" + role + "-tls", {
                 "ca.crt": ca, "ca-bundle.crt": (root / "ca-bundle.crt").read_bytes(),
                 leaf + ".crt": (root / (leaf + ".crt")).read_bytes(), leaf + ".key": (root / (leaf + ".key")).read_bytes()})
-        self.secret(self.state["name"] + "-iam-config", {"development.toml": configs["iam"], "k6.toml": configs["iam"],
+        iam_config = ('session_checkpoint_token_env = "K6_IAM_CHECKPOINT_TOKEN"\n'
+                      f'internal_service_token = "{replica.liveness_token}"\n' + configs["iam"])
+        self.secret(self.state["name"] + "-iam-config", {"development.toml": iam_config, "k6.toml": iam_config,
                     "platform-signing.pem": (root / "platform-signing.pem").read_bytes(), "platform-signing.pub": (root / "platform-signing.pub").read_bytes()})
         database_url = "postgresql://postgres:" + values["database_password"] + "@postgres." + NS + ".svc.cluster.local:5432/" + values["database"] + "?sslmode=verify-full&sslrootcert=/app/certs/ca.crt"
-        self.secret(self.state["name"] + "-iam-env", {"DATABASE_URL": database_url})
+        self.secret(self.state["name"] + "-iam-env", {"DATABASE_URL": database_url, **replica.iam_secret()})
+        identity = (root / "ext-authz.crt").read_bytes() + (root / "ext-authz.key").read_bytes()
+        self.secret(self.state["name"] + "-replica-env", replica.gateway_secret(identity))
         self.secret(self.state["name"] + "-oauth-config", {"development.toml": configs["oauth"], "k6.toml": configs["oauth"]})
         self.secret(self.state["name"] + "-idp-config", {"provider.json": json.dumps(provider)})
         fixtures = json.loads((HERE / "fixtures.lock.json").read_text())
@@ -463,7 +477,10 @@ class Campaign:
         require(len(objects) == 13, "E2E_FIXTURE_INVENTORY")
         for item in objects:
             self.create(item)
-        for role in ("idp", "oauth", "iam", "ext-authz", "envoy"):
+        for role in ("idp", "oauth", "iam"):
+            self.rollout(self.state["name"] + "-" + role)
+        replica.subscribe(self.sql)
+        for role in ("ext-authz", "envoy"):
             self.rollout(self.state["name"] + "-" + role)
         self.state["edge_identity"] = list(self.identity())
         self.r.save()
@@ -471,6 +488,14 @@ class Campaign:
         self.forward("envoy", 19901, 9901)
         self.forward("idp", 18445, 8080)
         self.wait_endpoint()
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            if replica.observed_marker(self.sql):
+                self.state["replica_bootstrap"] = True
+                self.r.save()
+                return
+            time.sleep(0.25)
+        raise Refused("E2E_REPLICA_CHECKPOINT_NOT_APPLIED")
 
     def admit_services(self):
         _, raw = self.http("http://127.0.0.1:19901/config_dump")
@@ -496,7 +521,9 @@ class Campaign:
                 len([key for key in jwks[1]["keys"] if all(key.get(name) == keys[0].get(name)
                                                          for name in ("kid", "n", "e"))]) == 1,
                 "E2E_JWKS_INCOMPATIBLE")
-        self.publish("admission.json", {"loaded_iam_destination": True, "jwks_compatible": True})
+        require(self.state.get("replica_bootstrap") is True, "E2E_REPLICA_BOOTSTRAP_REQUIRED")
+        self.publish("admission.json", {"loaded_iam_destination": True, "jwks_compatible": True,
+                                        "replica_checkpoint_applied": True})
 
     def run_cases(self):
         self.admit_services()

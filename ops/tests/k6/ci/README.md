@@ -30,6 +30,21 @@ la CI globale de ce run reste rouge sur une IT Manifesto distincte.
 - `pki.py` : PKI neuve du run, clés de signature JWT et neuf identités TLS,
   dont bon/mauvais SAN sous la même CA ; aucun import de confiance système.
 
+### Session replica bootstrap
+
+The hosted campaign uses a separate subscriber database in its owned
+PostgreSQL 15 instance. It applies the production publication, subscriber,
+and readiness SQL, with a separately created slot for same-cluster apply.
+The gateway receives the read-only subscriber login and distinct IAM
+workload capabilities. The fixture does not use a hosted or local shared
+database, operator PKI, or a pre-existing cluster.
+
+Before running the catalogue, the parent verifies that a checkpoint from
+the actual gateway probe reached the initialized subscriber. The public
+admission receipt records a boolean only. This is bootstrap evidence;
+it does not establish protected-route verdict provenance, the reset
+cutoff, paused-replica fallback, or late-response disposal.
+
 ## Run the complete campaign on a PR
 
 1. Wait for **Build (IAMRusty)**, **Build (OAuthConnect)**, and **Build (Ext Authz)**
