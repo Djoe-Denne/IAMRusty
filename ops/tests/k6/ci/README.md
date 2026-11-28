@@ -89,7 +89,8 @@ three standard bundles.
 The preview runs the real monolith in a separate owned pod with private
 backing databases for the other services. Its IAM router shares the
 authoritative writer with standalone IAM. Nested service verifiers call
-the monolith's own loopback IAM authority. The same Hive, Telegraph and
+the monolith's own loopback IAM authority, and the nested observation
+starts from a reset committed through the monolith. The same Hive, Telegraph and
 Manifesto checks run against their standalone deployments, which use the
 standalone IAM authority over TLS. The test checks Hive and Manifesto
 anonymous reads separately from a revoked bearer. During an independently

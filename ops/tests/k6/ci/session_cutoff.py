@@ -129,8 +129,8 @@ class HostedRecovery:
         finally:
             connection.close()
 
-    def post(self, path, payload, expected):
-        status, raw = self.request("POST", path, payload=payload)
+    def post(self, path, payload, expected, *, port=DIRECT_PORT):
+        status, raw = self.request("POST", path, payload=payload, port=port)
         require(status == expected, "E2E_RESET_HTTP_STATUS_" + path.rsplit("/", 1)[-1].upper())
         value = strict_json(raw)
         require(isinstance(value, dict), "E2E_RESET_HTTP_JSON")
@@ -495,11 +495,13 @@ class HostedRecovery:
         for route in optional:
             require(status(route, None, "before") == 200, f"E2E_RESET_COMPANION_ANONYMOUS:{mode}:{route}")
         verify_workload(old)
-        self.post("/api/auth/password/reset-request", {"email": self.email}, 200)
+        writer_port = MONOLITH_PORT if nested else DIRECT_PORT
+        self.post("/api/auth/password/reset-request", {"email": self.email}, 200, port=writer_port)
         proof = self.event_token("password_reset_requested", "reset_token")
         password = "E9!" + secrets.token_hex(20)
         lower = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
-        confirmation = self.post("/api/auth/password/reset-confirm", {"token": proof, "new_password": password}, 200)
+        confirmation = self.post("/api/auth/password/reset-confirm", {"token": proof, "new_password": password},
+                                 200, port=writer_port)
         require(confirmation == {"message": "Password has been successfully reset"}, "E2E_RESET_MONOLITH_CONFIRM")
         recorded = {}
         with ThreadPoolExecutor(max_workers=len(routes)) as worker:
