@@ -85,9 +85,48 @@ static_resources:
                         authorization_response:
                           allowed_upstream_headers:
                             patterns: [{exact: x-principal-iss}, {exact: x-principal-sub}]
-                  - name: envoy.filters.http.router
+                  - &router
+                    name: envoy.filters.http.router
                     typed_config:
                       '@type': type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+    # Only the gateway's separate workload client uses this mTLS listener.
+    # Keep the liveness RPC out of the browser listener and count only this hop.
+    - name: ci_session_authority
+      address:
+        socket_address: {address: 0.0.0.0, port_value: 18447}
+      filter_chains:
+        - transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+              require_client_certificate: true
+              common_tls_context:
+                tls_certificates:
+                  - certificate_chain: {filename: /app/certs/envoy-mesh.crt}
+                    private_key: {filename: /app/certs/envoy-mesh.key}
+                validation_context:
+                  trusted_ca: {filename: /app/certs/ca.crt}
+                  match_typed_subject_alt_names:
+                    - san_type: DNS
+                      matcher: {exact: ext-authz}
+          filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ci_session_authority
+                route_config:
+                  name: ci_session_authority
+                  virtual_hosts:
+                    - name: ci_session_authority
+                      domains: ['*']
+                      routes:
+                        - match:
+                            path: /iam/internal/auth/session-liveness
+                            headers: [{name: ':method', string_match: {exact: POST}}]
+                          route: {cluster: session_authority}
+                        - match: {prefix: /}
+                          direct_response: {status: 404}
+                http_filters: [*router]
   clusters:
     - name: iam
       connect_timeout: 5s
@@ -108,6 +147,27 @@ static_resources:
             tls_certificates: &client_certificate
               - certificate_chain: {filename: /app/certs/envoy-mesh.crt}
                 private_key: {filename: /app/certs/envoy-mesh.key}
+            validation_context:
+              trusted_ca: {filename: /app/certs/ca.crt}
+              match_typed_subject_alt_names:
+                - {san_type: DNS, matcher: {exact: iam.aiforall-local-full.svc.cluster.local}}
+    - name: session_authority
+      connect_timeout: 5s
+      type: STRICT_DNS
+      load_assignment:
+        cluster_name: session_authority
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: {address: iam.aiforall-local-full.svc.cluster.local, port_value: 8443}
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: iam.aiforall-local-full.svc.cluster.local
+          common_tls_context:
+            tls_certificates: *client_certificate
             validation_context:
               trusted_ca: {filename: /app/certs/ca.crt}
               match_typed_subject_alt_names:

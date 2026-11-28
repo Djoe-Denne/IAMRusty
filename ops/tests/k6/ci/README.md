@@ -27,8 +27,8 @@ la CI globale de ce run reste rouge sur une IT Manifesto distincte.
 - `chart/` renders the isolated fixtures in the owned Kind run. The
   `ciEnabled: true` profile adds the IAM alias and real ext-authz workload.
   It does not authorize deploying into a pre-existing lab.
-- `pki.py` : PKI neuve du run, clés de signature JWT et neuf identités TLS,
-  dont bon/mauvais SAN sous la même CA ; aucun import de confiance système.
+- `pki.py` creates run-owned signing keys and TLS identities, including the
+  same-CA SAN controls, without importing them into system trust.
 
 ### Session replica bootstrap
 
@@ -40,10 +40,29 @@ workload capabilities. The fixture does not use a hosted or local shared
 database, operator PKI, or a pre-existing cluster.
 
 Before running the catalogue, the parent verifies that a checkpoint from
-the actual gateway probe reached the initialized subscriber. The public
-admission receipt records a boolean only. This is bootstrap evidence;
-it does not establish protected-route verdict provenance, the reset
-cutoff, paused-replica fallback, or late-response disposal.
+the actual gateway probe reached the initialized subscriber. The bootstrap
+boolean in the public admission receipt is only evidence of that step.
+
+After the catalogue, the parent creates dedicated accounts and uses the
+real IAM reset HTTP flow. It reads verification and reset proofs from the
+run-owned outbox; the mail relay is outside this scenario. One IAM deployment
+exercises authoritative direct `/api/me`; the other uses the trusted Envoy
+gateway certificate. Both observe the old and new password sessions against
+the same writer. The nominal case also rotates the old session after requesting
+reset and verifies that confirmation revokes the replacement. Fresh gateway
+decision totals and a separate mTLS Envoy authority listener corroborate
+the source of mesh verdicts.
+The degraded case locks checkpoint writes on the subscriber, leaving reads
+and readiness available, checks the writer and subscriber epochs independently,
+and verifies replica admission again after the lock ends. Measurements begin
+before the confirmation request; only statuses, counts, and relative times are
+retained in the public receipt.
+
+A test listener uses the same one-second Check filter and IAM profile route.
+Its relay receives a real positive Check from the gateway, then attempts to
+deliver it after at least 1.25 seconds. The receipt requires Envoy's `503`,
+the relay's late-positive witness, no new requests in the IAM downstream
+cluster, and a subsequent successful control on the normal listener.
 
 ## Run the complete campaign on a PR
 

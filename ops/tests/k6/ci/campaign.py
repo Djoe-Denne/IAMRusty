@@ -1,6 +1,7 @@
 """Hosted Ubuntu parent for the unchanged health/OAuth/SAN stimuli, no Cargo."""
 import argparse
 import base64
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -25,8 +26,10 @@ import browser as browser_profile
 import campaign_browser
 import evidence
 import inputs
+import late_check
 import pki
 from runtime import Runtime, NS, hosted, write_json
+from session_cutoff import HostedRecovery
 from session_replica import SessionReplica
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
@@ -215,11 +218,12 @@ class Campaign:
         require(len(value["items"]) == 1 and value["items"][0]["status"]["phase"] == "Running", "E2E_POSTGRES_POD")
         return value["items"][0]["metadata"]["name"]
 
-    def sql(self, query, database="postgres"):
+    def sql(self, query, database="postgres", *, record_stage=True):
         writer = self.state["values"]["database"]
         require(database in ("postgres", "openfga_dev", writer, writer + "_admission"), "E2E_SQL_DATABASE")
-        self.state["stage"] = "sql:" + database
-        self.r.save()
+        if record_stage:
+            self.state["stage"] = "sql:" + database
+            self.r.save()
         # The shared readiness profile sets PGHOSTADDR=127.0.0.1. Like the
         # native helper, remove inherited TCP selectors for this socket-only
         # administrative invocation; never relax network TLS or pg_hba.
@@ -413,7 +417,7 @@ class Campaign:
 
     def bootstrap(self):
         values = self.state["values"]
-        replica = SessionReplica(self.state["run_id"], values["database"])
+        self.session_replica = replica = SessionReplica(self.state["run_id"], values["database"])
         root = self.root / "private/pki"
         root.mkdir(mode=0o700)
         pki.generate(root, self.state["run_id"], lambda args: self.r.cli("openssl", args))
@@ -451,7 +455,7 @@ class Campaign:
         store, model = fga["store"]["id"], fga["model"]["authorization_model_id"]
         require(all(re.fullmatch(r"[0-9A-HJKMNP-TV-Z]{26}", value) for value in (store, model)), "E2E_FGA_RESULT")
         self.create({"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": "local-full-fga"}, "data": {"store-id": store, "model-id": model}})
-        for role in ("iam", "oauth", "idp", "envoy", "ext-authz"):
+        for role in ("iam", "oauth", "idp", "envoy", "ext-authz", "late-check"):
             leaf = {"iam": "iam-service", "envoy": "envoy-mesh"}.get(role, role)
             self.secret(self.state["name"] + "-" + role + "-tls", {
                 "ca.crt": ca, "ca-bundle.crt": (root / "ca-bundle.crt").read_bytes(),
@@ -470,17 +474,30 @@ class Campaign:
         images = {role: item["tag"] for role, item in self.state["images"]["roles"].items()} | {role: fixtures[role] for role in ("envoy", "idp")}
         for role in ("iam", "oauth", "ext-authz"):
             self.r.cli("kind", ["load", "docker-image", "--name", self.state["cluster"], images[role]], timeout=180)
+        envoy = yaml.safe_load((HERE / "config/envoy.yaml").read_text())
+        late_check.add_listener(envoy)
         objects = self.render(HERE / "chart", {
             "name": self.state["name"], "runId": self.state["run_id"], "ciEnabled": True, "images": images,
-            "envoySource": (HERE / "config/envoy.yaml").read_text(),
+            "envoySource": json.dumps(envoy), "lateCheckSource": (HERE / "late_check.py").read_text(),
             "simulatorSource": (ROOT / "ops/tests/support/oauth-idp-simulator.py").read_text()})
-        require(len(objects) == 13, "E2E_FIXTURE_INVENTORY")
+        require(len(objects) == 15, "E2E_FIXTURE_INVENTORY")
+        iam, = [item for item in objects if item["kind"] == "Deployment"
+                and item["metadata"]["name"] == self.state["name"] + "-iam"]
+        direct = deepcopy(iam)
+        direct["metadata"]["name"] += "-direct"
+        direct["spec"]["selector"]["matchLabels"]["aiforall.dev/k6-role"] = "iam-direct"
+        template = direct["spec"]["template"]
+        template["metadata"]["labels"]["aiforall.dev/k6-role"] = "iam-direct"
+        container, = template["spec"]["containers"]
+        container["env"] = [entry for entry in container["env"] if entry["name"] != "IAM_AUTH__MESH__TRUSTED_GATEWAY_SAN"]
         for item in objects:
             self.create(item)
         for role in ("idp", "oauth", "iam"):
             self.rollout(self.state["name"] + "-" + role)
+        self.create(direct)
+        self.rollout(self.state["name"] + "-iam-direct")
         replica.subscribe(self.sql)
-        for role in ("ext-authz", "envoy"):
+        for role in ("ext-authz", "late-check", "envoy"):
             self.rollout(self.state["name"] + "-" + role)
         self.state["edge_identity"] = list(self.identity())
         self.r.save()
@@ -544,6 +561,16 @@ class Campaign:
         require(all(value is not None for value in (san_good, san_bad, san_restored)), "E2E_SAN_MISSING")
         correlation["restoration"] = self.state["restoration"]
         self.publish("correlation.json", correlation)
+        self.forward("iam-direct", 18446, 8443)
+        self.forward("envoy", late_check.PORT, late_check.PORT)
+        recovery = HostedRecovery(self, self.session_replica)
+        admission = {"loaded_iam_destination": True, "jwks_compatible": True, "replica_checkpoint_applied": True}
+        admission["session_recovery_nominal"], fresh = recovery.nominal()
+        self.publish("admission.json", admission)
+        admission["late_check"] = recovery.late_response(fresh)
+        self.publish("admission.json", admission)
+        admission["session_recovery_degraded"] = recovery.degraded()
+        self.publish("admission.json", admission)
 
     def run_san(self):
         self.scenario("auth-envoy-san-good")

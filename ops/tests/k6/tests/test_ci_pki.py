@@ -18,7 +18,7 @@ RUN = "a" * 32
 class PkiInputsTests(unittest.TestCase):
     def test_identities_are_closed_and_negative_has_no_iam_name(self):
         names = pki.identities(RUN)
-        self.assertEqual(len(names), 9)
+        self.assertEqual(len(names), 10)
         self.assertIn("DNS:iam.aiforall-local-full.svc.cluster.local", names["iam-service"])
         self.assertTrue(all("iam" not in value for value in names["hive-service"]))
         self.assertIn("DNS:localhost", names["idp"])

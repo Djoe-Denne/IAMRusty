@@ -14,13 +14,15 @@ def identities(run_id):
     suffix = ".aiforall-local-full.svc.cluster.local"
     name = "k6-" + run_id
     return {
-        "iam-service": ["DNS:iam" + suffix, "DNS:" + name + "-iam" + suffix],
+        "iam-service": ["DNS:iam" + suffix, "DNS:" + name + "-iam" + suffix, "IP:127.0.0.1"],
         # Same CA, deliberately no IAM SAN, for the causal negative phase.
         "hive-service": ["DNS:hive-service"],
-        "envoy-mesh": ["DNS:localhost", "IP:127.0.0.1"],
+        "envoy-mesh": ["DNS:localhost", "IP:127.0.0.1", "DNS:envoy-mesh",
+                       "DNS:" + name + "-envoy" + suffix],
         "oauth": ["DNS:" + name + "-oauth" + suffix],
         "idp": ["DNS:" + name + "-idp" + suffix, "DNS:localhost", "IP:127.0.0.1"],
         "ext-authz": ["DNS:ext-authz", "DNS:ext-authz" + suffix],
+        "late-check": ["DNS:late-check" + suffix],
         "postgres": ["DNS:postgres", "DNS:postgres" + suffix],
         # v1.8.5's HTTP gateway dials the configured loopback gRPC listener
         # with hostname verification, using the same server certificate.

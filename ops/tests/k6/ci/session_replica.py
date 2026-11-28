@@ -17,6 +17,7 @@ class SessionReplica:
         require(re.fullmatch(r"[0-9a-f]{32}", run_id) and writer == f"k6_{run_id}",
                 "E2E_REPLICA_DATABASE_SCOPE")
         self.writer = writer
+        self.authority_url = f"https://k6-{run_id}-envoy.{NS}.svc.cluster.local:18447/iam/internal/auth/session-liveness"
         self.subscriber = writer + "_admission"
         self.generation = str(uuid.uuid4())
         self.replication_password = secrets.token_hex(32)
@@ -64,7 +65,7 @@ class SessionReplica:
             "EXT_AUTHZ_REPLICA_GENERATION": self.generation,
             "EXT_AUTHZ_CHECKPOINT_URL": IAM_URL + "/checkpoint",
             "EXT_AUTHZ_CHECKPOINT_TOKEN": self.checkpoint_token,
-            "EXT_AUTHZ_LIVENESS_URL": IAM_URL,
+            "EXT_AUTHZ_LIVENESS_URL": self.authority_url,
             "K6_EXT_AUTHZ_LIVENESS_TOKEN": self.liveness_token,
         }
 

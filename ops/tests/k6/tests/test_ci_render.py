@@ -5,6 +5,7 @@ import copy
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 import yaml
@@ -12,6 +13,8 @@ import yaml
 ROOT = Path(__file__).resolve().parents[4]
 HELM = shutil.which(os.environ.get("AIFORALL_HELM") or "helm")
 CHART = ROOT / "ops/tests/k6/ci/chart"
+sys.path.insert(0, str(CHART.parent))
+import late_check
 
 
 @unittest.skipUnless(HELM, "existing Helm required; skip is not a CI qualification")
@@ -24,7 +27,7 @@ class CiRenderTests(unittest.TestCase):
         if envoy is None:
             envoy = (ROOT / "ops/tests/k6/ci/config/envoy.yaml").read_text(encoding="utf-8")
         values = dict(name="k6-" + "a" * 32, runId="a" * 32, ciEnabled=enabled,
-                      images=images, simulatorSource="# fixture", envoySource=envoy)
+                      images=images, simulatorSource="# fixture", envoySource=envoy, lateCheckSource="# relay")
         with tempfile.TemporaryDirectory(prefix="k6-ci-render-") as directory:
             path = Path(directory) / "values.json"
             path.write_text(json.dumps(values), encoding="utf-8")
@@ -46,9 +49,9 @@ class CiRenderTests(unittest.TestCase):
         self.assertEqual(len(items), 10)
         self.assertFalse(any(item["metadata"]["name"] in ("iam", "ext-authz") for item in items))
 
-    def test_ci_adds_only_alias_and_real_ext_authz(self):
+    def test_ci_adds_distinct_ext_authz_and_late_check_targets(self):
         items = self.objects()
-        self.assertEqual(len(items), 13)
+        self.assertEqual(len(items), 15)
         alias = next(item for item in items if item["metadata"]["name"] == "iam")
         self.assertEqual(alias["spec"]["selector"], {
             "aiforall.dev/k6-run": "a" * 32, "aiforall.dev/k6-role": "iam"})
@@ -173,18 +176,46 @@ class CiRenderTests(unittest.TestCase):
     def test_upstreams_keep_verified_mtls_and_fixture_iam_remap(self):
         config = self.config()
         clusters = {cluster["name"]: cluster for cluster in config["static_resources"]["clusters"]}
-        self.assertEqual(set(clusters), {"iam", "ext_authz"})
+        self.assertEqual(set(clusters), {"iam", "ext_authz", "session_authority"})
         for name, cluster in clusters.items():
             tls = cluster["transport_socket"]["typed_config"]
             self.assertIn("tls_certificates", tls["common_tls_context"])
             context = tls["common_tls_context"]["validation_context"]
             self.assertEqual(context["trusted_ca"]["filename"], "/app/certs/ca.crt")
-            expected = "iam.aiforall-local-full.svc.cluster.local" if name == "iam" else "ext-authz"
+            expected = "ext-authz" if name == "ext_authz" else "iam.aiforall-local-full.svc.cluster.local"
             self.assertEqual(tls["sni"], expected)
             self.assertEqual(context["match_typed_subject_alt_names"],
                              [{"san_type": "DNS", "matcher": {"exact": expected}}])
         address = clusters["iam"]["load_assignment"]["endpoints"][0]["lb_endpoints"][0]["endpoint"]["address"]["socket_address"]
         self.assertEqual(address["address"], "k6-" + "a" * 32 + "-iam.aiforall-local-full.svc.cluster.local")
+        chain = config["static_resources"]["listeners"][1]["filter_chains"][0]
+        tls = chain["transport_socket"]["typed_config"]
+        self.assertTrue(tls["require_client_certificate"])
+        self.assertEqual(tls["common_tls_context"]["validation_context"]["match_typed_subject_alt_names"],
+                         [{"san_type": "DNS", "matcher": {"exact": "ext-authz"}}])
+        routes = chain["filters"][0]["typed_config"]["route_config"]["virtual_hosts"][0]["routes"]
+        self.assertEqual(routes, [
+            {"match": {"path": "/iam/internal/auth/session-liveness",
+                       "headers": [{"name": ":method", "string_match": {"exact": "POST"}}]},
+             "route": {"cluster": "session_authority"}},
+            {"match": {"prefix": "/"}, "direct_response": {"status": 404}},
+        ])
+
+    def test_late_check_uses_same_filter_deadline_and_real_protected_route(self):
+        source = yaml.safe_load((ROOT / "ops/tests/k6/ci/config/envoy.yaml").read_text(encoding="utf-8"))
+        late_check.add_listener(source)
+        items = self.objects(envoy=json.dumps(source))
+        rendered = json.loads(items[0]["data"]["envoy.json"])
+        baseline, _, trial = rendered["static_resources"]["listeners"]
+        normal = baseline["filter_chains"][0]["filters"][0]["typed_config"]
+        delayed = trial["filter_chains"][0]["filters"][0]["typed_config"]
+        self.assertEqual(trial["address"]["socket_address"]["port_value"], late_check.PORT)
+        config = copy.deepcopy(normal["http_filters"][1]["typed_config"])
+        config["http_service"]["server_uri"].update(
+            uri=f"https://{late_check.RELAY_DNS}:8090/", cluster="late_check")
+        self.assertEqual(delayed["http_filters"][1]["typed_config"], config)
+        route = delayed["route_config"]["virtual_hosts"][0]["routes"][0]
+        self.assertEqual(route, {"match": {"path": late_check.PROFILE}, "route": {"cluster": "iam"}})
 
 
 if __name__ == "__main__":
