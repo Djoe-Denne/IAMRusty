@@ -345,8 +345,12 @@ class RestorationTests(unittest.TestCase):
         parent.postgres_pod = Mock(return_value="postgres-owned-pod")
         self.assertEqual(parent.sql("SELECT 1"), "1")
         args = runtime.k.call_args.args[0]
-        self.assertEqual(args[:11], ["exec", "postgres-owned-pod", "-c", "postgres", "--", "env", "-u", "PGHOSTADDR", "-u", "PGHOST", "psql"])
+        self.assertEqual(args[:12], ["exec", "-i", "postgres-owned-pod", "-c", "postgres", "--",
+                                     "env", "-u", "PGHOSTADDR", "-u", "PGHOST", "psql"])
         self.assertEqual(args[args.index("--host") + 1], "/var/run/postgresql")
+        self.assertEqual(args[-2:], ["--file", "-"])
+        self.assertNotIn("SELECT 1", args)
+        self.assertEqual(runtime.k.call_args.kwargs["stdin"], b"SELECT 1;\n")
         self.assertNotIn("PGSSLMODE=disable", args)
 
     def campaign(self):

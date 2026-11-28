@@ -561,6 +561,8 @@ class Campaign:
         require(all(value is not None for value in (san_good, san_bad, san_restored)), "E2E_SAN_MISSING")
         correlation["restoration"] = self.state["restoration"]
         self.publish("correlation.json", correlation)
+
+    def qualify_session_recovery(self):
         self.forward("iam-direct", 18446, 8443)
         self.forward("envoy", late_check.PORT, late_check.PORT)
         recovery = HostedRecovery(self, self.session_replica)
@@ -818,6 +820,7 @@ def main():
         signal.signal(signal.SIGTERM, interrupted)
         campaign.bootstrap()
         campaign.run_cases()
+        campaign.qualify_session_recovery()
         campaign.state["verdict"] = "PASS"
     except BaseException as error:
         if campaign is None and (args.directory / "private/state.json").exists():
