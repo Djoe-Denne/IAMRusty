@@ -58,3 +58,19 @@ and new timestamps without dropping the exact counter-delta assertion.
 
 The hosted fixture still lacks the actual monolith, the non-IAM service
 routes, and the dedicated Manifesto workload credential path.
+
+## Retry with fresh gateway counters
+
+[Run 46131960634](https://github.com/Djoe-Denne/IAMRusty/actions/runs/46131960634)
+tested merge `a7e5e5755efc7b361838ad0c0fc638b3cd76259a`. The nominal
+first refusals were **343 ms** (direct IAM) and **350 ms** (mesh), with
+28 replica-attributed observations, zero IAM fallback calls, and a
+post-boundary `403`. The late-positive witness repeated: `503` in
+1,006 ms, a 1,250 ms delayed positive response, and zero downstream calls.
+
+The degraded check stopped at `E2E_RESET_STALE_REPLICA_UNPROVEN`. Its
+checkpoint-table lock allows a reset that committed first to reach the
+subscriber before the apply worker encounters a blocked checkpoint. The
+next fixture locks the epoch table itself and distinguishes an unexpectedly
+advanced replica from an unverified apply barrier. Both the catalogue and
+cleanup passed; no degraded result is claimed from this run.

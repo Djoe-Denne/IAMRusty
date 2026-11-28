@@ -55,10 +55,11 @@ decision totals and a separate mTLS Envoy authority listener corroborate
 the source of mesh verdicts. The nominal case also verifies the signed-in
 password-change exception and uses the run-only signer to witness a legacy
 JWT without an epoch claim.
-The degraded case locks checkpoint writes on the subscriber, leaving reads
-and readiness available, checks the writer and subscriber epochs independently,
-and verifies replica admission again after the lock ends. With apply still
-paused, a separate timed writer lock blocks the authoritative read. The
+The degraded case locks writes to the subscriber's epoch table, leaving reads
+and readiness available. It checks the writer and subscriber epochs independently
+and verifies the logical apply worker is waiting for that table. After the lock
+ends, a fresh gateway proof and exact decision counts verify replica admission.
+With apply still paused, a separate timed writer lock blocks the authoritative read. The
 presented current token must get `503` without reaching IAM's protected route.
 Measurements begin before the confirmation request; only statuses, counts,
 and relative times are retained in the public receipt.

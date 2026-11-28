@@ -20,6 +20,14 @@ class CutoffTests(unittest.TestCase):
         self.assertIsNone(fresh_gateway_totals(old, threshold))
         self.assertEqual(fresh_gateway_totals(old + recent, threshold), (12, 1, 0))
 
+    def test_catchup_waits_for_a_recent_verified_gateway_proof(self):
+        threshold = datetime.fromisoformat("2026-11-28T09:32:14.550000Z")
+        line = ("2026-11-28T09:32:14.560000123Z INFO session admission totals "
+                "replica_decisions=12 authority_decisions=1 unavailable=0 proof_age_ms=")
+        self.assertIsNone(fresh_gateway_totals(line + "None", threshold, require_proof=True))
+        self.assertIsNone(fresh_gateway_totals(line + "Some(2000)", threshold, require_proof=True))
+        self.assertEqual(fresh_gateway_totals(line + "Some(999)", threshold, require_proof=True), (12, 1, 0))
+
     def test_an_earlier_admission_can_complete_after_the_bound(self):
         samples = [Observation(2 * SECOND, 3 * SECOND, 403),
                    Observation(4 * SECOND, 6 * SECOND, 200),

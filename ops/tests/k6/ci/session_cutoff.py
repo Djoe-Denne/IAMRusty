@@ -17,11 +17,13 @@ from late_check import PORT as LATE_PORT
 
 AUTHORITY_COUNTER = "cluster.session_authority.upstream_rq_total"
 IAM_DOWNSTREAM_COUNTER = "cluster.iam.upstream_rq_total"
+SUBSCRIBER_EPOCHS = "iam_session_liveness_epochs"
 DIRECT_PORT = 18446
 EDGE_PORT = 18443
 GATEWAY_COUNTS = re.compile(
     r"replica_decisions=(\d+) authority_decisions=(\d+) unavailable=(\d+)"
 )
+PROOF_AGE = re.compile(r"proof_age_ms=Some\((\d+)\)")
 UUID = r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
 SECOND = 1_000_000_000
 
@@ -63,7 +65,7 @@ def replica_only(before, after, authority_before, authority_after, expected, pha
             f"E2E_REPLICA_AUTHORITY_CALL:{phase}:{authority_after - authority_before}")
 
 
-def fresh_gateway_totals(messages, after):
+def fresh_gateway_totals(messages, after, *, require_proof=False):
     # Kubernetes serializes the since-time query at whole-second precision.
     # Use the worker's per-line timestamp at the actual measurement boundary.
     for line in reversed(re.sub(r"\x1b\[[0-9;]*m", "", messages).splitlines()):
@@ -74,6 +76,10 @@ def fresh_gateway_totals(messages, after):
             except ValueError:
                 continue
             if stamp.tzinfo is not None and stamp > after:
+                if require_proof:
+                    age = PROOF_AGE.search(line)
+                    if age is None or int(age[1]) >= 2000:
+                        return None
                 return tuple(map(int, counts.groups()))
     return None
 
@@ -198,7 +204,7 @@ class HostedRecovery:
         require(status["ready"] is True, "E2E_RESET_GATEWAY_NOT_READY")
         return pod["metadata"]["uid"], status["containerID"], status["restartCount"], pod["metadata"]["name"]
 
-    def totals(self):
+    def totals(self, *, require_proof=False):
         threshold = datetime.now(timezone.utc)
         since = threshold.isoformat().replace("+00:00", "Z")
 
@@ -206,9 +212,9 @@ class HostedRecovery:
             require(self.gateway_identity() == self.gateway_id, "E2E_RESET_GATEWAY_REPLACED")
             messages = self.campaign.r.k(["logs", self.gateway_id[-1], "--container=ext-authz",
                                           "--since-time=" + since, "--tail=30"]).decode()
-            return fresh_gateway_totals(messages, threshold)
+            return fresh_gateway_totals(messages, threshold, require_proof=require_proof)
 
-        return wait_for(sample, "E2E_RESET_GATEWAY_COUNTER_UNAVAILABLE", 20)
+        return wait_for(sample, "E2E_RESET_GATEWAY_COUNTER_UNAVAILABLE", 35 if require_proof else 20)
 
     def authority_calls(self):
         require(list(self.campaign.identity()) == self.campaign.state["edge_identity"], "E2E_ENVOY_REPLACED")
@@ -327,9 +333,16 @@ class HostedRecovery:
             f"AND mode = '{mode}' AND granted);", database) == "t"
 
     def apply_paused(self):
-        return (self.lock_held("iam_session_liveness_checkpoints", "ShareLock", self.replica.subscriber)
+        return (self.lock_held(SUBSCRIBER_EPOCHS, "ShareLock", self.replica.subscriber)
                 and self.campaign.sql("SELECT EXISTS (SELECT 1 FROM public.iam_session_liveness_ready);",
                                       self.replica.subscriber) == "t")
+
+    def apply_waits_for_epoch_write(self):
+        return self.campaign.sql(
+            "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_locks l JOIN pg_catalog.pg_stat_subscription s USING (pid) "
+            f"WHERE s.subname = 'iam_projection' AND l.relation = 'public.{SUBSCRIBER_EPOCHS}'::regclass "
+            "AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database()) "
+            "AND l.mode = 'RowExclusiveLock' AND NOT l.granted);", self.replica.subscriber) == "t"
 
     def authority_unavailable(self, live, worker):
         authority_before = self.authority_calls()
@@ -349,16 +362,17 @@ class HostedRecovery:
         proof = self.pre_reset(access)
         before, calls = self.totals(), self.authority_calls()
         downstream = self.campaign.snapshot()[IAM_DOWNSTREAM_COUNTER]
-        # SHARE excludes the logical apply worker's write lock while preserving
-        # SELECT and readiness. The fixture transaction ends even on test failure.
+        # Lock the relation touched by reset. A checkpoint lock could let reset
+        # apply first, depending on publisher commit order. SHARE permits reads.
         with ThreadPoolExecutor(max_workers=2) as worker:
             hold = worker.submit(self.campaign.sql, "BEGIN; SET LOCAL lock_timeout='3s'; "
-                                 "LOCK TABLE public.iam_session_liveness_checkpoints IN SHARE MODE; "
+                                 f"LOCK TABLE public.{SUBSCRIBER_EPOCHS} IN SHARE MODE; "
                                  "SELECT pg_sleep(24); ROLLBACK;", self.replica.subscriber, record_stage=False)
             wait_for(self.apply_paused, "E2E_RESET_APPLY_PAUSE_MISSING", 5)
             fresh, denial_ms, results, direct_ms = self.confirm(proof, access, refresh)
-            require(self.epoch(self.replica.subscriber) == "0" and self.apply_paused(),
-                    "E2E_RESET_STALE_REPLICA_UNPROVEN")
+            require(self.epoch(self.replica.subscriber) == "0", "E2E_RESET_STALE_REPLICA_EPOCH")
+            require(self.apply_paused() and self.apply_waits_for_epoch_write(),
+                    "E2E_RESET_STALE_REPLICA_APPLY")
             status = self.profile(access)
             allowed = sum(item.status == 200 for item in results)
             require(status in (403, 503)
@@ -373,7 +387,7 @@ class HostedRecovery:
         fallback_calls = final_calls - calls
         require(2 <= fallback_calls <= len(results) + 2, "E2E_RESET_DEGRADED_AUTHORITY_COUNT")
         wait_for(lambda: self.epoch(self.replica.subscriber) == "1", "E2E_RESET_CATCHUP_MISSING", 12)
-        before, calls = self.totals(), self.authority_calls()
+        before, calls = self.totals(require_proof=True), self.authority_calls()
         require(self.profile(access) == 403 and self.profile(fresh) == 200, "E2E_RESET_CATCHUP_ADMISSION")
         replica_only(before, self.totals(), calls, self.authority_calls(), 2, "degraded-catchup")
         return {"first_denial_upper_bound_ms": denial_ms, "post_bound_status": results[-1].status,
