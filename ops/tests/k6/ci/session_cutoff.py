@@ -16,6 +16,7 @@ from binaries import Refused, require, strict_json
 from late_check import PORT as LATE_PORT
 
 AUTHORITY_COUNTER = "cluster.session_authority.upstream_rq_total"
+IAM_DOWNSTREAM_COUNTER = "cluster.iam.upstream_rq_total"
 DIRECT_PORT = 18446
 EDGE_PORT = 18443
 GATEWAY_COUNTS = re.compile(
@@ -279,8 +280,7 @@ class HostedRecovery:
         pod = self.campaign.pod("late-check")
         name = pod["metadata"]["name"]
         identity = pod["metadata"]["uid"]
-        count_name = "cluster.iam.upstream_rq_total"
-        before = self.campaign.snapshot()[count_name]
+        before = self.campaign.snapshot()[IAM_DOWNSTREAM_COUNTER]
         sample = observe(lambda: self.profile(live, LATE_PORT))
         elapsed_ms = (sample.completed_ns - sample.started_ns + 999_999) // 1_000_000
         require(sample.status == 503 and 950 <= elapsed_ms <= 2000, "E2E_LATE_CHECK_TIMEOUT")
@@ -296,7 +296,7 @@ class HostedRecovery:
                 and logs[0]["upstream_status"] == 200
                 and type(logs[0]["delayed_positive_attempt_ms"]) is int
                 and logs[0]["delayed_positive_attempt_ms"] >= 1250, "E2E_LATE_CHECK_POSITIVE_INVALID")
-        require(self.campaign.snapshot()[count_name] == before, "E2E_LATE_CHECK_FORWARDED")
+        require(self.campaign.snapshot()[IAM_DOWNSTREAM_COUNTER] == before, "E2E_LATE_CHECK_FORWARDED")
         require(self.profile(live) == 200, "E2E_LATE_CHECK_LIVE_CONTROL")
         return {"response_ms": elapsed_ms, "late_positive_delay_ms": logs[0]["delayed_positive_attempt_ms"],
                 "downstream_calls": 0, "status": sample.status}
@@ -315,15 +315,14 @@ class HostedRecovery:
 
     def authority_unavailable(self, live, worker):
         authority_before = self.authority_calls()
-        count_name = "cluster.iam.upstream_rq_total"
-        downstream = self.campaign.snapshot()[count_name]
+        downstream = self.campaign.snapshot()[IAM_DOWNSTREAM_COUNTER]
         hold = worker.submit(self.campaign.sql, "BEGIN; SET LOCAL lock_timeout='3s'; "
                              "LOCK TABLE public.users IN ACCESS EXCLUSIVE MODE; "
                              "SELECT pg_sleep(5); ROLLBACK;", self.replica.writer, record_stage=False)
         wait_for(lambda: self.lock_held("users", "AccessExclusiveLock", self.replica.writer),
                  "E2E_RESET_AUTHORITY_OUTAGE_UNPROVEN", 4)
         require(self.apply_paused() and self.profile(live) == 503, "E2E_RESET_AUTHORITY_OUTAGE_STATUS")
-        require(self.campaign.snapshot()[count_name] == downstream, "E2E_RESET_AUTHORITY_OUTAGE_FORWARDED")
+        require(self.campaign.snapshot()[IAM_DOWNSTREAM_COUNTER] == downstream, "E2E_RESET_AUTHORITY_OUTAGE_FORWARDED")
         require(self.authority_calls() - authority_before == 1, "E2E_RESET_AUTHORITY_OUTAGE_CALL")
         hold.result()
 
@@ -331,6 +330,7 @@ class HostedRecovery:
         _, access, refresh = self.make_account("degraded")
         proof = self.pre_reset(access)
         before, calls = self.totals(), self.authority_calls()
+        downstream = self.campaign.snapshot()[IAM_DOWNSTREAM_COUNTER]
         # SHARE excludes the logical apply worker's write lock while preserving
         # SELECT and readiness. The fixture transaction ends even on test failure.
         with ThreadPoolExecutor(max_workers=2) as worker:
@@ -341,10 +341,10 @@ class HostedRecovery:
             fresh, denial_ms, results, direct_ms = self.confirm(proof, access, refresh)
             require(self.epoch(self.replica.subscriber) == "0" and self.apply_paused(),
                     "E2E_RESET_STALE_REPLICA_UNPROVEN")
-            downstream = self.campaign.snapshot().get("cluster.iam.upstream_rq_total", 0)
             status = self.profile(access)
+            allowed = sum(item.status == 200 for item in results)
             require(status in (403, 503)
-                    and self.campaign.snapshot().get("cluster.iam.upstream_rq_total", 0) == downstream,
+                    and self.campaign.snapshot()[IAM_DOWNSTREAM_COUNTER] - downstream == allowed,
                     "E2E_RESET_DEGRADED_FORWARDED")
             self.authority_unavailable(fresh, worker)
             hold.result()
