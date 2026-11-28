@@ -70,7 +70,7 @@ Source: [Telegraph HTTP router](../../services/Telegraph/http/src/lib.rs).
 - `GET` `/api/notifications`, `/api/notifications/unread-count`
 - `PUT` `/api/notifications/{id}/read`
 
-## Deployment paths still to qualify
+## Deployment paths and qualification
 
 - **Direct and monolith:** IAM installs the same in-process authoritative
   checker in its own standalone and nested routers. The
@@ -90,8 +90,9 @@ Source: [Telegraph HTTP router](../../services/Telegraph/http/src/lib.rs).
   matching comes from the
   [Envoy 1.31.2 route API](https://github.com/envoyproxy/envoy/blob/v1.31.2/api/envoy/config/route/v3/route_components.proto);
   real downstream outcomes remain to be qualified.
-- **Hosted evidence:** The current hosted artifact pipeline admits IAM,
-  Ext Authz, and OAuthConnect. It cannot establish positive and negative
-  outcomes for the non-IAM routes, workload credentials, or the actual
-  monolith. A source registration alone is not evidence of deployed
-  enforcement.
+- **Hosted evidence:** The default campaign admits IAM, Ext Authz, and
+  OAuthConnect. The optional same-repository preview also admits the real
+  monolith and companion binaries. The
+  [qualification report](../missions/20261128-password-recovery-replica-qualification.md)
+  records tested revisions, route witnesses, and remaining gaps. A source
+  registration alone is not evidence of deployed enforcement.

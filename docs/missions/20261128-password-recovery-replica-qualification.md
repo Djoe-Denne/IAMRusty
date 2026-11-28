@@ -162,3 +162,14 @@ This run did not exercise standalone companion processes, reset
 confirmation through the monolith, an outage on nested companion reads,
 mesh routes beyond IAM, organization-issuer isolation, or aggregate
 fallback capacity.
+
+## Capacity qualification boundary
+
+The [fallback implementation](../../workers/ext-authz/src/authority.rs)
+allows eight distinct in-flight IAM calls per worker and spaces new
+dispatches by 25 ms. With `N` Check workers this permits at most `8 × N`
+concurrent fallback calls and a steady-state dispatch rate of `40 × N`
+calls per second before any shared IAM limit. These are code-derived
+bounds. The measured one-worker run made sequential fallback calls;
+it did not saturate those limits or establish a separately reserved IAM
+budget under concurrent IAM traffic.
