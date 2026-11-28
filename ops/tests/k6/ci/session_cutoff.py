@@ -54,11 +54,28 @@ def cutoff(lower_bound_ns, observations):
     return (min(by_deadline) - lower_bound_ns + 999_999) // 1_000_000
 
 
-def replica_only(before, after, authority_before, authority_after, expected):
+def replica_only(before, after, authority_before, authority_after, expected, phase="nominal"):
     """A downstream status is insufficient without both independent witnesses."""
-    require(expected > 0 and tuple(right - left for left, right in zip(before, after, strict=True))
-            == (expected, 0, 0), "E2E_REPLICA_DECISION_SOURCE")
-    require(authority_after == authority_before, "E2E_REPLICA_AUTHORITY_CALL")
+    counts = tuple(right - left for left, right in zip(before, after, strict=True))
+    require(expected > 0 and counts == (expected, 0, 0),
+            f"E2E_REPLICA_DECISION_SOURCE:{phase}:{expected}:{counts}")
+    require(authority_after == authority_before,
+            f"E2E_REPLICA_AUTHORITY_CALL:{phase}:{authority_after - authority_before}")
+
+
+def fresh_gateway_totals(messages, after):
+    # Kubernetes serializes the since-time query at whole-second precision.
+    # Use the worker's per-line timestamp at the actual measurement boundary.
+    for line in reversed(re.sub(r"\x1b\[[0-9;]*m", "", messages).splitlines()):
+        counts = GATEWAY_COUNTS.search(line)
+        if "session admission totals" in line and counts:
+            try:
+                stamp = datetime.fromisoformat(line.split(" ", 1)[0])
+            except ValueError:
+                continue
+            if stamp.tzinfo is not None and stamp > after:
+                return tuple(map(int, counts.groups()))
+    return None
 
 
 def wait_for(condition, error, seconds):
@@ -123,6 +140,7 @@ class HostedRecovery:
         return token
 
     def make_account(self, phase):
+        self.phase = phase
         self.email = f"{phase}-{self.campaign.state['run_id']}@example.com"
         password = "A9!" + secrets.token_hex(20)
         registered = self.post("/api/auth/signup", {"email": self.email, "password": password}, 202)
@@ -181,14 +199,14 @@ class HostedRecovery:
         return pod["metadata"]["uid"], status["containerID"], status["restartCount"], pod["metadata"]["name"]
 
     def totals(self):
-        since = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        threshold = datetime.now(timezone.utc)
+        since = threshold.isoformat().replace("+00:00", "Z")
 
         def sample():
             require(self.gateway_identity() == self.gateway_id, "E2E_RESET_GATEWAY_REPLACED")
             messages = self.campaign.r.k(["logs", self.gateway_id[-1], "--container=ext-authz",
                                           "--since-time=" + since, "--tail=30"]).decode()
-            matches = GATEWAY_COUNTS.findall(re.sub(r"\x1b\[[0-9;]*m", "", messages))
-            return tuple(map(int, matches[-1])) if matches else None
+            return fresh_gateway_totals(messages, threshold)
 
         return wait_for(sample, "E2E_RESET_GATEWAY_COUNTER_UNAVAILABLE", 20)
 
@@ -218,7 +236,7 @@ class HostedRecovery:
         wait_for(lambda: self.epoch(self.replica.subscriber) == "0", "E2E_RESET_INITIAL_COPY", 8)
         before, calls = self.totals(), self.authority_calls()
         require(self.profile(access) == 200, "E2E_RESET_REQUEST_LOCKED_ACCOUNT")
-        replica_only(before, self.totals(), calls, self.authority_calls(), 1)
+        replica_only(before, self.totals(), calls, self.authority_calls(), 1, self.phase + "-before-reset")
         return proof
 
     def confirm(self, proof, access, refresh):
@@ -357,7 +375,7 @@ class HostedRecovery:
         wait_for(lambda: self.epoch(self.replica.subscriber) == "1", "E2E_RESET_CATCHUP_MISSING", 12)
         before, calls = self.totals(), self.authority_calls()
         require(self.profile(access) == 403 and self.profile(fresh) == 200, "E2E_RESET_CATCHUP_ADMISSION")
-        replica_only(before, self.totals(), calls, self.authority_calls(), 2)
+        replica_only(before, self.totals(), calls, self.authority_calls(), 2, "degraded-catchup")
         return {"first_denial_upper_bound_ms": denial_ms, "post_bound_status": results[-1].status,
                 "authority_calls": fallback_calls, "catchup": True,
                 "direct_denial_upper_bound_ms": direct_ms, "authority_outage_status": 503}

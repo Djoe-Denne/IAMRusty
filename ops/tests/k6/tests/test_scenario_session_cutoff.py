@@ -1,15 +1,25 @@
 import sys
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 from binaries import Refused
-from session_cutoff import Observation, cutoff, replica_only
+from session_cutoff import Observation, cutoff, fresh_gateway_totals, replica_only
 
 SECOND = 1_000_000_000
 
 
 class CutoffTests(unittest.TestCase):
+    def test_same_second_counter_line_before_the_measurement_is_rejected(self):
+        threshold = datetime.fromisoformat("2026-11-28T09:32:14.550000Z")
+        old = ("2026-11-28T09:32:14.540000321Z INFO session admission totals "
+               "replica_decisions=11 authority_decisions=1 unavailable=0\n")
+        recent = ("2026-11-28T09:32:14.560000123Z INFO session admission totals "
+                  "replica_decisions=12 authority_decisions=1 unavailable=0\n")
+        self.assertIsNone(fresh_gateway_totals(old, threshold))
+        self.assertEqual(fresh_gateway_totals(old + recent, threshold), (12, 1, 0))
+
     def test_an_earlier_admission_can_complete_after_the_bound(self):
         samples = [Observation(2 * SECOND, 3 * SECOND, 403),
                    Observation(4 * SECOND, 6 * SECOND, 200),
