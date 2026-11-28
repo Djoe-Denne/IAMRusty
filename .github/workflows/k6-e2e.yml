@@ -26,6 +26,10 @@ on:
         description: Preview the saved-binary PR campaign; select the PR's own branch
         required: false
         type: string
+      recovery_workloads:
+        description: Include the monolith and its database migrations in an internal PR preview
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -49,6 +53,7 @@ jobs:
       PYTHONDONTWRITEBYTECODE: '1'
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
       K6_PR_MODE: ${{ inputs.pr_qualification || inputs.pr_number != '' }}
+      K6_RECOVERY_WORKLOADS: ${{ inputs.recovery_workloads == true }}
     steps:
       - name: Checkout the event revision for trusted admission and packaging
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

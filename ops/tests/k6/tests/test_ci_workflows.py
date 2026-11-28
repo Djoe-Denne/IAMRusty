@@ -22,7 +22,11 @@ class WorkflowTests(unittest.TestCase):
                 if step.get("uses") == "./.github/actions/build-service" and step.get("with", {}).get("role"):
                     roles[step["with"]["role"]] = step
                     self.assertEqual(job["runs-on"], "ubuntu-24.04")
-        self.assertEqual(set(roles), {"iam", "oauth", "ext-authz"})
+        self.assertEqual(set(roles), {"iam", "oauth", "ext-authz", "recovery"})
+        self.assertEqual(roles["recovery"]["with"]["service"], "monolith")
+        self.assertNotIn("build-monolith", jobs["k6-e2e"]["needs"])
+        recovery_input = workflow("k6-e2e.yml")["on"]["workflow_dispatch"]["inputs"]["recovery_workloads"]
+        self.assertEqual(recovery_input["default"], "false")
         inventory = json.loads((ROOT / ".github/ci/inventory.json").read_text())
         self.assertIn("iam-migration", inventory["builds"]["iam"])
         self.assertEqual(inventory["builds"]["oauth"], ["oauth-connect-service"])

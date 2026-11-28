@@ -31,12 +31,14 @@ runs:
       shell: bash
       env:
         CI_SERVICE: ${{ inputs.service }}
+        K6_BUILD_RECOVERY: ${{ inputs.role == 'recovery' && github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'master' && github.event.pull_request.head.repo.id == github.repository_id }}
       run: python3 -B ops/ci/build.py --service "$CI_SERVICE"
 
     - name: Collect existing native binaries without hiding compiler provenance
       id: bundle
       if: >-
         inputs.role != '' &&
+        (inputs.role != 'recovery' || github.event_name == 'pull_request') &&
         ((github.event_name == 'push' && github.ref == 'refs/heads/master') ||
          (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'master' &&
           github.event.pull_request.head.repo.id == github.repository_id))

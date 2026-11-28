@@ -163,6 +163,7 @@ jobs:
       - uses: ./.github/actions/build-service
         with:
           service: monolith
+          role: recovery
 
   build-sentinel:
     name: Build (Sentinel Sync)

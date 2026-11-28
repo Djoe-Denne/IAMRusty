@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 
-from binaries import ROLES, Refused, require, strict_json
+from binaries import PRODUCERS, RECOVERY_ROLE, ROLES, Refused, require, strict_json
 
 MAX_DOWNLOAD = 4 * 1024 ** 3
 
@@ -33,8 +33,9 @@ def validate_run(run, repository, repository_id, workflow_id, run_id, attempt, s
         require(value.get("id") == repository_id and value.get("full_name") == repository, "RUN_REPOSITORY")
 
 
-def validate_jobs(jobs, *, producer=None):
-    for name in ROLES.values():
+def validate_jobs(jobs, *, producer=None, roles=ROLES):
+    for role in roles:
+        name = PRODUCERS[role]
         matched = [job for job in jobs if job.get("name") == name]
         require(len(matched) == 1 and matched[0].get("status") == "completed"
                 and matched[0].get("conclusion") == "success", "BUILD_JOB_NOT_SUCCESSFUL")
@@ -60,14 +61,14 @@ def validate_artifact(item, run_id, source_sha, now=None):
     return {key: item[key] for key in ("id", "name", "digest", "size_in_bytes")}
 
 
-def select_artifacts(artifacts, run_id, attempt, source_sha, now=None):
+def select_artifacts(artifacts, run_id, attempt, source_sha, now=None, *, roles=ROLES):
     selected = {}
-    for role in ROLES:
+    for role in roles:
         name = f"k6-binaries-{role}-{run_id}-{attempt}"
         matched = [artifact for artifact in artifacts if artifact.get("name") == name]
         require(len(matched) == 1, "BINARY_ARTIFACT_MISSING_OR_AMBIGUOUS")
         selected[role] = validate_artifact(matched[0], run_id, source_sha, now)
-    require(len({item["id"] for item in selected.values()}) == len(ROLES), "BINARY_ARTIFACT_IDS")
+    require(len({item["id"] for item in selected.values()}) == len(roles), "BINARY_ARTIFACT_IDS")
     return selected
 
 
@@ -172,6 +173,14 @@ def premerge_job(env):
             and ref != "refs/heads/master" and workflow == f"{repository}/.github/workflows/k6-e2e.yml@{ref}")
 
 
+def qualification_roles(env):
+    if env.get("K6_RECOVERY_WORKLOADS", "false") == "false":
+        return tuple(ROLES)
+    require(env["K6_RECOVERY_WORKLOADS"] == "true" and premerge_job(env)
+            and env.get("GITHUB_EVENT_NAME") == "workflow_dispatch", "RECOVERY_WORKLOADS_MANUAL_PR_ONLY")
+    return (*ROLES, RECOVERY_ROLE)
+
+
 def acquire(output, run_id, attempt, source_sha, environment=None):
     env = dict(os.environ if environment is None else environment)
     require(env.get("GITHUB_REF") == "refs/heads/master" and (env.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
@@ -192,11 +201,11 @@ def acquire(output, run_id, attempt, source_sha, environment=None):
         target.write("target_sha=" + source_sha + "\n")
 
 
-def save_bundles(output, api, repo, repo_id, workflow_id, run_id, attempt, source_sha, *, artifact_sha=None):
+def save_bundles(output, api, repo, repo_id, workflow_id, run_id, attempt, source_sha, *, artifact_sha=None, roles=ROLES):
     # For PR CI, GitHub's artifact metadata names the PR head, while the
     # producer's checked-out source (and binary manifest) names the merge SHA.
     items = api.pages(f"actions/runs/{run_id}/artifacts", "artifacts")
-    selected = select_artifacts(items, run_id, attempt, source_sha if artifact_sha is None else artifact_sha)
+    selected = select_artifacts(items, run_id, attempt, source_sha if artifact_sha is None else artifact_sha, roles=roles)
     if artifact_sha is not None:
         selected_ids = {item["id"] for item in selected.values()}
         for item in items:

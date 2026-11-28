@@ -21,13 +21,14 @@ import uuid
 import yaml
 
 from artifacts import premerge_job
-from binaries import ROOT, Refused, command, require, sha, strict_json
+from binaries import RECOVERY_ROLE, ROOT, Refused, command, require, sha, strict_json
 import browser as browser_profile
 import campaign_browser
 import evidence
 import inputs
 import late_check
 import pki
+from recovery_monolith import create_monolith
 from runtime import Runtime, NS, hosted, write_json
 from session_cutoff import DIRECT_PORT, HostedRecovery
 from session_replica import SessionReplica
@@ -586,6 +587,10 @@ class Campaign:
         self.publish("admission.json", admission)
         for case, rotation_first in (("renewal_first", True), ("reset_first", False)):
             admission[case] = recovery.ordered_race(rotation_first)
+            self.publish("admission.json", admission)
+        if RECOVERY_ROLE in self.state["images"]["roles"]:
+            create_monolith(self)
+            admission["monolith"] = recovery.monolith()
             self.publish("admission.json", admission)
 
     def run_san(self):

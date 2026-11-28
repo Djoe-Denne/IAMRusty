@@ -16,7 +16,10 @@ ROOT = Path(__file__).resolve().parents[4]
 SCHEMA = "aiforall.k6-binaries/v2"
 ROLES = {"iam": "Build (IAMRusty)", "oauth": "Build (OAuthConnect)",
          "ext-authz": "Build (Ext Authz)"}
-BUILD_JOBS = {"iam": "build-iam", "oauth": "build-oauth", "ext-authz": "build-ext-authz"}
+RECOVERY_ROLE = "recovery"
+PRODUCERS = ROLES | {RECOVERY_ROLE: "Build (Monolith)"}
+BUILD_JOBS = {"iam": "build-iam", "oauth": "build-oauth", "ext-authz": "build-ext-authz",
+              RECOVERY_ROLE: "build-monolith"}
 FLAG_NAMES = ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "RUSTC_WRAPPER",
               "RUSTC_WORKSPACE_WRAPPER", "RUSTC", "CARGO_BUILD_RUSTFLAGS",
               "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS")
@@ -65,11 +68,19 @@ def command(args, cwd=ROOT):
 
 
 def inventory(root, role):
-    require(role in ROLES, "UNKNOWN_BINARY_ROLE")
+    require(role in PRODUCERS, "UNKNOWN_BINARY_ROLE")
     path = Path(root) / "ops/deploy/build/targets.json"
-    target = strict_json(path.read_bytes())["variable"]["inventory"]["default"]["targets"][role]
-    outputs = target["outputs"]
+    specification = strict_json(path.read_bytes())["variable"]["inventory"]["default"]
+    targets = specification["targets"]
+    if role == RECOVERY_ROLE:
+        outputs = {"oodhive-monolith": specification["extra_outputs"]["workspace"]["oodhive-monolith"]}
+        for service in ("hive", "manifesto", "telegraph", "lazaret"):
+            migration = service + "-migration"
+            outputs[migration] = targets[service]["outputs"][migration]
+    else:
+        outputs = targets[role]["outputs"]
     require(isinstance(outputs, dict) and bool(outputs), "BINARY_INVENTORY")
+    require(len(set(outputs.values())) == len(outputs), "BINARY_INVENTORY_DUPLICATE")
     for package, name in outputs.items():
         require(re.fullmatch(r"[a-z][a-z0-9-]+", package) and
                 re.fullmatch(r"[a-z][a-z0-9-]+", name), "BINARY_INVENTORY")
@@ -205,7 +216,7 @@ def publish(root, role, output, environment=None):
         "repository_id": int(source["GITHUB_REPOSITORY_ID"]), "workflow_path": ".github/workflows/ci.yml",
         "source_sha": source["GITHUB_SHA"], "sdk_sha": sdk,
         "run_id": int(source["GITHUB_RUN_ID"]), "run_attempt": int(source["GITHUB_RUN_ATTEMPT"]),
-        "job": source["GITHUB_JOB"], "job_name": ROLES[role], "cargo_profile": "dev", "output_directory": "debug",
+        "job": source["GITHUB_JOB"], "job_name": PRODUCERS[role], "cargo_profile": "dev", "output_directory": "debug",
         "target": "x86_64-unknown-linux-gnu", "producer_os": "ubuntu-24.04",
         "libc": command(["getconf", "GNU_LIBC_VERSION"]), "cargo": command(["cargo", "--version"]),
         "rustc": command(["rustc", "-vV"]), "instrumentation": "none", "flags": build_flags,
@@ -240,7 +251,7 @@ def validate_manifest(value, expected, outputs):
                       "cargo_profile": "dev", "output_directory": "debug", "producer_os": "ubuntu-24.04",
                       "target": "x86_64-unknown-linux-gnu", "instrumentation": "none"}.items():
         require(value[key] == item, "MANIFEST_BUILD_CONTRACT")
-    require(value["role"] in ROLES and value["job_name"] == ROLES[value["role"]]
+    require(value["role"] in PRODUCERS and value["job_name"] == PRODUCERS[value["role"]]
             and value["job"] == BUILD_JOBS[value["role"]], "MANIFEST_JOB")
     flag_values = value["flags"]
     require(isinstance(flag_values, dict) and flag_values.keys() ==
@@ -308,7 +319,7 @@ def unpack(bundle, destination, expected, outputs, inspect=elf):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--role", choices=tuple(ROLES), required=True)
+    parser.add_argument("--role", choices=tuple(PRODUCERS), required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:

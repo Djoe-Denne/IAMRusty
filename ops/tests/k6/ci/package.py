@@ -9,7 +9,18 @@ import re
 import shutil
 import subprocess
 
-from binaries import ROOT, ROLES, Refused, command, inventory, require, sha, strict_json, unpack
+from artifacts import qualification_roles
+from binaries import RECOVERY_ROLE, ROOT, Refused, command, inventory, require, sha, strict_json, unpack
+
+RECOVERY_DOCKERFILE = "ops/tests/k6/ci/Dockerfile.recovery"
+RUNTIME_PATHS = {"iam": ["/app/iam-service", "/app/migration"], "oauth": ["/app/oauth-connect-service"],
+                 "ext-authz": ["/app/ext-authz"]}
+
+
+def runtime_paths(role, root=ROOT):
+    if role == RECOVERY_ROLE:
+        return ["/app/bin/" + name for name in inventory(root, role).values()]
+    return RUNTIME_PATHS[role]
 
 
 def runtime_lock(root=ROOT):
@@ -21,7 +32,7 @@ def runtime_lock(root=ROOT):
     return value
 
 
-def prepare(acquired, source, context, harness=ROOT):
+def prepare(acquired, source, context, harness=ROOT, environment=None):
     acquired, source, context, harness = (Path(path).resolve() for path in (acquired, source, context, harness))
     require(not context.exists(), "PACKAGING_CONTEXT_COLLISION")
     selected = strict_json((acquired / "selection.json").read_bytes())
@@ -44,20 +55,26 @@ def prepare(acquired, source, context, harness=ROOT):
                 inventory_sha256=sha(source / "ops/deploy/build/targets.json"))
     target_inventory = strict_json((source / "ops/deploy/build/targets.json").read_bytes())["variable"]["inventory"]["default"]["targets"]
     harness_inventory = strict_json((harness / "ops/deploy/build/targets.json").read_bytes())["variable"]["inventory"]["default"]["targets"]
-    for role in ROLES:
+    roles = qualification_roles(os.environ if environment is None else environment)
+    require(set(selected["artifacts"]) == set(roles), "PACKAGING_BINARY_ROLES")
+    for role in roles:
         outputs = inventory(source, role)
-        require(outputs == inventory(harness, role) and
-                target_inventory[role]["dockerfile"] == harness_inventory[role]["dockerfile"], "HARNESS_TARGET_SEAM_MISMATCH")
+        dockerfile = RECOVERY_DOCKERFILE if role == RECOVERY_ROLE else target_inventory[role]["dockerfile"]
+        expected_recipe = RECOVERY_DOCKERFILE if role == RECOVERY_ROLE else harness_inventory[role]["dockerfile"]
+        require(outputs == inventory(harness, role) and dockerfile == expected_recipe, "HARNESS_TARGET_SEAM_MISMATCH")
         directory = context / (role + "-verified")
         manifest = unpack(acquired / (role + ".tar.gz"), directory, {**base, "role": role}, outputs)
+        binaries = release
+        if role == RECOVERY_ROLE:
+            binaries = release / "recovery"
+            binaries.mkdir()
         for name in outputs.values():
-            require(not (release / name).exists(), "DUPLICATE_DELIVERY_BINARY")
-            shutil.copyfile(directory / name, release / name)
-            (release / name).chmod(0o755)
-        dockerfile = target_inventory[role]["dockerfile"]
+            require(not (binaries / name).exists(), "DUPLICATE_DELIVERY_BINARY")
+            shutil.copyfile(directory / name, binaries / name)
+            (binaries / name).chmod(0o755)
         # Only these closed packaging recipes come from the trusted harness.
         require(dockerfile in ("services/IAMRusty/Dockerfile", "services/OAuthConnect/Dockerfile",
-                               "ops/deploy/build/Dockerfile.ext-authz"), "PACKAGING_DOCKERFILE")
+                                "ops/deploy/build/Dockerfile.ext-authz", RECOVERY_DOCKERFILE), "PACKAGING_DOCKERFILE")
         target = context / dockerfile
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(harness / dockerfile, target)
@@ -189,9 +206,7 @@ def package(acquired, source, output):
                                      {"BUILD_IMAGE": artifact_image, "RUNTIME_IMAGE": lock["runtime"],
                                       "RUNTIME_OPENSSL_PACKAGE": lock["openssl_package"],
                                       "SOURCE_REVISION": provenance["target_sha"], "SDK_REVISION": provenance["sdk_sha"]})
-            paths = ["/app/iam-service", "/app/migration"] if role == "iam" else [
-                "/app/oauth-connect-service" if role == "oauth" else "/app/ext-authz"]
-            record.update(image_id=identity, tag=tag, abi=packager.abi(tag, paths))
+            record.update(image_id=identity, tag=tag, abi=packager.abi(tag, runtime_paths(role)))
             tags.append(tag)
         archive = output / "images.tar.gz"
         save_images(tags, archive)
@@ -223,7 +238,7 @@ def main():
         raise SystemExit("Verified image packaging failed: " + str(error)) from None
     except Exception:
         raise SystemExit("Verified image packaging failed; no compilation fallback") from None
-    print("Three images exported; four ELF binaries resolved; not an E2E verdict")
+    print("Verified images exported and ELF dependencies resolved; not an E2E verdict")
 
 
 if __name__ == "__main__":

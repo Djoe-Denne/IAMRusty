@@ -75,6 +75,24 @@ the order of the blocked renewal and reset statements before releasing it.
 The receipt distinguishes reset-first refusal from rotation-first success
 followed by revocation of the returned session.
 
+### Monolith admission preview
+
+An authorized same-repository PR preview may select `recovery_workloads`
+when dispatching `k6-e2e.yml` on the PR's branch. The additional native
+bundle must come from the monolith build in the same ordinary CI attempt
+as IAM, OAuthConnect, and Ext Authz. It includes the monolith executable
+and four migration binaries. Packaging verifies revision, ABI, and digest
+with the existing mechanism; the hosted campaign does not invoke Cargo.
+The `/k6-e2e` comment and automatic post-merge catalogue continue to use the
+three standard bundles.
+
+The preview runs the real monolith in a separate owned pod with private
+backing databases for the other services. Its IAM router shares the
+authoritative writer with standalone IAM. Nested service verifiers call
+the monolith's own loopback IAM authority. The test reads IAM, Hive,
+Telegraph, and Manifesto routes before and after reset and checks the
+Manifesto anonymous response separately from a revoked bearer.
+
 ## Run the complete campaign on a PR
 
 1. Wait for **Build (IAMRusty)**, **Build (OAuthConnect)**, and **Build (Ext Authz)**

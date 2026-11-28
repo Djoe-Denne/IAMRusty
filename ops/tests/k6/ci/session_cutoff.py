@@ -14,6 +14,7 @@ from urllib.parse import quote, urlencode
 
 from binaries import Refused, require, strict_json
 from late_check import PORT as LATE_PORT
+from recovery_monolith import PORT as MONOLITH_PORT
 
 AUTHORITY_COUNTER = "cluster.session_authority.upstream_rq_total"
 IAM_DOWNSTREAM_COUNTER = "cluster.iam.upstream_rq_total"
@@ -107,18 +108,18 @@ class HostedRecovery:
         require(any(key.get("kid") == campaign.state["run_id"] and key.get("kty") == "RSA" for key in keys),
                 "E2E_RESET_DIRECT_JWKS_KEY")
 
-    def request(self, method, path, *, payload=None, token=None, port=DIRECT_PORT, timeout=4):
+    def request(self, method, path, *, payload=None, token=None, port=DIRECT_PORT, timeout=4, service="iam"):
         headers = {"Accept": "application/json"}
         if payload is not None:
             headers["Content-Type"] = "application/json"
         if token is not None:
             headers["Authorization"] = "Bearer " + token
-        if port == DIRECT_PORT:
+        if port in (DIRECT_PORT, MONOLITH_PORT):
             connection = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
         else:
             connection = http.client.HTTPSConnection("127.0.0.1", port, timeout=timeout, context=self.tls)
         try:
-            connection.request(method, "/iam" + path, None if payload is None else json.dumps(payload), headers)
+            connection.request(method, "/" + service + path, None if payload is None else json.dumps(payload), headers)
             response = connection.getresponse()
             body = response.read(65537)
             require(len(body) <= 65536, "E2E_RESET_HTTP_SIZE")
@@ -452,3 +453,38 @@ class HostedRecovery:
         fresh, _ = self.login(password, "1")
         require(self.profile(fresh, DIRECT_PORT) == 200, "E2E_RESET_HTTP_WRITER_FRESH_ACCESS")
         return {"commit_status": reset_status, "renewal_status": renew_status, "writer_order_observed": True}
+
+    def monolith(self):
+        _, old, refresh = self.make_account("monolith")
+        routes = {
+            "iam": "/api/me",
+            "hive": "/api/organizations",
+            "manifesto": "/api/projects",
+            "telegraph": "/api/notifications/unread-count",
+        }
+
+        def status(service, token):
+            return self.request("GET", routes[service], port=MONOLITH_PORT, service=service, token=token)[0]
+
+        for service in routes:
+            code = status(service, old)
+            require(code == 200, f"E2E_RESET_MONOLITH_LIVE:{service}:{code}")
+        require(status("manifesto", None) == 200, "E2E_RESET_MONOLITH_ANONYMOUS")
+        self.post("/api/auth/password/reset-request", {"email": self.email}, 200)
+        proof = self.event_token("password_reset_requested", "reset_token")
+        password = "E9!" + secrets.token_hex(20)
+        lower = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
+        confirmation = self.post("/api/auth/password/reset-confirm", {"token": proof, "new_password": password}, 200)
+        require(confirmation == {"message": "Password has been successfully reset"}, "E2E_RESET_MONOLITH_CONFIRM")
+        recorded = {}
+        for service in routes:
+            witness = observe(lambda: status(service, old))
+            upper_ms = (witness.completed_ns - lower + 999_999) // 1_000_000
+            require(witness.status == 401 and upper_ms <= 5000, f"E2E_RESET_MONOLITH_CUTOFF:{service}:{witness.status}")
+            recorded[service] = upper_ms
+        require(status("manifesto", None) == 200, "E2E_RESET_MONOLITH_ANONYMOUS_AFTER_RESET")
+        self.post("/api/token/refresh", {"refresh_token": refresh}, 401)
+        fresh, _ = self.login(password, "1")
+        for service in routes:
+            require(status(service, fresh) == 200, f"E2E_RESET_MONOLITH_FRESH:{service}")
+        return {"first_denial_upper_bound_ms": recorded, "optional_anonymous": True}

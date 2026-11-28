@@ -25,7 +25,7 @@ def provenance():
     return dict(schema="aiforall.k6-images/v1", target_sha=SHA, harness_sha=H, sdk_sha=SDK,
                 cargo_profile="dev", instrumentation="none", qualification="PACKAGING_AND_ABI_ONLY_NOT_E2E",
                 archive_sha256="d" * 64, roles={role: dict(image_id="sha256:" + str(index + 1) * 64,
-                    tag=f"local/k6-{role}:k6-123-1", abi=dict(resolution="PASS", paths=i.PATHS[role]),
+                     tag=f"local/k6-{role}:k6-123-1", abi=dict(resolution="PASS", paths=i.runtime_paths(role)),
                     manifest=dict(source_sha=SHA, sdk_sha=SDK, instrumentation="none", role=role))
                     for index, role in enumerate(b.ROLES)})
 
