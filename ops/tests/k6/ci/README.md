@@ -27,8 +27,98 @@ la CI globale de ce run reste rouge sur une IT Manifesto distincte.
 - `chart/` renders the isolated fixtures in the owned Kind run. The
   `ciEnabled: true` profile adds the IAM alias and real ext-authz workload.
   It does not authorize deploying into a pre-existing lab.
-- `pki.py` : PKI neuve du run, clés de signature JWT et neuf identités TLS,
-  dont bon/mauvais SAN sous la même CA ; aucun import de confiance système.
+- `pki.py` creates run-owned signing keys and TLS identities, including the
+  same-CA SAN controls, without importing them into system trust.
+
+### Session replica bootstrap
+
+The hosted campaign uses a separate subscriber database in its owned
+PostgreSQL 15 instance. It applies the production publication, subscriber,
+and readiness SQL, with a separately created slot for same-cluster apply.
+The gateway receives the read-only subscriber login and distinct IAM
+workload capabilities. The fixture does not use a hosted or local shared
+database, operator PKI, or a pre-existing cluster.
+
+Before running the catalogue, the parent verifies that a checkpoint from
+the actual gateway probe reached the initialized subscriber. The bootstrap
+boolean in the public admission receipt is only evidence of that step.
+
+After the catalogue, the parent creates dedicated accounts and uses the
+real IAM reset HTTP flow. It reads verification and reset proofs from the
+run-owned outbox; the mail relay is outside this scenario. One IAM deployment
+exercises authoritative direct `/api/me` over a loopback-only listener with a
+local JWKS publisher; the other uses the trusted Envoy
+gateway certificate. Both observe the old and new password sessions against
+the same writer. The nominal case also rotates the old session after requesting
+reset and verifies that confirmation revokes the replacement. Fresh gateway
+decision totals and a separate mTLS Envoy authority listener corroborate
+the source of mesh verdicts. The nominal case also verifies the signed-in
+password-change exception and uses the run-only signer to witness a legacy
+JWT without an epoch claim.
+The degraded case locks writes to the subscriber's epoch table, leaving reads
+and readiness available. It checks the writer and subscriber epochs independently
+and verifies the logical apply worker is waiting for that table. After the lock
+ends, a fresh gateway proof and exact decision counts verify replica admission.
+With apply still paused, a separate timed writer lock blocks the authoritative read. The
+presented current token must get `503` without reaching IAM's protected route.
+Measurements begin before the confirmation request; only statuses, counts,
+and relative times are retained in the public receipt.
+
+A test listener uses the same one-second Check filter and IAM profile route.
+Its relay receives a real positive Check from the gateway, then attempts to
+deliver it after at least 1.25 seconds. The receipt requires Envoy's `503`,
+the relay's late-positive witness, no new requests in the IAM downstream
+cluster, and a subsequent successful control on the normal listener.
+
+The two concurrent HTTP writer cases hold the test account row and verify
+the order of the blocked renewal and reset statements before releasing it.
+The receipt distinguishes reset-first refusal from rotation-first success
+followed by revocation of the returned session.
+
+### Monolith admission preview
+
+An authorized same-repository PR preview may select `recovery_workloads`
+when dispatching `k6-e2e.yml` on the PR's branch. The additional native
+bundle must come from the monolith build in the same ordinary CI attempt
+as IAM, OAuthConnect, and Ext Authz. It includes the monolith, three
+standalone services and four migration binaries. Packaging verifies revision, ABI, and digest
+with the existing mechanism; the hosted campaign does not invoke Cargo.
+The `/k6-e2e` comment and automatic post-merge catalogue continue to use the
+three standard bundles.
+
+After all four producer builds succeed, run:
+
+```bash
+gh workflow run k6-e2e.yml --ref "$PR_HEAD_BRANCH" \
+  -f pr_number="$PR_NUMBER" -f recovery_workloads=true
+```
+
+The preview runs the real monolith in a separate owned pod with private
+backing databases for the other services. Its IAM router shares the
+authoritative writer with standalone IAM. Nested service verifiers call
+the monolith's own loopback IAM authority, and the nested observation
+starts from a reset committed through the monolith. The same Hive, Telegraph and
+Manifesto checks run against their standalone deployments, which use the
+standalone IAM authority over TLS. The test checks Hive and Manifesto
+anonymous reads separately from a revoked bearer. During an independently
+witnessed authority outage, presented credentials get temporary refusals,
+anonymous reads continue, and the Manifesto write count remains unchanged.
+It also reads a seeded binding through Manifesto's separate workload JWT
+path before and after reset and checks that a platform bearer cannot use
+that path.
+
+The preview also copies the companion route matches from the opt-in Kind
+Envoy overlay into the disposable ingress, using separately deployed
+service processes with gateway-only mTLS admission. It records healthy
+replica attribution and checks Envoy's per-service upstream counters to
+distinguish revoked or malformed credentials from requests that actually
+reached the services. An absent credential takes the guest route without
+calling Check.
+The issuer-isolation case registers a run-owned organization signing key
+through IAM and verifies its published scope. It checks that an organization
+JWT with the same UUID still reaches Hive after reset, does not gain access
+to an IAM platform account, and cannot use a lookalike issuer. An unrelated
+platform account must remain admitted in the same window.
 
 ## Run the complete campaign on a PR
 

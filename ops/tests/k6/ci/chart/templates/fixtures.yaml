@@ -34,6 +34,9 @@ metadata:
   labels: {aiforall.dev/k6-run: {{ $v.runId | quote }}}
 data:
   provider.py: {{ required "protocol fixture source required" $v.simulatorSource | quote }}
+  {{- if $v.ciEnabled }}
+  late-check.py: {{ required "late Check fixture source required" $v.lateCheckSource | quote }}
+  {{- end }}
 {{ range $role := list "iam" "oauth" "envoy" "idp" }}
 {{- $port := ternary 10000 (ternary 8080 8443 (eq $role "idp")) (eq $role "envoy") }}
 ---
@@ -74,6 +77,11 @@ spec:
             {{- if eq $role "iam" }}
             - name: DATABASE_URL
               valueFrom: {secretKeyRef: {name: "{{ $v.name }}-iam-env", key: DATABASE_URL}}
+            {{- if $v.ciEnabled }}
+            - name: K6_IAM_CHECKPOINT_TOKEN
+              valueFrom: {secretKeyRef: {name: "{{ $v.name }}-iam-env", key: K6_IAM_CHECKPOINT_TOKEN}}
+            - {name: IAM_AUTH__MESH__TRUSTED_GATEWAY_SAN, value: envoy-mesh}
+            {{- end }}
             - {name: PGSSLMODE, value: verify-full}
             - {name: PGSSLROOTCERT, value: /app/certs/ca.crt}
             - name: IAM_OPENFGA__STORE_ID
@@ -123,7 +131,11 @@ metadata:
   labels: {aiforall.dev/k6-run: {{ $v.runId | quote }}}
 spec:
   selector: {aiforall.dev/k6-run: {{ $v.runId | quote }}, aiforall.dev/k6-role: {{ $role }}}
-  ports: [{name: https, port: {{ $port }}, targetPort: https}]
+  ports:
+    - {name: https, port: {{ $port }}, targetPort: https}
+    {{- if and $v.ciEnabled (eq $role "envoy") }}
+    - {name: session-authority, port: 18447, targetPort: 18447}
+    {{- end }}
 {{ end }}
 {{- if .Values.ciEnabled }}
 ---

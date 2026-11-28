@@ -185,7 +185,24 @@ class ProducerTests(unittest.TestCase):
                 with self.assertRaisesRegex(Refused, "BINARY_ARTIFACT_MISSING"):
                     pr.acquire(output, "", env)
                 self.assertFalse(Path(env["GITHUB_OUTPUT"]).exists())
-                save.assert_called_once_with(output, api, REPO, 123, 987, 792, 2, MERGE, artifact_sha=HEAD)
+                save.assert_called_once_with(output, api, REPO, 123, 987, 792, 2, MERGE,
+                                             artifact_sha=HEAD, roles=tuple(artifacts.ROLES))
+
+    def test_recovery_bundle_requires_an_explicit_manual_internal_pr_preview(self):
+        github = environment()
+        selection = {"K6_RECOVERY_WORKLOADS": "true"}
+        self.assertEqual(artifacts.qualification_roles(github), tuple(artifacts.ROLES))
+        with self.assertRaisesRegex(Refused, "RECOVERY_WORKLOADS_MANUAL_PR_ONLY"):
+            artifacts.qualification_roles(github | selection)
+        branch = "refs/heads/feature"
+        manual = github | selection | {
+            "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REF": branch,
+            "GITHUB_WORKFLOW_REF": f"{REPO}/.github/workflows/k6-e2e.yml@{branch}",
+        }
+        self.assertEqual(artifacts.qualification_roles(manual), (*artifacts.ROLES, "recovery"))
+        with self.assertRaisesRegex(Refused, "BUILD_JOB_NOT_SUCCESSFUL"):
+            pr.pick_producer(mock_api(), self.target, REPO, 123,
+                             roles=artifacts.qualification_roles(manual))
 
     def test_master_image_admission_is_not_used_for_pr(self):
         with self.assertRaisesRegex(Refused, "MANUAL_MASTER_E2E_REQUIRED"):

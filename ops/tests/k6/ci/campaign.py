@@ -1,6 +1,7 @@
 """Hosted Ubuntu parent for the unchanged health/OAuth/SAN stimuli, no Cargo."""
 import argparse
 import base64
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -20,20 +21,27 @@ import uuid
 import yaml
 
 from artifacts import premerge_job
-from binaries import ROOT, Refused, command, require, sha, strict_json
+from binaries import RECOVERY_ROLE, ROOT, Refused, command, require, sha, strict_json
 import browser as browser_profile
 import campaign_browser
 import evidence
 import inputs
+import late_check
 import pki
+import recovery_mesh
+from recovery_monolith import create_mesh_companions, create_monolith, create_standalone
 from runtime import Runtime, NS, hosted, write_json
+from session_cutoff import DIRECT_PORT, HostedRecovery
+from session_replica import SessionReplica
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 from safety import Child, Rejected, child_environment, new_output, private_path
 
 HERE = Path(__file__).resolve().parent
 ERROR_COUNTERS = ("upstream_cx_connect_fail", "upstream_cx_connect_timeout", "ssl.fail_verify_san", "ssl.fail_verify_error")
-STAT_FILTER = r"^cluster\.(iam|ext_authz)\.(upstream_rq_total|upstream_rq_5xx|upstream_cx_connect_fail|upstream_cx_connect_timeout|ssl\.(handshake|fail_verify_san|fail_verify_error))$"
+STAT_FILTER = (r"^cluster\.((iam|ext_authz)\.(upstream_rq_total|upstream_rq_5xx|upstream_cx_connect_fail"
+               r"|upstream_cx_connect_timeout|ssl\.(handshake|fail_verify_san|fail_verify_error))"
+               r"|(hive|manifesto|telegraph)\.upstream_rq_total)$")
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -149,13 +157,15 @@ class Campaign:
         require(bool(result), "E2E_EMPTY_RENDER")
         return result
 
-    def backings(self, **selection):
+    def backings(self, session_replica=None, **selection):
         values = yaml.safe_load((HERE / "values.yaml").read_text(encoding="utf-8"))
         for name, enabled in selection.items():
             group, key = name.split("_")
             require(group in {"postgres", "openfga", "localstack", "network"} and key in {"create", "initialize"}, "E2E_BACKING_SELECTION")
             values.setdefault(group, {})[key] = enabled
         for item in self.render(ROOT / "ops/deploy/charts/kind-minimal", values):
+            if session_replica is not None:
+                session_replica.postgres_options(item)
             self.create(item)
 
     def rollout(self, name):
@@ -212,17 +222,26 @@ class Campaign:
         require(len(value["items"]) == 1 and value["items"][0]["status"]["phase"] == "Running", "E2E_POSTGRES_POD")
         return value["items"][0]["metadata"]["name"]
 
-    def sql(self, query, database="postgres"):
-        require(database in ("postgres", "openfga_dev", self.state["values"]["database"]), "E2E_SQL_DATABASE")
-        self.state["stage"] = "sql:" + database
-        self.r.save()
+    def sql(self, query, database="postgres", *, record_stage=True):
+        writer = self.state["values"]["database"]
+        allowed = ("postgres", "openfga_dev", writer, writer + "_admission")
+        if RECOVERY_ROLE in self.state.get("images", {}).get("roles", {}):
+            allowed += (writer + "_manifesto",)
+        require(database in allowed, "E2E_SQL_DATABASE")
+        if record_stage:
+            self.state["stage"] = "sql:" + database
+            self.r.save()
         # The shared readiness profile sets PGHOSTADDR=127.0.0.1. Like the
         # native helper, remove inherited TCP selectors for this socket-only
         # administrative invocation; never relax network TLS or pg_hba.
-        return self.r.k(["exec", self.postgres_pod(), "-c", "postgres", "--", "env", "-u", "PGHOSTADDR", "-u", "PGHOST",
+        script = query.rstrip()
+        if not script.endswith(";"):
+            script += ";"
+        return self.r.k(["exec", "-i", self.postgres_pod(), "-c", "postgres", "--", "env", "-u", "PGHOSTADDR", "-u", "PGHOST",
                          "psql", "--host", "/var/run/postgresql",
                          "--username", "postgres", "--dbname", database, "--no-password", "--no-psqlrc",
-                         "--tuples-only", "--no-align", "--set", "ON_ERROR_STOP=1", "--command", query]).decode().strip()
+                         "--quiet", "--tuples-only", "--no-align", "--set", "ON_ERROR_STOP=1",
+                         "--file", "-"], stdin=(script + "\n").encode("utf-8")).decode().strip()
 
     def forward(self, role, local, remote):
         pod = self.pod(role)
@@ -405,9 +424,12 @@ class Campaign:
 
     def bootstrap(self):
         values = self.state["values"]
+        self.session_replica = replica = SessionReplica(self.state["run_id"], values["database"])
         root = self.root / "private/pki"
         root.mkdir(mode=0o700)
-        pki.generate(root, self.state["run_id"], lambda args: self.r.cli("openssl", args))
+        companion_mesh = RECOVERY_ROLE in self.state["images"]["roles"]
+        pki.generate(root, self.state["run_id"], lambda args: self.r.cli("openssl", args),
+                     companion_mesh=companion_mesh)
         (root / "ca-bundle.crt").write_bytes(Path("/etc/ssl/certs/ca-certificates.crt").read_bytes() + b"\n" + (root / "ca.crt").read_bytes())
         configs, provider, target = inputs.configuration(values)
         write_json(self.root / "private/target.json", target)
@@ -422,10 +444,11 @@ class Campaign:
                                                "tls.key": (root / (role + ".key")).read_bytes()})
         uri = "postgres://postgres:" + values["database_password"] + "@postgres." + NS + ".svc.cluster.local:5432/openfga_dev?sslmode=verify-full&sslrootcert=/tls/ca.crt"
         self.secret("openfga-datastore", {"uri": uri})
-        self.backings(postgres_create=True, openfga_create=False, localstack_create=False)
+        self.backings(session_replica=replica, postgres_create=True, openfga_create=False, localstack_create=False)
         self.rollout("postgres")
-        self.sql("CREATE DATABASE " + values["database"])
-        self.sql("CREATE DATABASE openfga_dev")
+        self.sql("CREATE DATABASE " + values["database"] + ";")
+        self.sql("CREATE DATABASE openfga_dev;")
+        replica.create_database(self.sql)
         self.state["database_oid"] = int(self.sql("SELECT oid FROM pg_database WHERE datname='" + values["database"] + "'"))
         self.r.save()
         self.backings(postgres_create=False, openfga_create=True, localstack_create=True, network_create=False)
@@ -441,29 +464,74 @@ class Campaign:
         store, model = fga["store"]["id"], fga["model"]["authorization_model_id"]
         require(all(re.fullmatch(r"[0-9A-HJKMNP-TV-Z]{26}", value) for value in (store, model)), "E2E_FGA_RESULT")
         self.create({"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": "local-full-fga"}, "data": {"store-id": store, "model-id": model}})
-        for role in ("iam", "oauth", "idp", "envoy", "ext-authz"):
+        for role in ("iam", "oauth", "idp", "envoy", "ext-authz", "late-check"):
             leaf = {"iam": "iam-service", "envoy": "envoy-mesh"}.get(role, role)
             self.secret(self.state["name"] + "-" + role + "-tls", {
                 "ca.crt": ca, "ca-bundle.crt": (root / "ca-bundle.crt").read_bytes(),
                 leaf + ".crt": (root / (leaf + ".crt")).read_bytes(), leaf + ".key": (root / (leaf + ".key")).read_bytes()})
-        self.secret(self.state["name"] + "-iam-config", {"development.toml": configs["iam"], "k6.toml": configs["iam"],
-                    "platform-signing.pem": (root / "platform-signing.pem").read_bytes(), "platform-signing.pub": (root / "platform-signing.pub").read_bytes()})
+        iam_config = ('session_checkpoint_token_env = "K6_IAM_CHECKPOINT_TOKEN"\n'
+                      f'internal_service_token = "{replica.liveness_token}"\n' + configs["iam"])
+        iam_secret = {"development.toml": iam_config, "k6.toml": iam_config,
+                      "platform-signing.pem": (root / "platform-signing.pem").read_bytes(),
+                      "platform-signing.pub": (root / "platform-signing.pub").read_bytes()}
+        if companion_mesh:
+            iam_secret["organization-signing.pem"] = (root / "organization-signing.pem").read_bytes()
+        self.secret(self.state["name"] + "-iam-config", iam_secret)
         database_url = "postgresql://postgres:" + values["database_password"] + "@postgres." + NS + ".svc.cluster.local:5432/" + values["database"] + "?sslmode=verify-full&sslrootcert=/app/certs/ca.crt"
-        self.secret(self.state["name"] + "-iam-env", {"DATABASE_URL": database_url})
+        self.secret(self.state["name"] + "-iam-env", {"DATABASE_URL": database_url, **replica.iam_secret()})
+        identity = (root / "ext-authz.crt").read_bytes() + (root / "ext-authz.key").read_bytes()
+        self.secret(self.state["name"] + "-replica-env", replica.gateway_secret(identity))
         self.secret(self.state["name"] + "-oauth-config", {"development.toml": configs["oauth"], "k6.toml": configs["oauth"]})
         self.secret(self.state["name"] + "-idp-config", {"provider.json": json.dumps(provider)})
         fixtures = json.loads((HERE / "fixtures.lock.json").read_text())
         images = {role: item["tag"] for role, item in self.state["images"]["roles"].items()} | {role: fixtures[role] for role in ("envoy", "idp")}
         for role in ("iam", "oauth", "ext-authz"):
             self.r.cli("kind", ["load", "docker-image", "--name", self.state["cluster"], images[role]], timeout=180)
+        envoy = yaml.safe_load((HERE / "config/envoy.yaml").read_text())
+        late_check.add_listener(envoy)
+        if companion_mesh:
+            recovery_mesh.add_companions(envoy, self.state["run_id"])
+            recovery_mesh.create_services(self)
         objects = self.render(HERE / "chart", {
             "name": self.state["name"], "runId": self.state["run_id"], "ciEnabled": True, "images": images,
-            "envoySource": (HERE / "config/envoy.yaml").read_text(),
+            "envoySource": json.dumps(envoy), "lateCheckSource": (HERE / "late_check.py").read_text(),
             "simulatorSource": (ROOT / "ops/tests/support/oauth-idp-simulator.py").read_text()})
-        require(len(objects) == 13, "E2E_FIXTURE_INVENTORY")
+        require(len(objects) == 15, "E2E_FIXTURE_INVENTORY")
+        iam, = [item for item in objects if item["kind"] == "Deployment"
+                and item["metadata"]["name"] == self.state["name"] + "-iam"]
+        if companion_mesh:
+            volumes = iam["spec"]["template"]["spec"]["volumes"]
+            config, = [volume for volume in volumes if volume["name"] == "config"]
+            config["secret"]["items"] = [{"key": key, "path": key} for key in iam_secret
+                                         if key != "organization-signing.pem"]
+            config["secret"]["items"].append({
+                "key": "organization-signing.pem",
+                "path": f"organizations/{uuid.UUID(self.state['run_id'])}/recovery.pem",
+            })
+        self.direct_iam = direct = deepcopy(iam)
+        direct["metadata"]["name"] += "-direct"
+        direct["spec"]["selector"]["matchLabels"]["aiforall.dev/k6-role"] = "iam-direct"
+        template = direct["spec"]["template"]
+        template["metadata"]["labels"]["aiforall.dev/k6-role"] = "iam-direct"
+        container, = template["spec"]["containers"]
+        container["env"] = [entry for entry in container["env"] if entry["name"] != "IAM_AUTH__MESH__TRUSTED_GATEWAY_SAN"]
+        # The direct verifier refreshes its own JWKS over the pod's loopback.
+        # The public issuer URL belongs to the runner, not the pod.
+        container["env"].extend([
+            {"name": "IAM_SERVER__HOST", "value": "127.0.0.1"},
+            {"name": "IAM_SERVER__TLS_ENABLED", "value": "false"},
+            {"name": "IAM_JWT__JWKS_URL", "value": "http://127.0.0.1:8080/iam/.well-known/jwks.json"},
+        ])
+        container["ports"] = [{"name": "http", "containerPort": 8080}]
+        container["readinessProbe"] = {"exec": {"command": [
+            "curl", "--silent", "--fail", "--max-time", "1", "http://127.0.0.1:8080/iam/health",
+        ]}, "periodSeconds": 2, "timeoutSeconds": 2}
         for item in objects:
             self.create(item)
-        for role in ("idp", "oauth", "iam", "ext-authz", "envoy"):
+        for role in ("idp", "oauth", "iam"):
+            self.rollout(self.state["name"] + "-" + role)
+        replica.subscribe(self.sql)
+        for role in ("ext-authz", "late-check", "envoy"):
             self.rollout(self.state["name"] + "-" + role)
         self.state["edge_identity"] = list(self.identity())
         self.r.save()
@@ -471,6 +539,14 @@ class Campaign:
         self.forward("envoy", 19901, 9901)
         self.forward("idp", 18445, 8080)
         self.wait_endpoint()
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            if replica.observed_marker(self.sql):
+                self.state["replica_bootstrap"] = True
+                self.r.save()
+                return
+            time.sleep(0.25)
+        raise Refused("E2E_REPLICA_CHECKPOINT_NOT_APPLIED")
 
     def admit_services(self):
         _, raw = self.http("http://127.0.0.1:19901/config_dump")
@@ -496,7 +572,9 @@ class Campaign:
                 len([key for key in jwks[1]["keys"] if all(key.get(name) == keys[0].get(name)
                                                          for name in ("kid", "n", "e"))]) == 1,
                 "E2E_JWKS_INCOMPATIBLE")
-        self.publish("admission.json", {"loaded_iam_destination": True, "jwks_compatible": True})
+        require(self.state.get("replica_bootstrap") is True, "E2E_REPLICA_BOOTSTRAP_REQUIRED")
+        self.publish("admission.json", {"loaded_iam_destination": True, "jwks_compatible": True,
+                                        "replica_checkpoint_applied": True})
 
     def run_cases(self):
         self.admit_services()
@@ -517,6 +595,35 @@ class Campaign:
         require(all(value is not None for value in (san_good, san_bad, san_restored)), "E2E_SAN_MISSING")
         correlation["restoration"] = self.state["restoration"]
         self.publish("correlation.json", correlation)
+
+    def qualify_session_recovery(self):
+        self.create(self.direct_iam)
+        self.rollout(self.state["name"] + "-iam-direct")
+        self.forward("iam-direct", DIRECT_PORT, 8080)
+        self.forward("envoy", late_check.PORT, late_check.PORT)
+        recovery = HostedRecovery(self, self.session_replica)
+        admission = {"loaded_iam_destination": True, "jwks_compatible": True, "replica_checkpoint_applied": True}
+        admission["session_recovery_nominal"], fresh = recovery.nominal()
+        self.publish("admission.json", admission)
+        admission["late_check"] = recovery.late_response(fresh)
+        self.publish("admission.json", admission)
+        admission["session_recovery_degraded"] = recovery.degraded()
+        self.publish("admission.json", admission)
+        for case, rotation_first in (("renewal_first", True), ("reset_first", False)):
+            admission[case] = recovery.ordered_race(rotation_first)
+            self.publish("admission.json", admission)
+        if RECOVERY_ROLE in self.state["images"]["roles"]:
+            snapshot_key = create_monolith(self)
+            admission["monolith"] = recovery.companions(snapshot_key, nested=True)
+            self.publish("admission.json", admission)
+            create_standalone(self, snapshot_key)
+            admission["standalone_services"] = recovery.companions(snapshot_key, nested=False)
+            self.publish("admission.json", admission)
+            create_mesh_companions(self)
+            admission["mesh_services"] = recovery.mesh_companions()
+            self.publish("admission.json", admission)
+            admission["issuer_isolation"] = recovery.issuer_isolation()
+            self.publish("admission.json", admission)
 
     def run_san(self):
         self.scenario("auth-envoy-san-good")
@@ -761,6 +868,7 @@ def main():
         signal.signal(signal.SIGTERM, interrupted)
         campaign.bootstrap()
         campaign.run_cases()
+        campaign.qualify_session_recovery()
         campaign.state["verdict"] = "PASS"
     except BaseException as error:
         if campaign is None and (args.directory / "private/state.json").exists():

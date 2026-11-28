@@ -25,7 +25,7 @@ def provenance():
     return dict(schema="aiforall.k6-images/v1", target_sha=SHA, harness_sha=H, sdk_sha=SDK,
                 cargo_profile="dev", instrumentation="none", qualification="PACKAGING_AND_ABI_ONLY_NOT_E2E",
                 archive_sha256="d" * 64, roles={role: dict(image_id="sha256:" + str(index + 1) * 64,
-                    tag=f"local/k6-{role}:k6-123-1", abi=dict(resolution="PASS", paths=i.PATHS[role]),
+                     tag=f"local/k6-{role}:k6-123-1", abi=dict(resolution="PASS", paths=i.runtime_paths(role)),
                     manifest=dict(source_sha=SHA, sdk_sha=SDK, instrumentation="none", role=role))
                     for index, role in enumerate(b.ROLES)})
 
@@ -345,8 +345,12 @@ class RestorationTests(unittest.TestCase):
         parent.postgres_pod = Mock(return_value="postgres-owned-pod")
         self.assertEqual(parent.sql("SELECT 1"), "1")
         args = runtime.k.call_args.args[0]
-        self.assertEqual(args[:11], ["exec", "postgres-owned-pod", "-c", "postgres", "--", "env", "-u", "PGHOSTADDR", "-u", "PGHOST", "psql"])
+        self.assertEqual(args[:12], ["exec", "-i", "postgres-owned-pod", "-c", "postgres", "--",
+                                     "env", "-u", "PGHOSTADDR", "-u", "PGHOST", "psql"])
         self.assertEqual(args[args.index("--host") + 1], "/var/run/postgresql")
+        self.assertEqual(args[-2:], ["--file", "-"])
+        self.assertNotIn("SELECT 1", args)
+        self.assertEqual(runtime.k.call_args.kwargs["stdin"], b"SELECT 1;\n")
         self.assertNotIn("PGSSLMODE=disable", args)
 
     def campaign(self):

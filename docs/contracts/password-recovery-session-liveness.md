@@ -156,6 +156,9 @@ A service configured with `auth.mesh.trusted_gateway_san` MUST continue to accep
 
 ### 4.4 Boundary inventory gate
 
+See the [route inventory](password-recovery-route-inventory.md) for the source
+registrations and deployment paths to qualify.
+
 Before enforcement is enabled, the implementation MUST inventory and test every deployed protected path that accepts a platform user session. At this baseline the known paths are:
 
 - direct RustyCog authentication in IAM, Hive, Manifesto, and Telegraph;

@@ -8,12 +8,11 @@ import shutil
 import stat
 import zipfile
 
-from artifacts import GitHub, MAX_DOWNLOAD, positive, validate_artifact, current_ci_source, premerge_job
+from artifacts import GitHub, MAX_DOWNLOAD, positive, validate_artifact, current_ci_source, premerge_job, qualification_roles
 from binaries import ROLES, Refused, require, sha, strict_json
+from package import runtime_paths
 
 FILES = {"images.tar.gz", "provenance.json", "cleanup.json", "docker-resources.jsonl"}
-PATHS = {"iam": ["/app/iam-service", "/app/migration"], "oauth": ["/app/oauth-connect-service"],
-         "ext-authz": ["/app/ext-authz"]}
 
 
 def admit(run, workflow_id, repository, repository_id, run_id, attempt):
@@ -26,7 +25,7 @@ def admit(run, workflow_id, repository, repository_id, run_id, attempt):
                 and run[field].get("full_name") == repository, "IMAGE_RUN_REPOSITORY")
 
 
-def provenance(value, cleanup, source_sha, packaging_sha):
+def provenance(value, cleanup, source_sha, packaging_sha, *, roles=ROLES):
     require(value.get("schema") == "aiforall.k6-images/v1" and value.get("target_sha") == source_sha
             and value.get("harness_sha") == packaging_sha, "IMAGE_PROVENANCE")
     require(value.get("cargo_profile") == "dev" and value.get("instrumentation") == "none"
@@ -35,11 +34,11 @@ def provenance(value, cleanup, source_sha, packaging_sha):
     require(cleanup.get("schema") == "aiforall.k6-packaging-cleanup/v1"
             and cleanup.get("status") == "PASS" and type(cleanup.get("owned_running")) is int
             and cleanup["owned_running"] == 0, "IMAGE_PACKAGING_CLEANUP")
-    require(isinstance(value.get("roles"), dict) and set(value["roles"]) == set(ROLES), "IMAGE_ROLES")
+    require(isinstance(value.get("roles"), dict) and set(value["roles"]) == set(roles), "IMAGE_ROLES")
     for role, item in value["roles"].items():
         require(re.fullmatch(r"sha256:[a-f0-9]{64}", item.get("image_id", "")), "IMAGE_ID")
         require(re.fullmatch(r"local/k6-" + re.escape(role) + r":k6-[1-9][0-9]*-[1-9][0-9]*", item.get("tag", "")), "IMAGE_TAG")
-        require(item.get("abi", {}).get("resolution") == "PASS" and item["abi"].get("paths") == PATHS[role], "IMAGE_ABI")
+        require(item.get("abi", {}).get("resolution") == "PASS" and item["abi"].get("paths") == runtime_paths(role), "IMAGE_ABI")
         manifest = item.get("manifest", {})
         require(manifest.get("source_sha") == source_sha and manifest.get("sdk_sha") == value["sdk_sha"]
                 and manifest.get("instrumentation") == "none" and manifest.get("role") == role, "IMAGE_BINARY_PROVENANCE")
@@ -118,7 +117,8 @@ def from_packaging(source, directory, run_id, attempt, source_sha, environment=N
         require(path.is_file() and not path.is_symlink() and 0 < path.stat().st_size <= (MAX_DOWNLOAD if name == "images.tar.gz" else 1024**2),
                 "IMAGE_LOCAL_FILE")
     closure = strict_json((source / "cleanup.json").read_bytes())
-    value = provenance(strict_json((source / "provenance.json").read_bytes()), closure, source_sha, env["GITHUB_SHA"])
+    value = provenance(strict_json((source / "provenance.json").read_bytes()), closure, source_sha, env["GITHUB_SHA"],
+                       roles=qualification_roles(env))
     require(closure.get("run_id") == str(run_id) and closure.get("run_attempt") == str(attempt), "IMAGE_CLEANUP_ORIGIN")
     require(all(item["tag"] == f"local/k6-{role}:k6-{run_id}-{attempt}" for role, item in value["roles"].items()), "IMAGE_TAG_ORIGIN")
     require(sha(source / "images.tar.gz") == value["archive_sha256"], "IMAGE_PAYLOAD_HASH")

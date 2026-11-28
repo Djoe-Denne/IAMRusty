@@ -53,11 +53,21 @@ spec:
           env:
             - {name: PORT, value: "8090"}
             - {name: EXT_AUTHZ_AUDIENCE, value: aiforall}
+            - {name: EXT_AUTHZ_PLATFORM_ISSUER, value: "https://127.0.0.1:18443/iam"}
             - {name: EXT_AUTHZ_JWKS_URL, value: "https://iam.aiforall-local-full.svc.cluster.local:8443/iam/.well-known/jwks.json"}
             - {name: EXT_AUTHZ_JWKS_POLL_SECS, value: "1"}
             - {name: EXT_AUTHZ_TLS_CA, value: /app/certs/ca.crt}
             - {name: EXT_AUTHZ_TLS_CERT, value: /app/certs/ext-authz.crt}
             - {name: EXT_AUTHZ_TLS_KEY, value: /app/certs/ext-authz.key}
+            - {name: EXT_AUTHZ_CHECKPOINT_CA_FILE, value: /app/certs/ca.crt}
+            - {name: EXT_AUTHZ_CHECKPOINT_IDENTITY_FILE, value: /app/replica/workload.pem}
+            - {name: EXT_AUTHZ_LIVENESS_CA_FILE, value: /app/certs/ca.crt}
+            - {name: EXT_AUTHZ_LIVENESS_IDENTITY_FILE, value: /app/replica/workload.pem}
+            - {name: EXT_AUTHZ_LIVENESS_TOKEN_ENV, value: K6_EXT_AUTHZ_LIVENESS_TOKEN}
+            {{- range $key := list "EXT_AUTHZ_REPLICA_DSN" "EXT_AUTHZ_REPLICA_GENERATION" "EXT_AUTHZ_CHECKPOINT_URL" "EXT_AUTHZ_CHECKPOINT_TOKEN" "EXT_AUTHZ_LIVENESS_URL" "K6_EXT_AUTHZ_LIVENESS_TOKEN" }}
+            - name: {{ $key }}
+              valueFrom: {secretKeyRef: {name: "{{ $v.name }}-replica-env", key: {{ $key }}}}
+            {{- end }}
           ports: [{name: https, containerPort: 8090}]
           readinessProbe: {tcpSocket: {port: https}, periodSeconds: 2, timeoutSeconds: 2}
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
@@ -66,7 +76,63 @@ spec:
             limits: {cpu: "1", memory: 256Mi}
           volumeMounts:
             - {name: tls, mountPath: /app/certs, readOnly: true}
+            - {name: workload, mountPath: /app/replica, readOnly: true}
       volumes:
         - name: tls
           secret: {secretName: "{{ $v.name }}-ext-authz-tls", defaultMode: 0440}
+        - name: workload
+          secret:
+            secretName: "{{ $v.name }}-replica-env"
+            defaultMode: 0440
+            items: [{key: workload.pem, path: workload.pem}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: late-check
+  labels: {aiforall.dev/k6-run: {{ $v.runId | quote }}}
+spec:
+  selector: {aiforall.dev/k6-run: {{ $v.runId | quote }}, aiforall.dev/k6-role: late-check}
+  ports: [{name: https, port: 8090, targetPort: https}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $v.name }}-late-check
+  labels: {aiforall.dev/k6-run: {{ $v.runId | quote }}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {aiforall.dev/k6-run: {{ $v.runId | quote }}, aiforall.dev/k6-role: late-check}
+  template:
+    metadata:
+      labels:
+        aiforall.dev/k6-run: {{ $v.runId | quote }}
+        aiforall.dev/k6-role: late-check
+        aiforall.dev/kind-minimal: "true"
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: late-check
+          image: {{ required "CI fixture image required" (index $v.images "idp") | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [python, -B, /fixture/late-check.py]
+          ports: [{name: https, containerPort: 8090}]
+          readinessProbe: {tcpSocket: {port: https}, periodSeconds: 2, timeoutSeconds: 2}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 25m, memory: 24Mi}
+            limits: {cpu: 200m, memory: 64Mi}
+          volumeMounts:
+            - {name: tls, mountPath: /app/certs, readOnly: true}
+            - {name: script, mountPath: /fixture, readOnly: true}
+      volumes:
+        - name: tls
+          secret: {secretName: "{{ $v.name }}-late-check-tls", defaultMode: 0440}
+        - name: script
+          configMap:
+            name: "{{ $v.name }}-idp-script"
+            items: [{key: late-check.py, path: late-check.py}]
 {{- end -}}

@@ -113,6 +113,27 @@ static_resources:
                             envoy.filters.http.ext_authz:
                               "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
                               disabled: true
+                        # A missing credential is anonymous only on these
+                        # optional reads. Empty or malformed credentials still go to Check.
+                        - name: anonymous_optional_hive
+                          match:
+                            path: /hive/api/organizations/search
+                            headers: &anonymous_read
+                              - {name: ':method', string_match: {safe_regex: {google_re2: {}, regex: '^(GET|HEAD)$'}}}
+                              - {name: authorization, present_match: false}
+                          route: {cluster: hive}
+                          typed_per_filter_config: &anonymous_optional_authz
+                            envoy.filters.http.ext_authz:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                              disabled: true
+                        - name: anonymous_optional_manifesto
+                          match:
+                            safe_regex:
+                              google_re2: {}
+                              regex: '^/manifesto/api/projects(/[^/]+(/details|/components(/[^/]+)?)?)?$'
+                            headers: *anonymous_read
+                          route: {cluster: manifesto}
+                          typed_per_filter_config: *anonymous_optional_authz
                         - match:
                             prefix: "/iam/"
                           route:

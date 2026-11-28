@@ -387,6 +387,19 @@ class ArtifactTrustTests(unittest.TestCase):
 
 
 class PackagingTests(unittest.TestCase):
+    def test_recovery_inventory_includes_monolith_and_closed_companion_binaries(self):
+        self.assertEqual(b.inventory(b.ROOT, b.RECOVERY_ROLE), {
+            "oodhive-monolith": "oodhive-monolith",
+            "hive-service": "hive-service", "manifesto-service": "manifesto-service",
+            "telegraph-service": "telegraph-service",
+            "hive-migration": "hivemigration",
+            "manifesto-migration": "manifestomigration",
+            "telegraph-migration": "telegraphmigration",
+            "lazaret-migration": "migration",
+        })
+        self.assertNotIn(b.RECOVERY_ROLE, b.ROLES)
+        self.assertEqual(b.BUILD_JOBS[b.RECOVERY_ROLE], "build-monolith")
+
     def test_distinct_harness_and_target_keep_target_entrypoint_and_real_dev_profile(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()

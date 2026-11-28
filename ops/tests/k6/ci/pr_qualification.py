@@ -5,8 +5,8 @@ import os
 from pathlib import Path
 import re
 
-from artifacts import GitHub, positive, premerge_job, save_bundles, validate_jobs
-from binaries import Refused, command, require, strict_json
+from artifacts import GitHub, positive, premerge_job, qualification_roles, save_bundles, validate_jobs
+from binaries import ROLES, Refused, command, require, strict_json
 
 SHA = re.compile(r"[a-f0-9]{40}")
 WORKFLOW = ".github/workflows/ci.yml"
@@ -107,7 +107,7 @@ def matches(run, workflow, target, repository, repo_id):
             and (base.get("ref"), base.get("sha"), base.get("repo", {}).get("id")) == ("master", target.base, repo_id))
 
 
-def pick_producer(api, target, repository, repo_id):
+def pick_producer(api, target, repository, repo_id, *, roles=ROLES):
     workflow = api.json("actions/workflows/ci.yml")
     require(workflow.get("path") == WORKFLOW and workflow.get("state") == "active", "PRODUCER_WORKFLOW")
     workflow_id = positive(str(workflow.get("id")))
@@ -122,7 +122,7 @@ def pick_producer(api, target, repository, repo_id):
     require(selected.get("id") == run_id and selected.get("run_attempt") == attempt
             and matches(selected, workflow_id, target, repository, repo_id), "PR_E2E_PRODUCER_MOVED")
     validate_jobs(api.pages(f"actions/runs/{run_id}/attempts/{attempt}/jobs", "jobs"),
-                  producer=(run_id, attempt, target.head))
+                  producer=(run_id, attempt, target.head), roles=roles)
     return workflow_id, run_id, attempt
 
 
@@ -133,8 +133,10 @@ def acquire(output, dispatch_number, env):
     authorize(api, env)
     target = revision(api.json(f"pulls/{number}"), number, repo, repo_id)
     check_dispatch_ref(env, target)
-    workflow_id, run_id, attempt = pick_producer(api, target, repo, repo_id)
-    save_bundles(output, api, repo, repo_id, workflow_id, run_id, attempt, target.merge, artifact_sha=target.head)
+    roles = qualification_roles(env)
+    workflow_id, run_id, attempt = pick_producer(api, target, repo, repo_id, roles=roles)
+    save_bundles(output, api, repo, repo_id, workflow_id, run_id, attempt, target.merge,
+                 artifact_sha=target.head, roles=roles)
     check_current(api, env, number, target.merge)
     with open(env["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
         stream.write(f"pr_number={number}\ntarget_sha={target.merge}\nbase_sha={target.base}\nhead_sha={target.head}\n")

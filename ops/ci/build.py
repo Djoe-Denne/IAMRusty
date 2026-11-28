@@ -11,8 +11,14 @@ import time
 from pipeline import INVENTORY, ROOT
 
 
-def build_arguments(service):
+def build_arguments(service, recovery=False):
     packages = INVENTORY["builds"][service]
+    if recovery:
+        if service != "monolith":
+            raise ValueError("The recovery bundle belongs to the monolith producer")
+        sys.path.insert(0, str(ROOT / "ops/tests/k6/ci"))
+        from binaries import RECOVERY_ROLE, inventory
+        packages = list(inventory(ROOT, RECOVERY_ROLE))
     return ["build", "--locked",
             *[arg for package in packages for arg in ("--package", package)]]
 
@@ -21,7 +27,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--service", choices=INVENTORY["builds"], required=True)
     args = parser.parse_args()
-    command = build_arguments(args.service)
+    command = build_arguments(args.service, recovery=os.environ.get("K6_BUILD_RECOVERY") == "true")
     timing_path = os.environ.get("CI_BUILD_TIMING_FILE", "")
     if timing_path:
         target = Path(os.environ["CARGO_TARGET_DIR"])
