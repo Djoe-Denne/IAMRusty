@@ -14,7 +14,7 @@ from urllib.parse import quote, urlencode
 
 from binaries import Refused, require, strict_json
 from late_check import PORT as LATE_PORT
-from recovery_monolith import PORT as MONOLITH_PORT
+from recovery_monolith import PORT as MONOLITH_PORT, snapshot_fixture
 
 AUTHORITY_COUNTER = "cluster.session_authority.upstream_rq_total"
 IAM_DOWNSTREAM_COUNTER = "cluster.iam.upstream_rq_total"
@@ -454,7 +454,7 @@ class HostedRecovery:
         require(self.profile(fresh, DIRECT_PORT) == 200, "E2E_RESET_HTTP_WRITER_FRESH_ACCESS")
         return {"commit_status": reset_status, "renewal_status": renew_status, "writer_order_observed": True}
 
-    def monolith(self):
+    def monolith(self, snapshot_key):
         _, old, refresh = self.make_account("monolith")
         routes = {
             "iam": "/api/me",
@@ -466,10 +466,24 @@ class HostedRecovery:
         def status(service, token):
             return self.request("GET", routes[service], port=MONOLITH_PORT, service=service, token=token)[0]
 
+        snapshot, project, component, workload = snapshot_fixture(
+            self.campaign.sql, self.replica.writer + "_manifesto", self.subject, snapshot_key)
+
+        def verify_workload(platform):
+            def request(token):
+                return self.request("GET", snapshot, port=MONOLITH_PORT, service="manifesto", token=token)
+            code, body = request(workload)
+            require(code == 200, f"E2E_RESET_WORKLOAD_SNAPSHOT:{code}")
+            result = strict_json(body)
+            require(result.get("project_id") == project and result.get("component_id") == component
+                    and result.get("source") == "legacy", "E2E_RESET_WORKLOAD_SNAPSHOT_CONTENT")
+            require(request(platform)[0] == 401, "E2E_RESET_WORKLOAD_ACCEPTED_PLATFORM_JWT")
+
         for service in routes:
             code = status(service, old)
             require(code == 200, f"E2E_RESET_MONOLITH_LIVE:{service}:{code}")
         require(status("manifesto", None) == 200, "E2E_RESET_MONOLITH_ANONYMOUS")
+        verify_workload(old)
         self.post("/api/auth/password/reset-request", {"email": self.email}, 200)
         proof = self.event_token("password_reset_requested", "reset_token")
         password = "E9!" + secrets.token_hex(20)
@@ -487,4 +501,6 @@ class HostedRecovery:
         fresh, _ = self.login(password, "1")
         for service in routes:
             require(status(service, fresh) == 200, f"E2E_RESET_MONOLITH_FRESH:{service}")
-        return {"first_denial_upper_bound_ms": recorded, "optional_anonymous": True}
+        verify_workload(fresh)
+        return {"first_denial_upper_bound_ms": recorded, "optional_anonymous": True,
+                "workload_snapshot_before_and_after": True, "platform_jwt_rejected_on_workload_path": True}

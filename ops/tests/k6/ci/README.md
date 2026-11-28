@@ -92,6 +92,9 @@ authoritative writer with standalone IAM. Nested service verifiers call
 the monolith's own loopback IAM authority. The test reads IAM, Hive,
 Telegraph, and Manifesto routes before and after reset and checks the
 Manifesto anonymous response separately from a revoked bearer.
+It also reads a seeded binding through Manifesto's separate workload JWT
+path before and after reset and checks that a platform bearer cannot use
+that path.
 
 ## Run the complete campaign on a PR
 

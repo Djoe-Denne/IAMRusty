@@ -28,7 +28,7 @@ import evidence
 import inputs
 import late_check
 import pki
-from recovery_monolith import create_monolith
+from recovery_monolith import create_monolith, monolith_startup_categories
 from runtime import Runtime, NS, hosted, write_json
 from session_cutoff import DIRECT_PORT, HostedRecovery
 from session_replica import SessionReplica
@@ -221,7 +221,10 @@ class Campaign:
 
     def sql(self, query, database="postgres", *, record_stage=True):
         writer = self.state["values"]["database"]
-        require(database in ("postgres", "openfga_dev", writer, writer + "_admission"), "E2E_SQL_DATABASE")
+        allowed = ("postgres", "openfga_dev", writer, writer + "_admission")
+        if RECOVERY_ROLE in self.state.get("images", {}).get("roles", {}):
+            allowed += (writer + "_manifesto",)
+        require(database in allowed, "E2E_SQL_DATABASE")
         if record_stage:
             self.state["stage"] = "sql:" + database
             self.r.save()
@@ -589,8 +592,13 @@ class Campaign:
             admission[case] = recovery.ordered_race(rotation_first)
             self.publish("admission.json", admission)
         if RECOVERY_ROLE in self.state["images"]["roles"]:
-            create_monolith(self)
-            admission["monolith"] = recovery.monolith()
+            try:
+                snapshot_key = create_monolith(self)
+            except Refused:
+                admission["monolith_startup"] = monolith_startup_categories(self)
+                self.publish("admission.json", admission)
+                raise
+            admission["monolith"] = recovery.monolith(snapshot_key)
             self.publish("admission.json", admission)
 
     def run_san(self):

@@ -1,8 +1,14 @@
 """Run-owned backing databases and deployment for the real monolith binary."""
 
+import base64
+import hmac
+import json
+import re
 import secrets
+import time
+import uuid
 
-from binaries import RECOVERY_ROLE
+from binaries import RECOVERY_ROLE, Refused
 import inputs
 from runtime import NS
 
@@ -13,6 +19,15 @@ MIGRATIONS = {
     "telegraph": "telegraphmigration",
     "lazaret": "migration",
 }
+STARTUP_FAILURES = {
+    "CONFIG_SECTION_MISSING": rb"missing field",
+    "PRINCIPAL_POLICY": rb"PRINCIPAL_POLICY_UNAVAILABLE|PRINCIPAL_INVALID",
+    "IAM_SIGNER": rb"IAM organization signer",
+    "DATABASE": rb"failed to connect to database|invalid database|pool timed out",
+    "TEMPLATE": rb"Failed to create template service",
+    "BINDING_GRANT": rb"binding grant snapshot reader unavailable|Invalid grant snapshot auth configuration",
+    "IDENTITY": rb"Invalid identity configuration|Invalid TLS material",
+}
 
 
 def create_monolith(campaign):
@@ -21,7 +36,7 @@ def create_monolith(campaign):
     database = values["database"]
     postgres = f"postgres.{NS}.svc.cluster.local"
     loopback_iam = "http://127.0.0.1:8080/iam"
-    secret = {"postgres-password": values["database_password"], "snapshot-key": secrets.token_hex(32)}
+    secret = {"snapshot-key": secrets.token_hex(32)}
 
     def from_secret(key):
         return {"secretKeyRef": {"name": name, "key": key}}
@@ -41,6 +56,14 @@ timeout_ms = 1000
 scheme = "https"
 host = "openfga.{NS}.svc.cluster.local"
 port = 8080
+[iam_service]
+base_url = "http://127.0.0.1:8080"
+api_key = ""
+timeout_seconds = 10
+[external_provider_service]
+base_url = "http://127.0.0.1:8080"
+timeout_seconds = 10
+max_retries = 0
 """
     pki = campaign.root / "private/pki"
     secret.update({"k6.toml": config, "platform-signing.pem": (pki / "platform-signing.pem").read_bytes(),
@@ -77,6 +100,7 @@ port = 8080
                 "configMapKeyRef": {"name": "local-full-fga", "key": key}}})
     env.extend([
         {"name": "TELEGRAPH_COMMUNICATION__EMAIL__PROVIDER", "value": "dummy"},
+        {"name": "TELEGRAPH_COMMUNICATION__TEMPLATE__TEMPLATE_DIR", "value": "/tmp/k6-telegraph-templates"},
         {"name": "MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__HS256_SECRET", "valueFrom": from_secret("snapshot-key")},
         {"name": "MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__ISSUER", "value": "aiforall-platform"},
         {"name": "MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__AUDIENCE", "value": "manifesto-bindings"},
@@ -108,6 +132,47 @@ port = 8080
     })
     campaign.rollout(name)
     campaign.forward("monolith", PORT, 8080)
+    return secret["snapshot-key"]
+
+
+def monolith_startup_categories(campaign):
+    try:
+        pod = campaign.pod("monolith")
+        raw = campaign.r.k(["logs", pod["metadata"]["name"], "--container=monolith",
+                            "--previous", "--tail=60", "--limit-bytes=16384"], timeout=10)
+    except Refused:
+        return ["LOG_UNAVAILABLE"]
+    return classify_startup(raw)
+
+
+def classify_startup(raw):
+    return [name for name, pattern in STARTUP_FAILURES.items() if re.search(pattern, raw, re.I)] or ["UNCLASSIFIED"]
+
+
+def snapshot_fixture(sql, database, subject, key):
+    subject = str(uuid.UUID(subject))
+    project, component = str(uuid.uuid4()), str(uuid.uuid4())
+    sql(f"""
+        BEGIN;
+        INSERT INTO public.projects (id, name, owner_type, owner_id, created_by)
+        VALUES ('{project}', 'recovery workload fixture', 'personal', '{subject}', '{subject}');
+        INSERT INTO public.project_components (id, project_id, component_type)
+        VALUES ('{component}', '{project}', 'taskboard');
+        INSERT INTO public.apparatus_bindings (component_id, source) VALUES ('{component}', 'legacy');
+        COMMIT;
+    """, database)
+
+    def segment(value):
+        return base64.urlsafe_b64encode(json.dumps(value).encode()).rstrip(b"=")
+
+    now = int(time.time())
+    signing_input = segment({"alg": "HS256", "typ": "JWT"}) + b"." + segment({
+        "iss": "aiforall-platform", "sub": str(uuid.uuid4()), "aud": "manifesto-bindings",
+        "iat": now, "exp": now + 300, "jti": str(uuid.uuid4()),
+    })
+    digest = hmac.digest(key.encode(), signing_input, "sha256")
+    token = (signing_input + b"." + base64.urlsafe_b64encode(digest).rstrip(b"=")).decode()
+    return f"/api/projects/{project}/bindings/{component}", project, component, token
 
 
 def container(name, image, command, environment, mounts):
