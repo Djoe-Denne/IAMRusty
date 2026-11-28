@@ -14,7 +14,7 @@ def identities(run_id):
     suffix = ".aiforall-local-full.svc.cluster.local"
     name = "k6-" + run_id
     return {
-        "iam-service": ["DNS:iam" + suffix, "DNS:" + name + "-iam" + suffix, "IP:127.0.0.1"],
+        "iam-service": ["DNS:iam" + suffix, "DNS:" + name + "-iam" + suffix],
         # Same CA, deliberately no IAM SAN, for the causal negative phase.
         "hive-service": ["DNS:hive-service"],
         "envoy-mesh": ["DNS:localhost", "IP:127.0.0.1", "DNS:envoy-mesh",

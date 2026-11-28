@@ -46,7 +46,8 @@ boolean in the public admission receipt is only evidence of that step.
 After the catalogue, the parent creates dedicated accounts and uses the
 real IAM reset HTTP flow. It reads verification and reset proofs from the
 run-owned outbox; the mail relay is outside this scenario. One IAM deployment
-exercises authoritative direct `/api/me`; the other uses the trusted Envoy
+exercises authoritative direct `/api/me` over a loopback-only listener with a
+local JWKS publisher; the other uses the trusted Envoy
 gateway certificate. Both observe the old and new password sessions against
 the same writer. The nominal case also rotates the old session after requesting
 reset and verifies that confirmation revokes the replacement. Fresh gateway

@@ -77,8 +77,11 @@ class HostedRecovery:
         self.gateway_id = self.gateway_identity()
         pki = campaign.root / "private/pki"
         self.tls = ssl.create_default_context(cafile=str(pki / "ca.crt"))
-        self.direct_tls = ssl.create_default_context(cafile=str(pki / "ca.crt"))
-        self.direct_tls.load_cert_chain(pki / "iam-service.crt", pki / "iam-service.key")
+        status, raw = self.request("GET", "/.well-known/jwks.json")
+        require(status == 200, "E2E_RESET_DIRECT_JWKS_HTTP")
+        keys = strict_json(raw)["keys"]
+        require(any(key.get("kid") == campaign.state["run_id"] and key.get("kty") == "RSA" for key in keys),
+                "E2E_RESET_DIRECT_JWKS_KEY")
 
     def request(self, method, path, *, payload=None, token=None, port=DIRECT_PORT, timeout=4):
         headers = {"Accept": "application/json"}
@@ -86,8 +89,10 @@ class HostedRecovery:
             headers["Content-Type"] = "application/json"
         if token is not None:
             headers["Authorization"] = "Bearer " + token
-        context = self.direct_tls if port == DIRECT_PORT else self.tls
-        connection = http.client.HTTPSConnection("127.0.0.1", port, timeout=timeout, context=context)
+        if port == DIRECT_PORT:
+            connection = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
+        else:
+            connection = http.client.HTTPSConnection("127.0.0.1", port, timeout=timeout, context=self.tls)
         try:
             connection.request(method, "/iam" + path, None if payload is None else json.dumps(payload), headers)
             response = connection.getresponse()
@@ -199,13 +204,16 @@ class HostedRecovery:
         return counter["value"]
 
     def pre_reset(self, access):
+        status = self.profile(access, DIRECT_PORT)
+        require(status == 200, f"E2E_RESET_BEFORE_REQUEST_DIRECT_ADMISSION_{status}")
         path = "/api/auth/password/reset-request"
         known = self.post(path, {"email": self.email}, 200)
         unknown = self.post(path, {"email": f"unknown-{self.campaign.state['run_id']}@example.com"}, 200)
         require(known == unknown, "E2E_RESET_REQUEST_ENUMERATED_ACCOUNT")
         proof = self.event_token("password_reset_requested", "reset_token")
         require(self.epoch(self.replica.writer) == "0", "E2E_RESET_REQUEST_REVOKED")
-        require(self.profile(access, DIRECT_PORT) == 200, "E2E_RESET_REQUEST_DIRECT_ADMISSION")
+        status = self.profile(access, DIRECT_PORT)
+        require(status == 200, f"E2E_RESET_REQUEST_DIRECT_ADMISSION_{status}")
         wait_for(lambda: self.epoch(self.replica.subscriber) == "0", "E2E_RESET_INITIAL_COPY", 8)
         before, calls = self.totals(), self.authority_calls()
         require(self.profile(access) == 200, "E2E_RESET_REQUEST_LOCKED_ACCOUNT")

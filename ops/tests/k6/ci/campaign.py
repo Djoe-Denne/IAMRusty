@@ -29,7 +29,7 @@ import inputs
 import late_check
 import pki
 from runtime import Runtime, NS, hosted, write_json
-from session_cutoff import HostedRecovery
+from session_cutoff import DIRECT_PORT, HostedRecovery
 from session_replica import SessionReplica
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
@@ -483,19 +483,28 @@ class Campaign:
         require(len(objects) == 15, "E2E_FIXTURE_INVENTORY")
         iam, = [item for item in objects if item["kind"] == "Deployment"
                 and item["metadata"]["name"] == self.state["name"] + "-iam"]
-        direct = deepcopy(iam)
+        self.direct_iam = direct = deepcopy(iam)
         direct["metadata"]["name"] += "-direct"
         direct["spec"]["selector"]["matchLabels"]["aiforall.dev/k6-role"] = "iam-direct"
         template = direct["spec"]["template"]
         template["metadata"]["labels"]["aiforall.dev/k6-role"] = "iam-direct"
         container, = template["spec"]["containers"]
         container["env"] = [entry for entry in container["env"] if entry["name"] != "IAM_AUTH__MESH__TRUSTED_GATEWAY_SAN"]
+        # The direct verifier refreshes its own JWKS over the pod's loopback.
+        # The public issuer URL belongs to the runner, not the pod.
+        container["env"].extend([
+            {"name": "IAM_SERVER__HOST", "value": "127.0.0.1"},
+            {"name": "IAM_SERVER__TLS_ENABLED", "value": "false"},
+            {"name": "IAM_JWT__JWKS_URL", "value": "http://127.0.0.1:8080/iam/.well-known/jwks.json"},
+        ])
+        container["ports"] = [{"name": "http", "containerPort": 8080}]
+        container["readinessProbe"] = {"exec": {"command": [
+            "curl", "--silent", "--fail", "--max-time", "1", "http://127.0.0.1:8080/iam/health",
+        ]}, "periodSeconds": 2, "timeoutSeconds": 2}
         for item in objects:
             self.create(item)
         for role in ("idp", "oauth", "iam"):
             self.rollout(self.state["name"] + "-" + role)
-        self.create(direct)
-        self.rollout(self.state["name"] + "-iam-direct")
         replica.subscribe(self.sql)
         for role in ("ext-authz", "late-check", "envoy"):
             self.rollout(self.state["name"] + "-" + role)
@@ -563,7 +572,9 @@ class Campaign:
         self.publish("correlation.json", correlation)
 
     def qualify_session_recovery(self):
-        self.forward("iam-direct", 18446, 8443)
+        self.create(self.direct_iam)
+        self.rollout(self.state["name"] + "-iam-direct")
+        self.forward("iam-direct", DIRECT_PORT, 8080)
         self.forward("envoy", late_check.PORT, late_check.PORT)
         recovery = HostedRecovery(self, self.session_replica)
         admission = {"loaded_iam_destination": True, "jwks_compatible": True, "replica_checkpoint_applied": True}
