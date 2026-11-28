@@ -74,3 +74,41 @@ subscriber before the apply worker encounters a blocked checkpoint. The
 next fixture locks the epoch table itself and distinguishes an unexpectedly
 advanced replica from an unverified apply barrier. Both the catalogue and
 cleanup passed; no degraded result is claimed from this run.
+
+## Qualified IAM and Envoy paths
+
+[Run 46134159272](https://github.com/Djoe-Denne/IAMRusty/actions/runs/46134159272)
+passed on tested merge `a7b29e2a99543a06877af9da657465187da550ab`
+(PR head `6f2439d701599c7d6682aff2b48cd6a69122a36d`, RustyCog
+`42084b803b6a926f482a4030a0ed127447b21072`). The
+[required CI check](https://github.com/Djoe-Denne/IAMRusty/actions/runs/46132900648/job/140945421953)
+passed on that head.
+
+- **Healthy:** first stale-token response by 356 ms on direct IAM and
+  362 ms via Envoy, measured from before dispatching successful reset
+  confirmation. All 28 measured mesh decisions came from the replica,
+  with zero authority calls. At and beyond the tested boundary the old
+  token received `403`; an explicit new login was admitted. Legacy
+  epoch-zero JWT, refresh replacement, and signed-in password change
+  controls passed.
+- **Apply stalled:** direct IAM first denied by 424 ms. Envoy first
+  denied by **3,174 ms**, and the fresh post-boundary request received
+  `403` while the subscriber still served epoch zero and its apply
+  worker waited to write the epoch table. The measured window made
+  12 fallback calls. With the authority blocked, a current JWT got
+  `503` without reaching the protected handler. Both stale denial and
+  fresh admission were attributed to the replica after catch-up.
+- **Late positive:** Envoy returned `503` in 1,005 ms. The relay
+  received a genuine Check allow and attempted delivery after 1,250 ms.
+  No request reached the protected IAM cluster, and the control request
+  still passed on the normal listener.
+- **Renewal order:** reset first returned `200` and the queued renewal
+  returned `401` without a new session. Renewal first returned `200`;
+  the later reset returned `200` and revoked both tokens from that
+  renewal. PostgreSQL lock observations established both queue orders.
+- **Cleanup:** all six catalogue cases passed, and no campaign-owned
+  resources were running afterward.
+
+The campaign ran one gateway. Its sequential fallback counts do not
+qualify aggregate concurrency or rate limits. The five-second guarantee
+remains unqualified on the actual monolith and the non-IAM route families.
