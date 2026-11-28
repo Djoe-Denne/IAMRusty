@@ -130,3 +130,35 @@ Lazaret init migrations completed. The monolith process entered
 observations. The public receipt does not identify the process error.
 Owned cleanup passed with zero resources running, and 17 public files
 were archived with SHA-256 hashes.
+
+## Qualified nested routes and Manifesto workload path
+
+[Run 46139723059](https://github.com/Djoe-Denne/IAMRusty/actions/runs/46139723059)
+passed on merge `a99aa64e147256e5d5883cd0213ee6446ac3a4e8` (PR head
+`6c5ce3683ae518268a7de6372f19ce049aa44221`, RustyCog
+`42084b803b6a926f482a4030a0ed127447b21072`). The four binary bundles came
+from producer `46138329997`, attempt 1. The
+[required CI check](https://github.com/Djoe-Denne/IAMRusty/actions/runs/46138329997/job/140962573213)
+passed on that head.
+
+- The real monolith admitted the credential before reset. After a
+  confirmation through standalone IAM on the shared writer, first
+  refusals on the nested routes were bounded by **479 ms** for IAM,
+  **486 ms** for Hive, **493 ms** for Manifesto's optional project list
+  and **506 ms** for Telegraph, measured from before confirmation dispatch.
+  The explicit epoch-one login was admitted on all four routes.
+- The Manifesto project list accepted anonymous requests before and
+  after reset. Its dedicated binding snapshot route returned the same
+  seeded binding under the workload JWT before and after reset, and
+  refused a valid platform JWT.
+- IAM and Envoy passed the existing healthy, stalled, outage, late-positive,
+  and writer-order cases again. The mesh upper bounds were 572 ms with
+  zero fallback calls and 3,212 ms while apply was stalled. Envoy returned
+  `503` for a late positive with zero downstream calls.
+- All six catalogue cases passed, cleanup reported zero owned running
+  resources, and 16 public files were archived with SHA-256 hashes.
+
+This run did not exercise standalone companion processes, reset
+confirmation through the monolith, an outage on nested companion reads,
+mesh routes beyond IAM, organization-issuer isolation, or aggregate
+fallback capacity.
