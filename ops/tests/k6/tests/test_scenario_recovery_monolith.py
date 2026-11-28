@@ -9,9 +9,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
+import yaml
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 from binaries import RECOVERY_ROLE, ROOT, inventory
 import inputs
+from pki import COMPANIONS, identities, mesh_hostname
+import recovery_mesh
 from recovery_monolith import LIVENESS_ENV, PORT, STANDALONE_PORTS, classify_startup, create_monolith, create_standalone
 from recovery_monolith import snapshot_fixture
 from session_replica import IAM_URL
@@ -106,6 +110,27 @@ class RecoveryMonolithTests(unittest.TestCase):
         output = b"Failed to deserialize configuration: missing field `iam_service` value=private"
         self.assertEqual(classify_startup(output), ["CONFIG_SECTION_MISSING"])
         self.assertEqual(classify_startup(b"unrecognized private text"), ["UNCLASSIFIED"])
+
+    def test_mesh_fixture_reuses_kind_optional_guards_and_verifies_each_service_leaf(self):
+        run_id = "a" * 32
+        config = yaml.safe_load((ROOT / "ops/tests/k6/ci/config/envoy.yaml").read_text(encoding="utf-8"))
+        recovery_mesh.add_companions(config, run_id)
+        routes = recovery_mesh.routes(config, "ci_browser")
+        leaves = identities(run_id, companion_mesh=True)
+        for service in COMPANIONS:
+            selected = [item for item in routes if item.get("route", {}).get("cluster") == service]
+            self.assertEqual(selected[-1]["match"], {"prefix": f"/{service}/"})
+            self.assertNotIn("typed_per_filter_config", selected[-1])
+            if service in ("hive", "manifesto"):
+                self.assertEqual(len(selected), 2)
+                self.assertIn({"name": "authorization", "present_match": False},
+                              selected[0]["match"]["headers"])
+                self.assertTrue(selected[0]["typed_per_filter_config"]["envoy.filters.http.ext_authz"]["disabled"])
+            cluster, = [item for item in config["static_resources"]["clusters"] if item["name"] == service]
+            tls = cluster["transport_socket"]["typed_config"]
+            san, = tls["common_tls_context"]["validation_context"]["match_typed_subject_alt_names"]
+            self.assertEqual(tls["sni"], mesh_hostname(run_id, service))
+            self.assertEqual(leaves["mesh-" + service], ["DNS:" + san["matcher"]["exact"]])
 
 
 if __name__ == "__main__":

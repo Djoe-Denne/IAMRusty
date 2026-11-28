@@ -7,13 +7,20 @@ from pathlib import Path
 import re
 import secrets
 
+COMPANIONS = ("hive", "manifesto", "telegraph")
+ORGANIZATION_SLUG = "k6-scope"
 
-def identities(run_id):
+
+def mesh_hostname(run_id, service):
+    return f"k6-{run_id}-mesh-{service}.aiforall-local-full.svc.cluster.local"
+
+
+def identities(run_id, *, companion_mesh=False):
     if not isinstance(run_id, str) or not re.fullmatch(r"[a-f0-9]{32}", run_id):
         raise ValueError("PKI_RUN_ID")
     suffix = ".aiforall-local-full.svc.cluster.local"
     name = "k6-" + run_id
-    return {
+    names = {
         "iam-service": ["DNS:iam" + suffix, "DNS:" + name + "-iam" + suffix],
         # Same CA, deliberately no IAM SAN, for the causal negative phase.
         "hive-service": ["DNS:hive-service"],
@@ -29,19 +36,26 @@ def identities(run_id):
         "openfga": ["DNS:openfga", "DNS:openfga" + suffix, "IP:127.0.0.1"],
         "localstack": ["DNS:localstack", "DNS:localstack" + suffix, "DNS:localhost", "IP:127.0.0.1"],
     }
+    if companion_mesh:
+        names.update({f"mesh-{service}": ["DNS:" + mesh_hostname(run_id, service)] for service in COMPANIONS})
+    return names
 
 
-def generate(directory, run_id, execute):
+def generate(directory, run_id, execute, *, companion_mesh=False):
     """Create fresh material only; execute accepts an OpenSSL argument list.
 
     Refuse existing paths rather than overwrite a key. All private files are
     covered by the caller's umask/private root; permission errors stay fatal.
     """
-    names = identities(run_id)
+    names = identities(run_id, companion_mesh=companion_mesh)
     root = Path(directory)
     if not root.is_absolute() or root.is_symlink() or not root.is_dir():
         raise ValueError("PKI_PRIVATE_DIRECTORY")
-    paths = [root / name for name in ("ca.key", "ca.crt", "platform-signing.pem", "platform-signing.pub")]
+    signers = ["platform"]
+    if companion_mesh:
+        signers.append("organization")
+    paths = [root / name for name in ("ca.key", "ca.crt")]
+    paths += [root / f"{signer}-signing.{extension}" for signer in signers for extension in ("pem", "pub")]
     paths += [root / (name + extension) for name in names for extension in (".key", ".csr", ".crt", ".ext")]
     if any(path.exists() or path.is_symlink() for path in paths):
         raise ValueError("PKI_OUTPUT_COLLISION")
@@ -65,10 +79,10 @@ def generate(directory, run_id, execute):
                  "-CA", str(root / "ca.crt"), "-CAkey", str(root / "ca.key"),
                  "-set_serial", "0x" + secrets.token_hex(16), "-extfile", str(extension),
                  "-out", str(root / (name + ".crt"))])
-    execute(["genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:3072",
-             "-out", str(root / "platform-signing.pem")])
-    execute(["pkey", "-in", str(root / "platform-signing.pem"), "-pubout",
-             "-out", str(root / "platform-signing.pub")])
+    for signer in signers:
+        private, public = root / f"{signer}-signing.pem", root / f"{signer}-signing.pub"
+        execute(["genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:3072", "-out", str(private)])
+        execute(["pkey", "-in", str(private), "-pubout", "-out", str(public)])
     for path in paths:
         if not path.is_file() or path.is_symlink():
             raise ValueError("PKI_OUTPUT_MISSING")

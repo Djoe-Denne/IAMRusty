@@ -10,10 +10,12 @@ import re
 import secrets
 import ssl
 import time
+import uuid
 from urllib.parse import quote, urlencode
 
 from binaries import Refused, require, strict_json
 from late_check import PORT as LATE_PORT
+from pki import ORGANIZATION_SLUG
 from recovery_monolith import PORT as MONOLITH_PORT, STANDALONE_PORTS, snapshot_fixture
 
 AUTHORITY_COUNTER = "cluster.session_authority.upstream_rq_total"
@@ -108,8 +110,9 @@ class HostedRecovery:
         require(any(key.get("kid") == campaign.state["run_id"] and key.get("kty") == "RSA" for key in keys),
                 "E2E_RESET_DIRECT_JWKS_KEY")
 
-    def request(self, method, path, *, payload=None, token=None, port=DIRECT_PORT, timeout=4, service="iam"):
-        headers = {"Accept": "application/json"}
+    def request(self, method, path, *, payload=None, token=None, port=DIRECT_PORT, timeout=4, service="iam",
+                headers=None):
+        headers = {"Accept": "application/json"} | (headers or {})
         if payload is not None:
             headers["Content-Type"] = "application/json"
         if token is not None:
@@ -184,7 +187,10 @@ class HostedRecovery:
         require(decoded.pop("auth_epoch", None) == "0", "E2E_RESET_LEGACY_FIXTURE")
         encoded = base64.urlsafe_b64encode(json.dumps(decoded).encode()).rstrip(b"=").decode()
         message = f"{header}.{encoded}"
-        key = self.campaign.root / "private/pki/platform-signing.pem"
+        return self.sign_fixture_jwt(message, "platform")
+
+    def sign_fixture_jwt(self, message, signer):
+        key = self.campaign.root / "private/pki" / (signer + "-signing.pem")
         signature = self.campaign.r.cli("openssl", ["dgst", "-sha256", "-sign", str(key)], stdin=message.encode())
         return message + "." + base64.urlsafe_b64encode(signature).rstrip(b"=").decode()
 
@@ -548,3 +554,147 @@ class HostedRecovery:
         return {"first_denial_upper_bound_ms": recorded, "optional_anonymous": True,
                 "authority_outage_status": 503, "protected_writes": 2,
                 "workload_snapshot_before_and_after": True, "platform_jwt_rejected_on_workload_path": True}
+
+    def mesh_companions(self):
+        _, old, refresh = self.make_account("mesh")
+        reads = {
+            "hive": ("hive", "/api/organizations"),
+            "hive_optional": ("hive", "/api/organizations/search?query=recovery"),
+            "manifesto_optional": ("manifesto", "/api/projects"),
+            "telegraph": ("telegraph", "/api/notifications/unread-count"),
+        }
+        optional = ("hive_optional", "manifesto_optional")
+
+        def read(route, token):
+            service, path = reads[route]
+            return self.request("GET", path, port=EDGE_PORT, service=service, token=token)[0]
+
+        def write(token, phase):
+            payload = {"name": f"k6-mesh-{phase}-{self.subject}", "owner_type": "personal"}
+            return self.request("POST", "/api/projects", port=EDGE_PORT, service="manifesto",
+                                token=token, payload=payload)[0]
+
+        before_anonymous = self.campaign.snapshot()
+        for route in optional:
+            require(read(route, None) == 200, f"E2E_RESET_MESH_ANONYMOUS:{route}")
+        initial = self.campaign.snapshot()
+        check_counter = "cluster.ext_authz.upstream_rq_total"
+        require(initial[check_counter] == before_anonymous[check_counter], "E2E_RESET_MESH_ANONYMOUS_CHECK")
+        for route in optional:
+            require(read(route, "") == 403, f"E2E_RESET_MESH_MALFORMED:{route}")
+        malformed = self.campaign.snapshot()
+        require(malformed[check_counter] - initial[check_counter] == len(optional), "E2E_RESET_MESH_MALFORMED_CHECK")
+        for service in ("hive", "manifesto", "telegraph"):
+            counter = f"cluster.{service}.upstream_rq_total"
+            require(malformed.get(counter, 0) == initial.get(counter, 0), "E2E_RESET_MESH_MALFORMED_FORWARDED")
+
+        wait_for(lambda: self.epoch(self.replica.subscriber) == "0", "E2E_RESET_MESH_INITIAL_COPY", 8)
+        counts, calls = self.totals(require_proof=True), self.authority_calls()
+        for route in reads:
+            require(read(route, old) == 200, f"E2E_RESET_MESH_LIVE:{route}")
+        require(write(old, "before") == 201, "E2E_RESET_MESH_MANIFESTO_WRITE")
+        replica_only(counts, self.totals(), calls, self.authority_calls(), len(reads) + 1, "companion-before")
+
+        self.post("/api/auth/password/reset-request", {"email": self.email}, 200)
+        proof = self.event_token("password_reset_requested", "reset_token")
+        password = "F9!" + secrets.token_hex(20)
+        counts, calls = self.totals(require_proof=True), self.authority_calls()
+        downstream = self.campaign.snapshot()
+        lower = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
+        confirmation = self.post("/api/auth/password/reset-confirm", {"token": proof, "new_password": password}, 200)
+        require(confirmation == {"message": "Password has been successfully reset"}, "E2E_RESET_MESH_CONFIRM")
+
+        def sample(route):
+            results = []
+            while True:
+                item = observe(lambda: read(route, old))
+                results.append(item)
+                if item.started_ns >= lower + 5 * SECOND:
+                    return results
+                time.sleep(0.2)
+
+        with ThreadPoolExecutor(max_workers=len(reads)) as worker:
+            pending = {route: worker.submit(sample, route) for route in reads}
+            observed = {route: result.result() for route, result in pending.items()}
+        recorded = {route: cutoff(lower, items) for route, items in observed.items()}
+        require(write(old, "stale") == 403, "E2E_RESET_MESH_STALE_WRITE")
+        total = sum(len(items) for items in observed.values()) + 1
+        replica_only(counts, self.totals(), calls, self.authority_calls(), total, "companion-after")
+        after = self.campaign.snapshot()
+        for service in ("hive", "manifesto", "telegraph"):
+            counter = f"cluster.{service}.upstream_rq_total"
+            allowed = sum(item.status == 200 for route, items in observed.items() if reads[route][0] == service
+                          for item in items)
+            require(after[counter] - downstream[counter] == allowed, f"E2E_RESET_MESH_FORWARDED:{service}")
+
+        for route in optional:
+            require(read(route, None) == 200, f"E2E_RESET_MESH_ANONYMOUS_AFTER:{route}")
+        self.post("/api/token/refresh", {"refresh_token": refresh}, 401)
+        fresh, _ = self.login(password, "1")
+        counts, calls = self.totals(require_proof=True), self.authority_calls()
+        for route in reads:
+            require(read(route, fresh) == 200, f"E2E_RESET_MESH_FRESH:{route}")
+        require(write(fresh, "fresh") == 201, "E2E_RESET_MESH_FRESH_WRITE")
+        replica_only(counts, self.totals(), calls, self.authority_calls(), len(reads) + 1, "companion-fresh")
+        database = self.replica.writer + "_manifesto"
+        writes = self.campaign.sql("SELECT count(*) FROM public.projects "
+                                   f"WHERE owner_id = '{self.subject}' AND name LIKE 'k6-mesh-%';", database)
+        require(writes == "2", "E2E_RESET_MESH_WRITE_COUNT")
+        return {"first_denial_upper_bound_ms": recorded, "replica_observations": total,
+                "authority_calls": 0, "optional_anonymous": True, "protected_writes": 2}
+
+    def issuer_isolation(self):
+        _, old, refresh = self.make_account("issuer")
+        subject, email = self.subject, self.email
+        _, another, _ = self.make_account("other")
+        self.subject, self.email = subject, email
+
+        org_id = str(uuid.UUID(self.campaign.state["run_id"]))
+        path = f"/internal/organizations/{org_id}/signer/configure"
+        public_key = (self.campaign.root / "private/pki/organization-signing.pub").read_text(encoding="ascii")
+        status, body = self.request("POST", path, headers={"x-iam-internal-token": self.replica.liveness_token},
+                                    payload={"provider_type": "pem_file", "provider_key_ref": f"{org_id}/recovery.pem",
+                                             "public_key": public_key, "org_slug": ORGANIZATION_SLUG})
+        require(status == 200, f"E2E_RESET_ORG_SIGNER_CONFIGURE:{status}")
+        signer = strict_json(body)
+        expected_issuer = f"https://127.0.0.1:18443/iam/orgs/{ORGANIZATION_SLUG}"
+        require(signer.get("status") == "active" and signer.get("issuer") == expected_issuer
+                and isinstance(signer.get("kid"), str), "E2E_RESET_ORG_SIGNER")
+        status, body = self.request("GET", "/.well-known/jwks.json")
+        require(status == 200 and any(
+            key.get("kid") == signer["kid"] and key.get("iss") == expected_issuer
+            and key.get("organization_id") == org_id and key.get("trust_scope") == "organization"
+            for key in strict_json(body).get("keys", [])
+        ), "E2E_RESET_ORG_JWKS")
+
+        def segment(value):
+            return base64.urlsafe_b64encode(json.dumps(value).encode()).rstrip(b"=").decode()
+
+        jwt_header = segment({"alg": "RS256", "typ": "aiforall-access+jwt", "kid": signer["kid"]})
+        now = int(time.time())
+        claims = {"iss": expected_issuer, "sub": subject, "org": org_id, "aud": "aiforall",
+                  "iat": now, "exp": now + 300, "jti": str(uuid.uuid4())}
+        org = self.sign_fixture_jwt(jwt_header + "." + segment(claims), "organization")
+        alias = self.sign_fixture_jwt(jwt_header + "." + segment(claims | {
+            "iss": f"https://other.example/iam/orgs/{ORGANIZATION_SLUG}"
+        }), "organization")
+
+        def hive(token):
+            return self.request("GET", "/api/organizations", port=EDGE_PORT, service="hive", token=token)[0]
+
+        wait_for(lambda: hive(org) == 200, "E2E_RESET_ORG_MESH_KEY_UNAVAILABLE", 12)
+        require(hive(alias) == 403 and hive(old) == 200 and hive(another) == 200, "E2E_RESET_ISSUER_PRE_RESET")
+        require(self.profile(org, DIRECT_PORT) == 403, "E2E_RESET_ISSUER_PLATFORM_ACCOUNT_ACCESS")
+        self.post("/api/auth/password/reset-request", {"email": self.email}, 200)
+        proof = self.event_token("password_reset_requested", "reset_token")
+        require(self.post("/api/auth/password/reset-confirm", {
+            "token": proof, "new_password": "G9!" + secrets.token_hex(20)
+        }, 200) == {"message": "Password has been successfully reset"}, "E2E_RESET_ISSUER_CONFIRM")
+        wait_for(lambda: self.epoch(self.replica.subscriber) == "1", "E2E_RESET_ISSUER_REPLICA", 8)
+        before, calls = self.totals(require_proof=True), self.authority_calls()
+        require(hive(old) == 403 and hive(another) == 200, "E2E_RESET_ISSUER_PLATFORM_CONTROL")
+        require(hive(org) == 200 and hive(alias) == 403, "E2E_RESET_ISSUER_POST_RESET")
+        replica_only(before, self.totals(), calls, self.authority_calls(), 2, "issuer-isolation")
+        self.post("/api/token/refresh", {"refresh_token": refresh}, 401)
+        return {"same_subject": True, "registered_organization_admitted": True, "issuer_alias_status": 403,
+                "platform_account_guard_status": 403, "other_platform_account_admitted": True, "authority_calls": 0}

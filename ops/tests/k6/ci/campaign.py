@@ -28,7 +28,8 @@ import evidence
 import inputs
 import late_check
 import pki
-from recovery_monolith import create_monolith, create_standalone
+import recovery_mesh
+from recovery_monolith import create_mesh_companions, create_monolith, create_standalone
 from runtime import Runtime, NS, hosted, write_json
 from session_cutoff import DIRECT_PORT, HostedRecovery
 from session_replica import SessionReplica
@@ -38,7 +39,9 @@ from safety import Child, Rejected, child_environment, new_output, private_path
 
 HERE = Path(__file__).resolve().parent
 ERROR_COUNTERS = ("upstream_cx_connect_fail", "upstream_cx_connect_timeout", "ssl.fail_verify_san", "ssl.fail_verify_error")
-STAT_FILTER = r"^cluster\.(iam|ext_authz)\.(upstream_rq_total|upstream_rq_5xx|upstream_cx_connect_fail|upstream_cx_connect_timeout|ssl\.(handshake|fail_verify_san|fail_verify_error))$"
+STAT_FILTER = (r"^cluster\.((iam|ext_authz)\.(upstream_rq_total|upstream_rq_5xx|upstream_cx_connect_fail"
+               r"|upstream_cx_connect_timeout|ssl\.(handshake|fail_verify_san|fail_verify_error))"
+               r"|(hive|manifesto|telegraph)\.upstream_rq_total)$")
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -424,7 +427,9 @@ class Campaign:
         self.session_replica = replica = SessionReplica(self.state["run_id"], values["database"])
         root = self.root / "private/pki"
         root.mkdir(mode=0o700)
-        pki.generate(root, self.state["run_id"], lambda args: self.r.cli("openssl", args))
+        companion_mesh = RECOVERY_ROLE in self.state["images"]["roles"]
+        pki.generate(root, self.state["run_id"], lambda args: self.r.cli("openssl", args),
+                     companion_mesh=companion_mesh)
         (root / "ca-bundle.crt").write_bytes(Path("/etc/ssl/certs/ca-certificates.crt").read_bytes() + b"\n" + (root / "ca.crt").read_bytes())
         configs, provider, target = inputs.configuration(values)
         write_json(self.root / "private/target.json", target)
@@ -466,8 +471,12 @@ class Campaign:
                 leaf + ".crt": (root / (leaf + ".crt")).read_bytes(), leaf + ".key": (root / (leaf + ".key")).read_bytes()})
         iam_config = ('session_checkpoint_token_env = "K6_IAM_CHECKPOINT_TOKEN"\n'
                       f'internal_service_token = "{replica.liveness_token}"\n' + configs["iam"])
-        self.secret(self.state["name"] + "-iam-config", {"development.toml": iam_config, "k6.toml": iam_config,
-                    "platform-signing.pem": (root / "platform-signing.pem").read_bytes(), "platform-signing.pub": (root / "platform-signing.pub").read_bytes()})
+        iam_secret = {"development.toml": iam_config, "k6.toml": iam_config,
+                      "platform-signing.pem": (root / "platform-signing.pem").read_bytes(),
+                      "platform-signing.pub": (root / "platform-signing.pub").read_bytes()}
+        if companion_mesh:
+            iam_secret["organization-signing.pem"] = (root / "organization-signing.pem").read_bytes()
+        self.secret(self.state["name"] + "-iam-config", iam_secret)
         database_url = "postgresql://postgres:" + values["database_password"] + "@postgres." + NS + ".svc.cluster.local:5432/" + values["database"] + "?sslmode=verify-full&sslrootcert=/app/certs/ca.crt"
         self.secret(self.state["name"] + "-iam-env", {"DATABASE_URL": database_url, **replica.iam_secret()})
         identity = (root / "ext-authz.crt").read_bytes() + (root / "ext-authz.key").read_bytes()
@@ -480,6 +489,9 @@ class Campaign:
             self.r.cli("kind", ["load", "docker-image", "--name", self.state["cluster"], images[role]], timeout=180)
         envoy = yaml.safe_load((HERE / "config/envoy.yaml").read_text())
         late_check.add_listener(envoy)
+        if companion_mesh:
+            recovery_mesh.add_companions(envoy, self.state["run_id"])
+            recovery_mesh.create_services(self)
         objects = self.render(HERE / "chart", {
             "name": self.state["name"], "runId": self.state["run_id"], "ciEnabled": True, "images": images,
             "envoySource": json.dumps(envoy), "lateCheckSource": (HERE / "late_check.py").read_text(),
@@ -487,6 +499,15 @@ class Campaign:
         require(len(objects) == 15, "E2E_FIXTURE_INVENTORY")
         iam, = [item for item in objects if item["kind"] == "Deployment"
                 and item["metadata"]["name"] == self.state["name"] + "-iam"]
+        if companion_mesh:
+            volumes = iam["spec"]["template"]["spec"]["volumes"]
+            config, = [volume for volume in volumes if volume["name"] == "config"]
+            config["secret"]["items"] = [{"key": key, "path": key} for key in iam_secret
+                                         if key != "organization-signing.pem"]
+            config["secret"]["items"].append({
+                "key": "organization-signing.pem",
+                "path": f"organizations/{uuid.UUID(self.state['run_id'])}/recovery.pem",
+            })
         self.direct_iam = direct = deepcopy(iam)
         direct["metadata"]["name"] += "-direct"
         direct["spec"]["selector"]["matchLabels"]["aiforall.dev/k6-role"] = "iam-direct"
@@ -597,6 +618,11 @@ class Campaign:
             self.publish("admission.json", admission)
             create_standalone(self, snapshot_key)
             admission["standalone_services"] = recovery.companions(snapshot_key, nested=False)
+            self.publish("admission.json", admission)
+            create_mesh_companions(self)
+            admission["mesh_services"] = recovery.mesh_companions()
+            self.publish("admission.json", admission)
+            admission["issuer_isolation"] = recovery.issuer_isolation()
             self.publish("admission.json", admission)
 
     def run_san(self):

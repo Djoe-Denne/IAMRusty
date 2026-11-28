@@ -10,6 +10,7 @@ import uuid
 
 from binaries import RECOVERY_ROLE, Refused
 import inputs
+from pki import COMPANIONS
 from runtime import NS
 from session_replica import IAM_URL
 
@@ -183,6 +184,35 @@ enabled = false
         deploy(campaign, role, port, main, [], [tls_volume(campaign), config_volume(name, ["k6.toml"])])
 
 
+def create_mesh_companions(campaign):
+    image = campaign.state["images"]["roles"][RECOVERY_ROLE]["tag"]
+    name = campaign.state["name"] + "-companions"
+    database = campaign.state["values"]["database"]
+    root = campaign.root / "private/pki"
+    for service in COMPANIONS:
+        role = "mesh-" + service
+        tls_name = campaign.state["name"] + "-" + role + "-tls"
+        files = ("ca.crt", "ca-bundle.crt", role + ".crt", role + ".key")
+        campaign.secret(tls_name, {file: (root / file).read_bytes() for file in files})
+        env = service_environment(database, name, {service})
+        prefix = service.upper()
+        for option, value in (
+            ("TLS_ENABLED", "true"), ("TLS_PORT", "8443"), ("TLS_REQUIRE_CLIENT_CERT", "true"),
+            ("TLS_CERT_PATH", f"/app/certs/{role}.crt"), ("TLS_KEY_PATH", f"/app/certs/{role}.key"),
+            ("TLS_CLIENT_CA_PATH", "/app/certs/ca.crt"),
+        ):
+            env.append({"name": f"{prefix}_SERVER__{option}", "value": value})
+        env.append({"name": f"{prefix}_AUTH__MESH__TRUSTED_GATEWAY_SAN", "value": "envoy-mesh"})
+        if service == "hive":
+            env.append(secret_env(name, "HIVE_IAM_SERVICE__API_KEY", LIVENESS_ENV))
+        main = container(service, image, [f"/app/bin/{service}-service"], env, [TLS_MOUNT, CONFIG_MOUNT])
+        main["readinessProbe"] = readiness(service)
+        main["ports"] = [{"name": "https", "containerPort": 8443}]
+        tls = config_volume(tls_name, files)
+        tls["name"] = "tls"
+        deploy(campaign, role, None, main, [], [tls, config_volume(name, ["k6.toml"])])
+
+
 def secret_env(name, variable, key):
     return {"name": variable, "valueFrom": {"secretKeyRef": {"name": name, "key": key}}}
 
@@ -215,7 +245,8 @@ def deploy(campaign, role, port, main, init, volumes):
         campaign.rollout(name)
     except Refused as error:
         raise Refused(f"{error}:{role}:{','.join(startup_categories(campaign, role, main['name']))}") from None
-    campaign.forward(role, port, 8080)
+    if port is not None:
+        campaign.forward(role, port, 8080)
 
 
 def startup_categories(campaign, role, container_name):

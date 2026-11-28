@@ -100,6 +100,19 @@ It also reads a seeded binding through Manifesto's separate workload JWT
 path before and after reset and checks that a platform bearer cannot use
 that path.
 
+The preview also copies the companion route matches from the opt-in Kind
+Envoy overlay into the disposable ingress, using separately deployed
+service processes with gateway-only mTLS admission. It records healthy
+replica attribution and checks Envoy's per-service upstream counters to
+distinguish revoked or malformed credentials from requests that actually
+reached the services. An absent credential takes the guest route without
+calling Check.
+The issuer-isolation case registers a run-owned organization signing key
+through IAM and verifies its published scope. It checks that an organization
+JWT with the same UUID still reaches Hive after reset, does not gain access
+to an IAM platform account, and cannot use a lookalike issuer. An unrelated
+platform account must remain admitted in the same window.
+
 ## Run the complete campaign on a PR
 
 1. Wait for **Build (IAMRusty)**, **Build (OAuthConnect)**, and **Build (Ext Authz)**
