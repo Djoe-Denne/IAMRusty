@@ -31,7 +31,7 @@ MIGRATIONS = {
     "lazaret": "migration",
 }
 STARTUP_FAILURES = {
-    "CONFIG_SECTION_MISSING": rb"missing field",
+    "CONFIG_SECTION_MISSING": rb"missing field|missing tag",
     "PRINCIPAL_POLICY": rb"PRINCIPAL_POLICY_UNAVAILABLE|PRINCIPAL_INVALID",
     "IAM_SIGNER": rb"IAM organization signer",
     "DATABASE": rb"failed to connect to database|invalid database|pool timed out",
@@ -93,8 +93,9 @@ def service_environment(database, name, services):
     for service in sorted(services):
         prefix = service.upper()
         if service in MIGRATIONS:
-            env += [{"name": prefix + "_DATABASE__DB", "value": database + "_" + service},
-                    {"name": prefix + "_QUEUE__ENABLED", "value": "false"}]
+            env.append({"name": prefix + "_DATABASE__DB", "value": database + "_" + service})
+            if "iam" in services:
+                env.append({"name": prefix + "_QUEUE__ENABLED", "value": "false"})
         if service != "lazaret":
             for field, key in (("STORE_ID", "store-id"), ("AUTHORIZATION_MODEL_ID", "model-id")):
                 env.append({"name": f"{prefix}_OPENFGA__{field}", "valueFrom": {
@@ -168,7 +169,7 @@ password = "{values['database_password']}"
 level = "error"
 filter = "error"
 [queue]
-enabled = false
+type = "disabled"
 """ + authority_config(iam)
     name = campaign.state["name"] + "-companions"
     campaign.secret(name, {"k6.toml": config, "snapshot-key": snapshot_key,

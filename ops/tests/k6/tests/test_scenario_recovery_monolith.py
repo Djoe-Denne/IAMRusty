@@ -75,6 +75,7 @@ class RecoveryMonolithTests(unittest.TestCase):
         self.assertEqual(set(secret), {"k6.toml", "snapshot-key", LIVENESS_ENV})
         config = tomllib.loads(secret["k6.toml"])
         self.assertEqual(config["auth"]["session_liveness"]["endpoint"], IAM_URL)
+        self.assertEqual(config["queue"], {"type": "disabled"})
         self.assertNotIn("jwt", config)
         self.assertEqual(len(campaign.create.call_args_list), len(STANDALONE_PORTS))
         for invocation, (service, port) in zip(campaign.create.call_args_list, STANDALONE_PORTS.items(), strict=True):
@@ -84,6 +85,7 @@ class RecoveryMonolithTests(unittest.TestCase):
             self.assertEqual(main["command"], [f"/app/bin/{service}-service"])
             self.assertEqual(pod["initContainers"], [])
             self.assertFalse(pod["automountServiceAccountToken"])
+            self.assertFalse(any("_QUEUE__" in item["name"] for item in main["env"]))
             self.assertIn({"name": LIVENESS_ENV, "valueFrom": {"secretKeyRef": {"name": name, "key": LIVENESS_ENV}}},
                           main["env"])
             self.assertIn(call(f"standalone-{service}", port, 8080), campaign.forward.call_args_list)

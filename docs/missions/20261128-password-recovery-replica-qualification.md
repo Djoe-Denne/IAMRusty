@@ -163,6 +163,33 @@ confirmation through the monolith, an outage on nested companion reads,
 mesh routes beyond IAM, organization-issuer isolation, or aggregate
 fallback capacity.
 
+## Reset committed by the monolith; standalone preview stopped at Hive
+
+[Run 46141949071](https://github.com/Djoe-Denne/IAMRusty/actions/runs/46141949071)
+tested merge `07cf61e01bbb1d67e89c9ba5f974f7e3716be6f0` (PR head
+`13fe523a962f4b7876e9ad80e23c9d9ad245a75e`). The four bundles came
+from producer `46140828277`, attempt 1, with the
+[required check](https://github.com/Djoe-Denne/IAMRusty/actions/runs/46140828277/job/140969418990)
+green.
+
+- Confirmation through the nested IAM router succeeded. The first stale
+  responses were bounded by 315 ms for IAM, 312 ms for Hive, 311 ms for
+  Manifesto's protected write, and 316 ms for Telegraph and the optional
+  Hive and Manifesto reads.
+- With the writer's users table locked, the HTTP verifiers in nested
+  Hive, Manifesto, and Telegraph returned `503`. Anonymous Hive and
+  Manifesto reads continued. The database showed two successful
+  Manifesto writes (before reset and after a fresh login), with no write
+  by stale or outage requests. The workload snapshot passed again.
+- The six catalogue cases and IAM/Envoy controls completed, but the
+  overall run failed before standalone HTTP observations: standalone
+  Hive entered `CrashLoopBackOff`. The published startup diagnostic
+  did not identify the process error. Source inspection identified a
+  missing tag in the standalone `QueueConfig` table. The fix requires
+  a separate hosted run.
+- Cleanup passed with zero owned resources running, and 17 public
+  files were archived and hashed.
+
 ## Capacity qualification boundary
 
 The [fallback implementation](../../workers/ext-authz/src/authority.rs)
