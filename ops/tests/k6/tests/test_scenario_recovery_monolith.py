@@ -1,18 +1,20 @@
-import sys
-import tempfile
-import unittest
 import base64
 import hmac
 import json
+import sys
+import tempfile
+import tomllib
+import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
-import tomllib
+from unittest.mock import Mock, call
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ci"))
 from binaries import RECOVERY_ROLE, ROOT, inventory
 import inputs
-from recovery_monolith import PORT, classify_startup, create_monolith, snapshot_fixture
+from recovery_monolith import LIVENESS_ENV, PORT, STANDALONE_PORTS, classify_startup, create_monolith, create_standalone
+from recovery_monolith import snapshot_fixture
+from session_replica import IAM_URL
 
 
 class RecoveryMonolithTests(unittest.TestCase):
@@ -47,8 +49,8 @@ class RecoveryMonolithTests(unittest.TestCase):
         self.assertEqual(config["external_provider_service"]["max_retries"], 0)
         main, = pod["containers"]
         self.assertEqual(main["command"], ["/app/bin/oodhive-monolith"])
-        self.assertFalse(any(entry.get("value") == secret["K6_MONOLITH_LIVENESS"] for entry in main["env"]))
-        migration_names = set(inventory(ROOT, RECOVERY_ROLE).values()) - {"oodhive-monolith"}
+        self.assertFalse(any(entry.get("value") == secret[LIVENESS_ENV] for entry in main["env"]))
+        migration_names = {name for package, name in inventory(ROOT, RECOVERY_ROLE).items() if package.endswith("-migration")}
         self.assertEqual({entry["command"][0].split("/")[-1] for entry in pod["initContainers"]}, migration_names)
         for migration in pod["initContainers"]:
             service = migration["name"]
@@ -56,6 +58,31 @@ class RecoveryMonolithTests(unittest.TestCase):
             self.assertIn(f"/{database}?sslmode=verify-full", secret[service + "-database-url"])
             self.assertIn({"name": service.upper() + "_DATABASE__DB", "value": database}, main["env"])
         campaign.forward.assert_called_once_with("monolith", PORT, 8080)
+
+    def test_standalone_services_get_authoritative_tls_verifiers_without_the_signing_key(self):
+        values = inputs.fresh("a" * 32)
+        image = "local/k6-recovery:k6-123-1"
+        campaign = Mock(state={"values": values, "name": values["name"], "run_id": values["run_id"],
+                               "images": {"roles": {RECOVERY_ROLE: {"tag": image}}}},
+                        session_replica=SimpleNamespace(liveness_token="run-owned-capability"))
+        create_standalone(campaign, "snapshot-test-key")
+
+        name, secret = campaign.secret.call_args.args
+        self.assertEqual(set(secret), {"k6.toml", "snapshot-key", LIVENESS_ENV})
+        config = tomllib.loads(secret["k6.toml"])
+        self.assertEqual(config["auth"]["session_liveness"]["endpoint"], IAM_URL)
+        self.assertNotIn("jwt", config)
+        self.assertEqual(len(campaign.create.call_args_list), len(STANDALONE_PORTS))
+        for invocation, (service, port) in zip(campaign.create.call_args_list, STANDALONE_PORTS.items(), strict=True):
+            deployment, = invocation.args
+            pod = deployment["spec"]["template"]["spec"]
+            main, = pod["containers"]
+            self.assertEqual(main["command"], [f"/app/bin/{service}-service"])
+            self.assertEqual(pod["initContainers"], [])
+            self.assertFalse(pod["automountServiceAccountToken"])
+            self.assertIn({"name": LIVENESS_ENV, "valueFrom": {"secretKeyRef": {"name": name, "key": LIVENESS_ENV}}},
+                          main["env"])
+            self.assertIn(call(f"standalone-{service}", port, 8080), campaign.forward.call_args_list)
 
     def test_snapshot_uses_the_run_owned_database_and_workload_audience(self):
         sql = Mock()

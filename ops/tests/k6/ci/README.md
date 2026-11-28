@@ -80,8 +80,8 @@ followed by revocation of the returned session.
 An authorized same-repository PR preview may select `recovery_workloads`
 when dispatching `k6-e2e.yml` on the PR's branch. The additional native
 bundle must come from the monolith build in the same ordinary CI attempt
-as IAM, OAuthConnect, and Ext Authz. It includes the monolith executable
-and four migration binaries. Packaging verifies revision, ABI, and digest
+as IAM, OAuthConnect, and Ext Authz. It includes the monolith, three
+standalone services and four migration binaries. Packaging verifies revision, ABI, and digest
 with the existing mechanism; the hosted campaign does not invoke Cargo.
 The `/k6-e2e` comment and automatic post-merge catalogue continue to use the
 three standard bundles.
@@ -89,9 +89,12 @@ three standard bundles.
 The preview runs the real monolith in a separate owned pod with private
 backing databases for the other services. Its IAM router shares the
 authoritative writer with standalone IAM. Nested service verifiers call
-the monolith's own loopback IAM authority. The test reads IAM, Hive,
-Telegraph, and Manifesto routes before and after reset and checks the
-Manifesto anonymous response separately from a revoked bearer.
+the monolith's own loopback IAM authority. The same Hive, Telegraph and
+Manifesto checks run against their standalone deployments, which use the
+standalone IAM authority over TLS. The test checks Hive and Manifesto
+anonymous reads separately from a revoked bearer. During an independently
+witnessed authority outage, presented credentials get temporary refusals,
+anonymous reads continue, and the Manifesto write count remains unchanged.
 It also reads a seeded binding through Manifesto's separate workload JWT
 path before and after reset and checks that a platform bearer cannot use
 that path.

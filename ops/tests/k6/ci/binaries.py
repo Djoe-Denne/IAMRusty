@@ -77,6 +77,9 @@ def inventory(root, role):
         for service in ("hive", "manifesto", "telegraph", "lazaret"):
             migration = service + "-migration"
             outputs[migration] = targets[service]["outputs"][migration]
+        for service in ("hive", "manifesto", "telegraph"):
+            binary = service + "-service"
+            outputs[binary] = targets[service]["outputs"][binary]
     else:
         outputs = targets[role]["outputs"]
     require(isinstance(outputs, dict) and bool(outputs), "BINARY_INVENTORY")

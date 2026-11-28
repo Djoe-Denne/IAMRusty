@@ -28,7 +28,7 @@ import evidence
 import inputs
 import late_check
 import pki
-from recovery_monolith import create_monolith, monolith_startup_categories
+from recovery_monolith import create_monolith, create_standalone
 from runtime import Runtime, NS, hosted, write_json
 from session_cutoff import DIRECT_PORT, HostedRecovery
 from session_replica import SessionReplica
@@ -592,13 +592,11 @@ class Campaign:
             admission[case] = recovery.ordered_race(rotation_first)
             self.publish("admission.json", admission)
         if RECOVERY_ROLE in self.state["images"]["roles"]:
-            try:
-                snapshot_key = create_monolith(self)
-            except Refused:
-                admission["monolith_startup"] = monolith_startup_categories(self)
-                self.publish("admission.json", admission)
-                raise
-            admission["monolith"] = recovery.monolith(snapshot_key)
+            snapshot_key = create_monolith(self)
+            admission["monolith"] = recovery.companions(snapshot_key, nested=True)
+            self.publish("admission.json", admission)
+            create_standalone(self, snapshot_key)
+            admission["standalone_services"] = recovery.companions(snapshot_key, nested=False)
             self.publish("admission.json", admission)
 
     def run_san(self):

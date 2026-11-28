@@ -27,7 +27,7 @@ on:
         required: false
         type: string
       recovery_workloads:
-        description: Include the monolith and its database migrations in an internal PR preview
+        description: Include the monolith, companion services, and migrations in an internal PR preview
         default: false
         type: boolean
 

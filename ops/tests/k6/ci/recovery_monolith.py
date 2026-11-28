@@ -11,8 +11,18 @@ import uuid
 from binaries import RECOVERY_ROLE, Refused
 import inputs
 from runtime import NS
+from session_replica import IAM_URL
 
 PORT = 18449
+STANDALONE_PORTS = {"hive": 18450, "manifesto": 18451, "telegraph": 18452}
+LIVENESS_ENV = "K6_RECOVERY_LIVENESS"
+TLS_MOUNT = {"name": "tls", "mountPath": "/app/certs", "readOnly": True}
+CONFIG_MOUNT = {"name": "config", "mountPath": "/app/config", "readOnly": True}
+POSTGRES_ENV = [
+    {"name": "PGSSLMODE", "value": "verify-full"},
+    {"name": "PGSSLROOTCERT", "value": "/app/certs/ca.crt"},
+    {"name": "SSL_CERT_FILE", "value": "/app/certs/ca-bundle.crt"},
+]
 MIGRATIONS = {
     "hive": "hivemigration",
     "manifesto": "manifestomigration",
@@ -38,47 +48,21 @@ def create_monolith(campaign):
     loopback_iam = "http://127.0.0.1:8080/iam"
     secret = {"snapshot-key": secrets.token_hex(32)}
 
-    def from_secret(key):
-        return {"secretKeyRef": {"name": name, "key": key}}
-
     configs, _, _ = inputs.configuration(values)
     config = configs["iam"].replace('tls_enabled = true', 'tls_enabled = false', 1)
     for url in (f"https://iam.{NS}.svc.cluster.local:8443/iam", "https://127.0.0.1:18443/iam"):
         config = config.replace(f'jwks_url = "{url}/.well-known/jwks.json"',
                                 f'jwks_url = "{loopback_iam}/.well-known/jwks.json"')
     config = f'internal_service_token = "{campaign.session_replica.liveness_token}"\n' + config
-    config += f"""
-[auth.session_liveness]
-endpoint = "{loopback_iam}/internal/auth/session-liveness"
-token_env = "K6_MONOLITH_LIVENESS"
-timeout_ms = 1000
-[openfga]
-scheme = "https"
-host = "openfga.{NS}.svc.cluster.local"
-port = 8080
-[iam_service]
-base_url = "http://127.0.0.1:8080"
-api_key = ""
-timeout_seconds = 10
-[external_provider_service]
-base_url = "http://127.0.0.1:8080"
-timeout_seconds = 10
-max_retries = 0
-"""
+    config += authority_config(loopback_iam)
     pki = campaign.root / "private/pki"
     secret.update({"k6.toml": config, "platform-signing.pem": (pki / "platform-signing.pem").read_bytes(),
                    "platform-signing.pub": (pki / "platform-signing.pub").read_bytes(),
-                   "K6_MONOLITH_LIVENESS": campaign.session_replica.liveness_token})
+                   LIVENESS_ENV: campaign.session_replica.liveness_token})
     image = campaign.state["images"]["roles"][RECOVERY_ROLE]["tag"]
     campaign.r.cli("kind", ["load", "docker-image", "--name", campaign.state["cluster"], image], timeout=240)
 
-    mounts = [{"name": "tls", "mountPath": "/app/certs", "readOnly": True}]
-    postgres_env = [{"name": "PGSSLMODE", "value": "verify-full"},
-                    {"name": "PGSSLROOTCERT", "value": "/app/certs/ca.crt"},
-                    {"name": "SSL_CERT_FILE", "value": "/app/certs/ca-bundle.crt"}]
     init = []
-    env = [*postgres_env, {"name": "RUN_ENV", "value": "k6"},
-           {"name": "K6_MONOLITH_LIVENESS", "valueFrom": from_secret("K6_MONOLITH_LIVENESS")}]
     for service, executable in MIGRATIONS.items():
         service_db = database + "_" + service
         campaign.sql(f'CREATE DATABASE "{service_db}";')
@@ -87,33 +71,136 @@ max_retries = 0
             "?sslmode=verify-full&sslrootcert=/app/certs/ca.crt"
         )
         init.append(container(service, image, ["/app/bin/" + executable, "up"],
-                              [*postgres_env, {"name": "DATABASE_URL", "valueFrom": from_secret(service + "-database-url")}],
-                              mounts))
-        prefix = service.upper()
-        env.extend([
-            {"name": prefix + "_DATABASE__DB", "value": service_db},
-            {"name": prefix + "_QUEUE__ENABLED", "value": "false"},
-        ])
-    for service in ("IAM", "HIVE", "TELEGRAPH", "MANIFESTO"):
-        for field, key in (("STORE_ID", "store-id"), ("AUTHORIZATION_MODEL_ID", "model-id")):
-            env.append({"name": f"{service}_OPENFGA__{field}", "valueFrom": {
-                "configMapKeyRef": {"name": "local-full-fga", "key": key}}})
-    env.extend([
-        {"name": "TELEGRAPH_COMMUNICATION__EMAIL__PROVIDER", "value": "dummy"},
-        {"name": "TELEGRAPH_COMMUNICATION__TEMPLATE__TEMPLATE_DIR", "value": "/tmp/k6-telegraph-templates"},
-        {"name": "MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__HS256_SECRET", "valueFrom": from_secret("snapshot-key")},
-        {"name": "MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__ISSUER", "value": "aiforall-platform"},
-        {"name": "MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__AUDIENCE", "value": "manifesto-bindings"},
-        {"name": "MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__SERVICE_PRINCIPAL_ISSUER", "value": "aiforall-platform"},
-    ])
-    main = container("monolith", image, ["/app/bin/oodhive-monolith"], env,
-                     [*mounts, {"name": "config", "mountPath": "/app/config", "readOnly": True}])
-    main["readinessProbe"] = {"httpGet": {"path": "/iam/health", "port": 8080},
-                              "periodSeconds": 2, "timeoutSeconds": 2}
+                              [*POSTGRES_ENV, secret_env(name, "DATABASE_URL", service + "-database-url")],
+                              [TLS_MOUNT]))
+    main = container("monolith", image, ["/app/bin/oodhive-monolith"],
+                     service_environment(database, name, set(MIGRATIONS) | {"iam"}),
+                     [TLS_MOUNT, CONFIG_MOUNT])
+    main["readinessProbe"] = readiness("iam")
     main["ports"] = [{"name": "http", "containerPort": 8080}]
     main["resources"]["limits"]["memory"] = "1536Mi"
     campaign.secret(name, secret)
-    labels = {"aiforall.dev/k6-run": campaign.state["run_id"], "aiforall.dev/k6-role": "monolith"}
+    deploy(campaign, "monolith", PORT, main, init, [
+        tls_volume(campaign),
+        config_volume(name, ["k6.toml", "platform-signing.pem", "platform-signing.pub"]),
+    ])
+    return secret["snapshot-key"]
+
+
+def service_environment(database, name, services):
+    env = [*POSTGRES_ENV, {"name": "RUN_ENV", "value": "k6"}, secret_env(name, LIVENESS_ENV, LIVENESS_ENV)]
+    for service in sorted(services):
+        prefix = service.upper()
+        if service in MIGRATIONS:
+            env += [{"name": prefix + "_DATABASE__DB", "value": database + "_" + service},
+                    {"name": prefix + "_QUEUE__ENABLED", "value": "false"}]
+        if service != "lazaret":
+            for field, key in (("STORE_ID", "store-id"), ("AUTHORIZATION_MODEL_ID", "model-id")):
+                env.append({"name": f"{prefix}_OPENFGA__{field}", "valueFrom": {
+                    "configMapKeyRef": {"name": "local-full-fga", "key": key}}})
+    if "telegraph" in services:
+        env += [
+            {"name": "TELEGRAPH_COMMUNICATION__EMAIL__PROVIDER", "value": "dummy"},
+            {"name": "TELEGRAPH_COMMUNICATION__TEMPLATE__TEMPLATE_DIR", "value": "/tmp/k6-telegraph-templates"},
+        ]
+    if "manifesto" in services:
+        env += [
+            secret_env(name, "MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__HS256_SECRET", "snapshot-key"),
+            {"name": "MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__ISSUER", "value": "aiforall-platform"},
+            {"name": "MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__AUDIENCE", "value": "manifesto-bindings"},
+            {"name": "MANIFESTO_APPARATUS__GRANT_SNAPSHOT_AUTH__SERVICE_PRINCIPAL_ISSUER", "value": "aiforall-platform"},
+        ]
+    return env
+
+
+def readiness(service):
+    return {"httpGet": {"path": f"/{service}/health", "port": 8080},
+            "periodSeconds": 2, "timeoutSeconds": 2}
+
+
+def authority_config(iam):
+    return f"""
+[auth.session_liveness]
+endpoint = "{iam}/internal/auth/session-liveness"
+token_env = "{LIVENESS_ENV}"
+timeout_ms = 1000
+[openfga]
+scheme = "https"
+host = "openfga.{NS}.svc.cluster.local"
+port = 8080
+[iam_service]
+base_url = "{iam.removesuffix('/iam')}"
+api_key = ""
+timeout_seconds = 10
+[external_provider_service]
+base_url = "http://127.0.0.1:8080"
+timeout_seconds = 10
+max_retries = 0
+"""
+
+
+def create_standalone(campaign, snapshot_key):
+    # Each standalone process gets only its verifier material. The platform
+    # signing key and the IAM config never enter a companion pod.
+    values = campaign.state["values"]
+    image = campaign.state["images"]["roles"][RECOVERY_ROLE]["tag"]
+    _, _, target = inputs.configuration(values)
+    iam = IAM_URL.removesuffix("/internal/auth/session-liveness")
+    config = f"""[server]
+host = "0.0.0.0"
+port = 8080
+tls_enabled = false
+[auth.jwt]
+platform_issuer = "{target['issuer']}"
+allow_historical_platform_issuer = false
+audience = "{target['audience']}"
+jwks_url = "{iam}/.well-known/jwks.json"
+allowed_algorithms = ["RS256"]
+[database]
+host = "postgres.{NS}.svc.cluster.local"
+port = 5432
+db = "{values['database']}"
+[database.creds]
+username = "postgres"
+password = "{values['database_password']}"
+[logging]
+level = "error"
+filter = "error"
+[queue]
+enabled = false
+""" + authority_config(iam)
+    name = campaign.state["name"] + "-companions"
+    campaign.secret(name, {"k6.toml": config, "snapshot-key": snapshot_key,
+                           LIVENESS_ENV: campaign.session_replica.liveness_token})
+    for service, port in STANDALONE_PORTS.items():
+        role = "standalone-" + service
+        available = service_environment(values["database"], name, {service})
+        if service == "hive":
+            available.append(secret_env(name, "HIVE_IAM_SERVICE__API_KEY", LIVENESS_ENV))
+        main = container(service, image, [f"/app/bin/{service}-service"], available, [TLS_MOUNT, CONFIG_MOUNT])
+        main["readinessProbe"] = readiness(service)
+        main["ports"] = [{"name": "http", "containerPort": 8080}]
+        deploy(campaign, role, port, main, [], [tls_volume(campaign), config_volume(name, ["k6.toml"])])
+
+
+def secret_env(name, variable, key):
+    return {"name": variable, "valueFrom": {"secretKeyRef": {"name": name, "key": key}}}
+
+
+def config_volume(name, files):
+    return {"name": "config", "secret": {"secretName": name, "defaultMode": 0o440,
+            "items": [{"key": key, "path": key} for key in files]}}
+
+
+def tls_volume(campaign):
+    volume = config_volume(campaign.state["name"] + "-iam-tls", ["ca.crt", "ca-bundle.crt"])
+    volume["name"] = "tls"
+    return volume
+
+
+def deploy(campaign, role, port, main, init, volumes):
+    name = campaign.state["name"] + "-" + role
+    labels = {"aiforall.dev/k6-run": campaign.state["run_id"], "aiforall.dev/k6-role": role}
     campaign.create({
         "apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": name},
         "spec": {"replicas": 1, "selector": {"matchLabels": labels}, "template": {
@@ -121,24 +208,20 @@ max_retries = 0
             "spec": {"automountServiceAccountToken": False, "securityContext": {
                 "runAsNonRoot": True, "runAsUser": 1000, "runAsGroup": 1000, "fsGroup": 1000,
                 "seccompProfile": {"type": "RuntimeDefault"}},
-                "initContainers": init, "containers": [main], "volumes": [
-                    {"name": "tls", "secret": {"secretName": campaign.state["name"] + "-iam-tls", "defaultMode": 0o440,
-                     "items": [{"key": key, "path": key} for key in ("ca.crt", "ca-bundle.crt")]}},
-                    {"name": "config", "secret": {"secretName": name, "defaultMode": 0o440,
-                     "items": [{"key": key, "path": key} for key in ("k6.toml", "platform-signing.pem",
-                                                                   "platform-signing.pub")]}},
-                ]},
+                "initContainers": init, "containers": [main], "volumes": volumes},
         }},
     })
-    campaign.rollout(name)
-    campaign.forward("monolith", PORT, 8080)
-    return secret["snapshot-key"]
-
-
-def monolith_startup_categories(campaign):
     try:
-        pod = campaign.pod("monolith")
-        raw = campaign.r.k(["logs", pod["metadata"]["name"], "--container=monolith",
+        campaign.rollout(name)
+    except Refused as error:
+        raise Refused(f"{error}:{role}:{','.join(startup_categories(campaign, role, main['name']))}") from None
+    campaign.forward(role, port, 8080)
+
+
+def startup_categories(campaign, role, container_name):
+    try:
+        pod = campaign.pod(role)
+        raw = campaign.r.k(["logs", pod["metadata"]["name"], "--container=" + container_name,
                             "--previous", "--tail=60", "--limit-bytes=16384"], timeout=10)
     except Refused:
         return ["LOG_UNAVAILABLE"]

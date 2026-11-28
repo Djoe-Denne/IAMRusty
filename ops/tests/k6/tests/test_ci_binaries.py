@@ -390,6 +390,8 @@ class PackagingTests(unittest.TestCase):
     def test_recovery_inventory_includes_monolith_and_closed_companion_binaries(self):
         self.assertEqual(b.inventory(b.ROOT, b.RECOVERY_ROLE), {
             "oodhive-monolith": "oodhive-monolith",
+            "hive-service": "hive-service", "manifesto-service": "manifesto-service",
+            "telegraph-service": "telegraph-service",
             "hive-migration": "hivemigration",
             "manifesto-migration": "manifestomigration",
             "telegraph-migration": "telegraphmigration",

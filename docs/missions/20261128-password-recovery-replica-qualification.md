@@ -116,8 +116,9 @@ remains unqualified on the actual monolith and the non-IAM route families.
 ## Monolith preview: binary and migrations verified; boot failed
 
 [Run 46136906840](https://github.com/Djoe-Denne/IAMRusty/actions/runs/46136906840)
-used PR head `c615f5011ba08ec79198dde10013f2e64457c994` and the four
-artifact bundles from [producer CI 46135706916](https://github.com/Djoe-Denne/IAMRusty/actions/runs/46135706916).
+tested merge `fade7eb37ff9bbb0496c7a6b7e319492a577d137` (PR head
+`c615f5011ba08ec79198dde10013f2e64457c994`) and the four artifact bundles
+from [producer CI 46135706916](https://github.com/Djoe-Denne/IAMRusty/actions/runs/46135706916).
 The required CI check was green. The preview ran the six catalogue cases
 and repeated the direct IAM and Envoy witnesses. Healthy mesh first denied
 by 771 ms with zero IAM fallback calls; with apply stalled, first denial

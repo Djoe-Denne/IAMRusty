@@ -14,7 +14,7 @@ from urllib.parse import quote, urlencode
 
 from binaries import Refused, require, strict_json
 from late_check import PORT as LATE_PORT
-from recovery_monolith import PORT as MONOLITH_PORT, snapshot_fixture
+from recovery_monolith import PORT as MONOLITH_PORT, STANDALONE_PORTS, snapshot_fixture
 
 AUTHORITY_COUNTER = "cluster.session_authority.upstream_rq_total"
 IAM_DOWNSTREAM_COUNTER = "cluster.iam.upstream_rq_total"
@@ -114,7 +114,7 @@ class HostedRecovery:
             headers["Content-Type"] = "application/json"
         if token is not None:
             headers["Authorization"] = "Bearer " + token
-        if port in (DIRECT_PORT, MONOLITH_PORT):
+        if port in (DIRECT_PORT, MONOLITH_PORT) or port in STANDALONE_PORTS.values():
             connection = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
         else:
             connection = http.client.HTTPSConnection("127.0.0.1", port, timeout=timeout, context=self.tls)
@@ -454,24 +454,34 @@ class HostedRecovery:
         require(self.profile(fresh, DIRECT_PORT) == 200, "E2E_RESET_HTTP_WRITER_FRESH_ACCESS")
         return {"commit_status": reset_status, "renewal_status": renew_status, "writer_order_observed": True}
 
-    def monolith(self, snapshot_key):
-        _, old, refresh = self.make_account("monolith")
+    def companions(self, snapshot_key, *, nested):
+        mode = "monolith" if nested else "standalone"
+        _, old, refresh = self.make_account(mode)
         routes = {
-            "iam": "/api/me",
-            "hive": "/api/organizations",
-            "manifesto": "/api/projects",
-            "telegraph": "/api/notifications/unread-count",
+            "hive": ("hive", "GET", "/api/organizations", 200),
+            "hive_optional": ("hive", "GET", "/api/organizations/search?query=recovery", 200),
+            "manifesto": ("manifesto", "POST", "/api/projects", 201),
+            "manifesto_optional": ("manifesto", "GET", "/api/projects", 200),
+            "telegraph": ("telegraph", "GET", "/api/notifications/unread-count", 200),
         }
+        if nested:
+            routes["iam"] = ("iam", "GET", "/api/me", 200)
+        optional = ("hive_optional", "manifesto_optional")
 
-        def status(service, token):
-            return self.request("GET", routes[service], port=MONOLITH_PORT, service=service, token=token)[0]
+        def port(service):
+            return MONOLITH_PORT if nested else STANDALONE_PORTS[service]
 
-        snapshot, project, component, workload = snapshot_fixture(
-            self.campaign.sql, self.replica.writer + "_manifesto", self.subject, snapshot_key)
+        def status(route, token, phase):
+            service, method, path, _ = routes[route]
+            payload = {"name": f"k6-{mode}-{phase}-{self.subject}", "owner_type": "personal"} if method == "POST" else None
+            return self.request(method, path, payload=payload, port=port(service), service=service, token=token)[0]
+
+        database = self.replica.writer + "_manifesto"
+        snapshot, project, component, workload = snapshot_fixture(self.campaign.sql, database, self.subject, snapshot_key)
 
         def verify_workload(platform):
             def request(token):
-                return self.request("GET", snapshot, port=MONOLITH_PORT, service="manifesto", token=token)
+                return self.request("GET", snapshot, port=port("manifesto"), service="manifesto", token=token)
             code, body = request(workload)
             require(code == 200, f"E2E_RESET_WORKLOAD_SNAPSHOT:{code}")
             result = strict_json(body)
@@ -479,10 +489,11 @@ class HostedRecovery:
                     and result.get("source") == "legacy", "E2E_RESET_WORKLOAD_SNAPSHOT_CONTENT")
             require(request(platform)[0] == 401, "E2E_RESET_WORKLOAD_ACCEPTED_PLATFORM_JWT")
 
-        for service in routes:
-            code = status(service, old)
-            require(code == 200, f"E2E_RESET_MONOLITH_LIVE:{service}:{code}")
-        require(status("manifesto", None) == 200, "E2E_RESET_MONOLITH_ANONYMOUS")
+        for route, (_, _, _, expected) in routes.items():
+            code = status(route, old, "before")
+            require(code == expected, f"E2E_RESET_COMPANION_LIVE:{mode}:{route}:{code}")
+        for route in optional:
+            require(status(route, None, "before") == 200, f"E2E_RESET_COMPANION_ANONYMOUS:{mode}:{route}")
         verify_workload(old)
         self.post("/api/auth/password/reset-request", {"email": self.email}, 200)
         proof = self.event_token("password_reset_requested", "reset_token")
@@ -491,16 +502,47 @@ class HostedRecovery:
         confirmation = self.post("/api/auth/password/reset-confirm", {"token": proof, "new_password": password}, 200)
         require(confirmation == {"message": "Password has been successfully reset"}, "E2E_RESET_MONOLITH_CONFIRM")
         recorded = {}
-        for service in routes:
-            witness = observe(lambda: status(service, old))
-            upper_ms = (witness.completed_ns - lower + 999_999) // 1_000_000
-            require(witness.status == 401 and upper_ms <= 5000, f"E2E_RESET_MONOLITH_CUTOFF:{service}:{witness.status}")
-            recorded[service] = upper_ms
-        require(status("manifesto", None) == 200, "E2E_RESET_MONOLITH_ANONYMOUS_AFTER_RESET")
+        with ThreadPoolExecutor(max_workers=len(routes)) as worker:
+            checks = {route: worker.submit(observe, lambda route=route: status(route, old, "stale")) for route in routes}
+            for route, check in checks.items():
+                witness = check.result()
+                upper_ms = (witness.completed_ns - lower + 999_999) // 1_000_000
+                require(witness.status == 401,
+                        f"E2E_RESET_COMPANION_CUTOFF:{mode}:{route}:{witness.status}")
+                require(upper_ms <= 5000, f"E2E_RESET_COMPANION_TIMING_INCONCLUSIVE:{mode}:{route}")
+                recorded[route] = upper_ms
+        for route in optional:
+            require(status(route, None, "stale") == 200, f"E2E_RESET_COMPANION_ANONYMOUS_AFTER_RESET:{mode}:{route}")
         self.post("/api/token/refresh", {"refresh_token": refresh}, 401)
         fresh, _ = self.login(password, "1")
-        for service in routes:
-            require(status(service, fresh) == 200, f"E2E_RESET_MONOLITH_FRESH:{service}")
+        # Hold only the authority's users table. Companion data stays
+        # reachable; an anonymous optional read must keep working.
+        with ThreadPoolExecutor(max_workers=len(routes) + 1) as worker:
+            hold = worker.submit(self.campaign.sql, "BEGIN; SET LOCAL lock_timeout='3s'; "
+                                 "LOCK TABLE public.users IN ACCESS EXCLUSIVE MODE; "
+                                 "SELECT pg_sleep(7); ROLLBACK;", self.replica.writer, record_stage=False)
+            def locked():
+                return self.lock_held("users", "AccessExclusiveLock", self.replica.writer)
+
+            wait_for(locked, f"E2E_RESET_COMPANION_OUTAGE_UNPROVEN:{mode}", 4)
+            # IAM's in-process check may rely on the outer HTTP bound; the
+            # separate deployed outage assertion is for the three HTTP readers.
+            checks = {route: worker.submit(status, route, fresh, "outage") for route in routes if route != "iam"}
+            for route, check in checks.items():
+                code = check.result()
+                require(code == 503, f"E2E_RESET_COMPANION_OUTAGE:{mode}:{route}:{code}")
+            for route in optional:
+                require(status(route, None, "outage") == 200, f"E2E_RESET_COMPANION_ANONYMOUS_OUTAGE:{mode}:{route}")
+            require(locked(), f"E2E_RESET_COMPANION_OUTAGE_EARLY_RELEASE:{mode}")
+            hold.result()
+        for route, (_, _, _, expected) in routes.items():
+            require(status(route, fresh, "fresh") == expected, f"E2E_RESET_COMPANION_FRESH:{mode}:{route}")
+            require(status(route, old, "restored") == 401, f"E2E_RESET_COMPANION_RESTORED_STALE:{mode}:{route}")
+        count = self.campaign.sql(
+            "SELECT count(*) FROM public.projects "
+            f"WHERE owner_id = '{self.subject}' AND name LIKE 'k6-{mode}-%';", database)
+        require(count == "2", f"E2E_RESET_COMPANION_MANIFESTO_WRITE_COUNT:{mode}")
         verify_workload(fresh)
         return {"first_denial_upper_bound_ms": recorded, "optional_anonymous": True,
+                "authority_outage_status": 503, "protected_writes": 2,
                 "workload_snapshot_before_and_after": True, "platform_jwt_rejected_on_workload_path": True}
