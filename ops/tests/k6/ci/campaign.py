@@ -571,6 +571,9 @@ class Campaign:
         self.publish("admission.json", admission)
         admission["session_recovery_degraded"] = recovery.degraded()
         self.publish("admission.json", admission)
+        for case, rotation_first in (("renewal_first", True), ("reset_first", False)):
+            admission[case] = recovery.ordered_race(rotation_first)
+            self.publish("admission.json", admission)
 
     def run_san(self):
         self.scenario("auth-envoy-san-good")

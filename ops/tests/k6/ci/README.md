@@ -51,18 +51,27 @@ gateway certificate. Both observe the old and new password sessions against
 the same writer. The nominal case also rotates the old session after requesting
 reset and verifies that confirmation revokes the replacement. Fresh gateway
 decision totals and a separate mTLS Envoy authority listener corroborate
-the source of mesh verdicts.
+the source of mesh verdicts. The nominal case also verifies the signed-in
+password-change exception and uses the run-only signer to witness a legacy
+JWT without an epoch claim.
 The degraded case locks checkpoint writes on the subscriber, leaving reads
 and readiness available, checks the writer and subscriber epochs independently,
-and verifies replica admission again after the lock ends. Measurements begin
-before the confirmation request; only statuses, counts, and relative times are
-retained in the public receipt.
+and verifies replica admission again after the lock ends. With apply still
+paused, a separate timed writer lock blocks the authoritative read. The
+presented current token must get `503` without reaching IAM's protected route.
+Measurements begin before the confirmation request; only statuses, counts,
+and relative times are retained in the public receipt.
 
 A test listener uses the same one-second Check filter and IAM profile route.
 Its relay receives a real positive Check from the gateway, then attempts to
 deliver it after at least 1.25 seconds. The receipt requires Envoy's `503`,
 the relay's late-positive witness, no new requests in the IAM downstream
 cluster, and a subsequent successful control on the normal listener.
+
+The two concurrent HTTP writer cases hold the test account row and verify
+the order of the blocked renewal and reset statements before releasing it.
+The receipt distinguishes reset-first refusal from rotation-first success
+followed by revocation of the returned session.
 
 ## Run the complete campaign on a PR
 
